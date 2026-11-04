@@ -22,18 +22,62 @@ the same way here.
 Anelastic compatibility
 -----------------------
 
+``SuperDroplets`` uses a thermodynamic pressure source selected independently
+on each AMR level. On a level with ``erf.anelastic = 1``, the pressure supplied
+to the super-droplet microphysics is the hydrostatic base-state pressure at
+each cell, rather than a pressure diagnosed from the compressible equation of
+state. ERF diagnoses the temperature from dry potential temperature using
+
+.. math::
+
+   \theta = \frac{\rho_d\theta}{\rho_d}, \qquad
+   p_{\mathrm{SDM}} = p_{\mathrm{base}}, \qquad
+   T = \theta\left(\frac{p_{\mathrm{base}}}{p_{\mathrm{ref}}}\right)^{R_d/c_p}.
+
+Here :math:`\rho_d` is dry-air density, :math:`p_{\mathrm{base}}` is the
+cellwise hydrostatic base-state pressure, :math:`p_{\mathrm{ref}}=10^5` Pa is
+the fixed reference pressure used to define potential temperature, and
+:math:`c_p` is the configured ``erf.c_p``. These pressures are in pascals.
+No additional pressure or Exner-function input is required.
+
+During an anelastic SDM microphysics source step, the pressure remains the
+base-state pressure while the temperature is refreshed from the updated
+potential temperature after each phase-change substep. Latent heating uses
+the fixed inverse Exner factor for every process, including sequential
+processes within a substep:
+
+.. math::
+
+   \Delta\theta =
+   \left(\frac{p_{\mathrm{ref}}}{p_{\mathrm{base}}}\right)^{R_d/c_p}
+   \frac{L}{c_p}\,\Delta q.
+
+Here :math:`\Delta q` is the existing signed, dry-air-referenced mass transfer
+and :math:`L` is the corresponding latent heat. This pressure and temperature
+are supplied consistently to the scheme's saturation, phase-change,
+terminal-velocity, and collision calculations. On compressible levels, SDM
+retains its existing local equation-of-state diagnosis and latent-source
+arithmetic.
+
+For example, with a particles-enabled build:
+
+.. code-block:: text
+
+   erf.anelastic = 1
+   erf.moisture_model = SuperDroplets
+
+Other restrictions imposed by the selected mesh, solver, particle options,
+and AMR configuration still apply. Support for anelastic thermodynamic
+coupling does not by itself constitute quantitative validation of an SDM
+cloud-microphysics simulation.
+
 .. warning::
 
-   ``SuperDroplets`` cannot currently be used in a simulation in which any AMR
-   level has ``erf.anelastic = 1``. ERF detects this combination during input
-   validation and exits with an error.
-
-   Use ``SuperDroplets`` with compressible dynamics, or choose a supported
-   Eulerian microphysics scheme for an anelastic simulation.
-
-The current Super-Droplet thermodynamic coupling uses the compressible equation
-of state and does not consume the hydrostatic base-state pressure used by
-anelastic Eulerian microphysics.
+   Checkpoint/restart parity remains unresolved for mixed hierarchies with
+   compressible coarse dynamics and anelastic fine dynamics. Single-precision
+   ice and additional-species process qualification is also incomplete.
+   The thermodynamic coupling described here does not establish reproducibility
+   or numerical validity for these configurations.
 
 Species transport and diffusion
 -------------------------------

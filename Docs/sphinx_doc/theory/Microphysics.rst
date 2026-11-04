@@ -86,9 +86,15 @@ prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 Anelastic microphysics thermodynamics
 -------------------------------------
 
-ERF supplies the thermodynamic pressure needed by supported Eulerian
-microphysics schemes. No additional pressure field or scheme-specific pressure
-unit conversion is required in the input file.
+ERF supplies the thermodynamic pressure used by supported Eulerian
+microphysics schemes and by ``SuperDroplets``. On each anelastic AMR level,
+pressure-dependent microphysics uses the cellwise hydrostatic base-state
+pressure; on compressible levels, it retains the local equation-of-state
+pressure diagnosis. The selection is per level, not inferred from the
+presence of a base-state pointer. The potential-temperature and temperature
+relationship below applies to both the Eulerian and SuperDroplets anelastic
+thermodynamic coupling. No additional pressure field or scheme-specific
+pressure unit conversion is required in the input file.
 
 On each anelastic AMR level (``erf.anelastic = 1``), pressure-dependent
 microphysics uses the hydrostatic base-state pressure at each cell. Let
@@ -135,9 +141,11 @@ specify only the usual model and dynamics options. For example:
    erf.anelastic = 1
    erf.moisture_model = WSM6
 
-``erf.anelastic`` may also be specified per AMR level. ``SuperDroplets`` is not
-supported when any AMR level is anelastic; see
-:ref:`superdroplets-anelastic-compatibility`.
+``erf.anelastic`` may also be specified per AMR level. ``SuperDroplets`` uses
+pressure in Pa and diagnoses anelastic temperature from the same base-state
+pressure; see :ref:`superdroplets-anelastic-compatibility` for its thermodynamic
+and particle-process coupling, including the fixed inverse Exner factor for
+latent heating.
 
 Surface precipitation accumulations
 -----------------------------------

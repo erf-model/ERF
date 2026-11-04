@@ -1829,6 +1829,43 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
             PROCESSORS ${_species_ranks} LABELS "regression;diffusion;particles"
             ATTACHED_FILES_ON_FAIL "${_species_dir}/implicit/simulation.log;${_species_dir}/explicit/simulation.log")
     endforeach()
+    foreach(_case phase regrid_splitmerge initialization)
+        set(_anelastic_name "SDM_Anelastic_${_case}")
+        set(_anelastic_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${_anelastic_name}")
+        file(MAKE_DIRECTORY "${_anelastic_dir}")
+        add_test(NAME ${_anelastic_name}
+            COMMAND "${Python3_EXECUTABLE}" "${_species_input}/check_species_diffusion.py"
+                "--exe=$<TARGET_FILE:erf_exec>"
+                "--input=${_species_input}/SDM_SpeciesDiffusion.i"
+                "--reader-dir=${PROJECT_SOURCE_DIR}/Exec/Tools"
+                "--case=${_case}" "--tolerance=${_species_tol}" --anelastic
+                "--mpi-exec=${_species_mpi_exec}"
+                "--mpi-numproc-flag=${MPIEXEC_NUMPROC_FLAG}"
+                "--mpi-preflags=${_species_mpi_preflags}" "--ranks=${_species_ranks}")
+        set_tests_properties(${_anelastic_name} PROPERTIES
+            WORKING_DIRECTORY "${_anelastic_dir}" TIMEOUT 600
+            PROCESSORS ${_species_ranks} LABELS "regression;anelastic;particles")
+    endforeach()
+    set(_anelastic_options "erf.input_sounding_file=${_species_input}/input_sounding erf.c_p=1200 erf.Cs=2 super_droplets_moisture.include_phase_change=true super_droplets_moisture.num_substeps_phase_change=2 super_droplets_moisture.initial_phase_change_relaxation=true super_droplets_moisture.initial_phase_change_relaxation_time=0.02")
+    add_test_restart_parity(SDM_Anelastic_Restart SDM_SpeciesDiffusion 2 4
+        COMMON_OPTIONS "${_anelastic_options} erf.anelastic=1"
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    set(_anelastic_amr "amr.max_level=1 amr.ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=0 0 0 erf.box1.in_box_hi=8 4 8 erf.regrid_int=1")
+    add_test_restart_parity(SDM_Anelastic_AMRRestart SDM_SpeciesDiffusion 2 4
+        COMMON_OPTIONS "${_anelastic_options} ${_anelastic_amr} erf.anelastic=1"
+        CHK_NRANKS 1 RESTART_NRANKS ${_species_ranks}
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    foreach(_modes "0 1" "1 0")
+        string(REPLACE " " "" _mode_name "${_modes}")
+        add_test_restart_parity(SDM_Anelastic_Mixed${_mode_name}Restart SDM_SpeciesDiffusion 2 4
+            COMMON_OPTIONS "${_anelastic_options} ${_anelastic_amr} erf.anelastic=${_modes}"
+            FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    endforeach()
+    add_test_box_parity(SDM_Anelastic_BoxParity SDM_SpeciesDiffusion plt00004
+        COMMON_OPTIONS "${_anelastic_options} erf.anelastic=1"
+        REFERENCE_OPTIONS "amr.max_grid_size=32"
+        SPLIT_OPTIONS "amr.max_grid_size_x=4"
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
     # Motivation: Restart must preserve authoritative vapor and particle-owned
     # condensate so resumed diffusion matches uninterrupted evolution.
     add_test_restart_parity(SDM_SpeciesDiffusion_Restart SDM_SpeciesDiffusion 2 4

@@ -10,14 +10,26 @@ using namespace amrex;
 /*! \brief Define the super-droplet moisture model parameters from provided inputs
  *
  * This function initializes basic model parameters from the solver choices object.
- * Currently it only sets the specific heat capacity (Cp) from the solver choices.
  *
  * \param[in] a_sc Solver choices containing model configuration parameters
  */
 void SuperDropletsMoist::Define (SolverChoice& a_sc)
 {
     BL_PROFILE("SuperDropletsMoist::Define()");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(a_sc.c_p) && a_sc.c_p > Real(0),
+                                     "SDM requires finite positive c_p");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(a_sc.rdOcp == R_d / a_sc.c_p &&
+                                     std::isfinite(a_sc.rdOcp) && a_sc.rdOcp > Real(0),
+                                     "SDM requires rdOcp = R_d/c_p");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!a_sc.anelastic.empty(),
+                                     "SDM requires per-level anelastic configuration");
+    for (int mode : a_sc.anelastic) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(mode == 0 || mode == 1,
+                                         "SDM anelastic selectors must be 0 or 1");
+    }
     m_Cp = a_sc.c_p;
+    m_rdOcp = a_sc.rdOcp;
+    m_anelastic = a_sc.anelastic;
 }
 
 /*! \brief Read model configuration parameters from input file

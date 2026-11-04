@@ -30,6 +30,8 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
                                        const int a_lev )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange()");
+    const bool use_base = uses_anelastic_reference_pressure(a_lev);
+    const Real rdOcp = m_rdOcp;
     auto dt_s = a_dt / static_cast<Real>(m_num_substeps_phase_change);
 
     // Mask of cells not covered by a finer level.  Built once and shared by
@@ -69,11 +71,15 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                t_arr(i,j,k,0) = getTgivenRandRTh( rho_arr(i,j,k,0),
+                if (use_base) {
+                    t_arr(i,j,k,0) = getTgivenPandTh(p_arr(i,j,k,0), theta_arr(i,j,k,0), rdOcp);
+                } else {
+                    t_arr(i,j,k,0) = getTgivenRandRTh( rho_arr(i,j,k,0),
                                                    rho_arr(i,j,k,0)*theta_arr(i,j,k,0),
                                                    qv_arr(i,j,k,0) );
-                p_arr(i,j,k,0) = getPgivenRTh( rho_arr(i,j,k,0)*theta_arr(i,j,k,0),
+                    p_arr(i,j,k,0) = getPgivenRTh( rho_arr(i,j,k,0)*theta_arr(i,j,k,0),
                                                qv_arr(i,j,k,0) );
+                }
             });
         }
 
@@ -117,6 +123,8 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
                                             const iMultiFab& fine_mask )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange_LV_w()");
+    const bool use_base = uses_anelastic_reference_pressure(a_lev);
+    const Real rdOcp = m_rdOcp;
 
     auto& species = m_species[m_idx_w];
     auto& species_mat = m_super_droplets->getSpeciesMaterial(species);
@@ -195,6 +203,7 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
 
         auto theta_arr = m_mic_fab_vars[a_lev][MicVar_SD::theta]->array(mfi);
         auto T_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->const_array(mfi);
+        auto p_arr = m_mic_fab_vars[a_lev][MicVar_SD::pressure]->const_array(mfi);
         auto dqc_arr = m_mic_fab_vars[a_lev][MicVar_SD::dqcdt]->array(mfi);
 
         auto mask_arr = fine_mask.const_array(mfi);
@@ -224,7 +233,8 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
 
             dqc_arr(i,j,k) = - (qv_arr(i,j,k) - old_qv) / a_dt;
 
-            auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
+            auto theta_over_T = sdm_theta_per_temperature(
+                theta_arr(i,j,k), T_arr(i,j,k), p_arr(i,j,k), rdOcp, use_base);
             theta_arr(i,j,k) += theta_over_T * fac_cond * (old_qv-qv_arr(i,j,k));
         });
     }
@@ -242,6 +252,8 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
                                             const iMultiFab& fine_mask )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange_LV_s()");
+    const bool use_base = uses_anelastic_reference_pressure(a_lev);
+    const Real rdOcp = m_rdOcp;
 
     auto& species = m_species[a_idx];
     auto& species_mat = m_super_droplets->getSpeciesMaterial(species);
@@ -302,6 +314,7 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
 
         auto theta_arr = m_mic_fab_vars[a_lev][MicVar_SD::theta]->array(mfi);
         auto T_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->const_array(mfi);
+        auto p_arr = m_mic_fab_vars[a_lev][MicVar_SD::pressure]->const_array(mfi);
         auto L_by_Cp = species_mat.m_lat_vap / m_Cp;
 
         auto mask_arr = fine_mask.const_array(mfi);
@@ -319,7 +332,8 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
             AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= 0.0);
             AMREX_ALWAYS_ASSERT(qc_arr(i,j,k) >= 0.0);
 
-            auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
+            auto theta_over_T = sdm_theta_per_temperature(
+                theta_arr(i,j,k), T_arr(i,j,k), p_arr(i,j,k), rdOcp, use_base);
             theta_arr(i,j,k) += theta_over_T * L_by_Cp * (old_qv-qv_arr(i,j,k));
         });
 
@@ -336,6 +350,8 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
                                             const iMultiFab& fine_mask )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange_SL_w()");
+    const bool use_base = uses_anelastic_reference_pressure(a_lev);
+    const Real rdOcp = m_rdOcp;
 
     auto& species = m_species[m_idx_w];
     auto& species_mat = m_super_droplets->getSpeciesMaterial(species);
@@ -428,6 +444,7 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
 
         auto theta_arr = m_mic_fab_vars[a_lev][MicVar_SD::theta]->array(mfi);
         auto T_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->const_array(mfi);
+        auto p_arr = m_mic_fab_vars[a_lev][MicVar_SD::pressure]->const_array(mfi);
 
         auto mask_arr = fine_mask.const_array(mfi);
 
@@ -443,7 +460,8 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
 
             auto dq_liquid = q_liquid_old - q_liquid;
 
-            auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
+            auto theta_over_T = sdm_theta_per_temperature(
+                theta_arr(i,j,k), T_arr(i,j,k), p_arr(i,j,k), rdOcp, use_base);
             theta_arr(i,j,k) += theta_over_T * fac_cond * dq_liquid;
         });
     }
@@ -462,6 +480,8 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
                                             const iMultiFab& fine_mask )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange_SV_i()");
+    const bool use_base = uses_anelastic_reference_pressure(a_lev);
+    const Real rdOcp = m_rdOcp;
 
     auto& species = m_species[m_idx_i];
     auto& species_mat = m_super_droplets->getSpeciesMaterial(species);
@@ -579,6 +599,7 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
 
         auto theta_arr = m_mic_fab_vars[a_lev][MicVar_SD::theta]->array(mfi);
         auto T_arr = m_mic_fab_vars[a_lev][MicVar_SD::temperature]->const_array(mfi);
+        auto p_arr = m_mic_fab_vars[a_lev][MicVar_SD::pressure]->const_array(mfi);
 
         auto mask_arr = fine_mask.const_array(mfi);
 
@@ -611,7 +632,8 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
             AMREX_ALWAYS_ASSERT(qg_arr(i,j,k) >= 0.0);
             AMREX_ALWAYS_ASSERT(qs_arr(i,j,k) >= 0.0);
 
-            auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
+            auto theta_over_T = sdm_theta_per_temperature(
+                theta_arr(i,j,k), T_arr(i,j,k), p_arr(i,j,k), rdOcp, use_base);
             theta_arr(i,j,k) += theta_over_T * fac_cond * (old_qv-qv_arr(i,j,k));
         });
     }
