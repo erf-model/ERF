@@ -434,6 +434,32 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,mf_u,mf_v,
                                          z_nd_arr,dxInv,bccomp_u, bccomp_v, bccomp_w, m_terrain_type, time);
             }
+
+            //
+            // The faces beyond the bottom and top boundary faces are not set above, so
+            //    give them the value on the boundary face.  Nothing else fills them: on
+            //    a level > 0 FillPatchTwoLevels does not fill outside the domain, and
+            //    ERF::Advance has set them to bogus_large_value.  The EB wall slopes
+            //    read w at k = -1 where the EB meets the bottom boundary (issue #4876).
+            //
+            if (!m_geom.isPeriodic(2)) {
+                Array4<Real> const& velz_arr = mf.array(mfi);
+                Box gbx = mfi.fabbox() & surroundingNodes(bx,2).grow(nghost);
+                const int klo = domain.smallEnd(2);
+                const int khi = domain.bigEnd(2)+1;
+                if (gbx.smallEnd(2) < klo) {
+                    Box bx_zlo(gbx); bx_zlo.setBig(2,klo-1);
+                    ParallelFor(bx_zlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        velz_arr(i,j,k) = velz_arr(i,j,klo);
+                    });
+                }
+                if (gbx.bigEnd(2) > khi) {
+                    Box bx_zhi(gbx); bx_zhi.setSmall(2,khi+1);
+                    ParallelFor(bx_zhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        velz_arr(i,j,k) = velz_arr(i,j,khi);
+                    });
+                }
+            }
         } // MFIter
     } // OpenMP
 } // operator()

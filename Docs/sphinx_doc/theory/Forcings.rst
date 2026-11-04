@@ -352,8 +352,9 @@ equation is solved with GMRES, preconditioned by the FFT Poisson solve, so it ne
 constant-:math:`\Delta z` mesh with map factors of one and a build with FFT. The source term then drops
 its drag, and the solid faces are not zeroed after the projection: the projected momenta are
 divergence free in every cell, the solid included. The pressure gradient kept for the next step is
-:math:`\nabla\phi / \Delta t` itself. This option is available for terrain immersed forcing only, not
-for buildings.
+:math:`\nabla\phi / \Delta t` itself. The same option applies to immersed-forcing buildings (see
+:ref:`below <sec:IFBuildingsImplicitProjection>`), but not to terrain and buildings immersed forcing
+together.
 
 Temperature forcing is also available to represent the temperature of the 'surface'.
 The user can specify either a surface temperature and heating rate, a surface flux, or an Obukhov length.
@@ -529,7 +530,45 @@ Inputs that can be used with immersed forcing for buildings are as follows:
         erf.if_use_most                = BOOL
         erf.if_stability_correction    = BOOL
         erf.if_implicit_drag           = BOOL
+        erf.if_implicit_projection     = BOOL
         erf.immersed_forcing_substep   = BOOL
+
+.. _sec:IFBuildingsImplicitProjection:
+
+With the anelastic solver the building faces are held by the projection as the terrain faces are
+(see above). By default the drag is a source term and the faces between two solid cells are set to
+zero after the projection, so the partial cells at the walls and the roof (and, when a box edge is
+not on a cell mid-plane, the solid cells next to them) keep a divergence that advects a uniform
+:math:`\theta` into a spurious source.
+``erf.if_implicit_projection = true`` applies the linear drag of the building kernels inside the
+projection instead: :math:`r = w\, C_{d,m} / \sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}` on each
+face, without the cap :math:`\min(1, U)` the source term applies, with :math:`w` the weight of the
+kernel's drag toward zero on that face: the blanking :math:`\beta_f` on a partial face without a
+wall law (a partial wall face of :math:`u` or :math:`v` not under the MOST law, or the roof face of
+:math:`w`), one on an interior face, and one on every face between two solid cells, which the
+explicit treatment zeroes after the projection. The MOST wall law itself adds no weight: a
+horizontal wall-law face has :math:`w = 0`, and a :math:`w`-face on the roof row that carries a side
+wall law keeps the roof weight :math:`\beta_f`. The kernels then apply the wall law only, on the
+partial faces that carry it, and the solid faces are not zeroed afterwards. The requirements are
+those of the terrain case: a constant-:math:`\Delta z` mesh, map factors of one, ``erf.anelastic = 1``
+on every level and a build with FFT. A level coarser than the 50 m cutoff of the building forcing
+(:math:`\sqrt{\Delta x \Delta y} > 50` m) has no building blanking, and its faces keep
+:math:`\sigma = 1`. As for terrain, the faces on a non-periodic lateral domain boundary and on a
+coarse/fine boundary keep :math:`\sigma = 1` and take their data from the boundary condition or the
+coarse level. The ``ImmersedBuildingHeatBalance`` test (a box building whose walls and roof are
+half-solid cells, uniform :math:`\theta`, four unequal boxes, 20 steps) requires the fluid-mass-weighted
+mean :math:`\theta` of the domain to stay within 1e-6 K of its start with the implicit projection,
+with and without ``erf.if_snap_partial_cells``, and checks that the explicit treatment exceeds that
+(0.012 K measured). Two limits of the option, shared with the terrain case: a partial face of
+:math:`w` on the roof row that carries a side wall law takes that law from the source term and the
+roof drag from the projection, so its equilibrium velocity is lower than with both in one term
+(by a factor :math:`1/(1 + \mu\,\Delta t)` with :math:`\mu` the law's rate); and the fully
+solid cells still hold their :math:`\rho` and :math:`\rho\theta` while the small flow through them
+(about :math:`0.5` m/s at :math:`C_{d,m} = 50` on 20 m cells) carries :math:`\rho\theta` in and
+out of them, so with a non-uniform :math:`\theta` the building acts as a reservoir at its initial
+value. Dropping the cap also makes the drag on a partial face in a slow wake (:math:`U < 1` m/s)
+stronger than the source term's. See
+`erf-model/ERF#4887 <https://github.com/erf-model/ERF/issues/4887>`_.
 
 The default drag coefficients are different when using the fully compressible solver compared to the anelastic solver.
 This is because the timestep used for the anelastic solver is typically much coarser compared to the substep timestep for the fully compressible solver.

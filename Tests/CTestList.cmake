@@ -214,11 +214,12 @@ function(add_test_immersed_average_down TEST_NAME TEST_FILES_DIR TOL EXPECT_CHEC
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_immersed_average_down)
 
-# Run a two-level immersed-forcing case and check the fluid-mass-weighted mean theta of its
+# Run a one- or two-level immersed-forcing case and check the fluid-mass-weighted mean theta of its
 # plotfile against THETA0 (Tests/ImmersedCFHeatBalanceCheck.cpp); EXPECT_CHECKER_FAIL ON requires
 # the check to fail (the explicit solid freeze), so the test proves the checker sees the difference;
-# EXPECT_WARNING ON requires the coarse/fine surface-mismatch warning in the run's output.
-function(add_test_immersed_cf_heat_balance TEST_NAME TEST_FILES_DIR THETA0 TOL EXPECT_CHECKER_FAIL EXPECT_WARNING RUNTIME_OPTIONS)
+# EXPECT_WARNING ON requires the coarse/fine surface-mismatch warning in the run's output;
+# EXTRA_LABELS adds CTest labels (for example multilevel) to regression;immersed.
+function(add_test_immersed_cf_heat_balance TEST_NAME TEST_FILES_DIR THETA0 TOL EXPECT_CHECKER_FAIL EXPECT_WARNING RUNTIME_OPTIONS EXTRA_LABELS)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -249,7 +250,7 @@ function(add_test_immersed_cf_heat_balance TEST_NAME TEST_FILES_DIR THETA0 TOL E
         TIMEOUT 1800
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;multilevel;immersed"
+        LABELS "regression;immersed;${EXTRA_LABELS}"
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_immersed_cf_heat_balance)
 
@@ -1752,6 +1753,9 @@ add_test_field_bounds(BndryPlanes_MoistTemperature "plt00050" theta 299.999 300.
 set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP BndryPlanesMoist)
 # Input sponge with a refined patch that does not reach the domain top: ran outside the patch's boxes at start-up
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
+# Anelastic EB cylinder through the bottom wall on two levels: w below the wall was never filled
+# on level 1, and its first step diverged (erf-model/ERF#4876)
+add_test_field_bounds(EB_SquareCylinder_AnelasticAMR "plt00004" x_velocity -0.5 3.0)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
 
@@ -2356,11 +2360,22 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # the log-law coarse/fine fill and a mismatch threshold the surface crosses: the mean must hold
   # and the start-up warning must be printed.
   if(ERF_ENABLE_FFT)
-    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF "")
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF "" multilevel)
     add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
-                                      "erf.if_implicit_projection=false")
+                                      "erf.if_implicit_projection=false" multilevel)
     add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LogLaw ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF ON
-                                      "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4")
+                                      "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4" multilevel)
+    # Immersed-forcing building (a box whose walls and roof are half-solid cells), one level in four
+    # unequal boxes, theta uniform and no heat entering (erf-model/ERF#4887): with the implicit
+    # projection the fluid-mean theta must hold within 1e-6 K (4e-10 K measured), with and without the
+    # snap of the partial cells; the explicit treatment (the faces between two solid cells zeroed
+    # after the projection) leaves the partial cells at the walls and roof a divergence (0.012 K
+    # measured) and must fail the same check.
+    add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF "" "")
+    add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Snap ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF
+                                      "erf.if_snap_partial_cells=true" "")
+    add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Freeze ImmersedBuildingHeatBalance 300.0 1.0e-6 ON OFF
+                                      "erf.if_implicit_projection=false" "")
     # Neutral ABL with the k-eqn RANS over an immersed plane on a cell face, two solid rows below it,
     # against the same ABL on flat ground (erf-model/ERF#4134): with the fraction-stress wall law the
     # profiles over the lowest 500 m must agree within 1 % (measured: wind 0.02 %, TKE 0.2 %); the legacy law leaves
