@@ -420,7 +420,7 @@ def _abort_line(text, pos):
 def _initializer(name, text, before_line):
     """(raw initializer, 1-based line) of the last declaration of name before before_line (any line if None)."""
     rx = re.compile(r"(?:[\w>]\s+|,\s*)&?\s*" + re.escape(name) +
-                    r"\s*(?:=\s*([^;,{}]+?)|\{\s*([^{}]*?)\s*\}|\(\s*([^()]*?)\s*\))\s*[;,]")
+                    r"\s*(?:=(?!=)\s*([^;,{}]+?)|\{\s*([^{}]*?)\s*\}|\(\s*([^()]*?)\s*\))\s*[;,]")   # not ==
     best = None
     for m in rx.finditer(text):
         at = text.count("\n", 0, m.start()) + 1
