@@ -672,8 +672,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
         // the fluxes.)
         // Both take the fluxes from get_lsm_flux_view and test them with
         // SurfaceFluxView::valid, so a column with lmask == 1 gets exactly one of the two.
-        // (compute_sfc_params_from_lsm_fluxes also treats a non-zero lmask other than 1,
-        // e.g. an ImmersedForcing building cell, and a missing lmask as land.)
+        // (compute_sfc_params_from_lsm_fluxes also treats a missing lmask as land.)
         const NearestColumn col(vbx);
 
         auto u_star_arr = u_star[lev]->array(mfi);
@@ -1964,7 +1963,7 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
             // terrain (mask 2) retain their existing surface-layer parameters.
             // Skip cells where the LSM does not have a valid value (finite and below
             // lsm_undefined) for every one of the four fluxes; these keep the MOST values.
-            if (is_land && lsm_flux.valid(li,lj)) {
+            if (is_land == 1 && lsm_flux.valid(li,lj)) {
                 const Real t_flux = lsm_t_flux_arr(li,lj,0);
                 const Real q_flux = lsm_q_flux_arr(li,lj,0);
                 Real rho = cons_arr(i,j,klo,Rho_comp);
