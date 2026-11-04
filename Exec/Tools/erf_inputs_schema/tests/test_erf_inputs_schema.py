@@ -427,5 +427,92 @@ class MoreShapesTests(unittest.TestCase):
         self.assertEqual(keys["erf.box_hi"]["type"], "real_list")
 
 
+def run_tool(script, *args):
+    return subprocess.run([sys.executable, str(TOOLS / script), *map(str, args)], capture_output=True, text=True)
+
+
+class CommandLineTests(unittest.TestCase):
+    """Bad arguments give a usage error, not a traceback; the help names the whole tool."""
+
+    def test_the_help_gives_the_whole_first_paragraph(self):
+        out = run_tool("build_erf_schema.py", "--help").stdout
+        self.assertIn("canonical form of each type", " ".join(out.split()))
+
+    def test_mixed_git_and_directory_flags_are_a_usage_error(self):
+        with tempfile.TemporaryDirectory() as td:
+            r = run_tool("build_erf_schema.py", "--repo", ".", "--erf", "HEAD", "--erf-dir", td, "--out", Path(td) / "o")
+        self.assertEqual(r.returncode, 2)
+        self.assertNotIn("Traceback", r.stderr)
+
+    def test_an_unreadable_schema_is_a_usage_error(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            (td / "inputs").write_text("erf.nsteps = 1\n")
+            (td / "bad.json").write_text("{not json")
+            (td / "nokeys.json").write_text("{}")
+            for schema_file in ("missing.json", "bad.json", "nokeys.json"):
+                r = run_tool("check_erf_inputs.py", "--schema", td / schema_file, td / "inputs")
+                self.assertEqual(r.returncode, 2, schema_file)
+                self.assertNotIn("Traceback", r.stderr, schema_file)
+
+    def test_min_severity_also_hides_the_info_cross_check(self):
+        import json
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            (td / "s.json").write_text(json.dumps(generate()))
+            (td / "inputs").write_text("erf.nsteps = 1\n")
+            out = run_tool("check_erf_inputs.py", "--schema", td / "s.json", "--min-severity", "ERROR", td / "inputs").stdout
+        self.assertNotIn("[INFO]", out)
+
+
+class SourceTests(unittest.TestCase):
+    def test_an_uninitialized_amrex_submodule_is_named(self):
+        from erf_inputs_schema import source
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td) / "erf"
+            (repo / "Submodules" / "AMReX").mkdir(parents=True)
+            (repo / "README").write_text("x\n")
+            git(repo, "init", "-q")
+            git(repo, "add", "README")
+            git(repo, "commit", "-q", "-m", "x")
+            with self.assertRaisesRegex(ValueError, "Submodules/AMReX is not initialized"):
+                source.checkout(repo, "HEAD", Path(td) / "out")
+
+    def test_extraction_works_without_tarfile_data_filter(self):
+        """A Python older than 3.12 (and the 3.8-3.11 patch releases) has no data_filter and no filter= keyword."""
+        import tarfile as real
+        from types import SimpleNamespace
+        from unittest import mock
+        from erf_inputs_schema import source
+
+        class OldTar:
+            def __init__(self, tar):
+                self.tar = tar
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                self.tar.close()
+
+            def extractall(self, path, members=None, **kw):
+                if kw:
+                    raise TypeError(f"extractall() got an unexpected keyword argument {next(iter(kw))!r}")
+                self.tar.extractall(path, members, filter="data")
+
+        old = SimpleNamespace(open=lambda *a, **k: OldTar(real.open(*a, **k)))
+        with tempfile.TemporaryDirectory() as td:
+            commit = git_repo(Path(td) / "erf", SYNTHETIC / "erf")
+            with mock.patch.object(source, "tarfile", old):
+                source.extract(Path(td) / "erf", commit, ["CMakeLists.txt"], Path(td) / "out")
+            self.assertTrue((Path(td) / "out" / "CMakeLists.txt").exists())
+
+    def test_relative_paths_are_posix_on_any_platform(self):
+        from pathlib import PureWindowsPath
+        from erf_inputs_schema import scan
+        self.assertEqual(scan.posix_rel(PureWindowsPath("C:/erf/Source/Init/A.cpp"), PureWindowsPath("C:/erf")),
+                         "Source/Init/A.cpp")
+
+
 if __name__ == "__main__":
     unittest.main()
