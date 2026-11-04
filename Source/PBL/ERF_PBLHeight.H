@@ -122,7 +122,7 @@ struct MYNNPBLH {
                 // column, where z_phys_cc in the ghost cell below mirrors the bottom cell.
 
                 // Find minimum thetav in the surface layer (this updates
-                // ghost cells, too)
+                // ghost cells, too); the bottom cell is always included
                 ParallelFor(gtbx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
                 {
                     int ii = amrex::max(amrex::min(i,imax),imin);
@@ -131,7 +131,7 @@ struct MYNNPBLH {
 
                     amrex::Real min_thv = min_thv_arr(i,j,0);
                     for (int k(klo); k <= khi; ++k) {
-                        if (zphys_arr(ii,jj,k) - z_sfc < thetamin_height) {
+                        if ((k == klo) || (zphys_arr(ii,jj,k) - z_sfc < thetamin_height)) {
                             amrex::Real thv = GetThetav(i, j, k, cons_arr, moisture_indices);
                             min_thv = amrex::min(min_thv, thv);
                         }
@@ -151,6 +151,15 @@ struct MYNNPBLH {
 
                     amrex::Real zi     = pblh_arr(i,j,0);
                     amrex::Real zi_tke = pblh_tke_arr(i,j,0);
+
+                    // TKE threshold is 5% of the column maximum (Kosovic & Curry 2000, JAS),
+                    // which may sit aloft (e.g., under a low-level jet)
+                    amrex::Real maxtke = zero;
+                    for (int k(klo); k <= khi; ++k) {
+                        maxtke = amrex::max(maxtke, cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp));
+                    }
+                    const amrex::Real TKEeps = amrex::max(amrex::Real(0.05) * maxtke,
+                                                          amrex::Real(0.02)); // min val from WRF
 
                     for (int k(klo); k <= khi; ++k)
                     {
@@ -186,10 +195,6 @@ struct MYNNPBLH {
                             //
                             amrex::Real tke    = cons_arr(i,j,k  ,RhoKE_comp) / cons_arr(i,j,k  ,Rho_comp);
                             amrex::Real tke1   = cons_arr(i,j,k+1,RhoKE_comp) / cons_arr(i,j,k+1,Rho_comp);
-                            amrex::Real maxtke = cons_arr(i,j,0  ,RhoKE_comp) / cons_arr(i,j,0  ,Rho_comp);
-                            // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
-                            amrex::Real TKEeps = amrex::Real(0.05) * maxtke;
-                            TKEeps = amrex::max(TKEeps, amrex::Real(0.02)); // min val from WRF
 
                             if ((tke1 <= TKEeps) && (tke > TKEeps))
                             {
@@ -216,10 +221,11 @@ struct MYNNPBLH {
 
                 // Find minimum thetav in the surface layer (this updates
                 // ghost cells, too)
-                // - box size is known a priori
-                int kmax = static_cast<int>(thetamin_height / dz_no_terrain);
-                AMREX_ASSERT(kmax > 0);
-                const int khi_low = amrex::min(kmax, khi);
+                // - box size is known a priori: the cells whose centres, (k+1/2)*dz,
+                //   lie below thetamin_height, the same strict test as with terrain;
+                //   the bottom cell is always included
+                const int kmax = static_cast<int>(std::ceil(thetamin_height / dz_no_terrain - myhalf)) - 1;
+                const int khi_low = amrex::min(amrex::max(kmax, klo), khi);
 
                 ParallelFor(gtbx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
                 {
@@ -239,6 +245,15 @@ struct MYNNPBLH {
 
                     amrex::Real zi     = pblh_arr(i,j,0);
                     amrex::Real zi_tke = pblh_tke_arr(i,j,0);
+
+                    // TKE threshold is 5% of the column maximum (Kosovic & Curry 2000, JAS),
+                    // which may sit aloft (e.g., under a low-level jet)
+                    amrex::Real maxtke = zero;
+                    for (int k(klo); k <= khi; ++k) {
+                        maxtke = amrex::max(maxtke, cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp));
+                    }
+                    const amrex::Real TKEeps = amrex::max(amrex::Real(0.05) * maxtke,
+                                                          amrex::Real(0.02)); // min val from WRF
 
                     for (int k(klo); k <= khi; ++k)
                     {
@@ -274,10 +289,6 @@ struct MYNNPBLH {
                             //
                             amrex::Real tke    = cons_arr(i,j,k  ,RhoKE_comp) / cons_arr(i,j,k  ,Rho_comp);
                             amrex::Real tke1   = cons_arr(i,j,k+1,RhoKE_comp) / cons_arr(i,j,k+1,Rho_comp);
-                            amrex::Real maxtke = cons_arr(i,j,0  ,RhoKE_comp) / cons_arr(i,j,0  ,Rho_comp);
-                            // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
-                            amrex::Real TKEeps = amrex::Real(0.05) * maxtke;
-                            TKEeps = amrex::max(TKEeps, amrex::Real(0.02)); // min val from WRF
 
                             if ((tke1 <= TKEeps) && (tke > TKEeps))
                             {
