@@ -165,6 +165,19 @@ jobs:
         # Compile the two big object libraries on every core.
         make -j "$(nproc)" amrex_3d erf_srclib 2>&1 | tee -a "${{ steps.configure.outputs.build_log }}"
 
+    - name: Check core compiler warnings
+      shell: bash
+      run: |
+        build_log="${{ steps.configure.outputs.build_log }}"
+        warning_report="${build_log%.txt}-warnings.txt"
+        # Use the same diagnostic exclusions as the final Report step.
+        awk 'tolower($0) ~ /warning:|error:/ &&
+             $0 !~ /Submodules\/(amrex|AMReX|googletest)/ &&
+             $0 !~ /lto-wrapper: warning:/' "$build_log" \
+          | sort | uniq > "$warning_report"
+        cat "$warning_report"
+        test ! -s "$warning_report"
+
     - name: Build remaining executables and tests
       shell: bash
       working-directory: ${{ steps.configure.outputs.build_directory }}
