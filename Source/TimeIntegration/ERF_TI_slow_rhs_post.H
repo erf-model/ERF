@@ -235,12 +235,21 @@
                                 S_old[IntVars::cons], EBFactory(level), bc_ptr_d, slow_dt);
 
             // Update state using the updated S_rhs. (NOTE: redistribute_term returns RHS not state variables.)
+            //
+            // erf_slow_rhs_post has already advanced S_new with the RHS before redistribution, and
+            // in the second stage of anelastic RK2 that update is the Heun average
+            // old + (dt R1 + dt R2) / 2.  So add only the change redistribution makes to this
+            // stage's RHS, with this stage's weight: setting S_new = S_old + dt R2 here would
+            // drop R1 and make the scalars first order in time (#4876).
+            const Real stage_wt = (solverChoice.anelastic[level] &&
+                                   solverChoice.anelastic_type[level] == AnelasticType::RK2 &&
+                                   nrk == 1) ? myhalf : one;
             for ( MFIter mfi(S_new[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box tbx  = mfi.tilebox();
                 const Array4<Real>& snew = S_new[IntVars::cons].array(mfi);
-                const Array4<Real>& sold = S_old[IntVars::cons].array(mfi);
-                const Array4<Real>& srhs = S_rhs[IntVars::cons].array(mfi);
+                const Array4<const Real>& srhs = S_rhs[IntVars::cons].const_array(mfi);
+                const Array4<const Real>& srhs_unredist = dUdt_tmp.const_array(mfi);
                 Array4<const Real> detJ_arr = EBFactory(level).getVolFrac().const_array(mfi);
 
                 for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
@@ -254,13 +263,13 @@
                         } else if (ivar == RhoScalar_comp) {
                             num_comp = NSCALARS;
                         }
-                        Real sdt = static_cast<Real>(slow_dt);
+                        Real wdt = stage_wt * static_cast<Real>(slow_dt);
                         ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
                         {
                             if (detJ_arr(i,j,k) > zero) {
                                 const int n = start_comp + nn;
                                 if (l_diff_choice.host_transports(n)) {
-                                    snew(i,j,k,n) = sold(i,j,k,n) + sdt * srhs(i,j,k,n);
+                                    snew(i,j,k,n) += wdt * (srhs(i,j,k,n) - srhs_unredist(i,j,k,n));
                                 }
                             }
                         });

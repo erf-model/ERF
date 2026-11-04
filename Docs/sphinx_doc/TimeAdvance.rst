@@ -94,7 +94,10 @@ integrator:
 
 In the anelastic cases the momenta are projected at the end of each stage, so the momenta at
 the start of the next stage or step are divergence-free and a uniform scalar stays uniform.
-The pairing is the same with and without an embedded boundary.  Using the momenta from the end
+The pairing is the same with and without an embedded boundary.  With an embedded boundary the
+state redistribution in the cut cells is added to this update as a change to the stage's
+right-hand side, with the stage's weight (one half in the second RK2 stage), so the averaged RK2
+update is kept (erf-model/ERF#4876).  Using the momenta from the end
 of a stage instead, ahead of the scalar by about half a step, makes the scalars only first
 order accurate in time when the wind varies (erf-model/ERF#4870).
 

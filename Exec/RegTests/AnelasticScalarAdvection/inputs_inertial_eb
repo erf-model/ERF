@@ -1,0 +1,60 @@
+# The inertial oscillation of inputs_inertial with an embedded boundary: a flat EB plane at
+# z = 130 m covers the lowest layer (k = 0) and cuts the next (k = 1, volume fraction 0.7).
+# The wind is horizontal, so the plane does not change the exact answer, u = U cos(f t),
+# v = -U sin(f t), and the blob's position is known exactly in the cut and in the full cells.
+# This runs the EB branch of the scalar advection (EBAdvectionSrcForScalars) with a wind
+# that varies in time, which is what tests the time level of its momenta (#4876, #4870).
+erf.prob_name = "Scalar Advection/Diffusion"
+erf.anelastic = 1
+erf.use_fft   = false
+
+max_step  = 40
+stop_time = 1000.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_lo     =    0.    0.   0.
+geometry.prob_hi     = 1000. 1000. 400.
+amr.n_cell           =   64    64    4
+geometry.is_periodic =    1     1    0
+amr.max_level        = 0
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.terrain_type    = "EB"
+eb2.geometry        = "plane"
+eb2.plane_point     = 0. 0. 130.
+eb2.plane_normal    = 0. 0. -1.
+eb2.small_volfrac   = 1.e-4
+
+erf.fixed_dt = 0.4        # 16 s
+erf.v = 1
+amr.v = 0
+erf.check_int   = -1
+erf.plot_file_1 = plt
+erf.plot_int_1  = 40
+erf.plot_vars_1 = density scalar x_velocity y_velocity volfrac
+
+# EB advection has no WENO (EBAdvectionSrcForScalars), so these are the upwind schemes
+erf.dycore_horiz_adv_type    = "Upwind_5th"
+erf.dycore_vert_adv_type     = "Upwind_3rd"
+erf.dryscal_horiz_adv_type   = "Upwind_5th"
+erf.dryscal_vert_adv_type    = "Upwind_3rd"
+
+erf.use_gravity     = false
+erf.les_type        = "None"
+erf.molec_diff_type = "None"
+
+erf.use_coriolis          = true
+erf.latitude              = 90.
+erf.rotational_time_period = 100.
+
+erf.init_type = "uniform"
+prob.rho_0 = 1.0
+prob.T_0   = 1.0
+prob.A_0   = 1.0
+prob.U_0   = 10.0
+prob.V_0   = 0.0
+prob.rad_0 = 0.25         # blob radius 250 m, centred at x = y = 500 m, uniform in z
+prob.prob_type = 11
