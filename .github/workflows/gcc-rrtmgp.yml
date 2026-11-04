@@ -158,6 +158,7 @@ jobs:
           ${ERF_DIR};
 
     - name: Compile and Link
+      shell: bash
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
