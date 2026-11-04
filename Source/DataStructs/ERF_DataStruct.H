@@ -1337,6 +1337,14 @@ struct SolverChoice {
                 amrex::Abort("erf.if_wall_form = fraction_stress runs with the anelastic model (erf.anelastic = 1 on "
                              "every level); it does not support erf.immersed_forcing_substep = true");
             }
+            // ... and the solid cells are held (rho, theta, the moisture species) by the anelastic
+            // update only
+            for (int lev = 0; lev <= max_level; ++lev) {
+                if (!anelastic[lev]) {
+                    amrex::Abort("erf.if_wall_form = fraction_stress needs erf.anelastic = 1 on every level (level " +
+                                 std::to_string(lev) + " is compressible)");
+                }
+            }
             // One surface condition (heat flux, surface temperature - optionally changing at
             // erf.if_surf_heating_rate - or Obukhov length; none is neutral, checked below); the
             // MOST stability functions always apply, as on the flat surface layer, so
@@ -2121,6 +2129,10 @@ struct SolverChoice {
                            << ((if_wall_face_spacing == 2) ? "log" : (if_wall_face_spacing == 1) ? "physical" : "grid")
                            << ", wall TKE " << (if_wall_tke ? "on" : "off")
                            << ", flat-wall dissipation " << (if_flat_wall_dissipation ? "on" : "off") << ")\n";
+            if (moisture_type != MoistureType::None) {
+                amrex::Print() << "Immersed forcing: the moisture species see a closed wall "
+                               << "(no diffusion through the wall face, held in the solid, no surface moisture flux)\n";
+            }
         }
         // The log-law coarse/fine fill acts only on refined levels
         if (cf_loglaw_fill) {

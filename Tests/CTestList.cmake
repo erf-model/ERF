@@ -258,7 +258,8 @@ endfunction(add_test_immersed_cf_heat_balance)
 # cell face K_OFFSET cells above the domain bottom) and compare their profiles
 # (Tests/ImmersedFlatEquivalenceCheck.cpp); EXPECT_CHECKER_FAIL ON requires the comparison to fail
 # (the legacy wall law), so the test proves the checker sees the difference.
-function(add_test_immersed_flat_equivalence TEST_NAME TEST_FILES_DIR K_OFFSET TOL K_COUNT EXPECT_CHECKER_FAIL RUNTIME_OPTIONS)
+# RUNTIME_OPTIONS go to the plane run only, COMMON_OPTIONS to both runs.
+function(add_test_immersed_flat_equivalence TEST_NAME TEST_FILES_DIR K_OFFSET TOL K_COUNT EXPECT_CHECKER_FAIL RUNTIME_OPTIONS COMMON_OPTIONS)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -274,6 +275,7 @@ function(add_test_immersed_flat_equivalence TEST_NAME TEST_FILES_DIR K_OFFSET TO
         "-DINPUT_FLAT=${CURRENT_TEST_BINARY_DIR}/flat.i"
         "-DINPUT_PLANE=${CURRENT_TEST_BINARY_DIR}/plane.i"
         "-DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}"
+        "-DCOMMON_OPTIONS=${COMMON_OPTIONS}"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DSIMULATION_LOG=${test_simulation_log}"
         "-DCHECKER_LOG=${test_checker_log}"
@@ -2389,9 +2391,17 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # profiles over the lowest 500 m must agree within 1 % (measured: wind 0.02 %, TKE 0.2 %); the legacy law leaves
     # the fluid cell on the solid unforced (wind 18 % off, TKE 5x) and measures the wall distance from the domain bottom, and
     # must fail the same check (that leg also has no wall TKE pin, since erf.if_wall_tke belongs to the new law).
-    add_test_immersed_flat_equivalence(ImmersedForm7Equivalence ImmersedForm7Equivalence 2 0.01 25 OFF "")
+    add_test_immersed_flat_equivalence(ImmersedForm7Equivalence ImmersedForm7Equivalence 2 0.01 25 OFF "" "")
     add_test_immersed_flat_equivalence(ImmersedForm7Equivalence_Legacy ImmersedForm7Equivalence 2 0.01 25 ON
-                                       "erf.if_wall_form=legacy erf.if_wall_tke=false")
+                                       "erf.if_wall_form=legacy erf.if_wall_tke=false" "")
+    # The same pair with a moisture model (MoistNoCondensation) and dry solid rows: the wall face is
+    # closed to the moisture species in the explicit and the implicit vertical diffusion, so the qv
+    # profile over the plane matches flat ground too (a wall face open to moisture dries the wall
+    # cell by tens of percent within the 100 steps). One leg per diffusion path.
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistEquivalence ImmersedForm7MoistEquivalence 2 0.01 25 OFF ""
+                                       "erf.implicit_moisture_diffusion=false")
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistEquivalence_Implicit ImmersedForm7MoistEquivalence 2 0.01 25 OFF ""
+                                       "erf.implicit_moisture_diffusion=true")
   endif()
   # Box, rank and tiling parity of the other closures: one box on one rank without tiling
   # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).

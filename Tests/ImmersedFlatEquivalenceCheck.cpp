@@ -16,7 +16,7 @@
 //
 //   checker <plotfile_flat> <plotfile_plane> <k_offset> <tol> [k_count]
 //
-// For x_velocity, y_velocity, theta and KE (when present) the horizontally averaged profile of
+// For x_velocity, y_velocity, theta, and (when present) KE and qv, the horizontally averaged profile of
 // the plane run, from its cell k_offset up, must match the flat run's profile from its cell 0 up
 // (the lowest k_count cells, all by default), within tol relative to the flat run's largest
 // |value| of that variable over those cells (theta against its departure from its own bottom value). With the fraction-stress wall law a face-aligned surface
@@ -66,9 +66,12 @@ int compare (PlotFileData& pf_flat, PlotFileData& pf_plane, int k_off, Real tol,
     if (nk_plane != nk_flat + k_off) { return fail("the plane run must have k_offset more cells in z than the flat run"); }
     const int nk_cmp = (k_count > 0) ? std::min(k_count, nk_flat) : nk_flat;
     int rc = 0;
-    for (const char* name : {"x_velocity", "y_velocity", "theta", "KE"}) {
-        if (!has_variable(pf_flat, name) || !has_variable(pf_plane, name)) {
-            if (std::string(name) == "KE") { continue; }
+    for (const char* name : {"x_velocity", "y_velocity", "theta", "KE", "qv"}) {
+        const bool in_flat = has_variable(pf_flat, name), in_plane = has_variable(pf_plane, name);
+        if (!in_flat || !in_plane) {
+            // KE and qv are compared when both runs write them (the k-eqn RANS, a moisture model)
+            const bool optional = (std::string(name) == "KE" || std::string(name) == "qv");
+            if (optional && !in_flat && !in_plane) { continue; }
             return fail(std::string("plotfile has no ") + name);
         }
         const std::vector<Real> a = profile(pf_flat, name);

@@ -1,4 +1,5 @@
-# Run the flat-ground deck and the immersed-plane deck of one test directory, then compare their
+# Run the flat-ground deck and the immersed-plane deck of one test directory (COMMON_OPTIONS on
+# both runs, RUNTIME_OPTIONS on the plane run only), then compare their
 # plotfiles with Tests/ImmersedFlatEquivalenceCheck.cpp (the plane run's profiles from cell
 # K_OFFSET up against the flat run's). With EXPECT_CHECKER_FAIL the check must fail (the leg that
 # runs the legacy wall law), so the test proves the checker sees the difference.
@@ -35,8 +36,9 @@ erf_mpi_launcher_command(mpi_launch_one
     CONTEXT "RunImmersedFlatEquivalence.cmake")
 
 separate_arguments(runtime_options UNIX_COMMAND "${RUNTIME_OPTIONS}")
+separate_arguments(common_options UNIX_COMMAND "${COMMON_OPTIONS}")
 execute_process(
-    COMMAND ${mpi_launch} ${TEST_EXE} ${INPUT_FLAT}
+    COMMAND ${mpi_launch} ${TEST_EXE} ${INPUT_FLAT} ${common_options}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${SIMULATION_LOG}.flat"
     ERROR_FILE "${SIMULATION_LOG}.flat"
@@ -45,7 +47,7 @@ if(NOT flat_result EQUAL 0)
     message(FATAL_ERROR "flat-ground simulation failed: ${flat_result} (see ${SIMULATION_LOG}.flat)")
 endif()
 execute_process(
-    COMMAND ${mpi_launch} ${TEST_EXE} ${INPUT_PLANE} ${runtime_options}
+    COMMAND ${mpi_launch} ${TEST_EXE} ${INPUT_PLANE} ${common_options} ${runtime_options}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${SIMULATION_LOG}"
     ERROR_FILE "${SIMULATION_LOG}"

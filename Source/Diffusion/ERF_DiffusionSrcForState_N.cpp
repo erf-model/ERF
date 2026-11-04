@@ -137,15 +137,28 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             ScaleScalarDiffusionVerticalFlux(
                 zbx, zflux, field.flux_comp, explicit_fac);
         }
-        // Fraction-stress immersed wall law: no theta or TKE flux through the bottom face of the
-        // wall cell, as through zlo on flat ground (ERF_ImmersedWallCell.H)
-        if (wall_face33 && (qty_index == RhoTheta_comp || qty_index == RhoKE_comp)) {
+        // Fraction-stress immersed wall law: no diffusive flux of any scalar (theta, TKE, the
+        // passive scalars, the moisture species) through the bottom face of the wall cell, as
+        // through zlo on flat ground (ERF_ImmersedWallCell.H). The surface carries a heat flux
+        // (below) and no moisture flux: the moisture species see a closed wall.
+        if (wall_face33) {
             const int fc = field.flux_comp;
             const Box mbx = zbx & amrex::convert(Box(wall_face33), zbx.ixType());
             ParallelFor(mbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 zflux(i,j,k,fc) *= wall_face33(i,j,k);
             });
+            // the qv and qc face-flux diagnostics were filled from the open face: close them the
+            // same way (the TKE buoyancy sources read qfx1_z); zero on the wall face, as at zlo on
+            // flat ground without a surface moisture flux
+            if ((native_policy.is_q1 && qfx1_z) || (native_policy.is_q2 && qfx2_z)) {
+                const Array4<Real>& qfx_z = native_policy.is_q1 ? qfx1_z : qfx2_z;
+                const Box qbx = mbx & amrex::convert(Box(qfx_z), zbx.ixType());
+                ParallelFor(qbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    qfx_z(i,j,k) *= wall_face33(i,j,k);
+                });
+            }
             if (qty_index == RhoTheta_comp && hfx_z) {
                 // the TKE buoyancy reads hfx_z: on the wall face it is the wall heat flux of the
                 // wall law (rho times the kinematic flux, as the surface layer writes it at zlo).
