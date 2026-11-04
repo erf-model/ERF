@@ -16,6 +16,7 @@
 #include "BoundaryConditions/ERF_WallThermodynamics.H"
 
 #include <cmath>
+#include <limits>
 #include <type_traits>
 
 namespace erf_cloud_chamber_wall_flux {
@@ -245,6 +246,146 @@ most_stability_coordinate (amrex::Real Ri,
                            amrex::Real D_s) noexcept
 {
     similarity_funs sfuns;
+    constexpr amrex::Real tolerance = amrex::Real(1.0e-3);
+    if (Ri > amrex::Real(0.0)) {
+        int iterations = 0;
+        const auto state =
+            [=] AMREX_GPU_HOST_DEVICE(
+                amrex::Real z) noexcept -> amrex::GpuArray<amrex::Real, 3> {
+            const amrex::Real psi_m = sfuns.calc_psi_m2(z);
+            const amrex::Real psi_s = sfuns.calc_psi_h2(z);
+            const amrex::Real A_m = amrex::max(D_m - psi_m, amrex::Real(1.0));
+            const amrex::Real A_s = amrex::max(D_s - psi_s, amrex::Real(1.0));
+            const amrex::Real rhs = Ri * A_m * A_m / A_s;
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                amrex::Math::isfinite(static_cast<double>(psi_m)) &&
+                    amrex::Math::isfinite(static_cast<double>(psi_s)) &&
+                    amrex::Math::isfinite(static_cast<double>(A_m)) &&
+                    amrex::Math::isfinite(static_cast<double>(A_s)) &&
+                    amrex::Math::isfinite(static_cast<double>(rhs)),
+                "Cloud Chamber MOST produced a nonfinite stable residual");
+            return {A_m, A_s, z - rhs};
+        };
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            amrex::Math::isfinite(static_cast<double>(Ri)) &&
+                amrex::Math::isfinite(static_cast<double>(D_m)) &&
+                amrex::Math::isfinite(static_cast<double>(D_s)) &&
+                D_m > amrex::Real(0.0) && D_s > amrex::Real(0.0),
+            "Cloud Chamber MOST requires finite positive stable resistances");
+
+        amrex::Real seed = amrex::Real(0.0);
+        for (int iter = 0; iter < 100; ++iter) {
+            const auto value = state(seed);
+            ++iterations;
+            if (value[2] == amrex::Real(0.0)) {
+                return {seed, iterations};
+            }
+            const amrex::Real next = seed - amrex::Real(0.5) * value[2];
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                amrex::Math::isfinite(static_cast<double>(next)),
+                "Cloud Chamber MOST produced a nonfinite stability coordinate");
+            const bool small_update =
+                std::abs(next - seed) <= amrex::Real(0.125) * tolerance;
+            seed = next;
+            if (small_update) {
+                break;
+            }
+        }
+
+        // Keep the iteration's branch only if a root really lies nearby.
+        amrex::Real a = amrex::max(amrex::Real(0.0), seed - tolerance);
+        amrex::Real b = seed + tolerance;
+        auto va = state(a);
+        auto vb = state(b);
+        if (va[2] <= amrex::Real(0.0) && vb[2] >= amrex::Real(0.0)) {
+            for (int iter = 0; iter < 64; ++iter) {
+                ++iterations;
+                if (va[2] == amrex::Real(0.0)) {
+                    return {a, iterations};
+                }
+                if (vb[2] == amrex::Real(0.0)) {
+                    return {b, iterations};
+                }
+                const amrex::Real mid = a + amrex::Real(0.5) * (b - a);
+                if (b - a <= tolerance) {
+                    return {a + (b - a) * (-va[2] / (vb[2] - va[2])),
+                            iterations};
+                }
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    mid > a && mid < b,
+                    "Cloud Chamber MOST exhausted stable root precision");
+                const auto vm = state(mid);
+                if (vm[2] < amrex::Real(0.0)) {
+                    a = mid;
+                    va = vm;
+                } else {
+                    b = mid;
+                    vb = vm;
+                }
+            }
+        }
+
+        // Search from neutral in order: endpoint signs alone can miss a
+        // narrow first-root pair. Stable A_m and A_s increase with z, giving
+        // F(z) <= b - Ri*A_m(a)^2/A_s(b) throughout [a,b].
+        constexpr int max_depth = 64;
+        amrex::GpuArray<amrex::Real, max_depth> pending{};
+        int depth = 0;
+        amrex::Real unresolved = amrex::Real(-1.0);
+        a = amrex::Real(0.0);
+        b = amrex::max(amrex::Real(1.0), seed);
+        va = state(a);
+        vb = state(b);
+        for (int search = 0; search < 8192; ++search) {
+            ++iterations;
+            if (unresolved >= amrex::Real(0.0)) {
+                const amrex::Real limit = unresolved + tolerance;
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    a < limit,
+                    "Cloud Chamber MOST cannot resolve the stable root branch");
+                if (b > limit) {
+                    b = limit;
+                    vb = state(b);
+                }
+            }
+            if (va[2] == amrex::Real(0.0)) {
+                return {a, iterations};
+            }
+            const amrex::Real mid = a + amrex::Real(0.5) * (b - a);
+            if (vb[2] >= amrex::Real(0.0) && b - a <= tolerance) {
+                return {a + (b - a) * (-va[2] / (vb[2] - va[2])), iterations};
+            }
+            const amrex::Real lower_rhs = Ri * va[0] * va[0] / vb[1];
+            const amrex::Real roundoff =
+                amrex::Real(16.0) *
+                std::numeric_limits<amrex::Real>::epsilon() *
+                amrex::max(b, lower_rhs);
+            if (vb[2] < amrex::Real(0.0) && b - lower_rhs < -roundoff) {
+                a = b;
+                va = vb;
+                b = depth > 0 ? pending[--depth] : amrex::Real(2.0) * b;
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    amrex::Math::isfinite(static_cast<double>(b)) && b > a,
+                    "Cloud Chamber MOST exhausted stable bracket range");
+            } else if (depth < max_depth && mid > a && mid < b) {
+                pending[depth++] = b;
+                b = mid;
+            } else {
+                // Retain a rounding-ambiguous interval in the location error
+                // bound; never step past it to a distant root.
+                if (unresolved < amrex::Real(0.0)) {
+                    unresolved = a;
+                }
+                a = b;
+                va = vb;
+                b = depth > 0 ? pending[--depth] : amrex::Real(2.0) * b;
+            }
+            vb = state(b);
+        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            false, "Cloud Chamber MOST exhausted stable root search budget");
+    }
+
     amrex::Real zeta = amrex::Real(0.0);
     bool converged = false;
     int iterations = 0;

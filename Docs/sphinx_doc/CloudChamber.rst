@@ -915,13 +915,27 @@ active, ``z0_q`` supplies it otherwise for active wet MOST vapor, and ``z0_m``
 is used for momentum-only MOST.  When wet heat and wet vapor are both active,
 the parser requires ``z0_h == z0_q``.
 
-Starting from :math:`\zeta=0`, ERF evaluates its existing
-``calc_psi_m2`` and ``calc_psi_h2`` similarity functions and iterates
+Using ERF's existing similarity functions, define
 
 .. math::
 
    A_m=\max(D_m-\psi_m,1),\qquad
    A_s=\max(D_s-\psi_h,1),
+
+The stability coordinate must solve
+
+.. math::
+
+   F(\zeta)=\zeta-Ri\frac{A_m(\zeta)^2}{A_s(\zeta)}=0.
+
+The Cloud Chamber uses ERF's Jimenez ``calc_psi_m2`` and ``calc_psi_h2``
+functions. Their stable corrections grow logarithmically in magnitude, not
+linearly. The critical Richardson number near 0.2 associated with a linear
+stable correction therefore does not apply to this closure. The existing
+bulk Richardson number remains clamped to ``[-4, 4]``.
+
+Starting from neutral stability (:math:`\zeta=0`), the solver first uses
+the relaxed iteration
 
 .. math::
 
@@ -929,10 +943,27 @@ Starting from :math:`\zeta=0`, ERF evaluates its existing
    =0.5\,\zeta_\mathrm{old}
    +0.5\,Ri\frac{A_m^2}{A_s}.
 
-The iteration stops when
-:math:`|\zeta_\mathrm{new}-\zeta_\mathrm{old}|\le 10^{-3}` and allows at
-most 100 iterations.  Nonconvergence or a non-finite result is an error; there
-is no silent neutral fallback.
+For stable conditions, this supplies a candidate after at most 100 updates.
+A small update alone is not accepted as convergence: the
+solver checks for a nearby sign-changing interval of :math:`F` and refines
+it to a width no greater than :math:`10^{-3}` in :math:`\zeta`, then
+interpolates within that interval. An exact zero is also accepted.
+If this check fails, a safeguarded search starts
+from neutral and examines intervals in order, discarding an interval only
+when the increasing stable resistances show that :math:`F` is negative
+throughout it. This avoids jumping over a narrow pair of roots. A certified
+nearby root retains the relaxed iteration's branch; otherwise the search
+selects the first positive root it can resolve.
+
+The returned coordinate is within :math:`10^{-3}` of a bracketed root;
+this is an absolute numerical tolerance, not a change to the wall physics.
+An interval that cannot be distinguished at machine precision is retained
+in that location-error bound; the solver must certify a root within the
+bound or report an error rather than jump to a distant branch.
+Valid stable roots can exceed :math:`\zeta=100`. Exhausting the finite search
+budget or floating-point resolution is an error, as is a non-finite result.
+There is no silent neutral fallback or artificial upper stability limit.
+Neutral and unstable conditions retain the existing relaxed iteration.
 
 After convergence,
 
