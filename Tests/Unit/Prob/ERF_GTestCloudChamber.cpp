@@ -87,6 +87,8 @@ scaled_tolerance (Real expected)
 double
 stable_most_residual (double z, double Ri, double D_m, double D_s)
 {
+    // similarity_funs takes Real, not a double template argument. Keep this
+    // oracle in double so float cancellation cannot hide a missed narrow pair.
     const double psi_m =
         -6.1 * std::log(z + std::pow(1.0 + std::pow(z, 2.5), 1.0 / 2.5));
     const double psi_s =
@@ -113,6 +115,32 @@ expect_stable_most_root (Real z, Real Ri, Real D_m, Real D_s, double expected)
     EXPECT_GT(f_upper, 0.0);
     EXPECT_LE(std::abs(stable_most_residual(z, Ri, D_m, D_s)),
               std::max(std::abs(f_lower), std::abs(f_upper)));
+
+    similarity_funs sfuns;
+    const Real A_m = std::max(D_m - sfuns.calc_psi_m2(z), Real(1.0));
+    const Real A_s = std::max(D_s - sfuns.calc_psi_h2(z), Real(1.0));
+    const double rhs = double(Ri) * double(A_m) * double(A_m) / double(A_s);
+    EXPECT_NEAR(stable_most_residual(z, Ri, D_m, D_s), double(z) - rhs,
+                64.0 * std::numeric_limits<Real>::epsilon() *
+                    std::max(1.0, std::abs(rhs)));
+}
+
+amrex::Gpu::HostVector<Real>
+most_coordinates_in_kernel (GpuArray<Real, 5> Ri,
+                            GpuArray<Real, 5> D_m,
+                            GpuArray<Real, 5> D_s)
+{
+    amrex::Gpu::DeviceVector<Real> device(5);
+    Real* values = device.data();
+    amrex::ParallelFor(5, [=] AMREX_GPU_DEVICE(int n) noexcept {
+        values[n] = erf_cloud_chamber_wall_flux::most_stability_coordinate(
+                        Ri[n], D_m[n], D_s[n])
+                        .zeta;
+    });
+    amrex::Gpu::HostVector<Real> host(5);
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost, device.begin(), device.end(),
+                     host.begin());
+    return host;
 }
 
 Real
@@ -1367,14 +1395,29 @@ TEST(CloudChamberWallFlux,
               wall_dt_from_max_rate(current_rate));
 }
 
-// Motivation: a broad bracket can converge to the distant third root while
-// satisfying the equation; the branch connected to neutral must be retained.
+// Motivation: for these inputs the neutral-start iteration reaches the lower
+// root. A broad bracket must not replace it with the distant third root.
 TEST(CloudChamberWallFlux, MOSTKeepsNeutralConnectedLowerRoot)
 {
     const auto result = erf_cloud_chamber_wall_flux::most_stability_coordinate(
         Real(4.0), Real(0.1), Real(25.0));
     expect_stable_most_root(result.zeta, Real(4.0), Real(0.1), Real(25.0),
                             0.152368429532);
+}
+
+// Motivation: the neutral-start iteration does not always reach the first
+// positive root. Preserve its certified branch rather than silently changing
+// a legacy solution to a different root of the same closure.
+TEST(CloudChamberWallFlux, MOSTPreservesCertifiedOuterIterationBranch)
+{
+    const Real Ri = Real(0.39927092596413188);
+    const Real D_m = Real(0.001);
+    const Real D_s = Real(1.0008842237169981);
+    const auto result =
+        erf_cloud_chamber_wall_flux::most_stability_coordinate(Ri, D_m, D_s);
+    expect_stable_most_root(result.zeta, Ri, D_m, D_s, 6.6318009022167015);
+    EXPECT_LT(stable_most_residual(0.168, Ri, D_m, D_s), 0.0);
+    EXPECT_GT(stable_most_residual(0.169, Ri, D_m, D_s), 0.0);
 }
 
 // Motivation: close to the resistance-floor corner, both ends of a 1e-3
@@ -1435,31 +1478,48 @@ TEST(CloudChamberWallFlux, MOSTPreservesNeutralAndUnstableControls)
 }
 
 // Motivation: host-only evaluation does not exercise device compilation or
-// device arithmetic. Run the four discriminators in an AMReX kernel and
+// device arithmetic. Run the discriminators in an AMReX kernel and
 // check copied-back results against the independent host residual.
 TEST(CloudChamberWallFlux, MOSTCertifiedRootsInKernel)
 {
-    const GpuArray<Real, 4> Ri = {Real(0.2), Real(4.0), Real(4.0), Real(4.0)};
-    const GpuArray<Real, 4> D_m = {Real(0.5), Real(0.1), Real(0.1), Real(6.0)};
-    const GpuArray<Real, 4> D_s = {Real(0.5), Real(24.4), Real(25.0),
-                                   Real(6.0)};
-    const GpuArray<double, 4> expected = {1.545814710591, 73.281971961051,
-                                          0.152368429532, 190.376227351357};
-    amrex::Gpu::DeviceVector<Real> device(4);
-    Real* values = device.data();
-    amrex::ParallelFor(4, [=] AMREX_GPU_DEVICE(int n) noexcept {
-        values[n] = erf_cloud_chamber_wall_flux::most_stability_coordinate(
-                        Ri[n], D_m[n], D_s[n])
-                        .zeta;
-    });
-    amrex::Gpu::HostVector<Real> host(4);
-    amrex::Gpu::copy(amrex::Gpu::deviceToHost, device.begin(), device.end(),
-                     host.begin());
-    for (int n = 0; n < 4; ++n) {
+    const GpuArray<Real, 5> Ri = {Real(0.2), Real(4.0), Real(4.0), Real(4.0),
+                                  Real(0.39927092596413188)};
+    const GpuArray<Real, 5> D_m = {Real(0.5), Real(0.1), Real(0.1), Real(6.0),
+                                   Real(0.001)};
+    const GpuArray<Real, 5> D_s = {Real(0.5), Real(24.4), Real(25.0), Real(6.0),
+                                   Real(1.0008842237169981)};
+    const GpuArray<double, 5> expected = {1.545814710591, 73.281971961051,
+                                          0.152368429532, 190.376227351357,
+                                          6.6318009022167015};
+    const auto host = most_coordinates_in_kernel(Ri, D_m, D_s);
+    for (int n = 0; n < 5; ++n) {
         SCOPED_TRACE(n);
         expect_stable_most_root(host[n], Ri[n], D_m[n], D_s[n], expected[n]);
     }
 }
+
+#if GTEST_HAS_DEATH_TEST && !defined(AMREX_USE_MPI)
+// Motivation: a numerical failure must stop the kernel even when NDEBUG
+// disables AMReX device assertions; it must not return uncertified
+// coefficients.
+TEST(CloudChamberWallFlux, MOSTRejectsNonfiniteStateInKernel)
+{
+    const auto saved_style = GTEST_FLAG_GET(death_test_style);
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    const GpuArray<Real, 5> Ri = {Real(4), Real(4), Real(4), Real(4), Real(4)};
+    const Real inf = std::numeric_limits<Real>::infinity();
+    const GpuArray<Real, 5> D_m = {inf, inf, inf, inf, inf};
+    const GpuArray<Real, 5> D_s = {Real(6), Real(6), Real(6), Real(6), Real(6)};
+#if defined(AMREX_USE_GPU)
+    const char* message = ".*"; // A device trap need not flush its diagnostic.
+#else
+    const char* message =
+        "Cloud Chamber MOST requires finite positive stable resistances";
+#endif
+    EXPECT_DEATH((void)most_coordinates_in_kernel(Ri, D_m, D_s), message);
+    GTEST_FLAG_SET(death_test_style, saved_style);
+}
+#endif
 
 TEST(CloudChamberWallFlux, MOSTFrozenWallRateUsesCurrentSharedCoefficients)
 {

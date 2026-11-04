@@ -952,8 +952,13 @@ If this check fails, a safeguarded search starts
 from neutral and examines intervals in order, discarding an interval only
 when the increasing stable resistances show that :math:`F` is negative
 throughout it. This avoids jumping over a narrow pair of roots. A certified
-nearby root retains the relaxed iteration's branch; otherwise the search
-selects the first positive root it can resolve.
+nearby root retains the relaxed iteration's branch. This need not be the
+smallest positive root: for some allowed roughness combinations, the
+neutral-start iteration passes the first two roots and reaches a third.
+Only when the iteration cannot certify a root does the ordered search
+select the first positive root it can resolve. This branch policy preserves
+certified iteration solutions; it does not establish which of several
+roots best represents a physical chamber.
 
 The returned coordinate is within :math:`10^{-3}` of a bracketed root;
 this is an absolute numerical tolerance, not a change to the wall physics.
@@ -962,7 +967,9 @@ in that location-error bound; the solver must certify a root within the
 bound or report an error rather than jump to a distant branch.
 Valid stable roots can exceed :math:`\zeta=100`. Exhausting the finite search
 budget or floating-point resolution is an error, as is a non-finite result.
-There is no silent neutral fallback or artificial upper stability limit.
+Failure terminates the calculation on both host and device, including
+optimized GPU builds with assertions disabled. There is no silent neutral
+fallback or artificial upper stability limit.
 Neutral and unstable conditions retain the existing relaxed iteration.
 
 After convergence,

@@ -16,6 +16,7 @@
 #include "BoundaryConditions/ERF_WallThermodynamics.H"
 
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <type_traits>
 
@@ -240,6 +241,23 @@ neutral_log_scalar_coefficient (amrex::Real wall_distance,
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+void
+most_stability_require (bool condition, const char* message) noexcept
+{
+    if (!condition) {
+        // AMReX device assertions and Abort can be disabled by NDEBUG.
+        AMREX_IF_ON_DEVICE((AMREX_DEVICE_PRINTF("%s\n", message);))
+#if defined(AMREX_USE_CUDA)
+        AMREX_IF_ON_DEVICE((__trap();))
+#else
+        AMREX_IF_ON_DEVICE((__builtin_trap();))
+#endif
+        AMREX_IF_ON_HOST((amrex::Abort(message); std::abort();))
+    }
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
 MostStabilityResult
 most_stability_coordinate (amrex::Real Ri,
                            amrex::Real D_m,
@@ -257,21 +275,38 @@ most_stability_coordinate (amrex::Real Ri,
             const amrex::Real A_m = amrex::max(D_m - psi_m, amrex::Real(1.0));
             const amrex::Real A_s = amrex::max(D_s - psi_s, amrex::Real(1.0));
             const amrex::Real rhs = Ri * A_m * A_m / A_s;
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            most_stability_require(
                 amrex::Math::isfinite(static_cast<double>(psi_m)) &&
                     amrex::Math::isfinite(static_cast<double>(psi_s)) &&
                     amrex::Math::isfinite(static_cast<double>(A_m)) &&
                     amrex::Math::isfinite(static_cast<double>(A_s)) &&
-                    amrex::Math::isfinite(static_cast<double>(rhs)),
+                    amrex::Math::isfinite(static_cast<double>(rhs)) &&
+                    amrex::Math::isfinite(static_cast<double>(z - rhs)),
                 "Cloud Chamber MOST produced a nonfinite stable residual");
             return {A_m, A_s, z - rhs};
         };
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        most_stability_require(
             amrex::Math::isfinite(static_cast<double>(Ri)) &&
                 amrex::Math::isfinite(static_cast<double>(D_m)) &&
                 amrex::Math::isfinite(static_cast<double>(D_s)) &&
                 D_m > amrex::Real(0.0) && D_s > amrex::Real(0.0),
             "Cloud Chamber MOST requires finite positive stable resistances");
+
+        const auto interpolate = [=] AMREX_GPU_HOST_DEVICE(
+                                     amrex::Real a, amrex::Real b,
+                                     amrex::Real fa, amrex::Real fb) noexcept {
+            most_stability_require(
+                b > a && b - a <= tolerance && fa <= amrex::Real(0.0) &&
+                    fb >= amrex::Real(0.0) && fb > fa &&
+                    amrex::Math::isfinite(static_cast<double>(fb - fa)),
+                "Cloud Chamber MOST requires a certified stable root bracket");
+            const amrex::Real z = a + (b - a) * (-fa / (fb - fa));
+            most_stability_require(
+                amrex::Math::isfinite(static_cast<double>(z)) && z >= a &&
+                    z <= b,
+                "Cloud Chamber MOST produced an invalid bracket interpolation");
+            return z;
+        };
 
         amrex::Real seed = amrex::Real(0.0);
         for (int iter = 0; iter < 100; ++iter) {
@@ -281,7 +316,7 @@ most_stability_coordinate (amrex::Real Ri,
                 return {seed, iterations};
             }
             const amrex::Real next = seed - amrex::Real(0.5) * value[2];
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            most_stability_require(
                 amrex::Math::isfinite(static_cast<double>(next)),
                 "Cloud Chamber MOST produced a nonfinite stability coordinate");
             const bool small_update =
@@ -308,10 +343,9 @@ most_stability_coordinate (amrex::Real Ri,
                 }
                 const amrex::Real mid = a + amrex::Real(0.5) * (b - a);
                 if (b - a <= tolerance) {
-                    return {a + (b - a) * (-va[2] / (vb[2] - va[2])),
-                            iterations};
+                    return {interpolate(a, b, va[2], vb[2]), iterations};
                 }
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                most_stability_require(
                     mid > a && mid < b,
                     "Cloud Chamber MOST exhausted stable root precision");
                 const auto vm = state(mid);
@@ -338,9 +372,14 @@ most_stability_coordinate (amrex::Real Ri,
         vb = state(b);
         for (int search = 0; search < 8192; ++search) {
             ++iterations;
+            most_stability_require(
+                amrex::Math::isfinite(static_cast<double>(a)) &&
+                    amrex::Math::isfinite(static_cast<double>(b)) && b > a &&
+                    va[2] <= amrex::Real(0.0),
+                "Cloud Chamber MOST exhausted stable bracket range");
             if (unresolved >= amrex::Real(0.0)) {
                 const amrex::Real limit = unresolved + tolerance;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                most_stability_require(
                     a < limit,
                     "Cloud Chamber MOST cannot resolve the stable root branch");
                 if (b > limit) {
@@ -353,7 +392,7 @@ most_stability_coordinate (amrex::Real Ri,
             }
             const amrex::Real mid = a + amrex::Real(0.5) * (b - a);
             if (vb[2] >= amrex::Real(0.0) && b - a <= tolerance) {
-                return {a + (b - a) * (-va[2] / (vb[2] - va[2])), iterations};
+                return {interpolate(a, b, va[2], vb[2]), iterations};
             }
             const amrex::Real lower_rhs = Ri * va[0] * va[0] / vb[1];
             const amrex::Real roundoff =
@@ -364,15 +403,15 @@ most_stability_coordinate (amrex::Real Ri,
                 a = b;
                 va = vb;
                 b = depth > 0 ? pending[--depth] : amrex::Real(2.0) * b;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                    amrex::Math::isfinite(static_cast<double>(b)) && b > a,
-                    "Cloud Chamber MOST exhausted stable bracket range");
             } else if (depth < max_depth && mid > a && mid < b) {
                 pending[depth++] = b;
                 b = mid;
             } else {
                 // Retain a rounding-ambiguous interval in the location error
                 // bound; never step past it to a distant root.
+                most_stability_require(
+                    b - a <= tolerance && vb[2] < amrex::Real(0.0),
+                    "Cloud Chamber MOST exhausted stable root precision");
                 if (unresolved < amrex::Real(0.0)) {
                     unresolved = a;
                 }
@@ -380,10 +419,14 @@ most_stability_coordinate (amrex::Real Ri,
                 va = vb;
                 b = depth > 0 ? pending[--depth] : amrex::Real(2.0) * b;
             }
+            most_stability_require(
+                amrex::Math::isfinite(static_cast<double>(b)) && b > a,
+                "Cloud Chamber MOST exhausted stable bracket range");
             vb = state(b);
         }
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        most_stability_require(
             false, "Cloud Chamber MOST exhausted stable root search budget");
+        return {std::numeric_limits<amrex::Real>::quiet_NaN(), -iterations};
     }
 
     amrex::Real zeta = amrex::Real(0.0);
@@ -398,7 +441,7 @@ most_stability_coordinate (amrex::Real Ri,
         const amrex::Real A_s = amrex::max(D_s - psi_s, amrex::Real(1.0));
         const amrex::Real zeta_new = amrex::Real(0.5) * zeta_old +
             amrex::Real(0.5) * Ri * A_m * A_m / A_s;
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        most_stability_require(
             amrex::Math::isfinite(static_cast<double>(zeta_new)),
             "Cloud Chamber MOST produced a nonfinite stability coordinate");
         zeta = zeta_new;
@@ -408,7 +451,7 @@ most_stability_coordinate (amrex::Real Ri,
             break;
         }
     }
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+    most_stability_require(
         converged, "Cloud Chamber MOST fixed-point iteration did not converge");
     return {zeta, iterations};
 }
@@ -472,6 +515,10 @@ most_wall_coefficients (
     const amrex::Real D_stability = std::log(wall_distance / z0_stability);
     const auto stability = most_stability_coordinate(Ri, D_m, D_stability);
     const amrex::Real zeta = stability.zeta;
+    most_stability_require(
+        stability.iterations > 0 &&
+            amrex::Math::isfinite(static_cast<double>(zeta)),
+        "Cloud Chamber MOST returned an uncertified stability coordinate");
 
     similarity_funs sfuns;
     const amrex::Real psi_m = sfuns.calc_psi_m2(zeta);
@@ -485,10 +532,10 @@ most_wall_coefficients (
     result.u_star = KAPPA * U_most / A_m;
     result.zeta = zeta;
     result.valid = 1;
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+    most_stability_require(
         amrex::Math::isfinite(static_cast<double>(result.C_D)) &&
-        amrex::Math::isfinite(static_cast<double>(result.C_H)) &&
-        amrex::Math::isfinite(static_cast<double>(result.C_E)),
+            amrex::Math::isfinite(static_cast<double>(result.C_H)) &&
+            amrex::Math::isfinite(static_cast<double>(result.C_E)),
         "Cloud Chamber MOST produced nonfinite transfer coefficients");
     return result;
 }
