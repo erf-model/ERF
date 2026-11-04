@@ -80,7 +80,7 @@ def _enum_facts(table, enum_names, values):
         if not fact["type"].startswith("enum"):
             continue
         name = fact["type"].split(":", 1)[1].replace("_list", "")
-        fact["type"] = "enum_list" if fact["type"].startswith("enum_list") else "enum"
+        fact["type"] = "enum_list" if fact["type"].endswith("_list") else "enum"   # scan writes enum:<Name>_list
         fact["values"] = enum_names[name]
         fact.setdefault("case_insensitive", False)
         if fact.get("default") is not None and fact["type"] == "enum":
