@@ -7,7 +7,7 @@ SCHEMA_VERSION = 1
 
 
 def _files(root, rel_base):
-    return [(f"{rel_base}/{p.relative_to(root)}", scan.strip_comments(p.read_text(errors="replace")))
+    return [(f"{rel_base}/{scan.posix_rel(p, root)}", scan.strip_comments(p.read_text(errors="replace")))
             for p in sorted(root.rglob("*")) if p.suffix in (".H", ".cpp")]
 
 

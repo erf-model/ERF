@@ -113,14 +113,20 @@ def main(argv=None) -> int:
     if not paths:
         ap.error("give at least one inputs file")
 
+    minsev = Severity[args.min_severity]
     schema = None
     if args.schema:
         import json
         from erf_input_checker.checks.schema import cross_check
-        with open(args.schema) as fh:
-            schema = json.load(fh)
+        try:
+            with open(args.schema) as fh:
+                schema = json.load(fh)
+        except (OSError, ValueError) as exc:
+            ap.error("cannot read the schema %s: %s" % (args.schema, exc))
+        if not isinstance(schema, dict) or not isinstance(schema.get("keys"), dict):
+            ap.error("%s is not an inputs schema (no 'keys'); write one with build_erf_schema.py" % args.schema)
         curated_only, source_only = cross_check(schema)
-        if not args.json and (curated_only or source_only):
+        if not args.json and minsev <= Severity.INFO and (curated_only or source_only):
             print("== schema %s (ERF %s)" % (args.schema, (schema.get("erf_commit") or "?")[:9]))
             for key in curated_only:
                 print("[INFO] %s\n    retired in the docs' list, but this build's source does not refuse it" % key)
@@ -129,7 +135,6 @@ def main(argv=None) -> int:
             print()
     opts = Options(ranks=args.ranks, gpu=args.gpu, umax=args.umax, theta=args.theta, schema=schema)
     worst = Severity.INFO
-    minsev = Severity[args.min_severity]
     reports = []
     for path in paths:
         if os.path.isdir(path):

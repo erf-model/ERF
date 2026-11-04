@@ -441,11 +441,16 @@ def _literal(raw):
     return re.sub(r"(?<=[0-9.])(?:_rt|_prt|[fFlL])$", "", raw)
 
 
+def posix_rel(path, root):
+    """path relative to root with / separators on every platform (the schema's paths are byte-identical anywhere)."""
+    return path.relative_to(root).as_posix()
+
+
 def scan(root, rel_base, enum_names, global_decls, erf_side, all_files=()):
     """Every literal query in the tree: (key, fact, conditions, method, target), and unresolved reads."""
     hits, unresolved = [], []
     for path in sorted(p for p in root.rglob("*") if p.suffix in (".H", ".cpp")):
-        rel = f"{rel_base}/{path.relative_to(root)}"
+        rel = f"{rel_base}/{posix_rel(path, root)}"
         h, u = FileScan(path, rel, enum_names, global_decls, erf_side, all_files).hits()
         hits += h
         unresolved += u

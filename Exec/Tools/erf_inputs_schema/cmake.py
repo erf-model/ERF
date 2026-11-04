@@ -85,5 +85,5 @@ def cmake_features(erf_root, cmake_options):
     resolved = _options(erf_root, cmake_options)
     features, sources = {}, {}
     for path in sorted([erf_root / "CMakeLists.txt", *(erf_root / "CMake").glob("*.cmake")]):
-        _scan_file(path, str(path.relative_to(erf_root)), resolved, features, sources)
+        _scan_file(path, path.relative_to(erf_root).as_posix(), resolved, features, sources)
     return features, sources

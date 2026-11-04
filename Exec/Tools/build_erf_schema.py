@@ -27,7 +27,7 @@ GENERATOR = "Exec/Tools/build_erf_schema.py"
 
 
 def parse_args(argv):
-    p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--repo", type=Path, help="an ERF git clone (git mode)")
     p.add_argument("--erf", help="the ERF commit to read (git mode)")
     p.add_argument("--amrex-repo", type=Path, help="AMReX clone (default: <repo>/Submodules/AMReX)")
@@ -39,7 +39,8 @@ def parse_args(argv):
     p.add_argument("--site-facts", type=Path, help="a JSON list of site facts (see erf_inputs_schema/README)")
     p.add_argument("--out", type=Path, required=True)
     a = p.parse_args(argv)
-    if bool(a.repo and a.erf) == bool(a.erf_dir and a.amrex_dir):
+    git_mode, dir_mode = (a.repo, a.erf), (a.erf_dir, a.amrex_dir)
+    if any(git_mode) == any(dir_mode) or not all(git_mode if any(git_mode) else dir_mode):
         p.error("give either --repo and --erf, or --erf-dir and --amrex-dir")
     return a
 

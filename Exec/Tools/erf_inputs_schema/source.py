@@ -26,8 +26,10 @@ def resolve(repo, commit):
 
 def extract(repo, commit, paths, dest):
     data = _git(repo, "archive", commit, *paths)
+    # filter= exists from Python 3.12 (and 3.8.17, 3.9.17, 3.10.12, 3.11.4); the archive is our own git's output
+    safe = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
     with tarfile.open(fileobj=io.BytesIO(data)) as tar:
-        tar.extractall(dest, filter="data")
+        tar.extractall(dest, **safe)
 
 
 def checkout(repo, erf_commit, dest, amrex_repo=None, amrex_commit=None):
@@ -35,6 +37,9 @@ def checkout(repo, erf_commit, dest, amrex_repo=None, amrex_commit=None):
     (erf_root, amrex_root, erf_commit, amrex_commit) with full SHAs."""
     repo, dest = Path(repo), Path(dest)
     erf_commit = resolve(repo, erf_commit)
+    if not amrex_repo and not (repo / "Submodules" / "AMReX" / ".git").exists():
+        raise ValueError("Submodules/AMReX is not initialized: run 'git submodule update --init Submodules/AMReX', "
+                         "or give an AMReX clone with --amrex-repo")
     amrex_repo = Path(amrex_repo) if amrex_repo else repo / "Submodules" / "AMReX"
     amrex_commit = resolve(amrex_repo, amrex_commit or amrex_gitlink(repo, erf_commit))
     extract(repo, erf_commit, ERF_PATHS, dest / "erf")
