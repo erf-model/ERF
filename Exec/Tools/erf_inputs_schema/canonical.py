@@ -37,6 +37,8 @@ def canonical_value(kind, word, fact):
 
 def _enum(word, fact):
     values = fact.get("values", [])
+    if fact.get("ignores"):                          # query_enum_sloppy drops these characters from the word first
+        word = "".join(c for c in word if c not in fact["ignores"])
     if fact.get("case_insensitive"):
         match = [v for v in values if v.lower() == word.lower()]
     else:

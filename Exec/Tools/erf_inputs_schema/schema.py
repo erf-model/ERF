@@ -108,6 +108,11 @@ def merge(old, new):
     if old.get("per_level") or new.get("per_level"):
         out["per_level"] = True
     out["required"] = bool(old.get("required") or new.get("required"))
+    for flag in ("line", "table", "parser", "as_double"):
+        if new.get(flag):
+            out[flag] = True
+    if "ignores" in new:
+        out.setdefault("ignores", new["ignores"])
     if _scalar(kind) != _scalar(a) and _scalar(kind) == _scalar(b):      # the type changed to the new read's
         for k in DEFAULT_FIELDS:
             out.pop(k, None)
@@ -151,6 +156,19 @@ def _enum_facts(table, enum_names, values):
             fact["value_requires"] = vr
 
 
+def _apply_adds(adds, keys):
+    """add_par's pp.add("k", literal) is k's default: it runs before the inputs are read, which override it."""
+    for key, raw, source in adds:
+        fact = keys.get(key)
+        if fact is None or fact["type"] in ("removed", "unknown") or fact["type"].endswith("_list"):
+            continue
+        try:
+            value = canonical.canonical_value(fact["type"], scan._literal(raw), fact)
+        except ValueError:
+            continue
+        fact.update(default=value, default_origin="add", default_source=source)
+
+
 def _apply_site_facts(site_facts, keys, features, feature_sources):
     """A site fact is a feature the build options cannot show (e.g. whether the MPI is GPU-aware): it sets the
     feature and, when it names a key and value, that value's requirement, with the key's read line as evidence."""
@@ -175,15 +193,15 @@ def generate(erf_root, amrex_root, cmake_options=None, site_facts=None, meta=Non
     cmake_options = dict(cmake_options or {})
     erf_files = _files(erf_root / "Source", "Source")
     enum_names = scan.enums(erf_files)
-    hits, unresolved, families_hit = scan.scan(erf_root / "Source", "Source", enum_names,
-                                               _decls(erf_files, enum_names), True, erf_files)
+    hits, unresolved, families_hit, adds = scan.scan(erf_root / "Source", "Source", enum_names,
+                                                     _decls(erf_files, enum_names), True, erf_files)
     present = {rel for rel, _ in erf_files}
     for (rel, expr) in sorted(scan.FAMILIES):
         if rel in present and (rel, expr) not in families_hit:
             raise ValueError(f"scan.FAMILIES entry {rel} {expr!r} matched no ParmParse declaration: the source "
                              "changed, so update the entry (its keys would otherwise drop out of the schema)")
     amrex_files = _files(amrex_root / "Src", "AMReX/Src")
-    amrex_hits, _, _ = scan.scan(amrex_root / "Src", "AMReX/Src", {}, _decls(amrex_files, {}), False, amrex_files)
+    amrex_hits, _, _, _ = scan.scan(amrex_root / "Src", "AMReX/Src", {}, _decls(amrex_files, {}), False, amrex_files)
     features, feature_sources = cmake.cmake_features(erf_root, cmake_options)
     for macro in sorted({c[0] for _, _, conds, _, _ in hits for c in conds}):
         features.setdefault(macro, False)
@@ -200,6 +218,7 @@ def generate(erf_root, amrex_root, cmake_options=None, site_facts=None, meta=Non
             if needs.get(key):
                 fact["requires"] = sorted(needs[key])
                 fact["requires_evidence"] = dict(sorted(needs[key].items()))
+    _apply_adds(adds, keys)
     _apply_site_facts(site_facts or [], keys, features, feature_sources)
     build = {"cmake": cmake_options,
              "facts_from": facts_from or {"cmake": "given" if cmake_options else "none", "site_facts": site_facts}}
