@@ -4,6 +4,27 @@
 
 using namespace condensation_test;
 
+namespace {
+
+struct ConstantRadiusSquaredRate
+{
+    float rate;
+
+    AMREX_GPU_HOST_DEVICE
+    float rhs_func (float, float, float, float, float, float, float, float, float) const noexcept
+    {
+        return rate;
+    }
+
+    AMREX_GPU_HOST_DEVICE
+    float rhs_jac (float, float, float, float, float, float, float, float) const noexcept
+    {
+        return 0;
+    }
+};
+
+} // namespace
+
 // Motivation: ERF's warm-phase super-droplet growth integrates dR^2/dt with the
 // Koehler curvature and solute terms (Source/Particles/ERF_SuperDropletPCMassChange.H,
 // SDMassChangeUtils_LV). This checks the diffusional r^2-law, the growth/evaporation
@@ -57,5 +78,44 @@ TEST(CondensationScalar, FloatBackwardEulerRetainsResolvableShortStepExchange)
         const double roundoff = std::numeric_limits<RT>::epsilon() * initial;
         ASSERT_GT(std::abs(expected - initial), 128 * roundoff);
         EXPECT_NEAR(actual, expected, 8 * roundoff) << "S=" << saturation;
+    }
+}
+
+// Motivation: At small positive R^2, float residual/step squares can vanish and
+// suppress resolvable corrections. A manufactured constant-rate equation
+// isolates both stopping paths against an analytic root, including a zero
+// initial guess, independently of the small-radius particle-physics Jacobian.
+TEST(CondensationScalar, FloatNewtonResolvesSmallPositiveRadiusSquared)
+{
+    using RT = float;
+    constexpr RT cases[][2] = {
+        {RT(1.e-18), RT(1.e-23)},
+        {RT(1.e-18), RT(-1.e-23)},
+        {RT(0), RT(1.e-23)}
+    };
+    for (const RT mu : {RT(1), RT(1.e12)}) {
+        for (const auto& point : cases) {
+            const RT initial = point[0];
+            const ConstantRadiusSquaredRate ode{mu * point[1]};
+            SCOPED_TRACE(::testing::Message() << "mu=" << mu << " initial=" << initial
+                                             << " rate=" << ode.rate);
+            const NewtonSolver<ConstantRadiusSquaredRate, RT> newton{
+                ode, RT(1.e-6), RT(0), RT(1.e-12), 10};
+            RT actual = initial;
+            RT rhs = mu * initial;
+            RT absolute_residual = 0, relative_residual = 0;
+            bool success = false;
+            newton(actual, rhs, mu, RT(0), RT(0), RT(0), RT(0), RT(0),
+                   RT(0), RT(0), RT(1), absolute_residual, relative_residual, success);
+            ASSERT_TRUE(success);
+
+            const double expected = (double(rhs) + double(ode.rate)) / double(mu);
+            const double roundoff = std::numeric_limits<RT>::epsilon()
+                                  * std::max(double(initial), expected);
+            ASSERT_GT(std::abs(expected - initial), 64 * roundoff);
+            EXPECT_NEAR(actual, expected, 2 * roundoff);
+            EXPECT_LE(std::abs(double(mu) * actual - double(rhs) - double(ode.rate)),
+                      2 * double(mu) * roundoff);
+        }
     }
 }

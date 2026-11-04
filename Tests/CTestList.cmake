@@ -1693,12 +1693,14 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
 add_test_cloud_chamber_active_condensation(CloudChamber_Active_KesslerNoRain)
 endif()
 add_test_cloud_chamber_bulk_legacy(CloudChamber_BulkSmoke_Legacy_Kessler_NoRain Kessler_NoRain)
-# These runs exercise existing global solver guards before the Cloud Chamber
-# typed allowlist. Parser-level allowlist failures have separate tests.
+# These runs exercise initialization rejection through global solver guards or
+# the Cloud Chamber typed allowlist. Direct parser failures have separate tests.
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SBM SBM 0
     "SBM M3 does not support scalar or particle diffusion")
+# Motivation: Anelastic SDM is valid in ERF, but the Cloud Chamber's unsupported
+# particle model must still be rejected before time stepping or output.
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SuperDroplets SuperDroplets 0
-    "Super-Droplet path currently uses the compressible equation of state")
+    "Cloud Chamber: selected moisture model is unsupported")
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_Budget Kessler 1
     "cloud_chamber_budget_interval supports only physical_temperature_rh")
 add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SBM SBM)
