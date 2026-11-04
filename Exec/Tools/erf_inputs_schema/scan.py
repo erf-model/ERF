@@ -299,13 +299,18 @@ class FileScan:
         """(value, origin, source): the variable's initializer as a canonical literal. Origins: initializer, none,
         expression (an initializer that is not a plain literal of the type)."""
         name = target_name(target) if target else None
-        found = _initializer(name, self.text, line) if name else None
+        decl = max((ln for _, ln in self.local.get(name, []) if ln <= line + 1), default=None) if name else None
+        found = _initializer(name, self.text, line) if name and decl != 0 else None
+        if found is not None and decl is not None and found[1] != decl:
+            found = None                             # that initializer belongs to an earlier, shadowed declaration
         rel = self.rel
-        if found is None and name and self.header_text:
+        if found is None and name and self.header_text and decl in (None, 0):
             found, rel = _initializer(name, self.header_text, None), self.header_rel
-        if found is None or kind.endswith("_list") or kind == "unknown":
+        if found is None or kind.endswith("_list") or kind == "unknown" or not found[0]:
             return None, "none", None
         raw, at = found
+        if kind == "string" and not re.fullmatch(r'"[^"]*"', raw):
+            return None, "expression", f"{rel}:{at}"     # std::string p = prefix; is not a literal
         if kind.startswith("enum:"):                     # values attach later; schema._enum_facts canonicalizes
             return _literal(raw), "initializer", f"{rel}:{at}"
         try:
