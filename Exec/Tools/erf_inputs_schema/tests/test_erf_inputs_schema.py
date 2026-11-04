@@ -521,5 +521,190 @@ class SourceTests(unittest.TestCase):
                          "Source/Init/A.cpp")
 
 
+def tree_keys_files(files, cmake=""):
+    """The schema of a small ERF tree given as {relative path: source}, with an empty AMReX."""
+    from erf_inputs_schema import schema
+    with tempfile.TemporaryDirectory() as td:
+        erf, amrex = Path(td) / "erf", Path(td) / "AMReX"
+        (erf / "CMake").mkdir(parents=True)
+        (amrex / "Src").mkdir(parents=True)
+        (erf / "CMakeLists.txt").write_text(cmake)
+        for rel, text in files.items():
+            (erf / rel).parent.mkdir(parents=True, exist_ok=True)
+            (erf / rel).write_text(text)
+        return schema.generate(erf, amrex)
+
+
+def check_schema(schema_dict, deck):
+    """(checker, key) -> severity for one deck checked against a schema dict."""
+    import json
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        (td / "s.json").write_text(json.dumps(schema_dict))
+        (td / "inputs").write_text(deck)
+        out = subprocess.run([sys.executable, str(CHECKER), "--json", "--schema", str(td / "s.json"),
+                              str(td / "inputs")], capture_output=True, text=True).stdout
+    return {(f["checker"], f["key"]): f["severity"] for f in json.loads(out)["findings"]}
+
+
+class ParmParseWordRulesTests(unittest.TestCase):
+    """What the checker reports follows what ParmParse does: a scalar read takes the first word (ival = FIRST) and
+    ignores the rest; a bool/int/real word that is not a literal goes to the parser (pp_parser); a surplus of
+    per-level values is ignored (query_one_or_per_level); d/D exponents are reals."""
+
+    def test_extra_words_on_a_scalar_key_are_ignored_not_an_error(self):
+        from erf_input_checker.checks import schema as sc
+        fact = {"type": "int"}
+        self.assertIsNone(sc.value_problem(fact, ["2", "//", "Sullivan", "2004"], 1))
+        self.assertEqual(sc.ignored_words(fact, ["2", "//", "Sullivan", "2004"]), ["//", "Sullivan", "2004"])
+        self.assertEqual(sc.ignored_words({"type": "int_list"}, ["1", "2"]), [])
+        self.assertEqual(sc.value_problem(fact, ["x", "2"], 1), "not a int literal: 'x'")
+
+    def test_a_parser_evaluated_word_is_an_expression_not_an_error(self):
+        from erf_input_checker.checks import schema as sc
+        self.assertIsNone(sc.value_problem({"type": "real"}, ["300.;"], 1))
+        self.assertEqual(sc.expression_words({"type": "real"}, ["300.;", "1.0", "fast"]), ["300.;"])
+        self.assertEqual(sc.expression_words({"type": "int"}, ["1e9"]), ["1e9"])
+        self.assertEqual(sc.value_problem({"type": "real"}, ["fast"], 1), "not a real literal: 'fast'")
+        self.assertEqual(sc.value_problem({"type": "string"}, ["a;"], 1), None)
+        self.assertEqual(sc.value_problem({"type": "enum", "values": ["None"]}, ["1"], 1),
+                         "not one of the enum's names: '1'")
+
+    def test_a_per_level_key_takes_one_value_or_at_least_one_per_level(self):
+        from erf_input_checker.checks import schema as sc
+        fact = {"type": "real", "per_level": True}
+        self.assertIsNone(sc.value_problem(fact, ["1", "2", "3"], 2))
+        self.assertEqual(sc.ignored_words(fact, ["1", "2", "3"], 2), ["3"])
+        self.assertIsNone(sc.value_problem(fact, ["1"], 3))
+        self.assertEqual(sc.value_problem(fact, ["1", "2"], 3), "give one value, or one per level (3)")
+
+    def test_fortran_exponents_are_reals(self):
+        self.assertEqual(canonical.canonical_value("real", "1D0", {}), "1.0")
+        self.assertEqual(canonical.canonical_value("real", "1.d-3", {}), "0.001")
+
+    def test_the_checker_reports_the_three_cases_as_warnings(self):
+        s = generate()
+        found = check_schema(s, "erf.nsteps = 20 steps\nerf.cfl = 300.;\nerf.eye_latitude = 1D0\n")
+        self.assertEqual(found.get(("schema", "erf.nsteps")), "WARNING")
+        self.assertEqual(found.get(("schema", "erf.cfl")), "WARNING")
+        self.assertNotIn(("schema", "erf.eye_latitude"), found)
+
+
+class StationNameTests(unittest.TestCase):
+    def test_a_station_name_may_start_with_an_underscore_and_hold_hyphens_and_dots(self):
+        # ERF_StationSampler.cpp check_station_name: a letter or '_' first, then letters, digits, '_', '-', '.'
+        from erf_input_checker.checks import schema as sc
+        s = {"keys": {}, "patterns": {"erf.<station>.x": {"type": "real"}}}
+        for key in ("erf._mast.x", "erf.mast-1.x", "erf.mast.1.x"):
+            self.assertIsNotNone(sc.lookup(key, s), key)
+        self.assertIsNone(sc.lookup("erf.1mast.x", s))
+
+
+class InitializerTests(unittest.TestCase):
+    def test_text_inside_a_string_literal_is_not_an_initializer(self):
+        # ERF_DataStruct.H:732 Error("... Set init_type = MoistBaseState instead.") preceded the init_type read
+        keys = tree_keys_files({
+            "Source/ERF_S.H": 'struct S { int knob; };\n',
+            "Source/ERF_T.cpp": 'void f (S& s)\n{\n    ParmParse pp("erf");\n'
+                                '    amrex::Error("The input old is deprecated.  Set knob = Gone instead.");\n'
+                                '    pp.query("knob", s.knob);\n}\n'})["keys"]
+        self.assertEqual((keys["erf.knob"]["default"], keys["erf.knob"]["default_origin"]), (None, "none"))
+
+    def test_a_default_is_taken_only_from_a_read_of_the_same_type(self):
+        from erf_inputs_schema import schema
+        first = {"type": "string", "source": "Source/A.cpp:5", "default_origin": "none"}
+        second = {"type": "real", "source": "Source/B.cpp:5", "default": "1.0", "default_origin": "initializer"}
+        self.assertEqual(schema.merge(schema.merge(None, first), second).get("default_origin"), "none")
+        same = {"type": "string", "source": "Source/B.cpp:5", "default": "x", "default_origin": "initializer"}
+        self.assertEqual(schema.merge(schema.merge(None, first), same).get("default"), "x")
+
+
+ENUM_VS_STRING = ('AMREX_ENUM(Mode, Alpha, Beta);\nvoid f ()\n{\n    ParmParse pp("erf");\n'
+                  '    std::string probe;\n    pp.queryAdd("mode", probe);\n'
+                  '    Mode mode = Mode::Alpha;\n    pp.query_enum_case_insensitive("mode", mode);\n}\n')
+
+
+class TypePrecedenceTests(unittest.TestCase):
+    def test_an_enum_read_wins_over_a_string_probe_and_the_conflict_stays_recorded(self):
+        # erf.init_type, erf.moisture_model, erf.terrain_type: a std::string probe then the enum read
+        fact = tree_keys_files({"Source/ERF_B.cpp": ENUM_VS_STRING})["keys"]["erf.mode"]
+        self.assertEqual((fact["type"], fact["values"], fact["case_insensitive"]), ("enum", ["Alpha", "Beta"], True))
+        self.assertEqual(fact["default"], "Alpha")
+        self.assertEqual(fact["type_conflict"], ["enum:Mode", "string"])
+        # the same two reads in the other file order (the enum read sorts first)
+        fact = tree_keys_files({"Source/ERF_A.cpp": ENUM_VS_STRING.replace("probe", "zz_probe")})["keys"]["erf.mode"]
+        self.assertEqual(fact["type"], "enum")
+
+    def test_an_array_read_keeps_the_key_a_list_even_when_its_target_is_untyped(self):
+        # ERF_DataStruct.H:1623/1631: get into a Real, getarr into vert_implicit_fac[lev] (a Vector<Vector<Real>>)
+        keys = tree_keys('void f ()\n{\n    ParmParse pp("erf");\n    amrex::Real fac;\n    pp.get("vif", fac);\n'
+                         '    amrex::Vector<amrex::Vector<amrex::Real>> vif;\n    pp.getarr("vif", vif[0]);\n}\n')
+        self.assertEqual(keys["erf.vif"]["type"], "real_list")
+
+    def test_a_scalar_read_of_an_indexed_target_is_a_scalar(self):
+        # ERF.cpp:3497 pp.queryAdd("fixed_dt", fixed_dt[0]) with Vector<Real> fixed_dt
+        keys = tree_keys('void f ()\n{\n    ParmParse pp("erf");\n    amrex::Vector<amrex::Real> fixed_dt;\n'
+                         '    pp.queryAdd("fixed_dt", fixed_dt[0]);\n}\n')
+        self.assertEqual(keys["erf.fixed_dt"]["type"], "real")
+
+
+class RunTimePrefixTests(unittest.TestCase):
+    def test_a_parmparse_reference_parameter_takes_the_prefixes_of_its_call_sites(self):
+        # ERF_WallScalarBC.H parse_wall_face_scalars(amrex::ParmParse& pp, ...) called from ERF_InitBCs.cpp
+        s = tree_keys_files({
+            "Source/ERF_Wall.H": 'inline void parse_face (amrex::ParmParse& pp, int n)\n{\n'
+                                 '    amrex::Real g = 0.0;\n    pp.query("theta_grad", g);\n}\n',
+            "Source/ERF_Init.cpp": 'void f ()\n{\n    ParmParse pp("xlo");\n    parse_face(pp, 1);\n}\n'})
+        self.assertEqual(s["keys"]["xlo.theta_grad"]["type"], "real")
+        self.assertEqual(s["unresolved"], [])
+
+    def test_a_family_entry_that_matches_nothing_in_its_file_stops_the_run(self):
+        from unittest import mock
+        from erf_inputs_schema import scan
+        with mock.patch.dict(scan.FAMILIES, {("Source/ERF_T.cpp", "gone"): (["x.<n>"], None)}, clear=True):
+            with self.assertRaisesRegex(ValueError, "Source/ERF_T.cpp.*gone"):
+                tree_keys('void f ()\n{\n    ParmParse pp("erf");\n    int a;\n    pp.query("a", a);\n}\n')
+        with mock.patch.dict(scan.FAMILIES, {("Source/ERF_Absent.cpp", "gone"): (["x.<n>"], None)}, clear=True):
+            tree_keys('void f ()\n{\n    ParmParse pp("erf");\n    int a;\n    pp.query("a", a);\n}\n')
+
+    def test_the_checker_names_an_unresolved_read_instead_of_calling_the_key_unread(self):
+        s = generate()
+        s["unresolved"] = ["Source/ERF_P.cpp:9 pp.aerosols"]
+        found = check_schema(s, "super_droplets_moisture.aerosols = 1\nerf.notakey = 1\n")
+        self.assertEqual(found.get(("schema", "super_droplets_moisture.aerosols")), "INFO")
+        self.assertEqual(found.get(("schema", "erf.notakey")), "WARNING")
+
+
+class ProblemRefusalTests(unittest.TestCase):
+    def test_a_refusal_in_problem_code_does_not_override_a_typed_read_elsewhere(self):
+        # ERF_CloudChamber.H:1081 refuses <face>.velocity; ERF_InitBCs.cpp:142 reads it for every other problem
+        from erf_inputs_schema import schema
+        typed = {"type": "real_list", "source": "Source/Initialization/ERF_InitBCs.cpp:142"}
+        refused = {"type": "removed", "source": "Source/Prob/ERF_CloudChamber.H:1080",
+                   "removed_evidence": "Source/Prob/ERF_CloudChamber.H:1081"}
+        for first, second in ((typed, refused), (refused, typed)):
+            got = schema.merge(schema.merge(None, first), second)
+            self.assertEqual(got["type"], "real_list")
+            self.assertEqual(got["refused_by"], ["Source/Prob/ERF_CloudChamber.H:1081"])
+        # outside Source/Prob/ the removal still wins
+        core = dict(refused, source="Source/DataStructs/ERF_DataStruct.H:5", removed_evidence="Source/DataStructs/ERF_DataStruct.H:6")
+        self.assertEqual(schema.merge(schema.merge(None, typed), core)["type"], "removed")
+
+    def test_a_configure_file_placeholder_is_info_not_an_error(self):
+        found = check_schema(generate(), "erf.cfl = @CFL@\n")
+        self.assertEqual(found.get(("schema", "erf.cfl")), "INFO")
+
+
+class CMakeSetTests(unittest.TestCase):
+    """A set() of an ERF option inside a taken branch is applied in file order (CMakeLists.txt first)."""
+
+    def test_a_conditional_set_turns_a_feature_on(self):
+        text = ('option(ERF_A "a" OFF)\noption(ERF_B "b" OFF)\nif(ERF_A AND NOT ERF_B)\n'
+                '  set(ERF_B ON CACHE BOOL "b" FORCE)\nendif()\nif(ERF_B)\n  set(ERF_C ON)\nelse()\n  set(ERF_C OFF)\n'
+                'endif()\nif(ERF_C)\n  target_compile_definitions(t PUBLIC ERF_USE_C)\nendif()\n')
+        self.assertIs(cmake_features(text, {"ERF_A": True})["ERF_USE_C"], True)
+        self.assertIs(cmake_features(text)["ERF_USE_C"], False)
+
+
 if __name__ == "__main__":
     unittest.main()
