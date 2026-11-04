@@ -127,6 +127,15 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     mlmg.setVerbose(mg_verbose);
     mlmg.setBottomVerbose(0);
 
+    // The bottom solve has only a relative tolerance by default (1e-4 of its initial residual).
+    // On a refined level every boundary is Neumann (walls and the coarse/fine boundary), so the
+    // problem is singular, and once the residual of the bottom level is near roundoff BiCGStab
+    // breaks down on it; what the failed solve hands back can then stall MLMG at a fixed
+    // residual. Whether it does depends on roundoff, so on the number of ranks (#4970;
+    // CTest EB_SquareCylinder_AnelasticAMR_NarrowPatch).
+    // Stop the bottom solve well below the tolerance of the solve itself instead.
+    mlmg.setBottomToleranceAbs(Real(1.e-4) * abstol);
+
     mlmg.solve(GetVecOfPtrs(phi), GetVecOfConstPtrs(rhs), reltol, abstol);
 
     mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
