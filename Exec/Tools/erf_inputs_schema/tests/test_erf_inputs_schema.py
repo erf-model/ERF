@@ -184,7 +184,7 @@ class DeterminismTests(unittest.TestCase):
 
 
 class ParityTests(unittest.TestCase):
-    """The synthetic tree's schema, key for key: Build B's fields (type, source, per_level, enum values,
+    """The synthetic tree's schema, key for key: the reference schema's fields (type, source, per_level, enum values,
     case_insensitive, requires) plus this tool's (layer, layers, default, default_origin, required)."""
 
     def test_every_key_matches_the_expected_record(self):
