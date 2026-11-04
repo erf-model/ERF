@@ -343,6 +343,9 @@ target_sources(${erf_exe_name}
     # Motivation: the log-law coarse/fine fill must keep the flux of every coarse face and share
     # the wall face's flux by ln(1 + z/z0), closing the solid sub-faces of immersed terrain.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestCFLogLawFill.cpp
+    # Motivation: the relax band of the coarse/fine fill patcher must follow the top face of a
+    # level that stops below the domain top, and not appear along the physical top or bottom.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestFillPatcherRelaxBand.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/EOS/ERF_GTestEOSScalar.cpp
