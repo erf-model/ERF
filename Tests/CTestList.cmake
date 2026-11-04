@@ -1829,7 +1829,16 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
             PROCESSORS ${_species_ranks} LABELS "regression;diffusion;particles"
             ATTACHED_FILES_ON_FAIL "${_species_dir}/implicit/simulation.log;${_species_dir}/explicit/simulation.log")
     endforeach()
-    foreach(_case phase regrid_splitmerge initialization)
+    foreach(_case
+        # Motivation: Stiff phase exchange must conserve vapor plus particle
+        # mass with anelastic base pressure and the configured heat capacity.
+        phase
+        # Motivation: Changing fine coverage with split/merge enabled must
+        # preserve represented mass and refresh anelastic condensate diagnostics.
+        regrid_splitmerge
+        # Motivation: Anelastic initial relaxation must retain vapor and latent
+        # exchange without duplicating particle mass in refined regions.
+        initialization)
         set(_anelastic_name "SDM_Anelastic_${_case}")
         set(_anelastic_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${_anelastic_name}")
         file(MAKE_DIRECTORY "${_anelastic_dir}")
@@ -1847,20 +1856,29 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
             PROCESSORS ${_species_ranks} LABELS "regression;anelastic;particles")
     endforeach()
     set(_anelastic_options "erf.input_sounding_file=${_species_input}/input_sounding erf.c_p=1200 erf.Cs=2 super_droplets_moisture.include_phase_change=true super_droplets_moisture.num_substeps_phase_change=2 super_droplets_moisture.initial_phase_change_relaxation=true super_droplets_moisture.initial_phase_change_relaxation_time=0.02")
+    # Motivation: Restart reconstruction must preserve the active phase-change
+    # trajectory with base pressure and a nondefault heat capacity.
     add_test_restart_parity(SDM_Anelastic_Restart SDM_SpeciesDiffusion 2 4
         COMMON_OPTIONS "${_anelastic_options} erf.anelastic=1"
         FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
     set(_anelastic_amr "amr.max_level=1 amr.ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=0 0 0 erf.box1.in_box_hi=8 4 8 erf.regrid_int=1")
+    # Motivation: An AMR restart on more MPI ranks must restore thermodynamics
+    # and particle ownership on the resumed grid decomposition.
     add_test_restart_parity(SDM_Anelastic_AMRRestart SDM_SpeciesDiffusion 2 4
         COMMON_OPTIONS "${_anelastic_options} ${_anelastic_amr} erf.anelastic=1"
         CHK_NRANKS 1 RESTART_NRANKS ${_species_ranks}
         FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    # Motivation: Both mixed mode orders must preserve per-level pressure
+    # selection and checkpointed coarse condensate through restart and regridding.
+    # Pure-mode cases cannot expose every coarse/fine coupling error.
     foreach(_modes "0 1" "1 0")
         string(REPLACE " " "" _mode_name "${_modes}")
         add_test_restart_parity(SDM_Anelastic_Mixed${_mode_name}Restart SDM_SpeciesDiffusion 2 4
             COMMON_OPTIONS "${_anelastic_options} ${_anelastic_amr} erf.anelastic=${_modes}"
             FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
     endforeach()
+    # Motivation: Box boundaries and their ghost fills must not change the
+    # base-pressure-driven particle and atmospheric evolution.
     add_test_box_parity(SDM_Anelastic_BoxParity SDM_SpeciesDiffusion plt00004
         COMMON_OPTIONS "${_anelastic_options} erf.anelastic=1"
         REFERENCE_OPTIONS "amr.max_grid_size=32"

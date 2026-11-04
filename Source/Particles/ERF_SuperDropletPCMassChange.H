@@ -230,7 +230,9 @@ namespace SDMassChangeUtils_LV
 
                 RT du_norm = std::sqrt(du*du);
                 RT u_norm = std::sqrt(a_u*a_u);
-                if (du_norm/u_norm <= m_stol) {
+                // Retrying cannot resolve a correction at the solution's roundoff.
+                const RT step_tol = std::max(m_stol, std::numeric_limits<RT>::epsilon());
+                if (du_norm/u_norm <= step_tol) {
                     a_converged = true;
                     break;
                 }

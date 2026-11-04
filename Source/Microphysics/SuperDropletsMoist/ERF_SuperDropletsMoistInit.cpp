@@ -356,22 +356,26 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
     computeQiQgQsWater(*a_z_phys_nd[lev]);
     computeQtWater();
 
-    for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
-        const auto& box = mfi.tilebox();
-        auto states_arr = a_cons_vars.array(mfi);
-        auto q_c_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->array(mfi);
-        auto q_r_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->array(mfi);
-        auto q_i_arr = m_mic_fab_vars[lev][MicVar_SD::q_i]->array(mfi);
-        auto q_g_arr = m_mic_fab_vars[lev][MicVar_SD::q_g]->array(mfi);
-        auto q_s_arr = m_mic_fab_vars[lev][MicVar_SD::q_s]->array(mfi);
-        ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
-            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_i_arr(i,j,k);
-            states_arr(i,j,k,RhoQ4_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
-            states_arr(i,j,k,RhoQ5_comp) = states_arr(i,j,k,Rho_comp)*q_s_arr(i,j,k);
-            states_arr(i,j,k,RhoQ6_comp) = states_arr(i,j,k,Rho_comp)*q_g_arr(i,j,k);
-        });
+    // Restart state already includes fine averages in covered coarse cells.
+    // A masked local particle projection must not replace that checkpoint data.
+    if (!m_restarted_particles) {
+        for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
+            const auto& box = mfi.tilebox();
+            auto states_arr = a_cons_vars.array(mfi);
+            auto q_c_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->array(mfi);
+            auto q_r_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->array(mfi);
+            auto q_i_arr = m_mic_fab_vars[lev][MicVar_SD::q_i]->array(mfi);
+            auto q_g_arr = m_mic_fab_vars[lev][MicVar_SD::q_g]->array(mfi);
+            auto q_s_arr = m_mic_fab_vars[lev][MicVar_SD::q_s]->array(mfi);
+            ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
+                states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_i_arr(i,j,k);
+                states_arr(i,j,k,RhoQ4_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
+                states_arr(i,j,k,RhoQ5_comp) = states_arr(i,j,k,Rho_comp)*q_s_arr(i,j,k);
+                states_arr(i,j,k,RhoQ6_comp) = states_arr(i,j,k,Rho_comp)*q_g_arr(i,j,k);
+            });
+        }
     }
 
     // Appended condensate is a projection on every level, including before
@@ -379,16 +383,18 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
     computeQcSpecies(*a_z_phys_nd[lev]);
     computeQtSpecies();
 
-    for (int is = m_istart_sp; is < m_num_species; is++) {
-        for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
-            const auto& box = mfi.tilebox();
-            auto states_arr = a_cons_vars.array(mfi);
-            auto q_c_arr = m_mic_fab_vars[lev][s_qc_idx(is,m_istart_sp)]->array(mfi);
-            auto qc_comp = q_qc_idx(is,m_istart_sp);
-            ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                states_arr(i,j,k,qc_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
-            });
+    if (!m_restarted_particles) {
+        for (int is = m_istart_sp; is < m_num_species; is++) {
+            for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
+                const auto& box = mfi.tilebox();
+                auto states_arr = a_cons_vars.array(mfi);
+                auto q_c_arr = m_mic_fab_vars[lev][s_qc_idx(is,m_istart_sp)]->array(mfi);
+                auto qc_comp = q_qc_idx(is,m_istart_sp);
+                ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    states_arr(i,j,k,qc_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
+                });
+            }
         }
     }
 

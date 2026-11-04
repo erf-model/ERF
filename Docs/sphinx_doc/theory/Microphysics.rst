@@ -87,14 +87,9 @@ Anelastic microphysics thermodynamics
 -------------------------------------
 
 ERF supplies the thermodynamic pressure used by supported Eulerian
-microphysics schemes and by ``SuperDroplets``. On each anelastic AMR level,
-pressure-dependent microphysics uses the cellwise hydrostatic base-state
-pressure; on compressible levels, it retains the local equation-of-state
-pressure diagnosis. The selection is per level, not inferred from the
-presence of a base-state pointer. The potential-temperature and temperature
-relationship below applies to both the Eulerian and SuperDroplets anelastic
-thermodynamic coupling. No additional pressure field or scheme-specific
-pressure unit conversion is required in the input file.
+microphysics schemes and by ``SuperDroplets``. The pressure and temperature
+relationships below apply to both types of schemes. No additional pressure
+field or scheme-specific pressure-unit conversion is required in the input file.
 
 On each anelastic AMR level (``erf.anelastic = 1``), pressure-dependent
 microphysics uses the hydrostatic base-state pressure at each cell. Let
@@ -120,15 +115,15 @@ calculations use the same hydrostatic base-state pressure consistently through
 the microphysics source step. Schemes that convert between temperature and
 potential temperature use that same pressure.
 
-On a compressible AMR level, the existing behavior is unchanged: ERF diagnoses
-local pressure and temperature from the prognostic state with the compressible
-equation of state. In a mixed hierarchy, this choice is made independently on
-each AMR level.
+On a compressible AMR level, ERF diagnoses local pressure and temperature from
+the prognostic state with the compressible equation of state. In a mixed
+hierarchy, ``erf.anelastic`` selects the dynamics and thermodynamic pressure
+source independently on each AMR level.
 
 The reference-pressure treatment applies to the Kessler family
 (``Kessler`` and ``Kessler_NoRain``), the SAM family (``SAM``, ``SAM_NoIce``,
 and ``SAM_NoPrecip_NoIce``), the Morrison family (``Morrison`` and
-``Morrison_NoIce``), ``WSM6``, and ``WDM6``. ``SatAdj`` already uses the
+``Morrison_NoIce``), ``WSM6``, and ``WDM6``. ``SatAdj`` also uses the
 anelastic base-state pressure. ``MoistNoCondensation`` does not have a
 pressure-dependent condensation source that requires this treatment.
 

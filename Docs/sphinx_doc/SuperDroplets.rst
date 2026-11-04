@@ -52,12 +52,12 @@ processes within a substep:
    \left(\frac{p_{\mathrm{ref}}}{p_{\mathrm{base}}}\right)^{R_d/c_p}
    \frac{L}{c_p}\,\Delta q.
 
-Here :math:`\Delta q` is the existing signed, dry-air-referenced mass transfer
+Here :math:`\Delta q` is the signed, dry-air-referenced mass transfer
 and :math:`L` is the corresponding latent heat. This pressure and temperature
 are supplied consistently to the scheme's saturation, phase-change,
 terminal-velocity, and collision calculations. On compressible levels, SDM
-retains its existing local equation-of-state diagnosis and latent-source
-arithmetic.
+diagnoses pressure and temperature from the local equation of state and uses
+the local potential-temperature-to-temperature ratio for latent heating.
 
 For example, with a particles-enabled build:
 
@@ -66,18 +66,16 @@ For example, with a particles-enabled build:
    erf.anelastic = 1
    erf.moisture_model = SuperDroplets
 
-Other restrictions imposed by the selected mesh, solver, particle options,
-and AMR configuration still apply. Support for anelastic thermodynamic
-coupling does not by itself constitute quantitative validation of an SDM
-cloud-microphysics simulation.
+Choose compatible mesh, solver, particle, and AMR options, and validate the
+selected configuration before using results for quantitative cloud-microphysics
+analysis.
 
 .. warning::
 
-   Checkpoint/restart parity remains unresolved for mixed hierarchies with
-   compressible coarse dynamics and anelastic fine dynamics. Single-precision
-   ice and additional-species process qualification is also incomplete.
-   The thermodynamic coupling described here does not establish reproducibility
-   or numerical validity for these configurations.
+   Anelastic ``SuperDroplets`` execution has not been validated on CUDA or HIP
+   GPUs. Check the selected particle processes, restart behavior, and AMR
+   configuration before using GPU results for scientific analysis; do not
+   assume reproducibility between CPU and GPU runs.
 
 Species transport and diffusion
 -------------------------------
@@ -122,6 +120,12 @@ on each level before redistribution. If initial phase-change relaxation is
 enabled, it then runs on each particle's owning level and retains the associated
 vapor and latent-heat changes in the initial atmospheric state. These
 initialization operations are not repeated when restarting from a checkpoint.
+
+A restart restores the condensate fields from the checkpoint, including
+fine-level averages in covered coarse cells. Turbulent diffusivities, including
+``Kmv``, are not checkpointed. They can be zero in the initial restart plotfile
+until the next turbulence update, even when the conserved state has been
+restored correctly.
 
 For additional species, cloud-in-cell projection uses only cells on the
 particle's level that are not covered by finer grids. The retained weights are
@@ -251,6 +255,12 @@ Solver and time integration
 
 The condensational growth of each particle is an ODE in the droplet mass, solved
 per particle per step.
+
+The implicit Newton solve uses the larger of ``newton_solver_stol`` and the
+particle arithmetic's machine epsilon as its relative step stopping criterion.
+This avoids rejecting a physically resolved update when its remaining Newton
+correction is at roundoff. Requesting a tolerance below machine epsilon does
+not increase the arithmetic precision of the solve.
 
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | Parameter                                       | Definition                                               | Acceptable Values                                | Default                             |

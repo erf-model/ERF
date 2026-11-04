@@ -8,6 +8,39 @@
 
 using namespace ice_deposition_test;
 
+// Motivation: Ice vapor diffusion must remain positive and accurate in SINGLE.
+// An independent atmospheric reference detects thermal-energy underflow and
+// mixing-energy precision loss before they produce nonfinite deposition rates.
+TEST(MaterialProperties, MolecularDiffusionMatchesAtmosphericReference)
+{
+    // Independent 60-digit evaluation of the original Chapman-Enskog expression
+    // for ice at 80000 Pa, including the collision-integral fit.
+    constexpr double reference[][2] = {
+        {180, 9.6096492801212692e-6},
+        {220, 1.4336613277839222e-5},
+        {258.15, 1.9619893117004770e-5},
+        {267, 2.0947733566576079e-5},
+        {273.15, 2.1892408882214108e-5},
+        {300, 2.6222261958930263e-5},
+        {330, 3.1441573938298044e-5}
+    };
+    const auto ice = ice_material();
+    double max_relative_error = 0;
+    for (const auto& point : reference) {
+        for (const double pressure : {20000., 80000., 110000.}) {
+            const double expected = point[1] * 80000. / pressure;
+            const auto actual = ice.coeffMolecularDiffusion(
+                amrex::Real(point[0]), amrex::Real(pressure));
+            ASSERT_GT(actual, amrex::Real(0));
+            max_relative_error = std::max(max_relative_error, std::abs(actual - expected) / expected);
+            EXPECT_NEAR(actual, expected,
+                        32 * std::numeric_limits<amrex::Real>::epsilon() * expected)
+                << "T=" << point[0] << " P=" << pressure;
+        }
+    }
+    RecordProperty("max_relative_error", ::testing::PrintToString(max_relative_error));
+}
+
 // Motivation: ERF's ice habit is set by the Chen-Lamb inherent growth ratio
 // Gamma(T). Takahashi et al. (1991) show plates (phi=c/a < 1) near -15 C and
 // columns (phi > 1) near -6 C. This grows a single crystal for 10 min at

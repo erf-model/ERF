@@ -39,6 +39,7 @@ public:
     ~ThermoModel () override { delete m_super_droplets; }
 
     MultiFab& field (int n, int lev = 0) { return *m_mic_fab_vars[lev][n]; }
+    void restored_particles () { m_restarted_particles = true; }
 
     std::function<void()> before_substep;
     std::function<void(int, bool)> process_observer;
@@ -217,6 +218,9 @@ void copy_in_test ()
     }
 }
 
+// Motivation: Anelastic copy-in must use cellwise base pressure, including
+// physical ghosts. Varying c_p and box layouts detects EOS fallback, a fixed
+// exponent, or incomplete pressure/temperature fills.
 TEST(SDMAnelasticThermodynamics, CopyInUsesHydrostaticPressureAndConfiguredCp)
 {
     copy_in_test();
@@ -234,6 +238,9 @@ void compressible_test ()
     check_copy_in(f, 0, false);
 }
 
+// Motivation: Anelastic support must not change compressible EOS arithmetic.
+// An unusable base-state argument must be ignored on a compressible level,
+// even when a nondefault c_p is configured.
 TEST(SDMAnelasticThermodynamics, CompressibleIgnoresBasePointerAndCustomCp)
 {
     compressible_test();
@@ -251,6 +258,9 @@ void mixed_level_test ()
     }
 }
 
+// Motivation: One SDM instance serves all AMR levels. Both mode orders and
+// repeated level switches must select the current level's pressure source,
+// rather than retaining the first or most recently used level's mode.
 TEST(SDMAnelasticThermodynamics, SharedModelSelectsEachLevelIndependently)
 {
     mixed_level_test();
@@ -265,6 +275,9 @@ private:
     bool saved;
 };
 
+// Motivation: Missing pressure, incompatible layouts or ghosts, unconfigured
+// levels, and invalid c_p must be rejected before source kernels can consume
+// inconsistent thermodynamic inputs.
 TEST(SDMAnelasticThermodynamics, MissingOrIncompatibleBaseFailsBeforeCopyIn)
 {
     ThermoFixture f;
@@ -303,11 +316,17 @@ void reallocation_test ()
     check_field(f.model.field(MicVar_SD::temperature), [=](const IntVect&) { return temperature; });
 }
 
+// Motivation: Reallocated AMR state must receive current base pressure and
+// temperature over its new ghost extent, not stale values from an earlier
+// allocation or a retained base-state pointer.
 TEST(SDMAnelasticThermodynamics, CopyInReseedsPressureAfterArrayReallocation)
 {
     reallocation_test();
 }
 
+// Motivation: Temperature is lagged within a substep while theta changes.
+// Sequential sources with both signs expose the spurious feedback from theta/T
+// on anelastic levels while checking the compressible rule independently.
 TEST(SDMAnelasticThermodynamics, SequentialLatentSourcesUseFixedExnerWithBothSigns)
 {
     const Real cp = Real(1200);
@@ -390,6 +409,9 @@ void check_saturation (ThermoFixture& f)
     }
 }
 
+// Motivation: Correct temperature alone can hide an incorrect saturation
+// pressure source. Independent water, ice, and additional-species expectations
+// detect EOS fallback or a Pa/hPa conversion error.
 TEST(SDMAnelasticThermodynamics, SaturationUsesBasePressureInPaForWaterIceAndSpecies)
 {
     ThermoFixture f;
@@ -468,9 +490,29 @@ void particle_substep_test ()
     }
 }
 
+// Motivation: Real particle exchange must preserve dry-air-referenced reservoirs
+// and held base pressure across active substeps and split boxes. Inspecting the
+// next substep also detects an erroneous EOS pressure refresh.
 TEST(SDMAnelasticThermodynamics, ActiveParticleSubstepsKeepPressureAndConserveDryAirReferencedMass)
 {
     particle_substep_test();
+}
+
+// Motivation: Checkpointed condensate can be a fine-level average that differs
+// from local particle deposition. Restart initialization must preserve it
+// rather than perturb the moisture-dependent resumed dynamics.
+TEST(SDMAnelasticThermodynamics, RestartFinishInitPreservesCheckpointedCondensate)
+{
+    ThermoFixture f({1}, Real(1200), true, true);
+    f.cons.setVal(Real(2.e-5), RhoQ2_comp, 1, 0);
+    f.cons.setVal(Real(3.e-5), RhoQ8_comp, 1, 0);
+    MultiFab expected(f.boxes, f.dm, f.cons.nComp(), 0);
+    MultiFab::Copy(expected, f.cons, 0, 0, f.cons.nComp(), 0);
+    f.model.restored_particles();
+    f.update(0, &f.base);
+    f.model.FinishInit(0, f.cons, f.z);
+    MultiFab::Subtract(expected, f.cons, 0, 0, f.cons.nComp(), 0);
+    EXPECT_EQ(expected.norm0(0, f.cons.nComp(), IntVect(0)), Real(0));
 }
 
 void real_latent_sites_test ()
@@ -528,6 +570,9 @@ void real_latent_sites_test ()
     }
 }
 
+// Motivation: A correct helper does not prove that every particle process uses
+// it. Measuring actual exchange and theta changes at all four active latent
+// sites detects a missed call site or reuse of the evolving theta/T factor.
 TEST(SDMAnelasticThermodynamics, AllFourParticleLatentSitesUseFixedExner)
 {
     real_latent_sites_test();
