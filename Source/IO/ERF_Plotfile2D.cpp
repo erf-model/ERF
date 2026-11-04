@@ -8,6 +8,7 @@
 #include "ERF_Plotfile2DInterpolator.H"
 #include "ERF_Plotfile2DPrecip.H"
 #include "ERF_Plotfile2DWaterPath.H"
+#include "ERF_Plotfile2DCloudOptics.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_NoahMPGitHash.H"
 #include "ERF_Plotfile2DUtils.H"
@@ -675,6 +676,18 @@ ERF::FillPlot2DVars (int lev,
     if (containerHasElement(plot_var_names, "integrated_qr")) { mf_comp++; }
     if (containerHasElement(plot_var_names, "integrated_qs")) { mf_comp++; }
     if (containerHasElement(plot_var_names, "integrated_qg")) { mf_comp++; }
+
+    // Catalog order follows the condensed water paths, independently of input order.
+    const int cloud_tau_comp = containerHasElement(plot_var_names, "cloud_optical_depth_sw")
+        ? mf_comp++ : -1;
+    const int cloud_albedo_comp = containerHasElement(plot_var_names, "cloud_albedo_est")
+        ? mf_comp++ : -1;
+    if (cloud_tau_comp >= 0 || cloud_albedo_comp >= 0) {
+        static const auto cloud_optics_parameters = plotfile2d::parse_cloud_optics_parameters();
+        plotfile2d::fill_cloud_optics(mf_dst, cloud_tau_comp, cloud_albedo_comp,
+            vars_new[lev][Vars::cons], solverChoice.moisture_indices,
+            cloud_optics_parameters, geom[lev], *detJ_cc[lev]);
+    }
 
     if (containerHasElement(plot_var_names, "surface_diagnostic_source")) {
         plotfile2d::fill_component_from_klevel_or_value(

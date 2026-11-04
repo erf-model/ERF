@@ -57,6 +57,8 @@ enum class DiagnosticID
     IntegratedQr,
     IntegratedQs,
     IntegratedQg,
+    CloudOpticalDepthSW,
+    CloudAlbedoEst,
     SurfaceDiagnosticSource,
     SensibleHeatFlux,
     LatentHeatFlux,

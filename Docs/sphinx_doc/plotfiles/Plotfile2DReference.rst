@@ -271,6 +271,16 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``kg/m^2``
      - ``FillZeroWhenUnavailable``
      - Column-integrated graupel
+   * - ``cloud_optical_depth_sw``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Estimated shortwave cloud extinction optical depth
+   * - ``cloud_albedo_est``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Estimated cloud-only reflectance from fixed-coefficient optical depth
    * - ``surface_diagnostic_source``
      - ``SurfaceLayer``
      - ``1``
@@ -911,6 +921,138 @@ not included.
 The metadata sidecar records these fields as ``ColumnIntegral`` diagnostics
 with ``FillZeroWhenUnavailable`` missing-value policy. Water-path diagnostics
 use the built-in metadata fields and add no water-path-specific metadata keys.
+
+.. _sec:Plotfile2DCloudOptics:
+
+Estimated cloud optical depth and reflectance
+---------------------------------------------
+
+``cloud_optical_depth_sw`` and ``cloud_albedo_est`` are output-only,
+dimensionless (units ``1``) column diagnostics. Either name can be selected
+alone in either Plot2D stream or in station 2D output; both follow
+``integrated_qg`` in canonical order regardless of input order. They are
+selectable when **any** conserved cloud-liquid, cloud-ice, rain, snow, or
+graupel mass component is present in the active moisture scheme. Dry schemes
+and schemes without conserved hydrometeor mass exclude both names. There is
+no dependency on RRTMGP, TwoStream, SHOC, Noah-MP, or a surface model.
+
+For each present species :math:`s\in\{qc,qi,qr,qs,qg\}`:
+
+.. math::
+
+   W_s(i,j)=\int \max(0,(\rho q_s)_{i,j,z})\,dz,
+   \qquad \tau_{sw}=\max\left(0,\sum_s k_{ext,s}W_s\right),
+   \qquad A_{est}=\frac{\tau_{sw}}{\tau_{sw}+c},\quad c=7.7.
+
+The conserved component already contains density; it is not multiplied by
+density again. Absent species contribute exactly zero, and number
+concentrations are excluded. Negative mass values are clipped to zero before
+integration. Zero condensate gives exactly zero optical depth and reflectance.
+Nonfinite present mass (including a species with zero coefficient), a nonfinite
+or nonpositive terrain metric, or arithmetic overflow gives ``-999`` for both
+fields. The metadata policy is ``FillMinus999WhenUnavailable`` with
+``missing_value: -999``. Valid reflectance is bounded to [0,1]; the missing
+sentinel is outside this range. Coefficients must be finite and nonnegative;
+``reflectance_scale`` must be finite and positive. Invalid settings abort
+with the parameter name before the first requested diagnostic fill.
+
+Constant-dz integration is :math:`\Delta z\sum_k \max(0,\rho q_s)`;
+on nonconstant-dz/terrain meshes it is
+:math:`\Delta z\sum_k J_{i,j,k}\max(0,\rho q_s)`, using the same
+``detJ_cc`` convention as the water paths. Vertically stacked boxes are summed
+before reflectance is calculated. **Both outputs are per-level column
+proxies over the cells covered by that AMR level.** Missing vertical coverage
+is not supplied from coarser levels, and there is no coarse-plus-fine composite
+column sum. A fine level that covers only the bottom part of the atmosphere
+retains its partial optical depth and the reflectance proxy calculated from
+that partial optical depth; neither value describes the full atmosphere.
+There is no additional mask for incomplete vertical coverage. This follows
+the existing per-level water-path convention. The final planar fill still
+gives ``-999`` where that level has no box reaching the ground. Thus an
+incomplete bottom-reaching column can have a valid partial value, while a
+column entirely aloft is missing in that level's slab. Stations sample the
+proxy on the level chosen by the existing station stencil rules; they do not
+combine level-columns into a composite atmospheric column.
+
+The five illustrative default mass-extinction coefficients, in
+:math:`\mathrm{m^2\,kg^{-1}}`, are:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Species
+     - Default
+     - Representative radius and particle density
+   * - Cloud liquid (qc)
+     - 150.0
+     - 10 micrometers; 1000 kg/m^3
+   * - Cloud ice (qi)
+     - 65.4
+     - 25 micrometers; 917 kg/m^3
+   * - Rain (qr)
+     - 3.0
+     - 0.5 mm; 1000 kg/m^3
+   * - Snow (qs)
+     - 30.0
+     - 0.5 mm; 100 kg/m^3
+   * - Graupel (qg)
+     - 7.5
+     - 0.5 mm; 400 kg/m^3
+
+These defaults use an **equivalent-sphere approximation**:
+:math:`k_{ext}=3Q_{ext}/(4\rho_{particle}r_{eff})`, with assumed
+:math:`Q_{ext}\simeq2`. For a sphere this is its extinction cross section
+:math:`Q_{ext}\pi r_{eff}^2` divided by its mass
+:math:`4\pi\rho_{particle}r_{eff}^3/3`. The representative radii and densities
+in the table are assumptions, not quantities diagnosed from the active
+microphysics scheme. They are fixed, tunable bulk proxies, **not
+scheme-calibrated or retrieval-grade optics**. Ice, snow, and graupel are often
+non-spherical; their equivalent radii and densities are particularly crude
+proxies. Real mass-size relations, scattering properties, and particle size
+distributions may differ greatly. Sensitivity test these assumptions before
+quantitative research use.
+
+The inputs configure the five extinction coefficients in
+:math:`\mathrm{m^2\,kg^{-1}}`, not radius or particle density directly. Users
+wanting different assumed effective radii or densities must calculate the
+corresponding coefficients themselves and supply ``kext_qc``, ``kext_qi``,
+``kext_qr``, ``kext_qs``, and/or ``kext_qg`` overrides.
+
+``reflectance_scale = 7.7`` is a **user-tunable heuristic default** in the
+chosen reflectance proxy. No authoritative derivation or calibration is
+established here for this value; it must not be interpreted as a diagnosed
+optical property or an empirically validated universal constant. A positive
+scale sets the optical depth at which this proxy equals one half. Users
+should sensitivity test it along with the extinction coefficients.
+
+.. warning::
+
+   ``cloud_albedo_est`` is an exploratory cloud-only reference-illumination
+   reflectance proxy. It does not solve two-stream radiative transfer and
+   omits solar zenith angle, gas/aerosol scattering and absorption,
+   single-scattering albedo, phase-function asymmetry, overlap, spectral
+   dependence, surface reflection, and 3-D cloud effects. It is neither
+   physical broadband all-sky albedo nor top-of-atmosphere reflectance, nor
+   RRTMGP top-of-model flux-derived all-sky reflectance. Existing ``albedo``
+   is surface albedo and remains a separate diagnostic. These new fields do
+   not affect prognostic physics, radiative heating, or fluxes. The proxy is
+   independent of solar zenith angle. No solar flux enters its definition:
+   it remains defined, and can remain nonzero, at night for a cloudy column.
+   Nighttime values must not be interpreted as observed instantaneous albedo.
+
+Example (water-path outputs are optional):
+
+.. code-block:: text
+
+   erf.plot2d_file_1 = plt2d
+   erf.plot2d_per_1 = 600.0
+   erf.plot2d_vars_1 = integrated_qc integrated_qi integrated_qr integrated_qs integrated_qg cloud_optical_depth_sw cloud_albedo_est
+   erf.plot2d.cloud_optics.kext_qc = 150.0
+   erf.plot2d.cloud_optics.kext_qi = 65.4
+   erf.plot2d.cloud_optics.kext_qr = 3.0
+   erf.plot2d.cloud_optics.kext_qs = 30.0
+   erf.plot2d.cloud_optics.kext_qg = 7.5
+   erf.plot2d.cloud_optics.reflectance_scale = 7.7
 
 .. _sec:Plotfile2DSourceCodes:
 
