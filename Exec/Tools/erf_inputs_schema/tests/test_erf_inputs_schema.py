@@ -252,6 +252,35 @@ class SeveralKindsTests(unittest.TestCase):
         self.assertEqual((keys["xlo.k_int"]["type"], keys["xlo.k_real"]["type"]), ("int", "real"))
 
 
+def tree_keys(source):
+    """The keys a one-file ERF tree (Source/ERF_T.cpp) gives, with an empty AMReX."""
+    from erf_inputs_schema import schema
+    with tempfile.TemporaryDirectory() as td:
+        erf, amrex = Path(td) / "erf", Path(td) / "AMReX"
+        (erf / "Source").mkdir(parents=True)
+        (erf / "CMake").mkdir()
+        (amrex / "Src").mkdir(parents=True)
+        (erf / "CMakeLists.txt").write_text("")
+        (erf / "Source" / "ERF_T.cpp").write_text(source)
+        return schema.generate(erf, amrex)["keys"]
+
+
+class DefaultTests(unittest.TestCase):
+    """A default is a literal of the key's type on the declaration the read fills; anything else is not a default."""
+
+    def test_a_string_initialized_from_an_expression_has_no_default(self):
+        keys = tree_keys('void f ()\n{\n    ParmParse pp("erf");\n    std::string pfx = default_prefix;\n'
+                         '    pp.query("pfx", pfx);\n    std::string lit = "plain";\n    pp.query("lit", lit);\n}\n')
+        self.assertEqual((keys["erf.pfx"]["default"], keys["erf.pfx"]["default_origin"]), (None, "expression"))
+        self.assertEqual((keys["erf.lit"]["default"], keys["erf.lit"]["default_origin"]), ("plain", "initializer"))
+
+    def test_an_initializer_of_an_earlier_declaration_is_not_the_default(self):
+        keys = tree_keys('int k = 1;\nvoid f ()\n{\n    ParmParse pp("erf");\n    amrex::Real k;\n'
+                         '    pp.query("k", k);\n}\n')
+        self.assertEqual(keys["erf.k"]["type"], "real")
+        self.assertEqual((keys["erf.k"]["default"], keys["erf.k"]["default_origin"]), (None, "none"))
+
+
 class EnumListTests(unittest.TestCase):
     """A Vector of an enum read with queryarr is a list of enum values, not one value."""
 
