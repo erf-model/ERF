@@ -824,6 +824,24 @@ public:
           read_custom_roughness(lev, fname);
       }
 
+      // The surface layer normalises with ln(zref / z0), so the reference height
+      // must lie above the roughness length in every column.  With the default
+      // (the first cell center) a fine mesh over a rough surface can fail this.
+      {
+          const amrex::MultiFab* zref = m_ma.get_zref(lev);
+          if (zref && zref->boxArray() == z_0[lev].boxArray()) {
+              amrex::MultiFab margin(ba_flux, dm, ncomp, 0);
+              amrex::MultiFab::Copy(margin, *zref, 0, 0, ncomp, 0);
+              amrex::MultiFab::Subtract(margin, z_0[lev], 0, 0, ncomp, 0);
+              if (margin.min(0) <= zero) {
+                  amrex::Abort(m_pp_prefix + ".most.zref (or the first cell center), "
+                               + std::to_string(zref->min(0)) + " m at its lowest, must exceed "
+                               + m_pp_prefix + ".most.z0, " + std::to_string(z_0[lev].max(0))
+                               + " m at its largest, in every column");
+              }
+          }
+      }
+
       // 2D MFs for U*, T*, T_surf
       //--------------------------------------------------------
       u_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);

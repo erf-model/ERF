@@ -223,7 +223,7 @@ jobs:
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt
         cat ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt
         return=$(tail -n 1 ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt | awk '{print $2}')
-        exit ${return}
+        test "${return}" -eq 0
 
     # - name: Regression Tests
     #   run: |

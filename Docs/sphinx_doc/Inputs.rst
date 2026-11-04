@@ -4451,19 +4451,23 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | step; read only when ``erf.most.time_average`` is true   |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.zref**                     | height [m] above the surface at which the MOST           | Real > 0            | see description  |
-|                                       | quantities are evaluated. If unset, terrain-fitted       |                     |                  |
-|                                       | meshes query 10 m above the surface and other meshes     |                     |                  |
-|                                       | use the first cell center, taken from the z levels on a  |                     |                  |
-|                                       | stretched mesh. A height on a cell face lies in the      |                     |                  |
-|                                       | cell above it. On the low z face of a constant-dz mesh   |                     |                  |
-|                                       | the value given here is an absolute z (the height plus   |                     |                  |
-|                                       | geometry.prob_lo[2]); the surface layer always uses the  |                     |                  |
-|                                       | height above the surface                                 |                     |                  |
+|                                       | quantities are evaluated. If unset, every mesh uses the  |                     |                  |
+|                                       | center of the first cell above the surface: from the z   |                     |                  |
+|                                       | levels on a stretched mesh, and column by column on a    |                     |                  |
+|                                       | terrain-fitted mesh, where the first cell's height       |                     |                  |
+|                                       | varies with the terrain (10 m keeps the former fitted-   |                     |                  |
+|                                       | mesh query). A height on a cell face lies                |                     |                  |
+|                                       | in the cell above it. On the low z face of a constant-dz |                     |                  |
+|                                       | mesh the value given here is an absolute z (the height   |                     |                  |
+|                                       | plus geometry.prob_lo[2]); the surface layer always uses |                     |                  |
+|                                       | the height above the surface                             |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.k_arr_in**                 | vertical cell index at which the MOST quantities are     | List of Integers    | None             |
 |                                       | evaluated, one per level; an alternative to              |                     |                  |
-|                                       | ``erf.most.zref``; on the low z face an absolute index,  |                     |                  |
-|                                       | on the other faces a number of cells from the wall       |                     |                  |
+|                                       | ``erf.most.zref`` on constant-dz, EB and immersed-       |                     |                  |
+|                                       | forcing meshes (a terrain-fitted mesh stops at start-up  |                     |                  |
+|                                       | with it); on the low z face an absolute index, on the    |                     |                  |
+|                                       | other faces a number of cells from the wall              |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_interpolation**        | interpolate to the query point rather than using the     | Boolean             | false            |
 |                                       | containing cell                                          |                     |                  |

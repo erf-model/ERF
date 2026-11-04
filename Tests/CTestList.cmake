@@ -1766,6 +1766,9 @@ add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # Anelastic EB cylinder through the bottom wall on two levels: w below the wall was never filled
 # on level 1, and its first step diverged (erf-model/ERF#4876)
 add_test_field_bounds(EB_SquareCylinder_AnelasticAMR "plt00004" x_velocity -0.5 3.0)
+# The same with the refined patch 0.46 from the cylinder: on 2 ranks the singular level-1
+# projection stalled when its BiCGStab bottom solve broke down at roundoff, and the run aborted
+add_test_field_bounds(EB_SquareCylinder_AnelasticAMR_NarrowPatch "plt00004" x_velocity -0.5 3.0)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
 
@@ -3702,6 +3705,14 @@ endfunction(add_test_most_zref)
 
 add_test_most_zref(MOST_Zref_Stretched)
 
+# The reference height must exceed the roughness length in every column: with the
+# default (the first cell center, 5 m on this column) a 6 m roughness stops at start-up
+add_test_abort(MOST_Zref_BelowRoughness
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MOST_Zref_Stretched
+               MOST_Zref_Stretched.i
+               "must exceed erf.most.z0"
+               "erf.most.z0=6.0")
+
 # Immersed-boundary surface energy balance on the faces of a height-map cube
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
@@ -4538,12 +4549,14 @@ add_test_smag2d_ridge(Smag2D_Ridge_DiffusiveCheck check "plt00010"
     OPTIONS "erf.fixed_dt=-1 max_step=10 erf.plot_int_1=10"
     DIFFUSIVE_CFL 0.3)
 # erf.diffusive_dt_limit sets an adaptive dt and is never exceeded; the first diffusive dt
-# (3.6881 s in the reference run, Release, 1 and 2 ranks) must match to 2 %.
+# (4.7135 s in the reference run, Release, 1 and 2 ranks) must match to 2 %.  It was 3.6881 s
+# while the deck's surface layer was queried 10 m above the surface; the default reference is
+# now the first cell center, 18.5 to 25 m here (erf-model/ERF#4935).
 add_test_smag2d_ridge(Smag2D_Ridge_DiffusiveLimit limit "plt00010"
     OPTIONS "erf.fixed_dt=-1 max_step=10 erf.plot_int_1=10"
     DIFFUSIVE_CFL 0.2
-    REF_DIFFUSIVE_DT_LO 3.6143
-    REF_DIFFUSIVE_DT_HI 3.7619)
+    REF_DIFFUSIVE_DT_LO 4.6192
+    REF_DIFFUSIVE_DT_HI 4.8077)
 
 # Each new input is checked at start-up and aborts naming itself.  add_test_abort runs through
 # `sh -c ... | tee`, so these sit under the same guard as its other use.
