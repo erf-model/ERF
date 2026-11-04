@@ -1097,18 +1097,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
     // On a refined level a ghost column at a coarse/fine boundary also holds no current LSM
     // flux: the LSMs refill only the ghost cells that a grid of the level holds (SLM calls
-    // just FillBoundary), so it keeps what the last regrid left there.  Mark the columns a
-    // grid of the level holds, so such a column reads the grid's nearest column too
-    // (LsmFluxColumn).  Level 0 has no coarse/fine boundary, and in_domain alone suffices.
-    iMultiFab held_columns;
+    // just FillBoundary), so it keeps what the last regrid left there.  The columns a grid
+    // touching the surface holds are marked in m_lsm_held_columns, so such a column reads
+    // the grid's nearest column too (LsmFluxColumn).  Level 0 has no coarse/fine boundary,
+    // and in_domain alone suffices.
     const bool has_lsm_flux_source = m_has_lsm_fluxes || (use_surface_model && surf_model_fluxes);
-    if (lev > 0 && dir == 2 && m_face.isLow() && has_lsm_flux_source) {
-        held_columns.define(u_star[lev]->boxArray(), u_star[lev]->DistributionMap(), 1,
-                            IntVect(1,1,0));
-        held_columns.setVal(0);
-        held_columns.setVal(1, 0);
-        held_columns.FillBoundary(m_geom[lev].periodicity());
-    }
+    const iMultiFab* held_columns =
+        (has_lsm_flux_source && lev < m_lsm_held_columns.size() && !m_lsm_held_columns[lev].empty())
+        ? &m_lsm_held_columns[lev] : nullptr;
 
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
@@ -1239,8 +1235,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto surface_tau23_arr = lsm_flux.tau23;
         const bool has_lsm_t_flux = static_cast<bool>(t_flux_arr);
         const LsmFluxColumn flux_col{in_domain, NearestColumn(valid_bx),
-                                     held_columns.empty() ? Array4<const int>{}
-                                                          : held_columns.const_array(mfi)};
+                                     held_columns ? held_columns->const_array(mfi)
+                                                  : Array4<const int>{}};
         {
             Box flux_columns = amrex::grow(valid_bx, IntVect(AMREX_D_DECL(1, 1, 0)));
             flux_columns &= lsm_flux_columns;
