@@ -24,7 +24,7 @@ from ..checker import Checker, register
 from .keys import RETIRED_KEYS
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from erf_inputs_schema.canonical import canonical_value  # noqa: E402
+from erf_inputs_schema.canonical import FORTRAN_REAL, canonical_value  # noqa: E402
 
 # <station>: ERF_StationSampler.cpp check_station_name (a letter or '_' first; letters, digits, '_', '-', '.').
 PLACEHOLDERS = {"<face>": "(?:xlo|xhi|ylo|yhi|zlo|zhi)", "<station>": "[A-Za-z_][A-Za-z0-9_.-]*",
@@ -101,7 +101,8 @@ def _evaluated(fact, words):
     scalar = _scalar(fact["type"])
     if scalar not in EVALUATED:
         return []
-    return [w for w in words if not _is_literal(scalar, w, fact) and not WORD.fullmatch(w)]
+    return [w for w in words if not _is_literal(scalar, w, fact) and not WORD.fullmatch(w)
+            and not FORTRAN_REAL.fullmatch(w)]                     # the parser cannot read 1D0 either
 
 
 def expression_words(fact, words):

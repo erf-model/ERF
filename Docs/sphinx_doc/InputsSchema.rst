@@ -70,7 +70,8 @@ With a schema, the checker reports:
 - a removed key, as ERROR;
 - a string or enum value ERF does not know, or fewer per-level values than levels, as ERROR;
 - a bool, int or real value that is not a plain literal (``2*0.5``, ``300.;``, ``1e9`` for an int), as WARNING,
-  since ParmParse hands it to its parser at run time; ``1D0`` is a real;
+  since ParmParse hands it to its parser at run time; ``1D0`` is an ERROR, since neither ParmParse nor its parser
+  reads a ``d`` or ``D`` exponent;
 - more words than the key reads (``erf.check_int = 10 steps``; ParmParse reads the first), as WARNING;
 - a key or value that needs a feature the build lacks, as ERROR;
 - a ``@NAME@`` placeholder (a ``configure_file`` template), as INFO.
