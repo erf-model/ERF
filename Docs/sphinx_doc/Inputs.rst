@@ -1683,7 +1683,10 @@ users must prescribe either ``sample_line_lo`` and ``sample_line_hi`` inputs, wh
 3 integer values corresponding to the (i,j,k) indices at the beginning and end of the line,
 or ``sample_line_lo_real`` and ``sample_line_hi_real``, which are 3 real values corresponding
 to the physical locations of the beginning and end of the line. These two ways of specifying
-the line are mutually exclusive. Additionally, users must specify ``sample_line_dir`` to
+the line are mutually exclusive. The indices of ``sample_line_lo`` and ``sample_line_hi`` are
+those of level 0, and these lines are sampled on level 0 even when there are finer levels; a line
+given by ``sample_line_lo_real`` and ``sample_line_hi_real`` is sampled on the finest level that
+holds the entire line. Additionally, users must specify ``sample_line_dir`` to
 prescribed the direction of the line. The same inputs are used for the plane sampling except
 that ``sample_plane_lo/hi``
 must be the physical locations of the plane corners. This output functionality has

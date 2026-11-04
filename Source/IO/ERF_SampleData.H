@@ -80,6 +80,18 @@ struct LineSampler
                     amrex::Box lbx(iv_lo[i],iv_hi[i]);
                     m_bnd_bx[i] = lbx;
                 }
+
+                // The indices are those of level 0; on a finer level the same indices are
+                // somewhere else, so these lines are sampled on level 0 only
+                m_max_level = 0;
+                int amr_max_level = 0;
+                amrex::ParmParse("amr").query("max_level", amr_max_level);
+                if (amr_max_level > 0) {
+                    amrex::Print() << "Line sampling: erf.sample_line_lo/hi are level-0 indices, so "
+                                   << "these lines are sampled on level 0 only; give "
+                                   << "erf.sample_line_lo_real/hi_real to sample the finest level "
+                                   << "that holds a line" << std::endl;
+                }
             }
         } else if (has_line_real) {
             m_use_real_bx = true;
