@@ -112,6 +112,12 @@ struct ThermoFixture {
         sc.c_p = cp;
         sc.rdOcp = R_d / cp;
         model.Define(sc);
+        initialize_state(particles);
+    }
+
+    // CUDA extended device lambdas need an addressable, non-constructor parent.
+    void initialize_state (bool particles)
+    {
         cons.setVal(Real(0));
         base.setVal(Real(-12345));
         for (MFIter mfi(cons); mfi.isValid(); ++mfi) {

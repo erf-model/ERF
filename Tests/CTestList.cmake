@@ -1697,10 +1697,16 @@ add_test_cloud_chamber_bulk_legacy(CloudChamber_BulkSmoke_Legacy_Kessler_NoRain 
 # the Cloud Chamber typed allowlist. Direct parser failures have separate tests.
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SBM SBM 0
     "SBM M3 does not support scalar or particle diffusion")
-# Motivation: Anelastic SDM is valid in ERF, but the Cloud Chamber's unsupported
-# particle model must still be rejected before time stepping or output.
+# Motivation: Anelastic SDM is valid in ERF, but Cloud Chamber still rejects
+# particle models before time stepping or output. Without particle support,
+# the earlier global build-capability guard must reject the same input.
+if(ERF_ENABLE_PARTICLES)
+    set(_cloud_chamber_sdm_reject "Cloud Chamber: selected moisture model is unsupported")
+else()
+    set(_cloud_chamber_sdm_reject "Lagrangian microphysics can be used when compiled with ERF_USE_PARTICLES")
+endif()
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SuperDroplets SuperDroplets 0
-    "Cloud Chamber: selected moisture model is unsupported")
+    "${_cloud_chamber_sdm_reject}")
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_Budget Kessler 1
     "cloud_chamber_budget_interval supports only physical_temperature_rh")
 add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SBM SBM)
