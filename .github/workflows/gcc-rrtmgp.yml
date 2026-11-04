@@ -191,7 +191,7 @@ jobs:
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/build-output-warnings.txt
         cat ${ERF_DIR}/build-output-warnings.txt
         return=$(tail -n 1 ${ERF_DIR}/build-output-warnings.txt | awk '{print $2}')
-        exit ${return}
+        test "${return}" -eq 0
 
     - name: Check Unit Test Registration
       run: |
