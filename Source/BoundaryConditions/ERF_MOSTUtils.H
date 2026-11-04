@@ -46,7 +46,8 @@ public:
  *
  * The bound is set by the under-relaxed u* iteration, not by the physics. At an unstable
  * fixed point the relaxed map has slope (1 - alpha) - alpha s / bracket, with
- * s = -3 (z/L) dpsi_m/d(z/L) between 1.3 (z/L = -0.5) and 2.4 (z/L = -50) for Businger-Dyer.
+ * s = 3 (z/L) dpsi_m/d(z/L) = 3 (1 - phi_m) between 1.3 (z/L = -0.5) and 2.4 (z/L = -50) for
+ * Businger-Dyer.
  * With alpha = 0.5 the iteration converges only for bracket > s/3 (0.4 to 0.8), so a bound of
  * 1 keeps the switch between the bounded and free branches inside the convergent range, while
  * 0.1 C (0.3 at C = 3) does not and the iteration oscillates between two values. If alpha
@@ -229,7 +230,9 @@ struct similarity_funs
      *
      * With L fixed by u* and the flux, the wind a given u* supports is
      * u* max(C - psi_m, b) / kappa, with b = most_bracket_floor(C). Below the smallest such
-     * wind the prescribed stable flux has no solution (Basu et al., BLM 2008). The physical
+     * wind the prescribed stable flux has no solution with z/L below most_zeta_lim (Basu et
+     * al., BLM 2008; with QNSE the supported wind falls to zero again far beyond the bound, at
+     * z/L of order 1e3 to 1e4, which the kernels never reach). The physical
      * (large u*) branch has z/L below this value, so bounding z/L by it leaves every point that
      * has a solution unchanged. The result is positive for every C.
      *
@@ -244,8 +247,9 @@ struct similarity_funs
      * fold is the first zero of f beyond the kink where the floor stops binding
      * (C - psi_m = b), found by bisection; it is the kink itself when f is already negative
      * there, and most_zeta_lim when f has no zero (C > c (2 - ln 3), 10.4 with the default
-     * coefficients): the wind then falls monotonically with z/L and every wind has a solution
-     * on the branch the kernels iterate on.
+     * coefficients): the wind then falls monotonically with z/L up to the bound, where the
+     * kernels hold z/L and reduce the flux as at a fold. Every return value is at most
+     * most_zeta_lim.
      *
      * @param[in] C ln(zref/z0)
      */
@@ -257,23 +261,26 @@ struct similarity_funs
         if (!m_qnse) {
             return amrex::max(C / (two * beta_m), (most_bracket_floor(C) - C) / beta_m);
         }
+        // A non-finite C (bad zref or z0) is returned as it is, as most_rib_zeta_bracketed does,
+        // so that it shows up in the kernel's results instead of a bisection artefact
+        if (!amrex::Math::isfinite(C)) { return C; }
         const amrex::Real b = m_qnse_bm;
         const amrex::Real c = (m_qnse_am - m_qnse_bm) / m_qnse_bm;
-        if (c <= zero) { return most_zeta_lim; } // a_m = b_m: psi_m = 0 on the stable side, no fold
+        if (c <= zero) { return most_zeta_lim; } // a_m <= b_m is refused by the reader; psi_m = 0 would have no fold
         const amrex::Real bf = most_bracket_floor(C);
         amrex::Real lo = (C < bf) ? (std::exp((bf - C) / c) - one) / b : zero;
         auto f = [&] (amrex::Real z) {
             const amrex::Real s = one + b * z;
             return C + c * std::log(s) - three * c * b * z / s;
         };
-        if (f(lo) <= zero) { return lo; }
+        const amrex::Real zlim = most_zeta_lim; // by value: a namespace constant must not bind to min's reference in device code
+        if (f(lo) <= zero) { return amrex::min(lo, zlim); }
         amrex::Real hi = two / b;
-        if (lo >= hi || f(hi) >= zero) { return most_zeta_lim; }
+        if (lo >= hi || f(hi) >= zero) { return zlim; }
         for (int n = 0; n < 60; ++n) {
             const amrex::Real m = myhalf * (lo + hi);
             if (f(m) > zero) { lo = m; } else { hi = m; }
         }
-        const amrex::Real zlim = most_zeta_lim; // by value: a namespace constant must not bind to min's reference in device code
         return amrex::min(myhalf * (lo + hi), zlim);
     }
 
@@ -281,7 +288,7 @@ struct similarity_funs
      * Select the QNSE stable-side functions phi = (1 + a zeta)/(1 + b zeta) for momentum
      * (a_m, b_m) and heat (a_h, b_h), or return to Businger-Dyer (use_qnse false, the
      * coefficients then unused). read_most_similarity_funs checks the inputs: b_m, b_h > 0
-     * and a_m >= b_m, a_h >= b_h.
+     * and a_m > b_m, a_h > b_h.
      *
      * @param[in] use_qnse whether the stable side is QNSE
      * @param[in] am       a_m
@@ -340,13 +347,15 @@ private:
  * <prefix>.most.stable_functions = businger_dyer (the default) | qnse, and with qnse the
  * coefficients <prefix>.most.qnse_am, qnse_bm, qnse_ah, qnse_bh (2.5, 0.2, 2.5, 0.2 by
  * default, the values of the PBL schemes' erf.qnse_*). The run stops when a coefficient is
- * given without qnse, is not finite, b_m or b_h is not positive, or a_m < b_m or a_h < b_h
- * (phi below 1 on the stable side).
+ * given without qnse, is not finite, b_m or b_h is not positive, or a_m <= b_m or a_h <= b_h
+ * (phi would not exceed 1 on the stable side: no stability correction, or one of the wrong sign).
  *
- * @param[in] pp parameter parser of the surface layer (prefix erf, or erf.<face>)
+ * @param[in] pp  parameter parser of the reader (prefix erf, or erf.<face> for a side-face
+ *                surface layer; the immersed wall laws read the unqualified erf.most.* keys)
+ * @param[in] who the reader, for the start-up line
  */
 inline similarity_funs
-read_most_similarity_funs (amrex::ParmParse& pp)
+read_most_similarity_funs (amrex::ParmParse& pp, const std::string& who = "Surface layer")
 {
     similarity_funs sfuns;
     const std::string prefix = pp.getPrefix() + ".most.";
@@ -369,13 +378,13 @@ read_most_similarity_funs (amrex::ParmParse& pp)
             if (!(coef[n] > zero)) {
                 amrex::Abort(prefix + keys[n] + " must be positive (phi = (1 + a zeta)/(1 + b zeta))");
             }
-            if (coef[n-1] < coef[n]) {
-                amrex::Abort(prefix + keys[n-1] + " must be at least " + prefix + keys[n] +
-                             " (phi >= 1 on the stable side)");
+            if (coef[n-1] <= coef[n]) {
+                amrex::Abort(prefix + keys[n-1] + " must exceed " + prefix + keys[n] +
+                             " (phi > 1 on the stable side)");
             }
         }
         sfuns.set_stable_functions(true, coef[0], coef[1], coef[2], coef[3]);
-        amrex::Print() << "Surface layer stable-side similarity functions: qnse (a_m " << coef[0]
+        amrex::Print() << who << " stable-side similarity functions: qnse (a_m " << coef[0]
                        << ", b_m " << coef[1] << ", a_h " << coef[2] << ", b_h " << coef[3] << ")\n";
     } else if (name == "businger_dyer") {
         if (given) {

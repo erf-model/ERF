@@ -4353,12 +4353,14 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | ``erf.most.surf_temp_flux``, or an immersed wall law     |                     |                  |
 |                                       | that evaluates the stability functions; the run stops    |                     |                  |
 |                                       | otherwise. The unstable side is Businger-Dyer with       |                     |                  |
-|                                       | either                                                   |                     |                  |
+|                                       | either choice. The immersed wall laws read the           |                     |                  |
+|                                       | unqualified ``erf.most.*`` keys; a side-face surface     |                     |                  |
+|                                       | layer reads ``erf.<face>.most.*``                        |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.qnse_am**,                 | QNSE coefficients a_m, b_m (momentum) and a_h, b_h       | Real, finite;       | 2.5, 0.2,        |
 | **erf.most.qnse_bm**,                 | (heat); read only with ``erf.most.stable_functions =     | b_m > 0, b_h > 0,   | 2.5, 0.2         |
-| **erf.most.qnse_ah**,                 | qnse`` (given otherwise, the run stops)                  | a_m >= b_m,         |                  |
-| **erf.most.qnse_bh**                  |                                                          | a_h >= b_h          |                  |
+| **erf.most.qnse_ah**,                 | qnse`` (given otherwise, the run stops)                  | a_m > b_m,          |                  |
+| **erf.most.qnse_bh**                  |                                                          | a_h > b_h           |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.ustar**                    | prescribed friction velocity [m/s].  **Required** when   | Real                | must be set      |
 |                                       | ``flux_type`` is ``custom`` or ``rico``                  |                     |                  |

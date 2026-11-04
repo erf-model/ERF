@@ -1360,10 +1360,10 @@ struct SolverChoice {
         }
         // The wall laws that evaluate the stability functions (the legacy law with
         // erf.if_stability_correction, the fraction_stress law) take the surface layer's
-        // similarity functions (erf.most.stable_functions, erf.most.qnse_*); read here
-        // because an immersed run need not have a surface-layer boundary
+        // similarity functions (the unqualified erf.most.stable_functions, erf.most.qnse_*);
+        // read here because an immersed run need not have a surface-layer boundary
         if (if_use_most && (if_stability_correction || if_fraction_stress)) {
-            most_sfuns = read_most_similarity_funs(pp);
+            most_sfuns = read_most_similarity_funs(pp, "Immersed wall law");
         }
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);

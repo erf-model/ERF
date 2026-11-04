@@ -169,8 +169,9 @@ AddTurbKESources (const amrex::Box& bx, const amrex::Box& domain,
         // the surface stresses and scalar fluxes that are actually applied to the
         // momentum, heat and moisture equations instead.
         const bool l_surface_layer_on_zlo = SurfLayer_zlo;
-        const similarity_funs l_sfuns = (SurfLayer_zlo && SurfLayer[level]) ?
-                                        SurfLayer[level]->similarity_functions() : similarity_funs{};
+        // SurfLayer is indexed by face, not by level
+        const similarity_funs l_sfuns = SurfLayer_zlo ?
+            SurfLayer[amrex::Orientation::zlo()]->similarity_functions() : similarity_funs{};
 
         amrex::ParallelFor(bx,[=,moist_indices=solverChoice.moisture_indices] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {

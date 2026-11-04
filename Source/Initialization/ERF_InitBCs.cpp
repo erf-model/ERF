@@ -799,10 +799,22 @@ void ERF::init_bcs ()
              solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
             solverChoice.if_use_most &&
             (solverChoice.if_stability_correction || solverChoice.if_fraction_stress);
-        if (stable_functions == "qnse" && !use_surfacelayer && !immersed_wall_law) {
+        // The zlo surface layer reads the unqualified erf.most.* keys when it is the only
+        // surface-layer face, or when legacy unqualified inputs are present with several
+        // faces (the prefix rule of ERF::make_surface_layers); a side face reads erf.<face>.most.*
+        int n_surface_layer_faces = 0;
+        for (OrientationIter oit; oit; ++oit) {
+            if (phys_bc_type[oit()] == ERF_BC::surface_layer) { ++n_surface_layer_faces; }
+        }
+        const bool zlo_reads_unqualified =
+            phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer &&
+            (n_surface_layer_faces == 1 || has_surface_layer_inputs(pp_prefix));
+        if (stable_functions == "qnse" && !zlo_reads_unqualified && !immersed_wall_law) {
             amrex::Abort(pp_prefix + ".most.stable_functions = qnse is read by nothing in this run: "
-                         "it needs a surface_layer boundary on the low z face, or an immersed wall "
-                         "law with stability functions (erf.if_stability_correction = true, or "
+                         "it needs a surface_layer boundary on the low z face that reads the "
+                         "unqualified " + pp_prefix + ".most.* inputs (a side face reads " +
+                         pp_prefix + ".<face>.most.stable_functions), or an immersed wall law with "
+                         "stability functions (erf.if_stability_correction = true, or "
                          "erf.if_wall_form = fraction_stress)");
         }
     }

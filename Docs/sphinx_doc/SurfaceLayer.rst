@@ -121,7 +121,9 @@ MYNN TKE, and the immersed wall laws (the legacy law with ``erf.if_stability_cor
 ``fraction_stress`` law). The prescribed-temperature kernels use the Jimenez (2012) functions on
 both sides and refuse the option, as do the adiabatic kernels and the custom, rico and
 bulk_coeff fluxes, which use no stability function. The IBSEB building faces keep the
-Businger-Dyer functions.
+Businger-Dyer functions, and the Cloud Chamber its Jimenez pair. A side-face surface layer
+reads its own ``erf.<face>.most.stable_functions``; the immersed wall laws read the
+unqualified ``erf.most.*`` keys only.
 
 Inverting the equations above, the MOST stability parameter,
 
@@ -331,7 +333,8 @@ With the QNSE functions the supported wind is :math:`u_{\star}(C + c\,\mathrm{ln
 with :math:`c = (a_m - b_m)/b_m`; its first minimum, found by bisection, sits at a lower wind
 than Businger-Dyer's (0.53 against 0.70 m/s at :math:`z_{ref}` = 4.43 m, :math:`z_0` = 0.5 m and
 a flux of -0.0025 K m/s), and for :math:`C` above :math:`c\,(2 - \mathrm{ln}\,3)` (10.4 with the
-default coefficients) there is none: every wind then has a solution.
+default coefficients) there is none below the bound :math:`z_{ref}/L = 100` of the kernels, which
+then hold :math:`z_{ref}/L` there and reduce the flux as at a fold.
 Wherever the wind is below the minimum, for example under a forest canopy that slows the
 first-cell wind to about 1 m/s, ERF holds :math:`z_{ref}/L` at the fold and applies only the
 virtual heat flux that the wind carries there, which is weaker than the prescribed one. Only
