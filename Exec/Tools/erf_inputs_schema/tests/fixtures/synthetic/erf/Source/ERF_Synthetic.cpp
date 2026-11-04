@@ -19,4 +19,6 @@ void read_synthetic (SyntheticParams& sp)
     pa.query("max_level", max_level);              // also read by AMReX: a shared key
     pp.query("eye_latitude", sp.eye_latitude);
     pp.query("eye_longitude", sp.eye_longitude);
+    amrex::Vector<MoistureType> species;
+    pp.queryarr("moisture_species", species);     // a list of enum values
 }

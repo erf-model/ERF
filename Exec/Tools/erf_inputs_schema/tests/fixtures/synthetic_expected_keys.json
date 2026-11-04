@@ -136,6 +136,23 @@
    "SAM"
   ]
  },
+ "erf.moisture_species": {
+  "case_insensitive": false,
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:23"
+  },
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:23",
+  "type": "enum_list",
+  "values": [
+   "None",
+   "Kessler",
+   "SAM"
+  ]
+ },
  "erf.no_substepping": {
   "default": null,
   "default_origin": "none",

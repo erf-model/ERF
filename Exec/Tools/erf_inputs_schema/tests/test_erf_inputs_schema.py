@@ -198,12 +198,21 @@ class SeveralKindsTests(unittest.TestCase):
         self.assertEqual((keys["xlo.k_int"]["type"], keys["xlo.k_real"]["type"]), ("int", "real"))
 
 
+class EnumListTests(unittest.TestCase):
+    """A Vector of an enum read with queryarr is a list of enum values, not one value."""
+
+    def test_an_enum_list_read_keeps_the_list_type(self):
+        fact = generate()["keys"]["erf.moisture_species"]
+        self.assertEqual((fact["type"], fact["values"]), ("enum_list", ["None", "Kessler", "SAM"]))
+
+
 CHECKER = TOOLS / "check_erf_inputs.py"
 DECK = """erf.old_knob = 1
 erf.cfl = fast
 erf.widget_on = true
 erf.notakey = 1
 erf.nsteps = 20
+erf.moisture_species = Kessler SAM
 """
 
 
