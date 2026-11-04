@@ -200,7 +200,7 @@ namespace SDMassChangeUtils_LV
                 RT residual = a_mu * a_u
                               - (   a_r
                                   + m_ne.rhs_func( a_u, a_S, a_T, a_e_s, a_D, a_a, a_b, a_N_s, a_f_v ) );
-                a_res_norm_a = std::sqrt(residual*residual);
+                a_res_norm_a = std::abs(residual);
 
                 if (k == 0) {
                     if (a_res_norm_a > 0) {
@@ -228,9 +228,11 @@ namespace SDMassChangeUtils_LV
                 RT du = RT(0.0);
                 du = - residual / slope;
 
-                RT du_norm = std::sqrt(du*du);
-                RT u_norm = std::sqrt(a_u*a_u);
-                if (du_norm/u_norm <= m_stol) {
+                RT du_norm = std::abs(du);
+                RT u_norm = std::abs(a_u);
+                // Retrying cannot resolve a correction at the solution's roundoff.
+                const RT step_tol = std::max(m_stol, std::numeric_limits<RT>::epsilon());
+                if (u_norm > RT(0.0) && du_norm/u_norm <= step_tol) {
                     a_converged = true;
                     break;
                 }
