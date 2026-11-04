@@ -1,6 +1,6 @@
 """Find every literal ParmParse query in a C++ tree, with the type of the variable it fills.
 
-Ported from the ASPIRE harness's compute/tools/gen_erf_schema.py (Build B's generator). The changes: conditions carry
+Mirrored from other testing infrastructure. The changes: conditions carry
 the line of their #ifdef/#ifndef (the evidence a build requirement cites), and nothing is pinned to one ERF commit.
 """
 import re

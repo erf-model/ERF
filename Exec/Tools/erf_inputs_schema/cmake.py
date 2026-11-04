@@ -1,7 +1,7 @@
 """Which ERF_USE_* macros a build defines: ERF's CMake option defaults, the build's own -D options over them, and the
 if() around each target_compile_definitions in ERF's CMake.
 
-Ported from the ASPIRE harness's gen_erf_schema.py. The build options are an argument (a -D list or a CMakeCache.txt),
+Mirrored from other testing infrastructure. The build options are an argument (a -D list or a CMakeCache.txt),
 not a container recipe.
 """
 import re
