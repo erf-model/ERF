@@ -280,6 +280,13 @@ class DefaultTests(unittest.TestCase):
         self.assertEqual(keys["erf.k"]["type"], "real")
         self.assertEqual((keys["erf.k"]["default"], keys["erf.k"]["default_origin"]), (None, "none"))
 
+    def test_a_comparison_is_not_an_initializer(self):
+        # ERF_FireCouplingParams.H: std::string coupling_type = "lagged"; ... return coupling_type == "synchronous";
+        keys = tree_keys('struct P {\n    std::string mode = "lagged";\n'
+                         '    bool sync () const { return mode == "synchronous"; }\n};\n'
+                         'void f (P& p)\n{\n    ParmParse pp("erf");\n    pp.query("mode", p.mode);\n}\n')
+        self.assertEqual((keys["erf.mode"]["default"], keys["erf.mode"].get("default_source")), ("lagged", "Source/ERF_T.cpp:2"))
+
 
 class EnumListTests(unittest.TestCase):
     """A Vector of an enum read with queryarr is a list of enum values, not one value."""
