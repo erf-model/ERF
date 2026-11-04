@@ -1766,6 +1766,9 @@ add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # Anelastic EB cylinder through the bottom wall on two levels: w below the wall was never filled
 # on level 1, and its first step diverged (erf-model/ERF#4876)
 add_test_field_bounds(EB_SquareCylinder_AnelasticAMR "plt00004" x_velocity -0.5 3.0)
+# The same with the refined patch 0.46 from the cylinder: on 2 ranks the singular level-1
+# projection stalled when its BiCGStab bottom solve broke down at roundoff, and the run aborted
+add_test_field_bounds(EB_SquareCylinder_AnelasticAMR_NarrowPatch "plt00004" x_velocity -0.5 3.0)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
 
