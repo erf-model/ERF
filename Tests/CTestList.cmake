@@ -2403,6 +2403,10 @@ if(ERF_ENABLE_RRTMGP AND ERF_ENABLE_FCOMPARE AND NOT WIN32)
       WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
       LABELS "regression;radiation;option-parity"
       ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/topo_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/topo_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/plt00003_parity.log;${CURRENT_TEST_BINARY_DIR}/plt_lsm_2D_00003_parity.log")
+  # setup_test() reads TEST_FILES_DIR whenever it is set, so leaving it here made every
+  # later setup_test() caller copy this folder (ThinBody_GradP then had no inputs file)
+  unset(TEST_NAME)
+  unset(TEST_FILES_DIR)
 endif()
 
 # TwoStream radiation needs no external library and no gold plotfiles: the
