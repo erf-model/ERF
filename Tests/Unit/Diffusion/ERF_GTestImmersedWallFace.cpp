@@ -221,7 +221,7 @@ RansResult rans_wall_cell (bool immersed, bool flat_wall_diss, Real bwall, Real 
     Gpu::streamSynchronize();
 
     Vector<std::unique_ptr<MultiFab>> no_tau;   // the realizability cap is off (rans_realizability = 0)
-    const CanopyTurbulence no_canopy;
+    const CanopyTurbulence no_canopy{};
     ComputeTurbulentViscosityRANS(0, no_tau, cons, wdist, mu, diss, geom, false, z_nd, tc, Real(9.81),
                                   no_sfc, nullptr, no_canopy, nullptr, immersed ? &tb : nullptr, flat_wall_diss,
                                   Real(0.005));
