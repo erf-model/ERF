@@ -12,13 +12,21 @@
 
 #include "ERF_NOAHMP.H"
 #include "ERF_Constants.H"
-#include "ERF_LSMInterp.H"
 #include "ERF_EOS.H"
 #include "ERF_NOAHMP_ResultPolicy.H"
 #include "ERF_LandWaterInterp.H"
 #include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
+
+namespace {
+// The cell types Noah-MP interpolates by (interp_land_water_packed): a cell holds a valid value
+// or the lsm_undefined sentinel. Only their being distinct matters.
+namespace NoahInterpType {
+    constexpr Real valid     = 0.0;
+    constexpr Real undefined = 1.0;
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 //  Fine-level interpolation (no per-level NetCDF land file)
@@ -46,26 +54,6 @@ NOAHMP::interp_from_lev0 (const int& lev,
     //
     const IntVect rr2d(m_refRatio[0], m_refRatio[1], 1);
 
-    // The level-0 data and fluxes still hold lsm_undefined in cells Noah-MP did not
-    // process: SurfaceLayer falls back to MOST there but does not write that flux back
-    // (see #3446).  lsm_interp_from_coarse interpolates linearly and then marks every fine
-    // cell of such a coarse cell lsm_undefined, and gives a fine cell whose stencil
-    // touches one its parent's value, so a fine cell holds either a value bounded by the
-    // valid coarse cells around it or exactly the sentinel.
-    for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
-        lsm_interp_from_coarse(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
-                               IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                               *lsm_lev0_data[ivar], 1,
-                               m_geom0, m_geom, rr2d,
-                               m_domain_bcs_type, BCVars::cons_bc);
-    }
-
-    for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
-        lsm_interp_from_coarse(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
-                               IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                               *lsm_lev0_flux[ivar], 1,
-                               m_geom0, m_geom, rr2d,
-                               m_domain_bcs_type, BCVars::cons_bc);
     // Noah-MP leaves the lsm_undefined sentinel in the cells it does not process (water) --
     // in its results and soil profile and, through SurfaceLayer (#3446), in the level-0 flux.
     // Interpolate valid values from valid neighbours only and the sentinel from sentinel
@@ -73,26 +61,56 @@ NOAHMP::interp_from_lev0 (const int& lev,
     // coastal land cell then takes no slope toward the water, and the sentinel comes through
     // exactly, so consumers keep rejecting it with is_valid_lsm_value. Fields that are valid
     // everywhere (the radiation forcing) are interpolated exactly as cell_cons_interp does.
-    auto interpolate = [&] (MultiFab& dst, const MultiFab& src)
-    {
-        MultiFab valid(src.boxArray(), src.DistributionMap(), 1, src.nGrowVect());
-        for (MFIter mfi(src); mfi.isValid(); ++mfi) {
-            const auto v = src.const_array(mfi);
-            const auto w = valid.array(mfi);
-            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                w(i,j,k) = is_valid_lsm_value(v(i,j,k)) ? Real(0.0) : Real(1.0);
-            });
-        }
-        interp_land_water(dst, src, valid, m_geom0, m_geom, rr2d,
-                          m_domain_bcs_type, BCVars::cons_bc);
+    //
+    // The data and fluxes are packed into one MultiFab per level (data first, then fluxes)
+    // so the coarse-to-fine ParallelCopy inside the interpolation runs once, not once per
+    // field.  Every field of a level shares one BoxArray and DistributionMapping (Init).
+    const int ndata = m_lsm_data_size;
+    const int nflux = m_lsm_flux_size;
+    const int ntot  = ndata + nflux;
+
+    auto fine_mf = [&] (int n) -> MultiFab& {
+        return (n < ndata) ? *lsm_fab_data[n] : *lsm_fab_flux[n-ndata];
+    };
+    auto lev0_mf = [&] (int n) -> const MultiFab& {
+        return (n < ndata) ? *lsm_lev0_data[n] : *lsm_lev0_flux[n-ndata];
     };
 
-    for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
-        interpolate(*lsm_fab_data[ivar], *lsm_lev0_data[ivar]);
+    // Each pack holds the ntot fields and then their ntot types (interp_land_water_packed)
+    const MultiFab& f0 = fine_mf(0);
+    const MultiFab& c0 = lev0_mf(0);
+    MultiFab fine_pack(f0.boxArray(), f0.DistributionMap(), 2*ntot, f0.nGrowVect());
+    MultiFab lev0_pack(c0.boxArray(), c0.DistributionMap(), 2*ntot, c0.nGrowVect());
+    for (int n(0); n<ntot; ++n) {
+        AMREX_ASSERT(fine_mf(n).boxArray() == f0.boxArray() && fine_mf(n).nGrowVect() == f0.nGrowVect());
+        AMREX_ASSERT(lev0_mf(n).boxArray() == c0.boxArray() && lev0_mf(n).nGrowVect() == c0.nGrowVect());
+        // The fine ghost cells outside the domain are not interpolated and keep these values
+        MultiFab::Copy(fine_pack, fine_mf(n), 0, n, 1, f0.nGrowVect());
+        MultiFab::Copy(lev0_pack, lev0_mf(n), 0, n, 1, c0.nGrowVect());
     }
-    for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
-        interpolate(*lsm_fab_flux[ivar], *lsm_lev0_flux[ivar]);
+
+    // The interpolation reads the coarse ghost cells, and level 0 fills only its fluxes'
+    // (and only after its driver fires): its data still hold the lsm_undefined of Init
+    // there, which would read as water along every level-0 box boundary.  Fill them all
+    // here, in one exchange, without touching level 0's own fields.
+    lev0_pack.FillBoundary(0, ntot, m_geom0.periodicity());
+
+    // The type of field n, per cell
+    for (MFIter mfi(lev0_pack, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& gbx = mfi.growntilebox();
+        const auto p = lev0_pack.array(mfi);
+        ParallelFor(gbx, ntot, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            p(i,j,k,ntot+n) = is_valid_lsm_value(p(i,j,k,n)) ? NoahInterpType::valid
+                                                             : NoahInterpType::undefined;
+        });
+    }
+
+    interp_land_water_packed(fine_pack, lev0_pack, ntot, m_geom0, m_geom, rr2d,
+                             m_domain_bcs_type[BCVars::cons_bc]);
+
+    for (int n(0); n<ntot; ++n) {
+        MultiFab::Copy(fine_mf(n), fine_pack, n, 0, 1, f0.nGrowVect());
     }
     Print () << "Noah-MP interpolation at level " << lev << " completed" << std::endl;
 }

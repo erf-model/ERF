@@ -218,3 +218,124 @@ TEST(LandWaterInterp, SentinelComesThroughExactlyAndStaysOutOfLandSlopes)
     const int ic = ncoast - 1, jc = 3;
     EXPECT_EQ(at(f, ic*2, jc*2), at(f, ic*2+1, jc*2));
 }
+
+namespace {
+
+// interp_land_water of src (any number of fields) with indicator, from a BC vector of one entry
+MultiFab interpolate_land_water (const Levels& L, const MultiFab& src, const MultiFab& indicator)
+{
+    MultiFab fine(L.fba, L.fdm, src.nComp(), 0);
+    fine.setVal(Real(0.));
+    Vector<BCRec> bcs(1);
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        const int t = L.cgeom.isPeriodic(d) ? BCType::int_dir : BCType::foextrap;
+        bcs[0].setLo(d, t); bcs[0].setHi(d, t);
+    }
+    interp_land_water(fine, src, indicator, L.cgeom, L.fgeom, ratio, bcs, 0);
+    MultiFab host(L.fba, L.fdm, src.nComp(), 0, MFInfo().SetArena(The_Pinned_Arena()));
+    MultiFab::Copy(host, fine, 0, 0, src.nComp(), 0);
+    Gpu::streamSynchronize();
+    return host;
+}
+
+} // namespace
+
+// Motivation: Noah-MP packs all its fields into one MultiFab, each with its own validity as
+// indicator, and interpolates them in one call to move them in one ParallelCopy. Each field must
+// come out exactly as it does on its own, whether it has its own indicator or shares one, and
+// the call must not read past the one BCRec it is handed.
+TEST(LandWaterInterp, PackedFieldsMatchTheirSingleFieldInterpolation)
+{
+    Levels L(false);
+    constexpr int nf = 3;
+    const MultiFab c0 = make_coarse(L, Real(1.0), Real(0.));
+    const MultiFab c1 = make_coarse(L, lsm_undefined, Real(0.1));
+    const MultiFab c2 = make_coarse(L, Real(5.0), Real(0.3));
+    const MultiFab* cs[nf] = {&c0, &c1, &c2};
+
+    MultiFab src(L.cba, L.cdm, nf, 1);
+    for (int n = 0; n < nf; ++n) { MultiFab::Copy(src, *cs[n], 0, n, 1, 1); }
+
+    // Own indicators: the validity of each value (only field 1 holds the sentinel)
+    MultiFab valid(L.cba, L.cdm, nf, 1);
+    for (MFIter mfi(src); mfi.isValid(); ++mfi) {
+        const auto v = src.const_array(mfi);
+        const auto w = valid.array(mfi);
+        ParallelFor(mfi.fabbox(), nf, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            w(i,j,k,n) = is_valid_lsm_value(v(i,j,k,n)) ? Real(0.0) : Real(1.0);
+        });
+    }
+    // Shared indicator: land/water
+    MultiFab water(L.cba, L.cdm, 1, 1);
+    MultiFab::Copy(water, c0, 1, 0, 1, 1);
+
+    const MultiFab own    = interpolate_land_water(L, src, valid);
+    const MultiFab shared = interpolate_land_water(L, src, water);
+
+    for (int n = 0; n < nf; ++n) {
+        MultiFab src_n(L.cba, L.cdm, 1, 1), valid_n(L.cba, L.cdm, 1, 1);
+        MultiFab::Copy(src_n, src, n, 0, 1, 1);
+        MultiFab::Copy(valid_n, valid, n, 0, 1, 1);
+        const MultiFab own_n    = interpolate_land_water(L, src_n, valid_n);
+        const MultiFab shared_n = interpolate_land_water(L, src_n, water);
+        for (int j = 0; j < nc*ratio[1]; ++j) {
+            for (int i = 0; i < nc*ratio[0]; ++i) {
+                EXPECT_EQ(at(own, i, j, n), at(own_n, i, j)) << "n=" << n << " i=" << i << " j=" << j;
+                EXPECT_EQ(at(shared, i, j, n), at(shared_n, i, j)) << "n=" << n << " i=" << i << " j=" << j;
+            }
+        }
+    }
+    // field 0 has no sentinel, so with its own indicator it is cell_cons_interp's, coast and all;
+    // with the land/water one the coastal land cell has no x slope
+    EXPECT_NE(at(own, 2*ncoast-2, 4, 0), at(own, 2*ncoast-1, 4, 0));
+    EXPECT_EQ(at(shared, 2*ncoast-2, 4, 0), at(shared, 2*ncoast-1, 4, 0));
+}
+
+// Motivation: SLM interpolates a flux it has not computed yet (lsm_undefined) on land, where
+// SurfaceLayer falls back to MOST. Typed by land/water alone, such a cell would lend its
+// neighbours a slope toward the sentinel and be blended with them; as a type of its own (land/
+// water type + 2) the sentinel comes through exactly and the land around it takes no slope
+// toward it. The packed interface takes the field and its indicator as built by the caller.
+TEST(LandWaterInterp, SentinelOnLandIsATypeOfItsOwn)
+{
+    Levels L(true);
+    constexpr int ic_sentinel = 1;   // a land column holding the sentinel
+    MultiFab crse = make_coarse(L, Real(1.0), Real(0.));
+    for (MFIter mfi(crse); mfi.isValid(); ++mfi) {
+        const auto a = crse.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (((i % nc) + nc) % nc == ic_sentinel) {
+                a(i,j,k,0) = lsm_undefined;
+                a(i,j,k,1) += Real(2.0);
+            }
+        });
+    }
+    MultiFab fine(L.fba, L.fdm, 2, 0);
+    fine.setVal(Real(0.));
+    BCRec bc;
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) { bc.setLo(d, BCType::int_dir); bc.setHi(d, BCType::int_dir); }
+    interp_land_water_packed(fine, crse, 1, L.cgeom, L.fgeom, ratio, bc);
+    MultiFab f(L.fba, L.fdm, 2, 0, MFInfo().SetArena(The_Pinned_Arena()));
+    MultiFab::Copy(f, fine, 0, 0, 2, 0);
+    Gpu::streamSynchronize();
+
+    for (int j = 0; j < nc*ratio[1]; ++j) {
+        for (int i = 0; i < nc*ratio[0]; ++i) {
+            const int ic = i / ratio[0];
+            if (ic == ic_sentinel) {
+                EXPECT_EQ(at(f, i, j), lsm_undefined) << "i=" << i << " j=" << j;
+            } else if (coarse_is_water(ic)) {
+                EXPECT_EQ(at(f, i, j), Real(1.0)) << "i=" << i << " j=" << j;
+            } else {
+                EXPECT_TRUE(is_valid_lsm_value(at(f, i, j))) << "i=" << i << " j=" << j;
+                EXPECT_LT(at(f, i, j), Real(1.)) << "i=" << i << " j=" << j;
+            }
+        }
+    }
+    // the land cells beside the sentinel column have no x slope
+    for (int ic : {ic_sentinel-1, ic_sentinel+1}) {
+        EXPECT_EQ(at(f, ic*2, 6), at(f, ic*2+1, 6)) << "ic=" << ic;
+    }
+}

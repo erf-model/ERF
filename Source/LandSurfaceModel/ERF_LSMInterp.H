@@ -90,25 +90,4 @@ lsm_mask_invalid_parents (amrex::MultiFab& fine,
     }
 }
 
-/**
- * Interpolates a land-surface field from a coarser level without letting lsm_undefined
- * leak into the valid cells: linear interpolation, then lsm_mask_invalid_parents.
- * Components 0 to ncomp-1 of crse go to components 0 to ncomp-1 of fine.
- */
-inline void
-lsm_interp_from_coarse (amrex::MultiFab& fine,
-                        const amrex::IntVect& nghost,
-                        const amrex::IntVect& nghost_outside_domain,
-                        const amrex::MultiFab& crse, int ncomp,
-                        const amrex::Geometry& cgeom, const amrex::Geometry& fgeom,
-                        const amrex::IntVect& ratio,
-                        const amrex::Vector<amrex::BCRec>& bcs, int bcscomp)
-{
-    amrex::InterpFromCoarseLevel(fine, nghost, nghost_outside_domain,
-                                 crse, 0, 0, ncomp, cgeom, fgeom, ratio,
-                                 &amrex::cell_cons_interp, bcs, bcscomp);
-    lsm_mask_invalid_parents(fine, nghost, nghost_outside_domain, crse, ncomp,
-                             cgeom, fgeom, ratio);
-}
-
 #endif
