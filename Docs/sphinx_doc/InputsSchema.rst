@@ -41,12 +41,17 @@ What a Key Records
 
 - **Type:** ``int``, ``real``, ``bool``, ``string`` or ``enum``, each also as a list; ``unknown``; or ``removed``.
   When one variable name has several types in a file, the read call decides (a list for ``queryarr``/``getarr``, a
-  scalar otherwise), then the nearest declaration before the read.
+  scalar otherwise), then the nearest declaration before the read. Every read method of ``AMReX_ParmParse.H`` is
+  read; a ``queryline`` read takes the whole line, a ``querytable`` read is recorded as a table, a
+  ``query_enum_sloppy`` read records the characters it ignores, and a ``WithParser`` or ``AsDouble`` read is marked
+  ``parser``, since it takes an expression by design.
 - **Layer:** whether AMReX or ERF reads the key. A key both read keeps both source lines. When two reads disagree, an
   array read makes the key a list, an enum read wins over a ``std::string`` probe, and the pair is kept in
   ``type_conflict``. A refusal in problem-specific code (``Source/Prob/``) is listed under ``refused_by`` and does
   not override a read elsewhere.
-- **Default:** the initializer of the variable the query fills, in canonical form, or none.
+- **Default:** the initializer of the variable the query fills, in canonical form, or none. A ``pp.add`` of a
+  literal in ERF's ``add_par`` (``Source/main.cpp``) is the default instead: it runs before the inputs are read, so
+  the inputs override it (``amr.n_proper`` is 2, not AMReX's 1).
 - **Build requirements:** the ``ERF_USE_X`` macro a key is read under, with the ``#ifdef`` line. Also any enum value
   that is refused, or whose model is only built, without a feature.
 - **Removed:** the key's read sits in an ``if`` whose body always calls ``Abort`` or ``Error`` and does not go on to
@@ -70,7 +75,8 @@ With a schema, the checker reports:
 - a removed key, as ERROR;
 - a string or enum value ERF does not know, or fewer per-level values than levels, as ERROR;
 - a bool, int or real value that is not a plain literal (``2*0.5``, ``300.;``, ``1e9`` for an int), as WARNING,
-  since ParmParse hands it to its parser at run time; ``1D0`` is an ERROR, since neither ParmParse nor its parser
+  since ParmParse hands it to its parser at run time, except for a key read with the parser (``queryWithParser``,
+  ``queryAsDouble``); ``1D0`` is an ERROR, since neither ParmParse nor its parser
   reads a ``d`` or ``D`` exponent;
 - more words than the key reads (``erf.check_int = 10 steps``; ParmParse reads the first), as WARNING;
 - a key or value that needs a feature the build lacks, as ERROR;

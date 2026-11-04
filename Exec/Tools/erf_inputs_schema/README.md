@@ -6,7 +6,7 @@ and nothing is built.
 
 | module | does |
 |---|---|
-| `scan.py` | finds every literal ParmParse query (`query`, `get`, `queryarr`, `getarr`, the enum forms, `query_one_or_per_level*`, `read_int_string`, `contains`/`countval`), with the C++ type of the variable it fills and the `#ifdef ERF_USE_X` it sits under |
+| `scan.py` | finds every literal ParmParse query (every read method of `AMReX_ParmParse.H`: `query`/`get` and their `arr`, `kth`, `ktharr`, `line`, `table`, `WithParser`, `AsDouble`, `Add` and enum (`_case_insensitive`, `_sloppy`) forms; `query_one_or_per_level*`, `read_int_string`, `contains`/`countval`), with the C++ type of the variable it fills and the `#ifdef ERF_USE_X` it sits under; and the literal `pp.add` calls of ERF's `add_par` |
 | `cmake.py` | which `ERF_USE_*` macros a build defines: ERF's option defaults, the build's `-D` options or `CMakeCache.txt` over them, and the `if()` around each `target_compile_definitions` |
 | `schema.py` | merges the reads into one fact per key and assembles the schema |
 | `canonical.py` | the type codes and the canonical form of each value |
@@ -18,8 +18,10 @@ and nothing is built.
 | `type` | `int`, `real`, `bool`, `string`, `enum`, each also as `_list`; `unknown` (the variable's type was not found), `unknown_list` (an array read of such a variable); or `removed` |
 | `source`, `layer`, `layers` | the read the fact is taken from; `AMReX` or `ERF`; and each layer's first read (a key AMReX and ERF both read keeps both lines) |
 | `per_level` | one value, or one per level |
-| `values`, `case_insensitive` | an enum's names, and whether ERF reads them case-insensitively |
-| `default`, `default_origin`, `default_source` | the variable's initializer as a canonical literal (`initializer`), `none`, or `expression` when it is not a plain literal |
+| `values`, `case_insensitive`, `ignores` | an enum's names, whether ERF reads them case-insensitively, and the characters a `query_enum_sloppy` read drops from the word first |
+| `line`, `table` | read with `queryline` (the whole line, any number of words) or `querytable` (a `{{a, b} {c, d}}` table, typed `unknown`) |
+| `parser`, `as_double` | read with a `WithParser` or `AsDouble` method, which takes an expression by design; `AsDouble` also reads an int as a double and rounds it |
+| `default`, `default_origin`, `default_source` | the variable's initializer as a canonical literal (`initializer`), `none`, or `expression` when it is not a plain literal; `add` when ERF's `add_par` sets it with `pp.add("k", literal)`, which runs before the inputs are read, so the inputs override it (`amr.n_proper` is 2, not AMReX's 1) |
 | `required` | some read is a `get` |
 | `requires`, `requires_evidence` | the `ERF_USE_X` macros every read sits under, with the `#ifdef` line |
 | `value_requires` | an enum value (or a site fact's value) that needs a feature, with evidence |
