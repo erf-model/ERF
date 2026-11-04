@@ -23,15 +23,24 @@ def layer_of(source):
     return "AMReX" if source.startswith("AMReX/") else "ERF"
 
 
+def _schema_type(kind):
+    """A scan type as the schema writes it: enum:<Name> -> enum, enum:<Name>_list -> enum_list."""
+    if kind.startswith("enum:"):
+        return "enum_list" if kind.endswith("_list") else "enum"
+    return kind
+
+
 def _merge_removed(old, new, lay):
     """removed wins: ERF stops the run if the key is present. A typed read elsewhere is kept in shadowed_reads, so
     the conflict stays visible."""
     keep, other = (old, new) if old["type"] == "removed" else (new, old)
-    out = dict(keep, layer=old["layer"], layers=dict(old["layers"]))
+    keep_lay = layer_of(keep["source"])
+    out = dict(keep, layer=keep_lay, layers=dict(old["layers"]))
     out["layers"].setdefault(lay, new["source"])
+    out["layers"][keep_lay] = keep["source"]         # the record names the removal, whichever file sorted first
     shadowed = list(keep.get("shadowed_reads", [])) + list(other.get("shadowed_reads", []))
     if other["type"] not in ("removed", "unknown"):
-        shadowed.append(f'{other["source"]} {other["type"]}')
+        shadowed.append(f'{other["source"]} {_schema_type(other["type"])}')
     if shadowed:
         out["shadowed_reads"] = sorted(set(shadowed))
     return out
@@ -51,6 +60,8 @@ def merge(old, new):
     a, b = old["type"], new["type"]
     if a == "unknown" or b == a + "_list":
         out["type"] = b
+        if "case_insensitive" in new:                # a presence read carries none; the typed read's counts
+            out["case_insensitive"] = new["case_insensitive"]
     elif b != a and b != "unknown" and a != b + "_list":
         out.setdefault("type_conflict", sorted({a, b}))
     if old.get("per_level") or new.get("per_level"):
@@ -100,8 +111,14 @@ def _apply_site_facts(site_facts, keys, features, feature_sources):
         features[f["feature"]] = bool(f["on"])
         feature_sources[f["feature"]] = "site"
         if f.get("key") in keys and f.get("value") is not None:
-            where = keys[f["key"]]["source"]
-            keys[f["key"]].setdefault("value_requires", {})[f["value"]] = {
+            fact = keys[f["key"]]
+            where = fact["source"]
+            value = str(f["value"])
+            try:                                     # checks/schema.py looks the value up in canonical form
+                value = canonical.canonical_value(_schema_type(fact["type"]).replace("_list", ""), value, fact)
+            except ValueError:
+                pass
+            keys[f["key"]].setdefault("value_requires", {})[value] = {
                 "feature": f["feature"], "evidence": f'{f.get("evidence", "site")}; {where}'}
 
 
