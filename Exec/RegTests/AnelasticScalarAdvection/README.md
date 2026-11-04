@@ -20,6 +20,7 @@ serves as a reference.
 | `inputs_stretched` | The same blob and stretching without terrain (`StretchedDz`); needs the FFT projection |
 | `inputs_hill` | Uniform scalar and uniform theta in the wind over a 100 m Witch of Agnesi hill, the same stretching |
 | `inputs_inertial` | Blob in an inertial oscillation: a uniform wind that turns in time, with an exact position |
+| `inputs_inertial_eb` | The same with an EB plane at z = 130 m: layer k = 0 is covered and k = 1 is cut (volume fraction 0.7); upwind schemes, since EB advection has no WENO |
 | `check_inertial_drift.py` | Blob centroid and wind against the exact inertial oscillation |
 | `check_cfl_dt.py` | The time step from `erf.cfl` with map factors, on `inputs_mapfac_anelastic` |
 | `check_mapfac_parity.py` | Blob centroids on every level against the analytic drift `U t m / dx`, `V t m / dy` and the compressible run |
@@ -61,6 +62,8 @@ Measured on 2 ranks. "Before" is development at 8bdde5f8a, "after" is the curren
 | `Hill_PartialDepth` | relative error below 1e-4 | 0.28 | 1.6e-7 |
 | `Hill_TwoWay` | relative error below 1e-3 | 0.31 | 4.2e-4; theta 1.5e-4 |
 | `Inertial_RK2`, `Inertial_MidPoint` | blob within 0.5 m of the exact position | 3.4 m | 0.072 m |
+| `Inertial_EB_RK2` | blob within 0.5 m of the exact position in k = 1 (cut) and k = 2 | 3.4 m (at 6bcee0b24) | 0.074 m |
+| `Inertial_EB_MidPoint` | the same | not affected | 0.074 m |
 | `CFL_MapFactor` | time after 5 steps within 1 % of 10.417 s | 5.208 s | 10.417 s |
 
 ## CTest

@@ -1337,6 +1337,14 @@ struct SolverChoice {
                 amrex::Abort("erf.if_wall_form = fraction_stress runs with the anelastic model (erf.anelastic = 1 on "
                              "every level); it does not support erf.immersed_forcing_substep = true");
             }
+            // ... and the solid cells are held (rho, theta, the moisture species) by the anelastic
+            // update only
+            for (int lev = 0; lev <= max_level; ++lev) {
+                if (!anelastic[lev]) {
+                    amrex::Abort("erf.if_wall_form = fraction_stress needs erf.anelastic = 1 on every level (level " +
+                                 std::to_string(lev) + " is compressible)");
+                }
+            }
             // One surface condition (heat flux, surface temperature - optionally changing at
             // erf.if_surf_heating_rate - or Obukhov length; none is neutral, checked below); the
             // MOST stability functions always apply, as on the flat surface layer, so
@@ -1607,6 +1615,34 @@ struct SolverChoice {
         }
 
             advChoice.init_params(pp_prefix);
+
+        // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centred and
+        // upwind schemes; with any other the fluxes are never set and, in a Release build, the
+        // fields are not advected at all.  The moist scalars default to WENO3, so they are checked
+        // only when they are advected.
+        if (terrain_type == TerrainType::EB) {
+            auto eb_supports = [] (AdvType t) {
+                return (t == AdvType::Centered_2nd || t == AdvType::Upwind_3rd ||
+                        t == AdvType::Centered_4th || t == AdvType::Upwind_5th ||
+                        t == AdvType::Centered_6th);
+            };
+            auto check_eb_adv = [&] (const std::string& name, AdvType t) {
+                if (!eb_supports(t)) {
+                    amrex::Abort("erf." + name + " = " + advChoice.adv_type_convert_int_to_string(t) +
+                                 " is not supported with erf.terrain_type = EB; use Centered_2nd, "
+                                 "Upwind_3rd, Centered_4th, Upwind_5th or Centered_6th");
+                }
+            };
+            check_eb_adv("dycore_horiz_adv_type",  advChoice.dycore_horiz_adv_type);
+            check_eb_adv("dycore_vert_adv_type",   advChoice.dycore_vert_adv_type);
+            check_eb_adv("dryscal_horiz_adv_type", advChoice.dryscal_horiz_adv_type);
+            check_eb_adv("dryscal_vert_adv_type",  advChoice.dryscal_vert_adv_type);
+            if (moisture_type != MoistureType::None) {
+                check_eb_adv("moistscal_horiz_adv_type", advChoice.moistscal_horiz_adv_type);
+                check_eb_adv("moistscal_vert_adv_type",  advChoice.moistscal_vert_adv_type);
+            }
+        }
+
            diffChoice.init_params(pp_prefix);
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
@@ -2121,6 +2157,10 @@ struct SolverChoice {
                            << ((if_wall_face_spacing == 2) ? "log" : (if_wall_face_spacing == 1) ? "physical" : "grid")
                            << ", wall TKE " << (if_wall_tke ? "on" : "off")
                            << ", flat-wall dissipation " << (if_flat_wall_dissipation ? "on" : "off") << ")\n";
+            if (moisture_type != MoistureType::None) {
+                amrex::Print() << "Immersed forcing: the moisture species see a closed wall "
+                               << "(no diffusion through the wall face, held in the solid, no surface moisture flux)\n";
+            }
         }
         // The log-law coarse/fine fill acts only on refined levels
         if (cf_loglaw_fill) {

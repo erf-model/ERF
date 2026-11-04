@@ -917,12 +917,24 @@ void erf_slow_rhs_post (int level, int finest_level,
                     new_zmom(i,j,k) = cur_zmom(i,j,k);
                 }
             });
+            // With the fraction-stress wall law the microphysics species the host transports keep
+            // their value in the solid as rho and theta do (the wall face is closed to them; the
+            // lateral faces of a slope stay open to diffusion, as for theta). The implicit
+            // moisture solves of ERF_ImplicitPost.H run after this and hold them again.
+            const int l_ncomp = S_data[IntVars::cons].nComp();
+            const int l_q_lo  = solverChoice.if_fraction_stress ? RhoQ1_comp : l_ncomp;
+            const DiffChoice l_diff_choice = solverChoice.diffChoice;
             ParallelFor(tbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 Real t_blank       = t_blank_arr(i, j, k  );
                 if (t_blank == one) { // don't update rho and theta for fully immersed cells
                     new_cons(i, j, k, Rho_comp)      = old_cons(i, j, k, Rho_comp);
                     new_cons(i, j, k, RhoTheta_comp) = old_cons(i, j, k, RhoTheta_comp);
+                    for (int n = l_q_lo; n < l_ncomp; ++n) {
+                        if (l_diff_choice.host_transports(n)) {
+                            new_cons(i, j, k, n) = old_cons(i, j, k, n);
+                        }
+                    }
                 }
             });
         } else {
