@@ -170,6 +170,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                        [&] (MultiFab& wide) { wide.FillBoundary(geom.periodicity()); })
         : nullptr;
     const MultiFab* u_star_src = (u_star_wide) ? u_star_wide.get() : SurfLayer->get_u_star(level);
+    const similarity_funs l_sfuns = SurfLayer->similarity_functions();
     const MultiFab* t_star_src = (t_star_wide) ? t_star_wide.get() : SurfLayer->get_t_star(level);
     const MultiFab* q_star_src = (q_star_wide) ? q_star_wide.get() : SurfLayer->get_q_star(level);
     const MultiFab* olen_src   = (olen_wide)   ? olen_wide.get()   : SurfLayer->get_olen(level);
@@ -1831,6 +1832,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                                         theta, qv, use_moisture);
                     sl.zval    = zrel_sl;
                     sl.zeta    = zrel_sl / obuk_val;
+                    sl.sfuns   = l_sfuns;
                     ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
                 }
 

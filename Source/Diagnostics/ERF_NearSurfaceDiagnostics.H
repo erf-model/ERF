@@ -154,7 +154,8 @@ amrex::Real most_profile_zeta_max () noexcept { return amrex::Real(1.0); }
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool evaluate_most_factor (const MostState& state,
                            amrex::Real height,
-                           amrex::Real& factor) noexcept
+                           amrex::Real& factor,
+                           similarity_funs sfuns = similarity_funs{}) noexcept
 {
     if (!valid_real(state.roughness_height) ||
         !valid_real(state.obukhov_length) ||
@@ -163,7 +164,6 @@ bool evaluate_most_factor (const MostState& state,
         state.obukhov_length == amrex::Real(0.0)) {
         return false;
     }
-    const similarity_funs sfuns{};
     const amrex::Real zeta = amrex::min(height / state.obukhov_length,
                                         most_profile_zeta_max());
     factor = std::log(height / state.roughness_height) - sfuns.calc_psi_h(zeta);
@@ -171,12 +171,14 @@ bool evaluate_most_factor (const MostState& state,
 }
 
 // The momentum counterpart of evaluate_most_factor: ln(z/z0) - psi_m(z/L), so that
-// the wind speed at height z is u_star / KAPPA times it.
+// the wind speed at height z is u_star / KAPPA times it. sfuns are the surface layer's
+// similarity functions (most.stable_functions); the default is Businger-Dyer.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool evaluate_most_momentum_factor (amrex::Real roughness_height,
                                     amrex::Real obukhov_length,
                                     amrex::Real height,
-                                    amrex::Real& factor) noexcept
+                                    amrex::Real& factor,
+                                    similarity_funs sfuns = similarity_funs{}) noexcept
 {
     if (!valid_real(roughness_height) || !valid_real(obukhov_length) ||
         roughness_height <= amrex::Real(0.0) ||
@@ -184,7 +186,6 @@ bool evaluate_most_momentum_factor (amrex::Real roughness_height,
         obukhov_length == amrex::Real(0.0)) {
         return false;
     }
-    const similarity_funs sfuns{};
     const amrex::Real zeta = amrex::min(height / obukhov_length,
                                         most_profile_zeta_max());
     factor = std::log(height / roughness_height) - sfuns.calc_psi_m(zeta);
@@ -196,7 +197,8 @@ bool evaluate_most_momentum_factor (amrex::Real roughness_height,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool evaluate_most_profile (const MostState& state,
                             amrex::Real height,
-                            MostProfile& profile) noexcept
+                            MostProfile& profile,
+                            similarity_funs sfuns = similarity_funs{}) noexcept
 {
     if (!valid_real(state.theta_surface) || !valid_real(state.theta_star) ||
         !valid_real(state.mixing_ratio_surface) || !valid_real(state.mixing_ratio_star)) {
@@ -204,7 +206,7 @@ bool evaluate_most_profile (const MostState& state,
     }
 
     amrex::Real profile_factor = amrex::Real(0.0);
-    if (!evaluate_most_factor(state, height, profile_factor)) {
+    if (!evaluate_most_factor(state, height, profile_factor, sfuns)) {
         return false;
     }
 
@@ -236,6 +238,7 @@ struct Sources
     const amrex::iMultiFab* land_mask = nullptr;
     const amrex::MultiFab* cons = nullptr;
     const amrex::MultiFab* z_phys_nd = nullptr;
+    similarity_funs sfuns;                ///< the surface layer's similarity functions (most.stable_functions)
 
     amrex::Real dz = amrex::Real(0.0);
     int klo = 0;
@@ -267,6 +270,7 @@ struct WindSources
     const amrex::MultiFab* yvel = nullptr;
     const amrex::MultiFab* cos_alpha = nullptr;
     const amrex::MultiFab* sin_alpha = nullptr;
+    similarity_funs sfuns;                ///< the surface layer's similarity functions (most.stable_functions)
     int klo = 0;
 };
 

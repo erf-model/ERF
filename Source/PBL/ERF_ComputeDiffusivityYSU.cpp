@@ -205,6 +205,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         // -- Compute diffusion coefficients --
 
         const auto& u_star_arr = SurfLayer->get_u_star(level)->const_array(mfi);
+        const similarity_funs l_sfuns = SurfLayer->similarity_functions();
         const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
         const auto  q_star_arr = (use_moisture) ?
                                  SurfLayer->get_q_star(level)->const_array(mfi) : Array4<const Real>{};
@@ -272,6 +273,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                                                         theta_k, qv_k, use_moisture);
                     sl.zval    = zval;
                     sl.zeta    = zval / l_obuk;
+                    sl.sfuns   = l_sfuns;
                     ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
                 }
 

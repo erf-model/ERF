@@ -2343,6 +2343,14 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
     "erf_exec"
     "plt00010"
     FCOMPARE_ATOL "4.0e-10")
+# ABL_MOST_IMP_DIFF_TKE with a stable prescribed flux (-0.02 K m/s) and the QNSE stable-side
+# similarity functions (erf.most.stable_functions = qnse): the prescribed-flux kernel, the MYNN25
+# surface gradients and the surface TKE production all take the QNSE functions
+add_test_r(ABL_MOST_QNSE_StableFlux
+    ""
+    "erf_exec"
+    "plt00010"
+    FCOMPARE_ATOL "4.0e-10")
 # ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solves of
 # theta and momentum (ERF_ImplicitPre.H) run after the last acoustic substep of each stage
 add_test_r(ABL_MOST_IMP_DIFF_PostSubstep     ""  "erf_exec" "plt00010")

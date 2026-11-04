@@ -4,6 +4,9 @@
 #include <AMReX_Algorithm.H>
 #include <AMReX_BLassert.H>
 #include <AMReX_Math.H>
+#include <AMReX_ParmParse.H>
+#include <AMReX_Print.H>
+#include <string>
 #include "ERF_Constants.H"
 
 /**
@@ -61,7 +64,20 @@ most_bracket_floor (amrex::Real C)
 
 
 /**
- * Structure of similarity functions for Moeng formulation
+ * Bound on |z/L| of the MOST kernels (see most_rib_zeta_bracketed, most_clamp_zeta and
+ * similarity_funs::calc_zeta_fold).
+ */
+inline constexpr amrex::Real most_zeta_lim = amrex::Real(100.0);
+
+/**
+ * Structure of similarity functions for Moeng formulation.
+ *
+ * The unstable side is Businger-Dyer. The stable side is Businger-Dyer (the default,
+ * phi = 1 + beta zeta, psi = -beta zeta) or, after set_stable_functions, the QNSE form
+ * phi = (1 + a zeta)/(1 + b zeta), psi = -((a - b)/b) ln(1 + b zeta) of Sukoriansky, Galperin
+ * and Perov (2005), with its own coefficients for momentum and heat (most.stable_functions,
+ * read by read_most_similarity_funs). The Jimenez (2012) pair (calc_psi_m2, calc_psi_h2) is
+ * not affected by the choice.
  */
 struct similarity_funs
 {
@@ -119,10 +135,10 @@ struct similarity_funs
 
 
     //
-    // Similarity functions from Businger & Dyer (1966)
+    // Similarity functions from Businger & Dyer (1966); stable side Businger-Dyer or QNSE
     //
     /**
-     * Compute the Businger-Dyer momentum stability correction.
+     * Compute the momentum stability correction (Businger-Dyer, or QNSE on the stable side).
      *
      * @param[in] zeta stability coordinate z/L
      */
@@ -132,7 +148,7 @@ struct similarity_funs
     calc_psi_m (amrex::Real zeta) const
     {
         if (zeta > 0) {
-            return -beta_m * zeta;
+            return m_qnse ? qnse_psi(zeta, m_qnse_am, m_qnse_bm) : -beta_m * zeta;
         } else {
             amrex::Real x = std::sqrt(std::sqrt(one - gamma_m * zeta));
             return two * std::log(myhalf * (one + x)) + std::log(myhalf * (one + x * x)) -
@@ -141,7 +157,7 @@ struct similarity_funs
     }
 
     /**
-     * Compute the Businger-Dyer heat stability correction.
+     * Compute the heat stability correction (Businger-Dyer, or QNSE on the stable side).
      *
      * @param[in] zeta stability coordinate z/L
      */
@@ -151,7 +167,7 @@ struct similarity_funs
     calc_psi_h (amrex::Real zeta) const
     {
         if (zeta > 0) {
-            return -beta_h * zeta;
+            return m_qnse ? qnse_psi(zeta, m_qnse_ah, m_qnse_bh) : -beta_h * zeta;
         } else {
             amrex::Real x = std::sqrt(one - gamma_h * zeta);
             return two * std::log(myhalf * (one + x));
@@ -162,7 +178,7 @@ struct similarity_funs
     // Gradient (phi) functions
     //
     /**
-     * Compute the Businger-Dyer momentum gradient function.
+     * Compute the momentum gradient function (Businger-Dyer, or QNSE on the stable side).
      *
      * This is the exact companion of calc_psi_m: the two are tied by
      * psi_m(zeta) = int_0^zeta (1 - phi_m(x))/x dx, so differentiating the MOST
@@ -182,15 +198,15 @@ struct similarity_funs
     calc_phi_m (amrex::Real zeta) const
     {
         if (zeta > 0) {
-            return one + beta_m * zeta;
+            return m_qnse ? qnse_phi(zeta, m_qnse_am, m_qnse_bm) : one + beta_m * zeta;
         } else {
             return one / std::sqrt(std::sqrt(one - gamma_m * zeta));
         }
     }
 
     /**
-     * Compute the Businger-Dyer heat gradient function, the exact companion of
-     * calc_psi_h: dtheta/dz = theta_* phi_h(zeta) / (kappa z).
+     * Compute the heat gradient function (Businger-Dyer, or QNSE on the stable side), the
+     * exact companion of calc_psi_h: dtheta/dz = theta_* phi_h(zeta) / (kappa z).
      *
      * See the note in calc_phi_m about the Jimenez pair.
      *
@@ -202,7 +218,7 @@ struct similarity_funs
     calc_phi_h (amrex::Real zeta) const
     {
         if (zeta > 0) {
-            return one + beta_h * zeta;
+            return m_qnse ? qnse_phi(zeta, m_qnse_ah, m_qnse_bh) : one + beta_h * zeta;
         } else {
             return one / std::sqrt(one - gamma_h * zeta);
         }
@@ -211,13 +227,25 @@ struct similarity_funs
     /**
      * Stable z/L at which the prescribed-flux problem folds.
      *
-     * With the Businger-Dyer psi_m = -beta_m z/L and L fixed by u* and the flux, the wind a
-     * given u* supports is u* max(C - psi_m, b) / kappa, with b = most_bracket_floor(C). For
-     * C > 0 it is smallest at z/L = C / (2 beta_m); for small or negative C (z0 near or above
-     * zref) the floor binds first and the minimum is at the kink z/L = (b - C) / beta_m. Below
-     * that wind the prescribed stable flux has no solution (Basu et al., BLM 2008). The
-     * physical (large u*) branch has z/L below this value, so bounding z/L by it leaves every
-     * point that has a solution unchanged. The result is positive for every C.
+     * With L fixed by u* and the flux, the wind a given u* supports is
+     * u* max(C - psi_m, b) / kappa, with b = most_bracket_floor(C). Below the smallest such
+     * wind the prescribed stable flux has no solution (Basu et al., BLM 2008). The physical
+     * (large u*) branch has z/L below this value, so bounding z/L by it leaves every point that
+     * has a solution unchanged. The result is positive for every C.
+     *
+     * Businger-Dyer (psi_m = -beta_m z/L): for C > 0 the minimum is at z/L = C / (2 beta_m);
+     * for small or negative C (z0 near or above zref) the floor binds first and the minimum is
+     * at the kink z/L = (b - C) / beta_m.
+     *
+     * QNSE (psi_m = -c ln(1 + b_m z/L), c = (a_m - b_m)/b_m): with u* proportional to
+     * (z/L)^(-1/3), the supported wind falls with z/L while
+     * f(z/L) = C + c ln(1 + b_m z/L) - 3 c b_m (z/L) / (1 + b_m z/L) is positive, and f falls
+     * from C at z/L = 0 to its minimum at z/L = 2 / b_m and rises without bound after it. The
+     * fold is the first zero of f beyond the kink where the floor stops binding
+     * (C - psi_m = b), found by bisection; it is the kink itself when f is already negative
+     * there, and most_zeta_lim when f has no zero (C > c (2 - ln 3), 10.4 with the default
+     * coefficients): the wind then falls monotonically with z/L and every wind has a solution
+     * on the branch the kernels iterate on.
      *
      * @param[in] C ln(zref/z0)
      */
@@ -226,15 +254,139 @@ struct similarity_funs
     amrex::Real
     calc_zeta_fold (amrex::Real C) const
     {
-        return amrex::max(C / (two * beta_m), (most_bracket_floor(C) - C) / beta_m);
+        if (!m_qnse) {
+            return amrex::max(C / (two * beta_m), (most_bracket_floor(C) - C) / beta_m);
+        }
+        const amrex::Real b = m_qnse_bm;
+        const amrex::Real c = (m_qnse_am - m_qnse_bm) / m_qnse_bm;
+        if (c <= zero) { return most_zeta_lim; } // a_m = b_m: psi_m = 0 on the stable side, no fold
+        const amrex::Real bf = most_bracket_floor(C);
+        amrex::Real lo = (C < bf) ? (std::exp((bf - C) / c) - one) / b : zero;
+        auto f = [&] (amrex::Real z) {
+            const amrex::Real s = one + b * z;
+            return C + c * std::log(s) - three * c * b * z / s;
+        };
+        if (f(lo) <= zero) { return lo; }
+        amrex::Real hi = two / b;
+        if (lo >= hi || f(hi) >= zero) { return most_zeta_lim; }
+        for (int n = 0; n < 60; ++n) {
+            const amrex::Real m = myhalf * (lo + hi);
+            if (f(m) > zero) { lo = m; } else { hi = m; }
+        }
+        const amrex::Real zlim = most_zeta_lim; // by value: a namespace constant must not bind to min's reference in device code
+        return amrex::min(myhalf * (lo + hi), zlim);
     }
 
+    /**
+     * Select the QNSE stable-side functions phi = (1 + a zeta)/(1 + b zeta) for momentum
+     * (a_m, b_m) and heat (a_h, b_h), or return to Businger-Dyer (use_qnse false, the
+     * coefficients then unused). read_most_similarity_funs checks the inputs: b_m, b_h > 0
+     * and a_m >= b_m, a_h >= b_h.
+     *
+     * @param[in] use_qnse whether the stable side is QNSE
+     * @param[in] am       a_m
+     * @param[in] bm       b_m
+     * @param[in] ah       a_h
+     * @param[in] bh       b_h
+     */
+    AMREX_GPU_HOST_DEVICE
+    void
+    set_stable_functions (bool use_qnse, amrex::Real am, amrex::Real bm,
+                          amrex::Real ah, amrex::Real bh)
+    {
+        m_qnse    = use_qnse;
+        m_qnse_am = am;
+        m_qnse_bm = bm;
+        m_qnse_ah = ah;
+        m_qnse_bh = bh;
+    }
+
+    /** Whether the stable side is QNSE. */
+    AMREX_GPU_HOST_DEVICE
+    bool uses_qnse () const { return m_qnse; }
+
 private:
+    /** QNSE integrated function, psi = -((a - b)/b) ln(1 + b zeta), zeta > 0. */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    static amrex::Real
+    qnse_psi (amrex::Real zeta, amrex::Real a, amrex::Real b)
+    {
+        return -((a - b) / b) * std::log(one + b * zeta);
+    }
+
+    /** QNSE gradient function, phi = (1 + a zeta)/(1 + b zeta), zeta > 0. */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    static amrex::Real
+    qnse_phi (amrex::Real zeta, amrex::Real a, amrex::Real b)
+    {
+        return (one + a * zeta) / (one + b * zeta);
+    }
+
     amrex::Real beta_m{amrex::Real(5.0)};         ///< Constants from Dyer, BLM, 1974
     amrex::Real beta_h{amrex::Real(5.0)};         ///< https://doi.org/amrex::Real(10.1007)/BF00240838
     amrex::Real gamma_m{amrex::Real(16.0)};
     amrex::Real gamma_h{amrex::Real(16.0)};
+    bool        m_qnse{false};                    ///< stable side QNSE instead of Businger-Dyer
+    amrex::Real m_qnse_am{amrex::Real(2.5)};      ///< QNSE a_m (Sukoriansky et al. 2005)
+    amrex::Real m_qnse_bm{amrex::Real(0.2)};      ///< QNSE b_m
+    amrex::Real m_qnse_ah{amrex::Real(2.5)};      ///< QNSE a_h
+    amrex::Real m_qnse_bh{amrex::Real(0.2)};      ///< QNSE b_h
 };
+
+/**
+ * Stable-side similarity functions of a surface layer from its inputs:
+ * <prefix>.most.stable_functions = businger_dyer (the default) | qnse, and with qnse the
+ * coefficients <prefix>.most.qnse_am, qnse_bm, qnse_ah, qnse_bh (2.5, 0.2, 2.5, 0.2 by
+ * default, the values of the PBL schemes' erf.qnse_*). The run stops when a coefficient is
+ * given without qnse, is not finite, b_m or b_h is not positive, or a_m < b_m or a_h < b_h
+ * (phi below 1 on the stable side).
+ *
+ * @param[in] pp parameter parser of the surface layer (prefix erf, or erf.<face>)
+ */
+inline similarity_funs
+read_most_similarity_funs (amrex::ParmParse& pp)
+{
+    similarity_funs sfuns;
+    const std::string prefix = pp.getPrefix() + ".most.";
+    std::string name = "businger_dyer";
+    pp.queryAdd("most.stable_functions", name);
+    const char* keys[4] = {"qnse_am", "qnse_bm", "qnse_ah", "qnse_bh"};
+    amrex::Real coef[4] = {amrex::Real(2.5), amrex::Real(0.2), amrex::Real(2.5), amrex::Real(0.2)};
+    bool given = false;
+    for (int n = 0; n < 4; ++n) {
+        const std::string key = std::string("most.") + keys[n];
+        given = pp.query(key.c_str(), coef[n]) || given;
+    }
+    if (name == "qnse") {
+        for (int n = 0; n < 4; ++n) {
+            if (!amrex::Math::isfinite(coef[n])) {
+                amrex::Abort(prefix + keys[n] + " must be finite");
+            }
+        }
+        for (int n = 1; n < 4; n += 2) {
+            if (!(coef[n] > zero)) {
+                amrex::Abort(prefix + keys[n] + " must be positive (phi = (1 + a zeta)/(1 + b zeta))");
+            }
+            if (coef[n-1] < coef[n]) {
+                amrex::Abort(prefix + keys[n-1] + " must be at least " + prefix + keys[n] +
+                             " (phi >= 1 on the stable side)");
+            }
+        }
+        sfuns.set_stable_functions(true, coef[0], coef[1], coef[2], coef[3]);
+        amrex::Print() << "Surface layer stable-side similarity functions: qnse (a_m " << coef[0]
+                       << ", b_m " << coef[1] << ", a_h " << coef[2] << ", b_h " << coef[3] << ")\n";
+    } else if (name == "businger_dyer") {
+        if (given) {
+            amrex::Abort(prefix + "qnse_am, qnse_bm, qnse_ah and qnse_bh belong to " + prefix +
+                         "stable_functions = qnse");
+        }
+    } else {
+        amrex::Abort(prefix + "stable_functions must be businger_dyer or qnse, not " + name);
+    }
+    return sfuns;
+}
 
 
 /**
@@ -256,11 +408,6 @@ most_bracket (amrex::Real C, amrex::Real psi)
 {
     return amrex::max(C - psi, most_bracket_floor(C));
 }
-
-/**
- * Bound on |z/L| of the MOST kernels (see most_rib_zeta_bracketed and most_clamp_zeta).
- */
-inline constexpr amrex::Real most_zeta_lim = amrex::Real(100.0);
 
 /**
  * Residual zeta - Rib (C - psi_m)^2 / (C - psi_h) of the prescribed-temperature kernels'

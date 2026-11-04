@@ -102,6 +102,27 @@ where the constants take the values proposed in `Dyer, Boundary Layer Meteorolog
 .. math::
   \sigma_{\theta}=1, \quad \beta = 5, \quad \gamma_{1}=16, \quad \gamma_{2}=16
 
+The stable side can instead take the quasi-normal scale elimination (QNSE) form of
+`Sukoriansky, Galperin and Perov, Boundary-Layer Meteorology, 2005
+<https://doi.org/10.1007/s10546-004-6848-6>`_ with ``erf.most.stable_functions = qnse``:
+
+.. math::
+  \Phi = \frac{1 + a\,\zeta}{1 + b\,\zeta}, \quad \Psi = -\frac{a - b}{b}\,\mathrm{ln}(1 + b\,\zeta),
+
+with separate coefficients for momentum and heat (``erf.most.qnse_am``, ``erf.most.qnse_bm``,
+``erf.most.qnse_ah``, ``erf.most.qnse_bh``; 2.5 and 0.2 by default, the values the MRF and
+YSUNew schemes use with ``erf.enable_qnse_stable_functions``). :math:`\Phi` tends to
+:math:`a/b = 12.5` in very stable air, so the surface stress and heat flux fall off more slowly
+than with the linear Businger-Dyer form, which is the limit :math:`b \to 0` at :math:`a = \beta`.
+The unstable side is Businger-Dyer with either choice. The choice applies to the prescribed-flux
+(Moeng) kernels and to their companions: the surface gradients the PBL schemes take from the MOST
+profile at the first cell, the 2 m and 10 m diagnostics, the surface shear production of the
+MYNN TKE, and the immersed wall laws (the legacy law with ``erf.if_stability_correction`` and the
+``fraction_stress`` law). The prescribed-temperature kernels use the Jimenez (2012) functions on
+both sides and refuse the option, as do the adiabatic kernels and the custom, rico and
+bulk_coeff fluxes, which use no stability function. The IBSEB building faces keep the
+Businger-Dyer functions.
+
 Inverting the equations above, the MOST stability parameter,
 
 .. math::
@@ -306,6 +327,11 @@ and below that wind the flux has no similarity solution (Basu et al., "An inconv
 about using sensible heat flux as a surface boundary condition in models under stably
 stratified regimes", Boundary-Layer Meteorol., 2008). Where the bracket floor binds first
 (:math:`C < 1/3`), the minimum is instead where :math:`C + 5\,z_{ref}/L` reaches the floor.
+With the QNSE functions the supported wind is :math:`u_{\star}(C + c\,\mathrm{ln}(1 + b_m z_{ref}/L))/\kappa`
+with :math:`c = (a_m - b_m)/b_m`; its first minimum, found by bisection, sits at a lower wind
+than Businger-Dyer's (0.53 against 0.70 m/s at :math:`z_{ref}` = 4.43 m, :math:`z_0` = 0.5 m and
+a flux of -0.0025 K m/s), and for :math:`C` above :math:`c\,(2 - \mathrm{ln}\,3)` (10.4 with the
+default coefficients) there is none: every wind then has a solution.
 Wherever the wind is below the minimum, for example under a forest canopy that slows the
 first-cell wind to about 1 m/s, ERF holds :math:`z_{ref}/L` at the fold and applies only the
 virtual heat flux that the wind carries there, which is weaker than the prescribed one. Only

@@ -786,6 +786,27 @@ void ERF::init_bcs ()
         }
     }
 
+    // most.stable_functions = qnse must be read by something: the z-low surface layer (its
+    // own checks say which of its kernels use it) or an immersed wall law that evaluates the
+    // stability functions (erf.if_use_most with erf.if_stability_correction, or the
+    // fraction_stress wall form)
+    {
+        ParmParse pp_sf(pp_prefix);
+        std::string stable_functions = "businger_dyer";
+        pp_sf.query("most.stable_functions", stable_functions);
+        const bool immersed_wall_law =
+            (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+             solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
+            solverChoice.if_use_most &&
+            (solverChoice.if_stability_correction || solverChoice.if_fraction_stress);
+        if (stable_functions == "qnse" && !use_surfacelayer && !immersed_wall_law) {
+            amrex::Abort(pp_prefix + ".most.stable_functions = qnse is read by nothing in this run: "
+                         "it needs a surface_layer boundary on the low z face, or an immersed wall "
+                         "law with stability functions (erf.if_stability_correction = true, or "
+                         "erf.if_wall_form = fraction_stress)");
+        }
+    }
+
     // NOTE: Gpu:copy is a wrapper to htod_memcpy (GPU) or memcpy (CPU) and is a blocking comm
     Gpu::copy(Gpu::hostToDevice, domain_bcs_type.begin(), domain_bcs_type.end(), domain_bcs_type_d.begin());
 }

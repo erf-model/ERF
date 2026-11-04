@@ -4343,6 +4343,23 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.surf_moist_flux**          | prescribed surface moisture flux; used when              | Real                | 0.0              |
 |                                       | ``erf.most.surf_moist`` is not set                       |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.stable_functions**         | stable-side similarity functions of the prescribed-flux  | businger_dyer, qnse | businger_dyer    |
+|                                       | (moeng) kernels and their companions (the PBL surface    |                     |                  |
+|                                       | gradients, the 2 m and 10 m diagnostics, the MYNN        |                     |                  |
+|                                       | surface TKE production, the immersed wall laws):         |                     |                  |
+|                                       | ``businger_dyer`` (phi = 1 + 5 z/L) or ``qnse`` (phi =   |                     |                  |
+|                                       | (1 + a z/L)/(1 + b z/L), Sukoriansky et al. 2005).       |                     |                  |
+|                                       | ``qnse`` needs the moeng flux type with                  |                     |                  |
+|                                       | ``erf.most.surf_temp_flux``, or an immersed wall law     |                     |                  |
+|                                       | that evaluates the stability functions; the run stops    |                     |                  |
+|                                       | otherwise. The unstable side is Businger-Dyer with       |                     |                  |
+|                                       | either                                                   |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.qnse_am**,                 | QNSE coefficients a_m, b_m (momentum) and a_h, b_h       | Real, finite;       | 2.5, 0.2,        |
+| **erf.most.qnse_bm**,                 | (heat); read only with ``erf.most.stable_functions =     | b_m > 0, b_h > 0,   | 2.5, 0.2         |
+| **erf.most.qnse_ah**,                 | qnse`` (given otherwise, the run stops)                  | a_m >= b_m,         |                  |
+| **erf.most.qnse_bh**                  |                                                          | a_h >= b_h          |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.ustar**                    | prescribed friction velocity [m/s].  **Required** when   | Real                | must be set      |
 |                                       | ``flux_type`` is ``custom`` or ``rico``                  |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+

@@ -22,6 +22,7 @@
 #include "ERF_RadStruct.H"
 #include "ERF_ShocTransportStruct.H"
 #include "ERF_CanopyTurbStruct.H"
+#include "ERF_MOSTUtils.H"
 
 /**
  * Enum of possible plotfile types.
@@ -1356,6 +1357,13 @@ struct SolverChoice {
                 amrex::Abort("erf.if_wall_form = fraction_stress always applies the stability functions; "
                              "erf.if_stability_correction is for the legacy wall law");
             }
+        }
+        // The wall laws that evaluate the stability functions (the legacy law with
+        // erf.if_stability_correction, the fraction_stress law) take the surface layer's
+        // similarity functions (erf.most.stable_functions, erf.most.qnse_*); read here
+        // because an immersed run need not have a surface-layer boundary
+        if (if_use_most && (if_stability_correction || if_fraction_stress)) {
+            most_sfuns = read_most_similarity_funs(pp);
         }
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);
@@ -2731,6 +2739,7 @@ struct SolverChoice {
     bool        if_use_most              = false;
     bool        if_snap_partial_cells    = false;
     bool        if_stability_correction  = false;
+    similarity_funs most_sfuns;                    // erf.most.stable_functions: the similarity functions of the immersed wall laws
     bool        if_fraction_stress       = false;  // erf.if_wall_form = fraction_stress
     int         if_wall_face_spacing     = 2;      // erf.if_wall_face_spacing: 0 grid, 1 physical, 2 log (default)
     bool        if_wall_tke              = false;  // erf.if_wall_tke: wall value of the k-eqn TKE in the wall cell
