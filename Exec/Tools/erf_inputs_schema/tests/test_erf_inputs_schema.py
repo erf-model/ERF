@@ -64,6 +64,60 @@ class BuildRequirementTests(unittest.TestCase):
         self.assertEqual(on["feature_sources"]["ERF_USE_WIDGET"], "CMakeLists.txt:3")
 
 
+def cmake_features(cmakelists, options=None):
+    """The features a one-file CMake tree gives, with these -D options."""
+    from erf_inputs_schema import cmake
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "CMake").mkdir()
+        (root / "CMakeLists.txt").write_text(cmakelists)
+        return cmake.cmake_features(root, options or {})[0]
+
+
+CHAIN = """option(ERF_A "a" {a})
+option(ERF_B "b" {b})
+option(ERF_C "c" {c})
+if(ERF_A)
+  target_compile_definitions(t PUBLIC ERF_USE_A)
+elseif(ERF_B)
+  target_compile_definitions(t PUBLIC ERF_USE_B)
+elseif(ERF_C)
+  target_compile_definitions(t PUBLIC ERF_USE_C)
+else()
+  target_compile_definitions(t PUBLIC ERF_USE_D)
+endif()
+"""
+
+
+class CMakeBranchTests(unittest.TestCase):
+    """Only one branch of an if/elseif/else chain is taken, as in CMake."""
+
+    def test_after_a_taken_branch_no_later_branch_is_on(self):
+        got = cmake_features(CHAIN.format(a="ON", b="ON", c="ON"))
+        self.assertEqual(got, {"ERF_USE_A": True, "ERF_USE_B": False, "ERF_USE_C": False, "ERF_USE_D": False})
+
+    def test_else_is_on_only_when_no_branch_was_taken(self):
+        self.assertEqual(cmake_features(CHAIN.format(a="OFF", b="OFF", c="OFF"))["ERF_USE_D"], True)
+        self.assertEqual(cmake_features(CHAIN.format(a="OFF", b="ON", c="OFF"))["ERF_USE_D"], False)
+
+    def test_a_trailing_comment_does_not_hide_an_if(self):
+        got = cmake_features('option(ERF_X "x" OFF)\nif(ERF_X) # optional\n'
+                             '  target_compile_definitions(t PUBLIC ERF_USE_X)\nendif()\n')
+        self.assertIs(got["ERF_USE_X"], False)
+
+    def test_an_option_default_naming_another_option_follows_its_d_override(self):
+        # ERF's own CMakeLists: option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
+        text = ('option(ERF_ENABLE_NETCDF "n" OFF)\noption(ERF_ENABLE_HDF5 "h" ${ERF_ENABLE_NETCDF})\n'
+                'if(ERF_ENABLE_HDF5)\n  target_compile_definitions(t PUBLIC ERF_USE_HDF5)\nendif()\n')
+        self.assertIs(cmake_features(text, {"ERF_ENABLE_NETCDF": True})["ERF_USE_HDF5"], True)
+        self.assertIs(cmake_features(text)["ERF_USE_HDF5"], False)
+
+    def test_any_cmake_true_spelling_of_a_default_is_on(self):
+        for word in ("ON", "TRUE", "YES", "1"):
+            got = cmake_features(f'option(ERF_T "t" {word})\nif(ERF_T)\n  target_compile_definitions(t PUBLIC ERF_USE_T)\nendif()\n')
+            self.assertIs(got["ERF_USE_T"], True, word)
+
+
 class LayerTests(unittest.TestCase):
     def test_a_shared_key_records_both_layers_and_which_won(self):
         fact = generate()["keys"]["amr.max_level"]
