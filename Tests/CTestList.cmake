@@ -1024,6 +1024,15 @@ if(ERF_TEST_PYTHON)
       TIMEOUT 120
       PROCESSORS 1
       LABELS "unit")
+  # The schema generator's unit tests (Exec/Tools/erf_inputs_schema): a synthetic source tree, git-archive mode
+  # (needs git on PATH), the checker's --schema path.
+  add_test(NAME InputsSchema_UnitTests
+      COMMAND ${ERF_TEST_PYTHON} -m unittest discover -s ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_inputs_schema/tests)
+  set_tests_properties(InputsSchema_UnitTests
+      PROPERTIES
+      TIMEOUT 300
+      PROCESSORS 1
+      LABELS "unit")
 endif()
 
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
