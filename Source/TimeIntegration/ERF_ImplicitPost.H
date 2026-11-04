@@ -123,13 +123,43 @@
                                                      l_use_mrf_cg,
                                                      mf_mx, mf_my, l_implicit_metric);
                         } else { // no terrain
+                            // the fraction-stress wall face is closed to the moisture species as
+                            // to theta and TKE (no wall value to pin: no wall_pin)
                             ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, m_comp,
                                                      slow_dt, l_bc_neumann_vals_d, cell_data,
                                                      dxInv, mfx_z, mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                     l_use_mrf_cg);
+                                                     l_use_mrf_cg,
+                                                     (ib_wall_face33[level]) ? ib_wall_face33[level]->const_array(mfi)
+                                                                             : Array4<const Real>{},
+                                                     Array4<const Real>{});
                         }
                     } // m_comp
                 } // mfi
+
+                // The solves above ran on whole columns, the solid cells of an immersed terrain
+                // included (the wall face decouples them from the air, the zlo surface layer
+                // still feeds the bottom row): with the fraction-stress wall law hold the
+                // moisture species of fully immersed cells at their step-start value again, as
+                // erf_slow_rhs_post did before the solves
+                if (solverChoice.if_fraction_stress && terrain_blank) {
+                    const DiffChoice l_diff_choice = solverChoice.diffChoice;
+                    for ( MFIter mfi(S_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
+                    {
+                        const Box bx = mfi.tilebox();
+                        const Array4<      Real>& cell_data = S_new[IntVars::cons].array(mfi);
+                        const Array4<const Real>& old_cons  = S_old[IntVars::cons].const_array(mfi);
+                        const Array4<const Real>& t_blank   = terrain_blank->const_array(mfi);
+                        for (int m_comp : implicit_post_comps) {
+                            if (m_comp < RhoQ1_comp || !l_diff_choice.host_transports(m_comp)) { continue; }
+                            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                            {
+                                if (t_blank(i,j,k) == one) {
+                                    cell_data(i,j,k,m_comp) = old_cons(i,j,k,m_comp);
+                                }
+                            });
+                        }
+                    }
+                }
             } // if moist model and do implicit diff
         } // implicit vertical factor > 0
