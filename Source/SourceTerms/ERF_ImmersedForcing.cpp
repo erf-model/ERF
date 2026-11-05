@@ -24,6 +24,7 @@ using namespace amrex;
  * @param[in] stability_correction Whether to apply stability corrections.
  * @param[in] wind_floor Wind-speed floor [m/s] behind the friction velocity of the stability estimate (erf.if_stability_wind_floor).
  * @param[in] psi_cap_factor Cap on psi_m as a fraction of ln(z/z0) (erf.if_psi_cap_factor).
+ * @param[in] sfuns Similarity functions of the wall law (erf.most.stable_functions).
  * @return Target velocity component.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -40,7 +41,8 @@ compute_if_most_target_vel (
     const amrex::Real Olen_in,
     const bool        stability_correction,
     const amrex::Real wind_floor,
-    const amrex::Real psi_cap_factor
+    const amrex::Real psi_cap_factor,
+    const similarity_funs& sfuns
 )
 {
     const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
@@ -57,8 +59,7 @@ compute_if_most_target_vel (
                : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta_face / (KAPPA * CONST_GRAV * tflux + tiny), Real(1.5) * delta);
     Real zeta  = ib_stability::bounded_zeta(Real(1.5) * delta, Olen);
 
-    // similarity functions
-    similarity_funs sfuns;
+    // similarity functions (sfuns: erf.most.stable_functions)
     if (stability_correction){
         psi_m          = sfuns.calc_psi_m(zeta);
         psi_h          = sfuns.calc_psi_h(zeta);
@@ -104,8 +105,8 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
     const bool l_drag = !solverChoice.if_implicit_projection;
 
-    // MOST parameters
-    similarity_funs sfuns;
+    // MOST parameters (the similarity functions from erf.most.stable_functions)
+    const similarity_funs sfuns = solverChoice.most_sfuns;
     const Real ggg        = CONST_GRAV;
     const Real kappa      = KAPPA;
     const Real z0                 = solverChoice.if_z0;
@@ -226,8 +227,8 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
     const bool l_drag = !solverChoice.if_implicit_projection;
 
-    // MOST parameters
-    similarity_funs sfuns;
+    // MOST parameters (the similarity functions from erf.most.stable_functions)
+    const similarity_funs sfuns = solverChoice.most_sfuns;
     const Real ggg        = CONST_GRAV;
     const Real kappa      = KAPPA;
     const Real z0                 = solverChoice.if_z0;
@@ -328,6 +329,7 @@ static ib_wall::WallCond
 make_wall_cond (const SolverChoice& sc, const Real time)
 {
     ib_wall::WallCond c;
+    c.sfuns = sc.most_sfuns; // erf.most.stable_functions
     if (sc.if_Olen_in != Real(1e-8)) {
         c.type = ib_wall::WallCond::obukhov;
         c.Linv = one / sc.if_Olen_in;
@@ -658,6 +660,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     const Real psi_cap_factor          = solverChoice.if_psi_cap_factor;
     const bool l_use_most              = solverChoice.if_use_most;
     const bool l_stability_correction  = solverChoice.if_stability_correction;
+    const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
     // To limit stiffness of drag when using anelastic
     const Real ws_floor           = solverChoice.if_ws_floor;
@@ -757,7 +760,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                            + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
             rho_xface_inside    =  myhalf * (cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp));
             theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_x * roof_mask * rho_xface * CdM * U_s;
         }
@@ -769,7 +772,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                            + w(i, j-1, k+1) + w(i-1, j-1, k+1) ) ;
             rho_xface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i-1,j+1,k, RhoTheta_comp))) / rho_xface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_x * south_mask * rho_xface * CdM * U_s;
         }
@@ -781,7 +784,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                            + w(i, j+1, k+1) + w(i-1, j+1, k+1) ) ;
             rho_xface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_xface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_x * north_mask * rho_xface * CdM * U_s;
         }
@@ -851,6 +854,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     const Real psi_cap_factor          = solverChoice.if_psi_cap_factor;
     const bool l_use_most              = solverChoice.if_use_most;
     const bool l_stability_correction  = solverChoice.if_stability_correction;
+    const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
     // To limit stiffness of drag when using anelastic
     const Real ws_floor           = solverChoice.if_ws_floor;
@@ -948,7 +952,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
             u2_cellaway         = v(i, j, k+1);
             rho_yface_inside    = myhalf * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_yface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_y * roof_mask * rho_yface * CdM * U_s;
         }
@@ -960,7 +964,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                            + w(i-1, j  , k+1) + w(i-1, j-1, k+1) );
             rho_yface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j-1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_y * west_mask * rho_yface * CdM * U_s;
         }
@@ -972,7 +976,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                            + w(i+1, j  , k+1) + w(i+1, j-1, k+1) );
             rho_yface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_y * east_mask * rho_yface * CdM * U_s;
         }
@@ -1042,6 +1046,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     const Real psi_cap_factor          = solverChoice.if_psi_cap_factor;
     const bool l_use_most              = solverChoice.if_use_most;
     const bool l_stability_correction  = solverChoice.if_stability_correction;
+    const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
     // To limit stiffness of drag when using anelastic
     const Real ws_floor           = solverChoice.if_ws_floor;
@@ -1139,7 +1144,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i, j-1, k);
             rho_zface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j+1,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i,j+1,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * south_mask * rho_zface * CdM * U_s;
         }
@@ -1151,7 +1156,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i, j+1, k);
             rho_zface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * north_mask * rho_zface * CdM * U_s;
         }
@@ -1163,7 +1168,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i-1, j, k);
             rho_zface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * west_mask * rho_zface * CdM * U_s;
         }
@@ -1175,7 +1180,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i+1, j, k);
             rho_zface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * east_mask * rho_zface * CdM * U_s;
         }
@@ -1239,8 +1244,8 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
     const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s              = one; // unit velocity scale
 
-    // MOST parameters
-    similarity_funs sfuns;
+    // MOST parameters (the similarity functions from erf.most.stable_functions)
+    const similarity_funs sfuns = solverChoice.most_sfuns;
     const Real ggg                = CONST_GRAV;
     const Real kappa              = KAPPA;
     const Real z0                 = solverChoice.if_z0;
@@ -1402,8 +1407,8 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
     const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s              = one; // unit velocity scale
 
-    // MOST parameters
-    similarity_funs sfuns;
+    // MOST parameters (the similarity functions from erf.most.stable_functions)
+    const similarity_funs sfuns = solverChoice.most_sfuns;
     const Real ggg                = CONST_GRAV;
     const Real kappa              = KAPPA;
     const Real z0                 = solverChoice.if_z0;

@@ -50,6 +50,9 @@ struct MYNNPBLH {
         amrex::MultiFab min_thetav(ba,dm,1,ng);
         min_thetav.setVal(bogus_large_value);
 
+        amrex::MultiFab max_tke(ba,dm,1,ng);
+        max_tke.setVal(zero);
+
         amrex::MultiFab pblh_tke(ba,dm,1,ng);
         pblh_tke.setVal(zero);
 
@@ -99,6 +102,7 @@ struct MYNNPBLH {
             const int khi = gtbx.bigEnd(2);
 
             auto min_thv_arr  = min_thetav.array(mfi);
+            auto max_tke_arr  = max_tke.array(mfi);
             auto pblh_arr     = pblh->array(mfi);
             auto pblh_tke_arr = pblh_tke.array(mfi);
 
@@ -121,8 +125,8 @@ struct MYNNPBLH {
                 // Heights here are above the ground.  The ground is the bottom face of the
                 // column, where z_phys_cc in the ghost cell below mirrors the bottom cell.
 
-                // Find minimum thetav in the surface layer (this updates
-                // ghost cells, too)
+                // Find minimum thetav and maximum TKE in the surface layer (this
+                // updates ghost cells, too); the bottom cell is always included
                 ParallelFor(gtbx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
                 {
                     int ii = amrex::max(amrex::min(i,imax),imin);
@@ -130,13 +134,16 @@ struct MYNNPBLH {
                     const amrex::Real z_sfc = myhalf * (zphys_arr(ii,jj,klo) + zphys_arr(ii,jj,klo-1));
 
                     amrex::Real min_thv = min_thv_arr(i,j,0);
+                    amrex::Real maxtke  = max_tke_arr(i,j,0);
                     for (int k(klo); k <= khi; ++k) {
-                        if (zphys_arr(ii,jj,k) - z_sfc < thetamin_height) {
+                        if ((k == klo) || (zphys_arr(ii,jj,k) - z_sfc < thetamin_height)) {
                             amrex::Real thv = GetThetav(i, j, k, cons_arr, moisture_indices);
                             min_thv = amrex::min(min_thv, thv);
+                            maxtke  = amrex::max(maxtke, cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp));
                         }
                     }
                     min_thv_arr(i,j,0) = min_thv;
+                    max_tke_arr(i,j,0) = maxtke;
                 });
 
                 // This depends on TileNoZ and k increasing monotonically
@@ -151,6 +158,8 @@ struct MYNNPBLH {
 
                     amrex::Real zi     = pblh_arr(i,j,0);
                     amrex::Real zi_tke = pblh_tke_arr(i,j,0);
+
+                    const amrex::Real TKEeps = tke_threshold(max_tke_arr(i,j,0));
 
                     for (int k(klo); k <= khi; ++k)
                     {
@@ -186,10 +195,6 @@ struct MYNNPBLH {
                             //
                             amrex::Real tke    = cons_arr(i,j,k  ,RhoKE_comp) / cons_arr(i,j,k  ,Rho_comp);
                             amrex::Real tke1   = cons_arr(i,j,k+1,RhoKE_comp) / cons_arr(i,j,k+1,Rho_comp);
-                            amrex::Real maxtke = cons_arr(i,j,0  ,RhoKE_comp) / cons_arr(i,j,0  ,Rho_comp);
-                            // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
-                            amrex::Real TKEeps = amrex::Real(0.05) * maxtke;
-                            TKEeps = amrex::max(TKEeps, amrex::Real(0.02)); // min val from WRF
 
                             if ((tke1 <= TKEeps) && (tke > TKEeps))
                             {
@@ -214,21 +219,25 @@ struct MYNNPBLH {
             {
                 const amrex::Real dz_no_terrain = geom.CellSize(2);
 
-                // Find minimum thetav in the surface layer (this updates
-                // ghost cells, too)
-                // - box size is known a priori
-                int kmax = static_cast<int>(thetamin_height / dz_no_terrain);
-                AMREX_ASSERT(kmax > 0);
-                const int khi_low = amrex::min(kmax, khi);
+                // Find minimum thetav and maximum TKE in the surface layer (this
+                // updates ghost cells, too)
+                // - box size is known a priori: the cells whose centres, (k+1/2)*dz,
+                //   lie below thetamin_height, the same strict test as with terrain;
+                //   the bottom cell is always included
+                const int kmax = static_cast<int>(std::ceil(thetamin_height / dz_no_terrain - myhalf)) - 1;
+                const int khi_low = amrex::min(amrex::max(kmax, klo), khi);
 
                 ParallelFor(gtbx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
                 {
                     amrex::Real min_thv = min_thv_arr(i,j,0);
+                    amrex::Real maxtke  = max_tke_arr(i,j,0);
                     for (int k(klo); k <= khi_low; ++k) {
                         amrex::Real thv = GetThetav(i, j, k, cons_arr, moisture_indices);
                         min_thv = amrex::min(min_thv, thv);
+                        maxtke  = amrex::max(maxtke, cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp));
                     }
                     min_thv_arr(i,j,0) = min_thv;
+                    max_tke_arr(i,j,0) = maxtke;
                 });
 
                 // This depends on TileNoZ and k increasing monotonically
@@ -239,6 +248,8 @@ struct MYNNPBLH {
 
                     amrex::Real zi     = pblh_arr(i,j,0);
                     amrex::Real zi_tke = pblh_tke_arr(i,j,0);
+
+                    const amrex::Real TKEeps = tke_threshold(max_tke_arr(i,j,0));
 
                     for (int k(klo); k <= khi; ++k)
                     {
@@ -274,10 +285,6 @@ struct MYNNPBLH {
                             //
                             amrex::Real tke    = cons_arr(i,j,k  ,RhoKE_comp) / cons_arr(i,j,k  ,Rho_comp);
                             amrex::Real tke1   = cons_arr(i,j,k+1,RhoKE_comp) / cons_arr(i,j,k+1,Rho_comp);
-                            amrex::Real maxtke = cons_arr(i,j,0  ,RhoKE_comp) / cons_arr(i,j,0  ,Rho_comp);
-                            // - threshold is 5% of max TKE (Kosovic & Curry 2000, JAS)
-                            amrex::Real TKEeps = amrex::Real(0.05) * maxtke;
-                            TKEeps = amrex::max(TKEeps, amrex::Real(0.02)); // min val from WRF
 
                             if ((tke1 <= TKEeps) && (tke > TKEeps))
                             {
@@ -325,8 +332,10 @@ struct MYNNPBLH {
                 //
                 // Finally, blend between the two PBLH estimates
                 //
-                amrex::Real maxqke = two * cons_arr(i,j,0  ,RhoKE_comp) / cons_arr(i,j,0  ,Rho_comp);
-                if (maxqke > amrex::Real(0.05)) {
+                // The gate uses the surface qke (= 2 TKE), deliberately matching WRF,
+                // not the near-surface maximum used for the TKE threshold
+                amrex::Real qke_sfc = two * cons_arr(i,j,0  ,RhoKE_comp) / cons_arr(i,j,0  ,Rho_comp);
+                if (qke_sfc > amrex::Real(0.05)) {
                     amrex::Real wt = myhalf*std::tanh((zi - sbl_lim)/sbl_damp) + myhalf;
                     pblh_arr(i,j,0) = (one-wt)*pblh_tke_arr(i,j,0) + wt*pblh_arr(i,j,0);
                 }
@@ -334,9 +343,22 @@ struct MYNNPBLH {
         }//MFIter
     }
 
+    /*
+     * TKE threshold for the TKE-based (SBL) PBL height: 5% of the maximum TKE in
+     * the surface layer (Kosovic & Curry 2000, JAS), floored at WRF's minimum.
+     * The maximum is taken over the same cells as the minimum theta_v, so it can
+     * sit above the first cell but is not set by turbulence far aloft.
+     */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    static amrex::Real tke_threshold (const amrex::Real maxtke) noexcept
+    {
+        return amrex::max(amrex::Real(0.05) * maxtke, amrex::Real(0.02)); // min val from WRF
+    }
+
     /**
      * @var MYNNPBLH::thetamin_height
-     * @brief Height below which minimum theta-v is determined [m].
+     * @brief Height below which minimum theta-v and maximum TKE are determined [m].
      * @var MYNNPBLH::theta_incr_land
      * @brief Theta increase determining the capping inversion height over land [K].
      * @var MYNNPBLH::theta_incr_water
@@ -346,7 +368,7 @@ struct MYNNPBLH {
      * @var MYNNPBLH::sbl_damp
      * @brief Transition length for blending [m].
      */
-    static constexpr amrex::Real thetamin_height  = amrex::Real(200.0); // [m] height below which min thetav is determined
+    static constexpr amrex::Real thetamin_height  = amrex::Real(200.0); // [m] height below which min thetav and max TKE are determined
     static constexpr amrex::Real theta_incr_land  = amrex::Real(1.25);  // [K] theta increase that determines the height of the capping inversion over land
     static constexpr amrex::Real theta_incr_water = one;   // [K] theta increase that determines the height of the capping inversion over water
     static constexpr amrex::Real sbl_lim          = amrex::Real(200.0); // [m] upper limit of the stable BL height

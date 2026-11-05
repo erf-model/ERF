@@ -298,7 +298,8 @@ for :math:`\beta = 0`); ``physical`` uses :math:`d_2 - d_1` and ``grid`` leaves 
 bounded only while :math:`z_0 < \Delta z/4`, which the inputs require. With a RANS closure
 the wall distance is measured from :math:`h`, with the wall cell at :math:`d_1` (see :ref:`RANS <RANS>`).
 
-Stratification enters through the MOST stability functions of the flat surface layer (Dyer),
+Stratification enters through the MOST stability functions of the flat surface layer (Dyer,
+or QNSE on the stable side with ``erf.most.stable_functions = qnse``),
 :math:`\ln(d/z_0) \to \ln(d/z_0) - \psi_{m,h}(d/L)`, with one surface condition:
 ``erf.if_surf_temp_flux`` (a kinematic heat flux :math:`q`, :math:`\theta_* = -q/u_*`),
 ``erf.if_init_surf_temp`` (a surface temperature :math:`\theta_s`, changing at
