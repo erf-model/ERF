@@ -395,9 +395,51 @@ void realbdy_bc_bxs_xy (const amrex::Box& bx,
                         const amrex::IntVect& ng_vect=amrex::IntVect(0,0,0));
 
 /*
+ * The two boundary-data slices that bracket a time, and the weight of the later one
+ */
+struct BdyTimeWeights {
+    int n_lo;          // slice at or before the time
+    int n_hi;          // slice after it (n_lo once the data has run out)
+    amrex::Real alpha; // weight of slice n_hi; slice n_lo gets (1 - alpha)
+};
+
+/**
+ * Time interpolation weights for boundary data at fixed intervals.
+ *
+ * The time must be measured from the first slice, and formed as
+ * elapsed + (start_time - start_bdy_time), not as (elapsed + start_time) - start_bdy_time:
+ * start_time and start_bdy_time are epoch seconds (~1.7e9), where doubles are spaced
+ * ~2.4e-7 s apart, so the second form rounds the elapsed time to that spacing.  The
+ * difference of the two epoch times is exact.
+ *
+ * @param[in] time_since_start time since the first slice
+ * @param[in] data_span        time from the first slice to the last one
+ * @param[in] dT               interval between slices
+ */
+AMREX_FORCE_INLINE
+BdyTimeWeights
+bdy_time_weights (const double time_since_start, const double data_span, const double dT)
+{
+    BdyTimeWeights w;
+    if (time_since_start >= data_span) {
+        // Do not over run the last slice
+        w.n_lo  = static_cast<int>(data_span / dT);
+        w.n_hi  = w.n_lo;
+        w.alpha = zero;
+    } else {
+        w.n_lo  = static_cast<int>(time_since_start / dT);
+        w.n_hi  = w.n_lo + 1;
+        w.alpha = static_cast<amrex::Real>((time_since_start - w.n_lo * dT) / dT);
+    }
+    AMREX_ALWAYS_ASSERT(w.alpha >= zero && w.alpha <= one);
+    return w;
+}
+
+/*
  * Compute relaxation region RHS with wrfbdy
  */
-void realbdy_compute_interior_ghost_rhs (const double& total_time,
+void realbdy_compute_interior_ghost_rhs (const double& elapsed_time,
+                                         const double& start_time,
                                          const double& delta_t,
                                          const double& start_bdy_time,
                                          const double& final_bdy_time,

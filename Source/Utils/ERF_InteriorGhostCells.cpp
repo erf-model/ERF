@@ -142,7 +142,8 @@ realbdy_bc_bxs_xy (const Box& bx,
 /**
  * Compute the RHS in the relaxation zone
  *
- * @param[in] time              current (total) time
+ * @param[in] elapsed_time      current time, measured from the start of the run
+ * @param[in] start_time        epoch time of the start of the run
  * @param[in] delta_t           timestep
  * @param[in] start_bdy_time    full time of the first time slice of boundary data
  * @param[in] final_bdy_time    full time of the  last time slice of boundary data
@@ -158,7 +159,8 @@ realbdy_bc_bxs_xy (const Box& bx,
  * @param[in] bdy_data_yhi boundary data on interior of high y-face
  */
 void
-realbdy_compute_interior_ghost_rhs (const double& time,
+realbdy_compute_interior_ghost_rhs (const double& elapsed_time,
+                                    const double& start_time,
                                     const double& delta_t_d,
                                     const double& start_bdy_time,
                                     const double& final_bdy_time,
@@ -183,9 +185,9 @@ realbdy_compute_interior_ghost_rhs (const double& time,
     Real delta_t = static_cast<Real>(delta_t_d);
 
     //
-    // Note that time (= start_time+old_stage_time)  is measured as total time
-    //           start_bdy_time and final_bdy_time are also measured as total time
+    // start_bdy_time and final_bdy_time are measured as total (epoch) time
     //
+    const double time = start_time + elapsed_time; // total time, for the boundary planes
 
     // Get bndry data if we have it
     Vector<int>  bnd_map = {BCVars::xvel_bc, BCVars::yvel_bc, BCVars::RhoTheta_bc_comp};
@@ -210,21 +212,13 @@ realbdy_compute_interior_ghost_rhs (const double& time,
     Real F1 = one/(nudge_factor*delta_t);
     Real F1_rho = one/((bdy_rho_nudge_factor > zero ? bdy_rho_nudge_factor : nudge_factor) * delta_t);
 
-    // Time interpolation
-    double dT_d = bdy_time_interval;
-
-    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT_d);
-    int n_time_p1 = n_time + 1;
-    Real alpha  = static_cast<Real>(((time-start_bdy_time) - n_time * dT_d) / dT_d);
-
-    // Do not over run the last bdy file
-    if (time >= final_bdy_time) {
-        n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT_d);
-        n_time_p1 = n_time;
-        alpha     = zero;
-    }
-
-    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    // Time interpolation (see bdy_time_weights for why the offset is formed first)
+    const BdyTimeWeights tw = bdy_time_weights(elapsed_time + (start_time - start_bdy_time),
+                                               final_bdy_time - start_bdy_time,
+                                               bdy_time_interval);
+    const int  n_time    = tw.n_lo;
+    const int  n_time_p1 = tw.n_hi;
+    const Real alpha     = tw.alpha;
     Real oma   = one - alpha;
 
     // Temporary FABs for storage (owned/filled on all ranks)

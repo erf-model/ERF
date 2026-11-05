@@ -30,10 +30,20 @@ def _schema_type(kind):
     return kind
 
 
+PROBLEM_CODE = "Source/Prob/"      # compiled into one problem's executable only (ERF_CloudChamber.H)
+
+
 def _merge_removed(old, new, lay):
     """removed wins: ERF stops the run if the key is present. A typed read elsewhere is kept in shadowed_reads, so
-    the conflict stays visible."""
+    the conflict stays visible. A refusal in problem-specific code (Source/Prob/) over a typed read elsewhere is the
+    other way round: the read's fact is kept and the refusal is listed in refused_by, since only that problem stops
+    (ERF_CloudChamber.H refuses <face>.velocity, which ERF_InitBCs.cpp reads for every other problem)."""
     keep, other = (old, new) if old["type"] == "removed" else (new, old)
+    if keep["source"].startswith(PROBLEM_CODE) and other["type"] not in ("removed", "unknown"):
+        out = dict(other, layer=layer_of(other["source"]), layers=dict(old["layers"]))
+        out["layers"].setdefault(lay, new["source"])
+        out["refused_by"] = sorted(set(other.get("refused_by", [])) | {keep["removed_evidence"]})
+        return out
     keep_lay = layer_of(keep["source"])
     out = dict(keep, layer=keep_lay, layers=dict(old["layers"]))
     out["layers"].setdefault(lay, new["source"])
@@ -46,10 +56,41 @@ def _merge_removed(old, new, lay):
     return out
 
 
+def _scalar(kind):
+    return kind[:-5] if kind.endswith("_list") else kind
+
+
+def _resolve_types(a, b):
+    """(type, conflict) of two reads of one key: unknown yields to anything; a list read of the same scalar makes the
+    key a list (ERF reads it both ways, as erf.vert_implicit_fac); an untyped list read (unknown_list) makes the other
+    read's scalar a list; an enum read wins over a std::string probe of the same key (erf.init_type, erf.moisture_model,
+    erf.terrain_type read the string first), with the conflict recorded; anything else keeps a and records the pair."""
+    if a == b or b == "unknown":
+        return a, None
+    if a == "unknown":
+        return b, None
+    sa, sb = _scalar(a), _scalar(b)
+    if sa == sb:
+        return sa + "_list", None
+    if sb == "unknown":
+        return sa + "_list", None
+    if sa == "unknown":
+        return sb + "_list", None
+    if sa.startswith("enum:") and sb == "string":
+        return a, sorted({a, b})
+    if sb.startswith("enum:") and sa == "string":
+        return b, sorted({a, b})
+    return a, sorted({a, b})
+
+
+DEFAULT_FIELDS = ("default", "default_origin", "default_source")
+
+
 def merge(old, new):
-    """The first read's fact, its type refined by later reads; a real disagreement is recorded, never hidden.
-    AMReX's reads come first, so a shared key's fact (and its source) is AMReX's: layer names it, and layers keeps
-    each layer's first read. A removed key stays removed (_merge_removed)."""
+    """The first read's fact, its type refined by later reads (_resolve_types); a real disagreement is recorded,
+    never hidden. AMReX's reads come first, so a shared key's fact (and its source) is AMReX's: layer names it, and
+    layers keeps each layer's first read. A removed key stays removed (_merge_removed). A default is taken only from
+    a read of the type the key ends with."""
     lay = layer_of(new["source"])
     if old is None:
         return dict(new, layer=lay, layers={lay: new["source"]})
@@ -58,17 +99,28 @@ def merge(old, new):
     out = dict(old, layers=dict(old["layers"]))
     out["layers"].setdefault(lay, new["source"])
     a, b = old["type"], new["type"]
-    if a == "unknown" or b == a + "_list":
-        out["type"] = b
-        if "case_insensitive" in new:                # a presence read carries none; the typed read's counts
-            out["case_insensitive"] = new["case_insensitive"]
-    elif b != a and b != "unknown" and a != b + "_list":
-        out.setdefault("type_conflict", sorted({a, b}))
+    kind, conflict = _resolve_types(a, b)
+    out["type"] = kind
+    if conflict:
+        out.setdefault("type_conflict", conflict)
+    if kind != a and "case_insensitive" in new:      # a presence read carries none; the typed read's counts
+        out["case_insensitive"] = new["case_insensitive"]
     if old.get("per_level") or new.get("per_level"):
         out["per_level"] = True
     out["required"] = bool(old.get("required") or new.get("required"))
-    if old.get("default_origin") == "none" and new.get("default_origin") != "none":
-        for k in ("default", "default_origin", "default_source"):
+    for flag in ("line", "table", "parser", "as_double"):
+        if new.get(flag):
+            out[flag] = True
+    if "ignores" in new:
+        out.setdefault("ignores", new["ignores"])
+    if _scalar(kind) != _scalar(a) and _scalar(kind) == _scalar(b):      # the type changed to the new read's
+        for k in DEFAULT_FIELDS:
+            out.pop(k, None)
+            if k in new:
+                out[k] = new[k]
+    elif (old.get("default_origin") == "none" and new.get("default_origin") != "none"
+          and _scalar(b) == _scalar(kind)):
+        for k in DEFAULT_FIELDS:
             if k in new:
                 out[k] = new[k]
     return out
@@ -104,6 +156,19 @@ def _enum_facts(table, enum_names, values):
             fact["value_requires"] = vr
 
 
+def _apply_adds(adds, keys):
+    """add_par's pp.add("k", literal) is k's default: it runs before the inputs are read, which override it."""
+    for key, raw, source in adds:
+        fact = keys.get(key)
+        if fact is None or fact["type"] in ("removed", "unknown") or fact["type"].endswith("_list"):
+            continue
+        try:
+            value = canonical.canonical_value(fact["type"], scan._literal(raw), fact)
+        except ValueError:
+            continue
+        fact.update(default=value, default_origin="add", default_source=source)
+
+
 def _apply_site_facts(site_facts, keys, features, feature_sources):
     """A site fact is a feature the build options cannot show (e.g. whether the MPI is GPU-aware): it sets the
     feature and, when it names a key and value, that value's requirement, with the key's read line as evidence."""
@@ -128,10 +193,15 @@ def generate(erf_root, amrex_root, cmake_options=None, site_facts=None, meta=Non
     cmake_options = dict(cmake_options or {})
     erf_files = _files(erf_root / "Source", "Source")
     enum_names = scan.enums(erf_files)
-    hits, unresolved = scan.scan(erf_root / "Source", "Source", enum_names, _decls(erf_files, enum_names), True,
-                                 erf_files)
+    hits, unresolved, families_hit, adds = scan.scan(erf_root / "Source", "Source", enum_names,
+                                                     _decls(erf_files, enum_names), True, erf_files)
+    present = {rel for rel, _ in erf_files}
+    for (rel, expr) in sorted(scan.FAMILIES):
+        if rel in present and (rel, expr) not in families_hit:
+            raise ValueError(f"scan.FAMILIES entry {rel} {expr!r} matched no ParmParse declaration: the source "
+                             "changed, so update the entry (its keys would otherwise drop out of the schema)")
     amrex_files = _files(amrex_root / "Src", "AMReX/Src")
-    amrex_hits, _ = scan.scan(amrex_root / "Src", "AMReX/Src", {}, _decls(amrex_files, {}), False, amrex_files)
+    amrex_hits, _, _, _ = scan.scan(amrex_root / "Src", "AMReX/Src", {}, _decls(amrex_files, {}), False, amrex_files)
     features, feature_sources = cmake.cmake_features(erf_root, cmake_options)
     for macro in sorted({c[0] for _, _, conds, _, _ in hits for c in conds}):
         features.setdefault(macro, False)
@@ -148,6 +218,7 @@ def generate(erf_root, amrex_root, cmake_options=None, site_facts=None, meta=Non
             if needs.get(key):
                 fact["requires"] = sorted(needs[key])
                 fact["requires_evidence"] = dict(sorted(needs[key].items()))
+    _apply_adds(adds, keys)
     _apply_site_facts(site_facts or [], keys, features, feature_sources)
     build = {"cmake": cmake_options,
              "facts_from": facts_from or {"cmake": "given" if cmake_options else "none", "site_facts": site_facts}}
