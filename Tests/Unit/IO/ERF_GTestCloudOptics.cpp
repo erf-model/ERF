@@ -31,6 +31,19 @@ tolerance (Real value)
            std::max(Real(1.), std::abs(value));
 }
 
+// Kept out of the TEST bodies: nvcc rejects extended device lambdas in them.
+void
+set_metric_k_plus_one (MultiFab& metric)
+{
+    for (MFIter mfi(metric); mfi.isValid(); ++mfi) {
+        const auto jac = metric.array(mfi);
+        ParallelFor(mfi.validbox(),
+                    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        jac(i, j, k) = Real(k + 1);
+                    });
+    }
+}
+
 struct Column
 {
     Box domain{IntVect(0, 0, 0), IntVect(1, 1, 2)};
@@ -226,13 +239,7 @@ TEST(CloudOptics, TerrainMetricMatchesWaterPath)
         c.fill(mi, {});
         c.expect(1, 45.);
     }
-    for (MFIter mfi(c.metric); mfi.isValid(); ++mfi) {
-        const auto jac = c.metric.array(mfi);
-        ParallelFor(mfi.validbox(),
-                    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        jac(i, j, k) = Real(k + 1);
-                    });
-    }
+    set_metric_k_plus_one(c.metric);
     c.fill(mi, {});
     c.expect(1, 90.); // .1 * (1+2+3) * 150 * dz=1
     SelectedWaterPathComponents selected;
@@ -402,13 +409,7 @@ TEST(CloudOptics, ZSplitTerrainMetricAndSingleRequests)
         c.layer(mi.qc, 0, .01);
         c.layer(mi.qc, 1, .03);
         c.layer(mi.qc, 2, .05);
-        for (MFIter mfi(c.metric); mfi.isValid(); ++mfi) {
-            const auto jac = c.metric.array(mfi);
-            ParallelFor(mfi.validbox(),
-                        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                            jac(i, j, k) = Real(k + 1);
-                        });
-        }
+        set_metric_k_plus_one(c.metric);
         // W = dz * (.01*1 + .03*2 + .05*3) = .44 kg/m^2.
         const Real expected_tau = 66.;
         c.fill(mi, {}, selection == 1 ? -1 : 1, selection == 2 ? -1 : 2);
