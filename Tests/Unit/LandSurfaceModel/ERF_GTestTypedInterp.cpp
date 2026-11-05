@@ -238,6 +238,38 @@ MultiFab interpolate_by_type (const Levels& L, const MultiFab& src, const MultiF
     return host;
 }
 
+// The validity of each value of each field of src as its indicator (0 valid, 1 lsm_undefined);
+// device lambdas cannot sit in a TEST body, which gtest makes a private member function
+MultiFab make_validity (const Levels& L, const MultiFab& src)
+{
+    const int ncomp = src.nComp();
+    MultiFab valid(L.cba, L.cdm, ncomp, 1);
+    for (MFIter mfi(src); mfi.isValid(); ++mfi) {
+        const auto v = src.const_array(mfi);
+        const auto w = valid.array(mfi);
+        ParallelFor(mfi.fabbox(), ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            w(i,j,k,n) = is_valid_lsm_value(v(i,j,k,n)) ? Real(0.0) : Real(1.0);
+        });
+    }
+    return valid;
+}
+
+// The sentinel in column ic (and its periodic images) of crse, typed as land/water type + 2
+void put_sentinel_column (MultiFab& crse, int ic)
+{
+    for (MFIter mfi(crse); mfi.isValid(); ++mfi) {
+        const auto a = crse.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (((i % nc) + nc) % nc == ic) {
+                a(i,j,k,0) = lsm_undefined;
+                a(i,j,k,1) += Real(2.0);
+            }
+        });
+    }
+}
+
 } // namespace
 
 // Motivation: Noah-MP packs all its fields into one MultiFab, each with its own validity as
@@ -257,15 +289,7 @@ TEST(TypedInterp, PackedFieldsMatchTheirSingleFieldInterpolation)
     for (int n = 0; n < nf; ++n) { MultiFab::Copy(src, *cs[n], 0, n, 1, 1); }
 
     // Own indicators: the validity of each value (only field 1 holds the sentinel)
-    MultiFab valid(L.cba, L.cdm, nf, 1);
-    for (MFIter mfi(src); mfi.isValid(); ++mfi) {
-        const auto v = src.const_array(mfi);
-        const auto w = valid.array(mfi);
-        ParallelFor(mfi.fabbox(), nf, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            w(i,j,k,n) = is_valid_lsm_value(v(i,j,k,n)) ? Real(0.0) : Real(1.0);
-        });
-    }
+    const MultiFab valid = make_validity(L, src);
     // Shared indicator: land/water
     MultiFab water(L.cba, L.cdm, 1, 1);
     MultiFab::Copy(water, c0, 1, 0, 1, 1);
@@ -302,16 +326,7 @@ TEST(TypedInterp, SentinelOnLandIsATypeOfItsOwn)
     Levels L(true);
     constexpr int ic_sentinel = 1;   // a land column holding the sentinel
     MultiFab crse = make_coarse(L, Real(1.0), Real(0.));
-    for (MFIter mfi(crse); mfi.isValid(); ++mfi) {
-        const auto a = crse.array(mfi);
-        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (((i % nc) + nc) % nc == ic_sentinel) {
-                a(i,j,k,0) = lsm_undefined;
-                a(i,j,k,1) += Real(2.0);
-            }
-        });
-    }
+    put_sentinel_column(crse, ic_sentinel);
     MultiFab fine(L.fba, L.fdm, 2, 0);
     fine.setVal(Real(0.));
     BCRec bc;
