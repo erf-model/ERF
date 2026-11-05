@@ -408,8 +408,8 @@ and adv_diff: cells having a difference in the scalar of 0.01 or more from that 
 The first will trigger up to AMR level 3, the second only to level 1, and the third to level 2.
 The third will be active only when the problem time is between 0.001 and 0.002 seconds.
 
-Note that density and rhoadv_0 are the names of state variables, whereas theta is the name of a derived variable,
-computed by dividing the variable named rhotheta by the variable named density.
+Note that density is the name of a state variable, whereas theta and scalar are the names of derived variables,
+computed by dividing the state variables rhotheta and rhoadv_0, respectively, by density.
 
 ::
 
@@ -421,13 +421,13 @@ computed by dividing the variable named rhotheta by the variable named density.
 
           erf.lo_theta.max_level = 1
           erf.lo_theta.value_less = 300
-          erf.lo_theta.field_name = rhotheta
+          erf.lo_theta.field_name = theta
           erf.lo_theta.in_box_lo = .25 .25 .25
           erf.lo_theta.in_box_hi = .75 .75 .75
 
           erf.advdiff.max_level = 2
           erf.advdiff.adjacent_difference_greater = 0.01
-          erf.advdiff.field_name = rhoadv_0
+          erf.advdiff.field_name = scalar
           erf.advdiff.start_time = 0.001
           erf.advdiff.end_time = 0.002
 

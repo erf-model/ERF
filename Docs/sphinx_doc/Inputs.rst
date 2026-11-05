@@ -560,8 +560,17 @@ List of Parameters
 | **erf.refinement_indicators**                    | names of the refinement indicators to apply; each name   | List of Strings    | None                 |
 |                                                  | becomes the prefix of its own group of options below     |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
-| **erf.<indicator>.field_name**                   | field the indicator tests.  ``hurricane_tracker`` is a   | String             | None                 |
-|                                                  | reserved indicator name that needs no field              |                    |                      |
+| **erf.<indicator>.field_name**                   | field the indicator tests, matched without regard to     | String             | None                 |
+|                                                  | case: ``density``, ``theta``, ``scalar``, ``qv``,        |                    |                      |
+|                                                  | ``qc``, ``qi``, ``qr``, ``qs``, ``qg``, ``qt``,          |                    |                      |
+|                                                  | ``vorticity``, ``helicity``, ``max_reflectivity``,       |                    |                      |
+|                                                  | ``velmag``, ``u``, ``v``, ``w``, ``omega`` (the          |                    |                      |
+|                                                  | contravariant vertical velocity; equal to ``w``          |                    |                      |
+|                                                  | without terrain) or ``terrain_blanking``; with           |                    |                      |
+|                                                  | particles also ``<species>_count`` or                    |                    |                      |
+|                                                  | ``<species>_<mesh_var>``, matched as given.              |                    |                      |
+|                                                  | ``hurricane_tracker`` is a reserved indicator name       |                    |                      |
+|                                                  | that needs no field                                      |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.value_greater**                | tag cells where the field exceeds this value, one value  | List of Reals      | None                 |
 |                                                  | per level                                                |                    |                      |
