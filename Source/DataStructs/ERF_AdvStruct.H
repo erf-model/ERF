@@ -227,11 +227,6 @@ struct AdvChoice {
             }
         }
 
-        // We can can't use weno with Embedded Boundaries (for now)
-        std::string terrain_type;
-        pp.queryAdd("terrain_type", terrain_type);
-        validate_weno_momentum_compatibility(terrain_type == "EB");
-
         pp.queryarr("zero_xflux_faces", zero_xflux);
         pp.queryarr("zero_yflux_faces", zero_yflux);
         pp.queryarr("zero_zflux_faces", zero_zflux);
@@ -400,41 +395,6 @@ struct AdvChoice {
         } else {
             return AdvType::Unknown;
         }
-    }
-
-    /**
-     * @brief Check whether the selected momentum WENO schemes are compatible with embedded boundaries.
-     * @param use_embedded_boundary Whether the run uses embedded-boundary terrain.
-     */
-    void validate_weno_momentum_compatibility (bool use_embedded_boundary)
-    {
-        // Check if any WENO momentum advection is being used
-        bool using_weno_momentum =
-            (dycore_horiz_adv_type == AdvType::Weno_3) ||
-            (dycore_horiz_adv_type == AdvType::Weno_3Z) ||
-            (dycore_horiz_adv_type == AdvType::Weno_3MZQ) ||
-            (dycore_horiz_adv_type == AdvType::Weno_5) ||
-            (dycore_horiz_adv_type == AdvType::Weno_5Z) ||
-            (dycore_horiz_adv_type == AdvType::Weno_7) ||
-            (dycore_horiz_adv_type == AdvType::Weno_7Z) ||
-            (dycore_vert_adv_type == AdvType::Weno_3) ||
-            (dycore_vert_adv_type == AdvType::Weno_3Z) ||
-            (dycore_vert_adv_type == AdvType::Weno_3MZQ) ||
-            (dycore_vert_adv_type == AdvType::Weno_5) ||
-            (dycore_vert_adv_type == AdvType::Weno_5Z) ||
-            (dycore_vert_adv_type == AdvType::Weno_7) ||
-            (dycore_vert_adv_type == AdvType::Weno_7Z);
-
-        // Check embedded boundary incompatibility
-        amrex::ignore_unused(use_embedded_boundary, using_weno_momentum);
-        AMREX_ASSERT_WITH_MESSAGE(!using_weno_momentum || !use_embedded_boundary,
-            "WENO momentum advection schemes are not yet implemented for embedded boundaries. "
-            "Please use traditional momentum advection schemes when using embedded boundaries:\n"
-            "  - Centered_2nd\n"
-            "  - Upwind_3rd\n"
-            "  - Centered_4th\n"
-            "  - Upwind_5th\n"
-            "  - Centered_6th");
     }
 
     // Order and type of spatial discretizations used in advection
