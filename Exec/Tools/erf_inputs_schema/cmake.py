@@ -1,5 +1,6 @@
-"""Which ERF_USE_* macros a build defines: ERF's CMake option defaults, the build's own -D options over them, and the
-if() around each target_compile_definitions in ERF's CMake.
+"""Which ERF_USE_* macros a build defines: ERF's CMake option defaults, the build's own -D options over them, a set()
+of an ERF option in a taken if() branch (the ERF_ENABLE_SHOC alias, ERF_ENABLE_EKAT), applied in file order with
+CMakeLists.txt first, and the if() around each target_compile_definitions in ERF's CMake.
 
 Mirrored from other testing infrastructure. The build options are an argument (a -D list or a CMakeCache.txt),
 not a container recipe.
@@ -73,6 +74,9 @@ def _scan_file(path, rel, resolved, features, sources):
             stack[-1] = [not stack[-1][1], True]
         elif re.match(r"endif\s*\(", s) and stack:
             stack.pop()
+        m_set = re.match(r"set\s*\(\s*(ERF_\w+)\s+(\w+)", s)   # set(ERF_X ON [CACHE BOOL "..." FORCE]) in a taken branch
+        if m_set and all(active for active, _ in stack):
+            resolved[m_set.group(1)] = as_bool(m_set.group(2)) is True
         for macro in re.findall(r"\b(ERF_USE_\w+)\b", s) if "compile_definitions" in s else []:
             on = all(active for active, _ in stack)
             if on or macro not in features:
