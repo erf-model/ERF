@@ -275,12 +275,12 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``Radiation``
      - ``1``
      - ``FillMinus999WhenUnavailable``
-     - Estimated shortwave cloud extinction optical depth
+     - Estimated per-level shortwave hydrometeor extinction optical depth (including rain, snow, and graupel; may be partial-column)
    * - ``cloud_albedo_est``
      - ``Radiation``
      - ``1``
      - ``FillMinus999WhenUnavailable``
-     - Estimated cloud-only reflectance from fixed-coefficient optical depth
+     - Per-level hydrometeor-only reflectance proxy (including rain, snow, and graupel; excludes surface, gas, and aerosol contributions; may be partial-column)
    * - ``surface_diagnostic_source``
      - ``SurfaceLayer``
      - ``1``
@@ -982,11 +982,10 @@ combine level-columns into a composite atmospheric column.
    On a nested simulation, these are **per-level partial-column proxies**,
    not full-atmosphere or composite cloud albedos. A bottom-only fine level
    can report a much smaller optical depth than the coarse level if clouds
-   lie above the fine level's top. Compare levels only with their vertical
-   coverage in mind. The ``CloudOptics_MixedPhase_PartialAMR_Plot2D`` test
-   demonstrates this with a real two-level Morrison writer and upper-cloud
-   mass omitted from the fine level. It also checks every species against
-   native 3D conserved mass, independently of the water-path helper.
+   lie above the fine level's top. Values integrate only hydrometeors covered
+   by that level and are not combined across levels. Interpret them using each
+   level's vertical coverage; an incomplete column must not be read as a
+   full-column optical depth or albedo.
 
 The five illustrative default mass-extinction coefficients, in
 :math:`\mathrm{m^2\,kg^{-1}}`, are:
@@ -1067,8 +1066,10 @@ full radiative transfer, as described in the warning below.
 
 .. warning::
 
-   ``cloud_albedo_est`` is an exploratory cloud-only reference-illumination
-   reflectance proxy. It does not solve two-stream radiative transfer and
+   ``cloud_albedo_est`` is an exploratory hydrometeor-only
+   reference-illumination reflectance proxy. It includes cloud liquid, cloud
+   ice, rain, snow, and graupel; excludes surface, gas, and aerosol
+   contributions; and does not solve two-stream radiative transfer. It
    omits solar zenith angle, gas/aerosol scattering and absorption,
    single-scattering albedo, phase-function asymmetry, overlap, spectral
    dependence, surface reflection, and 3-D cloud effects. It is neither

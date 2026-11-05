@@ -147,6 +147,134 @@ mass_path (const MultiFab& mass, Real dz, bool clip)
     return sum;
 }
 
+bool
+has_vertical_stack (const BoxArray& boxes)
+{
+    for (int i = 0; i < boxes.size(); ++i) {
+        for (int j = i + 1; j < boxes.size(); ++j) {
+            const Box& a = boxes[i];
+            const Box& b = boxes[j];
+            const bool same_horizontal_footprint =
+                a.smallEnd(0) == b.smallEnd(0) &&
+                a.bigEnd(0) == b.bigEnd(0) &&
+                a.smallEnd(1) == b.smallEnd(1) &&
+                a.bigEnd(1) == b.bigEnd(1);
+            const bool adjacent_in_z = a.bigEnd(2) + 1 == b.smallEnd(2) ||
+                                       b.bigEnd(2) + 1 == a.smallEnd(2);
+            if (same_horizontal_footprint && adjacent_in_z) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void
+check_runtime_override (PlotFileData& plot, PlotFileData& volume,
+                        Real kext_qc, Real kext_qr, Real scale)
+{
+    require(plot.finestLevel() == volume.finestLevel(),
+            "override Plot2D/3D level counts differ");
+    require(has(volume, "rhoQ2") && has(volume, "rhoQ3"),
+            "Kessler native qc/rain fields are required");
+    bool z_stacked_boxes = false;
+    for (int lev = 0; lev <= volume.finestLevel(); ++lev) {
+        z_stacked_boxes = z_stacked_boxes ||
+                          has_vertical_stack(volume.boxArray(lev));
+    }
+    require(z_stacked_boxes,
+            "override fixture must contain vertically stacked 3D boxes");
+
+    for (int lev = 0; lev <= plot.finestLevel(); ++lev) {
+        const auto dz = volume.cellSize(lev)[2];
+        auto qc_mass = volume.get(lev, "rhoQ2");
+        auto qr_mass = volume.get(lev, "rhoQ3");
+        auto qc_path = mass_path(qc_mass, dz, true);
+        auto qr_path = mass_path(qr_mass, dz, true);
+
+        const Real qc_contribution = kext_qc * qc_path.norm0(0);
+        const Real qr_contribution = kext_qr * qr_path.norm0(0);
+        const Real contribution_tolerance =
+            512. * std::numeric_limits<Real>::epsilon() *
+            amrex::max(Real(1.), amrex::max(qc_contribution, qr_contribution));
+        require(qc_contribution > 0. && qr_contribution > 0. &&
+                    std::abs(qc_contribution - qr_contribution) >
+                        contribution_tolerance,
+                "override fixture needs nonzero, distinguishable qc and rain contributions");
+        Print() << "level " << lev << " override weighted_paths qc="
+                << qc_path.norm0(0) << " qr=" << qr_path.norm0(0)
+                << " tau_contributions qc=" << qc_contribution
+                << " qr=" << qr_contribution << '\n';
+
+        auto tau = plot.get(lev, "cloud_optical_depth_sw");
+        auto albedo = plot.get(lev, "cloud_albedo_est");
+        MultiFab qc_aligned(tau.boxArray(), tau.DistributionMap(), 1, 0);
+        MultiFab qr_aligned(tau.boxArray(), tau.DistributionMap(), 1, 0);
+        qc_aligned.setVal(std::numeric_limits<Real>::quiet_NaN());
+        qr_aligned.setVal(std::numeric_limits<Real>::quiet_NaN());
+        qc_aligned.ParallelCopy(qc_path);
+        qr_aligned.ParallelCopy(qr_path);
+
+        // This oracle integrates native rhoQ fields independently of both
+        // fill_cloud_optics() and the production water-path diagnostics.
+        MultiFab expected_tau(tau.boxArray(), tau.DistributionMap(), 1, 0);
+        expected_tau.setVal(0.);
+        MultiFab::Saxpy(expected_tau, kext_qc, qc_aligned, 0, 0, 1, 0);
+        MultiFab::Saxpy(expected_tau, kext_qr, qr_aligned, 0, 0, 1, 0);
+        MultiFab expected_albedo(tau.boxArray(), tau.DistributionMap(), 1, 0);
+        for (MFIter mfi(expected_tau); mfi.isValid(); ++mfi) {
+            const auto t = expected_tau.const_array(mfi);
+            const auto a = expected_albedo.array(mfi);
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j,
+                                                             int k) noexcept {
+                a(i, j, k) = t(i, j, k) / (t(i, j, k) + scale);
+            });
+        }
+
+        require(expected_tau.is_finite() && expected_tau.min(0) >= 0. &&
+                    expected_tau.max(0) > 0.,
+                "independent override tau is not positive and finite");
+        compare(tau, expected_tau,
+                "level " + std::to_string(lev) +
+                    " runtime-override tau from native 3D rhoQ2/rhoQ3");
+        compare(albedo, expected_albedo,
+                "level " + std::to_string(lev) +
+                    " runtime-override reflectance from native 3D rhoQ2/rhoQ3");
+
+        MultiFab default_tau(tau.boxArray(), tau.DistributionMap(), 1, 0);
+        default_tau.setVal(0.);
+        MultiFab::Saxpy(default_tau, kext[0], qc_aligned, 0, 0, 1, 0);
+        MultiFab::Saxpy(default_tau, kext[2], qr_aligned, 0, 0, 1, 0);
+        MultiFab default_albedo(tau.boxArray(), tau.DistributionMap(), 1, 0);
+        for (MFIter mfi(default_tau); mfi.isValid(); ++mfi) {
+            const auto t = default_tau.const_array(mfi);
+            const auto a = default_albedo.array(mfi);
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j,
+                                                             int k) noexcept {
+                a(i, j, k) = t(i, j, k) / (t(i, j, k) + Real(7.7));
+            });
+        }
+        MultiFab tau_difference(tau.boxArray(), tau.DistributionMap(), 1, 0);
+        tau_difference.ParallelCopy(default_tau);
+        MultiFab::Subtract(tau_difference, expected_tau, 0, 0, 1, 0);
+        MultiFab albedo_difference(tau.boxArray(), tau.DistributionMap(), 1, 0);
+        albedo_difference.ParallelCopy(default_albedo);
+        MultiFab::Subtract(albedo_difference, expected_albedo, 0, 0, 1, 0);
+        const Real tau_tolerance =
+            512. * std::numeric_limits<Real>::epsilon() *
+            amrex::max(Real(1.), default_tau.norm0(0));
+        const Real albedo_tolerance =
+            512. * std::numeric_limits<Real>::epsilon() *
+            amrex::max(Real(1.), default_albedo.norm0(0));
+        require(tau_difference.norm0(0) > tau_tolerance &&
+                    albedo_difference.norm0(0) > albedo_tolerance,
+                "override values must differ from the production defaults");
+        Print() << "level " << lev << " override-default deltas tau="
+                << tau_difference.norm0(0) << " albedo="
+                << albedo_difference.norm0(0) << '\n';
+    }
+}
+
 void
 check_native (PlotFileData& plot, PlotFileData& volume, bool partial)
 {
@@ -291,6 +419,11 @@ main (int argc, char** argv)
             PlotFileData plot(argv[2]);
             check_station(plot, argv[3], Real(std::stod(argv[4])),
                           Real(std::stod(argv[5])));
+        } else if (argc == 7 && std::string(argv[1]) == "--override") {
+            PlotFileData plot(argv[2]), volume(argv[3]);
+            check_runtime_override(plot, volume, Real(std::stod(argv[4])),
+                                   Real(std::stod(argv[5])),
+                                   Real(std::stod(argv[6])));
         } else if (argc == 4 && (std::string(argv[1]) == "--mixed" ||
                                  std::string(argv[1]) == "--partial")) {
             PlotFileData plot(argv[2]), volume(argv[3]);

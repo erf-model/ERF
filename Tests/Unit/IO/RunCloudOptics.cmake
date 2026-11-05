@@ -17,16 +17,17 @@ execute_process(COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}"
 if(NOT status EQUAL 0 OR NOT EXISTS "${seed}/chk00001/Header")
   message(FATAL_ERROR "Cloud optics seed checkpoint failed (${status}); see ${seed}")
 endif()
-function(run_case name vars)
+function(run_case name vars checkpoint)
   set(dir "${TEST_ROOT}/${name}")
   file(MAKE_DIRECTORY "${dir}")
   execute_process(COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}"
     max_step=2 "amr.n_cell=8 4 8" amr.blocking_factor=2
-    "erf.restart=${seed}/chk00001" erf.regrid_level_0_on_restart=1
+    "erf.restart=${checkpoint}" erf.regrid_level_0_on_restart=1
     amr.max_grid_size=4 amr.max_grid_size_z=4 amr.no_box_split_dir=-1
     erf.substepping_type=None erf.fixed_dt=0.01 erf.fixed_mri_dt_ratio=2
     erf.implicit_thermal_diffusion=false erf.implicit_momentum_diffusion=false
     amrex.fpe_trap_invalid=0 erf.radiation_model=None
+    erf.plot_file_on_restart=true
     erf.plot_int_1=-1 erf.plot2d_int_1=1 erf.plot2d_file_1=plt2d
     "erf.plot2d_vars_1=${vars}"
     erf.plot2d_int_2=1 erf.plot2d_file_2=stream2
@@ -49,16 +50,48 @@ function(run_case name vars)
     message(FATAL_ERROR "${name} ERF failed (${status}); see ${dir}/run.log and error.log")
   endif()
 endfunction()
-run_case(both "cloud_albedo_est integrated_qr cloud_optical_depth_sw integrated_qc cloud_albedo_est")
-run_case(tau "cloud_optical_depth_sw")
-run_case(albedo "cloud_albedo_est")
-run_case(invalid_coefficient "cloud_albedo_est" erf.plot2d.cloud_optics.kext_qc=-1)
-run_case(invalid_scale "cloud_optical_depth_sw" erf.plot2d.cloud_optics.reflectance_scale=0)
-foreach(name IN ITEMS both tau albedo)
+run_case(both
+  "cloud_albedo_est integrated_qr cloud_optical_depth_sw integrated_qc cloud_albedo_est"
+  "${seed}/chk00001")
+run_case(tau "cloud_optical_depth_sw" "${seed}/chk00001")
+run_case(albedo "cloud_albedo_est" "${seed}/chk00001")
+run_case(invalid_coefficient "cloud_albedo_est" "${seed}/chk00001"
+  erf.plot2d.cloud_optics.kext_qc=-1)
+run_case(invalid_scale "cloud_optical_depth_sw" "${seed}/chk00001"
+  erf.plot2d.cloud_optics.reflectance_scale=0)
+
+# Exercise parsed non-default coefficients in the real writer. The checkpoint
+# fixture supplies deterministic positive Kessler qc/qr masses; the checker
+# independently integrates the resulting native 3D rhoQ fields.
+set(override_seed "${TEST_ROOT}/override_seed")
+file(MAKE_DIRECTORY "${override_seed}")
+file(COPY "${seed}/chk00001" DESTINATION "${override_seed}")
+execute_process(COMMAND "${FIXTURE_EXECUTABLE}" --kessler
+  "${override_seed}/chk00001" RESULT_VARIABLE fixture_status)
+if(NOT fixture_status EQUAL 0)
+  message(FATAL_ERROR "Kessler override checkpoint fixture failed (${fixture_status})")
+endif()
+run_case(override "cloud_albedo_est cloud_optical_depth_sw"
+  "${override_seed}/chk00001"
+  erf.plot_int_1=1 erf.plot_file_1=volume
+  "erf.plot_vars_1=rhoQ2 rhoQ3"
+  erf.plot2d.cloud_optics.kext_qc=50
+  erf.plot2d.cloud_optics.kext_qr=2
+  erf.plot2d.cloud_optics.reflectance_scale=3)
+
+foreach(name IN ITEMS both tau albedo override)
   file(STRINGS "${TEST_ROOT}/${name}/run.log" settings REGEX "^Plot2D cloud optics:")
   list(LENGTH settings settings_count)
   if(NOT settings_count EQUAL 1)
     message(FATAL_ERROR "${name}: expected one full resolved cloud optics settings record")
+  endif()
+  if(name STREQUAL "override")
+    foreach(setting IN ITEMS "kext_qc=50" "kext_qr=2" "reflectance_scale=3")
+      string(FIND "${settings}" "${setting}" setting_index)
+      if(setting_index EQUAL -1)
+        message(FATAL_ERROR "override: resolved settings log omits ${setting}: ${settings}")
+      endif()
+    endforeach()
   endif()
   file(WRITE "${TEST_ROOT}/${name}/cloud_optics_resolved_settings.txt" "${settings}\n")
   set(plot "${TEST_ROOT}/${name}/plt2d00002")
@@ -70,6 +103,9 @@ foreach(name IN ITEMS both tau albedo)
   elseif(name STREQUAL "tau")
     set(expected cloud_optical_depth_sw)
     set(count 1)
+  elseif(name STREQUAL "override")
+    set(expected "cloud_optical_depth_sw;cloud_albedo_est")
+    set(count 2)
   else()
     set(expected cloud_albedo_est)
     set(count 1)
@@ -120,6 +156,9 @@ foreach(name IN ITEMS both tau albedo)
   endforeach()
   if(name STREQUAL "both")
     execute_process(COMMAND "${CHECK_EXECUTABLE}" "${plot}" RESULT_VARIABLE status)
+  elseif(name STREQUAL "override")
+    execute_process(COMMAND "${CHECK_EXECUTABLE}" --override "${plot}"
+      "${TEST_ROOT}/${name}/volume00002" 50 2 3 RESULT_VARIABLE status)
   else()
     execute_process(COMMAND "${CHECK_EXECUTABLE}" "${plot}"
       "${TEST_ROOT}/both/plt2d00002" RESULT_VARIABLE status)
@@ -128,10 +167,16 @@ foreach(name IN ITEMS both tau albedo)
     message(FATAL_ERROR "${name}: numeric Plot2D check failed (${status})")
   endif()
   set(stream2 "${TEST_ROOT}/${name}/stream200002")
-  execute_process(COMMAND "${CHECK_EXECUTABLE}" "${stream2}"
-    "${TEST_ROOT}/both/plt2d00002" RESULT_VARIABLE status)
+  if(name STREQUAL "override")
+    execute_process(COMMAND "${CHECK_EXECUTABLE}" "${stream2}" "${plot}"
+      RESULT_VARIABLE status)
+  else()
+    execute_process(COMMAND "${CHECK_EXECUTABLE}" "${stream2}"
+      "${TEST_ROOT}/both/plt2d00002" RESULT_VARIABLE status)
+  endif()
   if(NOT status EQUAL 0)
     message(FATAL_ERROR "${name}: second stream numeric check failed (${status})")
   endif()
 endforeach()
-message(STATUS "CloudOptics radiation-off z-split writer, both streams and single requests passed")
+message(STATUS "CloudOptics radiation-off z-split writer, single requests, and "
+  "non-default Kessler overrides passed")

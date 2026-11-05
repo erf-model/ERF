@@ -67,8 +67,17 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::IntegratedQr,   "integrated_qr","Column-integrated rain water",                    "kg/m^2",    DiagnosticCategory::ColumnIntegral, MissingPolicy::FillZeroWhenUnavailable},
         {DiagnosticID::IntegratedQs,   "integrated_qs","Column-integrated snow",                          "kg/m^2",    DiagnosticCategory::ColumnIntegral, MissingPolicy::FillZeroWhenUnavailable},
         {DiagnosticID::IntegratedQg,   "integrated_qg","Column-integrated graupel",                       "kg/m^2",    DiagnosticCategory::ColumnIntegral, MissingPolicy::FillZeroWhenUnavailable},
-        {DiagnosticID::CloudOpticalDepthSW, "cloud_optical_depth_sw", "Estimated shortwave cloud extinction optical depth", "1", DiagnosticCategory::Radiation, MissingPolicy::FillMinus999WhenUnavailable},
-        {DiagnosticID::CloudAlbedoEst, "cloud_albedo_est", "Estimated cloud-only reflectance from fixed-coefficient optical depth", "1", DiagnosticCategory::Radiation, MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::CloudOpticalDepthSW, "cloud_optical_depth_sw",
+         "Estimated per-level shortwave hydrometeor extinction optical depth "
+         "(including rain, snow, and graupel; may be partial-column)",
+         "1", DiagnosticCategory::Radiation,
+         MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::CloudAlbedoEst, "cloud_albedo_est",
+         "Per-level hydrometeor-only reflectance proxy (including rain, snow, "
+         "and graupel; excludes surface, gas, and aerosol contributions; may "
+         "be partial-column)",
+         "1", DiagnosticCategory::Radiation,
+         MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::SurfaceDiagnosticSource,
                                          "surface_diagnostic_source",
                                                         "Surface diagnostic source code",

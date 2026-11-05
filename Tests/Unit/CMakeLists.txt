@@ -1065,6 +1065,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND NOT AMReX_HDF5)
     COMMAND ${CMAKE_COMMAND}
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
       -DCHECK_EXECUTABLE=$<TARGET_FILE:erf_cloud_optics_plotfile_check>
+      -DFIXTURE_EXECUTABLE=$<TARGET_FILE:erf_cloud_optics_checkpoint_fixture>
       -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Exec/RegTests/Bubble/inputs_BF02_moist_bubble
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/cloud_optics_writer
       -P ${CMAKE_CURRENT_SOURCE_DIR}/IO/RunCloudOptics.cmake)

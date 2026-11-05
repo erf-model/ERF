@@ -20,7 +20,8 @@ struct CloudOpticsParameters
     amrex::GpuArray<amrex::Real, 5> kext{{amrex::Real(150.), amrex::Real(65.4),
                                           amrex::Real(3.), amrex::Real(30.),
                                           amrex::Real(7.5)}};
-    // User-tunable heuristic; no scheme calibration or physical derivation.
+    // Two-stream-inspired default for conservative scattering (g = 0.85).
+    // User-tunable; not calibrated to the active microphysics or radiation scheme.
     amrex::Real reflectance_scale = 7.7;
 };
 
@@ -29,7 +30,7 @@ cloud_optics_parameter_error (const CloudOpticsParameters& parameters);
 CloudOpticsParameters parse_cloud_optics_parameters ();
 bool cloud_optics_available (const MoistureComponentIndices& indices) noexcept;
 
-// Reference-illumination cloud-only proxy, not a radiative-transfer solution.
+// Reference-illumination hydrometeor-only proxy, not a radiative-transfer solution.
 // The two branches avoid overflow in tau + scale for large finite values.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 cloud_reflectance (amrex::Real tau, amrex::Real scale) noexcept
