@@ -77,6 +77,7 @@
 #endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
+#include "ERF_Plotfile2DCloudOptics.H"
 
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
@@ -1959,6 +1960,10 @@ private:
     amrex::Vector<std::string> plot3d_var_names_2;
     amrex::Vector<std::string> plot2d_var_names_1;
     amrex::Vector<std::string> plot2d_var_names_2;
+    // erf.plot2d.cloud_optics.*, read and checked at startup; the resolved values
+    // are printed once, when a Plot2D stream or a station first needs them
+    plotfile2d::CloudOpticsParameters cloud_optics_parameters;
+    bool cloud_optics_parameters_printed = false;
     // Raw conserved-state names in component order; the list and its
     // name-to-component map live together in IO/ERF_PlotfileSelection.H
     const amrex::Vector<std::string> cons_names = erf_plotfile::plot3d_conserved_state_names();

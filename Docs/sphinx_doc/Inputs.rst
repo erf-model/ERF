@@ -1278,7 +1278,10 @@ generation.  The parameters documented there, rather than on this page, are
   ``erf.plotfile2d_type_1``, ``erf.plotfile2d_type_2``, ``erf.plotfile_type``,
   ``erf.plotfile_type_1``, ``erf.plotfile_type_2``, ``erf.subvol.dxdydz``,
   ``erf.subvol.chunk_size``, ``erf.subvol.nxnynz``, ``erf.subvol.origin``, ``erf.subvol_file``, ``erf.subvol_int``,
-  ``erf.subvol_per``, ``erf.use_real_time_in_pltname``.
+  ``erf.subvol_per``, ``erf.use_real_time_in_pltname``, ``erf.plot2d.cloud_optics.kext_qc``,
+  ``erf.plot2d.cloud_optics.kext_qi``, ``erf.plot2d.cloud_optics.kext_qr``,
+  ``erf.plot2d.cloud_optics.kext_qs``, ``erf.plot2d.cloud_optics.kext_qg``,
+  ``erf.plot2d.cloud_optics.reflectance_scale``.
 
 The names of the fields that may be selected are listed in
 :ref:`sec:Plotfile3DReference` and :ref:`sec:Plotfile2DReference`.

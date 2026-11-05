@@ -308,6 +308,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestOrbitalGeometry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTopographicShading.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfile2D.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestCloudOptics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfileSelection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestStationSampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenance.cpp
@@ -912,6 +913,7 @@ if(ERF_ENABLE_MPI)
       # The boxes are spread over the ranks, so a k may be held by another rank only
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestReduceToMaxPerHeight.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTopographicShading.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestCloudOptics.cpp
       # The immersed average down copies the fine sums to the coarse layout: check it across ranks
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
       # The mismatch count reduces over the ranks: check it across ranks
@@ -1045,4 +1047,22 @@ endif()
       PROCESSORS 2
       TIMEOUT 120
   )
+endif()
+
+if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND NOT AMReX_HDF5)
+  add_executable(erf_cloud_optics_plotfile_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_CloudOpticsPlotfileCheck.cpp)
+  target_link_libraries(erf_cloud_optics_plotfile_check PRIVATE AMReX::amrex)
+  if(ERF_ENABLE_CUDA)
+    setup_target_for_cuda_compilation(erf_cloud_optics_plotfile_check)
+  endif()
+  add_test(NAME CloudOptics_RadiationOff_Plot2D
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DCHECK_EXECUTABLE=$<TARGET_FILE:erf_cloud_optics_plotfile_check>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Exec/RegTests/Bubble/inputs_BF02_moist_bubble
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/cloud_optics_writer
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/IO/RunCloudOptics.cmake)
+  set_tests_properties(CloudOptics_RadiationOff_Plot2D PROPERTIES
+    LABELS "integration;cloud_optics" TIMEOUT 60 RUN_SERIAL TRUE)
 endif()
