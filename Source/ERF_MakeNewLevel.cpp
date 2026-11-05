@@ -184,7 +184,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // comes through here a second time with the finer level already in place.  Rebuild that
     // register as RemakeLevel does, or it keeps the grids of the first pass and the first
     // YAFluxRegister::CrseAdd indexes it with this level's new boxes (erf-model/ERF#4988).
-    amrex::Print() << "Level " << lev << " made from scratch with " << ba.size() << " grids" << std::endl;
     if (lev < finest_level && !grids[lev+1].empty()) {
         make_flux_register(lev+1);
     }

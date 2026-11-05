@@ -4,9 +4,9 @@
 # With amr.iterate_grids (the default) AmrMesh::MakeNewGrids builds the levels one at a time and
 # then regenerates them all from level 0 once the finest level exists.  Levels 1 and 2 grow by the
 # proper-nesting buffer in that pass and are made from scratch a second time; level 3 sits well
-# inside level 2 and is not.  The run log shows it:
-#   Level 2 made from scratch with ... grids   (twice)
-#   Level 3 made from scratch with ... grids   (once)
+# inside level 2 and is not.  The run log shows it (erf.v = 1):
+#   BA FROM SCRATCH AT LEVEL 2 ...   (twice)
+#   BA FROM SCRATCH AT LEVEL 3 ...   (once)
 # When level 2 is made again it must rebuild the flux register on its interface with level 3,
 # which was built from its first grids, and fill its own ghost cells, which the second tagging pass
 # otherwise fills from a level 1 whose ghost cells are still empty.  The flow is uniform, so every
@@ -56,6 +56,7 @@ prob.U_0   = 10.0
 erf.theta_ref = 300.0
 
 erf.sum_interval = -1
+erf.v            = 1   # prints BA FROM SCRATCH AT LEVEL <lev>, which the test counts
 erf.plot_file_1  = plt
 erf.plot_int_1   = 3
 erf.plot_vars_1  = density rhotheta x_velocity y_velocity z_velocity

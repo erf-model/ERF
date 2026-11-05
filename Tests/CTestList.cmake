@@ -3289,7 +3289,7 @@ function(add_test_twoway_scratch_regrid TEST_NAME)
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
     set(FCOMPARE_FLAGS "--abort_if_not_all_found -r 1.0e-12 --abs_tol 1.0e-10")
-    set(test_command sh -c "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i amrex.call_addr2line=0 > ${test_log} 2>&1 && grep -q 'Coarse STEP 3 ends' ${test_log} && test $(grep -c 'Level 2 made from scratch' ${test_log}) -eq 2 && test $(grep -c 'Level 3 made from scratch' ${test_log}) -eq 1 && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/plt00000 ${CURRENT_TEST_BINARY_DIR}/plt00003 ) || ( cat ${test_log} && false )")
+    set(test_command sh -c "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i amrex.call_addr2line=0 > ${test_log} 2>&1 && grep -q 'Coarse STEP 3 ends' ${test_log} && test $(grep -c 'BA FROM SCRATCH AT LEVEL 2' ${test_log}) -eq 2 && test $(grep -c 'BA FROM SCRATCH AT LEVEL 3' ${test_log}) -eq 1 && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/plt00000 ${CURRENT_TEST_BINARY_DIR}/plt00003 ) || ( cat ${test_log} && false )")
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
