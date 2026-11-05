@@ -560,6 +560,7 @@ public:
           olen.resize(nlevs);
           pblh.resize(nlevs);
           m_planar_bndry.resize(nlevs);
+          m_lsm_held_columns.resize(nlevs);
       }
 
       // Get pointers to SST,TSK and LANDMASK data
@@ -868,6 +869,23 @@ public:
       q_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
 
+      // Columns of a refined level that a grid touching the surface holds, one cell beyond
+      // each grid (see LsmFluxColumn).  A grid that starts above the ground collapses onto
+      // the same columns but holds no surface fluxes there, so it does not count.  Level 0
+      // has no coarse/fine boundary and needs no mask.
+      m_lsm_held_columns[lev].clear();
+      if (lev > 0 && dir == 2 && m_face.isLow() && m_terrain_type != TerrainType::EB) {
+          amrex::iMultiFab& held = m_lsm_held_columns[lev];
+          held.define(ba_flux, dm, 1, amrex::IntVect(1,1,0));
+          held.setVal(0);
+          for (amrex::MFIter mfi(held); mfi.isValid(); ++mfi) {
+              if (m_planar_bndry[lev].is_surface_copy(mfi.index())) {
+                  held[mfi].setVal<amrex::RunOn::Device>(1, mfi.validbox());
+              }
+          }
+          held.FillBoundary(m_geom[lev].periodicity());
+      }
+
       const amrex::iMultiFab& surface_mask = *m_lmask_lev[lev][0];
       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
           surface_mask.boxArray().size() == mf.boxArray().size(),
@@ -1127,6 +1145,22 @@ public:
    */
   void compute_sfc_params_from_lsm_fluxes (const int& lev,
                                            amrex::MultiFab& cons_in);
+
+  /**
+   * The four LSM fluxes on one grid: from the surface model when it supplies fluxes,
+   * otherwise from the registered LSM fluxes.  A flux that is not available is left null,
+   * and SurfaceFluxView::valid then rejects every cell.  compute_fluxes,
+   * compute_sfc_params_from_lsm_fluxes and get_lsm_tsurf all take their fluxes from here,
+   * so they agree on which land columns use the LSM flux.  Each decides a ghost column
+   * outside a non-periodic domain from the nearest column inside it; compute_SurfaceLayer_bcs
+   * also reads the fluxes one ghost cell beyond the grid, so they must carry one filled
+   * lateral ghost cell.
+   *
+   * @param[in] lev level index
+   * @param[in] mfi iterator over a MultiFab with the cons BoxArray and DistributionMapping
+   */
+  [[nodiscard]] SurfaceFluxView get_lsm_flux_view (const int& lev,
+                                                   const amrex::MFIter& mfi) const;
 
   /**
    * Set kinematic u*, t*, and q* from the fluxes interpolated from most.sfc_file.
@@ -1935,6 +1969,9 @@ private:
   // this for u*, w* (only when it is computed), t*, q*, L, t_surf, q_surf, pblh and the
   // diagnostic source, after each is computed on the surface copies.
   amrex::Vector<PlanarBoundary> m_planar_bndry;
+  // 1 in the columns of a refined level that a grid touching the surface holds, within one
+  // cell of each grid; empty on level 0.  Built by make_SurfaceLayer_at_level.
+  amrex::Vector<amrex::iMultiFab> m_lsm_held_columns;
   // Columns for the PBL-height estimator.  The estimator scans each box it is given from its
   // lowest cell to its highest, so the box must start at the ground.  When some box of a
   // level does not (grids stacked in z, or a refined region aloft), compute_pblh runs the
