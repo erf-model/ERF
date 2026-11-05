@@ -231,8 +231,9 @@ struct similarity_funs
      * With L fixed by u* and the flux, the wind a given u* supports is
      * u* max(C - psi_m, b) / kappa, with b = most_bracket_floor(C). Below the smallest such
      * wind the prescribed stable flux has no solution with z/L below most_zeta_lim (Basu et
-     * al., BLM 2008; with QNSE the supported wind falls to zero again far beyond the bound, at
-     * z/L of order 1e3 to 1e4, which the kernels never reach). The physical
+     * al., BLM 2008; with QNSE the supported wind rises again past its first minimum to a
+     * local maximum at the second zero of f below, at z/L of order 1e3 to 1e4, and only then
+     * tends to zero with u*; the kernels never reach that range). The physical
      * (large u*) branch has z/L below this value, so bounding z/L by it leaves every point that
      * has a solution unchanged. The result is positive for every C.
      *
@@ -245,11 +246,16 @@ struct similarity_funs
      * f(z/L) = C + c ln(1 + b_m z/L) - 3 c b_m (z/L) / (1 + b_m z/L) is positive, and f falls
      * from C at z/L = 0 to its minimum at z/L = 2 / b_m and rises without bound after it. The
      * fold is the first zero of f beyond the kink where the floor stops binding
-     * (C - psi_m = b), found by bisection; it is the kink itself when f is already negative
-     * there, and most_zeta_lim when f has no zero (C > c (2 - ln 3), 10.4 with the default
-     * coefficients): the wind then falls monotonically with z/L up to the bound, where the
-     * kernels hold z/L and reduce the flux as at a fold. Every return value is at most
-     * most_zeta_lim.
+     * (C - psi_m = b), found by Newton's method on the bracket [kink, 2 / b_m] where f is
+     * convex and decreasing (f' = c b_m (b_m z/L - 2) / (1 + b_m z/L)^2 < 0, f'' > 0 for
+     * b_m z/L < 5): after the first step the iterates approach the root from the left, a step
+     * that would leave the bracket is replaced by its midpoint, and the iteration stops at a
+     * relative change of 1e-10 (a handful of steps against the 60 passes of a bisection to
+     * the same precision; the roughness kernels call this once per u* iteration). It is the
+     * kink itself when f is already negative there, and most_zeta_lim when f has no zero
+     * (C > c (2 - ln 3), 10.4 with the default coefficients): the wind then falls
+     * monotonically with z/L up to the bound, where the kernels hold z/L and reduce the flux
+     * as at a fold. Every return value is at most most_zeta_lim.
      *
      * @param[in] C ln(zref/z0)
      */
@@ -273,15 +279,30 @@ struct similarity_funs
             const amrex::Real s = one + b * z;
             return C + c * std::log(s) - three * c * b * z / s;
         };
+        auto df = [&] (amrex::Real z) {
+            const amrex::Real s = one + b * z;
+            return c * b * (b * z - two) / (s * s);
+        };
         const amrex::Real zlim = most_zeta_lim; // by value: a namespace constant must not bind to min's reference in device code
         if (f(lo) <= zero) { return amrex::min(lo, zlim); }
         amrex::Real hi = two / b;
         if (lo >= hi || f(hi) >= zero) { return zlim; }
-        for (int n = 0; n < 60; ++n) {
-            const amrex::Real m = myhalf * (lo + hi);
-            if (f(m) > zero) { lo = m; } else { hi = m; }
+        // Safeguarded Newton on [lo, hi]: f(lo) > 0 > f(hi), f convex and decreasing, so from
+        // the second step on the iterates rise monotonically to the root; a step outside the
+        // bracket (the first one can be, from the midpoint) falls back to the midpoint
+        amrex::Real z = myhalf * (lo + hi);
+        constexpr amrex::Real rtol = amrex::Real(1.0e-10);
+        for (int n = 0; n < 30; ++n) {
+            const amrex::Real fz = f(z);
+            if (fz > zero) { lo = z; } else if (fz < zero) { hi = z; } else { break; }
+            const amrex::Real d = df(z);
+            amrex::Real zn = (d < zero) ? z - fz / d : myhalf * (lo + hi);
+            if (!(zn > lo && zn < hi)) { zn = myhalf * (lo + hi); }
+            const bool done = std::abs(zn - z) <= rtol * zn;
+            z = zn;
+            if (done) { break; }
         }
-        return amrex::min(myhalf * (lo + hi), zlim);
+        return amrex::min(z, zlim);
     }
 
     /**

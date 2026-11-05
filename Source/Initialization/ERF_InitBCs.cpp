@@ -794,6 +794,10 @@ void ERF::init_bcs ()
         ParmParse pp_sf(pp_prefix);
         std::string stable_functions = "businger_dyer";
         pp_sf.query("most.stable_functions", stable_functions);
+        if (stable_functions != "businger_dyer" && stable_functions != "qnse") {
+            amrex::Abort(pp_prefix + ".most.stable_functions must be businger_dyer or qnse, not " +
+                         stable_functions);
+        }
         const bool immersed_wall_law =
             (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
              solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
@@ -809,6 +813,36 @@ void ERF::init_bcs ()
         const bool zlo_reads_unqualified =
             phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer &&
             (n_surface_layer_faces == 1 || has_surface_layer_inputs(pp_prefix));
+        // The MRF and YSUNew schemes carry their own QNSE switch and coefficients for the
+        // stable functions of their profile (erf.enable_qnse_stable_functions, erf.qnse_*),
+        // which the surface layer does not read: say so when the two choices disagree
+        for (int lev = 0; lev <= max_level; ++lev) {
+            const auto& tc = solverChoice.turbChoice[lev];
+            if (tc.pbl_type != PBLType::MRF && tc.pbl_type != PBLType::YSUNew) { continue; }
+            const bool sl_qnse = (stable_functions == "qnse");
+            if (tc.enable_qnse_stable_functions != sl_qnse) {
+                amrex::Warning("Level " + std::to_string(lev) + ": erf.enable_qnse_stable_functions = " +
+                               (tc.enable_qnse_stable_functions ? "true" : "false") + " (the " +
+                               std::string(amrex::getEnumNameString(tc.pbl_type)) +
+                               " scheme's stable functions) while " + pp_prefix +
+                               ".most.stable_functions = " + stable_functions +
+                               " (the surface layer's): the PBL profile and the surface fluxes use "
+                               "different stable functions");
+            } else if (sl_qnse) {
+                const char* keys[4] = {"qnse_am", "qnse_bm", "qnse_ah", "qnse_bh"};
+                const Real pbl[4] = {tc.qnse_am, tc.qnse_bm, tc.qnse_ah, tc.qnse_bh};
+                Real sl[4] = {Real(2.5), Real(0.2), Real(2.5), Real(0.2)};
+                for (int n = 0; n < 4; ++n) {
+                    pp_sf.query((std::string("most.") + keys[n]).c_str(), sl[n]);
+                    if (sl[n] != pbl[n]) {
+                        amrex::Warning("Level " + std::to_string(lev) + ": " + pp_prefix + ".most." + keys[n] +
+                                       " = " + std::to_string(sl[n]) + " (surface layer) differs from " +
+                                       pp_prefix + "." + keys[n] + " = " + std::to_string(pbl[n]) + " (" +
+                                       std::string(amrex::getEnumNameString(tc.pbl_type)) + " scheme)");
+                    }
+                }
+            }
+        }
         if (stable_functions == "qnse" && !zlo_reads_unqualified && !immersed_wall_law) {
             amrex::Abort(pp_prefix + ".most.stable_functions = qnse is read by nothing in this run: "
                          "it needs a surface_layer boundary on the low z face that reads the "

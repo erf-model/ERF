@@ -251,6 +251,54 @@ TEST(MOSTStableFunctions, QnseFoldIsTheFirstMinimumOfTheSupportedWind)
     }
 }
 
+// Motivation: near neutral the QNSE correction has slope a - b (2.3 with the defaults, against
+// Businger-Dyer's 5), so the option changes the weakly stable regime too, not only the strongly
+// stable tail; a user who wants the Businger-Dyer slope with a bounded phi can take a = 5.2,
+// b = 0.2 (asymptote 26). The defaults also give phi_h = phi_m, a turbulent Prandtl number of 1.
+TEST(MOSTStableFunctions, QnseNearNeutralSlopeIsAMinusB)
+{
+    const similarity_funs sf = qnse_default();
+    const similarity_funs bd{};
+    const Real z = Real(1.0e-4);
+    const Real stol = (sizeof(Real) == 8) ? Real(1.0e-6) : Real(1.0e-3); // (phi - 1)/z at z = 1e-4 loses digits in single precision
+    EXPECT_NEAR((sf.calc_phi_m(z) - Real(1.0)) / z, Real(2.3), Real(1.0e-3));
+    EXPECT_NEAR((bd.calc_phi_m(z) - Real(1.0)) / z, Real(5.0), stol);
+    EXPECT_NEAR(sf.calc_phi_m(Real(0.1)) - Real(1.0), Real(0.5) * (bd.calc_phi_m(Real(0.1)) - Real(1.0)), Real(0.03));
+    EXPECT_EQ(sf.calc_phi_h(Real(0.7)), sf.calc_phi_m(Real(0.7)));
+    similarity_funs steep;
+    steep.set_stable_functions(true, Real(5.2), Real(0.2), Real(5.2), Real(0.2));
+    EXPECT_NEAR((steep.calc_phi_m(z) - Real(1.0)) / z, Real(5.0), Real(2.0e-3));
+    EXPECT_NEAR(steep.calc_phi_m(Real(1.0e6)), Real(26.0), Real(1.0e-3));
+}
+
+// Motivation: the Newton solve of the fold must give the root of f to its tolerance over the
+// whole range of C that has one (a 200-pass bisection of the same f is the reference), with
+// the kink and the no-fold cases unchanged.
+TEST(MOSTStableFunctions, QnseFoldNewtonMatchesABisectionOfF)
+{
+    const similarity_funs sf = qnse_default();
+    const Real a = Real(2.5), b = Real(0.2), c = (a - b) / b;
+    auto f = [&] (Real C, Real z) { return C + c * std::log(Real(1.0) + b * z) - Real(3.0) * c * b * z / (Real(1.0) + b * z); };
+    const Real ntol = (sizeof(Real) == 8) ? Real(1.0e-9) : Real(1.0e-5); // in single precision f is flat to rounding near its root for large C
+    int n_root = 0;
+    for (int i = 0; i <= 400; ++i) {
+        const Real C = Real(-1.0) + Real(0.03) * Real(i);   // -1 .. 11
+        const Real bf = most_bracket_floor(C);
+        Real lo = (C < bf) ? (std::exp((bf - C) / c) - Real(1.0)) / b : Real(0.0);
+        Real hi = Real(2.0) / b;
+        const Real zf = sf.calc_zeta_fold(C);
+        if (f(C, lo) <= Real(0.0)) { EXPECT_EQ(zf, lo) << "C = " << C; continue; }
+        if (lo >= hi || f(C, hi) >= Real(0.0)) { EXPECT_EQ(zf, most_zeta_lim) << "C = " << C; continue; }
+        for (int k = 0; k < 200; ++k) {
+            const Real m = Real(0.5) * (lo + hi);
+            if (f(C, m) > Real(0.0)) { lo = m; } else { hi = m; }
+        }
+        EXPECT_NEAR(zf / lo, Real(1.0), ntol) << "C = " << C;
+        ++n_root;
+    }
+    EXPECT_GT(n_root, 300);
+}
+
 // Motivation: once given the functions, the prescribed-flux kernel must converge to the u* of
 // the QNSE profile (checked against an independent bisection of U(u*)), which differs from the
 // Businger-Dyer u* at the same point; a kernel that ignored set_similarity_funs would return
