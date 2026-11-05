@@ -3504,11 +3504,18 @@ ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out)
         const int idx = (level == lev) ? file_index : 0;
         int ratio;
         Box file_box = read_subdomain_from_wrfinput(level, nc_init_file[level][idx], ratio);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ratio == refRatio(level-1)[0] &&
-                                         ratio == refRatio(level-1)[1],
-            "WRF parent ratio does not match ERF horizontal refinement");
+        const IntVect expected_ratio = refRatio(level-1);
+        if (ratio != expected_ratio[0] || ratio != expected_ratio[1]) {
+            amrex::Abort("WRF input file " + nc_init_file[level][idx] +
+                         " has PARENT_GRID_RATIO = " + std::to_string(ratio) +
+                         ", but ERF expects horizontal refinement ratios x=" +
+                         std::to_string(expected_ratio[0]) + ", y=" +
+                         std::to_string(expected_ratio[1]) + " for level " +
+                         std::to_string(level) +
+                         ". Update amr.ref_ratio or amr.ref_ratio_vect to match the file.");
+        }
         for (int d = 0; d < 2; ++d) {
-            file_box.shift(d, parent_origin[d] * refRatio(level-1)[d]);
+            file_box.shift(d, parent_origin[d] * expected_ratio[d]);
         }
         if (level == lev) {
             if (ratio_out != nullptr) { *ratio_out = ratio; }
