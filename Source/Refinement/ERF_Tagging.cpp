@@ -77,10 +77,9 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     if ( levf_start_time <= (levc_start_time + t_new[levc]) ) {
                         if (solverChoice.init_type == InitType::WRFInput) {
                             amrex::Print() << " WRFInput file to read: " << nc_init_file[levc+1][isub] << std::endl;
-                            subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][isub], ratio);
                             // WRF starts are relative to the full parent file.  Account
                             // for every ancestor before locating this nest in ERF.
-                            subdomain = wrfinput_file_box(levc+1, isub);
+                            subdomain = wrfinput_file_box(levc+1, isub, &ratio);
                             amrex::Print() << " WRFInput subdomain " << isub << " at level " << levc+1 << " is " << subdomain << std::endl;
                         } else if (solverChoice.init_type == InitType::Metgrid) {
                             amrex::Print() << "met_em file to read: " << nc_init_file[levc+1][0] << std::endl;

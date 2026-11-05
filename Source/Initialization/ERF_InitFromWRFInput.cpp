@@ -3489,7 +3489,7 @@ ERF::read_psfc_from_own_init_file (int lev)
 /** Return a WRF file's box in the global ERF index space.  WRF's I/J_PARENT_START
  * are relative to the complete parent file, not to the smaller ERF patch on it. */
 Box
-ERF::wrfinput_file_box (int lev, int file_index)
+ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out)
 {
     AMREX_ALWAYS_ASSERT(lev >= 0 && file_index >= 0 &&
                         file_index < static_cast<int>(nc_init_file[lev].size()));
@@ -3510,7 +3510,10 @@ ERF::wrfinput_file_box (int lev, int file_index)
         for (int d = 0; d < 2; ++d) {
             file_box.shift(d, parent_origin[d] * refRatio(level-1)[d]);
         }
-        if (level == lev) { return file_box; }
+        if (level == lev) {
+            if (ratio_out != nullptr) { *ratio_out = ratio; }
+            return file_box;
+        }
         parent_origin = file_box.smallEnd();
     }
     amrex::Abort("wrfinput_file_box: invalid level");
