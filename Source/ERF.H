@@ -2337,6 +2337,16 @@ private:
     AMREX_FORCE_INLINE
     amrex::YAFluxRegister* getAdvFluxReg (int lev)
     {
+        // The register on the lev-1 / lev interface holds the grids of both levels, so a level
+        // made or remade after it was built must have rebuilt it; one built from an earlier
+        // BoxArray would be indexed with the wrong boxes (erf-model/ERF#4988).  The BoxArray
+        // comparison is a pointer comparison when the register is current.
+        if (advflux_reg[lev]) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                advflux_reg[lev]->getCrseData().boxArray()        == grids[lev-1] &&
+                advflux_reg[lev]->getCrseData().DistributionMap() == dmap[lev-1],
+                "The advective flux register was built from an earlier BoxArray of its coarse level");
+        }
         return advflux_reg[lev].get();
     }
 

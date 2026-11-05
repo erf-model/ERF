@@ -175,6 +175,18 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
 
+    // init_stuff rebuilds the flux register on the lev-1 / lev interface, but the one on the
+    // lev / lev+1 interface also holds this level's grids.  AmrMesh::MakeNewGrids (AMReX) builds
+    // the levels one at a time and then, with iterate_on_new_grids, regenerates them all from
+    // level 0 once the finest level exists; an intermediate level whose grids changed in that pass
+    // comes through here a second time with the finer level already in place.  Rebuild that
+    // register as RemakeLevel does, or it keeps the grids of the first pass and the first
+    // YAFluxRegister::CrseAdd indexes it with this level's new boxes (erf-model/ERF#4988).
+    amrex::Print() << "Level " << lev << " made from scratch with " << ba.size() << " grids" << std::endl;
+    if (lev < finest_level && !grids[lev+1].empty()) {
+        make_flux_register(lev+1);
+    }
+
     // init_stuff leaves map factors of 1.  A refined level with no init file of its own takes them
     // from the coarser level; do that now, before the initial data, the terrain metrics and the
     // initial projection use them (Interp2DArrays, called only after every level has been made,

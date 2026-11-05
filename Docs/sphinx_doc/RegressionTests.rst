@@ -54,6 +54,10 @@ The following problems are currently tested in the CI:
 | MoistDiffusion_ImplicitCF     | 4 4 32   | Periodic | Periodic | SlipWall   | None  | as CouetteFlow_ImplicitCF, for  |
 |                               |          |          |          | SlipWall   |       | the implicit moisture solve     |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| TwoWay_FourLevels_PartialDepth| 40 28 40 | Periodic | Periodic | SlipWall   | None  | four levels, two-way coupling;  |
+|                               |          |          |          | SlipWall   |       | levels 1 and 2 are made from    |
+|                               |          |          |          |            |       | scratch twice (iterate_grids)   |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity                        |
 |                               |          | Outflow  |          | SlipWall   |       |                                 |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
@@ -540,6 +544,26 @@ test compares the plotfile after 200 coarse steps against a gold file.
 Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_
 
 .. _`Tests/test_files/MoistDiffusion_ImplicitCF`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MoistDiffusion_ImplicitCF
+
+Four levels made from scratch twice, with two-way coupling
+----------------------------------------------------------
+
+A uniform anelastic flow on four levels (``amr.ref_ratio_vect = 2 2 1`` on each), every refined
+level stopping below the domain top, with two-way coupling.  With ``amr.iterate_grids`` (the
+default) AMReX builds the levels one at a time and then regenerates them all from level 0 once the
+finest level exists; levels 1 and 2 grow by the proper-nesting buffer in that pass and are made
+from scratch a second time, while level 3 sits well inside level 2 and is not.  The flux register
+on the level 2 / level 3 interface, built from the first grids of level 2, has to be rebuilt when
+level 2 is remade (`erf-model/ERF#4988 <https://github.com/erf-model/ERF/issues/4988>`_).  The
+test requires the run log to show that second pass (level 2 made from scratch twice, level 3 once)
+and the three steps to finish; a register left on the old grids stops the first step with an
+assertion in ``getAdvFluxReg``.
+
+Test Location: `Tests/test_files/TwoWay_FourLevels_PartialDepth`_
+
+.. _`Tests/test_files/TwoWay_FourLevels_PartialDepth`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TwoWay_FourLevels_PartialDepth
+
+Problem Location: ``Exec/CanonicalTests/ABL``
 
 Poiseuille Flow (x-direction)
 -----------------------------
