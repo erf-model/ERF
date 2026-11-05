@@ -19,6 +19,7 @@ RETIRED_KEYS = {
     # Source-retired, found by build_erf_schema.py (ERF_DampingStruct.H, ERF_IBSEBParams.H)
     "erf.rayleigh_damp_substep": "deprecated: set erf.rayleigh_damping_type instead",
     "erf.ibseb.utc_offset_hours": "not an input: the sun follows time_zero_utc_s (UTC) and longitude_deg; remove it",
+    "erf.zsurface": "removed (#4446): a stretched grid starts at geometry.prob_lo[2]; set the bottom there",
 }
 RETIRED_VALUES = {
     "erf.init_type": {"real": "WRFInput", "ideal": "WRFInput"},
