@@ -4301,6 +4301,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         const auto& t_mean_mf = SurfLayer->get_mac_avg(level,5); // theta_v
         const auto& q_mean_mf = SurfLayer->get_mac_avg(level,4); // q_v
         const auto& u_star_mf = SurfLayer->get_u_star(level);
+        const similarity_funs l_sfuns = SurfLayer->similarity_functions();
         const auto& t_star_mf = SurfLayer->get_t_star(level);
         const auto& q_star_mf = SurfLayer->get_q_star(level);
 
@@ -4371,6 +4372,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                                                     theta0, qv0, use_moisture);
                 sl.zval    = zval;
                 sl.zeta    = zeta;
+                sl.sfuns   = l_sfuns;
                 ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
             }
 
