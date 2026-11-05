@@ -684,7 +684,10 @@ ERF::FillPlot2DVars (int lev,
     const int cloud_albedo_comp = containerHasElement(plot_var_names, "cloud_albedo_est")
         ? mf_comp++ : -1;
     if (cloud_tau_comp >= 0 || cloud_albedo_comp >= 0) {
-        static const auto cloud_optics_parameters = plotfile2d::parse_cloud_optics_parameters();
+        if (!cloud_optics_parameters_printed) {
+            plotfile2d::print_cloud_optics_parameters(cloud_optics_parameters);
+            cloud_optics_parameters_printed = true;
+        }
         plotfile2d::fill_cloud_optics(mf_dst, cloud_tau_comp, cloud_albedo_comp,
             vars_new[lev][Vars::cons], solverChoice.moisture_indices,
             cloud_optics_parameters, geom[lev], *detJ_cc[lev]);

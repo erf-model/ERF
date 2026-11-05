@@ -28,13 +28,13 @@ std::string
 cloud_optics_parameter_error (const CloudOpticsParameters& parameters)
 {
     for (int n = 0; n < 5; ++n) {
-        if (!std::isfinite(parameters.kext[n]) || parameters.kext[n] < 0.) {
+        if (!std::isfinite(parameters.kext[n]) || parameters.kext[n] < zero) {
             return std::string("erf.plot2d.cloud_optics.") +
                    coefficient_keys[n] + " must be finite and nonnegative";
         }
     }
     if (!std::isfinite(parameters.reflectance_scale) ||
-        parameters.reflectance_scale <= 0.) {
+        parameters.reflectance_scale <= zero) {
         return "erf.plot2d.cloud_optics.reflectance_scale must be finite and "
                "positive";
     }
@@ -46,16 +46,23 @@ parse_cloud_optics_parameters ()
 {
     CloudOpticsParameters parameters;
     ParmParse pp("erf.plot2d.cloud_optics");
-    for (int n = 0; n < 5; ++n) {
-        pp.query(coefficient_keys[n], parameters.kext[n]);
-    }
+    // Literal keys, in coefficient_keys order, so that the inputs schema sees each one
+    pp.query("kext_qc", parameters.kext[0]);
+    pp.query("kext_qi", parameters.kext[1]);
+    pp.query("kext_qr", parameters.kext[2]);
+    pp.query("kext_qs", parameters.kext[3]);
+    pp.query("kext_qg", parameters.kext[4]);
     pp.query("reflectance_scale", parameters.reflectance_scale);
     const auto error = cloud_optics_parameter_error(parameters);
     if (!error.empty()) {
         Abort(error);
     }
-    // The writer caches this result, so runtime settings are logged once,
-    // on first requested use, including when only a station needs the fields.
+    return parameters;
+}
+
+void
+print_cloud_optics_parameters (const CloudOpticsParameters& parameters)
+{
     amrex::Print output;
     output.SetPrecision(std::numeric_limits<Real>::max_digits10);
     output << "Plot2D cloud optics: illustrative kext [m^2/kg]";
@@ -63,7 +70,6 @@ parse_cloud_optics_parameters ()
         output << " " << coefficient_keys[n] << "=" << parameters.kext[n];
     }
     output << " reflectance_scale=" << parameters.reflectance_scale << "\n";
-    return parameters;
 }
 
 bool
@@ -101,10 +107,10 @@ fill_cloud_optics (MultiFab& dst,
     }
     if (!cloud_optics_available(indices)) {
         if (tau_component >= 0) {
-            dst.setVal(-999., tau_component, 1, 0);
+            dst.setVal(cloud_optics_missing, tau_component, 1, 0);
         }
         if (albedo_component >= 0) {
-            dst.setVal(-999., albedo_component, 1, 0);
+            dst.setVal(cloud_optics_missing, albedo_component, 1, 0);
         }
         return;
     }
@@ -113,7 +119,7 @@ fill_cloud_optics (MultiFab& dst,
     // part of the vertical domain. Such a bottom-reaching level reports its
     // partial column, without reconstructing or masking missing upper cells.
     MultiFab tau(dst.boxArray(), dst.DistributionMap(), 1, 0);
-    tau.setVal(0.);
+    tau.setVal(zero);
     const bool use_metric = SolverChoice::mesh_type != MeshType::ConstantDz;
     const auto coefficients = parameters.kext;
     const Real invalid = std::numeric_limits<Real>::quiet_NaN();
@@ -130,7 +136,7 @@ fill_cloud_optics (MultiFab& dst,
             use_metric ? detJ.const_array(mfi) : Array4<const Real>{};
         ParallelFor(mfi.tilebox(),
                     [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        Real weighted_mass = 0.;
+                        Real weighted_mass = zero;
                         for (int n = 0; n < 5; ++n) {
                             if (components[n] >= 0) {
                                 const Real mass = src(i, j, k, components[n]);
@@ -141,12 +147,12 @@ fill_cloud_optics (MultiFab& dst,
                                     break;
                                 }
                                 weighted_mass += coefficients[n] *
-                                                 amrex::max(Real(0.), mass);
+                                                 amrex::max(Real(zero), mass);
                             }
                         }
                         if (use_metric) {
                             const Real jac = metric(i, j, k);
-                            weighted_mass = Math::isfinite(jac) && jac > 0.
+                            weighted_mass = Math::isfinite(jac) && jac > zero
                                                 ? weighted_mass * jac
                                                 : invalid;
                         }
@@ -166,13 +172,13 @@ fill_cloud_optics (MultiFab& dst,
         ParallelFor(mfi.tilebox(),
                     [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         const Real value = in(i, j, k);
-                        const bool valid = Math::isfinite(value) && value >= 0.;
+                        const bool valid = Math::isfinite(value) && value >= zero;
                         if (tau_component >= 0) {
-                            out(i, j, k, tau_component) = valid ? value : -999.;
+                            out(i, j, k, tau_component) = valid ? value : cloud_optics_missing;
                         }
                         if (albedo_component >= 0) {
                             out(i, j, k, albedo_component) =
-                                valid ? cloud_reflectance(value, scale) : -999.;
+                                valid ? cloud_reflectance(value, scale) : cloud_optics_missing;
                         }
                     });
     }

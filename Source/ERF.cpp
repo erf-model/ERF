@@ -3728,6 +3728,9 @@ ERF::ReadParameters ()
         pp.queryAdd("plot2d_per_1",  m_plot2d_per_1);
         pp.queryAdd("plot2d_per_2",  m_plot2d_per_2);
 
+        // Abort on an invalid cloud-optics setting now, not at the first Plot2D write
+        cloud_optics_parameters = plotfile2d::parse_cloud_optics_parameters();
+
 #ifdef ERF_USE_FIRE
         // The engine's own fire plotfile, on the 3D plotfile schedule unless
         // the deck gives one of its own

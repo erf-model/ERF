@@ -956,8 +956,9 @@ or nonpositive terrain metric, or arithmetic overflow gives ``-999`` for both
 fields. The metadata policy is ``FillMinus999WhenUnavailable`` with
 ``missing_value: -999``. Valid reflectance is bounded to [0,1]; the missing
 sentinel is outside this range. Coefficients must be finite and nonnegative;
-``reflectance_scale`` must be finite and positive. Invalid settings abort
-with the parameter name before the first requested diagnostic fill.
+``reflectance_scale`` must be finite and positive. An invalid setting aborts
+the run at startup, naming the parameter, whether or not either field is
+requested.
 
 Constant-dz integration is :math:`\Delta z\sum_k \max(0,\rho q_s)`;
 on nonconstant-dz/terrain meshes it is

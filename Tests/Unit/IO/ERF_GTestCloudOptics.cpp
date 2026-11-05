@@ -53,7 +53,7 @@ struct Column
     Geometry geom;
     MultiFab cons, metric, dst;
 
-    explicit Column(bool split = false, int covered_layers = 3)
+    explicit Column (bool split = false, int covered_layers = 3)
     {
         Box covered(domain);
         covered.setRange(2, 0, covered_layers);
