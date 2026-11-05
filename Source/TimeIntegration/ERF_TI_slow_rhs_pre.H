@@ -135,7 +135,7 @@
                      turbPert,
                      r_avg_to_pass, t_avg_to_pass,
                      forest_drag, &S_old[IntVars::cons],
-                     true, ib_wall_hfx[level].get(), ib_wall_ktarget[level].get());
+                     true, ib_wall_hfx[level].get(), ib_wall_ktarget[level].get(), ib_wall_qfx[level].get());
 
         // *****************************************************************************
         // Inject the fire-to-atmosphere heat flux AFTER make_sources, which resets

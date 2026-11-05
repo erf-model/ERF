@@ -2417,6 +2417,29 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                        "erf.implicit_moisture_diffusion=false")
     add_test_immersed_flat_equivalence(ImmersedForm7MoistEquivalence_Implicit ImmersedForm7MoistEquivalence 2 0.01 25 OFF ""
                                        "erf.implicit_moisture_diffusion=true")
+    # The same pair over a heated, evaporating surface (a kinematic heat flux of 0.02 K m/s and a
+    # moisture flux of 1e-4 kg/kg m/s, about 24 and 300 W/m2, on both; the plane's through erf.if_surf_temp_flux and
+    # erf.if_surf_moist_flux) with the moist TKE buoyancy of the k-eqn closure
+    # (erf.rans_moist_buoyancy): the wall moisture flux -u* q*, the Obukhov length from theta_v* and
+    # the moist buoyancy on the wall face must reproduce flat ground, one leg per diffusion path.
+    # The _NoMoistFlux leg drops the plane's moisture flux and must fail the check (the checker sees
+    # the surface moisture); the _DryBuoyancy leg drops the plane's moist buoyancy and must fail it.
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistFluxEquivalence ImmersedForm7MoistFluxEquivalence 2 0.01 25 OFF ""
+                                       "erf.implicit_moisture_diffusion=false")
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistFluxEquivalence_Implicit ImmersedForm7MoistFluxEquivalence 2 0.01 25 OFF ""
+                                       "erf.implicit_moisture_diffusion=true")
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistFluxEquivalence_NoMoistFlux ImmersedForm7MoistFluxEquivalence 2 0.01 25 ON
+                                       "erf.if_surf_moist_flux=0" "")
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistFluxEquivalence_DryBuoyancy ImmersedForm7MoistFluxEquivalence 2 0.01 25 ON
+                                       "erf.rans_moist_buoyancy=false" "")
+    # A given surface temperature and surface mixing ratio (erf.most.pot_surf_temp and
+    # erf.most.surf_moist on flat ground, erf.if_init_surf_temp and erf.if_surf_moist on the plane):
+    # q* from the surface value with the stability functions of the virtual Obukhov length, the
+    # wall moisture source a decay toward the surface value (the air holds half the surface's 8 g/kg,
+    # so the plane without its surface mixing ratio, _NoSurfMoist, must fail the check)
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistSurfEquivalence ImmersedForm7MoistSurfEquivalence 2 0.01 25 OFF "" "")
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistSurfEquivalence_NoSurfMoist ImmersedForm7MoistSurfEquivalence 2 0.01 25 ON
+                                       "erf.if_surf_moist=-1" "")
   endif()
   # Box, rank and tiling parity of the other closures: one box on one rank without tiling
   # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).

@@ -249,6 +249,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        erf_sbm::SBMStateManager* sbm_state_manager,
                        erf_sbm::SBMTransport* sbm_transport,
                        const amrex::MultiFab* ib_wall_face33 = nullptr,
-                       const amrex::MultiFab* ib_wall_ktarget = nullptr);
+                       const amrex::MultiFab* ib_wall_ktarget = nullptr,
+                       const amrex::MultiFab* ib_wall_qfx = nullptr);
 
 #endif

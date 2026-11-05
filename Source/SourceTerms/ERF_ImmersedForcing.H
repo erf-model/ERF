@@ -129,7 +129,9 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const amrex::Box& bx,
                                                    const amrex::Real dt,
                                                    const amrex::Real time,
                                                    bool wall_tke = false,
-                                                   amrex::Real Cmu0 = amrex::Real(0.5562));
+                                                   amrex::Real Cmu0 = amrex::Real(0.5562),
+                                                   const amrex::Array4<      amrex::Real>& wall_qfx = amrex::Array4<amrex::Real>{},
+                                                   bool wall_tke_moist = false);
 
 // Terrain immersed forcing - SCALARS
 void ImmersedForcingTerrain_Scalar (const amrex::Box& bx,
