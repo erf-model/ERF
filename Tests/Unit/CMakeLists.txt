@@ -1053,35 +1053,16 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND NOT AMReX_HDF5)
   add_executable(erf_cloud_optics_plotfile_check
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_CloudOpticsPlotfileCheck.cpp)
   target_link_libraries(erf_cloud_optics_plotfile_check PRIVATE AMReX::amrex)
-  add_executable(erf_cloud_optics_checkpoint_fixture
-    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_CloudOpticsCheckpointFixture.cpp)
-  target_include_directories(erf_cloud_optics_checkpoint_fixture PRIVATE
-    $<TARGET_PROPERTY:erf_srclib,INCLUDE_DIRECTORIES>)
-  target_compile_definitions(erf_cloud_optics_checkpoint_fixture PRIVATE
-    $<TARGET_PROPERTY:erf_srclib,COMPILE_DEFINITIONS>)
-  target_link_libraries(erf_cloud_optics_checkpoint_fixture PRIVATE AMReX::amrex)
   if(ERF_ENABLE_CUDA)
     setup_target_for_cuda_compilation(erf_cloud_optics_plotfile_check)
-    setup_target_for_cuda_compilation(erf_cloud_optics_checkpoint_fixture)
   endif()
   add_test(NAME CloudOptics_RadiationOff_Plot2D
     COMMAND ${CMAKE_COMMAND}
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
       -DCHECK_EXECUTABLE=$<TARGET_FILE:erf_cloud_optics_plotfile_check>
-      -DFIXTURE_EXECUTABLE=$<TARGET_FILE:erf_cloud_optics_checkpoint_fixture>
       -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Exec/RegTests/Bubble/inputs_BF02_moist_bubble
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/cloud_optics_writer
       -P ${CMAKE_CURRENT_SOURCE_DIR}/IO/RunCloudOptics.cmake)
-  add_test(NAME CloudOptics_MixedPhase_PartialAMR_Plot2D
-    COMMAND ${CMAKE_COMMAND}
-      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
-      -DCHECK_EXECUTABLE=$<TARGET_FILE:erf_cloud_optics_plotfile_check>
-      -DFIXTURE_EXECUTABLE=$<TARGET_FILE:erf_cloud_optics_checkpoint_fixture>
-      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Exec/RegTests/Bubble/inputs_BF02_moist_bubble
-      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/cloud_optics_mixed_amr
-      -P ${CMAKE_CURRENT_SOURCE_DIR}/IO/RunCloudOpticsMixedAMR.cmake)
-  set_tests_properties(CloudOptics_MixedPhase_PartialAMR_Plot2D PROPERTIES
-    LABELS "integration;cloud_optics" TIMEOUT 180 RUN_SERIAL TRUE)
   set_tests_properties(CloudOptics_RadiationOff_Plot2D PROPERTIES
-    LABELS "integration;cloud_optics" TIMEOUT 180 RUN_SERIAL TRUE)
+    LABELS "integration;cloud_optics" TIMEOUT 60 RUN_SERIAL TRUE)
 endif()

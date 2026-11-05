@@ -1114,8 +1114,8 @@ For example, capture and retain this record alongside the plotfiles:
    sed -n '/^Plot2D cloud optics:/p' run.log > cloud_optics_resolved_settings.txt
 
 Keep both files, rather than relying on ``job_info`` alone: supplied overrides
-may be present there while unprovided defaults are absent. The writer tests
-archive this same resolved-settings record. Logging and these settings do not
+may be present there while unprovided defaults are absent. The writer integration
+test archives this same resolved-settings record. Logging and these settings do not
 change the diagnostic values or the generic metadata format.
 
 References
