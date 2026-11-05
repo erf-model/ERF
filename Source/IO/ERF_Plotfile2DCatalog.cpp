@@ -68,14 +68,11 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::IntegratedQs,   "integrated_qs","Column-integrated snow",                          "kg/m^2",    DiagnosticCategory::ColumnIntegral, MissingPolicy::FillZeroWhenUnavailable},
         {DiagnosticID::IntegratedQg,   "integrated_qg","Column-integrated graupel",                       "kg/m^2",    DiagnosticCategory::ColumnIntegral, MissingPolicy::FillZeroWhenUnavailable},
         {DiagnosticID::CloudOpticalDepthSW, "cloud_optical_depth_sw",
-         "Estimated per-level shortwave hydrometeor extinction optical depth "
-         "(including rain, snow, and graupel; may be partial-column)",
+         "Estimated per-level shortwave hydrometeor extinction optical depth (including rain, snow, and graupel; may be partial-column)",
          "1", DiagnosticCategory::Radiation,
          MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::CloudAlbedoEst, "cloud_albedo_est",
-         "Per-level hydrometeor-only reflectance proxy (including rain, snow, "
-         "and graupel; excludes surface, gas, and aerosol contributions; may "
-         "be partial-column)",
+         "Per-level hydrometeor-only reflectance proxy (including rain, snow, and graupel; excludes surface, gas, and aerosol contributions; may be partial-column)",
          "1", DiagnosticCategory::Radiation,
          MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::SurfaceDiagnosticSource,
