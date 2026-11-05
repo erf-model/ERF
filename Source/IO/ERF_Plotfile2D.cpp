@@ -8,6 +8,7 @@
 #include "ERF_Plotfile2DInterpolator.H"
 #include "ERF_Plotfile2DPrecip.H"
 #include "ERF_Plotfile2DWaterPath.H"
+#include "ERF_Plotfile2DCloudOptics.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_NoahMPGitHash.H"
 #include "ERF_Plotfile2DUtils.H"
@@ -486,6 +487,7 @@ ERF::FillPlot2DVars (int lev,
             wind10.u_star           = surf_layer ? surf_layer->get_u_star(lev) : nullptr;
             wind10.roughness_height = surf_layer ? surf_layer->get_z0(lev)     : nullptr;
             wind10.obukhov_length   = surf_layer ? surf_layer->get_olen(lev)   : nullptr;
+            wind10.sfuns            = surf_layer ? surf_layer->similarity_functions() : similarity_funs{};
             wind10.xvel = at_ground(&vars_new[lev][Vars::xvel]);
             wind10.yvel = at_ground(&vars_new[lev][Vars::yvel]);
             wind10.klo  = klo;
@@ -676,6 +678,21 @@ ERF::FillPlot2DVars (int lev,
     if (containerHasElement(plot_var_names, "integrated_qs")) { mf_comp++; }
     if (containerHasElement(plot_var_names, "integrated_qg")) { mf_comp++; }
 
+    // Catalog order follows the condensed water paths, independently of input order.
+    const int cloud_tau_comp = containerHasElement(plot_var_names, "cloud_optical_depth_sw")
+        ? mf_comp++ : -1;
+    const int cloud_albedo_comp = containerHasElement(plot_var_names, "cloud_albedo_est")
+        ? mf_comp++ : -1;
+    if (cloud_tau_comp >= 0 || cloud_albedo_comp >= 0) {
+        if (!cloud_optics_parameters_printed) {
+            plotfile2d::print_cloud_optics_parameters(cloud_optics_parameters);
+            cloud_optics_parameters_printed = true;
+        }
+        plotfile2d::fill_cloud_optics(mf_dst, cloud_tau_comp, cloud_albedo_comp,
+            vars_new[lev][Vars::cons], solverChoice.moisture_indices,
+            cloud_optics_parameters, geom[lev], *detJ_cc[lev]);
+    }
+
     if (containerHasElement(plot_var_names, "surface_diagnostic_source")) {
         plotfile2d::fill_component_from_klevel_or_value(
             mf_dst, mf_comp,
@@ -771,6 +788,8 @@ ERF::FillPlot2DVars (int lev,
             surf_layer ? surf_layer->get_z0(lev) : nullptr;
         near_surface_sources.obukhov_length =
             surf_layer ? surf_layer->get_olen(lev) : nullptr;
+        near_surface_sources.sfuns =
+            surf_layer ? surf_layer->similarity_functions() : similarity_funs{};
         near_surface_sources.source_mask =
             surf_layer ? surf_layer->get_surface_diagnostic_source(lev) : nullptr;
         near_surface_sources.land_mask =

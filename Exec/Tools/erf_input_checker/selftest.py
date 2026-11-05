@@ -100,6 +100,7 @@ CASES: List[Tuple[str, str, List[Tuple[str, str]], List[Tuple[str, str]]]] = [
      [("ERROR", "erf.rayleigh_damp_substep")], []),
     ("retired key ibseb utc_offset_hours", "erf.ibseb.utc_offset_hours = -7",
      [("ERROR", "erf.ibseb.utc_offset_hours")], []),
+    ("retired key zsurface", "erf.zsurface = 0.0", [("ERROR", "erf.zsurface")], []),
     ("retired value", "erf.init_type = Real", [("ERROR", "erf.init_type")], []),
     ("misspelt key", "erf.dynamicViscosity = 1e-5", [("WARNING", "erf.dynamicViscosity")], []),
     ("duplicate differing", "erf.fixed_dt = 2.0", [("WARNING", "erf.fixed_dt")], []),

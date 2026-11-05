@@ -3356,7 +3356,7 @@ ERF::init_fine_low_slices (int lev, bool restarting)
     if (!has_own_init_file(lev)) { return; }
 
     const int ntimes = static_cast<int>(low_data_zlo.size());
-    const double time_since_start_low = t_new[0] + start_time - start_low_time;
+    const double time_since_start_low = t_new[0] + (start_time - start_low_time);
     const int n_time_old = std::min(static_cast<int>(time_since_start_low / low_time_interval), ntimes-1);
     const int n_time_end = std::min(n_time_old+3, ntimes);
 

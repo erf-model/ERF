@@ -1169,7 +1169,7 @@ ERF::InitData_post ()
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                                        start_bdy_time, final_bdy_time);
 
-            double time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            double time_since_start_bdy = t_new[0] + (start_time - start_bdy_time);
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
             MultiFab r_hse(base_state[0], make_alias, BaseState::r0_comp, 1);
             Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[0].get(), ay[0].get(), az[0].get()};
@@ -1231,7 +1231,7 @@ ERF::InitData_post ()
             sst_lev[lev].resize(low_data_zlo.size());
             tsk_lev[lev].resize(low_data_zlo.size());
 
-            double time_since_start_low = t_new[0] + start_time - start_low_time;
+            double time_since_start_low = t_new[0] + (start_time - start_low_time);
             int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(low_data_zlo.size()));
@@ -2935,7 +2935,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     for (auto* field_lev : {&sst_lev, &tsk_lev}) {
         if (!(*field_lev)[lev-1][0] && !(*field_lev)[lev][0]) { continue; }
 #ifdef ERF_USE_NETCDF
-        double time_since_start_low = t_new[0] + start_time - start_low_time;
+        double time_since_start_low = t_new[0] + (start_time - start_low_time);
         int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
         int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>((*field_lev)[lev-1].size()));
 #else
@@ -3727,6 +3727,9 @@ ERF::ReadParameters ()
         pp.queryAdd("plot2d_int_2" , m_plot2d_int_2);
         pp.queryAdd("plot2d_per_1",  m_plot2d_per_1);
         pp.queryAdd("plot2d_per_2",  m_plot2d_per_2);
+
+        // Abort on an invalid cloud-optics setting now, not at the first Plot2D write
+        cloud_optics_parameters = plotfile2d::parse_cloud_optics_parameters();
 
 #ifdef ERF_USE_FIRE
         // The engine's own fire plotfile, on the 3D plotfile schedule unless

@@ -72,6 +72,13 @@ struct adiabatic
         q_star_arr(i,j,k) = zero;
     }
 
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
+
 private:
     most_data mdata;
     similarity_funs sfuns;
@@ -178,6 +185,13 @@ struct adiabatic_charnock
         q_star_arr(i,j,k) = zero;
     }
 
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
+
 private:
     most_data mdata;
     similarity_funs sfuns;
@@ -280,6 +294,13 @@ struct adiabatic_mod_charnock
         q_star_arr(i,j,k) = zero;
     }
 
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
+
 private:
     most_data mdata;
     similarity_funs sfuns;
@@ -378,6 +399,13 @@ struct adiabatic_donelan
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
+
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
 
 private:
     most_data mdata;
@@ -478,6 +506,13 @@ struct adiabatic_wave_coupled
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
+
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
 
 private:
     most_data mdata;
@@ -613,6 +648,13 @@ struct surface_flux
                           t_surf_arr(i,j,k), t_star_arr(i,j,k), q_surf_arr(i,j,k), q_star_arr(i,j,k));
         olen_arr(i,j,k)   = Olen;
     }
+
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
 
 private:
     most_data mdata;
@@ -759,6 +801,13 @@ struct surface_flux_charnock
         olen_arr(i,j,k)   = Olen;
     }
 
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
+
 private:
     most_data mdata;
     bool spec_qflux;
@@ -895,6 +944,13 @@ struct surface_flux_mod_charnock
         olen_arr(i,j,k)   = Olen;
     }
 
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
+
 private:
     most_data mdata;
     bool spec_qflux;
@@ -1027,6 +1083,13 @@ struct surface_flux_donelan
                           t_surf_arr(i,j,k), t_star_arr(i,j,k), q_surf_arr(i,j,k), q_star_arr(i,j,k));
         olen_arr(i,j,k)   = Olen;
     }
+
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
 
 private:
     most_data mdata;
@@ -1161,6 +1224,13 @@ struct surface_flux_wave_coupled
                           t_surf_arr(i,j,k), t_star_arr(i,j,k), q_surf_arr(i,j,k), q_star_arr(i,j,k));
         olen_arr(i,j,k)   = Olen;
     }
+
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
 
 private:
     most_data mdata;
@@ -1353,6 +1423,13 @@ struct surface_temp
         }
     }
 
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
+
 private:
     most_data mdata;
     bool spec_qflux{false};
@@ -1543,6 +1620,13 @@ struct surface_temp_charnock
         }
     }
 
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
+
 private:
     most_data mdata;
     bool spec_qflux;
@@ -1727,6 +1811,13 @@ struct surface_temp_mod_charnock
         }
     }
 
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
+
 private:
     most_data mdata;
     bool spec_qflux;
@@ -1907,6 +1998,13 @@ struct surface_temp_donelan
             q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
         }
     }
+
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
 
 private:
     most_data mdata;
@@ -2089,6 +2187,13 @@ struct surface_temp_wave_coupled
             q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
         }
     }
+
+    /**
+     * Take the similarity functions of the surface layer (most.stable_functions).
+     *
+     * @param[in] sf similarity functions
+     */
+    void set_similarity_funs (const similarity_funs& sf) { sfuns = sf; }
 
 private:
     most_data mdata;
@@ -2543,8 +2648,8 @@ struct custom_flux
         amrex::Real ustar   = myhalf * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
         amrex::Real wsp     = std::sqrt(velx*velx+vely*vely);
 
-        // NOTE: this is rho*<u'w'> = -K dudz
-        amrex::Real stressx = -rho * ustar * ustar * velx / wsp;
+        // NOTE: this is rho*<u'w'> = -K dudz; still air has no stress direction, so no stress
+        amrex::Real stressx = (wsp > zero) ? -rho * ustar * ustar * velx / wsp : zero;
 
         return stressx;
     }
@@ -2581,8 +2686,8 @@ struct custom_flux
         amrex::Real ustar   = myhalf * ( u_star_arr(i,j-1,0) + u_star_arr(i,j,0) );
         amrex::Real wsp     = std::sqrt(velx*velx+vely*vely);
 
-        // NOTE: this is rho*<v'w'> = -K dvdz
-        amrex::Real stressy = -rho * ustar * ustar * vely / wsp;
+        // NOTE: this is rho*<v'w'> = -K dvdz; still air has no stress direction, so no stress
+        amrex::Real stressy = (wsp > zero) ? -rho * ustar * ustar * vely / wsp : zero;
 
         return stressy;
     }

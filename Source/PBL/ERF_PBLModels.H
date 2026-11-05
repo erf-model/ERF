@@ -373,6 +373,7 @@ struct PBLSurfaceLayerGradient
     amrex::Real tstar_v {zero};  ///< virtual temperature scale
     amrex::Real zval    {zero};  ///< height of the cell center above the surface
     amrex::Real zeta    {zero};  ///< stability coordinate z/L
+    similarity_funs sfuns{};     ///< the surface layer's similarity functions (most.stable_functions)
 };
 
 /**
@@ -430,7 +431,7 @@ ApplySurfaceLayerGradientsPBL (const PBLSurfaceLayerGradient& sl,
                                amrex::Real& dudz,
                                amrex::Real& dvdz)
 {
-    const similarity_funs sfuns{};
+    const similarity_funs& sfuns = sl.sfuns;
     const amrex::Real inv_kappa_z = one / (KAPPA * sl.zval);
     dudz     = sl.u_star  * sfuns.calc_phi_m(sl.zeta) * inv_kappa_z;
     dvdz     = zero;
@@ -455,6 +456,7 @@ ApplySurfaceLayerGradientsPBL (const PBLSurfaceLayerGradient& sl,
  * @param[in] hfx_z rho<w'theta'> on z-faces; the surface-layer heat flux at the zlo face
  * @param[in] qfx1_z rho<w'qv'> on z-faces; the surface-layer moisture flux at the zlo face
  * @param[in] surface_layer_on_zlo a SurfaceLayer supplies the fluxes through the zlo face
+ * @param[in] sfuns similarity functions of the surface layer on the zlo face (most.stable_functions)
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -480,7 +482,8 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& tau23,
                        const amrex::Array4<const amrex::Real>& hfx_z,
                        const amrex::Array4<const amrex::Real>& qfx1_z,
-                       bool surface_layer_on_zlo)
+                       bool surface_layer_on_zlo,
+                       const similarity_funs& sfuns)
 {
     amrex::Real source_term = zero;
 
@@ -552,8 +555,7 @@ ComputeQKESourceTerms (int i, int j, int k,
             zeta = z1 / l_obukhov;
         }
 
-        // phi_m, the companion of the psi_m that SurfaceLayer uses
-        const similarity_funs sfuns{};
+        // phi_m, the companion of the psi_m that SurfaceLayer uses (sfuns: most.stable_functions)
         const amrex::Real phi_m = sfuns.calc_phi_m(zeta);
 
         // ---- Production terms, at the cell center ----

@@ -2272,7 +2272,7 @@ ERF::ReadCheckpointFile ()
             bdy_data_yhi.resize(ntimes_erfbdy);
 
             // Determine which times we need based on current simulation time.
-            double time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            double time_since_start_bdy = t_new[0] + (start_time - start_bdy_time);
             int n_time_old = std::min(static_cast<int>(time_since_start_bdy / bdy_time_interval), ntimes_erfbdy-1);
             int n_time_new = n_time_old + 1;
 

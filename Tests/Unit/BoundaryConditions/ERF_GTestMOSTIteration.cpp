@@ -204,6 +204,7 @@ TEST(MOSTIteration, FoldFluxScaleReducesOnlyTheDownwardPrescribedFlux)
     const Real zf = Real(0.39);
     const Real ustar = Real(0.03);
     const Real tflux_fold = -ustar * ustar * ustar * Real(300.0) * zf / (KAPPA * CONST_GRAV * Real(5.0));
+    const Real ftol = (sizeof(Real) == 8) ? Real(1.0e-12) : Real(1.0e-9); // single precision rounds the sum to 2e-10
     auto scale = [=] (Real ts, Real tq, bool spec_q) {
         return most_fold_flux_scale(true, zf, ustar, Real(300.0), ts, tq, spec_q,
                                     KAPPA, CONST_GRAV, Real(5.0));
@@ -213,7 +214,7 @@ TEST(MOSTIteration, FoldFluxScaleReducesOnlyTheDownwardPrescribedFlux)
     for (const bool spec_q : {true, false}) {
         const most_flux_scale s = scale(Real(-0.004), Real(0.0035), spec_q);
         EXPECT_EQ(s.moist, Real(1.0));
-        EXPECT_NEAR(s.temp * Real(-0.004) + Real(0.0035), tflux_fold, Real(1.0e-12));
+        EXPECT_NEAR(s.temp * Real(-0.004) + Real(0.0035), tflux_fold, ftol);
         EXPECT_LT(s.temp * Real(-0.004) + Real(0.0035), Real(0.0));
     }
 
@@ -221,7 +222,7 @@ TEST(MOSTIteration, FoldFluxScaleReducesOnlyTheDownwardPrescribedFlux)
     {
         const most_flux_scale s = scale(Real(0.001), Real(-0.004), true);
         EXPECT_EQ(s.temp, Real(1.0));
-        EXPECT_NEAR(Real(0.001) + s.moist * Real(-0.004), tflux_fold, Real(1.0e-12));
+        EXPECT_NEAR(Real(0.001) + s.moist * Real(-0.004), tflux_fold, ftol);
     }
 
     // Heating with diagnosed condensation: no prescribed flux drives the fold
@@ -235,7 +236,7 @@ TEST(MOSTIteration, FoldFluxScaleReducesOnlyTheDownwardPrescribedFlux)
     {
         const most_flux_scale s = scale(Real(-0.002), Real(-0.002), true);
         EXPECT_EQ(s.temp, s.moist);
-        EXPECT_NEAR(s.temp * Real(-0.004), tflux_fold, Real(1.0e-12));
+        EXPECT_NEAR(s.temp * Real(-0.004), tflux_fold, ftol);
     }
 }
 

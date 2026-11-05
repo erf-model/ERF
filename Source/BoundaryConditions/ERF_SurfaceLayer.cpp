@@ -608,6 +608,10 @@ SurfaceLayer::compute_fluxes (const int& lev,
                               const FluxIter& most_flux,
                               bool is_land)
 {
+    // The kernel with this surface layer's similarity functions (most.stable_functions)
+    FluxIter flux_iter = most_flux;
+    flux_iter.set_similarity_funs(m_sfuns);
+
     // Pointers to the computed averages
     const auto *const tm_ptr      = m_ma.get_average(lev,3); // potential temperature
     const auto *const qvm_ptr     = m_ma.get_average(lev,4); // water vapor mixing ratio
@@ -752,7 +756,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
                 if (iterate_land || iterate_sea)
                 {
                     // NOTE: All 2D MFs so k index is always 0 from ba2d definition
-                    most_flux.iterate_flux(i, j, k, max_iters,
+                    flux_iter.iterate_flux(i, j, k, max_iters,
                                            zref_arr,                            // set in most average
                                            z0_arr,                              // updated if(!is_land)
                                            dir_umm_arr, tm_arr, tvm_arr, qvm_arr,
@@ -777,7 +781,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
                     if (iterate_land || iterate_sea)
                     {
                         if (flag_arr(i,j,k).isSingleValued()) {
-                            most_flux.iterate_flux(i, j, k, max_iters,
+                            flux_iter.iterate_flux(i, j, k, max_iters,
                                                    zref_arr,                            // set in most average
                                                    z0_arr,                              // updated if(!is_land)
                                                    umm_arr, tm_arr, tvm_arr, qvm_arr,
@@ -2058,7 +2062,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
         n_time_hi = n_time_lo + 1;
 
         // Do not over run the last sst file
-        if (m_start_low_time + elapsed_time_since_start_low >= m_final_low_time) {
+        if (elapsed_time_since_start_low >= m_final_low_time - m_start_low_time) {
             n_time_lo = static_cast<int>(m_sst_lev[lev].size())-1;
             n_time_hi = n_time_lo;
             alpha     = zero;
@@ -2949,7 +2953,7 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
     const auto *const qvm_ptr  = m_ma.get_average(lev, 4); // reference-height mixing ratio
     const auto *const umm_ptr  = m_ma.get_average(lev, 6); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);       // reference height
-    const similarity_funs sfuns{};
+    const similarity_funs sfuns = m_sfuns;
     constexpr Real wsmin = most_min_wind_speed; // the flux kernels' WSMIN
     amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
         d_fail(erf_surface_temperature::ConversionFailure{});

@@ -3,6 +3,7 @@
  */
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_Plotfile2DPrecip.H"
+#include "ERF_Plotfile2DCloudOptics.H"
 #include "ERF_TileNoZ.H"
 
 #include <AMReX.H>
@@ -200,6 +201,11 @@ available_diagnostic_names (const SolverChoice& solver_choice,
                 (has_noahmp || has_surface_layer)) {
                 names.push_back(descriptor.name);
             }
+            continue;
+        }
+        if ((descriptor.id == DiagnosticID::CloudOpticalDepthSW ||
+             descriptor.id == DiagnosticID::CloudAlbedoEst) &&
+            !cloud_optics_available(solver_choice.moisture_indices)) {
             continue;
         }
         if (is_condensed_water_path(descriptor.id)) {

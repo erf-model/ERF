@@ -267,6 +267,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "precip_graupel_accum", "precip_hail_accum", "precip_frozen_accum",
         "integrated_qv", "integrated_qc", "integrated_qi",
         "integrated_qr", "integrated_qs", "integrated_qg",
+        "cloud_optical_depth_sw", "cloud_albedo_est",
         "surface_diagnostic_source",
         "sensible_heat_flux", "latent_heat_flux",
         "shoc_u_star", "shoc_Olen", "shoc_wthv_sfc",
@@ -669,11 +670,11 @@ TEST(NearSurfaceDiagnostics, MostProfileMatchesActiveSimilarityFunction)
 
     const MostState state{300.0, 0.5, 0.010, 0.001, 0.1, 100.0};
     MostProfile profile{};
-    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 2.0, profile));
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 2.0, profile, similarity_funs{}));
 
     const amrex::Real reference_factor = reference_most_factor(2.0, 0.1, 100.0);
     amrex::Real factor = 0.0;
-    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_factor(state, 2.0, factor));
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_factor(state, 2.0, factor, similarity_funs{}));
     EXPECT_NEAR(factor, reference_factor, diagnostic_test_tolerance(reference_factor));
     const amrex::Real expected_theta = 300.0 + 0.5 / KAPPA * factor;
     const amrex::Real expected_mixing_ratio = 0.010 + 0.001 / KAPPA * factor;
@@ -685,7 +686,7 @@ TEST(NearSurfaceDiagnostics, MostProfileMatchesActiveSimilarityFunction)
     const MostState neutral{300.0, 0.0, 0.010, 0.0, 0.1, 1.0e30};
     MostProfile neutral_profile{};
     ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(neutral, 2.0,
-                                                                 neutral_profile));
+                                                                 neutral_profile, similarity_funs{}));
     EXPECT_NEAR(neutral_profile.potential_temperature, 300.0,
                 diagnostic_test_tolerance(300.0));
     EXPECT_NEAR(neutral_profile.mixing_ratio, 0.010,
@@ -693,8 +694,8 @@ TEST(NearSurfaceDiagnostics, MostProfileMatchesActiveSimilarityFunction)
 
     MostProfile profile_5m{};
     MostProfile profile_20m{};
-    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 5.0, profile_5m));
-    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 20.0, profile_20m));
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 5.0, profile_5m, similarity_funs{}));
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 20.0, profile_20m, similarity_funs{}));
     const amrex::Real round_trip_factor =
         reference_most_factor(20.0, state.roughness_height, state.obukhov_length) -
         reference_most_factor(5.0, state.roughness_height, state.obukhov_length);
@@ -716,7 +717,7 @@ TEST(NearSurfaceDiagnostics, MostFactorMatchesIndependentReference)
              MostState{300.0, 0.5, 0.010, 0.001, 0.1, -100.0},
              MostState{300.0, 0.5, 0.010, 0.001, 0.1, 1.0e30}}) {
         amrex::Real factor = 0.0;
-        ASSERT_TRUE(evaluate_most_factor(state, 2.0, factor));
+        ASSERT_TRUE(evaluate_most_factor(state, 2.0, factor, similarity_funs{}));
         const amrex::Real expected = reference_most_factor(
             2.0, state.roughness_height, state.obukhov_length);
         EXPECT_NEAR(factor, expected, diagnostic_test_tolerance(expected));
@@ -724,15 +725,15 @@ TEST(NearSurfaceDiagnostics, MostFactorMatchesIndependentReference)
 
     amrex::Real factor = 0.0;
     EXPECT_FALSE(evaluate_most_factor(
-        MostState{300.0, 0.5, 0.010, 0.001, 0.1, 0.0}, 2.0, factor));
+        MostState{300.0, 0.5, 0.010, 0.001, 0.1, 0.0}, 2.0, factor, similarity_funs{}));
     EXPECT_FALSE(evaluate_most_factor(
-        MostState{300.0, 0.5, 0.010, 0.001, 0.0, 100.0}, 2.0, factor));
+        MostState{300.0, 0.5, 0.010, 0.001, 0.0, 100.0}, 2.0, factor, similarity_funs{}));
     EXPECT_FALSE(evaluate_most_factor(
-        MostState{300.0, 0.5, 0.010, 0.001, 2.0, 100.0}, 2.0, factor));
+        MostState{300.0, 0.5, 0.010, 0.001, 2.0, 100.0}, 2.0, factor, similarity_funs{}));
     EXPECT_FALSE(evaluate_most_factor(
         MostState{300.0, 0.5, 0.010, 0.001,
                   std::numeric_limits<amrex::Real>::infinity(), 100.0},
-        2.0, factor));
+        2.0, factor, similarity_funs{}));
 }
 
 // Motivation: Unified output must use one complete source bundle and publish

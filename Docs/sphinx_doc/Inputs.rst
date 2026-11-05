@@ -1278,7 +1278,10 @@ generation.  The parameters documented there, rather than on this page, are
   ``erf.plotfile2d_type_1``, ``erf.plotfile2d_type_2``, ``erf.plotfile_type``,
   ``erf.plotfile_type_1``, ``erf.plotfile_type_2``, ``erf.subvol.dxdydz``,
   ``erf.subvol.chunk_size``, ``erf.subvol.nxnynz``, ``erf.subvol.origin``, ``erf.subvol_file``, ``erf.subvol_int``,
-  ``erf.subvol_per``, ``erf.use_real_time_in_pltname``.
+  ``erf.subvol_per``, ``erf.use_real_time_in_pltname``, ``erf.plot2d.cloud_optics.kext_qc``,
+  ``erf.plot2d.cloud_optics.kext_qi``, ``erf.plot2d.cloud_optics.kext_qr``,
+  ``erf.plot2d.cloud_optics.kext_qs``, ``erf.plot2d.cloud_optics.kext_qg``,
+  ``erf.plot2d.cloud_optics.reflectance_scale``.
 
 The names of the fields that may be selected are listed in
 :ref:`sec:Plotfile3DReference` and :ref:`sec:Plotfile2DReference`.
@@ -4342,6 +4345,30 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_moist_flux**          | prescribed surface moisture flux; used when              | Real                | 0.0              |
 |                                       | ``erf.most.surf_moist`` is not set                       |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.stable_functions**         | stable-side similarity functions of the prescribed-flux  | businger_dyer, qnse | businger_dyer    |
+|                                       | (moeng) kernels and their companions (the PBL surface    |                     |                  |
+|                                       | gradients, the 2 m and 10 m diagnostics, the MYNN        |                     |                  |
+|                                       | surface TKE production, the immersed wall laws):         |                     |                  |
+|                                       | ``businger_dyer`` (phi = 1 + 5 z/L) or ``qnse`` (phi =   |                     |                  |
+|                                       | (1 + a z/L)/(1 + b z/L), the QNSE form of Sukoriansky et |                     |                  |
+|                                       | al. 2005; slope a - b near neutral, 2.3 with the         |                     |                  |
+|                                       | defaults, bounded by a/b far from it).                   |                     |                  |
+|                                       | ``qnse`` needs the moeng flux type with                  |                     |                  |
+|                                       | ``erf.most.surf_temp_flux``, or an immersed wall law     |                     |                  |
+|                                       | that evaluates the stability functions; the run stops    |                     |                  |
+|                                       | otherwise. The unstable side is Businger-Dyer with       |                     |                  |
+|                                       | either choice. The immersed wall laws read the           |                     |                  |
+|                                       | unqualified ``erf.most.*`` keys; a side-face surface     |                     |                  |
+|                                       | layer reads ``erf.<face>.most.*``                        |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.qnse_am**,                 | QNSE coefficients a_m, b_m (momentum) and a_h, b_h       | Real, finite;       | 2.5, 0.2,        |
+| **erf.most.qnse_bm**,                 | (heat); read only with ``erf.most.stable_functions =     | b_m > 0, b_h > 0,   | 2.5, 0.2         |
+| **erf.most.qnse_ah**,                 | qnse`` (given otherwise, the run stops). The defaults    | a_m > b_m,          |                  |
+| **erf.most.qnse_bh**                  | are those of the MRF and YSUNew ``erf.qnse_*`` keys,     | a_h > b_h           |                  |
+|                                       | which the surface layer does not read (a warning is      |                     |                  |
+|                                       | printed when the two disagree); equal heat and momentum  |                     |                  |
+|                                       | values give a turbulent Prandtl number of 1              |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.ustar**                    | prescribed friction velocity [m/s].  **Required** when   | Real                | must be set      |
 |                                       | ``flux_type`` is ``custom`` or ``rico``                  |                     |                  |
