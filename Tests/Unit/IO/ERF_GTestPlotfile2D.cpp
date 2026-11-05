@@ -267,6 +267,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "precip_graupel_accum", "precip_hail_accum", "precip_frozen_accum",
         "integrated_qv", "integrated_qc", "integrated_qi",
         "integrated_qr", "integrated_qs", "integrated_qg",
+        "cloud_optical_depth_sw", "cloud_albedo_est",
         "surface_diagnostic_source",
         "sensible_heat_flux", "latent_heat_flux",
         "shoc_u_star", "shoc_Olen", "shoc_wthv_sfc",
