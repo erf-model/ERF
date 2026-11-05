@@ -487,6 +487,7 @@ ERF::FillPlot2DVars (int lev,
             wind10.u_star           = surf_layer ? surf_layer->get_u_star(lev) : nullptr;
             wind10.roughness_height = surf_layer ? surf_layer->get_z0(lev)     : nullptr;
             wind10.obukhov_length   = surf_layer ? surf_layer->get_olen(lev)   : nullptr;
+            wind10.sfuns            = surf_layer ? surf_layer->similarity_functions() : similarity_funs{};
             wind10.xvel = at_ground(&vars_new[lev][Vars::xvel]);
             wind10.yvel = at_ground(&vars_new[lev][Vars::yvel]);
             wind10.klo  = klo;
@@ -784,6 +785,8 @@ ERF::FillPlot2DVars (int lev,
             surf_layer ? surf_layer->get_z0(lev) : nullptr;
         near_surface_sources.obukhov_length =
             surf_layer ? surf_layer->get_olen(lev) : nullptr;
+        near_surface_sources.sfuns =
+            surf_layer ? surf_layer->similarity_functions() : similarity_funs{};
         near_surface_sources.source_mask =
             surf_layer ? surf_layer->get_surface_diagnostic_source(lev) : nullptr;
         near_surface_sources.land_mask =

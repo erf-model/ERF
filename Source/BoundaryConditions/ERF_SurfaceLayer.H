@@ -433,7 +433,37 @@ public:
           theta_ref = a_turb_choice.theta_ref;
       }
 
+      // Stable-side similarity functions (most.stable_functions): Businger-Dyer, or QNSE for
+      // the prescribed-flux kernels and their companions; see check_similarity_funs_use
+      m_sfuns = read_most_similarity_funs(pp);
+      check_similarity_funs_use();
+
   } // constructor
+
+  /**
+   * Stop when most.stable_functions = qnse would be read by nothing on this face.
+   *
+   * The choice selects the stable arm of the Businger-Dyer pair, which the prescribed-flux
+   * (moeng) kernels use, with their companions: the PBL surface gradients, the 2 m and 10 m
+   * diagnostics and the MYNN surface TKE production. The prescribed-temperature kernels use the Jimenez
+   * (2012) pair on both sides, the adiabatic kernels no stability function, and the custom,
+   * rico and bulk_coeff fluxes none at all. Called at construction and again where a surface
+   * file, SST/TSK data or a land model switch the flux or temperature mode.
+   */
+  void check_similarity_funs_use () const
+  {
+      if (!m_sfuns.uses_qnse()) { return; }
+      const std::string key = m_pp_prefix + ".most.stable_functions = qnse";
+      if (flux_type != FluxCalcType::MOENG && flux_type != FluxCalcType::ROTATE) {
+          amrex::Abort(key + " needs the moeng flux type: the custom, rico and bulk_coeff fluxes "
+                       "use no similarity functions");
+      }
+      if (theta_type != ThetaCalcType::HEAT_FLUX) {
+          amrex::Abort(key + " needs a prescribed heat flux (most.surf_temp_flux): the "
+                       "prescribed-temperature kernels use the Jimenez (2012) functions on both "
+                       "sides and the adiabatic kernels no stability function");
+      }
+  }
 
   /**
    * Allocate and initialize surface-layer data for one AMR level.
@@ -620,6 +650,7 @@ public:
               amrex::Print() << "Using MOST with prescribed time-varying surface fluxes from '" << sfc_file << "'" << std::endl;
           }
       }
+      check_similarity_funs_use();
 
       // The constructor's check of most.abs_surf_temp sees only most.flux_type; the
       // modes known here replace the prescribed temperature too.  The surface-flux file
@@ -882,6 +913,7 @@ public:
           // fluxes (avoids extended lambda capture) Note that land temp will be set
           // from m_tsk_lev while sea temp will be set from m_sst_lev
           theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+          check_similarity_funs_use();
 
           // Pathways in fill_tsurf_with_sst_and_tsk
           amrex::Print() << "Using MOST with specified surface temperature ";
@@ -1421,6 +1453,9 @@ public:
    */
   amrex::MultiFab* get_olen (const int& lev) { return olen[lev].get(); }
 
+  /** Similarity functions of this surface layer (most.stable_functions). */
+  const similarity_funs& similarity_functions () const { return m_sfuns; }
+
   /**
    * Return the planetary-boundary-layer-height field.
    *
@@ -1840,6 +1875,7 @@ public:
   RoughCalcType rough_type_land{RoughCalcType::CONSTANT};
   RoughCalcType rough_type_sea{RoughCalcType::CHARNOCK};
   PBLHeightCalcType pblh_type{PBLHeightCalcType::None};
+  similarity_funs m_sfuns; ///< stable-side similarity functions (most.stable_functions)
 
 private:
   // Set in constructor
