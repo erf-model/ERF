@@ -1,15 +1,16 @@
 # Four levels (amr.ref_ratio_vect = 2 2 1 on each), each refined level stopping below the domain
-# top, anelastic with two-way coupling (erf-model/ERF#4988).
+# top, anelastic with two-way coupling, in a uniform flow (erf-model/ERF#4988).
 #
 # With amr.iterate_grids (the default) AmrMesh::MakeNewGrids builds the levels one at a time and
 # then regenerates them all from level 0 once the finest level exists.  Levels 1 and 2 grow by the
 # proper-nesting buffer in that pass and are made from scratch a second time; level 3 sits well
 # inside level 2 and is not.  The run log shows it:
-#   Level 2 made from scratch with 12 grids   (twice)
-#   Level 3 made from scratch with 20 grids   (once)
-# The flux register on the level 2 / level 3 interface was built when level 3 was made, from the
-# first grids of level 2, and must be rebuilt when level 2 is remade; left alone, the first step
-# indexes it with the new boxes of level 2 (a fault or an assertion in getAdvFluxReg).
+#   Level 2 made from scratch with ... grids   (twice)
+#   Level 3 made from scratch with ... grids   (once)
+# When level 2 is made again it must rebuild the flux register on its interface with level 3,
+# which was built from its first grids, and fill its own ghost cells, which the second tagging pass
+# otherwise fills from a level 1 whose ghost cells are still empty.  The flow is uniform, so every
+# step must leave it as it started on every level (plt00000 against plt00003).
 max_step  = 3
 erf.fixed_dt = 1.6
 
@@ -42,7 +43,6 @@ zhi.type = "SlipWall"
 erf.anelastic      = 1
 erf.vert_implicit  = true
 erf.anelastic_type = MidPoint
-erf.use_fft        = true
 erf.use_gravity    = true
 
 erf.molec_diff_type = "None"
@@ -56,5 +56,7 @@ prob.U_0   = 10.0
 erf.theta_ref = 300.0
 
 erf.sum_interval = -1
-erf.plot_int_1   = -1
+erf.plot_file_1  = plt
+erf.plot_int_1   = 3
+erf.plot_vars_1  = density rhotheta x_velocity y_velocity z_velocity
 erf.check_int    = -1

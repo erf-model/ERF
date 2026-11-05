@@ -552,12 +552,16 @@ A uniform anelastic flow on four levels (``amr.ref_ratio_vect = 2 2 1`` on each)
 level stopping below the domain top, with two-way coupling.  With ``amr.iterate_grids`` (the
 default) AMReX builds the levels one at a time and then regenerates them all from level 0 once the
 finest level exists; levels 1 and 2 grow by the proper-nesting buffer in that pass and are made
-from scratch a second time, while level 3 sits well inside level 2 and is not.  The flux register
-on the level 2 / level 3 interface, built from the first grids of level 2, has to be rebuilt when
-level 2 is remade (`erf-model/ERF#4988 <https://github.com/erf-model/ERF/issues/4988>`_).  The
-test requires the run log to show that second pass (level 2 made from scratch twice, level 3 once)
-and the three steps to finish; a register left on the old grids stops the first step with an
-assertion in ``getAdvFluxReg``.
+from scratch a second time, while level 3 sits well inside level 2 and is not.  When level 2 is
+made again it has to rebuild the flux register on its interface with level 3, which was built from
+its first grids, and fill its own ghost cells, which the second tagging pass would otherwise fill
+from a level 1 whose ghost cells are still empty
+(`erf-model/ERF#4988 <https://github.com/erf-model/ERF/issues/4988>`_).  The test requires the run
+log to show that second pass (level 2 made from scratch twice, level 3 once) and the uniform flow to
+stay uniform on every level over three steps (``plt00000`` against ``plt00003``).  A register left
+on the old grids stops the first step with an assertion in ``getAdvFluxReg``; without the ghost
+fill the initial state is several m/s from uniform and the multigrid pressure solve fails in the
+second step.
 
 Test Location: `Tests/test_files/TwoWay_FourLevels_PartialDepth`_
 
