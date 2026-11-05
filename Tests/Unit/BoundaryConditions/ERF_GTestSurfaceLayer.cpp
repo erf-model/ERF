@@ -1616,15 +1616,16 @@ TEST(SurfaceLayer, LsmDerivedParametersPreserveWaterAndBuildingColumns)
     fields.cons.setVal(test_rho * test_qv, RhoQ1_comp, 1, ng);
 
     for (const char* name : {"t_flux", "q_flux", "tau13", "tau23"}) {
+        // Undefined fluxes make the time-zero update iterate MOST in every column.
         auto mf = std::make_unique<MultiFab>(collapse_z(fields.ba), fields.dm, 1, 0);
-        mf->setVal(Real(0.0));
+        mf->setVal(lsm_undefined);
         fields.lsm_flux_data.push_back(std::move(mf));
         fields.lsm_flux_names.push_back(name);
     }
 
     const Orientation face(Direction::z, Orientation::low);
-    // At time zero, initialize the reference values with MOST, before LSM fluxes
-    // are used. Then assign water, land, and building columns to the same state.
+    // Initialize the reference values with MOST, then assign water, land, and
+    // building columns to the same state and supply valid zero LSM fluxes.
     auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true);
     const std::array<MultiFab*, 5> parameters = {
         layer->get_u_star(0), layer->get_t_star(0), layer->get_q_star(0),
@@ -1640,6 +1641,9 @@ TEST(SurfaceLayer, LsmDerivedParametersPreserveWaterAndBuildingColumns)
         }
     }
     set_clamped_landmask(*fields.lmask[0], ilo);
+    for (auto& mf : fields.lsm_flux_data) {
+        mf->setVal(Real(0.0));
+    }
 
     layer->compute_sfc_params_from_lsm_fluxes(0, fields.cons);
     Gpu::streamSynchronize();
