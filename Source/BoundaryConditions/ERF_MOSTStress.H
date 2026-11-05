@@ -2648,8 +2648,8 @@ struct custom_flux
         amrex::Real ustar   = myhalf * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
         amrex::Real wsp     = std::sqrt(velx*velx+vely*vely);
 
-        // NOTE: this is rho*<u'w'> = -K dudz
-        amrex::Real stressx = -rho * ustar * ustar * velx / wsp;
+        // NOTE: this is rho*<u'w'> = -K dudz; still air has no stress direction, so no stress
+        amrex::Real stressx = (wsp > zero) ? -rho * ustar * ustar * velx / wsp : zero;
 
         return stressx;
     }
@@ -2686,8 +2686,8 @@ struct custom_flux
         amrex::Real ustar   = myhalf * ( u_star_arr(i,j-1,0) + u_star_arr(i,j,0) );
         amrex::Real wsp     = std::sqrt(velx*velx+vely*vely);
 
-        // NOTE: this is rho*<v'w'> = -K dvdz
-        amrex::Real stressy = -rho * ustar * ustar * vely / wsp;
+        // NOTE: this is rho*<v'w'> = -K dvdz; still air has no stress direction, so no stress
+        amrex::Real stressy = (wsp > zero) ? -rho * ustar * ustar * vely / wsp : zero;
 
         return stressy;
     }
