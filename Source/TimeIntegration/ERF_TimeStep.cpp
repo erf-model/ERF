@@ -39,7 +39,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
 
         int ntimes = bdy_data_xlo.size();
-        double time_since_start_bdy = time + start_time - start_bdy_time;
+        double time_since_start_bdy = time + (start_time - start_bdy_time);
         int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval), ntimes-1);
         auto repack_runtime_bdy = [&] (const int itime) {
@@ -110,7 +110,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
     if (!nc_low_file.empty() && (lev==0))
     {
         int ntimes = low_data_zlo.size();
-        double time_since_start_low = time + start_time - start_low_time;
+        double time_since_start_low = time + (start_time - start_low_time);
         int n_time_old = std::min(static_cast<int>( (time_since_start_low        ) /  low_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_low+dt[lev]) /  low_time_interval), ntimes-1);
 

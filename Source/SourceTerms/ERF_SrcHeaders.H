@@ -111,7 +111,8 @@ void make_sources (int level, int nrk,
  * @param[in,out] source Source terms to be updated.
  * @param[in] n_qstate Number of moisture species.
  * @param[in] dt Time step.
- * @param[in] old_stage_time_total Total time at current stage.
+ * @param[in] elapsed_time Current stage time, measured from the start of the run.
+ * @param[in] start_time Epoch time of the start of the run.
  * @param[in] start_bdy_time Start time for boundary data.
  * @param[in] final_bdy_time Final time for boundary data.
  * @param[in] bdy_time_interval Interval between boundary data files.
@@ -133,7 +134,8 @@ add_moist_nudging_terms (const amrex::MultiFab& S_data,
                                amrex::MultiFab& source,
                          const int n_qstate,
                          const double& dt,
-                         const double& old_stage_time_total,
+                         const double& elapsed_time,
+                         const double& start_time,
                          const double& start_bdy_time,
                          const double& final_bdy_time,
                          const double& bdy_time_interval,

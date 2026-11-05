@@ -134,6 +134,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestReduceToMaxPerHeight.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryDensity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryMoisture.cpp
+    # Motivation: the wrfbdy time-interpolation weight must follow the elapsed time to roundoff,
+    # not to the ~2.4e-7 s spacing of doubles at epoch times.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestBdyTimeWeights.cpp
     # Motivation: face-local wall metadata must not inherit a later wall's
     # density representation or treat explicit zero as absent.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWallBCMetadata.cpp
