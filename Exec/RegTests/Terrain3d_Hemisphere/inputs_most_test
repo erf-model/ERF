@@ -39,7 +39,7 @@ erf.most.radius            = 1       # SPECIFIED REGION RADIUS
     
     
 # TIME STEP CONTROL
-erf.substepping_type = 1
+erf.substepping_type = None
 erf.fixed_dt         = 1E-5     
 
 # DIAGNOSTICS & VERBOSITY
