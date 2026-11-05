@@ -140,9 +140,6 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     auto ProbHi = geom.ProbHiArray();
     auto ProbLo = geom.ProbLoArray();
 
-    // Time interpolation
-    double dT_d = bdy_time_interval;
-
     //
     // start_bdy_time and final_bdy_time are measured as total (epoch) time
     //
@@ -151,7 +148,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     // Time interpolation (see bdy_time_weights for why the offset is formed first)
     const BdyTimeWeights tw = bdy_time_weights(elapsed_time + (start_time - start_bdy_time),
                                                final_bdy_time - start_bdy_time,
-                                               dT_d);
+                                               bdy_time_interval);
     const int  n_time    = tw.n_lo;
     const int  n_time_p1 = tw.n_hi;
     const Real alpha     = tw.alpha;
@@ -169,18 +166,6 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         // We will add to source terms for moist variables and
         //    to source term for (rho theta)
         const Array4<      Real>& src_arr        = source.array(mfi);
-
-        //
-        // Note that old_stage_time_total = start_time+old_stage_time is total time
-        //           start_bdy_time and final_bdy_time are total time
-        //
-        // moist_set_rhs(geom, tbx, new_cons_const, src_arr,
-        //               old_stage_time_total, dt,
-        //               start_bdy_time, final_bdy_time, bdy_time_interval,
-        //               bdy_factor, width, domain,
-        //               bdy_data_xlo, bdy_data_xhi,
-        //               bdy_data_ylo, bdy_data_yhi,
-        //               m_r2d);
 
         // Get bndry data
         if (m_r2d) {

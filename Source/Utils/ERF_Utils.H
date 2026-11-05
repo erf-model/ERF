@@ -425,13 +425,13 @@ bdy_time_weights (const double time_since_start, const double data_span, const d
         // Do not over run the last slice
         w.n_lo  = static_cast<int>(data_span / dT);
         w.n_hi  = w.n_lo;
-        w.alpha = amrex::Real(0.);
+        w.alpha = zero;
     } else {
         w.n_lo  = static_cast<int>(time_since_start / dT);
         w.n_hi  = w.n_lo + 1;
         w.alpha = static_cast<amrex::Real>((time_since_start - w.n_lo * dT) / dT);
     }
-    AMREX_ALWAYS_ASSERT(w.alpha >= amrex::Real(0.) && w.alpha <= amrex::Real(1.));
+    AMREX_ALWAYS_ASSERT(w.alpha >= zero && w.alpha <= one);
     return w;
 }
 

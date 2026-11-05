@@ -16,9 +16,13 @@ constexpr double data_span      = 20 * dT;
 // Motivation: the weight of the next boundary slice must follow the elapsed time to roundoff.
 // Forming the time as (elapsed + start_time) - start_bdy_time rounds the elapsed time to the
 // ~2.4e-7 s spacing of doubles at epoch times, so the substep times of a refined level, such
-// as 10.8333... s, mapped to a weight with only ~7 good digits.
+// as 10.8333... s, mapped to a weight with only ~7 good digits.  The weight is an amrex::Real,
+// so the tolerance is a multiple of the working precision: in double precision that is ~1e-15,
+// well below the ~1e-11 error of the old form; in single precision the old form's error is
+// below the roundoff of the weight itself, and the test only checks the weight to that roundoff.
 TEST(BdyTimeWeights, WeightFollowsElapsedTimeToRoundoff)
 {
+    const double tol = static_cast<double>(amrex::Real(4) * real_eps);
     const double start_time = start_bdy_time + 3600.0; // run starts an hour into the data
     for (const double elapsed : {10.0, 10.0 + 5.0/6.0, 11.0 + 2.0/3.0, 13.0 + 1.0/3.0, 1.0e-3}) {
         const double tsb = elapsed + 3600.0;
@@ -26,7 +30,7 @@ TEST(BdyTimeWeights, WeightFollowsElapsedTimeToRoundoff)
                                                   data_span, dT);
         EXPECT_EQ(w.n_lo, 0);
         EXPECT_EQ(w.n_hi, 1);
-        EXPECT_NEAR(w.alpha, tsb / dT, 4.0e-16) << "elapsed = " << elapsed;
+        EXPECT_NEAR(w.alpha, tsb / dT, tol) << "elapsed = " << elapsed;
     }
 }
 
