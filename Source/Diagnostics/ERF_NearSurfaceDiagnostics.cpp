@@ -97,6 +97,7 @@ void fill (MultiFab& dst,
         const Real dz = sources.dz;
         const bool moist = sources.moist;
         const bool has_lsm = sources.has_lsm;
+        const similarity_funs sfuns = sources.sfuns;
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             Real temperature = missing_value;
@@ -142,7 +143,7 @@ void fill (MultiFab& dst,
                     (have_most_temperature || have_most_mixing_ratio) ? olen(i,j,0) : missing_value
                 };
                 Real factor = zero;
-                const bool common_most_valid = evaluate_most_factor(state, Real(2.0), factor);
+                const bool common_most_valid = evaluate_most_factor(state, Real(2.0), factor, sfuns);
                 bool most_temperature_valid = false;
                 bool most_mixing_ratio_valid = false;
                 Real theta_2m = missing_value;
@@ -248,6 +249,7 @@ void fill_wind_10m (MultiFab& dst,
         const auto v = array_or_empty(sources.yvel, mfi);
         const auto cosa = array_or_empty(sources.cos_alpha, mfi);
         const auto sina = array_or_empty(sources.sin_alpha, mfi);
+        const similarity_funs sfuns = sources.sfuns;
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             Real u10 = missing_value;
@@ -255,7 +257,7 @@ void fill_wind_10m (MultiFab& dst,
             Real factor = zero;
             if (have_surface_layer &&
                 valid_real(ustar(i,j,0)) && ustar(i,j,0) >= zero &&
-                evaluate_most_momentum_factor(z0(i,j,0), olen(i,j,0), wind_height, factor)) {
+                evaluate_most_momentum_factor(z0(i,j,0), olen(i,j,0), wind_height, factor, sfuns)) {
                 const Real speed = ustar(i,j,0) / KAPPA * factor;
                 // The direction of the wind at the centre of the first cell
                 const Real u_cc = myhalf * (u(i,j,klo) + u(i+1,j,klo));

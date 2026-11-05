@@ -171,6 +171,7 @@ ComputeDiffusivityMYJ (double dt,
         const bool surface_layer_on_zlo = (SurfLayer != nullptr);
         const auto u_star_arr = (surface_layer_on_zlo) ?
                                 SurfLayer->get_u_star(level)->const_array(mfi) : Array4<const Real>{};
+        const similarity_funs l_sfuns = (surface_layer_on_zlo) ? SurfLayer->similarity_functions() : similarity_funs{};
         const auto t_star_arr = (surface_layer_on_zlo) ?
                                 SurfLayer->get_t_star(level)->const_array(mfi) : Array4<const Real>{};
         const auto q_star_arr = (surface_layer_on_zlo && use_moisture) ?
@@ -264,6 +265,7 @@ ComputeDiffusivityMYJ (double dt,
                                                         theta, qv, use_moisture);
                     sl.zval    = zval;
                     sl.zeta    = zval / l_obuk;
+                    sl.sfuns   = l_sfuns;
                     ApplySurfaceLayerGradientsPBL(sl, dthetavdz, dudz, dvdz);
                 }
 

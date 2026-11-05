@@ -121,6 +121,9 @@ target_sources(${erf_exe_name}
     # Motivation: the MOST flux kernels must stay bounded and correctly signed at the
     # stable fold of a prescribed flux and when the log-law bracket would change sign.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTIteration.cpp
+    # Motivation: the QNSE stable-side functions must match their closed forms, keep the
+    # default and the unstable side untouched, and move the stable fold the way the analysis says.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTStableFunctions.cpp
     # Motivation: the MOST reference height must use the true stretched cell
     # centers, and a query on a mesh face must be found rather than abort.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageZref.cpp

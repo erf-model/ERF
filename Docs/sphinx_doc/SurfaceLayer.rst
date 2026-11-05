@@ -102,6 +102,44 @@ where the constants take the values proposed in `Dyer, Boundary Layer Meteorolog
 .. math::
   \sigma_{\theta}=1, \quad \beta = 5, \quad \gamma_{1}=16, \quad \gamma_{2}=16
 
+The stable side can instead take the quasi-normal scale elimination (QNSE) form of
+`Sukoriansky, Galperin and Perov, Boundary-Layer Meteorology, 2005
+<https://doi.org/10.1007/s10546-004-6848-6>`_ with ``erf.most.stable_functions = qnse``:
+
+.. math::
+  \Phi = \frac{1 + a\,\zeta}{1 + b\,\zeta}, \quad \Psi = -\frac{a - b}{b}\,\mathrm{ln}(1 + b\,\zeta),
+
+with separate coefficients for momentum and heat (``erf.most.qnse_am``, ``erf.most.qnse_bm``,
+``erf.most.qnse_ah``, ``erf.most.qnse_bh``). The QNSE theory gives eddy viscosities and
+diffusivities as functions of the Richardson number; the rational form in :math:`\zeta` and the
+default coefficients, 2.5 and 0.2 for both momentum and heat, are those of ERF's MRF and YSUNew
+schemes (``erf.qnse_*`` with ``erf.enable_qnse_stable_functions``), not values quoted from the
+paper. The form changes the whole stable side, not only its tail: near neutral
+:math:`\Phi \approx 1 + (a - b)\,\zeta`, a slope of 2.3 with the defaults against the
+Businger-Dyer 5 (observations give 4.7 to 6), so at :math:`\zeta = 0.1` the correction is about
+half the Businger-Dyer one and :math:`u_\star` already moves by a few percent; far from neutral
+:math:`\Phi` tends to :math:`a/b = 12.5`, so the surface stress and heat flux fall off more slowly
+than with the linear form, which is the limit :math:`b \to 0` at :math:`a = \beta`. A choice such
+as :math:`a = 5.2`, :math:`b = 0.2` keeps the Businger-Dyer slope near neutral with a bounded
+:math:`\Phi` (asymptote 26). With :math:`a_h = a_m` and :math:`b_h = b_m`, as in the defaults,
+:math:`\Phi_h = \Phi_m` and the turbulent Prandtl number is 1 on the stable side, as with
+Businger-Dyer; a stability-dependent Prandtl number, the distinguishing feature of QNSE, needs
+heat coefficients of its own. The surface-layer keys are separate from the PBL schemes' keys, which
+the surface layer does not read; ERF prints a warning at start-up when an MRF or YSUNew run sets
+the two differently. The 2 m and 10 m diagnostics hold :math:`\zeta` at 1 with Businger-Dyer and
+at the kernels' bound of 100 with QNSE, whose fold can lie above 1, so that they evaluate the
+profile at the :math:`\zeta` of the flux.
+The unstable side is Businger-Dyer with either choice. The choice applies to the prescribed-flux
+(Moeng) kernels and to their companions: the surface gradients the PBL schemes take from the MOST
+profile at the first cell, the 2 m and 10 m diagnostics, the surface shear production of the
+MYNN TKE, and the immersed wall laws (the legacy law with ``erf.if_stability_correction`` and the
+``fraction_stress`` law). The prescribed-temperature kernels use the Jimenez (2012) functions on
+both sides and refuse the option, as do the adiabatic kernels and the custom, rico and
+bulk_coeff fluxes, which use no stability function. The IBSEB building faces keep the
+Businger-Dyer functions, and the Cloud Chamber its Jimenez pair. A side-face surface layer
+reads its own ``erf.<face>.most.stable_functions``; the immersed wall laws read the
+unqualified ``erf.most.*`` keys only.
+
 Inverting the equations above, the MOST stability parameter,
 
 .. math::
@@ -306,6 +344,13 @@ and below that wind the flux has no similarity solution (Basu et al., "An inconv
 about using sensible heat flux as a surface boundary condition in models under stably
 stratified regimes", Boundary-Layer Meteorol., 2008). Where the bracket floor binds first
 (:math:`C < 1/3`), the minimum is instead where :math:`C + 5\,z_{ref}/L` reaches the floor.
+With the QNSE functions the supported wind is :math:`u_{\star}(C + c\,\mathrm{ln}(1 + b_m z_{ref}/L))/\kappa`
+with :math:`c = (a_m - b_m)/b_m`; its first minimum, found by a safeguarded Newton iteration on
+the bracket where the supported wind falls, sits at a lower wind
+than Businger-Dyer's (0.53 against 0.70 m/s at :math:`z_{ref}` = 4.43 m, :math:`z_0` = 0.5 m and
+a flux of -0.0025 K m/s), and for :math:`C` above :math:`c\,(2 - \mathrm{ln}\,3)` (10.4 with the
+default coefficients) there is none below the bound :math:`z_{ref}/L = 100` of the kernels, which
+then hold :math:`z_{ref}/L` there and reduce the flux as at a fold.
 Wherever the wind is below the minimum, for example under a forest canopy that slows the
 first-cell wind to about 1 m/s, ERF holds :math:`z_{ref}/L` at the fold and applies only the
 virtual heat flux that the wind carries there, which is weaker than the prescribed one. Only

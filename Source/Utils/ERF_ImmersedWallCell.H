@@ -127,6 +127,7 @@ struct WallCond
     amrex::Real q{0.0};
     amrex::Real theta_s{0.0};
     amrex::Real Linv{0.0};
+    similarity_funs sfuns{};  //!< the similarity functions (erf.most.stable_functions)
 };
 
 /** Friction velocity, temperature scale and inverse Obukhov length of a wall cell */
@@ -145,8 +146,9 @@ amrex::Real phi (amrex::Real d, amrex::Real z0, amrex::Real psi) noexcept
 }
 
 /**
- * Wall state of the fraction-stress law with MOST stability functions (the Dyer functions of
- * the flat surface layer, similarity_funs::calc_psi_m / calc_psi_h, zeta clamped to +-100):
+ * Wall state of the fraction-stress law with MOST stability functions (the functions of the
+ * flat surface layer, similarity_funs::calc_psi_m / calc_psi_h with Dyer's or QNSE's stable
+ * side as erf.most.stable_functions says, zeta clamped to +-100):
  *     u*^2     = (1-b) (kappa ut     / phi_m(d1))^2 + b (kappa ut_ref / phi_m(d2))^2
  *     theta*   = -q / u*                                   (heat_flux)
  *              = (1-b) kappa (theta - theta_s) / phi_h(d1)
@@ -161,7 +163,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 WallState wall_state (amrex::Real ut, amrex::Real ut_ref, amrex::Real theta, amrex::Real theta_ref,
                       amrex::Real beta, amrex::Real dz, amrex::Real z0, const WallCond& c) noexcept
 {
-    similarity_funs sfuns;
+    const similarity_funs& sfuns = c.sfuns;
     const amrex::Real one_r  = amrex::Real(1.0);
     const amrex::Real d_min  = amrex::Real(2.0) * z0;
     const amrex::Real d1 = amrex::max(amrex::Real(0.5) * (one_r - beta) * dz, d_min);
