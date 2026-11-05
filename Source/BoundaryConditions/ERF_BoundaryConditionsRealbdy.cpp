@@ -31,23 +31,14 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     ngvect_cons[2] = 0;
     ngvect_vels[2] = 0;
 
-    // Time interpolation
-    double dT = bdy_time_interval;
-
+    // Time interpolation (see bdy_time_weights for why the offset is formed first)
     double time_tot = time + start_time;
-    double time_since_start_bdy = time_tot - start_bdy_time;
-    int n_time    = static_cast<int>( time_since_start_bdy /  dT);
-    int n_time_p1 = n_time + 1;
-    Real alpha  = static_cast<Real>((time_since_start_bdy - n_time * dT) / dT);
-
-    // Do not over run the last bdy file
-    if (time_tot >= final_bdy_time) {
-        n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
-        n_time_p1 = n_time;
-        alpha     = zero;
-    }
-
-    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    const BdyTimeWeights tw = bdy_time_weights(time + (start_time - start_bdy_time),
+                                               final_bdy_time - start_bdy_time,
+                                               bdy_time_interval);
+    const int  n_time    = tw.n_lo;
+    const int  n_time_p1 = tw.n_hi;
+    const Real alpha     = tw.alpha;
     Real oma   = one - alpha;
 
     // Flags for read vars and index mapping, built from the component layout

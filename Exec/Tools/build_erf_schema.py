@@ -60,7 +60,8 @@ def facts_from(a, site):
 
 
 def write(result, out):
-    out.write_text(json.dumps(result, indent=1, sort_keys=True, ensure_ascii=False) + "\n")
+    text = json.dumps(result, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+    out.write_bytes(text.encode("utf-8"))           # not write_text: Windows would write \r\n, and the bytes differ
 
 
 def main(argv=None):

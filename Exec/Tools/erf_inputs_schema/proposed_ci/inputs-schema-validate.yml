@@ -43,5 +43,5 @@ jobs:
       - name: Generate a schema at the PR head (smoke test)
         run: |
           python3 Exec/Tools/build_erf_schema.py --repo . --erf HEAD --out "$RUNNER_TEMP/erf_inputs_schema.json"
-          python3 -c "import json,sys; s=json.load(open(sys.argv[1])); assert len(s['keys']) > 1000, len(s['keys'])" \
+          python3 -c "import json,sys; s=json.load(open(sys.argv[1])); assert len(s['keys']) > 1000 and len(s['patterns']) > 10, (len(s['keys']), len(s['patterns']))" \
             "$RUNNER_TEMP/erf_inputs_schema.json"
