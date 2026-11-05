@@ -3514,6 +3514,15 @@ ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out)
                          std::to_string(level) +
                          ". Update amr.ref_ratio or amr.ref_ratio_vect to match the file.");
         }
+        // ErrorEst coarsens and re-refines this box; that must preserve its full extent.
+        if (file_box.length(0) % ratio != 0 || file_box.length(1) % ratio != 0) {
+            amrex::Abort("WRF input file " + nc_init_file[level][idx] +
+                         " has horizontal cell counts " +
+                         std::to_string(file_box.length(0)) + " x " +
+                         std::to_string(file_box.length(1)) +
+                         ", which must both be divisible by PARENT_GRID_RATIO = " +
+                         std::to_string(ratio) + ".");
+        }
         for (int d = 0; d < 2; ++d) {
             file_box.shift(d, parent_origin[d] * expected_ratio[d]);
         }
