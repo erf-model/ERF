@@ -11,7 +11,8 @@ using namespace amrex;
  * @param[in] S_data  current solution
  * @param[in] source  source terms for moist conserved variables
  * @param[in] dt      slow time step
- * @param[in] old_stage_time_total
+ * @param[in] elapsed_time  current stage time, measured from the start of the run
+ * @param[in] start_time    epoch time of the start of the run
  * @param[in] start_bdy_time
  * @param[in] final_bdy_time
  * @param[in] bdy_time_interval
@@ -29,7 +30,8 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                     MultiFab & source,
                               const int n_qstate,
                               const double& dt,
-                              const double& time,
+                              const double& elapsed_time,
+                              const double& start_time,
                               const double& start_bdy_time,
                               const double& final_bdy_time,
                               const double& bdy_time_interval,
@@ -138,27 +140,18 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     auto ProbHi = geom.ProbHiArray();
     auto ProbLo = geom.ProbLoArray();
 
-    // Time interpolation
-    double dT_d = bdy_time_interval;
-    Real   dT   = static_cast<Real>(dT_d);
-
     //
-    // Note that time (= start_time+old_stage_time)  is measured as total time
-    //           start_bdy_time and final_bdy_time are also measured as total time
+    // start_bdy_time and final_bdy_time are measured as total (epoch) time
     //
+    const double time = start_time + elapsed_time; // total time, for the boundary planes
 
-    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
-    int n_time_p1 = n_time + 1;
-    Real alpha    = static_cast<Real>(((time-start_bdy_time) - n_time * dT) / dT);
-
-    // Do not over run the last bdy file
-    if (time >= final_bdy_time) {
-      n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
-      n_time_p1 = n_time;
-      alpha     = zero;
-    }
-
-    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    // Time interpolation (see bdy_time_weights for why the offset is formed first)
+    const BdyTimeWeights tw = bdy_time_weights(elapsed_time + (start_time - start_bdy_time),
+                                               final_bdy_time - start_bdy_time,
+                                               bdy_time_interval);
+    const int  n_time    = tw.n_lo;
+    const int  n_time_p1 = tw.n_hi;
+    const Real alpha     = tw.alpha;
     Real oma   = one - alpha;
 
     // Limiting offset
@@ -173,18 +166,6 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         // We will add to source terms for moist variables and
         //    to source term for (rho theta)
         const Array4<      Real>& src_arr        = source.array(mfi);
-
-        //
-        // Note that old_stage_time_total = start_time+old_stage_time is total time
-        //           start_bdy_time and final_bdy_time are total time
-        //
-        // moist_set_rhs(geom, tbx, new_cons_const, src_arr,
-        //               old_stage_time_total, dt,
-        //               start_bdy_time, final_bdy_time, bdy_time_interval,
-        //               bdy_factor, width, domain,
-        //               bdy_data_xlo, bdy_data_xhi,
-        //               bdy_data_ylo, bdy_data_yhi,
-        //               m_r2d);
 
         // Get bndry data
         if (m_r2d) {
