@@ -34,7 +34,7 @@ zhi.theta_grad = 0.0
 
 # anelastic, implicit vertical diffusion (solved in the first MidPoint stage)
 erf.compressibility_type = Anelastic
-erf.anelastic_type = MidPoint
+erf.timestepping_type = MidPoint
 erf.vert_implicit  = true
 erf.use_fft        = true    # FFT Poisson solve (flat, periodic in x and y)
 erf.fixed_dt       = 1.0

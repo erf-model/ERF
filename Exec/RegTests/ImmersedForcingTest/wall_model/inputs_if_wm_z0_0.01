@@ -30,7 +30,6 @@ zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
 erf.cfl                = 0.4
 
 # DIAGNOSTICS & VERBOSITY

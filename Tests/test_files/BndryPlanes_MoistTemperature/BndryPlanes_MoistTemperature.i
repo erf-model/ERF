@@ -22,7 +22,7 @@ xhi.type = "Outflow"
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
-erf.substepping_type = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.fixed_dt         = 2.0e-2
 
 erf.v              = 1

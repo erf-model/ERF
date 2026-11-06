@@ -42,7 +42,7 @@ zhi.type = "SlipWall"
 
 erf.compressibility_type = Anelastic
 erf.vert_implicit  = true
-erf.anelastic_type = MidPoint
+erf.timestepping_type = MidPoint
 erf.use_gravity    = true
 
 erf.molec_diff_type = "None"

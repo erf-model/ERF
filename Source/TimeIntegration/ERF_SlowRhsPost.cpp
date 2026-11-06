@@ -139,7 +139,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_anelastic     = solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible;
-    const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
+    const bool l_anelastic_rk2 = (solverChoice.timestepping_type[level] == TimesteppingType::RK2);
 
     // Add to the flux registers only in the stages whose fluxes the step's update applies,
     // weighted as in that update (RefluxStageWeight)
@@ -276,7 +276,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     // caller copies S_data over S_new, preserving the predictor density view.
     if (auxiliary_inert_tracer != nullptr) {
         const auto method = !l_anelastic ? erf_auxiliary::HostIntegrator::CompressibleRK3 :
-            (solverChoice.anelastic_type[level] == AnelasticType::RK2 ?
+            (solverChoice.timestepping_type[level] == TimesteppingType::RK2 ?
                 erf_auxiliary::HostIntegrator::AnelasticHeun :
                 erf_auxiliary::HostIntegrator::AnelasticMidPoint);
         auxiliary_inert_tracer->advance_stage(
@@ -296,7 +296,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             avg_xmom.setVal(Real(1.0e8));
         }
         const auto method = !l_anelastic ? erf_auxiliary::HostIntegrator::CompressibleRK3 :
-            (solverChoice.anelastic_type[level] == AnelasticType::RK2 ?
+            (solverChoice.timestepping_type[level] == TimesteppingType::RK2 ?
                 erf_auxiliary::HostIntegrator::AnelasticHeun :
                 erf_auxiliary::HostIntegrator::AnelasticMidPoint);
         const MultiFab& stage_cons_anchor = S_old[IntVars::cons];

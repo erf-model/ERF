@@ -1682,7 +1682,7 @@ if(ERF_ENABLE_MPI)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X 0)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Y 1)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
-# Same stationary state as the _X case, but with erf.anelastic_type = MidPoint so the
+# Same stationary state as the _X case, but with erf.timestepping_type = MidPoint so the
 # vertical implicit diffusion stays on (the _X/_Y/_Z cases opt out with vert_implicit).
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X_MidPoint 0)
 add_test_cloud_chamber(CloudChamber_Dry dry)
@@ -2494,12 +2494,12 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # so the FFT solver is used and the tests need the FFT build.  The slow scalars (k, qv)
     # are advected with the projected momentum, which used to be copied tile by tile.
     add_test_box_parity(Closure_BoxParity_Anelastic_Kessler Closure_BoxParity "plt00010"
-        COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv erf.compressibility_type=Anelastic erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Kessler/sounding_moist"
+        COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv erf.compressibility_type=Anelastic erf.timestepping_type=MidPoint erf.use_fft=true erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Kessler/sounding_moist"
         REFERENCE_OPTIONS "${_cbp_ref}"
         SPLIT_OPTIONS "${_cbp_split}"
         FCOMPARE_RTOL "1.0e-9")
     add_test_box_parity(Closure_BoxParity_Anelastic_Deardorff Closure_BoxParity "plt00010"
-        COMMON_OPTIONS "${_cbp_ke} erf.compressibility_type=Anelastic erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Deardorff erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Deardorff/sounding_dry"
+        COMMON_OPTIONS "${_cbp_ke} erf.compressibility_type=Anelastic erf.timestepping_type=MidPoint erf.use_fft=true erf.les_type=Deardorff erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Deardorff/sounding_dry"
         REFERENCE_OPTIONS "${_cbp_ref}"
         SPLIT_OPTIONS "${_cbp_split}"
         FCOMPARE_RTOL "1.0e-9")
@@ -3355,11 +3355,11 @@ add_test_conservation(Conservation_ScalarDiffusion_MapFactor ScalarDiffusion_Ref
 add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "'amr.ref_ratio_vect=2 2 1'")
 add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"
-    OPTIONS "erf.compressibility_type=Anelastic erf.anelastic_type=MidPoint")
+    OPTIONS "erf.compressibility_type=Anelastic erf.timestepping_type=MidPoint")
 add_test_conservation(Conservation_ScalarDiffusion_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
-    OPTIONS "erf.compressibility_type=Anelastic erf.anelastic_type=RK2")
+    OPTIONS "erf.compressibility_type=Anelastic erf.timestepping_type=RK2")
 add_test_conservation(Conservation_ScalarAdvection_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
-    OPTIONS "erf.compressibility_type=Anelastic erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
+    OPTIONS "erf.compressibility_type=Anelastic erf.timestepping_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
 add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
 
@@ -3370,15 +3370,15 @@ add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_R
 # terrain requires) mesh, with the MidPoint and RK2 integrators, and advected and not diffused
 set(_theta_cons_options "erf.compressibility_type=Anelastic prob.theta_pert_amp=10 erf.alpha_T=1.0")
 add_test_conservation(Conservation_ThetaDiffusion_Anelastic ScalarDiffusion_Reflux "RHO THETA"
-    OPTIONS "${_theta_cons_options} erf.anelastic_type=MidPoint")
+    OPTIONS "${_theta_cons_options} erf.timestepping_type=MidPoint")
 add_test_conservation(Conservation_ThetaDiffusion_AnelasticRK2 ScalarDiffusion_Reflux "RHO THETA"
-    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2")
+    OPTIONS "${_theta_cons_options} erf.timestepping_type=RK2")
 add_test_conservation(Conservation_ThetaDiffusion_AnelasticStretched ScalarDiffusion_Reflux "RHO THETA"
-    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2 erf.initial_dz=0.025")
+    OPTIONS "${_theta_cons_options} erf.timestepping_type=RK2 erf.initial_dz=0.025")
 add_test_conservation(Conservation_ThetaDiffusion_AnelasticHill ScalarDiffusion_Reflux "RHO THETA"
-    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2 erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15 'amr.ref_ratio_vect=2 2 1'")
+    OPTIONS "${_theta_cons_options} erf.timestepping_type=RK2 erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15 'amr.ref_ratio_vect=2 2 1'")
 add_test_conservation(Conservation_ThetaAdvection_AnelasticRK2 ScalarDiffusion_Reflux "RHO THETA"
-    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
+    OPTIONS "${_theta_cons_options} erf.timestepping_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
 
 # Under two-way coupling with acoustic substepping the fine level takes the fluxes through its
 # coarse/fine faces from the coarse level's substeps (erf.cf_flux_history), so in a closed domain
@@ -4719,7 +4719,7 @@ endif()
 # test; the gtests cover the kernels there.
 if(ERF_ENABLE_FFT)
 add_test_terrain_stress_ridge(TerrainStress_Ridge_AnelasticMidPoint survive "plt01440"
-    OPTIONS "erf.compressibility_type=Anelastic erf.use_fft=true erf.anelastic_type=MidPoint erf.fixed_dt=15 max_step=1440 erf.plot_int_1=1440"
+    OPTIONS "erf.compressibility_type=Anelastic erf.use_fft=true erf.timestepping_type=MidPoint erf.fixed_dt=15 max_step=1440 erf.plot_int_1=1440"
     WMAX 5
     RUN_TIMEOUT 1800)
 endif()
@@ -4772,7 +4772,7 @@ add_test_abort(TerrainStress_Abort_MetricExplicitStage ${_tsr_dir} Terrain_Stres
 if(ERF_ENABLE_FFT)
 add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_Stress_Ridge.i
                "erf.vert_implicit_fac is not positive in stage 2 at level 0"
-               "erf.compressibility_type=Anelastic erf.use_fft=true erf.anelastic_type=MidPoint erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
+               "erf.compressibility_type=Anelastic erf.use_fft=true erf.timestepping_type=MidPoint erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
 endif()
 endif()
 
@@ -5379,24 +5379,24 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   # The other anelastic integrator (the default is RK2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
-      RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"
+      RUNTIME_OPTIONS "erf.timestepping_type=MidPoint"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
   # A wind that varies in time, for both integrators: the error is second order in dt
   # (measured 0.072 m at dt = 0.4 s; with the momenta of the end of each stage it was 3.4 m)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_RK2 inputs_inertial 40
-      RUNTIME_OPTIONS "erf.anelastic_type=RK2"
+      RUNTIME_OPTIONS "erf.timestepping_type=RK2"
       CHECK check_inertial_drift.py PLOTFILES)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_MidPoint inputs_inertial 40
-      RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"
+      RUNTIME_OPTIONS "erf.timestepping_type=MidPoint"
       CHECK check_inertial_drift.py PLOTFILES)
   # The same with an EB plane that cuts layer k = 1, checked in the cut layer and a full one
   # (measured 0.074 m at dt = 0.4 s for both; RK2 was 3.4 m when the EB redistribution step
   # replaced the Heun average of the second stage with old + dt R2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_EB_RK2 inputs_inertial_eb 40
-      RUNTIME_OPTIONS "erf.anelastic_type=RK2"
+      RUNTIME_OPTIONS "erf.timestepping_type=RK2"
       CHECK check_inertial_drift.py PLOTFILES --layers 1 2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_EB_MidPoint inputs_inertial_eb 40
-      RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"
+      RUNTIME_OPTIONS "erf.timestepping_type=MidPoint"
       CHECK check_inertial_drift.py PLOTFILES --layers 1 2)
   # The time step from erf.cfl with map factors
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_CFL_MapFactor inputs_mapfac_anelastic 5

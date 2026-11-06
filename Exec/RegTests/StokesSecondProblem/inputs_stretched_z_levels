@@ -23,7 +23,7 @@ zlo.velocity = 10.0 0.0 0.0
 zhi.type = "Outflow"
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.fixed_dt           = 1e-8
 #erf.cfl = 0.1 
 

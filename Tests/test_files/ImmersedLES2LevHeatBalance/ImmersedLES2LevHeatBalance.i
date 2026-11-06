@@ -44,7 +44,7 @@ erf.if_implicit_projection = true
 eb2.cover_multiple_cuts = 1
 
 erf.compressibility_type = Anelastic
-erf.anelastic_type = MidPoint
+erf.timestepping_type = MidPoint
 erf.cfl            = 0.5
 
 erf.init_type           = "input_sounding"

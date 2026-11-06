@@ -407,7 +407,7 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
         MultiFab rOm(L.ba_cf, sdm, 1, 0);
         rOm.setVal(0.0);
         rOm.ParallelCopy(m_cf_step_zflux[levc], 0, 0, 1, IntVect(0), IntVect(0), cper);
-        const Real kfac = (solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? one : Real(2);
+        const Real kfac = (solverChoice.timestepping_type[lev] == TimesteppingType::MidPoint) ? one : Real(2);
         for (MFIter mfi(cOm); mfi.isValid(); ++mfi) {
             const Array4<Real      > om = cOm.array(mfi);
             const Array4<Real const> oo = cOm_o.const_array(mfi);
@@ -877,7 +877,7 @@ void ERF::cf_anelastic_stage_registration (int lev, int nrk)
     if (static_cast<int>(m_cf_stage1.size()) <= lev) { m_cf_stage1.resize(lev+1, 0); }
     m_cf_stage1[lev] = (nrk == 0) ? 1 : 0;
 
-    const Real k = (solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? one : Real(2);
+    const Real k = (solverChoice.timestepping_type[lev] == TimesteppingType::MidPoint) ? one : Real(2);
     // On a terrain-fitted mesh the coarse momenta are registered as mass fluxes
     //    (RegisterCoarseMomentumCF); on a flat mesh as momenta, and the shift is converted
     const bool mass_flux = cf_interp_mass_flux(lev);

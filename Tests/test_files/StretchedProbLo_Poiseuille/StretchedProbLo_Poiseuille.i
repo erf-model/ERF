@@ -23,7 +23,7 @@ erf.initial_dz            = 0.125
 erf.grid_stretching_ratio = 1.0
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.cfl                = 0.5
 
 # DIAGNOSTICS & VERBOSITY

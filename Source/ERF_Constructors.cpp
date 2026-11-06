@@ -79,12 +79,12 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
         "SBM M3 supports ConstantDz, StretchedDz, or static fitted-mesh geometry");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.buildings_type == BuildingsType::None,
         "SBM M3 requires buildings_type=None");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.substepping_type.size() == 1 &&
-                                     choice.substepping_type[0] == SubsteppingType::None,
-        "SBM M3 requires acoustic substepping_type=None");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.anelastic_type.empty() ||
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.timestepping_type.size() == 1 &&
+                                     choice.timestepping_type[0] != TimesteppingType::RK3_ImplicitSubstep,
+        "SBM M3 does not support acoustic substepping (erf.timestepping_type = RK3_ImplicitSubstep)");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.timestepping_type.empty() ||
                                      choice.compressibility_type[0] == CompressibilityType::FullyCompressible ||
-                                     choice.anelastic_type[0] == AnelasticType::RK2,
+                                     choice.timestepping_type[0] == TimesteppingType::RK2,
         "SBM M3 supports the Anelastic RK2 Heun integrator only");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
         "SBM M3 does not support scalar or particle diffusion");
@@ -137,8 +137,8 @@ void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
         "M2 auxiliary inert tracer fixture requires a fully periodic domain (geometry.is_periodic = 1 1 1)");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.use_gravity,
         "M2 auxiliary inert tracer fixture requires gravity disabled");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.substepping_type.size() == 1 &&
-                                     choice.substepping_type[0] == SubsteppingType::None,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.timestepping_type.size() == 1 &&
+                                     choice.timestepping_type[0] != TimesteppingType::RK3_ImplicitSubstep,
         "M2 auxiliary inert tracer fixture does not support acoustic substepping");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
         "M2 auxiliary inert tracer fixture does not support scalar diffusion");
@@ -156,7 +156,7 @@ void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
         choice.advChoice.dryscal_vert_adv_type == AdvType::Centered_2nd,
         "M2 auxiliary inert tracer fixture requires Centered_2nd dry scalar advection");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        (choice.compressibility_type[0] == CompressibilityType::FullyCompressible) || choice.anelastic_type[0] == AnelasticType::RK2,
+        (choice.compressibility_type[0] == CompressibilityType::FullyCompressible) || choice.timestepping_type[0] == TimesteppingType::RK2,
         "M2 auxiliary inert tracer fixture does not support Anelastic MidPoint");
 
     std::string problem_name = "Undefined";

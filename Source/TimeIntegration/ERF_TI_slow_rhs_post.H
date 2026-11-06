@@ -242,7 +242,7 @@
             // stage's RHS, with this stage's weight: setting S_new = S_old + dt R2 here would
             // drop R1 and make the scalars first order in time (#4876).
             const Real stage_wt = (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible &&
-                                   solverChoice.anelastic_type[level] == AnelasticType::RK2 &&
+                                   solverChoice.timestepping_type[level] == TimesteppingType::RK2 &&
                                    nrk == 1) ? myhalf : one;
             for ( MFIter mfi(S_new[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {

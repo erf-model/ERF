@@ -37,7 +37,7 @@ zhi.type = "NoSlipWall"
 erf.abl_driver_type = "None"
 
 # TIME STEP CONTROL
-erf.substepping_type = None
+erf.timestepping_type = RK3_NoSubstepping
 #erf.fixed_dt         = 1.e-4
 erf.cfl              = 0.5
 

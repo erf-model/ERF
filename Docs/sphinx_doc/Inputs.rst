@@ -37,7 +37,7 @@ Governing Equations
 |                                 | Anelastic and PseudoIncompressible hold the density at   | Pseudo-            |                  |
 |                                 | its base-state value and project the velocity; they      | Incompressible     |                  |
 |                                 | set ``project_initial_velocity=1``,                      |                    |                  |
-|                                 | ``fixed_density=1``, and ``substepping_type=None``.      |                    |                  |
+|                                 | ``fixed_density=1``, and never substep acoustically.     |                    |                  |
 |                                 | The stored ``buoyancy_type=3`` does not select the       |                    |                  |
 |                                 | buoyancy kernel. PseudoIncompressible currently runs     |                    |                  |
 |                                 | exactly the anelastic equations.                         |                    |                  |
@@ -767,8 +767,8 @@ any level is decomposed in the vertical.  When it is set:
 
 Setting **amr.no_box_split_dir** = -1 turns this off and restores the AMReX
 behavior in which grids may be split in any direction.  ERF only accepts that if
-every level has **erf.substepping_type** = None (which an anelastic level is
-given automatically): the implicit substep solve inverts one tridiagonal system
+no level has **erf.timestepping_type** = RK3_ImplicitSubstep (an anelastic or
+pseudo-incompressible level never substeps): the implicit substep solve inverts one tridiagonal system
 per column, so no column may be chopped at a box seam, just as for the implicit
 vertical diffusion, and the code aborts rather than run with a value other than 2
 while any level substeps implicitly.  With **amr.no_box_split_dir** = -1, the two places
@@ -901,17 +901,19 @@ List of Parameters
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | Parameter                            | Definition                                               | Acceptable Values  | Default           |
 +======================================+==========================================================+====================+===================+
-| **erf.substepping_type**             | acoustic substepping strategy for the compressible       | None, Implicit     | Implicit (None if |
-|                                      | solver (per-level).  Forced to ``None`` at any level     |                    | anelastic)        |
-|                                      | where ``anelastic`` = 1                                  |                    |                   |
-+--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
-| **erf.anelastic_type**               | two-stage scheme used by the anelastic integrator        | RK2, MidPoint      | RK2               |
-|                                      | (per-level); ignored where ``anelastic`` = 0.  ``RK2``   |                    |                   |
-|                                      | is SSP (Heun): both stages advance a full timestep and   |                    |                   |
-|                                      | the second averages the two slow sources.  ``MidPoint``  |                    |                   |
-|                                      | advances a half timestep in the first stage, which is    |                    |                   |
-|                                      | what makes the implicit vertical diffusion second order  |                    |                   |
-|                                      | -- see ``vert_implicit_fac`` below                       |                    |                   |
+| **erf.timestepping_type**            | time integrator at each AMR level (per-level).  At a     | RK3_Implicit-      | RK3_Implicit-     |
+|                                      | FullyCompressible level: ``RK3_ImplicitSubstep`` is the  | Substep,           | Substep at a      |
+|                                      | three-stage RK3 with implicit acoustic substepping and   | RK3_NoSubstepping, | FullyCompressible |
+|                                      | ``RK3_NoSubstepping`` the three-stage SSP-RK3 with no    | RK2, MidPoint      | level, RK2        |
+|                                      | acoustic substepping.  At an Anelastic or                |                    | otherwise         |
+|                                      | PseudoIncompressible level (never any acoustic           |                    |                   |
+|                                      | substepping): ``RK2`` is SSP (Heun): both stages advance |                    |                   |
+|                                      | a full timestep and the second averages the two slow     |                    |                   |
+|                                      | sources; ``MidPoint`` advances a half timestep in the    |                    |                   |
+|                                      | first stage, which is what makes the implicit vertical   |                    |                   |
+|                                      | diffusion second order -- see ``vert_implicit_fac``      |                    |                   |
+|                                      | below.  ERF stops if a value does not fit the level's    |                    |                   |
+|                                      | ``erf.compressibility_type``                             |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.vert_implicit**                | Do vertical implicit solve for diffusion of u, v, theta, | Boolean            | true              |
 |                                      | KE, and moisture with default time-centering in each     |                    |                   |
@@ -920,8 +922,8 @@ List of Parameters
 | **erf.vert_implicit_fac**            | time-centering factor for the vertical diffusive terms,  | 1 or 3 Reals in    | 1.0 1.0 0.0       |
 |                                      | where 0 is fully explicit and 1 is fully implicit.       | [0,1]              |                   |
 |                                      | Specify either one value used in all Runge-Kutta stages, |                    |                   |
-|                                      | or three values, one per stage.  Zeroed at any anelastic |                    |                   |
-|                                      | level with ``anelastic_type`` = ``RK2``; the second and  |                    |                   |
+|                                      | or three values, one per stage.  Zeroed at any level     |                    |                   |
+|                                      | with ``timestepping_type`` = ``RK2``; the second and     |                    |                   |
 |                                      | third entries are zeroed with ``MidPoint``               |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_thermal_diffusion**   | include the implicit contribution to vertical thermal    | Boolean            | true              |
@@ -958,8 +960,9 @@ List of Parameters
 | **erf.fixed_fast_dt**                | set fast dt as this value                                | Real > 0           | unused if not set |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.fixed_mri_dt_ratio**           | set fast dt as slow dt / this ratio                      | even int > 0       | only relevant if  |
-|                                      |                                                          |                    | substepping_type  |
-|                                      |                                                          |                    | is not None       |
+|                                      |                                                          |                    | timestepping_type |
+|                                      |                                                          |                    | is RK3_Implicit-  |
+|                                      |                                                          |                    | Substep           |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.init_shrink**                  | factor by which to shrink the initial dt                 | Real > 0 and <= 1  | 1.0               |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
@@ -1018,12 +1021,13 @@ List of Parameters
 Notes
 -----------------
 
--  | If **erf.compressibility_type** is not FullyCompressible then **substepping_type** is internally set to "None".
+-  | **erf.timestepping_type** must be RK3_ImplicitSubstep or RK3_NoSubstepping at a FullyCompressible level and
+     RK2 or MidPoint at any other level; if it is not given, each level gets RK3_ImplicitSubstep or RK2 accordingly.
 
 -  | The implicit vertical diffusion is only second-order in time in an anelastic run when the two
      stages are the **midpoint method** and the tridiagonal solve is done in the first stage alone.
      Solving again in the second stage would collapse to first-order, so **erf.vert_implicit_fac**
-     is zeroed for that midpoint stage; with **erf.anelastic_type = RK2** the implicit solve is
+     is zeroed for that midpoint stage; with **erf.timestepping_type = RK2** the implicit solve is
      turned off entirely.
 
 -  | The implicit vertical diffusion solves invert one tridiagonal system per column, so a
@@ -1072,13 +1076,13 @@ Notes
 -  | The implicit acoustic substepping is subject to the same requirement, and for the
      same reason: its vertical solve is one tridiagonal system per column.  Rather than
      test the grids after they have been made, ERF refuses at input-parsing time to
-     combine **erf.substepping_type** = Implicit with any **amr.no_box_split_dir** other
+     combine **erf.timestepping_type** = RK3_ImplicitSubstep with any **amr.no_box_split_dir** other
      than 2, since that parameter is what keeps two grids from sharing a face normal to
      z in the first place.  This is not a requirement of one grid per column: several
      grids may sit over the same column, as they do where the refined region is a
      staircase in z, as long as they do not touch, so that each contiguous run of cells
      in the column is solved by itself.  A run that must be decomposed in the vertical
-     has to set **erf.substepping_type** = None (or be anelastic, which sets it to None).
+     has to set **erf.timestepping_type** = RK3_NoSubstepping (or not be FullyCompressible).
 
 -  | A column may, however, end below the top of the domain, as it does on a refined level that
      does not reach the domain top, or where the refined region is a staircase in z.  In that
@@ -1175,9 +1179,9 @@ Notes
      more than 1 %.  Without those options nothing is computed or printed.
 
 -  | The time step controls work somewhat differently depending on whether one is using
-     acoustic substepping in time; this is determined by the value of **substepping_type**.
+     acoustic substepping in time; this is determined by the value of **timestepping_type**.
 
--  | If **erf.substepping_type = None** there is only one time step to be calculated,
+-  | Without acoustic substepping (any **erf.timestepping_type** other than RK3_ImplicitSubstep) there is only one time step to be calculated,
      and **erf.fixed_fast_dt** and **erf.fixed_mri_dt_ratio** are not used.
 
    * | If **erf.fixed_dt** is also specified, the timestep will be set to **fixed_dt**.
@@ -1185,7 +1189,7 @@ Notes
    * | If **erf.fixed_dt** is not specified, the timestep will be computed using the CFL condition for compressible flow.
        If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
--  | If **erf.substepping_type** is not **None** we must determine both the slow and fast timesteps.
+-  | If **erf.timestepping_type** = **RK3_ImplicitSubstep** we must determine both the slow and fast timesteps.
 
    * | If **erf.fixed_dt** is specified, the slow timestep will be set to **fixed_dt**.
 
@@ -2251,8 +2255,8 @@ List of Parameters
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.implicit_before_substep**        | if true, the vertical implicit diffusive solve is done   | Boolean            | true             |
 |                                        | before the acoustic substepping rather than after.       |                    |                  |
-|                                        | Forced to true if any level has ``substepping_type`` =   |                    |                  |
-|                                        | ``None``                                                 |                    |                  |
+|                                        | Forced to true if any level has no acoustic substepping  |                    |                  |
+|                                        | (``timestepping_type`` other than RK3_ImplicitSubstep)   |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.thermal_stratification**         | which potential temperature the subgrid model uses to    | theta, thetav,     | theta (LES),     |
 |                                        | quantify thermal stratification (per-level). Applies to  | thetal             | thetav (PBL)     |
@@ -6048,17 +6052,16 @@ Equation Set
 * :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.compressibility_type``,
   ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,
   ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
-* :ref:`Time Step <inputs-time-step>` -- ``erf.anelastic_type``
+* :ref:`Time Step <inputs-time-step>` -- ``erf.timestepping_type``
 * :ref:`Initialization <inputs-initialization>` -- ``erf.project_initial_velocity``
 
 Acoustic Substepping and the Poisson Solve
 ------------------------------------------
 
 * :ref:`Numerical Stability <inputs-numerical-stability>` -- ``erf.beta_s``
-* :ref:`Time Step <inputs-time-step>` -- ``erf.anelastic_type``,
+* :ref:`Time Step <inputs-time-step>` -- ``erf.timestepping_type``,
   ``erf.force_stage1_single_substep``, ``erf.ncorr``,
-  ``erf.poisson_abstol``, ``erf.poisson_reltol``, ``erf.substepping_diag``,
-  ``erf.substepping_type``
+  ``erf.poisson_abstol``, ``erf.poisson_reltol``, ``erf.substepping_diag``
 
 Initialization, Terrain and Vertical Mesh
 -----------------------------------------
@@ -6193,11 +6196,20 @@ ignoring them.
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.moisture_type**                          | renamed; set ``erf.moisture_model`` instead            | none -- input renamed          | aborts if present      |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.no_substepping**                         | removed; set ``erf.substepping_type`` instead          | none -- input removed          | aborts if present      |
+| **erf.no_substepping**                         | removed; set ``erf.timestepping_type`` instead         | none -- input removed          | aborts if present      |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.anelastic**                              | deprecated; set ``erf.compressibility_type`` instead.  | 0, 1 (per-level)               | warns if present;      |
 |                                                | 1 maps to ``Anelastic`` and 0 to                       |                                | aborts if given along  |
 |                                                | ``FullyCompressible``                                  |                                | with the new key       |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.substepping_type**                       | deprecated; set ``erf.timestepping_type`` instead.     | None, Implicit (per-level)     | warns if present;      |
+|                                                | At FullyCompressible levels ``Implicit`` maps to       |                                | aborts if given along  |
+|                                                | ``RK3_ImplicitSubstep`` and ``None`` to                |                                | with the new key       |
+|                                                | ``RK3_NoSubstepping``; ignored at the other levels     |                                |                        |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.anelastic_type**                         | deprecated; set ``erf.timestepping_type`` instead.     | RK2, MidPoint (per-level)      | warns if present;      |
+|                                                | Same values; ignored at FullyCompressible levels       |                                | aborts if given along  |
+|                                                |                                                        |                                | with the new key       |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.init_type**                              | the values ``Real`` and ``Ideal`` were replaced by     | ``WRFInput`` in place of       | aborts if ``Real`` or  |
 |                                                | ``WRFInput``                                           | either retired value           | ``Ideal`` is used      |

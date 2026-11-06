@@ -41,7 +41,7 @@ erf.abl_geo_wind    = 6.5  0.0  0.0
 #erf.abl_geo_forcing    = 6.5  0.0  0.0
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 # erf.cfl             = 0.5
 erf.fixed_dt        = 0.01
 #erf.substepping_cfl = 0.5

@@ -34,7 +34,6 @@ erf.most.Ch = 0.0015
 erf.most.Cq = 0.0015
 zhi.type = "SlipWall"
 
-erf.substepping_type = "Implicit"
 erf.fixed_dt = 4.0
 erf.fixed_mri_dt_ratio = 6
 #erf.cfl = 0.5

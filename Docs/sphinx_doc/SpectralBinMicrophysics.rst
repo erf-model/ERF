@@ -855,7 +855,7 @@ The current configuration requires:
   ``StretchedDz``, and the triply periodic static ``Cos4Hill`` fitted-mesh
   smoke profile, with terrain flat at the periodic boundaries;
 * no moving terrain, embedded boundaries, or immersed buildings;
-* ``substepping_type = None``;
+* ``timestepping_type = RK3_NoSubstepping`` (no acoustic substepping);
 * no molecular scalar diffusion;
 * no turbulent scalar diffusion or PBL/SHOC transport acting on moisture;
 * no ERF numerical diffusion;
@@ -917,7 +917,7 @@ test:
    erf.sbm_fixture_initial_state = 1.e-6 2.e-6 3.e-6 4.e-6
 
    erf.use_gravity = false
-   erf.substepping_type = None
+   erf.timestepping_type = RK3_NoSubstepping
    erf.molec_diff_type = None
    erf.les_type = None
    erf.pbl_type = None

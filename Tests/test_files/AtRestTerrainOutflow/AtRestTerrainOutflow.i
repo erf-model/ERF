@@ -43,7 +43,7 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 # Fixed, and well inside the acoustic CFL, so that the two runs march in step
-erf.substepping_type = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.fixed_dt         = 0.005
 
 # DIAGNOSTICS & VERBOSITY

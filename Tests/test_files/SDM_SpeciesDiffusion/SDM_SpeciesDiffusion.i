@@ -7,7 +7,6 @@ erf.sounding_type = ConstantDensity
 max_step = 4
 erf.fixed_dt = 0.02
 erf.fixed_mri_dt_ratio = 16
-erf.substepping_type = Implicit
 erf.vert_implicit_fac = 1
 erf.implicit_moisture_diffusion = true
 erf.use_gravity = false

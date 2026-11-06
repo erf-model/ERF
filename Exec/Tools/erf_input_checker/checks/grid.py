@@ -126,7 +126,7 @@ class GridLayoutChecker(Checker):
             self.error("amr.no_box_split_dir", "must be -1, 0, 1 or 2")
         if c.substepping == "Implicit" and nbsd != 2:
             self.error("amr.no_box_split_dir", "= %d with implicit acoustic substepping; ERF stops (the column solve needs unsplit columns)" % nbsd,
-                       "Remove amr.no_box_split_dir, or set erf.substepping_type = None.")
+                       "Remove amr.no_box_split_dir, or set erf.timestepping_type = RK3_NoSubstepping.")
         if z_limited and needs_columns:
             self.error("amr.max_grid_size", "boxes are split in z (max_grid_size_z < n_cell z) while %s needs whole columns; ERF stops" % needs_columns,
                        "Set amr.max_grid_size_x / _y instead of a single amr.max_grid_size, and leave z unlimited.")

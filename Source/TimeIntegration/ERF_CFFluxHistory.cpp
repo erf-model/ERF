@@ -70,7 +70,7 @@ ERF::cf_flux_history_active (int crse_lev) const
         solverChoice.terrain_type == TerrainType::EB) { return false; }
     for (int lev = crse_lev; lev <= crse_lev+1; ++lev) {
         if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) { return false; }
-        if (solverChoice.substepping_type[lev] == SubsteppingType::None) { return false; }
+        if (solverChoice.timestepping_type[lev] != TimesteppingType::RK3_ImplicitSubstep) { return false; }
     }
     return true;
 }

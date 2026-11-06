@@ -2,7 +2,7 @@
 # with the compressible integrator and no acoustic substepping, whose
 # scalar-advection momenta are ax rho u / mf_uy, ay rho v / mf_vx (AdvectionSrcForRho)
 erf.prob_name = "Scalar Advection/Diffusion"
-erf.substepping_type = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.test_mapfactor = true
 
 max_step  = 60
