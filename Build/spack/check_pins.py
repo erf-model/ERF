@@ -7,7 +7,8 @@ clone scripts, so release tarballs can be built. This compares those pins with E
 
   * the @develop pins against the ref given with --ref (default HEAD): the RRTMGP, ekat,
     Noah-MP and AMReX gitlinks, and the E3SM commit in Build/GNU_Ekat/eamxx_clone.sh;
-  * each tagged release the recipe offers against that tag, for the tags available locally
+  * each tagged release the recipe offers against that tag, including any AMReX
+    release commit override, for the tags available locally
     (`git fetch --tags` to get them all);
   * EKAT's own pins at each pinned EKAT commit: the extern/* gitlinks, and for a TPL that
     EKAT fetches with FetchContent the GIT_TAG in its cmake/tpls/EkatBuild*.cmake; read from
@@ -83,7 +84,10 @@ def recipe_pins(path):
     for node in cls.body:
         if isinstance(node, ast.Assign) and len(node.targets) == 1:
             name = getattr(node.targets[0], "id", None)
-            if name in ("_rrtmgp_stacks", "_noahmp_pins", "_e3sm_commit", "_amrex_develop"):
+            if name in (
+                "_rrtmgp_stacks", "_noahmp_pins", "_e3sm_commit", "_amrex_develop",
+                "_amrex_release_commits",
+            ):
                 tables[name] = ast.literal_eval(node.value)
         if isinstance(node, ast.For) and isinstance(node.iter, ast.Tuple):
             for entry in ast.literal_eval(node.iter):
@@ -97,7 +101,10 @@ def recipe_pins(path):
             and isinstance(node.args[0], ast.Constant)
         ):
             versions.append(node.args[0].value)
-    missing = {"_rrtmgp_stacks", "_noahmp_pins", "_e3sm_commit", "_amrex_develop"} - set(tables)
+    missing = {
+        "_rrtmgp_stacks", "_noahmp_pins", "_e3sm_commit", "_amrex_develop",
+        "_amrex_release_commits",
+    } - set(tables)
     if missing:
         raise RuntimeError(f"{path}: could not read {', '.join(sorted(missing))}")
     return (
@@ -105,6 +112,7 @@ def recipe_pins(path):
         tables["_noahmp_pins"],
         tables["_e3sm_commit"],
         tables["_amrex_develop"],
+        tables["_amrex_release_commits"],
         sorted(set(versions)),
     )
 
@@ -196,7 +204,7 @@ def main():
     args = ap.parse_args()
 
     root = git("rev-parse", "--show-toplevel", cwd=HERE).strip()
-    stacks, noahmp, e3sm_commit, amrex_develop, versions = recipe_pins(PACKAGE_PY)
+    stacks, noahmp, e3sm_commit, amrex_develop, amrex_releases, versions = recipe_pins(PACKAGE_PY)
     develop_stack = stack_for("develop", stacks)
     failures = []
     rows = []
@@ -229,6 +237,8 @@ def main():
             skipped_tags.append(v)
             continue
         tag_links = gitlinks(v, "Submodules", cwd=root)
+        if v in amrex_releases:
+            check(f"{v} AMReX", tag_links.get("Submodules/AMReX"), amrex_releases[v])
         if vtuple(v) >= (25, 10):
             for path in ("Submodules/RRTMGP", "Submodules/ekat"):
                 check(f"{v} {path}", tag_links.get(path), stack_for(v, stacks).get(path))

@@ -22,7 +22,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
     """
 
     homepage = "https://erf.readthedocs.io/en/latest/index.html"
-    url = "https://github.com/erf-model/ERF/archive/refs/tags/26.09.tar.gz"
+    url = "https://github.com/erf-model/ERF/archive/refs/tags/26.11.tar.gz"
     git = "https://github.com/erf-model/ERF.git"
 
     maintainers("larenspear", "jmsexton03")
@@ -32,16 +32,17 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
     # @develop builds the AMReX commit its submodule points at, as ERF's own build does: the
     # commit variant on amrex@develop (a git-commit version in a depends_on is not a
     # concretizer candidate; the variant is). check_pins.py compares the pin with the gitlink
-    # and rewrites it with --fix. A release builds an AMReX release, so that the amrex
-    # recipe's version-keyed logic (patches, the tracer-header fix for 24.10-26.07) applies:
-    # the AMReX release of the same month, which contains the development commits ERF's
-    # submodule pointed at, unless the build matrix showed ERF needs the next one (24.10
-    # calls amrex::decompose(), added after amrex@24.10).
+    # and rewrites it with --fix. Older releases use an AMReX release so its
+    # version-keyed patches apply. ERF 24.10 needs amrex::decompose() from 24.11.
+    # ERF 26.11 pins five commits beyond AMReX 26.11, including the FillPatch
+    # fix for multilevel ERF tests with Clang FPE trapping (AMReX #6163).
     _amrex_develop = "1d9bd90c35837dd54b20e5e8f94651ebfdcf5f96"
     _amrex_newer = {"24.10": "24.11"}
+    _amrex_release_commits = {"26.11": "1d9bd90c35837dd54b20e5e8f94651ebfdcf5f96"}
     version("develop", branch="development")
     depends_on(f"amrex@develop commit={_amrex_develop}", when="@develop", type=("build", "link"))
     for _v, _sha in (
+        ("26.11", "6bf8da29f05dee0e317221ee22cd4cdd7fc85da8eccc9c992b26777620589c25"),
         ("26.09", "d86372f6b9d85996f1b30beb7353c01b33f1bf0e454c0e63c913b255e17dadc0"),
         ("26.06", "379ffdebb30242cacddde95357511d5de1da29332c6624d5470088927743db78"),
         ("26.05", "198f8093b7afb2e405f509beca3b6a6da94c299af564e889e3c80daecc376e65"),
@@ -63,7 +64,12 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         ("24.10", "7c9ba35374e71103fab8c5ba3ea107b4574e3270038bc3e8cbdcbe30eba26e7a"),
     ):
         version(_v, sha256=_sha)
-        depends_on(f"amrex@{_amrex_newer.get(_v, _v)}", when=f"@{_v}", type=("build", "link"))
+        _amrex_version = (
+            f"develop commit={_amrex_release_commits[_v]}"
+            if _v in _amrex_release_commits
+            else _amrex_newer.get(_v, _v)
+        )
+        depends_on(f"amrex@{_amrex_version}", when=f"@{_v}", type=("build", "link"))
 
     # Releases before 24.10 have no ERF_USE_INTERNAL_AMREX: they build the AMReX submodule
     # they vendor, so they are git checkouts with that submodule and depend on no amrex.
@@ -155,7 +161,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         "a sparse checkout of E3SM's EAMxx sources at the commit ERF pins)",
         when="@26.09:",
     )
-    # ERF_ENABLE_FIRE is on development only; 26.10 is the first release that can carry it.
+    # ERF_ENABLE_FIRE was added after 26.09 and is included in 26.11.
     variant(
         "fire",
         default=False,
@@ -468,6 +474,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         ("26.05", "c08dd406761330ac823a3e268bd2e98eb6889b40"),
         ("26.06", "41587582bf9b73786ce693660b0a56ff412d1eff"),
         ("26.09", "e03243d2c5eac19b1c6a02a2c3ca12f03f92cceb"),
+        ("26.11", "fbaa38f0753a0f199dcebd508e2ef64a5dc74bfd"),
         ("develop", "fbaa38f0753a0f199dcebd508e2ef64a5dc74bfd"),
     )
     for _versions, _commit in _noahmp_pins:
