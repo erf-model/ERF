@@ -138,7 +138,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         // amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
     }
 
-    subdomains.resize(lev+1);
+    // Grow only: the second MakeNewGrids pass makes this level again while the finer levels exist,
+    // and resizing to lev+1 would drop their subdomains (erf-model/ERF#4988)
+    if (static_cast<int>(subdomains.size()) < lev+1) { subdomains.resize(lev+1); }
     //
     // Create subdomains at each level within the domain such that
     // 1) all boxes in a given subdomain are "connected"
@@ -174,6 +176,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
+
+    // init_stuff rebuilds the flux register on the lev-1 / lev interface, but the one on the
+    // lev / lev+1 interface also holds this level's grids.  AmrMesh::MakeNewGrids (AMReX) builds
+    // the levels one at a time and then, with iterate_on_new_grids, regenerates them all from
+    // level 0 once the finest level exists; an intermediate level whose grids changed in that pass
+    // comes through here a second time with the finer level already in place.  Rebuild that
+    // register as RemakeLevel does, or it keeps the grids of the first pass and the first
+    // YAFluxRegister::CrseAdd indexes it with this level's new boxes (erf-model/ERF#4988).
+    if (lev < finest_level && !grids[lev+1].empty()) {
+        make_flux_register(lev+1);
+    }
 
     // init_stuff leaves map factors of 1.  A refined level with no init file of its own takes them
     // from the coarser level; do that now, before the initial data, the terrain metrics and the
@@ -441,6 +454,20 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (lev > 0 && cf_width >= 0) {
         Construct_ERFFillPatchers(lev);
            Define_ERFFillPatchers(lev);
+    }
+
+    // A level made again by the second MakeNewGrids pass (see the flux register above) has the
+    // finer level in place already.  That pass then tags the levels again from the finest down
+    // (ErrorEst), and tagging level lev+1 fills its ghost cells from this level before tagging this
+    // level has filled ours; a level made in the first pass was always tagged, and so filled, before
+    // its finer level was made.  Fill this level's ghost cells now, as ErrorEst does; otherwise level
+    // lev+1 takes zero density into its ghost cells, and the initial average-down and projection
+    // read it (erf-model/ERF#4988).
+    if (restart_chkfile.empty() && lev > 0 && lev < finest_level && !grids[lev+1].empty()) {
+        FillPatchFineLevel(lev, time, {&lev_new[Vars::cons], &lev_new[Vars::xvel],
+                                       &lev_new[Vars::yvel], &lev_new[Vars::zvel]},
+                           {&lev_new[Vars::cons], &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                           false, true);
     }
 
 #ifdef ERF_USE_PARTICLES

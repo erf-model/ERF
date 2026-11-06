@@ -3270,6 +3270,36 @@ unset(_moist_cf_rtol)
 add_test_r(CouetteFlow_ImplicitCF_PostSubstep "" "erf_exec" "plt00050"
            FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
 
+# Four levels (2 2 1 refinement), each refined level stopping below the domain top, two-way
+# coupling, uniform flow.  AmrMesh::MakeNewGrids builds the levels one at a time and then
+# regenerates them all from level 0 once the finest level exists; levels 1 and 2 grow by the
+# proper-nesting buffer in that pass and are made from scratch a second time, level 3 is not.
+# Level 2 must then rebuild the flux register on its interface with level 3, which was built from
+# its first grids, and fill its own ghost cells, which the second tagging pass otherwise fills from
+# a level 1 whose ghost cells are still empty (erf-model/ERF#4988).  The test requires the log to
+# show that second pass (level 2 made from scratch twice, level 3 once), so that a change in grid
+# generation cannot make it vacuous, and the uniform flow to stay uniform on every level over three
+# steps (plt00000 against plt00003).  Without the register the first step faults or stops on the
+# assertion in getAdvFluxReg; without the ghost fill the initial state is up to 3.7 m/s off and the
+# multigrid pressure solve fails in the second step.  The log is printed when a check fails.
+function(add_test_twoway_scratch_regrid TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(FCOMPARE_FLAGS "--abort_if_not_all_found -r 1.0e-12 --abs_tol 1.0e-10")
+    set(test_command sh -c "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i amrex.call_addr2line=0 > ${test_log} 2>&1 && grep -q 'Coarse STEP 3 ends' ${test_log} && test $(grep -c 'BA FROM SCRATCH AT LEVEL 2' ${test_log}) -eq 2 && test $(grep -c 'BA FROM SCRATCH AT LEVEL 3' ${test_log}) -eq 1 && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/plt00000 ${CURRENT_TEST_BINARY_DIR}/plt00003 ) || ( cat ${test_log} && false )")
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${test_log}"
+    )
+endfunction(add_test_twoway_scratch_regrid)
+add_test_twoway_scratch_regrid(TwoWay_FourLevels_PartialDepth)
+
 # Two-way coupling refluxes the diffusive as well as the advective fluxes, so in a closed domain the
 # composite integral of a scalar is conserved across coarse/fine faces whatever transports it.
 # Moisture diffuses through a face normal to z, with the vertical diffusion implicit (the deck as
