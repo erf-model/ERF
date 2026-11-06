@@ -829,28 +829,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
     // Write plane/line sampler data
     if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
-        const int nlev = static_cast<int>(vars_new.size());
-        Vector<MultiFab*> tau13_lev(nlev, nullptr);
-        Vector<MultiFab*> tau23_lev(nlev, nullptr);
-        Vector<MultiFab*> hfx3_lev(nlev, nullptr);
-        Vector<int> prognostic_tke_available(nlev, 0);
-        for (int lev = 0; lev < nlev; ++lev) {
-            prognostic_tke_available[lev] = solverChoice.turbChoice[lev].use_tke ? 1 : 0;
-            if (lev < static_cast<int>(Tau.size())) {
-                if (Tau[lev].size() > TauType::tau13) {
-                    tau13_lev[lev] = Tau[lev][TauType::tau13].get();
-                }
-                if (Tau[lev].size() > TauType::tau23) {
-                    tau23_lev[lev] = Tau[lev][TauType::tau23].get();
-                }
-            }
-            if (lev < static_cast<int>(SFS_hfx3_lev.size())) {
-                hfx3_lev[lev] = SFS_hfx3_lev[lev].get();
-            }
-        }
-        line_sampler->get_sample_data(geom, vars_new, tau13_lev, tau23_lev, hfx3_lev,
-                                      prognostic_tke_available);
-        line_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+        run_line_sampler(*line_sampler);
     }
     if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
         plane_sampler->get_sample_data(geom, vars_new);
@@ -2403,6 +2382,7 @@ ERF::InitData_post ()
         int lev = 0;
 
         int num_samplelines = 0;
+        Vector<IntVect> sampleline;
         if (has_sample_line) {
             num_samplelines = pp.countval("sample_line") / AMREX_SPACEDIM;
             if (num_samplelines > 0) {
@@ -2470,13 +2450,12 @@ ERF::InitData_post ()
         int num_samplelinelogs = pp.countval("sample_line_log");
         AMREX_ALWAYS_ASSERT(num_samplelinelogs == num_samplelines);
         if (num_samplelinelogs > 0) {
-            samplelinelog.resize(num_samplelinelogs);
-            samplelinelogname.resize(num_samplelinelogs);
+            Vector<std::string> samplelinelogname(num_samplelinelogs);
             pp.queryarr("sample_line_log",samplelinelogname,0,num_samplelinelogs);
 
-            for (int i = 0; i < num_samplelinelogs; i++) {
-                setRecordSampleLineInfo(i,samplelinelogname[i]);
-            }
+            // Each line is the full-depth column through its cell on level 0
+            sample_line_sampler = std::make_unique<LineSampler>(sampleline, samplelinelogname,
+                                                                geom[lev].Domain());
         }
 
     }
@@ -2495,7 +2474,7 @@ ERF::InitData_post ()
             Abort("Need to specify line_sampling_interval or line_sampling_per");
         }
         line_sampler = std::make_unique<LineSampler>();
-        line_sampler->write_coords(z_phys_cc, geom);
+        line_sampler->write_coords(z_phys_cc, z_phys_nd, geom);
     }
     if (do_plane) {
         if (plane_sampling_interval < 0 && plane_sampling_per < 0) {

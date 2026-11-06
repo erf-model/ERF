@@ -5414,5 +5414,56 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
 endif()
 
 #=============================================================================
+# erf.sample_line is a LineSampler of full-depth columns on level 0: its logs must agree
+# with erf.do_line_sampling text output of the same columns (test_files/SampleLine)
+#=============================================================================
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  function(add_test_sample_line TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    # Remove the logs and text files of an earlier pass: both are appended to
+    add_test(${TEST_NAME} sh -c
+        "rm -f col_a col_b dls_a.* dls_b.* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_sample_line.py col_a:dls_a col_b:dls_b")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_sample_line)
+  add_test_sample_line(SampleLine)
+
+  # Vertical lines given by real coordinates over a hill, by height above sea level and above
+  # the ground: each must sample the cells that hold its heights, and write their heights
+  function(add_test_line_sampling_terrain TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    set(_lines "top:16:16:0:300 far:0:0:0:300 top_high:16:16:150:420 across:x:16:150")
+    set(_agl "erf.sample_line_z_agl=1 erf.plot_file_1=agl_plt 'erf.sample_line_name=agl_top agl_far agl_top_high agl_across'")
+    set(_check "ERF_TOOLS=${PROJECT_SOURCE_DIR}/Exec/Tools ${ERF_TEST_PYTHON} check_line_heights.py")
+    add_test(${TEST_NAME} sh -c
+        "rm -rf plt0* agl_plt0* top.* far.* top_high.* across.* agl_top.* agl_far.* agl_top_high.* agl_across.* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${_check} plt00001 0 '' ${_lines} && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i ${_agl} > ${_log}.agl 2>&1 || ( tail -n 40 ${_log}.agl && false ) ) && ${_check} agl_plt00001 1 agl_ ${_lines}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_line_sampling_terrain)
+  add_test_line_sampling_terrain(LineSamplingTerrain)
+endif()
+
+# Line sampling: a line must run along sample_line_dir, and there is no line sampling with
+# moving terrain
+add_test_abort(LineSampling_Abort_NotAxisAligned ${CMAKE_CURRENT_SOURCE_DIR}/test_files/SampleLine SampleLine.i
+               "Line 0 of erf.sample_line_lo/hi is not along erf.sample_line_dir"
+               "erf.sample_line_hi=4 4 15 12 10 15")
+add_test_abort(LineSampling_Abort_NotAxisAlignedReal ${CMAKE_CURRENT_SOURCE_DIR}/test_files/LineSamplingTerrain LineSamplingTerrain.i
+               "Line 1 of erf.sample_line_lo/hi_real is not along erf.sample_line_dir"
+               "erf.sample_line_hi_real=40. 40. 300. -1240. -1200. 300. 40. 40. 420. 1240. 40. 150.")
+add_test_abort(LineSampling_Abort_MovingTerrain ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MovingTerrain_nosub MovingTerrain_nosub.i
+               "is not supported with erf.terrain_type = MovingFittedMesh"
+               "erf.do_line_sampling=1 erf.line_sampling_interval=1 erf.sample_line_lo=2 2 0 erf.sample_line_hi=2 2 5 erf.sample_line_dir=2")
+add_test_abort(LineSampling_Abort_MovingTerrainSampleLine ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MovingTerrain_nosub MovingTerrain_nosub.i
+               "is not supported with erf.terrain_type = MovingFittedMesh"
+               "erf.sample_line_log=col erf.sample_line=2 2 0")
+
+#=============================================================================
 # Performance tests
 #=============================================================================
