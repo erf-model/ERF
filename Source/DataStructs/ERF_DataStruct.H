@@ -1215,11 +1215,11 @@ struct SolverChoice {
                                    << std::endl;
                 }
                 for (int i = 0; i <= max_level; i++) {
-                    AnelasticType ane = AnelasticType::RK2;
-                    query_one_or_per_level_enum_case_insensitive(pp, "anelastic_type", ane, i, max_level);
+                    AnelasticType anelastic_scheme = AnelasticType::RK2;
+                    query_one_or_per_level_enum_case_insensitive(pp, "anelastic_type", anelastic_scheme, i, max_level);
                     if (compressibility_type[i] != CompressibilityType::FullyCompressible) {
-                        timestepping_type[i] = (ane == AnelasticType::MidPoint) ? TimesteppingType::MidPoint
-                                                                                : TimesteppingType::RK2;
+                        timestepping_type[i] = (anelastic_scheme == AnelasticType::MidPoint)
+                                             ? TimesteppingType::MidPoint : TimesteppingType::RK2;
                     }
                 }
             }

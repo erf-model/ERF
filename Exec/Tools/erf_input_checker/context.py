@@ -147,10 +147,10 @@ class RunContext:
         if self.deck.has("erf.timestepping_type"):
             return [v.lower() for v in self.per_level_str("erf.timestepping_type", "")]
         sub = [v.lower() for v in self.per_level_str("erf.substepping_type", "Implicit")]
-        ane = [v.lower() for v in self.per_level_str("erf.anelastic_type", "RK2")]
+        anelastic_types = [v.lower() for v in self.per_level_str("erf.anelastic_type", "RK2")]
         return [("rk3_nosubstepping" if s == "none" else "rk3_implicitsubstep") if f else
                 ("midpoint" if a == "midpoint" else "rk2")
-                for f, s, a in zip(fc, sub, ane)]
+                for f, s, a in zip(fc, sub, anelastic_types)]
 
     def _periodic(self) -> List[bool]:
         v = self._safe(lambda: self.deck.get_ints("geometry.is_periodic"), [])
