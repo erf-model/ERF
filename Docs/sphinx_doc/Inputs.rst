@@ -566,9 +566,14 @@ List of Parameters
 |                                                  | ``vorticity``, ``helicity``, ``max_reflectivity``,       |                    |                      |
 |                                                  | ``velmag``, ``u``, ``v``, ``w``, ``omega`` (the          |                    |                      |
 |                                                  | contravariant vertical velocity; equal to ``w``          |                    |                      |
-|                                                  | without terrain) or ``terrain_blanking``; with           |                    |                      |
+|                                                  | without terrain-fitted coordinates; with moving          |                    |                      |
+|                                                  | terrain the mesh velocity is not subtracted) or          |                    |                      |
+|                                                  | ``terrain_blanking`` (only with                          |                    |                      |
+|                                                  | ``erf.terrain_type = ImmersedForcing``); with            |                    |                      |
 |                                                  | particles also ``<species>_count`` or                    |                    |                      |
 |                                                  | ``<species>_<mesh_var>``, matched as given.              |                    |                      |
+|                                                  | An unrecognized name, or a field the configuration       |                    |                      |
+|                                                  | does not provide, aborts at setup.                       |                    |                      |
 |                                                  | ``hurricane_tracker`` is a reserved indicator name       |                    |                      |
 |                                                  | that needs no field                                      |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+

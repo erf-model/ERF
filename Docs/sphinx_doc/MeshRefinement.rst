@@ -388,18 +388,18 @@ Dynamic Mesh Refinement
 -----------------------
 
 Dynamically created tagging functions are based on runtime data specified in the inputs file.
-These dynamically generated functions test on either state variables or derived variables
-defined in ERF_derive.cpp and included in the derive_lst in Setup.cpp.
+These dynamically generated functions test on either state variables or quantities derived
+from them; the fields available are listed under ``erf.<indicator>.field_name`` in :ref:`inputs-regridding`.
 (We note that static refinement can also be achieved by using the refinement criteria as specified below
 but setting ``erf.regrid_int`` to a number greater than the total number of steps that will be taken.)
 
 Available tests include
 
--  “greater\_than”: :math:`field >= threshold`
+-  ``value_greater``: :math:`field >= threshold`
 
--  “less\_than”: :math:`field <= threshold`
+-  ``value_less``: :math:`field <= threshold`
 
--  “adjacent\_difference\_greater”: :math:`max( | \text{difference between any nearest-neighbor cell} | ) >= threshold`
+-  ``adjacent_difference_greater``: :math:`max( | \text{difference between any nearest-neighbor cell} | ) >= threshold`
 
 This example adds three user-named criteria –
 hi\_rho: cells with density greater than 1 on level 0, and greater than 2 on level 1 and higher;
