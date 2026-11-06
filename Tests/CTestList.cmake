@@ -4165,6 +4165,35 @@ elseif(ERF_ENABLE_NETCDF)
   message(STATUS "Skipping EarthWinds_Lambert: ${_ew_wrf} not found")
 endif()
 
+# A small, generated three-level WRF case. The middle ERF patch starts six
+# level-1 cells inside d02, so placing d03 relative to that patch shifts its
+# global position. Check both the level-2 box and a coordinate-coded field,
+# then restart with per-level wrflow files to re-read the nest box and PSFC.
+if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
+  execute_process(COMMAND "${ERF_TEST_PYTHON}" -c "import netCDF4, numpy"
+                  RESULT_VARIABLE _wrf_nested_python_status
+                  OUTPUT_QUIET ERROR_QUIET)
+  if(_wrf_nested_python_status EQUAL 0)
+    set(TEST_NAME WRFInput_CroppedParent)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND "${CMAKE_COMMAND}"
+      "-DPYTHON=${ERF_TEST_PYTHON}"
+      "-DTEST_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DRUN_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DERF_EXECUTABLE=${TEST_EXE}"
+      "-DPLOTFILE_READER_DIR=${PROJECT_SOURCE_DIR}/Exec/Tools"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/RunWRFInputCroppedParent.cmake")
+    set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS 1
+      WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
+      LABELS "regression;wrfinput"
+      ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run.log;${CURRENT_TEST_BINARY_DIR}/run.err;${CURRENT_TEST_BINARY_DIR}/restart.log;${CURRENT_TEST_BINARY_DIR}/restart.err")
+    unset(TEST_NAME)
+  else()
+    message(STATUS "Skipping WRFInput_CroppedParent: Python netCDF4 and numpy are required")
+  endif()
+endif()
+
 #=============================================================================
 # Input sounding on refined levels (#4143): each level samples the sounding, and
 # the large-scale forcing profiles, at its own cell centres

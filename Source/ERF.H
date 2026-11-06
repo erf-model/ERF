@@ -1378,7 +1378,11 @@ private:
     // Re-read the surface pressure of a level > 0 from its own init file (it is not checkpointed)
     void read_psfc_from_own_init_file (int lev);
 
-    // The cells at a level > 0 that its own init file covers, as ERF::ErrorEst places them
+    // The full WRF file box in ERF's global index space, including all ancestor nest offsets;
+    // optionally return the requested refined file's parent-grid ratio
+    amrex::Box wrfinput_file_box (int lev, int file_index, int* ratio_out = nullptr) const;
+
+    // The cells at a level > 0 that its own init file covers
     amrex::Box nest_box_from_own_init_file (int lev);
 
     // Maximum value of terrain read in from wrfinput at level 0
