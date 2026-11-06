@@ -679,6 +679,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][idx], ratio_from_file);
         Print() << "Box in file " << subdomain_to_read << "\n";
         const Box global_file_box = wrfinput_file_box(lev, idx);
+        // wrfinput_var_box keeps this horizontal low corner for every variable,
+        // including staggered and one-dimensional fields.
+        IntVect file_shift(0);
+        file_shift[0] = global_file_box.smallEnd(0) - subdomain_to_read.smallEnd(0);
+        file_shift[1] = global_file_box.smallEnd(1) - subdomain_to_read.smallEnd(1);
 
         Box subdomain_to_fill = boxes_at_level[lev][idx];
         Print() << "Box to fill " << subdomain_to_fill << "\n";
@@ -735,9 +740,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 // WRF parent starts are relative to the full parent file, whereas an
                 // ERF refinement patch may cover only part of that file.  Accumulate
                 // the file origins instead of aligning its first cell with the patch.
-                IntVect shift_by(0);
-                shift_by[0] = global_file_box.smallEnd(0) - file_box.smallEnd(0);
-                shift_by[1] = global_file_box.smallEnd(1) - file_box.smallEnd(1);
+                IntVect shift_by(file_shift);
                 if (lev > 1) {
                     Box shift_by_box(subdomains[lev][0].minimalBox());
                     shift_by[2] = shift_by_box.smallEnd(2) - file_box.smallEnd(2);
@@ -3489,7 +3492,7 @@ ERF::read_psfc_from_own_init_file (int lev)
 /** Return a WRF file's box in the global ERF index space.  WRF's I/J_PARENT_START
  * are relative to the complete parent file, not to the smaller ERF patch on it. */
 Box
-ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out)
+ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out) const
 {
     AMREX_ALWAYS_ASSERT(lev >= 0 && file_index >= 0 &&
                         file_index < static_cast<int>(nc_init_file[lev].size()));
@@ -3532,6 +3535,7 @@ ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out)
         }
         parent_origin = file_box.smallEnd();
     }
+    // The loop always returns when level reaches lev.
     amrex::Abort("wrfinput_file_box: invalid level");
     return Box();
 }
