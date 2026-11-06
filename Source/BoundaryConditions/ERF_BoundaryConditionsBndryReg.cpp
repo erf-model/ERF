@@ -1,29 +1,8 @@
 #include "ERF.H"
+#include "ERF_BndryPlaneIndex.H"
 
 using namespace amrex;
 
-namespace {
-/**
- * Where a fine index sits among the level-0 plane indices along one tangential direction:
- * the two plane indices to blend and the weight on the second.  Cell-centered and nodal
- * indices are located by their positions, so at level 0 (ratio 1) this is the plane index
- * itself with zero weight on its neighbour, and a fine node that coincides with a coarse
- * node takes that node's value.  Both indices are clamped into the plane's extent, which
- * is the level-0 domain.
- */
-struct PlaneIndex { int lo; int hi; Real w; };
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-PlaneIndex plane_index (int i, int ratio, bool nodal, int plo, int phi)
-{
-    const Real x  = nodal ? Real(i) / Real(ratio)
-                          : (Real(i) + Real(0.5)) / Real(ratio) - Real(0.5);
-    const int  i0 = static_cast<int>(std::floor(x));
-    const Real w  = x - Real(i0);
-    return { std::min(std::max(i0  ,plo),phi),
-             std::min(std::max(i0+1,plo),phi), w };
-}
-} // namespace
 
 /**
  * Impose boundary conditions using data read in as BndryRegisters from a previous ERF run
@@ -68,6 +47,11 @@ ERF::fill_from_bndryregs (int lev, const Vector<MultiFab*>& mfs, const double ti
     Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time + start_time);
 
     const BCRec* bc_ptr = domain_bcs_type_d.data();
+
+    // The ghost cells beside a face along a periodic direction take the plane at the
+    // periodic image, as the interior cells across the seam do (bndry_plane_index)
+    const bool xper = geom[lev].isPeriodic(0);
+    const bool yper = geom[lev].isPeriodic(1);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -128,8 +112,8 @@ ERF::fill_from_bndryregs (int lev, const Vector<MultiFab*>& mfs, const double ti
                 bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                     const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_ingested) {
-                        const PlaneIndex pj = plane_index(j, ry, nodal_y, pdom_lo.y, pdom_hi.y);
-                        const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z);
+                        const PlaneIndex pj = plane_index(j, ry, nodal_y, pdom_lo.y, pdom_hi.y, yper);
+                        const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z, false);
                         const int ib = pdom_lo.x-1;
                         const int c  = bc_comp;
                         dest_arr(i,j,k,icomp+n) =
@@ -140,8 +124,8 @@ ERF::fill_from_bndryregs (int lev, const Vector<MultiFab*>& mfs, const double ti
                 bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                     const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_ingested) {
-                        const PlaneIndex pj = plane_index(j, ry, nodal_y, pdom_lo.y, pdom_hi.y);
-                        const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z);
+                        const PlaneIndex pj = plane_index(j, ry, nodal_y, pdom_lo.y, pdom_hi.y, yper);
+                        const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z, false);
                         const int ib = pdom_hi.x+1;
                         const int c  = bc_comp;
                         dest_arr(i,j,k,icomp+n) =
@@ -163,8 +147,8 @@ ERF::fill_from_bndryregs (int lev, const Vector<MultiFab*>& mfs, const double ti
                bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                     const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_ingested) {
-                        const PlaneIndex pi = plane_index(i, rx, nodal_x, pdom_lo.x, pdom_hi.x);
-                        const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z);
+                        const PlaneIndex pi = plane_index(i, rx, nodal_x, pdom_lo.x, pdom_hi.x, xper);
+                        const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z, false);
                         const int jb = pdom_lo.y-1;
                         const int c  = bc_comp;
                         dest_arr(i,j,k,icomp+n) =
@@ -175,8 +159,8 @@ ERF::fill_from_bndryregs (int lev, const Vector<MultiFab*>& mfs, const double ti
                 bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                     const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_ingested) {
-                        const PlaneIndex pi = plane_index(i, rx, nodal_x, pdom_lo.x, pdom_hi.x);
-                        const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z);
+                        const PlaneIndex pi = plane_index(i, rx, nodal_x, pdom_lo.x, pdom_hi.x, xper);
+                        const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z, false);
                         const int jb = pdom_hi.y+1;
                         const int c  = bc_comp;
                         dest_arr(i,j,k,icomp+n) =
