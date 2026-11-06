@@ -30,7 +30,6 @@ zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
 erf.cfl                = 0.4
 
 # DIAGNOSTICS & VERBOSITY
@@ -75,7 +74,7 @@ erf.plot_vars_1     = terrain_IB_mask x_velocity y_velocity z_velocity pressure 
 #erf.plot2d_vars_1   = u_star
 
 # SOLVER CHOICE
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 #erf.mg_v = 2
 erf.use_fft   = true
 

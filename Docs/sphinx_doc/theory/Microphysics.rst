@@ -91,7 +91,7 @@ microphysics schemes and by ``SuperDroplets``. The pressure and temperature
 relationships below apply to both types of schemes. No additional pressure
 field or scheme-specific pressure-unit conversion is required in the input file.
 
-On each anelastic AMR level (``erf.anelastic = 1``), pressure-dependent
+On each anelastic AMR level (``erf.compressibility_type`` not ``FullyCompressible``), pressure-dependent
 microphysics uses the hydrostatic base-state pressure at each cell. Let
 :math:`p_{\mathrm{base}}` denote this pressure and :math:`p_{\mathrm{ref}}`
 denote ERF's fixed reference pressure used in the definition of potential
@@ -117,7 +117,7 @@ potential temperature use that same pressure.
 
 On a compressible AMR level, ERF diagnoses local pressure and temperature from
 the prognostic state with the compressible equation of state. In a mixed
-hierarchy, ``erf.anelastic`` selects the dynamics and thermodynamic pressure
+hierarchy, ``erf.compressibility_type`` selects the dynamics and thermodynamic pressure
 source independently on each AMR level.
 
 The reference-pressure treatment applies to the Kessler family
@@ -133,10 +133,10 @@ specify only the usual model and dynamics options. For example:
 
 .. code-block:: text
 
-   erf.anelastic = 1
+   erf.compressibility_type = Anelastic
    erf.moisture_model = WSM6
 
-``erf.anelastic`` may also be specified per AMR level. ``SuperDroplets`` uses
+``erf.compressibility_type`` may also be specified per AMR level. ``SuperDroplets`` uses
 pressure in Pa and diagnoses anelastic temperature from the same base-state
 pressure; see :ref:`superdroplets-anelastic-compatibility` for its thermodynamic
 and particle-process coupling, including the fixed inverse Exner factor for

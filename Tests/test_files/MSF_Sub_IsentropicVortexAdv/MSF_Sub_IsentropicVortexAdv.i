@@ -22,7 +22,6 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.substepping_type = Implicit
 erf.fixed_dt         = 0.0003
 erf.fixed_mri_dt_ratio = 6
     

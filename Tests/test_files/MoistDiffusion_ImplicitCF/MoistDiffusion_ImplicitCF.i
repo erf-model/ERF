@@ -40,7 +40,6 @@ erf.box1.in_box_hi = 4. 4. 8.
 erf.coupling_type  = "TwoWay"
 
 # TIME INTEGRATION
-erf.substepping_type  = Implicit
 erf.vert_implicit_fac = 1        # implicit vertical diffusion in all three RK stages
 
 # The path this test exercises, set explicitly rather than taken from the defaults

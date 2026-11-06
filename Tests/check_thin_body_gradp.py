@@ -5,7 +5,7 @@ its pressure increment.
 Usage: check_thin_body_gradp.py <plotfile> [--tol T]
 
 project_velocity_tb adds each corrector pass's pressure increment phi to pp_inc
-(plotted as pert_pres when erf.anelastic = 1) and its face gradient to gradp
+(plotted as pert_pres when erf.compressibility_type = Anelastic) and its face gradient to gradp
 (plotted, averaged to cell centres, as dpdx, dpdy, dpdz). The average of the two
 face gradients around a cell is the centred difference of the cell values, so in
 every interior cell

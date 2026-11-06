@@ -2,7 +2,7 @@
 # and its MoistNoCondensation control, changing only erf.moisture_model.
 erf.prob_name = "Cloud Chamber"
 erf.init_type = ConstantDensity
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_gravity = true
 erf.moisture_model = @MODEL@
 erf.vert_implicit = false

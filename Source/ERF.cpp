@@ -707,7 +707,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             // This call refluxes the cell-centered variables from the lev/lev+1 interface onto lev:
             // all "slow" variables, plus (rho theta) on anelastic levels. Density is never refluxed
             // (it is fixed on anelastic levels), nor is (rho theta) on compressible levels.
-            int reflux_comp = (solverChoice.anelastic[lev]) ? RhoTheta_comp : RhoTheta_comp + 1;
+            int reflux_comp = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ? RhoTheta_comp : RhoTheta_comp + 1;
             getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], reflux_comp, reflux_comp, ncomp-reflux_comp);
 
             // Here we multiply (rho S) by m^2 after refluxing
@@ -734,7 +734,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             // values of coarse cells underneath fine grids with the assumption they'll
             // be over-written by averaging down
             int src_comp;
-            if (solverChoice.anelastic[lev]) {
+            if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
                 src_comp = 1;
             } else {
                 src_comp = 0;
@@ -1185,7 +1185,7 @@ ERF::InitData_post ()
             // Need itime=0 for vertical interpolation
             if (n_time_old > 0) {
                 int itime = 0;
-                bool is_anelastic = (solverChoice.anelastic[0] == 1);
+                bool is_anelastic = (solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
@@ -1204,7 +1204,7 @@ ERF::InitData_post ()
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
-                bool is_anelastic = (solverChoice.anelastic[0] == 1);
+                bool is_anelastic = (solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
@@ -1275,7 +1275,7 @@ ERF::InitData_post ()
 #ifdef ERF_USE_FFT
         for (int lev = 0; lev <= finest_level; lev++) {
             // rebuild fft solvers here in case mesh type was changed when reading the checkpoint file
-            if ( ( (solverChoice.anelastic[lev] == 1)               || (solverChoice.project_initial_velocity[lev] == 1) ) &&
+            if ( ( (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible)               || (solverChoice.project_initial_velocity[lev] == 1) ) &&
                  ( (solverChoice.mesh_type == MeshType::ConstantDz) || (solverChoice.mesh_type == MeshType::StretchedDz) ) ) {
                 build_fft_solvers(lev);
             }
@@ -2117,13 +2117,13 @@ ERF::InitData_post ()
         // before ownership is established and any level starts phase relaxation.
         if (lagrangian) {
             for (int lev = 0; lev <= finest_level; ++lev) {
-                const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+                const amrex::MultiFab* base = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible ? &base_state[lev] : nullptr;
                 micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             }
         }
         for (int lev = 0; lev <= finest_level; ++lev) {
             if (!lagrangian) {
-                const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+                const amrex::MultiFab* base = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible ? &base_state[lev] : nullptr;
                 micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             }
             micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
@@ -3302,7 +3302,7 @@ ERF::init_only (int lev, double elapsed_time)
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
                 "Gravity should be on to be consistent with sounding initialization.");
         } else { // SoundingType::ConstantDensity
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.use_gravity || (solverChoice.anelastic[lev] == 1),
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.use_gravity || (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible),
                 "Constant density probably doesn't make sense for compressible flow with gravity");
             initHSE();
         }
@@ -3914,10 +3914,10 @@ ERF::ReadParameters ()
     // a face normal to z.  Refuse to run with any other value while a level substeps
     // implicitly.
     for (int lev = 0; lev <= max_level; lev++) {
-        if ( (solverChoice.substepping_type[lev] == SubsteppingType::Implicit) &&
+        if ( (solverChoice.timestepping_type[lev] == TimesteppingType::RK3_ImplicitSubstep) &&
              (no_box_split_dir != 2) )
         {
-            Abort("erf.substepping_type = Implicit at level " + std::to_string(lev) +
+            Abort("erf.timestepping_type = RK3_ImplicitSubstep at level " + std::to_string(lev) +
                   " requires amr.no_box_split_dir = 2 (the ERF default), so that no two grids "
                   "share a face normal to z: the implicit substep solve inverts one tridiagonal "
                   "system per column, and a column chopped at such a seam would instead be "
@@ -3925,7 +3925,7 @@ ERF::ReadParameters ()
                   "(Boxes stacked over the same column are fine as long as they do not touch.)  "
                   "Either remove amr.no_box_split_dir = " +
                   std::to_string(no_box_split_dir) + " from the inputs file, or set "
-                  "erf.substepping_type = None.");
+                  "erf.timestepping_type = RK3_NoSubstepping.");
         }
     }
 
@@ -4294,7 +4294,7 @@ ERF::ParameterSanityChecks ()
         if (nc_bdy_file.empty()) {
             Abort("erf.use_wrf_bdy_density requires nc_bdy_file");
         }
-        if (!solverChoice.anelastic.empty() && solverChoice.anelastic[0] != 0) {
+        if (!solverChoice.compressibility_type.empty() && solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible) {
             Abort("erf.use_wrf_bdy_density is not supported for anelastic simulations");
         }
         if (input_bndry_planes) {
@@ -4354,7 +4354,7 @@ ERF::ParameterSanityChecks ()
     for (int lev = 0; lev <= max_level; lev++)
     {
         // We ignore fixed_fast_dt if not substepping
-        if (solverChoice.substepping_type[lev] == SubsteppingType::None) {
+        if (solverChoice.timestepping_type[lev] != TimesteppingType::RK3_ImplicitSubstep) {
             fixed_fast_dt[lev] = -one;
         }
 
@@ -4402,7 +4402,7 @@ ERF::MakeHorizontalAverages ()
     auto domain = geom[0].Domain();
 
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
-    bool is_anelastic = (solverChoice.anelastic[lev] == 1);
+    bool is_anelastic = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
 
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();

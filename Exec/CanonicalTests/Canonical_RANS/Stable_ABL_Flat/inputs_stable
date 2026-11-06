@@ -5,7 +5,7 @@
 # the horizontal grid is coarse on purpose.
 erf.prob_name = "ABL"
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_fft   = true
 
 stop_time = 32400.0   # 9 h physics run; CTest overrides max_step

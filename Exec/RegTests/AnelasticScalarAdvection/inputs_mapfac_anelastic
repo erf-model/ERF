@@ -5,7 +5,7 @@
 # whose scalar-advection momenta carry the map factors (AdvectionSrcForRho).
 # Before the fix the anelastic momenta lacked 1/mf, so the two blobs parted.
 erf.prob_name = "Scalar Advection/Diffusion"
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_fft   = false
 erf.test_mapfactor = true
 

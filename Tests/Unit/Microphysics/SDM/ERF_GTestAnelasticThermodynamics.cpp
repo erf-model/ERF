@@ -108,7 +108,10 @@ struct ThermoFixture {
         pp.add("initial_species_mean_mass_water", Real(2.e-12));
         pp.add("initial_aerosol_mean_mass_NaCl", Real(1.e-19));
         pp.add("place_randomly_in_cells", false);
-        sc.anelastic = std::move(modes);
+        for (int mode : modes) {
+            sc.compressibility_type.push_back(mode != 0 ? CompressibilityType::Anelastic
+                                                        : CompressibilityType::FullyCompressible);
+        }
         sc.c_p = cp;
         sc.rdOcp = R_d / cp;
         model.Define(sc);
@@ -153,7 +156,7 @@ struct ThermoFixture {
                     data.m_runtime_rdata[ridx_ice_Tfz(1, 3)][n] = ParticleReal(273.15);
                 });
             }
-            update(0, sc.anelastic[0] ? &base : nullptr);
+            update(0, sc.compressibility_type[0] != CompressibilityType::FullyCompressible ? &base : nullptr);
             model.FinishInit(0, cons, z);
         }
     }

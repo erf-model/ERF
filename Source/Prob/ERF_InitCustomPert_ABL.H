@@ -95,7 +95,7 @@
     }
     // The sinusoidal temperature perturbation is carried entirely by the density
     // perturbation, which ERF_InitCustomPertState.cpp drops when the level uses a
-    // fixed-in-time density (implied by erf.anelastic).  Say so rather than fail
+    // fixed-in-time density (implied by a non-FullyCompressible erf.compressibility_type).  Say so rather than fail
     // silently, since the companion velocity perturbations still apply.
     if (add_sinusoidal_T && sc.fixed_density[lev]) {
         amrex::Print() << "WARNING: prob.pert_deltaT has no effect at level " << lev

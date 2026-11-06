@@ -4,8 +4,7 @@ erf.prob_name = "Turbulent Inflow"
 stop_time = 180.0
 #max_step = 5
 
-erf.anelastic = 1
-erf.substepping_type = None
+erf.compressibility_type = Anelastic
 amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 

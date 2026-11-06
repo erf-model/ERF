@@ -21,7 +21,7 @@ geometry.is_periodic =  1 1 1
 
 erf.prob_name        = "Bubble"
 erf.fixed_dt         = 1.0
-erf.substepping_type = "None"
+erf.timestepping_type = "RK3_NoSubstepping"
 erf.init_type        = "uniform"
 erf.use_gravity      = false
 erf.moisture_model   = "SuperDroplets"

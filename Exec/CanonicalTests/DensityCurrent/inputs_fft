@@ -16,7 +16,7 @@ amr.blocking_factor_z = 32
 #amr.max_grid_size_x = 1024
 amr.max_grid_size_x = 32
 
-erf.anelastic   = 1
+erf.compressibility_type = Anelastic
 erf.use_fft     = 1
 erf.check_file  = chk
 erf.plot_file_1 = plt

@@ -584,7 +584,7 @@ explicit treatment zeroes after the projection. The MOST wall law itself adds no
 horizontal wall-law face has :math:`w = 0`, and a :math:`w`-face on the roof row that carries a side
 wall law keeps the roof weight :math:`\beta_f`. The kernels then apply the wall law only, on the
 partial faces that carry it, and the solid faces are not zeroed afterwards. The requirements are
-those of the terrain case: a constant-:math:`\Delta z` mesh, map factors of one, ``erf.anelastic = 1``
+those of the terrain case: a constant-:math:`\Delta z` mesh, map factors of one, ``erf.compressibility_type`` not ``FullyCompressible``
 on every level and a build with FFT. A level coarser than the 50 m cutoff of the building forcing
 (:math:`\sqrt{\Delta x \Delta y} > 50` m) has no building blanking, and its faces keep
 :math:`\sigma = 1`. As for terrain, the faces on a non-periodic lateral domain boundary and on a

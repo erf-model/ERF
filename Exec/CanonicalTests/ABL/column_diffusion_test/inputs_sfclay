@@ -38,7 +38,7 @@ erf.input_sounding_file = "input_sounding_U0"
 
 # TIME STEP CONTROL
 #erf.fixed_mri_dt_ratio = 4
-erf.substepping_type = None
+erf.timestepping_type = RK3_NoSubstepping
 
 #erf.vert_implicit_fac  = 0.0  # fully explicit (default)
 #erf.fixed_dt           = 0.5  # largest stable dt with explicit diffusion (CFL=0.375)

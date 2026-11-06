@@ -8,7 +8,7 @@
 # hill-top speed-up against the Jackson-Hunt estimate 2 h/L.
 erf.prob_name = "ABL"
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 # NOTE: on a terrain-fitted mesh (StaticFittedMesh -> MeshType::VariableDz) the
 #       projection ignores erf.use_fft and always runs FFT-preconditioned GMRES,
 #       which aborts unless the build sets USE_FFT = TRUE. That is why CTest

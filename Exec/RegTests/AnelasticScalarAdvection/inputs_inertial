@@ -3,7 +3,7 @@
 # latitude 90, so u = U cos(f t), v = -U sin(f t), and the blob's position is known exactly.
 # This is a wind that varies in time, which a steady-wind case cannot use to test the time levels.
 erf.prob_name = "Scalar Advection/Diffusion"
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_fft   = false
 
 max_step  = 40

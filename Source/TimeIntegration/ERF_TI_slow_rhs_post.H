@@ -241,8 +241,8 @@
             // old + (dt R1 + dt R2) / 2.  So add only the change redistribution makes to this
             // stage's RHS, with this stage's weight: setting S_new = S_old + dt R2 here would
             // drop R1 and make the scalars first order in time (#4876).
-            const Real stage_wt = (solverChoice.anelastic[level] &&
-                                   solverChoice.anelastic_type[level] == AnelasticType::RK2 &&
+            const Real stage_wt = (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible &&
+                                   solverChoice.timestepping_type[level] == TimesteppingType::RK2 &&
                                    nrk == 1) ? myhalf : one;
             for ( MFIter mfi(S_new[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {

@@ -203,7 +203,7 @@ def run(args, label, options, injected_volume=0):
         "erf.input_sounding_file=" + str(Path(args.input).with_name("input_sounding")),
     ] + options
     if args.anelastic:
-        command += ["erf.anelastic=1", "super_droplets_moisture.num_substeps_phase_change=2"]
+        command += ["erf.compressibility_type=Anelastic", "super_droplets_moisture.num_substeps_phase_change=2"]
         if args.case != "initialization":
             # Anelastic RK2 disables the vertical implicit solve: resolve this
             # fixture's deliberately stiff diffusion at the same final time.

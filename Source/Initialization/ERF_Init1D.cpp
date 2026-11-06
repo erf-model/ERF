@@ -71,12 +71,12 @@ ERF::initHSE (int lev)
         }
         else if (solverChoice.init_type == InitType::Uniform)
         {
-            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
+            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
             prob->erf_init_const_dens_and_th_hse(dens, pres, pi, theta, qv, solverChoice.rdOcp);
         }
         else if (solverChoice.init_type == InitType::ConstantDensityLinearTheta)
         {
-            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
+            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
             prob->erf_init_const_dens_and_linear_th_hse(dens, pres, pi, theta, qv,
                                                         solverChoice.rdOcp, z_phys_cc_in);
         }

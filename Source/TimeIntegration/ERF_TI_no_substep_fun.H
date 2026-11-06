@@ -317,7 +317,7 @@
         apply_bcs(S_sum, time_for_fp, S_sum[IntVars::cons].nGrow(), S_sum[IntVars::xmom].nGrow(),
                   fast_only=true, vel_and_mom_synced=false);
 
-        if (solverChoice.anelastic[level]) {
+        if (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible) {
             bool have_tb = (thin_xforce[level] || thin_yforce[level] || thin_zforce[level]);
             if (have_tb) {
                 project_velocity_tb(level, slow_dt, S_sum);

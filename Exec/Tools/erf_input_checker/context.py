@@ -4,8 +4,12 @@
 (``amr.n_cell`` or ``erf.n_cell``, ``geometry.prob_hi`` or ``prob_extent``,
 per-level lists that may be a single value) and classifies the run:
 
-* ``is_anelastic``        -- ``erf.anelastic`` = 1 at level 0
-* ``substepping``         -- "Implicit" (the compressible default) or "None"
+* ``is_anelastic``        -- ``erf.compressibility_type`` is not FullyCompressible
+                             at level 0 (or the deprecated ``erf.anelastic`` = 1)
+* ``timestepping``        -- per-level ``erf.timestepping_type``, lower case, with the
+                             default for each level's compressibility (or mapped from the
+                             deprecated ``erf.substepping_type`` / ``erf.anelastic_type``)
+* ``substepping``         -- "Implicit" when level 0 is RK3_ImplicitSubstep, else "None"
 * ``init_mode``           -- "real" for WRFInput / Metgrid / NCFile / HindCast,
                              "ideal" otherwise
 * ``terrain``             -- the ``erf.terrain_type`` value, normalised
@@ -54,9 +58,10 @@ class RunContext:
         self.nlev = (self.max_level + 1) if self.max_level is not None else 1
         self.ref_ratio = self._ref_ratio()
 
-        self.anelastic = self._per_level_int("erf.anelastic", 0)
-        self.is_anelastic = bool(self.anelastic and self.anelastic[0] == 1)
-        self.substepping = self._substepping()
+        self.compressibility_type = self._compressibility_type()
+        self.is_anelastic = self.compressibility_type[0] != "fullycompressible"
+        self.timestepping = self._timestepping()
+        self.substepping = "Implicit" if self.timestepping[0] == "rk3_implicitsubstep" else "None"
         self.init_type = (deck.get_str("erf.init_type", "None") or "None")
         self.init_mode = "real" if self.init_type.lower() in REAL_INIT_TYPES else "ideal"
         self.terrain = (deck.get_str("erf.terrain_type", "None") or "None")
@@ -129,11 +134,23 @@ class RunContext:
             return v * self.nlev
         return (v + [v[-1]] * self.nlev)[:self.nlev]
 
-    def _substepping(self) -> str:
-        v = self.per_level_str("erf.substepping_type", "Implicit")[0]
-        if self.is_anelastic:
-            return "None"
-        return "Implicit" if v.lower() == "implicit" else "None"
+    def _compressibility_type(self) -> List[str]:
+        """Per-level compressibility, lower case; reads the deprecated erf.anelastic too."""
+        if self.deck.has("erf.anelastic") and not self.deck.has("erf.compressibility_type"):
+            return ["anelastic" if a == 1 else "fullycompressible"
+                    for a in self._per_level_int("erf.anelastic", 0)]
+        return [v.lower() for v in self.per_level_str("erf.compressibility_type", "FullyCompressible")]
+
+    def _timestepping(self) -> List[str]:
+        """Per-level time integrator, lower case; maps the deprecated keys as ERF does."""
+        fc = [t == "fullycompressible" for t in self.compressibility_type]
+        if self.deck.has("erf.timestepping_type"):
+            return [v.lower() for v in self.per_level_str("erf.timestepping_type", "")]
+        sub = [v.lower() for v in self.per_level_str("erf.substepping_type", "Implicit")]
+        anelastic_types = [v.lower() for v in self.per_level_str("erf.anelastic_type", "RK2")]
+        return [("rk3_nosubstepping" if s == "none" else "rk3_implicitsubstep") if f else
+                ("midpoint" if a == "midpoint" else "rk2")
+                for f, s, a in zip(fc, sub, anelastic_types)]
 
     def _periodic(self) -> List[bool]:
         v = self._safe(lambda: self.deck.get_ints("geometry.is_periodic"), [])

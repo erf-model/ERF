@@ -5,11 +5,11 @@ erf.init_type = Isentropic
 
 stop_time = 900.0
 
-#erf.anelastic   = 1
+#erf.compressibility_type = Anelastic
 #erf.check_file  = chka
 #erf.plot_file_1 = plta
 
-erf.anelastic   = 0
+erf.compressibility_type = FullyCompressible
 erf.check_file  = chk
 erf.plot_file_1 = plt
 

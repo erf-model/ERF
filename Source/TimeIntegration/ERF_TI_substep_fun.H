@@ -29,7 +29,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         //    slope (see make_fast_coeffs); the substeps take it from fast_coeffs either way
         Real beta_s;
         bool l_variable_beta_s;
-        if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
+        if (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep) {
             beta_s = solverChoice.beta_s;
             l_variable_beta_s = solverChoice.use_variable_beta_s;
         } else { // Fully explicit

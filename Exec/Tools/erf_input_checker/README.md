@@ -39,7 +39,7 @@ those problems from the deck alone:
 | `checks/physics.py` | turbulence closures, advection schemes, forcing and damping, moisture, terrain and stretching; enum names read from `Source/DataStructs` (`AMREX_ENUM`), exact case where ERF compares strings |
 | `checks/output.py` | plotfiles, checkpoints, restarts |
 | `checks/files.py` | every file the deck names: exists, and when present its contents against the deck (wrfinput, wrfbdy, wrflow, met_em, terrain, soundings, tables) |
-| `selftest.py` | 112 cases, each a deck that must trip a check and a sibling that must not |
+| `selftest.py` | 121 cases, each a deck that must trip a check and a sibling that must not |
 
 ## How to run
 

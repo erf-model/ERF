@@ -51,7 +51,7 @@ void add_par () {
    // those solves cannot do is split one contiguous column at a box seam.)  Setting
    // amr.no_box_split_dir = -1 in the inputs file restores the amrex behavior of
    // allowing grids to be chopped in every direction; ERF::ReadParameters rejects
-   // that if any level uses erf.substepping_type = Implicit.
+   // that if any level uses erf.timestepping_type = RK3_ImplicitSubstep.
    int no_box_split_dir = 2;
    pp.queryAdd("no_box_split_dir",no_box_split_dir);
 

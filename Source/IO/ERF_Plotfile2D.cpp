@@ -816,7 +816,7 @@ ERF::FillPlot2DVars (int lev,
     //    EOS -- defines the pressure, both for the sampled "pressure" field and for
     //    the pressure vertical coordinate.  This matches the 3-D plotfile path.
     MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);
-    const MultiFab* p_hse_ptr = (solverChoice.anelastic[lev] == 1) ? &p_hse : nullptr;
+    const MultiFab* p_hse_ptr = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ? &p_hse : nullptr;
     // The grid orientation, for the earth-relative u_east, v_north and wind_dir:
     //    from this level's lat/lon when the run has them (a WRF or metgrid
     //    initialization), otherwise the grid is taken to be aligned with east

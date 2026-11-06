@@ -31,7 +31,7 @@ erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_GABLS1"
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 # erf.cfl             = 0.5
 erf.fixed_dt        = 0.0025
 #erf.substepping_cfl = 0.5

@@ -139,7 +139,7 @@ void ERF::advance_microphysics (int lev,
         const auto micro_state_before = cloud_chamber_budget ?
             cloud_chamber_budget->state_integrals(cons, geom[lev]) :
             std::array<Real, CloudChamberBudget::NumScalars>{};
-        const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+        const amrex::MultiFab* base = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible ? &base_state[lev] : nullptr;
         micro->Update_Micro_Vars_Lev(lev, cons, base);
 
         // A fine patch short of the domain top receives its parent's sedimentation flux

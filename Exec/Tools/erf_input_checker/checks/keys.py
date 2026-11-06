@@ -13,13 +13,19 @@ RETIRED_KEYS = {
     "erf.use_terrain": "set erf.terrain_type instead",
     "erf.use_moist_background": "set erf.init_type = MoistBaseState instead",
     "erf.moisture_type": "renamed: set erf.moisture_model instead",
-    "erf.no_substepping": "set erf.substepping_type = None instead",
+    "erf.no_substepping": "set erf.timestepping_type = RK3_NoSubstepping instead",
     "erf.use_wrf_height_grid": "renamed: set erf.wrfinput_zlevels_from_file instead",
     "erf.pbl_mynn_diffuse_moistvars": "removed",
     # Source-retired, found by build_erf_schema.py (ERF_DampingStruct.H, ERF_IBSEBParams.H)
     "erf.rayleigh_damp_substep": "deprecated: set erf.rayleigh_damping_type instead",
     "erf.ibseb.utc_offset_hours": "not an input: the sun follows time_zero_utc_s (UTC) and longitude_deg; remove it",
     "erf.zsurface": "removed (#4446): a stretched grid starts at geometry.prob_lo[2]; set the bottom there",
+}
+# Inputs that SolverChoice still accepts but warns about
+DEPRECATED_KEYS = {
+    "erf.anelastic": "set erf.compressibility_type = FullyCompressible, Anelastic or PseudoIncompressible instead",
+    "erf.substepping_type": "set erf.timestepping_type = RK3_ImplicitSubstep or RK3_NoSubstepping instead",
+    "erf.anelastic_type": "set erf.timestepping_type = RK2 or MidPoint instead",
 }
 RETIRED_VALUES = {
     "erf.init_type": {"real": "WRFInput", "ideal": "WRFInput"},
@@ -176,6 +182,26 @@ class RetiredKeys(Checker):
             if self.deck.has(key):
                 self.error(key, "this input was removed from ERF; the run stops at start-up",
                            what + ".")
+        for key, what in DEPRECATED_KEYS.items():
+            if self.deck.has(key):
+                self.warn(key, "this input is deprecated; ERF still reads it", what + ".")
+        if self.deck.has("erf.anelastic") and self.deck.has("erf.compressibility_type"):
+            self.error("erf.anelastic", "both erf.anelastic and erf.compressibility_type are set; "
+                       "the run stops at start-up", "Remove erf.anelastic.")
+        for old in ("erf.substepping_type", "erf.anelastic_type"):
+            if self.deck.has(old) and self.deck.has("erf.timestepping_type"):
+                self.error(old, "both %s and erf.timestepping_type are set; the run stops at start-up" % old,
+                           "Remove %s." % old)
+        # RK3_* are the FullyCompressible integrators and RK2 / MidPoint the others
+        if self.deck.has("erf.timestepping_type"):
+            for lev, (ct, ts) in enumerate(zip(self.ctx.compressibility_type, self.ctx.timestepping)):
+                if (ct == "fullycompressible") != ts.startswith("rk3_"):
+                    self.error("erf.timestepping_type",
+                               "%s at level %d does not fit erf.compressibility_type = %s; the run stops at start-up"
+                               % (ts, lev, ct),
+                               "Use RK3_ImplicitSubstep or RK3_NoSubstepping at FullyCompressible levels, "
+                               "RK2 or MidPoint at the others.")
+                    break
         for key, table in RETIRED_VALUES.items():
             v = self.str_(key)
             if v and v.lower() in table:

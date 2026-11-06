@@ -134,7 +134,7 @@ A typical common block is:
 
    erf.prob_name = "Cloud Chamber"
    erf.init_type = ConstantDensity
-   erf.anelastic = 1
+   erf.compressibility_type = Anelastic
    erf.use_gravity = true
    erf.mesh_type = ConstantDz
    erf.vert_implicit = false
@@ -152,8 +152,8 @@ The following constraints are part of the implemented Cloud Chamber contract:
    * - Setting
      - Required value
      - Notes
-   * - ``erf.anelastic``
-     - ``1``
+   * - ``erf.compressibility_type``
+     - ``Anelastic`` or ``PseudoIncompressible``
      - Required in every Cloud Chamber mode.
    * - ``erf.use_gravity``
      - ``true``
@@ -1202,7 +1202,7 @@ run it with the ``erf_exec`` built for your configuration.
 
    erf.prob_name = "Cloud Chamber"
    erf.init_type = ConstantDensity
-   erf.anelastic = 1
+   erf.compressibility_type = Anelastic
    erf.use_gravity = true
    erf.moisture_model = Kessler_NoRain
    erf.vert_implicit = false

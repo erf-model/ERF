@@ -187,8 +187,8 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     // three-stage scheme; anelastic MidPoint is two stages; anelastic RK2 turns the implicit
     // solve off (its factors are zero).
     const auto& fac = solverChoice.vert_implicit_fac[lev];
-    const int nstages = (solverChoice.anelastic[lev] &&
-                         solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? 2 : 3;
+    const int nstages = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible &&
+                         solverChoice.timestepping_type[lev] == TimesteppingType::MidPoint) ? 2 : 3;
     const Real e_uv = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_momentum_diffusion);
     const Real e_th = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_thermal_diffusion);
     const Real e_ke = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_ke_diffusion);
@@ -399,8 +399,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         });
     }
 
-    bool l_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
-    int  l_anelastic   = solverChoice.anelastic[level];
+    bool l_substepping = (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep);
+    int  l_anelastic   = solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible;
 
     bool l_comp_substepping_diag = (verbose && l_substepping && !l_anelastic && solverChoice.substepping_diag);
 
@@ -969,7 +969,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      }
 
-     if (solverChoice.substepping_type[level] != SubsteppingType::None) {
+     if (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep) {
          if (fixed_dt[level] > zero && fixed_fast_dt[level] > zero) {
              dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
              if (dt_fast_ratio < 1) {

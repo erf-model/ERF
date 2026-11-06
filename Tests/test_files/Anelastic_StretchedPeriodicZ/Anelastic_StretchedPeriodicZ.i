@@ -23,7 +23,7 @@ erf.grid_stretching_ratio = 1.05
 erf.initial_dz            = 0.8
 
 # TIME INTEGRATION
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.cfl       = 0.5
 
 # DIAGNOSTICS & VERBOSITY

@@ -492,9 +492,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         bool uses_anelastic_reference_pressure (int lev) const
         {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                lev >= 0 && lev < static_cast<int>(m_anelastic.size()),
+                lev >= 0 && lev < static_cast<int>(m_compressibility_type.size()),
                 "SDM thermodynamics requires a configured AMR level");
-            return m_anelastic[lev] == 1;
+            return m_compressibility_type[lev] != CompressibilityType::FullyCompressible;
         }
 
         bool m_flag_phase_change;   /*!< Enable/disable phase changes */
@@ -503,7 +503,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         amrex::Real m_Cp; /*!< specific heat at constant pressure for dry air */
         amrex::Real m_rdOcp;
-        amrex::Vector<int> m_anelastic;
+        amrex::Vector<CompressibilityType> m_compressibility_type;
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
         amrex::Real m_rime_ratio; /*!< rime mass ratio to be considered graupel */
 

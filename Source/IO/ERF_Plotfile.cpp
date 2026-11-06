@@ -617,7 +617,7 @@ ERF::FillPlot3DVars (int lev,
     MultiFab pressure;
 
     const bool needs_pressure = erf_plotfile::plot3d_needs_pressure(plot_var_names);
-    if (solverChoice.anelastic[lev] == 0) {
+    if (solverChoice.compressibility_type[lev] == CompressibilityType::FullyCompressible) {
         if (needs_pressure) {
             // The EB stencils in compute_gradp_xy reach up to three cells to each side
             const bool needs_gradp = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
@@ -697,7 +697,7 @@ ERF::FillPlot3DVars (int lev,
     //       defined in ERF.H
     // *****************************************************************************************
 
-    if (solverChoice.anelastic[lev]) {
+    if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
         if (containerHasElement(plot_var_names, "temp")) {
             MultiFab dmf(mf_dst, make_alias, mf_comp, 1);
             const Real rdOcp = solverChoice.rdOcp;
@@ -808,7 +808,7 @@ ERF::FillPlot3DVars (int lev,
 
     if (containerHasElement(plot_var_names, "pressure"))
     {
-        if (solverChoice.anelastic[lev] == 1) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
             MultiFab::Copy(mf_dst, p_hse, 0, mf_comp, 1, 0);
         } else {
             MultiFab::Copy(mf_dst, pressure, 0, mf_comp, 1, 0);
@@ -819,7 +819,7 @@ ERF::FillPlot3DVars (int lev,
 
     if (containerHasElement(plot_var_names, "pert_pres"))
     {
-        if (solverChoice.anelastic[lev] == 1) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
             MultiFab::Copy(mf_dst, pp_inc[lev], 0, mf_comp, 1, 0);
         } else {
             MultiFab::Copy(mf_dst, pressure, 0, mf_comp, 1, 0);
@@ -869,7 +869,7 @@ ERF::FillPlot3DVars (int lev,
 
         b.setVal(0.); // Need to initialize to zero because buoyancy not defined on faces at top and bottom of domain
         make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
-                      get_eb(lev), solverChoice.anelastic[lev]);
+                      get_eb(lev), solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
         MultiFab::Copy(mf_dst, b, 0, mf_comp, 1, 0);
         mf_comp ++;
     }
@@ -895,7 +895,7 @@ ERF::FillPlot3DVars (int lev,
             const Array4<Real const>& p_arr = pressure.const_array(mfi);
             const Array4<Real const>& qt_arr = qt.const_array(mfi);
             const int qv_comp = mi.qv;
-            const bool anelastic = solverChoice.anelastic[lev];
+            const bool anelastic = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible;
             const Real rdOcp = solverChoice.rdOcp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 Real qv = (qv_comp >= 0) ? S_arr(i,j,k,qv_comp)/S_arr(i,j,k,Rho_comp) : zero;
@@ -931,7 +931,7 @@ ERF::FillPlot3DVars (int lev,
             const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
             const Array4<Real const>& p_arr = pressure.const_array(mfi);
             const int qv_comp = mi.qv;
-            const bool anelastic = solverChoice.anelastic[lev];
+            const bool anelastic = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible;
             const Real rdOcp = solverChoice.rdOcp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -997,7 +997,7 @@ ERF::FillPlot3DVars (int lev,
     // These are based on computing gradient of full pressure
     // **********************************************************************************************
 
-    if (solverChoice.anelastic[lev] == 0) {
+    if (solverChoice.compressibility_type[lev] == CompressibilityType::FullyCompressible) {
         if ( (containerHasElement(plot_var_names, "dpdx")) ||
              (containerHasElement(plot_var_names, "dpdy")) ||
              (containerHasElement(plot_var_names, "dpdz")) ) {
@@ -1012,7 +1012,7 @@ ERF::FillPlot3DVars (int lev,
         {
             const Box& bx = mfi.tilebox();
             const Array4<Real      >&   derdat  = mf_dst.array(mfi);
-            const Array4<Real const>&   gpx_arr = (solverChoice.anelastic[lev] == 1) ?
+            const Array4<Real const>&   gpx_arr = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ?
                   gradp[lev][GpVars::gpx].array(mfi) : gradp_temp[GpVars::gpx].array(mfi);
             // NOTE: gradp already carries the map factor, so we only average here
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -1027,7 +1027,7 @@ ERF::FillPlot3DVars (int lev,
         {
             const Box& bx = mfi.tilebox();
             const Array4<Real      >&   derdat  = mf_dst.array(mfi);
-            const Array4<Real const>&   gpy_arr = (solverChoice.anelastic[lev] == 1) ?
+            const Array4<Real const>&   gpy_arr = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ?
                   gradp[lev][GpVars::gpy].array(mfi) : gradp_temp[GpVars::gpy].array(mfi);
             // NOTE: gradp already carries the map factor, so we only average here
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -1042,7 +1042,7 @@ ERF::FillPlot3DVars (int lev,
         {
             const Box& bx = mfi.tilebox();
             const Array4<Real      >&  derdat  = mf_dst.array(mfi);
-            const Array4<Real const>&  gpz_arr = (solverChoice.anelastic[lev] == 1) ?
+            const Array4<Real const>&  gpz_arr = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ?
                   gradp[lev][GpVars::gpz].array(mfi) : gradp_temp[GpVars::gpz].array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 derdat(i ,j ,k, mf_comp) = myhalf * (gpz_arr(i,j,k+1) + gpz_arr(i,j,k));
@@ -1645,7 +1645,7 @@ ERF::FillPlot3DVars (int lev,
 
         if (containerHasElement(plot_var_names, "qsat"))
         {
-            const bool anelastic = solverChoice.anelastic[lev];
+            const bool anelastic = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible;
             const Real rdOcp = solverChoice.rdOcp;
             const int qv_comp = mi.qv;
 #ifdef _OPENMP
@@ -1698,7 +1698,7 @@ ERF::FillPlot3DVars (int lev,
             if (containerHasElement(plot_var_names, "rel_humidity"))
             {
                 const Real rdOcp = solverChoice.rdOcp;
-                const bool anelastic = solverChoice.anelastic[lev];
+                const bool anelastic = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible;
                 const int qv_comp = mi.qv;
                 for (MFIter mfi(mf_dst,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                     const Box& bx = mfi.tilebox();

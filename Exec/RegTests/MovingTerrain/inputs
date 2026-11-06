@@ -24,11 +24,11 @@ erf.terrain_type = MovingFittedMesh   # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
 # FOR NO SUBSTEPPING
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.fixed_dt           = 0.005
 
 # FOR SUBSTEPPING (fac 20)
-#erf.substepping_type   = Implicit
+#erf.timestepping_type = RK3_ImplicitSubstep
 #erf.fixed_mri_dt_ratio = 20
 #erf.fixed_dt           = 0.1
 #erf.use_lagged_delta_rt = false
