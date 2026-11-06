@@ -123,7 +123,8 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Real implicit_fac,
                              const ScalarDiffusionRefluxViews* reflux_flx = nullptr,
                              const amrex::Array4<const amrex::Real>& wall_face33 = amrex::Array4<const amrex::Real>{},
-                             const amrex::Array4<const amrex::Real>& wall_hfx = amrex::Array4<const amrex::Real>{});
+                             const amrex::Array4<const amrex::Real>& wall_hfx = amrex::Array4<const amrex::Real>{},
+                             const amrex::Array4<const amrex::Real>& wall_qfx = amrex::Array4<const amrex::Real>{});
 
 /** \brief Native adapter for regular scalar diffusion on a vertically stretched grid. */
 void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,

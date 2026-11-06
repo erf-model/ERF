@@ -2322,6 +2322,17 @@ List of Parameters
 |                                        | that switches it on at such a level stops the run        |                    |                  |
 |                                        | (per-level)                                              |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_moist_buoyancy**            | k-equation RANS with a moisture model that carries water | Boolean            | false            |
+|                                        | vapour: TKE buoyancy production from the virtual         |                    |                  |
+|                                        | potential temperature flux, g/theta_v0 [(1 + epsv qv)    |                    |                  |
+|                                        | <w'theta'> + epsv theta <w'qv'>] (water vapour only, no  |                    |                  |
+|                                        | cloud-water or saturated form; theta_v0 is               |                    |                  |
+|                                        | ``erf.theta_ref`` or the local theta_v); false keeps the |                    |                  |
+|                                        | dry g/theta_0 <w'theta'>; one value for the hierarchy is |                    |                  |
+|                                        | reset to false on levels without the k-eqn closure, a    |                    |                  |
+|                                        | per-level list that switches it on at such a level stops |                    |                  |
+|                                        | the run (per-level)                                      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.wall_dist_type**                 | wall distance for RANS on a terrain-fitted mesh:         | "poisson",         | "poisson"        |
 |                                        | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |
 |                                        | local surface projected on its normal (no linear solve)  |                    |                  |
@@ -3972,6 +3983,20 @@ building combinations.
 |                                   | holds :math:`|z/L| \le 100` (both heights clamp for      |                    |                  |
 |                                   | :math:`|L| < 0.005\,\Delta`); immersed buildings get no  |                    |                  |
 |                                   | temperature forcing from it                              |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_surf_moist_flux**        | fraction_stress with a moisture model that carries water | Real in            | 0 (none)         |
+|                                   | vapour: kinematic surface moisture flux [kg/kg m/s] of   | [-0.01, 0.01]      |                  |
+|                                   | the immersed terrain (q* = -F_q/u*, as                   |                    |                  |
+|                                   | ``erf.most.surf_moist_flux`` on flat ground), applied in |                    |                  |
+|                                   | the wall cell; not with ``erf.if_surf_moist``            |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_surf_moist**             | fraction_stress with a moisture model that carries water | Real in [0, 0.1]   | -1 (none)        |
+|                                   | vapour: surface water vapour mixing ratio [kg/kg] of the |                    |                  |
+|                                   | immersed terrain (q* from the wall cell and the cell     |                    |                  |
+|                                   | above, mixed by the solid fraction as theta* is, as      |                    |                  |
+|                                   | ``erf.most.surf_moist`` on flat ground), applied in the  |                    |                  |
+|                                   | wall cell as a decay toward it; not with                 |                    |                  |
+|                                   | ``erf.if_surf_moist_flux``                               |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_use_most**               | use the Monin-Obukhov similarity theory wall model at    | Boolean            | false            |
 |                                   | immersed surfaces                                        |                    |                  |
@@ -6093,7 +6118,8 @@ Immersed Forcing and Canopy Source Terms
   ``erf.if_wall_form``, ``erf.if_wall_face_spacing``, ``erf.if_wall_tke``, ``erf.if_wall_tke_time_factor``,
   ``erf.if_flat_wall_dissipation``,
   ``erf.if_average_down``, ``erf.if_cf_mismatch_warning``,
-  ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``,
+  ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_surf_moist_flux``, ``erf.if_surf_moist``,
+  ``erf.if_use_most``,
   ``erf.if_ws_floor``, ``erf.if_z0``,
   ``erf.immersed_forcing_substep``, ``erf.use_rotate_surface_flux``
 

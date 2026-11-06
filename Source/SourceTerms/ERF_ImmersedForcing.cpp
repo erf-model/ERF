@@ -322,14 +322,24 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
 /**
  * Surface condition of the fraction-stress wall law from the erf.if_* inputs at this time: a given
  * Obukhov length, a given heat flux, a given surface temperature (erf.if_init_surf_temp, changing
- * at erf.if_surf_heating_rate, which is stored in K/s), or none (neutral). The inputs guarantee
- * that at most one is set.
+ * at erf.if_surf_heating_rate, which is stored in K/s), or none (neutral); and, with a moisture
+ * model that carries water vapour, a given moisture flux (erf.if_surf_moist_flux), a given surface
+ * mixing ratio (erf.if_surf_moist) or none, the Obukhov length then formed from theta_v and
+ * theta_v*. The inputs guarantee that at most one of each is set.
  */
 static ib_wall::WallCond
 make_wall_cond (const SolverChoice& sc, const Real time)
 {
     ib_wall::WallCond c;
     c.sfuns = sc.most_sfuns; // erf.most.stable_functions
+    c.moist = (sc.moisture_indices.qv != MoistureComponentIndices::absent);
+    if (sc.if_surf_moist_flux != zero) {
+        c.moist_type = ib_wall::WallCond::moist_flux;
+        c.qflux = sc.if_surf_moist_flux;
+    } else if (sc.if_surf_moist >= zero) {
+        c.moist_type = ib_wall::WallCond::surface_moist;
+        c.q_s = sc.if_surf_moist;
+    }
     if (sc.if_Olen_in != Real(1e-8)) {
         c.type = ib_wall::WallCond::obukhov;
         c.Linv = one / sc.if_Olen_in;
@@ -382,6 +392,15 @@ Real if_face_theta (const Array4<const Real>& cell_data, int i, int j, int kk, i
                     + cell_data(i-io,j-jo,kk,RhoTheta_comp) / cell_data(i-io,j-jo,kk,Rho_comp) );
 }
 
+/// Mixing ratio of conserved component comp on a face of direction dir at level kk (zero for comp < 0)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_face_q (const Array4<const Real>& cell_data, int comp, int i, int j, int kk, int io, int jo) noexcept
+{
+    return (comp < 0) ? zero
+         : myhalf * ( cell_data(i,j,kk,comp) / cell_data(i,j,kk,Rho_comp)
+                    + cell_data(i-io,j-jo,kk,comp) / cell_data(i-io,j-jo,kk,Rho_comp) );
+}
+
 } // namespace
 
 /**
@@ -416,6 +435,9 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
     const Real tiny  = std::numeric_limits<Real>::epsilon();
     const Real small = solverChoice.if_small_volfrac;
     const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
+    // water vapour on the face (zero without a moisture model), for q* and the virtual Obukhov
+    // length of the wall state, as the scalar kernel forms them
+    const int qv_comp = cond.moist ? solverChoice.moisture_indices.qv : -1;
     constexpr int io = (dir == 0) ? 1 : 0;
     constexpr int jo = (dir == 1) ? 1 : 0;
     const int klo = geom.Domain().smallEnd(2);
@@ -437,6 +459,8 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
             const ib_wall::WallState ws = ib_wall::wall_state(ut, ut_ref,
                                                               if_face_theta(cell_data, i, j, k,   io, jo),
                                                               if_face_theta(cell_data, i, j, k+1, io, jo),
+                                                              if_face_q(cell_data, qv_comp, i, j, k,   io, jo),
+                                                              if_face_q(cell_data, qv_comp, i, j, k+1, io, jo),
                                                               ib_wall::wall_beta(b_k, small), dz, z0, cond);
             mom_src_arr(i, j, k) -= ib_wall::stress_rate(ws.ustar, ut, dz, dt) * rho_face * un;
         } else if (l_drag) {
@@ -494,7 +518,11 @@ void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
  * average of the legacy kernel. The kinematic wall flux -u* theta* is stored in wall_hfx at the
  * wall cell (zero elsewhere), for the TKE buoyancy on the wall face; with wall_tke the wall value
  * of the TKE is stored in wall_ktarget at the wall cell (-1 elsewhere), and a time factor of 1
- * leaves the pin to erf_slow_rhs_post and the implicit TKE solve.
+ * leaves the pin to erf_slow_rhs_post and the implicit TKE solve. With a moisture model the wall
+ * moisture flux -u* q* of the surface moisture condition (erf.if_surf_moist_flux or
+ * erf.if_surf_moist; q* = 0 without one) goes to the water vapour of the wall cell and is stored
+ * in wall_qfx (zero elsewhere); with wall_tke_moist (erf.rans_moist_buoyancy) the wall TKE's
+ * buoyancy uses theta_v* and theta_v, as flat ground's erf.dirichlet_k does under the same key.
  */
 void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
                                                    const Array4<const Real>& u,
@@ -511,7 +539,9 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
                                                    const Real dt,
                                                    const Real time,
                                                    const bool wall_tke,
-                                                   const Real Cmu0)
+                                                   const Real Cmu0,
+                                                   const Array4<      Real>& wall_qfx,
+                                                   const bool wall_tke_moist)
 {
     const Real* dx_arr = geom.CellSize();
     const Real dz = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
@@ -527,11 +557,15 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
     const int klo = geom.Domain().smallEnd(2);
     const int khi = geom.Domain().bigEnd(2);
     const bool have_avg = (r_avg && t_avg);
+    // water vapour component of the conserved state (-1 without a moisture model that carries it)
+    const int qv_comp = cond.moist ? solverChoice.moisture_indices.qv : -1;
+    const bool moist_cond = (qv_comp >= 0) && (cond.moist_type != ib_wall::WallCond::moist_none);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real b_k = if_cell_beta(t_blank_arr, i, j, k, klo, khi, small);
         if (wall_hfx) { wall_hfx(i, j, k) = zero; }
+        if (wall_qfx) { wall_qfx(i, j, k) = zero; }
         if (wall_ktarget) { wall_ktarget(i, j, k) = -one; }   // no wall value: not a wall cell
 
         if (ib_wall::is_wall_cell(if_cell_beta(t_blank_arr, i, j, k-1, klo, khi, small), b_k,
@@ -544,13 +578,24 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
             const Real rho       = cell_data(i, j, k,   Rho_comp);
             const Real theta     = cell_data(i, j, k,   RhoTheta_comp) / rho;
             const Real theta_ref = cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp);
+            // water vapour of the wall cell and the cell above (zero without a moisture model)
+            const Real q     = (qv_comp >= 0) ? cell_data(i, j, k,   qv_comp) / rho : zero;
+            const Real q_ref = (qv_comp >= 0) ? cell_data(i, j, k+1, qv_comp) / cell_data(i, j, k+1, Rho_comp) : zero;
             const ib_wall::WallState ws = ib_wall::wall_state(std::sqrt(uc0*uc0 + vc0*vc0), std::sqrt(uc1*uc1 + vc1*vc1),
-                                                              theta, theta_ref,
+                                                              theta, theta_ref, q, q_ref,
                                                               ib_wall::wall_beta(b_k, small), dz, z0, cond);
             cell_src(i, j, k, RhoTheta_comp) += rho * ib_wall::heat_source(ws, theta, cond, dz, dt);
             if (wall_hfx) { wall_hfx(i, j, k) = -ws.ustar * ws.thetastar; }
+            if (moist_cond) {
+                cell_src(i, j, k, qv_comp) += rho * ib_wall::moist_source(ws, q, cond, dz, dt);
+            }
+            if (wall_qfx) { wall_qfx(i, j, k) = -ws.ustar * ws.qstar; }
             if (wall_tke) {
-                const Real k_wall = ib_wall::wall_tke(ws, ib_wall::wall_beta(b_k, small), dz, z0, theta, Cmu0);
+                // under erf.rans_moist_buoyancy the buoyancy of the wall value is the virtual one
+                const Real k_wall = (wall_tke_moist && cond.moist)
+                    ? ib_wall::wall_tke(ws, ib_wall::wall_beta(b_k, small), dz, z0, Cmu0,
+                                        ib_wall::virtual_thetastar(ws, theta, q), ib_wall::virtual_theta(theta, q))
+                    : ib_wall::wall_tke(ws, ib_wall::wall_beta(b_k, small), dz, z0, theta, Cmu0);
                 if (wall_ktarget) { wall_ktarget(i, j, k) = k_wall; }
                 if (!tke_pin) {
                     // relax the wall-cell TKE toward its wall value over tke_time_factor steps

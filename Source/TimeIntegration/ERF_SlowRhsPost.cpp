@@ -115,7 +115,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         erf_sbm::SBMStateManager* sbm_state_manager,
                         erf_sbm::SBMTransport* sbm_transport,
                         const MultiFab* ib_wall_face33,
-                        const MultiFab* ib_wall_ktarget)
+                        const MultiFab* ib_wall_ktarget,
+                        const MultiFab* ib_wall_qfx)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -689,7 +690,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                    bc_ptr_d,
                                                    l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
                                                    l_reflux_diffusion,
-                                                   (ib_wall_face33) ? ib_wall_face33->const_array(mfi) : Array4<const Real>{});
+                                                   (ib_wall_face33) ? ib_wall_face33->const_array(mfi) : Array4<const Real>{},
+                                                   Array4<const Real>{},
+                                                   (ib_wall_qfx) ? ib_wall_qfx->const_array(mfi) : Array4<const Real>{});
                         }
                         if (use_physical_chamber_wall_flux) {
                             // Apply the physical wall correction immediately to

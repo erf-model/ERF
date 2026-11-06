@@ -556,3 +556,288 @@ TEST(ImmersedFractionStress, WallTkeIsTheFlatGroundWallValue)
     const Real expect_floor = std::pow(w.ustar*w.ustar*w.ustar + KAPPA * B * Real(2.) * z0, Real(2.)/Real(3.)) / (Cmu0*Cmu0);
     EXPECT_NEAR(ib_wall::wall_tke(w, Real(0.999), dz, z0, theta, Cmu0), expect_floor, Real(1.e-12));
 }
+
+// ---------------------------------------------------------------- moisture (the surface moisture condition)
+// The wall law carries a surface moisture condition for the water vapour (erf.if_surf_moist_flux or
+// erf.if_surf_moist) and, with a moisture model, forms the Obukhov length from theta_v and
+// theta_v* = theta* (1 + epsv q) + epsv theta q*, as the flat surface layer does.
+
+// Without a moisture model (c.moist unset) the moisture arguments change nothing: the two overloads
+// agree bit for bit, and q* stays zero
+TEST(ImmersedFractionStress, DryWallStateIgnoresTheMoistureArguments)
+{
+    ib_wall::WallCond c;
+    c.type = ib_wall::WallCond::heat_flux;
+    c.q = Real(0.05);
+    const Real th = Real(300.);
+    const ib_wall::WallState dry = ib_wall::wall_state(Real(8.), Real(10.), th, th, Real(0.25), dz, z0, c);
+    const ib_wall::WallState wet = ib_wall::wall_state(Real(8.), Real(10.), th, th, Real(0.008), Real(0.0079),
+                                                        Real(0.25), dz, z0, c);
+    EXPECT_EQ(wet.ustar, dry.ustar);
+    EXPECT_EQ(wet.thetastar, dry.thetastar);
+    EXPECT_EQ(wet.Linv, dry.Linv);
+    EXPECT_EQ(wet.qstar, Real(0.));
+    EXPECT_EQ(dry.qstar, Real(0.));
+}
+
+// With a moisture model and no moisture condition, zero water vapour reproduces the dry state exactly
+// (theta_v = theta, theta_v* = theta*), and a neutral surface keeps L = 0 whatever the vapour
+TEST(ImmersedFractionStress, MoistWallStateWithoutVapourIsTheDryState)
+{
+    ib_wall::WallCond c;
+    c.type = ib_wall::WallCond::surface_temp;
+    c.theta_s = Real(303.);
+    const Real th = Real(300.2), th_ref = Real(300.);
+    const ib_wall::WallState dry = ib_wall::wall_state(Real(6.), Real(8.), th, th_ref, Real(0.5), dz, z0, c);
+    c.moist = true;
+    const ib_wall::WallState wet = ib_wall::wall_state(Real(6.), Real(8.), th, th_ref, Real(0.), Real(0.),
+                                                        Real(0.5), dz, z0, c);
+    EXPECT_EQ(wet.ustar, dry.ustar);
+    EXPECT_EQ(wet.thetastar, dry.thetastar);
+    EXPECT_EQ(wet.Linv, dry.Linv);
+    ib_wall::WallCond n; n.moist = true;   // neutral, moist air
+    const ib_wall::WallState wn = ib_wall::wall_state(Real(6.), Real(8.), th, th, Real(0.008), Real(0.008),
+                                                       Real(0.5), dz, z0, n);
+    EXPECT_EQ(wn.thetastar, Real(0.));
+    EXPECT_EQ(wn.qstar, Real(0.));
+    EXPECT_EQ(wn.Linv, Real(0.));
+    EXPECT_EQ(wn.ustar, ib_wall::wall_state(Real(6.), Real(8.), th, th, Real(0.5), dz, z0, ib_wall::WallCond{}).ustar);
+}
+
+// A given moisture flux: q* = -F_q/u*, and the Obukhov length settles on the one of the virtual
+// scale, L = u*^2 theta_v / (kappa g theta_v*); evaporation alone (no heat condition) is unstable
+TEST(ImmersedFractionStress, MoistureFluxWallStateIsSelfConsistent)
+{
+    ib_wall::WallCond c;
+    c.moist = true;
+    c.type = ib_wall::WallCond::heat_flux;
+    c.q = Real(0.01);
+    c.moist_type = ib_wall::WallCond::moist_flux;
+    c.qflux = Real(2.e-5);
+    const Real th = Real(300.), q = Real(0.008), q_ref = Real(0.0079);
+    const ib_wall::WallState w = ib_wall::wall_state(Real(8.), Real(10.), th, th, q, q_ref, Real(0.25), dz, z0, c);
+    EXPECT_NEAR(w.qstar, -c.qflux / w.ustar, tol_rel() * std::abs(w.qstar));
+    EXPECT_NEAR(w.thetastar, -c.q / w.ustar, tol_rel() * std::abs(w.thetastar));
+    const Real thv  = th * (Real(1.) + epsv * q);
+    const Real thvs = w.thetastar * (Real(1.) + epsv * q) + epsv * th * w.qstar;
+    EXPECT_NEAR(ib_wall::virtual_theta(th, q), thv, tol_rel() * thv);
+    EXPECT_NEAR(ib_wall::virtual_thetastar(w, th, q), thvs, tol_rel() * std::abs(thvs));
+    EXPECT_LT(w.Linv, Real(0.));
+    EXPECT_NEAR(w.Linv, KAPPA * CONST_GRAV * thvs / (w.ustar * w.ustar * thv), Real(1e-3) * std::abs(w.Linv));
+    // the moisture flux makes the air more unstable than the heat flux alone
+    ib_wall::WallCond cd = c; cd.moist_type = ib_wall::WallCond::moist_none;
+    const ib_wall::WallState wd = ib_wall::wall_state(Real(8.), Real(10.), th, th, q, q_ref, Real(0.25), dz, z0, cd);
+    EXPECT_LT(w.Linv, wd.Linv);
+    EXPECT_GT(w.ustar, wd.ustar);
+    // evaporation alone: theta* = 0, L < 0 from epsv theta q*
+    ib_wall::WallCond cm = c; cm.type = ib_wall::WallCond::neutral;
+    const ib_wall::WallState wm = ib_wall::wall_state(Real(8.), Real(10.), th, th, q, q_ref, Real(0.25), dz, z0, cm);
+    EXPECT_EQ(wm.thetastar, Real(0.));
+    EXPECT_LT(wm.Linv, Real(0.));
+    EXPECT_NEAR(wm.Linv, KAPPA * CONST_GRAV * epsv * th * wm.qstar / (wm.ustar * wm.ustar * thv), Real(1e-3) * std::abs(wm.Linv));
+}
+
+// A given surface mixing ratio: q* mixes the wall cell's and the cell above's estimates by the
+// fraction with the stability functions of the settled L, as theta* does; a moist surface gives
+// q* < 0 (evaporation), and air at the surface value gives q* = 0
+TEST(ImmersedFractionStress, SurfaceMoistureWallStateUsesTheMixedScale)
+{
+    ib_wall::WallCond c;
+    c.moist = true;
+    c.type = ib_wall::WallCond::surface_temp;
+    c.theta_s = Real(301.);
+    c.moist_type = ib_wall::WallCond::surface_moist;
+    c.q_s = Real(0.012);
+    const Real b = Real(0.5), th = Real(300.2), th_ref = Real(300.), q = Real(0.008), q_ref = Real(0.0079);
+    const ib_wall::WallState w = ib_wall::wall_state(Real(6.), Real(8.), th, th_ref, q, q_ref, b, dz, z0, c);
+    similarity_funs sf;
+    const Real d1 = Real(0.5) * (Real(1.) - b) * dz, d2 = (Real(1.5) - b) * dz;
+    const Real qs = (Real(1.) - b) * KAPPA * (q - c.q_s) / (std::log(d1/z0) - sf.calc_psi_h(d1 * w.Linv))
+                  +            b  * KAPPA * (q_ref - c.q_s) / (std::log(d2/z0) - sf.calc_psi_h(d2 * w.Linv));
+    const Real ts = (Real(1.) - b) * KAPPA * (th - c.theta_s) / (std::log(d1/z0) - sf.calc_psi_h(d1 * w.Linv))
+                  +            b  * KAPPA * (th_ref - c.theta_s) / (std::log(d2/z0) - sf.calc_psi_h(d2 * w.Linv));
+    EXPECT_LT(w.qstar, Real(0.));
+    EXPECT_LT(w.Linv, Real(0.));
+    EXPECT_NEAR(w.qstar, qs, Real(1e-3) * std::abs(qs));
+    EXPECT_NEAR(w.thetastar, ts, Real(1e-3) * std::abs(ts));
+    EXPECT_NEAR(w.Linv, KAPPA * CONST_GRAV * ib_wall::virtual_thetastar(w, th, q)
+                        / (w.ustar * w.ustar * ib_wall::virtual_theta(th, q)), Real(1e-3) * std::abs(w.Linv));
+    const ib_wall::WallState w0 = ib_wall::wall_state(Real(6.), Real(8.), th, th_ref, c.q_s, c.q_s, b, dz, z0, c);
+    EXPECT_EQ(w0.qstar, Real(0.));
+}
+
+// A given Obukhov length with a moisture model sets theta_v*: theta* is what is left after the
+// moisture part, so that theta* (1 + epsv q) + epsv theta q* = theta_v u*^2 / (kappa g L)
+TEST(ImmersedFractionStress, ObukhovLengthWallStateSplitsTheVirtualScale)
+{
+    ib_wall::WallCond c;
+    c.moist = true;
+    c.type = ib_wall::WallCond::obukhov;
+    c.Linv = Real(1.) / Real(150.);
+    c.moist_type = ib_wall::WallCond::moist_flux;
+    c.qflux = Real(-1.e-5);   // deposition
+    const Real th = Real(265.), q = Real(0.002);
+    const ib_wall::WallState w = ib_wall::wall_state(Real(5.), Real(6.), th, th, q, q, Real(0.), dz, z0, c);
+    EXPECT_EQ(w.Linv, c.Linv);
+    EXPECT_GT(w.qstar, Real(0.));
+    const Real thvs = ib_wall::virtual_theta(th, q) * w.ustar * w.ustar * c.Linv / (KAPPA * CONST_GRAV);
+    EXPECT_NEAR(ib_wall::virtual_thetastar(w, th, q), thvs, tol_rel() * Real(8.) * std::abs(thvs));
+    // without vapour and without a moisture condition: the dry given-length result
+    ib_wall::WallCond cd = c; cd.moist_type = ib_wall::WallCond::moist_none;
+    const ib_wall::WallState wd = ib_wall::wall_state(Real(5.), Real(6.), th, th, Real(0.), Real(0.), Real(0.), dz, z0, cd);
+    EXPECT_NEAR(wd.thetastar, th * wd.ustar * wd.ustar * c.Linv / (KAPPA * CONST_GRAV), tol_rel() * Real(4.) * std::abs(wd.thetastar));
+}
+
+// The wall moisture source: a given flux is applied as it stands (F_q / dz); with a surface mixing
+// ratio it is a decay toward it, integrated exactly, so the air never passes the surface value
+TEST(ImmersedFractionStress, SurfaceMoistureSourceNeverOvershoots)
+{
+    ib_wall::WallCond c;
+    c.moist = true;
+    c.moist_type = ib_wall::WallCond::surface_moist;
+    c.q_s = Real(0.012);
+    const Real th = Real(300.), q = Real(0.008);
+    const ib_wall::WallState w = ib_wall::wall_state(Real(6.), Real(8.), th, th, q, q, Real(0.9), dz, z0, c);
+    for (Real dt : {Real(1.), Real(100.), Real(1e6)}) {
+        const Real s = ib_wall::moist_source(w, q, c, dz, dt);
+        SCOPED_TRACE(testing::Message() << "dt = " << dt);
+        EXPECT_GT(s, Real(0.));
+        EXPECT_LE(q + s * dt, c.q_s * (Real(1.) + tol_rel()));
+    }
+    ib_wall::WallCond cq; cq.moist = true; cq.moist_type = ib_wall::WallCond::moist_flux; cq.qflux = Real(2.e-5);
+    const ib_wall::WallState wq = ib_wall::wall_state(Real(6.), Real(8.), th, th, q, q, Real(0.), dz, z0, cq);
+    EXPECT_NEAR(ib_wall::moist_source(wq, q, cq, dz, Real(1.)), cq.qflux / dz, tol_rel() * cq.qflux / dz * Real(4.));
+    // no moisture condition: no source
+    ib_wall::WallCond cn; cn.moist = true;
+    const ib_wall::WallState wn = ib_wall::wall_state(Real(6.), Real(8.), th, th, q, q, Real(0.), dz, z0, cn);
+    EXPECT_EQ(ib_wall::moist_source(wn, q, cn, dz, Real(1.)), Real(0.));
+}
+
+// The wall TKE with a buoyancy scale of its own: theta_v* and theta_v give the moist wall value,
+// and theta* and theta the dry overload
+TEST(ImmersedFractionStress, WallTkeTakesTheVirtualBuoyancyScale)
+{
+    const Real Cmu0 = Real(0.5562), theta = Real(300.), q = Real(0.01);
+    ib_wall::WallState w{};
+    w.ustar = Real(0.4); w.thetastar = Real(-0.02); w.qstar = Real(-1.e-4);
+    const Real thvs = ib_wall::virtual_thetastar(w, theta, q), thv = ib_wall::virtual_theta(theta, q);
+    EXPECT_LT(thvs, w.thetastar);   // evaporation adds to the destabilising scale
+    const Real B  = -CONST_GRAV * w.ustar * thvs / thv;
+    const Real d1 = Real(0.5) * (Real(1.) - Real(0.3)) * dz;
+    const Real expect = std::pow(w.ustar*w.ustar*w.ustar + KAPPA * B * d1, Real(2.)/Real(3.)) / (Cmu0*Cmu0);
+    EXPECT_NEAR(ib_wall::wall_tke(w, Real(0.3), dz, z0, Cmu0, thvs, thv), expect, Real(1.e-12));
+    EXPECT_GT(ib_wall::wall_tke(w, Real(0.3), dz, z0, Cmu0, thvs, thv), ib_wall::wall_tke(w, Real(0.3), dz, z0, theta, Cmu0));
+    EXPECT_EQ(ib_wall::wall_tke(w, Real(0.3), dz, z0, Cmu0, w.thetastar, theta), ib_wall::wall_tke(w, Real(0.3), dz, z0, theta, Cmu0));
+}
+
+namespace {
+
+// The scalar kernel's water vapour source (component qv_comp) and the wall moisture flux it writes
+struct MoistKernelOut { std::vector<Real> src, qfx, hsrc; };
+MoistKernelOut run_moist_kernel (const Mesh& m, MomFields& f, const SolverChoice& sc, int qv_comp, Real dt)
+{
+    MultiFab src(m.ba, m.dm, NVAR_max, 0);
+    MultiFab qfx(m.ba, m.dm, 1, 0);
+    src.setVal(Real(0.));
+    qfx.setVal(Real(-7.));
+    for (MFIter mfi(src); mfi.isValid(); ++mfi) {
+        ImmersedForcingTerrain_Scalar_FractionStress(mfi.validbox(), f.u.const_array(mfi), f.v.const_array(mfi),
+                                                     f.cons.const_array(mfi), f.beta.const_array(mfi),
+                                                     src.array(mfi), Array4<Real>{}, Array4<Real>{}, m.geom, sc,
+                                                     Table1D<Real>{}, Table1D<Real>{}, dt, Real(0.),
+                                                     false, Real(0.5562), qfx.array(mfi));
+    }
+    Gpu::streamSynchronize();
+    MultiFab one_comp(m.ba, m.dm, 1, 0);
+    MoistKernelOut out;
+    MultiFab::Copy(one_comp, src, qv_comp, 0, 1, 0);
+    out.src = to_host(one_comp, m.domain);
+    MultiFab::Copy(one_comp, src, RhoTheta_comp, 0, 1, 0);
+    out.hsrc = to_host(one_comp, m.domain);
+    out.qfx = to_host(qfx, m.domain);
+    return out;
+}
+
+} // namespace
+
+// erf.if_surf_moist_flux in the scalar kernel: the wall cell (cell 4 over a plane at 45 m) gets
+// rho F_q / dz for its water vapour, the kinematic flux F_q is written to the wall-flux array
+// there and zero elsewhere, and the solid and the air above get no moisture source; without a
+// condition the vapour is left alone and the array is zero
+TEST(ImmersedFractionStress, WallMoistureSourceGoesToTheWallCellOnly)
+{
+    const Mesh m = make_mesh();
+    MomFields f = make_mom_fields(m, Real(45.));
+    set_theta(f.cons, Real(300.));
+    SolverChoice sc = make_choice();
+    sc.moisture_type = MoistureType::MoistNoCondensation;
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
+    const int qv_comp = sc.moisture_indices.qv;
+    ASSERT_GE(qv_comp, 0);
+    f.cons.setVal(Real(1.2) * Real(0.008), qv_comp, 1, 2);
+    sc.if_surf_temp_flux  = Real(0.01);
+    sc.if_surf_moist_flux = Real(2.e-5);
+    const Real dt = Real(1.);
+    const MoistKernelOut o = run_moist_kernel(m, f, sc, qv_comp, dt);
+    const Real expect = Real(1.2) * sc.if_surf_moist_flux / dz;
+    for (int i = 0; i < nx; ++i) {
+        SCOPED_TRACE(testing::Message() << "i = " << i);
+        EXPECT_NEAR(at(o.src, m.domain, i, 0, 4), expect, Real(1e-12) * expect);
+        EXPECT_EQ(at(o.src, m.domain, i, 0, 3), Real(0.));
+        EXPECT_EQ(at(o.src, m.domain, i, 0, 5), Real(0.));
+        EXPECT_NEAR(at(o.qfx, m.domain, i, 0, 4), sc.if_surf_moist_flux, Real(1e-12) * sc.if_surf_moist_flux);
+        EXPECT_EQ(at(o.qfx, m.domain, i, 0, 3), Real(0.));
+        EXPECT_EQ(at(o.qfx, m.domain, i, 0, 5), Real(0.));
+        EXPECT_GT(at(o.hsrc, m.domain, i, 0, 4), Real(0.));   // the heat flux is still applied
+    }
+    // the heat source with the moisture flux differs from the dry one: the virtual Obukhov length
+    // changes u* (the flux itself, rho q / dz, is the same): compare u* through the stress-free
+    // channel, the TKE wall value is not requested here, so check the heat source is unchanged in
+    // value (a given flux is applied as it stands)
+    sc.if_surf_moist_flux = Real(0.);
+    const MoistKernelOut d = run_moist_kernel(m, f, sc, qv_comp, dt);
+    for (int i = 0; i < nx; ++i) {
+        SCOPED_TRACE(testing::Message() << "i = " << i);
+        EXPECT_EQ(at(d.src, m.domain, i, 0, 4), Real(0.));
+        EXPECT_EQ(at(d.qfx, m.domain, i, 0, 4), Real(0.));
+        EXPECT_NEAR(at(d.hsrc, m.domain, i, 0, 4), Real(1.2) * sc.if_surf_temp_flux / dz, Real(1e-12));
+    }
+}
+
+// The momentum kernels form the wall state with the water vapour of the face, as the scalar kernel
+// does: with a surface mixing ratio and moist air the wall stress on a face-aligned surface is the
+// one of the moist wall state (q* from q - q_s, L from theta_v*), not of a dry state with q = 0
+TEST(ImmersedFractionStress, MomentumWallStressSeesTheFaceVapour)
+{
+    const Mesh m = make_mesh();
+    MomFields f = make_mom_fields(m, Real(40.));
+    set_theta(f.cons, Real(300.));
+    SolverChoice sc = make_choice();
+    sc.moisture_type = MoistureType::MoistNoCondensation;
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
+    const int qv_comp = sc.moisture_indices.qv;
+    ASSERT_GE(qv_comp, 0);
+    const Real q = Real(0.004);
+    f.cons.setVal(Real(1.2) * q, qv_comp, 1, 2);
+    sc.if_surf_moist = Real(0.008);
+    const Real dt = Real(0.5);
+    const std::vector<Real> s = run_xmom(m, f, sc, dt);
+    const Box rx = convert(m.domain, IntVect(1,0,0));
+
+    ib_wall::WallCond c;
+    c.moist = true;
+    c.moist_type = ib_wall::WallCond::surface_moist;
+    c.q_s = sc.if_surf_moist;
+    const Real u4 = Real(1.) + Real(0.3) * 4, ut4 = std::sqrt(u4*u4 + Real(0.25));
+    const Real u5 = Real(1.) + Real(0.3) * 5, ut5 = std::sqrt(u5*u5 + Real(0.25));
+    const ib_wall::WallState wet = ib_wall::wall_state(ut4, ut5, Real(300.), Real(300.), q, q, Real(0.), dz, z0, c);
+    const ib_wall::WallState dry = ib_wall::wall_state(ut4, ut5, Real(300.), Real(300.), Real(0.), Real(0.), Real(0.), dz, z0, c);
+    EXPECT_LT(wet.Linv, Real(0.));          // evaporation alone makes the wall unstable
+    // a state formed with q = 0 is a different one (its q - q_s is twice the real contrast)
+    EXPECT_GT(std::abs(wet.ustar - dry.ustar), Real(1e-3) * dry.ustar);
+    const Real expect = -ib_wall::stress_rate(wet.ustar, ut4, dz, dt) * Real(1.2) * u4;
+    for (int i = 0; i <= nx; ++i) {
+        SCOPED_TRACE(testing::Message() << "i = " << i);
+        EXPECT_NEAR(at(s, rx, i, 0, 4), expect, Real(1e-10) * std::abs(expect));
+    }
+}
