@@ -2357,16 +2357,14 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
     FCOMPARE_ATOL "4.0e-10")
 # ABL_MOST_IMP_DIFF_TKE with a stable prescribed flux (-0.02 K m/s) and the QNSE stable-side
 # similarity functions (erf.most.stable_functions = qnse): the prescribed-flux kernel, the MYNN25
-# surface gradients and the surface TKE production all take the QNSE functions. The gold was
-# generated on Linux (GCC) from the code the option merged with, so the test guards the
-# wiring against regressions; the correctness of the functions, the fold and the kernel's
-# solution is pinned to closed forms and an independent bisection in Tests/Unit/BoundaryConditions/
-# ERF_GTestMOSTStableFunctions.cpp
-add_test_r(ABL_MOST_QNSE_StableFlux
-    ""
-    "erf_exec"
-    "plt00010"
-    FCOMPARE_ATOL "4.0e-10")
+# surface gradients and the surface TKE production all take the QNSE functions. The sounding is
+# stable aloft (theta rises 3 K/km) rather than neutral: with theta uniform, the dthetav/dz that
+# MYNN25's buoyancy length scale tests (dthetavdz > 0, then N = sqrt(g/theta0 dthetav/dz)) is
+# roundoff, and KE then differed between Linux and macOS by about 1e-9. The gold was generated on
+# Linux (GCC); the test guards the wiring against regressions, and the correctness of the
+# functions, the fold and the kernel's solution is pinned to closed forms and an independent
+# bisection in Tests/Unit/BoundaryConditions/ERF_GTestMOSTStableFunctions.cpp
+add_test_r(ABL_MOST_QNSE_StableFlux     ""  "erf_exec" "plt00010")
 # ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solves of
 # theta and momentum (ERF_ImplicitPre.H) run after the last acoustic substep of each stage
 add_test_r(ABL_MOST_IMP_DIFF_PostSubstep     ""  "erf_exec" "plt00010")
