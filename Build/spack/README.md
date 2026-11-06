@@ -21,7 +21,7 @@ Then install ERF or inspect its build options:
 
 ```sh
 spack install erf                                      # latest release, MPI on, double precision
-spack install erf@develop +netcdf +noahmp +rrtmgp +fft    # development with optional physics and I/O
+spack install erf@26.11 +netcdf +noahmp +rrtmgp +fft     # release with optional physics and I/O
 spack info erf                                         # available variants
 ```
 
@@ -43,8 +43,8 @@ The following platform and toolchain limits apply:
 
 * RRTMGP and EAMxx SHOC are unavailable on Apple Silicon with ERF's EKAT pins.
 * For ERF releases through 26.09, SYCL builds with RRTMGP or SHOC need oneAPI
-  older than 2026. The development branch's newer EKAT/Kokkos stack supports
-  oneAPI 2026.
+  older than 2026. ERF 26.11 and development use the newer EKAT/Kokkos stack,
+  which supports oneAPI 2026.
 * OpenMP on macOS needs GCC for C and C++ throughout the dependency tree:
   `spack install erf +openmp %%c,cxx=gcc`.
 * CUDA builds with `+tools` require ERF 26.09 or newer.
@@ -83,22 +83,29 @@ When updating the package:
 
 * After changing dependency pins, run `python3 Build/spack/check_pins.py`
   from the ERF root. The RRTMGP/EKAT and Noah-MP commits, and the AMReX commit
-  used by `@develop`, must match ERF's submodule pins. The E3SM commit must
-  match `Build/GNU_Ekat/eamxx_clone.sh`. Use `--fix` to update the recipe's
-  development Noah-MP and AMReX pins.
+  used by `@develop` or a release in `_amrex_release_commits`, must match
+  ERF's submodule pins. The E3SM commit must match
+  `Build/GNU_Ekat/eamxx_clone.sh`. Use `--fix` to update the recipe's development
+  Noah-MP and AMReX pins.
 * For a new release, add the version and tarball's SHA-256 checksum
   (`spack checksum erf <version>`), plus its Noah-MP pin
-  (`git ls-tree <tag> Submodules/Noah-MP`).
+  (`git ls-tree <tag> Submodules/Noah-MP`). Check the AMReX gitlink too; if
+  the release needs fixes beyond the AMReX tag, add its exact commit to
+  `_amrex_release_commits`.
 * To expose a supported CMake option, add a variant with
   `when="@<first release>:"`, its `define_from_variant` in `cmake_args`, and
   any conflicts ERF's CMake enforces.
 * Remove the AMReX override once spack-packages carries the
   `particles_precision` variant, which maps to `ERF_PARTICLES_PRECISION`.
 
-ERF releases from 24.10 use the AMReX release of the same month, except
-ERF 24.10 uses AMReX 24.11: its submodule is five commits past the AMReX 24.10
-tag. Before ERF 25.03, embedded boundaries are off, matching ERF's CMake
-settings. ERF 23.10 through 24.09 use their bundled AMReX.
+ERF releases from 24.10 usually use the AMReX release of the same month.
+ERF 24.10 uses AMReX 24.11 for an API added after the AMReX 24.10 tag. ERF
+26.11 uses its exact AMReX submodule commit through `amrex@develop commit=...`:
+that commit includes fixes beyond AMReX 26.11, including the FillPatch fix
+for multilevel tests with Clang floating-point exception trapping. The commit
+is fixed; it does not follow the AMReX development branch. Before ERF 25.03,
+embedded boundaries are off, matching ERF's CMake settings. ERF 23.10 through
+24.09 use their bundled AMReX.
 
 ## License
 
