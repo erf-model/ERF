@@ -2128,15 +2128,15 @@ List of Parameters
 | **erf.moistscal_vert_upw_frac**   | as above, for the vertical advection of moist scalars    | Real in [0,1]      | 1.0              |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_xflux_faces**          | list of (i,j,k) x-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these     | triples            |                  |
+|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
 |                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_yflux_faces**          | list of (i,j,k) y-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these     | triples            |                  |
+|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
 |                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_zflux_faces**          | list of (i,j,k) z-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these     | triples            |                  |
+|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
 |                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
@@ -3407,6 +3407,12 @@ Notes
   that writes ``temperature`` must therefore also write ``qv``, and a run that reads
   ``temperature`` from planes that include ``qv`` must also read ``qv``; otherwise ERF stops.
   ``theta`` planes need no qv.
+- A plane holds the domain's cells along its face only.  The ghost cells beside the face in the
+  other horizontal direction (the corner ghosts) take the plane's value at the periodic image
+  when that direction is periodic, as the interior cells across the seam do, and the nearest
+  cell of the plane otherwise; the ghost rows below and above the domain always take the
+  nearest row of the plane.  On a refined level the plane is interpolated linearly along the
+  face with the same rule for the two cells it blends.
 
 .. _sec:NumericalStability:
 
