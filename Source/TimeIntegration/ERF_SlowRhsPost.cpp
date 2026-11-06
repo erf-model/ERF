@@ -138,7 +138,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
-    const bool l_anelastic     = solverChoice.anelastic[level];
+    const bool l_anelastic     = solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible;
     const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
 
     // Add to the flux registers only in the stages whose fluxes the step's update applies,

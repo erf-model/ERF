@@ -63,7 +63,7 @@ erf.plot_int_1  = 4
 erf.plot_vars_1 = density x_velocity y_velocity z_velocity volfrac theta
 
 # SOLVER CHOICE
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 
 erf.use_gravity = false
 

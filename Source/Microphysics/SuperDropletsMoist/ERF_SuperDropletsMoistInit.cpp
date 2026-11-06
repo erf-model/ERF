@@ -21,15 +21,11 @@ void SuperDropletsMoist::Define (SolverChoice& a_sc)
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(a_sc.rdOcp == R_d / a_sc.c_p &&
                                      std::isfinite(a_sc.rdOcp) && a_sc.rdOcp > Real(0),
                                      "SDM requires rdOcp = R_d/c_p");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!a_sc.anelastic.empty(),
-                                     "SDM requires per-level anelastic configuration");
-    for (int mode : a_sc.anelastic) {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(mode == 0 || mode == 1,
-                                         "SDM anelastic selectors must be 0 or 1");
-    }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!a_sc.compressibility_type.empty(),
+                                     "SDM requires per-level compressibility configuration");
     m_Cp = a_sc.c_p;
     m_rdOcp = a_sc.rdOcp;
-    m_anelastic = a_sc.anelastic;
+    m_compressibility_type = a_sc.compressibility_type;
 }
 
 /*! \brief Read model configuration parameters from input file

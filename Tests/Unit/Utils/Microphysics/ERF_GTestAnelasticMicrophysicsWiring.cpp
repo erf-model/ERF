@@ -329,7 +329,8 @@ SolverChoice make_scheme_choice (const MoistureType moisture_type,
     sc.c_p = Cp_d;
     sc.rdOcp = kRdOcp;
     sc.moisture_type = moisture_type;
-    sc.anelastic = {anelastic ? 1 : 0};
+    sc.compressibility_type = {anelastic ? CompressibilityType::Anelastic
+                                       : CompressibilityType::FullyCompressible};
     sc.use_eamxx_shoc = false;
     sc.use_native_shoc = false;
     sc.ave_plane = 2;

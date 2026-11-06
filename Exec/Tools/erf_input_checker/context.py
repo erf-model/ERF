@@ -4,7 +4,8 @@
 (``amr.n_cell`` or ``erf.n_cell``, ``geometry.prob_hi`` or ``prob_extent``,
 per-level lists that may be a single value) and classifies the run:
 
-* ``is_anelastic``        -- ``erf.anelastic`` = 1 at level 0
+* ``is_anelastic``        -- ``erf.compressibility_type`` is not FullyCompressible
+                             at level 0 (or the deprecated ``erf.anelastic`` = 1)
 * ``substepping``         -- "Implicit" (the compressible default) or "None"
 * ``init_mode``           -- "real" for WRFInput / Metgrid / NCFile / HindCast,
                              "ideal" otherwise
@@ -54,8 +55,8 @@ class RunContext:
         self.nlev = (self.max_level + 1) if self.max_level is not None else 1
         self.ref_ratio = self._ref_ratio()
 
-        self.anelastic = self._per_level_int("erf.anelastic", 0)
-        self.is_anelastic = bool(self.anelastic and self.anelastic[0] == 1)
+        self.compressibility_type = self._compressibility_type()
+        self.is_anelastic = self.compressibility_type[0] != "fullycompressible"
         self.substepping = self._substepping()
         self.init_type = (deck.get_str("erf.init_type", "None") or "None")
         self.init_mode = "real" if self.init_type.lower() in REAL_INIT_TYPES else "ideal"
@@ -128,6 +129,13 @@ class RunContext:
         if len(v) == 1:
             return v * self.nlev
         return (v + [v[-1]] * self.nlev)[:self.nlev]
+
+    def _compressibility_type(self) -> List[str]:
+        """Per-level compressibility, lower case; reads the deprecated erf.anelastic too."""
+        if self.deck.has("erf.anelastic") and not self.deck.has("erf.compressibility_type"):
+            return ["anelastic" if a == 1 else "fullycompressible"
+                    for a in self._per_level_int("erf.anelastic", 0)]
+        return [v.lower() for v in self.per_level_str("erf.compressibility_type", "FullyCompressible")]
 
     def _substepping(self) -> str:
         v = self.per_level_str("erf.substepping_type", "Implicit")[0]

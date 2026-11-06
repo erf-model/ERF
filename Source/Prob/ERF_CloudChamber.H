@@ -751,9 +751,15 @@ inline Config parse_config (const amrex::Real* problo,
     }
 
     amrex::ParmParse pp_erf("erf");
+    CompressibilityType compressibility_type = CompressibilityType::FullyCompressible;
     int anelastic = 0;
-    if (!pp_erf.query("anelastic", anelastic) || anelastic != 1) {
-        amrex::Error("Cloud Chamber: erf.anelastic = 1 is required");
+    if (pp_erf.query("anelastic", anelastic)) {
+        if (anelastic == 1) { compressibility_type = CompressibilityType::Anelastic; }
+    } else {
+        pp_erf.query_enum_case_insensitive("compressibility_type", compressibility_type);
+    }
+    if (compressibility_type == CompressibilityType::FullyCompressible) {
+        amrex::Error("Cloud Chamber: erf.compressibility_type = Anelastic or PseudoIncompressible is required");
     }
     bool use_gravity = false;
     if (!pp_erf.query("use_gravity", use_gravity) || !use_gravity) {

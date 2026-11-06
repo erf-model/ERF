@@ -653,7 +653,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_M3_Reject_Anelastic_StaticTerrain
     inputs_periodic_static_terrain
     "SBM M3 does not currently support anelastic StaticFittedMesh"
-    "-DOVERRIDE=erf.anelastic=1")
+    "-DOVERRIDE=erf.compressibility_type=Anelastic")
   add_sbm_expected_failure_test(SBM_Native_QC_Write_Fault inputs_zero_carrier
     "SBM owns compact qc/qr; native advection write denied for component range"
     "-DOVERRIDE=erf.sbm_test_native_qc_write_fault=true")

@@ -45,7 +45,7 @@ void make_gradp_pert (int level,
     //      if anelastic then we have computed gradp in the projection
     //      and we can reuse it, no need to recompute it
     //
-    if (solverChoice.anelastic[level] == 0)
+    if (solverChoice.compressibility_type[level] == CompressibilityType::FullyCompressible)
     {
         if (solverChoice.gradp_type == 1) {
             AMREX_ASSERT_WITH_MESSAGE(solverChoice.terrain_type != TerrainType::EB,

@@ -915,7 +915,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // (compressible lev-1, anelastic lev) where there is no coarse gradp to interpolate.
     // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
     // ********************************************************************************************
-    if (solverChoice.anelastic[lev]) {
+    if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
         double dummy_dt = 1.0;
         project_initial_velocity(lev, time, dummy_dt);
         pp_inc[lev].setVal(0.0);
@@ -1528,7 +1528,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // regrid silently discards the pressure gradient.  Must follow the FillPatcher definition
     // above, which the projection's coarse-fine fill depends on.
     // ********************************************************************************************
-    if (solverChoice.anelastic[lev]) {
+    if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
         Real dummy_dt = Real(1.0);
         project_initial_velocity(lev, time, dummy_dt);
         pp_inc[lev].setVal(0.0);
@@ -1778,10 +1778,10 @@ ERF::ClearLevel (int lev)
         zmom_crse_rhs[lev].clear();
     }
 
-    if ( (solverChoice.anelastic[lev] == 1) || (solverChoice.project_initial_velocity[lev] == 1) ) {
+    if ( (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) || (solverChoice.project_initial_velocity[lev] == 1) ) {
         pp_inc[lev].clear();
     }
-    if (solverChoice.anelastic[lev] == 0) {
+    if (solverChoice.compressibility_type[lev] == CompressibilityType::FullyCompressible) {
         lagged_delta_rt[lev].clear();
     }
     avg_xmom[lev].clear();

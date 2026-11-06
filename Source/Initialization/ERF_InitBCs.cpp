@@ -27,7 +27,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
 {
     bool anelastic = false;
     for (int lev = 0; lev <= max_level; ++lev) {
-        anelastic = anelastic || (solverChoice.anelastic[lev] != 0);
+        anelastic = anelastic || (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
     }
 
     auto f = [this,&read_prim_theta,anelastic,one_d=one,zero_d=zero] (std::string const& bcid, Orientation ori)
@@ -428,14 +428,14 @@ void ERF::init_bcs ()
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::foextrap);
                     }
-                    if (!solverChoice.anelastic[0]) {
+                    if (solverChoice.compressibility_type[0] == CompressibilityType::FullyCompressible) {
                         domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::neumann_int);
                     }
                 } else {
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::foextrap);
                     }
-                    if (!solverChoice.anelastic[0]) {
+                    if (solverChoice.compressibility_type[0] == CompressibilityType::FullyCompressible) {
                         domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::neumann_int);
                     }
                 }

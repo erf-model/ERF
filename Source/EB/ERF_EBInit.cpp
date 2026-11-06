@@ -42,7 +42,7 @@ ERF::initializeEB ()
                                // we want to also pass the build_coarse_level_by_coarsening argument
         const bool build_eb_for_multigrid = (solverChoice.terrain_type == TerrainType::EB &&
                                             ((solverChoice.project_initial_velocity[0] == 1) ||
-                                            solverChoice.anelastic[0] == 1));
+                                            solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible));
         // Let AMReX build the coarser EB levels supported by the geometry for MLMG.
         const int max_coarsening_level = (build_eb_for_multigrid) ? 100 : 0;
         const bool build_coarse_level_by_coarsening(false);

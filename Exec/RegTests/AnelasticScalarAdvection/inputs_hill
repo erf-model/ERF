@@ -3,7 +3,7 @@
 # both uniform; this holds only when the vertical flux uses Omega, the flow through the
 # terrain-following faces, with the face areas of the horizontal fluxes.
 erf.prob_name = "Scalar Advection/Diffusion"
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 
 max_step  = 30
 stop_time = 1.0e6

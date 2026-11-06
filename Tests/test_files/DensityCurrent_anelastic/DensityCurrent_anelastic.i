@@ -5,7 +5,7 @@ erf.init_type = Isentropic
 
 max_step = 10
 
-erf.anelastic   = 1
+erf.compressibility_type = Anelastic
 erf.poisson_reltol = 1.e-10
 erf.poisson_abstol = 1.e-10
 

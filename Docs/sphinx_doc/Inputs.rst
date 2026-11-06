@@ -32,10 +32,15 @@ Governing Equations
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                       | Definition                                               | Acceptable Values  | Default          |
 +=================================+==========================================================+====================+==================+
-| **erf.anelastic**               | Use anelastic equations at the given AMR levels. Sets    | 0, 1               | 0                |
-|                                 | ``project_initial_velocity=1``, ``fixed_density=1``, and |                    |                  |
-|                                 | ``substepping_type=None``. The stored                    |                    |                  |
-|                                 | ``buoyancy_type=3`` does not select the buoyancy kernel. |                    |                  |
+| **erf.compressibility_type**    | Equation set at each AMR level (per-level).              | FullyCompressible, | Fully-           |
+|                                 | FullyCompressible solves the compressible equations.     | Anelastic,         | Compressible     |
+|                                 | Anelastic and PseudoIncompressible hold the density at   | Pseudo-            |                  |
+|                                 | its base-state value and project the velocity; they      | Incompressible     |                  |
+|                                 | set ``project_initial_velocity=1``,                      |                    |                  |
+|                                 | ``fixed_density=1``, and ``substepping_type=None``.      |                    |                  |
+|                                 | The stored ``buoyancy_type=3`` does not select the       |                    |                  |
+|                                 | buoyancy kernel. PseudoIncompressible currently runs     |                    |                  |
+|                                 | exactly the anelastic equations.                         |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.buoyancy_type**           | Compressible choices: 1=full density departure;          | 1, 2, 3, 4         | 1 (3 if          |
 |                                 | 2/3=identical temperature approximations;                |                    | anelastic)       |
@@ -1013,7 +1018,7 @@ List of Parameters
 Notes
 -----------------
 
--  | If **erf.anelastic** is true then **substepping_type** is internally set to "None".
+-  | If **erf.compressibility_type** is not FullyCompressible then **substepping_type** is internally set to "None".
 
 -  | The implicit vertical diffusion is only second-order in time in an anelastic run when the two
      stages are the **midpoint method** and the tridiagonal solve is done in the first stage alone.
@@ -2119,15 +2124,15 @@ List of Parameters
 | **erf.moistscal_vert_upw_frac**   | as above, for the vertical advection of moist scalars    | Real in [0,1]      | 1.0              |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_xflux_faces**          | list of (i,j,k) x-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; with erf.anelastic = 1 these faces    | triples            |                  |
+|                                   | is forced to zero; when not FullyCompressible these     | triples            |                  |
 |                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_yflux_faces**          | list of (i,j,k) y-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; with erf.anelastic = 1 these faces    | triples            |                  |
+|                                   | is forced to zero; when not FullyCompressible these     | triples            |                  |
 |                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_zflux_faces**          | list of (i,j,k) z-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; with erf.anelastic = 1 these faces    | triples            |                  |
+|                                   | is forced to zero; when not FullyCompressible these     | triples            |                  |
 |                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
@@ -3956,7 +3961,7 @@ building combinations.
 |                                   | forward-Euler source                                     |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_implicit_projection**    | terrain or buildings immersed forcing (not both),        | Boolean            | false            |
-|                                   | erf.anelastic = 1 on every level, constant-dz mesh, map  |                    |                  |
+|                                   | no FullyCompressible level, constant-dz mesh, map        |                    |                  |
 |                                   | factors of one, FFT build: apply the drag of the solid   |                    |                  |
 |                                   | inside the projection, m = (m* - grad phi) / (1 + dt     |                    |                  |
 |                                   | rate) on each face (FFT-preconditioned GMRES), and do    |                    |                  |
@@ -6030,7 +6035,7 @@ inputs that no longer exist and so have no topic section of their own.
 
    Several of these parameters may be specified either as a single value, which
    is then used at every AMR level, or as a space-separated list with one value
-   per level, e.g. ``erf.anelastic = 1 0 0``.  Their definitions are marked
+   per level, e.g. ``erf.compressibility_type = Anelastic FullyCompressible FullyCompressible``.  Their definitions are marked
    "per-level".  For a list, the number of values given must be at least
    ``amr.max_level + 1``.
 
@@ -6040,7 +6045,7 @@ Equation Set
 * :ref:`Coupling Type (Data Exchange) <inputs-coupling-type-data-exchange>` --
   ``erf.coupling_type``
 * :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.use_gravity``
-* :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.anelastic``,
+* :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.compressibility_type``,
   ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,
   ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
 * :ref:`Time Step <inputs-time-step>` -- ``erf.anelastic_type``
@@ -6189,6 +6194,10 @@ ignoring them.
 | **erf.moisture_type**                          | renamed; set ``erf.moisture_model`` instead            | none -- input renamed          | aborts if present      |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.no_substepping**                         | removed; set ``erf.substepping_type`` instead          | none -- input removed          | aborts if present      |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.anelastic**                              | deprecated; set ``erf.compressibility_type`` instead.  | 0, 1 (per-level)               | warns if present;      |
+|                                                | 1 maps to ``Anelastic`` and 0 to                       |                                | aborts if given along  |
+|                                                | ``FullyCompressible``                                  |                                | with the new key       |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.init_type**                              | the values ``Real`` and ``Ideal`` were replaced by     | ``WRFInput`` in place of       | aborts if ``Real`` or  |
 |                                                | ``WRFInput``                                           | either retired value           | ``Ideal`` is used      |

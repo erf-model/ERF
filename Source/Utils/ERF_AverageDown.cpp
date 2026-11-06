@@ -21,7 +21,7 @@ ERF::AverageDown ()
     for (int lev = finest_level-1; lev >= 0; --lev)
     {
         // If anelastic we don't average down rho because rho == rho0.
-        if (solverChoice.anelastic[lev]) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
             src_comp = 1;
         } else {
             src_comp = 0;
@@ -36,7 +36,7 @@ void
 ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_momenta) // NOLINT
 {
     if (do_full_state_and_momenta) {
-        if (solverChoice.anelastic[crse_lev]) {
+        if (solverChoice.compressibility_type[crse_lev] != CompressibilityType::FullyCompressible) {
             AMREX_ALWAYS_ASSERT(scomp == 1);
         } else {
             AMREX_ALWAYS_ASSERT(scomp == 0);
@@ -120,7 +120,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
         //    w (rho) average exactly to the coarse w (rho), which fails when m varies (#4904).
         //    Rescale the covered coarse cells by w_c rho_c / avg(w_f rho_f) so that
         //    (rho S)_c = rho_c * (the same-weighted mean of S_f).
-        const bool rescale_by_rho = solverChoice.anelastic[crse_lev] && (scomp > Rho_comp);
+        const bool rescale_by_rho = solverChoice.compressibility_type[crse_lev] != CompressibilityType::FullyCompressible && (scomp > Rho_comp);
 
         MultiFab rho_w_fac;
         if (rescale_by_rho) {
@@ -260,7 +260,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
     // fluid-weighted face average does not, and advecting theta with it heats the flow)
     if (SolverChoice::terrain_type != TerrainType::EB) {
         // Anelastic over terrain: the horizontal momenta as mass fluxes (see average_down_mass_flux)
-        if (solverChoice.anelastic[crse_lev] && cf_interp_mass_flux(crse_lev+1)) {
+        if (solverChoice.compressibility_type[crse_lev] != CompressibilityType::FullyCompressible && cf_interp_mass_flux(crse_lev+1)) {
             average_down_mass_flux(crse_lev);
         } else {
             average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);

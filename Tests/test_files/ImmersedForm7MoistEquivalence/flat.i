@@ -31,7 +31,7 @@ zhi.type       = "SlipWall"
 zhi.theta_grad = 0.0
 
 # anelastic, implicit vertical diffusion (solved in the first MidPoint stage)
-erf.anelastic      = 1
+erf.compressibility_type = Anelastic
 erf.anelastic_type = MidPoint
 erf.vert_implicit  = true
 erf.use_fft        = true    # FFT Poisson solve (flat, periodic in x and y)

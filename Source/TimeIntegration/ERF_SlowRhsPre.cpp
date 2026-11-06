@@ -176,7 +176,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     bool l_apply_surface_layer_fluxes_in_diffusion = l_use_SurfLayer;
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
 
-    const bool l_anelastic = (solverChoice.anelastic[level]     == 1);
+    const bool l_anelastic = (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible);
     const bool l_fixed_rho = (solverChoice.fixed_density[level] == 1);
 
     const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);

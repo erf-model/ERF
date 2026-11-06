@@ -47,7 +47,7 @@ erf.if_z0            = 0.1
 erf.if_implicit_drag = true
 erf.if_implicit_projection = true
 
-erf.anelastic      = 1
+erf.compressibility_type = Anelastic
 erf.anelastic_type = MidPoint
 erf.use_fft        = true
 erf.cfl            = 0.5

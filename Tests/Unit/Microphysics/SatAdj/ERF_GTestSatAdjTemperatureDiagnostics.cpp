@@ -268,7 +268,7 @@ TEST(SatAdjTemperatureDiagnostics, AnelasticPressureContextMatchesReference)
 
     SatAdj satadj;
     SolverChoice sc = make_solver_choice(false);
-    sc.anelastic = {1};
+    sc.compressibility_type = {CompressibilityType::Anelastic};
     satadj.SetCurrentLevel(0);
     satadj.Define(sc);
     run_and_sync([&]() {

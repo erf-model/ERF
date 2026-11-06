@@ -5,7 +5,7 @@
 # StretchedDz, and prob.hmax = 0 would select a different, 0.5 m high hill).
 # Before the fix the blob moved at U / h_zeta, about 3x too fast in the 20 m bottom level.
 erf.prob_name = "Scalar Advection/Diffusion"
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 
 max_step  = 50            # half an advection period (500 m at 10 m/s)
 stop_time = 1000.0

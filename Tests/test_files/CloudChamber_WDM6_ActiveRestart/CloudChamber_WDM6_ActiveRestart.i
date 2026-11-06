@@ -6,7 +6,7 @@
 # of the column instead of driving every Q8 cell below that native floor.
 erf.prob_name = "Cloud Chamber"
 erf.init_type = ConstantDensity
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_gravity = true
 erf.moisture_model = WDM6
 erf.vert_implicit = false

@@ -2105,13 +2105,13 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
     # Motivation: Restart reconstruction must preserve the active phase-change
     # trajectory with base pressure and a nondefault heat capacity.
     add_test_restart_parity(SDM_Anelastic_Restart SDM_SpeciesDiffusion 2 4
-        COMMON_OPTIONS "${_anelastic_options} erf.anelastic=1"
+        COMMON_OPTIONS "${_anelastic_options} erf.compressibility_type=Anelastic"
         FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
     set(_anelastic_amr "amr.max_level=1 amr.ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=0 0 0 erf.box1.in_box_hi=8 4 8 erf.regrid_int=1")
     # Motivation: An AMR restart on more MPI ranks must restore thermodynamics
     # and particle ownership on the resumed grid decomposition.
     add_test_restart_parity(SDM_Anelastic_AMRRestart SDM_SpeciesDiffusion 2 4
-        COMMON_OPTIONS "${_anelastic_options} ${_anelastic_amr} erf.anelastic=1"
+        COMMON_OPTIONS "${_anelastic_options} ${_anelastic_amr} erf.compressibility_type=Anelastic"
         CHK_NRANKS 1 RESTART_NRANKS ${_species_ranks}
         FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
     # Motivation: Both mixed mode orders must preserve per-level pressure
@@ -2119,14 +2119,16 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
     # Pure-mode cases cannot expose every coarse/fine coupling error.
     foreach(_modes "0 1" "1 0")
         string(REPLACE " " "" _mode_name "${_modes}")
+        string(REPLACE "0" "FullyCompressible" _ctypes "${_modes}")
+        string(REPLACE "1" "Anelastic" _ctypes "${_ctypes}")
         add_test_restart_parity(SDM_Anelastic_Mixed${_mode_name}Restart SDM_SpeciesDiffusion 2 4
-            COMMON_OPTIONS "${_anelastic_options} ${_anelastic_amr} erf.anelastic=${_modes}"
+            COMMON_OPTIONS "${_anelastic_options} ${_anelastic_amr} erf.compressibility_type=${_ctypes}"
             FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
     endforeach()
     # Motivation: Box boundaries and their ghost fills must not change the
     # base-pressure-driven particle and atmospheric evolution.
     add_test_box_parity(SDM_Anelastic_BoxParity SDM_SpeciesDiffusion plt00004
-        COMMON_OPTIONS "${_anelastic_options} erf.anelastic=1"
+        COMMON_OPTIONS "${_anelastic_options} erf.compressibility_type=Anelastic"
         REFERENCE_OPTIONS "amr.max_grid_size=32"
         SPLIT_OPTIONS "amr.max_grid_size_x=4"
         FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
@@ -2492,12 +2494,12 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # so the FFT solver is used and the tests need the FFT build.  The slow scalars (k, qv)
     # are advected with the projected momentum, which used to be copied tile by tile.
     add_test_box_parity(Closure_BoxParity_Anelastic_Kessler Closure_BoxParity "plt00010"
-        COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv erf.anelastic=1 erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Kessler/sounding_moist"
+        COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv erf.compressibility_type=Anelastic erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Kessler/sounding_moist"
         REFERENCE_OPTIONS "${_cbp_ref}"
         SPLIT_OPTIONS "${_cbp_split}"
         FCOMPARE_RTOL "1.0e-9")
     add_test_box_parity(Closure_BoxParity_Anelastic_Deardorff Closure_BoxParity "plt00010"
-        COMMON_OPTIONS "${_cbp_ke} erf.anelastic=1 erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Deardorff erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Deardorff/sounding_dry"
+        COMMON_OPTIONS "${_cbp_ke} erf.compressibility_type=Anelastic erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Deardorff erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Deardorff/sounding_dry"
         REFERENCE_OPTIONS "${_cbp_ref}"
         SPLIT_OPTIONS "${_cbp_split}"
         FCOMPARE_RTOL "1.0e-9")
@@ -3353,11 +3355,11 @@ add_test_conservation(Conservation_ScalarDiffusion_MapFactor ScalarDiffusion_Ref
 add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "'amr.ref_ratio_vect=2 2 1'")
 add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"
-    OPTIONS "erf.anelastic=1 erf.anelastic_type=MidPoint")
+    OPTIONS "erf.compressibility_type=Anelastic erf.anelastic_type=MidPoint")
 add_test_conservation(Conservation_ScalarDiffusion_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
-    OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2")
+    OPTIONS "erf.compressibility_type=Anelastic erf.anelastic_type=RK2")
 add_test_conservation(Conservation_ScalarAdvection_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
-    OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
+    OPTIONS "erf.compressibility_type=Anelastic erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
 add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
 
@@ -3366,7 +3368,7 @@ add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_R
 # it).  theta is perturbed with the scalar's profile and diffused (alpha_T) through the faces of the
 # fine patch: on a flat, a stretched and a terrain-fitted (hill, 2 x 2 x 1 refinement as anelastic
 # terrain requires) mesh, with the MidPoint and RK2 integrators, and advected and not diffused
-set(_theta_cons_options "erf.anelastic=1 prob.theta_pert_amp=10 erf.alpha_T=1.0")
+set(_theta_cons_options "erf.compressibility_type=Anelastic prob.theta_pert_amp=10 erf.alpha_T=1.0")
 add_test_conservation(Conservation_ThetaDiffusion_Anelastic ScalarDiffusion_Reflux "RHO THETA"
     OPTIONS "${_theta_cons_options} erf.anelastic_type=MidPoint")
 add_test_conservation(Conservation_ThetaDiffusion_AnelasticRK2 ScalarDiffusion_Reflux "RHO THETA"
@@ -3670,11 +3672,11 @@ endfunction(add_test_rans_pair)
 # time-discretisation difference. The command runs through sh, so not on Windows.
 if(NOT WIN32)
     add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_kEqn Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
-        RUNTIME_OPTIONS "erf.anelastic=0 erf.use_fft=false"
+        RUNTIME_OPTIONS "erf.compressibility_type=FullyCompressible erf.use_fft=false"
         OPTIONS_A "erf.vert_implicit=true" OPTIONS_B "erf.vert_implicit=false"
         CHECK_OPTIONS "--tol 1.0e-4")
     add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_Deardorff Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
-        RUNTIME_OPTIONS "erf.anelastic=0 erf.use_fft=false erf.rans_type=None erf.les_type=Deardorff erf.plot_vars_1=density theta KE Kmv Khv"
+        RUNTIME_OPTIONS "erf.compressibility_type=FullyCompressible erf.use_fft=false erf.rans_type=None erf.les_type=Deardorff erf.plot_vars_1=density theta KE Kmv Khv"
         OPTIONS_A "erf.vert_implicit=true" OPTIONS_B "erf.vert_implicit=false"
         CHECK_OPTIONS "--tol 3.0e-4")
 endif()
@@ -4717,7 +4719,7 @@ endif()
 # test; the gtests cover the kernels there.
 if(ERF_ENABLE_FFT)
 add_test_terrain_stress_ridge(TerrainStress_Ridge_AnelasticMidPoint survive "plt01440"
-    OPTIONS "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.fixed_dt=15 max_step=1440 erf.plot_int_1=1440"
+    OPTIONS "erf.compressibility_type=Anelastic erf.use_fft=true erf.anelastic_type=MidPoint erf.fixed_dt=15 max_step=1440 erf.plot_int_1=1440"
     WMAX 5
     RUN_TIMEOUT 1800)
 endif()
@@ -4770,7 +4772,7 @@ add_test_abort(TerrainStress_Abort_MetricExplicitStage ${_tsr_dir} Terrain_Stres
 if(ERF_ENABLE_FFT)
 add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_Stress_Ridge.i
                "erf.vert_implicit_fac is not positive in stage 2 at level 0"
-               "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
+               "erf.compressibility_type=Anelastic erf.use_fft=true erf.anelastic_type=MidPoint erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
 endif()
 endif()
 

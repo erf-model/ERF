@@ -15,7 +15,7 @@ AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
     m_cloud_chamber_config.active,
     "Cloud Chamber: initializer reached without a parsed configuration");
 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-    sc.anelastic[lev] == 1 && sc.fixed_density[lev] == 1,
+    sc.compressibility_type[lev] != CompressibilityType::FullyCompressible && sc.fixed_density[lev] == 1,
     "Cloud Chamber: the selected level must use fixed-density anelastic dynamics");
 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
     sc.terrain_type == TerrainType::None &&

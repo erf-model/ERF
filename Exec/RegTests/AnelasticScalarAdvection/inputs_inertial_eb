@@ -5,7 +5,7 @@
 # This runs the EB branch of the scalar advection (EBAdvectionSrcForScalars) with a wind
 # that varies in time, which is what tests the time level of its momenta (#4876, #4870).
 erf.prob_name = "Scalar Advection/Diffusion"
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_fft   = false
 
 max_step  = 40

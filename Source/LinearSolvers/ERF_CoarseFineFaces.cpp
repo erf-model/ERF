@@ -498,7 +498,7 @@ void ERF::set_cf_zface_omega (int lev, MultiFab& omega, const MultiFab& omega_t,
                               const Vector<int>& slab_box)
 {
     BL_PROFILE("ERF::set_cf_zface_omega()");
-    if (slab_box.empty() || !solverChoice.anelastic[lev]) { return; }
+    if (slab_box.empty() || (solverChoice.compressibility_type[lev] == CompressibilityType::FullyCompressible)) { return; }
     const auto& patches = cf_zface_layout(lev).patches;
     for (MFIter mfi(omega_t); mfi.isValid(); ++mfi) {
         const int n = slab_box[mfi.index()];
@@ -527,7 +527,7 @@ void ERF::set_cf_zface_omega (int lev, MultiFab& omega, const MultiFab& omega_t,
  */
 bool ERF::cf_interp_mass_flux (int lev) const
 {
-    return solverChoice.anelastic[lev] && solverChoice.mesh_type == MeshType::VariableDz;
+    return solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible && solverChoice.mesh_type == MeshType::VariableDz;
 }
 
 /**
@@ -794,7 +794,7 @@ void ERF::average_down_mass_flux (int crse_lev)
 bool ERF::cf_anelastic_flux_match (int lev) const
 {
     return cf_flux_history_enabled() && lev > 0 && lev <= finest_level &&
-           solverChoice.anelastic[lev] && solverChoice.anelastic[lev-1] &&
+           solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible && solverChoice.compressibility_type[lev-1] != CompressibilityType::FullyCompressible &&
            solverChoice.terrain_type != TerrainType::EB &&
            solverChoice.terrain_type != TerrainType::MovingFittedMesh;
 }
@@ -1038,7 +1038,7 @@ void ERF::FillSetMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ym
     FPr_w[lev-1].FillSet(zmom, time_d, null_bc, domain_bcs_type);
     set_cf_fill_options(lev, false);
 
-    if (!solverChoice.anelastic[lev] || solverChoice.mesh_type != MeshType::VariableDz) { return; }
+    if ((solverChoice.compressibility_type[lev] == CompressibilityType::FullyCompressible) || solverChoice.mesh_type != MeshType::VariableDz) { return; }
 
     MultiFab omega_t, rhou_g, rhov_g;
     Vector<int> slab_box;

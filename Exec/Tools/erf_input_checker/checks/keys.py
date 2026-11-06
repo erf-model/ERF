@@ -21,6 +21,10 @@ RETIRED_KEYS = {
     "erf.ibseb.utc_offset_hours": "not an input: the sun follows time_zero_utc_s (UTC) and longitude_deg; remove it",
     "erf.zsurface": "removed (#4446): a stretched grid starts at geometry.prob_lo[2]; set the bottom there",
 }
+# Inputs that SolverChoice still accepts but warns about
+DEPRECATED_KEYS = {
+    "erf.anelastic": "set erf.compressibility_type = FullyCompressible, Anelastic or PseudoIncompressible instead",
+}
 RETIRED_VALUES = {
     "erf.init_type": {"real": "WRFInput", "ideal": "WRFInput"},
 }
@@ -176,6 +180,12 @@ class RetiredKeys(Checker):
             if self.deck.has(key):
                 self.error(key, "this input was removed from ERF; the run stops at start-up",
                            what + ".")
+        for key, what in DEPRECATED_KEYS.items():
+            if self.deck.has(key):
+                self.warn(key, "this input is deprecated; ERF still reads it", what + ".")
+        if self.deck.has("erf.anelastic") and self.deck.has("erf.compressibility_type"):
+            self.error("erf.anelastic", "both erf.anelastic and erf.compressibility_type are set; "
+                       "the run stops at start-up", "Remove erf.anelastic.")
         for key, table in RETIRED_VALUES.items():
             v = self.str_(key)
             if v and v.lower() in table:

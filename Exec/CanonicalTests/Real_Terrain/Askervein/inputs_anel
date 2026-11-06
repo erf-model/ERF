@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_fft = 1
 
 stop_time = 600.0

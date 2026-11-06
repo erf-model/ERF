@@ -2416,7 +2416,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             // *******************************************************************************************
             int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
             Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
-            bool is_anelastic = (solverChoice.anelastic[0] == 1);
+            bool is_anelastic = (solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible);
             for (int itime = 0; itime < ntimes; itime++)
             {
                 read_and_convert_from_wrfbdy(itime, nc_bdy_file,

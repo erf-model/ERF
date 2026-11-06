@@ -37,7 +37,7 @@ erf.if_implicit_drag  = true
 erf.if_average_down   = fluid_mass
 eb2.cover_multiple_cuts = 1
 
-erf.anelastic      = 1
+erf.compressibility_type = Anelastic
 erf.anelastic_type = MidPoint
 erf.cfl            = 0.5
 

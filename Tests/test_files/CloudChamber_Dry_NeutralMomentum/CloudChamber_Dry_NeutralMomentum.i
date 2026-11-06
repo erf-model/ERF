@@ -1,7 +1,7 @@
 # Dry Cloud Chamber production activation for neutral momentum roughness.
 erf.prob_name = "Cloud Chamber"
 erf.init_type = ConstantDensity
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_gravity = true
 erf.vert_implicit = false
 erf.project_initial_velocity = 0

@@ -56,7 +56,7 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
         "SBM M3 mapped advection requires three dimensions");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level == 0,
         "SBM M3 mapped advection supports one AMR level only");
-    const bool anelastic = !choice.anelastic.empty() && choice.anelastic[0] != 0;
+    const bool anelastic = !choice.compressibility_type.empty() && choice.compressibility_type[0] != CompressibilityType::FullyCompressible;
     // Grid stretching may set StaticFittedMesh as a label while retaining
     // StretchedDz; only VariableDz selects the fitted-terrain projection.
     const bool fitted_terrain_mesh =
@@ -83,7 +83,7 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
                                      choice.substepping_type[0] == SubsteppingType::None,
         "SBM M3 requires acoustic substepping_type=None");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.anelastic_type.empty() ||
-                                     choice.anelastic[0] == 0 ||
+                                     choice.compressibility_type[0] == CompressibilityType::FullyCompressible ||
                                      choice.anelastic_type[0] == AnelasticType::RK2,
         "SBM M3 supports the Anelastic RK2 Heun integrator only");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
@@ -156,7 +156,7 @@ void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
         choice.advChoice.dryscal_vert_adv_type == AdvType::Centered_2nd,
         "M2 auxiliary inert tracer fixture requires Centered_2nd dry scalar advection");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        !choice.anelastic[0] || choice.anelastic_type[0] == AnelasticType::RK2,
+        (choice.compressibility_type[0] == CompressibilityType::FullyCompressible) || choice.anelastic_type[0] == AnelasticType::RK2,
         "M2 auxiliary inert tracer fixture does not support Anelastic MidPoint");
 
     std::string problem_name = "Undefined";

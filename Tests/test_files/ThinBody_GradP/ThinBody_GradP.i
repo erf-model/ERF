@@ -9,7 +9,7 @@ erf.prob_name = "Flow in a Box"
 max_step = 2
 amrex.fpe_trap_invalid = 1
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.ncorr     = 2
 erf.init_type = Uniform
 

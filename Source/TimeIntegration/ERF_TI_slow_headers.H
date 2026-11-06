@@ -45,7 +45,7 @@ class ShocDriver;
 inline amrex::Real
 StageFluxWeight (const SolverChoice& solverChoice, int level, int nrk)
 {
-    if (solverChoice.anelastic[level] == 1) {
+    if (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible) {
         if (solverChoice.anelastic_type[level] == AnelasticType::RK2) {
             return amrex::Real(0.5);
         }

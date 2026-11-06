@@ -23,7 +23,7 @@ Anelastic compatibility
 -----------------------
 
 ``SuperDroplets`` uses a thermodynamic pressure source selected independently
-on each AMR level. On a level with ``erf.anelastic = 1``, the pressure supplied
+on each AMR level. On a level with ``erf.compressibility_type`` not ``FullyCompressible``, the pressure supplied
 to the super-droplet microphysics is the hydrostatic base-state pressure at
 each cell, rather than a pressure diagnosed from the compressible equation of
 state. ERF diagnoses the temperature from dry potential temperature using
@@ -63,7 +63,7 @@ For example, with a particles-enabled build:
 
 .. code-block:: text
 
-   erf.anelastic = 1
+   erf.compressibility_type = Anelastic
    erf.moisture_model = SuperDroplets
 
 Choose compatible mesh, solver, particle, and AMR options, and validate the

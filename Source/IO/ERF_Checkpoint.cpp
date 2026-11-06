@@ -420,7 +420,7 @@ ERF::WriteCheckpointFile () const
         MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
         VisMF::Write(zvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
-        if (solverChoice.anelastic[lev] == 1) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
             MultiFab ppinc(grids[lev],dmap[lev],1,0);
             MultiFab::Copy(ppinc,pp_inc[lev],0,0,1,0);
             VisMF::Write(ppinc, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PP_Inc"));
@@ -1525,7 +1525,7 @@ ERF::ReadCheckpointFile ()
         vars_new[lev][Vars::zvel].ParallelCopy(zvel,0,0,1,IntVect(0),IntVect(0));
         vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
 
-        if (solverChoice.anelastic[lev] == 1) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
             MultiFab ppinc(ba_chkfile[lev],dm_chkfile[lev],1,0);
             VisMF::Read(ppinc, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PP_Inc"));
             pp_inc[lev].ParallelCopy(ppinc,0,0,1,IntVect(0),IntVect(0));
