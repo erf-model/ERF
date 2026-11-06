@@ -385,6 +385,7 @@ SurfaceLayer::update_fluxes (const int& lev,
         const Real inv_theta_ref = one / amrex::max(theta_ref, std::numeric_limits<Real>::min());
         const Real l_inv_theta0  = (use_ref_theta) ? inv_theta_ref : one;
         const Real l_inv_Cmu2    = inv_Cmu2;
+        const bool l_moist_buoy  = m_k_moist_buoyancy;
         const int klo = m_geom[lev].Domain().smallEnd(2);
         IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
 
@@ -402,18 +403,30 @@ SurfaceLayer::update_fluxes (const int& lev,
             auto cons_arr = cons_in.array(mfi);
             const auto& u_star_arr = u_star[lev]->const_array(mfi);
             const auto& t_star_arr = t_star[lev]->const_array(mfi);
+            const auto& q_star_arr = q_star[lev]->const_array(mfi);
             const auto& dist_arr   = walldist->const_array(mfi);
 
             ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real rho = cons_arr(i,j,k,Rho_comp);
-                if (t_star_arr(i,j,0) < -1e-8) {
+                // the buoyancy scale: theta*, or with erf.rans_moist_buoyancy the virtual
+                // theta_v* = theta* (1 + epsv qv) + epsv theta q* over theta_v (the scale the
+                // TKE buoyancy source and the immersed wall law use)
+                Real bstar  = t_star_arr(i,j,0);
+                Real btheta = cons_arr(i,j,k,RhoTheta_comp) / rho;
+                if (l_moist_buoy) {
+                    const Real qv = cons_arr(i,j,k,RhoQ1_comp) / rho;
+                    bstar  = t_star_arr(i,j,0) * (one + epsv * qv) + epsv * btheta * q_star_arr(i,j,0);
+                    btheta = btheta * (one + epsv * qv);
+                }
+                if (bstar < -1e-8) {
                     // Only destabilizing buoyancy flux affects the boundary k
                     // tstar < 0 ==> B > 0
-                    Real B = -CONST_GRAV * l_inv_theta0 * u_star_arr(i,j,0) * t_star_arr(i,j,0);
+                    Real B = -CONST_GRAV * l_inv_theta0 * u_star_arr(i,j,0) * bstar;
                     if (!use_ref_theta) {
-                        B *= cons_arr(i,j,k,Rho_comp) /
-                             cons_arr(i,j,k,RhoTheta_comp);
+                        // the dry form keeps its arithmetic (bit for bit)
+                        if (l_moist_buoy) { B /= btheta; }
+                        else { B *= cons_arr(i,j,k,Rho_comp) / cons_arr(i,j,k,RhoTheta_comp); }
                     }
 
                     // Axell & Liungman 2001, Eqn. 16

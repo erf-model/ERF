@@ -134,6 +134,24 @@ from the modelled heat flux :math:`-\rho \nu_t' \, \partial \theta / \partial z`
 
    \varepsilon = (c_\mu^0)^3 \, \frac{k^{3/2}}{l}, \qquad c_\mu^0 = 0.5562.
 
+With a moisture model, ``erf.rans_moist_buoyancy = true`` (off by default) makes
+the buoyancy production the flux of the virtual potential temperature of
+unsaturated air, :math:`\theta_v = \theta (1 + \epsilon_v q_v)` with
+:math:`\epsilon_v = R_v/R_d - 1 = 0.608`,
+
+.. math::
+
+   P_b = \frac{g}{\theta_{v0}} \left[ (1 + \epsilon_v q_v) \, \overline{w' \theta'}
+         + \epsilon_v \theta \, \overline{w' q_v'} \right],
+
+from the modelled heat and water-vapour fluxes of the same stage (the surface fluxes
+of the surface layer or of the immersed wall law on the bottom face); :math:`\theta_{v0}`
+is ``erf.theta_ref`` when that is set, else the local :math:`\theta_v`. Water vapour
+only: the cloud-water flux term and the saturated form are not included. The option
+is the k-equation closure's; the Deardorff LES shares the TKE source and keeps the dry
+form. Pair it with ``erf.thermal_stratification = thetav`` so the buoyancy length scale
+below uses the same :math:`\theta_v`.
+
 The proportionality constant :math:`(c_\mu^0)^3` is what makes the
 logarithmic law hold in a constant-stress layer (AL01 Sect. 4.1). The
 dissipation is explicit in the update by default;
@@ -337,8 +355,9 @@ that a regrid adds or remakes.
 Limitations
 -----------
 
-* The buoyancy production and :math:`N^2` are dry: no virtual or
-  liquid-water potential temperature.
+* The buoyancy production is dry unless ``erf.rans_moist_buoyancy`` is set,
+  and then water vapour only (no cloud-water flux, no saturated form);
+  :math:`N^2` follows ``erf.thermal_stratification``.
 * All levels must use the closure; a hybrid RANS-LES set-up is refused.
 * Embedded and thin-body boundaries are not supported by the Poisson wall
   distance.
@@ -377,6 +396,8 @@ Inputs
 | **erf.implicit_tke_dissipation**       | linearised implicit dissipation                            | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.rans_consistent_diffusivities**  | heat, scalar and moisture diffusivities from :math:`c_\mu'`| false            |
++----------------------------------------+------------------------------------------------------------+------------------+
+| **erf.rans_moist_buoyancy**            | :math:`P_b` from the virtual potential temperature flux    | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.rans_lscale_from_pblh**          | cap :math:`l_g` at :math:`\kappa 0.1 z_i`                  | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+

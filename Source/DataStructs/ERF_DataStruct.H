@@ -1260,6 +1260,8 @@ struct SolverChoice {
         if_surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
 
         pp.queryAdd("if_Olen", if_Olen_in);
+        pp.queryAdd("if_surf_moist_flux", if_surf_moist_flux);
+        pp.queryAdd("if_surf_moist", if_surf_moist);
         pp.queryAdd("if_use_most",if_use_most);
         pp.queryAdd("if_snap_partial_cells",if_snap_partial_cells);
         // The snapped staircase puts full-strength forcing on every wall face,
@@ -1356,6 +1358,33 @@ struct SolverChoice {
             if (if_stability_correction) {
                 amrex::Abort("erf.if_wall_form = fraction_stress always applies the stability functions; "
                              "erf.if_stability_correction is for the legacy wall law");
+            }
+        }
+        // Surface moisture condition of the fraction-stress law: a given kinematic moisture flux or
+        // a given surface mixing ratio (not both), as erf.most.surf_moist_flux / erf.most.surf_moist
+        // on flat ground; it needs a moisture model that carries water vapour (the wall cell's qv
+        // and the cell above's enter q* and the Obukhov length)
+        {
+            const bool moist_flux_set = (if_surf_moist_flux != zero);
+            const bool moist_surf_set = (if_surf_moist >= zero);
+            if (moist_flux_set || moist_surf_set) {
+                if (!if_fraction_stress) {
+                    amrex::Abort("erf.if_surf_moist_flux and erf.if_surf_moist belong to erf.if_wall_form = fraction_stress");
+                }
+                if (moist_flux_set && moist_surf_set) {
+                    amrex::Abort("erf.if_surf_moist_flux and erf.if_surf_moist: give one surface moisture condition, not both");
+                }
+                if (moisture_indices.qv == MoistureComponentIndices::absent) {
+                    amrex::Abort("erf.if_surf_moist_flux / erf.if_surf_moist need a moisture model that carries water vapour "
+                                 "(erf.moisture_model)");
+                }
+                if (!(std::abs(if_surf_moist_flux) <= amrex::Real(0.01))) {
+                    amrex::Abort("erf.if_surf_moist_flux must be in [-0.01, 0.01] kg/kg m/s (a kinematic surface moisture flux; "
+                                 "0.0001 is a strong evaporation)");
+                }
+                if (moist_surf_set && !(if_surf_moist <= amrex::Real(0.1))) {
+                    amrex::Abort("erf.if_surf_moist must be in [0, 0.1] kg/kg (a surface water vapour mixing ratio)");
+                }
             }
         }
         // The wall laws that evaluate the stability functions (the legacy law with
@@ -1659,6 +1688,12 @@ struct SolverChoice {
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
+            // the moist TKE buoyancy of the k-eqn RANS reads the water vapour and its flux
+            if (turbChoice[lev].rans_moist_buoyancy &&
+                moisture_indices.qv == MoistureComponentIndices::absent) {
+                amrex::Abort("erf.rans_moist_buoyancy needs a moisture model that carries water vapour "
+                             "(erf.moisture_model; level " + std::to_string(lev) + ")");
+            }
         }
 
         if (perturbation_auto) {
@@ -2167,7 +2202,20 @@ struct SolverChoice {
                            << ", flat-wall dissipation " << (if_flat_wall_dissipation ? "on" : "off") << ")\n";
             if (moisture_type != MoistureType::None) {
                 amrex::Print() << "Immersed forcing: the moisture species see a closed wall "
-                               << "(no diffusion through the wall face, held in the solid, no surface moisture flux)\n";
+                               << "(no diffusion through the wall face, held in the solid); surface moisture condition: ";
+                if (if_surf_moist_flux != zero) {
+                    amrex::Print() << "flux erf.if_surf_moist_flux = " << if_surf_moist_flux << " kg/kg m/s (q* = -F_q/u*)";
+                } else if (if_surf_moist >= zero) {
+                    amrex::Print() << "surface mixing ratio erf.if_surf_moist = " << if_surf_moist << " kg/kg";
+                } else {
+                    amrex::Print() << "none (q* = 0)";
+                }
+                if (moisture_indices.qv != MoistureComponentIndices::absent &&
+                    (if_surf_temp_flux != amrex::Real(1e-8) || if_init_surf_temp > zero || if_Olen_in != amrex::Real(1e-8) ||
+                     if_surf_moist_flux != zero || if_surf_moist >= zero)) {
+                    amrex::Print() << "; the Obukhov length uses theta_v and theta_v* = theta* (1 + epsv qv) + epsv theta q*";
+                }
+                amrex::Print() << "\n";
             }
         }
         // The log-law coarse/fine fill acts only on refined levels
@@ -2736,6 +2784,10 @@ struct SolverChoice {
     amrex::Real if_init_surf_temp        = zero;               // [K]
     amrex::Real if_surf_heating_rate     = zero;               // [K/hr]
     amrex::Real if_Olen_in               = amrex::Real(1e-8);  // [m]
+    // Surface moisture condition of the fraction-stress wall law: a given kinematic moisture flux
+    // (erf.if_surf_moist_flux, 0 = none) or a given surface mixing ratio (erf.if_surf_moist, < 0 = none)
+    amrex::Real if_surf_moist_flux       = zero;               // [kg/kg m/s]
+    amrex::Real if_surf_moist            = amrex::Real(-1.0);  // [kg/kg]
     bool        if_use_most              = false;
     bool        if_snap_partial_cells    = false;
     bool        if_stability_correction  = false;

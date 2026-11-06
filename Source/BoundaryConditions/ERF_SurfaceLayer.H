@@ -431,6 +431,9 @@ public:
       if (m_update_k_rans) {
           inv_Cmu2 = one / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
           theta_ref = a_turb_choice.theta_ref;
+          // with the moist TKE buoyancy (erf.rans_moist_buoyancy) the wall value's buoyancy flux
+          // is the virtual one, -u* theta_v* with theta_v* = theta* (1 + epsv qv) + epsv theta q*
+          m_k_moist_buoyancy = a_turb_choice.rans_moist_buoyancy && use_moisture;
       }
 
       // Stable-side similarity functions (most.stable_functions): Businger-Dyer, or QNSE for
@@ -2028,6 +2031,7 @@ private:
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
 
   bool m_update_k_rans = false;
+  bool m_k_moist_buoyancy = false;   // erf.rans_moist_buoyancy: the wall value of k from theta_v*
   amrex::Real inv_Cmu2 = zero;
   amrex::Real theta_ref = zero;
 };

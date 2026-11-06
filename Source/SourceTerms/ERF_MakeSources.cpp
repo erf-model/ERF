@@ -65,7 +65,8 @@ void make_sources (int level,
                    const MultiFab* cons_old,
                    bool is_slow_step,
                    MultiFab* ib_wall_hfx,
-                   MultiFab* ib_wall_ktarget)
+                   MultiFab* ib_wall_ktarget,
+                   MultiFab* ib_wall_qfx)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
@@ -505,12 +506,14 @@ void make_sources (int level,
             if (solverChoice.if_fraction_stress) {
                 const Array4<Real> wall_hfx = (ib_wall_hfx) ? ib_wall_hfx->array(mfi) : Array4<Real>{};
                 const Array4<Real> wall_kt  = (ib_wall_ktarget) ? ib_wall_ktarget->array(mfi) : Array4<Real>{};
+                const Array4<Real> wall_qfx = (ib_wall_qfx) ? ib_wall_qfx->array(mfi) : Array4<Real>{};
                 const auto& tc_lev = solverChoice.turbChoice[level];
                 const bool wall_tke = solverChoice.if_wall_tke && (tc_lev.rans_type == RANSType::kEqn);
                 ImmersedForcingTerrain_Scalar_FractionStress(bx, u, v, cell_data, t_blank_arr, cell_src, wall_hfx, wall_kt,
                                                              geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if,
                                                              static_cast<Real>(dt), static_cast<Real>(time),
-                                                             wall_tke, tc_lev.Cmu0);
+                                                             wall_tke, tc_lev.Cmu0, wall_qfx,
+                                                             tc_lev.rans_moist_buoyancy);
             } else {
                 ImmersedForcingTerrain_Scalar(bx, u, v, cell_data, t_blank_arr, z_cc_arr,
                                              cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
