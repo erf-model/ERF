@@ -613,6 +613,7 @@ ERF::ERF_shared ()
     ib_wall_face23.resize(nlevs_max);
     ib_wall_face33.resize(nlevs_max);
     ib_wall_hfx.resize(nlevs_max);
+    ib_wall_qfx.resize(nlevs_max);
     ib_wall_ktarget.resize(nlevs_max);
     ib_wall_height.resize(nlevs_max);
 

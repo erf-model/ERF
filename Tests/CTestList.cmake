@@ -2357,16 +2357,14 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
     FCOMPARE_ATOL "4.0e-10")
 # ABL_MOST_IMP_DIFF_TKE with a stable prescribed flux (-0.02 K m/s) and the QNSE stable-side
 # similarity functions (erf.most.stable_functions = qnse): the prescribed-flux kernel, the MYNN25
-# surface gradients and the surface TKE production all take the QNSE functions. The gold was
-# generated on Linux (GCC) from the code the option merged with, so the test guards the
-# wiring against regressions; the correctness of the functions, the fold and the kernel's
-# solution is pinned to closed forms and an independent bisection in Tests/Unit/BoundaryConditions/
-# ERF_GTestMOSTStableFunctions.cpp
-add_test_r(ABL_MOST_QNSE_StableFlux
-    ""
-    "erf_exec"
-    "plt00010"
-    FCOMPARE_ATOL "4.0e-10")
+# surface gradients and the surface TKE production all take the QNSE functions. The sounding is
+# stable aloft (theta rises 3 K/km) rather than neutral: with theta uniform, the dthetav/dz that
+# MYNN25's buoyancy length scale tests (dthetavdz > 0, then N = sqrt(g/theta0 dthetav/dz)) is
+# roundoff, and KE then differed between Linux and macOS by about 1e-9. The gold was generated on
+# Linux (GCC); the test guards the wiring against regressions, and the correctness of the
+# functions, the fold and the kernel's solution is pinned to closed forms and an independent
+# bisection in Tests/Unit/BoundaryConditions/ERF_GTestMOSTStableFunctions.cpp
+add_test_r(ABL_MOST_QNSE_StableFlux     ""  "erf_exec" "plt00010")
 # ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solves of
 # theta and momentum (ERF_ImplicitPre.H) run after the last acoustic substep of each stage
 add_test_r(ABL_MOST_IMP_DIFF_PostSubstep     ""  "erf_exec" "plt00010")
@@ -2426,6 +2424,29 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                        "erf.implicit_moisture_diffusion=false")
     add_test_immersed_flat_equivalence(ImmersedForm7MoistEquivalence_Implicit ImmersedForm7MoistEquivalence 2 0.01 25 OFF ""
                                        "erf.implicit_moisture_diffusion=true")
+    # The same pair over a heated, evaporating surface (a kinematic heat flux of 0.02 K m/s and a
+    # moisture flux of 1e-4 kg/kg m/s, about 24 and 300 W/m2, on both; the plane's through erf.if_surf_temp_flux and
+    # erf.if_surf_moist_flux) with the moist TKE buoyancy of the k-eqn closure
+    # (erf.rans_moist_buoyancy): the wall moisture flux -u* q*, the Obukhov length from theta_v* and
+    # the moist buoyancy on the wall face must reproduce flat ground, one leg per diffusion path.
+    # The _NoMoistFlux leg drops the plane's moisture flux and must fail the check (the checker sees
+    # the surface moisture); the _DryBuoyancy leg drops the plane's moist buoyancy and must fail it.
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistFluxEquivalence ImmersedForm7MoistFluxEquivalence 2 0.01 25 OFF ""
+                                       "erf.implicit_moisture_diffusion=false")
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistFluxEquivalence_Implicit ImmersedForm7MoistFluxEquivalence 2 0.01 25 OFF ""
+                                       "erf.implicit_moisture_diffusion=true")
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistFluxEquivalence_NoMoistFlux ImmersedForm7MoistFluxEquivalence 2 0.01 25 ON
+                                       "erf.if_surf_moist_flux=0" "")
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistFluxEquivalence_DryBuoyancy ImmersedForm7MoistFluxEquivalence 2 0.01 25 ON
+                                       "erf.rans_moist_buoyancy=false" "")
+    # A given surface temperature and surface mixing ratio (erf.most.pot_surf_temp and
+    # erf.most.surf_moist on flat ground, erf.if_init_surf_temp and erf.if_surf_moist on the plane):
+    # q* from the surface value with the stability functions of the virtual Obukhov length, the
+    # wall moisture source a decay toward the surface value (the air holds half the surface's 8 g/kg,
+    # so the plane without its surface mixing ratio, _NoSurfMoist, must fail the check)
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistSurfEquivalence ImmersedForm7MoistSurfEquivalence 2 0.01 25 OFF "" "")
+    add_test_immersed_flat_equivalence(ImmersedForm7MoistSurfEquivalence_NoSurfMoist ImmersedForm7MoistSurfEquivalence 2 0.01 25 ON
+                                       "erf.if_surf_moist=-1" "")
   endif()
   # Box, rank and tiling parity of the other closures: one box on one rank without tiling
   # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).
@@ -3271,6 +3292,36 @@ unset(_moist_cf_rtol)
 # cells were not filled before those solves, and the momentum solve divided by a zero wall density
 add_test_r(CouetteFlow_ImplicitCF_PostSubstep "" "erf_exec" "plt00050"
            FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
+
+# Four levels (2 2 1 refinement), each refined level stopping below the domain top, two-way
+# coupling, uniform flow.  AmrMesh::MakeNewGrids builds the levels one at a time and then
+# regenerates them all from level 0 once the finest level exists; levels 1 and 2 grow by the
+# proper-nesting buffer in that pass and are made from scratch a second time, level 3 is not.
+# Level 2 must then rebuild the flux register on its interface with level 3, which was built from
+# its first grids, and fill its own ghost cells, which the second tagging pass otherwise fills from
+# a level 1 whose ghost cells are still empty (erf-model/ERF#4988).  The test requires the log to
+# show that second pass (level 2 made from scratch twice, level 3 once), so that a change in grid
+# generation cannot make it vacuous, and the uniform flow to stay uniform on every level over three
+# steps (plt00000 against plt00003).  Without the register the first step faults or stops on the
+# assertion in getAdvFluxReg; without the ghost fill the initial state is up to 3.7 m/s off and the
+# multigrid pressure solve fails in the second step.  The log is printed when a check fails.
+function(add_test_twoway_scratch_regrid TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(FCOMPARE_FLAGS "--abort_if_not_all_found -r 1.0e-12 --abs_tol 1.0e-10")
+    set(test_command sh -c "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i amrex.call_addr2line=0 > ${test_log} 2>&1 && grep -q 'Coarse STEP 3 ends' ${test_log} && test $(grep -c 'BA FROM SCRATCH AT LEVEL 2' ${test_log}) -eq 2 && test $(grep -c 'BA FROM SCRATCH AT LEVEL 3' ${test_log}) -eq 1 && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/plt00000 ${CURRENT_TEST_BINARY_DIR}/plt00003 ) || ( cat ${test_log} && false )")
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${test_log}"
+    )
+endfunction(add_test_twoway_scratch_regrid)
+add_test_twoway_scratch_regrid(TwoWay_FourLevels_PartialDepth)
 
 # Two-way coupling refluxes the diffusive as well as the advective fluxes, so in a closed domain the
 # composite integral of a scalar is conserved across coarse/fine faces whatever transports it.
@@ -4135,6 +4186,35 @@ if(ERF_ENABLE_NETCDF AND NOT WIN32 AND ERF_TEST_PYTHON AND EXISTS "${_ew_wrf}")
   unset(TEST_NAME)
 elseif(ERF_ENABLE_NETCDF)
   message(STATUS "Skipping EarthWinds_Lambert: ${_ew_wrf} not found")
+endif()
+
+# A small, generated three-level WRF case. The middle ERF patch starts six
+# level-1 cells inside d02, so placing d03 relative to that patch shifts its
+# global position. Check both the level-2 box and a coordinate-coded field,
+# then restart with per-level wrflow files to re-read the nest box and PSFC.
+if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
+  execute_process(COMMAND "${ERF_TEST_PYTHON}" -c "import netCDF4, numpy"
+                  RESULT_VARIABLE _wrf_nested_python_status
+                  OUTPUT_QUIET ERROR_QUIET)
+  if(_wrf_nested_python_status EQUAL 0)
+    set(TEST_NAME WRFInput_CroppedParent)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND "${CMAKE_COMMAND}"
+      "-DPYTHON=${ERF_TEST_PYTHON}"
+      "-DTEST_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DRUN_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DERF_EXECUTABLE=${TEST_EXE}"
+      "-DPLOTFILE_READER_DIR=${PROJECT_SOURCE_DIR}/Exec/Tools"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/RunWRFInputCroppedParent.cmake")
+    set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS 1
+      WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
+      LABELS "regression;wrfinput"
+      ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run.log;${CURRENT_TEST_BINARY_DIR}/run.err;${CURRENT_TEST_BINARY_DIR}/restart.log;${CURRENT_TEST_BINARY_DIR}/restart.err")
+    unset(TEST_NAME)
+  else()
+    message(STATUS "Skipping WRFInput_CroppedParent: Python netCDF4 and numpy are required")
+  endif()
 endif()
 
 #=============================================================================

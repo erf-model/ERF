@@ -1379,7 +1379,11 @@ private:
     // Re-read the surface pressure of a level > 0 from its own init file (it is not checkpointed)
     void read_psfc_from_own_init_file (int lev);
 
-    // The cells at a level > 0 that its own init file covers, as ERF::ErrorEst places them
+    // The full WRF file box in ERF's global index space, including all ancestor nest offsets;
+    // optionally return the requested refined file's parent-grid ratio
+    amrex::Box wrfinput_file_box (int lev, int file_index, int* ratio_out = nullptr) const;
+
+    // The cells at a level > 0 that its own init file covers
     amrex::Box nest_box_from_own_init_file (int lev);
 
     // Maximum value of terrain read in from wrfinput at level 0
@@ -1718,6 +1722,10 @@ private:
     // kinematic wall heat flux -u* theta* of the fraction-stress law in the wall cell (zero elsewhere),
     // written by the immersed scalar forcing, read as the TKE buoyancy flux on the wall face
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_hfx;
+    // kinematic wall moisture flux -u* q* of the fraction-stress law in the wall cell (zero elsewhere;
+    // allocated with a moisture model that carries water vapour), written by the immersed scalar
+    // forcing, read as the water vapour flux on the wall face (qfx1_z: the moist TKE buoyancy, the output)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_qfx;
     // wall value of the k-eqn TKE in the wall cell (erf.if_wall_tke; -1 elsewhere), written by the
     // immersed scalar forcing; with erf.if_wall_tke_time_factor = 1 the cell is held at it after
     // every stage and in the implicit TKE solve
@@ -2343,6 +2351,16 @@ private:
     AMREX_FORCE_INLINE
     amrex::YAFluxRegister* getAdvFluxReg (int lev)
     {
+        // The register on the lev-1 / lev interface holds the grids of both levels, so a level
+        // made or remade after it was built must have rebuilt it; one built from an earlier
+        // BoxArray would be indexed with the wrong boxes (erf-model/ERF#4988).  The BoxArray
+        // comparison is a pointer comparison when the register is current.
+        if (advflux_reg[lev]) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                advflux_reg[lev]->getCrseData().boxArray()        == grids[lev-1] &&
+                advflux_reg[lev]->getCrseData().DistributionMap() == dmap[lev-1],
+                "The advective flux register was built from an earlier BoxArray of its coarse level");
+        }
         return advflux_reg[lev].get();
     }
 

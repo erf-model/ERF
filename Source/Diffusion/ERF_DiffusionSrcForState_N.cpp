@@ -73,7 +73,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const Real implicit_fac,
                         const ScalarDiffusionRefluxViews* reflux_flx,
                         const Array4<const Real>& wall_face33,
-                        const Array4<const Real>& wall_hfx)
+                        const Array4<const Real>& wall_hfx,
+                        const Array4<const Real>& wall_qfx)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
 
@@ -139,8 +140,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
         }
         // Fraction-stress immersed wall law: no diffusive flux of any scalar (theta, TKE, the
         // passive scalars, the moisture species) through the bottom face of the wall cell, as
-        // through zlo on flat ground (ERF_ImmersedWallCell.H). The surface carries a heat flux
-        // (below) and no moisture flux: the moisture species see a closed wall.
+        // through zlo on flat ground (ERF_ImmersedWallCell.H). The surface carries the wall heat
+        // flux and the wall moisture flux of the wall law (below), both applied as sources in the
+        // wall cell by the immersed scalar forcing.
         if (wall_face33) {
             const int fc = field.flux_comp;
             const Box mbx = zbx & amrex::convert(Box(wall_face33), zbx.ixType());
@@ -149,14 +151,19 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,fc) *= wall_face33(i,j,k);
             });
             // the qv and qc face-flux diagnostics were filled from the open face: close them the
-            // same way (the TKE buoyancy sources read qfx1_z); zero on the wall face, as at zlo on
-            // flat ground without a surface moisture flux
+            // same way (the TKE buoyancy sources read qfx1_z); on the wall face the water vapour
+            // flux is the wall moisture flux of the wall law (rho times the kinematic flux, as the
+            // surface layer writes it at zlo), zero without a surface moisture condition; the
+            // cloud-water face is zero. wall_qfx has no ghost cells (see wall_hfx below).
             if ((native_policy.is_q1 && qfx1_z) || (native_policy.is_q2 && qfx2_z)) {
                 const Array4<Real>& qfx_z = native_policy.is_q1 ? qfx1_z : qfx2_z;
+                const Array4<const Real> q_wall_arr = native_policy.is_q1 ? wall_qfx : Array4<const Real>{};
                 const Box qbx = mbx & amrex::convert(Box(qfx_z), zbx.ixType());
                 ParallelFor(qbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    qfx_z(i,j,k) *= wall_face33(i,j,k);
+                    const Real f_wall = (q_wall_arr && q_wall_arr.contains(i,j,k))
+                                      ? cell_data(i,j,k,Rho_comp) * q_wall_arr(i,j,k) : zero;
+                    qfx_z(i,j,k) = (wall_face33(i,j,k) == zero) ? f_wall : wall_face33(i,j,k) * qfx_z(i,j,k);
                 });
             }
             if (qty_index == RhoTheta_comp && hfx_z) {
