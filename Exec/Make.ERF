@@ -395,6 +395,15 @@ else ifneq ($(strip $(FIRE_HOME)),)
     $(error FIRE_HOME is set but USE_FIRE is not TRUE)
 endif
 
+# The actuator core for bodies in the flow (Source/MovingBodies/Core)
+ifeq ($(USE_MOVING_BODIES), TRUE)
+    DEFINES += -DERF_USE_MOVING_BODIES
+    ERF_MOVING_BODIES_CORE_DIR = $(ERF_SOURCE_DIR)/MovingBodies/Core
+    include $(ERF_MOVING_BODIES_CORE_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_MOVING_BODIES_CORE_DIR)
+    INCLUDE_LOCATIONS += $(ERF_MOVING_BODIES_CORE_DIR)
+endif
+
 # If using windfarm parametrization, then compile all models and choose
 # at runtime from the inputs
 ifeq ($(USE_WINDFARM), TRUE)

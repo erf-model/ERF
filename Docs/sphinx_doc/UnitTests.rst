@@ -261,6 +261,9 @@ Test configuration options
      - Enables the fire coupling and its tests (``FireCoupler``, ``FireAnchorLevel``,
        ``FirePrecip``, ``ExnerTendency``, ``HeatInjection``, ``SmokeInjection``, and
        ``FireCouplingGTests_FpeTraps``, which reruns them with floating-point traps armed).
+   * - ``ERF_ENABLE_MOVING_BODIES``
+     - Enables the actuator core and its tests (``ActuatorSampling``, ``ActuatorSpreading``,
+       ``WakeLines``, ``RunningStats``; the first two also in the parallel executable).
    * - ``ERF_PARTICLES_PRECISION``
      - Selects particle precision when particles are enabled.
 
