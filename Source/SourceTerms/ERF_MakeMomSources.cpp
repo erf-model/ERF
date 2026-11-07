@@ -94,6 +94,7 @@ void make_mom_sources (int level,
     //    (none of them on a level that takes no acoustic substeps)
     bool use_Rayleigh_fast_uv = solverChoice.rayleigh_fast_uvT(level);
     bool use_Rayleigh_fast_w  = solverChoice.rayleigh_fast_w(level);
+    bool use_Rayleigh_impl_w  = solverChoice.rayleigh_implicit_w(level);
     bool use_canopy_fast = solverChoice.forest_fast(level);
     bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_fast(level);
 
@@ -508,7 +509,9 @@ void make_mom_sources (int level,
             }
         } // fast or slow step
 
-        if ( (is_slow_step && !use_Rayleigh_fast_w) || (!is_slow_step && use_Rayleigh_fast_w)) {
+        // With FastImplicit the w damping is done implicitly in the substeps instead
+        if ( (is_slow_step && !use_Rayleigh_fast_w && !use_Rayleigh_impl_w) ||
+             (!is_slow_step && use_Rayleigh_fast_w) ) {
             if (rayleigh_damp_W) {
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {

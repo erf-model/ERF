@@ -3013,6 +3013,14 @@ struct SolverChoice {
                dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit;
     }
 
+    // Implicit Rayleigh damping of w in the substeps (FastImplicit with erf.rayleigh_damp_W).
+    // It replaces the explicit w damping, which is then applied on neither step.
+    [[nodiscard]] bool rayleigh_implicit_w (int lev) const noexcept
+    {
+        return level_substeps(lev) && dampingChoice.rayleigh_damp_W &&
+               dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit;
+    }
+
     // Canopy drag in the substeps (erf.forest_substep)
     [[nodiscard]] bool forest_fast (int lev) const noexcept
     {
