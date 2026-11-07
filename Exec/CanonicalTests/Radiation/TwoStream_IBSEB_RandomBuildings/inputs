@@ -45,7 +45,10 @@ erf.city.in_box_hi = 480.0 480.0
 # gives the 36 to 38 substeps per step this case was validated with (0.5 gave 38
 # before #4379 and gives 72 now). With 72 or more substeps the two-way
 # compressible coupling blows up at the fine box's x faces after about 90 steps
-# (erf-model/ERF#5003); one-way coupling and 60 or fewer substeps run.
+# (erf-model/ERF#5003); one-way coupling and 60 or fewer substeps run. Keep 1.0
+# once #5003 is fixed: the results in the README were made with this count, and
+# the acoustic CFL of a substep stays below 1 (0.33 horizontal, 0.96 vertical on
+# level 0).
 erf.fixed_dt = 1.0
 erf.substepping_cfl = 1.0
 erf.sum_interval = -1
