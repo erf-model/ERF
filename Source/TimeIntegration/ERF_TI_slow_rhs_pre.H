@@ -381,6 +381,9 @@
         // *****************************************************************************
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
+            // Fill the ghost cells of the new base state before the column update reads them
+            (*physbcs_base[level])(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());
+
             MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
             MultiFab  p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
             MultiFab pi_hse_new (base_state_new[level], make_alias, BaseState::pi0_comp, 1);
@@ -441,14 +444,30 @@
                    r0_tmp_arr(i,j,k)  = r0_new_arr(i,j,k);
                });
 
+               const int klo_base = fine_geom.Domain().smallEnd(2);
                Box gbx2 = mfi.growntilebox({1,1,0});
                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
                    Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
                    Real zflux_r_hi = -z_t_arr(i,j,k+1) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
+                   if (k == klo_base) {
+                       // The ghost cell below klo is a copy of cell klo, so the average above would give
+                       // the cell value; use the quadratic extrapolation to the bottom face from three
+                       // cells of equal spacing. At the top face z_t = 0.
+                       zflux_r_lo = -z_t_arr(i,j,k) *
+                           ( Real(1.875)*r0_tmp_arr(i,j,k) - Real(1.25)*r0_tmp_arr(i,j,k+1)
+                            + Real(0.375)*r0_tmp_arr(i,j,k+2) );
+                   }
 
                    Real zflux_rt_lo = zflux_r_lo * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
                    Real zflux_rt_hi = zflux_r_hi * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
+                   if (k == klo_base) {
+                       // theta_0 at the bottom face by the same extrapolation
+                       zflux_rt_lo = zflux_r_lo *
+                           ( Real(1.875)*(rt0_tmp_arr(i,j,k  )/r0_tmp_arr(i,j,k  ))
+                            - Real(1.25)*(rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1))
+                           + Real(0.375)*(rt0_tmp_arr(i,j,k+2)/r0_tmp_arr(i,j,k+2)) );
+                   }
 
                    Real invdetJ = one / dJ_src_arr(i,j,k);
 
@@ -467,9 +486,15 @@
                    th0_new_arr(i,j,k) = rt0_tmp_new / r0_new_arr(i,j,k);
                });
             } // MFIter
-            r0_new->FillBoundary(fine_geom.periodicity());
-            p0_new->FillBoundary(fine_geom.periodicity());
-            th0_new->FillBoundary(fine_geom.periodicity());
+            base_state_new[level].FillBoundary(fine_geom.periodicity());
+
+            // Ghost cells of the updated base state on the new mesh, as at a restart
+            ERFPhysBCFunct_base physbc_base_new(level, fine_geom, domain_bcs_type, domain_bcs_type_d,
+                                                z_phys_nd_new[level],
+                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
+                                                (solverChoice.mesh_type != MeshType::ConstantDz),
+                                                solverChoice.rdOcp, solverChoice.gravity);
+            physbc_base_new(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());
         }
 
 #ifdef ERF_USE_NETCDF
