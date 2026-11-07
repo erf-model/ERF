@@ -54,12 +54,45 @@ void expect_plane_index (const PlaneIndex& p, int lo, int hi, double w)
 TEST(BndryPlaneIndex, AtLevelZeroAPlaneIndexIsTheCellItselfWithNoWeight)
 {
     for (int j = -3; j < 7; ++j) {
-        for (bool nodal : {false, true}) {
-            for (bool periodic : {false, true}) {
-                const PlaneIndex p = plane_index(j, 1, nodal, 0, 3, periodic);
-                EXPECT_EQ(p.lo, bndry_plane_index(j, 0, 3, periodic)) << j;
-                EXPECT_EQ(p.w, 0.0) << j;
-            }
+        for (bool periodic : {false, true}) {
+            const PlaneIndex p = plane_index(j, 1, false, 0, 3, periodic);
+            EXPECT_EQ(p.lo, bndry_plane_index(j, 0, 3, periodic)) << j;
+            EXPECT_EQ(p.w, 0.0) << j;
+        }
+    }
+}
+
+// The plane holds cell-centred values (the writer averages the face velocities to cell
+// centres), so at level 0 node j lies halfway between plane cells j - 1 and j
+TEST(BndryPlaneIndex, AtLevelZeroANodeAveragesTheTwoPlaneCellsItSeparates)
+{
+    for (int j = -3; j < 7; ++j) {
+        for (bool periodic : {false, true}) {
+            const PlaneIndex p = plane_index(j, 1, true, 0, 3, periodic);
+            EXPECT_EQ(p.lo, bndry_plane_index(j-1, 0, 3, periodic)) << j;
+            EXPECT_EQ(p.hi, bndry_plane_index(j  , 0, 3, periodic)) << j;
+            EXPECT_NEAR(static_cast<double>(p.w), 0.5, 1.0e-6) << j;
+        }
+    }
+}
+
+// A velocity linear along the face, v = a + b y, written as the writer does (the average of
+// the two faces of each cell, so plane cell j holds v at its centre (j + 1/2) dy), is read
+// back exactly at every node between the first and last plane cell centres (beyond them the
+// plane is clamped); the old nodal reading was half a cell off, b dy / 2
+TEST(BndryPlaneIndex, ALinearFaceVelocityIsRecoveredAtTheNodes)
+{
+    const double a = 3.0, b = 0.25, dy = 2.0;
+    auto v_face = [=] (int j) { return a + b * j * dy; };
+    double plane[8];
+    for (int c = 0; c < 8; ++c) { plane[c] = 0.5 * (v_face(c) + v_face(c+1)); }
+    for (int ratio : {1, 2, 4}) {
+        for (int j = ratio/2 + (ratio == 1); j <= 8*ratio - ratio/2 - (ratio == 1); ++j) {
+            const PlaneIndex p = plane_index(j, ratio, true, 0, 7, false);
+            const double w = static_cast<double>(p.w);
+            const double v = (1.0 - w) * plane[p.lo] + w * plane[p.hi];
+            EXPECT_NEAR(v, a + b * (static_cast<double>(j) / ratio) * dy, 1.0e-12)
+                << "ratio " << ratio << " node " << j;
         }
     }
 }
@@ -76,18 +109,21 @@ TEST(BndryPlaneIndex, AFineCellAcrossAPeriodicSeamBlendsTheCellsEitherSideOfIt)
     expect_plane_index(plane_index(3, 2, false, 0, 3, false), 1, 2, 0.25);
 }
 
-TEST(BndryPlaneIndex, AFineNodeAcrossAPeriodicSeamBlendsTheNodesEitherSideOfIt)
+TEST(BndryPlaneIndex, AFineNodeAcrossAPeriodicSeamBlendsTheCellsEitherSideOfIt)
 {
-    // node 8 of the fine level is node 4 of the coarse one, the periodic image of node 0
-    expect_plane_index(plane_index(8, 2, true, 0, 3, true), 0, 1, 0.0);
-    expect_plane_index(plane_index(7, 2, true, 0, 3, true), 3, 0, 0.5);
-    expect_plane_index(plane_index(-1, 2, true, 0, 3, true), 3, 0, 0.5);
+    // fine node 8 is coarse node 4, the periodic image of node 0: the face between coarse
+    // cell 3 and its periodic neighbour, coarse cell 0
+    expect_plane_index(plane_index(8, 2, true, 0, 3, true), 3, 0, 0.5);
+    expect_plane_index(plane_index(0, 2, true, 0, 3, true), 3, 0, 0.5);
+    // fine node 7 is the centre of coarse cell 3; fine node -1 the centre of its image
+    expect_plane_index(plane_index(7, 2, true, 0, 3, true), 3, 0, 0.0);
+    expect_plane_index(plane_index(-1, 2, true, 0, 3, true), 3, 0, 0.0);
 }
 
 TEST(BndryPlaneIndex, ANonPeriodicDirectionClampsBothNeighboursToThePlane)
 {
     expect_plane_index(plane_index(0, 2, false, 0, 3, false), 0, 0, 0.75);
     expect_plane_index(plane_index(7, 2, false, 0, 3, false), 3, 3, 0.25);
-    expect_plane_index(plane_index(8, 2, true, 0, 3, false), 3, 3, 0.0);
-    expect_plane_index(plane_index(-1, 2, true, 0, 3, false), 0, 0, 0.5);
+    expect_plane_index(plane_index(8, 2, true, 0, 3, false), 3, 3, 0.5);
+    expect_plane_index(plane_index(-1, 2, true, 0, 3, false), 0, 0, 0.0);
 }

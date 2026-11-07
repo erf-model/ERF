@@ -11,7 +11,11 @@ using namespace amrex;
  * face of the level-0 domain.  On a finer level they are interpolated linearly along the
  * face, in the two directions tangential to it, onto the fine ghost cells and faces; the
  * fine ghost cells take the same value at every distance from the face, as they do at
- * level 0.  At level 0 this reduces exactly to copying the plane.
+ * level 0.  The planes hold cell-centred values (the writer averages the face velocities to
+ * cell centres), so at level 0 a cell-centred component copies the plane, and a velocity
+ * component that is nodal along the face (y-velocity on an x face, x-velocity on a y face,
+ * z-velocity on either) takes the average of the two plane cells either side of its node
+ * (plane_index).
  *
  * @param[in]     lev       level the MultiFabs live on
  * @param[in,out] mfs       Vector of MultiFabs to be filled: cons, xvel, yvel, zvel

@@ -3413,6 +3413,10 @@ Notes
   cell of the plane otherwise; the ghost rows below and above the domain always take the
   nearest row of the plane.  On a refined level the plane is interpolated linearly along the
   face with the same rule for the two cells it blends.
+- The planes hold velocity at cell centres (the writer averages the face values).  A velocity
+  component that is nodal along the face (y-velocity on an x face, x-velocity on a y face,
+  z-velocity on either) therefore takes, at each node, the average of the two plane cells on
+  either side of it, at every level.
 
 .. _sec:NumericalStability:
 
