@@ -2710,6 +2710,41 @@ function(add_test_bndry_planes_ingest TEST_NAME READ_VARS FIELD MIN MAX)
 endfunction()
 add_test_bndry_planes_ingest(BndryPlanes_Ingest_VelocityOnly "velocity" x_velocity 4.5 15.0)
 add_test_bndry_planes_ingest(BndryPlanes_Ingest_Qv "temperature density velocity qv" qv 1.0e-4 6.0e-3)
+# Planes ingested on the x faces of a y-periodic domain, from a writer whose planes vary
+# along y (Tests/RunBndryPlanesGold.cmake): the ghost cells beside the x faces at the y seam
+# take the plane at the periodic image, as the interior cells across the seam do. The reader's
+# plotfile is compared with its gold; the near-side fill of development changed y_velocity by
+# 2.7 % of its norm there after 10 steps. The gold also records the velocity components that are
+# nodal along a face read between the two plane cells either side of the node (1.7 % in
+# y_velocity). The gold records the new fill, not a physical answer (the reader's window is not a
+# period of the writer's field); the BndryPlaneIndex gtests carry the check of the index
+# arithmetic.
+function(add_test_bndry_planes_gold TEST_NAME WRITER_INPUT PLTFILE)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DWRITER=${CURRENT_TEST_BINARY_DIR}/${WRITER_INPUT}"
+        "-DREADER=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DGOLD=${PLOT_GOLD}"
+        "-DRTOL=${ERF_TEST_FCOMPARE_RTOL}"
+        "-DATOL=${ERF_TEST_FCOMPARE_ATOL}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunBndryPlanesGold.cmake)
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/writer.log;${CURRENT_TEST_BINARY_DIR}/reader.log;${CURRENT_TEST_BINARY_DIR}/fcompare.log")
+endfunction()
+add_test_bndry_planes_gold(BndryPlanes_PeriodicSeam "BndryPlanes_PeriodicSeam_Writer.i" "plt00010")
 endif()
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010")
