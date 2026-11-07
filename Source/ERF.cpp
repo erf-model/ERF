@@ -3517,11 +3517,9 @@ ERF::ReadParameters ()
         pp.queryAdd("dt_max_initial", dt_max_initial);
         pp.queryAdd("dt_max", dt_max);
 
-        // Explicit eddy-diffusion time-step check
-        const bool diffusive_cfl_given = pp.contains("diffusive_cfl");
         pp.queryAdd("diffusive_dt_check", diffusive_dt_check);
         pp.queryAdd("diffusive_dt_limit", diffusive_dt_limit);
-        pp.queryAdd("diffusive_cfl", diffusive_cfl);
+        const bool diffusive_cfl_given = pp.query("diffusive_cfl", diffusive_cfl);
         if (!(diffusive_cfl > zero && diffusive_cfl <= one)) {
             Abort("erf.diffusive_cfl must be in (0, 1]");
         }
