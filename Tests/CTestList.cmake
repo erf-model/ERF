@@ -2714,7 +2714,9 @@ add_test_bndry_planes_ingest(BndryPlanes_Ingest_Qv "temperature density velocity
 # along y (Tests/RunBndryPlanesGold.cmake): the ghost cells beside the x faces at the y seam
 # take the plane at the periodic image, as the interior cells across the seam do. The reader's
 # plotfile is compared with its gold; the near-side fill of development changed y_velocity by
-# 7 % of its norm there after 10 steps.
+# 2.7 % of its norm there after 10 steps. The gold records the new fill, not a physical answer
+# (the reader's window is not a period of the writer's field); the BndryPlaneIndex gtests carry
+# the check of the index arithmetic.
 function(add_test_bndry_planes_gold TEST_NAME WRITER_INPUT PLTFILE)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
