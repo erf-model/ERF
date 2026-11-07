@@ -3169,8 +3169,12 @@ ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
                                                                   "erf.add_custom_moisture_forcing");
         // immersed forcing meets the fire tendency only on the slow step; on the
         // acoustic substeps (erf.immersed_forcing_substep, the compressible
-        // default) the two modes are identical
-        const bool if_slow = !solverChoice.immersed_forcing_substep;
+        // default) the two modes are identical.  The fire level is not known
+        // yet, so any level that applies it on the slow step counts.
+        bool if_slow = false;
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (!solverChoice.immersed_forcing_fast(lev)) { if_slow = true; }
+        }
         add(if_slow && solverChoice.terrain_type == TerrainType::ImmersedForcing,
             "slow-step immersed-forcing terrain");
         add(if_slow && solverChoice.buildings_type == BuildingsType::ImmersedForcing,

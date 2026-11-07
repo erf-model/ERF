@@ -673,6 +673,9 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
 
 /**
  * Apply buildings immersed forcing to X-momentum
+ *
+ * is_slow_step: whether the forcing is being applied on the slow step (the drag is then
+ * limited) rather than in the acoustic substeps
  */
 void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                     const Array4<const Real>& u,
@@ -685,7 +688,8 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                     const Array4<      Real>& xmom_src_arr,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
-                                    const Real fac)
+                                    const Real fac,
+                                    bool is_slow_step)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -716,8 +720,6 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     // projection (ERF::make_if_projection_sigma), not here
     const bool l_ip               = solverChoice.if_implicit_projection;
 
-    const bool is_slow_step = true;  // This is determined by calling context
-    const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
@@ -850,7 +852,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                        + (wall_mask + east_west_mask) * t_blank * windspeed
                                        + interior_mask * windspeed );
             xmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
-        } else if (is_slow_step && !use_ImmersedForcing_fast) {
+        } else if (is_slow_step) {
             // limit drag term for anelastic for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(ux), ws_floor); // aims to prevent oscillations around 0.
@@ -867,6 +869,9 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
 
 /**
  * Apply buildings immersed forcing to Y-momentum
+ *
+ * is_slow_step: whether the forcing is being applied on the slow step (the drag is then
+ * limited) rather than in the acoustic substeps
  */
 void ImmersedForcingBuildings_Ymom (const Box& tby,
                                     const Array4<const Real>& u,
@@ -879,7 +884,8 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                     const Array4<      Real>& ymom_src_arr,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
-                                    const Real fac)
+                                    const Real fac,
+                                    bool is_slow_step)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -910,8 +916,6 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     // projection (ERF::make_if_projection_sigma), not here
     const bool l_ip               = solverChoice.if_implicit_projection;
 
-    const bool is_slow_step = true;  // This is determined by calling context
-    const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
@@ -1042,7 +1046,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                        + (wall_mask + north_south_mask) * t_blank * windspeed
                                        + interior_mask * windspeed );
             ymom_src_arr(i,j,k) -= drag / (one + lambda*dt);
-        } else if (is_slow_step && !use_ImmersedForcing_fast) {
+        } else if (is_slow_step) {
             // limit drag term for anelastic for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uy), ws_floor); // aims to prevent oscillations around 0.
@@ -1059,6 +1063,9 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
 
 /**
  * Apply buildings immersed forcing to Z-momentum
+ *
+ * is_slow_step: whether the forcing is being applied on the slow step (the drag is then
+ * limited) rather than in the acoustic substeps
  */
 void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                     const Array4<const Real>& u,
@@ -1071,7 +1078,8 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                     const Array4<      Real>& zmom_src_arr,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
-                                    const Real fac)
+                                    const Real fac,
+                                    bool is_slow_step)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -1102,8 +1110,6 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     // projection (ERF::make_if_projection_sigma), not here
     const bool l_ip               = solverChoice.if_implicit_projection;
 
-    const bool is_slow_step = true;  // This is determined by calling context
-    const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
@@ -1246,7 +1252,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                        + (wall_mask + roof_mask) * t_blank * windspeed
                                        + interior_mask * windspeed );
             zmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
-        } else if (is_slow_step && !use_ImmersedForcing_fast) {
+        } else if (is_slow_step) {
             // limit drag term for anelastic for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uz), ws_floor); // aims to prevent oscillations around 0.

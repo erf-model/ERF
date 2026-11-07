@@ -1764,6 +1764,25 @@ struct SolverChoice {
          spongeChoice.init_params(pp_prefix);
              ebChoice.init_params(pp_prefix);
 
+        // A level that takes no acoustic substeps applies these terms on the slow step instead
+        // (level_substeps); say so when they were asked for
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (level_substeps(lev)) { continue; }
+            if (dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit ||
+                dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit) {
+                amrex::Print() << "Level " << lev << " takes no acoustic substeps: Rayleigh damping is"
+                               << " applied on the slow step there" << std::endl;
+            }
+            if (forest_substep) {
+                amrex::Print() << "Level " << lev << " takes no acoustic substeps: erf.forest_substep is"
+                               << " ignored there and canopy drag is applied on the slow step" << std::endl;
+            }
+            if (immersed_forcing_substep && pp.contains("immersed_forcing_substep")) {
+                amrex::Print() << "Level " << lev << " takes no acoustic substeps: erf.immersed_forcing_substep"
+                               << " is ignored there and immersed forcing is applied on the slow step" << std::endl;
+            }
+        }
+
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
@@ -2969,6 +2988,41 @@ struct SolverChoice {
         return buildings_type == BuildingsType::ImmersedForcing &&
                std::sqrt(geom.CellSize(0) * geom.CellSize(1)) <=
                    amrex::Real(50.0) * (one + amrex::Real(1.e-6));
+    }
+
+    // Whether a level takes acoustic substeps.  Anelastic, pseudo-incompressible and
+    // RK3_NoSubstepping levels do not, so a source term that is asked to be applied in
+    // the substeps only is applied on the slow step there instead.
+    [[nodiscard]] bool level_substeps (int lev) const noexcept
+    {
+        return timestepping_type[lev] == TimesteppingType::RK3_ImplicitSubstep;
+    }
+
+    // Rayleigh damping of u, v and (rho theta) in the substeps (FastExplicit, FastImplicit)
+    [[nodiscard]] bool rayleigh_fast_uvT (int lev) const noexcept
+    {
+        return level_substeps(lev) &&
+               (dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit ||
+                dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);
+    }
+
+    // Explicit Rayleigh damping of w in the substeps (FastExplicit only)
+    [[nodiscard]] bool rayleigh_fast_w (int lev) const noexcept
+    {
+        return level_substeps(lev) &&
+               dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit;
+    }
+
+    // Canopy drag in the substeps (erf.forest_substep)
+    [[nodiscard]] bool forest_fast (int lev) const noexcept
+    {
+        return level_substeps(lev) && forest_substep;
+    }
+
+    // Immersed forcing in the substeps (erf.immersed_forcing_substep)
+    [[nodiscard]] bool immersed_forcing_fast (int lev) const noexcept
+    {
+        return level_substeps(lev) && immersed_forcing_substep;
     }
 
     /**
