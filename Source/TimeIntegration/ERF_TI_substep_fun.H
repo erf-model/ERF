@@ -37,6 +37,12 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             l_variable_beta_s = false;
         }
 
+        // On a moving fitted mesh the metric terms of the pressure gradient and the operator
+        // Jacobians of the implicit solve are taken at the sub-step midpoint; the cell volumes
+        // of the conservative update stay at the sub-step ends
+        const bool l_mid_metric = (solverChoice.terrain_type == TerrainType::MovingFittedMesh) &&
+                                  (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep);
+
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
         // Canopy data for mom sources
@@ -139,13 +145,33 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             update_terrain_substep(level, old_substep_time, new_substep_time, dtau, S_data, z_t_pert);
         }
 
+        // Mesh at the sub-step midpoint for the metric terms of the pressure gradient and the
+        // operator Jacobians; the cell volumes of the conservative update stay at the sub-step ends
+        std::unique_ptr<MultiFab> z_phys_nd_mid;
+        std::unique_ptr<MultiFab> detJ_cc_mid;
+        if (l_mid_metric) {
+            z_phys_nd_mid = std::make_unique<MultiFab>(z_phys_nd[level]->boxArray(),
+                                                       z_phys_nd[level]->DistributionMap(),
+                                                       1, z_phys_nd[level]->nGrowVect());
+            MultiFab::LinComb(*z_phys_nd_mid, Real(0.5), *z_phys_nd[level], 0,
+                                              Real(0.5), *z_phys_nd_new[level], 0,
+                                              0, 1, z_phys_nd_mid->nGrowVect());
+            // No ghost cells: those of detJ_cc_new are not filled, and make_fast_coeffs reads valid cells only
+            detJ_cc_mid = std::make_unique<MultiFab>(detJ_cc[level]->boxArray(),
+                                                     detJ_cc[level]->DistributionMap(), 1, 0);
+            MultiFab::LinComb(*detJ_cc_mid, Real(0.5), *detJ_cc[level], 0,
+                                            Real(0.5), *detJ_cc_new[level], 0,
+                                            0, 1, 0);
+        }
+
         bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
 
         if ( (fast_step == 0) || (solverChoice.terrain_type == TerrainType::MovingFittedMesh) )
         {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
-                             detJ_cc[level], dtau, beta_s, z_phys_nd[level].get(),
+                             (l_mid_metric ? detJ_cc_mid : detJ_cc[level]), dtau, beta_s,
+                             (l_mid_metric ? z_phys_nd_mid.get() : z_phys_nd[level].get()),
                              l_variable_beta_s, solverChoice.beta_s_min, solverChoice.beta_s_max,
                              phys_bc_type);
         }
@@ -200,12 +226,13 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            fine_geom,
                            solverChoice.gravity, solverChoice.use_lagged_delta_rt,
                            z_t_rk[level], z_t_pert.get(),
-                           z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
+                           z_phys_nd[level], (l_mid_metric ? z_phys_nd_mid.get() : nullptr),
+                           z_phys_nd_new[level], z_phys_nd_src[level],
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                           solverChoice.beta_d);
+                           solverChoice.beta_d, l_mid_metric);
 
         } else if (cf_terrain) {
 

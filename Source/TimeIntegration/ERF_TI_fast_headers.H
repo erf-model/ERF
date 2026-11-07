@@ -131,6 +131,7 @@ void erf_substep_MT (int step, int nrk, int level, int finest_level,
                      std::unique_ptr<amrex::MultiFab>& z_t_rk,
                      const amrex::MultiFab* z_t_pert,
                      std::unique_ptr<amrex::MultiFab>& z_phys_nd_old,
+                     const amrex::MultiFab* z_phys_nd_flx,
                      std::unique_ptr<amrex::MultiFab>& z_phys_nd_new,
                      std::unique_ptr<amrex::MultiFab>& z_phys_nd_stg,
                      std::unique_ptr<amrex::MultiFab>& detJ_cc_old,
@@ -144,7 +145,8 @@ void erf_substep_MT (int step, int nrk, int level, int finest_level,
                      bool l_use_moisture, bool l_reflux, bool l_real_bc,
                      const amrex::Real* sinesq_at_lev_d,
                      const amrex::Real l_damp_coef,
-                     const amrex::Real beta_d);
+                     const amrex::Real beta_d,
+                     const bool mid_metric);
 
 /**
  * Function for computing the coefficients for the tridiagonal solver used in the fast
