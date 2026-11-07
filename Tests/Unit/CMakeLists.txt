@@ -459,6 +459,32 @@ if(ERF_ENABLE_NOAHMP)
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPCheckpointLayout.cpp
   )
 endif()
+if(ERF_ENABLE_MOVING_BODIES)
+  # Motivation: the actuator velocity sampler must reproduce a field linear in x, y and the
+  # physical height exactly, from each component's own staggered grid, on uniform, stretched
+  # and terrain-following meshes, and find every point in exactly one box however the domain
+  # is split.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestActuatorSampling.cpp
+  )
+  # Motivation: a point force spread onto the momentum sources must integrate back to the
+  # force exactly on every component, with the terrain cell volumes, under the ground
+  # cut-off, for several points, and however the domain is split.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestActuatorSpreading.cpp
+  )
+  # Motivation: the wake sampling lines must sit at the requested distances behind a body
+  # along its axis, their running average must be the mean of the samples (an analytic wake
+  # comes back exactly), and that average must survive a checkpoint round trip.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestWakeLines.cpp
+  )
+  # Motivation: a body's running statistics must be the exact mean, rms, minimum and maximum
+  # of the samples since the averaging start and must survive a checkpoint round trip.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestRunningStats.cpp
+  )
+endif()
 build_erf_exe(${erf_exe_name} NO_ERF_MAIN)
 target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)
 
@@ -925,6 +951,15 @@ if(ERF_ENABLE_MPI)
     # WPS edge/corner regression exercises every rank.
     target_sources(${erf_parallel_exe_name} PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestTerrainNetCDF.cpp
+    )
+  endif()
+  if(ERF_ENABLE_MOVING_BODIES)
+    # Motivation: with the domain distributed over ranks, each actuator point is sampled by
+    # the one rank owning its cell and summed across ranks; the result must not depend on
+    # the rank count or on which rank holds the point.
+    target_sources(${erf_parallel_exe_name} PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestActuatorSampling.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestActuatorSpreading.cpp
     )
   endif()
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)

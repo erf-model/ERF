@@ -410,6 +410,18 @@ function(build_erf_lib erf_lib_name)
     message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS is set but ERF_ENABLE_FIRE is OFF")
   endif()
 
+  if(ERF_ENABLE_MOVING_BODIES)
+    # The actuator core: velocity sampling at points, Gaussian force spreading onto the
+    # momentum sources, wake sampling lines and running statistics, for bodies in the flow.
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/MovingBodies/Core/ERF_ActuatorSampling.cpp
+      ${SRC_DIR}/MovingBodies/Core/ERF_ActuatorSpreading.cpp
+      ${SRC_DIR}/MovingBodies/Core/ERF_WakeLines.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Core>)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOVING_BODIES)
+  endif()
+
   if(ERF_BUILD_LIBRARY_ONLY)
     # In library-only superbuild mode, archive extraction + weak amrex_probinit
     # requires a forced reference path (see ERF.cpp/ERF_Prob.cpp link anchor).
