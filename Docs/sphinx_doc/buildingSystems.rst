@@ -195,6 +195,10 @@ Set build variables in the ``GNUmakefile``:
         - Fire engine directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_FIRE=TRUE``; see :ref:`sec:FireCoupling`)
         - (none)
         - paths
+      * - ``USE_MOVING_BODIES``
+        - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`)
+        - FALSE
+        - TRUE/FALSE
       * - ``USE_NOAHMP``
         - Enables Noah-MP land surface model (requires ``USE_NETCDF=TRUE``)
         - FALSE
@@ -576,6 +580,10 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Fire engine directories to compile in, a CMake list, each with an ``ERFFireEngine.cmake`` (needs ``ERF_ENABLE_FIRE=ON``; see :ref:`sec:FireCoupling`)
      - (none)
      - paths
+   * - ``ERF_ENABLE_MOVING_BODIES``
+     - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`)
+     - OFF
+     - ON/OFF
    * - ``ERF_PRECISION``
      - Floating-point precision for mesh data
      - DOUBLE
