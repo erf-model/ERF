@@ -518,6 +518,24 @@ make_terrain_fitted_coords (int lev,
                              + (k-domhi_z) * (z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1));
             });
         }
+
+        // Ghost planes below the bottom, by linear extrapolation plane by plane (the first one
+        // 2 z(0) - z(1), as the terrain-grid fills above write it; the planes below continue the
+        // line), recomputed here, after the periodic fill, so that the lateral ghost columns of a
+        // periodic domain follow the periodic surface. The fills above write the first plane before
+        // the periodic fill, and no grid holds that plane as valid data, so the fill cannot repair
+        // it; the two differ at round-off in those columns, as the top planes are extrapolated here.
+        if (nd_bx.smallEnd(2) <= domlo_z) {
+            Box bx_zlo = mfi.growntilebox(ngrow);
+            bx_zlo.setBig(2,domlo_z-1);
+            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+
+            for (int kk = domlo_z-1; kk >= bx_zlo.smallEnd(2); --kk) {
+                ParallelFor(makeSlab(bx_zlo,2,kk), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    z_arr(i,j,k) = two*z_arr(i,j,k+1) - z_arr(i,j,k+2);
+                });
+            }
+        }
     }
 } // make_terrain_fitted_coords
 
