@@ -148,6 +148,10 @@ If the Rayleigh damping type is set to FastImplicit then the damping term for w 
 within the acoustic substepping algorithm; any additional Rayleigh damping (e.g. for u, v, or T) occurs
 as if the type is FastExplicit.
 
+A level that takes no acoustic substeps (anelastic, pseudo-incompressible, or
+``RK3_NoSubstepping``) has no substeps to apply them in, so with FastExplicit or FastImplicit
+it computes all the damping terms once per RK stage, as with SlowExplicit.
+
 The algorithm for FastExplicit is as described in (3.44) of the `MPAS report`_
 which is equivalent to that written in (9) of
 `Klemp, Dudhia & Hassiotis, An Upper Gravity-Wave Absorbing Layer for NWP Applications (2008)`_.

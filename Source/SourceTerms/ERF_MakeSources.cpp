@@ -99,9 +99,8 @@ void make_sources (int level,
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
     // flags to apply certain source terms in substep call only
-    bool use_Rayleigh_fast = ( (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit) ||
-                               (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit) );
-    bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
+    bool use_Rayleigh_fast = solverChoice.rayleigh_fast_uvT(level);
+    bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_fast(level);
 
     // flag for a moisture model
     bool has_moisture = (solverChoice.moisture_type != MoistureType::None);

@@ -18,6 +18,7 @@ using namespace amrex;
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
+ * @param[in] level level of resolution
  * @param[in] time current time
  * @param[in] dt current slow or fast timestep size
  * @param[in]  S_data current solution
@@ -37,7 +38,8 @@ using namespace amrex;
  * @param[in] d_sinesq_stag_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at z-faces
  */
 
-void make_mom_sources (double time_d,
+void make_mom_sources (int level,
+                       double time_d,
                        double dt,
                        const Vector<MultiFab>& S_data,
                        const MultiFab* z_phys_nd,
@@ -89,11 +91,11 @@ void make_mom_sources (double time_d,
     MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
 
     // flags to apply certain source terms in substep call only
-    bool use_Rayleigh_fast_uv = ( (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit) ||
-                                  (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit) );
-    bool use_Rayleigh_fast_w  = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit);
-    bool use_canopy_fast = solverChoice.forest_substep;
-    bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
+    //    (none of them on a level that takes no acoustic substeps)
+    bool use_Rayleigh_fast_uv = solverChoice.rayleigh_fast_uvT(level);
+    bool use_Rayleigh_fast_w  = solverChoice.rayleigh_fast_w(level);
+    bool use_canopy_fast = solverChoice.forest_fast(level);
+    bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_fast(level);
 
     // *****************************************************************************
     // Define source term for all three components of momenta from
@@ -869,11 +871,11 @@ void make_mom_sources (double time_d,
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
 
             ImmersedForcingBuildings_Xmom(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
-                                          z_cc_arr, xmom_src_arr, geom, solverChoice, dt);
+                                          z_cc_arr, xmom_src_arr, geom, solverChoice, dt, is_slow_step);
             ImmersedForcingBuildings_Ymom(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
-                                          z_cc_arr, ymom_src_arr, geom, solverChoice, dt);
+                                          z_cc_arr, ymom_src_arr, geom, solverChoice, dt, is_slow_step);
             ImmersedForcingBuildings_Zmom(tbz, u, v, w, cell_data, t_blank_arr, t_blank_zface_arr,
-                                          z_cc_arr, zmom_src_arr, geom, solverChoice, dt);
+                                          z_cc_arr, zmom_src_arr, geom, solverChoice, dt, is_slow_step);
         }
 
         // *****************************************************************************

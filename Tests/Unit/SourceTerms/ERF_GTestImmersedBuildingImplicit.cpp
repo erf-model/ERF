@@ -142,19 +142,21 @@ Fields make_fields (const Mesh& m, bool with_face_blanking)
 void run_kernels (const Mesh& m, Fields& f, const SolverChoice& sc, Real dt)
 {
     const bool fb = f.bx.ok();
+    // the kernels limit the drag when they run on the slow step
+    const bool slow = !sc.immersed_forcing_substep;
     for (MFIter mfi(f.sx); mfi.isValid(); ++mfi) {
         ImmersedForcingBuildings_Xmom(mfi.nodaltilebox(0), f.u.const_array(mfi), f.v.const_array(mfi), f.w.const_array(mfi),
                                       f.cons.const_array(mfi), f.beta.const_array(mfi),
                                       fb ? f.bx.const_array(mfi) : Array4<const Real>{},
-                                      Array4<const Real>{}, f.sx.array(mfi), m.geom, sc, dt);
+                                      Array4<const Real>{}, f.sx.array(mfi), m.geom, sc, dt, slow);
         ImmersedForcingBuildings_Ymom(mfi.nodaltilebox(1), f.u.const_array(mfi), f.v.const_array(mfi), f.w.const_array(mfi),
                                       f.cons.const_array(mfi), f.beta.const_array(mfi),
                                       fb ? f.by.const_array(mfi) : Array4<const Real>{},
-                                      Array4<const Real>{}, f.sy.array(mfi), m.geom, sc, dt);
+                                      Array4<const Real>{}, f.sy.array(mfi), m.geom, sc, dt, slow);
         ImmersedForcingBuildings_Zmom(mfi.nodaltilebox(2), f.u.const_array(mfi), f.v.const_array(mfi), f.w.const_array(mfi),
                                       f.cons.const_array(mfi), f.beta.const_array(mfi),
                                       fb ? f.bz.const_array(mfi) : Array4<const Real>{},
-                                      Array4<const Real>{}, f.sz.array(mfi), m.geom, sc, dt);
+                                      Array4<const Real>{}, f.sz.array(mfi), m.geom, sc, dt, slow);
     }
     Gpu::streamSynchronize();
 }

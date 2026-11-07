@@ -2675,7 +2675,8 @@ required; ERF does not assume a unit-spacing grid when metadata is absent.
      - Real
      - 0.8
    * - **erf.forest_substep**
-     - Apply the forest canopy source terms during the acoustic substeps only
+     - Apply the forest canopy source terms during the acoustic substeps only; ignored on a
+       level that takes no acoustic substeps, which applies them in the slow update
      - Boolean
      - false
    * - **erf.forest_biophysics**
@@ -2882,8 +2883,9 @@ Rayleigh Damping
 |                                | ``SlowExplicit`` applies them explicitly in the slow     | FastExplicit,      |                  |
 |                                | (Runge-Kutta) update, while ``FastExplicit`` and         | FastImplicit       |                  |
 |                                | ``FastImplicit`` apply them explicitly or implicitly     |                    |                  |
-|                                | within the acoustic substeps.  Case sensitive; an        |                    |                  |
-|                                | unrecognized value aborts                                |                    |                  |
+|                                | within the acoustic substeps.  A level that takes no     |                    |                  |
+|                                | acoustic substeps applies them in the slow update.  Case |                    |                  |
+|                                | sensitive; an unrecognized value aborts                  |                    |                  |
 +--------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rayleigh_damp_U**        | Include explicit Rayleigh damping in the x-momentum      | Boolean            | false            |
 |                                | equation                                                 |                    |                  |
@@ -3947,8 +3949,8 @@ building combinations.
 | Parameter                         | Definition                                               | Acceptable Values  | Default          |
 +===================================+==========================================================+====================+==================+
 | **erf.immersed_forcing_substep**  | apply the immersed forcing source terms during the       | Boolean            | true if          |
-|                                   | acoustic substeps only                                   |                    | compressible,    |
-|                                   |                                                          |                    | false if         |
+|                                   | acoustic substeps only; ignored on a level that takes no |                    | compressible,    |
+|                                   | acoustic substeps, which applies them in the slow update |                    | false if         |
 |                                   |                                                          |                    | anelastic        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_Cd_momentum**            | immersed forcing drag coefficient for momentum           | Real > 0           | 500.0 if         |

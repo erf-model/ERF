@@ -157,7 +157,8 @@ Richardson number towards neutral.
 
 With ``erf.forest_substep = true`` the momentum drag moves to the acoustic
 substeps, while the TKE source stays in the slow RK stages with the other
-:math:`k` sources.
+:math:`k` sources. A level that takes no acoustic substeps applies the drag in the slow RK
+stages whatever ``erf.forest_substep`` says.
 
 The input names, defaults and formulas follow the ``ForestDrag.canopy_*``
 inputs of the ``KLAxell`` model in kynema-sgf (branch ``f/winsent`` of
