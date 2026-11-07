@@ -607,7 +607,8 @@ ERF::sample_points (int ifile, int /*lev*/, double time, IntVect cell, MultiFab&
 
 /**
  * Sample the lines of a LineSampler and write them, passing it the stresses, the SGS heat
- * flux, whether each level carries a prognostic TKE, and the heights of each level.  Used for erf.do_line_sampling and
+ * flux, whether each level carries a prognostic TKE, the heights of each level and the ground
+ * on level 0.  Used for erf.do_line_sampling and
  * for erf.sample_line, which is a LineSampler of full-depth columns on level 0.
  *
  * @param sampler the line sampler
@@ -634,8 +635,10 @@ ERF::run_line_sampler (LineSampler& sampler)
             hfx3_lev[lev] = SFS_hfx3_lev[lev].get();
         }
     }
+    // With immersed terrain the ground is the terrain surface, not the bottom of the mesh
+    const MultiFab* ground_nd = sampler.needs_ground() ? &station_ground(0) : nullptr;
     sampler.get_sample_data(geom, vars_new, tau_lev, hfx3_lev, prognostic_tke_available,
-                            z_cc_lev, z_nd_lev);
+                            z_cc_lev, z_nd_lev, ground_nd);
     sampler.write_sample_data(t_new, istep, ref_ratio, geom);
 }
 

@@ -5447,8 +5447,8 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   add_test_line_sampling_terrain(LineSamplingTerrain)
 endif()
 
-# Line sampling: a line must run along sample_line_dir, and there is no line sampling with
-# moving terrain
+# Line sampling: a line must run along sample_line_dir, and a line placed by height is not
+# supported with moving terrain (lines given by indices are)
 add_test_abort(LineSampling_Abort_NotAxisAligned ${CMAKE_CURRENT_SOURCE_DIR}/test_files/SampleLine SampleLine.i
                "Line 0 of erf.sample_line_lo/hi is not along erf.sample_line_dir"
                "erf.sample_line_hi=4 4 15 12 10 15")
@@ -5457,10 +5457,7 @@ add_test_abort(LineSampling_Abort_NotAxisAlignedReal ${CMAKE_CURRENT_SOURCE_DIR}
                "erf.sample_line_hi_real=40. 40. 300. -1240. -1200. 300. 40. 40. 420. 1240. 40. 150.")
 add_test_abort(LineSampling_Abort_MovingTerrain ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MovingTerrain_nosub MovingTerrain_nosub.i
                "is not supported with erf.terrain_type = MovingFittedMesh"
-               "erf.do_line_sampling=1 erf.line_sampling_interval=1 erf.sample_line_lo=2 2 0 erf.sample_line_hi=2 2 5 erf.sample_line_dir=2")
-add_test_abort(LineSampling_Abort_MovingTerrainSampleLine ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MovingTerrain_nosub MovingTerrain_nosub.i
-               "is not supported with erf.terrain_type = MovingFittedMesh"
-               "erf.sample_line_log=col erf.sample_line=2 2 0")
+               "erf.do_line_sampling=1 erf.line_sampling_interval=1 erf.sample_line_lo_real=50. 20. 0. erf.sample_line_hi_real=50. 20. 100. erf.sample_line_dir=2")
 
 #=============================================================================
 # Performance tests
