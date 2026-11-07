@@ -327,7 +327,8 @@ make_terrain_fitted_coords (int lev,
                             Vector<Real> const& z_levels_h,
                             GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type,
                             FineTerrain fine_terrain,
-                            MultiFab const* z_phys_interp)
+                            MultiFab const* z_phys_interp,
+                            bool moving_mesh)
 {
     const Box& domain = geom.Domain();
 
@@ -519,13 +520,12 @@ make_terrain_fitted_coords (int lev,
             });
         }
 
-        // Ghost planes below the bottom, by linear extrapolation plane by plane (the first one
-        // 2 z(0) - z(1), as the terrain-grid fills above write it; the planes below continue the
-        // line), recomputed here, after the periodic fill, so that the lateral ghost columns of a
-        // periodic domain follow the periodic surface. The fills above write the first plane before
-        // the periodic fill, and no grid holds that plane as valid data, so the fill cannot repair
-        // it; the two differ at round-off in those columns, as the top planes are extrapolated here.
-        if (nd_bx.smallEnd(2) <= domlo_z) {
+        // Moving mesh only: the ghost planes below the bottom by linear extrapolation plane by plane,
+        // recomputed here after the periodic fill, so that the lateral ghost columns of a periodic
+        // domain follow the periodic surface (the planes below the ground exist nowhere as valid
+        // data, so the periodic fill cannot repair them). The mesh is rebuilt every stage and
+        // sub-step on a moving mesh, which reads these planes; static meshes keep upstream's fill.
+        if (moving_mesh && nd_bx.smallEnd(2) <= domlo_z) {
             Box bx_zlo = mfi.growntilebox(ngrow);
             bx_zlo.setBig(2,domlo_z-1);
             Array4<Real> const& z_arr = z_phys_nd.array(mfi);

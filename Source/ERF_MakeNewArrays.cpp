@@ -997,7 +997,8 @@ ERF::init_zphys (int lev, double elapsed_time)
 
         make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type,
                                    fine_terrain,
-                                   (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
+                                   (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr,
+                                   (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
@@ -1143,7 +1144,8 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
             //    and also fills values of z_phys_nd outside the domain
             make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type,
                                        fine_terrain,
-                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
+                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr,
+                                       (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 
         } // lev > 0
 
