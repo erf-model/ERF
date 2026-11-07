@@ -262,6 +262,10 @@ target_sources(${erf_exe_name}
     # their fluid cell without its water vapour (erf-model/ERF#4481); they now match the
     # two-stream column's equation of state for the same moist cell.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBMoistAir.cpp
+    # Motivation: with erf.ibseb.two_stream_buildings the ground balance takes the beam
+    # off the ground the buildings shade; the shadow must be the buildings' geometry,
+    # across a periodic edge too, and under an overhang, in every box of a level.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBGroundShadow.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed
@@ -277,6 +281,10 @@ target_sources(${erf_exe_name}
     # moist layer reaches the domain top (erf-model/ERF#4484), and give the top
     # cell its closed-form heating there.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestRadiationSimple.cpp
+    # Motivation: with erf.ibseb.two_stream_buildings the sweep writes no heating in a
+    # building's solid cells, and the ground balance holds a footprint and takes the
+    # absorbed beam (not the diffuse light) off the shaded ground, once per sweep.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamBuildingCover.cpp
     # Motivation: with erf.ibseb.sun_mode = two_stream the building faces must
     # see the two-stream columns' sun: the same zenith, a morning sun in the
     # east, and the start date read the same way.

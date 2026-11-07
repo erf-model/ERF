@@ -4171,6 +4171,21 @@ column would be taken for a building), a uniform vertical grid (no
 |                                   | sw_transmission, sw_diffuse_coeff, solar_constant and    |                    |                        |
 |                                   | albedo_ground must not be given                          |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.two_stream_buildings**| with erf.radiation_model = TwoStream, the columns see    | Boolean            | true                   |
+|                                   | the buildings: no two-stream heating in a building's     |                    |                        |
+|                                   | solid cells; the two-stream ground balance holds its     |                    |                        |
+|                                   | state under a building (a column whose bottom cell is    |                    |                        |
+|                                   | solid), gives it no shortwave and leaves it out of its   |                    |                        |
+|                                   | means; with erf.radiation.seb_use_radiation_fluxes, the  |                    |                        |
+|                                   | shortwave on and a level that sweeps its own columns,    |                    |                        |
+|                                   | the open ground the buildings shade (the faces' ray cast |                    |                        |
+|                                   | from each column's ground toward the sun, within the ray |                    |                        |
+|                                   | map's halo) loses the direct beam. false: the columns    |                    |                        |
+|                                   | are blind to the buildings, as before. Without the two-  |                    |                        |
+|                                   | stream radiation: stops when no erf.radiation_model is   |                    |                        |
+|                                   | set, warns when another one (or None) is named; ignored, |                    |                        |
+|                                   | with a warning, when erf.ibseb.enable is off             |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.sun_mode**            | the sun's position, and with the prescribed provider its | "fixed", "solar",  | "fixed"                |
 |                                   | irradiances: ``fixed``: the given zenith and azimuth     | "two_stream"       |                        |
 |                                   | (prescribed: with the given irradiances); ``solar``: sun |                    |                        |
@@ -5066,7 +5081,11 @@ land-surface model supplies them; ``seb_turbulent_flux_source = defaults`` uses 
 ``seb_hfx_default`` and ``seb_lh_default`` instead. The fluxes it used are written as ``seb_hfx``
 and ``seb_lh``. With ``erf.radiation.seb_surface_layer_uses_skin = true`` the coupling runs both
 ways: the surface layer also takes its land surface temperature from the balance's skin, so the
-heat flux it computes responds to the skin.
+heat flux it computes responds to the skin. The net shortwave the balance absorbed at its last
+update after the dycore is written as ``seb_sw_net``. With immersed-boundary buildings and
+``erf.ibseb.two_stream_buildings`` (the default) the balance holds the ground under the buildings
+and, with ``seb_use_radiation_fluxes``, takes the direct beam off the ground they shade
+(``ibseb_ground_shadow``); see :ref:`the IBSEB theory page <sec:IBSEB>`.
 
 
 

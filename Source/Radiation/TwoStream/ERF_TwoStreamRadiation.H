@@ -7,6 +7,7 @@
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
@@ -39,6 +40,10 @@
  *  - supply_canopy_forcing(...) once, when the building faces of the
  *    immersed-boundary balance take their radiation from the sweep
  *    (erf.ibseb.radiation = two_stream), and canopy_forcing(...) after each sweep;
+ *  - set_building_cover(...) once, when the columns are to see the buildings of the
+ *    immersed-boundary balance (erf.ibseb.two_stream_buildings), and
+ *    ground_shadow_for_step(...) every step, for the balance to fill with the
+ *    buildings' shadow on the ground;
  *  - write_checkpoint / read_checkpoint for the prognostic surface state.
  *
  * The heating-rate MultiFab itself stays in ERF, since RRTMGP writes the
@@ -280,6 +285,70 @@ public:
         return v;
     }
 
+    /**
+     * @brief Have the columns of @p lev see the buildings of the immersed-boundary
+     * balance (erf.ibseb.two_stream_buildings). From now on, on this level:
+     *  - the sweep writes no heating rate in a solid cell (blanking at or above 0.5):
+     *    the light a building's cells would absorb is the roof's and the walls',
+     *    which the balance takes at their own heights;
+     *  - the ground balance (seb_enable) leaves a column whose bottom cell is solid,
+     *    a building's footprint, alone: its state is held, it absorbs no shortwave and
+     *    it is left out of the balance's means;
+     *  - with the shortwave from the sweep (seb_use_radiation_fluxes, shortwave on) on a
+     *    level that sweeps its own columns, the open ground loses the direct beam where
+     *    the field of ground_shadow_for_step() says a building shades it, at the update
+     *    after the dycore.
+     * Copies what it needs from @p blanking (the solid cells up to the tallest building,
+     * 4 bytes a cell, and the footprints), so the field may change or go afterwards.
+     * Call after define_level(); a later define_level() of the level drops it.
+     *
+     * @param lev      level, which must have been defined
+     * @param blanking the level's cell-centred blanking (ERF::terrain_blanking), on the
+     *                 state's grids: 0 in the air, 1 inside a building
+     * @param domain   the level's domain Box; its bottom cell is the ground's
+     */
+    void set_building_cover (int lev, const amrex::MultiFab& blanking, const amrex::Box& domain);
+
+    /** @brief True when set_building_cover() was called for @p lev since its last define_level(). */
+    [[nodiscard]] bool has_building_cover (int lev) const noexcept {
+        return lev >= 0 && lev < static_cast<int>(m_has_cover.size()) && m_has_cover[lev] != 0;
+    }
+
+    /**
+     * @brief The field the immersed-boundary balance fills with the buildings' shadow
+     * on the ground of @p lev for step @p nstep (1 where the ray from the ground toward
+     * the sun meets a building, 0 where the sun reaches it; 2D: i,j), or nullptr when the
+     * level's ground balance takes no shadow (no building cover; no balance on the sweep's
+     * shortwave, or the shortwave off; or a level whose rates come from its parent). Marks
+     * the field as that step's: the update after the dycore stops unless the shadow is of
+     * the step its sweep ran in.
+     */
+    [[nodiscard]] amrex::MultiFab* ground_shadow_for_step (int lev, int nstep);
+
+    /** @brief The ground's shadow last given for @p lev (see ground_shadow_for_step()), or nullptr before one is given or when the level takes none. Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* ground_shadow (int lev) const noexcept {
+        return (lev >= 0 && lev < static_cast<int>(m_ground_shadow.size()) && m_shadow_step[lev] >= 0)
+             ? m_ground_shadow[lev].get() : nullptr;
+    }
+
+    /**
+     * @brief Set the heating rates of @p lev to zero in the solid cells of its building
+     * cover (a no-op without one): for a level whose rates come from its parent by
+     * interpolation, where no sweep of its own masks them.
+     */
+    void mask_building_heating (int lev, amrex::MultiFab& qheating) const;
+
+    /**
+     * @brief The net shortwave [W/m^2] the ground balance of @p lev used at its last update
+     * after the dycore, with the building cover's footprints and shadow applied; nullptr
+     * when the SEB is off, before the level's first such update after a sweep (the initial
+     * plotfile, the one a restart writes), or on a level that does not sweep. Read-only: for output.
+     */
+    [[nodiscard]] const amrex::MultiFab* seb_sw_net (int lev) const {
+        return (active() && m_rad->seb_enable && lev < static_cast<int>(m_sw_flux_sfc.size()) && m_seb_updated[lev] != 0)
+             ? m_sw_flux_sfc[lev].get() : nullptr;
+    }
+
     /** @brief Write the prognostic surface state of one level (SEB on). */
     void write_checkpoint (int lev, const std::string& checkpointname) const;
 
@@ -360,6 +429,25 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_canopy_cosz;  // cos z, floored at zero (2D)
     amrex::Vector<int> m_canopy_m;
     amrex::Vector<int> m_canopy_step;
+
+    // The buildings as the columns see them (see set_building_cover): whether the level
+    // has them, the solid cells (the state's boxes cut at the tallest building, no ghost
+    // cells), the footprints (2D: 1 where the bottom cell is solid), the shadow on the
+    // ground the balance gave for step
+    // m_shadow_step, and the absorbed direct beam at the ground of the sweep of step
+    // m_sweep_step (2D, written only with a ground balance taking the sweep's
+    // shortwave). m_shaded_step is the sweep whose beam the update after the dycore
+    // has already taken off the shaded ground, so a second call cannot take it twice.
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_solid;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_footprint;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_ground_shadow;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_sw_beam_sfc;
+    amrex::Vector<int> m_shadow_step;
+    amrex::Vector<int> m_sweep_step;
+    amrex::Vector<int> m_shaded_step;
+    amrex::Vector<int> m_has_cover;
+    // Whether the ground balance of the level has updated after a sweep (seb_sw_net()).
+    amrex::Vector<int> m_seb_updated;
 
     amrex::Vector<FluxDiag> m_flux_diag;
 };

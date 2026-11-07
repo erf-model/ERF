@@ -251,6 +251,15 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_canopy_cosz.resize(nlevs_max);
     m_canopy_m.resize(nlevs_max, -1);
     m_canopy_step.resize(nlevs_max, -1);
+    m_solid.resize(nlevs_max);
+    m_footprint.resize(nlevs_max);
+    m_ground_shadow.resize(nlevs_max);
+    m_sw_beam_sfc.resize(nlevs_max);
+    m_shadow_step.resize(nlevs_max, -1);
+    m_sweep_step.resize(nlevs_max, -1);
+    m_shaded_step.resize(nlevs_max, -1);
+    m_has_cover.resize(nlevs_max, 0);
+    m_seb_updated.resize(nlevs_max, 0);
     m_flux_diag.resize(nlevs_max);
     m_diag.resize(nlevs_max);
 }
@@ -356,6 +365,16 @@ TwoStreamRadiation::define_level (int lev,
     m_canopy_cosz[lev].reset();
     m_canopy_m[lev] = -1;
     m_canopy_step[lev] = -1;
+    // The building cover likewise (ERF::init_ibseb() sets it once; the balance refuses a regrid).
+    m_solid[lev].reset();
+    m_footprint[lev].reset();
+    m_ground_shadow[lev].reset();
+    m_sw_beam_sfc[lev].reset();
+    m_shadow_step[lev] = -1;
+    m_sweep_step[lev] = -1;
+    m_shaded_step[lev] = -1;
+    m_has_cover[lev] = 0;
+    m_seb_updated[lev] = 0;
     m_flux_diag[lev] = FluxDiag{};
 }
 
@@ -382,6 +401,116 @@ TwoStreamRadiation::supply_canopy_forcing (int lev, int m_top)
     m_canopy_cosz[lev]->setVal(0.0);
     m_canopy_m[lev] = m_top;
     m_canopy_step[lev] = -1;
+}
+
+void
+TwoStreamRadiation::set_building_cover (int lev, const MultiFab& blanking, const Box& domain)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(active(),
+        "TwoStreamRadiation::set_building_cover: erf.radiation_model is not TwoStream");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev >= 0 && lev < static_cast<int>(m_alb_sw.size()) && m_alb_sw[lev],
+        "TwoStreamRadiation::set_building_cover: level " + std::to_string(lev) + " has not been defined");
+    // The sweep and the 2D fields go by the local index of the state's boxes, so the
+    // blanking must be on the state's grids: the 2D boxes flattened from its own.
+    BoxList flat = blanking.boxArray().boxList();
+    for (Box& b : flat) { b.setRange(2, 0); }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(BoxArray(std::move(flat)) == m_alb_sw[lev]->boxArray() &&
+                                     blanking.DistributionMap() == m_alb_sw[lev]->DistributionMap(),
+        "TwoStreamRadiation::set_building_cover: the blanking is not on the level's grids");
+    const BoxArray& ba2d = m_alb_sw[lev]->boxArray();
+    const DistributionMapping& dm = m_alb_sw[lev]->DistributionMap();
+    const int k0 = domain.smallEnd(2);
+    // The solid cells are kept only up to the highest one of the level (the tallest
+    // building), as the faces' beam is kept only up to the highest face: 4 bytes per cell
+    // of that height, not of the whole column.
+    int k_solid = k0 - 1;
+    {
+        ReduceOps<ReduceOpMax> reduce_op;
+        ReduceData<int> reduce_data(reduce_op);
+        for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
+            const auto blank = blanking.const_array(mfi);
+            reduce_op.eval(mfi.validbox(), reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<int> {
+                return {(blank(i, j, k) >= Real(0.5)) ? k : std::numeric_limits<int>::lowest()};
+            });
+        }
+        k_solid = amrex::max(k_solid, amrex::get<0>(reduce_data.value(reduce_op)));
+        ParallelDescriptor::ReduceIntMax(k_solid);
+    }
+    BoxList solid_boxes = blanking.boxArray().boxList();
+    for (Box& b : solid_boxes) {
+        // A box wholly above the buildings keeps its bottom layer, all air.
+        const int hi = amrex::max(b.smallEnd(2), amrex::min(b.bigEnd(2), k_solid));
+        b.setBig(2, hi);
+    }
+    m_solid[lev] = std::make_unique<iMultiFab>(BoxArray(std::move(solid_boxes)), dm, 1, 0);
+    m_footprint[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+    for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto blank = blanking.const_array(mfi);
+        const auto solid = m_solid[lev]->array(mfi);
+        const auto foot = m_footprint[lev]->array(mfi);
+        ParallelFor((*m_solid[lev])[mfi].box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            solid(i, j, k) = (blank(i, j, k) >= Real(0.5)) ? 1 : 0;
+        });
+        // A box that does not reach the ground (a level whose radiation comes from its
+        // parent) has no ground balance, and no footprint.
+        if (bx.smallEnd(2) == k0) {
+            ParallelFor(makeSlab(bx, 2, 0), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                foot(i, j, 0) = (blank(i, j, k0) >= Real(0.5)) ? Real(1.0) : Real(0.0);
+            });
+        } else {
+            ParallelFor(makeSlab(bx, 2, 0), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                foot(i, j, 0) = Real(0.0);
+            });
+        }
+    }
+    m_has_cover[lev] = 1;
+    // The shadow, and the beam it takes off, only where the ground balance will take them:
+    // a balance on the sweep's shortwave, with the shortwave on, on a level that sweeps its
+    // own columns (one whose rates come from its parent has no balance).
+    bool sweeps = true;
+    for (int ibox = 0; ibox < blanking.boxArray().size(); ++ibox) {
+        const Box& b = blanking.boxArray()[ibox];
+        sweeps = sweeps && b.smallEnd(2) == k0 && b.bigEnd(2) == domain.bigEnd(2);
+    }
+    if (m_rad->seb_enable && m_rad->seb_use_radiation_fluxes && m_rad->sw_enabled && sweeps) {
+        m_ground_shadow[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+        m_sw_beam_sfc[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+        m_ground_shadow[lev]->setVal(0.0);
+        m_sw_beam_sfc[lev]->setVal(0.0);
+    } else {
+        m_ground_shadow[lev].reset();
+        m_sw_beam_sfc[lev].reset();
+    }
+    m_shadow_step[lev] = -1;
+    m_shaded_step[lev] = -1;
+}
+
+MultiFab*
+TwoStreamRadiation::ground_shadow_for_step (int lev, int nstep)
+{
+    if (!has_building_cover(lev) || !m_ground_shadow[lev]) { return nullptr; }
+    m_shadow_step[lev] = nstep;
+    return m_ground_shadow[lev].get();
+}
+
+void
+TwoStreamRadiation::mask_building_heating (int lev, MultiFab& qheating) const
+{
+    if (!has_building_cover(lev)) { return; }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qheating.nComp() == 2 && qheating.boxArray().size() == m_solid[lev]->boxArray().size() &&
+                                     qheating.DistributionMap() == m_solid[lev]->DistributionMap(),
+        "TwoStreamRadiation::mask_building_heating: the heating rates are not on the level's grids");
+    // The kept solid cells: each box of the level up to the tallest building.
+    for (MFIter mfi(qheating); mfi.isValid(); ++mfi) {
+        const Box sbx = (*m_solid[lev])[mfi].box() & mfi.validbox();
+        if (sbx.isEmpty()) { continue; }
+        const auto q = qheating.array(mfi);
+        const auto solid = m_solid[lev]->const_array(mfi);
+        ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (solid(i, j, k) != 0) { q(i, j, k, 0) = 0.0; q(i, j, k, 1) = 0.0; }
+        });
+    }
 }
 
 void
@@ -1037,6 +1166,21 @@ TwoStreamRadiation::advance (int lev,
                 canopy_cosz_out = m_canopy_cosz[lev]->array(mfi);
             }
 
+            // The buildings, when the columns see them (set_building_cover): no heating in
+            // their solid cells, and, for a ground balance on the sweep's shortwave, the
+            // absorbed beam at the ground, which the update after the dycore takes off
+            // the shaded open ground.
+            const bool cover = has_building_cover(lev);
+            const bool keep_beam = cover && sw_flux_from_rad && m_sw_beam_sfc[lev];
+            Array4<const int> solid_arr;
+            Array4<amrex::Real> sw_beam_out;
+            int k_solid_top = bx.smallEnd(2) - 1;   // the solid cells are kept up to here
+            if (cover) {
+                solid_arr = m_solid[lev]->const_array(mfi);
+                k_solid_top = amrex::min(bx.bigEnd(2), (*m_solid[lev])[mfi].box().bigEnd(2));
+            }
+            if (keep_beam) { sw_beam_out = m_sw_beam_sfc[lev]->array(mfi); }
+
             // Create a 2D box for (i,j) iteration over the horizontal extent
             // One GPU thread per (i,j) column; k-loop is sequential within each thread
             const auto& lo = bx.loVect();
@@ -1098,6 +1242,7 @@ TwoStreamRadiation::advance (int lev,
                     amrex::Real lw_up_clear = 0.0;
                     amrex::Real sw_toa_clear = 0.0;
                     amrex::Real cos_zenith_col = 0.0;
+                    amrex::Real sw_beam_clear = 0.0;
                     vertical_two_stream_sweep(
                         i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/false,
                         qheating_clear_arr,
@@ -1111,7 +1256,7 @@ TwoStreamRadiation::advance (int lev,
                         has_surface_layer, &surface_layer_theta_arr,
                         has_latlon, &lat_arr, &lon_arr,
                         write_fluxes ? &rad_flux_clear_arr : nullptr,
-                        &cos_zenith_col);
+                        &cos_zenith_col, keep_beam ? &sw_beam_clear : nullptr);
 
                     // The scratch holds this evaluation's beam until the cloudy one overwrites it.
                     if (supply_canopy) {
@@ -1125,6 +1270,7 @@ TwoStreamRadiation::advance (int lev,
                     amrex::Real sw_up_col = sw_up_clear;
                     amrex::Real lw_net_col = lw_net_clear;
                     amrex::Real lw_up_col = lw_up_clear;
+                    amrex::Real sw_beam_col = sw_beam_clear;
 
                     // Cloudy column only needs to be evaluated when there is a
                     // nonzero cloud fraction; this keeps the cloud_fraction==0
@@ -1136,6 +1282,7 @@ TwoStreamRadiation::advance (int lev,
                          amrex::Real lw_net_cloudy = 0.0;
                          amrex::Real lw_up_cloudy = 0.0;
                          amrex::Real sw_toa_cloudy = 0.0;
+                         amrex::Real sw_beam_cloudy = 0.0;
                          vertical_two_stream_sweep(
                             i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/true,
                             qheating_cloudy_arr,
@@ -1148,7 +1295,8 @@ TwoStreamRadiation::advance (int lev,
                             has_seb_t_sfc, &seb_t_sfc_arr,
                             has_surface_layer, &surface_layer_theta_arr,
                             has_latlon, &lat_arr, &lon_arr,
-                            write_fluxes ? &rad_flux_cloudy_arr : nullptr);
+                            write_fluxes ? &rad_flux_cloudy_arr : nullptr,
+                            nullptr, keep_beam ? &sw_beam_cloudy : nullptr);
 
                         // Blend clear-sky and cloudy-column results
                         sw_flux_col = (1.0 - cloud_fraction) * sw_flux_clear +
@@ -1159,6 +1307,8 @@ TwoStreamRadiation::advance (int lev,
                                      cloud_fraction * lw_net_cloudy;
                         lw_up_col = (1.0 - cloud_fraction) * lw_up_clear +
                                     cloud_fraction * lw_up_cloudy;
+                        sw_beam_col = (1.0 - cloud_fraction) * sw_beam_clear +
+                                      cloud_fraction * sw_beam_cloudy;
                         max_heating_col = std::max(max_heating_clear, max_heating_cloudy);
                         if (supply_canopy) {
                             two_stream_canopy_beam(i, j, bx.smallEnd(2), m_canopy_top, scratch_arr,
@@ -1192,9 +1342,33 @@ TwoStreamRadiation::advance (int lev,
                         }
                     }
 
+                    // No heating in the solid cells of a building: what its cells would
+                    // absorb is its faces' (the immersed-boundary balance takes the
+                    // column at each face's own height). In a column that holds one, the
+                    // largest rate is then taken over its air cells, from the blended rates.
+                    if (cover) {
+                        bool has_solid = false;
+                        for (int k = bx.smallEnd(2); k <= k_solid_top; ++k) {
+                            if (solid_arr(i, j, k) != 0) {
+                                qheating_clear_arr(i, j, k, 0) = 0.0;
+                                qheating_clear_arr(i, j, k, 1) = 0.0;
+                                has_solid = true;
+                            }
+                        }
+                        if (has_solid) {
+                            amrex::Real q_max = 0.0;
+                            for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+                                q_max = amrex::max(q_max, std::abs(qheating_clear_arr(i, j, k, 0)) +
+                                                          std::abs(qheating_clear_arr(i, j, k, 1)));
+                            }
+                            max_heating_col = q_max;
+                        }
+                    }
+
                     // Surface fluxes for the SEB: absorbed shortwave, and the
                     // absorbed longwave, which is minus the net (up - down).
                     if (sw_flux_from_rad) sw_sfc_out(i, j, 0) = sw_flux_col;
+                    if (keep_beam) sw_beam_out(i, j, 0) = sw_beam_col;
                     if (lw_flux_from_rad) lw_sfc_out(i, j, 0) = -lw_net_col;
 
                     // The land model's forcing, after the clear/cloudy blend above.
@@ -1248,6 +1422,8 @@ TwoStreamRadiation::advance (int lev,
             ParallelDescriptor::ReduceRealMax(max_heating_global);
             // The faces may take this sweep's canopy forcing in this step, and only in it.
             if (supplies_canopy_forcing(lev)) { m_canopy_step[lev] = nstep; }
+            // The shadow on the ground must be of this step too (see the update below).
+            m_sweep_step[lev] = nstep;
         }
         } // do_sweep
 
@@ -1270,6 +1446,43 @@ TwoStreamRadiation::advance (int lev,
                 warned_seb_misconfig = true;
             }
         }
+        // The buildings on the ground balance, at the update after the dycore (see
+        // set_building_cover): a footprint absorbs no shortwave, and with the shortwave
+        // from the sweep the open ground the buildings shade loses the beam the sweep
+        // brought it. The shadow is the immersed-boundary balance's, of the sun of this
+        // step's sweep: that balance runs between the two calls (ERF::Advance()), and the
+        // stamps say so. Once per sweep, so a second call cannot take the beam twice. The
+        // call before the dycore sees the sweep's own values, which only its residual
+        // diagnostic reads.
+        const bool cover_seb = seb_active && has_building_cover(lev);
+        if (cover_seb && call_site == "post_dycore") {
+            const bool take_beam = sw_flux_from_rad && m_ground_shadow[lev] && m_flux_diag[lev].valid &&
+                                   m_shaded_step[lev] != m_sweep_step[lev];
+            if (take_beam) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_shadow_step[lev] == m_sweep_step[lev],
+                    "TwoStreamRadiation: the ground's shadow on level " + std::to_string(lev) + " is of step " +
+                    std::to_string(m_shadow_step[lev]) + ", its sweep of step " + std::to_string(m_sweep_step[lev]) +
+                    "; the immersed-boundary balance must give it between the sweep and the update (ERF::Advance())");
+            }
+            for (MFIter mfi(*m_sw_flux_sfc[lev]); mfi.isValid(); ++mfi) {
+                const Box xy_box = makeSlab(mfi.validbox(), 2, 0);
+                const auto sw = m_sw_flux_sfc[lev]->array(mfi);
+                const auto foot = m_footprint[lev]->const_array(mfi);
+                const auto shadow = take_beam ? m_ground_shadow[lev]->const_array(mfi) : Array4<const Real>{};
+                const auto beam = take_beam ? m_sw_beam_sfc[lev]->const_array(mfi) : Array4<const Real>{};
+                ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                    if (foot(i, j, 0) > Real(0.5)) {
+                        sw(i, j, 0) = 0.0;
+                    } else if (take_beam && shadow(i, j, 0) > Real(0.5)) {
+                        sw(i, j, 0) -= beam(i, j, 0);
+                    }
+                });
+            }
+            if (take_beam) { m_shaded_step[lev] = m_sweep_step[lev]; }
+        }
+        // From the level's first update after a sweep on, the net shortwave is the balance's.
+        if (seb_active && call_site == "post_dycore" && m_flux_diag[lev].valid) { m_seb_updated[lev] = 1; }
+
         // Compute SEB residual diagnostics if enabled
         if (rad_choice.seb_diagnostic_enable && seb_active) {
             seb_residual_max = 0.0;
@@ -1288,21 +1501,27 @@ TwoStreamRadiation::advance (int lev,
                 Array4<const amrex::Real> hfx_arr = m_hfx_sfc[lev]->const_array(mfi);
                 Array4<const amrex::Real> lh_arr = m_lh_sfc[lev]->const_array(mfi);
                 Array4<const amrex::Real> grdflx_arr = m_grdflx_sfc[lev]->const_array(mfi);
+                // A building's footprint is not ground the balance runs on.
+                const bool skip_footprints = cover_seb;
+                Array4<const amrex::Real> foot_arr;
+                if (skip_footprints) { foot_arr = m_footprint[lev]->const_array(mfi); }
 
                 // Count columns and compute residuals
-                amrex::Long n_cols_box = static_cast<amrex::Long>(bx.length(0)) *
-                                        static_cast<amrex::Long>(bx.length(1));
+                amrex::Long n_cols_box = 0;
                 amrex::Real residual_sum_box = 0.0;
                 amrex::Real residual_max_box = 0.0;
 
                 // GPU-safe reduction for SEB residuals
-                ReduceOps<ReduceOpSum, ReduceOpMax> seb_reduce_ops;
-                ReduceData<amrex::Real, amrex::Real> seb_reduce_data(seb_reduce_ops);
+                ReduceOps<ReduceOpSum, ReduceOpMax, ReduceOpSum> seb_reduce_ops;
+                ReduceData<amrex::Real, amrex::Real, amrex::Long> seb_reduce_data(seb_reduce_ops);
 
                 using SEBReduceTuple = typename decltype(seb_reduce_data)::Type;
 
                 seb_reduce_ops.eval(xy_box, seb_reduce_data,
                     [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> SEBReduceTuple {
+                        if (skip_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) {
+                            return {amrex::Real(0.0), amrex::Real(0.0), amrex::Long(0)};
+                        }
                         amrex::Real sw_net = sw_flux_arr(i, j, 0);
                         amrex::Real lw_net = lw_flux_arr(i, j, 0);
                         amrex::Real hfx = hfx_arr(i, j, 0);
@@ -1312,8 +1531,8 @@ TwoStreamRadiation::advance (int lev,
                         // Compute residual using helper function
                         amrex::Real residual = diagnose_seb_residual(sw_net, lw_net, hfx, lh, grdflx);
 
-                        // Return sum and abs(max) of residual
-                        return {residual, std::abs(residual)};
+                        // Return sum and abs(max) of residual, and the column count
+                        return {residual, std::abs(residual), amrex::Long(1)};
                     }
                 );
 
@@ -1322,6 +1541,7 @@ TwoStreamRadiation::advance (int lev,
                 auto seb_reduce_tuple = seb_reduce_data.value(seb_reduce_ops);
                 residual_sum_box = amrex::get<0>(seb_reduce_tuple);
                 residual_max_box = amrex::get<1>(seb_reduce_tuple);
+                n_cols_box = amrex::get<2>(seb_reduce_tuple);
 
                 // Accumulate into global results
                 seb_residual_sum += residual_sum_box;
@@ -1379,17 +1599,20 @@ TwoStreamRadiation::advance (int lev,
                     // Get SEB state arrays (read-write for prognostic update)
                     Array4<amrex::Real> t_s_arr = m_t_sfc[lev]->array(mfi);
                     Array4<amrex::Real> q_s_arr = m_q_sfc[lev]->array(mfi);
+                    // A building's footprint keeps its state (see set_building_cover).
+                    const bool hold_footprints = cover_seb;
+                    Array4<const amrex::Real> foot_arr;
+                    if (hold_footprints) { foot_arr = m_footprint[lev]->const_array(mfi); }
                     // Count columns and prepare for reductions
-                    amrex::Long n_cols_box = static_cast<amrex::Long>(bx.length(0)) *
-                                             static_cast<amrex::Long>(bx.length(1));
+                    amrex::Long n_cols_box = 0;
                     amrex::Real t_s_sum_box = 0.0;
                     amrex::Real t_s_max_box = -std::numeric_limits<amrex::Real>::max();
                     amrex::Real q_s_sum_box = 0.0;
                     amrex::Real q_s_max_box = -std::numeric_limits<amrex::Real>::max();
 
                     // GPU-safe update for prognostic T_s and q_s with reductions
-                    ReduceOps<ReduceOpSum, ReduceOpMax, ReduceOpSum, ReduceOpMax> prog_reduce_ops;
-                    ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real> prog_reduce_data(prog_reduce_ops);
+                    ReduceOps<ReduceOpSum, ReduceOpMax, ReduceOpSum, ReduceOpMax, ReduceOpSum> prog_reduce_ops;
+                    ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real, amrex::Long> prog_reduce_data(prog_reduce_ops);
 
                     using ProgReduceTuple = typename decltype(prog_reduce_data)::Type;
 
@@ -1403,6 +1626,10 @@ TwoStreamRadiation::advance (int lev,
                             q_min=rad_choice.seb_prognostic_q_min,
                             q_max=rad_choice.seb_prognostic_q_max]
                             AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
+                            if (hold_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) {
+                                constexpr amrex::Real lowest = std::numeric_limits<amrex::Real>::lowest();
+                                return {amrex::Real(0.0), lowest, amrex::Real(0.0), lowest, amrex::Long(0)};
+                            }
                             amrex::Real t_s_old = t_s_arr(i, j, 0);
                             amrex::Real q_s_old = q_s_arr(i, j, 0);
 
@@ -1436,8 +1663,8 @@ TwoStreamRadiation::advance (int lev,
                             t_s_arr(i, j, 0) = t_s_new;
                             q_s_arr(i, j, 0) = q_s_new;
 
-                            // Return for reduction: sum T_s, max T_s, sum q_s, max q_s
-                            return {t_s_new, std::abs(t_s_new), q_s_new, std::abs(q_s_new)};
+                            // Return for reduction: sum T_s, max T_s, sum q_s, max q_s, one column
+                            return {t_s_new, std::abs(t_s_new), q_s_new, std::abs(q_s_new), amrex::Long(1)};
                         });
 
                     // Copy results from device to host
@@ -1447,6 +1674,7 @@ TwoStreamRadiation::advance (int lev,
                     t_s_max_box = amrex::get<1>(prog_reduce_tuple);
                     q_s_sum_box = amrex::get<2>(prog_reduce_tuple);
                     q_s_max_box = amrex::get<3>(prog_reduce_tuple);
+                    n_cols_box = amrex::get<4>(prog_reduce_tuple);
 
                     // Accumulate into global results
                     t_s_sum += t_s_sum_box;

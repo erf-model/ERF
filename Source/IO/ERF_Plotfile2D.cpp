@@ -571,6 +571,31 @@ ERF::FillPlot2DVars (int lev,
         mf_comp++;
     } // seb_lh
 
+    // The net shortwave the balance used at its last update after the dycore: with
+    // erf.ibseb.two_stream_buildings, zero under the buildings and without the direct
+    // beam where they shade the ground; -999 before the level's first update (the
+    // initial plotfile and the one a restart writes).
+    if (containerHasElement(plot_var_names, "seb_sw_net")) {
+        plotfile2d::fill_component_from_klevel_or_value(
+            mf_dst, mf_comp,
+            (solverChoice.rad_type == RadiationType::TwoStream) ? two_stream_rad.seb_sw_net(lev)
+                                                                : nullptr,
+            0, -999);
+        mf_comp++;
+    } // seb_sw_net
+
+    // The buildings' shadow on the ground, for the ground balance (erf.ibseb.two_stream_buildings
+    // with a two-stream ground balance on the sweep's shortwave, on a level that sweeps its own
+    // columns; -999 otherwise).
+    if (containerHasElement(plot_var_names, "ibseb_ground_shadow")) {
+        plotfile2d::fill_component_from_klevel_or_value(
+            mf_dst, mf_comp,
+            (solverChoice.rad_type == RadiationType::TwoStream) ? two_stream_rad.ground_shadow(lev)
+                                                                : nullptr,
+            0, -999);
+        mf_comp++;
+    } // ibseb_ground_shadow
+
     if (containerHasElement(plot_var_names, "sens_flux")) {
         plotfile2d::fill_component_from_klevel_or_value(
             mf_dst, mf_comp, sens_flux_source, klo, -999);

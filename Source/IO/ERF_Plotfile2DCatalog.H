@@ -41,6 +41,8 @@ enum class DiagnosticID
     SebQsfc,
     SebHfx,
     SebLh,
+    SebSwNet,
+    IbsebGroundShadow,
     SensFlux,
     LatenFlux,
     SurfPres,

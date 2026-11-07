@@ -490,9 +490,9 @@ clear-sky one, :cpp:`erf.ibseb.sw_transmission` and
 two-stream column (single-scattering albedo 0, no diffuse light) with total
 shortwave optical depth :math:`\tau`, :cpp:`erf.ibseb.sw_transmission =
 exp(-tau)` and :cpp:`erf.ibseb.sw_diffuse_coeff = 0` give the faces the
-column's own beam at the ground. The two-stream
-ground balance also covers the building footprints, and the two-stream
-columns pass through the buildings. The ``two_stream`` provider
+column's own beam at the ground. How the two-stream columns and their ground
+balance see the buildings is described in `The two-stream columns and the
+buildings`_. The ``two_stream`` provider
 (`Radiation from the two-stream columns`_) takes the column's own beam, diffuse
 light and ground directly.
 
@@ -640,13 +640,13 @@ name.
   warns at start-up whenever some of the sky's depth is set per layer.
 - *No longwave from above the domain.* The two-stream model has none coming in at
   the top.
-- *The ground under and beside the buildings.* The two-stream columns still pass
-  through the buildings. The ground balance covers the building footprints, and
-  the ground beside a wall is open, sunlit ground, so a wall sees a ground warmer
-  than the shaded ground beside it would be. Where the buildings stand, both the
-  faces and the ground absorb the same sunlight (about 7 % more than the
-  domain receives in ``TwoStream_IBSEB_RandomBuildings``, 22 % within its refined
-  area).
+- *The ground under and beside the buildings.* With
+  :cpp:`erf.ibseb.two_stream_buildings` (the default) and the two-stream ground
+  balance on, the ground under a building is held and, with the balance on the
+  column's shortwave, the shaded ground loses the direct beam (`The two-stream
+  columns and the buildings`_). The columns themselves still pass through the buildings: the
+  light the ground reflects and the longwave it sends up are still those of the
+  column's own ground, so a wall sees the column's ground as the column has it.
 - *Memory and cost.* The kept beam covers every column of the level, up to the
   highest interface a face reads, and is rewritten every step. For
   :math:`1024 \times 1024` columns with 200 m towers on 2 m cells it takes 0.85 GB.
@@ -681,6 +681,141 @@ check the start-up stops. The unit tests ``TwoStreamCanopyForcing.*`` check the
 beam the model keeps and how a face picks its height;
 ``IBSEBTwoStreamFaces.*`` check that every face of a level split into several
 boxes reads its own column at its own height, and the highest interface kept.
+
+The two-stream columns and the buildings
+----------------------------------------
+
+The two-stream model sees the air of each column, cell by cell, from the top of
+the domain down to the ground. It does not know where the buildings are: left to
+itself, it heats the cells inside a building as if they were air, the ground under
+a building is sunlit ground, and the ground in a building's shadow gets the full
+sun. :cpp:`erf.ibseb.two_stream_buildings` (on by default with
+:cpp:`erf.radiation_model = TwoStream`) tells the model where the buildings are,
+using the same cells and the same shadow as the building faces. It changes three
+things.
+
+- **No heating inside a building.** The model writes no heating rate in a solid
+  cell (blanking at or above one half). The light such a cell would absorb is the
+  roof's and the walls': the faces take it at their own heights. On a refined level
+  whose heating rates come from the level below by interpolation (a patch that does
+  not reach the top of the domain), the rates are set to zero in its solid cells
+  after the interpolation.
+- **The ground under a building is left alone.** The two-stream ground balance
+  (:cpp:`erf.radiation.seb_enable`) treats a column whose bottom cell is solid as a
+  building's *footprint*: its skin temperature and soil water are held, it absorbs
+  no shortwave (``seb_sw_net`` is zero there), and it is left out of the balance's
+  means and residual in the radiation diagnostics. The ground under an overhang
+  (solid above, air at the bottom) is open ground.
+- **The shaded ground loses the direct beam.** For every column the faces' ray
+  cast (the column walk of the shadow on the faces, with the buildings outside a
+  refined level added) follows the ray from the centre of the column's ground
+  toward the sun. Where it meets a building, the column is shaded
+  (``ibseb_ground_shadow`` = 1), and the ground balance takes the direct beam off
+  the shortwave it absorbs:
+
+  .. math::
+
+     SW_{g} = (1 - \alpha_{dir})\, F_{dir}(0)\, (1 - s) + (1 - \alpha_{dif})\, F^{\downarrow}_{dif}(0),
+
+  with :math:`F_{dir}(0)` the beam the column brings to the ground,
+  :math:`F^{\downarrow}_{dif}(0)` the diffuse light there,
+  :math:`\alpha_{dir}` and :math:`\alpha_{dif}` the ground's direct and diffuse
+  albedos, and :math:`s` the shadow (0 or 1). The diffuse light stays. This needs
+  the ground balance to take the column's shortwave
+  (:cpp:`erf.radiation.seb_use_radiation_fluxes`); on the fixed
+  :cpp:`erf.radiation.seb_sw_flux_default` only the footprints are held (ERF says
+  so at start-up).
+
+**When.** The shadow uses the sun of the step's sweep. The building balance gives
+it during the step, at its start with the prescribed provider and just after the
+sweep with ``two_stream``, so always before the ground balance's update after the
+dycore, which takes the beam off then, once per sweep. The shadow is cast only where
+the balance takes it: with the balance on the column's shortwave, the shortwave on,
+and on a level that sweeps its own columns. In the radiation diagnostics the
+``SW_surface`` column is the sweep's own domain mean in every row (the footprints in
+the sun, the shaded beam included); only the residual and the skin-temperature
+columns of the row after the dycore leave out the footprints and see the shadow (the
+row before the dycore, the only one with ``diag_callsite_mode = pre_only``, has the
+sweep's unshaded shortwave in its residual). The
+``seb_sw_net`` plot variable is the shortwave the balance used at its last update, and
+-999 before a level's first update (the initial plotfile and the one a restart
+writes); ``ibseb_ground_shadow`` is the shadow under the sun of the plotfile's time,
+cast at start-up too.
+
+**Approximations and limits.**
+
+- *One ray per column*, as for a face: a column is shaded or not, so the edge of
+  a shadow is resolved to a column. The ray walks the rank's ray map
+  (`Shortwave and shadow`_), so, as for the faces, a building farther
+  than the map's halo casts no shadow: the halo reaches the shadow of the tallest
+  building for a sun at or above :cpp:`erf.ibseb.sun_min_elev_deg` (2 degrees by
+  default), and a lower sun misses the far shadows, whose beam is then a few W/m²
+  in a transparent sky and less in a real one. A shadow's edge is sampled at the
+  column centres, so its area is off by up to half a column along its perimeter:
+  within a few per cent in all for the building set below, 20 to 40 per cent for a
+  single 10 or 20 m building on 20 m columns.
+- *What is still counted twice.* The faces absorb sky light and light reflected from
+  the ground that the open ground also keeps, and the column reflects the ground's
+  albedo where the faces reflect their own. For the cube of the test below under a
+  transparent sky, the sunlight accounted for (ground, faces and the column's
+  reflection) is 1.037 times what arrives with the input off and 1.002 times with it
+  on. The diffuse light the shaded ground keeps includes the sky's back-scatter of the
+  beam the column's ground reflected: 13 % of that diffuse light, 1.6 % of the beam,
+  in the test's scattering sky.
+- *The columns still pass through the buildings.* The shadow changes only what the
+  ground balance absorbs. The sweep runs before the shadow is known, so the light
+  the column's ground reflects, which the faces see as the ground's, still includes
+  the shaded beam, and the air above the shaded ground is heated as before. Under a
+  building, the column's ground is the held one, seen through the building's cells
+  as through air; the column has no roof at the building's top.
+- *The ground's sky.* Shaded or not, the ground keeps the column's diffuse sky light
+  and longwave from the whole sky. Ground beside a wall sees less sky and gets the
+  walls' longwave and reflected light instead; neither is in the ground balance.
+- *The surface layer under a building* still exchanges heat and moisture with the
+  building's bottom cell, with the held skin temperature.
+- *Refined levels.* Each level has its own footprints and shadow. Where a finer
+  level covers a coarser one, the coarser ground takes the average of the finer
+  (held footprints included). An air cell of an interpolated patch that lies inside
+  a solid cell of the level below (where the coarser building fills the cell beyond
+  its footprint) takes its heating from that cell's zero and its neighbours, by the
+  limited linear interpolation, so it can be much smaller than the air's.
+- *A land-surface model* keeps its own ground, which nothing here covers or shades
+  (ERF warns at start-up).
+- *Memory and cost.* The solid cells are kept as 4 bytes a cell up to the tallest
+  building, and four 2D fields a level. The shadow costs one ray per column each step;
+  a ray walks until it rises above the tallest building, so a low sun over tall
+  buildings costs most.
+
+:cpp:`erf.ibseb.two_stream_buildings = false` keeps the columns blind to the
+buildings, as they were before the input, for comparison.
+
+**Tests.** ``Tests/test_files/IBSEB_TwoStreamBuildings`` (CTest
+``IBSEB_TwoStreamBuildings``) runs the cube of ``IBSEB_Cube`` with the ground balance
+and checks, against a shadow computed independently from the buildings' cells (the
+ray from each column's ground intersected with every solid column as a box):
+
+- under a transparent sky, the shadow column for column, and the shortwave of the
+  ground balance: :math:`(1 - \alpha) S_0 \cos z` in the sun, zero in the shadow and
+  under the cube; the footprints held over two steps while the sunlit ground warms,
+  and the reported mean skin temperature over the open ground only;
+- under an absorbing sky, the beam through the column,
+  :math:`(1 - \alpha) S_0 \cos z\, e^{-\tau n_z / \cos z}`, in the sun and none in
+  the shadow, and no heating in the cube's cells while the air beside them is heated;
+- under a scattering sky, that the sunlit and the shaded ground differ by exactly
+  the absorbed beam, so the shaded ground keeps the diffuse light;
+- with the input off, the columns as before (the sun under the cube, its cells
+  heated, no shadow field);
+- a restart, the night, two levels (a tower outside the refined level shading it),
+  a refined patch below the domain top whose rates come by interpolation, and the
+  balance on its fixed shortwave (no beam to take off; the footprints still held).
+
+``IBSEB_TwoStreamBuildingsWithoutTwoStream`` checks the start-up stop,
+``IBSEB_TwoStreamBuildingsOtherRadiation``, ``IBSEB_TwoStreamBuildingsLandModel``
+and ``IBSEB_TwoStreamBuildingsDisabled`` the warnings (another radiation model, a
+land-surface model, the balance off). The
+unit tests ``IBSEBGroundShadow.*`` check the shadow across a periodic edge, on a
+closed domain, under an overhang and at night, and ``TwoStreamBuildingCover.*`` the
+heating mask, the footprint and the beam taken off once per sweep.
 
 Canonical case: a building set
 ------------------------------
