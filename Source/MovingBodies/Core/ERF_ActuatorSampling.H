@@ -32,7 +32,7 @@ namespace erf_actuator {
  * its value from them), so the fields must be filled there as well (FillPatch, not only
  * FillBoundary). Every rank must pass the same points: the reduction is collective and the
  * call stops when the ranks disagree on their number. In a periodic direction a point is moved by
- * whole periods into the domain; a point on the domain's upper x or y face belongs to the last
+ * whole periods into the domain; a point on the domain's upper x, y or z face belongs to the last
  * cell. A point outside the domain otherwise, or one found by no rank or by more than one, aborts
  * with its coordinates: the caller owns the points and must keep them inside the domain.
  *

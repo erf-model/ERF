@@ -21,7 +21,11 @@ namespace erf_actuator {
  * normalisation with the face volumes (dx dy dz detJ on a terrain-following mesh). The sum
  * of src dV over the mesh therefore equals F_p exactly for every point and component,
  * whatever the resolution and however much of the kernel is cut off by the ground or the
- * domain top; the kernel's shape is Gaussian only where it is resolved.
+ * domain top; the kernel's shape is Gaussian only where it is resolved. The faces sit at
+ * prob_lo + i dx with the volumes dx dy dz detJ, with no map factors: a body model must refuse a
+ * run whose map factors are not 1 until the core carries them. The normalisation sums are
+ * accumulated with atomic adds, so on a GPU the last bits of the source can differ between runs;
+ * CPU runs are bitwise reproducible.
  *
  * Every rank accumulates the faces its boxes own (each physical face once, however the boxes
  * share their boundary faces) and the normalisations are summed across ranks, so the result

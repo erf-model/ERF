@@ -495,15 +495,28 @@ TEST(ActuatorSampling, AWrappedPointNeverLandsOnTheUpperFace)
     }
 }
 
-// A point outside the domain is found by no box: the sampler aborts and names it
+// The domain's upper x, y and z faces belong to the last cells, on every mesh type; in a periodic
+// direction a point past the seam takes its image's value
 TEST(ActuatorSampling, TheUpperFaceIsTheLastCellAndPeriodicPointsTheirImage)
 {
     MeshSpec m;
     m.stretch = 1.0;
     m.max_grid = {{5, 4, 1024}};
     Fields f(m, true);
-    // on the domain's upper x and y faces (an end of a line placed on the boundary)
-    f.check({m.Lx, Real(0.37) * m.Ly, Real(0.5) * m.H, Real(0.41) * m.Lx, m.Ly, Real(0.5) * m.H, m.Lx, m.Ly, Real(0.25) * m.H}, tol);
+    // on the domain's upper x, y and z faces (an end of a line placed on the boundary, a point at the top)
+    f.check({m.Lx, Real(0.37) * m.Ly, Real(0.5) * m.H, Real(0.41) * m.Lx, m.Ly, Real(0.5) * m.H, m.Lx, m.Ly, Real(0.25) * m.H,
+             Real(0.29) * m.Lx, Real(0.53) * m.Ly, m.H, m.Lx, m.Ly, m.H}, tol);
+    {
+        // the top on a stretched and on a terrain-following mesh (z_phys_nd present), the box split in z
+        MeshSpec ms;
+        ms.max_grid = {{1024, 1024, 3}};
+        Fields fs(ms, false);
+        fs.check({Real(0.29) * ms.Lx, Real(0.53) * ms.Ly, ms.H}, tol);
+        MeshSpec mt;
+        mt.hill = 60.0;
+        Fields ft(mt, false);
+        ft.check({Real(0.29) * mt.Lx, Real(0.53) * mt.Ly, mt.H, mt.Lx, mt.Ly, mt.H}, tol);
+    }
     {
         // 1000 m on 88 cells: prob_hi / dx rounds one ulp above 88 in double, as 5000 m on 96 cells does in float
         MeshSpec m88 = m;
@@ -528,6 +541,7 @@ TEST(ActuatorSampling, TheUpperFaceIsTheLastCellAndPeriodicPointsTheirImage)
     for (std::size_t i = 0; i < image.size(); ++i) { EXPECT_NEAR(wrapped[i], image[i], 1.0e-4 * m.Lx) << i; }
 }
 
+// A point outside the domain is found by no box: the sampler aborts and names it
 TEST(ActuatorSampling, APointOutsideTheDomainIsRefusedNamingIt)
 {
     MeshSpec m;

@@ -176,13 +176,16 @@ sample_velocity (const MultiFab& U, const MultiFab& V, const MultiFab& W,
             // the containing cell in z: between the z faces of column (ic,jc)
             int kc = -1;
             if (!has_znd) {
-                const int k = static_cast<int>(std::floor((z - plo[2]) * dxi[2]));
+                int k = static_cast<int>(std::floor((z - plo[2]) * dxi[2]));
+                // a point on the domain's top belongs to the top cell, as on the upper x and y faces
+                if (k > khi && z <= phi[2]) { k = khi; }
                 if (k >= klo && k <= kt) { kc = k; }
             } else {
                 for (int k = kb; k <= kt; ++k) {
                     const Real zb = face_height(2, ic, jc, k,   znd, true, plo[2], dz);
                     const Real zt = face_height(2, ic, jc, k+1, znd, true, plo[2], dz);
-                    if (z >= zb && z < zt) { kc = k; break; }
+                    // the top cell takes its top face too: the domain's top, as the upper x and y faces
+                    if (z >= zb && (z < zt || (k == khi && z <= zt))) { kc = k; break; }
                 }
                 // the bottom face is the mean of its four nodes, but the ground under (x, y) is
                 // bilinear between them: on a slope a point just above the ground can lie below
@@ -298,13 +301,16 @@ sample_cell_scalar (const MultiFab& mf, int comp, const MultiFab* z_phys_nd, con
                 jc < vbx.smallEnd(1) || jc > vbx.bigEnd(1)) { return; }
             int kc = -1;
             if (!has_znd) {
-                const int k = static_cast<int>(std::floor((z - plo[2]) * dxi[2]));
+                int k = static_cast<int>(std::floor((z - plo[2]) * dxi[2]));
+                // a point on the domain's top belongs to the top cell, as on the upper x and y faces
+                if (k > khi && z <= phi[2]) { k = khi; }
                 if (k >= klo && k <= kt) { kc = k; }
             } else {
                 for (int k = kb; k <= kt; ++k) {
                     const Real zb = face_height(2, ic, jc, k,   znd, true, plo[2], dz);
                     const Real zt = face_height(2, ic, jc, k+1, znd, true, plo[2], dz);
-                    if (z >= zb && z < zt) { kc = k; break; }
+                    // the top cell takes its top face too: the domain's top, as the upper x and y faces
+                    if (z >= zb && (z < zt || (k == khi && z <= zt))) { kc = k; break; }
                 }
                 // the bottom face is the mean of its four nodes, but the ground under (x, y) is
                 // bilinear between them: on a slope a point just above the ground can lie below

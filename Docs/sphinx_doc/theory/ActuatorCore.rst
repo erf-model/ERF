@@ -121,6 +121,27 @@ regression tests of a body model compare with the force it carries.
    kernel over the faces it actually reaches, with their volumes, so the
    integrated source equals the force exactly in every case.
 
+Limits
+------
+
+The core takes the mesh as Cartesian in the horizontal: the faces sit at
+``prob_lo + i dx`` and the face volumes are ``dx dy dz detJ``, with no map
+factors. On a map-projected run (map factors other than 1) the spread force
+would no longer integrate to the point force and the sampling positions would
+be off, so a body model must refuse such a run until the core carries the map
+factors.
+
+A body model works on one level, which it chooses, and keeps its points with
+the kernel's reach (three widths) on that level's grids, checked with
+``points_covered_by`` at start-up and after every regrid: the normalisation
+runs over the faces of one level, so on a refined level whose patch cuts a
+kernel the whole force would land in the covered part. The level that samples
+is the level that spreads.
+
+The normalisation sums are accumulated with atomic adds, so on a GPU the order
+of the additions, and with it the last bits of the source, can change from run
+to run; CPU runs are bitwise reproducible.
+
 Bodies on terrain
 -----------------
 
