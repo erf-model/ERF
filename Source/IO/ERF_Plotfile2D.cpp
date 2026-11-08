@@ -57,16 +57,16 @@ std::string make_2d_plotfile_name (int which,
     return {};
 }
 
-bool is_unified_near_surface_diagnostic (plotfile2d::DiagnosticID id) noexcept
-{
-    return id == plotfile2d::DiagnosticID::Temperature2m ||
-           id == plotfile2d::DiagnosticID::WaterVaporMixingRatio2m ||
-           id == plotfile2d::DiagnosticID::NearSurfaceDiagnosticSource;
-}
-
 bool is_land_surface_diagnostic (const plotfile2d::DiagnosticDescriptor* descriptor) noexcept
 {
     return descriptor && descriptor->category == plotfile2d::DiagnosticCategory::LandSurface;
+}
+
+// The unified 2 m fields: Noah-MP's native 2 m fields when present, otherwise
+//    the surface layer's MOST profile, otherwise -999
+bool is_near_surface_diagnostic (const plotfile2d::DiagnosticDescriptor* descriptor) noexcept
+{
+    return descriptor && descriptor->category == plotfile2d::DiagnosticCategory::NearSurface;
 }
 
 Vector<Geometry> make_2d_plot_geometries (const Vector<Geometry>& geom,
@@ -758,7 +758,9 @@ ERF::FillPlot2DVars (int lev,
 
     // Land-surface provider fields use the generic LandSurface name/index
     // interface. The catalog supplies metadata; this block only assembles
-    // stored values and translates provider sentinels.
+    // stored values and translates provider sentinels. The NearSurface 2 m
+    // fields are only given their components here and are filled below, from
+    // Noah-MP's native 2 m fields or from the surface layer.
     int temperature_2m_comp = -1;
     int mixing_ratio_2m_comp = -1;
     int near_surface_source_comp = -1;
@@ -767,11 +769,7 @@ ERF::FillPlot2DVars (int lev,
         if (!descriptor) {
             descriptor = plotfile2d::find_dynamic_soil_diagnostic(name);
         }
-        if (!is_land_surface_diagnostic(descriptor)) {
-            continue;
-        }
-
-        if (is_unified_near_surface_diagnostic(descriptor->id)) {
+        if (is_near_surface_diagnostic(descriptor)) {
             if (descriptor->id == plotfile2d::DiagnosticID::Temperature2m) {
                 temperature_2m_comp = mf_comp;
             } else if (descriptor->id == plotfile2d::DiagnosticID::WaterVaporMixingRatio2m) {
@@ -780,6 +778,9 @@ ERF::FillPlot2DVars (int lev,
                 near_surface_source_comp = mf_comp;
             }
             ++mf_comp;
+            continue;
+        }
+        if (!is_land_surface_diagnostic(descriptor)) {
             continue;
         }
 
