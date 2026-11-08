@@ -82,8 +82,11 @@ ERF::initHSE (int lev)
         }
         else
         {
+            // A moving mesh may have columns of up to 512 cells; static meshes keep the 256-cell arrays
+            bool tall_columns = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
             prob->erf_init_dens_hse_dry(dens, z_phys_nd_in, z_phys_cc_in, geom[lev],
-                                        stretched_dz_h[lev], is_constant_dz, is_stretched_dz);
+                                        stretched_dz_h[lev], is_constant_dz, is_stretched_dz,
+                                        tall_columns);
         }
 
         if (solverChoice.init_type != InitType::Uniform &&
