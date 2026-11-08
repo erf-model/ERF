@@ -2892,6 +2892,22 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  "reads temperature but not qv"
                  "erf.bndry_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature/BndryFiles 'erf.bndry_input_var_names=temperature density velocity'")
   set_tests_properties(BndryPlanes_MoistTemperature_ReadWithoutQv PROPERTIES FIXTURES_REQUIRED BndryPlanesMoist)
+
+  # A reader that ends at the last plane time to within round-off: the writer's 60 steps of 0.02 s
+  # sum to 1.2000000000000006, and the reader's 75 steps of 0.016 s to 1.2000000000000008, 2 ULP
+  # past the last plane.  The reader stopped there on the bounds check of read_input_files.
+  set(_bp_end_bin ${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature_ReadToLastPlane)
+  file(MAKE_DIRECTORY ${_bp_end_bin})
+  file(COPY ${_bp_moist_dir}/BndryPlanes_MoistTemperature.i ${_bp_moist_dir}/input_sounding
+       DESTINATION ${_bp_end_bin})
+  resolve_test_exe("" "erf_exec" _bp_end_exe)
+  add_test(NAME BndryPlanes_MoistTemperature_ReadToLastPlane
+           COMMAND sh -c "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS} ${_bp_end_exe} BndryPlanes_MoistTemperature.i erf.bndry_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature/BndryFiles max_step=75 erf.fixed_dt=0.016 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 > ReadToLastPlane.log 2>&1 || ( tail -n 20 ReadToLastPlane.log && false )"
+           WORKING_DIRECTORY ${_bp_end_bin})
+  set_tests_properties(BndryPlanes_MoistTemperature_ReadToLastPlane PROPERTIES
+                       TIMEOUT 600 PROCESSORS 1 LABELS "regression"
+                       FIXTURES_REQUIRED BndryPlanesMoist
+                       ATTACHED_FILES_ON_FAIL "${_bp_end_bin}/ReadToLastPlane.log")
 endif()
 add_test_abort(BndryPlanes_MoistTemperature_WriteWithoutQv ${_bp_moist_dir}
                BndryPlanes_MoistTemperature_Write.i
