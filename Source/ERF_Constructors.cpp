@@ -101,8 +101,7 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
             check_interval <= 0 && check_period <= 0.0 &&
             amr_check_interval <= 0 && amr_check_period <= 0.0,
             "SBM AMR qualification excludes checkpoint/restart");
-        const bool exact_zero_flow_anelastic_reference =
-            choice.sbm_amr_qualification_expect_zero_flow &&
+        const bool all_levels_anelastic_rk2 =
             !choice.anelastic.empty() &&
             std::all_of(choice.anelastic.begin(), choice.anelastic.end(),
                         [] (int enabled) { return enabled != 0; }) &&
@@ -111,9 +110,15 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
                         [] (AnelasticType type) {
                             return type == AnelasticType::RK2;
                         });
+        // The compressible host leaves a roundoff carrier at zero wind.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !choice.sbm_amr_qualification_expect_zero_flow ||
+            all_levels_anelastic_rk2,
+            "SBM zero-flow AMR qualification requires the exact-zero "
+            "anelastic RK2 carrier on every level");
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
             (choice.anelastic.empty() || choice.anelastic[0] == 0 ||
-             exact_zero_flow_anelastic_reference) &&
+             choice.sbm_amr_qualification_expect_zero_flow) &&
             choice.diffChoice.molec_diff_type == MolecDiffType::None &&
             !choice.turbChoice[0].use_kturb &&
             choice.turbChoice[0].pbl_type == PBLType::None &&

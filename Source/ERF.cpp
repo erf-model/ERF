@@ -1153,14 +1153,12 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                            << (limiter_changed_rate ? "true" : "false")
                            << " operation_count=" << inventory_operation_count
                            << " reduction_depth=" << reduction_depth << '\n';
-            if (solverChoice.sbm_nbins < 32) {
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                    max_carrier == Real(0.0),
-                    "zero-flow SBM AMR qualification has a nonzero mass carrier");
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                    max_accepted_rate == Real(0.0),
-                    "zero-flow SBM AMR qualification has a nonzero accepted face rate");
-            }
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                max_carrier == Real(0.0),
+                "zero-flow SBM AMR qualification has a nonzero mass carrier");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                max_accepted_rate == Real(0.0),
+                "zero-flow SBM AMR qualification has a nonzero accepted face rate");
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
                 !limiter_changed_rate,
                 "zero-flow SBM AMR qualification changed an accepted face rate");
@@ -1214,7 +1212,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 std::numeric_limits<Real>::min());
             const Real error = std::abs(final - initial);
             const Real scale = std::abs(initial) + std::abs(final);
-            amrex::Print() << "SBM_AMR_QUAL_INVENTORY component=" << component
+            // Full precision: the rank-parity comparator parses these values.
+            amrex::Print().SetPrecision(17)
+                           << "SBM_AMR_QUAL_INVENTORY component=" << component
                            << " initial=" << initial << " final=" << final
                            << " abs_error=" << error
                            << " magnitude_scale=" << scale

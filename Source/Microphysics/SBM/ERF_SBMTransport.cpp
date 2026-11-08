@@ -514,7 +514,8 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                            const int stage,
                            const char* role,
                            MultiFab& coarse_pack,
-                           const SBMAMRStageGhostProbe* probe = nullptr)
+                           const SBMAMRStageGhostProbe* probe = nullptr,
+                           bool* split_values_checked = nullptr)
 {
     using ProfileClock = std::chrono::steady_clock;
     const bool profile_parent_fill = parent.profile_parent_fill;
@@ -652,10 +653,11 @@ fill_coarse_parent_ghosts (MultiFab& destination,
         const amrex::Box fab_box = mfi.fabbox();
         const auto missing = missing_fine_ghosts.const_array(mfi);
         const auto target = destination.array(mfi);
+        const int ncomp = destination.nComp();
         amrex::ParallelFor(
-            fab_box, destination.nComp(),
-            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                if (missing(i, j, k, 0) == Real(1.0)) {
+            fab_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (missing(i, j, k, 0) != Real(1.0)) return;
+                for (int n = 0; n < ncomp; ++n) {
                     target(i, j, k, n) = poison;
                 }
             });
@@ -786,6 +788,8 @@ fill_coarse_parent_ghosts (MultiFab& destination,
             probe == nullptr ? -1 : probe->global_component;
         const int skipped_component =
             probe == nullptr ? -1 : probe->skipped_global_component;
+        const bool skip_tally_only =
+            probe != nullptr && probe->skip_write_tally_only;
         const int probe_stage = probe == nullptr ? -1 : probe->requested_stage;
         const bool probe_role_matches = probe_this_role;
         for (amrex::MFIter mfi(destination, false); mfi.isValid(); ++mfi) {
@@ -808,12 +812,14 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                     int wrote_components = 0;
                     for (int local = 0; local < component_count; ++local) {
                         const int global = component_map_local[local];
-                        const bool skip_assignment =
+                        const bool probe_fault_cell =
                             global == skipped_component &&
                             probe_role_matches &&
                             (probe_stage < 0 || probe_stage == stage) &&
                             i == probe_cell[0] && j == probe_cell[1] &&
                             k == probe_cell[2];
+                        const bool skip_assignment =
+                            probe_fault_cell && !skip_tally_only;
                         const bool skip_rank_local_assignment =
                             inject_rank_local_store_fault && global == 0 &&
                             i == 2 && j == -2 && k == -2;
@@ -846,7 +852,9 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                                 missing(i, j, k, 2) = Real(1.0);
                             }
                         }
-                        ++wrote_components;
+                        if (!(probe_fault_cell && skip_tally_only)) {
+                            ++wrote_components;
+                        }
                     }
                     missing(i, j, k, 1) += static_cast<Real>(wrote_components);
                 });
@@ -964,8 +972,8 @@ fill_coarse_parent_ghosts (MultiFab& destination,
         amrex::Abort(message.str());
     }
 #ifdef ERF_SBM_AMR_QUALIFICATION
-    static bool split_ghost_values_checked = false;
-    if (!split_ghost_values_checked && parent.validate_split_ghost_values &&
+    if (split_values_checked != nullptr && !*split_values_checked &&
+        parent.validate_split_ghost_values &&
         current_role == 0 && stage == 0 &&
         semantic_time_matches(requested_time, parent.old_time, dt_min)) {
         amrex::Gpu::streamSynchronize();
@@ -973,8 +981,10 @@ fill_coarse_parent_ghosts (MultiFab& destination,
             destination, fine_source_state, fine_source_conserved,
             coarse_old_spectrum, coarse_new_spectrum, parent, fine_geometry,
             theta, stage, requested_time);
-        split_ghost_values_checked = true;
+        *split_values_checked = true;
     }
+#else
+    amrex::ignore_unused(split_values_checked);
 #endif
     // Device component maps and parent chunks remain alive through the queued
     // ghost kernels. Synchronize before their storage is released.
@@ -1753,6 +1763,11 @@ SBMTransport::advance_stage (const int level,
         }
         const MultiFab& coarse_old_spectrum = state_manager.old_state(level - 1);
         const MultiFab& coarse_new_spectrum = state_manager.new_state(level - 1);
+#ifdef ERF_SBM_AMR_QUALIFICATION
+        bool* split_values_checked = &m_split_ghost_values_checked;
+#else
+        bool* split_values_checked = nullptr;
+#endif
         fill_coarse_parent_ghosts(
             data.input_intensive, data.coarse_fill_mask,
             coarse_old_spectrum, coarse_new_spectrum, spectrum,
@@ -1761,7 +1776,7 @@ SBMTransport::advance_stage (const int level,
             state_manager.old_time(level - 1),
             state_manager.new_time(level - 1), level, stage, "input",
             data.coarse_source_pack,
-            parent->ghost_probe);
+            parent->ghost_probe, split_values_checked);
         const double base_time =
             recipe.limiter_trial_base ==
                     erf_auxiliary::LimiterTrialBase::Anchor

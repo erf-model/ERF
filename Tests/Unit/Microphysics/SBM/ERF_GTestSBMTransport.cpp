@@ -80,6 +80,7 @@ make_layout (const erf_sbm::MomentMode mode, const bool with_property = false)
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
+#if !defined(AMREX_USE_FLOAT)
 struct A4FixturePoint
 {
     Real rho;
@@ -128,6 +129,54 @@ Real a4_weno_z3_left (const Real sm2, const Real sm1, const Real s)
     return (w1 * (-sm2 + Real(3.0) * sm1) +
             w2 * (sm1 + s)) / (Real(2.0) * (w1 + w2));
 }
+
+void fill_a4_fixture_state (MultiFab& state, MultiFab& density,
+                            const bool fine, const Real time,
+                            const int mass0, const int number0,
+                            const int property0)
+{
+    const int scale = fine ? 2 : 1;
+    for (amrex::MFIter mfi(state, amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto values = state.array(mfi);
+        const auto rho = density.array(mfi);
+        const int m0 = mass0, n0 = number0;
+        const int m1 = mass0 + 1, n1 = number0 + 1, p0 = property0;
+        amrex::ParallelFor(box,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                const Real x = static_cast<Real>(i) / scale;
+                const Real y = static_cast<Real>(j) / scale;
+                const Real z = static_cast<Real>(k) / scale;
+                const A4FixturePoint q = a4_fixture_point(x, y, z, time);
+                const Real state_rho = fine ? Real(1.0) : q.rho;
+                rho(i, j, k, Rho_comp) = state_rho;
+                values(i, j, k, m0) = state_rho * q.mass0;
+                values(i, j, k, n0) = state_rho * q.number0;
+                values(i, j, k, m1) = state_rho * q.mass1;
+                values(i, j, k, n1) = state_rho * q.number1;
+                values(i, j, k, p0) = state_rho * q.property0;
+                values(i, j, k, p0 + 1) = state_rho * q.property1;
+            });
+    }
+}
+
+void set_a4_x_face_velocity (MultiFab& avg_xmom, const IntVect& face,
+                             const Real velocity)
+{
+    for (amrex::MFIter mfi(avg_xmom, amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto u = avg_xmom.array(mfi);
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j,
+                                                      int k) noexcept {
+            if ((i == face[0] || i == face[0] + 1) &&
+                j == face[1] && k == face[2])
+                u(i, j, k, 0) = velocity;
+        });
+    }
+}
+#endif
 
 BoxArray
 project_to_xy (const BoxArray& cell_ba)
@@ -2024,7 +2073,8 @@ void run_coarse_stage_g1_ghost_test (const bool inject_stale_write_fault = false
                                     const int probe_stage = -1,
                                     const int probe_role = 0,
                                     const bool full_rk3_step = false,
-                                    const bool componentwise_parent_fill = true)
+                                    const bool componentwise_parent_fill = true,
+                                    const bool omit_write_tally = false)
 {
     const erf_sbm::SBMLayout layout =
         make_layout(two_moment_attached ? erf_sbm::MomentMode::TwoMoment
@@ -2188,8 +2238,9 @@ void run_coarse_stage_g1_ghost_test (const bool inject_stale_write_fault = false
     probe.endpoint_hit_device = two_moment_attached && probe_role == 0
         ? endpoint_hit.data() : nullptr;
     probe.seed_finite_stale_value = inject_stale_write_fault;
-    probe.skipped_global_component = inject_stale_write_fault
-        ? probe_component : -1;
+    probe.skipped_global_component =
+        (inject_stale_write_fault || omit_write_tally) ? probe_component : -1;
+    probe.skip_write_tally_only = omit_write_tally;
     erf_sbm::SBMAMRStageParent parent;
     parent.conserved_old = &coarse_rho_old;
     parent.conserved_new = &coarse_rho_new;
@@ -2451,6 +2502,14 @@ TEST(SBMTransport, MissingParentGhostWriteRejectsFiniteStaleSentinel)
 {
     EXPECT_DEATH(run_coarse_stage_g1_ghost_test(true, false),
                  "left a coarse-only parent ghost component unwritten or invalid");
+}
+
+TEST(SBMTransport, MissingParentGhostWriteTallyRejectsCompleteStores)
+{
+    EXPECT_DEATH(run_coarse_stage_g1_ghost_test(
+                     false, false, 0, false, IntVect(1, 3, 3), 0, nullptr, -1,
+                     0, false, true, true),
+                 "omitted a required parent ghost component write");
 }
 
 TEST(SBMTransport, AssignmentOnlyMissingParentStoreFailsAcrossModesRolesAndHaloDepths)
@@ -3080,6 +3139,10 @@ TEST(SBMTransport, CompressiblePredictorCannotReplaceAnchorLimiterBase)
 
 TEST(SBMTransport, FineStageG1WenoAcceptedRateReachesMappedYAOracle)
 {
+#if defined(AMREX_USE_FLOAT)
+    GTEST_SKIP() << "The coupled WENO/FCT/YA separations are qualified in "
+                    "DOUBLE; SINGLE cannot resolve them.";
+#else
     ASSERT_EQ(AMREX_SPACEDIM, 3);
     const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment, true);
     const auto& population = layout.populations().front();
@@ -3119,30 +3182,8 @@ TEST(SBMTransport, FineStageG1WenoAcceptedRateReachesMappedYAOracle)
 
     auto fill_state = [&] (MultiFab& state, MultiFab& density,
                            const bool fine, const Real time) {
-        const int scale = fine ? 2 : 1;
-        for (amrex::MFIter mfi(state, amrex::TilingIfNotGPU());
-             mfi.isValid(); ++mfi) {
-            const Box box = mfi.tilebox();
-            const auto values = state.array(mfi);
-            const auto rho = density.array(mfi);
-            const int m0 = mass0, n0 = number0;
-            const int m1 = mass0 + 1, n1 = number0 + 1, p0 = property0;
-            amrex::ParallelFor(box,
-                [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    const Real x = static_cast<Real>(i) / scale;
-                    const Real y = static_cast<Real>(j) / scale;
-                    const Real z = static_cast<Real>(k) / scale;
-                    const A4FixturePoint q = a4_fixture_point(x, y, z, time);
-                    const Real state_rho = fine ? Real(1.0) : q.rho;
-                    rho(i, j, k, Rho_comp) = state_rho;
-                    values(i, j, k, m0) = state_rho * q.mass0;
-                    values(i, j, k, n0) = state_rho * q.number0;
-                    values(i, j, k, m1) = state_rho * q.mass1;
-                    values(i, j, k, n1) = state_rho * q.number1;
-                    values(i, j, k, p0) = state_rho * q.property0;
-                    values(i, j, k, p0 + 1) = state_rho * q.property1;
-                });
-        }
+        fill_a4_fixture_state(state, density, fine, time,
+                              mass0, number0, property0);
     };
 
     fill_state(state_manager.new_state_for_initialization(0), rho_old,
@@ -3194,17 +3235,7 @@ TEST(SBMTransport, FineStageG1WenoAcceptedRateReachesMappedYAOracle)
     avg_ymom.setVal(Real(0.0));
     avg_zmom.setVal(Real(0.0));
     constexpr Real velocity = Real(0.001);
-    for (amrex::MFIter mfi(avg_xmom, amrex::TilingIfNotGPU());
-         mfi.isValid(); ++mfi) {
-        const Box box = mfi.tilebox();
-        const auto u = avg_xmom.array(mfi);
-        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j,
-                                                      int k) noexcept {
-            if ((i == face[0] || i == face[0] + 1) &&
-                j == face[1] && k == face[2])
-                u(i, j, k, 0) = velocity;
-        });
-    }
+    set_a4_x_face_velocity(avg_xmom, face, velocity);
 
     amrex::Gpu::DeviceVector<Real> physical_stencil(9, Real(-1.0));
     amrex::Gpu::DeviceVector<Real> endpoint_stencil(9, Real(-1.0));
@@ -3628,6 +3659,7 @@ TEST(SBMTransport, FineStageG1WenoAcceptedRateReachesMappedYAOracle)
               << " wrong_ratio_mass_integral=" << ratio_wrong_integral[0]
               << " interface_lambda=" << interface_lambda
               << " stages=RK3x3 direct_YA=true\n";
+#endif
 }
 
 } // namespace

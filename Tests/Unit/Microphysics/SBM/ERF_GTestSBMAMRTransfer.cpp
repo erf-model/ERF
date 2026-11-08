@@ -488,6 +488,58 @@ Geometry make_geometry (const Box& domain)
     return Geometry(domain, &physical, amrex::CoordSys::cartesian, periodic);
 }
 
+void fill_ya_oracle_measure (MultiFab& mapped_measure)
+{
+    for (MFIter mfi(mapped_measure, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto omega = mapped_measure.array(mfi);
+        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            omega(i,j,k,0) = Real(1.5) + Real(0.01) * i +
+                             Real(0.02) * j + Real(0.03) * k;
+        });
+    }
+}
+
+void fill_ya_oracle_flux (MultiFab& flux, const int dir, const bool fine)
+{
+    const int ncomp = flux.nComp();
+    for (MFIter mfi(flux, false); mfi.isValid(); ++mfi) {
+        const Box box = mfi.validbox();
+        const auto values = flux.array(mfi);
+        ParallelFor(box, ncomp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            values(i,j,k,n) = fine ? ya_oracle_fine_flux(dir, i, j, k, n)
+                                   : ya_oracle_coarse_flux(dir, i, j, k, n);
+        });
+    }
+}
+
+void set_cell_value (MultiFab& field, const IntVect& cell,
+                     const int component, const Real value)
+{
+    for (MFIter mfi(field, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto values = field.array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (i == cell[0] && j == cell[1] && k == cell[2]) {
+                values(i,j,k,component) = value;
+            }
+        });
+    }
+}
+
+void roundtrip_through_measure (MultiFab& values, const MultiFab& measure)
+{
+    const int ncomp = values.nComp();
+    for (MFIter mfi(values, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto state = values.array(mfi);
+        const auto omega = measure.const_array(mfi);
+        ParallelFor(box, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+            state(i,j,k,n) = omega(i,j,k,0) * state(i,j,k,n) / omega(i,j,k,0);
+        });
+    }
+}
+
 Geometry
 make_geometry_with_nonperiodic_direction (const Box& domain,
                                           const int direction)
@@ -1636,14 +1688,7 @@ TEST(SBMAMRYA, SignedMappedCorrectionMatchesIndependentFaceAmounts)
     covered.FillBoundary(coarse_geom.periodicity());
     mapped_correction.setVal(Real(0.0));
     correction_invalid.setVal(Real(0.0));
-    for (MFIter mfi(mapped_measure, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box box = mfi.tilebox();
-        const auto omega = mapped_measure.array(mfi);
-        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            omega(i,j,k,0) = Real(1.5) + Real(0.01) * i +
-                             Real(0.02) * j + Real(0.03) * k;
-        });
-    }
+    fill_ya_oracle_measure(mapped_measure);
 
     std::array<MultiFab, AMREX_SPACEDIM> coarse_flux;
     std::array<MultiFab, AMREX_SPACEDIM> fine_flux;
@@ -1654,22 +1699,8 @@ TEST(SBMAMRYA, SignedMappedCorrectionMatchesIndependentFaceAmounts)
         fine_faces.surroundingNodes(dir);
         coarse_flux[dir].define(coarse_faces, coarse_dm, ncomp, 0);
         fine_flux[dir].define(fine_faces, fine_dm, ncomp, 0);
-        for (MFIter mfi(coarse_flux[dir], false); mfi.isValid(); ++mfi) {
-            const Box box = mfi.validbox();
-            const auto flux = coarse_flux[dir].array(mfi);
-            ParallelFor(box, ncomp,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
-                flux(i,j,k,n) = ya_oracle_coarse_flux(dir, i, j, k, n);
-            });
-        }
-        for (MFIter mfi(fine_flux[dir], false); mfi.isValid(); ++mfi) {
-            const Box box = mfi.validbox();
-            const auto flux = fine_flux[dir].array(mfi);
-            ParallelFor(box, ncomp,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
-                flux(i,j,k,n) = ya_oracle_fine_flux(dir, i, j, k, n);
-            });
-        }
+        fill_ya_oracle_flux(coarse_flux[dir], dir, false);
+        fill_ya_oracle_flux(fine_flux[dir], dir, true);
     }
     amrex::Gpu::streamSynchronize();
 
@@ -1823,17 +1854,10 @@ TEST(SBMAMRYA, LocalizedCorrectionPreservesCoveredAndFarfieldBits)
     measure.setVal(Real(0.1));
     correction.setVal(Real(0.0));
     invalid.setVal(Real(0.0));
-    for (MFIter mfi(candidate, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box box = mfi.tilebox();
-        const auto values = candidate.array(mfi);
-        const auto delta = correction.array(mfi);
-        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            if (i == 2 && j == 2 && k == 2) values(i,j,k,1) = -Real(0.0);
-            if (i == 0 && j == 0 && k == 0) values(i,j,k,1) = -Real(0.0);
-            if (i == 3 && j == 0 && k == 0) delta(i,j,k,0) = Real(0.005);
-            if (i == 0 && j == 3 && k == 0) delta(i,j,k,1) = -Real(0.002);
-        });
-    }
+    set_cell_value(candidate, IntVect(2, 2, 2), 1, -Real(0.0));
+    set_cell_value(candidate, IntVect(0, 0, 0), 1, -Real(0.0));
+    set_cell_value(correction, IntVect(3, 0, 0), 0, Real(0.005));
+    set_cell_value(correction, IntVect(0, 3, 0), 1, -Real(0.002));
     MultiFab::Copy(before, candidate, 0, 0, 2, 0);
     std::string diagnostic;
     ASSERT_TRUE(erf_sbm::ApplyMappedRefluxCorrectionChunk(
@@ -1881,12 +1905,7 @@ TEST(SBMAMRYA, LocalizedCorrectionPreservesCoveredAndFarfieldBits)
     bad_delta.setVal(Real(0.0));
     bad_invalid.setVal(Real(0.0));
     MultiFab::Copy(bad_candidate, before, 0, 0, 2, 0);
-    for (MFIter mfi(bad_delta, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto delta = bad_delta.array(mfi);
-        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            if (i == 2 && j == 2 && k == 2) delta(i,j,k,0) = Real(0.001);
-        });
-    }
+    set_cell_value(bad_delta, IntVect(2, 2, 2), 0, Real(0.001));
     ASSERT_TRUE(erf_sbm::ApplyMappedRefluxCorrectionChunk(
         bad_candidate, bad_delta, measure, covered, {0}, bad_invalid,
         diagnostic)) << diagnostic;
@@ -1896,14 +1915,7 @@ TEST(SBMAMRYA, LocalizedCorrectionPreservesCoveredAndFarfieldBits)
 
     MultiFab global_roundtrip(coarse_ba, coarse_dm, 2, 0);
     MultiFab::Copy(global_roundtrip, before, 0, 0, 2, 0);
-    for (MFIter mfi(global_roundtrip, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box box = mfi.tilebox();
-        const auto values = global_roundtrip.array(mfi);
-        const auto omega = measure.const_array(mfi);
-        ParallelFor(box, 2, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-            values(i,j,k,n) = omega(i,j,k,0) * values(i,j,k,n) / omega(i,j,k,0);
-        });
-    }
+    roundtrip_through_measure(global_roundtrip, measure);
     MultiFab::Subtract(global_roundtrip, before, 0, 0, 2, 0);
     EXPECT_GT(global_roundtrip.norm0(0), Real(0.0));
 }

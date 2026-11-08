@@ -10,16 +10,12 @@ set(_log_file "${TEST_ROOT}/qualification.log")
 set(_command "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "${MPI_RANKS}"
              "${ERF_EXECUTABLE}" "${INPUT_FILE}")
 if(ZERO_FLOW)
+  # The compressible host leaves a one-ULP carrier at zero wind; the
+  # anelastic RK2 carrier is exactly zero.
   list(APPEND _command
     "erf.sbm_amr_qualification_expect_zero_flow=true"
-    "prob.U_0=0" "prob.V_0=0" "prob.W_0=0")
-  if(NOT DEFINED SBM_NBINS)
-    # The compressible host's pressure-minus-base-pressure path leaves a
-    # one-ULP gradient for this thermodynamic state. Use the exactly-zero
-    # anelastic RK2 carrier as the dedicated zero-transport oracle; retain
-    # compressible RK3 for the component-width communication profiles.
-    list(APPEND _command "erf.anelastic=1" "erf.anelastic_type=RK2")
-  endif()
+    "prob.U_0=0" "prob.V_0=0" "prob.W_0=0"
+    "erf.anelastic=1" "erf.anelastic_type=RK2")
 endif()
 if(DEFINED SBM_NBINS)
   math(EXPR _sbm_cloud_rain_split "${SBM_NBINS} / 2")
@@ -118,13 +114,8 @@ if(NOT _step_count EQUAL EXPECTED_STEPS)
 endif()
 foreach(_line IN LISTS _step_lines)
   if(ZERO_FLOW)
-    if(DEFINED SBM_NBINS)
-      set(_zero_flow_record_regex
-         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[0-9.eE+-]+.*limiter_active_groups=[0-9]+.*limiter_changed_rate=false.*zero_flow=true.*zero_flow_tolerance=[0-9.eE+-]+.*max_carrier=[0-9.eE+-]+ max_accepted_rate=[0-9.eE+-]+")
-    else()
-      set(_zero_flow_record_regex
-         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[0-9.eE+-]+.*limiter_active_groups=[0-9]+.*limiter_changed_rate=false.*zero_flow=true.*zero_flow_tolerance=[0-9.eE+-]+.*max_carrier=0 max_accepted_rate=0")
-    endif()
+    set(_zero_flow_record_regex
+       "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[0-9.eE+-]+.*limiter_active_groups=[0-9]+.*limiter_changed_rate=false.*zero_flow=true.*zero_flow_tolerance=[0-9.eE+-]+.*max_carrier=0 max_accepted_rate=0")
     if(NOT _line MATCHES "${_zero_flow_record_regex}")
       message(FATAL_ERROR
         "Zero-flow qualification exceeded the accepted correction or inventory bound: ${_line}\nSee ${_log_file}")
@@ -140,10 +131,10 @@ foreach(_line IN LISTS _step_lines)
   else()
     if(DEFINED SBM_NBINS)
       set(_nonzero_record_regex
-         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[1-9][0-9.eE+-]*.*limiter_active_groups=[1-9][0-9]*.*limiter_changed_rate=true.*zero_flow=false")
+         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[0-9.]*[1-9][0-9.eE+-]*.*limiter_active_groups=[1-9][0-9]*.*limiter_changed_rate=true.*zero_flow=false")
     else()
       set(_nonzero_record_regex
-         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=1.*reflux_syncs=1.*nonzero_reflux_linf=[1-9][0-9.eE+-]*.*limiter_active_groups=[1-9][0-9]*.*limiter_changed_rate=true.*zero_flow=false")
+         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=1.*reflux_syncs=1.*nonzero_reflux_linf=[0-9.]*[1-9][0-9.eE+-]*.*limiter_active_groups=[1-9][0-9]*.*limiter_changed_rate=true.*zero_flow=false")
     endif()
     if(NOT _line MATCHES "${_nonzero_record_regex}")
       message(FATAL_ERROR
@@ -168,7 +159,7 @@ if(EXPECT_SPLIT)
           "Split qualification did not observe a remote ${_type} face ghost at depth ${_depth}; see ${_log_file}")
       endif()
       if(NOT _ghost_value_line MATCHES
-         "dest_rank=[0-9]+.*donor_rank=[0-9]+.*received=[^ ]+ expected=[^ ]+ neighbor_expected=[^ ]+ contrast=[1-9][^ ]*")
+         "dest_rank=[0-9]+.*donor_rank=[0-9]+.*received=[^ ]+ expected=[^ ]+ neighbor_expected=[^ ]+ contrast=[0-9.]*[1-9][^ ]*")
         message(FATAL_ERROR
           "Split ${_type} depth-${_depth} value record lacks donor/receiver values or a spatial discriminator: ${_ghost_value_line}")
       endif()

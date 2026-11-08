@@ -338,7 +338,8 @@ if(ERF_ENABLE_TESTS)
             -DEXPECTED_STEPS=1
             -DEXPECTED_FINE_SUBSTEPS=3
             -DSBM_NBINS=${_sbm_profile_ncomp}
-            -DMAX_STEPS=1)
+            -DMAX_STEPS=1
+            -DSPATIAL_SPLIT_FIXTURE=ON)
         if(_sbm_profile_ranks GREATER 1)
           list(APPEND _sbm_profile_args
                -DEXPECT_SPLIT=ON

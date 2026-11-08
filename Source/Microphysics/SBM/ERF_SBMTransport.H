@@ -52,6 +52,8 @@ struct SBMAMRStageGhostProbe {
     int* sampled_rate_hit_device{nullptr};
     int skipped_global_component{-1};
     bool seed_finite_stale_value{false};
+    // Store the skipped component but omit its write-tally increment.
+    bool skip_write_tally_only{false};
     amrex::Real stale_value{amrex::Real(0.25)};
 };
 
@@ -209,6 +211,7 @@ class SBMTransport
     bool m_keep_spectral_ledger_reference{true};
 #ifdef ERF_SBM_AMR_QUALIFICATION
     bool m_zero_flow_diagnostics_enabled{false};
+    bool m_split_ghost_values_checked{false};
     int m_interval_limiter_active_groups{0};
     bool m_interval_limiter_changed_rate{false};
     amrex::Real m_interval_carrier_linf{amrex::Real(0.0)};
