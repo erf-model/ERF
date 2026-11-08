@@ -495,6 +495,12 @@ if(ERF_ENABLE_MOVING_BODIES)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestRunningStats.cpp
   )
+  # Motivation: a structure model that registers itself from its own file must be listed and
+  # created by the name erf.structures.model gives; an unknown name must stop the run with
+  # the names it accepts, and a name registered twice or an empty name must stop it too.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestStructureRegistry.cpp
+  )
 endif()
 build_erf_exe(${erf_exe_name} NO_ERF_MAIN)
 target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)

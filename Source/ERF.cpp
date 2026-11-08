@@ -2246,6 +2246,12 @@ ERF::InitData_post ()
     const std::string& pv2d_1 = "plot2d_vars_1"; appendPlotVariables(pv2d_1,plot2d_var_names_1);
     const std::string& pv2d_2 = "plot2d_vars_2"; appendPlotVariables(pv2d_2,plot2d_var_names_2);
 
+#ifdef ERF_USE_MOVING_BODIES
+    // The structure model starts once the mesh and the initial (or restart) state
+    // exist, before the step-0 outputs
+    if (m_structure_model) { initialize_structure_model(); }
+#endif
+
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
     {

@@ -806,6 +806,13 @@ ERF::WriteCheckpointFile () const
     }
 #endif
 
+#ifdef ERF_USE_MOVING_BODIES
+    // The structure model's own state, under checkpointname/<model name>
+    if (m_structure_model) {
+        m_structure_model->write_checkpoint(checkpointname);
+    }
+#endif
+
     if (m_SurfaceModel) {
         m_SurfaceModel->WriteCheckpoint(checkpointname);
     }

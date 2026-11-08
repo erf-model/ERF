@@ -395,13 +395,24 @@ else ifneq ($(strip $(FIRE_HOME)),)
     $(error FIRE_HOME is set but USE_FIRE is not TRUE)
 endif
 
-# The actuator core for bodies in the flow (Source/MovingBodies/Core)
+# The actuator core and the structure coupling for bodies in the flow
+# (Source/MovingBodies/Core, Source/MovingBodies/Coupling). Each directory in
+# STRUCTURE_HOME (one or more, space separated) is a structure model with its
+# own Make.package, compiled in as the fire engines of FIRE_HOME are.
 ifeq ($(USE_MOVING_BODIES), TRUE)
     DEFINES += -DERF_USE_MOVING_BODIES
     ERF_MOVING_BODIES_CORE_DIR = $(ERF_SOURCE_DIR)/MovingBodies/Core
     include $(ERF_MOVING_BODIES_CORE_DIR)/Make.package
     VPATH_LOCATIONS   += $(ERF_MOVING_BODIES_CORE_DIR)
     INCLUDE_LOCATIONS += $(ERF_MOVING_BODIES_CORE_DIR)
+    ERF_STRUCTURE_COUPLING_DIR = $(ERF_SOURCE_DIR)/MovingBodies/Coupling
+    include $(ERF_STRUCTURE_COUPLING_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_STRUCTURE_COUPLING_DIR)
+    INCLUDE_LOCATIONS += $(ERF_STRUCTURE_COUPLING_DIR)
+    $(foreach d,$(STRUCTURE_HOME),$(if $(wildcard $(d)/Make.package),,$(error STRUCTURE_HOME: $(d) has no Make.package)))
+    $(foreach d,$(STRUCTURE_HOME),$(eval STRUCTURE_MODEL_DIR := $(abspath $(d)))$(eval include $(STRUCTURE_MODEL_DIR)/Make.package)$(eval VPATH_LOCATIONS += $(STRUCTURE_MODEL_DIR))$(eval INCLUDE_LOCATIONS += $(STRUCTURE_MODEL_DIR)))
+else ifneq ($(strip $(STRUCTURE_HOME)),)
+    $(error STRUCTURE_HOME is set but USE_MOVING_BODIES is not TRUE)
 endif
 
 # If using windfarm parametrization, then compile all models and choose
