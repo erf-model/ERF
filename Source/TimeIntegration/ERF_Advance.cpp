@@ -510,6 +510,15 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
+    // A periodic face velocity is stored twice, at both ends of the domain; make the two copies equal
+    if (solverChoice.face_sync_int > 0 && (istep[lev] % solverChoice.face_sync_int == 0)
+        && geom[lev].isAnyPeriodic())
+    {
+        U_new.OverrideSync(geom[lev].periodicity());
+        V_new.OverrideSync(geom[lev].periodicity());
+        W_new.OverrideSync(geom[lev].periodicity());
+    }
+
 #ifdef ERF_USE_FIRE
     // Advance the fire on the level its grid refines (erf.fire.anchor_level).
     // The coupler hands the engine the wind (before the dycore with passive and
