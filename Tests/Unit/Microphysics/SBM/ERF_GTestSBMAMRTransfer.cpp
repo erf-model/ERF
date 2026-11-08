@@ -2529,7 +2529,7 @@ TEST(SBMAMRTransfer, MeasuresRealTransferOperatorAndDenseYAAllocations)
             16, false, &admission, &prolongation_census)) << diagnostic;
         const std::uint64_t prolongation_peak =
             prolongation_census.peak_extra_bytes();
-        const std::uint64_t prolongation_bound = std::max(
+        const std::uint64_t prolongation_bound = std::max<std::uint64_t>(
             3ULL * fine_cells + 5ULL * coarse_cells,
             static_cast<std::uint64_t>(max_chunk_components) *
                     (fine_cells + coarse_cells) + fine_cells + coarse_cells) *

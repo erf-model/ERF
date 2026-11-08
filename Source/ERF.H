@@ -597,6 +597,17 @@ public:
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, double dt_lev);
 
+    // Defined only in ERF_SBM_AMR_QUALIFICATION builds
+    // (Microphysics/SBM/ERF_SBMAMRQualification.cpp); public because they
+    // launch device lambdas.
+    void sbm_qualification_apply_initial_profile (int lev);
+    void sbm_qualification_record_initial_inventory ();
+    void sbm_qualification_check_step (int nstep, amrex::Real correction_linf,
+                                       std::uint64_t reflux_calls,
+                                       std::uint64_t reflux_syncs);
+    [[nodiscard]] std::vector<amrex::Real>
+    sbm_qualification_composite_inventory () const;
+
     // Do whatever writing needs to be done at intermediate times
     void WriteAtIntermediateTime (int nstep, double time);
 
@@ -1223,16 +1234,6 @@ private:
                                      const amrex::BoxArray& ba,
                                      const amrex::DistributionMapping& dm);
     void sbm_synchronize_levels (int nstep);
-
-    // Defined only in ERF_SBM_AMR_QUALIFICATION builds
-    // (Microphysics/SBM/ERF_SBMAMRQualification.cpp)
-    void sbm_qualification_apply_initial_profile (int lev);
-    void sbm_qualification_record_initial_inventory ();
-    void sbm_qualification_check_step (int nstep, amrex::Real correction_linf,
-                                       std::uint64_t reflux_calls,
-                                       std::uint64_t reflux_syncs);
-    [[nodiscard]] std::vector<amrex::Real>
-    sbm_qualification_composite_inventory () const;
 
     void Construct_ERFFillPatchers (int lev);
 

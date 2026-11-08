@@ -1301,6 +1301,7 @@ run_transport (const RunOptions& options)
         amrex::YAFluxRegister reference_register(
             fine_interface_ba, ba, fine_interface_dm, dm,
             *fine_interface_geom, geom, interface_ratio, 1, layout.ncomp());
+        reference_register.reset();
         const auto& integrated =
             transport.completed_spectral_ledger(0).integrated_flux();
         MultiFab no_allocation_cells(
@@ -1330,6 +1331,9 @@ run_transport (const RunOptions& options)
         }
         reference_register.Reflux(reference_candidate, 0, 0, layout.ncomp());
         amrex::Gpu::streamSynchronize();
+        // norm0 skips NaN, so check finiteness before comparing.
+        EXPECT_TRUE(direct_candidate.is_finite(0, layout.ncomp(), 0));
+        EXPECT_TRUE(reference_candidate.is_finite(0, layout.ncomp(), 0));
         MultiFab direct_reference_error(ba, dm, layout.ncomp(), 0);
         MultiFab::Copy(direct_reference_error, direct_candidate, 0, 0,
                        layout.ncomp(), 0);
