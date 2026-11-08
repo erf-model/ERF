@@ -150,7 +150,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                              phys_bc_type);
         }
 
-        bool l_rayleigh_implicit = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);
+        bool l_rayleigh_implicit = solverChoice.rayleigh_implicit_w(level);
         Real l_damp_coef         = solverChoice.dampingChoice.rayleigh_dampcoef;
 
         // The coarse/fine face fluxes of the last RK stage (ERF_CFFluxHistory.cpp): a coarse
