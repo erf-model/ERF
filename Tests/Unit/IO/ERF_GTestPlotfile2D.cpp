@@ -391,9 +391,10 @@ TEST(Plotfile2DWaterPath, NoPrecipitationSchemesExcludeAccumulations)
 }
 
 // Motivation: Availability must reflect the compiled/provider path: raw
-// Noah-MP fields are hidden without Noah-MP, while SurfaceLayer-only unified
-// temperature remains selectable and dry-run humidity does not.
-TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
+// Noah-MP (LandSurface) fields are hidden without Noah-MP, while the NearSurface
+// 2 m temperature remains selectable from the surface layer alone and the 2 m
+// humidity is offered only in a moist run.
+TEST(Plotfile2DWaterPath, NearSurfaceAvailabilityIsSchemeAware)
 {
     SolverChoice dry;
     // This case has no land model, including in a Noah-MP-enabled build.
@@ -408,6 +409,12 @@ TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
 
     SolverChoice moist = dry;
     moist.moisture_type = MoistureType::MoistNoCondensation;
+    const auto moist_surface_layer_names = plotfile2d::available_diagnostic_names(moist, true);
+    EXPECT_TRUE(has_name(moist_surface_layer_names, "temperature_2m"));
+    EXPECT_TRUE(has_name(moist_surface_layer_names, "water_vapor_mixing_ratio_2m"));
+    EXPECT_TRUE(has_name(moist_surface_layer_names, "near_surface_diagnostic_source"));
+    EXPECT_FALSE(has_name(moist_surface_layer_names, "noahmp_vegetation_fraction"));
+
     const auto no_surface_layer_names = plotfile2d::available_diagnostic_names(moist, false);
     EXPECT_FALSE(has_name(no_surface_layer_names, "temperature_2m"));
     EXPECT_FALSE(has_name(no_surface_layer_names, "water_vapor_mixing_ratio_2m"));
