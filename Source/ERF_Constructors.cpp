@@ -16,6 +16,9 @@
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
 #include "ERF_SBMAMRFluxRegister.H"
+#ifdef ERF_SBM_AMR_QUALIFICATION
+#include "ERF_SBMAMRQualification.H"
+#endif
 
 #include <algorithm>
 #include <string>
@@ -41,18 +44,9 @@ erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
 
     erf_sbm::SBMLayoutSpec spec;
     spec.populations.push_back(std::move(population));
-    if (choice.sbm_amr_qualification_test &&
-        choice.sbm_moment_mode == 2) {
-        erf_sbm::AttachedPropertyDescriptor property;
-        property.name = "qualification_number_tracer";
-        property.semantic_id = "qualification_number_tracer";
-        property.units = "m^-3";
-        property.carrier_population = 0;
-        property.kind = erf_sbm::PropertyKind::NumberCarried;
-        property.support = erf_sbm::SupportRequirement::PositiveNumber;
-        property.support_min = amrex::Real(0.0);
-        spec.attached_properties.push_back(std::move(property));
-    }
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    erf_sbm::qualification::add_layout_properties(spec, choice);
+#endif
     spec.liquid_projection = {0, choice.sbm_cloud_rain_split};
     const auto validation = erf_sbm::SBMLayout::validate(spec);
     if (!validation.valid) {
@@ -68,85 +62,7 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(AMREX_SPACEDIM == 3,
         "SBM M3 mapped advection requires three dimensions");
 #ifdef ERF_SBM_AMR_QUALIFICATION
-    if (max_level > 0) {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level == 1 &&
-                                         choice.sbm_amr_qualification_test,
-            "the isolated SBM AMR qualification build permits only its "
-            "explicit fixed two-level test deck");
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            choice.mesh_type == MeshType::ConstantDz &&
-            choice.terrain_type == TerrainType::None &&
-            choice.buildings_type == BuildingsType::None &&
-            choice.coupling_type == CouplingType::TwoWay,
-            "SBM AMR qualification requires static ConstantDz, no EB/terrain, "
-            "and TwoWay coupling");
-        amrex::ParmParse pp_erf("erf");
-        int regrid_interval = -1;
-        pp_erf.query("regrid_int", regrid_interval);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(regrid_interval == 0,
-            "SBM AMR qualification requires erf.regrid_int=0 after initial refinement");
-        int check_interval = -1;
-        double check_period = -1.0;
-        pp_erf.query("check_int", check_interval);
-        pp_erf.query("check_per", check_period);
-        amrex::ParmParse pp_amr("amr");
-        int amr_check_interval = -1;
-        double amr_check_period = -1.0;
-        pp_amr.query("check_int", amr_check_interval);
-        pp_amr.query("check_per", amr_check_period);
-        std::string erf_restart, amr_restart;
-        pp_erf.query("restart", erf_restart);
-        pp_amr.query("restart", amr_restart);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            erf_restart.empty() && amr_restart.empty() &&
-            check_interval <= 0 && check_period <= 0.0 &&
-            amr_check_interval <= 0 && amr_check_period <= 0.0,
-            "SBM AMR qualification excludes checkpoint/restart");
-        const bool all_levels_compressible = std::all_of(
-            choice.compressibility_type.begin(),
-            choice.compressibility_type.end(),
-            [] (CompressibilityType type) {
-                return type == CompressibilityType::FullyCompressible;
-            });
-        const bool all_levels_anelastic_rk2 =
-            !choice.compressibility_type.empty() &&
-            std::all_of(choice.compressibility_type.begin(),
-                        choice.compressibility_type.end(),
-                        [] (CompressibilityType type) {
-                            return type == CompressibilityType::Anelastic;
-                        }) &&
-            std::all_of(choice.timestepping_type.begin(),
-                        choice.timestepping_type.end(),
-                        [] (TimesteppingType type) {
-                            return type == TimesteppingType::RK2;
-                        });
-        // The compressible host leaves a roundoff carrier at zero wind.
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            !choice.sbm_amr_qualification_expect_zero_flow ||
-            all_levels_anelastic_rk2,
-            "SBM zero-flow AMR qualification requires the exact-zero "
-            "anelastic RK2 carrier on every level");
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            (all_levels_compressible ||
-             choice.sbm_amr_qualification_expect_zero_flow) &&
-            choice.diffChoice.molec_diff_type == MolecDiffType::None &&
-            !choice.turbChoice[0].use_kturb &&
-            choice.turbChoice[0].pbl_type == PBLType::None &&
-            !choice.use_num_diff &&
-            choice.spongeChoice.sponge_type == SpongeType::None &&
-            !choice.any_perturbation() && !choice.custom_w_subsidence &&
-            !choice.large_scale_forcing && !choice.nudging_from_input_sounding &&
-            !choice.custom_moisture_forcing && !choice.use_real_bcs,
-            "SBM AMR qualification excludes unqualified forcing, diffusion, "
-            "SHOC, and nonperiodic boundary physics");
-    } else {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            !choice.sbm_amr_qualification_test &&
-            !choice.sbm_amr_qualification_expect_zero_flow &&
-            !choice.sbm_amr_qualification_expect_split &&
-            !choice.sbm_amr_qualification_expect_empty_fine_rank,
-            "the internal SBM AMR qualification flag requires amr.max_level=1");
-    }
+    erf_sbm::qualification::validate_configuration(choice, max_level);
 #else
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level == 0,
         "SBM M3 mapped advection supports one AMR level only");

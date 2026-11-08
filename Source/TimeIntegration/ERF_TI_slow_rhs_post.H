@@ -69,6 +69,8 @@
                 solverChoice.sbm_amr_qualification_test;
             sbm_parent_stage.validate_split_ghost_values =
                 solverChoice.sbm_amr_qualification_expect_split;
+            sbm_parent_stage.inject_parent_store_fault =
+                solverChoice.sbm_amr_qualification_parent_store_fault;
             sbm_parent_stage_ptr = &sbm_parent_stage;
         }
 

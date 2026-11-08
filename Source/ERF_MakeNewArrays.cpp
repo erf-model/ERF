@@ -17,8 +17,6 @@
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_ParFunctions.H"
-#include "ERF_SBMAMRFluxRegister.H"
-#include "ERF_SBMTransport.H"
 
 
 using namespace amrex;
@@ -729,14 +727,9 @@ ERF::define_column_kextent (int lev, const BoxArray& ba, const DistributionMappi
 void
 ERF::make_flux_register (int lev)
 {
-    if (static_cast<int>(sbm_amr_flux_regs.size()) <= lev) {
-        sbm_amr_flux_regs.resize(lev + 1);
-    }
     if (solverChoice.coupling_type != CouplingType::TwoWay || lev == 0) {
         advflux_reg[lev].reset();
-        if (lev > 0) { sbm_amr_flux_regs[lev].reset(); }
-        if (lev > 0) { bind_sbm_amr_flux_registers(lev - 1); }
-        bind_sbm_amr_flux_registers(lev);
+        make_sbm_flux_register(lev);
         return;
     }
     int ncomp_reflux = vars_new[0][Vars::cons].nComp();
@@ -744,37 +737,7 @@ ERF::make_flux_register (int lev)
                                                         dmap[lev] ,  dmap[lev-1],
                                                         geom[lev] ,  geom[lev-1],
                                                         ref_ratio[lev-1], lev, ncomp_reflux);
-    if (solverChoice.moisture_type == MoistureType::SBM) {
-        AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr);
-        sbm_amr_flux_regs[lev] =
-            std::make_unique<erf_sbm::SBMAMRFluxRegister>();
-        sbm_amr_flux_regs[lev]->define(
-            grids[lev], grids[lev-1], dmap[lev], dmap[lev-1], geom[lev],
-            geom[lev-1], ref_ratio[lev-1], lev,
-            sbm_state_manager->layout().ncomp());
-    } else {
-        sbm_amr_flux_regs[lev].reset();
-    }
-    bind_sbm_amr_flux_registers(lev - 1);
-    bind_sbm_amr_flux_registers(lev);
-}
-
-void
-ERF::bind_sbm_amr_flux_registers (int lev)
-{
-    if (!sbm_transport || lev < 0 || lev >= sbm_transport->nlevels() ||
-        !sbm_transport->is_defined(lev)) {
-        return;
-    }
-    erf_sbm::SBMAMRFluxRegister* as_fine = nullptr;
-    erf_sbm::SBMAMRFluxRegister* as_coarse = nullptr;
-    if (lev >= 0 && lev < static_cast<int>(sbm_amr_flux_regs.size())) {
-        as_fine = sbm_amr_flux_regs[lev].get();
-    }
-    if (lev + 1 < static_cast<int>(sbm_amr_flux_regs.size())) {
-        as_coarse = sbm_amr_flux_regs[lev + 1].get();
-    }
-    sbm_transport->set_amr_flux_registers(lev, as_coarse, as_fine);
+    make_sbm_flux_register(lev);
 }
 
 void

@@ -8,8 +8,6 @@
 */
 
 #include <memory>
-#include <cstdlib>
-#include <cstring>
 #include "ERF_Constants.H"
 
 #include "AMReX_buildInfo.H"
@@ -20,7 +18,6 @@
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
 #include "ERF_SBMAMRFluxRegister.H"
-#include "ERF_SBMAMRTransfer.H"
 
 using namespace amrex;
 
@@ -213,57 +210,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 solverChoice.sbm_fixture_initial_state[static_cast<std::size_t>(comp)], comp, 1, 0);
         }
 #ifdef ERF_SBM_AMR_QUALIFICATION
-        const char* spatial_profile = std::getenv(
-            "ERF_SBM_AMR_TEST_SPATIAL_PROFILE");
-        if (spatial_profile != nullptr &&
-            std::strcmp(spatial_profile, "unique") == 0 &&
-            solverChoice.sbm_amr_qualification_test) {
-            // Split-layout MPI oracle: assign every valid cell a deterministic,
-            // spatially unique common factor while preserving all 2M and
-            // attached-property support ratios. The profile is evaluated on
-            // each level's integer domain and is enabled only by the private
-            // CTest environment, never by a user-facing input parameter.
-            auto& spectrum = sbm_state_manager->new_state_for_initialization(lev);
-            const Box domain = geom[lev].Domain();
-            const Long nx = domain.length(0);
-            const Long ny = domain.length(1);
-            const Long nz = domain.length(2);
-            const Long cells = nx * ny * nz;
-            const int ncomp = spectrum.nComp();
-            for (MFIter mfi(spectrum, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box bx = mfi.tilebox();
-                const auto values = spectrum.array(mfi);
-                ParallelFor(bx, ncomp,
-                    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                        const Long ii = static_cast<Long>(i - domain.smallEnd(0));
-                        const Long jj = static_cast<Long>(j - domain.smallEnd(1));
-                        const Long kk = static_cast<Long>(k - domain.smallEnd(2));
-                        const Long index = ii + nx * (jj + ny * kk);
-                        const Real factor = Real(0.5) + Real(0.5) *
-                            static_cast<Real>(index) / static_cast<Real>(cells);
-                        values(i, j, k, n) *= factor;
-                    });
-            }
-        } else if (lev == 0 && solverChoice.sbm_amr_qualification_test &&
-                   !solverChoice.sbm_amr_qualification_expect_zero_flow) {
-            // A canonical, component-wise common factor creates a sharp
-            // periodic translation profile while preserving each 2M bin's
-            // mass/number ratio and every attached-property support ratio.
-            // The jump is placed at the left edge of the fixed refined box.
-            auto& spectrum = sbm_state_manager->new_state_for_initialization(lev);
-            const int jump_x = geom[lev].Domain().smallEnd(0) +
-                               geom[lev].Domain().length(0) / 4;
-            const int ncomp = spectrum.nComp();
-            for (MFIter mfi(spectrum, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box bx = mfi.tilebox();
-                const auto values = spectrum.array(mfi);
-                ParallelFor(bx, ncomp,
-                    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                        const Real factor = i < jump_x ? Real(0.1) : Real(1.0);
-                        values(i, j, k, n) *= factor;
-                    });
-            }
-        }
+        sbm_qualification_apply_initial_profile(lev);
 #endif
         AMREX_ALWAYS_ASSERT(sbm_transport != nullptr);
         sbm_transport->define(lev, ba, dm);
@@ -1068,55 +1015,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         initRayleigh_at_level(lev);
     }
 
-    // Build the fine spectral current state only after ERF has finalized the
-    // new host density, geometry, map factors and Jacobian. The manager's
-    // existing new-state buffer is the target-time view; the private candidate
-    // is temporary and is published only after carrier-relative admission.
     if (sbm_state_manager) {
-        AMREX_ALWAYS_ASSERT(sbm_transport != nullptr && lev > 0);
-        sbm_state_manager->define(lev, ba, dm, static_cast<double>(time));
-        sbm_transport->define(lev, ba, dm);
-        bind_sbm_amr_flux_registers(lev);
-        bind_sbm_amr_flux_registers(lev - 1);
-        AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr &&
-                            mapfac[lev][MapFacType::m_x] != nullptr &&
-                            mapfac[lev][MapFacType::m_y] != nullptr);
-        std::string diagnostic;
-        if (!sbm_transport->rebuild_static_measure(
-                lev, *detJ_cc[lev], *mapfac[lev][MapFacType::m_x],
-                *mapfac[lev][MapFacType::m_y], diagnostic)) {
-            Abort("SBM fine-level mapped measure: " + diagnostic);
-        }
-        AMREX_ALWAYS_ASSERT(sbm_transport->measure_is_ready(lev - 1));
-        const double coarse_time = sbm_state_manager->new_time(lev - 1);
-        const double fine_time = static_cast<double>(time);
-        const auto& coarse_measure = sbm_transport->static_measure(lev - 1);
-        const auto& fine_measure = sbm_transport->static_measure(lev);
-        const auto& coarse_spectrum = sbm_state_manager->new_state(lev - 1);
-        const auto& fine_target = sbm_state_manager->new_state(lev);
-        erf_sbm::SBMAMRStateView coarse_view{
-            &coarse_spectrum, coarse_time,
-            &vars_new[lev - 1][Vars::cons], Rho_comp, coarse_time,
-            &coarse_measure, 0, coarse_time};
-        erf_sbm::SBMAMRStateView fine_view{
-            &fine_target, fine_time,
-            &vars_new[lev][Vars::cons], Rho_comp, fine_time,
-            &fine_measure, 0, fine_time};
-        MultiFab candidate(ba, dm, sbm_state_manager->layout().ncomp(), 0);
-        if (!erf_sbm::ProlongCarrierRelativeSpectrumPrivate(
-                sbm_state_manager->layout(), coarse_view, fine_view,
-                geom[lev - 1], geom[lev], ref_ratio[lev - 1], lev,
-                candidate, diagnostic, 16, false,
-                &sbm_transport->admission())) {
-            Abort("SBM fine-level carrier-relative initialization: " + diagnostic);
-        }
-        if (!sbm_state_manager->accept_synchronized_state(
-                lev, candidate, fine_time, diagnostic)) {
-            Abort("SBM fine-level candidate publication: " + diagnostic);
-        }
-        sbm_state_manager->project_to_core(
-            lev, vars_new[lev][Vars::cons], solverChoice.moisture_indices.qc,
-            solverChoice.moisture_indices.qr);
+        init_sbm_level_from_coarse(lev, time, ba, dm);
     }
 
 }

@@ -44,22 +44,15 @@ endif()
 if(DEFINED MAX_STEPS)
   list(APPEND _command "max_step=${MAX_STEPS}")
 endif()
-set(_test_environment)
 if(SPATIAL_SPLIT_FIXTURE)
-  list(APPEND _test_environment
-       "ERF_SBM_AMR_TEST_SPATIAL_PROFILE=unique")
+  list(APPEND _command "erf.sbm_amr_qualification_unique_profile=true")
 endif()
 set(_execute_process_timeout)
 if(FAILURE_TEST)
-  # This is a private, qualification-only environment fault.  It skips one
-  # actual coarse-only destination store on rank 0 while leaving the write
-  # tally intact; the CTest timeout remains a failure, never a passing death.
-  list(APPEND _test_environment
-       "ERF_SBM_AMR_TEST_SKIP_REMOTE_PARENT_STORE=rank0")
+  # Rank 0 skips one actual coarse-only destination store while keeping the
+  # write tally; the CTest timeout remains a failure, never a passing death.
+  list(APPEND _command "erf.sbm_amr_qualification_parent_store_fault=true")
   set(_execute_process_timeout TIMEOUT 45)
-endif()
-if(_test_environment)
-  list(PREPEND _command "${CMAKE_COMMAND}" -E env ${_test_environment})
 endif()
 execute_process(
   COMMAND ${_command}

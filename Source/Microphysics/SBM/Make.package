@@ -9,6 +9,7 @@ CEXE_sources += ERF_SBMRemapping.cpp
 CEXE_sources += ERF_SBMTransport.cpp
 CEXE_sources += ERF_SBMAMRTransfer.cpp
 CEXE_sources += ERF_SBMAMRFluxRegister.cpp
+CEXE_sources += ERF_SBMAMRCoupling.cpp
 CEXE_headers += ERF_SpectralGrid.H
 CEXE_headers += ERF_SBMLayout.H
 CEXE_headers += ERF_SBMConstraintGroups.H

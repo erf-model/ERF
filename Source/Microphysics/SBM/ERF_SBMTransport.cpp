@@ -1,5 +1,8 @@
 #include "ERF_SBMTransport.H"
 #include "ERF_SBMAMRFluxRegister.H"
+#ifdef ERF_SBM_AMR_QUALIFICATION
+#include "ERF_SBMAMRQualification.H"
+#endif
 
 #include "ERF_SBMRemapping.H"
 #include "ERF_SBMRestart.H"
@@ -13,13 +16,11 @@
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
-#include <AMReX_BoxIterator.H>
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <cstdlib>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -148,374 +149,6 @@ coarse_stage_theta (const double requested_time,
     return true;
 }
 
-#ifdef ERF_SBM_AMR_QUALIFICATION
-struct SplitGhostValueSample
-{
-    bool coarse_parent{false};
-    int depth{0};
-    int codimension{0};
-    int destination_box{-1};
-    int destination_rank{-1};
-    amrex::IntVect ghost{0};
-    int donor_box{-1};
-    int donor_rank{-1};
-    amrex::IntVect donor_cell{0};
-    int comparison_box{-1};
-    amrex::IntVect comparison_cell{0};
-};
-
-amrex::IntVect
-wrap_split_cell (amrex::IntVect cell, const amrex::Geometry& geometry)
-{
-    const auto domain = geometry.Domain();
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        if (!geometry.isPeriodic(dir)) continue;
-        const int length = domain.length(dir);
-        while (cell[dir] < domain.smallEnd(dir)) cell[dir] += length;
-        while (cell[dir] > domain.bigEnd(dir)) cell[dir] -= length;
-    }
-    return cell;
-}
-
-int
-split_containing_box (const amrex::BoxArray& boxes,
-                      const amrex::IntVect& cell)
-{
-    for (int index = 0; index < boxes.size(); ++index) {
-        if (boxes[index].contains(cell)) return index;
-    }
-    return -1;
-}
-
-std::pair<int, amrex::IntVect>
-split_comparison_cell (const amrex::IntVect& source,
-                       const amrex::BoxArray& boxes)
-{
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        for (int sign : {1, -1}) {
-            amrex::IntVect candidate = source;
-            candidate[dir] += sign;
-            const int owner_box = split_containing_box(boxes, candidate);
-            if (owner_box >= 0) return {owner_box, candidate};
-        }
-    }
-    return {-1, amrex::IntVect(0)};
-}
-
-std::vector<SplitGhostValueSample>
-select_split_ghost_value_samples (const amrex::BoxArray& coarse_ba,
-                                 const amrex::DistributionMapping& coarse_dm,
-                                 const amrex::Geometry& fine_geometry,
-                                 const amrex::BoxArray& fine_ba,
-                                 const amrex::DistributionMapping& fine_dm,
-                                 const amrex::IntVect& refinement_ratio)
-{
-    // Keep one remote sample for each halo depth and ghost codimension when
-    // the fixed layout contains one. The split test requires face samples at
-    // depths one and two; edges/corners are additionally emitted if present.
-    std::array<std::array<std::array<bool, 4>, 2>, 2> found{};
-    std::vector<SplitGhostValueSample> samples;
-    const auto domain = fine_geometry.Domain();
-    for (int destination_box = 0; destination_box < fine_ba.size();
-         ++destination_box) {
-        const auto valid = fine_ba[destination_box];
-        auto grown = valid;
-        grown.grow(2);
-        const int destination_rank = fine_dm[destination_box];
-        for (amrex::BoxIterator bit(grown); bit.ok(); ++bit) {
-            const auto ghost = bit();
-            if (valid.contains(ghost)) continue;
-            int depth = 0;
-            int codimension = 0;
-            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                int outside = 0;
-                if (ghost[dir] < valid.smallEnd(dir)) {
-                    outside = valid.smallEnd(dir) - ghost[dir];
-                } else if (ghost[dir] > valid.bigEnd(dir)) {
-                    outside = ghost[dir] - valid.bigEnd(dir);
-                }
-                if (outside > 0) {
-                    ++codimension;
-                    depth = std::max(depth, outside);
-                }
-            }
-            if (depth < 1 || depth > 2 || codimension < 1 ||
-                codimension > AMREX_SPACEDIM) {
-                continue;
-            }
-            const auto wrapped = wrap_split_cell(ghost, fine_geometry);
-            const int fine_donor = split_containing_box(fine_ba, wrapped);
-            const bool remote_fine = fine_donor >= 0 &&
-                fine_donor != destination_box &&
-                fine_dm[fine_donor] != destination_rank;
-            amrex::IntVect donor_cell = wrapped;
-            int donor_box = fine_donor;
-            bool coarse_parent = false;
-            int donor_rank = remote_fine ? fine_dm[fine_donor] : -1;
-            if (fine_donor < 0) {
-                auto parent_cell = wrapped;
-                parent_cell.coarsen(refinement_ratio);
-                const int parent_box = split_containing_box(coarse_ba,
-                                                              parent_cell);
-                if (parent_box < 0 || coarse_dm[parent_box] == destination_rank) {
-                    continue;
-                }
-                coarse_parent = true;
-                donor_cell = parent_cell;
-                donor_box = parent_box;
-                donor_rank = coarse_dm[parent_box];
-            } else if (!remote_fine) {
-                continue;
-            }
-            const int type = coarse_parent ? 0 : 1;
-            if (found[type][depth - 1][codimension]) continue;
-            const auto comparison = split_comparison_cell(
-                donor_cell, coarse_parent ? coarse_ba : fine_ba);
-            if (comparison.first < 0) continue;
-            SplitGhostValueSample sample;
-            sample.coarse_parent = coarse_parent;
-            sample.depth = depth;
-            sample.codimension = codimension;
-            sample.destination_box = destination_box;
-            sample.destination_rank = destination_rank;
-            sample.ghost = ghost;
-            sample.donor_box = donor_box;
-            sample.donor_rank = donor_rank;
-            sample.donor_cell = donor_cell;
-            sample.comparison_box = comparison.first;
-            sample.comparison_cell = comparison.second;
-            samples.push_back(sample);
-            found[type][depth - 1][codimension] = true;
-        }
-    }
-    for (int type = 0; type < 2; ++type) {
-        for (int depth = 1; depth <= 2; ++depth) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                found[type][depth - 1][1],
-                type == 0
-                    ? "split SBM qualification lacks a remote coarse-parent face ghost at a required depth"
-                    : "split SBM qualification lacks a remote fine-fine face ghost at a required depth");
-        }
-    }
-    return samples;
-}
-
-Real
-read_split_valid_value (const MultiFab& field, const int box_index,
-                        const amrex::IntVect& cell, const int component)
-{
-    for (amrex::MFIter mfi(field, false); mfi.isValid(); ++mfi) {
-        if (mfi.index() != box_index) continue;
-        const auto values = field.const_array(mfi);
-        Real result = Real(0.0);
-        amrex::Gpu::copy(amrex::Gpu::deviceToHost,
-                         values.ptr(cell, component),
-                         values.ptr(cell, component) + 1, &result);
-        amrex::Gpu::streamSynchronize();
-        return result;
-    }
-    return Real(0.0);
-}
-
-Real
-read_split_ghost_value (const MultiFab& field, const int box_index,
-                        const amrex::IntVect& cell, const int component)
-{
-    for (amrex::MFIter mfi(field, false); mfi.isValid(); ++mfi) {
-        if (mfi.index() != box_index) continue;
-        const auto values = field.const_array(mfi);
-        Real result = Real(0.0);
-        amrex::Gpu::copy(amrex::Gpu::deviceToHost,
-                         values.ptr(cell, component),
-                         values.ptr(cell, component) + 1, &result);
-        amrex::Gpu::streamSynchronize();
-        return result;
-    }
-    return Real(0.0);
-}
-
-void
-verify_split_ghost_values (const MultiFab& destination,
-                           const MultiFab& fine_source_state,
-                           const MultiFab& fine_source_conserved,
-                           const MultiFab& coarse_old_spectrum,
-                           const MultiFab& coarse_new_spectrum,
-                           const SBMAMRStageParent& parent,
-                           const amrex::Geometry& fine_geometry,
-                           const double theta,
-                           const int stage,
-                           const double requested_time)
-{
-    const auto samples = select_split_ghost_value_samples(
-        coarse_old_spectrum.boxArray(), coarse_old_spectrum.DistributionMap(),
-        fine_geometry, destination.boxArray(), destination.DistributionMap(),
-        parent.refinement_ratio);
-    const std::array<int, 2> components{0, destination.nComp() - 1};
-    const Real tolerance = Real(512.0) *
-                           std::numeric_limits<Real>::epsilon();
-    for (const auto& sample : samples) {
-        for (const int component : components) {
-            std::array<Real, 9> values{};
-            Real actual = Real(0.0);
-            if (amrex::ParallelDescriptor::MyProc() ==
-                sample.destination_rank) {
-                actual = read_split_ghost_value(
-                    destination, sample.destination_box, sample.ghost,
-                    component);
-            }
-            if (sample.coarse_parent) {
-                if (amrex::ParallelDescriptor::MyProc() == sample.donor_rank) {
-                    values[0] = read_split_valid_value(
-                        coarse_old_spectrum, sample.donor_box,
-                        sample.donor_cell, component);
-                    values[1] = read_split_valid_value(
-                        coarse_new_spectrum, sample.donor_box,
-                        sample.donor_cell, component);
-                    values[2] = read_split_valid_value(
-                        *parent.conserved_old, sample.donor_box,
-                        sample.donor_cell, Rho_comp);
-                    values[3] = read_split_valid_value(
-                        *parent.conserved_new, sample.donor_box,
-                        sample.donor_cell, Rho_comp);
-                }
-                if (amrex::ParallelDescriptor::MyProc() ==
-                    coarse_old_spectrum.DistributionMap()[sample.comparison_box]) {
-                    values[4] = read_split_valid_value(
-                        coarse_old_spectrum, sample.comparison_box,
-                        sample.comparison_cell, component);
-                    values[5] = read_split_valid_value(
-                        coarse_new_spectrum, sample.comparison_box,
-                        sample.comparison_cell, component);
-                    values[6] = read_split_valid_value(
-                        *parent.conserved_old, sample.comparison_box,
-                        sample.comparison_cell, Rho_comp);
-                    values[7] = read_split_valid_value(
-                        *parent.conserved_new, sample.comparison_box,
-                        sample.comparison_cell, Rho_comp);
-                }
-                values[8] = actual;
-                amrex::ParallelDescriptor::ReduceRealSum(
-                    values.data(), static_cast<int>(values.size()));
-                const Real theta_real = static_cast<Real>(theta);
-                const Real rho = (Real(1.0) - theta_real) * values[2] +
-                                 theta_real * values[3];
-                const Real expected =
-                    ((Real(1.0) - theta_real) * values[2] * values[0] +
-                     theta_real * values[3] * values[1]) / rho;
-                const Real comparison_rho =
-                    (Real(1.0) - theta_real) * values[6] +
-                    theta_real * values[7];
-                const Real comparison_expected =
-                    ((Real(1.0) - theta_real) * values[6] * values[4] +
-                     theta_real * values[7] * values[5]) / comparison_rho;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                    std::isfinite(values[8]) &&
-                        std::abs(values[8] - expected) <=
-                            tolerance * std::max(Real(1.0), std::abs(expected)),
-                    "split SBM coarse-parent received value differs from independently reconstructed U(t)/rho(t)");
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                    std::abs(expected - comparison_expected) >
-                        Real(100.0) * tolerance *
-                            std::max(Real(1.0), std::abs(expected)),
-                    "split SBM coarse-parent spatial fixture did not distinguish adjacent donors");
-                amrex::Print() << std::setprecision(17)
-                               << "SBM_AMR_QUAL_GHOST_VALUE type=coarse_parent"
-                               << " depth=" << sample.depth
-                               << " codim=" << sample.codimension
-                               << " component=" << component
-                               << " dest_rank=" << sample.destination_rank
-                               << " dest_box=" << sample.destination_box
-                               << " ghost=" << sample.ghost
-                               << " donor_rank=" << sample.donor_rank
-                               << " donor_box=" << sample.donor_box
-                               << " donor_cell=" << sample.donor_cell
-                               << " requested_time=" << requested_time
-                               << " received=" << values[8]
-                               << " expected=" << expected
-                               << " neighbor_expected=" << comparison_expected
-                               << " contrast="
-                               << std::abs(expected - comparison_expected)
-                               << '\n';
-            } else {
-                if (amrex::ParallelDescriptor::MyProc() == sample.donor_rank) {
-                    values[0] = read_split_valid_value(
-                        fine_source_state, sample.donor_box,
-                        sample.donor_cell, component);
-                    values[1] = read_split_valid_value(
-                        fine_source_conserved, sample.donor_box,
-                        sample.donor_cell, Rho_comp);
-                }
-                if (amrex::ParallelDescriptor::MyProc() ==
-                    fine_source_state.DistributionMap()[sample.comparison_box]) {
-                    values[2] = read_split_valid_value(
-                        fine_source_state, sample.comparison_box,
-                        sample.comparison_cell, component);
-                    values[3] = read_split_valid_value(
-                        fine_source_conserved, sample.comparison_box,
-                        sample.comparison_cell, Rho_comp);
-                }
-                values[4] = actual;
-                amrex::ParallelDescriptor::ReduceRealSum(
-                    values.data(), static_cast<int>(values.size()));
-                const Real expected = values[0] / values[1];
-                const Real comparison_expected = values[2] / values[3];
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                    std::isfinite(values[4]) &&
-                        std::abs(values[4] - expected) <=
-                            tolerance * std::max(Real(1.0), std::abs(expected)),
-                    "split SBM fine-fine received value differs from its remote valid-source intensive value");
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                    std::abs(expected - comparison_expected) >
-                        Real(100.0) * tolerance *
-                            std::max(Real(1.0), std::abs(expected)),
-                    "split SBM fine-fine spatial fixture did not distinguish adjacent donors");
-                amrex::Print() << std::setprecision(17)
-                               << "SBM_AMR_QUAL_GHOST_VALUE type=fine_fine"
-                               << " depth=" << sample.depth
-                               << " codim=" << sample.codimension
-                               << " component=" << component
-                               << " dest_rank=" << sample.destination_rank
-                               << " dest_box=" << sample.destination_box
-                               << " ghost=" << sample.ghost
-                               << " donor_rank=" << sample.donor_rank
-                               << " donor_box=" << sample.donor_box
-                               << " donor_cell=" << sample.donor_cell
-                               << " requested_time=" << requested_time
-                               << " received=" << values[4]
-                               << " expected=" << expected
-                               << " neighbor_expected=" << comparison_expected
-                               << " contrast="
-                               << std::abs(expected - comparison_expected)
-                               << '\n';
-            }
-        }
-    }
-    amrex::Print() << "SBM_AMR_QUAL_GHOST_VALUE_COMPLETE stage=" << stage
-                   << " requested_time=" << requested_time
-                   << " samples=" << samples.size() << '\n';
-}
-
-amrex::IntVect
-first_coarse_only_ghost (const MultiFab& mask)
-{
-    for (amrex::MFIter mfi(mask, false); mfi.isValid(); ++mfi) {
-        const amrex::Box fab_box = mfi.fabbox();
-        const auto npts = static_cast<std::size_t>(fab_box.numPts());
-        std::vector<Real> host(npts);
-        const Real* device = mask[mfi].dataPtr(0);
-        amrex::Gpu::copy(amrex::Gpu::deviceToHost, device, device + npts,
-                         host.begin());
-        amrex::Gpu::streamSynchronize();
-        for (std::size_t offset = 0; offset < npts; ++offset) {
-            if (host[offset] == Real(1.0)) {
-                return fab_box.atOffset(static_cast<amrex::Long>(offset));
-            }
-        }
-    }
-    return amrex::IntVect(std::numeric_limits<int>::min());
-}
-#endif
-
 void
 fill_coarse_parent_ghosts (MultiFab& destination,
                            MultiFab& missing_fine_ghosts,
@@ -549,17 +182,11 @@ fill_coarse_parent_ghosts (MultiFab& destination,
         probe->requested_role == current_role;
     bool inject_rank_local_store_fault = false;
 #ifdef ERF_SBM_AMR_QUALIFICATION
-    // Private MPI negative-oracle hook.  The CTest runner sets this only for
-    // the split-grid failure case; rank 0 then skips component 0's actual
-    // destination store at its first coarse-only ghost while retaining the
-    // independent wrote_components tally.
-    if (const char* fault = std::getenv(
-            "ERF_SBM_AMR_TEST_SKIP_REMOTE_PARENT_STORE")) {
-        inject_rank_local_store_fault =
-            std::strcmp(fault, "rank0") == 0 && level == 1 && stage == 0 &&
-            current_role == 0 &&
-            amrex::ParallelDescriptor::MyProc() == 0;
-    }
+    // Rank 0 skips component 0's actual store at its first coarse-only ghost
+    // while keeping the independent wrote_components tally.
+    inject_rank_local_store_fault =
+        parent.inject_parent_store_fault && level == 1 && stage == 0 &&
+        current_role == 0 && amrex::ParallelDescriptor::MyProc() == 0;
 #endif
     const double coarse_dt = parent.new_time - parent.old_time;
     const double dt_min = std::min(parent.fine_step_dt, coarse_dt);
@@ -646,7 +273,7 @@ fill_coarse_parent_ghosts (MultiFab& destination,
     amrex::IntVect fault_cell(std::numeric_limits<int>::min());
 #ifdef ERF_SBM_AMR_QUALIFICATION
     if (inject_rank_local_store_fault) {
-        fault_cell = first_coarse_only_ghost(missing_fine_ghosts);
+        fault_cell = qualification::first_coarse_only_ghost(missing_fine_ghosts);
     }
 #endif
 
@@ -1007,7 +634,7 @@ fill_coarse_parent_ghosts (MultiFab& destination,
         current_role == 0 && stage == 0 &&
         semantic_time_matches(requested_time, parent.old_time, dt_min)) {
         amrex::Gpu::streamSynchronize();
-        verify_split_ghost_values(
+        qualification::verify_split_ghost_values(
             destination, fine_source_state, fine_source_conserved,
             coarse_old_spectrum, coarse_new_spectrum, parent, fine_geometry,
             theta, stage, requested_time);

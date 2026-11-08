@@ -2,6 +2,7 @@
 #define ERF_H_
 
 #include <string>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <set>
@@ -595,9 +596,6 @@ public:
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, double dt_lev);
-    // Defined only in ERF_SBM_AMR_QUALIFICATION builds.
-    [[nodiscard]] std::vector<amrex::Real>
-    sbm_qualification_composite_inventory () const;
 
     // Do whatever writing needs to be done at intermediate times
     void WriteAtIntermediateTime (int nstep, double time);
@@ -1217,7 +1215,24 @@ private:
     void update_diffusive_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
     void make_flux_register (int lev);
+
+    // SBM coarse/fine coupling (Microphysics/SBM/ERF_SBMAMRCoupling.cpp)
+    void make_sbm_flux_register (int lev);
     void bind_sbm_amr_flux_registers (int lev);
+    void init_sbm_level_from_coarse (int lev, amrex::Real time,
+                                     const amrex::BoxArray& ba,
+                                     const amrex::DistributionMapping& dm);
+    void sbm_synchronize_levels (int nstep);
+
+    // Defined only in ERF_SBM_AMR_QUALIFICATION builds
+    // (Microphysics/SBM/ERF_SBMAMRQualification.cpp)
+    void sbm_qualification_apply_initial_profile (int lev);
+    void sbm_qualification_record_initial_inventory ();
+    void sbm_qualification_check_step (int nstep, amrex::Real correction_linf,
+                                       std::uint64_t reflux_calls,
+                                       std::uint64_t reflux_syncs);
+    [[nodiscard]] std::vector<amrex::Real>
+    sbm_qualification_composite_inventory () const;
 
     void Construct_ERFFillPatchers (int lev);
 

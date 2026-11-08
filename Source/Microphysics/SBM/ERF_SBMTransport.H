@@ -80,6 +80,8 @@ struct SBMAMRStageParent {
     // Qualification-only distributed-value check. It compares received
     // ghost data against values read directly from the owning valid FAB.
     bool validate_split_ghost_values{false};
+    // Qualification-only negative test: rank 0 skips one coarse-only ghost store.
+    bool inject_parent_store_fault{false};
 };
 
 /**
