@@ -420,6 +420,37 @@ function(build_erf_lib erf_lib_name)
     )
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Core>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOVING_BODIES)
+    # The lattice tower models: member drag, the one-mode tower, the frame (SubDyn-style beam
+    # elements, statics, modes, Newmark time stepping), generated lattice frames and the
+    # ASCE 10-15 member checks.
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/MovingBodies/Towers/ERF_MemberDrag.cpp
+      ${SRC_DIR}/MovingBodies/Towers/ERF_TowerInputs.cpp
+      ${SRC_DIR}/MovingBodies/Towers/ERF_Tower.cpp
+      ${SRC_DIR}/MovingBodies/Towers/ERF_TowerDynamics.cpp
+      ${SRC_DIR}/MovingBodies/Towers/ERF_FrameInputs.cpp
+      ${SRC_DIR}/MovingBodies/Towers/ERF_Frame.cpp
+      ${SRC_DIR}/MovingBodies/Towers/ERF_FrameDynamics.cpp
+      ${SRC_DIR}/MovingBodies/Towers/ERF_FrameTower.cpp
+      ${SRC_DIR}/MovingBodies/Towers/ERF_MemberChecks.cpp
+      ${SRC_DIR}/MovingBodies/Towers/ERF_LatticeFrame.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Towers>)
+    if(ERF_ENABLE_MOORDYN)
+      # The MoorDyn-C wrapper: one MoorDyn system behind the v2 C API, from the installed library or the stub.
+      target_sources(${erf_lib_name} PRIVATE
+        ${SRC_DIR}/MovingBodies/MoorDyn/ERF_MoorDynSystem.cpp
+      )
+      target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/MoorDyn>)
+      target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOORDYN ERF_MOORDYN_VERSION="${ERF_MOORDYN_VERSION}")
+      if(ERF_MOORDYN_USE_STUB)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_MOORDYN_USE_STUB)
+        set_erf_compile_flags(erf_moordyn_stub)   # the stub takes ERF's warning flags too
+        target_link_libraries(${erf_lib_name} PUBLIC erf_moordyn_stub)
+      else()
+        target_link_libraries(${erf_lib_name} PUBLIC MoorDyn::moordyn)
+      endif()
+    endif()
   endif()
 
   if(ERF_BUILD_LIBRARY_ONLY)

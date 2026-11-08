@@ -263,7 +263,14 @@ Test configuration options
        ``FireCouplingGTests_FpeTraps``, which reruns them with floating-point traps armed).
    * - ``ERF_ENABLE_MOVING_BODIES``
      - Enables the actuator core and its tests (``ActuatorSampling``, ``ActuatorSpreading``,
-       ``WakeLines``, ``RunningStats``; the first two also in the parallel executable).
+       ``WakeLines``, ``RunningStats``; the first two also in the parallel executable), and
+       the lattice tower models and theirs (``MemberDrag``, ``Tower``, ``TowerType``,
+       ``OneModeTower``, ``DirectionCosines``, ``BeamElement``, ``Frame``, ``BeamMass``,
+       ``FrameModes``, ``FrameDynamics``, ``RigidBodyMass``, ``FrameSubDyn``, ``FrameTower``,
+       ``RigidLink``, ``HeatedFrame``, ``LatticeFrame``, ``MemberChecks``).
+   * - ``ERF_ENABLE_MOORDYN``
+     - Enables the MoorDyn-C wrapper and its test (``MoorDynSystem``), which runs against the
+       bundled stub with ``ERF_MOORDYN_USE_STUB=ON`` or against the installed MoorDyn-C.
    * - ``ERF_PARTICLES_PRECISION``
      - Selects particle precision when particles are enabled.
 

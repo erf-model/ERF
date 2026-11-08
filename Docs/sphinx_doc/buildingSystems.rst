@@ -196,9 +196,21 @@ Set build variables in the ``GNUmakefile``:
         - (none)
         - paths
       * - ``USE_MOVING_BODIES``
-        - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`)
+        - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`) and the lattice tower models (see :ref:`sec:TowerFrame`)
         - FALSE
         - TRUE/FALSE
+      * - ``USE_MOORDYN``
+        - Enables the MoorDyn-C line-dynamics wrapper (see :ref:`sec:CouplingToMoorDyn`); needs ``USE_MOVING_BODIES=TRUE`` and a MoorDyn-C install at ``MOORDYN_HOME`` (GNU make has no stub path)
+        - FALSE
+        - TRUE/FALSE
+      * - ``MOORDYN_HOME``
+        - MoorDyn-C install prefix (``include/moordyn``, ``lib/libmoordyn``); needs ``USE_MOORDYN=TRUE``
+        - (none)
+        - path
+      * - ``MOORDYN_VERSION``
+        - The MoorDyn-C version string ``erf_moordyn::library_version()`` reports; needs ``USE_MOORDYN=TRUE``
+        - unknown
+        - string
       * - ``USE_NOAHMP``
         - Enables Noah-MP land surface model (requires ``USE_NETCDF=TRUE``)
         - FALSE
@@ -581,7 +593,15 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - (none)
      - paths
    * - ``ERF_ENABLE_MOVING_BODIES``
-     - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`)
+     - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`) and the lattice tower models (member drag, one-mode tower, frame model; see :ref:`sec:TowerFrame`)
+     - OFF
+     - ON/OFF
+   * - ``ERF_ENABLE_MOORDYN``
+     - Enables the MoorDyn-C line-dynamics wrapper (see :ref:`sec:CouplingToMoorDyn`); turns ``ERF_ENABLE_MOVING_BODIES`` on; needs MoorDyn-C 2.3 or newer at ``MOORDYN_DIR`` unless ``ERF_MOORDYN_USE_STUB`` is ON
+     - OFF
+     - ON/OFF
+   * - ``ERF_MOORDYN_USE_STUB``
+     - Builds the MoorDyn wrapper against the bundled stub library (the C API without line dynamics) instead of MoorDyn-C, for testing where MoorDyn-C is not installed (needs ``ERF_ENABLE_MOORDYN=ON``)
      - OFF
      - ON/OFF
    * - ``ERF_PRECISION``

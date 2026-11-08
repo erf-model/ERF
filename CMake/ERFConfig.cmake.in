@@ -2,6 +2,12 @@
 
 find_package(AMReX QUIET REQUIRED @AMREX_COMPONENTS@)
 
+# erf_srclib links the imported MoorDyn::moordyn target when built with MoorDyn-C
+if(@ERF_ENABLE_MOORDYN@ AND NOT @ERF_MOORDYN_USE_STUB@)
+  include(CMakeFindDependencyMacro)
+  find_dependency(MoorDyn 2.3 CONFIG)
+endif()
+
 include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
 
 set(@PROJECT_NAME@_INCLUDE_DIRS "${PROJECT_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@")

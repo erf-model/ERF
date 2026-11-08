@@ -402,6 +402,22 @@ ifeq ($(USE_MOVING_BODIES), TRUE)
     include $(ERF_MOVING_BODIES_CORE_DIR)/Make.package
     VPATH_LOCATIONS   += $(ERF_MOVING_BODIES_CORE_DIR)
     INCLUDE_LOCATIONS += $(ERF_MOVING_BODIES_CORE_DIR)
+    # the lattice tower models (member drag, one-mode tower, frame model, member checks)
+    ERF_TOWERS_DIR = $(ERF_SOURCE_DIR)/MovingBodies/Towers
+    include $(ERF_TOWERS_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_TOWERS_DIR)
+    INCLUDE_LOCATIONS += $(ERF_TOWERS_DIR)
+    # the MoorDyn-C wrapper; MOORDYN_HOME is the MoorDyn-C install prefix (no stub in GNU make)
+    ifeq ($(USE_MOORDYN), TRUE)
+        MOORDYN_VERSION ?= unknown
+        DEFINES += -DERF_USE_MOORDYN -DERF_MOORDYN_VERSION=\"$(MOORDYN_VERSION)\"
+        ERF_MOORDYN_DIR = $(ERF_SOURCE_DIR)/MovingBodies/MoorDyn
+        include $(ERF_MOORDYN_DIR)/Make.package
+        VPATH_LOCATIONS   += $(ERF_MOORDYN_DIR)
+        INCLUDE_LOCATIONS += $(ERF_MOORDYN_DIR) $(MOORDYN_HOME)/include
+        LIBRARY_LOCATIONS += $(MOORDYN_HOME)/lib
+        LIBRARIES += -lmoordyn
+    endif
 endif
 
 # If using windfarm parametrization, then compile all models and choose

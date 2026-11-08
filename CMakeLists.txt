@@ -195,7 +195,12 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
 option(ERF_ENABLE_FIRE "Enable the fire coupling (the atmosphere side; fire engines plug into it)" OFF)
 set(ERF_FIRE_ENGINE_DIRS "" CACHE STRING "Fire engine directories (each with ERFFireEngine.cmake) to compile in; needs ERF_ENABLE_FIRE")
-option(ERF_ENABLE_MOVING_BODIES "Enable the actuator core for bodies in the flow (Source/MovingBodies/Core)" OFF)
+option(ERF_ENABLE_MOVING_BODIES "Enable the actuator core for bodies in the flow (Source/MovingBodies/Core) and the lattice tower models (Source/MovingBodies/Towers)" OFF)
+option(ERF_ENABLE_MOORDYN "Enable the MoorDyn-C line-dynamics wrapper (Source/MovingBodies/MoorDyn; implies ERF_ENABLE_MOVING_BODIES)" OFF)
+option(ERF_MOORDYN_USE_STUB "Build the MoorDyn wrapper against the bundled stub library instead of MoorDyn-C (for testing where MoorDyn-C is not installed)" OFF)
+if(ERF_MOORDYN_USE_STUB AND NOT ERF_ENABLE_MOORDYN)
+  message(FATAL_ERROR "ERF_MOORDYN_USE_STUB needs ERF_ENABLE_MOORDYN=ON: the stub stands in for MoorDyn-C in the MoorDyn wrapper build")
+endif()
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
 option(ERF_ENABLE_WDM6_FORT "Enable WDM6 Fortran bridge calls" OFF)
 
@@ -732,6 +737,62 @@ if(ERF_ENABLE_EAMXX_SHOC)
   endif()
 
   message(STATUS "SHOC configuration complete")
+  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
+endif()
+
+########################## MOORDYN ##################################
+
+if(ERF_ENABLE_MOORDYN)
+  list(APPEND CMAKE_MESSAGE_CONTEXT "MoorDyn")
+  message(STATUS "Configuring MoorDyn")
+
+  # the line-dynamics wrapper serves bodies built on the actuator core (Source/MovingBodies/Core): turn
+  # ERF_ENABLE_MOVING_BODIES on for this configure (a normal variable shadowing the cache entry, so a later
+  # configure with ERF_ENABLE_MOORDYN=OFF gets the cached choice back)
+  set(ERF_ENABLE_MOVING_BODIES ON)
+
+  if(ERF_MOORDYN_USE_STUB)
+    # A stand-in for libmoordyn implementing the subset of the MoorDyn-C v2 C API that ERF calls,
+    # so the wrapper builds and its tests run where MoorDyn-C is not installed; it has no line
+    # dynamics (see Source/MovingBodies/MoorDyn/Stub/ERF_MoorDynStub.cpp).
+    message(STATUS "Using the bundled MoorDyn stub library (ERF_MOORDYN_USE_STUB=ON)")
+    add_library(erf_moordyn_stub STATIC
+      ${PROJECT_SOURCE_DIR}/Source/MovingBodies/MoorDyn/Stub/ERF_MoorDynStub.cpp)
+    target_include_directories(erf_moordyn_stub PUBLIC
+      $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/MovingBodies/MoorDyn/Stub>
+      $<INSTALL_INTERFACE:include>)
+    # position independent, as erf_srclib links it PUBLIC and may itself be shared (BUILD_SHARED_LIBS)
+    set_target_properties(erf_moordyn_stub PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON POSITION_INDEPENDENT_CODE ON)
+    install(TARGETS erf_moordyn_stub EXPORT ERFTargets ARCHIVE DESTINATION lib)
+    # the installed ERF_MoorDynSystem.H includes <moordyn/MoorDyn2.h>: install the stub's copy with it
+    install(FILES ${PROJECT_SOURCE_DIR}/Source/MovingBodies/MoorDyn/Stub/moordyn/MoorDyn2.h
+            DESTINATION include/moordyn)
+    set(ERF_MOORDYN_VERSION "stub")
+  else()
+    # MoorDyn-C installs lib/cmake/moordyn/MoorDynConfig.cmake (target MoorDyn::moordyn) and its
+    # headers under include/moordyn; MOORDYN_DIR is the install prefix (Build/setup_moordyn.sh).
+    set(CMAKE_PREFIX_PATH ${MOORDYN_DIR} ${CMAKE_PREFIX_PATH})
+    find_package(MoorDyn 2.3 REQUIRED CONFIG)
+    message(STATUS "Found MoorDyn-C ${MoorDyn_VERSION}: ${MoorDyn_DIR}")
+    # ERF feeds the wind to the lines through the v2 external wave-kinematics calls; make sure the
+    # installed header declares them (they replaced the v1 names in 2.3).
+    get_target_property(_erf_moordyn_incs MoorDyn::moordyn INTERFACE_INCLUDE_DIRECTORIES)
+    find_file(ERF_MOORDYN_C_HEADER MoorDyn2.h
+      PATHS ${_erf_moordyn_incs} ${MOORDYN_DIR}/include
+      PATH_SUFFIXES moordyn
+      NO_DEFAULT_PATH)
+    if(NOT ERF_MOORDYN_C_HEADER)
+      message(FATAL_ERROR "moordyn/MoorDyn2.h not found under ${_erf_moordyn_incs}")
+    endif()
+    file(STRINGS "${ERF_MOORDYN_C_HEADER}" _erf_moordyn_extkin REGEX "MoorDyn_ExternalWaveKinSet")
+    if(NOT _erf_moordyn_extkin)
+      message(FATAL_ERROR "ERF needs MoorDyn-C 2.3 or newer: MoorDyn_ExternalWaveKinSet is not declared in ${ERF_MOORDYN_C_HEADER}")
+    endif()
+    message(STATUS "MoorDyn C API header: ${ERF_MOORDYN_C_HEADER}")
+    set(ERF_MOORDYN_VERSION "${MoorDyn_VERSION}")
+  endif()
+
+  message(STATUS "MoorDyn configuration complete")
   list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 

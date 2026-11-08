@@ -495,6 +495,43 @@ if(ERF_ENABLE_MOVING_BODIES)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestRunningStats.cpp
   )
+  # Motivation: a lattice tower's member drag must be the normal-flow drag of every node, equal
+  # the hand values in a uniform wind and the fine integral in a log-law wind; the one-mode tower
+  # must respond to a step load with its frequency and damping and its foundation must take the
+  # drag nodes' loads; every tower-type input outside its range must be refused by name.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestTowers.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestTowerDynamics.cpp
+  )
+  # Motivation: a lattice tower's frame model must reproduce the closed-form static response of beams
+  # (cantilever bending with and without shear deformation, axial and torsional stiffness, a
+  # spring base, a fixed portal frame, a triangulated truss), balance every load with its support
+  # reactions, refuse a mechanism naming the free degree of freedom, read a SubDyn input file and
+  # refuse what it cannot model, and give the stiffness at a lattice tower's peak that SubDyn
+  # gives for the same input file (Tests/test_files/FrameSubDynTower). Its mass and modes must
+  # match beam theory and SubDyn's natural frequencies, and its Newmark response the exact discrete
+  # response of each mode, without losing energy when undamped. A tower standing on its frame must
+  # carry its drag and line loads onto the frame without losing force or moment, settle where the
+  # frame's static solution puts it, and give its footings the loads and its weight.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestFrame.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestFrameSubDyn.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestFrameDynamics.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestFrameTower.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestMemberChecks.cpp
+  )
+  target_compile_definitions(${erf_exe_name} PRIVATE ERF_FRAME_TEST_FILES="${PROJECT_SOURCE_DIR}/Tests/test_files/FrameSubDynTower")
+endif()
+if(ERF_ENABLE_MOORDYN)
+  # Motivation: the MoorDyn system wrapper must report the configured version and a missing input
+  # file, initialise a fixed-fixed span with no coupled degree of freedom at the catenary sag and
+  # tension, expose the external kinematics points starting with the line nodes, blow the span out
+  # under a crosswind towards the quasi-static angle, continue identically from a saved state, and
+  # run under the floating-point traps. The bundled stub or the installed MoorDyn-C answers,
+  # whichever the build links.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestMoorDynSystem.cpp
+  )
 endif()
 build_erf_exe(${erf_exe_name} NO_ERF_MAIN)
 target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)
@@ -972,6 +1009,12 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestActuatorSampling.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestActuatorSpreading.cpp
     )
+    # Motivation: the SubDyn file reader is the tower code's one collective (the I/O rank reads,
+    # every rank receives the broadcast): every rank must get the same frame and the same refusals.
+    target_sources(${erf_parallel_exe_name} PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestFrameSubDyn.cpp
+    )
+    target_compile_definitions(${erf_parallel_exe_name} PRIVATE ERF_FRAME_TEST_FILES="${PROJECT_SOURCE_DIR}/Tests/test_files/FrameSubDynTower")
   endif()
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)
   target_link_libraries(${erf_parallel_exe_name}

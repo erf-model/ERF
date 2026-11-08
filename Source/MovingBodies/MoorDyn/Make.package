@@ -1,0 +1,2 @@
+CEXE_headers += ERF_MoorDynSystem.H
+CEXE_sources += ERF_MoorDynSystem.cpp

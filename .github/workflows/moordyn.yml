@@ -1,0 +1,219 @@
+name: Linux GCC MoorDyn
+
+# The actuator core, the lattice tower models and the MoorDyn-C wrapper, twice: built
+# against the bundled MoorDyn stub library (no MoorDyn installation needed) and against
+# the real MoorDyn-C, installed with Build/setup_moordyn.sh. Both jobs run every unit
+# test (the MoorDynSystem suite answers from whichever library is linked) and the
+# actuator suites on two ranks.
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/moordyn.yml'
+      - '.github/actions/**'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/moordyn.yml'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+# Development pushes finish the active run and keep only the newest pending commit.
+# PR cancellation and commit-specific manual groups stay unchanged.
+concurrency:
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-moordyn
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
+
+jobs:
+  stub:
+    name: GNU@9.3 C++17 - MoorDyn stub, towers, actuator core
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+
+    - uses: actions/checkout@v7
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies.sh
+
+    - name: Install CCache
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+
+    - name: Set Up Cache
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        restore-keys: |
+             ccache-${{ github.workflow }}-${{ github.job }}-git-
+
+    - name: Configure Project and Generate Build System
+      run: |
+        cmake \
+          -B${{runner.workspace}}/ERF/build \
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_FFT:BOOL=ON \
+          -DERF_ENABLE_MOORDYN:BOOL=ON \
+          -DERF_MOORDYN_USE_STUB:BOOL=ON \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_UNIT_TESTS:BOOL=ON \
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          -DERF_TEST_NRANKS:STRING=2 \
+          ${{github.workspace}};
+
+    - name: Compile and Link
+      run: |
+        export CCACHE_COMPRESS=1
+        export CCACHE_COMPRESSLEVEL=10
+        export CCACHE_MAXSIZE=400M
+        ccache -z
+
+        cmake --build ${{runner.workspace}}/ERF/build --parallel 2 --verbose \
+          2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
+
+        ccache -s
+        du -hs ~/.cache/ccache
+
+    - name: Report
+      run: |
+        egrep "Warning:|Error:|warning:|error:" ${{runner.workspace}}/build-output.txt \
+          | egrep -v "Submodules/AMReX" | sort | uniq \
+          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
+        cat ${{runner.workspace}}/build-output-warnings.txt
+        return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
+        exit ${return}
+
+    - name: Unit Tests
+      # every suite: the tower, frame and member-check suites compile with the actuator core, the MoorDynSystem suite with MoorDyn
+      run: |
+        Tests/Unit/erf_unit_tests
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: Actuator Unit Tests on Two Ranks
+      run: |
+        ctest -R "erf_parallel_tests.Actuator" --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: Upload backtraces from failed tests
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: backtraces-moordyn-stub
+        path: ${{runner.workspace}}/ERF/build/Tests/**/Backtrace.*
+        if-no-files-found: ignore
+
+  real:
+    name: GNU@9.3 C++17 - MoorDyn-C 2.7.1, towers, actuator core
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+
+    - uses: actions/checkout@v7
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies.sh
+
+    - name: Install CCache
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+
+    - name: Set Up Cache
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        restore-keys: |
+             ccache-${{ github.workflow }}-${{ github.job }}-git-
+
+    - name: Cache MoorDyn-C
+      # the install is keyed on the version and the setup script; setup_moordyn.sh leaves an existing install alone
+      uses: actions/cache@v6
+      with:
+        path: ${{runner.workspace}}/moordyn
+        key: moordyn-2.7.1-${{ hashFiles('Build/setup_moordyn.sh') }}
+
+    - name: Install MoorDyn-C
+      run: Build/setup_moordyn.sh --version 2.7.1 --prefix ${{runner.workspace}}/moordyn --src ${{runner.workspace}}/src --jobs 2
+
+    - name: Configure Project and Generate Build System
+      run: |
+        cmake \
+          -B${{runner.workspace}}/ERF/build \
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_FFT:BOOL=ON \
+          -DERF_ENABLE_MOORDYN:BOOL=ON \
+          -DMOORDYN_DIR:PATH=${{runner.workspace}}/moordyn \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_UNIT_TESTS:BOOL=ON \
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          -DERF_TEST_NRANKS:STRING=2 \
+          ${{github.workspace}};
+
+    - name: Compile and Link
+      run: |
+        export CCACHE_COMPRESS=1
+        export CCACHE_COMPRESSLEVEL=10
+        export CCACHE_MAXSIZE=400M
+        ccache -z
+
+        cmake --build ${{runner.workspace}}/ERF/build --parallel 2 --verbose \
+          2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
+
+        ccache -s
+        du -hs ~/.cache/ccache
+
+    - name: Report
+      run: |
+        egrep "Warning:|Error:|warning:|error:" ${{runner.workspace}}/build-output.txt \
+          | egrep -v "Submodules/AMReX" | sort | uniq \
+          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
+        cat ${{runner.workspace}}/build-output-warnings.txt
+        return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
+        exit ${return}
+
+    - name: Unit Tests
+      # every suite: the tower, frame and member-check suites compile with the actuator core, the MoorDynSystem suite with MoorDyn
+      run: |
+        Tests/Unit/erf_unit_tests
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: Actuator Unit Tests on Two Ranks
+      run: |
+        ctest -R "erf_parallel_tests.Actuator" --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: Upload backtraces from failed tests
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: backtraces-moordyn-real
+        path: ${{runner.workspace}}/ERF/build/Tests/**/Backtrace.*
+        if-no-files-found: ignore

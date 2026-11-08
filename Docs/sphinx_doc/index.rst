@@ -71,6 +71,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/WindFarmModels.rst
    theory/FireCoupling.rst
    theory/ActuatorCore.rst
+   theory/TowerFrame.rst
    theory/Radiation.rst
    Particles.rst
    SuperDroplets.rst
@@ -108,6 +109,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    CouplingToAMRWind.rst
    CouplingToWW3.rst
    CouplingToNoahMP.rst
+   CouplingToMoorDyn.rst
 
 .. toctree::
    :caption: ERF vs WRF
