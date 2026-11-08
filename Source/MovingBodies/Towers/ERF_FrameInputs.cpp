@@ -132,8 +132,6 @@ public:
         return std::string();
     }
 
-    const std::string& file () const { return m_file; }
-
 private:
     std::vector<std::string> m_lines;
     std::string m_file;
