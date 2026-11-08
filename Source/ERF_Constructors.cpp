@@ -101,8 +101,19 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
             check_interval <= 0 && check_period <= 0.0 &&
             amr_check_interval <= 0 && amr_check_period <= 0.0,
             "SBM AMR qualification excludes checkpoint/restart");
+        const bool exact_zero_flow_anelastic_reference =
+            choice.sbm_amr_qualification_expect_zero_flow &&
+            !choice.anelastic.empty() &&
+            std::all_of(choice.anelastic.begin(), choice.anelastic.end(),
+                        [] (int enabled) { return enabled != 0; }) &&
+            std::all_of(choice.anelastic_type.begin(),
+                        choice.anelastic_type.end(),
+                        [] (AnelasticType type) {
+                            return type == AnelasticType::RK2;
+                        });
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            (choice.anelastic.empty() || choice.anelastic[0] == 0) &&
+            (choice.anelastic.empty() || choice.anelastic[0] == 0 ||
+             exact_zero_flow_anelastic_reference) &&
             choice.diffChoice.molec_diff_type == MolecDiffType::None &&
             !choice.turbChoice[0].use_kturb &&
             choice.turbChoice[0].pbl_type == PBLType::None &&
@@ -403,6 +414,10 @@ ERF::ERF_shared ()
             std::move(layout), max_level + 1);
         sbm_transport = std::make_unique<erf_sbm::SBMTransport>(
             sbm_state_manager->layout(), max_level + 1, 16, false);
+#ifdef ERF_SBM_AMR_QUALIFICATION
+        sbm_transport->enable_zero_flow_diagnostics(
+            solverChoice.sbm_amr_qualification_expect_zero_flow);
+#endif
     }
     // Create one invocation identity after inputs are available and before
     // InitData can read restart metadata or write an output on restart.

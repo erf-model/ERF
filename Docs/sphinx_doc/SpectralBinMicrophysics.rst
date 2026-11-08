@@ -626,44 +626,49 @@ The present SBM runtime advects the liquid-water spectrum on one atmospheric
 grid level.
 
 Periodic AMR qualification status
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The production SBM runtime remains restricted to ``amr.max_level = 0``. An
-internal qualification configuration exercises a fixed, two-level,
-three-dimensional periodic mesh using ERF's coarse and fine timesteps and
-accepted spectral transport rates. Coarse old/new spectral concentrations
-and dry-air density are evaluated at the requested fine-stage time before
-forming the carrier-relative intensive state used to fill fine stencil
-halos. Coarse/fine reflux uses the accepted, time-integrated, fully
-bin-resolved transport, followed by mapped restriction, strict full-spectrum
-admissibility checks, and regeneration of compact ``qc``/``qr``.
+The normal ERF ``SBM`` runtime remains a **single-level**, advection-only
+liquid spectral-transport capability. The authoritative spectral state is not
+the projected ``qc`` or ``qr`` field. Production SBM does not yet support
+multilevel time integration, regridding, derefinement, multilevel restart,
+or general nonperiodic and terrain-following spectral AMR boundaries.
 
-The fixed-grid tests exercise three real fine substeps per coarse interval,
-with 1M and 2M spectra that include an attached property, nonzero accepted
-interface transfer, active FCT limiting, and per-component composite
-leaf-inventory checks. Two-rank fixtures divide both coarse and fine grids
-across ranks and verify remote coarse-parent and same-level fine-fine donors;
-one-rank comparisons and a separate empty-fine-rank regression are included.
-The qualification also checks fresh two-cell parent halos, including 2M
-physical-to-endpoint ghost values at face, edge, and corner locations.
+A separately built internal qualification executable exercises a **fixed**,
+periodic, two-level, 3-D, double-precision AMR hierarchy with two-way
+coupling and fine-level subcycling. Its supported test fixtures cover
+one-moment spectral mass and two-moment spectral mass, droplet number and an
+attached number-carried property. These tests are **not** a general SBM AMR
+runtime option, and the normal build continues to reject unsupported
+multilevel SBM configurations.
 
-The parent-fill profile compared componentwise copies with a bounded
-``2K+2``-component source pack for 32, 128, and 256 components on one, two,
-and four CPU ranks. Packing reduced the measured copy calls per parent role
-from 68/272/544 to 2/8/16, but complete fine-step time increased by 7--21%
-in this Debug CPU matrix and the pack added bounded FAB storage. The
-componentwise path therefore remains the production default; packed filling
-is retained only for comparison and profiling. These timings are not an
-optimized-build performance claim.
+At fine-level physical stages, accepted coarse spectral and dry-air density
+endpoints are interpolated at the same requested time. If :math:`U_a` is an
+authoritative density-weighted spectral component and :math:`\rho_d` is the
+dry-air density, the coarse parent donor intensive is
 
-These are fixed-grid internal qualification results, not a supported
-multilevel user option. The parent-fill communication profile measures
-32/128/256 components at one, two, and four ranks on a CPU Debug build; it
-does not qualify optimized production performance, GPU execution, or device
-memory. Dynamic regridding and derefinement, exact-schema hierarchy restart,
-and operational nonperiodic spectral boundaries remain unimplemented.
-Passing these tests does not authorize removal of the single-level runtime
-guard.
+.. math::
+
+   z_a(t) =
+   \frac{(1-\theta)U_a(t_0) + \theta U_a(t_1)}
+        {(1-\theta)\rho_d(t_0) + \theta\rho_d(t_1)},
+   \qquad \theta = \frac{t-t_0}{t_1-t_0}.
+
+For a two-moment bin, the mass and number intensives are converted to
+endpoint-number coordinates **before** WENO-Z3 reconstruction. All spectral
+components, including any attached number-carried quantity, share their
+complete-group flux-corrected acceptance. AMR interface accounting consumes
+the *accepted* spectral face-rate integrals, not the unlimited high-order
+proposal or the projected cloud/rain transfer. Coarse synchronization first
+forms a private mapped-conservative candidate, requires canonical-state
+admission, and only then publishes the spectrum and regenerates ``qc``/``qr``.
+
+The periodic two-level qualification checks composite spectral inventories,
+coarse/fine interface signs, time integration weights, two-layer coarse-only
+ghost completion, and distributed rank ownership. Evidence is specific to the
+executed CPU/MPI fixtures and does not establish GPU performance, dynamic
+regrid/remake/derefinement, nonperiodic spectral boundary handling, or
+multilevel checkpoint/restart capability.
 
 The fixed-grid qualification covers only part of ERF's adaptive-mesh
 lifecycle. A production multilevel simulation must also preserve the full

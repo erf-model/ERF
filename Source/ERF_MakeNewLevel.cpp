@@ -8,6 +8,8 @@
 */
 
 #include <memory>
+#include <cstdlib>
+#include <cstring>
 #include "ERF_Constants.H"
 
 #include "AMReX_buildInfo.H"
@@ -146,8 +148,39 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 solverChoice.sbm_fixture_initial_state[static_cast<std::size_t>(comp)], comp, 1, 0);
         }
 #ifdef ERF_SBM_AMR_QUALIFICATION
-        if (lev == 0 && solverChoice.sbm_amr_qualification_test &&
-            !solverChoice.sbm_amr_qualification_expect_zero_flow) {
+        const char* spatial_profile = std::getenv(
+            "ERF_SBM_AMR_TEST_SPATIAL_PROFILE");
+        if (spatial_profile != nullptr &&
+            std::strcmp(spatial_profile, "unique") == 0 &&
+            solverChoice.sbm_amr_qualification_test) {
+            // Split-layout MPI oracle: assign every valid cell a deterministic,
+            // spatially unique common factor while preserving all 2M and
+            // attached-property support ratios. The profile is evaluated on
+            // each level's integer domain and is enabled only by the private
+            // CTest environment, never by a user-facing input parameter.
+            auto& spectrum = sbm_state_manager->new_state_for_initialization(lev);
+            const Box domain = geom[lev].Domain();
+            const Long nx = domain.length(0);
+            const Long ny = domain.length(1);
+            const Long nz = domain.length(2);
+            const Long cells = nx * ny * nz;
+            const int ncomp = spectrum.nComp();
+            for (MFIter mfi(spectrum, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box bx = mfi.tilebox();
+                const auto values = spectrum.array(mfi);
+                ParallelFor(bx, ncomp,
+                    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                        const Long ii = static_cast<Long>(i - domain.smallEnd(0));
+                        const Long jj = static_cast<Long>(j - domain.smallEnd(1));
+                        const Long kk = static_cast<Long>(k - domain.smallEnd(2));
+                        const Long index = ii + nx * (jj + ny * kk);
+                        const Real factor = Real(0.5) + Real(0.5) *
+                            static_cast<Real>(index) / static_cast<Real>(cells);
+                        values(i, j, k, n) *= factor;
+                    });
+            }
+        } else if (lev == 0 && solverChoice.sbm_amr_qualification_test &&
+                   !solverChoice.sbm_amr_qualification_expect_zero_flow) {
             // A canonical, component-wise common factor creates a sharp
             // periodic translation profile while preserving each 2M bin's
             // mass/number ratio and every attached-property support ratio.

@@ -231,6 +231,7 @@ if(ERF_ENABLE_TESTS)
         -DMPI_RANKS=1
         -DEXPECTED_COMPONENTS=4
         -DEXPECTED_FINE_SUBSTEPS=3
+        -DSPATIAL_SPLIT_FIXTURE=ON
         -P ${_sbm_amr_qualification_script})
     set_tests_properties(SBM_AMR_Qualification_1M_Split_1Rank PROPERTIES
       LABELS "integration;sbm;sbm_amr_qualification"
@@ -247,6 +248,7 @@ if(ERF_ENABLE_TESTS)
         -DMPI_RANKS=2
         -DEXPECTED_COMPONENTS=4
         -DEXPECTED_FINE_SUBSTEPS=3
+        -DSPATIAL_SPLIT_FIXTURE=ON
         -DEXPECT_SPLIT=ON
         -DPYTHON_EXECUTABLE=${ERF_TEST_PYTHON}
         -DREFERENCE_LOG=${_sbm_amr_qualification_root}/1m_split_1rank/qualification.log
@@ -258,6 +260,24 @@ if(ERF_ENABLE_TESTS)
       DEPENDS SBM_AMR_Qualification_1M_Split_1Rank
       TIMEOUT 300)
 
+    add_test(NAME SBM_AMR_Qualification_RankLocalGhostStoreFailure_2Rank
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m_split
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/rank_local_ghost_store_failure_2rank
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=2
+        -DEXPECTED_COMPONENTS=4
+        -DSPATIAL_SPLIT_FIXTURE=ON
+        -DFAILURE_TEST=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_RankLocalGhostStoreFailure_2Rank PROPERTIES
+      LABELS "integration;parallel;sbm;sbm_amr_qualification;negative"
+      RUN_SERIAL TRUE
+      PROCESSORS 2
+      TIMEOUT 60)
+
     add_test(NAME SBM_AMR_Qualification_2M_Attached_Split_1Rank
       COMMAND ${CMAKE_COMMAND}
         -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
@@ -268,6 +288,7 @@ if(ERF_ENABLE_TESTS)
         -DMPI_RANKS=1
         -DEXPECTED_COMPONENTS=12
         -DEXPECTED_FINE_SUBSTEPS=3
+        -DSPATIAL_SPLIT_FIXTURE=ON
         -P ${_sbm_amr_qualification_script})
     set_tests_properties(SBM_AMR_Qualification_2M_Attached_Split_1Rank PROPERTIES
       LABELS "integration;sbm;sbm_amr_qualification"
@@ -284,6 +305,7 @@ if(ERF_ENABLE_TESTS)
         -DMPI_RANKS=2
         -DEXPECTED_COMPONENTS=12
         -DEXPECTED_FINE_SUBSTEPS=3
+        -DSPATIAL_SPLIT_FIXTURE=ON
         -DEXPECT_SPLIT=ON
         -DPYTHON_EXECUTABLE=${ERF_TEST_PYTHON}
         -DREFERENCE_LOG=${_sbm_amr_qualification_root}/2m_attached_split_1rank/qualification.log
@@ -296,9 +318,9 @@ if(ERF_ENABLE_TESTS)
       TIMEOUT 300)
 
     # Measure the actual coarse-parent halo path at the requested spectral
-    # widths and process counts.  The zero-flow canonical state keeps the
-    # profile focused on communication and allocation costs; the split runs
-    # still assert remote parent and fine-fine donor ownership.
+    # widths and process counts with the nonzero carrier from the profile
+    # deck.  This keeps complete fine-step timings representative of transport;
+    # the split runs also assert remote parent and fine-fine donor ownership.
     foreach(_sbm_profile_ncomp IN ITEMS 32 128 256)
       foreach(_sbm_profile_ranks IN ITEMS 1 2 4)
         set(_sbm_profile_test
@@ -316,8 +338,7 @@ if(ERF_ENABLE_TESTS)
             -DEXPECTED_STEPS=1
             -DEXPECTED_FINE_SUBSTEPS=3
             -DSBM_NBINS=${_sbm_profile_ncomp}
-            -DMAX_STEPS=1
-            -DZERO_FLOW=ON)
+            -DMAX_STEPS=1)
         if(_sbm_profile_ranks GREATER 1)
           list(APPEND _sbm_profile_args
                -DEXPECT_SPLIT=ON

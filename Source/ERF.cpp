@@ -1135,6 +1135,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         const Real rounding_factor = q / (Real(1.0) - q);
         Real zero_flow_correction_tolerance = Real(0.0);
         if (solverChoice.sbm_amr_qualification_expect_zero_flow) {
+            const Real max_carrier = sbm_transport->interval_carrier_linf();
+            const Real max_accepted_rate =
+                sbm_transport->interval_accepted_rate_linf();
             Real inventory_scale = std::numeric_limits<Real>::min();
             for (const Real value : sbm_qualification_initial_inventory) {
                 inventory_scale = std::max(inventory_scale, std::abs(value));
@@ -1144,10 +1147,23 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             amrex::Print() << "SBM_AMR_QUAL_ZERO_FLOW_CHECK correction_linf="
                            << sbm_qualification_correction_linf
                            << " tolerance=" << zero_flow_correction_tolerance
+                           << " max_carrier=" << max_carrier
+                           << " max_accepted_rate=" << max_accepted_rate
                            << " limiter_changed_rate="
                            << (limiter_changed_rate ? "true" : "false")
                            << " operation_count=" << inventory_operation_count
                            << " reduction_depth=" << reduction_depth << '\n';
+            if (solverChoice.sbm_nbins < 32) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    max_carrier == Real(0.0),
+                    "zero-flow SBM AMR qualification has a nonzero mass carrier");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    max_accepted_rate == Real(0.0),
+                    "zero-flow SBM AMR qualification has a nonzero accepted face rate");
+            }
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                !limiter_changed_rate,
+                "zero-flow SBM AMR qualification changed an accepted face rate");
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
                 sbm_qualification_correction_linf <=
                     zero_flow_correction_tolerance,
@@ -1167,6 +1183,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                             sbm_qualification_initial_inventory.size());
         amrex::Print() << "SBM_AMR_QUAL step=" << nstep + 1
                        << " fine_substeps=" << nsubsteps[1]
+                       << " leaf_cell_terms=" << leaf_cell_terms
+                       << " operation_count=" << inventory_operation_count
+                       << " reduction_depth=" << reduction_depth
                        << " reflux_calls=" << sbm_qualification_reflux_calls
                        << " reflux_syncs=" << sbm_qualification_reflux_syncs
                        << " nonzero_reflux_linf="
@@ -1180,7 +1199,11 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                                ? "true" : "false");
         if (solverChoice.sbm_amr_qualification_expect_zero_flow) {
             amrex::Print() << " zero_flow_tolerance="
-                           << zero_flow_correction_tolerance;
+                           << zero_flow_correction_tolerance
+                           << " max_carrier="
+                           << sbm_transport->interval_carrier_linf()
+                           << " max_accepted_rate="
+                           << sbm_transport->interval_accepted_rate_linf();
         }
         amrex::Print() << '\n';
         for (std::size_t component = 0; component < inventory.size(); ++component) {
@@ -1198,6 +1221,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                            << " relative_error="
                            << (scale > Real(0.0) ? error / scale : Real(0.0))
                            << " tolerance=" << tolerance
+                           << " leaf_cell_terms=" << leaf_cell_terms
                            << " operation_count=" << inventory_operation_count
                            << " reduction_depth=" << reduction_depth << '\n';
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(error <= tolerance,

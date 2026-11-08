@@ -13,11 +13,28 @@ if(ZERO_FLOW)
   list(APPEND _command
     "erf.sbm_amr_qualification_expect_zero_flow=true"
     "prob.U_0=0" "prob.V_0=0" "prob.W_0=0")
+  if(NOT DEFINED SBM_NBINS)
+    # The compressible host's pressure-minus-base-pressure path leaves a
+    # one-ULP gradient for this thermodynamic state. Use the exactly-zero
+    # anelastic RK2 carrier as the dedicated zero-transport oracle; retain
+    # compressible RK3 for the component-width communication profiles.
+    list(APPEND _command "erf.anelastic=1" "erf.anelastic_type=RK2")
+  endif()
 endif()
 if(DEFINED SBM_NBINS)
   math(EXPR _sbm_cloud_rain_split "${SBM_NBINS} / 2")
   list(APPEND _command "erf.sbm_nbins=${SBM_NBINS}"
        "erf.sbm_cloud_rain_split=${_sbm_cloud_rain_split}")
+  # The width-scaling profile uses the same nonzero fixture in every mass
+  # component, then ERF applies the qualification-only spatial jump.  Build
+  # the vector here so N=32/128/256 all exercise actual accepted transport.
+  set(_profile_initial_components)
+  foreach(_component RANGE 1 ${SBM_NBINS})
+    list(APPEND _profile_initial_components "1.0e-6")
+  endforeach()
+  string(JOIN " " _profile_initial_state ${_profile_initial_components})
+  list(APPEND _command
+       "erf.sbm_fixture_initial_state=${_profile_initial_state}")
 endif()
 if(EXPECT_SPLIT)
   list(APPEND _command "erf.sbm_amr_qualification_expect_split=true")
@@ -28,14 +45,54 @@ endif()
 if(DEFINED MAX_STEPS)
   list(APPEND _command "max_step=${MAX_STEPS}")
 endif()
+set(_test_environment)
+if(SPATIAL_SPLIT_FIXTURE)
+  list(APPEND _test_environment
+       "ERF_SBM_AMR_TEST_SPATIAL_PROFILE=unique")
+endif()
+set(_execute_process_timeout)
+if(FAILURE_TEST)
+  # This is a private, qualification-only environment fault.  It skips one
+  # actual coarse-only destination store on rank 0 while leaving the write
+  # tally intact; the CTest timeout remains a failure, never a passing death.
+  list(APPEND _test_environment
+       "ERF_SBM_AMR_TEST_SKIP_REMOTE_PARENT_STORE=rank0")
+  set(_execute_process_timeout TIMEOUT 45)
+endif()
+if(_test_environment)
+  list(PREPEND _command "${CMAKE_COMMAND}" -E env ${_test_environment})
+endif()
 execute_process(
   COMMAND ${_command}
   WORKING_DIRECTORY "${TEST_ROOT}"
+  ${_execute_process_timeout}
   RESULT_VARIABLE _result
   OUTPUT_VARIABLE _stdout
   ERROR_VARIABLE _stderr)
 set(_log "${_stdout}\n${_stderr}")
 file(WRITE "${_log_file}" "${_log}")
+
+if(FAILURE_TEST)
+  if(_result MATCHES "[Tt]imeout")
+    message(FATAL_ERROR
+      "Rank-local SBM ghost-store fault timed out; timeout is not a successful death. See ${_log_file}")
+  endif()
+  if("${_result}" STREQUAL "0")
+    message(FATAL_ERROR
+      "Rank-local SBM ghost-store fault unexpectedly completed successfully; see ${_log_file}")
+  endif()
+  if(NOT _log MATCHES "assignment_only_fault=rank-local")
+    message(FATAL_ERROR
+      "MPI failure did not report the intended rank-local assignment-only fault; result=${_result}. See ${_log_file}\n${_log}")
+  endif()
+  if(_log MATCHES "SBM_AMR_QUAL step=")
+    message(FATAL_ERROR
+      "A coarse step was advertised after the failed parent store; see ${_log_file}")
+  endif()
+  message(STATUS
+    "SBM rank-local assignment-only ghost fault rejected before step acceptance: ranks=${MPI_RANKS}; log=${_log_file}")
+  return()
+endif()
 
 if(NOT _result EQUAL 0)
   message(FATAL_ERROR
@@ -61,16 +118,36 @@ if(NOT _step_count EQUAL EXPECTED_STEPS)
 endif()
 foreach(_line IN LISTS _step_lines)
   if(ZERO_FLOW)
-    if(NOT _line MATCHES
-       "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[0-9.eE+-]+.*limiter_active_groups=[0-9]+.*limiter_changed_rate=(true|false).*zero_flow=true.*zero_flow_tolerance=[0-9.eE+-]+")
+    if(DEFINED SBM_NBINS)
+      set(_zero_flow_record_regex
+         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[0-9.eE+-]+.*limiter_active_groups=[0-9]+.*limiter_changed_rate=false.*zero_flow=true.*zero_flow_tolerance=[0-9.eE+-]+.*max_carrier=[0-9.eE+-]+ max_accepted_rate=[0-9.eE+-]+")
+    else()
+      set(_zero_flow_record_regex
+         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[0-9.eE+-]+.*limiter_active_groups=[0-9]+.*limiter_changed_rate=false.*zero_flow=true.*zero_flow_tolerance=[0-9.eE+-]+.*max_carrier=0 max_accepted_rate=0")
+    endif()
+    if(NOT _line MATCHES "${_zero_flow_record_regex}")
       message(FATAL_ERROR
         "Zero-flow qualification exceeded the accepted correction or inventory bound: ${_line}\nSee ${_log_file}")
     endif()
-  else()
-    if(NOT _line MATCHES
-       "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=1.*reflux_syncs=1.*nonzero_reflux_linf=[1-9][0-9.eE+-]*.*limiter_active_groups=[1-9][0-9]*.*limiter_changed_rate=true.*zero_flow=false")
+    # Negative parser control: a forced-true limiter mutation must never be
+    # accepted by the same record expression used for the real run.
+    string(REPLACE "limiter_changed_rate=false" "limiter_changed_rate=true"
+           _forced_limiter_mutant "${_line}")
+    if(_forced_limiter_mutant MATCHES "${_zero_flow_record_regex}")
       message(FATAL_ERROR
-        "Qualification did not exercise two fine substeps, nonzero reflux, and active limiting: ${_line}\nSee ${_log_file}")
+        "Zero-flow parser accepted the forced limiter_changed_rate=true mutant: ${_forced_limiter_mutant}")
+    endif()
+  else()
+    if(DEFINED SBM_NBINS)
+      set(_nonzero_record_regex
+         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[1-9][0-9.eE+-]*.*limiter_active_groups=[1-9][0-9]*.*limiter_changed_rate=true.*zero_flow=false")
+    else()
+      set(_nonzero_record_regex
+         "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=1.*reflux_syncs=1.*nonzero_reflux_linf=[1-9][0-9.eE+-]*.*limiter_active_groups=[1-9][0-9]*.*limiter_changed_rate=true.*zero_flow=false")
+    endif()
+    if(NOT _line MATCHES "${_nonzero_record_regex}")
+      message(FATAL_ERROR
+        "Qualification did not exercise three fine substeps, nonzero reflux, and active limiting: ${_line}\nSee ${_log_file}")
     endif()
   endif()
 endforeach()
@@ -79,6 +156,29 @@ if(EXPECT_SPLIT AND NOT _log MATCHES
    "SBM_AMR_QUAL_SPLIT_LAYOUT coarse_ranks=[2-9][0-9]* fine_ranks=[2-9][0-9]* remote_parent=true remote_fine=true")
   message(FATAL_ERROR
     "Runtime did not prove split coarse/fine ownership and remote parent/fine donors; see ${_log_file}")
+endif()
+if(EXPECT_SPLIT)
+  foreach(_type IN ITEMS coarse_parent fine_fine)
+    foreach(_depth IN ITEMS 1 2)
+      string(REGEX MATCH
+        "SBM_AMR_QUAL_GHOST_VALUE type=${_type} depth=${_depth} codim=1 [^\n]+"
+        _ghost_value_line "${_log}")
+      if(_ghost_value_line STREQUAL "")
+        message(FATAL_ERROR
+          "Split qualification did not observe a remote ${_type} face ghost at depth ${_depth}; see ${_log_file}")
+      endif()
+      if(NOT _ghost_value_line MATCHES
+         "dest_rank=[0-9]+.*donor_rank=[0-9]+.*received=[^ ]+ expected=[^ ]+ neighbor_expected=[^ ]+ contrast=[1-9][^ ]*")
+        message(FATAL_ERROR
+          "Split ${_type} depth-${_depth} value record lacks donor/receiver values or a spatial discriminator: ${_ghost_value_line}")
+      endif()
+    endforeach()
+  endforeach()
+  if(NOT _log MATCHES
+     "SBM_AMR_QUAL_GHOST_VALUE_COMPLETE stage=0 .*samples=[1-9][0-9]*")
+    message(FATAL_ERROR
+      "Split qualification did not complete its remote ghost value checks; see ${_log_file}")
+  endif()
 endif()
 if(EXPECT_EMPTY_FINE_RANK AND NOT _log MATCHES
    "SBM_AMR_QUAL_EMPTY_FINE_RANK empty_ranks=[1-9][0-9]*")

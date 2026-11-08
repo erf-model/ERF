@@ -12,12 +12,25 @@ def read_inventory(path):
         for line in stream:
             match = re.search(
                 r"SBM_AMR_QUAL_INVENTORY component=(\d+) initial=([^ ]+) "
-                r"final=([^ ]+).*?abs_error=([^ ]+).*?tolerance=([^ ]+)",
+                r"final=([^ ]+).*?abs_error=([^ ]+).*?magnitude_scale=([^ ]+) "
+                r"relative_error=([^ ]+) tolerance=([^ ]+) "
+                r"leaf_cell_terms=(\d+) operation_count=(\d+) "
+                r"reduction_depth=(\d+)",
                 line,
             )
             if match:
                 component = int(match.group(1))
-                values[component] = tuple(float(match.group(i)) for i in range(2, 6))
+                values[component] = {
+                    "initial": float(match.group(2)),
+                    "final": float(match.group(3)),
+                    "abs_error": float(match.group(4)),
+                    "magnitude_scale": float(match.group(5)),
+                    "relative_error": float(match.group(6)),
+                    "tolerance": float(match.group(7)),
+                    "leaf_cell_terms": int(match.group(8)),
+                    "operation_count": int(match.group(9)),
+                    "reduction_depth": int(match.group(10)),
+                }
     return values
 
 
@@ -33,33 +46,60 @@ def main():
             f"reference={sorted(ref)}, candidate={sorted(got)}"
         )
 
-    # ERF's qualified leaf diagnostic sums N positive cell contributions in
-    # serial FAB order, then combines boxes, levels, and the MPI reduction.
-    # For these 16^3/32^3 periodic layouts N=18,432 leaf cells.  Add the
-    # maximum 40 FAB partial sums, two level merges, the MPI tree depth, and
-    # final subtraction to the conservative sequential-sum operation count.
     eps = sys.float_info.epsilon
-    operation_count = 18_432 + 40 + 2 + 1 + 1
-    q = operation_count * eps
-    gamma = q / (1.0 - q)
+    max_inventory_ratio = 0.0
+    max_parity_ratio = 0.0
+    leaf_cell_terms = None
     for component in range(ncomp):
-        ref_initial, ref_final, _, _ = ref[component]
-        got_initial, got_final, _, _ = got[component]
-        if not math.isclose(ref_initial, got_initial, rel_tol=gamma, abs_tol=0.0):
-            raise SystemExit(
-                f"component {component} initial inventory differs: "
-                f"{ref_initial:.17g} vs {got_initial:.17g}, gamma={gamma:.3g}"
+        reference_row = ref[component]
+        candidate_row = got[component]
+        if leaf_cell_terms is None:
+            leaf_cell_terms = reference_row["leaf_cell_terms"]
+        if reference_row["leaf_cell_terms"] != leaf_cell_terms or \
+                candidate_row["leaf_cell_terms"] != leaf_cell_terms:
+            raise SystemExit("composite leaf-cell count changed between components or runs")
+
+        for label, row in (("reference", reference_row), ("candidate", candidate_row)):
+            expected_operations = (
+                8 * row["leaf_cell_terms"] + 2 * row["reduction_depth"] + 1
             )
-        bound = gamma * (abs(ref_final) + abs(got_final))
-        error = abs(ref_final - got_final)
-        if error > bound:
-            raise SystemExit(
-                f"component {component} final inventory differs: "
-                f"error={error:.17g}, bound={bound:.17g}, "
-                f"reference={ref_final:.17g}, candidate={got_final:.17g}"
+            if row["operation_count"] != expected_operations:
+                raise SystemExit(
+                    f"component {component} {label} operation count is inconsistent: "
+                    f"{row['operation_count']} vs {expected_operations}"
+                )
+            if row["abs_error"] > row["tolerance"]:
+                raise SystemExit(
+                    f"component {component} {label} inventory exceeds its analytic bound: "
+                    f"error={row['abs_error']:.17g}, bound={row['tolerance']:.17g}"
+                )
+            ratio = row["abs_error"] / row["tolerance"] if row["tolerance"] > 0 else 0.0
+            max_inventory_ratio = max(max_inventory_ratio, ratio)
+
+        parity_operations = max(
+            reference_row["operation_count"], candidate_row["operation_count"]
+        )
+        q = parity_operations * eps
+        gamma = q / (1.0 - q)
+        for moment in ("initial", "final"):
+            ref_value = reference_row[moment]
+            got_value = candidate_row[moment]
+            bound = gamma * max(
+                abs(ref_value) + abs(got_value), sys.float_info.min
             )
+            error = abs(ref_value - got_value)
+            ratio = error / bound if bound > 0 else 0.0
+            max_parity_ratio = max(max_parity_ratio, ratio)
+            if error > bound:
+                raise SystemExit(
+                    f"component {component} {moment} inventory differs: "
+                    f"error={error:.17g}, bound={bound:.17g}, gamma={gamma:.3g}"
+                )
+
     print(
-        f"component inventories match within gamma_{operation_count}={gamma:.3g}"
+        f"component inventories match: leaf_cell_terms={leaf_cell_terms}, "
+        f"max_inventory_error_over_bound={max_inventory_ratio:.6g}, "
+        f"max_rank_parity_error_over_bound={max_parity_ratio:.6g}"
     )
 
 

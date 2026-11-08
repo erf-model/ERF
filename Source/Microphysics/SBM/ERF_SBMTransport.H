@@ -28,9 +28,31 @@ struct SBMAMRStageGhostProbe {
     amrex::Real* sampled_endpoint_device{nullptr};
     int* hit_device{nullptr};
     int* endpoint_hit_device{nullptr};
+    // Optional A4 test-only observation: three physical (M,N,property)
+    // components across the positive-x WENO stencil and the accepted face
+    // rates at one selected interface face. The caller owns device storage.
+    amrex::IntVect sampled_face{-1};
+    int sampled_face_direction{-1};
+    int sampled_stage{-1};
+    int sampled_mass_component{-1};
+    int sampled_number_component{-1};
+    int sampled_property_component{-1};
+    amrex::Real* sampled_physical_stencil_device{nullptr};
+    amrex::Real* sampled_endpoint_stencil_device{nullptr};
+    amrex::Real* sampled_mass_rate_device{nullptr};
+    amrex::Real* sampled_number_rate_device{nullptr};
+    amrex::Real* sampled_property_rate_device{nullptr};
+    amrex::Real* sampled_high_mass_rate_device{nullptr};
+    amrex::Real* sampled_high_number_rate_device{nullptr};
+    amrex::Real* sampled_high_property_rate_device{nullptr};
+    amrex::Real* sampled_low_mass_rate_device{nullptr};
+    amrex::Real* sampled_low_number_rate_device{nullptr};
+    amrex::Real* sampled_low_property_rate_device{nullptr};
+    amrex::Real* sampled_lambda_device{nullptr};
+    int* sampled_rate_hit_device{nullptr};
     int skipped_global_component{-1};
     bool seed_finite_stale_value{false};
-    amrex::Real stale_value{amrex::Real(-987654.0)};
+    amrex::Real stale_value{amrex::Real(0.25)};
 };
 
 /** Coarse host density endpoints paired with the state-manager's coarse SBM
@@ -50,6 +72,14 @@ struct SBMAMRStageParent {
     // measured fine-step time. Keep the lower-cost componentwise path as the
     // production default and enable packing only in its equivalence oracle.
     bool componentwise_parent_fill{true};
+    // Optional second face observation for the A4 stencil control. This is
+    // consumed only by test probes and adds no persistent transport storage.
+    SBMAMRStageGhostProbe* secondary_ghost_probe{nullptr};
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    // Qualification-only distributed-value check. It compares received
+    // ghost data against values read directly from the owning valid FAB.
+    bool validate_split_ghost_values{false};
+#endif
 };
 
 /**
@@ -149,10 +179,16 @@ class SBMTransport
     /** Full all-component accepted-integral reference, present only when enabled. */
     [[nodiscard]] const erf_auxiliary::CompletedStepFluxLedger& completed_spectral_ledger (int level) const;
 #ifdef ERF_SBM_AMR_QUALIFICATION
+    void enable_zero_flow_diagnostics (bool enabled) noexcept
+    { m_zero_flow_diagnostics_enabled = enabled; }
     [[nodiscard]] int interval_limiter_active_groups () const noexcept
     { return m_interval_limiter_active_groups; }
     [[nodiscard]] bool interval_limiter_changed_rate () const noexcept
     { return m_interval_limiter_changed_rate; }
+    [[nodiscard]] amrex::Real interval_carrier_linf () const noexcept
+    { return m_interval_carrier_linf; }
+    [[nodiscard]] amrex::Real interval_accepted_rate_linf () const noexcept
+    { return m_interval_accepted_rate_linf; }
 #endif
 
   private:
@@ -172,8 +208,11 @@ class SBMTransport
     std::unique_ptr<SBMStateAdmission> m_admission;
     bool m_keep_spectral_ledger_reference{true};
 #ifdef ERF_SBM_AMR_QUALIFICATION
+    bool m_zero_flow_diagnostics_enabled{false};
     int m_interval_limiter_active_groups{0};
     bool m_interval_limiter_changed_rate{false};
+    amrex::Real m_interval_carrier_linf{amrex::Real(0.0)};
+    amrex::Real m_interval_accepted_rate_linf{amrex::Real(0.0)};
 #endif
 };
 

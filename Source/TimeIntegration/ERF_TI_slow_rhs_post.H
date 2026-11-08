@@ -67,6 +67,10 @@
             sbm_parent_stage.refinement_ratio = refRatio(level - 1);
             sbm_parent_stage.profile_parent_fill =
                 solverChoice.sbm_amr_qualification_test;
+#ifdef ERF_SBM_AMR_QUALIFICATION
+            sbm_parent_stage.validate_split_ghost_values =
+                solverChoice.sbm_amr_qualification_expect_split;
+#endif
             sbm_parent_stage_ptr = &sbm_parent_stage;
         }
 

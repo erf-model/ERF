@@ -13,11 +13,13 @@
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_BoxIterator.H>
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -146,11 +148,361 @@ coarse_stage_theta (const double requested_time,
     return true;
 }
 
+#ifdef ERF_SBM_AMR_QUALIFICATION
+struct SplitGhostValueSample
+{
+    bool coarse_parent{false};
+    int depth{0};
+    int codimension{0};
+    int destination_box{-1};
+    int destination_rank{-1};
+    amrex::IntVect ghost{0};
+    int donor_box{-1};
+    int donor_rank{-1};
+    amrex::IntVect donor_cell{0};
+    int comparison_box{-1};
+    amrex::IntVect comparison_cell{0};
+};
+
+amrex::IntVect
+wrap_split_cell (amrex::IntVect cell, const amrex::Geometry& geometry)
+{
+    const auto domain = geometry.Domain();
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (!geometry.isPeriodic(dir)) continue;
+        const int length = domain.length(dir);
+        while (cell[dir] < domain.smallEnd(dir)) cell[dir] += length;
+        while (cell[dir] > domain.bigEnd(dir)) cell[dir] -= length;
+    }
+    return cell;
+}
+
+int
+split_containing_box (const amrex::BoxArray& boxes,
+                      const amrex::IntVect& cell)
+{
+    for (int index = 0; index < boxes.size(); ++index) {
+        if (boxes[index].contains(cell)) return index;
+    }
+    return -1;
+}
+
+std::pair<int, amrex::IntVect>
+split_comparison_cell (const amrex::IntVect& source,
+                       const amrex::BoxArray& boxes)
+{
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        for (int sign : {1, -1}) {
+            amrex::IntVect candidate = source;
+            candidate[dir] += sign;
+            const int owner_box = split_containing_box(boxes, candidate);
+            if (owner_box >= 0) return {owner_box, candidate};
+        }
+    }
+    return {-1, amrex::IntVect(0)};
+}
+
+std::vector<SplitGhostValueSample>
+select_split_ghost_value_samples (const amrex::BoxArray& coarse_ba,
+                                 const amrex::DistributionMapping& coarse_dm,
+                                 const amrex::Geometry& fine_geometry,
+                                 const amrex::BoxArray& fine_ba,
+                                 const amrex::DistributionMapping& fine_dm,
+                                 const amrex::IntVect& refinement_ratio)
+{
+    // Keep one remote sample for each halo depth and ghost codimension when
+    // the fixed layout contains one. The split test requires face samples at
+    // depths one and two; edges/corners are additionally emitted if present.
+    std::array<std::array<std::array<bool, 4>, 2>, 2> found{};
+    std::vector<SplitGhostValueSample> samples;
+    const auto domain = fine_geometry.Domain();
+    for (int destination_box = 0; destination_box < fine_ba.size();
+         ++destination_box) {
+        const auto valid = fine_ba[destination_box];
+        auto grown = valid;
+        grown.grow(2);
+        const int destination_rank = fine_dm[destination_box];
+        for (amrex::BoxIterator bit(grown); bit.ok(); ++bit) {
+            const auto ghost = bit();
+            if (valid.contains(ghost)) continue;
+            int depth = 0;
+            int codimension = 0;
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                int outside = 0;
+                if (ghost[dir] < valid.smallEnd(dir)) {
+                    outside = valid.smallEnd(dir) - ghost[dir];
+                } else if (ghost[dir] > valid.bigEnd(dir)) {
+                    outside = ghost[dir] - valid.bigEnd(dir);
+                }
+                if (outside > 0) {
+                    ++codimension;
+                    depth = std::max(depth, outside);
+                }
+            }
+            if (depth < 1 || depth > 2 || codimension < 1 ||
+                codimension > AMREX_SPACEDIM) {
+                continue;
+            }
+            const auto wrapped = wrap_split_cell(ghost, fine_geometry);
+            const int fine_donor = split_containing_box(fine_ba, wrapped);
+            const bool remote_fine = fine_donor >= 0 &&
+                fine_donor != destination_box &&
+                fine_dm[fine_donor] != destination_rank;
+            amrex::IntVect donor_cell = wrapped;
+            int donor_box = fine_donor;
+            bool coarse_parent = false;
+            int donor_rank = remote_fine ? fine_dm[fine_donor] : -1;
+            if (fine_donor < 0) {
+                auto parent_cell = wrapped;
+                parent_cell.coarsen(refinement_ratio);
+                const int parent_box = split_containing_box(coarse_ba,
+                                                              parent_cell);
+                if (parent_box < 0 || coarse_dm[parent_box] == destination_rank) {
+                    continue;
+                }
+                coarse_parent = true;
+                donor_cell = parent_cell;
+                donor_box = parent_box;
+                donor_rank = coarse_dm[parent_box];
+            } else if (!remote_fine) {
+                continue;
+            }
+            const int type = coarse_parent ? 0 : 1;
+            if (found[type][depth - 1][codimension]) continue;
+            const auto comparison = split_comparison_cell(
+                donor_cell, coarse_parent ? coarse_ba : fine_ba);
+            if (comparison.first < 0) continue;
+            SplitGhostValueSample sample;
+            sample.coarse_parent = coarse_parent;
+            sample.depth = depth;
+            sample.codimension = codimension;
+            sample.destination_box = destination_box;
+            sample.destination_rank = destination_rank;
+            sample.ghost = ghost;
+            sample.donor_box = donor_box;
+            sample.donor_rank = donor_rank;
+            sample.donor_cell = donor_cell;
+            sample.comparison_box = comparison.first;
+            sample.comparison_cell = comparison.second;
+            samples.push_back(sample);
+            found[type][depth - 1][codimension] = true;
+        }
+    }
+    for (int type = 0; type < 2; ++type) {
+        for (int depth = 1; depth <= 2; ++depth) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                found[type][depth - 1][1],
+                type == 0
+                    ? "split SBM qualification lacks a remote coarse-parent face ghost at a required depth"
+                    : "split SBM qualification lacks a remote fine-fine face ghost at a required depth");
+        }
+    }
+    return samples;
+}
+
+Real
+read_split_valid_value (const MultiFab& field, const int box_index,
+                        const amrex::IntVect& cell, const int component)
+{
+    for (amrex::MFIter mfi(field, false); mfi.isValid(); ++mfi) {
+        if (mfi.index() != box_index) continue;
+        const auto values = field.const_array(mfi);
+        Real result = Real(0.0);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                         values.ptr(cell, component),
+                         values.ptr(cell, component) + 1, &result);
+        amrex::Gpu::streamSynchronize();
+        return result;
+    }
+    return Real(0.0);
+}
+
+Real
+read_split_ghost_value (const MultiFab& field, const int box_index,
+                        const amrex::IntVect& cell, const int component)
+{
+    for (amrex::MFIter mfi(field, false); mfi.isValid(); ++mfi) {
+        if (mfi.index() != box_index) continue;
+        const auto values = field.const_array(mfi);
+        Real result = Real(0.0);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                         values.ptr(cell, component),
+                         values.ptr(cell, component) + 1, &result);
+        amrex::Gpu::streamSynchronize();
+        return result;
+    }
+    return Real(0.0);
+}
+
+void
+verify_split_ghost_values (const MultiFab& destination,
+                           const MultiFab& fine_source_state,
+                           const MultiFab& fine_source_conserved,
+                           const MultiFab& coarse_old_spectrum,
+                           const MultiFab& coarse_new_spectrum,
+                           const SBMAMRStageParent& parent,
+                           const amrex::Geometry& fine_geometry,
+                           const double theta,
+                           const int stage,
+                           const double requested_time)
+{
+    const auto samples = select_split_ghost_value_samples(
+        coarse_old_spectrum.boxArray(), coarse_old_spectrum.DistributionMap(),
+        fine_geometry, destination.boxArray(), destination.DistributionMap(),
+        parent.refinement_ratio);
+    const std::array<int, 2> components{0, destination.nComp() - 1};
+    const Real tolerance = Real(512.0) *
+                           std::numeric_limits<Real>::epsilon();
+    for (const auto& sample : samples) {
+        for (const int component : components) {
+            std::array<Real, 9> values{};
+            Real actual = Real(0.0);
+            if (amrex::ParallelDescriptor::MyProc() ==
+                sample.destination_rank) {
+                actual = read_split_ghost_value(
+                    destination, sample.destination_box, sample.ghost,
+                    component);
+            }
+            if (sample.coarse_parent) {
+                if (amrex::ParallelDescriptor::MyProc() == sample.donor_rank) {
+                    values[0] = read_split_valid_value(
+                        coarse_old_spectrum, sample.donor_box,
+                        sample.donor_cell, component);
+                    values[1] = read_split_valid_value(
+                        coarse_new_spectrum, sample.donor_box,
+                        sample.donor_cell, component);
+                    values[2] = read_split_valid_value(
+                        *parent.conserved_old, sample.donor_box,
+                        sample.donor_cell, Rho_comp);
+                    values[3] = read_split_valid_value(
+                        *parent.conserved_new, sample.donor_box,
+                        sample.donor_cell, Rho_comp);
+                }
+                if (amrex::ParallelDescriptor::MyProc() ==
+                    coarse_old_spectrum.DistributionMap()[sample.comparison_box]) {
+                    values[4] = read_split_valid_value(
+                        coarse_old_spectrum, sample.comparison_box,
+                        sample.comparison_cell, component);
+                    values[5] = read_split_valid_value(
+                        coarse_new_spectrum, sample.comparison_box,
+                        sample.comparison_cell, component);
+                    values[6] = read_split_valid_value(
+                        *parent.conserved_old, sample.comparison_box,
+                        sample.comparison_cell, Rho_comp);
+                    values[7] = read_split_valid_value(
+                        *parent.conserved_new, sample.comparison_box,
+                        sample.comparison_cell, Rho_comp);
+                }
+                values[8] = actual;
+                amrex::ParallelDescriptor::ReduceRealSum(
+                    values.data(), static_cast<int>(values.size()));
+                const Real theta_real = static_cast<Real>(theta);
+                const Real rho = (Real(1.0) - theta_real) * values[2] +
+                                 theta_real * values[3];
+                const Real expected =
+                    ((Real(1.0) - theta_real) * values[2] * values[0] +
+                     theta_real * values[3] * values[1]) / rho;
+                const Real comparison_rho =
+                    (Real(1.0) - theta_real) * values[6] +
+                    theta_real * values[7];
+                const Real comparison_expected =
+                    ((Real(1.0) - theta_real) * values[6] * values[4] +
+                     theta_real * values[7] * values[5]) / comparison_rho;
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    std::isfinite(values[8]) &&
+                        std::abs(values[8] - expected) <=
+                            tolerance * std::max(Real(1.0), std::abs(expected)),
+                    "split SBM coarse-parent received value differs from independently reconstructed U(t)/rho(t)");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    std::abs(expected - comparison_expected) >
+                        Real(100.0) * tolerance *
+                            std::max(Real(1.0), std::abs(expected)),
+                    "split SBM coarse-parent spatial fixture did not distinguish adjacent donors");
+                amrex::Print() << std::setprecision(17)
+                               << "SBM_AMR_QUAL_GHOST_VALUE type=coarse_parent"
+                               << " depth=" << sample.depth
+                               << " codim=" << sample.codimension
+                               << " component=" << component
+                               << " dest_rank=" << sample.destination_rank
+                               << " dest_box=" << sample.destination_box
+                               << " ghost=" << sample.ghost
+                               << " donor_rank=" << sample.donor_rank
+                               << " donor_box=" << sample.donor_box
+                               << " donor_cell=" << sample.donor_cell
+                               << " requested_time=" << requested_time
+                               << " received=" << values[8]
+                               << " expected=" << expected
+                               << " neighbor_expected=" << comparison_expected
+                               << " contrast="
+                               << std::abs(expected - comparison_expected)
+                               << '\n';
+            } else {
+                if (amrex::ParallelDescriptor::MyProc() == sample.donor_rank) {
+                    values[0] = read_split_valid_value(
+                        fine_source_state, sample.donor_box,
+                        sample.donor_cell, component);
+                    values[1] = read_split_valid_value(
+                        fine_source_conserved, sample.donor_box,
+                        sample.donor_cell, Rho_comp);
+                }
+                if (amrex::ParallelDescriptor::MyProc() ==
+                    fine_source_state.DistributionMap()[sample.comparison_box]) {
+                    values[2] = read_split_valid_value(
+                        fine_source_state, sample.comparison_box,
+                        sample.comparison_cell, component);
+                    values[3] = read_split_valid_value(
+                        fine_source_conserved, sample.comparison_box,
+                        sample.comparison_cell, Rho_comp);
+                }
+                values[4] = actual;
+                amrex::ParallelDescriptor::ReduceRealSum(
+                    values.data(), static_cast<int>(values.size()));
+                const Real expected = values[0] / values[1];
+                const Real comparison_expected = values[2] / values[3];
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    std::isfinite(values[4]) &&
+                        std::abs(values[4] - expected) <=
+                            tolerance * std::max(Real(1.0), std::abs(expected)),
+                    "split SBM fine-fine received value differs from its remote valid-source intensive value");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    std::abs(expected - comparison_expected) >
+                        Real(100.0) * tolerance *
+                            std::max(Real(1.0), std::abs(expected)),
+                    "split SBM fine-fine spatial fixture did not distinguish adjacent donors");
+                amrex::Print() << std::setprecision(17)
+                               << "SBM_AMR_QUAL_GHOST_VALUE type=fine_fine"
+                               << " depth=" << sample.depth
+                               << " codim=" << sample.codimension
+                               << " component=" << component
+                               << " dest_rank=" << sample.destination_rank
+                               << " dest_box=" << sample.destination_box
+                               << " ghost=" << sample.ghost
+                               << " donor_rank=" << sample.donor_rank
+                               << " donor_box=" << sample.donor_box
+                               << " donor_cell=" << sample.donor_cell
+                               << " requested_time=" << requested_time
+                               << " received=" << values[4]
+                               << " expected=" << expected
+                               << " neighbor_expected=" << comparison_expected
+                               << " contrast="
+                               << std::abs(expected - comparison_expected)
+                               << '\n';
+            }
+        }
+    }
+    amrex::Print() << "SBM_AMR_QUAL_GHOST_VALUE_COMPLETE stage=" << stage
+                   << " requested_time=" << requested_time
+                   << " samples=" << samples.size() << '\n';
+}
+#endif
+
 void
 fill_coarse_parent_ghosts (MultiFab& destination,
                            MultiFab& missing_fine_ghosts,
                            const MultiFab& coarse_old_spectrum,
                            const MultiFab& coarse_new_spectrum,
+                           const MultiFab& fine_source_state,
+                           const MultiFab& fine_source_conserved,
                            const SBMAMRStageParent& parent,
                            const amrex::Geometry& fine_geometry,
                            const std::vector<ConstraintClosureChunk>& chunks,
@@ -174,6 +526,20 @@ fill_coarse_parent_ghosts (MultiFab& destination,
         : (std::strcmp(role, "limiter-base") == 0 ? 1 : 2);
     const bool probe_this_role = probe == nullptr ||
         probe->requested_role == current_role;
+    bool inject_rank_local_store_fault = false;
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    // Private MPI negative-oracle hook.  The CTest runner sets this only for
+    // the split-grid failure case; rank 0 then skips component 0's actual
+    // destination store at the remote-parent ghost while retaining the
+    // independent wrote_components tally.
+    if (const char* fault = std::getenv(
+            "ERF_SBM_AMR_TEST_SKIP_REMOTE_PARENT_STORE")) {
+        inject_rank_local_store_fault =
+            std::strcmp(fault, "rank0") == 0 && level == 1 && stage == 0 &&
+            current_role == 0 &&
+            amrex::ParallelDescriptor::MyProc() == 0;
+    }
+#endif
     const double coarse_dt = parent.new_time - parent.old_time;
     const double dt_min = std::min(parent.fine_step_dt, coarse_dt);
     double theta = 0.0;
@@ -248,9 +614,13 @@ fill_coarse_parent_ghosts (MultiFab& destination,
 
     // Component 0 marks coarse-only ghosts, component 1 counts component
     // writes in this role, and component 2 marks an unrepresentable quotient.
-    // Valid cells and fine-fine/periodic donors remain zero and immutable.
+    // Seed the ghost region, clear valid cells, then exchange the valid mask:
+    // same-level and periodic donor ghosts become zero while coarse-only
+    // ghosts stay marked.  Fine valid data and fine-fine/periodic donors are
+    // never poisoned or replaced by parent values.
     missing_fine_ghosts.setVal(Real(0.0), 0, 3, 2);
     missing_fine_ghosts.setVal(Real(1.0), 0, 1, 2);
+    missing_fine_ghosts.setVal(Real(0.0), 0, 1, 0);
     missing_fine_ghosts.FillBoundary(0, 1, fine_geometry.periodicity());
 
     if (probe != nullptr && probe_this_role &&
@@ -270,6 +640,25 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                     }
                 });
         }
+    }
+
+    // Poison only the cells classified as coarse-only ghosts in this role.
+    // This makes a missed destination store observable even when that FAB
+    // held a finite value from an earlier role or stage.  The destination is
+    // the only N-component storage touched; no all-component staging copy is
+    // created.
+    const Real poison = std::numeric_limits<Real>::quiet_NaN();
+    for (amrex::MFIter mfi(destination, false); mfi.isValid(); ++mfi) {
+        const amrex::Box fab_box = mfi.fabbox();
+        const auto missing = missing_fine_ghosts.const_array(mfi);
+        const auto target = destination.array(mfi);
+        amrex::ParallelFor(
+            fab_box, destination.nComp(),
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                if (missing(i, j, k, 0) == Real(1.0)) {
+                    target(i, j, k, n) = poison;
+                }
+            });
     }
 
     std::vector<int> flattened_components;
@@ -395,15 +784,10 @@ fill_coarse_parent_ghosts (MultiFab& destination,
             probe == nullptr ? amrex::IntVect(-1) : probe->fine_cell;
         const int probe_component =
             probe == nullptr ? -1 : probe->global_component;
-        auto* probe_value = probe == nullptr
-                                ? nullptr : probe->sampled_intensive_device;
-        auto* probe_hit = probe == nullptr ? nullptr : probe->hit_device;
         const int skipped_component =
             probe == nullptr ? -1 : probe->skipped_global_component;
         const int probe_stage = probe == nullptr ? -1 : probe->requested_stage;
         const bool probe_role_matches = probe_this_role;
-        const Real stale_value =
-            probe == nullptr ? Real(0.0) : probe->stale_value;
         for (amrex::MFIter mfi(destination, false); mfi.isValid(); ++mfi) {
             const amrex::Box fab_box = mfi.fabbox();
             const auto coarse = coarse_stage.const_array(mfi);
@@ -424,14 +808,15 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                     int wrote_components = 0;
                     for (int local = 0; local < component_count; ++local) {
                         const int global = component_map_local[local];
-                        if (global == skipped_component &&
+                        const bool skip_assignment =
+                            global == skipped_component &&
                             probe_role_matches &&
                             (probe_stage < 0 || probe_stage == stage) &&
                             i == probe_cell[0] && j == probe_cell[1] &&
-                            k == probe_cell[2]) {
-                            target(i, j, k, global) = stale_value;
-                            continue;
-                        }
+                            k == probe_cell[2];
+                        const bool skip_rank_local_assignment =
+                            inject_rank_local_store_fault && global == 0 &&
+                            i == 2 && j == -2 && k == -2;
                         const Real u0 = coarse(parent_cell[0], parent_cell[1],
                                                parent_cell[2], local);
                         const Real u1 = coarse(
@@ -450,35 +835,110 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                             intensive >= Real(0.0) &&
                             (!(positive_support_expected) ||
                              (u_t > Real(0.0) && intensive > Real(0.0)));
-                        if (quotient_ok) {
-                            target(i, j, k, global) = intensive;
-                        } else {
-                            // Keep a generated quotient failure distinct from
-                            // an unwritten component in the scalar token.
-                            target(i, j, k, global) =
-                                std::numeric_limits<Real>::infinity();
-                            missing(i, j, k, 2) = Real(1.0);
+                        if (!skip_assignment && !skip_rank_local_assignment) {
+                            if (quotient_ok) {
+                                target(i, j, k, global) = intensive;
+                            } else {
+                                // Keep a generated quotient failure distinct
+                                // from a missing destination store.
+                                target(i, j, k, global) =
+                                    std::numeric_limits<Real>::infinity();
+                                missing(i, j, k, 2) = Real(1.0);
+                            }
                         }
                         ++wrote_components;
-                        if (probe_value != nullptr && probe_hit != nullptr &&
-                            probe_role_matches &&
-                            (probe_stage < 0 || probe_stage == stage) &&
-                            quotient_ok && global == probe_component &&
-                            i == probe_cell[0] && j == probe_cell[1] &&
-                            k == probe_cell[2]) {
-                            *probe_value = intensive;
-                            *probe_hit = 1;
-                        }
                     }
                     missing(i, j, k, 1) += static_cast<Real>(wrote_components);
                 });
         }
     }
 
-    // Verify every requested parent component was actually written.  The
-    // component count is an independent write token, so stale finite values
-    // in the destination cannot satisfy this check.  Search both ghost layers
-    // and reduce collectively before any stencil can consume the values.
+    // Independently inspect actual destination values at all marked coarse-
+    // only ghosts before any stencil can consume them.  The per-cell loop
+    // avoids races when multiple components fail at one location; the mask
+    // carries one scalar failure code for the collective reduction.
+    for (amrex::MFIter mfi(destination, false); mfi.isValid(); ++mfi) {
+        const amrex::Box fab_box = mfi.fabbox();
+        const auto mask = missing_fine_ghosts.array(mfi);
+        const int ncomp = destination.nComp();
+        const auto target = destination.const_array(mfi);
+        const int sample_component = probe == nullptr
+            ? -1 : probe->global_component;
+        const amrex::IntVect sample_cell = probe == nullptr
+            ? amrex::IntVect(-1) : probe->fine_cell;
+        const bool sample_role_matches = probe_this_role;
+        const int sample_stage = probe == nullptr
+            ? -1 : probe->requested_stage;
+        auto* sampled_value = probe == nullptr
+            ? nullptr : probe->sampled_intensive_device;
+        auto* sampled_hit = probe == nullptr ? nullptr : probe->hit_device;
+        amrex::ParallelFor(
+            fab_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (mask(i, j, k, 0) != Real(1.0)) return;
+                int destination_invalid = 0;
+                const bool quotient_failed =
+                    mask(i, j, k, 2) == Real(1.0);
+                for (int component = 0; component < ncomp; ++component) {
+                    const Real value = target(i, j, k, component);
+                    if (!amrex::Math::isfinite(value) || value < Real(0.0)) {
+                        // The quotient path writes +infinity deliberately as
+                        // its invalid marker. Keep that distinct from the
+                        // NaN poison that proves a destination store was
+                        // skipped; any other bad component remains visible.
+                        if (quotient_failed && value > Real(0.0)) continue;
+                        destination_invalid = 1;
+                        break;
+                    }
+                }
+                if (destination_invalid != 0) {
+                    // Encode both independent failure classes if necessary:
+                    // 1 = quotient, 2 = invalid destination, 3 = both.
+                    mask(i, j, k, 2) = quotient_failed
+                        ? Real(3.0) : Real(2.0);
+                }
+                if (sampled_value != nullptr && sampled_hit != nullptr &&
+                    sample_role_matches &&
+                    (sample_stage < 0 || sample_stage == stage) &&
+                    i == sample_cell[0] && j == sample_cell[1] &&
+                    k == sample_cell[2]) {
+                    *sampled_value = target(i, j, k, sample_component);
+                    *sampled_hit = 1;
+                }
+            });
+    }
+    const Real destination_failure = missing_fine_ghosts.max(2, 2);
+    if (destination_failure == Real(2.0) ||
+        destination_failure == Real(3.0)) {
+        std::ostringstream message;
+        message.precision(17);
+        message << "SBM coarse/fine stage left a coarse-only parent ghost "
+                << "component unwritten or invalid in the destination"
+                << (destination_failure == Real(3.0)
+                        ? " (also found an invalid quotient)" : "")
+                << " (level=" << level << ", stage=" << stage << ", role="
+                << role << ", requested_time=" << requested_time
+                << ", coarse_old=" << parent.old_time << ", coarse_new="
+                << parent.new_time << ", rank="
+                << amrex::ParallelDescriptor::MyProc()
+                << (inject_rank_local_store_fault
+                        ? ", assignment_only_fault=rank-local" : "")
+                << ')';
+        amrex::Abort(message.str());
+    }
+    if (destination_failure == Real(1.0)) {
+        std::ostringstream message;
+        message.precision(17);
+        message << "SBM coarse/fine stage produced an unrepresentable "
+                << "U(t)/rho_d(t) quotient (level=" << level << ", stage="
+                << stage << ", role=" << role << ", requested_time="
+                << requested_time << ", coarse_old=" << parent.old_time
+                << ", coarse_new=" << parent.new_time << ", rank="
+                << amrex::ParallelDescriptor::MyProc() << ')';
+        amrex::Abort(message.str());
+    }
+
+    // Retain the independent progress token as a second check.  It cannot
+    // stand in for the actual-destination scan above.
     for (amrex::MFIter mfi(destination, false); mfi.isValid(); ++mfi) {
         const amrex::Box fab_box = mfi.fabbox();
         const auto mask = missing_fine_ghosts.array(mfi);
@@ -503,29 +963,19 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                 << amrex::ParallelDescriptor::MyProc() << ')';
         amrex::Abort(message.str());
     }
-    for (amrex::MFIter mfi(destination, false); mfi.isValid(); ++mfi) {
-        const amrex::Box fab_box = mfi.fabbox();
-        const auto mask = missing_fine_ghosts.array(mfi);
-        amrex::ParallelFor(
-            fab_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                mask(i, j, k, 0) =
-                    (mask(i, j, k, 0) == Real(0.0) &&
-                     mask(i, j, k, 2) == Real(1.0))
-                        ? Real(1.0) : Real(0.0);
-            });
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    static bool split_ghost_values_checked = false;
+    if (!split_ghost_values_checked && parent.validate_split_ghost_values &&
+        current_role == 0 && stage == 0 &&
+        semantic_time_matches(requested_time, parent.old_time, dt_min)) {
+        amrex::Gpu::streamSynchronize();
+        verify_split_ghost_values(
+            destination, fine_source_state, fine_source_conserved,
+            coarse_old_spectrum, coarse_new_spectrum, parent, fine_geometry,
+            theta, stage, requested_time);
+        split_ghost_values_checked = true;
     }
-    if (missing_fine_ghosts.max(0, 2) != Real(0.0)) {
-        std::ostringstream message;
-        message.precision(17);
-        message << "SBM coarse/fine stage produced an unrepresentable "
-                << "U(t)/rho_d(t) quotient (level=" << level << ", stage="
-                << stage << ", role=" << role << ", requested_time="
-                << requested_time << ", coarse_old=" << parent.old_time
-                << ", coarse_new=" << parent.new_time << ", rank="
-                << amrex::ParallelDescriptor::MyProc() << ')';
-        amrex::Abort(message.str());
-    }
-
+#endif
     // Device component maps and parent chunks remain alive through the queued
     // ghost kernels. Synchronize before their storage is released.
     amrex::Gpu::streamSynchronize();
@@ -1065,6 +1515,8 @@ SBMTransport::begin_physical_step (const int level, const double step_begin,
     if (level == 0) {
         m_interval_limiter_active_groups = 0;
         m_interval_limiter_changed_rate = false;
+        m_interval_carrier_linf = Real(0.0);
+        m_interval_accepted_rate_linf = Real(0.0);
     }
 #endif
     if (data.interface_as_coarse &&
@@ -1275,6 +1727,15 @@ SBMTransport::advance_stage (const int level,
         amrex::Abort(message.str());
     }
 
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    if (m_zero_flow_diagnostics_enabled) {
+        m_interval_carrier_linf = std::max(
+            m_interval_carrier_linf,
+            std::max({avg_xmom.norminf(0), avg_ymom.norminf(0),
+                      avg_zmom.norminf(0)}));
+    }
+#endif
+
     build_intensive(data.input_intensive, spectrum, conserved_input,
                     geometry.periodicity(), "input");
     build_intensive(data.base_intensive, trial_state, trial_conserved,
@@ -1294,7 +1755,8 @@ SBMTransport::advance_stage (const int level,
         const MultiFab& coarse_new_spectrum = state_manager.new_state(level - 1);
         fill_coarse_parent_ghosts(
             data.input_intensive, data.coarse_fill_mask,
-            coarse_old_spectrum, coarse_new_spectrum, *parent, geometry,
+            coarse_old_spectrum, coarse_new_spectrum, spectrum,
+            conserved_input, *parent, geometry,
             m_chunks, m_max_chunk_components, input_time,
             state_manager.old_time(level - 1),
             state_manager.new_time(level - 1), level, stage, "input",
@@ -1306,14 +1768,16 @@ SBMTransport::advance_stage (const int level,
                 ? step_old_time : input_time;
         fill_coarse_parent_ghosts(
             data.base_intensive, data.coarse_fill_mask,
-            coarse_old_spectrum, coarse_new_spectrum, *parent, geometry,
+            coarse_old_spectrum, coarse_new_spectrum, trial_state,
+            trial_conserved, *parent, geometry,
             m_chunks, m_max_chunk_components, base_time,
             state_manager.old_time(level - 1),
             state_manager.new_time(level - 1), level, stage,
             "limiter-base", data.coarse_source_pack, parent->ghost_probe);
         fill_coarse_parent_ghosts(
             data.anchor_intensive, data.coarse_fill_mask,
-            coarse_old_spectrum, coarse_new_spectrum, *parent, geometry,
+            coarse_old_spectrum, coarse_new_spectrum, data.anchor,
+            conserved_anchor, *parent, geometry,
             m_chunks, m_max_chunk_components, step_old_time,
             state_manager.old_time(level - 1),
             state_manager.new_time(level - 1), level, stage, "anchor",
@@ -1344,9 +1808,49 @@ SBMTransport::advance_stage (const int level,
         ? nullptr : endpoint_probe->sampled_endpoint_device;
     auto* endpoint_probe_hit = endpoint_probe == nullptr
         ? nullptr : endpoint_probe->endpoint_hit_device;
+    const bool sample_a4_stencil = endpoint_probe != nullptr &&
+        endpoint_probe->sampled_face_direction == 0 &&
+        endpoint_probe->sampled_physical_stencil_device != nullptr &&
+        endpoint_probe->sampled_endpoint_stencil_device != nullptr &&
+        (endpoint_probe->sampled_stage < 0 ||
+         endpoint_probe->sampled_stage == stage);
+    const amrex::IntVect a4_face = sample_a4_stencil
+        ? endpoint_probe->sampled_face : amrex::IntVect(-1);
+    const int a4_mass_component = sample_a4_stencil
+        ? endpoint_probe->sampled_mass_component : -1;
+    const int a4_number_component = sample_a4_stencil
+        ? endpoint_probe->sampled_number_component : -1;
+    const int a4_property_component = sample_a4_stencil
+        ? endpoint_probe->sampled_property_component : -1;
+    auto* a4_physical_stencil = sample_a4_stencil
+        ? endpoint_probe->sampled_physical_stencil_device : nullptr;
+    auto* a4_endpoint_stencil = sample_a4_stencil
+        ? endpoint_probe->sampled_endpoint_stencil_device : nullptr;
+    const auto* a4_secondary_probe = parent == nullptr
+        ? nullptr : parent->secondary_ghost_probe;
+    const bool sample_a4_secondary = a4_secondary_probe != nullptr &&
+        a4_secondary_probe->sampled_face_direction == 0 &&
+        a4_secondary_probe->sampled_physical_stencil_device != nullptr &&
+        a4_secondary_probe->sampled_endpoint_stencil_device != nullptr &&
+        (a4_secondary_probe->sampled_stage < 0 ||
+         a4_secondary_probe->sampled_stage == stage);
+    const amrex::IntVect a4_secondary_face = sample_a4_secondary
+        ? a4_secondary_probe->sampled_face : amrex::IntVect(-1);
+    const int a4_secondary_mass_component = sample_a4_secondary
+        ? a4_secondary_probe->sampled_mass_component : -1;
+    const int a4_secondary_number_component = sample_a4_secondary
+        ? a4_secondary_probe->sampled_number_component : -1;
+    const int a4_secondary_property_component = sample_a4_secondary
+        ? a4_secondary_probe->sampled_property_component : -1;
+    auto* a4_secondary_physical_stencil = sample_a4_secondary
+        ? a4_secondary_probe->sampled_physical_stencil_device : nullptr;
+    auto* a4_secondary_endpoint_stencil = sample_a4_secondary
+        ? a4_secondary_probe->sampled_endpoint_stencil_device : nullptr;
     for (amrex::MFIter mfi(data.input_intensive, false); mfi.isValid(); ++mfi) {
         const amrex::Box bx = mfi.fabbox();
         const auto input = data.input_intensive.array(mfi);
+        const auto physical_input =
+            data.physical_input_intensive.const_array(mfi);
         const auto invalid = data.coarse_fill_mask.array(mfi);
         const auto endpoint_populations = populations;
         amrex::ParallelFor(
@@ -1371,6 +1875,47 @@ SBMTransport::advance_stage (const int level,
                             input(i, j, k, number_comp) = endpoint.H;
                         }
                     }
+                }
+                if (a4_physical_stencil != nullptr &&
+                    j == a4_face[1] && k == a4_face[2] &&
+                    i >= a4_face[0] - 2 && i <= a4_face[0]) {
+                    const int slot = i - (a4_face[0] - 2);
+                    const int offset = 3 * slot;
+                    a4_physical_stencil[offset] =
+                        physical_input(i, j, k, a4_mass_component);
+                    a4_physical_stencil[offset + 1] =
+                        physical_input(i, j, k, a4_number_component);
+                    a4_physical_stencil[offset + 2] =
+                        physical_input(i, j, k, a4_property_component);
+                    a4_endpoint_stencil[offset] =
+                        input(i, j, k, a4_mass_component);
+                    a4_endpoint_stencil[offset + 1] =
+                        input(i, j, k, a4_number_component);
+                    a4_endpoint_stencil[offset + 2] =
+                        input(i, j, k, a4_property_component);
+                }
+                if (a4_secondary_physical_stencil != nullptr &&
+                    j == a4_secondary_face[1] &&
+                    k == a4_secondary_face[2] &&
+                    i >= a4_secondary_face[0] - 2 &&
+                    i <= a4_secondary_face[0]) {
+                    const int slot = i - (a4_secondary_face[0] - 2);
+                    const int offset = 3 * slot;
+                    a4_secondary_physical_stencil[offset] =
+                        physical_input(i, j, k,
+                                       a4_secondary_mass_component);
+                    a4_secondary_physical_stencil[offset + 1] =
+                        physical_input(i, j, k,
+                                       a4_secondary_number_component);
+                    a4_secondary_physical_stencil[offset + 2] =
+                        physical_input(i, j, k,
+                                       a4_secondary_property_component);
+                    a4_secondary_endpoint_stencil[offset] =
+                        input(i, j, k, a4_secondary_mass_component);
+                    a4_secondary_endpoint_stencil[offset + 1] =
+                        input(i, j, k, a4_secondary_number_component);
+                    a4_secondary_endpoint_stencil[offset + 2] =
+                        input(i, j, k, a4_secondary_property_component);
                 }
                 if (endpoint_probe_value != nullptr &&
                     endpoint_probe_hit != nullptr &&
@@ -1889,6 +2434,190 @@ SBMTransport::advance_stage (const int level,
                 }
             }
 
+            // A small-grid scientific oracle may observe one group's native
+            // post-FCT face values. This optional device-side probe adds no
+            // transport storage and is inactive in normal execution.
+            const auto* a4_probe = parent == nullptr
+                ? nullptr : parent->ghost_probe;
+            if (a4_probe != nullptr &&
+                a4_probe->sampled_mass_rate_device != nullptr &&
+                a4_probe->sampled_number_rate_device != nullptr &&
+                a4_probe->sampled_property_rate_device != nullptr &&
+                a4_probe->sampled_high_mass_rate_device != nullptr &&
+                a4_probe->sampled_high_number_rate_device != nullptr &&
+                a4_probe->sampled_high_property_rate_device != nullptr &&
+                a4_probe->sampled_low_mass_rate_device != nullptr &&
+                a4_probe->sampled_low_number_rate_device != nullptr &&
+                a4_probe->sampled_low_property_rate_device != nullptr &&
+                a4_probe->sampled_lambda_device != nullptr &&
+                a4_probe->sampled_rate_hit_device != nullptr &&
+                a4_probe->sampled_face_direction >= 0 &&
+                (a4_probe->sampled_stage < 0 ||
+                 a4_probe->sampled_stage == stage) &&
+                std::find(group.members.begin(), group.members.end(),
+                          a4_probe->sampled_mass_component) !=
+                    group.members.end() &&
+                std::find(group.members.begin(), group.members.end(),
+                          a4_probe->sampled_number_component) !=
+                    group.members.end() &&
+                std::find(group.members.begin(), group.members.end(),
+                          a4_probe->sampled_property_component) !=
+                    group.members.end()) {
+                const int probe_dir = a4_probe->sampled_face_direction;
+                const amrex::IntVect probe_face = a4_probe->sampled_face;
+                const int mass_local = global_to_local[static_cast<std::size_t>(
+                    a4_probe->sampled_mass_component)];
+                const int number_local = global_to_local[static_cast<std::size_t>(
+                    a4_probe->sampled_number_component)];
+                const int property_local = global_to_local[static_cast<std::size_t>(
+                    a4_probe->sampled_property_component)];
+                if (mass_local >= 0 && number_local >= 0 &&
+                    property_local >= 0) {
+                    const auto& accepted = data.accepted_rate.dir(probe_dir);
+                    const auto& high = data.high_rate.dir(probe_dir);
+                    const auto& low = data.low_rate.dir(probe_dir);
+                    const auto& lambda_field = data.face_lambda.dir(probe_dir);
+                    for (amrex::MFIter mfi(accepted,
+                                           amrex::TilingIfNotGPU());
+                         mfi.isValid(); ++mfi) {
+                        const amrex::Box box = mfi.tilebox();
+                        if (!box.contains(probe_face)) continue;
+                        const amrex::Box sample_box(
+                            probe_face, probe_face,
+                            amrex::IntVect::TheDimensionVector(probe_dir));
+                        const auto rate = accepted.const_array(mfi);
+                        const auto high_rate = high.const_array(mfi);
+                        const auto low_rate = low.const_array(mfi);
+                        const auto lambda = lambda_field.const_array(mfi);
+                        auto* mass_sample =
+                            a4_probe->sampled_mass_rate_device;
+                        auto* number_sample =
+                            a4_probe->sampled_number_rate_device;
+                        auto* property_sample =
+                            a4_probe->sampled_property_rate_device;
+                        auto* high_mass_sample =
+                            a4_probe->sampled_high_mass_rate_device;
+                        auto* high_number_sample =
+                            a4_probe->sampled_high_number_rate_device;
+                        auto* high_property_sample =
+                            a4_probe->sampled_high_property_rate_device;
+                        auto* low_mass_sample =
+                            a4_probe->sampled_low_mass_rate_device;
+                        auto* low_number_sample =
+                            a4_probe->sampled_low_number_rate_device;
+                        auto* low_property_sample =
+                            a4_probe->sampled_low_property_rate_device;
+                        auto* lambda_sample = a4_probe->sampled_lambda_device;
+                        auto* hit = a4_probe->sampled_rate_hit_device;
+                        amrex::ParallelFor(
+                            sample_box,
+                            [=] AMREX_GPU_DEVICE(int i, int j,
+                                                 int k) noexcept {
+                                mass_sample[0] =
+                                    rate(i, j, k, mass_local);
+                                number_sample[0] =
+                                    rate(i, j, k, number_local);
+                                property_sample[0] =
+                                    rate(i, j, k, property_local);
+                                high_mass_sample[0] =
+                                    high_rate(i, j, k, mass_local);
+                                high_number_sample[0] =
+                                    high_rate(i, j, k, number_local);
+                                high_property_sample[0] =
+                                    high_rate(i, j, k, property_local);
+                                low_mass_sample[0] =
+                                    low_rate(i, j, k, mass_local);
+                                low_number_sample[0] =
+                                    low_rate(i, j, k, number_local);
+                                low_property_sample[0] =
+                                    low_rate(i, j, k, property_local);
+                                lambda_sample[0] = lambda(i, j, k, 0);
+                                hit[0] = 1;
+                            });
+                    }
+                }
+            }
+
+            const auto* second_probe = parent == nullptr
+                ? nullptr : parent->secondary_ghost_probe;
+            if (second_probe != nullptr &&
+                second_probe->sampled_mass_rate_device != nullptr &&
+                second_probe->sampled_number_rate_device != nullptr &&
+                second_probe->sampled_property_rate_device != nullptr &&
+                second_probe->sampled_high_mass_rate_device != nullptr &&
+                second_probe->sampled_high_number_rate_device != nullptr &&
+                second_probe->sampled_high_property_rate_device != nullptr &&
+                second_probe->sampled_low_mass_rate_device != nullptr &&
+                second_probe->sampled_low_number_rate_device != nullptr &&
+                second_probe->sampled_low_property_rate_device != nullptr &&
+                second_probe->sampled_lambda_device != nullptr &&
+                second_probe->sampled_rate_hit_device != nullptr &&
+                second_probe->sampled_face_direction >= 0 &&
+                (second_probe->sampled_stage < 0 ||
+                 second_probe->sampled_stage == stage) &&
+                std::find(group.members.begin(), group.members.end(),
+                          second_probe->sampled_mass_component) !=
+                    group.members.end() &&
+                std::find(group.members.begin(), group.members.end(),
+                          second_probe->sampled_number_component) !=
+                    group.members.end() &&
+                std::find(group.members.begin(), group.members.end(),
+                          second_probe->sampled_property_component) !=
+                    group.members.end()) {
+                const int dir = second_probe->sampled_face_direction;
+                const amrex::IntVect face = second_probe->sampled_face;
+                const int m = global_to_local[static_cast<std::size_t>(
+                    second_probe->sampled_mass_component)];
+                const int n = global_to_local[static_cast<std::size_t>(
+                    second_probe->sampled_number_component)];
+                const int p = global_to_local[static_cast<std::size_t>(
+                    second_probe->sampled_property_component)];
+                if (m >= 0 && n >= 0 && p >= 0) {
+                    const auto& accepted = data.accepted_rate.dir(dir);
+                    const auto& high = data.high_rate.dir(dir);
+                    const auto& low = data.low_rate.dir(dir);
+                    const auto& lambda_field = data.face_lambda.dir(dir);
+                    for (amrex::MFIter mfi(accepted,
+                                           amrex::TilingIfNotGPU());
+                         mfi.isValid(); ++mfi) {
+                        if (!mfi.tilebox().contains(face)) continue;
+                        const amrex::Box face_box(
+                            face, face,
+                            amrex::IntVect::TheDimensionVector(dir));
+                        const auto accepted_values = accepted.const_array(mfi);
+                        const auto high_values = high.const_array(mfi);
+                        const auto low_values = low.const_array(mfi);
+                        const auto limiter = lambda_field.const_array(mfi);
+                        auto* am = second_probe->sampled_mass_rate_device;
+                        auto* an = second_probe->sampled_number_rate_device;
+                        auto* ap = second_probe->sampled_property_rate_device;
+                        auto* hm = second_probe->sampled_high_mass_rate_device;
+                        auto* hn = second_probe->sampled_high_number_rate_device;
+                        auto* hp = second_probe->sampled_high_property_rate_device;
+                        auto* lm = second_probe->sampled_low_mass_rate_device;
+                        auto* ln = second_probe->sampled_low_number_rate_device;
+                        auto* lp = second_probe->sampled_low_property_rate_device;
+                        auto* out_lambda = second_probe->sampled_lambda_device;
+                        auto* out_hit = second_probe->sampled_rate_hit_device;
+                        amrex::ParallelFor(face_box,
+                            [=] AMREX_GPU_DEVICE(int i, int j,
+                                                 int k) noexcept {
+                                am[0] = accepted_values(i, j, k, m);
+                                an[0] = accepted_values(i, j, k, n);
+                                ap[0] = accepted_values(i, j, k, p);
+                                hm[0] = high_values(i, j, k, m);
+                                hn[0] = high_values(i, j, k, n);
+                                hp[0] = high_values(i, j, k, p);
+                                lm[0] = low_values(i, j, k, m);
+                                ln[0] = low_values(i, j, k, n);
+                                lp[0] = low_values(i, j, k, p);
+                                out_lambda[0] = limiter(i, j, k, 0);
+                                out_hit[0] = 1;
+                            });
+                    }
+                }
+            }
+
 #ifdef ERF_SBM_AMR_QUALIFICATION
             // Qualification-only evidence: record a group when any accepted
             // face limiter is below one, and separately prove that at least
@@ -1974,6 +2703,21 @@ SBMTransport::advance_stage (const int level,
                 }
             }
         }
+
+        // Qualification-only zero-flow evidence records the accepted face
+        // rates after complete-group FCT, including mass, number and attached
+        // components.  The expensive collective norms are disabled in all
+        // other qualification cases and production builds.
+#ifdef ERF_SBM_AMR_QUALIFICATION
+        if (m_zero_flow_diagnostics_enabled) {
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                const auto& accepted = data.accepted_rate.dir(dir);
+                m_interval_accepted_rate_linf = std::max(
+                    m_interval_accepted_rate_linf,
+                    accepted.norm0(0, accepted.nComp(), amrex::IntVect(0)));
+            }
+        }
+#endif
 
         // Hand the accepted, chunk-local rates directly to the YA interface
         // register.  The owner keeps these additions pending until the full
