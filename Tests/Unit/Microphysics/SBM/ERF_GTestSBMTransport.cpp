@@ -2473,7 +2473,6 @@ TEST(SBMTransport, TwoMomentAttachedG1AndEndpointGhostsCoverFaceEdgeCornerLayers
         for (const int component : {0, 2, 4}) {
             SCOPED_TRACE(::testing::Message()
                          << "ghost=" << cell << " component=" << component);
-            G1GhostSample sample;
             for (int stage = 0; stage < 3; ++stage) {
                 for (int role = 0; role < 3; ++role) {
                     SCOPED_TRACE(::testing::Message()

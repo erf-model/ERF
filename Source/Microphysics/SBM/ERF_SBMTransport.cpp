@@ -437,8 +437,6 @@ fill_coarse_parent_ghosts (MultiFab& destination,
         const amrex::IntVect refinement_ratio = parent.refinement_ratio;
         const amrex::IntVect probe_cell =
             probe == nullptr ? amrex::IntVect(-1) : probe->fine_cell;
-        const int probe_component =
-            probe == nullptr ? -1 : probe->global_component;
         const int skipped_component =
             probe == nullptr ? -1 : probe->skipped_global_component;
         const bool skip_tally_only =
@@ -641,7 +639,8 @@ fill_coarse_parent_ghosts (MultiFab& destination,
         *split_values_checked = true;
     }
 #else
-    amrex::ignore_unused(split_values_checked);
+    amrex::ignore_unused(fine_source_state, fine_source_conserved,
+                         split_values_checked);
 #endif
     // Device component maps and parent chunks remain alive through the queued
     // ghost kernels. Synchronize before their storage is released.

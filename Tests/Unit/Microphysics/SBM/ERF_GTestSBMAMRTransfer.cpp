@@ -58,7 +58,7 @@ Real ya_oracle_fine_flux (int dir, int i, int j, int k, int n) noexcept
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real accepted_chunk_rate (int dir, int i, int j, int k, int global_component,
-                          int method, int stage, int substep) noexcept
+                          int /*method*/, int stage, int substep) noexcept
 {
     const Real low = Real(0.4) + Real(0.03) * dir + Real(0.001) * i +
                      Real(0.002) * j + Real(0.003) * k +
@@ -2337,7 +2337,6 @@ TEST(SBMAMRYA, InterleavedTwoMomentPropertiesMatchSignedOracleAndReduceRuns)
     // Independently sum signed coarse-minus-fine face amounts over each
     // uncovered coarse cell adjacent to the covered fine patch.
     const auto coarse_dx = coarse_geom.CellSizeArray();
-    const auto fine_dx = fine_geom.CellSizeArray();
     const int tangential[3][2] = {{1, 2}, {0, 2}, {0, 1}};
     MultiFab fv_expected(coarse_ba, coarse_dm, ncomp, 0);
     MultiFab::Copy(fv_expected, initial, 0, 0, ncomp, 0);

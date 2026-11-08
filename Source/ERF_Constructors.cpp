@@ -92,7 +92,7 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
         "SBM M3 requires buildings_type=None");
     // Production SBM has already required max_level == 0 above.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        choice.timestepping_type.size() == static_cast<std::size_t>(max_level + 1) &&
+        choice.timestepping_type.size() == max_level + 1 &&
         std::none_of(choice.timestepping_type.begin(), choice.timestepping_type.end(),
                      [] (TimesteppingType type) {
                          return type == TimesteppingType::RK3_ImplicitSubstep;
