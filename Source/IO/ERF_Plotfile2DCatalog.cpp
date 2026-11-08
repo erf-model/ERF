@@ -113,9 +113,9 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::NoahmpWaterVaporMixingRatio2mVegetated, "noahmp_water_vapor_mixing_ratio_2m_vegetated", "Noah-MP 2-m water-vapor mixing ratio over the vegetated fraction", "kg kg^-1 dry air", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::NoahmpWaterVaporMixingRatio2mBare, "noahmp_water_vapor_mixing_ratio_2m_bare", "Noah-MP 2-m water-vapor mixing ratio over the bare fraction", "kg kg^-1 dry air", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::NoahmpVegetationFraction, "noahmp_vegetation_fraction", "Noah-MP vegetation fraction", "1", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
-        {DiagnosticID::Temperature2m, "temperature_2m", "Physical air temperature 2 m above the local surface", "K", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
-        {DiagnosticID::WaterVaporMixingRatio2m, "water_vapor_mixing_ratio_2m", "Water-vapor mixing ratio 2 m above the local surface per unit dry-air mass", "kg kg^-1 dry air", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
-        {DiagnosticID::NearSurfaceDiagnosticSource, "near_surface_diagnostic_source", "Source code for the unified near-surface diagnostic bundle", "1", DiagnosticCategory::LandSurface, MissingPolicy::AlwaysAvailable},
+        {DiagnosticID::Temperature2m, "temperature_2m", "Physical air temperature 2 m above the local surface", "K", DiagnosticCategory::NearSurface, MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::WaterVaporMixingRatio2m, "water_vapor_mixing_ratio_2m", "Water-vapor mixing ratio 2 m above the local surface per unit dry-air mass", "kg kg^-1 dry air", DiagnosticCategory::NearSurface, MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::NearSurfaceDiagnosticSource, "near_surface_diagnostic_source", "Source code for the unified near-surface diagnostic bundle", "1", DiagnosticCategory::NearSurface, MissingPolicy::AlwaysAvailable},
     };
 
     return catalog;

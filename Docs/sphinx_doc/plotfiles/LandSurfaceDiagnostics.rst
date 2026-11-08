@@ -24,6 +24,22 @@ The public unified fields are:
 ``near_surface_diagnostic_source``
    Categorical code for the source selected for the requested bundle.
 
+These fields have the metadata category ``NearSurface``, not ``LandSurface``:
+they do not need a land model. In each cell they come from
+
+#. Noah-MP's native 2-m fields (``noahmp_temperature_2m_vegetated``,
+   ``noahmp_temperature_2m_bare``,
+   ``noahmp_water_vapor_mixing_ratio_2m_vegetated``,
+   ``noahmp_water_vapor_mixing_ratio_2m_bare`` and
+   ``noahmp_vegetation_fraction``) when the ones the request needs are present
+   and valid; otherwise
+#. the SurfaceLayer's MOST profile, from ``t_surf``, ``t_star``, ``q_surf``,
+   ``q_star``, ``z0`` and the Obukhov length ``Olen``; otherwise
+#. ``-999`` for the continuous fields and ``0`` for the source code.
+
+A run with a surface layer and no land model therefore writes real MOST values.
+The fields are not offered in a run with neither Noah-MP nor a surface layer.
+
 The requested bundle consists of the requested continuous unified fields:
 temperature, humidity, or both. A source-only request follows the separate
 selection rule documented below. Selection is cell-local and request-aware. ERF

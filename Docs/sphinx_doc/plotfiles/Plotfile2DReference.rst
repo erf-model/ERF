@@ -457,17 +457,17 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``FillMinus999WhenUnavailable``
      - Noah-MP vegetation fraction
    * - ``temperature_2m``
-     - ``LandSurface``
+     - ``NearSurface``
      - ``K``
      - ``FillMinus999WhenUnavailable``
      - Physical air temperature 2 m above the local surface
    * - ``water_vapor_mixing_ratio_2m``
-     - ``LandSurface``
+     - ``NearSurface``
      - ``kg kg^-1 dry air``
      - ``FillMinus999WhenUnavailable``
      - Water-vapor mixing ratio 2 m above the local surface per unit dry-air mass
    * - ``near_surface_diagnostic_source``
-     - ``LandSurface``
+     - ``NearSurface``
      - ``1``
      - ``AlwaysAvailable``
      - Source code for the unified near-surface diagnostic bundle

@@ -414,6 +414,27 @@ TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
     EXPECT_FALSE(has_name(no_surface_layer_names, "near_surface_diagnostic_source"));
 }
 
+// Motivation: The unified 2 m fields come from Noah-MP's native 2 m fields or,
+// without them, from the surface layer, so they must not be labelled as needing
+// a land model, while Noah-MP's own 2 m tiles remain land-surface fields.
+TEST(Plotfile2D, Unified2mFieldsAreNearSurfaceNotLandSurface)
+{
+    for (const char* name : {"temperature_2m", "water_vapor_mixing_ratio_2m",
+                             "near_surface_diagnostic_source"}) {
+        const auto* descriptor = plotfile2d::find_diagnostic(name);
+        ASSERT_NE(descriptor, nullptr) << name;
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::NearSurface) << name;
+    }
+    for (const char* name : {"noahmp_temperature_2m_vegetated", "noahmp_temperature_2m_bare",
+                             "noahmp_water_vapor_mixing_ratio_2m_vegetated",
+                             "noahmp_water_vapor_mixing_ratio_2m_bare",
+                             "noahmp_vegetation_fraction"}) {
+        const auto* descriptor = plotfile2d::find_diagnostic(name);
+        ASSERT_NE(descriptor, nullptr) << name;
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::LandSurface) << name;
+    }
+}
+
 // Motivation: Terrain radiation fields are offered only when their correction
 // is active; either slope or shadow correction can supply all five diagnostics.
 TEST(Plotfile2DWaterPath, TopographicRadiationAvailabilityFollowsOptions)
@@ -557,6 +578,7 @@ TEST(Plotfile2D, CatalogDescriptorsHaveRequiredMetadata)
         case plotfile2d::DiagnosticCategory::Precipitation:
         case plotfile2d::DiagnosticCategory::ColumnIntegral:
         case plotfile2d::DiagnosticCategory::LandSurface:
+        case plotfile2d::DiagnosticCategory::NearSurface:
         case plotfile2d::DiagnosticCategory::SampledLevel:
             valid_category = true;
             break;
@@ -2890,6 +2912,8 @@ TEST(Plotfile2DMetadata, CategoryStringsMatchPublicMetadataSchema)
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceState), "SurfaceState");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::Precipitation), "Precipitation");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::ColumnIntegral), "ColumnIntegral");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::LandSurface), "LandSurface");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::NearSurface), "NearSurface");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SampledLevel), "SampledLevel");
 }
 
