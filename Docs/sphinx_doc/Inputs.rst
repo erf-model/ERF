@@ -1710,10 +1710,10 @@ that holds z in that column, so it follows the terrain-fitted mesh rather than a
 The line is sampled on the finest level that holds these cells. The z values are heights above sea
 level, or above the ground under the first point of the line if ``erf.sample_line_z_agl = true``.
 With immersed terrain (``erf.terrain_type = ImmersedForcing`` or ``EB``) the ground is the
-terrain surface, as for stations, rather than the bottom of the flat mesh. On these meshes the variable ``z``, the height of each
-sample, is always written with the line, since the z coordinates of a line plotfile assume equally
-spaced levels; it may be requested on any mesh. Plane sampling has not been implemented for
-terrain.
+terrain surface, as for stations, rather than the bottom of the flat mesh. On these meshes the
+variable ``z``, the height of each sample, is always written with the line, since the z
+coordinates of a line plotfile assume equally spaced levels; it may be requested on any mesh.
+Plane sampling has not been implemented for terrain.
 
 Plane samples are written as true multi-level AMReX plotfiles: every refinement level
 whose grids intersect the plane is written (``Level_0``, ``Level_1``, ...), so a plane
