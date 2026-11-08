@@ -21,8 +21,11 @@ WSM6::Init (const MultiFab& cons_in,
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc = detJ_cc.get();
 
+    m_columns.define(cons_in.boxArray(), geom.Domain());
+
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_WSM6::rain_accum, MicVar_WSM6::snow_accum, MicVar_WSM6::graup_accum};
+    MicVarMap = {MicVar_WSM6::rain_accum, MicVar_WSM6::snow_accum,
+                 MicVar_WSM6::graupel_accum, MicVar_WSM6::precip_accum};
 
 #if defined(ERF_USE_WSM6_FORT) && defined(AMREX_USE_GPU)
     // The host-only Fortran bridge receives dataPtr() from mic_fab_vars.
@@ -37,6 +40,9 @@ WSM6::Init (const MultiFab& cons_in,
                                                         MFInfo().SetArena(Arena_Used));
         mic_fab_vars[ivar]->setVal(0.0);
     }
+
+    m_sed.define(cons_in.boxArray(), cons_in.DistributionMap(),
+                 {RhoQ3_comp, RhoQ4_comp, RhoQ5_comp, RhoQ6_comp});
 
     nlev = m_geom.Domain().length(2);
     zlo = m_geom.Domain().smallEnd(2);

@@ -137,9 +137,10 @@
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
 
             //
-            // Make a temporary MF to fill the terrain
+            // Make a temporary MF to fill the terrain -- on this level's domain: one made from
+            // the level 0 domain would cover only part of a fine level
             //
-            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
+            Box terrain_bx(surroundingNodes(fine_geom.Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
             FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
             FArrayBox terrain_fab_src(makeSlab(terrain_bx,2,0),1);
             FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
@@ -203,7 +204,7 @@
                                       Vector<MultiFab>& S_data, std::unique_ptr<MultiFab>& z_t_pert)
     {
         // Make "old" fast geom -- store in z_phys_nd for convenience
-        Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
+        Box terrain_bx(surroundingNodes(fine_geom.Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
 
         if (verbose) Print() << "Making geometry at start of substep time: "
                              << std::setprecision(timeprecision) << old_substep_time << std::endl;

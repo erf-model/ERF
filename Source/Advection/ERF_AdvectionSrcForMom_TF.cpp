@@ -182,7 +182,7 @@ AdvectionSrcForMom_TF (const Box& bxx, const Box& bxy, const Box& bxz,
                                          (w(i,j-1,k) + w(i,j,k)) * met_h_zeta_ylo;
 
                 Real zflux_lo = fourth * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1)) *
-                                myhalf * (az(i,j,k) + az(i,j,k+1));
+                                myhalf * (az(i,j,k) + az(i,j,k-1));
 
                 Real zflux_hi = (k == hi_z_face) ? Omega(i,j,k) * w(i,j,k)  * az(i,j,k):
                     fourth * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *

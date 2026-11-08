@@ -86,8 +86,6 @@ erf.plot_vars_1     = density \
 particles.disable_plt = true
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
 erf.use_coriolis    = true

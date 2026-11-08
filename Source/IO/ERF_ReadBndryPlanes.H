@@ -10,6 +10,8 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
 
+#include <string>
+
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
 /** Collection of data structures and operations for reading data
@@ -21,6 +23,22 @@ class ReadBndryPlanes
 {
 
 public:
+    /// The slot (BCVars) a plane of variable var_name is stored in, the same slot
+    /// fill_from_bndryregs reads it from (cons_bc_comp of the component it
+    /// fills); -1 for a name that is not a plane variable.
+    static int plane_slot (const std::string& var_name)
+    {
+        if (var_name == "density")     { return BCVars::Rho_bc_comp; }
+        if (var_name == "theta")       { return BCVars::RhoTheta_bc_comp; }
+        if (var_name == "temperature") { return BCVars::RhoTheta_bc_comp; }
+        if (var_name == "ke")          { return BCVars::RhoKE_bc_comp; }
+        if (var_name == "scalar")      { return BCVars::RhoScalar_bc_comp; }
+        if (var_name == "qv")          { return BCVars::RhoQ1_bc_comp; }
+        if (var_name == "qc")          { return BCVars::RhoQ2_bc_comp; }
+        if (var_name == "velocity")    { return BCVars::xvel_bc; }
+        return -1;
+    }
+
     explicit ReadBndryPlanes (const amrex::Geometry& geom,
                               const amrex::Real& rdOcp_in);
 

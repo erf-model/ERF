@@ -196,13 +196,20 @@ EWP::source_terms_cellcentered (const Geometry& geom,
             Real K_turb = Real(6.0);
 
             Real L_wake = std::pow(dx[0]*dx[1],myhalf)/two;
-            Real sigma_e = Vabs/(three*K_turb*L_wake)*
-                           (std::pow(two*K_turb*L_wake/Vabs + std::pow(sigma_0,2),three/two) - amrex::Math::powi<3>(sigma_0));
+
+            // With no wind the source is zero (fac ~ Vabs^(5/2) as Vabs -> 0);
+            // avoid the 0 * inf in sigma_e
+            Real fac = zero;
+            if (Vabs > zero) {
+                Real sigma_e = Vabs/(three*K_turb*L_wake)*
+                               (std::pow(two*K_turb*L_wake/Vabs + std::pow(sigma_0,2),three/two) - amrex::Math::powi<3>(sigma_0));
+
+                fac = -std::pow(PI/Real(8.0),myhalf)*C_T*amrex::Math::powi<2>(d_rotor_rad)*
+                       amrex::Math::powi<2>(Vabs)/(dx[0]*dx[1]*sigma_e)*
+                       std::exp(-myhalf*amrex::Math::powi<2>((z - d_hub_height)/sigma_e));
+            }
 
             Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
-            Real fac = -std::pow(PI/Real(8.0),myhalf)*C_T*amrex::Math::powi<2>(d_rotor_rad)*
-                        amrex::Math::powi<2>(Vabs)/(dx[0]*dx[1]*sigma_e)*
-                        std::exp(-myhalf*amrex::Math::powi<2>((z - d_hub_height)/sigma_e));
             ewp_array(i,j,k,0) = fac*std::cos(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,1) = fac*std::sin(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,2) = C_TKE*zero;

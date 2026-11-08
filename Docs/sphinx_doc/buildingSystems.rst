@@ -187,6 +187,18 @@ Set build variables in the ``GNUmakefile``:
         - Enables support for Lagrangian particles
         - FALSE
         - TRUE/FALSE
+      * - ``USE_FIRE``
+        - Enables the fire coupling (atmosphere side; fire engines plug into it, see :ref:`sec:FireCoupling`)
+        - FALSE
+        - TRUE/FALSE
+      * - ``FIRE_HOME``
+        - Fire engine directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_FIRE=TRUE``; see :ref:`sec:FireCoupling`)
+        - (none)
+        - paths
+      * - ``USE_MOVING_BODIES``
+        - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`)
+        - FALSE
+        - TRUE/FALSE
       * - ``USE_NOAHMP``
         - Enables Noah-MP land surface model (requires ``USE_NETCDF=TRUE``)
         - FALSE
@@ -558,6 +570,18 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - ON/OFF
    * - ``ERF_ENABLE_PARTICLES``
      - Enables support for Lagrangian particles
+     - OFF
+     - ON/OFF
+   * - ``ERF_ENABLE_FIRE``
+     - Enables the fire coupling (atmosphere side; fire engines plug into it, see :ref:`sec:FireCoupling`); adds the smoke scalar to the state
+     - OFF
+     - ON/OFF
+   * - ``ERF_FIRE_ENGINE_DIRS``
+     - Fire engine directories to compile in, a CMake list, each with an ``ERFFireEngine.cmake`` (needs ``ERF_ENABLE_FIRE=ON``; see :ref:`sec:FireCoupling`)
+     - (none)
+     - paths
+   * - ``ERF_ENABLE_MOVING_BODIES``
+     - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`)
      - OFF
      - ON/OFF
    * - ``ERF_PRECISION``

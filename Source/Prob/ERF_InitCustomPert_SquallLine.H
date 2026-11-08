@@ -1,4 +1,8 @@
 
+    // On a mesh other than ConstantDz, heights come from z_cc and the vertical levels,
+    //    not from geomdata's prob_lo[2] and CellSize(2)
+    const bool use_z_phys = use_physical_z();
+
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
     const int khi = geomdata.Domain().bigEnd()[2];
@@ -48,9 +52,15 @@
 
     Real r_c = one;
 
-    HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,khi,
-                                              q_t,eq_pot_temp,use_empirical,true,height,z_tr,
-                                              theta_0, theta_tr, T_tr);
+    if (use_z_phys) {
+        HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),m_zlevels_stag[lev].data(),khi,
+                                                  q_t,eq_pot_temp,use_empirical,true,height,z_tr,
+                                                  theta_0, theta_tr, T_tr);
+    } else {
+        HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,geomdata.ProbLo(2),khi,
+                                                  q_t,eq_pot_temp,use_empirical,true,height,z_tr,
+                                                  theta_0, theta_tr, T_tr);
+    }
 
      amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
      amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
@@ -65,15 +75,18 @@
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo  = geomdata.ProbLo();
         const auto dx       = geomdata.CellSize();
-        const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z        = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
+        // The humidity zones (height, z_tr) are heights above the ground, as in the profile
+        //    from init_isentropic_hse_no_terrain; the bubble centre z_c is a coordinate, like x_c
+        const Real z_agl    = z - erf_prob_heights::z_ground_cc(i,j,z_sfc_nd);
         const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
         Real rad, delta_theta, theta_total, temperature, rho, RH, scalar;
 
-        Real scaled_height = z / z_tr;
+        Real scaled_height = z_agl / z_tr;
         int which_zone = -1;
-        if (z <= height) {
+        if (z_agl <= height) {
             which_zone = 1;
-        } else if (z <= z_tr) {
+        } else if (z_agl <= z_tr) {
             which_zone = 2;
         } else {
             which_zone = 3;
@@ -100,7 +113,7 @@
     RH = HSEutils::compute_relative_humidity(p[k], T_b, use_empirical, which_zone, scaled_height);
 
     Real q_v_hot;
-    if (z < height) {
+    if (z_agl < height) {
         q_v_hot = amrex::Real(0.014);
     } else {
         q_v_hot = HSEutils::vapor_mixing_ratio(p[k], T_b, RH, use_empirical, which_zone);
@@ -115,7 +128,7 @@
     Real RH_back          = HSEutils::compute_relative_humidity(p[k], T_back, use_empirical, which_zone, scaled_height);
 
     Real q_v_back;
-    if (z < height) {
+    if (z_agl < height) {
         q_v_back = amrex::Real(0.014);
     } else {
         q_v_back = HSEutils::vapor_mixing_ratio(p[k], T_back, RH_back, use_empirical, which_zone);
@@ -136,3 +149,6 @@
     }
 
   });
+
+    // The kernel above reads d_r, d_p, d_t and d_q_v; wait for it before they are freed
+    Gpu::streamSynchronize();

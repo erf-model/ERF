@@ -37,7 +37,7 @@ mpirun -np 2 erf_exec inputs_hill prob.hmax=1e-6 max_step=40 erf.plot_int_1=40
 python3 check_flat_fitted.py plt00040
 ```
 
-The scripts read the full 3D fields (`../erf_plotfile.py`,
+The scripts read the full 3D fields (`Exec/Tools/erf_plotfile.py`,
 `read_fields`), so the planar-average logs, which ERF does not write on a
 fitted mesh, are not needed.
 
@@ -76,3 +76,30 @@ Physics (`--physics`, 6 h):
 The upstream reference column sits 2 km, four half-widths, ahead of the
 crest; with periodic hills every 5.1 km it still carries a little of the
 previous ridge's wake, which the 15 % log-law tolerance allows for.
+
+## Realizability cap (`check_realizability.py`)
+
+`erf.rans_realizability = C_r` caps the eddy viscosity at `C_r k / S`
+(see the RANS theory page). The CTest `RANS_Neutral_Hill_2D_Realizability`
+runs this deck for 40 steps without the cap and with `C_r = 0.309`, and the
+script pins the stored fields to the closed form of the cap:
+
+```bash
+mpirun -np 2 erf_exec inputs_hill max_step=40 erf.plot_int_1=40 "erf.plot_vars_1=density Kmv Khv Lturb diss cmu cmu_prime cap_ratio" erf.rans_realizability=0     erf.plot_file_1=a_plt
+mpirun -np 2 erf_exec inputs_hill max_step=40 erf.plot_int_1=40 "erf.plot_vars_1=density Kmv Khv Lturb diss cmu cmu_prime cap_ratio" erf.rans_realizability=0.309 erf.plot_file_1=b_plt
+python3 check_realizability.py --cr 0.309 a_plt00040 b_plt00040
+```
+
+| check | target | tolerance |
+| --- | --- | --- |
+| Kmv vs rho cmu sqrt(k) l / max(cap_ratio, 1), both runs | equal | 1e-9 relative |
+| Khv vs rho cmu' sqrt(k) l / max(cap_ratio, 1), both runs | equal | 1e-9 relative |
+| cap_ratio without the cap | 0 | exact |
+| max cap_ratio with the cap | > 1.2 | min |
+| cells with cap_ratio > 1.05 | >= 1 | min |
+| the two runs differ in Kmv | > 0 | min |
+
+`sqrt(k)` is recovered from `diss = rho Cmu0^3 k^1.5 / l`, which the same
+kernel writes at the start of the last step (the plotfile `KE` is the end
+of the step). After 40 steps the cap is active in about 60 of the 8192
+cells, in the crest shear layer, with a largest `cap_ratio` of 2.7.

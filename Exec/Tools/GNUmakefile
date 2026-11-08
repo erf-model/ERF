@@ -51,6 +51,15 @@ VPATH_LOCATIONS   += $(ERF_HOME)/Source
 INCLUDE_LOCATIONS += $(ERF_HOME)/Source/DataStructs
 VPATH_LOCATIONS   += $(ERF_HOME)/Source/DataStructs
 
+# ERF_DataStruct.H pulls in ERF_RadStruct.H, which includes
+# ERF_NoahMPSoilTable.H and, through ERF_SimplifiedSEB.H,
+# ERF_MicrophysicsConstants.H
+INCLUDE_LOCATIONS += $(ERF_HOME)/Source/Radiation/TwoStream
+VPATH_LOCATIONS   += $(ERF_HOME)/Source/Radiation/TwoStream
+
+INCLUDE_LOCATIONS += $(ERF_HOME)/Source/Microphysics
+VPATH_LOCATIONS   += $(ERF_HOME)/Source/Microphysics
+
 INCLUDE_LOCATIONS += $(ERF_HOME)/Source/PBL
 VPATH_LOCATIONS   += $(ERF_HOME)/Source/PBL
 

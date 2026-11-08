@@ -12,9 +12,105 @@ Radiation
 
 Radiative transfer in ERF includes both a full k-distribution model (RRTMGP) for detailed studies
 and a simplified two-stream model for idealized and intermediate-complexity atmospheric simulations.
-This section describes the two-stream radiation model's physics, which employs Beer-Lambert direct-beam
+This section describes RRTMGP's surface terrain correction and the two-stream radiation model's
+physics. The two-stream model employs Beer-Lambert direct-beam
 attenuation for shortwave radiation, a Meador-Weaver two-stream diffuse field combined by the adding method
 with the surface albedo, gray-gas longwave two-stream, and an optional Simplified Surface Energy Balance (SEB) module.
+
+.. _sec:TopographicRadiation:
+
+Topographic correction of surface radiation
+-------------------------------------------
+
+With RRTMGP on a static terrain-following mesh, ``erf.topo_shading`` removes
+direct sunlight obstructed by resolved terrain, and ``erf.slope_rad`` adjusts
+the direct beam for surface slope. Both options default to false; runtime
+controls are listed in :ref:`inputs-topographic-radiation`. The correction
+follows the surface-only approach used by WRF: it changes the land model's
+shortwave forcing while retaining the column solver's atmospheric fluxes and
+heating. It is not a three-dimensional atmospheric radiative-transfer solve.
+
+Let :math:`h(x,y)` be the terrain elevation, :math:`\boldsymbol{s}` the unit
+vector toward the sun at the radiation interval's midpoint in grid coordinates,
+and :math:`\bar\mu` RRTMGP's interval-averaged zenith cosine. The upward
+terrain normal and nonnegative incidence cosine are
+
+.. math::
+
+   \boldsymbol{n} = \frac{(-h_x,-h_y,1)}{\sqrt{1+h_x^2+h_y^2}},
+   \qquad I = \max(0,\boldsymbol{n}\cdot\boldsymbol{s}).
+
+For :math:`\bar\mu>10^{-4}`, with both corrections enabled, the surface
+shortwave flux is
+
+.. math::
+
+   F_{\mathrm{SW,terrain}} = F_{\mathrm{diffuse}}
+       + (1-S)\,\frac{I}{\bar\mu}\,F_{\mathrm{direct,horizontal}},
+
+where :math:`S=1` if terrain obstructs the ray toward the sun or the midpoint
+sun has :math:`s_z\leq10^{-4}`, and :math:`S=0` otherwise. ERF sets :math:`I=0`
+at that midpoint cutoff. Disabling shading sets :math:`S=0`; disabling the
+slope correction replaces :math:`I/\bar\mu` with 1. When the averaged cosine
+is at or below :math:`10^{-4}`, the correction is bypassed, with shadow mask 0
+and direct factor 1. The midpoint sun can be below its cutoff while the
+interval-averaged cosine remains above its cutoff; then the direct factor is 0
+when either correction is enabled. A surface facing away from the sun has
+:math:`I=0` even when no other terrain casts a shadow on it.
+
+RRTMGP's visible and near-infrared direct fluxes receive the same factor.
+Their diffuse components are preserved, and the corrected components supply
+the broadband sum for Noah-MP. SLM consumes the spectral components. Longwave
+and the radiation solver's solar zenith cosine are preserved. Diffuse sky-view
+reduction and radiation reflected or emitted by surrounding terrain are not
+included.
+
+Terrain geometry and search
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Surface heights are the horizontal average of the four bottom mesh nodes
+around each mass point. This uses the final ERF mesh after WRFInput, Metgrid,
+or idealized terrain initialization. Height differences and map factors give
+the physical slopes. Latitude/longitude gradients rotate the geographic sun
+vector onto the grid axes; idealized grids without those fields use east and
+north as their grid axes.
+
+For each target cell, the search samples the terrain along a ray toward the
+sun, with bilinear interpolation between mass points. A terrain height above
+the ray blocks the direct beam. The maximum horizontal ray distance is
+``erf.shadlen``, default 25 km. Periodic directions wrap, and nonperiodic
+domain boundaries terminate the search. Physical distances use the target's
+map factors throughout the ray, a local tangent-plane approximation.
+
+The cached terrain includes off-rank heights and ancestor terrain outside
+refined grids, with piecewise-constant prolongation from ancestors. Regridding
+invalidates the affected geometry caches. When a fine level inherits radiation,
+ERF interpolates the raw surface forcing before applying the fine level's
+terrain correction, avoiding a second correction of already adjusted fluxes.
+Fine Noah-MP levels still follow the existing land-model rule: a level without
+its own land setup file inherits level-0 land state.
+
+Update timing
+^^^^^^^^^^^^^
+
+The mask and slope factor update when RRTMGP computes radiation, every
+``erf.rad_freq_in_steps`` ERF steps, and remain fixed between updates.
+RRTMGP averages its zenith cosine over the upcoming radiation interval; the
+terrain correction uses the sun direction at that interval's midpoint, keeping
+the column solver's zenith cosine as the land-model input. This approximates
+shadow motion over the interval, so resolving a moving shadow requires a
+sufficiently short radiation interval. Raw surface forcing is not checkpointed:
+after restart or a level regrid, a full-column level without it forces an
+RRTMGP update on its next step, even if that step is off schedule. With
+``erf.rad_freq_in_steps > 1``, restarts may therefore lose bitwise equivalence
+to uninterrupted runs and regrids may add radiation calls. The forced update
+still averages the zenith cosine over the full interval. A fine level that
+inherits radiation interpolates the parent's forcing and uses its radiation
+time for the terrain correction instead of forcing an update.
+
+See :ref:`sec:Plotfile2DTopographicRadiation` for diagnostics of the cast shadow,
+slope factor, and original and corrected shortwave fluxes.
+
 
 Shortwave Radiation
 --------------------------------------
@@ -57,8 +153,8 @@ The mass model (``tau_model = mass``) instead builds each layer's optical proper
 with the constituents mixed by extinction weighting into the layer single-scattering albedo and asymmetry
 factor, :math:`\omega_0 = \sum_i \omega_i \tau_i / \tau` and :math:`g = \sum_i g_i \omega_i \tau_i / \sum_i \omega_i \tau_i`
 (dry and vapor absorption with :math:`\omega = 0`, Rayleigh scattering with :math:`\omega = 1, g = 0`, cloud water
-with ``sw_cloud_omega`` and ``sw_cloud_g``; ``sw_kext_cloud`` :math:`\approx 1.5 / r_{\text{eff}}` with
-:math:`r_{\text{eff}}` in µm gives 150 m²/kg for 10 µm droplets). The prescribed cloud band, the moisture
+with ``sw_cloud_omega`` and ``sw_cloud_g``; ``sw_kext_cloud`` :math:`\approx 3 / (2 \rho_w r_{\text{eff}})`,
+i.e. :math:`1500 / r_{\text{eff}}` m²/kg with :math:`r_{\text{eff}}` in µm, gives 150 m²/kg for 10 µm droplets). The prescribed cloud band, the moisture
 coefficients and the aerosol term are added on top as before. The column optical depth is then a property of
 the atmosphere, not of the grid, and the longwave band uses the mass path described below.
 The diffuse (scattered) shortwave field has upward and downward streams and is solved with the
@@ -190,9 +286,13 @@ fluxes are:
 
 .. math::
 
-   \frac{dF_{\uparrow}}{d\tau} = F_{\uparrow} - 2 B(T), \quad
-   \frac{dF_{\downarrow}}{d\tau} = -F_{\downarrow} + 2 B(T)
+   \frac{dF_{\uparrow}}{d\tau} = F_{\uparrow} - \sigma T^4, \quad
+   \frac{dF_{\downarrow}}{d\tau} = -F_{\downarrow} + \sigma T^4
 
+where :math:`\tau` is the longwave flux optical depth, counted downward from the top. Across a layer of
+optical depth :math:`\Delta\tau` at temperature :math:`T` this gives
+:math:`F_{\text{out}} = F_{\text{in}} e^{-\Delta\tau} + \sigma T^4 (1 - e^{-\Delta\tau})`, so an opaque layer
+emits :math:`\sigma T^4`.
 These are integrated over each model layer using an upward sweep (from the surface upward) and a downward
 sweep (from the top-of-atmosphere downward), with boundary conditions:
 
@@ -679,15 +779,18 @@ relative humidity (RH) and cloud liquid water content (qc):
    C_f = \min \left( 1, \max \left( 0, \frac{RH - \text{rh_min}}{\text{rh_max} - \text{rh_min}} \right) + \min \left( 1, \frac{q_c}{q_{c,\text{scale}}} \right) \right)
 
 where the RH threshold parameters allow for a transition from clear sky (RH < rh_min) to complete cloud coverage
-(RH >= rh_max). The coefficient :math:`c_{\text{qc}}` (default :math:`1 \times 10^{-3}`) provides an additional
-scaling of liquid water content's contribution. Optional temporal smoothing via an exponential moving average
-(EMA) may be applied to suppress oscillations:
+(RH >= rh_max). The relative humidity is :math:`RH = \min(1, q_v / q_{sat})`, with the saturation
+mixing ratio over liquid water
 
 .. math::
 
-   C_f^{\text{smoothed}} = \alpha C_f^{\text{new}} + (1 - \alpha) C_f^{\text{old}}
+   q_{sat} = \frac{\epsilon \, e_{sat}}{\max(e_{sat},\, p - e_{sat})}, \qquad
+   e_{sat} = 611.2 \, \text{Pa} \, \exp \left( \frac{17.62 \, T_c}{T_c + 243.12} \right),
 
-where :math:`\alpha` is the blending parameter.
+where :math:`\epsilon = 0.622`, :math:`p` is the pressure and :math:`T_c = T - 273.15` is the temperature
+in Celsius (Magnus formula, WMO 2008 coefficients). :math:`q_{c,\text{scale}}`
+(``erf.radiation.cloud_fraction_qc_scale``, default :math:`1 \times 10^{-3}` kg/kg) is the cloud water at
+which the liquid-water term alone reaches 1.
 
 Solar Geometry and Diurnal Cycle
 --------------------------------

@@ -28,14 +28,13 @@ erf.most.ignore_sst = true
 erf.most.average_policy = 1
 erf.most.radius = 0
 erf.surface_layer.flux_type = bulk_coeff
-erf.most.surf_temp = 301.0
+erf.most.pot_surf_temp = 301.0
 erf.most.surf_moist = 0.024
 erf.most.Cd = 0.001
 erf.most.Ch = 0.0015
 erf.most.Cq = 0.0015
 zhi.type = "SlipWall"
 
-erf.substepping_type = "Implicit"
 erf.fixed_dt = 4.0
 erf.fixed_mri_dt_ratio = 6
 #erf.cfl = 0.5

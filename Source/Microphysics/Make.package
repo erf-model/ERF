@@ -2,3 +2,6 @@ CEXE_headers += ERF_MicrophysicsConstants.H
 CEXE_headers += ERF_Microphysics.H
 CEXE_headers += ERF_EulerianMicrophysics.H
 CEXE_headers += ERF_LagrangianMicrophysics.H
+CEXE_headers += ERF_MicrophysicsColumns.H
+CEXE_headers += ERF_SedimentationFlux.H
+CEXE_sources += ERF_MicrophysicsColumns.cpp

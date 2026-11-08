@@ -1,5 +1,4 @@
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx = geom.CellSize();
+    const auto dx      = geom.CellSizeArray();
     bool use_zlevels = (z_phys_cc != nullptr);
 
     for (MFIter mfi(*src, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -11,7 +10,7 @@
             src->setVal(0.0);
         } else {
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)*dx[2];
+                const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : (k+0.5)*dx[2];
                 if ((z_cc < 15000) && (z_cc > 380)) {
                     Real f_a[6] = {-1.22998448e-24,  5.86487977e-20, -1.11949167e-15,
                                     1.03417521e-11, -3.80858898e-08, -1.39371490e-05};

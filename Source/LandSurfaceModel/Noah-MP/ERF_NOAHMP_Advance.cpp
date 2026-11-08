@@ -14,9 +14,19 @@
 #include "ERF_Constants.H"
 #include "ERF_EOS.H"
 #include "ERF_NOAHMP_ResultPolicy.H"
+#include "ERF_TypedInterp.H"
 #include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
+
+namespace {
+// The cell types Noah-MP interpolates by (interp_by_type_packed): a cell holds a valid value
+// or the lsm_undefined sentinel. Only their being distinct matters.
+namespace NoahInterpType {
+    constexpr Real valid     = 0.0;
+    constexpr Real undefined = 1.0;
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 //  Fine-level interpolation (no per-level NetCDF land file)
@@ -44,24 +54,67 @@ NOAHMP::interp_from_lev0 (const int& lev,
     //
     const IntVect rr2d(m_refRatio[0], m_refRatio[1], 1);
 
-    for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
-        InterpFromCoarseLevel(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
-                              IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                              *lsm_lev0_data[ivar], 0, 0, 1,
-                              m_geom0, m_geom,
-                              rr2d, &cell_cons_interp,
-                              m_domain_bcs_type, BCVars::cons_bc);
+    // Noah-MP leaves the lsm_undefined sentinel in the cells it does not process (water) --
+    // in its results and soil profile and, through SurfaceLayer (#3446), in the level-0 flux.
+    // Interpolate valid values from valid neighbours only and the sentinel from sentinel
+    // cells only (#4390), as WRF's masked nest interpolation keeps land and water apart: a
+    // coastal land cell then takes no slope toward the water, and the sentinel comes through
+    // exactly, so consumers keep rejecting it with is_valid_lsm_value. Fields that are valid
+    // everywhere (the radiation forcing) are interpolated exactly as cell_cons_interp does.
+    //
+    // The data and fluxes are packed into one MultiFab per level (data first, then fluxes)
+    // so the coarse-to-fine ParallelCopy inside the interpolation runs once, not once per
+    // field.  Every field of a level shares one BoxArray and DistributionMapping (Init).
+    const int ndata = m_lsm_data_size;
+    const int nflux = m_lsm_flux_size;
+    const int ntot  = ndata + nflux;
+
+    auto fine_mf = [&] (int n) -> MultiFab& {
+        return (n < ndata) ? *lsm_fab_data[n] : *lsm_fab_flux[n-ndata];
+    };
+    auto lev0_mf = [&] (int n) -> const MultiFab& {
+        return (n < ndata) ? *lsm_lev0_data[n] : *lsm_lev0_flux[n-ndata];
+    };
+
+    // Each pack holds the ntot fields and then their ntot types (interp_by_type_packed)
+    const MultiFab& f0 = fine_mf(0);
+    const MultiFab& c0 = lev0_mf(0);
+    MultiFab fine_pack(f0.boxArray(), f0.DistributionMap(), 2*ntot, f0.nGrowVect());
+    MultiFab lev0_pack(c0.boxArray(), c0.DistributionMap(), 2*ntot, c0.nGrowVect());
+    for (int n(0); n<ntot; ++n) {
+        AMREX_ALWAYS_ASSERT(fine_mf(n).boxArray() == f0.boxArray() &&
+                            fine_mf(n).DistributionMap() == f0.DistributionMap() &&
+                            fine_mf(n).nGrowVect() == f0.nGrowVect());
+        AMREX_ALWAYS_ASSERT(lev0_mf(n).boxArray() == c0.boxArray() &&
+                            lev0_mf(n).DistributionMap() == c0.DistributionMap() &&
+                            lev0_mf(n).nGrowVect() == c0.nGrowVect());
+        // The fine ghost cells outside the domain are not interpolated and keep these values
+        MultiFab::Copy(fine_pack, fine_mf(n), 0, n, 1, f0.nGrowVect());
+        MultiFab::Copy(lev0_pack, lev0_mf(n), 0, n, 1, c0.nGrowVect());
     }
 
-    // SurfaceLayer filled the noah flux where lsm_undefined existed, so the
-    // coarse-grid flux is complete and safe to interpolate.
-    for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
-        InterpFromCoarseLevel(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
-                              IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                              *lsm_lev0_flux[ivar], 0, 0, 1,
-                              m_geom0, m_geom,
-                              rr2d, &cell_cons_interp,
-                              m_domain_bcs_type, BCVars::cons_bc);
+    // The interpolation reads the coarse ghost cells, and level 0 fills only its fluxes'
+    // (and only after its driver fires): its data still hold the lsm_undefined of Init
+    // there, which would read as water along every level-0 box boundary.  Fill them all
+    // here, in one exchange, without touching level 0's own fields.
+    lev0_pack.FillBoundary(0, ntot, m_geom0.periodicity());
+
+    // The type of field n, per cell
+    for (MFIter mfi(lev0_pack, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& gbx = mfi.growntilebox();
+        const auto p = lev0_pack.array(mfi);
+        ParallelFor(gbx, ntot, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            p(i,j,k,ntot+n) = is_valid_lsm_value(p(i,j,k,n)) ? NoahInterpType::valid
+                                                             : NoahInterpType::undefined;
+        });
+    }
+
+    interp_by_type_packed(fine_pack, lev0_pack, ntot, m_geom0, m_geom, rr2d,
+                             m_domain_bcs_type[BCVars::cons_bc]);
+
+    for (int n(0); n<ntot; ++n) {
+        MultiFab::Copy(fine_mf(n), fine_pack, n, 0, 1, f0.nGrowVect());
     }
     Print () << "Noah-MP interpolation at level " << lev << " completed" << std::endl;
 }
@@ -394,10 +447,16 @@ NOAHMP::Advance_With_State (const int& lev,
     if (m_first_advance_nstep < 0) { m_first_advance_nstep = nstep; }
 
     if (!m_has_nc_file) {
-        // Skip interpolation if lev 0 was just updated: Noah runs post-step, so
-        // the fluxes & data still hold lsm_undefined values.
-        if (!updated_lev0) {
+        // Level 0's data and fluxes change only when its driver fires, which it does in
+        // its own advance, before this level's substeps of the same step (nstep is level
+        // 0's step).  So interpolate once per such step, and whenever this level's fields
+        // or its level-0 pointers have been (re)built.  Radiation also writes its forcing
+        // fields at every level; between level-0 land steps this level keeps what its own
+        // radiation wrote there, and the next interpolation replaces it with level 0's.
+        if (m_interp_pending || (updated_lev0 && nstep != m_interp_nstep)) {
             interp_from_lev0(lev, cons_in, nstep);
+            m_interp_pending = false;
+            m_interp_nstep   = nstep;
         } else {
             m_updated = false;
         }

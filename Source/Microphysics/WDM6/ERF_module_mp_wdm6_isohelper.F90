@@ -65,6 +65,7 @@ contains
                            delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls, &
                            xlv0, xlf0, den0, denr, cliq, cice, psat, ccn0, xland, &
                            rain, rainncv, sr, snow, snowncv, graupel, graupelncv, &
+                           rainonly, snowonly, &
                            ims, ime, jms, jme, kms, kme, &
                            its, ite, jts, jte, kts, kte, microphysics_debug, diag_i_dbg, diag_j_dbg) bind(C, name="mp_wdm6_run_c")
     integer(c_int), value, intent(in) :: ims, ime, jms, jme, kms, kme
@@ -79,6 +80,7 @@ contains
     real(c_double), intent(in), dimension(ims:ime, jms:jme) :: xland
     real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: rain, rainncv, sr
     real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: snow, snowncv, graupel, graupelncv
+    real(c_double), intent(inout), dimension(ims:ime, jms:jme) :: rainonly, snowonly
 
     integer :: i, j, k, kk, kdim, debug_local, i_dbg_local, j_dbg_target
     integer :: i_max, k_max, max_loc(2)  ! For storm cell diagnostic
@@ -92,6 +94,7 @@ contains
     real(c_double), allocatable :: xland_col(:)
     real(c_double), allocatable :: rain_col(:), rainncv_col(:), sr_col(:)
     real(c_double), allocatable :: snow_col(:), snowncv_col(:), graupel_col(:), graupelncv_col(:)
+    real(c_double), allocatable :: rainonly_col(:), snowonly_col(:)
 
     if (its < ims .or. ite > ime .or. jts < jms .or. jte > jme .or. kts < kms .or. kte > kme) then
       write(*,'(A)') 'mp_wdm6_run_c bounds error: run-window outside storage bounds'
@@ -120,6 +123,7 @@ contains
     allocate(xland_col(its:ite))
     allocate(rain_col(its:ite), rainncv_col(its:ite), sr_col(its:ite))
     allocate(snow_col(its:ite), snowncv_col(its:ite), graupel_col(its:ite), graupelncv_col(its:ite))
+    allocate(rainonly_col(its:ite), snowonly_col(its:ite))
 
     do j = jts, jte
       do k = kts, kte
@@ -150,6 +154,8 @@ contains
         snowncv_col(i)   = snowncv(i,j)
         graupel_col(i)   = graupel(i,j)
         graupelncv_col(i)= graupelncv(i,j)
+        rainonly_col(i)  = rainonly(i,j)
+        snowonly_col(i)  = snowonly(i,j)
       end do
 
       debug_local = int(microphysics_debug, kind(0))
@@ -161,7 +167,8 @@ contains
                        delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls, xlv0, xlf0, den0, denr, &
                        cliq, cice, psat, ccn0, xland_col, &
                        rain_col, rainncv_col, sr_col, snow_col, snowncv_col, &
-                       graupel_col, graupelncv_col, its=its, ite=ite, kts=1, kte=kdim, &
+                       graupel_col, graupelncv_col, rainonly=rainonly_col, snowonly=snowonly_col, &
+                       its=its, ite=ite, kts=1, kte=kdim, &
                        microphysics_debug=debug_local, diag_i_dbg=i_dbg_local, diag_j_dbg=j, diag_k_raw_base=kts, &
                        errmsg=errmsg, errflg=errflg)
 
@@ -196,6 +203,8 @@ contains
         snowncv(i,j)    = snowncv_col(i)
         graupel(i,j)    = graupel_col(i)
         graupelncv(i,j) = graupelncv_col(i)
+        rainonly(i,j)   = rainonly_col(i)
+        snowonly(i,j)   = snowonly_col(i)
       end do
     end do
 
@@ -203,6 +212,7 @@ contains
     deallocate(nn_col, nc_col, nr_col)
     deallocate(den_col, p_col, delz_col, xland_col)
     deallocate(rain_col, rainncv_col, sr_col, snow_col, snowncv_col, graupel_col, graupelncv_col)
+    deallocate(rainonly_col, snowonly_col)
   end subroutine mp_wdm6_run_c
 
 end module wdm6_isohelper

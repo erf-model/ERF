@@ -104,8 +104,34 @@ int main (int argc, char* argv[])
               "have to specify erf.is_init_for_ensemble=true, as ensembles have to be run for data assimilation");
     }
 
+    if(!is_init_for_ensemble) {
+        num_da_cycles = 1;
+    }
+
     int n_ens = 1;
     pp_ens.query("n_members", n_ens);
+
+    Print() << "Doing data assimilation cycle 0 (initialization)" <<std::endl;
+
+    // Perform data assimilation at initialization
+
+    for (int ens_no = 0; ens_no < n_ens; ++ens_no)
+    {
+        ERF erf;
+
+        if(is_init_for_ensemble) {
+            erf.SetDirsForPlotfilesAndCheckpointsForDA(0, ens_no);
+        }
+        erf.InitData();
+        ParallelDescriptor::Barrier();
+    }
+
+    ERF tmp_erf_init;
+    if(is_init_for_ensemble and num_da_cycles > 0) {
+        tmp_erf_init.PerformDataAssimilation(0);
+    }
+
+    Print() << "Data assimilation cycle 0 complete" << std::endl;
 
     // Data assimilation cycle loop
     for (int da_iter = 0; da_iter < num_da_cycles; ++da_iter) {
@@ -165,7 +191,11 @@ int main (int argc, char* argv[])
         //tmp_erf.ComputeAndWriteEnsemblePerturbations(da_iter);
 
         // After all ensemble runs are complete, perform data assimilation
-        tmp_erf.PerformDataAssimilation(da_iter);
+        if(is_init_for_ensemble and num_da_cycles > 0) {
+            tmp_erf.PerformDataAssimilation(da_iter);
+        }
+
+
     }
 
     BL_PROFILE_VAR_STOP(pmain);

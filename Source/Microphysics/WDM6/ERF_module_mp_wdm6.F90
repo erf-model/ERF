@@ -346,6 +346,7 @@
                    ,snow,snowncv                                  &
                    ,graupel,graupelncv                            &
                    ,microphysics_debug, diag_i_dbg, diag_j_dbg    &
+                   ,rainonly, snowonly                            &
                                                                   )
 
     implicit none
@@ -469,6 +470,10 @@
    real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: snowncv
    real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: graupel
    real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: graupelncv
+   ! ERF: rain alone and snow alone; rain above also holds the snow, cloud ice
+   ! and graupel, and snow the cloud ice
+   real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: rainonly
+   real(kind=kind_phys), dimension(ims:ime), optional     , intent(inout) :: snowonly
 
    ! Local variables for debug parameters with defaults
    integer :: debug_local, i_dbg_local, j_dbg_local
@@ -1075,6 +1080,12 @@
                             + graupelncv(i)
             graupel(i) = fallsum_qg*delz(i,kts)/denr*dtcld*1000. + graupel(i)
           ENDIF
+        ENDIF
+        IF ( PRESENT (rainonly)) THEN
+          rainonly(i) = fall(i,kts,1)*delz(i,kts)/denr*dtcld*1000. + rainonly(i)
+        ENDIF
+        IF ( PRESENT (snowonly)) THEN
+          snowonly(i) = fall(i,kts,2)*delz(i,kts)/denr*dtcld*1000. + snowonly(i)
         ENDIF
         IF ( PRESENT (snowncv)) THEN
           if(fallsum.gt.0.)sr(i)=(snowncv(i) + graupelncv(i))/(rainncv(i)+1.e-12)
@@ -3394,6 +3405,7 @@
                             delt, g, cpd, cpv, rd, rv, t0c, ep1, ep2, qmin, xls, xlv0, xlf0, &
                             den0, denr, cliq, cice, psat, ccn0, xland, &
                             rain, rainncv, sr, snow, snowncv, graupel, graupelncv, &
+                            rainonly, snowonly, &
                             its, ite, kts, kte, &
                             microphysics_debug, diag_i_dbg, diag_j_dbg, diag_k_raw_base, &
                             errmsg, errflg)
@@ -3419,6 +3431,7 @@
        ! Output precipitation
        real(kind=kind_phys), intent(inout), dimension(its:ite) :: rain, rainncv, sr
        real(kind=kind_phys), intent(inout), dimension(its:ite) :: snow, snowncv, graupel, graupelncv
+       real(kind=kind_phys), intent(inout), dimension(its:ite) :: rainonly, snowonly
 
        ! Error handling
        character(len=*), intent(out) :: errmsg
@@ -3492,7 +3505,8 @@
                    its, ite, jts, jte, kts, kte, &
                    snow, snowncv, &
                    graupel, graupelncv, &
-                   microphysics_debug, diag_i_dbg, diag_j_dbg)
+                   microphysics_debug, diag_i_dbg, diag_j_dbg, &
+                   rainonly=rainonly, snowonly=snowonly)
 
        ! Unpack arrays from WDM6 format
        do k = kts, kte

@@ -25,8 +25,8 @@ declare -A surf_params
 surf_params['adiabatic']="erf.most.surf_temp_flux=0"
 surf_params['heatflux']="erf.most.surf_temp_flux=0.2"
 surf_params['coolflux']="erf.most.surf_temp_flux=-0.05"
-surf_params['heatrate']="erf.most.surf_temp=300 erf.most.surf_heating_rate=1.0"
-surf_params['coolrate']="erf.most.surf_temp=300 erf.most.surf_heating_rate=-0.25"
+surf_params['heatrate']="erf.most.pot_surf_temp=300 erf.most.surf_heating_rate=1.0"
+surf_params['coolrate']="erf.most.pot_surf_temp=300 erf.most.surf_heating_rate=-0.25"
 #==============================================================================
 
 

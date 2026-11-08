@@ -1,5 +1,6 @@
 #include <ERF.H>
 #include <ERF_Derive.H>
+#include <ERF_TerrainMetrics.H>
 
 using namespace amrex;
 
@@ -22,6 +23,49 @@ void
 tag_on_distance_from_eye (const Geometry& cgeom, TagBoxArray* tags,
                           const Real eye_x, const Real eye_y, const Real rad_tag);
 
+namespace {
+
+/**
+ * Whether a field name, already lowercased, is one of the built-in refinement fields
+ */
+bool
+is_builtin_tag_field (const std::string& f)
+{
+    return f == "density"   || f == "theta"    || f == "scalar"           ||
+           f == "qv"        || f == "qc"       || f == "qi"               ||
+           f == "qr"        || f == "qs"       || f == "qg"               || f == "qt" ||
+           f == "vorticity" || f == "helicity" || f == "max_reflectivity" ||
+           f == "velmag"    || f == "u"        || f == "v"                || f == "w"  ||
+           f == "omega"     || f == "terrain_blanking";
+}
+
+/**
+ * Whether a field name is one of the moisture mixing ratios qv, qc, qi, qr, qs, qg
+ */
+bool
+is_moist_species_field (const std::string& f)
+{
+    return f == "qv" || f == "qc" || f == "qi" ||
+           f == "qr" || f == "qs" || f == "qg";
+}
+
+/**
+ * RhoQ component of a moisture mixing ratio field, or -1 if the moisture model does not carry it
+ */
+int
+moist_comp_for_field (const MoistureComponentIndices& mi, const std::string& f)
+{
+    if      (f == "qv") { return mi.qv; }
+    else if (f == "qc") { return mi.qc; }
+    else if (f == "qi") { return mi.qi; }
+    else if (f == "qr") { return mi.qr; }
+    else if (f == "qs") { return mi.qs; }
+    else if (f == "qg") { return mi.qg; }
+    return -1;
+}
+
+} // namespace
+
 /**
  * Function to tag cells for refinement -- this overrides the pure virtual function in AmrCore
  *
@@ -41,11 +85,15 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         int ratio;
         Box subdomain;
 
-        // This is the number of boxes that may have already been defined in the refinement_criteria_setup routine.
-        // If nb == 0 then no boxes have been specified in the inputs file, and we will use the boxes given in wrfinput_d*
-        // If nb >  0 then    boxes have been specified in the inputs file, and we will use the specified boxes as long
-        //    as we can ensure that they are contained inside the boxes given in wrfinput_d*
-        int nb_prespecified = num_boxes_at_level[levc+1];
+        // Box isub at level levc+1 belongs to file isub. Boxes may already have been defined in the
+        // refinement_criteria_setup routine; a box that exists is used as long as it is contained
+        // inside the subdomain its file gives, and a file without a box gets the file's subdomain.
+        //
+        // The met_em files at a level are successive times of a single nest, so only the first
+        // one defines a box there.
+        const int num_subdomains = (solverChoice.init_type == InitType::Metgrid) ?
+                                   amrex::min(1, static_cast<int>(nc_init_file[levc+1].size())) :
+                                   static_cast<int>(nc_init_file[levc+1].size());
 
         if (!nc_init_file[levc+1].empty())
         {
@@ -56,7 +104,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 amrex::Print() << " met_em         time at level " << levc << " is " << levc_start_time << std::endl;
             }
 
-            for (int isub = 0; isub < nc_init_file[levc+1].size(); isub++) {
+            for (int isub = 0; isub < num_subdomains; isub++) {
                 if (!have_read_nc_init_file[levc+1][isub])
                 {
                     double levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][isub]);
@@ -73,7 +121,9 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     if ( levf_start_time <= (levc_start_time + t_new[levc]) ) {
                         if (solverChoice.init_type == InitType::WRFInput) {
                             amrex::Print() << " WRFInput file to read: " << nc_init_file[levc+1][isub] << std::endl;
-                            subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][isub], ratio);
+                            // WRF starts are relative to the full parent file.  Account
+                            // for every ancestor before locating this nest in ERF.
+                            subdomain = wrfinput_file_box(levc+1, isub, &ratio);
                             amrex::Print() << " WRFInput subdomain " << isub << " at level " << levc+1 << " is " << subdomain << std::endl;
                         } else if (solverChoice.init_type == InitType::Metgrid) {
                             amrex::Print() << "met_em file to read: " << nc_init_file[levc+1][0] << std::endl;
@@ -85,7 +135,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         }
 
                         if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
-                            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
+                            amrex::Print() << "File " << nc_init_file[levc+1][isub] << " has refinement ratio = " << ratio << std::endl;
                             amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
                             amrex::Abort("These must be the same in the horizontal -- please edit your inputs file and try again.");
                         }
@@ -109,9 +159,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                             subdomain.coarsen(ref_ratio[levc]);
                         }
 
-                        // Recall we asserted that there is only one box at level levc
-                        Box coarser_level(subdomains[levc][0].minimalBox());
-                        subdomain.shift(coarser_level.smallEnd());
+                        // Metgrid boxes are relative to the parent ERF region.  WRF
+                        // boxes have already been placed in global coordinates above.
+                        if (solverChoice.init_type == InitType::Metgrid) {
+                            Box coarser_level(subdomains[levc][0].minimalBox());
+                            subdomain.shift(coarser_level.smallEnd());
+                        }
 
                         if (verbose > 0) {
                             amrex::Print() << " Crse version of subdomain available for tagging is" << subdomain << std::endl;
@@ -126,16 +179,22 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         } else if (solverChoice.init_type == InitType::Metgrid) {
                             new_fine.refine(ref_ratio[levc]);
                         }
-                        if (nb_prespecified == 0) {
-                            num_boxes_at_level[levc+1] += 1;
-                            boxes_at_level[levc+1].push_back(new_fine);
-                        } else {
+                        const int num_boxes = static_cast<int>(boxes_at_level[levc+1].size());
+                        if (isub < num_boxes) {
                             if (!new_fine.contains(boxes_at_level[levc+1][isub])) {
                                 amrex::Print() << "\n";
                                 amrex::Print() << "Box available in wrfinputs file             " << new_fine << std::endl;
                                 amrex::Print() << "Box requested for refinement in inputs file " << boxes_at_level[levc+1][isub] << std::endl;
                                 amrex::Abort("Specified boxes must be contained within boxes specified in wrfinput at this level");
                             }
+                        } else if (isub == num_boxes) {
+                            num_boxes_at_level[levc+1] += 1;
+                            boxes_at_level[levc+1].push_back(new_fine);
+                        } else {
+                            // An earlier file has no box yet, so this file's box cannot be stored at index isub
+                            amrex::Print() << "File " << nc_init_file[levc+1][isub] << " starts before "
+                                           << nc_init_file[levc+1][num_boxes] << std::endl;
+                            amrex::Abort("The nc_init_file files at a level must be listed in order of start time");
                         }
 
                         Box coarsened_bx(boxes_at_level[levc+1][isub]); coarsened_bx.coarsen(ref_ratio[levc]);
@@ -192,7 +251,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     } else {
         FillPatchFineLevel(levc, time, {&S_new, &U_new, &V_new, &W_new},
                            {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
-                           base_state[levc], base_state[levc],
                            false, true);
     }
 
@@ -203,6 +261,10 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         //
         std::unique_ptr<MultiFab> mf = std::make_unique<MultiFab>(grids[levc], dmap[levc], 1, 1);
         mf->setVal(0.0);
+
+        // Built-in field names are matched case-insensitively; the particle
+        // fields below keep the name as given since species names may carry case
+        const std::string field_lc = amrex::toLower(ref_tags[t].Field());
 
         RealBox real_box = ref_tags[t].GetInfo().m_realbox;
         if (real_box.ok()) {
@@ -215,35 +277,23 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         }
 
         // This allows dynamic refinement based on the value of the density
-        if (ref_tags[t].Field() == "density")
+        if (field_lc == "density")
         {
             MultiFab::Copy(*mf,vars_new[levc][Vars::cons],Rho_comp,0,1,1);
 
         // Refinement based on a moisture mixing ratio (qv, qc, qi, qr, qs, qg).
         // The map from name to RhoQ component depends on the moisture model and
         // is held in solverChoice.moisture_indices.
-        } else if ( (ref_tags[t].Field() == "qv") ||
-                    (ref_tags[t].Field() == "qc") ||
-                    (ref_tags[t].Field() == "qi") ||
-                    (ref_tags[t].Field() == "qr") ||
-                    (ref_tags[t].Field() == "qs") ||
-                    (ref_tags[t].Field() == "qg") )
+        } else if (is_moist_species_field(field_lc))
         {
-            const auto& mi = solverChoice.moisture_indices;
-            int qcomp = -1;
-            if      (ref_tags[t].Field() == "qv") { qcomp = mi.qv; }
-            else if (ref_tags[t].Field() == "qc") { qcomp = mi.qc; }
-            else if (ref_tags[t].Field() == "qi") { qcomp = mi.qi; }
-            else if (ref_tags[t].Field() == "qr") { qcomp = mi.qr; }
-            else if (ref_tags[t].Field() == "qs") { qcomp = mi.qs; }
-            else if (ref_tags[t].Field() == "qg") { qcomp = mi.qg; }
+            const int qcomp = moist_comp_for_field(solverChoice.moisture_indices, field_lc);
             AMREX_ALWAYS_ASSERT(qcomp >= 0);
             MultiFab::Copy(  *mf, vars_new[levc][Vars::cons], qcomp,    0, 1, 1);
             MultiFab::Divide(*mf, vars_new[levc][Vars::cons], Rho_comp, 0, 1, 1);
 
         // qt = total condensed water mixing ratio (qc + qi + qr + qs + qg).
         // Excludes qv by convention here.
-        } else if (ref_tags[t].Field() == "qt") {
+        } else if (field_lc == "qt") {
             const auto& mi = solverChoice.moisture_indices;
             const int idx_qc = mi.qc, idx_qi = mi.qi, idx_qr = mi.qr,
                       idx_qs = mi.qs, idx_qg = mi.qg;
@@ -268,7 +318,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
 
         // This allows dynamic refinement based on the value of the z-component of vorticity
-        } else if (ref_tags[t].Field() == "vorticity" ) {
+        } else if (field_lc == "vorticity" ) {
             MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
             average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new}, 1);
 
@@ -282,8 +332,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
 
         // This allows dynamic refinement based on the value of the scalar/theta
-        } else if ( (ref_tags[t].Field() == "scalar"  ) ||
-                    (ref_tags[t].Field() == "theta"   ) )
+        } else if ( (field_lc == "scalar"  ) ||
+                    (field_lc == "theta"   ) )
         {
             for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
@@ -291,14 +341,14 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 auto& dfab = (*mf)[mfi];
                 auto& sfab = vars_new[levc][Vars::cons][mfi];
                 auto& zfab = (*z_phys_cc[levc])[mfi];
-                if (ref_tags[t].Field() == "scalar") {
+                if (field_lc == "scalar") {
                     derived::erf_derscalar(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
-                } else if (ref_tags[t].Field() == "theta") {
+                } else if (field_lc == "theta") {
                     derived::erf_dertheta(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 }
             } // mfi
         // This allows dynamic refinement based on the value of updraft helicity
-        } else if (ref_tags[t].Field() == "helicity")
+        } else if (field_lc == "helicity")
         {
             MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(1,1,1));
             average_face_to_cellcenter(mf_cc_vel,0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new}, 1);
@@ -313,7 +363,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
                 derived::erf_derhelicity(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
             }
-        } else if (ref_tags[t].Field() == "max_reflectivity")
+        } else if (field_lc == "max_reflectivity")
         {
             // NOTE: this tests the data layout the reflectivity kernel assumes rather
             //       than enumerating moisture models, so it picks up any scheme that
@@ -334,11 +384,11 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
         // This allows dynamic refinement based on the terrain blanking
         } else if ( (SolverChoice::terrain_type == TerrainType::ImmersedForcing) &&
-                    (ref_tags[t].Field() == "terrain_blanking") )
+                    (field_lc == "terrain_blanking") )
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
         }
-        else if (ref_tags[t].Field() == "velmag")
+        else if (field_lc == "velmag")
         {
             ParmParse pp(pp_prefix);
             Vector<std::string> refinement_indicators;
@@ -370,6 +420,74 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     auto& sfab = mf_cc_vel[0][mfi];
                     auto& zfab = (*z_phys_cc[levc])[mfi];
                     derived::erf_dermagvel(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
+                }
+            }
+        }
+        // This allows dynamic refinement based on a cell-centered velocity component;
+        //    omega is the contravariant vertical velocity, which differs from w only with terrain
+        else if (field_lc == "u" ||
+                 field_lc == "v" ||
+                 field_lc == "w" ||
+                 field_lc == "omega")
+        {
+            // Omega equals w unless the coordinate surfaces follow the terrain
+            const bool fitted_mesh = (SolverChoice::mesh_type != MeshType::ConstantDz) &&
+                                     (SolverChoice::terrain_type == TerrainType::StaticFittedMesh ||
+                                      SolverChoice::terrain_type == TerrainType::MovingFittedMesh);
+
+            if (field_lc != "omega" || !fitted_mesh) {
+                // Average only the component we need to the cell centers, ghost cells included
+                const int dir = (field_lc == "u") ? 0 : (field_lc == "v") ? 1 : 2;
+                const MultiFab& vel = (dir == 0) ? U_new : (dir == 1) ? V_new : W_new;
+                const int ioff = (dir == 0), joff = (dir == 1), koff = (dir == 2);
+                for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.growntilebox(1);
+                    const Array4<      Real>& d_arr = mf->array(mfi);
+                    const Array4<const Real>& v_arr = vel.const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        d_arr(i,j,k) = myhalf * (v_arr(i,j,k) + v_arr(i+ioff,j+joff,k+koff));
+                    });
+                }
+            } else {
+                // Omega on the z-faces of the box grown by one cell. As in the dycore, it is zero
+                //    on (and below) the bottom face and equal to w on (and above) the top face,
+                //    which validate_flat_top makes flat.
+                // NOTE: with MovingFittedMesh the mesh velocity z_t is not subtracted, so this is
+                //       the velocity normal to the coordinate surfaces as if they were at rest
+                const int klo = geom[levc].Domain().smallEnd(2);
+                const int khi = geom[levc].Domain().bigEnd(2);
+                const auto dxInv = geom[levc].InvCellSizeArray();
+
+                MultiFab omega(W_new.boxArray(), dmap[levc], 1, IntVect(1,1,1));
+                for (MFIter mfi(omega, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.growntilebox(1);
+                    const Array4<      Real>& om_arr = omega.array(mfi);
+                    const Array4<const Real>& u_arr  = U_new.const_array(mfi);
+                    const Array4<const Real>& v_arr  = V_new.const_array(mfi);
+                    const Array4<const Real>& w_arr  = W_new.const_array(mfi);
+                    const Array4<const Real>& z_nd   = z_phys_nd[levc]->const_array(mfi);
+                    const Array4<const Real>& mf_u   = mapfac[levc][MapFacType::u_x]->const_array(mfi);
+                    const Array4<const Real>& mf_v   = mapfac[levc][MapFacType::v_y]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        om_arr(i,j,k) = (k <= klo  ) ? zero :
+                                        (k >= khi+1) ? w_arr(i,j,k) :
+                            OmegaFromW(i,j,k,w_arr(i,j,k),u_arr,v_arr,mf_u,mf_v,z_nd,dxInv);
+                    });
+                }
+
+                for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.growntilebox(1);
+                    const Array4<      Real>& d_arr  = mf->array(mfi);
+                    const Array4<const Real>& om_arr = omega.const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        d_arr(i,j,k) = myhalf * (om_arr(i,j,k) + om_arr(i,j,k+1));
+                    });
                 }
             }
 
@@ -538,32 +656,52 @@ ERF::refinement_criteria_setup ()
                 info.SetMaxLevel(ref_max_level);
             }
 
-            // Read field_name once and validate moisture-field requests against
-            // the active moisture model so an unsupported field aborts at setup
-            // rather than after the first regrid.
+            // Read field_name once and check it here so that an unknown name, or a field the
+            //    configuration cannot provide, aborts at setup rather than tagging against a
+            //    field that stays zero. Built-in names, listed in lowercase in is_builtin_tag_field,
+            //    are matched case-insensitively; particle fields are matched as given.
             std::string field;
             if (ppr.countval("field_name") > 0) {
                 ppr.get("field_name", field);
-                auto is_moist_field = [](const std::string& f) {
-                    return f == "qv" || f == "qc" || f == "qi" ||
-                           f == "qr" || f == "qs" || f == "qg" || f == "qt";
-                };
-                if (is_moist_field(field)) {
+                const std::string field_lc = amrex::toLower(field);
+                if (is_builtin_tag_field(field_lc)) {
                     const auto& mi = solverChoice.moisture_indices;
-                    int comp = -1;
-                    if      (field == "qv") { comp = mi.qv; }
-                    else if (field == "qc") { comp = mi.qc; }
-                    else if (field == "qi") { comp = mi.qi; }
-                    else if (field == "qr") { comp = mi.qr; }
-                    else if (field == "qs") { comp = mi.qs; }
-                    else if (field == "qg") { comp = mi.qg; }
-                    else if (field == "qt") {
-                        comp = (mi.qc >= 0 || mi.qi >= 0 || mi.qr >= 0 ||
-                                mi.qs >= 0 || mi.qg >= 0) ? 0 : -1;
+                    bool available = true;
+                    if (is_moist_species_field(field_lc)) {
+                        available = (moist_comp_for_field(mi, field_lc) >= 0);
+                    } else if (field_lc == "qt") {
+                        available = (mi.qc >= 0 || mi.qi >= 0 || mi.qr >= 0 ||
+                                     mi.qs >= 0 || mi.qg >= 0);
                     }
-                    if (comp < 0) {
+                    if (!available) {
                         amrex::Abort("Refinement field_name '" + field +
                                      "' is not available for the configured moisture model");
+                    }
+                    if (field_lc == "terrain_blanking" &&
+                        solverChoice.terrain_type != TerrainType::ImmersedForcing) {
+                        amrex::Abort("Refinement field_name '" + field +
+                                     "' requires erf.terrain_type = ImmersedForcing");
+                    }
+                } else {
+                    bool is_particle_field = false;
+#ifdef ERF_USE_PARTICLES
+                    // Species containers are not built yet, so only the species name is checked
+                    //    here; the mesh variable is matched in ErrorEst
+                    auto matches_species = [&field] (const std::string& sp_name) {
+                        const std::string prefix = sp_name + "_";
+                        return field.size() > prefix.size() &&
+                               field.compare(0, prefix.size(), prefix) == 0;
+                    };
+                    for (const auto& sp_name : particleData.getNames()) {
+                        if (matches_species(sp_name)) { is_particle_field = true; }
+                    }
+                    for (const auto& sp_name : particleData.getNamesUnalloc()) {
+                        if (matches_species(sp_name)) { is_particle_field = true; }
+                    }
+#endif
+                    if (!is_particle_field) {
+                        amrex::Abort("Unrecognized refinement field_name '" + field +
+                                     "' for indicator " + refinement_indicators[i]);
                     }
                 }
             }

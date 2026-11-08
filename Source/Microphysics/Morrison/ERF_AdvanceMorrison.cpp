@@ -83,6 +83,8 @@ namespace MORRInd {
            snowrt, // SNOW PER TIME STEP
            snowprt, // TOTAL CLOUD ICE PLUS SNOW PER TIME STEP
            grplprt, // TOTAL GRAUPEL PER TIME STEP
+           rainonlyprt, // RAIN ALONE PER TIME STEP
+           snowonlyprt, // SNOW ALONE (NO CLOUD ICE) PER TIME STEP
            effc,  // DROPLET EFFECTIVE RADIUS
            effi, // CLOUD ICE EFFECTIVE RADIUS
            effs, // SNOW EFFECTIVE RADIUS
@@ -177,6 +179,40 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
     Morrison::Advance (const Real& dt_advance,
                        const SolverChoice& sc)
     {
+        m_sed.reset(dt_advance);
+
+        if (!m_columns.needs_gather()) {
+            AdvanceColumns(dt_advance, sc);
+            return;
+        }
+
+        // Some column is split between boxes stacked in z. Sedimentation treats each
+        // box's k range as the whole column, so run on a copy of the fields in which
+        // every column lies in one box, then copy the result back.
+        amrex::Array<FabPtr, MicVar_Morr::NumVars> saved;
+        m_columns.gather(mic_fab_vars, saved);
+        MultiFab* z_phys_nd_saved = m_z_phys_nd;
+        auto z_phys_nd_col = m_columns.gather_nodal(m_z_phys_nd);
+        m_z_phys_nd = z_phys_nd_col.get();
+        auto sed_saved = m_sed.down;
+        m_sed.down = m_columns.gather_one(*sed_saved);
+        const MultiFab* inflow_saved = m_sed_inflow;
+        auto inflow_col = (m_sed_inflow) ? m_columns.gather_one(*m_sed_inflow) : nullptr;
+        m_sed_inflow = inflow_col.get();
+
+        AdvanceColumns(dt_advance, sc);
+
+        m_sed_inflow = inflow_saved;
+        sed_saved->ParallelCopy(*m_sed.down);
+        m_sed.down = sed_saved;
+        m_z_phys_nd = z_phys_nd_saved;
+        m_columns.scatter(mic_fab_vars, saved);
+    }
+
+    void
+    Morrison::AdvanceColumns (const Real& dt_advance,
+                              const SolverChoice& sc)
+    {
         // Expose for GPU
         bool do_cond = m_do_cond;
 
@@ -187,10 +223,26 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
         ParmParse pp("erf");
         bool use_morr_cpp_answer = true;
         pp.queryAdd("use_morr_cpp_answer", use_morr_cpp_answer);
+#ifndef ERF_USE_MORR_FORT
+        // Without the Fortran bridge, false would skip the microphysics update entirely
+        if (!use_morr_cpp_answer) {
+            Abort("erf.use_morr_cpp_answer = false requires the Morrison Fortran bridge "
+                  "(USE_MORR_FORT=TRUE or ERF_ENABLE_MORR_FORT=ON)");
+        }
+#endif
 
         // Ensure that only one of these is true
         bool run_morr_cpp  =  use_morr_cpp_answer;
         bool run_morr_fort = !run_morr_cpp;
+
+        // The Fortran bridge takes each box's k range as the whole column (the box top
+        // as the model top, its bottom as the ground), so it needs boxes that do span it.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!run_morr_fort || m_columns.boxes_span_domain(),
+            "Morrison: erf.use_morr_cpp_answer = false requires every box to span the domain in z "
+            "(no grids split in z, and no refined levels short of the domain top or bottom)");
+
+        // Only a column standing on the domain bottom has a ground to accumulate precipitation on
+        const int dom_klo = m_geom.Domain().smallEnd(2);
 
         std::string filename = std::string("output_cpp") + std::to_string(use_morr_cpp_answer) + ".txt";
 
@@ -235,8 +287,12 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
           auto const& pres_arr        = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
-          auto const& graup_accum_arr = mic_fab_vars[MicVar_Morr::graup_accum]->array(mfi);
+          auto const& graupel_accum_arr = mic_fab_vars[MicVar_Morr::graupel_accum]->array(mfi);
+          auto const& precip_accum_arr  = mic_fab_vars[MicVar_Morr::precip_accum]->array(mfi);
           auto const& w_arr           = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
+          auto const& sed_arr         = m_sed.down->array(mfi);
+          const auto inflow_arr = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
+                                                 : Array4<const Real>{};
 
           // Get radar reflectivity array if radar diagnostics enabled
           //        auto const& refl_arr = m_do_radar_ref ? m_radar->array(mfi) : nullptr;
@@ -2530,9 +2586,33 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
                 // hm added 7/13/13
                 morr_arr(i,j,k,MORRInd::snowprt) = Real(0);
                 morr_arr(i,j,k,MORRInd::grplprt) = Real(0);
+                morr_arr(i,j,k,MORRInd::rainonlyprt) = Real(0);
+                morr_arr(i,j,k,MORRInd::snowonlyprt) = Real(0);
             } // k
 
             nstep = 1;
+
+            // At the top of a fine patch, rain, snow, ... come in from the coarse level.
+            // Add what enters during this step to the top cell as a tendency, before the
+            // fall speeds are computed, so it falls with what is already there; record it
+            // on the top face.
+            if (inflow_arr && inflow_arr(i,j,khi+1,MorrSed::NumComps) > Real(0.5)) {
+                const Real fac = one / (morr_arr(i,j,khi,MORRInd::rho) * morr_arr(i,j,khi,MORRInd::dzq) * dt);
+                morr_arr(i,j,khi,MORRInd::qc3dten)  += inflow_arr(i,j,khi+1,MorrSed::qc) * fac;
+                morr_arr(i,j,khi,MORRInd::qi3dten)  += inflow_arr(i,j,khi+1,MorrSed::qi) * fac;
+                morr_arr(i,j,khi,MORRInd::qr3dten)  += inflow_arr(i,j,khi+1,MorrSed::qr) * fac;
+                morr_arr(i,j,khi,MORRInd::qni3dten) += inflow_arr(i,j,khi+1,MorrSed::qs) * fac;
+                morr_arr(i,j,khi,MORRInd::qg3dten)  += inflow_arr(i,j,khi+1,MorrSed::qg) * fac;
+                morr_arr(i,j,khi,MORRInd::nc3dten)  += inflow_arr(i,j,khi+1,MorrSed::nc) * fac;
+                morr_arr(i,j,khi,MORRInd::ni3dten)  += inflow_arr(i,j,khi+1,MorrSed::ni) * fac;
+                morr_arr(i,j,khi,MORRInd::nr3dten)  += inflow_arr(i,j,khi+1,MorrSed::nr) * fac;
+                morr_arr(i,j,khi,MORRInd::ns3dten)  += inflow_arr(i,j,khi+1,MorrSed::ns) * fac;
+                morr_arr(i,j,khi,MORRInd::ng3dten)  += inflow_arr(i,j,khi+1,MorrSed::ng) * fac;
+                for (int n = 0; n < MorrSed::NumComps; ++n) {
+                    sed_arr(i,j,khi+1,n) += inflow_arr(i,j,khi+1,n);
+                }
+                ltrue = 1;
+            }
 
             if (ltrue != 0) {
             //goto 400
@@ -2765,6 +2845,19 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
                 morr_arr(i,j,k,MORRInd::faloutnc) = morr_arr(i,j,k,MORRInd::fnc) * morr_arr(i,j,k,MORRInd::dumfnc);
                 morr_arr(i,j,k,MORRInd::faloutg) = morr_arr(i,j,k,MORRInd::fg) * morr_arr(i,j,k,MORRInd::dumg);
                 morr_arr(i,j,k,MORRInd::faloutng) = morr_arr(i,j,k,MORRInd::fng) * morr_arr(i,j,k,MORRInd::dumfng);
+
+                // falout is the flux out of the bottom of cell k (face k) for this substep
+                const Real dt_sub = dt / nstep;
+                sed_arr(i,j,k,MorrSed::qc) += morr_arr(i,j,k,MORRInd::faloutc)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::qi) += morr_arr(i,j,k,MORRInd::falouti)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::qr) += morr_arr(i,j,k,MORRInd::faloutr)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::qs) += morr_arr(i,j,k,MORRInd::falouts)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::qg) += morr_arr(i,j,k,MORRInd::faloutg)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::nc) += morr_arr(i,j,k,MORRInd::faloutnc) * dt_sub;
+                sed_arr(i,j,k,MorrSed::ni) += morr_arr(i,j,k,MORRInd::faloutni) * dt_sub;
+                sed_arr(i,j,k,MorrSed::nr) += morr_arr(i,j,k,MORRInd::faloutnr) * dt_sub;
+                sed_arr(i,j,k,MorrSed::ns) += morr_arr(i,j,k,MORRInd::faloutns) * dt_sub;
+                sed_arr(i,j,k,MorrSed::ng) += morr_arr(i,j,k,MORRInd::faloutng) * dt_sub;
               } //k
 
               // Process top of model level
@@ -2854,6 +2947,8 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
               // Added 7/13/13
               morr_arr(i,j,klo,MORRInd::snowprt) += (morr_arr(i,j,kts,MORRInd::falouti) + morr_arr(i,j,kts,MORRInd::falouts)) * dt / nstep;
               morr_arr(i,j,klo,MORRInd::grplprt) += morr_arr(i,j,kts,MORRInd::faloutg) * dt / nstep;
+              morr_arr(i,j,klo,MORRInd::rainonlyprt) += morr_arr(i,j,kts,MORRInd::faloutr) * dt / nstep;
+              morr_arr(i,j,klo,MORRInd::snowonlyprt) += morr_arr(i,j,kts,MORRInd::falouts) * dt / nstep;
             }
 
             for(int k=klo; k<=khi; k++) {
@@ -3217,7 +3312,7 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
                   // NEED gpu-compatible summation for rain_accum, check SAM or Kessler for better example
                   rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::precrt);
                   snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::snowprt);
-                  graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);
+                  graupel_accum_arr(i,j,k) = graupel_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);
                   */
 
                   rainncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::precrt);
@@ -3228,9 +3323,14 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
 
               // Update precipitation accumulation variables
               // These are outside the k-loop in the original code
-              rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::precrt);
-              snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::snowprt);
-              graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
+              if (klo == dom_klo) {
+                  // Each species alone, and the total, which also holds the cloud water
+                  // and cloud ice that fell out
+                  rain_accum_arr(i,j,klo)    += morr_arr(i,j,klo,MORRInd::rainonlyprt);
+                  snow_accum_arr(i,j,klo)    += morr_arr(i,j,klo,MORRInd::snowonlyprt);
+                  graupel_accum_arr(i,j,klo) += morr_arr(i,j,klo,MORRInd::grplprt);
+                  precip_accum_arr(i,j,klo)  += morr_arr(i,j,klo,MORRInd::precrt);
+              }
 
             } // cpp
          });

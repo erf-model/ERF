@@ -20,15 +20,15 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TERRRAIN GRID TYPE
-erf.terrain_type = Moving   # moving terrain
+erf.terrain_type = MovingFittedMesh   # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
 # FOR NO SUBSTEPPING
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.fixed_dt           = 0.005
 
 # FOR SUBSTEPPING (fac 20)
-#erf.substepping_type   = Implicit
+#erf.timestepping_type = RK3_ImplicitSubstep
 #erf.fixed_mri_dt_ratio = 20
 #erf.fixed_dt           = 0.1
 #erf.use_lagged_delta_rt = false
@@ -48,7 +48,7 @@ erf.check_int       = -1      # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 1000    # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens detJ pp_err xvel_err zvel_err
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens detJ
 
 # SOLVER CHOICE
 erf.use_gravity = true

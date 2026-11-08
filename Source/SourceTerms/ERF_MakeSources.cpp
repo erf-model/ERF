@@ -9,6 +9,7 @@
 #include <ERF_NumericalDiffusion.H>
 #include <ERF_PlaneAverage.H>
 #include <ERF_SrcHeaders.H>
+#include <ERF_CanopyTurbulence.H>
 #include <ERF_TI_slow_headers.H>
 #include <ERF_MOSTStress.H>
 
@@ -31,6 +32,8 @@ using namespace amrex;
  * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value of theta} used to define Rayleigh damping
  * @param[in] d_sinesq_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at cell centers
+ * @param[in] forest_drag  forest drag field C_d LAD, or null without a forest
+ * @param[in] cons_old  conserved state at the start of the step, read by the canopy TKE source
  */
 
 void make_sources (int level,
@@ -58,7 +61,12 @@ void make_sources (int level,
                    TurbulentPerturbation& turbPert,
                    const Table1D<Real> r_plane_avg,
                    const Table1D<Real> t_plane_avg,
-                   bool is_slow_step)
+                   const MultiFab* forest_drag,
+                   const MultiFab* cons_old,
+                   bool is_slow_step,
+                   MultiFab* ib_wall_hfx,
+                   MultiFab* ib_wall_ktarget,
+                   MultiFab* ib_wall_qfx)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
@@ -91,12 +99,17 @@ void make_sources (int level,
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
     // flags to apply certain source terms in substep call only
-    bool use_Rayleigh_fast = ( (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit) ||
-                               (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit) );
-    bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
+    bool use_Rayleigh_fast = solverChoice.rayleigh_fast_uvT(level);
+    bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_fast(level);
 
     // flag for a moisture model
     bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
+
+    // Canopy terms of the k-eqn RANS model (erf.forest_canopy_tke); check_config
+    // has already required a forest and kEqn on every level
+    const bool use_canopy_tke = is_slow_step && solverChoice.canopyTurb.enabled;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_canopy_tke || (forest_drag && cons_old),
+        "erf.forest_canopy_tke needs the forest drag field and the old state in make_sources");
 
     // *****************************************************************************
     // Planar averages for subsidence terms and immersed forcing
@@ -226,6 +239,7 @@ void make_sources (int level,
     //    7. sponging
     //    8. turbulent perturbation
     //    9. nudging towards input sounding values (only for theta)
+    //    9b. canopy wake production and short-circuit dissipation for (rho KE)
     //   10a. Immersed forcing for terrain
     //   10b. Immersed forcing for buildings
     //   Real(11.) Four stream radiation source for (rho theta)
@@ -391,26 +405,17 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_theta_advection) {
             const int n = RhoTheta_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
-                    Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
-                    Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc * (T_hi - T_lo) * dzInv;
-                });
-            } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
-                    Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
-                    Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, n) -= wbar_cc * (T_hi - T_lo) * dzInv;
-                });
-            }
+            // -w dtheta/dz is a tendency of theta whichever way the custom forcing is
+            //    specified, so it is weighted by the cell density to give one of rho*theta
+            const int nr = Rho_comp;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
+                Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
+                Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
+                Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc * (T_hi - T_lo) * dzInv;
+            });
         }
 
         // *************************************************************************************
@@ -418,32 +423,20 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None) && is_slow_step) {
             const int nv = RhoQ1_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
-                    Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
-                    Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, nv  ) -= cell_data(i,j,k,nr) * wbar_cc * (Qv_hi - Qv_lo) * dzInv;
-                    cell_src(i, j, k, nv+1) -= cell_data(i,j,k,nr) * wbar_cc * (Qc_hi - Qc_lo) * dzInv;
-                });
-            } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
-                    Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
-                    Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, nv  ) -= wbar_cc * (Qv_hi - Qv_lo) * dzInv;
-                    cell_src(i, j, k, nv+1) -= wbar_cc * (Qc_hi - Qc_lo) * dzInv;
-                });
-            }
+            // -w dq/dz is a tendency of the mixing ratios whichever way the custom forcing is
+            //    specified, so it is weighted by the cell density to give one of rho*q
+            const int nr = Rho_comp;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
+                Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
+                Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
+                Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
+                Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
+                Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                cell_src(i, j, k, nv  ) -= cell_data(i,j,k,nr) * wbar_cc * (Qv_hi - Qv_lo) * dzInv;
+                cell_src(i, j, k, nv+1) -= cell_data(i,j,k,nr) * wbar_cc * (Qc_hi - Qc_lo) * dzInv;
+            });
         }
 
         // *************************************************************************************
@@ -490,6 +483,16 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
+        // 9b. Add the canopy wake production and short-circuit dissipation to (rho KE)
+        // *************************************************************************************
+        if (use_canopy_tke) {
+            AddCanopyTKESources(bx, cell_src, cell_data, cons_old->const_array(mfi),
+                                xvel.const_array(mfi), yvel.const_array(mfi), zvel.const_array(mfi),
+                                forest_drag->const_array(mfi), t_blank_arr,
+                                solverChoice.canopyTurb, static_cast<Real>(dt));
+        }
+
+        // *************************************************************************************
         // 10a. Add immersed source terms for terrain
         // *************************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
@@ -499,20 +502,28 @@ void make_sources (int level,
             const Array4<const Real>& v = yvel.array(mfi);
 
             AMREX_ALWAYS_ASSERT(dptr_r_plane_if && dptr_t_plane_if);  // Tables must be filled before immersed forcing
-            ImmersedForcingTerrain_Scalar(bx, u, v, cell_data, t_blank_arr, z_cc_arr,
-                                         cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
+            if (solverChoice.if_fraction_stress) {
+                const Array4<Real> wall_hfx = (ib_wall_hfx) ? ib_wall_hfx->array(mfi) : Array4<Real>{};
+                const Array4<Real> wall_kt  = (ib_wall_ktarget) ? ib_wall_ktarget->array(mfi) : Array4<Real>{};
+                const Array4<Real> wall_qfx = (ib_wall_qfx) ? ib_wall_qfx->array(mfi) : Array4<Real>{};
+                const auto& tc_lev = solverChoice.turbChoice[level];
+                const bool wall_tke = solverChoice.if_wall_tke && (tc_lev.rans_type == RANSType::kEqn);
+                ImmersedForcingTerrain_Scalar_FractionStress(bx, u, v, cell_data, t_blank_arr, cell_src, wall_hfx, wall_kt,
+                                                             geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if,
+                                                             static_cast<Real>(dt), static_cast<Real>(time),
+                                                             wall_tke, tc_lev.Cmu0, wall_qfx,
+                                                             tc_lev.rans_moist_buoyancy);
+            } else {
+                ImmersedForcingTerrain_Scalar(bx, u, v, cell_data, t_blank_arr, z_cc_arr,
+                                             cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
+            }
         }
 
         // *************************************************************************************
         // 10b. Add immersed source terms for buildings
         // *************************************************************************************
-        // geometric properties
-        const Real* dx_arr = geom.CellSize();
-        const Real delta_xy = std::sqrt(dx_arr[0] * dx_arr[1]);
-
-        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
-           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) &&
-            (delta_xy <= 50.0)) { // only apply immersed forcing when grid spacing is less than 50m
+        if (solverChoice.use_building_immersed_forcing(geom) &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
 
             const Array4<const Real>& u = xvel.array(mfi);
             const Array4<const Real>& v = yvel.array(mfi);
@@ -545,6 +556,9 @@ void make_sources (int level,
                 //       second pass below.  The accumulation order is unchanged, so the
                 //       values are identical to the old per-level array.
                 Real q_int_inf = zero;
+                // Height of the ground (the bottom face).  zi is an absolute height; the
+                //    zi factor in the flux below is the inversion's height above the ground.
+                Real z_sfc = myhalf * (z_cc_arr(i,j,klo) + z_cc_arr(i,j,klo-1));
                 Real zi   = myhalf * (z_cc_arr(i,j,khi) + z_cc_arr(i,j,khi-1));
                 Real rhoi = myhalf * (cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp));
                 for (int k(klo+1); k<=khi+1; ++k) {
@@ -564,10 +578,10 @@ void make_sources (int level,
                 // the lower face is carried across iterations so each face is evaluated
                 // once, exactly as when both faces were read from the shared array.
                 Real q_int   = zero;                                             // face klo
-                Real z_lo    = myhalf * (z_cc_arr(i,j,klo) + z_cc_arr(i,j,klo-1));
+                Real z_lo    = z_sfc;
                 Real flux_lo = F1*std::exp(-q_int) + F0*std::exp(-(q_int_inf - q_int));
                 if (z_lo > zi) {
-                    flux_lo += rhoi * Cp_d * D * ( std::pow(z_lo-zi,Real(4.)/three)/Real(4.) + zi*std::pow(z_lo-zi,one/three) ) ;
+                    flux_lo += rhoi * Cp_d * D * ( std::pow(z_lo-zi,Real(4.)/three)/Real(4.) + (zi-z_sfc)*std::pow(z_lo-zi,one/three) ) ;
                 }
 
                 for (int k(klo); k<=khi; ++k) {
@@ -578,7 +592,7 @@ void make_sources (int level,
                     Real z_hi    = myhalf * (z_cc_arr(i,j,k+1) + z_cc_arr(i,j,k));
                     Real flux_hi = F1*std::exp(-q_int) + F0*std::exp(-(q_int_inf - q_int));
                     if (z_hi > zi) {
-                        flux_hi += rhoi * Cp_d * D * ( std::pow(z_hi-zi,Real(4.)/three)/Real(4.) + zi*std::pow(z_hi-zi,one/three) ) ;
+                        flux_hi += rhoi * Cp_d * D * ( std::pow(z_hi-zi,Real(4.)/three)/Real(4.) + (zi-z_sfc)*std::pow(z_hi-zi,one/three) ) ;
                     }
 
                     // Average to w-faces when looping CC

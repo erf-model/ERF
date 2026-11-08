@@ -21,7 +21,6 @@ using namespace amrex;
  * @param[in] vfrac volume fractions
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
- * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -31,8 +30,7 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
                          const Array4<const Real>& er_arr,
                          Array4<const Real>& vfrac,
                          Array4<Real>& tau13i,
-                         Array4<Real>& tau23i,
-                         Array4<Real>& tau33i)
+                         Array4<Real>& tau23i)
 {
     Real OneThird   = (one/three);
 
@@ -46,12 +44,10 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
         {
             if (vfrac(i,j,k) > zero) {
                 Real rhoAlpha  = cell_data(i, j, k, Rho_comp) * mu_eff;
-                if (tau33i) tau33i(i,j,k) = -rhoAlpha * tau33(i,j,k);
                 tau11(i,j,k) = -rhoAlpha * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
                 tau22(i,j,k) = -rhoAlpha * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
                 tau33(i,j,k) = -rhoAlpha * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
             } else {
-                if (tau33i) tau33i(i,j,k) = zero;
                 tau11(i,j,k) = zero;
                 tau22(i,j,k) = zero;
                 tau33(i,j,k) = zero;
@@ -125,10 +121,15 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
         // Cell centered strains
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (tau33i) tau33i(i,j,k) = -mu_eff * tau33(i,j,k);
-            tau11(i,j,k) = -mu_eff * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau22(i,j,k) = -mu_eff * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau33(i,j,k) = -mu_eff * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            if (vfrac(i,j,k) > zero) {
+                tau11(i,j,k) = -mu_eff * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
+                tau22(i,j,k) = -mu_eff * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
+                tau33(i,j,k) = -mu_eff * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            } else {
+                tau11(i,j,k) = zero;
+                tau22(i,j,k) = zero;
+                tau33(i,j,k) = zero;
+            }
         });
 
         // Off-diagonal strains
@@ -171,7 +172,6 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
  * @param[in] vfrac volume fractions
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
- * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -182,8 +182,7 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& er_arr,
                          Array4<const Real>& vfrac,
                          Array4<Real>& tau13i,
-                         Array4<Real>& tau23i,
-                         Array4<Real>& tau33i)
+                         Array4<Real>& tau23i)
 {
     Real OneThird = (one/three);
 
@@ -199,12 +198,10 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                 Real mu_11 = rhoAlpha + two * mu_turb(i, j, k, EddyDiff::Mom_h);
                 Real mu_22 = mu_11;
                 Real mu_33 = rhoAlpha + two * mu_turb(i, j, k, EddyDiff::Mom_v);
-                if (tau33i) tau33i(i,j,k) = -mu_33 * tau33(i,j,k);
                 tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
                 tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
                 tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
             } else {
-                if (tau33i) tau33i(i,j,k) = zero;
                 tau11(i,j,k) = zero;
                 tau22(i,j,k) = zero;
                 tau33(i,j,k) = zero;
@@ -300,12 +297,10 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                 Real mu_11 = mu_eff + two * mu_turb(i, j, k, EddyDiff::Mom_h);
                 Real mu_22 = mu_11;
                 Real mu_33 = mu_eff + two * mu_turb(i, j, k, EddyDiff::Mom_v);
-                if (tau33i) tau33i(i,j,k) = -mu_33 * tau33(i,j,k);
                 tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
                 tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
                 tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
             } else {
-                if (tau33i) tau33i(i,j,k) = zero;
                 tau11(i,j,k) = zero;
                 tau22(i,j,k) = zero;
                 tau33(i,j,k) = zero;

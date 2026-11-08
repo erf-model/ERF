@@ -42,9 +42,12 @@ using namespace amrex;
  * @param[in]  mu_turb turbulent viscosity
  * @param[in]  solverChoice container of solver and diffusion parameters
  * @param[in]  level AMR level
- * @param[in]  bc_ptr container with boundary conditions
+ * @param[in]  bc_ptr container with boundary conditions (device, read in kernels)
+ * @param[in]  bc_ptr_h the same boundary conditions on the host, read here to set up the kernels
  * @param[in]  use_SurfLayer whether we have turned on subgrid diffusion
  * @param[in]  implicit_fac -- factor of implicitness for vertical differences only
+ * @param[in]  reflux_flx   if not null, face views (indexed by state component) to which the
+ *                           fluxes of each component are added for refluxing
  */
 void
 DiffusionSrcForState_T (const Box& bx, const Box& domain,
@@ -80,9 +83,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const SolverChoice &solverChoice,
                         const int level,
                         const BCRec* bc_ptr,
+                        const BCRec* bc_ptr_h,
                         const bool use_SurfLayer,
                         const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
-                        const Real implicit_fac)
+                        const Real implicit_fac,
+                        const ScalarDiffusionRefluxViews* reflux_flx)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
@@ -158,9 +163,25 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 bx, domain, field, flux_policy, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
         }
 
+        // No diffusive transfer through a bottom or top domain face where the surface layer
+        // supplies the flux of this quantity separately, or where its boundary condition is
+        // zero gradient (foextrap, as at a slip or no-slip wall without a prescribed value).
+        // There the condition is no flux through the face along its normal, which is the whole
+        // of Gz; the terrain-adjusted ghost cells only approximate that, so on sloping terrain
+        // building Gz from them moved the scalar through the wall (erf-model/ERF#4330).
+        const bool suppress_lower_z_flux = SurfLayer_zlo
+            ? !(native_policy.is_theta || native_policy.is_q1)
+            : (bc_ptr_h[native_policy.bc_comp].lo(2) == ERFBCType::foextrap);
+        const bool suppress_upper_z_flux =
+            !SurfLayer_zhi && (bc_ptr_h[native_policy.bc_comp].hi(2) == ERFBCType::foextrap);
         ApplyScalarDiffusionMappedDivergence_T(
             bx, domain, field, z_nd, ax, ay, detJ, cellSizeInv, mf_mx, mf_uy,
-            mf_my, mf_vx,
-            SurfLayer_zlo && !(native_policy.is_theta || native_policy.is_q1));
+            mf_my, mf_vx, suppress_lower_z_flux, suppress_upper_z_flux);
+        if (reflux_flx) {
+            AddScalarDiffusionRefluxFluxes_T(
+                bx, domain, xflux, yflux, zflux, field.flux_comp, *reflux_flx, field.rhs_comp,
+                z_nd, ax, ay, cellSizeInv, mf_mx, mf_my, mf_uy, mf_vx,
+                suppress_lower_z_flux, suppress_upper_z_flux);
+        }
     } // n
 }

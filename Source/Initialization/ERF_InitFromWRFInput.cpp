@@ -101,7 +101,6 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
  * @param[out] z_phys MultiFab specifying the node-centered z coordinates.
  * @param[in] NC_PH_fab MultiFab storing WRF perturbation geopotential data.
  * @param[in] NC_PHB_fab MultiFab storing WRF base-state geopotential data.
- * @param[out] dz0_max Maximum first-layer thickness.
  * @param[in] avg_grid_faces_to_nodes Whether to average the wrfinput heights onto the nodes
  *                                   rather than reconstructing nodal heights from them.
  */
@@ -113,7 +112,6 @@ init_terrain_from_wrfinput (int lev,
                             MultiFab* z_phys_nd,
                             const MultiFab& NC_PH_fab,
                             const MultiFab& NC_PHB_fab,
-                            Real& dz0_max,
                             const bool& avg_grid_faces_to_nodes);
 
 /**
@@ -392,6 +390,45 @@ wrf_mean_layer_thickness (const MultiFab& mf_PH,
     return prof;
 }
 
+/**
+ * @brief Thickest first layer of the file's vertical grid over the columns this level holds.
+ *
+ * Only the geometric-stretch construction of zlevels_stag needs it, as its dz0.
+ *
+ * @param[in] mf_PH  perturbation geopotential on z-faces
+ * @param[in] mf_PHB base-state geopotential on z-faces
+ * @param[in] klo    index of the surface z-face
+ * @return the largest z(klo+1) - z(klo) over every column
+ */
+Real
+wrf_max_first_layer_thickness (const MultiFab& mf_PH,
+                               const MultiFab& mf_PHB,
+                               int klo)
+{
+    ReduceOps<ReduceOpMax> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(mf_PH); mfi.isValid(); ++mfi)
+    {
+        const Box& vbx = mfi.validbox();
+        if (klo < vbx.smallEnd(2) || klo+1 > vbx.bigEnd(2)) { continue; }
+
+        const Array4<const Real>&  ph_arr = mf_PH.const_array(mfi);
+        const Array4<const Real>& phb_arr = mf_PHB.const_array(mfi);
+        reduce_op.eval(makeSlab(vbx,2,klo), reduce_data,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            return { ( (ph_arr(i,j,k+1) + phb_arr(i,j,k+1))
+                     - (ph_arr(i,j,k  ) + phb_arr(i,j,k  )) ) / CONST_GRAV };
+        });
+    }
+
+    Real dz0_max = amrex::get<0>(reduce_data.value(reduce_op));
+    ParallelAllReduce::Max(dz0_max, ParallelContext::CommunicatorAll());
+    return dz0_max;
+}
+
 } // namespace
 
 /**
@@ -498,9 +535,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         }
     }
     int nvar = NC_names.size();
-    Vector<Vector<FArrayBox>> NC_fab_var;
-    NC_fab_var.resize(num_boxes_at_level[lev]);
-    for (int idx(0); idx < num_boxes_at_level[lev]; ++ idx) { NC_fab_var[idx].resize(nvar); }
 
     auto& lev_new = vars_new[lev];
 
@@ -590,6 +624,48 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
     const Real l_rdOcp = solverChoice.rdOcp;
 
+    // **************************************************************************
+    // Each rank reads from the file only the part of each field that its own grids
+    // need, so that no rank (not even the I/O rank) ever holds a whole field.  The
+    // consumers below fill the valid and ghost cells of this level's MultiFabs, in
+    // places clamping the index to the domain, so a rank needs the cells covered by
+    // its own boxes grown by the largest ghost width any of those MultiFabs carries.
+    // **************************************************************************
+    IntVect ng_read(0);
+    for (int d = 0; d < 2; ++d) {
+        ng_read[d] = amrex::max(ng[d], ngz[d], mapfac[lev][MapFacType::m_x]->nGrowVect()[d]) + 1;
+    }
+    const int myproc = ParallelDescriptor::MyProc();
+
+    // The part of typed_fill (a box with the index type of the variable being read)
+    // that this rank needs.  A rank with no boxes here still gets a single column, so
+    // that every rank reads (and holds) something.
+    auto local_region = [&] (const Box& typed_fill) -> Box
+    {
+        Box region;
+        for (int i = 0; i < ba.size(); ++i) {
+            if (dm[i] != myproc) { continue; }
+            Box b = amrex::grow(ba[i], ng_read);
+            b = amrex::convert(b, typed_fill.ixType());
+            b.setRange(2, typed_fill.smallEnd(2), typed_fill.length(2));
+            b &= typed_fill;
+            if (b.ok()) { region = (region.ok()) ? region.minBox(b) : b; }
+        }
+        if (!region.ok()) {
+            region = typed_fill;
+            region.setBig(0, region.smallEnd(0));
+            region.setBig(1, region.smallEnd(1));
+        }
+        return region;
+    };
+
+    // How many ranks may read the file at the same time
+    int wrfinput_max_readers = 256;
+    {
+        ParmParse pp("erf");
+        pp.query("wrfinput_max_readers", wrfinput_max_readers);
+    }
+
     Print() << (read_atmos_state ? "Loading initial data" : "Loading surface data")
             << " from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
@@ -602,9 +678,18 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         int ratio_from_file;
         Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][idx], ratio_from_file);
         Print() << "Box in file " << subdomain_to_read << "\n";
+        const Box global_file_box = wrfinput_file_box(lev, idx);
+        // wrfinput_var_box keeps this horizontal low corner for every variable,
+        // including staggered and one-dimensional fields.
+        IntVect file_shift(0);
+        file_shift[0] = global_file_box.smallEnd(0) - subdomain_to_read.smallEnd(0);
+        file_shift[1] = global_file_box.smallEnd(1) - subdomain_to_read.smallEnd(1);
 
         Box subdomain_to_fill = boxes_at_level[lev][idx];
         Print() << "Box to fill " << subdomain_to_fill << "\n";
+
+        int use_theta_m;
+        check_wrfinput_geometry(lev, nc_init_file[lev][idx], geom[lev], use_theta_m);
 
         for (int ivar = 0; ivar < nvar; ++ ivar) {
             auto var_name = NC_names[ivar];
@@ -618,12 +703,17 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
             Print() << "Checking for " << var_name << " ...";
 
-            int success, use_theta_m;
-            read_from_wrfinput(lev, subdomain_to_read, nc_init_file[lev][idx],
-                               NC_fab_var[idx][ivar], var_name, geom[lev],
-                               use_theta_m, success);
+            // Only the box the variable covers in the file is found here; the data is
+            // read below, each rank reading just the part its own grids need.
+            Box file_box;
+            int success = wrfinput_var_box(subdomain_to_read, nc_init_file[lev][idx], var_name, file_box);
+            Print() << (success ? " Reading  " : " Skipping ") << var_name << std::endl;
 
-            auto& var_fab_from_file = NC_fab_var[idx][ivar];
+            // Holds this rank's part of the variable as read from the file; it is
+            // released at the end of this iteration once its data has been copied into
+            // this level's MultiFabs.
+            FArrayBox var_fab_from_file;
+
             bool has_fallback_behavior =
                 (var_name == "U")       || (var_name == "V")       || (var_name == "W")      ||
                 (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
@@ -647,31 +737,33 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             FArrayBox var_fab_crse;
 
             if (success) {
-                // This shift occurs only when the coarser grid is at least at level 1,
-                // because the indices are always given relative to that coarser "domain"
+                // WRF parent starts are relative to the full parent file, whereas an
+                // ERF refinement patch may cover only part of that file.  Accumulate
+                // the file origins instead of aligning its first cell with the patch.
+                IntVect shift_by(file_shift);
                 if (lev > 1) {
                     Box shift_by_box(subdomains[lev][0].minimalBox());
-                    IntVect shift_by(shift_by_box.smallEnd());
-                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
-                        shift_by[i] -= var_fab_from_file.box().smallEnd(i);
-                    }
+                    shift_by[2] = shift_by_box.smallEnd(2) - file_box.smallEnd(2);
                     // The fab just read lives on the file's vertical grid, so when this level
                     // is refined in the vertical the z part of the shift has to be expressed
                     // there too rather than in this level's index space.
                     if (rr_z > 1) {
                         shift_by[2] = amrex::coarsen(shift_by_box.smallEnd(2), rr_z)
-                                    - var_fab_from_file.box().smallEnd(2);
+                                    - file_box.smallEnd(2);
                     }
-                    var_fab_from_file.shift(shift_by);
                 }
+
+                // The box the whole variable covers, in this level's index space
+                Box var_box(file_box);
+                var_box.shift(shift_by);
 
 
                 // In the case where the array is 1D in the z-direction, the destination box needs to also
                 //    be 1D in the z-direction, but with (i,j) corresponding to the low corner of the box
                 //    to be filled
-                int nx = var_fab_from_file.box().length(0);
-                int ny = var_fab_from_file.box().length(1);
-                int nz = var_fab_from_file.box().length(2);
+                int nx = var_box.length(0);
+                int ny = var_box.length(1);
+                int nz = var_box.length(2);
                 Box subdomain_tmp(subdomain_to_fill);
                 if (nx == 1 and ny == 1) {
                     subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
@@ -682,7 +774,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     subdomain_tmp.setBig(2,subdomain_tmp.smallEnd(2));
                 }
 
-                Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));
+                Box subdomain_to_fill_typed(convert(subdomain_tmp,var_box.ixType()));
+
+                // Only the part of the box to fill that this rank's own grids need
+                Box local_to_fill = local_region(subdomain_to_fill_typed);
 
                 // *********************************************************************
                 // Decide whether this particular field has to be interpolated in the
@@ -698,7 +793,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                           var_name == "DZS");
                 const bool refine_in_z = (rr_z > 1) && (nz > 1) && !is_soil_var;
 
-                Box subdomain_crse(subdomain_to_fill_typed);
+                Box subdomain_crse(local_to_fill);
                 if (refine_in_z) {
                     subdomain_crse.coarsen(IntVect(1,1,rr_z));
                     //
@@ -713,16 +808,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     //
                     subdomain_crse.grow(2,1);
                     subdomain_crse.setSmall(2, amrex::max(subdomain_crse.smallEnd(2),
-                                                          var_fab_from_file.box().smallEnd(2)));
+                                                          var_box.smallEnd(2)));
                     subdomain_crse.setBig  (2, amrex::min(subdomain_crse.bigEnd(2),
-                                                          var_fab_from_file.box().bigEnd(2)));
+                                                          var_box.bigEnd(2)));
                 }
 
 #ifdef AMREX_USE_GPU
-                var_fab.resize(subdomain_to_fill_typed, 1, amrex::The_Pinned_Arena());
+                var_fab.resize(local_to_fill, 1, amrex::The_Pinned_Arena());
                 if (refine_in_z) { var_fab_crse.resize(subdomain_crse, 1, amrex::The_Pinned_Arena()); }
 #else
-                var_fab.resize(subdomain_to_fill_typed, 1);
+                var_fab.resize(local_to_fill, 1);
                 if (refine_in_z) { var_fab_crse.resize(subdomain_crse, 1); }
 #endif
 
@@ -730,6 +825,20 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 // grid is refined relative to the file, and straight into the destination
                 // otherwise.
                 FArrayBox& read_fab = (refine_in_z) ? var_fab_crse : var_fab;
+
+                // Read the columns of the file under read_fab, over the file's whole
+                // vertical extent.  A field that is a single column in the file is read
+                // whole, since it is spread over every (i,j) below.
+                Box region_to_read(var_box);
+                if (nx > 1 || ny > 1) {
+                    for (int d = 0; d < 2; ++d) {
+                        region_to_read.setRange(d, read_fab.box().smallEnd(d), read_fab.box().length(d));
+                    }
+                }
+                region_to_read.shift(-shift_by);
+                read_region_from_wrfinput(nc_init_file[lev][idx], var_name, file_box, region_to_read,
+                                          var_fab_from_file, wrfinput_max_readers);
+                if (var_fab_from_file.box().ok()) { var_fab_from_file.shift(shift_by); }
 
                 Box intersection = read_fab.box() & var_fab_from_file.box();
                 if (intersection.ok()) {
@@ -1257,7 +1366,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
           // Initialize MapFac U
           if ( var_name == "MAPFAC_U" ) {
+              // Each rank holds only its own part of the field, so the test is made on the whole of it
               Real max_val = var_fab.template max<RunOn::Device>();
+              ParallelDescriptor::ReduceRealMax(max_val);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -1289,7 +1400,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
           // Initialize MapFac V
           if ( var_name == "MAPFAC_V" ) {
+              // Each rank holds only its own part of the field, so the test is made on the whole of it
               Real max_val = var_fab.template max<RunOn::Device>();
+              ParallelDescriptor::ReduceRealMax(max_val);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -1321,7 +1434,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
           // Initialize MapFac M
           if ( var_name == "MAPFAC_M" ) {
+              // Each rank holds only its own part of the field, so the test is made on the whole of it
               Real max_val = var_fab.template max<RunOn::Device>();
+              ParallelDescriptor::ReduceRealMax(max_val);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -1408,6 +1523,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
             z_top = compute_terrain_top_and_bottom(mf_PH, *mf_PHB, geom[lev].Domain());
         } else {
+            //
+            // z_top comes from level 0's own PH/PHB and is held across the run.  If it is still
+            // zero here then level 0 was never built from a wrfinput file in this process and the
+            // value was not recovered from the checkpoint either; every height below would then be
+            // zero and the grid degenerate, so say so rather than building it.
+            //
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_top > zero,
+                "Top of domain from level 0 is not set, so the terrain at this level cannot be "
+                "built; a checkpoint written before z_top was stored cannot create a new level "
+                "from a wrfinput file on restart");
             amrex::Print() << "Warning: using top of domain set at level 0 which is " << z_top << std::endl;
         }
 
@@ -1447,15 +1572,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                   refRatio(lev-1), &node_bilinear_interp,
                                   domain_bcs_type, BCVars::cons_bc);
 
-            // Save interpolated mesh before terrain overwrites k=0 slab
+            // Save interpolated mesh before terrain overwrites k=0 slab.
+            //
+            // Copy the ghost nodes as well: the Transform construction corrects the
+            // ghost columns too (a fine level's lateral ghosts lie inside the domain
+            // but outside its grids, so nothing refills them), and it differences the
+            // fine surface against this mesh node by node.
             z_phys_interp.define(z_phys_nd[lev]->boxArray(), z_phys_nd[lev]->DistributionMap(),
                                  1, z_phys_nd[lev]->nGrowVect());
-            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, 0);
+            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
         }
 
-        Real dz0_max;
         init_terrain_from_wrfinput(lev, geom[lev], z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(),
-                                   mf_PH, *mf_PHB, dz0_max, solverChoice.avg_grid_faces_to_nodes);
+                                   mf_PH, *mf_PHB, solverChoice.avg_grid_faces_to_nodes);
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
         if (!solverChoice.avg_grid_faces_to_nodes) {
 #ifdef AMREX_USE_FLOAT
@@ -1593,8 +1722,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                         << " column depth is absorbed aloft: layers are stretched by 0% at the surface"
                         << " and " << Real(100)*a_ramp*sfrac[nlay-1] << "% at the top\n";
                 Print() << "    layer-to-layer stretch ratio above the surface layer is in ["
-                        << r_min << ", " << r_max << "]"
-                        << "    (thickest first layer over the domain was " << dz0_max << " m)\n";
+                        << r_min << ", " << r_max << "]\n";
                 if (r_min < Real(0.5) || r_max > Real(2.0)) {
                     Print() << "WARNING: the mean vertical profile of this file is not smooth in k "
                                "(stretch ratio outside [0.5, 2]); the ERF mesh inherits that.\n";
@@ -1607,6 +1735,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 //    idealized case, where dz0 and the domain height are the knowns, can use it
                 //    without going through the wrfinput path.
                 //
+                const Real dz0_max = wrf_max_first_layer_thickness(mf_PH, *mf_PHB,
+                                                                   boxes_at_level[lev][0].smallEnd(2));
                 const erf_grid_utils::GeometricStretch gs =
                     erf_grid_utils::build_geometric_zlevels(zlevels_stag[lev], dz0_max, z_top, tol);
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(gs.converged,
@@ -1623,6 +1753,53 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type,
                                        fine_terrain,
                                        (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
+
+            //
+            // Verify the mesh before it is handed to make_J.
+            //
+            // The reconstruction only fits the surface, and is free to over- or undershoot
+            //    the file where the terrain is under resolved; it is the first layer of the
+            //    mesh built on top of it that has to be positive, so that is what we check.
+            //    This mirrors the check init_from_metgrid makes on its mesh.
+            //
+            {
+                Print() << "Verifying grid integrity" << std::endl;
+
+                const int klo_nd = boxes_at_level[lev][0].smallEnd(2);
+
+                ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op;
+                ReduceData<Real, Real> reduce_data(reduce_op);
+                using ReduceTuple = typename decltype(reduce_data)::Type;
+
+                for ( MFIter mfi(*z_phys_nd[lev]); mfi.isValid(); ++mfi ) {
+                    const Box& vbx = mfi.validbox();
+                    if (klo_nd < vbx.smallEnd(2) || klo_nd >= vbx.bigEnd(2)) { continue; }
+
+                    const Array4<const Real>& z_arr = z_phys_nd[lev]->const_array(mfi);
+                    reduce_op.eval(makeSlab(vbx,2,klo_nd), reduce_data,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+                    {
+                        return {z_arr(i,j,k+1) - z_arr(i,j,k), std::fabs(z_arr(i,j,k))};
+                    });
+                } // mfi
+
+                ReduceTuple hv  = reduce_data.value(reduce_op);
+                Real min_dz     = amrex::get<0>(hv);
+                Real max_abs_z  = amrex::get<1>(hv);
+                ParallelAllReduce::Min(min_dz   , ParallelContext::CommunicatorAll());
+                ParallelAllReduce::Max(max_abs_z, ParallelContext::CommunicatorAll());
+
+                Print() << "Min nodal thickness of the first layer: " << min_dz << " m" << std::endl;
+
+                if (!std::isfinite(min_dz) || !std::isfinite(max_abs_z)) {
+                    Error("Non-finite nodal heights in the mesh built from the wrfinput terrain");
+                }
+                if (min_dz <= zero) {
+                    Error("The mesh built from the wrfinput terrain has a non-positive first "
+                          "layer thickness; the WRF terrain is too rough to represent on the "
+                          "ERF nodal mesh.  Consider running with erf.avg_grid_faces_to_nodes = true.");
+                }
+            }
         }
 
         // **************************************************************************
@@ -2104,10 +2281,14 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     //
     // NOTE: On the interp_atmos_from_coarse path the caller rebuilds the base state
     //       itself, after this level's terrain has been finalized by init_zphys and
-    //       before it interpolates the (perturbational) atmospheric state from the
-    //       coarse level.  See MakeNewLevelFromCoarse.
+    //       before it interpolates the atmospheric state from the coarse level.
+    //       See MakeNewLevelFromCoarse.
     // **************************************************************************
     if (!read_atmos_state) {
+        // The SST/TSK time slices, as at the end of this routine
+        if (!nc_low_file.empty()) {
+            init_fine_low_slices(lev, /*restarting=*/ false);
+        }
         Print() << "Surface-only initialization from wrfinput complete at level " << lev << ".\n";
         Print() << "The atmospheric state and the base state will be built by the caller.\n";
         return;
@@ -2235,7 +2416,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             // *******************************************************************************************
             int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
             Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
-            bool is_anelastic = (solverChoice.anelastic[0] == 1);
+            bool is_anelastic = (solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible);
             for (int itime = 0; itime < ntimes; itime++)
             {
                 read_and_convert_from_wrfbdy(itime, nc_bdy_file,
@@ -2333,13 +2514,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         for (int itime(0); itime < ntimes; ++itime) {
             read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
 
-            update_sst_tsk(itime, geom[lev], ba2d[lev],
+            update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                            sst_lev[lev], tsk_lev[lev],
                            m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                            lev_new[Vars::cons], *mf_PSFC[lev],
                            l_rdOcp, lmask_lev[lev][0], use_moist);
         }
     } // lev == 0 && nc_low_file exists
+
+    // A finer level that read its own init file: its SST/TSK time slices come from its own
+    // wrflow file if it has one and otherwise, all of them, from its parent
+    if ((lev > 0) && !nc_low_file.empty()) {
+        init_fine_low_slices(lev, /*restarting=*/ false);
+    }
 }
 
 
@@ -2421,9 +2608,20 @@ init_base_state_from_wrfinput (const Box& subdomain,
         Box gtbx = mfi.growntilebox();
 
         // z_phys_cc carries fewer ghost cells than the base state, so clamp the
-        // height lookup into the region where it is defined; that gives the outer
+        // height lookup into the region where it is FILLED; that gives the outer
         // ghost cells a zeroth-order extrapolation of the profile.
-        const Box  zbx  = amrex::grow(mfi.validbox(), z_phys_cc->nGrowVect());
+        //
+        // "Filled" is not the same as "allocated", which is what this used to clamp
+        // to.  At this point in the initialization make_terrain_fitted_coords has not
+        // run yet -- init_zphys follows init_only on the branch that reads a wrfinput
+        // file -- so z_phys_nd still holds its initial poison outside the domain, and
+        // make_zcc averages eight of those nodes into each z_phys_cc halo cell.  Across
+        // a non-periodic face FillBoundary cannot replace them.
+        //
+        // Intersecting with the domain keeps the halo cells that lie inside it, which
+        // FillBoundary does fill from a neighbouring box, and clamps only the ones
+        // outside it onto the nearest real column.
+        const Box  zbx  = amrex::grow(mfi.validbox(), z_phys_cc->nGrowVect()) & subdomain;
         const auto z_lo = lbound(zbx);
         const auto z_hi = ubound(zbx);
 
@@ -2906,6 +3104,10 @@ refine_fab_in_z (const FArrayBox& crse_fab,
 /**
  * Helper function for initializing terrain coordinates from a WRF dataset.
  *
+ * With avg_grid_faces_to_nodes every nodal height is averaged from the file.  Otherwise
+ * only the surface is reconstructed, and the caller builds the rest of the column with
+ * make_terrain_fitted_coords.
+ *
  * The unused level argument is retained for interface compatibility.
  *
  * @param z_top Height assigned to the top of the ERF domain
@@ -2922,7 +3124,6 @@ init_terrain_from_wrfinput (int /*lev*/,
                             MultiFab* z_phys_nd,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB,
-                            Real& dz0_max,
                             const bool& avg_grid_faces_to_nodes)
 {
     Print() << "Constructing nodal heights (z_phys_nd)" << std::endl;
@@ -3039,92 +3240,56 @@ init_terrain_from_wrfinput (int /*lev*/,
         } // mfi
     } else {
 
-        // Lateral ghost cells
-        IntVect ngz = z_phys_nd->nGrowVect(); int kghost = ngz[2]; ngz[2] = 0;
+        //
+        // Only the surface is reconstructed.  make_terrain_fitted_coords, which the caller
+        // runs next, builds every node above the surface -- and the ghost node below it --
+        // from the surface and the 1-D zlevels_stag alone, so nodal heights reconstructed
+        // at any higher level would simply be overwritten.  The checks on the mesh that is
+        // actually used are made by the caller once that mesh has been built.
+        //
 
         // PHB and PH are on z-faces
         Box z_face_dom = convert(subdomain,IntVect(0,0,1));
 
-        // Z-face FAB for each z_wrf slice
+        // Z-face FAB for the surface slice of the WRF heights
         Box z_face_dom_slice = makeSlab(z_face_dom, 2, 0);
         FArrayBox z_slice_wrf(z_face_dom_slice, 1, The_Managed_Arena());
-        FArrayBox z_slice_wrf_sfc(z_face_dom_slice, 1, The_Managed_Arena());
+        z_slice_wrf.setVal<RunOn::Device>(zero);
 
         // Z_phys is nodal
-        Box node_dom = convert(subdomain, IntVect(1,1,1));
-        int klo = node_dom.smallEnd(2);
-        int khi = node_dom.bigEnd(2);
+        const int klo = convert(subdomain, IntVect(1,1,1)).smallEnd(2);
 
-        // Process the surface and the first level above it
-        int kstart = klo;
-        int kend   = klo + 2;
-        for (int k(kstart); k<kend; ++k) {
-            z_slice_wrf.setVal<RunOn::Device>(zero);
+        // Fill the z-face fab with wrf heights -- each rank fills only the boxes it
+        // owns, so the AllReduce below gathers the global slice.  A box stacked above
+        // the surface does not hold it, and must not add to the sum.
+        const Array4<Real>& z_slice_wrf_arr = z_slice_wrf.array();
+        for ( MFIter mfi(mf_PH); mfi.isValid(); ++mfi ) {
 
-            const Array4<Real>& z_slice_wrf_arr     = z_slice_wrf.array();
-            const Array4<Real>& z_slice_wrf_sfc_arr = z_slice_wrf_sfc.array();
+            Box vbx = mfi.validbox();
+            if (klo < vbx.smallEnd(2) || klo > vbx.bigEnd(2)) { continue; }
+            vbx.makeSlab(2,0);
 
-            // Fill the z-face fab with wrf heights -- each rank fills only the
-            // boxes it owns, so the AllReduce below gathers the global slice
-            for ( MFIter mfi(mf_PH); mfi.isValid(); ++mfi ) {
+            const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
+            const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
 
-                Box vbx = mfi.validbox(); vbx.makeSlab(2,0);
-
-                const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
-                const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
-
-                ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-                {
-                    z_slice_wrf_arr(i,j,0) = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
-                });
-            }
-
-            // Get global slice of WRF heights
-            Gpu::streamSynchronize();
-            ParallelAllReduce::Sum(z_slice_wrf.dataPtr(),
-                                   z_slice_wrf.size(),
-                                   ParallelContext::CommunicatorAll());
-
-            // Solve for the nodal heights of this level
-            FArrayBox z_slice_erf = reconstruct_nodal_height_slice(z_face_dom_slice, geom,
-                                                                   z_slice_wrf, k, "WRF z-faces");
-
-            // Store the surface
-            if (k==kstart) {
-                LoopOnCpu(z_face_dom_slice, [=] (int i, int j, int /*k*/) noexcept
-                {
-                    z_slice_wrf_sfc_arr(i,j,0) = z_slice_wrf_arr(i,j,0);
-                });
-            }
-
-            // Compute dz0_max from current layer and surface layer
-            if (k==kstart+1) {
-                dz0_max = std::numeric_limits<Real>::min();
-                LoopOnCpu(z_face_dom_slice, [=,&dz0_max] (int i, int j, int /*k*/) noexcept
-                {
-                    Real dz0 = z_slice_wrf_arr(i,j,0) - z_slice_wrf_sfc_arr(i,j,0);
-                    dz0_max = amrex::max(dz0, dz0_max);
-                });
-            }
-
-            // Copy back to z_phys, filling the lateral ghost nodes
-            fill_nodal_level_from_slice(*z_phys_nd, k, z_slice_erf);
-        } // k
-
-        // Extrapolate linearly into the ghost nodes below the surface
-        for ( MFIter mfi(*z_phys_nd); mfi.isValid(); ++mfi ) {
-            Box gbx = mfi.growntilebox();
-            if (klo < gbx.smallEnd(2) || klo+1 > gbx.bigEnd(2)) { continue; }
-
-            const Array4<Real>& z_arr = z_phys_nd->array(mfi);
-            ParallelFor(makeSlab(gbx,2,klo), [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
-                Real dz = z_arr(i,j,klo+1) - z_arr(i,j,klo);
-                for (int lk(1); lk<(kghost+1); ++lk) {
-                    z_arr(i,j,klo-lk) = z_arr(i,j,klo) - dz * static_cast<Real>(lk);
-                }
+                z_slice_wrf_arr(i,j,0) = ( nc_ph_arr(i,j,klo) + nc_phb_arr(i,j,klo) ) / CONST_GRAV;
             });
         }
+
+        // Get global slice of WRF heights
+        Gpu::streamSynchronize();
+        ParallelAllReduce::Sum(z_slice_wrf.dataPtr(),
+                               z_slice_wrf.size(),
+                               ParallelContext::CommunicatorAll());
+
+        // Solve for the nodal heights of the surface
+        FArrayBox z_slice_erf = reconstruct_nodal_height_slice(z_face_dom_slice, geom,
+                                                               z_slice_wrf, klo, "WRF z-faces");
+
+        // Copy back to z_phys, filling the lateral ghost nodes
+        fill_nodal_level_from_slice(*z_phys_nd, klo, z_slice_erf);
 
         // Sanity check.
         //
@@ -3132,58 +3297,256 @@ init_terrain_from_wrfinput (int /*lev*/,
         // z-face heights, not an exact de-averaging of them.  The four-node average
         // therefore no longer reproduces WRF to round-off, and the size of the
         // mismatch is a genuine diagnostic of how much grid-scale terrain the
-        // WRF field carries.  We report it, and we abort only on failures that
-        // make the mesh unusable: non-finite heights, or a layer that is not
-        // strictly increasing in z.
-        Print() << "Verifying reconstructed nodal heights" << std::endl;
+        // WRF field carries.  We report it, and abort only if the surface is not finite.
+        Print() << "Verifying reconstructed nodal surface heights" << std::endl;
         {
-            ReduceOps<ReduceOpMax, ReduceOpMin> reduce_op;
-            ReduceData<Real, Real> reduce_data(reduce_op);
+            ReduceOps<ReduceOpMax> reduce_op;
+            ReduceData<Real> reduce_data(reduce_op);
             using ReduceTuple = typename decltype(reduce_data)::Type;
 
             for ( MFIter mfi(mf_PHB); mfi.isValid(); ++mfi ) {
-                Box vbx = mfi.validbox();
-                if (vbx.smallEnd(2) > klo+1) { continue; }
-                vbx.setBig(2,klo+1);
+                const Box& vbx = mfi.validbox();
+                if (klo < vbx.smallEnd(2) || klo > vbx.bigEnd(2)) { continue; }
 
                 const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
                 const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
                 const Array4<const Real>& z_arr      = z_phys_nd->const_array(mfi);
 
-                reduce_op.eval(vbx, reduce_data,
+                reduce_op.eval(makeSlab(vbx,2,klo), reduce_data,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
                 {
                     Real z_face_wrf = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
                     Real z_face_erf = fourth * ( z_arr(i, j  , k) + z_arr(i+1, j  , k)
                                                + z_arr(i, j+1, k) + z_arr(i+1, j+1, k) );
-                    Real avg_err = (k < khi) ? std::fabs(z_face_erf-z_face_wrf) : zero;
-
-                    // Nodal layer thickness; only defined once we are at klo
-                    Real dz = (k == klo) ? (z_arr(i,j,klo+1) - z_arr(i,j,klo))
-                                         : std::numeric_limits<Real>::max();
-                    return {avg_err, dz};
+                    return { std::fabs(z_face_erf-z_face_wrf) };
                 });
             } // mfi
 
-            ReduceTuple hv = reduce_data.value(reduce_op);
-            Real max_avg_err = amrex::max(amrex::get<0>(hv), zero);
-            Real min_dz      = amrex::get<1>(hv);
+            Real max_avg_err = amrex::max(amrex::get<0>(reduce_data.value(reduce_op)), zero);
             ParallelAllReduce::Max(max_avg_err, ParallelContext::CommunicatorAll());
-            ParallelAllReduce::Min(min_dz     , ParallelContext::CommunicatorAll());
 
-            Print() << "Max |avg4(nodal z) - WRF z-face| over the reconstructed levels: "
+            Print() << "Max |avg4(nodal z) - WRF z-face| on the surface: "
                     << max_avg_err << " m" << std::endl;
-            Print() << "Min nodal thickness of the first layer: " << min_dz << " m" << std::endl;
 
-            if (!std::isfinite(max_avg_err) || !std::isfinite(min_dz)) {
+            if (!std::isfinite(max_avg_err)) {
                 Error("Non-finite nodal heights produced by the terrain reconstruction");
-            }
-            if (min_dz <= zero) {
-                Error("Reconstructed nodal terrain gives a non-positive first layer thickness; "
-                      "the WRF terrain is too rough to represent on the ERF nodal mesh. "
-                      "Consider running with erf.avg_grid_faces_to_nodes = true.");
             }
         }
     } // avg_grid_faces_to_nodes
+}
+
+/**
+ * Give a level > 0 that read its own init file (erf.nc_init_file_<lev>) the SST and TSK
+ * time slices it needs now, when level 0 reads a wrflow file (erf.nc_low_file).
+ *
+ * If the level has a wrflow file of its own (erf.nc_low_file_<lev>), the slices are read from
+ * it, on the level's nest box; its times must be those of level 0's file, so that the surface
+ * layer interpolates both levels in time between the same slices.  Otherwise every slice,
+ * including the first, which the level read from its init file, is replaced by interpolation
+ * from the parent, so that the level follows level 0's wrflow file from the start of the run.
+ * Later slices are filled as level 0 reads them (see ERF::timeStep).
+ *
+ * A level made by refinement, with no init file of its own, is left to Interp2DArrays.
+ *
+ * @param[in] lev        level (> 0)
+ * @param[in] restarting true when restarting from a checkpoint: slice 0 was read from it, and
+ *                       the surface pressure, which is not checkpointed, is re-read
+ */
+void
+ERF::init_fine_low_slices (int lev, bool restarting)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0 && !nc_low_file.empty());
+    if (!has_own_init_file(lev)) { return; }
+
+    const int ntimes = static_cast<int>(low_data_zlo.size());
+    const double time_since_start_low = t_new[0] + (start_time - start_low_time);
+    const int n_time_old = std::min(static_cast<int>(time_since_start_low / low_time_interval), ntimes-1);
+    const int n_time_end = std::min(n_time_old+3, ntimes);
+
+    if (has_own_low_file(lev))
+    {
+        check_own_low_file_times(lev);
+        if (restarting) { read_psfc_from_own_init_file(lev); }
+
+        sst_lev[lev].resize(ntimes);
+        tsk_lev[lev].resize(ntimes);
+
+        // After a regrid the slices were remade from the parent from n_time_old on only, but
+        // update_sst_tsk takes TSK over land at the later slices from slice 0
+        const auto& dm = vars_new[lev][Vars::cons].DistributionMap();
+        for (auto* field_lev : {&sst_lev, &tsk_lev}) {
+            if (!(*field_lev)[lev][0]) { Interp2DTimeSlice(lev, 0, *field_lev, ba2d[lev], dm); }
+        }
+
+        // The surface layer takes this level's pointers when the level is added to it
+        std::unique_ptr<SurfaceLayer> no_surface_layer;
+        for (int itime = n_time_old; itime < n_time_end; ++itime) {
+            read_own_low_slice(lev, itime, no_surface_layer);
+        }
+    }
+    else if (!restarting)
+    {
+        // Every slice from the parent, including slice 0 (which the surface layer also uses
+        // for TSK over land) in place of the one read from this level's init file.  On a
+        // restart slice 0 comes from the checkpoint and Interp2DArrays fills the rest.
+        const auto& dm = vars_new[lev][Vars::cons].DistributionMap();
+        for (auto* field_lev : {&sst_lev, &tsk_lev}) {
+            for (auto& slice : (*field_lev)[lev]) { slice.reset(); }
+            Interp2DTimeSlice(lev, 0, *field_lev, ba2d[lev], dm);
+            for (int itime = std::max(n_time_old,1); itime < n_time_end; ++itime) {
+                Interp2DTimeSlice(lev, itime, *field_lev, ba2d[lev], dm);
+            }
+        }
+    }
+}
+
+/**
+ * Read time slice itime of this level's own wrflow file (erf.nc_low_file_<lev>) and make the
+ * SST and TSK at that time from it, as update_sst_tsk does at level 0.
+ *
+ * @param[in] lev       level (> 0) with a wrflow file of its own
+ * @param[in] itime     time slice
+ * @param[in] SurfLayer surface layer to point at a newly made slice, or null
+ */
+void
+ERF::read_own_low_slice (int lev, int itime, std::unique_ptr<SurfaceLayer>& SurfLayer)
+{
+    AMREX_ALWAYS_ASSERT(has_own_low_file(lev));
+    AMREX_ALWAYS_ASSERT(itime < static_cast<int>(sst_lev[lev].size()));
+
+    // The file covers this level's nest box (checked when the slice is read)
+    const Box box2d = nest_box_from_own_init_file(lev);
+
+    Vector<Vector<FArrayBox>> low_data(sst_lev[lev].size());
+    read_from_wrflow(itime, nc_low_file_at_level[lev], box2d, low_data);
+
+    const bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+    update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
+                   sst_lev[lev], tsk_lev[lev], SurfLayer, low_data,
+                   vars_new[lev][Vars::cons], *mf_PSFC[lev],
+                   solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+}
+
+/**
+ * Check that this level's wrflow file has the same times as level 0's: the surface layer
+ * interpolates every level in time with level 0's start time and interval.
+ *
+ * @param[in] lev level (> 0) with a wrflow file of its own
+ */
+void
+ERF::check_own_low_file_times (int lev)
+{
+    Vector<Vector<FArrayBox>> times_only;
+    double start_lev, final_lev;
+    const double interval_lev = read_times_from_wrflow(nc_low_file_at_level[lev], times_only,
+                                                       start_lev, final_lev);
+    if (times_only.size() != low_data_zlo.size() || start_lev != start_low_time ||
+        final_lev != final_low_time || interval_lev != low_time_interval)
+    {
+        Abort("erf.nc_low_file_" + std::to_string(lev) + " (" + nc_low_file_at_level[lev] + ") has " +
+              std::to_string(times_only.size()) + " times every " + std::to_string(interval_lev) +
+              " s, but erf.nc_low_file (" + nc_low_file + ") has " + std::to_string(low_data_zlo.size()) +
+              " times every " + std::to_string(low_time_interval) + " s; the wrflow files for all " +
+              "levels must have the same times");
+    }
+}
+
+/**
+ * Re-read the surface pressure of a level > 0 from its own init file, on its nest box as
+ * init_from_wrfinput reads it.  The surface pressure is not checkpointed, and update_sst_tsk
+ * needs it to convert the sea surface temperature.
+ *
+ * @param[in] lev level (> 0) with a single init file of its own
+ */
+void
+ERF::read_psfc_from_own_init_file (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0 && nc_init_file[lev].size() == 1);
+
+    int ratio;
+    Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][0], ratio);
+
+    FArrayBox fab_from_file;
+    int success, use_theta_m;
+    read_from_wrfinput(lev, subdomain_to_read, nc_init_file[lev][0], fab_from_file, "PSFC",
+                       geom[lev], use_theta_m, success);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(success, "read_psfc_from_own_init_file: no PSFC in the init file");
+
+    // Put it on the nest box, as init_from_wrfinput does
+    const Box box2d = nest_box_from_own_init_file(lev);
+    AMREX_ALWAYS_ASSERT(fab_from_file.box().length(0) == box2d.length(0) &&
+                        fab_from_file.box().length(1) == box2d.length(1));
+    fab_from_file.shift(box2d.smallEnd() - fab_from_file.box().smallEnd());
+
+    FArrayBox var_fab(box2d, 1, The_Pinned_Arena());
+    var_fab.template copy<RunOn::Host>(fab_from_file, 0, 0, 1);
+
+    for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
+        (*mf_PSFC[lev])[mfi].template copy<RunOn::Device>(var_fab, 0, 0, 1);
+    }
+    if (mf_PSFC[lev]->max(0) == zero) {
+        mf_PSFC[lev]->setVal(p_0);
+    }
+}
+
+/** Return a WRF file's box in the global ERF index space.  WRF's I/J_PARENT_START
+ * are relative to the complete parent file, not to the smaller ERF patch on it. */
+Box
+ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out) const
+{
+    AMREX_ALWAYS_ASSERT(lev >= 0 && file_index >= 0 &&
+                        file_index < static_cast<int>(nc_init_file[lev].size()));
+    if (lev == 0) { return geom[0].Domain(); }
+
+    IntVect parent_origin(0);
+    for (int level = 1; level <= lev; ++level) {
+        // With multiple files on an ancestor level the WRF metadata does not identify
+        // which file is the parent.  Do not silently place a child on the wrong grid.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(level == lev || nc_init_file[level].size() == 1,
+            "WRF nests above level 1 require one parent wrfinput file per ancestor level");
+        const int idx = (level == lev) ? file_index : 0;
+        int ratio;
+        Box file_box = read_subdomain_from_wrfinput(level, nc_init_file[level][idx], ratio);
+        const IntVect expected_ratio = refRatio(level-1);
+        if (ratio != expected_ratio[0] || ratio != expected_ratio[1]) {
+            amrex::Abort("WRF input file " + nc_init_file[level][idx] +
+                         " has PARENT_GRID_RATIO = " + std::to_string(ratio) +
+                         ", but ERF expects horizontal refinement ratios x=" +
+                         std::to_string(expected_ratio[0]) + ", y=" +
+                         std::to_string(expected_ratio[1]) + " for level " +
+                         std::to_string(level) +
+                         ". Update amr.ref_ratio or amr.ref_ratio_vect to match the file.");
+        }
+        // ErrorEst coarsens and re-refines this box; that must preserve its full extent.
+        if (file_box.length(0) % ratio != 0 || file_box.length(1) % ratio != 0) {
+            amrex::Abort("WRF input file " + nc_init_file[level][idx] +
+                         " has horizontal cell counts " +
+                         std::to_string(file_box.length(0)) + " x " +
+                         std::to_string(file_box.length(1)) +
+                         ", which must both be divisible by PARENT_GRID_RATIO = " +
+                         std::to_string(ratio) + ".");
+        }
+        for (int d = 0; d < 2; ++d) {
+            file_box.shift(d, parent_origin[d] * expected_ratio[d]);
+        }
+        if (level == lev) {
+            if (ratio_out != nullptr) { *ratio_out = ratio; }
+            return file_box;
+        }
+        parent_origin = file_box.smallEnd();
+    }
+    // The loop always returns when level reaches lev.
+    amrex::Abort("wrfinput_file_box: invalid level");
+    return Box();
+}
+
+/** The surface slice of this level's only WRF input file, also available on restart. */
+Box
+ERF::nest_box_from_own_init_file (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0 && nc_init_file[lev].size() == 1);
+    Box box2d = wrfinput_file_box(lev, 0);
+    box2d.setRange(2, 0);
+    return box2d;
 }
 #endif // ERF_USE_NETCDF

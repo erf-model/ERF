@@ -1,11 +1,16 @@
 #include <AMReX_Array.H>
 #include "ERF_Constants.H"
 #include <AMReX_BoxArray.H>
+#include <AMReX_BCUtil.H>
+#include <AMReX_FArrayBox.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_RealBox.H>
 #include <AMReX_Reduce.H>
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <iostream>
 #include <limits>
 #include <string>
 
@@ -13,12 +18,14 @@
 
 #include "../../../Source/Diffusion/ERF_CloudChamberWallFlux.H"
 #include "../../../Source/Diffusion/ERF_Diffusion.H"
+#include "../../../Source/Diffusion/ERF_ScalarDiffusion.H"
 #include "../../../Source/Diffusion/ERF_CloudChamberWallStress.H"
 #include "../../../Source/Diffusion/ERF_ResolvedWallFlux.H"
 #include "../../../Source/DataStructs/ERF_DataStruct.H"
 #include "../../../Source/Prob/ERF_CloudChamberBudget.H"
 #include "../../../Source/Prob/ERF_CloudChamber.H"
 #include "../../../Source/Prob/ERF_ProblemDispatch.H"
+#include "../../../Source/BoundaryConditions/ERF_WallScalarBC.H"
 
 using amrex::GpuArray;
 using amrex::Real;
@@ -75,6 +82,65 @@ scaled_tolerance (Real expected)
 {
     const Real scale = std::max(Real(1.0), std::abs(expected));
     return Real(64.0) * std::numeric_limits<Real>::epsilon() * scale;
+}
+
+double
+stable_most_residual (double z, double Ri, double D_m, double D_s)
+{
+    // similarity_funs takes Real, not a double template argument. Keep this
+    // oracle in double so float cancellation cannot hide a missed narrow pair.
+    const double psi_m =
+        -6.1 * std::log(z + std::pow(1.0 + std::pow(z, 2.5), 1.0 / 2.5));
+    const double psi_s =
+        -5.3 * std::log(z + std::pow(1.0 + std::pow(z, 1.1), 1.0 / 1.1));
+    const double A_m = std::max(D_m - psi_m, 1.0);
+    const double A_s = std::max(D_s - psi_s, 1.0);
+    return z - Ri * A_m * A_m / A_s;
+}
+
+void
+expect_stable_most_root (Real z, Real Ri, Real D_m, Real D_s, double expected)
+{
+    // The production bracket is at most 1e-3 wide. Allow that absolute
+    // location error in either precision; evaluate the oracle in double so
+    // single-precision cancellation cannot masquerade as a small residual.
+    constexpr double tolerance = 1.0e-3;
+    ASSERT_TRUE(std::isfinite(z));
+    EXPECT_NEAR(z, expected, tolerance);
+    const double lower = std::max(0.0, double(z) - tolerance);
+    const double upper = double(z) + tolerance;
+    const double f_lower = stable_most_residual(lower, Ri, D_m, D_s);
+    const double f_upper = stable_most_residual(upper, Ri, D_m, D_s);
+    EXPECT_LT(f_lower, 0.0);
+    EXPECT_GT(f_upper, 0.0);
+    EXPECT_LE(std::abs(stable_most_residual(z, Ri, D_m, D_s)),
+              std::max(std::abs(f_lower), std::abs(f_upper)));
+
+    similarity_funs sfuns;
+    const Real A_m = std::max(D_m - sfuns.calc_psi_m2(z), Real(1.0));
+    const Real A_s = std::max(D_s - sfuns.calc_psi_h2(z), Real(1.0));
+    const double rhs = double(Ri) * double(A_m) * double(A_m) / double(A_s);
+    EXPECT_NEAR(stable_most_residual(z, Ri, D_m, D_s), double(z) - rhs,
+                64.0 * std::numeric_limits<Real>::epsilon() *
+                    std::max(1.0, std::abs(rhs)));
+}
+
+amrex::Gpu::HostVector<Real>
+most_coordinates_in_kernel (GpuArray<Real, 5> Ri,
+                            GpuArray<Real, 5> D_m,
+                            GpuArray<Real, 5> D_s)
+{
+    amrex::Gpu::DeviceVector<Real> device(5);
+    Real* values = device.data();
+    amrex::ParallelFor(5, [=] AMREX_GPU_DEVICE(int n) noexcept {
+        values[n] = erf_cloud_chamber_wall_flux::most_stability_coordinate(
+                        Ri[n], D_m[n], D_s[n])
+                        .zeta;
+    });
+    amrex::Gpu::HostVector<Real> host(5);
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost, device.begin(), device.end(),
+                     host.begin());
+    return host;
 }
 
 Real
@@ -324,6 +390,395 @@ TEST(CloudChamberProfile, PhysicalTemperatureAndRelativeHumidityAreExact)
     EXPECT_GT(qv, Real(0.0));
 }
 
+TEST(CloudChamberConfig, MoistureModelSupportIsAnExplicitTypedAllowlist)
+{
+    const std::vector<std::pair<MoistureType, bool>> expected = {
+        {MoistureType::None, true},
+        {MoistureType::SatAdj, true},
+        {MoistureType::MoistNoCondensation, true},
+        {MoistureType::Kessler_NoRain, true},
+        {MoistureType::Kessler, true},
+        {MoistureType::SAM_NoPrecip_NoIce, true},
+        {MoistureType::SAM_NoIce, true},
+        {MoistureType::SAM, true},
+        {MoistureType::WSM6, true},
+        {MoistureType::WDM6, true},
+        {MoistureType::Morrison_NoIce, true},
+        {MoistureType::Morrison, true},
+        {MoistureType::SBM, false},
+        {MoistureType::SuperDroplets, false}};
+
+    for (const auto& [model, supported] : expected) {
+        EXPECT_EQ(erf_cloud_chamber::supports_moisture_model(model), supported)
+            << amrex::getEnumNameString(model);
+    }
+}
+
+// Keep AMReX GPU lambda launches in namespace-scope helpers: NVCC cannot
+// compile extended device lambdas nested in GoogleTest's generated TestBody.
+void
+initialize_extra_moisture_lanes (amrex::Array4<amrex::Real> values,
+                                 const amrex::Box& box)
+{
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const amrex::Real base = amrex::Real(0.1) * i + amrex::Real(0.2) * j +
+            amrex::Real(0.3) * k;
+        values(i,j,k,Rho_comp) = amrex::Real(1.0);
+        values(i,j,k,RhoQ3_comp) = base;
+        values(i,j,k,RhoQ4_comp) = amrex::Real(1.5) * base + amrex::Real(0.09) * k;
+        values(i,j,k,RhoQ7_comp) = amrex::Real(2.0) * base + amrex::Real(0.07) * i;
+        values(i,j,k,RhoQ8_comp) = amrex::Real(3.0) * base + amrex::Real(0.11) * j;
+    });
+}
+
+void
+evaluate_extra_moisture_lanes_flux (
+    amrex::Array4<const amrex::Real> values,
+    amrex::Array4<amrex::Real> wall,
+    amrex::Array4<amrex::Real> interior,
+    amrex::Array4<amrex::Real> seam,
+    amrex::Array4<amrex::Real> mutant,
+    const amrex::Box& box,
+    amrex::GpuArray<int, 4> q_comps,
+    int lo_x, int hi_x, int lo_y, int hi_y, int lo_z, int hi_z)
+{
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        amrex::Real wall_max[4] = {amrex::Real(0.0), amrex::Real(0.0),
+                                   amrex::Real(0.0), amrex::Real(0.0)};
+        amrex::Real interior_max[4] = {amrex::Real(0.0), amrex::Real(0.0),
+                                       amrex::Real(0.0), amrex::Real(0.0)};
+        amrex::Real seam_max[4] = {amrex::Real(0.0), amrex::Real(0.0),
+                                   amrex::Real(0.0), amrex::Real(0.0)};
+        for (int n = 0; n < 4; ++n) {
+            const int comp = q_comps[n];
+            if (i == lo_x) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<0>(values, comp, lo_x, j, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (i == hi_x) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<0>(values, comp, hi_x + 1, j, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (j == lo_y) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<1>(values, comp, i, lo_y, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (j == hi_y) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<1>(values, comp, i, hi_y + 1, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (k == lo_z) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<2>(values, comp, i, j, lo_z,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (k == hi_z) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<2>(values, comp, i, j, hi_z + 1,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (i == 3 && j == 3 && k == 3) {
+                interior_max[n] = amrex::max(
+                    std::abs(ScalarDiffusionFlux_N<0>(values, comp, 3, 3, 3,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)),
+                    amrex::max(
+                        std::abs(ScalarDiffusionFlux_N<1>(values, comp, 3, 3, 3,
+                            amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                            amrex::Real(1.0), false, false)),
+                        std::abs(ScalarDiffusionFlux_N<2>(values, comp, 3, 3, 3,
+                            amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                            amrex::Real(1.0), false, false))));
+            }
+            if (i == 3 || i == 4) {
+                seam_max[n] = amrex::max(seam_max[n], std::abs(
+                    ScalarDiffusionFlux_N<0>(values, comp, 4, j, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (j == 3 || j == 4) {
+                seam_max[n] = amrex::max(seam_max[n], std::abs(
+                    ScalarDiffusionFlux_N<1>(values, comp, i, 4, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (k == 3 || k == 4) {
+                seam_max[n] = amrex::max(seam_max[n], std::abs(
+                    ScalarDiffusionFlux_N<2>(values, comp, i, j, 4,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+        }
+        for (int n = 0; n < 4; ++n) {
+            wall(i,j,k,n) = wall_max[n];
+            interior(i,j,k,n) = interior_max[n];
+            seam(i,j,k,n) = seam_max[n];
+        }
+        if (i == lo_x && j == 3 && k == 3) {
+            mutant(i,j,k) = std::abs(ScalarDiffusionFlux_N<0>(
+                values, RhoQ3_comp, lo_x, j, k, amrex::Real(1.0),
+                amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0), true, false));
+        }
+    });
+}
+
+void
+initialize_scalar_adapter_fields (amrex::Array4<amrex::Real> conserved,
+                                  amrex::Array4<amrex::Real> intensive,
+                                  const amrex::Box& data_box,
+                                  const amrex::Box& domain)
+{
+    amrex::ParallelFor(data_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const int ii = amrex::max(domain.smallEnd(0), amrex::min(domain.bigEnd(0), i));
+        const int jj = amrex::max(domain.smallEnd(1), amrex::min(domain.bigEnd(1), j));
+        const int kk = amrex::max(domain.smallEnd(2), amrex::min(domain.bigEnd(2), k));
+        const amrex::Real base = amrex::Real(0.1) * ii + amrex::Real(0.2) * jj +
+            amrex::Real(0.3) * kk;
+        conserved(i,j,k,Rho_comp) = amrex::Real(1.0);
+        intensive(i,j,k,RhoQ3_comp) = base;
+        intensive(i,j,k,RhoQ4_comp) = amrex::Real(2.0) * base + amrex::Real(0.07) * ii;
+        intensive(i,j,k,RhoQ7_comp) = amrex::Real(3.0) * base + amrex::Real(0.11) * jj;
+        intensive(i,j,k,RhoQ8_comp) = amrex::Real(4.0) * base + amrex::Real(0.13) * kk;
+    });
+}
+
+// Regression for the generic scalar path used by Q3+ in a physical chamber.
+// The real multibox fill applies the same foextrap scalar contract assigned to
+// NoSlipWall constituents; the native N-grid face kernel must then write zero
+// wall flux while retaining nonzero interior transport for mass and number
+// lanes. The final ext_dir control is a deliberate wrong-mapping negative
+// control: it makes this exact stencil report a nonzero wall flux.
+TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
+{
+    using namespace amrex;
+    const Box domain(IntVect(0, 0, 0), IntVect(7, 7, 7));
+    const RealBox real_box({Real(0.0), Real(0.0), Real(0.0)},
+                           {Real(8.0), Real(8.0), Real(8.0)});
+    const int periodicity[AMREX_SPACEDIM] = {0, 0, 0};
+    const Geometry geom(domain, &real_box, CoordSys::cartesian, periodicity);
+    BoxArray grids(domain);
+    grids.maxSize(4);
+    DistributionMapping dmap(grids);
+
+    MultiFab state(grids, dmap, NVAR_max, 1);
+    state.setVal(Real(-99.0));
+    for (MFIter mfi(state); mfi.isValid(); ++mfi) {
+        const auto values = state.array(mfi);
+        const Box bx = mfi.validbox();
+        initialize_extra_moisture_lanes(values, bx);
+    }
+    Vector<BCRec> bcs(state.nComp());
+    for (auto& bc : bcs) {
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            bc.setLo(dir, ERFBCType::foextrap);
+            bc.setHi(dir, ERFBCType::foextrap);
+        }
+    }
+    state.FillBoundary(geom.periodicity());
+    FillDomainBoundary(state, geom, bcs);
+
+    MultiFab wall_flux(grids, dmap, 4, 0);
+    MultiFab interior_flux(grids, dmap, 4, 0);
+    MultiFab seam_flux(grids, dmap, 4, 0);
+    MultiFab ext_dir_mutant_flux(grids, dmap, 1, 0);
+    wall_flux.setVal(Real(0.0));
+    interior_flux.setVal(Real(0.0));
+    seam_flux.setVal(Real(0.0));
+    ext_dir_mutant_flux.setVal(Real(0.0));
+    const GpuArray<int, 4> q_comps = {RhoQ3_comp, RhoQ4_comp, RhoQ7_comp, RhoQ8_comp};
+    const int lo_x = domain.smallEnd(0), hi_x = domain.bigEnd(0);
+    const int lo_y = domain.smallEnd(1), hi_y = domain.bigEnd(1);
+    const int lo_z = domain.smallEnd(2), hi_z = domain.bigEnd(2);
+    for (MFIter mfi(state); mfi.isValid(); ++mfi) {
+        const auto values = state.const_array(mfi);
+        const auto wall = wall_flux.array(mfi);
+        const auto interior = interior_flux.array(mfi);
+        const auto seam = seam_flux.array(mfi);
+        const auto mutant = ext_dir_mutant_flux.array(mfi);
+        const Box bx = mfi.validbox();
+        evaluate_extra_moisture_lanes_flux(
+            values, wall, interior, seam, mutant, bx, q_comps,
+            lo_x, hi_x, lo_y, hi_y, lo_z, hi_z);
+    }
+    Gpu::streamSynchronize();
+    for (int n = 0; n < 4; ++n) {
+        const Real wall_max = wall_flux.norm0(n, 0, false);
+        const Real interior_max = interior_flux.norm0(n, 0, false);
+        const Real seam_max = seam_flux.norm0(n, 0, false);
+        std::cout << std::setprecision(17)
+                  << "cloud_chamber_extra_q_stencil component=" << q_comps[n]
+                  << " wall_flux_max=" << wall_max
+                  << " interior_flux_max=" << interior_max
+                  << " seam_flux_max=" << seam_max << "\n";
+        EXPECT_DOUBLE_EQ(wall_max, Real(0.0))
+            << "wall flux leaked from Q" << q_comps[n];
+        EXPECT_GT(interior_max, Real(0.0))
+            << "interior gradient was vacuous for Q" << q_comps[n];
+        EXPECT_GT(seam_max, Real(0.0))
+            << "inter-box seam flux was vacuous for Q" << q_comps[n];
+    }
+    EXPECT_GT(ext_dir_mutant_flux.norm0(0, 0, false), Real(0.0))
+        << "wrong ext_dir wall mapping did not activate the boundary stencil";
+}
+
+// This test feeds the same NoSlipWall intent-to-BC mapper used by init_bcs
+// into BuildScalarDiffusionFluxes_N, requiring exact zero wall flux, positive
+// interior flux, and a closed-domain divergence sum within 512 eps. The
+// multibox stencil regression above independently requires nonzero seam flux.
+// Corrupting the shared production mapping to ext_dir was tested and failed
+// this oracle. This is the narrow adapter-level equivalent; it does not run
+// ERF::init_bcs or erf_slow_rhs_post end to end. DOUBLE precision.
+TEST(CloudChamberWallDiffusion, NoSlipMappingUsesProductionScalarAdapter)
+{
+    using namespace amrex;
+    const Box domain(IntVect(0, 0, 0), IntVect(7, 7, 7));
+    Box data_box = domain;
+    data_box.grow(1);
+    const Box xfaces = surroundingNodes(domain, 0);
+    const Box yfaces = surroundingNodes(domain, 1);
+    const Box zfaces = surroundingNodes(domain, 2);
+    FArrayBox state(data_box, NVAR_max);
+    FArrayBox primitive(data_box, NVAR_max);
+    FArrayBox mu(data_box, EddyDiff::NumDiffs);
+    FArrayBox rhs(domain, NVAR_max);
+    FArrayBox xflux(xfaces, 1), yflux(yfaces, 1), zflux(zfaces, 1);
+    FArrayBox u(xfaces, 1), v(yfaces, 1);
+    FArrayBox mf_ux(xfaces, 1), mf_uy(xfaces, 1);
+    FArrayBox mf_vx(yfaces, 1), mf_vy(yfaces, 1);
+
+    state.setVal<RunOn::Device>(Real(0.0));
+    primitive.setVal<RunOn::Device>(Real(0.0));
+    mu.setVal<RunOn::Device>(Real(0.0));
+    rhs.setVal<RunOn::Device>(Real(0.0));
+    u.setVal<RunOn::Device>(Real(0.0));
+    v.setVal<RunOn::Device>(Real(0.0));
+    mf_ux.setVal<RunOn::Device>(Real(1.0));
+    mf_uy.setVal<RunOn::Device>(Real(1.0));
+    mf_vx.setVal<RunOn::Device>(Real(1.0));
+    mf_vy.setVal<RunOn::Device>(Real(1.0));
+
+    const auto conserved = state.array();
+    const auto intensive = primitive.array();
+    initialize_scalar_adapter_fields(conserved, intensive, data_box, domain);
+    Gpu::streamSynchronize();
+
+    Vector<BCRec> bcs(NVAR_max);
+    const int no_slip_unspecified = erf_wall_scalar_bc::logical_boundary_type(
+        erf_wall_scalar_bc::WallScalarBCIntent::Unspecified);
+    EXPECT_EQ(no_slip_unspecified, ERFBCType::foextrap);
+    for (auto& bc : bcs) {
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            bc.setLo(dir, no_slip_unspecified);
+            bc.setHi(dir, no_slip_unspecified);
+        }
+    }
+    Gpu::DeviceVector<BCRec> bcs_device(bcs.size());
+    Gpu::copy(Gpu::hostToDevice, bcs.begin(), bcs.end(), bcs_device.begin());
+
+    ScalarDiffusionFieldViews field;
+    field.scalar = primitive.const_array();
+    field.density = state.const_array();
+    field.rho_comp = Rho_comp;
+    field.mu_turb = mu.const_array();
+    field.xflux = xflux.array();
+    field.yflux = yflux.array();
+    field.zflux = zflux.array();
+    field.rhs = rhs.array();
+    ScalarDiffusionFluxPolicy policy;
+    policy.coefficients = {Real(0.8), EddyDiff::Q_h, EddyDiff::Q_v};
+    policy.coefficient_mode = {true, false};
+    const GpuArray<Real, AMREX_SPACEDIM> inv{{Real(1.0), Real(1.0), Real(1.0)}};
+    const int q_components[] = {RhoQ3_comp, RhoQ4_comp, RhoQ7_comp, RhoQ8_comp};
+
+    auto copy_to_host = [](const FArrayBox& src, FArrayBox& dst) {
+        Gpu::copy(Gpu::deviceToHost, src.dataPtr(0), src.dataPtr(0) + src.size(),
+                  dst.dataPtr(0));
+        Gpu::streamSynchronize();
+    };
+    for (const int q_comp : q_components) {
+        field.scalar_comp = q_comp;
+        xflux.setVal<RunOn::Device>(Real(0.0));
+        yflux.setVal<RunOn::Device>(Real(0.0));
+        zflux.setVal<RunOn::Device>(Real(0.0));
+        BuildScalarDiffusionFluxes_N(
+            domain, domain, field, policy, inv, u.const_array(), v.const_array(),
+            mf_ux.const_array(), mf_uy.const_array(), mf_vx.const_array(),
+            mf_vy.const_array(), bcs_device.data(), q_comp);
+        Gpu::streamSynchronize();
+
+        FArrayBox xhost(xfaces, 1, The_Pinned_Arena());
+        FArrayBox yhost(yfaces, 1, The_Pinned_Arena());
+        FArrayBox zhost(zfaces, 1, The_Pinned_Arena());
+        copy_to_host(xflux, xhost);
+        copy_to_host(yflux, yhost);
+        copy_to_host(zflux, zhost);
+        const auto fx = xhost.const_array();
+        const auto fy = yhost.const_array();
+        const auto fz = zhost.const_array();
+        Real wall_max = Real(0.0);
+        Real interior_max = Real(0.0);
+        Real integrated_divergence = Real(0.0);
+        for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+            for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+                wall_max = std::max(wall_max, std::abs(fx(domain.smallEnd(0),j,k,0)));
+                wall_max = std::max(wall_max, std::abs(fx(domain.bigEnd(0)+1,j,k,0)));
+                for (int i = domain.smallEnd(0)+1; i <= domain.bigEnd(0); ++i) {
+                    interior_max = std::max(interior_max, std::abs(fx(i,j,k,0)));
+                }
+            }
+        }
+        for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+                wall_max = std::max(wall_max, std::abs(fy(i,domain.smallEnd(1),k,0)));
+                wall_max = std::max(wall_max, std::abs(fy(i,domain.bigEnd(1)+1,k,0)));
+                for (int j = domain.smallEnd(1)+1; j <= domain.bigEnd(1); ++j) {
+                    interior_max = std::max(interior_max, std::abs(fy(i,j,k,0)));
+                }
+            }
+        }
+        for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+                wall_max = std::max(wall_max, std::abs(fz(i,j,domain.smallEnd(2),0)));
+                wall_max = std::max(wall_max, std::abs(fz(i,j,domain.bigEnd(2)+1,0)));
+                for (int k = domain.smallEnd(2)+1; k <= domain.bigEnd(2); ++k) {
+                    interior_max = std::max(interior_max, std::abs(fz(i,j,k,0)));
+                }
+            }
+        }
+        for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+            for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+                for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+                    integrated_divergence += fx(i+1,j,k,0) - fx(i,j,k,0) +
+                        fy(i,j+1,k,0) - fy(i,j,k,0) +
+                        fz(i,j,k+1,0) - fz(i,j,k,0);
+                }
+            }
+        }
+        EXPECT_DOUBLE_EQ(wall_max, Real(0.0)) << "physical wall flux for Q" << q_comp;
+        EXPECT_GT(interior_max, Real(0.0)) << "interior flux for Q" << q_comp;
+        EXPECT_NEAR(integrated_divergence, Real(0.0),
+                    Real(512.0) * std::numeric_limits<Real>::epsilon())
+            << "closed-domain integrated flux balance for Q" << q_comp;
+        std::cout << std::setprecision(17)
+                  << "cloud_chamber_extra_q_adapter component=" << q_comp
+                  << " wall_flux_max=" << wall_max
+                  << " interior_flux_max=" << interior_max
+                  << " integrated_divergence=" << integrated_divergence
+                  << " balance_tolerance="
+                  << Real(512.0) * std::numeric_limits<Real>::epsilon() << "\n";
+    }
+}
+
 // Motivation: dry physical initialization must reject RH rather than
 // silently accepting an input that changes the thermodynamic contract.
 TEST(CloudChamberConfig, RejectsRelativeHumidityInDryPhysicalMode)
@@ -338,12 +793,12 @@ TEST(CloudChamberConfig, RejectsRelativeHumidityInDryPhysicalMode)
     const auto error = erf_cloud_chamber::initialization_contract_error(contract);
 
     EXPECT_NE(error.find("initial_relative_humidity"), std::string::npos);
-    EXPECT_NE(error.find("SatAdj"), std::string::npos);
+    EXPECT_NE(error.find("active moisture model"), std::string::npos);
 }
 
-// Motivation: cloudy physical initialization needs an explicit RH so the
-// SatAdj state is reproducible instead of relying on an implicit default.
-TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalSatAdj)
+// Motivation: physical initialization with any active moisture model needs
+// an explicit RH rather than an implicit default.
+TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalMoisture)
 {
     const erf_cloud_chamber::InitializationContract contract {
         erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
@@ -354,7 +809,7 @@ TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalSatAdj)
 
     const auto error = erf_cloud_chamber::initialization_contract_error(contract);
 
-    EXPECT_NE(error.find("physical SatAdj"), std::string::npos);
+    EXPECT_NE(error.find("physical moist"), std::string::npos);
     EXPECT_NE(error.find("initial_relative_humidity"), std::string::npos);
 }
 
@@ -392,8 +847,8 @@ TEST(CloudChamberConfig, RejectsPhysicalKeysInLegacyMode)
     EXPECT_NE(error.find("physical"), std::string::npos);
 }
 
-// Motivation: the valid physical SatAdj contract must remain accepted while
-// the stricter dry/cloudy key checks are enforced.
+// Motivation: the valid physical moist contract must remain accepted while
+// the stricter dry/moist key checks are enforced.
 TEST(CloudChamberConfig, AcceptsPhysicalSatAdjWithRelativeHumidity)
 {
     const erf_cloud_chamber::InitializationContract contract {
@@ -813,7 +1268,9 @@ TEST(CloudChamberWallFlux, MOSTUsesActiveScalarRoughnessForStability)
     EXPECT_DOUBLE_EQ(dry_vapor_flux.rhoQv_in, Real(0.0));
 }
 
-TEST(CloudChamberWallFlux, MOSTStableStateUsesHundredIterationBudget)
+// Motivation: this valid state needed more than forty relaxed updates; the
+// contract is an accurate shared root, not a particular iteration count.
+TEST(CloudChamberWallFlux, MOSTStableStateCertifiesSlowlyConvergingRoot)
 {
     using namespace erf_cloud_chamber_wall_flux;
     using namespace erf_wall_thermodynamics;
@@ -830,8 +1287,8 @@ TEST(CloudChamberWallFlux, MOSTStableStateUsesHundredIterationBudget)
     wall.vapor.model = ScalarModel::ResolvedMolecular;
 
     const auto reference = most_stability_coordinate(Real(0.5), Real(2.0), Real(15.0));
-    EXPECT_GT(reference.iterations, 40);
-    EXPECT_LE(reference.iterations, 100);
+    expect_stable_most_root(reference.zeta, Real(0.5), Real(2.0), Real(15.0),
+                            4.237669315020899);
 
     const auto runtime = most_wall_coefficients(
         wall, Real(300.0), Real(0.0), Real(100000.0), R_d/Cp_d,
@@ -841,6 +1298,228 @@ TEST(CloudChamberWallFlux, MOSTStableStateUsesHundredIterationBudget)
     EXPECT_TRUE(std::isfinite(static_cast<double>(runtime.C_D)));
     EXPECT_TRUE(std::isfinite(static_cast<double>(runtime.C_H)));
 }
+
+// Motivation: F-4576-A aborts after one hundred updates even though the
+// Jimenez closure has a finite stable root at this admissible roughness.
+TEST(CloudChamberWallFlux, MOSTCertifiesRootAfterIterationBudget)
+{
+    const auto result = erf_cloud_chamber_wall_flux::most_stability_coordinate(
+        Real(0.2), Real(0.5), Real(0.5));
+    expect_stable_most_root(result.zeta, Real(0.2), Real(0.5), Real(0.5),
+                            1.545814710591);
+}
+
+// Motivation: F-4576-B has a negative residual near the momentum-resistance
+// floor at 0.155, not a root. False convergence inflated drag about 932-fold.
+TEST(CloudChamberWallFlux,
+     MOSTRejectsFalseConvergenceAndSharesCorrectCoefficients)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+    const auto result =
+        most_stability_coordinate(Real(4.0), Real(0.1), Real(24.4));
+    expect_stable_most_root(result.zeta, Real(4.0), Real(0.1), Real(24.4),
+                            73.281971961051);
+
+    FaceWall wall;
+    wall.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    wall.moisture = MoistureMode::DryImpermeable;
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::MOST;
+    wall.momentum.z0_m = Real(0.5) * std::exp(-Real(0.1));
+    wall.heat.model = ScalarModel::BulkAero;
+    wall.heat.provider = CoefficientProvider::MOST;
+    wall.heat.z0 = Real(0.5) * std::exp(-Real(24.4));
+    const Real U_t = Real(0.2);
+    wall.thermal.temperature_K = Real(300.0) - Real(4.0) * Real(300.0) * U_t *
+                                                   U_t /
+                                                   (CONST_GRAV * Real(0.5));
+    const auto runtime = most_wall_coefficients(
+        wall, Real(300.0), Real(0.0), p_0, R_d / Cp_d, U_t, Real(0.5), 1);
+    EXPECT_EQ(runtime.valid, 1);
+    EXPECT_NEAR(runtime.zeta, Real(73.281971961051), Real(1.0e-3));
+    EXPECT_TRUE(std::isfinite(runtime.C_D));
+    EXPECT_TRUE(std::isfinite(runtime.C_H));
+    // Root-location uncertainty dominates rounding in these coefficients.
+    EXPECT_NEAR(runtime.C_D, Real(0.000180425456), Real(2.0e-8));
+    const double A_m = 0.41 / std::sqrt(0.0001804254559951541);
+    const double A_h =
+        24.4 + 5.3 * std::log(73.281971961051 +
+                              std::pow(1.0 + std::pow(73.281971961051, 1.1),
+                                       1.0 / 1.1));
+    EXPECT_NEAR(runtime.C_H, Real(0.41 * 0.41 / (A_m * A_h)), Real(2.0e-8));
+
+    MomentumWallSample momentum;
+    momentum.rho = Real(1.2);
+    momentum.u_t = {U_t, Real(0.0), Real(0.0)};
+    momentum.U_t = U_t;
+    momentum.wall_distance = Real(0.5);
+    momentum.theta_air = Real(300.0);
+    momentum.p_hse = p_0;
+    momentum.rdOcp = R_d / Cp_d;
+    momentum.gravity_sign = 1;
+    const auto traction = evaluate_momentum_traction(wall, momentum);
+    EXPECT_NEAR(traction.traction_on_fluid[0],
+                -momentum.rho * runtime.C_D * U_t * U_t,
+                scaled_tolerance(traction.traction_on_fluid[0]));
+    ScalarWallSample scalar;
+    scalar.rho = momentum.rho;
+    scalar.scalar_air = momentum.theta_air;
+    scalar.theta_air = momentum.theta_air;
+    scalar.p_hse = p_0;
+    scalar.rdOcp = R_d / Cp_d;
+    scalar.U_t = U_t;
+    scalar.wall_distance = Real(0.5);
+    scalar.gravity_sign = 1;
+    const auto heat =
+        evaluate_scalar_flux_in(wall, ScalarChannel::Heat, scalar);
+    EXPECT_NEAR(heat.rhoTheta_in,
+                scalar.rho * runtime.C_H * U_t *
+                    (wall.thermal.temperature_K - scalar.theta_air),
+                scaled_tolerance(heat.rhoTheta_in));
+
+    const Real expected_rate =
+        std::max(momentum_infinity_row_sum_factor() * runtime.C_D * U_t,
+                 runtime.C_H * U_t);
+    const Real current_rate = wall_rate_for_face(
+        wall, Real(300.0), Real(0.0), p_0, R_d / Cp_d, U_t, Real(1.0), 1);
+    EXPECT_NEAR(current_rate, expected_rate, scaled_tolerance(expected_rate));
+    EXPECT_NEAR(wall_dt_from_max_rate(current_rate),
+                wall_dt_from_max_rate(expected_rate),
+                scaled_tolerance(wall_dt_from_max_rate(expected_rate)));
+    wall.thermal.temperature_K = Real(300.0);
+    const Real neutral_rate = wall_rate_for_face(
+        wall, Real(300.0), Real(0.0), p_0, R_d / Cp_d, U_t, Real(1.0), 1);
+    EXPECT_NE(neutral_rate, current_rate);
+    EXPECT_LT(wall_dt_from_max_rate(neutral_rate),
+              wall_dt_from_max_rate(current_rate));
+}
+
+// Motivation: for these inputs the neutral-start iteration reaches the lower
+// root. A broad bracket must not replace it with the distant third root.
+TEST(CloudChamberWallFlux, MOSTKeepsNeutralConnectedLowerRoot)
+{
+    const auto result = erf_cloud_chamber_wall_flux::most_stability_coordinate(
+        Real(4.0), Real(0.1), Real(25.0));
+    expect_stable_most_root(result.zeta, Real(4.0), Real(0.1), Real(25.0),
+                            0.152368429532);
+}
+
+// Motivation: the neutral-start iteration does not always reach the first
+// positive root. Preserve its certified branch rather than silently changing
+// a legacy solution to a different root of the same closure.
+TEST(CloudChamberWallFlux, MOSTPreservesCertifiedOuterIterationBranch)
+{
+    const Real Ri = Real(0.39927092596413188);
+    const Real D_m = Real(0.001);
+    const Real D_s = Real(1.0008842237169981);
+    const auto result =
+        erf_cloud_chamber_wall_flux::most_stability_coordinate(Ri, D_m, D_s);
+    expect_stable_most_root(result.zeta, Ri, D_m, D_s, 6.6318009022167015);
+    EXPECT_LT(stable_most_residual(0.168, Ri, D_m, D_s), 0.0);
+    EXPECT_GT(stable_most_residual(0.169, Ri, D_m, D_s), 0.0);
+}
+
+// Motivation: close to the resistance-floor corner, both ends of a 1e-3
+// probe can be negative despite an intervening first-root pair. The fallback
+// must not discard that interval just because its endpoint signs agree.
+TEST(CloudChamberWallFlux, MOSTFindsNarrowLowerRootPair)
+{
+    const Real D_s = Real(24.5003);
+    const auto result = erf_cloud_chamber_wall_flux::most_stability_coordinate(
+        Real(4.0), Real(0.1), D_s);
+    EXPECT_NEAR(result.zeta, Real(0.15519547), Real(1.0e-3));
+    EXPECT_LT(stable_most_residual(0.154, 4.0, Real(0.1), D_s), 0.0);
+    EXPECT_GT(stable_most_residual(0.15519609, 4.0, Real(0.1), D_s), 0.0);
+    EXPECT_LT(stable_most_residual(0.157, 4.0, Real(0.1), D_s), 0.0);
+}
+
+// Motivation: logarithmic stable corrections allow finite roots above 100;
+// importing another MOST solver's zeta bound would change valid chamber fluxes.
+TEST(CloudChamberWallFlux, MOSTDoesNotCapStableCoordinateAtHundred)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+    const auto result =
+        most_stability_coordinate(Real(4.0), Real(6.0), Real(6.0));
+    expect_stable_most_root(result.zeta, Real(4.0), Real(6.0), Real(6.0),
+                            190.376227351357);
+    FaceWall wall;
+    wall.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    wall.thermal.temperature_K = Real(300.0) - Real(4.0) * Real(300.0) *
+                                                   Real(0.2) * Real(0.2) /
+                                                   (CONST_GRAV * Real(0.5));
+    wall.moisture = MoistureMode::DryImpermeable;
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::MOST;
+    wall.momentum.z0_m = Real(0.5) * std::exp(-Real(6.0));
+    wall.heat.model = ScalarModel::BulkAero;
+    wall.heat.provider = CoefficientProvider::MOST;
+    wall.heat.z0 = wall.momentum.z0_m;
+    const auto runtime = most_wall_coefficients(
+        wall, Real(300.0), Real(0.0), p_0, R_d / Cp_d, Real(0.2), Real(0.5), 1);
+    EXPECT_NEAR(runtime.zeta, Real(190.376227351357), Real(1.0e-3));
+    EXPECT_TRUE(std::isfinite(runtime.C_D));
+    EXPECT_TRUE(std::isfinite(runtime.C_H));
+    EXPECT_TRUE(std::isfinite(runtime.C_E));
+}
+
+// Motivation: stable root repair must leave neutral and unstable behavior
+// unchanged; these values freeze the old neutral-start iteration's outputs.
+TEST(CloudChamberWallFlux, MOSTPreservesNeutralAndUnstableControls)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    EXPECT_EQ(most_stability_coordinate(Real(0.0), Real(6.0), Real(6.0)).zeta,
+              Real(0.0));
+    const auto unstable =
+        most_stability_coordinate(Real(-0.2), Real(6.0), Real(6.0));
+    // Float rounding of the unchanged iteration is below 2e-6 here.
+    EXPECT_NEAR(unstable.zeta, Real(-1.149188573236494), Real(2.0e-6));
+}
+
+// Motivation: host-only evaluation does not exercise device compilation or
+// device arithmetic. Run the discriminators in an AMReX kernel and
+// check copied-back results against the independent host residual.
+TEST(CloudChamberWallFlux, MOSTCertifiedRootsInKernel)
+{
+    const GpuArray<Real, 5> Ri = {Real(0.2), Real(4.0), Real(4.0), Real(4.0),
+                                  Real(0.39927092596413188)};
+    const GpuArray<Real, 5> D_m = {Real(0.5), Real(0.1), Real(0.1), Real(6.0),
+                                   Real(0.001)};
+    const GpuArray<Real, 5> D_s = {Real(0.5), Real(24.4), Real(25.0), Real(6.0),
+                                   Real(1.0008842237169981)};
+    const GpuArray<double, 5> expected = {1.545814710591, 73.281971961051,
+                                          0.152368429532, 190.376227351357,
+                                          6.6318009022167015};
+    const auto host = most_coordinates_in_kernel(Ri, D_m, D_s);
+    for (int n = 0; n < 5; ++n) {
+        SCOPED_TRACE(n);
+        expect_stable_most_root(host[n], Ri[n], D_m[n], D_s[n], expected[n]);
+    }
+}
+
+#if GTEST_HAS_DEATH_TEST && !defined(AMREX_USE_MPI)
+// Motivation: a numerical failure must stop the kernel even when NDEBUG
+// disables AMReX device assertions; it must not return uncertified
+// coefficients.
+TEST(CloudChamberWallFlux, MOSTRejectsNonfiniteStateInKernel)
+{
+    const auto saved_style = GTEST_FLAG_GET(death_test_style);
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    const GpuArray<Real, 5> Ri = {Real(4), Real(4), Real(4), Real(4), Real(4)};
+    const Real inf = std::numeric_limits<Real>::infinity();
+    const GpuArray<Real, 5> D_m = {inf, inf, inf, inf, inf};
+    const GpuArray<Real, 5> D_s = {Real(6), Real(6), Real(6), Real(6), Real(6)};
+#if defined(AMREX_USE_GPU)
+    const char* message = ".*"; // A device trap need not flush its diagnostic.
+#else
+    const char* message =
+        "Cloud Chamber MOST requires finite positive stable resistances";
+#endif
+    EXPECT_DEATH((void)most_coordinates_in_kernel(Ri, D_m, D_s), message);
+    GTEST_FLAG_SET(death_test_style, saved_style);
+}
+#endif
 
 TEST(CloudChamberWallFlux, MOSTFrozenWallRateUsesCurrentSharedCoefficients)
 {

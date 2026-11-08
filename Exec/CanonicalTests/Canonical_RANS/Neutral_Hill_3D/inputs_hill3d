@@ -7,7 +7,7 @@
 # speed-up against the axisymmetric estimate of about 1.6 h/L.
 erf.prob_name = "ABL"
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_fft   = true
 
 stop_time = 14400.0   # 4 h physics run (9600 steps); CTest overrides max_step

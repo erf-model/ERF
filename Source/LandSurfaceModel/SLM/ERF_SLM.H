@@ -212,9 +212,15 @@ public:
 
         use_terrain = sc.terrain_type != TerrainType::None;
 
-        // Check if initializing from WRFInput
-        if (sc.init_type == InitType::WRFInput) {
-            amrex::Print() << " SLM is initializing from WRFInput!" << std::endl;
+        // Where the initial data come from, which can supply the soil layers (see Init)
+        m_init_type = sc.init_type;
+
+        // Check if initializing from WRFInput, or from metgrid files, for which ERF builds
+        // the same fields real.exe writes to wrfinput (ERF::init_lsm_from_metgrid)
+        if (sc.init_type == InitType::WRFInput || sc.init_type == InitType::Metgrid) {
+            amrex::Print() << " SLM is initializing from "
+                           << ((sc.init_type == InitType::WRFInput) ? "WRFInput" : "metgrid")
+                           << " data!" << std::endl;
             use_wrfinput = true;
         } else {
             use_wrfinput = false;
@@ -381,6 +387,21 @@ public:
     }
 
     /**
+     * Returns whether Copy_State_to_Lsm has filled tref, qref and pref.
+     */
+    bool
+    Lsm_Has_Atmos_State () override { return has_atmos_state; }
+
+    /**
+     * Registers whether the source level's tref, qref and pref have been filled.
+     */
+    void
+    Lsm_Set_Source_Has_Atmos_State (bool source_has_atmos) override
+    {
+        source_has_atmos_state = source_has_atmos;
+    }
+
+    /**
      * Transfers exposed state from a source AMR level.
      */
     void
@@ -462,7 +483,13 @@ public:
             } else if (!use_wrfinput) {
                 this->init_slm_vars();
             }
+        } else if (init_from_atmos_pending) {
+            // This level was made from a source level whose reference-level fields
+            // had not been filled yet, so t_canop, t_cas and q_cas were set from
+            // zeros; set them again now that tref, qref and pref hold the state.
+            this->init_slm_vars();
         }
+        init_from_atmos_pending = false;
     }
 
     bool Get_Update_Status () override { return m_updated; }
@@ -641,6 +668,8 @@ public:
     {
         return rad_output_map;
     }
+
+    const std::vector<amrex::Real>& get_soil_dz () const { return m_dz_lsm; }
 
     // utility to skip to next line in Header
     //  -- taken from ERF_Checkpoint
@@ -981,7 +1010,18 @@ private:
 
     // whether to initialize SLM from inputs file or from wrfinput
     bool use_wrfinput = false;
+    InitType m_init_type = InitType::None;
     bool wrfinput_initialized = false;
+
+    // whether Copy_State_to_Lsm has filled tref, qref and pref on this level
+    // (or on the level its state was interpolated from), and the same for the
+    // source level registered by Set_Source_Ptrs
+    bool has_atmos_state = false;
+    bool source_has_atmos_state = false;
+
+    // set when this level was made from a source level without the atmospheric
+    // state: the next Update_Lsm_Vars then calls init_slm_vars again
+    bool init_from_atmos_pending = false;
 
     // list of extra MFs in lsm_fab_vars that are not checkpointed by ERF
     amrex::Vector<int> unmapped_fields;

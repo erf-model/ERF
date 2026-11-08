@@ -83,10 +83,7 @@ specifying a custom terrain input file with z=0 everywhere.
 Input file: `inputs_sfclay_pbl`
 
 A more realistic version of the test problem above, to test implicit vertical
-diffusion for theta, u, and v; w was implemented and tested (with uniform and
-stretched grids) and found to not have an appreciable effect on the solution.
-That may be activated with the `-DERF_IMPLICIT_W` compiler flag or the
-`ERF_ENABLE_IMPLICIT_W` cmake option.
+diffusion for theta, u, and v (the vertical diffusion of w is always explicit).
 
 The currently recommended implicit setup is enabled by
 ```

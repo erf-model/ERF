@@ -73,6 +73,15 @@ ERF::read_waves (int lev)
         if((nx)*(ny) > 0) {
             int nsealm = (nx)*ny;
 
+            // MPI_Recv writes nsealm values straight into the FAB storage, so they must fit
+            const Long fab_npts = (*Hwave_onegrid[lev])[mfi].box().numPts();
+            if (static_cast<Long>(nx)*static_cast<Long>(ny) > fab_npts ||
+                static_cast<Long>(nx)*static_cast<Long>(ny) > (*Lwave_onegrid[lev])[mfi].box().numPts()) {
+                Abort("read_waves: WW3 sent nx*ny = " + std::to_string(static_cast<Long>(nx)*ny) +
+                      " wave values, more than the " + std::to_string(fab_npts) +
+                      " the Hwave/Lwave storage holds");
+            }
+
             if (amrex::MPMD::MyProc() == this_root) {
                 if (rank_offset == 0) // the first program
                 {
@@ -139,6 +148,11 @@ ERF::send_to_ww3 (int lev)
     if (dz < 10){
         k_ref = std::floor( (10 / dz) - myhalf );
     }
+    // The 10 m reference level must be a cell of this level's domain
+    if (k_ref > geom[lev].Domain().bigEnd(2)) {
+        Abort("send_to_ww3: the 10 m reference height lies above the top of the domain at level " +
+              std::to_string(lev));
+    }
     double clkStart, timedif;
     clkStart = (double) clock() / CLOCKS_PER_SEC;
 
@@ -195,11 +209,6 @@ ERF::send_to_ww3 (int lev)
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
             u_vel(i,j,k)  = myhalf *( velx_arr(i,j,k) + velx_arr(i+1,j,k) );
-
-            amrex::AllPrintToFile("uvel.txt") << amrex::IntVect(i,j,k) << " ["
-                                              <<velx_arr(i,j,k) << "| avg:  "
-                                              << u_vel(i,j,k)<< " | "
-                                              << velx_arr(i+1,j,k) << "]" <<std::endl;
         });
     }
 
@@ -212,11 +221,6 @@ ERF::send_to_ww3 (int lev)
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
             v_vel(i,j,k)  = myhalf *( vely_arr(i,j,k) + vely_arr(i,j+1,k) );
-
-            amrex::AllPrintToFile("vvel.txt") << "%ld" << amrex::IntVect(i,j,k) << " ["
-                                              <<vely_arr(i,j,k)<<"| avg: "
-                                              << v_vel(i,j,k)<< " | "
-                                              << vely_arr(i,j+1,k) << "]" <<std::endl;
         });
     }
 
@@ -259,7 +263,8 @@ ERF::send_to_ww3 (int lev)
 
             magnitude(i,j,k) = std::sqrt( pow(u_val, 2) + pow(v_val, 2) );
 
-            if ( u_val < 0 && v_val > 0 || u_val < 0 && v_val < 0 ) {
+            // Westward components (u < 0), including due west (v == 0), lie in (pi/2, 3pi/2)
+            if ( u_val < 0 ) {
 
                 theta(i,j,k) = PI + ( atan( v_val / u_val ) );
 
@@ -267,21 +272,26 @@ ERF::send_to_ww3 (int lev)
 
                 theta(i,j,k) = atan ( v_val / u_val );
             }
-
-            amrex::AllPrintToFile("mag_theta.txt") << amrex::IntVect(i,j,k) <<  " Magnitude: "
-                                                   << magnitude(i,j,k) << " Theta: "
-                                                   << theta(i,j,k) <<std::endl;
         });
 
 
-        // Send the 2D slice at k_ref
-        // Box slice_box = bx;
-        amrex::IntVect boxSmall = bx.smallEnd();
-        amrex::IntVect boxBig = bx.bigEnd();
+        // Send the 2D slice at k_ref, from the tile that contains it; a tile above or
+        //    below k_ref has no data there
+        if (k_ref < bx.smallEnd(2) || k_ref > bx.bigEnd(2)) { continue; }
         Box slice_box_ref = makeSlab(bx, 2, k_ref);
 
         // Calculate the number of elements in the current box
         int n_elements = slice_box_ref.numPts();
+
+        // The kernel above wrote magnitude and theta in device memory: copy the slice to
+        //    the host, and wait for the copy, before reading it here
+        FArrayBox magnitude_h(slice_box_ref, 1, The_Pinned_Arena());
+        FArrayBox theta_h    (slice_box_ref, 1, The_Pinned_Arena());
+        magnitude_h.template copy<RunOn::Device>(u_mag[mfi], slice_box_ref, 0, slice_box_ref, 0, 1);
+        theta_h.template    copy<RunOn::Device>(u_dir[mfi], slice_box_ref, 0, slice_box_ref, 0, 1);
+        Gpu::streamSynchronize();
+        const auto magnitude_h_arr = magnitude_h.const_array();
+        const auto theta_h_arr     = theta_h.const_array();
 
         // Initialize vectors to send to WW3
         std::vector<Real> magnitude_values(n_elements);
@@ -291,8 +301,8 @@ ERF::send_to_ww3 (int lev)
         int counter = 0;
         for (BoxIterator bi(slice_box_ref); bi.ok(); ++bi) {
             IntVect iv = bi();
-            magnitude_values[counter] = magnitude(iv);
-            theta_values[counter] = theta(iv);
+            magnitude_values[counter] = magnitude_h_arr(iv);
+            theta_values[counter] = theta_h_arr(iv);
             indices[counter] = iv;
             ++counter;
         }

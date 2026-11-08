@@ -128,6 +128,10 @@ selected_precipitation_accumulation_components (const amrex::Vector<std::string>
             continue;
         }
 
+        // The selection holds at most one entry per precipitation diagnostic; a list with
+        //    repeated names would otherwise write past the end of these fixed-size arrays
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(selected.n < MaxSurfacePrecipAccumulationComponents,
+            "too many precipitation accumulation components requested (is a name repeated?)");
         selected.dst_comp[selected.n] = dst_comp;
         selected.id[selected.n] = descriptor->id;
         ++selected.n;

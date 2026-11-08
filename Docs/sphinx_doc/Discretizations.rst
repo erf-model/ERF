@@ -283,12 +283,16 @@ With the WENO5 scheme, one has :math:`N=3, \; \omega_{1} = 1/10, \; \omega_{2} =
 
 Details for the WENO7 scheme are provided in `Shu, C.W. (1997)`_.
 By default, the WENO3 scheme will be employed for moisture variables if the code is compiled with moisture support. However, users may
-utilize the WENO scheme for dry scalar variables as well.   The scheme for each type is specified by
+utilize the WENO scheme for dry scalar variables, and for the dycore variables (momentum, density and potential temperature), as well.
+The WENO-Z variants (WENOZ3, WENOZ5, WENOZ7) and the third-order WENO-MZQ scheme (WENOMZQ3) are available for all of these too.
+The scheme for each type is specified by
 
 .. _`Shu, C.W. (1997)`: https://www3.nd.edu/~zxu2/acms60790S13/Shu-WENO-notes.pdf
 
 ::
 
+   erf.dycore_horiz_adv_type    =
+   erf.dycore_vert_adv_type     =
    erf.dryscal_horiz_adv_type   =
    erf.dryscal_vert_adv_type    =
    erf.moistscal_horiz_adv_type =
@@ -651,8 +655,7 @@ face coefficient and the same :math:`h_\zeta` (the edge value by which the strai
 whatever the time step, wherever :math:`h_\zeta` varies non-linearly between neighbouring
 columns, as on curved terrain that decays with height. The split is not exact at a no-slip wall
 (the correction stress uses a one-sided three-point :math:`\partial u/\partial z`, the solve the
-two-point wall difference), for w (implicit only with ``ERF_IMPLICIT_W``), and to first order in
-the density with ``erf.molec_diff_type = ConstantAlpha`` (the solve uses the predicted density).
+two-point wall difference) and to first order in the density with ``erf.molec_diff_type = ConstantAlpha`` (the solve uses the predicted density).
 With ``erf.implicit_terrain_metric = true`` the explicit numerator of the scalars becomes
 :math:`(1-f)F_z^D + f K_h M\, \partial\phi/\partial z - m_xh_\xi\overline{F_x^D}-m_yh_\eta\overline{F_y^D}`
 on the faces inside the domain.

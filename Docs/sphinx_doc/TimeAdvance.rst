@@ -64,6 +64,43 @@ The midpoint stages are given by:
 
   \mathbf{S}^{n+1} &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^{*})
 
+.. _ScalarAdvectionMomenta:
+
+Momenta that Advect the Scalars
+-------------------------------
+
+In every Runge-Kutta stage the slow scalars (turbulent kinetic energy, moisture and passive
+scalars) are advected with face momenta in the form :math:`a_x \rho u / m_{u,y}`,
+:math:`a_y \rho v / m_{v,x}` and :math:`a_z \Omega / (m_x m_y)`, where
+:math:`a_x, a_y, a_z` are the face areas, :math:`\Omega` is the momentum normal to the
+coordinate surfaces (:math:`\rho w` without terrain), and with an embedded boundary the area
+fractions are applied to the fluxes instead.  Which momenta these are depends on the
+integrator:
+
+- **Compressible, no substepping:** the momenta of the stage state :math:`\mathbf{S}^n`,
+  :math:`\mathbf{S}^{*}` or :math:`\mathbf{S}^{**}`.  These are the momenta that advect
+  :math:`\rho` and :math:`\rho \theta` in the same stage.
+- **Compressible, with acoustic substepping:** the momenta of the stage state plus the
+  average over the acoustic substeps of the perturbation momenta, with the vertical
+  off-centering :math:`\beta_1, \beta_2` described below.  This is the mass flux that
+  advances :math:`\rho` over the stage.
+- **Anelastic, RK2:** :math:`(\rho \mathbf{u})^n` in the first stage and
+  :math:`(\rho \mathbf{u})^{*}` in the second, the same momenta that advect
+  :math:`\rho \theta`.  Each pairs a scalar with momenta from the same state, as the averaged
+  update :math:`\frac{\Delta t}{2} ( f(\mathbf{S}^{n}) + f(\mathbf{S}^{*}) )` requires.
+- **Anelastic, MidPoint:** :math:`(\rho \mathbf{u})^n` in the first (half) stage and
+  :math:`(\rho \mathbf{u})^{*} = (\rho \mathbf{u})^{n+1/2}` in the second, again the same
+  momenta that advect :math:`\rho \theta`.
+
+In the anelastic cases the momenta are projected at the end of each stage, so the momenta at
+the start of the next stage or step are divergence-free and a uniform scalar stays uniform.
+The pairing is the same with and without an embedded boundary.  With an embedded boundary the
+state redistribution in the cut cells is added to this update as a change to the stage's
+right-hand side, with the stage's weight (one half in the second RK2 stage), so the averaged RK2
+update is kept (erf-model/ERF#4876).  Using the momenta from the end
+of a stage instead, ahead of the scalar by about half a step, makes the scalars only first
+order accurate in time when the wind varies (erf-model/ERF#4870).
+
 .. _AcousticSubstep:
 
 Acoustic Sub-stepping
@@ -161,6 +198,21 @@ the typical WRF value of 0.1. This off-centering is intended to provide damping 
 and vertically propagating sound waves by biasing the time average toward the future time step.
 This may be controlled with the ``erf.beta_s`` parameter.
 
+Over steep terrain more off-centering may be needed.  With ``erf.use_variable_beta_s = true``,
+:math:`\beta_s` is instead defined on each :math:`w`-face from the slopes of the coordinate
+surface there,
+
+.. math::
+
+   \beta_s = \max\left(\beta_{s,min}, \min\left(\beta_{s,max}, h_\xi^2 + h_\eta^2\right)\right),
+
+with :math:`\beta_{s,min}` and :math:`\beta_{s,max}` set by ``erf.beta_s_min`` (default 0.1)
+and ``erf.beta_s_max`` (default 0.8).  The vertical flux on a face is then weighted by
+:math:`\beta_1` and :math:`\beta_2` of that face, and the :math:`W^{\prime \prime}` equation on a
+face by :math:`\beta_2` of that face, so that the entries of the tridiagonal system for the face
+:math:`k` carry :math:`\beta_2` of face :math:`k` times :math:`\beta_2` of face :math:`k-1`,
+:math:`k` or :math:`k+1`.  Without terrain, :math:`\beta_s = \beta_{s,min}` everywhere.
+
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
 We then solve a tridiagonal system for :math:`W^{\prime \prime, \tau + \delta \tau}`, and once :math:`W^{\prime \prime, \tau + \delta \tau}`
@@ -177,5 +229,5 @@ to control horizontally propagating sound waves.
 where :math:`\tau*` is the forward projected value used in RHS of the acoustic
 substepping equations for horizontal momentum. According to Skamarock et al,
 this is equivalent to including a horizontal diffusion term in the continuity
-equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used, as in
-WRF.
+equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used by default, as in
+WRF; it can be set with ``erf.beta_d``, which must lie in :math:`[0, 1]`.

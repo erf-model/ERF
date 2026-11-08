@@ -1,5 +1,9 @@
 #include "ERF_SrcHeaders.H"
 
+#ifdef ERF_USE_FIRE
+#include <ERF_FireCoupler.H>
+#endif
+
 /**
  *  Wrapper for calling the routine that creates the slow RHS
  */
@@ -41,7 +45,9 @@
         if (solverChoice.coupling_type == CouplingType::TwoWay && finest_level > 0) {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
-                fr_as_crse->reset();
+                // Once per step: the anelastic RK2 integrator registers fluxes at both stages
+                // (RefluxStageWeight)
+                if (nrk == 0) { fr_as_crse->reset(); }
             }
             if (level > 0) {
                 fr_as_fine = getAdvFluxReg(level);
@@ -128,7 +134,29 @@
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                      turbPert,
                      r_avg_to_pass, t_avg_to_pass,
-                     true);
+                     forest_drag, &S_old[IntVars::cons],
+                     true, ib_wall_hfx[level].get(), ib_wall_ktarget[level].get(), ib_wall_qfx[level].get());
+
+        // *****************************************************************************
+        // Inject the fire-to-atmosphere heat flux AFTER make_sources, which resets
+        // cc_src at every RK stage. The lagged fire flux (FireCoupler) is constant
+        // across all RK stages and must be added here to survive the integrator.
+        // *****************************************************************************
+#ifdef ERF_USE_FIRE
+        // on the level the fire grid refines; coarser levels get it by average-down.
+        // The heat and vapour with the WRF-Fire profile, then the smoke tracer,
+        // proportional to the fuel burnt (FireCoupler::add_sources).
+        if (m_fire_coupler && level == m_fire_coupler->level()) {
+            bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
+            m_fire_coupler->add_sources(cc_src,
+                                        S_old[IntVars::cons],
+                                        *zpc_to_use,
+                                        zpn_to_use,
+                                        fine_geom,
+                                        has_moisture,
+                                        istep[level]);
+        }
+#endif
 
         // Heat flux from the building faces (immersed-boundary surface energy
         // balance), added to the freshly rebuilt source; no-op unless enabled.
@@ -160,7 +188,7 @@
                                  (solverChoice.moisture_type != MoistureType::Morrison_NoIce &&
                                   solverChoice.moisture_type != MoistureType::SAM_NoIce) );
             add_moist_nudging_terms(S_data[IntVars::cons], cc_src, num_q, slow_dt,
-                                    start_time+old_stage_time,
+                                    old_stage_time, start_time,
                                     start_bdy_time, final_bdy_time, bdy_time_interval,
                                     bdy_factor, real_width, geom[level],
                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
@@ -195,12 +223,12 @@
         // *****************************************************************************
         int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_buoyancy(level, S_data, S_prim, qt, buoyancy, fine_geom, solverChoice, base_to_use,
-                      num_q, get_eb(level), solverChoice.anelastic[level]);
+                      num_q, get_eb(level), solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible);
 
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
         // *****************************************************************************
-        make_mom_sources(old_stage_time, slow_dt,
+        make_mom_sources(level, old_stage_time, slow_dt,
                          S_data, zpn_to_use, zpc_to_use, stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
@@ -241,8 +269,8 @@
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau[level], Tau_corr[level], Tau_EB[level],
-                         SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss, Hfx3_EB,
-                         fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
+                         SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss, mf_surface_fluxes,
+                         Hfx3_EB, fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level),
@@ -252,7 +280,17 @@
                          native_shoc_driver[level].get(),
                          fr_as_crse, fr_as_fine, &base_to_use,
                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
-                         cloud_chamber_budget.get());
+                         cloud_chamber_budget.get(),
+                         ib_wall_face13[level].get(), ib_wall_face23[level].get(),
+                         ib_wall_face33[level].get(), ib_wall_hfx[level].get());
+
+        // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp): a coarse level adds
+        // this stage's mass fluxes to those of its step, a fine level registers the coarse
+        // momenta its coarse/fine faces are filled from in this stage
+        if (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible) {
+            if (level < finest_level) { cf_anelastic_record(level, nrk); }
+            if (level > 0)            { cf_anelastic_stage_registration(level, nrk); }
+        }
 
         if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
             const Real stage_dt = static_cast<Real>(slow_dt);
@@ -277,14 +315,6 @@
             MultiFab scratch_ymom(S_data[IntVars::ymom].boxArray(),
                                   S_data[IntVars::ymom].DistributionMap(), 1,
                                   S_data[IntVars::ymom].nGrowVect());
-#ifdef ERF_IMPLICIT_W
-            /**
-             * @brief Temporary MultiFab for z-momentum updates.
-             */
-            MultiFab scratch_zmom(S_data[IntVars::zmom].boxArray(),
-                                  S_data[IntVars::zmom].DistributionMap(), 1,
-                                  S_data[IntVars::zmom].nGrowVect());
-#endif
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
                 MultiFab::Saxpy(scratch_xmom, stage_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
@@ -293,14 +323,26 @@
                 MultiFab::Copy(scratch_ymom, S_old[IntVars::ymom], 0, 0, 1,  S_data[IntVars::ymom].nGrowVect()); // scratch := S_old
                 MultiFab::Saxpy(scratch_ymom, stage_dt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_ymom.FillBoundary(geom[level].periodicity());
-#ifdef ERF_IMPLICIT_W
-                MultiFab::Copy(scratch_zmom, S_old[IntVars::zmom], 0, 0, 1,  S_data[IntVars::zmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_zmom, stage_dt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
-                scratch_zmom.FillBoundary(geom[level].periodicity());
-#endif
+            }
+
+            // The ghost cells of scratch still hold S_old; at a coarse/fine boundary fill them with
+            // the coarse data at the time we are advancing to, since a column that ends there is
+            // closed with the value on the other side
+            if (level > 0) {
+                const bool l_mom = solverChoice.implicit_momentum_diffusion;
+                Vector<MultiFab*> scratch_mom = {l_mom ? &scratch_xmom : nullptr,
+                                                 l_mom ? &scratch_ymom : nullptr,
+                                                 nullptr};
+                FillCoarseFineGhostsForImplicit(level, new_stage_time, scratch, {RhoTheta_comp}, scratch_mom);
             }
 
 #include "ERF_ImplicitPre.H"
+
+            // NOTE: the implicit part of the vertical (rho theta) diffusion is not added to the flux
+            //       registers.  (rho theta) is refluxed only on anelastic levels, and there no stage
+            //       whose fluxes are registered solves implicitly: RK2 turns the solve off, and
+            //       MidPoint solves in stage 0 but registers stage 1 (see SolverChoice and
+            //       StageFluxWeight).
 
             MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
             scratch.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
@@ -314,11 +356,6 @@
                 MultiFab::Saxpy(scratch_ymom, -one_d, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
                 scratch_ymom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
                 MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
-#ifdef ERF_IMPLICIT_W
-                MultiFab::Saxpy(scratch_zmom, -one_d, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_zmom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
-                MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
-#endif
             }
         }
 
@@ -366,7 +403,10 @@
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-           for ( MFIter mfi(*p0,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+           // Tile only in x and y: the second kernel reads r0_tmp and rt0_tmp at k-1 and k+1,
+           //    which the first kernel fills tile by tile, so a tile boundary in z would read
+           //    values another thread may not have written yet
+           for ( MFIter mfi(*p0,TileNoZ()); mfi.isValid(); ++mfi)
            {
                const Array4<Real      > rt0_arr     = rt0.array(mfi);
                const Array4<Real      > rt0_tmp_arr = rt0_new.array(mfi);
@@ -431,13 +471,12 @@
             const Real bdy_factor = solverChoice.bdy_nudge_factor;
             if (real_width>0) {
                 //
-                // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
-                //           start_bdy_time and final_bdy_time are total time
+                // Note that old_stage_time is elapsed time; start_bdy_time and final_bdy_time
+                //           are total time
                 //
-                double total_time = start_time + old_stage_time;
                 Real l_rdOcp    = solverChoice.rdOcp;
                 Real l_c_p      = solverChoice.c_p;
-                realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
+                realbdy_compute_interior_ghost_rhs(old_stage_time, start_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
                                                    bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,

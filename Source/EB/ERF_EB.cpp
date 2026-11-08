@@ -19,8 +19,38 @@
 #include <AMReX_EBFArrayBox.H>
 #include <AMReX_EB2.H>
 #include <AMReX_EBToPVD.H>
+#include <AMReX_Scan.H>
+
+#include <string>
 
 using namespace amrex;
+
+namespace {
+
+#ifdef AMREX_USE_GPU
+int
+fill_cut_cell_list (Box const& bx, Array4<EBCellFlag const> const& flag,
+                    Dim3* grid_cut_cells)
+{
+    return Scan::PrefixSum<int>(
+        bx.numPts(),
+        [=] AMREX_GPU_DEVICE (Long offset) noexcept -> int
+        {
+            Dim3 const cell = bx.atOffset(offset).dim3();
+            return flag(cell.x,cell.y,cell.z).isSingleValued();
+        },
+        [=] AMREX_GPU_DEVICE (Long offset, int cut_offset) noexcept
+        {
+            Dim3 const cell = bx.atOffset(offset).dim3();
+            if (flag(cell.x,cell.y,cell.z).isSingleValued()) {
+                grid_cut_cells[cut_offset] = cell;
+            }
+        },
+        Scan::Type::exclusive, Scan::retSum);
+}
+#endif
+
+} // namespace
 
 eb_::~eb_ ()
 {
@@ -40,6 +70,16 @@ eb_::make_all_factories ([[maybe_unused]] int level,
                          DistributionMapping const& dm,
                          EB2::Level const& a_eb_level)
 {
+#if USE_FC_FACTORY
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        if (!a_eb_level.hasFCData(idim)) {
+            Abort("ERF: native face-centered EB data are unavailable at level " +
+                  std::to_string(level) + ", direction " + std::to_string(idim) +
+                  ". EB2::BuildFC() must successfully build data before factory construction.");
+        }
+    }
+#endif
+
     Print() << "making EB factory\n";
     m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
         Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
@@ -48,7 +88,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
     eb_::set_connection_flags(m_factory.get());
 
 #if USE_FC_FACTORY
-    // New: Native AMReX FC factories (EB2::BuildFC called in ERF.cpp)
+    // Native AMReX FC factories (EB2::BuildFC called in initializeEB).
     { int const idim(0);
         Print() << "making EB staggered u-factory\n";
         m_u_factory_fc = std::make_unique<EBFArrayBoxFactory>(
@@ -101,6 +141,16 @@ eb_::make_all_factories ([[maybe_unused]] int level,
             m_factory.get());
     }
 #endif
+
+#if USE_FC_FACTORY
+    build_cut_cell_lists(m_u_factory_fc->getMultiEBCellFlagFab(), m_u_cut_cells);
+    build_cut_cell_lists(m_v_factory_fc->getMultiEBCellFlagFab(), m_v_cut_cells);
+    build_cut_cell_lists(m_w_factory_fc->getMultiEBCellFlagFab(), m_w_cut_cells);
+#else
+    build_cut_cell_lists(m_u_factory.getMultiEBCellFlagFab(), m_u_cut_cells);
+    build_cut_cell_lists(m_v_factory.getMultiEBCellFlagFab(), m_v_cut_cells);
+    build_cut_cell_lists(m_w_factory.getMultiEBCellFlagFab(), m_w_cut_cells);
+#endif
     Print() << "\nDone making EB factory at level = " << level << ".\n\n";
 }
 
@@ -115,7 +165,46 @@ eb_::make_cc_factory ([[maybe_unused]] int level,
     m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
         Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
 
+    // Correct cell connectivity
+    eb_::set_connection_flags(m_factory.get());
+
+    m_u_cut_cells.clear();
+    m_v_cut_cells.clear();
+    m_w_cut_cells.clear();
+
     Print() << "\nDone making EB factory at level " << level << ".\n\n";
+}
+
+void
+eb_::build_cut_cell_lists (FabArray<EBCellFlagFab> const& flags,
+                           Vector<CutCellList>& cut_cells)
+{
+    BL_PROFILE("eb_::build_cut_cell_lists()");
+
+    cut_cells.clear();
+    cut_cells.resize(flags.boxArray().size());
+
+#ifdef AMREX_USE_GPU
+    for (MFIter mfi(flags, false); mfi.isValid(); ++mfi) {
+        Box const& bx = mfi.validbox();
+        if (flags[mfi].getType(bx) != FabType::singlevalued) {
+            continue;
+        }
+
+        Array4<EBCellFlag const> const& flag = flags.const_array(mfi);
+        Long const num_candidates = bx.numPts();
+        CutCellList grid_cut_cells(num_candidates);
+        Dim3* const grid_cut_cells_ptr = grid_cut_cells.data();
+
+        int const num_cut_cells = fill_cut_cell_list(bx, flag, grid_cut_cells_ptr);
+
+        grid_cut_cells.resize(num_cut_cells);
+        grid_cut_cells.shrink_to_fit();
+        cut_cells[mfi.index()] = std::move(grid_cut_cells);
+    }
+#else
+    amrex::ignore_unused(flags);
+#endif
 }
 
 /**

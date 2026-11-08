@@ -98,6 +98,22 @@ public:
     int GetSetMaskVal () { return m_set_mask; }
 
     /**
+     * Log-law fill of the lateral coarse/fine faces next to a wall (erf.cf_loglaw_fill): the flux
+     * of the first coarse face above the wall is shared among its fine sub-faces in proportion to
+     * the integral of ln(1 + z/z0) over the fluid part of each, so the flux of every coarse face
+     * is kept. Acts on the set fills of fine boxes that reach the bottom of the domain.
+     *
+     * @param[in] on          enable the log-law fill (constant dz only)
+     * @param[in] z0          roughness length [m]
+     * @param[in] wall_tblank fine solid fraction giving the wall height (immersed forcing), or
+     *                        nullptr for a wall at the bottom of the domain
+     */
+    void SetLogLawFill (bool on, amrex::Real z0, amrex::MultiFab const* wall_tblank)
+    {
+        m_loglaw = on; m_loglaw_z0 = z0; m_loglaw_tblank = wall_tblank;
+    }
+
+    /**
      * Return the mask value for the relax region.
      */
     int GetRelaxMaskVal () { return m_relax_mask; }
@@ -122,6 +138,9 @@ public:
     /**
      * Fill fine data in the relax region.
      *
+     * Not currently used: nothing calls it, and two-way coupling requires cf_width = 0, which
+     * leaves the relax region empty. Kept so that relaxation can be re-enabled.
+     *
      * @param[in,out] mf   MultiFab to be filled
      * @param[in]     time time at which to fill data
      * @param[in]     cbc  coarse boundary condition
@@ -144,6 +163,9 @@ public:
     void Fill (amrex::MultiFab& mf, double time,
                BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, int mask_val);
 
+    //! The times of the coarse data last registered (RegisterCoarseData)
+    [[nodiscard]] amrex::Vector<double> const& crse_times () const { return m_crse_times; }
+
 private:
 
     amrex::BoxArray m_fba;
@@ -160,6 +182,9 @@ private:
     std::unique_ptr<amrex::MultiFab> m_cf_crse_data_old;
     std::unique_ptr<amrex::MultiFab> m_cf_crse_data_new;
     std::unique_ptr<amrex::iMultiFab> m_cf_mask;
+    bool m_loglaw = false;                              // log-law c/f fill (SetLogLawFill)
+    amrex::Real m_loglaw_z0 = amrex::Real(0.1);
+    amrex::MultiFab const* m_loglaw_tblank = nullptr;
     amrex::Vector<double> m_crse_times;
     double m_dt_crse;
     int m_set_mask{2};
@@ -226,9 +251,6 @@ ERFFillPatcher::Fill (amrex::MultiFab& mf, double time_d,
         fac_old = amrex::Real(1) - fac_new;
     }
 
-    // Boundary condition operator
-    cbc(*(m_cf_crse_data_old), 0, m_ncomp, amrex::IntVect(0), time, 0);
-
     // Coarse MF to hold time interpolated data
     amrex::MultiFab crse_data_time_interp(m_cf_crse_data_old->boxArray(),
                                           m_cf_crse_data_old->DistributionMap(),
@@ -239,6 +261,12 @@ ERFFillPatcher::Fill (amrex::MultiFab& mf, double time_d,
                              fac_old, *(m_cf_crse_data_old), 0,
                              fac_new, *(m_cf_crse_data_new), 0,
                              0, m_ncomp, amrex::IntVect{0});
+
+    // Boundary condition operator, at the time it is asked for, on the data at that time.
+    // Applied to the old coarse data before the interpolation it would be weighted by
+    // fac_old -- and vanish at the new coarse time -- and would overwrite the registered
+    // old data the next fill interpolates from.
+    cbc(crse_data_time_interp, 0, m_ncomp, amrex::IntVect(0), time, 0);
 
     // Call correct spatial interpolation type
     amrex::IndexType m_ixt = mf.boxArray().ixType();

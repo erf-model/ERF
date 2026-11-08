@@ -31,76 +31,41 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     ngvect_cons[2] = 0;
     ngvect_vels[2] = 0;
 
-    // Time interpolation
-    double dT = bdy_time_interval;
-
+    // Time interpolation (see bdy_time_weights for why the offset is formed first)
     double time_tot = time + start_time;
-    double time_since_start_bdy = time_tot - start_bdy_time;
-    int n_time    = static_cast<int>( time_since_start_bdy /  dT);
-    int n_time_p1 = n_time + 1;
-    Real alpha  = static_cast<Real>((time_since_start_bdy - n_time * dT) / dT);
-
-    // Do not over run the last bdy file
-    if (time_tot >= final_bdy_time) {
-        n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
-        n_time_p1 = n_time;
-        alpha     = zero;
-    }
-
-    AMREX_ALWAYS_ASSERT( alpha >= zero && alpha <= one);
+    const BdyTimeWeights tw = bdy_time_weights(time + (start_time - start_bdy_time),
+                                               final_bdy_time - start_bdy_time,
+                                               bdy_time_interval);
+    const int  n_time    = tw.n_lo;
+    const int  n_time_p1 = tw.n_hi;
+    const Real alpha     = tw.alpha;
     Real oma   = one - alpha;
 
-    // Flags for read vars and index mapping
-    const bool read_wrf_density = solverChoice.use_wrf_bdy_density;
-    int rho_is_read = (read_wrf_density) ? 1 : 0;
-    Vector<int> cons_read = {rho_is_read, 1, 0, 0,
-                             1, 0, 0,
-                             0, 0, 0,
-                             0, 0, 0,
-                             0, 0};
+    // Flags for read vars and index mapping, built from the component layout
+    // (real_bdy_cons_maps) for any number of passive scalars, preserving the
+    // upstream hydrometeor read flags
+    const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+        wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+    const RealBdyConsMaps cons_maps = real_bdy_cons_maps(solverChoice.use_wrf_bdy_density,
+                                                         solverChoice.moisture_indices,
+                                                         solverChoice.use_wrf_bdy_qc_qi,
+                                                         separate_hydrometeors);
     Vector<Vector<int>> is_read;
-    is_read.push_back( cons_read );
+    is_read.push_back( cons_maps.read );
     is_read.push_back( {1} ); // xvel
     is_read.push_back( {1} ); // yvel
     is_read.push_back( {0} ); // zvel
 
     // Real BC mapping (WRF/MetGrid)
-    int rho_index = (read_wrf_density) ? RealBdyVars::R : Rho_comp;
-    const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
-        wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
-    Vector<int> cons_map = {rho_index, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
-                            RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
-                            RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
-                            RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
-                            RhoQ10_comp, RhoQ11_comp};
-    if (solverChoice.use_wrf_bdy_qc_qi) {
-        for (int comp = RhoQ1_comp; comp < static_cast<int>(cons_read.size()); ++comp) {
-            cons_read[comp] = 0;
-        }
-    }
-    for (int comp = 0; comp < static_cast<int>(cons_read.size()); ++comp) {
-        const int bdy_var = wrf_bdy_var_for_moisture_component(
-            comp, solverChoice.moisture_indices, solverChoice.use_wrf_bdy_qc_qi,
-            separate_hydrometeors);
-        if (bdy_var >= 0) {
-            cons_read[comp] = 1;
-            cons_map[comp] = bdy_var;
-        }
-    }
     Vector<Vector<int>> ind_map;
-    ind_map.push_back( cons_map );
+    ind_map.push_back( cons_maps.map );
     ind_map.push_back( {RealBdyVars::U} ); // xvel
     ind_map.push_back( {RealBdyVars::V} ); // yvel
     ind_map.push_back( {0} );              // zvel
 
     // Bndry plane mapping
-    Vector<int> bnd_cons_map = {Rho_comp, BCVars::RhoTheta_bc_comp, RhoKE_comp, RhoScalar_comp,
-                                BCVars::RhoQ1_bc_comp, RhoQ2_comp, RhoQ3_comp,
-                                RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
-                                RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
-                                RhoQ10_comp, RhoQ11_comp};
     Vector<Vector<int>> bnd_ind_map;
-    bnd_ind_map.push_back( bnd_cons_map );
+    bnd_ind_map.push_back( cons_maps.bnd );
     bnd_ind_map.push_back( {BCVars::xvel_bc} ); // xvel
     bnd_ind_map.push_back( {BCVars::yvel_bc} ); // yvel
     bnd_ind_map.push_back( {0} );               // zvel

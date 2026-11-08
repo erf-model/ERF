@@ -19,7 +19,7 @@ zlo.type = "surface_layer"
 erf.most.average_policy = 1
 erf.most.z0   = 0.1
 erf.most.zref = 8.0
-erf.most.surf_temp = 1.1
+erf.most.pot_surf_temp = 1.1
 
 zhi.type = "SlipWall"
 

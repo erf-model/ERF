@@ -129,6 +129,15 @@ LatLonStatus locate_latlon_on_grid (const amrex::Array4<const amrex::Real>& ll,
                                     amrex::Real req_lat, amrex::Real req_lon,
                                     LatLonLocation& loc);
 
+//
+// The grid orientation at every mass point of one level: cos_alpha and sin_alpha
+// (2D, one component, on the level's ba2d/dmap) from that level's lat and lon,
+// which may be on any layout of the same 2D domain.  Collective.
+//
+void fill_grid_rotation (amrex::MultiFab& cos_alpha, amrex::MultiFab& sin_alpha,
+                         const amrex::MultiFab& lat, const amrex::MultiFab& lon,
+                         const amrex::Geometry& geom);
+
 // Copy lat and lon (2D, one component each) into the two components of latlon,
 // all three on the same BoxArray and DistributionMapping
 void pack_latlon (amrex::MultiFab& latlon, const amrex::MultiFab& lat, const amrex::MultiFab& lon);

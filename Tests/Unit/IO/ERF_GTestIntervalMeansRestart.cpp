@@ -104,7 +104,11 @@ TEST(IntervalMeansRestart, InitializationPreservesRestoredWindow)
 {
     EXPECT_TRUE(erf_interval_means::initialization_accumulates_state(false));
     EXPECT_FALSE(erf_interval_means::initialization_accumulates_state(true));
-    EXPECT_TRUE(erf_interval_means::initialization_plot_consumes_interval(false, true));
-    EXPECT_FALSE(erf_interval_means::initialization_plot_consumes_interval(true, true));
-    EXPECT_FALSE(erf_interval_means::initialization_plot_consumes_interval(false, false));
+    // A fresh start drops its t=0 sample whatever was written, so the step-1
+    // window does not depend on the output cadence; a restart keeps the window
+    // the checkpoint restored; "time" mode keeps the t=0 sample by design.
+    EXPECT_TRUE(erf_interval_means::initialization_clears_interval(false, true, "plotfile"));
+    EXPECT_FALSE(erf_interval_means::initialization_clears_interval(true, true, "plotfile"));
+    EXPECT_FALSE(erf_interval_means::initialization_clears_interval(false, true, "time"));
+    EXPECT_FALSE(erf_interval_means::initialization_clears_interval(false, false, "plotfile"));
 }

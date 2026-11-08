@@ -18,7 +18,7 @@ erf.prob_name = "Bubble"
 
 # TIME STEP CONTROL
 erf.fixed_dt = 1.0
-erf.substepping_type = "None"
+erf.timestepping_type = "RK3_NoSubstepping"
 
 erf.init_type = "uniform"
 

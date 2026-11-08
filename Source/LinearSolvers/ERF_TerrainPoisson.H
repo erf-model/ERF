@@ -70,6 +70,14 @@ public:
     void usePrecond (bool precond_flag);
 
     /**
+     * Faces of the solve region whose flux is zero (its Neumann faces), as a sum of
+     * TerrainPoissonFaceBit values.
+     *
+     * @return The face mask
+     */
+    [[nodiscard]] int zeroFluxFaces () const { return m_zero_flux_faces; }
+
+    /**
      * Compute face-centered terrain Poisson fluxes from a solution field.
      *
      * @param phi Solution field used to compute gradients
@@ -175,6 +183,9 @@ private:
 
     std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_fft_precond;
     amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> bc_fft;
+
+    //! Faces of the solve region with zero flux (TerrainPoissonFaceBit values)
+    int m_zero_flux_faces = 0;
 };
 
 #endif

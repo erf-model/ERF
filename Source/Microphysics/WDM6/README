@@ -295,12 +295,12 @@ reached it, then produced the entire step-100 residual. A clean short run says
 nothing about a clamped or gated literal — audit those by reading the source, not
 by watching a metric.
 
-**4. `erf.init_type = MoistBaseState` cannot be combined with a stretched mesh.**
-`AMREX_ALWAYS_ASSERT(mesh_type == ConstantDz)` at
-`Source/Initialization/ERF_Init1D.cpp:77` fires in Release. Consequence for WDM6:
-the code path that honours physical cell thickness cannot be exercised on Bubble at
-all — uniform `dz` makes it bit-identical to the old `CellSize(2)` shortcut, and
-forcing a stretched mesh aborts before the first step.
+**4. `erf.init_type = MoistBaseState` on a stretched mesh.** This combination used
+to stop at an `AMREX_ALWAYS_ASSERT(mesh_type == ConstantDz)` in
+`Source/Initialization/ERF_Init1D.cpp`, so the code path that honours physical cell
+thickness could not be exercised on Bubble. The moist base state is now integrated
+over the stretched levels, so a stretched Bubble run is possible; on a uniform mesh
+the result is bit-identical to the old `CellSize(2)` shortcut.
 
 **5. z-decomposition aborts on these test cases.** `AMREX_ALWAYS_ASSERT(bx.length()
 [2] == khi+1)` in `ERF_InitCustomPert_Bubble.H` — and identically in

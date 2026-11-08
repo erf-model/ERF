@@ -67,7 +67,9 @@
 
         // Initial _potential_ temperature
         const Real T = (one + deltaT) * T_inf;
-        const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
+        // Isentropic relation with the vortex's gamma, as in a_inf and deltaT:
+        //    rho_0 a_inf^2 / gamma = p_inf, so p -> p_inf far from the vortex
+        const Real p = std::pow(rho_norm, gamma) / gamma
                               * rho_0*a_inf*a_inf;
         const Real rho_theta = rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
         state_pert(i, j, k, RhoTheta_comp) = rho_theta - getRhoThetagivenP(p_hse(i,j,k)); // Set the perturbation rho*theta

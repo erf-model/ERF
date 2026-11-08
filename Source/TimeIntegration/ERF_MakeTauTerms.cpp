@@ -27,7 +27,9 @@ void erf_make_tau_terms (int level, int nrk,
                          const MultiFab& detJ,
                          Vector<std::unique_ptr<MultiFab>>& mapfac,
                          const MultiFab& ax, const MultiFab& ay, const MultiFab& az,
-                         const eb_& ebfact)
+                         const eb_& ebfact,
+                         const MultiFab* ib_wall_face13,
+                         const MultiFab* ib_wall_face23)
 {
     BL_PROFILE_REGION("erf_make_tau_terms()");
 
@@ -209,15 +211,6 @@ void erf_make_tau_terms (int level, int nrk,
             Array4<Real> s23_corr = (do_implicit) ? S23_for_impl.array() : Array4<Real>{};
             Array4<Real> tau13_corr = (do_implicit) ? Tau_corr_lev[0]->array(mfi) : Array4<Real>{};
             Array4<Real> tau23_corr = (do_implicit) ? Tau_corr_lev[1]->array(mfi) : Array4<Real>{};
-#ifdef ERF_IMPLICIT_W
-            FArrayBox S33_for_impl;
-            S33_for_impl.resize( bxcc,1,The_Async_Arena());
-            Array4<Real> s33_corr = (do_implicit) ? S33_for_impl.array() : Array4<Real>{};
-            Array4<Real> tau33_corr = (do_implicit) ? Tau_corr_lev[2]->array(mfi) : Array4<Real>{};
-#else
-            Array4<Real> s33_corr = Array4<Real>{};
-            Array4<Real> tau33_corr = Array4<Real>{};
-#endif
 
             // Calculate the magnitude of the strain-rate tensor squared if
             // using Deardorff or k-eqn RANS. This contributes to the production
@@ -243,7 +236,6 @@ void erf_make_tau_terms (int level, int nrk,
             //      viscosity calculated as the sum of a constant viscosity (or
             //      constant alpha with mu = rho*alpha) and the eddy viscosity
             //      from the turbulence model
-            //    - IMPLICIT path: s33_corr is modified in here
             //
             // 5. Copy temp Sij fabs into Tau_lev multifabs
             //    - stress tensor is symmetric if no terrain and no implicit diffusion
@@ -321,7 +313,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            s13_corr, s23_corr, s33_corr);
+                                            s13_corr, s23_corr);
                 } else {
                     ComputeStressVarVisc_S(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -332,7 +324,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           s13_corr, s23_corr, s33_corr);
+                                           s13_corr, s23_corr);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -348,7 +340,6 @@ void erf_make_tau_terms (int level, int nrk,
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
-                    if (tau33_corr) tau33_corr(i,j,k) = s33_corr(i,j,k);
                 });
 
                 ParallelFor(tbxxy, tbxxz, tbxyz,
@@ -475,7 +466,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, z_nd, detJ_arr, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            s13_corr, s23_corr, s33_corr,
+                                            s13_corr, s23_corr,
                                             l_implicit_metric);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
@@ -487,7 +478,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, z_nd, detJ_arr, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           s13_corr, s23_corr, s33_corr,
+                                           s13_corr, s23_corr,
                                            l_implicit_metric);
                 }
 
@@ -504,7 +495,6 @@ void erf_make_tau_terms (int level, int nrk,
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
-                    if (tau33_corr) tau33_corr(i,j,k) = s33_corr(i,j,k);
                 });
 
                 ParallelFor(tbxxy, tbxxz, tbxyz,
@@ -582,6 +572,49 @@ void erf_make_tau_terms (int level, int nrk,
                 }
                 } // end profile
 
+                // Fraction-stress immersed wall law: the strain on the bottom face of the wall cell is
+                // the strain on the face above, as on the zlo face of flat ground, whose hoextrap ghost
+                // (2 u_0 - u_1) gives the first cell the gradient of the face above. The TKE production
+                // of the wall cell then does not see the solid below as a no-slip wall. (The stress on
+                // that face is zeroed below: the wall law supplies it.) One wall face per column, and
+                // the face above is never one, so the copy has no read/write overlap. The copy comes
+                // first, so the wall face carries the unscaled strain; the face above the wall cell
+                // is then scaled by the spacing factor of erf.if_wall_face_spacing.
+                if (ib_wall_face13 && ib_wall_face23) {
+                    auto const m13 = ib_wall_face13->const_array(mfi);
+                    auto const m23 = ib_wall_face23->const_array(mfi);
+                    Box xz = tbxxz & ib_wall_face13->fabbox(mfi.index()); xz.growHi(2, -1);
+                    Box yz = tbxyz & ib_wall_face23->fabbox(mfi.index()); yz.growHi(2, -1);
+                    const Box xz_all = tbxxz & ib_wall_face13->fabbox(mfi.index());
+                    const Box yz_all = tbxyz & ib_wall_face23->fabbox(mfi.index());
+                    ParallelFor(xz, yz,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        if (m13(i,j,k) == zero) {
+                            s13(i,j,k) = s13(i,j,k+1);
+                            if (s13_corr) s13_corr(i,j,k) = s13_corr(i,j,k+1);
+                        }
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        if (m23(i,j,k) == zero) {
+                            s23(i,j,k) = s23(i,j,k+1);
+                            if (s23_corr) s23_corr(i,j,k) = s23_corr(i,j,k+1);
+                        }
+                    });
+                    ParallelFor(xz_all, yz_all,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        if (m13(i,j,k) != zero) {
+                            s13(i,j,k) *= m13(i,j,k);
+                            if (s13_corr) s13_corr(i,j,k) *= m13(i,j,k);
+                        }
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        if (m23(i,j,k) != zero) {
+                            s23(i,j,k) *= m23(i,j,k);
+                            if (s23_corr) s23_corr(i,j,k) *= m23(i,j,k);
+                        }
+                    });
+                }
+
                 if (SmnSmn_a) {
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -619,7 +652,7 @@ void erf_make_tau_terms (int level, int nrk,
                                                 s11, s22, s33,
                                                 s12, s13, s23,
                                                 er_arr,
-                                                s13_corr, s23_corr, s33_corr);
+                                                s13_corr, s23_corr);
                     } else {
                         ComputeStressConsVisc_EB(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                                 cell_data,
@@ -627,7 +660,7 @@ void erf_make_tau_terms (int level, int nrk,
                                                 s12, s13, s23,
                                                 er_arr,
                                                 vfrac,
-                                                s13_corr, s23_corr, s33_corr);
+                                                s13_corr, s23_corr);
                     }
                 } else {
                     if (solverChoice.terrain_type != TerrainType::EB) {
@@ -636,7 +669,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             s11, s22, s33,
                                             s12, s13, s23,
                                             er_arr,
-                                            s13_corr, s23_corr, s33_corr);
+                                            s13_corr, s23_corr);
                     } else {
                         ComputeStressVarVisc_EB(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                             cell_data,
@@ -644,7 +677,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             s12, s13, s23,
                                             er_arr,
                                             vfrac,
-                                            s13_corr, s23_corr, s33_corr);
+                                            s13_corr, s23_corr);
                     }
                 }
 
@@ -661,7 +694,6 @@ void erf_make_tau_terms (int level, int nrk,
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
-                    if (tau33_corr) tau33_corr(i,j,k) = s33_corr(i,j,k);
                 });
                 ParallelFor(tbxxy, tbxxz, tbxyz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -675,6 +707,29 @@ void erf_make_tau_terms (int level, int nrk,
                     tau23(i,j,k) = s23(i,j,k);
                     if (tau23_corr) tau23_corr(i,j,k) = s23_corr(i,j,k);
                 });
+
+                // Fraction-stress immersed wall law: no resolved flux through the wall face,
+                // the wall stress is a source in the wall cell (ERF_ImmersedWallCell.H)
+                if (ib_wall_face13 && ib_wall_face23) {
+                    auto const m13 = ib_wall_face13->const_array(mfi);
+                    auto const m23 = ib_wall_face23->const_array(mfi);
+                    const Box xz = tbxxz & ib_wall_face13->fabbox(mfi.index());
+                    const Box yz = tbxyz & ib_wall_face23->fabbox(mfi.index());
+                    ParallelFor(xz, yz,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        // the strain carries the spacing factor already: only close the wall face
+                        if (m13(i,j,k) == zero) {
+                            tau13(i,j,k) = zero;
+                            if (tau13_corr) tau13_corr(i,j,k) = zero;
+                        }
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        if (m23(i,j,k) == zero) {
+                            tau23(i,j,k) = zero;
+                            if (tau23_corr) tau23_corr(i,j,k) = zero;
+                        }
+                    });
+                }
                 } // end profile
             } // no terrain
         } // MFIter

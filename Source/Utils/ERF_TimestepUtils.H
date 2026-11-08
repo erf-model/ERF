@@ -27,6 +27,11 @@
  * Note that dxinv[2]*(h_xi/h_zeta) == h_xi*idz, which is why h_zeta only ever
  * enters through idz.
  *
+ * The physical horizontal cell widths are dx/mf_x and dy/mf_y, so every
+ * horizontal term (advective and acoustic, including the h_xi and h_eta slope
+ * contributions) is scaled by the map factor in that direction.  The map
+ * factors do not touch the vertical.
+ *
  * @param[in] i               x-index
  * @param[in] j               y-index
  * @param[in] k               z-index
@@ -35,6 +40,8 @@
  * @param[in] v               cell-centered y-velocity
  * @param[in] w               cell-centered vertical velocity (Omega if terrain aware)
  * @param[in] z_nd            nodal physical height field (not accessed if terrain unaware)
+ * @param[in] mf_x            x map factor at the cell center
+ * @param[in] mf_y            y map factor at the cell center
  * @param[in] dxinv           inverse cell spacing of the computational mesh
  * @param[in] l_terrain_aware true to include the metric terms
  * @param[in] l_substepping   true if implicit acoustic substepping is used
@@ -51,6 +58,8 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
                             const amrex::Real v,
                             const amrex::Real w,
                             const amrex::Array4<const amrex::Real>& z_nd,
+                            const amrex::Real mf_x,
+                            const amrex::Real mf_y,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxinv,
                             const bool l_terrain_aware,
                             const bool l_substepping,
@@ -60,6 +69,11 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
     amrex::Real h_xi  = zero;
     amrex::Real h_eta = zero;
     amrex::Real idz   = dxinv[2];
+
+    // Inverse physical horizontal spacing
+    const amrex::Real idx = mf_x * dxinv[0];
+    const amrex::Real idy = mf_y * dxinv[1];
+
     if (l_terrain_aware) {
         h_xi  =   Compute_h_xi_AtCellCenter(i,j,k,dxinv,z_nd);
         h_eta =  Compute_h_eta_AtCellCenter(i,j,k,dxinv,z_nd);
@@ -77,43 +91,43 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
     if (l_substepping) {
         // Implicit substepping removes the g33 metric
         // Acoustic contribution limits dtau, whose max is in the first RK stage (1/3 dt)
-        const amrex::Real Uacoustic = third * c * std::sqrt( dxinv[0] * (dxinv[0] + two * idz * amrex::Math::abs(h_xi )) );
-        const amrex::Real Vacoustic = third * c * std::sqrt( dxinv[1] * (dxinv[1] + two * idz * amrex::Math::abs(h_eta)) );
+        const amrex::Real Uacoustic = third * c * idx;
+        const amrex::Real Vacoustic = third * c * idy;
         if ((nxc > 1) && (nyc == 1)) {
             // 2-D in x-z
-            inv_dt = amrex::max(abs_u*dxinv[0] + Uacoustic,
-                                abs_w*idz                 );
+            inv_dt = abs_u*idx + Uacoustic
+                   + abs_w*idz;
         } else if ((nyc > 1) && (nxc == 1)) {
             // 2-D in y-z
-            inv_dt = amrex::max(abs_v*dxinv[1] + Vacoustic,
-                                abs_w*idz                 );
+            inv_dt = abs_v*idy + Vacoustic
+                   + abs_w*idz;
         } else {
             // 3-D
-            inv_dt = amrex::max(abs_u*dxinv[0] + Uacoustic,
-                                abs_v*dxinv[1] + Vacoustic,
-                                abs_w*idz                 );
+            inv_dt = abs_u*idx + Uacoustic
+                   + abs_v*idy + Vacoustic
+                   + abs_w*idz;
         }
 
     // If we are not doing implicit acoustic substepping, then the z-direction is constrained
     //    by the speed of sound for the computation of the time step
     } else {
         // All the metric terms
-        const amrex::Real Uacoustic = c * amrex::Math::abs(dxinv[0] + idz * h_xi );
-        const amrex::Real Vacoustic = c * amrex::Math::abs(dxinv[1] + idz * h_eta);
+        const amrex::Real Uacoustic = c * amrex::Math::abs(mf_x * (dxinv[0] + idz * h_xi ));
+        const amrex::Real Vacoustic = c * amrex::Math::abs(mf_y * (dxinv[1] + idz * h_eta));
         const amrex::Real Oacoustic = c * amrex::Math::abs(idz);
         if (nxc > 1 && nyc > 1) {
             // 3-D
-            inv_dt = amrex::max(abs_u*dxinv[0] + Uacoustic,
-                                abs_v*dxinv[1] + Vacoustic,
-                                abs_w*idz      + Oacoustic);
+            inv_dt = abs_u*idx + Uacoustic
+                   + abs_v*idy + Vacoustic
+                   + abs_w*idz      + Oacoustic;
         } else if (nxc > 1) {
             // 2-D in x-z
-            inv_dt = amrex::max(abs_u*dxinv[0] + Uacoustic,
-                                abs_w*idz      + Oacoustic);
+            inv_dt = abs_u*idx + Uacoustic
+                   + abs_w*idz      + Oacoustic;
         } else if (nyc > 1) {
             // 2-D in y-z
-            inv_dt = amrex::max(abs_v*dxinv[1] + Vacoustic,
-                                abs_w*idz      + Oacoustic);
+            inv_dt = abs_v*idy + Vacoustic
+                   + abs_w*idz      + Oacoustic;
         } else {
             // 1-D in z
             inv_dt = abs_w*idz + Oacoustic;
@@ -138,6 +152,9 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
  * constraint their effect is already carried by Omega, which is the vertical
  * velocity relative to the terrain-following surfaces.
  *
+ * As in the compressible estimate, the horizontal terms use the physical cell
+ * widths dx/mf_x and dy/mf_y.
+ *
  * @param[in] i               x-index
  * @param[in] j               y-index
  * @param[in] k               z-index
@@ -145,6 +162,8 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
  * @param[in] v               cell-centered y-velocity
  * @param[in] w               cell-centered vertical velocity (Omega if terrain aware)
  * @param[in] z_nd            nodal physical height field (not accessed if terrain unaware)
+ * @param[in] mf_x            x map factor at the cell center
+ * @param[in] mf_y            y map factor at the cell center
  * @param[in] dxinv           inverse cell spacing of the computational mesh
  * @param[in] l_terrain_aware true to include the metric terms
  * @return                    1/dt for this cell
@@ -157,6 +176,8 @@ Compute_InvDt_Anelastic (const int i, const int j, const int k,
                          const amrex::Real v,
                          const amrex::Real w,
                          const amrex::Array4<const amrex::Real>& z_nd,
+                         const amrex::Real mf_x,
+                         const amrex::Real mf_y,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxinv,
                          const bool l_terrain_aware)
 {
@@ -165,9 +186,9 @@ Compute_InvDt_Anelastic (const int i, const int j, const int k,
         idz /= Compute_h_zeta_AtCellCenter(i,j,k,dxinv,z_nd);
     }
 
-    return amrex::max(amrex::Math::abs(u)*dxinv[0],
-                      amrex::Math::abs(v)*dxinv[1],
-                      amrex::Math::abs(w)*idz     );
+    return ( amrex::Math::abs(u)*mf_x*dxinv[0]
+           + amrex::Math::abs(v)*mf_y*dxinv[1]
+           + amrex::Math::abs(w)*idz     );
 }
 
 #endif

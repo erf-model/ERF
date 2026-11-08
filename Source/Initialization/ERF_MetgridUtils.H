@@ -611,10 +611,12 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
     int imax_orig = amrex::ubound(amrex::Box(orig_data)).x;
     int jmin_orig = amrex::lbound(amrex::Box(orig_data)).y;
     int jmax_orig = amrex::ubound(amrex::Box(orig_data)).y;
-    int kmax_orig = amrex::ubound(amrex::Box(orig_data)).z;
+    // The number of origin levels, 0 .. ubound: the loops below run k < kmax_orig, so taking
+    // ubound itself here would leave the top origin level out
+    int kmax_orig = amrex::ubound(amrex::Box(orig_data)).z + 1;
     int kmax_new  = kmax + 1;
 
-    AMREX_ASSERT(kmax_orig < 256);
+    AMREX_ASSERT(kmax_orig <= 256);
     AMREX_ASSERT(kmax_new  < 256);
 
     amrex::GpuArray<amrex::Real,256> new_z;
@@ -661,7 +663,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
     // Check if the data is top-down instead of bottom-up.
     bool flip_data_required = false;
-    if (orig_z[1] > orig_z[kmax_orig-1]) flip_data_required = true;
+    if (orig_z_p[1] > orig_z_p[kmax_orig-1]) flip_data_required = true;
     if (flip_data_required) amrex::Abort("metgrid initialization flip_data_required. Not yet implemented.");
 
     // Search for the first level above the surface in the origin data.
@@ -748,16 +750,18 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         // The surface is the lowest level in the origin data.
 
         // Insert the surface.
-        ordered_z_p[0] = orig_z[0];
+        ordered_z_p[0] = orig_z_p[0];
         ordered_data_p[0] = orig_data(i,j,0,src_comp);
 
         // Similar to above, conditionally more strongly use the
         // surface data.
         int count = 1;
         int knext = count;
+        // The same ERF level as in the branch above: the surface is used through
+        // metgrid_force_sfc_k ERF levels, k = 0 .. metgrid_force_sfc_k-1
         if (metgrid_force_sfc_k > 0) {
             for (int k=knext; k < kmax_orig; k++) {
-                if (orig_z_p[k] > new_z_p[metgrid_force_sfc_k]) {
+                if (orig_z_p[k] > new_z_p[metgrid_force_sfc_k-1]) {
                     knext = k;
                     break;
                 }
@@ -872,8 +876,9 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                    new_data_p);
 
     // Optionally replace the lowest level of data with the surface
-    // field from the origin data.
-    if (metgrid_retain_sfc) new_data[0] = ordered_data[0];
+    // field from the origin data.  That is origin level 0: ordered_data[0] is
+    // the surface only when no origin level lies below it.
+    if (metgrid_retain_sfc) new_data[0] = orig_data(i,j,0,src_comp);
 
     // Save the interpolated data.
     for (int k=0; k < kmax_new; k++) {
@@ -900,7 +905,8 @@ interpolate_column_metgrid_linear (const int& i,
     // This subroutine is a bit ham-handed and can be cleaned up later.
     int imax_orig = amrex::ubound(amrex::Box(orig_data)).x;
     int jmax_orig = amrex::ubound(amrex::Box(orig_data)).y;
-    int kmax_orig = amrex::ubound(amrex::Box(orig_data)).z;
+    // The number of origin levels, 0 .. ubound, so that the top one is searched too
+    int kmax_orig = amrex::ubound(amrex::Box(orig_data)).z + 1;
 
     amrex::Real z;
     if (stag == 'X') {

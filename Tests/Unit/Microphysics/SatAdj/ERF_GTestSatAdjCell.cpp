@@ -32,13 +32,6 @@ void expect_conservation (const CellState& initial, const CellState& final)
     EXPECT_NEAR(moist_final, moist_initial, scaled_tol(moist_initial, amrex::Real(20.0) * kStateTolFactor));
 }
 
-void expect_total_water_conservation (const CellState& initial, const CellState& final)
-{
-    const amrex::Real qt_initial = initial.qv + initial.qc;
-    const amrex::Real qt_final = final.qv + final.qc;
-    EXPECT_NEAR(qt_final, qt_initial, scaled_tol(qt_initial, amrex::Real(20.0) * kStateTolFactor));
-}
-
 void expect_complementarity (const CellState& state)
 {
     const amrex::Real qsat_final = qsat(state.tabs, state.pres_mbar);
@@ -170,7 +163,7 @@ TEST(SatAdjCell, Idempotence)
 TEST(SatAdjCell, NegativeQcRepair)
 {
     // Negative qc can arise from transport overshoots. SatAdj repairs it while
-    // preserving total nonprecipitating water.
+    // preserving total nonprecipitating water and T + (L/cp) qv.
     const amrex::Real tabs = amrex::Real(288.0);
     const amrex::Real pres_mbar = amrex::Real(850.0);
     const amrex::Real qsat_initial = qsat(tabs, pres_mbar);
@@ -182,7 +175,7 @@ TEST(SatAdjCell, NegativeQcRepair)
     adjust(state);
 
     EXPECT_GE(state.qc, amrex::Real(0.0));
-    expect_total_water_conservation(initial, state);
+    expect_conservation(initial, state);
     expect_complementarity(state);
     expect_theta_consistent(state);
 }

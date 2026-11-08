@@ -11,6 +11,8 @@
 
 #include <AMReX_EB2.H>
 #include <AMReX_EBFabFactory.H>
+#include <AMReX_Dim3.H>
+#include <AMReX_GpuContainers.H>
 
 #include <ERF_EBAux.H>
 
@@ -24,6 +26,8 @@
 class eb_ {
 
   public:
+
+    using CutCellList = amrex::Gpu::DeviceVector<amrex::Dim3>;
 
     //! Destroy the EB factory manager.
     ~eb_ ();
@@ -95,8 +99,26 @@ class eb_ {
      * \def USE_FC_FACTORY
      * \brief Select native AMReX face-centered factories instead of ERF auxiliary factories.
      */
-    #define USE_FC_FACTORY 0 // Default to 0: use eb_aux_ (original)
+    #define USE_FC_FACTORY 1 // Default to 1: use amrex native FC factory
     #endif
+
+    //! Return cut x-faces owned by a grid, cached when the EB factories are built.
+    [[nodiscard]] CutCellList const& get_u_cut_cells (int grid_index) const noexcept
+    {
+        return m_u_cut_cells[grid_index];
+    }
+
+    //! Return cut y-faces owned by a grid, cached when the EB factories are built.
+    [[nodiscard]] CutCellList const& get_v_cut_cells (int grid_index) const noexcept
+    {
+        return m_v_cut_cells[grid_index];
+    }
+
+    //! Return cut z-faces owned by a grid, cached when the EB factories are built.
+    [[nodiscard]] CutCellList const& get_w_cut_cells (int grid_index) const noexcept
+    {
+        return m_w_cut_cells[grid_index];
+    }
 
     //! Return the cell-centered EB factory.
     const std::unique_ptr<amrex::EBFArrayBoxFactory>& get_const_factory () const noexcept { return m_factory; }
@@ -161,6 +183,15 @@ class eb_ {
     std::unique_ptr<amrex::EBFArrayBoxFactory> m_u_factory_fc = nullptr;
     std::unique_ptr<amrex::EBFArrayBoxFactory> m_v_factory_fc = nullptr;
     std::unique_ptr<amrex::EBFArrayBoxFactory> m_w_factory_fc = nullptr;
+
+    // Persistent per-grid cut-face lists for sparse GPU wall-correction launches.
+    amrex::Vector<CutCellList> m_u_cut_cells;
+    amrex::Vector<CutCellList> m_v_cut_cells;
+    amrex::Vector<CutCellList> m_w_cut_cells;
+
+    void build_cut_cell_lists (
+        amrex::FabArray<amrex::EBCellFlagFab> const& flags,
+        amrex::Vector<CutCellList>& cut_cells);
 
     /**
      * \brief Build terrain EB geometry for the supplied Geometry.

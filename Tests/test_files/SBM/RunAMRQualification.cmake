@@ -6,6 +6,9 @@ foreach(_required IN ITEMS ERF_EXECUTABLE INPUT_FILE TEST_ROOT MPIEXEC
 endforeach()
 
 file(MAKE_DIRECTORY "${TEST_ROOT}")
+if(DEFINED ENV{TMPDIR})
+  file(MAKE_DIRECTORY "$ENV{TMPDIR}")
+endif()
 set(_log_file "${TEST_ROOT}/qualification.log")
 set(_command "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "${MPI_RANKS}"
              "${ERF_EXECUTABLE}" "${INPUT_FILE}")
@@ -15,7 +18,7 @@ if(ZERO_FLOW)
   list(APPEND _command
     "erf.sbm_amr_qualification_expect_zero_flow=true"
     "prob.U_0=0" "prob.V_0=0" "prob.W_0=0"
-    "erf.anelastic=1" "erf.anelastic_type=RK2")
+    "erf.compressibility_type=Anelastic" "erf.timestepping_type=RK2")
 endif()
 if(DEFINED SBM_NBINS)
   math(EXPR _sbm_cloud_rain_split "${SBM_NBINS} / 2")

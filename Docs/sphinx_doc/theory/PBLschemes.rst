@@ -655,7 +655,8 @@ The turbulent diffusion coefficient in the mixed layer is given by:
    w_s = \frac{u_*}{\phi_m}
 
 where :math:`\kappa` is the von Karman constant, :math:`w_s` is a representative velocity scale in
-the mixed layer, and :math:`h` is the PBL height. The stability function :math:`\phi_m` is computed
+the mixed layer, and :math:`h` is the PBL height (a column whose bulk Richardson number never reaches
+the critical value takes the top of the scan, see :ref:`the YSU PBL height scan <ysu-pblh-scan>`). The stability function :math:`\phi_m` is computed
 to be consistent with the surface layer bottom. For unstable regime (:math:`u_*\theta_* < 0`), it is
 calculated as follows:
 
@@ -861,7 +862,7 @@ based on cloud water/ice content.
 
 **Enhancement:** Proper handling of moisture effects on buoyancy throughout the scheme.
 
-- Computes :math:`\theta_v = \theta(1 + 0.61 \cdot q_v)` at all levels
+- Computes the virtual potential temperature :math:`\theta_v` at all levels, including vapor buoyancy and condensate loading (see :ref:`MoistPotentialTemperatures`)
 - Used in Richardson number diagnosis: :math:`Rig = \frac{g}{\theta_v} \frac{d\theta_v}{dz} / (shear)^2`
 - Critical for accurate PBL height and convective strength
 
@@ -1353,6 +1354,47 @@ which is in turn used to provide an improved estimate of :math:`h`, which is the
 
    This two step-process matches the WRF implementation, but this could be extended iteratively to reach convergence.
 
+.. _ysu-pblh-scan:
+
+On the grid, YSUNew finds :math:`h` by scanning the bulk Richardson number of each column upward from its
+first fluid cell :math:`k_s` to the top cell :math:`k_{hi}`, as WRF does (``bl_ysu.F90``):
+
+- If :math:`{\rm Rib}` first reaches :math:`{\rm Rib_{cr}}` at a level :math:`k > k_s`, :math:`h` is interpolated
+  linearly in :math:`{\rm Rib}` between :math:`z_{k-1}` and :math:`z_k`.
+  This includes a crossing at the top cell :math:`k_{hi}`.
+- The first cell's :math:`{\rm Rib}` only seeds the lower end of the first interval. If it and the next
+  level are both at or above :math:`{\rm Rib_{cr}}`, :math:`h` is the floor :math:`h_{min}` (WRF's
+  ``brint = 0``): the height of the first cell's centre on a flat mesh, or of its top face on a
+  terrain-fitted mesh, and at least 10 m.
+- If :math:`{\rm Rib}` stays below :math:`{\rm Rib_{cr}}` up to :math:`k_{hi}`, :math:`h` is the top of the scan,
+  :math:`z_{k_{hi}}` (WRF's ``brint = 1``).
+
+The result is then kept in :math:`[h_{min},\ h_{max}]` with :math:`h_{max} = 0.9\, z_{k_{hi}}`.
+The PBL top index is :math:`k_{hi}` in the no-crossing case. The K profile then reaches :math:`h`, and the
+cells between :math:`h` and :math:`k_{hi}` keep the minimum diffusivity. No entrainment flux is added at the
+top cell of such a column.
+
+MRF uses the same treatment for a column with no crossing, in its first guess, its corrector and its
+zero-Ri extent (WRF ``module_bl_mrf.F``). Its PBL top index is then :math:`k_{hi}` as well, so the K profile
+and, with ``erf.enable_mrf_countergradient``, the countergradient terms reach :math:`h`. When the first two
+levels are both at or above :math:`{\rm Rib_{cr}}`, MRF takes the first level's height, as WRF does, rather
+than extrapolating above it.
+
+Before erf-model/ERF#4458, both schemes gave a column with no crossing :math:`h_{min}`, and YSUNew also sent a
+crossing at :math:`k_{hi}` there. MRF also set its index to :math:`k_s + 1`, so only the first cell used the
+K profile.
+
+In ``YSUNew`` the sign of the surface virtual heat flux selects the form of the diffusivity inside the PBL. A column
+counts as stable when the flux is negative and as unstable or neutral otherwise, as WRF does with its surface bulk
+Richardson number (``sfcflg``). Over a neutral surface the flux is round-off. With a plane-averaged surface layer
+(the default ``erf.most.average_policy``) it comes from an averaged :math:`\theta` that differs from the surface value
+only in the last bits, and how depends on the box and tile decomposition. A flux within
+:math:`64\,\epsilon\, u_* \theta_1` of zero therefore counts as neutral, where :math:`\epsilon` is the machine epsilon
+of ``amrex::Real`` and :math:`\theta_1` the dry potential temperature of the lowest cell, so that the choice does not
+depend on the decomposition. With :math:`u_* = 0.3` m/s and :math:`\theta_1 = 300` K the band is about
+:math:`1.3\times 10^{-12}` K m/s in double precision and :math:`7\times 10^{-4}` K m/s (about 0.8 W/m\ :sup:`2`) in
+single precision.
+
 
 Countergradient corrections are computed as follows:
 
@@ -1409,7 +1451,7 @@ The YSUNew implementation includes extensions for handling cloud-topped boundary
 
 **Liquid Potential Temperature PBLH Extension**
 
-When enabled, an additional upward scan of the PBL height is performed using liquid potential temperature (:math:`\theta_{li}`) as the stability criterion. This extension allows detection of deeper cloud-topped boundary layers where the traditional bulk Richardson number criterion may underestimate the mixed layer depth. The scan uses an unstable threshold (zero Richardson number) to extend the PBL height upward through layers where cloud liquid water provides buoyancy support.
+When enabled, an additional upward scan of the PBL height is performed using the liquid-ice water potential temperature (:math:`\theta_{li}`, written :math:`\theta_l` in :ref:`MoistPotentialTemperatures`) as the stability criterion. This extension allows detection of deeper cloud-topped boundary layers where the traditional bulk Richardson number criterion may underestimate the mixed layer depth. The scan uses an unstable threshold (zero Richardson number) to extend the PBL height upward through layers where cloud liquid water provides buoyancy support.
 
 Configuration: ``enable_ysu_topdown = true``, ``use_moisture = true``
 

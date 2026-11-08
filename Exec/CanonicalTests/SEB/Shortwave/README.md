@@ -27,6 +27,14 @@ step 2 is what the checker reads.
 - `inputs_zen20`: the sun 70 deg above the horizon; the shadow reaches 30 m,
   so the six lowest rows of the short west wall are shadowed and the top two
   and the roof are lit.
+- `inputs_zen20_halo`: the zen20 sun on a ray map whose per-rank patches do
+  not span the domain: 2 x 1 hemisphere rays make the shallowest view ray
+  45 deg, the sun floor `erf.ibseb.sun_min_elev_deg = 60` is below the
+  70 deg sun, and the halo is ceil(140 / tan(45) / 5 m) + 1 = 29 cells, so
+  a 32-cell box grown by 29 covers 90 of the 128 columns. Every shadow must
+  still match the independent ray cast (the halo is the reach of the
+  shallowest ray, not a cut-off), and the run log must say the patches do
+  not span the domain.
 - `inputs_solar`: sun from the site and time, Boulder at solar noon on the
   June solstice, where the zenith must be the latitude minus the declination
   and the sun due south.
@@ -79,8 +87,8 @@ walls; it reads the geometry from the face dump.
   tall west wall: unshadowed, direct = DNI sin z       PASS n=476
   short core west wall: shadow where z < 30.1 m (gap 40 m) PASS shadowed 22/38
 == solar (4 ranks)
-[IBSEB DEBUG] lev=0 sun: zenith=16.59919815 deg azimuth=181.0445156 deg s=(-0.00520763337,-0.2856274863,0.9583265725) DNI=907.4975233 W/m2 diffuse_h=1
-  solar noon Boulder: zenith 16.60 (expected 16.60), azimuth 181.0 (expected 180) -> PASS
+[IBSEB DEBUG] lev=0 sun: zenith=16.55032053 deg azimuth=178.9322127 deg s=(0.005308409168,-0.2848078608,0.9585699261) DNI=907.5832743 W/m2 diffuse_h=1
+  solar noon Boulder: zenith 16.55 (expected 16.55), azimuth 178.9 (expected just under 180) -> PASS
   clear-sky beam on roofs: max direct 870 W/m2 (> 500) -> PASS
 == zen60 on 1 rank against 4 ranks
   rank independence of the face dump: PASS (2616 vs 2616 faces; geometry, view, shadow, shortwave exact, atmosphere columns to 1e-9)

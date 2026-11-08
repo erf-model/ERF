@@ -1,4 +1,10 @@
 
+    // On a mesh other than ConstantDz, heights come from z_cc and the vertical levels,
+    //    not from geomdata's prob_lo[2], prob_hi[2] and CellSize(2)
+    const bool use_z_phys = use_physical_z();
+    const Real phys_z_lo  = phys_zlo(geomdata, lev);
+    const Real phys_z_hi  = phys_zhi(geomdata, lev);
+
     ParmParse pp_prob("prob");
 
     Real rho_0 = zero; pp_prob.query("rho_0", rho_0);
@@ -17,8 +23,10 @@
     Real pert_deltaT = zero; pp_prob.query("pert_deltaT", pert_deltaT);
     Real pert_deltaQV = zero; pp_prob.query("pert_deltaQV", pert_deltaQV);
 
-    Real pert_periods_T = zero; pp_prob.query("pert_periods_T", pert_periods_T);
-    Real pert_periods_QV = zero; pp_prob.query("pert_periods_QV", pert_periods_QV);
+    // The periods default to 5, as pert_periods_U/V do: a zero period would make
+    //    cos(cval*(x-xc)) identically one, a uniform bias rather than a zero-mean wave
+    Real pert_periods_T = amrex::Real(5.0); pp_prob.query("pert_periods_T", pert_periods_T);
+    Real pert_periods_QV = amrex::Real(5.0); pp_prob.query("pert_periods_QV", pert_periods_QV);
 
     Real prob_lo_x = geomdata.ProbLo(0);
     Real prob_hi_x = geomdata.ProbHi(0);
@@ -40,21 +48,22 @@
         const Real* dx = geomdata.CellSize();
         const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real y = prob_lo[1] + (j + myhalf) * dx[1];
-        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_cc(i,j,z_sfc_nd); // height above the ground
 
         // Define a point (xc,yc,zc) at the center of the domain
         const Real xc = myhalf * (prob_lo[0] + prob_hi[0]);
         const Real yc = myhalf * (prob_lo[1] + prob_hi[1]);
-        const Real zc = myhalf * (prob_lo[2] + prob_hi[2]);
+        const Real zc = myhalf * (phys_z_lo + phys_z_hi);
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
         // Add temperature perturbations
-        if ((z <= pert_ref_height) && (T_0_Pert_Mag != zero)) {
+        if ((z_agl <= pert_ref_height) && (T_0_Pert_Mag != zero)) {
             Real rand_double = amrex::Random(engine); // Between zero and one
             state_pert(i, j, k, RhoTheta_comp) = (rand_double*two - one)*T_0_Pert_Mag;
         }
-        if ((z <= pert_ref_height) && (Q_0_Pert_Mag != zero)) {
+        if (use_moisture && (z_agl <= pert_ref_height) && (Q_0_Pert_Mag != zero)) {
             Real rand_double = amrex::Random(engine); // Between zero and one
             state_pert(i, j, k, RhoQ1_comp) = (rand_double*two - one)*Q_0_Pert_Mag;
         }
@@ -67,16 +76,16 @@
         // sinusoidal variation of theta and qv for regression tests
         if (pert_deltaT != zero)
         {
-            const Real zl = z / pert_ref_height;
+            const Real zl = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
 
             Real rhotheta  = state(i,j,k,RhoTheta_comp);
             Real rho       = state(i,j,k,Rho_comp);
-            Real qv        = state(i,j,k,RhoQ1_comp) / rho;
+            Real qv        = (use_moisture) ? state(i,j,k,RhoQ1_comp) / rho : zero;
             Real Told      = getTgivenRandRTh(rho,rhotheta,qv);
             Real P         = getPgivenRTh(rhotheta,qv);
 
-            Real Tpert    = tfac * damp * z * std::cos(cval * (x - xc));
+            Real Tpert    = tfac * damp * z_agl * std::cos(cval * (x - xc));
             Real Tnew     = Told + Tpert;
 
             Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
@@ -88,14 +97,14 @@
 
         if (use_moisture && pert_deltaQV != zero)
         {
-            const Real zl = z / pert_ref_height;
+            const Real zl = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
 
             Real rhoold = state(i,j,k,Rho_comp);
             Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
 
             Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
-            Real qvnew = qvold + qvfac * damp * z * std::cos(dval * (x - xc));
+            Real qvnew = qvold + qvfac * damp * z_agl * std::cos(dval * (x - xc));
 
             state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
         }

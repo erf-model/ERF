@@ -69,6 +69,10 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         Abort("MOST Zref must be 10m for YSU PBL scheme");
     }
 
+    // The PBL height for the SurfaceLayer (the w* correction and diagnostics), as MRF
+    // and YSUNew hand theirs over
+    MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -118,7 +122,11 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             const Real t_surf = t_surf_arr(i,j,0);
             const Real t_layer = t10av_arr(i,j,0);
             const Real ws_layer = ws10av_arr(i,j,0);
-            const Real Rib_layer = CONST_GRAV * most_zref / (ws_layer*ws_layer) * (t_layer - t_surf)/(t_layer);
+            // The squared wind speed in the bulk Richardson numbers is floored at 1 m^2/s^2,
+            // as in WRF's YSU (and YSUNew), so a calm column gives a finite number
+            const Real ws2_floor = Real(1.0);
+            const Real Rib_layer = CONST_GRAV * most_zref / amrex::max(ws_layer*ws_layer, ws2_floor)
+                                 * (t_layer - t_surf)/(t_layer);
 
             // For now, we only support stable boundary layers
             if (Rib_layer < unst_Ribcr) {
@@ -155,7 +163,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                                               + (vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl))*(vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl)) );
                 const Real theta = cell_data(i,j,kpbl,RhoTheta_comp) / cell_data(i,j,kpbl,Rho_comp);
                 Rib_dn = Rib_up;
-                Rib_up = (theta-base_theta)/base_theta * CONST_GRAV * zval / ws2_level;
+                Rib_up = (theta-base_theta)/base_theta * CONST_GRAV * zval / amrex::max(ws2_level, ws2_floor);
                 above_critical = Rib_up >= Rib_cr;
             }
 
@@ -197,6 +205,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         // -- Compute diffusion coefficients --
 
         const auto& u_star_arr = SurfLayer->get_u_star(level)->const_array(mfi);
+        const similarity_funs l_sfuns = SurfLayer->similarity_functions();
         const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
         const auto  q_star_arr = (use_moisture) ?
                                  SurfLayer->get_q_star(level)->const_array(mfi) : Array4<const Real>{};
@@ -264,6 +273,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                                                         theta_k, qv_k, use_moisture);
                     sl.zval    = zval;
                     sl.zeta    = zval / l_obuk;
+                    sl.sfuns   = l_sfuns;
                     ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
                 }
 
@@ -305,5 +315,17 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 K_turb(i,j,k,EddyDiff::Theta_v) = K_turb(i,j,0,EddyDiff::Theta_v);
             }
         });
+
+        // Under TileNoZ the tile spans the full column, and pblh_mf has no ghost cells,
+        // so the tiles together fill every cell
+        {
+            auto pblh_out = pblh_mf.array(mfi);
+            ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                pblh_out(i,j,k) = pblh_arr(i,j,0);
+            });
+        }
     } // mfi
+
+    SurfLayer->set_pblh(level, pblh_mf);
 }

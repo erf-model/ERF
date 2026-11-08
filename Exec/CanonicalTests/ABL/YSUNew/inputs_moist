@@ -25,8 +25,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY - Strong surface heating with high moisture
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
-erf.most.zref = 10.0     # reference height [m]
-erf.most.surf_temp = 308.0  # surface temperature [K] (warm)
+erf.most.zref = 15.625   # reference height [m]: first cell center (dz = 31.25 m)
 erf.most.surf_temp_flux = 0.1  # surface temperature flux (positive = unstable, K*m/s)
 
 # Upper boundary - stable layer capping the PBL

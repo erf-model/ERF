@@ -23,7 +23,7 @@ ylo.dirichlet_file = "stable_inflow.txt"
 zlo.type                    = "surface_layer"
 erf.most.z0                 = 0.29 
 erf.most.k_arr_in = 0 0
-erf.most.surf_temp          = 306.0
+erf.most.pot_surf_temp      = 306.0
 erf.most.surf_heating_rate  = -1.0
 
 zhi.type = "SlipWall"

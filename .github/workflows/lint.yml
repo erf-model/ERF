@@ -1,0 +1,70 @@
+name: Lint
+
+# Checks on the CI itself: actionlint type-checks the workflow files
+# (undefined matrix keys, bad expressions, wrong inputs) and runs shellcheck on
+# their run: blocks; shellcheck also covers the helper scripts under
+# .github/workflows. Cache helper tests use mocked registry commands; workflow
+# contracts check matrix tags, restore/save settings, and publication guards.
+# Mypy checks the cache driver and both implementations of the transport interface.
+# These checks do not compile ERF.
+on:
+  push:
+    branches: [development]
+    paths: ['.github/**']
+  pull_request:
+    paths: ['.github/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-lint
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: "Install shellcheck (actionlint uses it on run blocks)"
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "${ACTIONLINT_VERSION}"
+      - name: actionlint
+        env:
+          # SC2086 (unquoted expansions) at info level is noise in these scripts.
+          SHELLCHECK_OPTS: -S warning
+        # runner.workspace is real (used throughout AMReX and ERF) but absent from
+        # actionlint's model of the runner context.
+        run: ./actionlint -color -ignore 'property "workspace" is not defined in object type'
+
+  shellcheck:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Test GHCR cache helpers
+        run: python3 -m unittest discover -s .github/actions/ccache-trunk -p 'test_*.py' -v
+      - name: Install cache check dependencies
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/cache-checks"
+          "${RUNNER_TEMP}/cache-checks/bin/python" -m pip install -r .github/tests/requirements.txt
+      - name: Type-check GHCR cache transports
+        run: '"${RUNNER_TEMP}/cache-checks/bin/python" -m mypy --config-file .github/tests/mypy.ini'
+      - name: Check GHCR workflow contracts
+        run: |
+          "${RUNNER_TEMP}/cache-checks/bin/python" .github/tests/cache_workflows.py
+          "${RUNNER_TEMP}/cache-checks/bin/python" -m unittest discover -s .github/tests -p 'test_*.py' -v
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
+      - name: shellcheck
+        run: |
+          shellcheck --version
+          find .github -name '*.sh' -print0 | xargs -0 shellcheck -S warning

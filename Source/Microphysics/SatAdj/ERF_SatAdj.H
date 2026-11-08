@@ -249,6 +249,15 @@ public:
                       amrex::Real& qv,
                       amrex::Real& qc)
     {
+        if (qc < zero) {
+            // Repair negative cloud water by transferring the deficit back to vapor,
+            // with the latent-heat change that keeps T + (L/cp) * qv, and before
+            // the saturation test, since the repair warms the cell.
+            tabs -= fac_cond * qc;
+            qv += qc;
+            qc = zero;
+        }
+
         amrex::Real qsat;
         erf_qsatw(tabs, pres_mbar, qsat);
 
@@ -261,13 +270,6 @@ public:
             const amrex::Real qvprev = qv;
             const amrex::Real qcprev = qc;
 #endif
-
-            if (qc < 0) {
-                // Repair negative cloud water by transferring the deficit back to vapor
-                // before solving the saturated equilibrium and clamping qc to zero.
-                qv += qc;
-                qc = zero;
-            }
 
             tabs = NewtonSolveSatTemperature(fac_cond, tabs, pres_mbar, qv, qsat);
 

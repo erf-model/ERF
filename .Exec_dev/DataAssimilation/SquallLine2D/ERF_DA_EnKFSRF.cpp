@@ -253,6 +253,8 @@ ERF::PerformDataAssimilation(int da_iter)
     MultiFab d_vec;
     compute_d_vec(y_obs, mean_H_xf, d_vec);
 
+    WriteInnovationRMS(d_vec, "innovation_norm.txt", da_iter);
+
     Print() << "Computing dvec complete" << std::endl;
 
     /*std::string pltname_diff = "plt_rhs_diff";

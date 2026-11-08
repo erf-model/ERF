@@ -121,11 +121,56 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``m``
      - ``FillMinus999WhenUnavailable``
      - Roughness height from the surface layer
+   * - ``u_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Grid-relative x wind 10 m above the local surface, from the surface-layer profile
+   * - ``v_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Grid-relative y wind 10 m above the local surface, from the surface-layer profile
+   * - ``u_east_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Eastward wind 10 m above the local surface, from the surface-layer profile
+   * - ``v_north_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Northward wind 10 m above the local surface, from the surface-layer profile
    * - ``OLR``
      - ``Radiation``
      - ``W/m^2``
      - ``FillMinus999WhenUnavailable``
      - Outgoing longwave radiation at the model top
+   * - ``topographic_shadow``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Direct sunlight blocked by terrain or by a midpoint sun below the cutoff when averaged cosine exceeds it (1 blocked, 0 otherwise)
+   * - ``terrain_direct_factor``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Terrain correction factor for direct shortwave
+   * - ``terrain_incidence``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Nonnegative cosine of sunlight incidence on terrain
+   * - ``unshaded_sw_flux_dn``
+     - ``Radiation``
+     - ``W/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Surface downwelling shortwave before terrain correction
+   * - ``terrain_sw_flux_dn``
+     - ``Radiation``
+     - ``W/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Surface downwelling shortwave after terrain correction
    * - ``seb_t_sfc``
      - ``Radiation``
      - ``K``
@@ -146,6 +191,16 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``W/m^2``
      - ``FillMinus999WhenUnavailable``
      - Latent heat flux in the two-stream simplified surface energy balance
+   * - ``seb_sw_net``
+     - ``Radiation``
+     - ``W/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Net shortwave absorbed by the two-stream simplified surface energy balance at its last update after the dycore
+   * - ``ibseb_ground_shadow``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Shadow of the immersed-boundary buildings on the ground for the two-stream surface energy balance on the sweep's shortwave: 1 shaded, 0 sunlit
    * - ``sens_flux``
      - ``SurfaceFlux``
      - ``kg K m^-2 s^-1``
@@ -160,7 +215,7 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``SurfaceState``
      - ``Pa``
      - ``AlwaysAvailable``
-     - Surface pressure
+     - Surface pressure, at the ground
    * - ``sea_level_pressure``
      - ``SurfaceState``
      - ``Pa``
@@ -226,6 +281,16 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``kg/m^2``
      - ``FillZeroWhenUnavailable``
      - Column-integrated graupel
+   * - ``cloud_optical_depth_sw``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Estimated per-level shortwave hydrometeor extinction optical depth (including rain, snow, and graupel; may be partial-column)
+   * - ``cloud_albedo_est``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Per-level hydrometeor-only reflectance proxy (including rain, snow, and graupel; excludes surface, gas, and aerosol contributions; may be partial-column)
    * - ``surface_diagnostic_source``
      - ``SurfaceLayer``
      - ``1``
@@ -356,6 +421,16 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``m``
      - ``FillMinus999WhenUnavailable``
      - Accumulated subsurface runoff
+   * - ``snow``
+     - ``LandSurface``
+     - ``kg m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP snow water equivalent
+   * - ``snowh``
+     - ``LandSurface``
+     - ``m``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP physical snow depth
    * - ``noahmp_temperature_2m_vegetated``
      - ``LandSurface``
      - ``K``
@@ -401,7 +476,9 @@ configuration and runtime details that cannot be inferred from metadata alone.
 .. note::
 
    For the ``landmask`` variable, land is ``1`` and sea is ``0``. Buildings are
-   ``2`` when using ``ImmersedForcing``.
+   ``2`` when using ``ImmersedForcing`` on levels where
+   :math:`\sqrt{\Delta x\,\Delta y} \leq 50\,\mathrm{m}`, matching the building
+   forcing cutoff. Immersed terrain retains its ``2`` mask at all resolutions.
 
 If a requested fixed diagnostic is not selectable for the active configuration,
 ERF warns and skips it. The descriptor table above records metadata; it does
@@ -431,12 +508,27 @@ The selection contract and the value written after selection are separate:
      - Selectable: ERF accepts these fixed request names; the runtime
        SurfaceLayer source may still be absent.
      - Value: SurfaceLayer scalar values; ``-999`` when the source pointer is absent.
+   * - ``u_10m``, ``v_10m``, ``u_east_10m``, ``v_north_10m``
+     - Selectable: fixed request names; the runtime SurfaceLayer source may still be absent.
+     - Value: the wind 10 m above the local surface, as WRF's ``U10``/``V10``. Its speed is
+       :math:`u_* / \kappa \, [\ln(10/z_0) - \psi_m(10/L)]` from the surface layer's
+       :math:`u_*`, :math:`z_0` and Obukhov length :math:`L` (with :math:`10/L` capped at 1,
+       as for ``temperature_2m``), and its direction that of the wind at the centre of the
+       first cell. ``u_east_10m`` and ``v_north_10m`` are turned earth-relative with the
+       grid orientation from the run's latitude and longitude, as the sampled ``u_east``
+       and ``v_north`` are; without them the grid is taken to be aligned with east. ``-999``
+       without a surface layer, or where :math:`z_0 \ge 10` m.
    * - ``pblh``
      - Selectable: fixed request name.
      - Native SHOC ``pblh`` is reported in metres above local ground (AGL). Value: native SHOC PBL height when native SHOC diagnostics are present; otherwise SurfaceLayer; ``-999`` if neither exists.
    * - ``OLR``
      - Selectable: fixed request name.
      - Value: radiation output; ``-999`` when the radiation source is absent.
+   * - ``topographic_shadow``, ``terrain_direct_factor``, ``terrain_incidence``, ``unshaded_sw_flux_dn``, ``terrain_sw_flux_dn``
+     - Selectable: when either ``erf.topo_shading`` or ``erf.slope_rad`` is enabled.
+     - Value: diagnostics of the RRTMGP terrain correction, held between radiation
+       updates. ``-999`` before the first radiation update. See
+       :ref:`sec:Plotfile2DTopographicRadiation`.
    * - ``seb_t_sfc``, ``seb_q_sfc``
      - Selectable: fixed request names.
      - Value: the two-stream simplified surface energy balance's own prognostic surface
@@ -456,7 +548,10 @@ The selection contract and the value written after selection are separate:
      - Value: legacy conservative surface flux outputs.
    * - ``surf_pres``
      - Selectable: fixed request name.
-     - Value: pressure computed from the lowest atmospheric state.
+     - Value: the pressure at the ground, as WRF's ``PSFC``: the pressure of the
+       lowest cell's state plus :math:`\rho g z_c`, with :math:`z_c` the height
+       of that cell's centre above the ground -- the same surface pressure the
+       radiation and the surface layer use.
    * - ``sea_level_pressure``
      - Selectable: fixed request name in dry and moist configurations.
      - Value: pressure reduced hydrostatically from the local terrain surface
@@ -504,6 +599,61 @@ The selection contract and the value written after selection are separate:
    * - ``near_surface_diagnostic_source``
      - Selectable: a Noah-MP or SurfaceLayer pathway exists, including a dry source-only request.
      - Value: categorical code ``0`` through ``6``; its ``AlwaysAvailable`` metadata policy records ``missing_value: null``.
+
+.. _sec:Plotfile2DTopographicRadiation:
+
+Topographic shading diagnostics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+With RRTMGP on static fitted terrain, enabling ``erf.topo_shading`` or
+``erf.slope_rad`` produces five diagnostics of the surface shortwave correction.
+Both options default to false; see :ref:`inputs-topographic-radiation` for
+configuration and :ref:`sec:TopographicRadiation` for the equations.
+
+``topographic_shadow`` is 1 where intervening terrain blocks direct sunlight
+and 0 otherwise. It remains 0 when shading is disabled, even if slope
+correction is enabled. A slope facing away from the sun can have zero direct
+flux without a cast shadow, so the mask alone does not describe all slope
+effects.
+
+``terrain_direct_factor`` multiplies the horizontal direct shortwave flux.
+It is 0 in a cast shadow and can exceed 1 on a sun-facing slope.
+``terrain_incidence`` is the nonnegative cosine of the angle between the sun
+direction and the terrain normal. If RRTMGP's interval-averaged zenith cosine
+is at or below ``1.e-4``, the mask is 0 and the direct factor is 1. If the
+midpoint sun is at or below the same cutoff while the averaged cosine is above
+it, incidence is 0 and the direct factor is 0; the mask is 1 when shading is
+enabled and 0 when only slope correction is enabled. Thus mask 0 alone does
+not imply daytime illumination.
+
+``unshaded_sw_flux_dn`` and ``terrain_sw_flux_dn`` are the total downwelling
+shortwave fluxes before and after correction, respectively. They include the
+unchanged diffuse component, so corrected shortwave need not vanish in shadow.
+Where Noah-MP receives this forcing, its ``sw_flux_dn`` corresponds to the
+corrected flux.
+
+These fields update with radiation at ``erf.rad_freq_in_steps`` and remain
+fixed between radiation updates. More frequent plotfiles do not cause more
+frequent shadow calculations. Before the first radiation update, all five
+diagnostics use the missing value ``-999``. They are selectable only when
+``erf.topo_shading`` or ``erf.slope_rad`` is enabled.
+
+To visualize the mask and its effect, add these outputs to a case with terrain
+correction enabled:
+
+.. code-block:: text
+
+   erf.plot2d_file_1 = plt2d
+   erf.plot2d_int_1 = 1
+   erf.plot2d_vars_1 = z_surf topographic_shadow terrain_direct_factor terrain_incidence unshaded_sw_flux_dn terrain_sw_flux_dn
+
+In ParaView or VisIt, color by ``topographic_shadow`` and overlay ``z_surf``
+contours to locate shadows relative to ridges and valleys. Compare the two
+shortwave fields to see the forcing change. For a simple directional check,
+the fixed low eastern sun in :ref:`inputs-topographic-radiation` should cast
+shadows west of a hill; geographic west need not align with the negative grid
+x direction on a rotated real-case grid. Use outputs after a radiation update
+and exclude ``-999`` values from the color scale.
 
 .. _sec:Plotfile2DSeaLevelPressure:
 
@@ -577,7 +727,8 @@ The output units are pascals. It is pressure reduced to ERF's physical
 mean sea level. The diagnostic uses the lowest model level, assumes the fixed
 lapse rate below it, applies no horizontal smoothing, does not calculate
 1000-hPa height, is computed independently on each AMR level, and does not
-alter model state. ``surf_pres`` remains a separate lowest-cell-center field.
+alter model state. ``surf_pres`` remains a separate field, the pressure at the
+ground.
 
 .. code-block:: text
 
@@ -689,6 +840,15 @@ equivalent.
 |                             | liquid-water equivalent                          |          |
 +-----------------------------+--------------------------------------------------+----------+
 
+``precip_rain_accum``, ``precip_snow_accum`` and ``precip_graupel_accum`` each
+hold that one species, as their 3D counterparts ``rain_accum``, ``snow_accum``
+and ``graupel_accum`` do. For ``Morrison``, ``WSM6`` and ``WDM6``,
+``precip_total_accum`` is the scheme's precipitation total, the 3D
+``precip_accum``, which also counts the cloud ice (and, for ``Morrison``, the
+cloud water) that fell, so it can exceed the rain plus ``precip_frozen_accum``.
+For the other schemes it is the rain plus the frozen species; for ``SAM`` that
+leaves out the cloud ice that the 3D ``precip_accum`` counts.
+
 ``precip_total_accum`` is the normalized native total when one exists, or the
 sum of normalized rain and frozen accumulations otherwise.
 ``precip_frozen_accum`` is the sum of normalized snow, graupel, and hail
@@ -771,6 +931,219 @@ not included.
 The metadata sidecar records these fields as ``ColumnIntegral`` diagnostics
 with ``FillZeroWhenUnavailable`` missing-value policy. Water-path diagnostics
 use the built-in metadata fields and add no water-path-specific metadata keys.
+
+.. _sec:Plotfile2DCloudOptics:
+
+Estimated cloud optical depth and reflectance
+---------------------------------------------
+
+``cloud_optical_depth_sw`` and ``cloud_albedo_est`` are output-only,
+dimensionless (units ``1``) column diagnostics. Either name can be selected
+alone in either Plot2D stream or in station 2D output; both follow
+``integrated_qg`` in canonical order regardless of input order. They are
+selectable when **any** conserved cloud-liquid, cloud-ice, rain, snow, or
+graupel mass component is present in the active moisture scheme. Dry schemes
+and schemes without conserved hydrometeor mass exclude both names. There is
+no dependency on RRTMGP, TwoStream, SHOC, Noah-MP, or a surface model.
+
+For each present species :math:`s\in\{qc,qi,qr,qs,qg\}`:
+
+.. math::
+
+   W_s(i,j)=\int \max(0,(\rho q_s)_{i,j,z})\,dz,
+   \qquad \tau_{sw}=\max\left(0,\sum_s k_{ext,s}W_s\right),
+   \qquad A_{est}=\frac{\tau_{sw}}{\tau_{sw}+c}.
+
+Here :math:`c` is the run-time ``reflectance_scale``; the default of 7.7 is
+explained below.
+
+The conserved component already contains density; it is not multiplied by
+density again. Absent species contribute exactly zero, and number
+concentrations are excluded. Negative mass values are clipped to zero before
+integration. Zero condensate gives exactly zero optical depth and reflectance.
+Nonfinite present mass (including a species with zero coefficient), a nonfinite
+or nonpositive terrain metric, or arithmetic overflow gives ``-999`` for both
+fields. The metadata policy is ``FillMinus999WhenUnavailable`` with
+``missing_value: -999``. Valid reflectance is bounded to [0,1]; the missing
+sentinel is outside this range. Coefficients must be finite and nonnegative;
+``reflectance_scale`` must be finite and positive. An invalid setting aborts
+the run at startup, naming the parameter, whether or not either field is
+requested.
+
+Constant-dz integration is :math:`\Delta z\sum_k \max(0,\rho q_s)`;
+on nonconstant-dz/terrain meshes it is
+:math:`\Delta z\sum_k J_{i,j,k}\max(0,\rho q_s)`, using the same
+``detJ_cc`` convention as the water paths. Vertically stacked boxes are summed
+before reflectance is calculated. **Both outputs are per-level column
+proxies over the cells covered by that AMR level.** Missing vertical coverage
+is not supplied from coarser levels, and there is no coarse-plus-fine composite
+column sum. A fine level that covers only the bottom part of the atmosphere
+retains its partial optical depth and the reflectance proxy calculated from
+that partial optical depth; neither value describes the full atmosphere.
+There is no additional mask for incomplete vertical coverage. This follows
+the existing per-level water-path convention. The final planar fill still
+gives ``-999`` where that level has no box reaching the ground. Thus an
+incomplete bottom-reaching column can have a valid partial value, while a
+column entirely aloft is missing in that level's slab. Stations sample the
+proxy on the level chosen by the existing station stencil rules; they do not
+combine level-columns into a composite atmospheric column.
+
+.. warning::
+
+   On a nested simulation, these are **per-level partial-column proxies**,
+   not full-atmosphere or composite cloud albedos. A bottom-only fine level
+   can report a much smaller optical depth than the coarse level if clouds
+   lie above the fine level's top. Values integrate only hydrometeors covered
+   by that level and are not combined across levels. Interpret them using each
+   level's vertical coverage; an incomplete column must not be read as a
+   full-column optical depth or albedo.
+
+The five illustrative default mass-extinction coefficients, in
+:math:`\mathrm{m^2\,kg^{-1}}`, are:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Species
+     - Default
+     - Representative radius and particle density
+   * - Cloud liquid (qc)
+     - 150.0
+     - 10 micrometers; 1000 kg/m^3
+   * - Cloud ice (qi)
+     - 65.4
+     - 25 micrometers; 917 kg/m^3
+   * - Rain (qr)
+     - 3.0
+     - 0.5 mm; 1000 kg/m^3
+   * - Snow (qs)
+     - 30.0
+     - 0.5 mm; 100 kg/m^3
+   * - Graupel (qg)
+     - 7.5
+     - 0.5 mm; 400 kg/m^3
+
+These defaults use an **equivalent-sphere approximation**:
+:math:`k_{ext}=3Q_{ext}/(4\rho_{particle}r_{eff})`, with assumed
+:math:`Q_{ext}\simeq2`. For a sphere this is its extinction cross section
+:math:`Q_{ext}\pi r_{eff}^2` divided by its mass
+:math:`4\pi\rho_{particle}r_{eff}^3/3`. The representative radii and densities
+in the table are assumptions, not quantities diagnosed from the active
+microphysics scheme. In the geometric-optics limit, where the size parameter
+:math:`2\pi r_{eff}/\lambda` is large, the extinction paradox gives
+:math:`Q_{ext}\rightarrow2`: diffraction contributes roughly another
+geometric cross section to the extinction. This limit is best supported here
+for spherical liquid cloud droplets at visible wavelengths. `Bohren and
+Huffman (1983) <https://doi.org/10.1002/9783527618156>`_ discuss the extinction
+paradox. `Grosvenor et al. (2018, Section 2.1, Eq. 2) <https://doi.org/10.1029/2017RG000593>`_
+define extinction for a spherical droplet size distribution, use
+:math:`Q_{ext}\simeq2` when droplet radius is large relative to wavelength,
+and relate optical depth to liquid water and effective radius in Section 2.2,
+Eq. 6.
+
+The representative radii and densities are fixed, tunable bulk proxies,
+**not scheme-calibrated or retrieval-grade optics**. Ice, snow, and graupel
+are often non-spherical; their equivalent radii and densities are particularly
+crude proxies. Real mass-size relations, scattering properties, and particle
+size distributions may differ greatly. Sensitivity test these assumptions
+before quantitative research use.
+
+The inputs configure the five extinction coefficients in
+:math:`\mathrm{m^2\,kg^{-1}}`, not radius or particle density directly. Users
+wanting different assumed effective radii or densities must calculate the
+corresponding coefficients themselves and supply ``kext_qc``, ``kext_qi``,
+``kext_qr``, ``kext_qs``, and/or ``kext_qg`` overrides.
+
+The common two-stream approximation for a conservatively scattering,
+horizontally homogeneous cloud with asymmetry factor :math:`g` gives
+
+.. math::
+
+   A_{est}=\frac{\tau}{\tau+c},\qquad
+   c=\frac{2}{\sqrt{3}(1-g)}\simeq7.7\quad\text{for }g=0.85.
+
+`Lacis and Hansen (1974) <https://www.giss.nasa.gov/pubs/abs/la05000n.html>`_
+and `Lu et al. (2008, Section 4.3) <https://doi.org/10.1029/2007JD009354>`_
+give the corresponding nonabsorbing-cloud expression
+:math:`R=\tau/(\tau+7.7)` for :math:`g=0.85`. This published approximation
+motivates the default ``reflectance_scale = 7.7``; it does **not** make that
+value a universal or scheme-calibrated albedo parameter. Its assumptions,
+including a fixed asymmetry factor, are particularly limited for ice and
+mixed-phase clouds, whose scattering properties vary with particle habit,
+size, and wavelength. ``reflectance_scale`` remains a positive runtime
+override, and sets the optical depth at which this proxy equals one half.
+The implemented proxy is independent of solar zenith angle and does not solve
+full radiative transfer, as described in the warning below.
+
+.. warning::
+
+   ``cloud_albedo_est`` is an exploratory hydrometeor-only
+   reference-illumination reflectance proxy. It includes cloud liquid, cloud
+   ice, rain, snow, and graupel; excludes surface, gas, and aerosol
+   contributions; and does not solve two-stream radiative transfer. It
+   omits solar zenith angle, gas/aerosol scattering and absorption,
+   single-scattering albedo, phase-function asymmetry, overlap, spectral
+   dependence, surface reflection, and 3-D cloud effects. It is neither
+   physical broadband all-sky albedo nor top-of-atmosphere reflectance, nor
+   RRTMGP top-of-model flux-derived all-sky reflectance. Existing ``albedo``
+   is surface albedo and remains a separate diagnostic. These new fields do
+   not affect prognostic physics, radiative heating, or fluxes. The proxy is
+   independent of solar zenith angle. No solar flux enters its definition:
+   it remains defined, and can remain nonzero, at night for a cloudy column.
+   Nighttime values must not be interpreted as observed instantaneous albedo.
+
+Example (water-path outputs are optional):
+
+.. code-block:: text
+
+   erf.plot2d_file_1 = plt2d
+   erf.plot2d_per_1 = 600.0
+   erf.plot2d_vars_1 = integrated_qc integrated_qi integrated_qr integrated_qs integrated_qg cloud_optical_depth_sw cloud_albedo_est
+   erf.plot2d.cloud_optics.kext_qc = 150.0
+   erf.plot2d.cloud_optics.kext_qi = 65.4
+   erf.plot2d.cloud_optics.kext_qr = 3.0
+   erf.plot2d.cloud_optics.kext_qs = 30.0
+   erf.plot2d.cloud_optics.kext_qg = 7.5
+   erf.plot2d.cloud_optics.reflectance_scale = 7.7
+
+Reproducing the optical settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``2DMetadata.json`` keeps the generic diagnostic-descriptor schema; it does
+not record the per-run cloud-optics coefficients. Archive the input deck,
+``job_info``, ERF commit/build configuration, and complete standard output
+with the plotfiles. On first requested use, ERF prints one ``Plot2D cloud
+optics:`` line containing **all five resolved coefficients and the resolved
+reflectance scale**, including defaults omitted from the input deck. Values
+are printed with enough digits to recover the build's ``Real`` values.
+For example, capture and retain this record alongside the plotfiles:
+
+.. code-block:: bash
+
+   ./erf_exec inputs > run.log 2>&1
+   sed -n '/^Plot2D cloud optics:/p' run.log > cloud_optics_resolved_settings.txt
+
+Keep both files, rather than relying on ``job_info`` alone: supplied overrides
+may be present there while unprovided defaults are absent. The writer integration
+test archives this same resolved-settings record. Logging and these settings do not
+change the diagnostic values or the generic metadata format.
+
+References
+^^^^^^^^^^
+
+* Lacis, A. A., and J. E. Hansen (1974). `A parameterization for the
+  absorption of solar radiation in the Earth's atmosphere
+  <https://www.giss.nasa.gov/pubs/abs/la05000n.html>`_. *Journal of the
+  Atmospheric Sciences*, 31, 118–133.
+* Lu, M.-L., et al. (2008). `Aerosol-cloud relationships in continental shallow
+  cumulus <https://doi.org/10.1029/2007JD009354>`_. *Journal of Geophysical
+  Research: Atmospheres*, 113, D15201.
+* Bohren, C. F., and D. R. Huffman (1983). `Absorption and Scattering of Light
+  by Small Particles <https://doi.org/10.1002/9783527618156>`_. Wiley.
+* Grosvenor, D. P., et al. (2018). `Remote sensing of droplet number
+  concentration in warm clouds: A review of the current state of knowledge and
+  perspectives <https://doi.org/10.1029/2017RG000593>`_. *Reviews of
+  Geophysics*, 56, 409–453.
 
 .. _sec:Plotfile2DSourceCodes:
 

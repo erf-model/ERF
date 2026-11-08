@@ -1,6 +1,7 @@
 #include "ERF_SuperDropletsMoist.H"
 #include "ERF_EOS.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_MicrophysicsUtils.H"
 
 #ifdef ERF_USE_PARTICLES
 
@@ -28,6 +29,7 @@ void SuperDropletsMoist::EnsureMicFabVars (const int a_lev, const MultiFab& a_co
         need_recreate = true;
     } else if (static_cast<int>(m_mic_fab_vars[a_lev].size()) <= MicVar_SD::rho ||
                !m_mic_fab_vars[a_lev][MicVar_SD::rho] ||
+               m_mic_fab_vars[a_lev][MicVar_SD::rho]->nGrowVect() != a_cons_vars.nGrowVect() ||
                m_mic_fab_vars[a_lev][MicVar_SD::rho]->boxArray() != a_cons_vars.boxArray() ||
                m_mic_fab_vars[a_lev][MicVar_SD::rho]->DistributionMap() != a_cons_vars.DistributionMap()) {
         need_recreate = true;
@@ -94,9 +96,27 @@ iMultiFab SuperDropletsMoist::buildFineMask (const int a_lev) const
  */
 void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
 {
+    Copy_State_to_Micro(a_cons_vars, nullptr);
+}
+
+void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars,
+                                             const MultiFab* base_state)
+{
     BL_PROFILE("SuperDropletsMoist::Copy_State_to_Micro()");
 
     const int lev = m_current_lev;
+    const bool use_base = uses_anelastic_reference_pressure(lev);
+    const Real rdOcp = m_rdOcp;
+    if (use_base) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(base_state != nullptr,
+                                         "Anelastic SDM requires hydrostatic base pressure");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            base_state->boxArray() == a_cons_vars.boxArray() &&
+            base_state->DistributionMap() == a_cons_vars.DistributionMap() &&
+            base_state->nComp() > BaseState::p0_comp &&
+            base_state->nGrowVect().allGE(a_cons_vars.nGrowVect()),
+            "Anelastic SDM base state must match the conserved layout and cover its ghosts");
+    }
     EnsureMicFabVars(lev, a_cons_vars);
 
     const auto& gvec = a_cons_vars.nGrowVect();
@@ -118,6 +138,14 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
             auto theta_arr = m_mic_fab_vars[lev][MicVar_SD::theta]->array(mfi);
             ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                if (use_base) {
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                        Math::isfinite(states_arr(i,j,k,Rho_comp)) &&
+                        states_arr(i,j,k,Rho_comp) > Real(0) &&
+                        Math::isfinite(states_arr(i,j,k,RhoTheta_comp)) &&
+                        Math::isfinite(states_arr(i,j,k,RhoQ1_comp)),
+                        "Anelastic SDM requires positive dry density and finite thermodynamic inputs");
+                }
                 rho_arr(i,j,k) = states_arr(i,j,k,Rho_comp);
                 theta_arr(i,j,k) = states_arr(i,j,k,RhoTheta_comp)/states_arr(i,j,k,Rho_comp);
             });
@@ -171,11 +199,26 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
         const Array4<Real      >& p_arr  = m_mic_fab_vars[lev][MicVar_SD::pressure]->array(mfi);
         const Array4<Real const>& S_arr  = a_cons_vars.const_array(mfi);
         const Array4<Real const>& qv_arr = m_mic_fab_vars[lev][MicVar_SD::q_v]->const_array(mfi);
+        const auto base = use_base ? base_state->const_array(mfi) : Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            t_arr(i,j,k,0) = getTgivenRandRTh(S_arr(i,j,k,Rho_comp),S_arr(i,j,k,RhoTheta_comp),qv_arr(i,j,k,0));
-            p_arr(i,j,k,0) = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp),qv_arr(i,j,k,0));
+            const Real pbase = use_base ? base(i,j,k,BaseState::p0_comp) : Real(0);
+            if (use_base) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(Math::isfinite(pbase) && pbase > Real(0),
+                                                 "Anelastic SDM requires finite positive base pressure");
+            }
+            const auto thermo = diagnose_microphysics_thermo_state(
+                S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv_arr(i,j,k,0),
+                rdOcp, use_base, pbase);
+            if (use_base) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    Math::isfinite(qv_arr(i,j,k,0)) &&
+                    Math::isfinite(thermo.temperature) && thermo.temperature > Real(0),
+                    "Anelastic SDM requires finite vapor and positive finite temperature");
+            }
+            t_arr(i,j,k,0) = thermo.temperature;
+            p_arr(i,j,k,0) = thermo.pressure_pa;
         });
     }
 
@@ -338,6 +381,12 @@ void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
     Copy_State_to_Micro(a_cons_vars);
 }
 
+void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars,
+                                           const MultiFab* base_state)
+{
+    Copy_State_to_Micro(a_cons_vars, base_state);
+}
+
 /*! \brief Average down moisture multifabs from the finest level down to 0
  *
  * For each level pair (lev, lev-1) from finest_level down to 1, restrict
@@ -388,6 +437,54 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars, const MultiFa
     aerosolAccumulation(a_z_phys_nd);
 
     if (!m_kinematic_mode) { Copy_Micro_to_State(a_cons_vars); }
+}
+
+void SuperDropletsMoist::Update_Diagnostic_State (MultiFab& cons, const MultiFab& z)
+{
+    if (m_kinematic_mode || m_qstate_nonmoist_size == 0) { return; }
+    const int lev = m_current_lev;
+    EnsureMicFabVars(lev, cons);
+    auto& rho = *m_mic_fab_vars[lev][MicVar_SD::rho];
+    const auto& geom = m_super_droplets->Geom(lev);
+    // Regridding can leave conserved ghosts unfilled. Seed only from valid
+    // state, extrapolate at unowned edges, then exchange same-level/periodic data.
+    for (MFIter mfi(rho); mfi.isValid(); ++mfi) {
+        const auto s = cons.const_array(mfi);
+        const auto r = rho.array(mfi);
+        const Box valid = mfi.validbox();
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const IntVect cell = amrex::min(amrex::max(IntVect(i,j,k), valid.smallEnd()),
+                                           valid.bigEnd());
+            r(i,j,k) = s(cell, Rho_comp);
+        });
+    }
+    rho.FillBoundary(geom.periodicity());
+    for (int is = m_istart_sp; is < m_num_species; ++is) {
+        auto& qc = *m_mic_fab_vars[lev][s_qc_idx(is,m_istart_sp)];
+        auto& qv = *m_mic_fab_vars[lev][s_qv_idx(is,m_istart_sp)];
+        const int qc_comp = q_qc_idx(is,m_istart_sp);
+        const int qv_comp = q_qv_idx(is,m_istart_sp);
+        for (MFIter mfi(qv); mfi.isValid(); ++mfi) {
+            const auto s = cons.const_array(mfi);
+            const auto v = qv.array(mfi);
+            const Box valid = mfi.validbox();
+            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const IntVect cell = amrex::min(amrex::max(IntVect(i,j,k), valid.smallEnd()),
+                                               valid.bigEnd());
+                v(i,j,k) = s(cell, qv_comp) / s(cell, Rho_comp);
+            });
+        }
+        qv.FillBoundary(geom.periodicity());
+        computeQcSpecies(is, z);
+        computeQtSpecies(is);
+        for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
+            const auto s = cons.array(mfi);
+            const auto c = qc.const_array(mfi);
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                s(i,j,k,qc_comp) = c(i,j,k) * s(i,j,k,Rho_comp);
+            });
+        }
+    }
 }
 
 /*! \brief Convert a density field to a mixing ratio field */
@@ -576,12 +673,14 @@ void SuperDropletsMoist::rainAccumulation (const MultiFab& a_z_phys_nd)
         Box bx = mfi.tilebox();
         const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
         const Array4<Real>& rain_accum_arr = m_mic_fab_vars[lev][MicVar_SD::rain_accum]->array(mfi);
+        const Array4<Real>& precip_accum_arr = m_mic_fab_vars[lev][MicVar_SD::precip_accum]->array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if (k == k_lo) {
                 auto rain_accum = std::max(Real(0), -zflux_arr(i,j,k)*dt/mat_density);
                 rain_accum_arr(i,j,k) += (rain_accum * Real(1000.0) /* [m] -> [mm] */);
+                precip_accum_arr(i,j,k) += (rain_accum * Real(1000.0) /* [m] -> [mm] */);
             }
         });
     }
@@ -605,6 +704,8 @@ void SuperDropletsMoist::snowAccumulation (const MultiFab& a_z_phys_nd)
 
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(Species::Name::ice);
         auto mat_density = vapour_mat.m_density;
+        // The precipitation total is in mm of liquid water
+        const Real water_density = m_super_droplets->getSpeciesMaterial(Species::Name::H2O).m_density;
 
         MultiFab mf_zflux( m_mic_fab_vars[lev][MicVar_SD::snow_accum]->boxArray(),
                            m_mic_fab_vars[lev][MicVar_SD::snow_accum]->DistributionMap(),
@@ -616,12 +717,15 @@ void SuperDropletsMoist::snowAccumulation (const MultiFab& a_z_phys_nd)
             Box bx = mfi.tilebox();
             const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
             const Array4<Real>& snow_accum_arr = m_mic_fab_vars[lev][MicVar_SD::snow_accum]->array(mfi);
+            const Array4<Real>& precip_accum_arr = m_mic_fab_vars[lev][MicVar_SD::precip_accum]->array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 if (k == k_lo) {
                     auto snow_accum = std::max(Real(0), -zflux_arr(i,j,k)*dt/mat_density);
                     snow_accum_arr(i,j,k) += (snow_accum * Real(1000) /* [m] -> [mm] */);
+                    auto ice_as_water = std::max(Real(0), -zflux_arr(i,j,k)*dt/water_density);
+                    precip_accum_arr(i,j,k) += (ice_as_water * Real(1000) /* [m] -> [mm] */);
                 }
             });
         }

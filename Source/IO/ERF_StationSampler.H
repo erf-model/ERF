@@ -47,16 +47,71 @@
 // 'theta_z100m'; those are not accepted here, since a station asks for the 3D
 // variable and a height directly.
 //
+// Four more names are accepted, which neither catalog holds as a 3D variable:
+// the earth-relative winds u_east, v_north, wind_speed and wind_dir.  They are
+// formed from the station's interpolated x_velocity and y_velocity, rotated by
+// the grid orientation at the station (see ERF_EarthRelativeWind.H), so that a
+// column compares directly with a tower on a rotated (e.g. Lambert) grid.
+//
+
+// Which earth-relative wind a station variable is; None for every other variable
+enum class StationEarthWind { None, UEast, VNorth, WindSpeed, WindDir };
+
+inline StationEarthWind
+station_earth_wind_from_name (const std::string& name)
+{
+    if (name == "u_east")     { return StationEarthWind::UEast; }
+    if (name == "v_north")    { return StationEarthWind::VNorth; }
+    if (name == "wind_speed") { return StationEarthWind::WindSpeed; }
+    if (name == "wind_dir")   { return StationEarthWind::WindDir; }
+    return StationEarthWind::None;
+}
 
 struct StationVar
 {
     std::string name;
     std::string units;
     bool is_2d      = false;              // comes from the 2D diagnostic catalog
-    bool is_missing = false;              // valid 2D name, inactive in this run
+    bool is_missing = false;              // valid name this run does not produce (an inactive
+                                          // 2D diagnostic, or with
+                                          // erf.station_allow_unavailable a 3D variable)
+    bool cells_may_be_missing = false;    // active 2D field whose cells may hold missing_value
     amrex::Real missing_value = amrex::Real(0.0);
     int comp = -1;                        // component in the filled MultiFab
+    // An earth-relative wind is formed from two 3D components: comp holds
+    // x_velocity and comp_v y_velocity
+    StationEarthWind earth_wind = StationEarthWind::None;
+    int comp_v = -1;
 };
+
+//
+// Bilinear interpolation of the four values around a station, with weights
+// (1-wx)(1-wy), wx(1-wy), (1-wx)wy and wx*wy.  A value equal to missing_value, or
+// not finite, is left out and the weights of the others are renormalised, so a
+// missing neighbour cannot be blended in as a number; missing_value is returned
+// only when every neighbour with a nonzero weight is missing.
+//
+inline amrex::Real
+station_bilinear_skip_missing (amrex::Real v00, amrex::Real v10,
+                               amrex::Real v01, amrex::Real v11,
+                               amrex::Real wx, amrex::Real wy,
+                               amrex::Real missing_value)
+{
+    const amrex::Real v[4] = {v00, v10, v01, v11};
+    const amrex::Real w[4] = {(amrex::Real(1.0)-wx)*(amrex::Real(1.0)-wy),
+                              wx*(amrex::Real(1.0)-wy),
+                              (amrex::Real(1.0)-wx)*wy,
+                              wx*wy};
+    amrex::Real sum = amrex::Real(0.0);
+    amrex::Real wsum = amrex::Real(0.0);
+    for (int n = 0; n < 4; ++n) {
+        if (w[n] > amrex::Real(0.0) && std::isfinite(v[n]) && v[n] != missing_value) {
+            sum  += w[n] * v[n];
+            wsum += w[n];
+        }
+    }
+    return (wsum > amrex::Real(0.0)) ? sum / wsum : missing_value;
+}
 
 struct StationLoc
 {
@@ -75,6 +130,12 @@ struct StationLoc
     amrex::Real got_lat = amrex::Real(0.0);
     amrex::Real got_lon = amrex::Real(0.0);
 
+    // Orientation of the grid x axis at the station, counterclockwise from true
+    // east, for the earth-relative winds.  Without lat/lon arrays the grid is
+    // taken to be aligned with east.
+    amrex::Real cos_alpha = amrex::Real(1.0);
+    amrex::Real sin_alpha = amrex::Real(0.0);
+
     // Resolved against the current grids at every output step
     int lev = 0;
     int ic  = 0;                          // cell containing (x,y)
@@ -88,6 +149,10 @@ struct StationLoc
     int ktop = 0;                         // highest cell the vertical interpolation
                                           // reads, which is as high as the chosen
                                           // level is known to cover the stencil
+
+    // Height of the chosen level's first cell centre above the zero the requested
+    // heights are measured from; a requested height below it is sampled there
+    amrex::Real first_cc_height = amrex::Real(0.0);
 
     // Index into the owning station's column list of this location's first column
     int col_begin = 0;
@@ -166,6 +231,10 @@ public:
 
     [[nodiscard]] int bufferSteps () const { return m_buffer_steps; }
 
+    // erf.station_allow_unavailable: write a 3D variable this configuration
+    // cannot produce as a constant missing column instead of stopping the run
+    [[nodiscard]] bool allowUnavailable () const { return m_allow_unavailable; }
+
     // A height below the first cell centre is honored by clamping, which is
     // worth saying once and not once per output step.
     [[nodiscard]] bool lowHeightWarned () const { return m_low_height_warned; }
@@ -203,6 +272,7 @@ private:
     amrex::Vector<Station> m_stations;
     int m_ncolumns    = 0;
     int m_buffer_steps = 100;
+    bool m_allow_unavailable = false;
 
     // m_rows[irow] holds the values of every column at m_times[irow]
     amrex::Vector<amrex::Real> m_times;

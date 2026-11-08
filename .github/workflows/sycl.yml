@@ -3,25 +3,46 @@ name: ERF CI (sycl)
 on:
   push:
     branches: [development]
-    paths-ignore:
-      - Docs/**
-      - README.rst
-      - license.txt
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/sycl.yml'
+      - '.github/actions/**'
 
   pull_request:
     branches: [development]
     types: [opened, synchronize, reopened]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/sycl.yml'
+      - '.github/actions/**'
   workflow_dispatch:
 
+# Development pushes finish the active run and keep only the newest pending commit.
+# PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-sycl
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-sycl
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   Build-And-Test-SYCL:
     name: oneAPI SYCL - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    env:
+      CCACHE_TRUNK_KEY: ubuntu-24.04-x64-oneapi-sycl-intelmpi-${{ matrix.mesh_precision }}-particles-on
     strategy:
       fail-fast: false
       matrix:
@@ -46,6 +67,7 @@ jobs:
     - uses: actions/checkout@v7
       with:
         submodules: true
+        persist-credentials: false
 
     - name: Free up disk space
       uses: ./.github/actions/free-space-ubuntu
@@ -58,8 +80,21 @@ jobs:
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
-    # ccache per matrix variant, written only from development; see ci.yml for how it works.
+    # GHCR trunk per configuration; the old Actions cache seeds the first restore.
+    # ORAS, not Docker: ubuntu_free_disk_space.sh above uninstalls the Docker CLI.
     - name: Restore Cache
+      id: ghcr-cache
+      uses: ./.github/actions/ccache-trunk
+      with:
+        mode: restore
+        transport: oras
+        key: ${{ env.CCACHE_TRUNK_KEY }}
+        path: ~/.cache/ccache
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Restore legacy Actions cache
+      if: steps.ghcr-cache.outputs.hit != 'true'
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with:
         path: ~/.cache/ccache
@@ -68,10 +103,10 @@ jobs:
              ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-
 
     - name: Build & Install
+      shell: bash
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
-        export CCACHE_MAXSIZE=150M
         export CCACHE_DEPEND=1
         ccache -z
         build_start=$(date +%s)
@@ -94,10 +129,23 @@ jobs:
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
           -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
-          -DCMAKE_C_COMPILER=$(which icx) \
-          -DCMAKE_CXX_COMPILER=$(which icpx) \
+          -DCMAKE_C_COMPILER="$(which icx)" \
+          -DCMAKE_CXX_COMPILER="$(which icpx)" \
           -DCMAKE_CXX_STANDARD=17 \
           -DAMReX_PARALLEL_LINK_JOBS=4
+        # Check core diagnostics before the remaining compilation and linking.
+        build_log="${{runner.workspace}}/build-output.txt"
+        make -j 4 amrex_3d erf_srclib 2>&1 | tee -a "$build_log"
+
+        warning_report="${build_log%.txt}-warnings.txt"
+        # Use the same diagnostic exclusions as the final Report step.
+        awk 'tolower($0) ~ /warning:|error:/ &&
+             $0 !~ /Submodules\/(amrex|AMReX|googletest)/ &&
+             $0 !~ /lto-wrapper: warning:/' "$build_log" \
+          | sort | uniq > "$warning_report"
+        cat "$warning_report"
+        test ! -s "$warning_report"
+
         make -j 4 2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
         echo '```' >> "$GITHUB_STEP_SUMMARY"
@@ -110,17 +158,26 @@ jobs:
         du -hs ~/.cache/ccache
 
     - name: Save Cache
-      if: always() && github.ref_name == github.event.repository.default_branch
-      uses: actions/cache/save@v6
+      if: always() && github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+      uses: ./.github/actions/ccache-trunk
       with:
+        mode: save
+        transport: oras
+        key: ${{ env.CCACHE_TRUNK_KEY }}
         path: ~/.cache/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
 
     - name: Report
       run: |
-        grep -Ei "warning:|error:" ${{runner.workspace}}/build-output.txt \
-          | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
+        build_log="${{runner.workspace}}/build-output.txt"
+        if [ ! -f "$build_log" ] || [ ! -r "$build_log" ]; then
+          echo "::error::Missing or unreadable build log: $build_log"
+          exit 1
+        fi
+        grep -Ei "warning:|error:" "$build_log" \
+          | grep -Ev "Submodules/(amrex|AMReX|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
         cat ${{runner.workspace}}/build-output-warnings.txt
-        export return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
-        exit ${return}
+        return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
+        test "${return}" -eq 0

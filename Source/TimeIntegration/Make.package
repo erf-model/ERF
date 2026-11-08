@@ -11,6 +11,7 @@ CEXE_sources += ERF_MakeTauTerms.cpp
 CEXE_sources += ERF_SlowRhsPre.cpp
 CEXE_sources += ERF_SlowRhsPost.cpp
 CEXE_sources += ERF_Substep_NS.cpp
+CEXE_sources += ERF_CFFluxHistory.cpp
 CEXE_sources += ERF_Substep_T.cpp
 CEXE_sources += ERF_Substep_MT.cpp
 

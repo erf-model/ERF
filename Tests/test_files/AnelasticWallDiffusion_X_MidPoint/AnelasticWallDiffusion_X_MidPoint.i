@@ -6,9 +6,9 @@
 # diffusion operator, so the implicit solve must reproduce it exactly.
 erf.prob_name = "Anelastic Wall Diffusion"
 erf.init_type = Uniform
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_gravity = false
-erf.anelastic_type = MidPoint
+erf.timestepping_type = MidPoint
 erf.molec_diff_type = "ConstantAlpha"
 erf.dynamic_viscosity = 0.0
 erf.alpha_T = 0.01

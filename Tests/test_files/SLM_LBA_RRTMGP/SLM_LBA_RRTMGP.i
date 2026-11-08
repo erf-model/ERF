@@ -24,7 +24,7 @@ erf.use_Ri_correction = 0
 erf.mg_v = 1
 erf.terrain_type = StaticFittedMesh
 erf.flat_terrain = true
-#erf.anelastic = 1
+#erf.compressibility_type = Anelastic
 #erf.use_fft = 1
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
@@ -78,8 +78,6 @@ erf.plotfile_type = "amrex"
 erf.plot_lsm = true
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
 #erf.use_coriolis    = false

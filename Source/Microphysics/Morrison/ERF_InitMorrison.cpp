@@ -31,8 +31,11 @@ Morrison::Init (const MultiFab& cons_in,
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc   = detJ_cc.get();
 
+    m_columns.define(cons_in.boxArray(), geom.Domain());
+
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
+    MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum,
+                 MicVar_Morr::graupel_accum, MicVar_Morr::precip_accum};
 
 #if defined(ERF_USE_MORR_FORT) && defined(AMREX_USE_GPU)
     Arena* Arena_Used = The_Managed_Arena();
@@ -47,6 +50,10 @@ Morrison::Init (const MultiFab& cons_in,
                                                         MFInfo().SetArena(Arena_Used));
         mic_fab_vars[ivar]->setVal(0.);
     }
+
+    m_sed.define(cons_in.boxArray(), cons_in.DistributionMap(),
+                 {RhoQ2_comp, RhoQ3_comp, RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
+                  RhoQ7_comp, RhoQ8_comp, RhoQ9_comp, RhoQ10_comp, RhoQ11_comp});
 
 #ifdef ERF_USE_MORR_FORT
     bool use_cpp = true;

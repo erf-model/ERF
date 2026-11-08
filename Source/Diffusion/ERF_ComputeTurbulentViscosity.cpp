@@ -1,9 +1,11 @@
 /** \file ERF_ComputeTurbulentViscosity.cpp */
 
+#include "ERF_ImmersedWallCell.H"
 #include "ERF_SurfaceLayer.H"
 #include "ERF_Constants.H"
 #include "ERF_EddyViscosity.H"
 #include "ERF_RANSClosure.H"
+#include "ERF_CanopyTurbulence.H"
 #include "ERF_Diffusion.H"
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
@@ -90,12 +92,9 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
-            Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
-            Array4<Real const> tau22 = Tau_lev[TauType::tau22]->array(mfi);
-            Array4<Real const> tau33 = Tau_lev[TauType::tau33]->array(mfi);
-            Array4<Real const> tau12 = Tau_lev[TauType::tau12]->array(mfi);
-            Array4<Real const> tau13 = Tau_lev[TauType::tau13]->array(mfi);
-            Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
+            const StrainArrays tau = strain_arrays(Tau_lev, mfi);
+            const Array4<Real const> tau11 = tau.tau11, tau22 = tau.tau22, tau33 = tau.tau33;
+            const Array4<Real const> tau12 = tau.tau12, tau13 = tau.tau13, tau23 = tau.tau23;
             Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
             Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
@@ -408,12 +407,9 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
             const Array4<Real>& hfx_y   = Hfx2.array(mfi);
             const Array4<Real>& hfx_z   = Hfx3.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
-            Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
-            Array4<Real const> tau22 = Tau_lev[TauType::tau22]->array(mfi);
-            Array4<Real const> tau33 = Tau_lev[TauType::tau33]->array(mfi);
-            Array4<Real const> tau12 = Tau_lev[TauType::tau12]->array(mfi);
-            Array4<Real const> tau13 = Tau_lev[TauType::tau13]->array(mfi);
-            Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
+            const StrainArrays tau = strain_arrays(Tau_lev, mfi);
+            const Array4<Real const> tau11 = tau.tau11, tau22 = tau.tau22, tau33 = tau.tau33;
+            const Array4<Real const> tau12 = tau.tau12, tau13 = tau.tau13, tau23 = tau.tau23;
             Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
             Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
 
@@ -600,9 +596,20 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
     }
 }
 
+namespace {
+/// Solid fraction of a cell column at level kk, clamped to the domain in k, fluid below small
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_rans_beta (const Array4<Real const>& tb, int i, int j, int kk, int klo, int khi, Real small) noexcept
+{
+    const Real v = tb(i, j, amrex::min(amrex::max(kk, klo), khi));
+    return (v < small) ? zero : v;
+}
+}
+
 /**
  * Function for computing the eddy viscosity with RANS.
  *
+ * @param[in]  Tau_lev strain at this level (the realizability cap reads S_ij)
  * @param[in]  cons_in cell center conserved quantities
  * @param[in]  wdist wall distance
  * @param[out] eddyViscosity turbulent viscosity
@@ -614,8 +621,15 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
  * @param[in]  const_grav gravitational acceleration
  * @param[in]  SurfLayer optional surface-layer model
  * @param[in]  z_0 roughness length
+ * @param[in]  canopy canopy terms of the k-eqn model (erf.forest_canopy_*)
+ * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
+ * @param[in]  ib_blank solid fraction for the fraction-stress immersed wall law, or null without it
+ * @param[in]  flat_wall_diss partial wall cells dissipate with flat ground's first-cell length (erf.if_flat_wall_dissipation)
+ * @param[in]  ib_small_volfrac solid fractions below this count as fluid (eb2.small_volfrac)
+ * @param[in]  ib_z0 roughness length of the immersed wall law (erf.if_z0), used without a surface layer
  */
 void ComputeTurbulentViscosityRANS (int level,
+                                    Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                     const MultiFab& cons_in,
                                     const MultiFab& wdist,
                                     MultiFab& eddyViscosity,
@@ -626,7 +640,13 @@ void ComputeTurbulentViscosityRANS (int level,
                                     const TurbChoice& turbChoice,
                                     const Real const_grav,
                                     std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                    const MultiFab* z_0)
+                                    const MultiFab* z_0,
+                                    const CanopyTurbulence& canopy,
+                                    const MultiFab* forest_drag,
+                                    const MultiFab* ib_blank,
+                                    bool flat_wall_diss,
+                                    Real ib_small_volfrac,
+                                    Real ib_z0)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
@@ -658,6 +678,15 @@ void ComputeTurbulentViscosityRANS (int level,
         // floor on k: erf.tke_floor if set, otherwise machine epsilon
         const Real tke_floor  = amrex::max(turbChoice.tke_floor, std::numeric_limits<Real>::epsilon());
 
+        // Canopy cap of the turbulent length scale, L <= alpha / (C_d LAD)
+        const bool use_canopy_length = canopy.enabled && (canopy.length_alpha > zero);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_canopy_length || forest_drag,
+            "erf.forest_canopy_tke needs the forest drag field");
+        const Real canopy_alpha = canopy.length_alpha;
+        // Realizability cap nu_t <= C_r k / S (AL01::realizable_nut); off at 0
+        const Real Cr = turbChoice.rans_realizability;
+        const bool use_cap = (Cr > zero);
+
         // Clamped divisor: the select is if-converted, so 1/theta_ref runs even
         //   when theta_ref = 0 and would trip fpe_trap_zero (see ERF_SetupDiff.H)
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
@@ -674,6 +703,8 @@ void ComputeTurbulentViscosityRANS (int level,
             const Array4<Real const>& d_arr  = wdist.const_array(mfi);
             const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array(mfi) : Array4<Real const>{};
             const Array4<Real const>& pblh_arr = (pblh_mf) ? pblh_mf->const_array(mfi) : Array4<Real const>{};
+            const Array4<Real const>& f_drag_arr = (use_canopy_length) ? forest_drag->const_array(mfi)
+                                                                        : Array4<Real const>{};
 
             // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
             //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
@@ -687,6 +718,16 @@ void ComputeTurbulentViscosityRANS (int level,
             const Array4<Real const>& cell_data = cons_in.array(mfi);
 
             const Array4<Real const>& z_nd_arr = z_phys_nd->const_array(mfi);
+            // fraction-stress immersed wall law: solid fraction, to find the wall cell
+            const Array4<Real const>& ib_arr = (ib_blank) ? ib_blank->const_array(mfi) : Array4<Real const>{};
+            const int ib_klo = geom.Domain().smallEnd(2);
+            const int ib_khi = geom.Domain().bigEnd(2);
+            const Real ib_small = ib_small_volfrac;
+
+            // Strain components for the cap only; the arrays stay empty otherwise. The k-eqn
+            // closure cannot run with EB terrain (SolverChoice stops the run), so the plain
+            // ComputeSmnSmn is the right form here.
+            const StrainArrays tau = (use_cap) ? strain_arrays(Tau_lev, mfi) : StrainArrays{};
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -699,8 +740,18 @@ void ComputeTurbulentViscosityRANS (int level,
                     // the terrain grid is only deformed in z for now
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
                 }
+                // In the wall cell of the fraction-stress immersed wall law the cell below is
+                // solid: read the wall cell itself there, as the first-order extrapolated ghost
+                // of the zlo face does on flat ground, not the solid's temperature
+                int km1 = k-1;
+                if (ib_arr) {
+                    const Real b_m = if_rans_beta(ib_arr, i, j, k-1, ib_klo, ib_khi, ib_small);
+                    const Real b_0 = if_rans_beta(ib_arr, i, j, k,   ib_klo, ib_khi, ib_small);
+                    const Real b_p = if_rans_beta(ib_arr, i, j, k+1, ib_klo, ib_khi, ib_small);
+                    if (ib_wall::is_wall_cell(b_m, b_0, b_p, ib_small)) { km1 = k; }
+                }
                 Real dtheta_dz = myhalf * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                          - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+                                          - cell_data(i,j,km1,RhoTheta_comp)/cell_data(i,j,km1,Rho_comp) )*dzInv;
                 Real N2 = abs_g * inv_theta0 * dtheta_dz; // Brunt–Väisälä frequency squared
                 if (!use_ref_theta) {
                     // inv_theta0 == 1, divide by actual theta
@@ -709,7 +760,10 @@ void ComputeTurbulentViscosityRANS (int level,
                 }
 
                 // Geometric length scale (AL01, Eqn. 22)
+                // the surface layer's roughness, or the immersed wall law's (fraction_stress) when
+                // there is no surface layer at the bottom
                 Real l_g = (z0_arr) ? KAPPA * (d_arr(i, j, k) + z0_arr(i, j, 0))
+                         : (ib_arr) ? KAPPA * (d_arr(i, j, k) + ib_z0)
                                     : KAPPA * d_arr(i, j, k);
 
                 // Enforce a maximum value: fixed, or kappa * 0.1 * zi clamped to
@@ -723,10 +777,32 @@ void ComputeTurbulentViscosityRANS (int level,
                 // Turbulent length scale (neutral / stable Eq. 26 / unstable Eq. 28,
                 // the latter bounded through the smoothed Rt)
                 Real length = AL01::turb_length(l_g, N2, tke, Cmu0_pow3, inv_Cb_sq, Rt_crit, Rt_min, eps);
+                // In the canopy the eddies are limited by the foliage: cap L before the
+                // dissipation, Rt and the stability functions are evaluated from it
+                if (f_drag_arr) {
+                    length = canopy_turbulence::limited_length(length, f_drag_arr(i,j,k), canopy_alpha);
+                }
                 mu_turb(i, j, k, EddyDiff::Turb_lengthscale) = length;
 
                 // Dissipation rate (AL01, Eqn. 19)
                 diss(i, j, k) = AL01::dissipation(cell_data(i, j, k, Rho_comp), Cmu0_pow3, tke, length);
+
+                // erf.if_flat_wall_dissipation (kynema-sgf KLAxell.flat_wall_dissipation): a partial
+                // wall cell of the fraction-stress law has its length at the fluid centroid,
+                // (1 - beta) dz / 2 from the surface, and a nearly solid one then dissipates TKE
+                // several times faster than flat ground's first cell, faster than the wall value
+                // restores it. Keep the centroid length for the viscosity, but dissipate with the
+                // length the same formula gives at dz / 2, the distance of flat ground's first cell
+                if (flat_wall_diss && ib_arr) {
+                    const Real bk = ib_arr(i,j,k);
+                    if (bk >= ib_small && bk < one - ib_small) {   // a partial cell as ib_wall::is_wall_cell sees it
+                        Real l_flat = (z0_arr) ? KAPPA * (myhalf / cellSizeInv[2] + z0_arr(i, j, 0))
+                                               : KAPPA * (myhalf / cellSizeInv[2] + ib_z0);
+                        l_flat = AL01::geom_length(l_flat, l_cap);
+                        const Real len_flat = AL01::turb_length(l_flat, N2, tke, Cmu0_pow3, inv_Cb_sq, Rt_crit, Rt_min, eps);
+                        diss(i, j, k) = AL01::dissipation(cell_data(i, j, k, Rho_comp), Cmu0_pow3, tke, len_flat);
+                    }
+                }
 
                 // Turbulent Richardson number (AL01, Eqn. 29 combined with Eqn. 19),
                 // smoothed below Rt_crit (Burchard & Petersen)
@@ -742,7 +818,16 @@ void ComputeTurbulentViscosityRANS (int level,
                 // Calculate eddy diffusivities
                 // K = rho * nu_t = rho * c_mu * tke^(1/2) * length
                 Real nut = cmu * std::sqrt(tke) * length; // eddy viscosity
-                Real nut_prime = cmu_prime / cmu * nut;   // eddy diffusivity
+
+                // Realizability cap nu_t <= C_r k / S; cap_ratio = nu_t / (C_r k / S)
+                Real cap_ratio = zero;
+                if (use_cap) {
+                    Real S = std::sqrt(two * ComputeSmnSmn(i,j,k,tau.tau11,tau.tau22,tau.tau33,tau.tau12,tau.tau13,tau.tau23));
+                    nut = AL01::realizable_nut(nut, tke, S, Cr, cap_ratio);
+                }
+                mu_turb(i, j, k, EddyDiff::RANS_cap_ratio) = cap_ratio;
+
+                Real nut_prime = cmu_prime / cmu * nut;   // eddy diffusivity, capped with nu_t
                 mu_turb(i, j, k, EddyDiff::Mom_h) = cell_data(i, j, k, Rho_comp) * nut;
                 mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
                 mu_turb(i, j, k, EddyDiff::Theta_v) = cell_data(i, j, k, Rho_comp) * nut_prime;
@@ -846,6 +931,8 @@ void ComputeTurbulentViscosityRANS (int level,
  * @param[in]  ebfact EB factories for cell- and face-centered variables
  * @param[in]  vert_only flag for vertical components of eddyViscosity
  * @param[in]  qheating_rates radiation heating rates (SW, LW components)
+ * @param[in]  terrain_blank immersed forcing mask, or null
+ * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
  */
 void ComputeTurbulentViscosity (double dt,
                                 const MultiFab& xvel, const MultiFab& yvel,
@@ -868,7 +955,8 @@ void ComputeTurbulentViscosity (double dt,
                                 const eb_& ebfact,
                                 bool vert_only,
                                 const MultiFab* qheating_rates,
-                                const MultiFab* terrain_blank)
+                                const MultiFab* terrain_blank,
+                                const MultiFab* forest_drag)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
@@ -914,12 +1002,17 @@ void ComputeTurbulentViscosity (double dt,
     }
 
     if (turbChoice.rans_type != RANSType::None) {
-        ComputeTurbulentViscosityRANS(level, cons_in, wdist,
+        ComputeTurbulentViscosityRANS(level, Tau_lev, cons_in, wdist,
                                       eddyViscosity,
                                       Diss,
                                       geom, use_terrain_fitted_coords,
                                       z_phys_nd, turbChoice, const_grav,
-                                      SurfLayer, z_0);
+                                      SurfLayer, z_0,
+                                      solverChoice.canopyTurb, forest_drag,
+                                      (solverChoice.if_fraction_stress) ? terrain_blank : nullptr,
+                                      solverChoice.if_flat_wall_dissipation,
+                                      solverChoice.if_small_volfrac,
+                                      solverChoice.if_z0);
     }
 
     if (turbChoice.pbl_type == PBLType::MYJ) {
@@ -1077,6 +1170,42 @@ void ComputeTurbulentViscosity (double dt,
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j,k_hi,n);
                     }
+                }
+            });
+            //
+            // Edge and corner ghost cells at a C/F boundary are skipped above when every face
+            // neighbour toward the valid box is itself a C/F ghost cell, e.g. (i_lo-1,j_lo-1).
+            // Fill these from a cell that is valid at this level (in this grid or another),
+            // stepping toward the valid box in two directions (xy, xz, yz) before all three.
+            // The sources are never written in this block, and taking covered cells as well as
+            // our own keeps the result independent of how the level is divided into grids.
+            //
+            ParallelFor(mfi.growntilebox(1), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (mask_arr(i,j,k) != is_notcovered) { return; }
+
+                int si = amrex::min(amrex::max(i, i_lo), i_hi);
+                int sj = amrex::min(amrex::max(j, j_lo), j_hi);
+                int sk = amrex::min(amrex::max(k, k_lo), k_hi);
+                bool gx = (si != i);
+                bool gy = (sj != j);
+                bool gz = (sk != k);
+
+                // Already filled by one of the plane kernels above
+                if (gx && mask_arr(si,j,k) != is_notcovered) { return; }
+                if (gy && mask_arr(i,sj,k) != is_notcovered) { return; }
+                if (gz && mask_arr(i,j,sk) != is_notcovered) { return; }
+
+                int ii = si; int jj = sj; int kk = sk;
+                if        (gx && gy && mask_arr(si,sj,k ) != is_notcovered) {
+                    kk = k;
+                } else if (gx && gz && mask_arr(si,j ,sk) != is_notcovered) {
+                    jj = j;
+                } else if (gy && gz && mask_arr(i ,sj,sk) != is_notcovered) {
+                    ii = i;
+                }
+                for (int n = 0; n < ncomp; n++) {
+                    mu_turb(i,j,k,n) = mu_turb(ii,jj,kk,n);
                 }
             });
         } // mfi

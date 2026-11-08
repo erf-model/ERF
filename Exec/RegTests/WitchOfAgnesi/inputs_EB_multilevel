@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Flow over Witch of Agnesi hill"
 
+max_step = 100
+
 erf.init_type = ConstantDensity
 
 amrex.fpe_trap_invalid=1
@@ -29,7 +31,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 #erf.fixed_dt           = 0.005   
 erf.cfl              = 0.5
 

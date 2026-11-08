@@ -60,7 +60,6 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
-erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file
@@ -72,7 +71,6 @@ erf.sounding_type = Ideal
 erf.pbl_type = "YSUNew"
 
 # YSUNew PBL PARAMETERS
-erf.enable_ysu_liquid_theta        = true      # Use liquid water potential temperature for stability
 erf.enable_ysu_countergradient     = true      # Apply countergradient flux corrections
 erf.enable_ysu_terrain_pblh_floor  = true      # Terrain-following PBLH floor
 erf.enable_ysu_sat_limiter         = false     # Saturation limiter for moisture countergradient

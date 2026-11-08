@@ -69,9 +69,17 @@ public:
 
             // Read the vertical profile at each given height
             amrex::Real z, U, V;
+            int line_no = 0;
             while(std::getline(input_sponge_reader, line)) {
+                ++line_no;
+                // Blank lines and lines starting with '#' are not data
+                const auto first = line.find_first_not_of(" \t\r");
+                if (first == std::string::npos || line[first] == '#') { continue; }
                 std::istringstream iss_z(line);
-                iss_z >> z >> U >> V;
+                if (!(iss_z >> z >> U >> V)) {
+                    amrex::Abort("input_sponge file " + input_sponge_file + ", line " +
+                                 std::to_string(line_no) + ": expected three numbers (z U V)");
+                }
                 if (z == zbot) {
                     U_inp_sponge_tmp[0] = U;
                     V_inp_sponge_tmp[0] = V;

@@ -603,6 +603,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                 RHO, PII, P, DT_IN, DZ, W,          &
                 RAINNC, RAINNCV, SR,                    &
                 SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV,    & ! hm added 7/13/13
+                RAINONLYNC,                             & ! ERF: rain alone
                 refl_10cm, diagflag, do_radar_ref,      & ! GT added for reflectivity calcs
                 qrcuten, qscuten, qicuten               & ! hm added
                ,F_QNDROP, qndrop                        & ! hm added, wrf-chem
@@ -691,6 +692,8 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
    INTEGER, INTENT(IN):: ITIMESTEP
    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainnc, snownc, graupelnc
    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: rainncv, sr,  snowncv, graupelncv
+   ! ERF: rain alone, without the cloud water, snow, cloud ice and graupel in rainnc
+   REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainonlync
 !  REAL(C_DOUBLE), DIMENSION(ims:ime, jms:jme         ), INTENT(INOUT) :: RAINNC, RAINNCV, SR, SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV
    REAL(C_DOUBLE), DIMENSION(ims:ime, jms:kme, kms:jme), INTENT(INOUT) :: refl_10cm
 !  REAL(C_DOUBLE), DIMENSION(ims:ime ,jms:jme         ), INTENT(IN   ) :: ht
@@ -728,6 +731,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
    REAL(C_DOUBLE), DIMENSION(kts:kte) :: dBZ
 
    REAL(C_DOUBLE) PRECPRT1D, SNOWRT1D, SNOWPRT1D, GRPLPRT1D ! hm added 7/13/13
+   REAL(C_DOUBLE) RAINONLYPRT1D, SNOWONLYPRT1D ! ERF: rain alone and snow alone
 
    INTEGER I,J,K
 
@@ -844,6 +848,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                                  T_TEND1D,QV_TEND1D, T1D, QV1D, P1D, DZ1D, W1D, RHO_ERF1D, &
                                  PRECPRT1D,SNOWRT1D,                            &
                                  SNOWPRT1D,GRPLPRT1D,                 & ! hm added 7/13/13
+                                 RAINONLYPRT1D,SNOWONLYPRT1D,         & ! ERF
                                  EFFC1D,EFFI1D,EFFS1D,EFFR1D,DT,                &
                                  QG_TEND1D,NG_TEND1D,QG1D,NG1D,EFFG1D,          &
                                  qrcu1d, qscu1d, qicu1d,                        &
@@ -906,9 +911,13 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
       end do
 
 ! hm modified so that m2005 precip variables correctly match wrf precip variables
+      ! ERF: RAINNC is the total that fell, cloud water and cloud ice included;
+      ! SNOWNC is snow alone, rather than WRF's snow plus cloud ice, and
+      ! RAINONLYNC is rain alone
       RAINNC(i,j,KTS)     = RAINNC(I,J,KTS)+PRECPRT1D
       RAINNCV(i,j)    = PRECPRT1D
-      SNOWNC(i,j,KTS)     = SNOWNC(I,J,KTS)+SNOWPRT1D
+      RAINONLYNC(i,j,KTS) = RAINONLYNC(I,J,KTS)+RAINONLYPRT1D
+      SNOWNC(i,j,KTS)     = SNOWNC(I,J,KTS)+SNOWONLYPRT1D
       SNOWNCV(i,j)    = SNOWPRT1D
       GRAUPELNC(i,j,KTS)  = GRAUPELNC(I,J,KTS)+GRPLPRT1D
       GRAUPELNCV(i,j) = GRPLPRT1D
@@ -926,6 +935,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
                                        NI3DTEN,NS3DTEN,NR3DTEN,QC3D,QI3D,QNI3D,QR3D,NI3D,NS3D,NR3D,   &
                                        T3DTEN,QV3DTEN,T3D,QV3D,PRES,DZQ,W3D,RHO_ERF,PRECRT,SNOWRT,    &
                                        SNOWPRT,GRPLPRT,                                               &
+                                       RAINONLYPRT,SNOWONLYPRT,                                       &
                                        EFFC,EFFI,EFFS,EFFR,DT,                                        &
                                        QG3DTEN,NG3DTEN,QG3D,NG3D,EFFG,qrcu1d,qscu1d, qicu1d,          &
                                        QGSTEN,QRSTEN,QISTEN,QNISTEN,QCSTEN,                           &
@@ -1014,6 +1024,9 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! hm added 7/13/13
         REAL(C_DOUBLE) SNOWPRT      ! TOTAL CLOUD ICE PLUS SNOW PER TIME STEP (mm)
         REAL(C_DOUBLE) GRPLPRT      ! TOTAL GRAUPEL PER TIME STEP (mm)
+! ERF: the rain and the snow alone
+        REAL(C_DOUBLE) RAINONLYPRT  ! RAIN PER TIME STEP (mm)
+        REAL(C_DOUBLE) SNOWONLYPRT  ! SNOW (NOT CLOUD ICE) PER TIME STEP (mm)
 
         REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::   EFFC            ! DROPLET EFFECTIVE RADIUS (MICRON)
         REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::   EFFI            ! CLOUD ICE EFFECTIVE RADIUS (MICRON)
@@ -3299,6 +3312,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! hm added 7/13/13
       SNOWPRT = 0.
       GRPLPRT = 0.
+      RAINONLYPRT = 0.
+      SNOWONLYPRT = 0.
 
 ! IF THERE ARE NO HYDROMETEORS, THEN SKIP TO END OF SUBROUTINE
       DO K = KTS,KTE
@@ -3624,6 +3639,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! hm added 7/13/13
         SNOWPRT = SNOWPRT+(FALOUTI(KTS)+FALOUTS(KTS))*DT/NSTEP
         GRPLPRT = GRPLPRT+(FALOUTG(KTS))*DT/NSTEP
+        RAINONLYPRT = RAINONLYPRT+(FALOUTR(KTS))*DT/NSTEP
+        SNOWONLYPRT = SNOWONLYPRT+(FALOUTS(KTS))*DT/NSTEP
       END DO
 
         DO K=KTS,KTE

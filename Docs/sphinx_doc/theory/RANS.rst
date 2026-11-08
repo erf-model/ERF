@@ -42,6 +42,76 @@ stability function in every direction. The diffusivity of :math:`k`
 itself is :math:`\nu_t / \sigma_k` with :math:`\sigma_k = 1` (AL01
 Table I), which the code sets unless ``erf.sigma_k`` is given.
 
+Realizability cap
+-----------------
+
+With :cpp:`erf.rans_realizability = C_r` (off by default) the eddy
+viscosity is capped by the shear,
+
+.. math::
+
+   \nu_t \leftarrow \min\left(\nu_t,\ C_r \frac{k}{S}\right), \qquad
+   S = \sqrt{2 S_{ij} S_{ij}},
+
+the form of the limiter in the SST model. :math:`\nu_t'` keeps the ratio
+:math:`c_\mu' / c_\mu` of the uncapped closure, and every other eddy
+diffusivity (heat, scalars, moisture, :math:`k`) is built from the capped
+:math:`\nu_t`, so all of them are capped by the same factor; so is the
+shear production of :math:`k`, which uses the capped viscosity. :math:`S`
+is the cell-centred average of the face and edge strains of the velocity at
+the start of the step, the same average the Smagorinsky closure uses. The
+production of :math:`k` recomputes the strain at every Runge-Kutta stage, so
+within a step the capped stress :math:`\nu_t S = C_r k` holds for the
+start-of-step strain only and the cap lags a fast transient by one step;
+applying it at each stage is left for later. In the
+first cell above a surface layer the wall-face strain enters that average,
+so :math:`S` there is below the log-law value and the cap acts less than
+the closed form below suggests.
+
+**Why** :math:`C_r = (c_\mu^0)^2 = 0.309`. With Eqs. 11 and 19 the
+closure gives
+
+.. math::
+
+   \frac{\nu_t S}{k} = \sqrt{c_\mu (c_\mu^0)^3 \frac{P}{\varepsilon}},
+
+so the cap with :math:`C_r = (c_\mu^0)^2` is active where
+:math:`P / \varepsilon > c_\mu^0 / c_\mu`. In a neutral constant-stress
+layer (:math:`c_\mu = c_\mu^0`, :math:`P = \varepsilon`) the ratio is
+exactly :math:`(c_\mu^0)^2 = 0.30936` for the default
+:math:`c_\mu^0 = 0.5562`, so this value leaves the layer unchanged and
+acts where the production exceeds the dissipation, as in the shear layer
+that leaves a crest. There the uncapped closure returns a viscosity large
+enough to keep the flow attached behind steep terrain, and the cap lets the
+lee separate. In a stably stratified equilibrium layer :math:`c_\mu` falls
+faster than :math:`P / \varepsilon` rises and the cap stays inactive; in a
+weakly unstable one (:math:`-0.95 < R_t < 0`) it trims :math:`\nu_t` by up
+to 0.3 %. The rounded :math:`C_r = 0.309` trims a neutral equilibrium cell
+by 0.1 %. GUST-CFD uses the same cap and value (hgopalan/gust-abl#51); its
+authors report comparisons with the Bolund, Askervein, Big Southern Butte,
+Ishihara-Zhou and RUSHIL data sets, and an earlier, unmerged
+realizable-:math:`c_\mu` study in kynema/kynema-sgf#2036. Values of
+:math:`C_r` are accepted in :math:`[0.01, 10]`; a smaller value trims the
+viscosity in the approach flow too. The key needs ``erf.rans_type = kEqn``
+and no PBL scheme (a PBL scheme overwrites the vertical diffusivities the
+cap acts on); one value for the whole hierarchy (a single entry, or a
+per-level list whose entries are all equal) applies to the k-eqn levels and
+is reset to 0 on the others, while a per-level list with different entries
+that switches the cap on at a level without the closure stops the run. The
+check against a PBL scheme runs after that reset, so an LES level with a
+PBL scheme beside a k-eqn level with the cap is accepted. EB terrain
+cannot be combined with the k-eqn closure, so the cap never meets the
+cut-cell strain. The
+plotfile variable ``cap_ratio`` holds :math:`\nu_t / (C_r k / S)` of the
+uncapped closure: above 1 the cap is active in that cell. The
+``RANS_Neutral_Hill_2D_Realizability`` test checks the capped ``Kmv`` and
+``Khv`` of the ridge case against
+:math:`\rho\, c_\mu k^{1/2} l / \max(\text{cap\_ratio}, 1)` and
+:math:`\rho\, c_\mu' k^{1/2} l / \max(\text{cap\_ratio}, 1)` cell by cell,
+with :math:`k^{1/2}` recovered from ``diss``, which the same kernel writes,
+and the unit test ``RANSClosure.StrainMagnitudeForTheCap`` pins :math:`S`
+on simple shear and plane strain.
+
 Transport equation for :math:`k`
 --------------------------------
 
@@ -63,6 +133,24 @@ from the modelled heat flux :math:`-\rho \nu_t' \, \partial \theta / \partial z`
 .. math::
 
    \varepsilon = (c_\mu^0)^3 \, \frac{k^{3/2}}{l}, \qquad c_\mu^0 = 0.5562.
+
+With a moisture model, ``erf.rans_moist_buoyancy = true`` (off by default) makes
+the buoyancy production the flux of the virtual potential temperature of
+unsaturated air, :math:`\theta_v = \theta (1 + \epsilon_v q_v)` with
+:math:`\epsilon_v = R_v/R_d - 1 = 0.608`,
+
+.. math::
+
+   P_b = \frac{g}{\theta_{v0}} \left[ (1 + \epsilon_v q_v) \, \overline{w' \theta'}
+         + \epsilon_v \theta \, \overline{w' q_v'} \right],
+
+from the modelled heat and water-vapour fluxes of the same stage (the surface fluxes
+of the surface layer or of the immersed wall law on the bottom face); :math:`\theta_{v0}`
+is ``erf.theta_ref`` when that is set, else the local :math:`\theta_v`. Water vapour
+only: the cloud-water flux term and the saturated form are not included. The option
+is the k-equation closure's; the Deardorff LES shares the TKE source and keeps the dry
+form. Pair it with ``erf.thermal_stratification = thetav`` so the buoyancy length scale
+below uses the same :math:`\theta_v`.
 
 The proportionality constant :math:`(c_\mu^0)^3` is what makes the
 logarithmic law hold in a constant-stress layer (AL01 Sect. 4.1). The
@@ -159,7 +247,13 @@ Launder, as recalibrated by AL01 against the Högström data set, are
    c_\mu' = \frac{c_\mu^0}{1 + 0.277 \, R_t}
 
 (AL01 Eqs. 31-32; the turbulent Prandtl number is :math:`c_\mu / c_\mu'`).
-Both have poles near :math:`R_t = -3.6`. Below a critical value
+:math:`c_\mu` has its pole at the larger root of its denominator,
+:math:`R_t^{pole} = (-0.308 + \sqrt{0.308^2 - 4 \cdot 0.00837}) / (2 \cdot 0.00837)
+\approx -3.59869`, and :math:`c_\mu'` at :math:`-1/0.277 \approx -3.61011`.
+Just below :math:`R_t^{pole}` the denominator of :math:`c_\mu` is negative, and
+:math:`c_\mu` (with the eddy viscosity) stays negative down to the zero of its
+numerator, :math:`-c_\mu^0/0.108` (:math:`-5.15` for the default
+:math:`c_\mu^0`). Below a critical value
 :math:`R_t^c` (``erf.Rt_crit``, default :math:`-1`) the smoothing of
 Burchard and Petersen maps :math:`R_t` onto :math:`(R_t^{min}, R_t^c)`
 with :math:`R_t^{min}` = ``erf.Rt_min`` (default :math:`-3`):
@@ -174,8 +268,17 @@ terms of order :math:`|R_t|` and returned meaningless values once
 :math:`|R_t|` exceeded about :math:`10^{15}`, which happens wherever
 :math:`k` sits at its floor under an unstable :math:`N^2`. The inputs are
 validated at start-up: :math:`R_t^{min} < R_t^c \le 0` and
-:math:`R_t^{min} > -3.6`. The smoothed :math:`R_t` and the two functions
-can be written to the plotfile as ``Rt``, ``cmu`` and ``cmu_prime``.
+:math:`R_t^{min} > -3.5986889`, just above :math:`R_t^{pole}`, so the
+smoothed :math:`R_t` never reaches the pole, and
+:math:`R_t^{min} > -c_\mu^0/0.108`, so the numerator of :math:`c_\mu` stays
+positive (this is the tighter limit when :math:`c_\mu^0 < 0.3887`).
+Values close to the pole are accepted but are not physically meaningful:
+:math:`c_\mu` is 1.53 at :math:`-3`, 7.26 at :math:`-3.5`, 78 at
+:math:`-3.59` and about 980 at :math:`-3.598`, against
+:math:`c_\mu^0 = 0.5562`, and the turbulent Prandtl number
+:math:`c_\mu / c_\mu'` rises from 0.40 at :math:`-3.5` to 5.9 at
+:math:`-3.598`. Keep :math:`R_t^{min}` at about :math:`-3.5` or above.
+The smoothed :math:`R_t` and the two functions can be written to the plotfile as ``Rt``, ``cmu`` and ``cmu_prime``.
 
 Wall condition on :math:`k`
 ---------------------------
@@ -207,7 +310,8 @@ Wall distance
 -------------
 
 On a flat or vertically stretched mesh the distance :math:`d` is the
-height of the cell centre above the ground. On a terrain-fitted mesh two
+height of the cell centre above the ground, :math:`z - z_{lo}`, where
+:math:`z_{lo}` is ``geometry.prob_lo[2]``. On a terrain-fitted mesh two
 choices are offered through ``erf.wall_dist_type``:
 
 * ``poisson`` (default): the differential-equation distance of Tucker
@@ -229,15 +333,31 @@ choices are offered through ``erf.wall_dist_type``:
   no linear solve. It cannot see side walls or overhangs, which the
   Poisson distance can.
 
+With terrain immersed forcing (``erf.terrain_type = ImmersedForcing``) the
+mesh is flat, and with the legacy wall law the distance is the height above
+the bottom of the domain, inside the solid, whatever ``erf.wall_dist_type``
+says. With the fraction-stress wall law (``erf.if_wall_form = fraction_stress``,
+see :ref:`Forcings <Forcings>`) the distance is measured from the surface the
+wall law uses, :math:`h = z_{bot} + \beta \Delta z` of the wall cell, with the
+wall cell at its fluid centroid :math:`(1 - \beta)\Delta z / 2` above it and
+every other cell at :math:`|z - h|`, so the length scale and the wall law see
+the same geometry; ``erf.wall_dist_type`` then does not apply. The distance is
+vertical (the wall law is), and a column without solid keeps the bottom of the
+domain as its wall. On a refined level a box need not hold the whole column:
+where a box does not see the surface of a column (it lies wholly inside the
+solid, or above the surface without reaching the bottom of the domain) the
+distance is measured from the wall height of the coarser level.
+
 The distance is available as the plot variable ``walldist``. It is
-computed once at initialisation, also on a restart; it is not recomputed
-after a regrid.
+computed at initialisation, also on a restart, and again on every level
+that a regrid adds or remakes.
 
 Limitations
 -----------
 
-* The buoyancy production and :math:`N^2` are dry: no virtual or
-  liquid-water potential temperature.
+* The buoyancy production is dry unless ``erf.rans_moist_buoyancy`` is set,
+  and then water vapour only (no cloud-water flux, no saturated form);
+  :math:`N^2` follows ``erf.thermal_stratification``.
 * All levels must use the closure; a hybrid RANS-LES set-up is refused.
 * Embedded and thin-body boundaries are not supported by the Poisson wall
   distance.
@@ -259,7 +379,7 @@ Inputs
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.Cmu0**, **erf.Cb**               | :math:`c_\mu^0`, :math:`c_b`                               | 0.5562, 0.35     |
 +----------------------------------------+------------------------------------------------------------+------------------+
-| **erf.Rt_crit**, **erf.Rt_min**        | smoothing bounds on :math:`R_t`                            | -1, -3           |
+| **erf.Rt_crit**, **erf.Rt_min**        | smoothing bounds on :math:`R_t`; see the limits above      | -1, -3           |
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.max_geom_lscale**                | cap on :math:`l_g` [m]                                     | 30               |
 +----------------------------------------+------------------------------------------------------------+------------------+
@@ -276,6 +396,8 @@ Inputs
 | **erf.implicit_tke_dissipation**       | linearised implicit dissipation                            | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.rans_consistent_diffusivities**  | heat, scalar and moisture diffusivities from :math:`c_\mu'`| false            |
++----------------------------------------+------------------------------------------------------------+------------------+
+| **erf.rans_moist_buoyancy**            | :math:`P_b` from the virtual potential temperature flux    | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.rans_lscale_from_pblh**          | cap :math:`l_g` at :math:`\kappa 0.1 z_i`                  | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+

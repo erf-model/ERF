@@ -11,9 +11,12 @@ ERF has the option to include Lagrangian particles in addition to the mesh-based
 Currently there is one example of particle types available in ERF: tracer_particles.
 
 The tracer particles are advected by the velocity field with optional sedimentation.
+With sedimentation, each particle carries a settling velocity relative to the air, stored in
+``zvel``, that gravity and quadratic drag relax to a terminal velocity of 5 m/s; the particle
+moves with the air velocity plus this settling velocity.
 
 We note that unless the domain is periodic in the vertical direction, any particles that
-cross the bottom boundary during the advection step will be moved back into the domain
+cross the bottom boundary during the advection or sedimentation step will be moved back into the domain
 at a location 1/5 of the way between the bottom boundary and the top of the cell at k = 0.
 
 However, the AMReX particle data structure is very general and particles may take on a number of

@@ -2,10 +2,13 @@
  * \file ERF_WriteScalarProfiles.cpp
  */
 #include <iomanip>
+#include <limits>
 #include "ERF_Constants.H"
 
 #include "ERF.H"
 #include "ERF_Derive.H"
+#include "ERF_MoistUtils.H"
+#include "ERF_MicrophysicsConstants.H"
 
 using namespace amrex;
 
@@ -31,6 +34,10 @@ ERF::sum_integrated_quantities (double time)
     Real rhth_ml = zero;
     Real scal_ml = zero;
     Real mois_ml = zero;
+#ifdef ERF_USE_FIRE
+    Real smoke_sl = zero;
+    Real smoke_ml = zero;
+#endif
 
     bool local = true;
 
@@ -56,6 +63,11 @@ ERF::sum_integrated_quantities (double time)
             mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,dJ0,mfx0,mfy0,false);
         }
     }
+#ifdef ERF_USE_FIRE
+    if (m_fire_coupler) {
+        smoke_sl = volWgtSumMF(0, vars_new[0][Vars::cons], RhoSmoke_comp, dJ0, mfx0, mfy0, false);
+    }
+#endif
 
     for (int lev = 0; lev <= finest_level; lev++) {
         auto& mfx = *mapfac[lev][MapFacType::m_x];
@@ -69,6 +81,11 @@ ERF::sum_integrated_quantities (double time)
                 mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,true);
             }
         }
+#ifdef ERF_USE_FIRE
+        if (m_fire_coupler) {
+            smoke_ml += volWgtSumMF(lev, vars_new[lev][Vars::cons], RhoSmoke_comp, dJ, mfx, mfy, true);
+        }
+#endif
     }
 
     Real h_avg_ustar = zero;
@@ -90,8 +107,13 @@ ERF::sum_integrated_quantities (double time)
         h_avg_olen  /= area_z;
     }
 
+#ifdef ERF_USE_FIRE
+    const int nfoo = 10;
+    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,smoke_sl,mass_ml,rhth_ml,scal_ml,mois_ml,smoke_ml};
+#else
     const int nfoo = 8;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
+#endif
     Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
@@ -105,31 +127,47 @@ ERF::sum_integrated_quantities (double time)
         rhth_sl = foo[i++];
         scal_sl = foo[i++];
         mois_sl = foo[i++];
+#ifdef ERF_USE_FIRE
+        smoke_sl = foo[i++];
+#endif
         mass_ml = foo[i++];
         rhth_ml = foo[i++];
         scal_ml = foo[i++];
         mois_ml = foo[i++];
+#ifdef ERF_USE_FIRE
+        smoke_ml = foo[i++];
+#endif
+
+        // Print the integrals with every digit, so that a run can be checked for conservation
+        // from its output (Tests/RunConservation.cmake)
+        const int sumprecision = std::numeric_limits<Real>::max_digits10;
 
         Print() << '\n';
         Print() << "TIME= " << std::setw(datwidth) << std::setprecision(timeprecision) << std::left << time << '\n';
         if (finest_level ==  0) {
 #if 1
-           Print() << " MASS       = " << mass_sl << '\n';
+           Print() << std::setprecision(sumprecision) << " MASS       = " << mass_sl << '\n';
 #else
-           Print() << " PERT MASS  = " << mass_sl << '\n';
+           Print() << std::setprecision(sumprecision) << " PERT MASS  = " << mass_sl << '\n';
 #endif
-           Print() << " RHO THETA  = " << rhth_sl << '\n';
-           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR = " << scal_sl << '\n'; }
-           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL = " << mois_sl << '\n'; }
+           Print() << std::setprecision(sumprecision) << " RHO THETA  = " << rhth_sl << '\n';
+           if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR = " << scal_sl << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL = " << mois_sl << '\n'; }
+#ifdef ERF_USE_FIRE
+           if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  = " << smoke_sl << '\n'; }
+#endif
         } else {
 #if 1
-           Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << std::setprecision(sumprecision) << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #else
-           Print() << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << std::setprecision(sumprecision) << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #endif
-           Print() << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
-           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
-           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
+           Print() << std::setprecision(sumprecision) << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
+           if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
+#ifdef ERF_USE_FIRE
+           if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  SL/ML = " << smoke_sl << " " << smoke_ml << '\n'; }
+#endif
         }
 
         // The first data log only holds scalars
@@ -164,13 +202,13 @@ ERF::sum_integrated_quantities (double time)
     if (NumSamplePointLogs() > 0 && NumSamplePoints() > 0) {
         for (int i = 0; i < NumSamplePoints(); ++i)
         {
-            sample_points(lev, time, SamplePoint(i), vars_new[lev][Vars::cons]);
+            sample_points(i, lev, time, SamplePoint(i), vars_new[lev][Vars::cons]);
         }
     }
     if (NumSampleLineLogs() > 0 && NumSampleLines() > 0) {
         for (int i = 0; i < NumSampleLines(); ++i)
         {
-            sample_lines(lev, time, SampleLine(i), vars_new[lev][Vars::cons]);
+            sample_lines(i, lev, time, SampleLine(i), vars_new[lev][Vars::cons]);
         }
     }
 }
@@ -351,7 +389,9 @@ ERF::sum_energy_quantities (double time)
     MultiFab tot_energy(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
 
     auto const& dx = geom[lev].CellSizeArray();
+    auto const  prob_lo = geom[lev].ProbLoArray();
     bool is_moist = (solverChoice.moisture_type != MoistureType::None);
+    const MoistureComponentIndices moist_idx = solverChoice.moisture_indices;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -364,27 +404,36 @@ ERF::sum_energy_quantities (double time)
         const Array4<Real>& tot_mass_arr   = tot_mass.array(mfi);
         const Array4<Real>& tot_energy_arr = tot_energy.array(mfi);
         const Array4<const Real>& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
-        const Array4<const Real>& z_arr    = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) :
+        const Array4<const Real>& z_arr    = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) :
                                                                 Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : zero;
-            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : zero;
-            Real Qt   = Qv + Qc;
+            // Mixing ratios of vapour, of all liquid (cloud and rain) and of all ice (cloud
+            // ice, snow, graupel); the state holds rho_d times each species
+            Real Qv = zero, Ql = zero, Qi = zero;
+            if (is_moist) { GetMoistureVars(i, j, k, cons_arr, Qv, Ql, Qi, moist_idx); }
+            Real Qt   = Qv + Ql + Qi;
             Real Rhod = cons_arr(i,j,k,Rho_comp);
             Real Rhot = Rhod * (one + Qt);
             Real Temp = getTgivenRandRTh(Rhod, cons_arr(i,j,k,RhoTheta_comp), Qv);
             Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
-            Real zval = (z_arr) ? z_arr(i,j,k) : Real(k)*dx[2];
+            // Height of the cell centre
+            Real zval = (z_arr) ? z_arr(i,j,k) : prob_lo[2] + (Real(k) + myhalf)*dx[2];
 
+            // Internal energy with constant heat capacities (Romps 2008, J. Atmos. Sci. 65,
+            // 3779), measured from liquid water at the triple point: vapour carries
+            // E0v = L_v - R_v T_trip, ice -E0s with E0s = L_f. The latent heats this
+            // implies follow Kirchhoff's law, e.g. L_v(T) = L_v + (c_pv - c_l)(T - T_trip).
             Real Cv   = Cp_d - R_d;
             Real Cvv  = Cp_v - R_v;
-            Real Cpv  = Cp_v;
+            Real E0v  = L_v - R_v*h2otrip;
+            Real E0s  = lfus;
 
             tot_mass_arr(i,j,k)   = Rhot;
-            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v*Qc
+            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cp_l*Ql + Cp_i*Qi)*(Temp - h2otrip)
+                                           + Qv*E0v - Qi*E0s
                                            + (one + Qt)*TKE + (one + Qt)*CONST_GRAV*zval );
 
         });
@@ -528,16 +577,15 @@ ERF::cloud_fraction (double /*time*/)
 /**
  * Utility function for sampling MultiFab data at a specified cell index.
  *
+ * @param ifile Index of the sample point and of its log file
  * @param lev Level for the associated MultiFab data
  * @param time Current time
  * @param cell IntVect containing the indexes for the cell where we want to sample
  * @param mf MultiFab from which we wish to sample data
  */
 void
-ERF::sample_points (int /*lev*/, double time, IntVect cell, MultiFab& mf)
+ERF::sample_points (int ifile, int /*lev*/, double time, IntVect cell, MultiFab& mf)
 {
-    int ifile = 0;
-
     //
     // Sample the data at a single point in space
     //
@@ -564,16 +612,18 @@ ERF::sample_points (int /*lev*/, double time, IntVect cell, MultiFab& mf)
  * Utility function for sampling data along a line along the z-dimension
  * at the (x,y) indices specified and writes it to an output file.
  *
+ * The line can cross several boxes owned by different ranks, so each field
+ * is first copied onto a single box on the IO processor, which writes the log.
+ *
+ * @param ifile Index of the sample line and of its log file
  * @param lev Current level
  * @param time Current time
  * @param cell IntVect containing the x,y-dimension indices to sample along z
  * @param mf MultiFab from which we sample the data
  */
 void
-ERF::sample_lines (int lev, double time, IntVect cell, MultiFab& mf)
+ERF::sample_lines (int ifile, int lev, double time, IntVect cell, MultiFab& mf)
 {
-    int ifile = 0;
-
     const int ncomp = mf.nComp(); // cell-centered state vars
 
     MultiFab mf_vels(grids[lev], dmap[lev], AMREX_SPACEDIM, 0);
@@ -586,66 +636,70 @@ ERF::sample_lines (int lev, double time, IntVect cell, MultiFab& mf)
     // The "k" value of "cell" is ignored
     //
     int dir = 2;
-    MultiFab my_line       = get_line_data(mf,              dir, cell);
-    MultiFab my_line_vels  = get_line_data(mf_vels,         dir, cell);
-    MultiFab my_line_tau11 = get_line_data(*Tau[lev][TauType::tau11], dir, cell);
-    MultiFab my_line_tau12 = get_line_data(*Tau[lev][TauType::tau12], dir, cell);
-    MultiFab my_line_tau13 = get_line_data(*Tau[lev][TauType::tau13], dir, cell);
-    MultiFab my_line_tau22 = get_line_data(*Tau[lev][TauType::tau22], dir, cell);
-    MultiFab my_line_tau23 = get_line_data(*Tau[lev][TauType::tau23], dir, cell);
-    MultiFab my_line_tau33 = get_line_data(*Tau[lev][TauType::tau33], dir, cell);
+    const Box& domain = geom[lev].Domain();
+    IntVect line_lo(cell); line_lo[dir] = domain.smallEnd(dir);
+    IntVect line_hi(cell); line_hi[dir] = domain.bigEnd(dir);
+    const Box line_box(line_lo, line_hi);
+    const int klo = line_box.smallEnd(dir);
+    const int khi = line_box.bigEnd(dir);
 
-    for (MFIter mfi(my_line, false); mfi.isValid(); ++mfi)
+    DistributionMapping io_dm(Vector<int>{ParallelDescriptor::IOProcessorNumber()});
+
+    // Copy the line through src onto the IO processor, in host-accessible memory
+    auto gather_line = [&] (const MultiFab& src) -> MultiFab
     {
-        // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
+        BoxArray line_ba(convert(line_box, src.ixType()));
+        MultiFab line(line_ba, io_dm, src.nComp(), 0, MFInfo().SetArena(The_Pinned_Arena()));
+        line.ParallelCopy(src, 0, 0, src.nComp());
+        Gpu::streamSynchronize();
+        return line;
+    };
 
-        std::ostream& sample_log = SampleLineLog(ifile);
-        if (sample_log.good()) {
-          sample_log << std::setw(datwidth) << std::setprecision(datprecision) << time;
-          const auto& my_line_arr = my_line[0].const_array();
-          const auto& my_line_vels_arr = my_line_vels[0].const_array();
-          const auto& my_line_tau11_arr = my_line_tau11[0].const_array();
-          const auto& my_line_tau12_arr = my_line_tau12[0].const_array();
-          const auto& my_line_tau13_arr = my_line_tau13[0].const_array();
-          const auto& my_line_tau22_arr = my_line_tau22[0].const_array();
-          const auto& my_line_tau23_arr = my_line_tau23[0].const_array();
-          const auto& my_line_tau33_arr = my_line_tau33[0].const_array();
-          const Box&  my_box = my_line[0].box();
-          const int klo = my_box.smallEnd(2);
-          const int khi = my_box.bigEnd(2);
-          int i = cell[0];
-          int j = cell[1];
-          for (int n = 0; n < ncomp; n++) {
-              for (int k = klo; k <= khi; k++) {
-                  sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_arr(i,j,k,n);
-              }
-          }
-          for (int n = 0; n < AMREX_SPACEDIM; n++) {
-              for (int k = klo; k <= khi; k++) {
-                  sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_vels_arr(i,j,k,n);
-              }
-          }
+    MultiFab my_line      = gather_line(mf);
+    MultiFab my_line_vels = gather_line(mf_vels);
+
+    // The stresses exist only when diffusion is on; write zeros otherwise so the
+    // columns of the log do not depend on the physics options
+    constexpr int ntau = 6;
+    const std::array<int,ntau> tau_types = {TauType::tau11, TauType::tau12, TauType::tau13,
+                                            TauType::tau22, TauType::tau23, TauType::tau33};
+    Vector<MultiFab> my_line_tau(ntau);
+    for (int t = 0; t < ntau; ++t) {
+        if (Tau[lev][tau_types[t]]) {
+            my_line_tau[t] = gather_line(*Tau[lev][tau_types[t]]);
+        }
+    }
+
+    if (!ParallelDescriptor::IOProcessor()) return;
+
+    // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
+
+    std::ostream& sample_log = SampleLineLog(ifile);
+    if (sample_log.good()) {
+      sample_log << std::setw(datwidth) << std::setprecision(datprecision) << time;
+      const auto& my_line_arr      = my_line[0].const_array();
+      const auto& my_line_vels_arr = my_line_vels[0].const_array();
+      int i = cell[0];
+      int j = cell[1];
+      for (int n = 0; n < ncomp; n++) {
           for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau11_arr(i,j,k);
+              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_arr(i,j,k,n);
           }
+      }
+      for (int n = 0; n < AMREX_SPACEDIM; n++) {
           for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau12_arr(i,j,k);
+              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_vels_arr(i,j,k,n);
           }
+      }
+      for (int t = 0; t < ntau; ++t) {
+          const bool has_tau = !my_line_tau[t].empty();
           for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau13_arr(i,j,k);
+              Real val = has_tau ? my_line_tau[t][0].const_array()(i,j,k) : zero;
+              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << val;
           }
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau22_arr(i,j,k);
-          }
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau23_arr(i,j,k);
-          }
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau33_arr(i,j,k);
-          }
-          sample_log << std::endl;
-        } // if good
-    } // mfi
+      }
+      sample_log << std::endl;
+    } // if good
 }
 
 /**

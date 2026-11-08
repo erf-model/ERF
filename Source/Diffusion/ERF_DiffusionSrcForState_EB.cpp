@@ -1,6 +1,7 @@
 #include "ERF_Diffusion.H"
 #include "ERF_EddyViscosity.H"
 #include <ERF_EBStruct.H>
+#include "ERF_NativeScalarDiffusion.H"
 
 using namespace amrex;
 
@@ -86,14 +87,13 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
         const int qty_index = start_comp + n;
         const int prim_index = qty_index - 1;
         const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
-        const int eff_index = (l_consA && l_turb) ? prim_scal_index : prim_index;
         int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                        BCVars::RhoScalar_bc_comp : qty_index;
         if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-        const Real alpha_mol = alpha_eff[eff_index];
-        const int  eddy_x    = eddy_diff_idx[eff_index];
-        const int  eddy_y    = eddy_diff_idy[eff_index];
-        const int  eddy_z    = eddy_diff_idz[eff_index];
+        const Real alpha_mol = alpha_eff[prim_scal_index];
+        const int  eddy_x    = eddy_diff_idx[prim_scal_index];
+        const int  eddy_y    = eddy_diff_idy[prim_scal_index];
+        const int  eddy_z    = eddy_diff_idz[prim_scal_index];
 
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {

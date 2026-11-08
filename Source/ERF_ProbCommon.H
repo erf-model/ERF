@@ -17,6 +17,7 @@
 #include "ERF_GridUtils.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_ColumnBands.H"
+#include "ERF_TerrainFileChecks.H"
 
 #ifdef ERF_USE_NETCDF
 #include <ERF_NCInterface.H>
@@ -26,27 +27,6 @@ struct ProbParmDefaults {
     amrex::Real rho_0 = one;
     amrex::Real T_0 = amrex::Real(300.0);
 };
-
-template <typename T>
-T erf_get_single_value (std::istream& is, int n)
-{
-  T r = 0;
-  std::string line;
-  if (std::getline(is, line)) {
-    std::stringstream ss(line);
-    ss >> r;
-    if (ss.fail()) {
-      amrex::Abort("Failed to read");
-    }
-    if (ss >> r) {
-      amrex::Print() << "Trying to read line " << n << " in this file " << std::endl;
-      amrex::Abort("Wrong format: more than one number in this line");
-    }
-  } else {
-    amrex::Abort("Unable to read this line");
-  }
-  return r;
-}
 
 void
 init_my_custom_terrain (const amrex::Geometry& geom,
@@ -114,7 +94,8 @@ public:
     virtual void
     erf_init_dens_hse_moist (amrex::MultiFab& /*rho_hse*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
-                             amrex::Geometry const& /*geom*/)
+                             amrex::Geometry const& /*geom*/,
+                             const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
 
     }
@@ -128,6 +109,8 @@ public:
      * @param[out] p_hse       hydrostatic reference pressure
      * @param[in] z_nd         height coordinate at nodes
      * @param[in] z_cc         height coordinate at cell centers
+     * @param[in] z_sfc_nd     height of the ground at the nodes of the bottom face of each
+     *                         column, at k = 0, over the planar footprint of bx
      * @param[in] mf_m         map factor on cell centers
      * @param[in] mf_u         map factor on x-faces
      * @param[in] mf_v         map factor on y-faces
@@ -142,6 +125,7 @@ public:
                       amrex::Array4<amrex::Real      > const& /*p_hse*/,
                       amrex::Array4<amrex::Real const> const& /*z_nd*/,
                       amrex::Array4<amrex::Real const> const& /*z_cc*/,
+                      amrex::Array4<amrex::Real const> const& /*z_sfc_nd*/,
                       amrex::GeometryData const& /*geomdata*/,
                       amrex::Array4<amrex::Real const> const& /*mf_m*/,
                       const SolverChoice& /*sc*/, const int /*lev*/)
@@ -160,6 +144,8 @@ public:
      * @param[out] y_vel_pert  y-component of velocity perturbation to be filled in this routine
      * @param[out] z_vel_pert  z-component of velocity perturbation to be filled in this routine
      * @param[in] z_nd         height coordinate at nodes
+     * @param[in] z_sfc_nd     height of the ground at the nodes of the bottom face of each
+     *                         column, at k = 0 (see init_custom_pert)
      * @param[in] mf_m         map factor on cell centers
      * @param[in] mf_u         map factor on x-faces
      * @param[in] mf_v         map factor on y-faces
@@ -174,6 +160,7 @@ public:
                            amrex::Array4<amrex::Real      > const& /*y_vel_pert*/,
                            amrex::Array4<amrex::Real      > const& /*z_vel_pert*/,
                            amrex::Array4<amrex::Real const> const& /*z_nd*/,
+                           amrex::Array4<amrex::Real const> const& /*z_sfc_nd*/,
                            amrex::GeometryData const& /*geomdata*/,
                            amrex::Array4<amrex::Real const> const& /*mf_u*/,
                            amrex::Array4<amrex::Real const> const& /*mf_v*/,
@@ -348,10 +335,15 @@ public:
         auto valid_fname = pp.queryAdd("buildings_file_name",fname);
 
         if (valid_fname) {
-            read_custom_terrain(fname,false,geom,buildings_fab,time);
+            // Buildings may occupy only a local patch of the physical domain.
+            read_custom_terrain(fname,false,geom,buildings_fab,time,
+                                /*require_domain_coverage=*/false,
+                                /*zero_outside_table=*/true);
         } else {
             init_my_custom_terrain(geom, buildings_fab, time);
         }
+
+        make_terrain_surface_periodic(geom, buildings_fab);
     }
 
 
@@ -392,6 +384,87 @@ public:
         } else {
             init_my_custom_terrain (geom, terrain_fab, time);
         }
+
+        make_terrain_surface_periodic(geom, terrain_fab);
+    }
+
+    /**
+     * Give every node in a periodic direction the height of its periodic image inside the
+     * domain.  The nodes on the high side of a periodic domain are the same nodes as those
+     * on the low side, but none of the sources above knows that: the file readers clip a
+     * node outside the table to its edge (and look every node up 1e-3 past where it is),
+     * and an analytic surface is periodic only to round-off.  Left as they are the two
+     * copies of a node differ, and so do the metrics of the faces on either side of it --
+     * which means the two grids that share a face update it differently, the mass flux
+     * through it is no longer the same on both sides, and which copy a fill keeps depends
+     * on how the grids are distributed.  The low side is the one we keep.
+     *
+     * terrain_fab must hold every node of the domain in a periodic direction, since that is
+     * where the images are read from.  A surface that is far from periodic is still made
+     * periodic here, but we say so, since the cells next to the high side then see a step.
+    */
+    static void
+    make_terrain_surface_periodic (const amrex::Geometry& geom,
+                                   amrex::FArrayBox& terrain_fab)
+    {
+        const bool per_x = geom.isPeriodic(0);
+        const bool per_y = geom.isPeriodic(1);
+        if (!per_x && !per_y) { return; }
+
+        const amrex::Box& domain = geom.Domain();
+        const int ilo = domain.smallEnd(0); const int nx = domain.length(0);
+        const int jlo = domain.smallEnd(1); const int ny = domain.length(1);
+
+        const amrex::Box bx = terrain_fab.box();
+        const auto blo = amrex::lbound(bx);
+        const auto bhi = amrex::ubound(bx);
+        amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            (!per_x || (blo.x <= ilo && bhi.x >= ilo+nx-1)) &&
+            (!per_y || (blo.y <= jlo && bhi.y >= jlo+ny-1)),
+            "make_terrain_surface_periodic: the terrain FArrayBox must hold every node of the domain in a periodic direction");
+
+        // How far the surface is from periodic: the largest difference between a node on the
+        // high side of the domain and its image on the low side (ghost nodes are left out:
+        // they hold whatever the source clipped them to)
+        amrex::Box hi_bx = bx & amrex::surroundingNodes(domain);
+        hi_bx.setSmall(2, bx.smallEnd(2)); hi_bx.setBig(2, bx.smallEnd(2));
+        if (!hi_bx.isEmpty()) {
+            amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
+            amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+            reduce_op.eval(hi_bx, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<amrex::Real>
+                {
+                    int ii = (per_x) ? ilo + ((i-ilo) % nx + nx) % nx : i;
+                    int jj = (per_y) ? jlo + ((j-jlo) % ny + ny) % ny : j;
+                    return { (ii != i || jj != j) ? amrex::Math::abs(z_arr(i,j,k) - z_arr(ii,jj,k))
+                                                  : amrex::Real(0.0) };
+                });
+            // Every rank fills its own copy of the whole surface, so there is nothing to reduce
+            // across ranks.  Warn once: with a moving mesh we are called several times a step.
+            const amrex::Real max_diff = amrex::get<0>(reduce_data.value());
+            static bool warned = false;
+            if (!warned && max_diff > amrex::Real(0.1) * geom.CellSize(2)) {
+                warned = true;
+                amrex::Print() << "WARNING: the terrain surface is not periodic in a periodic direction: "
+                               << "a node on the high side of the domain differs from its image on the low "
+                               << "side by up to " << max_diff << " m.  The low side is used for both, so the "
+                               << "cells next to the high side see a step in the surface.\n";
+            }
+        }
+
+        // We only write nodes outside [lo, lo+n) in a periodic direction and only read
+        // nodes inside it, so no node is both read and written here
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            int ii = (per_x) ? ilo + ((i-ilo) % nx + nx) % nx : i;
+            int jj = (per_y) ? jlo + ((j-jlo) % ny + ny) % ny : j;
+            if ((ii != i || jj != j) &&
+                ii >= blo.x && ii <= bhi.x && jj >= blo.y && jj <= bhi.y) {
+                z_arr(i,j,k) = z_arr(ii,jj,k);
+            }
+        });
     }
 
     /**
@@ -757,6 +830,13 @@ public:
             if (!target_box.isEmpty()) {
                 target_box.setSmall(2, zbx.smallEnd(2));
                 target_box.setBig(2, zbx.smallEnd(2));
+                // The node on the high side of a periodic direction takes the value of its
+                // image on the low side (make_terrain_surface_periodic), so don't count it
+                for (int d = 0; d < 2; ++d) {
+                    if (geom.isPeriodic(d)) {
+                        target_box.setBig(d, amrex::min(target_box.bigEnd(d), geom.Domain().bigEnd(d)));
+                    }
+                }
                 amrex::ReduceOps<amrex::ReduceOpSum, amrex::ReduceOpSum> reduce_op;
                 amrex::ReduceData<amrex::Long, amrex::Long> reduce_data(reduce_op);
                 reduce_op.eval(target_box, reduce_data,
@@ -855,106 +935,23 @@ public:
                          const bool is_usgs,
                          const amrex::Geometry& geom,
                          amrex::FArrayBox& terrain_fab,
-                         const double& /*time*/)
+                         const double& /*time*/,
+                         bool require_domain_coverage = true,
+                         bool zero_outside_table = false)
     {
-        amrex::Vector<amrex::Real> m_xterrain,m_yterrain,m_zterrain;
+        // Read, checked and broadcast once per file; other levels, regrids, the EB build and
+        // the station slabs reuse the table
+        const auto& table = erf_terrain_file::ReadHeightTable(fname, is_usgs,
+                                                              geom.ProbLoArray(), geom.ProbHiArray(),
+                                                              require_domain_coverage);
+        const int nx = table.nx;
+        const int ny = table.ny;
+        const amrex::Vector<amrex::Real>& m_xterrain = table.x;
+        const amrex::Vector<amrex::Real>& m_yterrain = table.y;
+        const amrex::Vector<amrex::Real>& m_zterrain = table.z;
 
-        int nx = 0; int ny = 0;
-
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-            // Read terrain file
-            amrex::Print()<<"Reading terrain file: "<< fname<< std::endl;
-            std::ifstream file(fname);
-
-            if (!file.is_open()) {
-                amrex::Abort("Error: Could not open the file " + fname+ "\n");
-            }
-
-            // Check if file is empty
-            if (file.peek() == std::ifstream::traits_type::eof()) {
-                amrex::Abort("Error: The file  " + fname+ " is empty.\n");
-            }
-
-            amrex::Real value1,value2,value3;
-
-            if (is_usgs) {
-                amrex::Real lat_min, lon_min;
-
-                file >> lon_min >> lat_min;
-                 if(std::fabs(lon_min) > amrex::Real(180.0)) {
-                    amrex::Error("The value of longitude for entry in the first line in " + fname
-                                 + " should not exceed amrex::Real(180.) It is " + std::to_string(lon_min));
-                }
-                 if(std::fabs(lat_min) > amrex::Real(90.0)) {
-                    amrex::Error("The value of latitude for entry in the first line in " + fname
-                                 + " should not exceed amrex::Real(90.) It is " + std::to_string(lat_min));
-                }
-
-                file >> nx >> ny;
-
-                int counter = 0;
-                while (file >> value1 >> value2 >> value3) {
-                    m_xterrain.push_back(value1);
-                    if(counter%nx==0) {
-                        m_yterrain.push_back(value2);
-                    }
-                    m_zterrain.push_back(value3);
-                    counter += 1;
-                }
-                AMREX_ASSERT(m_xterrain.size() == static_cast<long int>(nx*ny));
-                AMREX_ASSERT(m_yterrain.size() == static_cast<long int>(ny));
-                AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
-
-            } else {
-                int cnt = 1;
-                nx = erf_get_single_value<int>(file,cnt); cnt++;
-                ny = erf_get_single_value<int>(file,cnt); cnt++;
-                amrex::Print()<<"Expecting " << nx << " values of x,    " <<
-                                                ny << " values of y, and " <<
-                                             nx*ny << " values of z" << std::endl;
-                AMREX_ALWAYS_ASSERT(nx > 0);
-                AMREX_ALWAYS_ASSERT(ny > 0);
-                m_xterrain.resize(nx);
-                m_yterrain.resize(ny);
-                m_zterrain.resize(nx * ny);
-                for (int n = 0; n < nx; n++) {
-                    m_xterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
-                    cnt++;
-                }
-                for (int n = 0; n < ny; n++) {
-                    m_yterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
-                    cnt++;
-                }
-                for (int n = 0; n < nx * ny; n++) {
-                    m_zterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
-                    cnt++;
-                }
-            }
-
-            // Close the file after reading
-            file.close();
-        }
-
-        amrex::ParallelDescriptor::Bcast(&nx,1,amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessorNumber());
-
-        AMREX_ALWAYS_ASSERT(nx > 0 && ny > 0);
-        if (is_usgs) {
-            // The usgs branch below always uses a full 2x2 stencil
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nx > 1 && ny > 1,
-                "USGS terrain file must have at least two points in each direction");
-        }
-
-        int nz = nx * ny;
-        int nx_vals = is_usgs ? (nx * ny) : nx;
-
-        m_xterrain.resize(nx_vals);
-        m_yterrain.resize(ny);
-        m_zterrain.resize(nz);
-
-        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx_vals,amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::Bcast(m_yterrain.data(),ny,amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nz,amrex::ParallelDescriptor::IOProcessorNumber());
+        const int nz = nx * ny;
+        const int nx_vals = is_usgs ? (nx * ny) : nx;
 
         // Copy data to the GPU
         amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx_vals),d_yterrain(ny),d_zterrain(nz);
@@ -985,8 +982,22 @@ public:
             int jj = amrex::min(amrex::max(j,jlo),jhi);
 
             // Location of nodes
-            amrex::Real x = ProbLoArr[0] + ii * dx[0] + amrex::Real(1e-3);
-            amrex::Real y = ProbLoArr[1] + jj * dx[1] + amrex::Real(1e-3);
+            amrex::Real x_node = ProbLoArr[0] + ii * dx[0];
+            amrex::Real y_node = ProbLoArr[1] + jj * dx[1];
+            amrex::Real x = x_node + amrex::Real(1e-3);
+            amrex::Real y = y_node + amrex::Real(1e-3);
+
+            // A local building table describes no buildings beyond its footprint.
+            // Use the unshifted node position so a node on the last table point
+            // remains inside, despite the interpolation offset above.
+            if (zero_outside_table) {
+                const bool out_x = nx > 1 && (x_node < d_xt[0] || x_node > d_xt[nx-1]);
+                const bool out_y = ny > 1 && (y_node < d_yt[0] || y_node > d_yt[ny-1]);
+                if (out_x || out_y) {
+                    z_arr(i,j,klo) = amrex::Real(0.0);
+                    return;
+                }
+            }
 
             int ind11, ind12, ind21, ind22;
             amrex::Real x1, x2, y1, y2;
@@ -1145,6 +1156,9 @@ public:
                 }
             } // usgs?
         });
+
+        // The kernel reads the device vectors above: finish it before they are freed
+        amrex::Gpu::streamSynchronize();
     }
 
     /**
@@ -1171,7 +1185,8 @@ public:
 
         } else {
             amrex::Print() << "Initializing flat terrain" << std::endl;
-            terrain_fab.template setVal<amrex::RunOn::Device>(0);
+            // A flat surface at the bottom of the domain
+            terrain_fab.template setVal<amrex::RunOn::Device>(geom.ProbLo(2));
 
             if (SolverChoice::mesh_type == MeshType::VariableDz) {
                 SolverChoice::set_mesh_type(MeshType::StretchedDz);
@@ -1221,6 +1236,33 @@ protected:
         amrex::ParmParse pp("erf");
         pp.get("prob_name",prob_name); return prob_name;
     }
+
+public:
+    /**
+     * Store the staggered vertical levels of every AMR level.  On a mesh other than
+     * ConstantDz, geometry.prob_lo[2], prob_hi[2] and CellSize(2) only bound and step the
+     * computational coordinate; the physical heights are these levels (and z_phys_cc/nd).
+     */
+    void set_zlevels_stag (const amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag) {
+        m_zlevels_stag = zlevels_stag;
+    }
+
+protected:
+    //! True when heights must come from the vertical levels or z_phys, not from the geometry
+    static bool use_physical_z () { return SolverChoice::mesh_type != MeshType::ConstantDz; }
+
+    //! Physical bottom of the domain at AMR level lev
+    [[nodiscard]] amrex::Real phys_zlo (const amrex::GeometryData& geomdata, int lev) const {
+        return use_physical_z() ? m_zlevels_stag[lev].front() : geomdata.ProbLo(2);
+    }
+
+    //! Physical top of the domain at AMR level lev
+    [[nodiscard]] amrex::Real phys_zhi (const amrex::GeometryData& geomdata, int lev) const {
+        return use_physical_z() ? m_zlevels_stag[lev].back() : geomdata.ProbHi(2);
+    }
+
+    //! Staggered vertical levels of AMR level lev (set by set_zlevels_stag)
+    amrex::Vector<amrex::Vector<amrex::Real>> m_zlevels_stag;
 };
 
 

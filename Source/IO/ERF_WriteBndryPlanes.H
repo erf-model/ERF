@@ -24,6 +24,24 @@ public:
                        amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
                        bool is_moist);
 
+    /** Decide which rows of time.dat a run starting at step start_step (at time start_time,
+     *  with start_time the absolute time written in time.dat) continues from: a restart keeps
+     *  the rows the run before it wrote up to that step, a fresh start keeps none. The file is
+     *  rewritten only when the run writes its first plane, so a run that stops before then
+     *  leaves it as it was. Returns whether the kept rows end with a plane at start_step itself.
+     */
+    bool start_series (int start_step, double start_time, bool restarting);
+
+    //! Level the planes are taken from
+    static int get_bndry_lev () { return bndry_lev; }
+
+    /** How many leading rows of a time.dat with these steps and times a run starting at
+     *  start_step and start_time keeps: on a restart the rows up to and including the restart
+     *  that increase in step and time and are not later than the restart; on a fresh start none.
+     */
+    static int rows_to_keep (const amrex::Vector<int>& steps, const amrex::Vector<double>& times,
+                             int start_step, double start_time, bool restarting);
+
 private:
 
     //! IO output box region
@@ -40,6 +58,12 @@ private:
 
     //! Variables for IO
     amrex::Vector<std::string> m_var_names;
+
+    //! Rows of time.dat the run continues from, written back before its first plane (I/O rank)
+    amrex::Vector<std::string> m_kept_rows;
+
+    //! Whether time.dat still has to be rewritten to m_kept_rows (I/O rank)
+    bool m_rewrite_time_file = false;
 
     //! Timestep and times to be stored in time.dat
     amrex::Vector<double> m_in_times;

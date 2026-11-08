@@ -27,6 +27,9 @@ constexpr amrex::Real bogus_large_value = amrex::Real(1.e150);
 // the surface-layer scheme rather than taking an undefined LSM flux.
 constexpr amrex::Real lsm_undefined = bogus_large_value;
 
+// Finite neutral Obukhov length [m] for immersed columns in MOST and IB-aware PBL schemes.
+constexpr amrex::Real immersed_neutral_obukhov_length = amrex::Real(1.0e10);
+
 // The one definition of "this LSM coupling value was computed": finite and below the
 // lsm_undefined sentinel. amrex::Math::isfinite rather than std::isfinite because the
 // latter is always false in SYCL device code. Consumers that must also reject other
@@ -48,6 +51,7 @@ constexpr amrex::Real R_v          = amrex::Real(461.505);  // water vapor const
 constexpr amrex::Real Cp_d         = amrex::Real(1004.5);   // We have set this so that with qv=0 we get identically gamma = amrex::Real(1.4)
 constexpr amrex::Real Cp_v         = amrex::Real(1859.0);
 constexpr amrex::Real Cp_l         = amrex::Real(4200.0);
+constexpr amrex::Real Cp_i         = amrex::Real(2106.0);   // ice at 0 C [J/(kg-K)]
 
 constexpr amrex::Real epsv         = R_v / R_d - one;
 constexpr amrex::Real RdoCp        = R_d / Cp_d;

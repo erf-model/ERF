@@ -1,0 +1,6 @@
+# GNU make: the fire engine directory's sources. Exec/Make.ERF includes this
+# file for each directory listed in FIRE_HOME, with FIRE_ENGINE_DIR set to it
+# and the directory already on VPATH and the include path. An engine that
+# links a prebuilt library adds it here, for example
+#   LIBRARIES += -L$(ELMFIRE_DIR)/lib -lelmfire_core
+CEXE_sources += ERF_FireEngineExample.cpp

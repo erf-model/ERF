@@ -15,6 +15,25 @@ if(NOT DEFINED EXPECTED_CORE_VALUES)
   set(EXPECTED_CORE_VALUES
     "1.00000000000000000e+00,2.99999999999999886e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,3.00000000000000008e-06,6.99999999999999989e-06,")
 endif()
+# Extra passive scalars (the fire coupling's smoke, with ERF_ENABLE_FIRE) sit
+# right after RhoScalar_comp (the 4th component) and are zero in these decks, so
+# each one present in the build adds one zero there, in the minimum and in the
+# maximum vector.
+function(erf_insert_extra_scalars var)
+  if(NOT DEFINED ${var})
+    return()
+  endif()
+  string(REGEX MATCH "^([^,]*,[^,]*,[^,]*,[^,]*,)(.*)$" _core_match "${${var}}")
+  if(NOT _core_match)
+    message(FATAL_ERROR "${var} has fewer than four components: ${${var}}")
+  endif()
+  string(REPEAT "0.00000000000000000e+00," ${EXTRA_SCALAR_COMPONENTS} _extra_zeros)
+  set(${var} "${CMAKE_MATCH_1}${_extra_zeros}${CMAKE_MATCH_2}" PARENT_SCOPE)
+endfunction()
+if(DEFINED EXTRA_SCALAR_COMPONENTS AND EXTRA_SCALAR_COMPONENTS GREATER 0)
+  erf_insert_extra_scalars(EXPECTED_CORE_VALUES)
+  erf_insert_extra_scalars(EXPECTED_CORE_MAX_VALUES)
+endif()
 
 if(NUMERIC_HEADER_COMPARE)
   # HEADER_COMPARE_ULPS means units of the selected significant decimal digit

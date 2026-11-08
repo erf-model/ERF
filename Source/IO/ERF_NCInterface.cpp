@@ -14,8 +14,6 @@ namespace ncutils {
 
 namespace {
 
-char recname[NC_MAX_NAME + 1];
-
 /**
  * utility function for checking NetCDF error flag for an error condition
  *
@@ -64,6 +62,7 @@ void check_nc_file_exists (const std::string& fname)
  */
 std::string NCDim::name () const
 {
+    char recname[NC_MAX_NAME + 1];
     check_nc_error(nc_inq_dimname(ncid, dimid, recname));
     return std::string(recname);
 }
@@ -83,6 +82,7 @@ size_t NCDim::len () const
  */
 std::string NCVar::name () const
 {
+    char recname[NC_MAX_NAME + 1];
     check_nc_error(nc_inq_varname(ncid, varid, recname));
     return std::string(recname);
 }
@@ -106,10 +106,10 @@ std::vector<std::string> NCVar::dimnames () const
     std::vector<int> dimids(ndims);
     std::vector<std::string> vnames(ndims);
 
-    for (int i = 0; i < ndims; ++i)
-        check_nc_error(nc_inq_vardimid(ncid, varid, dimids.data()));
+    check_nc_error(nc_inq_vardimid(ncid, varid, dimids.data()));
 
-    char buf[80];
+    // NetCDF names are at most NC_MAX_NAME characters, plus the terminating null
+    char buf[NC_MAX_NAME + 1];
     for (int i = 0; i < ndims; ++i) {
         check_nc_error(nc_inq_dimname(ncid, dimids[i], buf));
         vnames[i] = std::string(buf);
@@ -500,9 +500,9 @@ std::string NCGroup::name () const
     size_t nlen;
     std::vector<char> grpname;
     check_nc_error(nc_inq_grpname_len(ncid, &nlen));
-    grpname.resize(nlen + 1);
+    grpname.resize(nlen + 1); // nlen excludes the terminating null
     check_nc_error(nc_inq_grpname(ncid, grpname.data()));
-    return std::string{grpname.begin(), grpname.end()};
+    return std::string(grpname.data(), nlen);
 }
 
 std::string NCGroup::full_name () const
@@ -510,9 +510,9 @@ std::string NCGroup::full_name () const
     size_t nlen;
     std::vector<char> grpname;
     check_nc_error(nc_inq_grpname_full(ncid, &nlen, nullptr));
-    grpname.resize(nlen);
+    grpname.resize(nlen + 1); // nlen excludes the terminating null, which is written too
     check_nc_error(nc_inq_grpname_full(ncid, &nlen, grpname.data()));
-    return std::string{grpname.begin(), grpname.end()};
+    return std::string(grpname.data(), nlen);
 }
 
 NCGroup NCGroup::group (const std::string& name) const
@@ -702,9 +702,15 @@ std::vector<NCDim> NCGroup::all_dims () const
 {
     std::vector<NCDim> adims;
     int ndims = num_dimensions();
+    if (ndims < 1) return adims;
+
+    // In NetCDF-4 the dimension IDs are unique across the file, so the IDs of the
+    //    dimensions in a group need not run from 0 to ndims-1
+    std::vector<int> dimids(ndims);
+    check_nc_error(nc_inq_dimids(ncid, &ndims, dimids.data(), 0));
     adims.reserve(ndims);
     for (int i = 0; i < ndims; ++i) {
-        adims.emplace_back(NCDim{ncid, i});
+        adims.emplace_back(NCDim{ncid, dimids[i]});
     }
     return adims;
 }

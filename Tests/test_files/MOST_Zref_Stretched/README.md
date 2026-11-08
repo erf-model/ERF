@@ -25,21 +25,58 @@ the ramp and prints the height the wind actually came from. With a uniform
 wind this check could not tell the cells apart.
 
 `run_most_zref.py` runs the deck through the three MOST lookups a flat
-stretched mesh can take, plus a uniform 10 m column (443 levels):
+stretched mesh can take, plus a uniform 10 m column (443 levels) with its
+bottom at z = 0 and at z = 300 m:
 
 | case | mesh / terrain | lookup | zref |
 |---|---|---|---|
-| `fitted_plane` | StretchedDz, fitted (set by the stretching) | `set_k_indices_T` | 15.5 m |
-| `fitted_interp` | VariableDz, `erf.terrain_type = StaticFittedMesh` | `set_norm_positions_T` + `trilinear_interp_T` | 10 m |
+| `fitted_plane` | StretchedDz, fitted (set by the stretching) | `set_k_indices_T` | 5 m |
+| `fitted_interp` | VariableDz, `erf.terrain_type = StaticFittedMesh` | `set_norm_positions_T` + `trilinear_interp_T` | 5 m |
 | `immersed_stretched` | StretchedDz, `erf.terrain_type = ImmersedForcing` | `set_k_indices_N` | 5 m |
 | `uniform_reference` | ConstantDz, dz = 10 m | `set_k_indices_N` | 5 m |
+| `uniform_raised_base` | ConstantDz, dz = 10 m, `geometry.prob_lo[2] = 300` | `set_k_indices_N` | 5 m |
+| `raised_base_k_arr` | the same, `erf.most.k_arr_in = 0` | `set_k_indices_N` | 5 m |
+| `raised_base_dz_odd` | ConstantDz, dz = 1000/96 m, `geometry.prob_lo[2] = 300` | `set_k_indices_N` | 5.21 m |
+
+Five more cases put a Witch of Agnesi ridge under the same column
+(`prob.custom_terrain_type = WoA`, `prob.hmax = 40`, `prob.L = 100`, so the
+nodes sit at 8, 20, 40, 20, 8 m and the columns' mean surface heights at 14
+and 30 m) and run the default reference height through every terrain-fitted
+lookup:
+
+| case | options | lookup |
+|---|---|---|
+| `hill_default` | none (VariableDz switches to local averaging, normal vector and interpolation) | `set_norm_positions_T` |
+| `hill_plane` | `erf.most.average_policy = 0` | `set_k_indices_T` |
+| `hill_local` | `erf.most.average_policy = 1` | `set_k_indices_T` |
+| `hill_normal` | policy 1, `erf.most.use_normal_vector = true` | `set_norm_indices_T` |
+| `hill_interp` | policy 1, `erf.most.use_interpolation = true` | `set_z_positions_T` |
+
+With BTF terrain following, `z = h + zeta (1 - h / z_top)`, the first cell of a
+column whose mean surface height is `h` is `dz0 (1 - h / z_top)` thick, so the
+default reference, half of that, runs from 4.9661 m (h = 30 m) to 4.9842 m
+(h = 14 m). The start-up line `MOST reference height at level 0: 4.966 to 4.984`
+must report that range, and u*(0) must be the mean over the columns of the log
+law with each column's first-cell wind (plane averaging takes the mean wind).
+That wind is the one ERF puts in the cell: the sounding is first resampled onto
+the flat level-0 cell centres (`ERF_InputSoundingData.H`), each x face then takes
+that table's wind at its own physical height, and the cell value is the mean of
+the column's two faces. On the ridge the crest face (44.95 m) lies between the
+resampled nodes at 39.76 and 53.73 m, which straddle the ramp's kink at 50 m, so
+its wind is 1 % below the ramp value; an expectation built from the ramp alone
+misses the 2e-5 tolerance by 3e-3. The flat cases are exact with the ramp because
+their cell centres are the resampled nodes. A lookup that reports the first
+cell's height but samples the second cell's wind is 8 % off.
 
 The test passes when:
-- every case reports the expected height;
+- every case reports the expected height, or range of heights under the ridge;
 - u*(0) matches the log law with the wind at that height to 2e-5 (hist.dat
   holds 6 digits);
 - the stretched no-terrain column stays within 1e-3 of the uniform column
-  over the 10 steps.
+  over the 10 steps;
+- both raised columns with dz = 10 m follow the uniform column to the 6 digits
+  of hist.dat over the 10 steps (the surface layer's reference height is a
+  height above the ground).
 
 The script also aborts if the sounding is ever made too uniform to tell a
 cell from its upper neighbour.
@@ -87,9 +124,43 @@ Stretched against uniform, new binary:
 | 5 | 1.06358 | 1.06321 | 3.5e-04 |
 | 10 | 1.0311 | 1.03079 | 3.0e-04 |
 
+## First cell centre on terrain-fitted meshes (erf-model/ERF#4935)
+
+Measured on 2026-11-03 against development 87e41fe4a (`--old-exe`). Without
+`erf.most.zref` a terrain-fitted mesh queried 10 m above the surface; every
+other mesh used the first cell centre. The default is now the first cell centre
+on every mesh, column by column with terrain.
+
+| case | old zref | old u*(0) | new zref | new u*(0) |
+|---|---|---|---|---|
+| `fitted_plane` | 15.5 (the 10 m query lies on the first cell's top face) | 0.938945 | 5 | 1.10045 |
+| `fitted_interp` | 10 | 0.979334 | 5 | 1.10045 |
+| `hill_default` | 9.8062 to 9.9289 (10 m along the normal) | 1.20092 | 4.9661 to 4.9842 | 1.32886 |
+| `hill_plane`, `hill_local` | 15.395 to 15.451 (the cell holding 10 m) | 1.10737 / 1.10739 | 4.9661 to 4.9842 | 1.32882 / 1.32886 |
+| `hill_normal` | 4.9661 to 4.9842 (10 m along the normal fell in the first cell) | 1.32886 | 4.9661 to 4.9842 | 1.32886 |
+| `hill_interp` | 10 | 1.16784 | 4.9661 to 4.9842 | 1.32886 |
+
 ## Running by hand
 
 ```
 python3 run_most_zref.py --exe /path/to/erf_exec --mpi-cmd "mpiexec -n 1" \
     [--old-exe /path/to/erf_exec_before_fix]
 ```
+
+## Raised base
+
+Measured on 2026-10-25 against development 3c9c151c4 (`--old-exe`): the
+uniform column with its bottom at z = 300 m reported zref = 305 m, the absolute
+height of the first cell centre, and took u*(0) = 0.536589 from
+0.41 * 10.5 / ln(305 / 0.1), against 1.10045 with zref = 5 m; with
+`erf.most.k_arr_in = 0` it did the same. The inputs keep their meaning (on the
+low z face of a constant-dz mesh `erf.most.zref` is an absolute z and
+`erf.most.k_arr_in` an absolute index), but the reference height the surface
+layer uses is now the height above the bottom wall, as it already was on
+stretched meshes and on the other faces. The raised column now matches the
+column at z = 0 at every step.
+
+With dz = 1000/96 m and the bottom at 300 m, (300 + dz/2) - 300 rounds below
+dz/2, and development stopped at start-up on `wall_offset >= m_radius`
+(`raised_base_dz_odd`; about half of all raised bases did). The default is now
+kept as a height, dz/2, and a given absolute z gets a round-off allowance.

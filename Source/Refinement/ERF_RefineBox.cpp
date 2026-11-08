@@ -108,7 +108,7 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
             jhi = static_cast<int>((rbox_hi[1] - plo[1])/dx[1]-1);
             if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                 // Search for k indices corresponding to nominal grid
-                // AGL heights
+                // heights, which start at geometry.prob_lo[2]
                 klo = domain.smallEnd(2) - 1;
                 khi = domain.smallEnd(2) - 1;
 

@@ -79,6 +79,7 @@ public:
    * @param[in]     low_time_interval   low-boundary-data time interval
    * @param[in]     eb_vec              optional embedded-boundary geometry data
    * @param[in]     surf_model          optional weighted surface-model interface
+   * @param[in]     a_has_immersed_buildings  whether building immersed forcing is configured
    */
   explicit SurfaceLayer (amrex::Orientation face,
                          const amrex::Vector<amrex::Geometry>& geom,
@@ -95,7 +96,8 @@ public:
                          double final_low_time,
                          double low_time_interval = 0.0,
                          const amrex::Vector<const eb_*>& eb_vec = {},
-                         SurfaceModel* surf_model = nullptr)
+                         SurfaceModel* surf_model = nullptr,
+                         bool a_has_immersed_buildings = false)
   : m_face(face),
     m_pp_prefix(a_pp_prefix),
     m_geom(geom),
@@ -105,6 +107,7 @@ public:
     m_low_time_interval(low_time_interval),
     m_eb_vec(eb_vec),
     m_terrain_type(a_terrain_type),
+    m_has_immersed_buildings(a_has_immersed_buildings),
     m_rdOcp(a_rdOcp),
     m_ma(face, geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type,
          zlevels_stag, eb_vec),
@@ -198,15 +201,58 @@ public:
           surf_model_fluxes = m_surf_model->are_fluxes();
       }
 
-      // Get surface temperature.  surf_temp and surf_moist are declared with negative
-      // sentinels (see below) so that "did the user set this" is a property of the
-      // value rather than of the queryAdd return value, which only reports whether the
-      // key existed before the call and so stops being meaningful once anything has
-      // parsed the key.  Both most.surf_temp and most.surf_moist are also parsed by
-      // ERF_InputSoundingData.H, so the two sites would poison each other otherwise.
-      pp.queryAdd("most.surf_temp", surf_temp);
+      // Get surface temperature, as a potential temperature (most.pot_surf_temp) or an
+      // absolute temperature (most.abs_surf_temp); most.surf_temp is the deprecated
+      // spelling of most.pot_surf_temp.  These are read with query, not queryAdd, so
+      // that whether a key was given is the query return value: queryAdd would add a
+      // key that is absent, and these keys are also read by ERF_InputSoundingData.H and
+      // by the SurfaceLayer of every face, so the first reader would make the key look
+      // given to the rest.  A key that is given must be positive; it is never ignored.
+      {
+          amrex::Real pot_st = amrex::Real(-1.);
+          amrex::Real abs_st = amrex::Real(-1.);
+          amrex::Real old_st = amrex::Real(-1.);
+          const bool has_pot = pp.query("most.pot_surf_temp", pot_st);
+          const bool has_abs = pp.query("most.abs_surf_temp", abs_st);
+          const bool has_old = pp.query("most.surf_temp",     old_st);
+          if (int(has_pot) + int(has_abs) + int(has_old) > 1) {
+              amrex::Abort("Specify only one of most.pot_surf_temp, most.abs_surf_temp "
+                           "and the deprecated most.surf_temp");
+          }
+          if ((has_pot && !(pot_st > amrex::Real(0))) ||
+              (has_abs && !(abs_st > amrex::Real(0))) ||
+              (has_old && !(old_st > amrex::Real(0)))) {
+              amrex::Abort("most.pot_surf_temp, most.abs_surf_temp and most.surf_temp "
+                           "must be positive temperatures [K]");
+          }
+          if (has_old) {
+              amrex::Print() << "WARNING: most.surf_temp is deprecated and is read as a surface "
+                             << "potential temperature; use most.pot_surf_temp (potential) or "
+                             << "most.abs_surf_temp (absolute) instead" << std::endl;
+              pot_st = old_st;
+          }
+          if (has_abs) {
+              surf_temp = abs_st;
+              surf_temp_is_absolute = true;
+          } else {
+              surf_temp = pot_st;
+          }
+      }
       const bool erf_st = (surf_temp > amrex::Real(0));
+      // With an absolute temperature this is only the placeholder until update_fluxes
+      // converts it with the surface pressure.
       if (erf_st) { default_land_surf_temp  = surf_temp; }
+
+      if (surf_temp_is_absolute) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow() && m_terrain_type != TerrainType::EB,
+              "most.abs_surf_temp is supported only on the z-low face without EB terrain");
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              flux_type != FluxCalcType::CUSTOM && flux_type != FluxCalcType::RICO &&
+              flux_type != FluxCalcType::BULK_COEFF,
+              "most.abs_surf_temp is not supported with custom, rico or bulk_coeff fluxes; "
+              "use most.pot_surf_temp");
+      }
 
       // Get surface moisture
       bool erf_sq = false;
@@ -238,7 +284,9 @@ public:
           pp.get("most.Cd", m_Cd);
           pp.get("most.Ch", m_Ch);
           pp.get("most.Cq", m_Cq);
-          pp.get("most.surf_temp", default_land_surf_temp);
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(erf_st,
+              "bulk_coeff fluxes need most.pot_surf_temp");
+          default_land_surf_temp = surf_temp;
           pp.get("most.surf_moist", default_land_surf_moist);
           amrex::Print() << "Using specified Cd, Ch, Cq for MOST = "
                          << m_Cd << " " << m_Ch << " "
@@ -383,9 +431,42 @@ public:
       if (m_update_k_rans) {
           inv_Cmu2 = one / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
           theta_ref = a_turb_choice.theta_ref;
+          // with the moist TKE buoyancy (erf.rans_moist_buoyancy) the wall value's buoyancy flux
+          // is the virtual one, -u* theta_v* with theta_v* = theta* (1 + epsv qv) + epsv theta q*
+          m_k_moist_buoyancy = a_turb_choice.rans_moist_buoyancy && use_moisture;
       }
 
+      // Stable-side similarity functions (most.stable_functions): Businger-Dyer, or QNSE for
+      // the prescribed-flux kernels and their companions; see check_similarity_funs_use
+      m_sfuns = read_most_similarity_funs(pp);
+      check_similarity_funs_use();
+
   } // constructor
+
+  /**
+   * Stop when most.stable_functions = qnse would be read by nothing on this face.
+   *
+   * The choice selects the stable arm of the Businger-Dyer pair, which the prescribed-flux
+   * (moeng) kernels use, with their companions: the PBL surface gradients, the 2 m and 10 m
+   * diagnostics and the MYNN surface TKE production. The prescribed-temperature kernels use the Jimenez
+   * (2012) pair on both sides, the adiabatic kernels no stability function, and the custom,
+   * rico and bulk_coeff fluxes none at all. Called at construction and again where a surface
+   * file, SST/TSK data or a land model switch the flux or temperature mode.
+   */
+  void check_similarity_funs_use () const
+  {
+      if (!m_sfuns.uses_qnse()) { return; }
+      const std::string key = m_pp_prefix + ".most.stable_functions = qnse";
+      if (flux_type != FluxCalcType::MOENG && flux_type != FluxCalcType::ROTATE) {
+          amrex::Abort(key + " needs the moeng flux type: the custom, rico and bulk_coeff fluxes "
+                       "use no similarity functions");
+      }
+      if (theta_type != ThetaCalcType::HEAT_FLUX) {
+          amrex::Abort(key + " needs a prescribed heat flux (most.surf_temp_flux): the "
+                       "prescribed-temperature kernels use the Jimenez (2012) functions on both "
+                       "sides and the adiabatic kernels no stability function");
+      }
+  }
 
   /**
    * Allocate and initialize surface-layer data for one AMR level.
@@ -482,6 +563,7 @@ public:
           olen.resize(nlevs);
           pblh.resize(nlevs);
           m_planar_bndry.resize(nlevs);
+          m_lsm_held_columns.resize(nlevs);
       }
 
       // Get pointers to SST,TSK and LANDMASK data
@@ -517,6 +599,15 @@ public:
       if (m_use_sfc_fluxes || m_use_sfc_sst) {
           if (m_use_sfc_fluxes) {
               AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_surface_model, "Cannot use surface flux forcing with LSM/Urban model!");
+              // The file's H and LE already carry the density, and the stress
+              // takes the local density, so a surface density would count it
+              // twice in H and LE (see set_sfc_params_from_file_fluxes).
+              // The value is tested, not the key: flux_type = custom has already
+              // queryAdd-ed most.rhosurf with its default of 0 (use the first cell).
+              amrex::Real rhosurf_in = zero;
+              pp.query("most.rhosurf", rhosurf_in);
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rhosurf_in <= zero,
+                  "most.rhosurf cannot be combined with most.use_sfc_fluxes");
           }
           if (m_terrain_type == TerrainType::EB) {
               amrex::Abort("Text-file surface forcing is not supported with EB terrain");
@@ -562,6 +653,25 @@ public:
               amrex::Print() << "Using MOST with prescribed time-varying surface fluxes from '" << sfc_file << "'" << std::endl;
           }
       }
+      check_similarity_funs_use();
+
+      // The constructor's check of most.abs_surf_temp sees only most.flux_type; the
+      // modes known here replace the prescribed temperature too.  The surface-flux file
+      // makes the fluxes custom, and the SST/TSK and sfc-file SST fills use the
+      // prescribed value as their land temperature, which is a potential temperature there.
+      if (surf_temp_is_absolute) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_sfc_fluxes,
+              "most.abs_surf_temp cannot be combined with most.use_sfc_fluxes");
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              (m_sst_lev[lev].empty() || !m_sst_lev[lev][0]) && !m_use_sfc_sst,
+              "most.abs_surf_temp cannot be combined with SST/TSK or sfc-file SST input");
+      }
+
+      // By default an LSM field named "tsurf", "theta" or "t_surf" is copied into
+      // t_surf unchanged. With this option the LSM skin temperature ("tsurf" from
+      // SLM, "t_sfc" from Noah-MP) is taken as an absolute temperature and
+      // converted to potential temperature at the surface pressure.
+      pp.queryAdd("most.use_lsm_skin_temperature", m_use_lsm_skin_temperature);
 
       // Get pointers to LSM data and Fluxes
       int ndata = static_cast<int>(lsm_data.size());
@@ -574,9 +684,15 @@ public:
           m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
           const std::string lc_name = amrex::toLower(lsm_data_name[n]);
-          if (lc_name == "tsurf" || lc_name == "theta" || lc_name == "t_surf") {
+          // With most.use_lsm_skin_temperature, "tsurf" (SLM) and "t_sfc" (Noah-MP)
+          // are absolute skin temperatures and are converted to potential
+          // temperature in get_lsm_tsurf; "theta" and "t_surf" are taken to be
+          // potential temperature already.
+          if (lc_name == "tsurf" || (m_use_lsm_skin_temperature && lc_name == "t_sfc") ||
+              lc_name == "theta" || lc_name == "t_surf") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
+              m_lsm_tsurf_is_theta = (lc_name == "theta" || lc_name == "t_surf");
           }
       }
       if (m_use_sfc_sst && m_use_coupled_sst) {
@@ -712,6 +828,24 @@ public:
           read_custom_roughness(lev, fname);
       }
 
+      // The surface layer normalises with ln(zref / z0), so the reference height
+      // must lie above the roughness length in every column.  With the default
+      // (the first cell center) a fine mesh over a rough surface can fail this.
+      {
+          const amrex::MultiFab* zref = m_ma.get_zref(lev);
+          if (zref && zref->boxArray() == z_0[lev].boxArray()) {
+              amrex::MultiFab margin(ba_flux, dm, ncomp, 0);
+              amrex::MultiFab::Copy(margin, *zref, 0, 0, ncomp, 0);
+              amrex::MultiFab::Subtract(margin, z_0[lev], 0, 0, ncomp, 0);
+              if (margin.min(0) <= zero) {
+                  amrex::Abort(m_pp_prefix + ".most.zref (or the first cell center), "
+                               + std::to_string(zref->min(0)) + " m at its lowest, must exceed "
+                               + m_pp_prefix + ".most.z0, " + std::to_string(z_0[lev].max(0))
+                               + " m at its largest, in every column");
+              }
+          }
+      }
+
       // 2D MFs for U*, T*, T_surf
       //--------------------------------------------------------
       u_star[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
@@ -738,6 +872,23 @@ public:
       q_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
 
+      // Columns of a refined level that a grid touching the surface holds, one cell beyond
+      // each grid (see LsmFluxColumn).  A grid that starts above the ground collapses onto
+      // the same columns but holds no surface fluxes there, so it does not count.  Level 0
+      // has no coarse/fine boundary and needs no mask.
+      m_lsm_held_columns[lev].clear();
+      if (lev > 0 && dir == 2 && m_face.isLow() && m_terrain_type != TerrainType::EB) {
+          amrex::iMultiFab& held = m_lsm_held_columns[lev];
+          held.define(ba_flux, dm, 1, amrex::IntVect(1,1,0));
+          held.setVal(0);
+          for (amrex::MFIter mfi(held); mfi.isValid(); ++mfi) {
+              if (m_planar_bndry[lev].is_surface_copy(mfi.index())) {
+                  held[mfi].setVal<amrex::RunOn::Device>(1, mfi.validbox());
+              }
+          }
+          held.FillBoundary(m_geom[lev].periodicity());
+      }
+
       const amrex::iMultiFab& surface_mask = *m_lmask_lev[lev][0];
       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
           surface_mask.boxArray().size() == mf.boxArray().size(),
@@ -752,6 +903,8 @@ public:
           surface_mask.DistributionMap() == u_star[lev]->DistributionMap(),
           "Surface-layer mask and parameters must have identical ownership.");
 
+      set_immersed_surface_params(lev);
+
       surface_diagnostic_source[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       surface_diagnostic_source[lev]->setVal(
           surface_diagnostics::to_plot_value(surface_diagnostics::SurfaceDiagnosticSource::Missing));
@@ -763,6 +916,7 @@ public:
           // fluxes (avoids extended lambda capture) Note that land temp will be set
           // from m_tsk_lev while sea temp will be set from m_sst_lev
           theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+          check_similarity_funs_use();
 
           // Pathways in fill_tsurf_with_sst_and_tsk
           amrex::Print() << "Using MOST with specified surface temperature ";
@@ -796,6 +950,15 @@ public:
           amrex::Print() << std::endl;
       }
   }
+
+  /**
+   * Set benign surface scales in immersed columns (land mask 2), including ghosts.
+   * Called after allocation, checkpoint restoration, and surface-scale updates.
+   * Preserve PBL height, roughness, surface temperature, and surface moisture.
+   *
+   * @param[in] lev level index
+   */
+  void set_immersed_surface_params (const int& lev);
 
   /**
    * Update surface fluxes and related surface-layer state.
@@ -896,7 +1059,8 @@ public:
                                 amrex::MultiFab* xqv_flux,
                                 amrex::MultiFab* yqv_flux,
                                 amrex::MultiFab* zqv_flux,
-                                const amrex::MultiFab* z_phys);
+                                const amrex::MultiFab* z_phys,
+                                amrex::MultiFab* mf_surface_fluxes=nullptr);
 
   /**
    * Impose surface-layer boundary conditions for embedded-boundary terrain.
@@ -947,7 +1111,8 @@ public:
                                  amrex::MultiFab* yqv_flux,
                                  amrex::MultiFab* zqv_flux,
                                  const amrex::MultiFab* z_phys,
-                                 const FluxCalc& flux_comp);
+                                 const FluxCalc& flux_comp,
+                                 amrex::MultiFab* mf_surface_fluxes=nullptr);
 
   /**
    * Compute embedded-boundary surface-layer flux boundary conditions.
@@ -985,6 +1150,37 @@ public:
                                            amrex::MultiFab& cons_in);
 
   /**
+   * The four LSM fluxes on one grid: from the surface model when it supplies fluxes,
+   * otherwise from the registered LSM fluxes.  A flux that is not available is left null,
+   * and SurfaceFluxView::valid then rejects every cell.  compute_fluxes,
+   * compute_sfc_params_from_lsm_fluxes and get_lsm_tsurf all take their fluxes from here,
+   * so they agree on which land columns use the LSM flux.  Each decides a ghost column
+   * outside a non-periodic domain from the nearest column inside it; compute_SurfaceLayer_bcs
+   * also reads the fluxes one ghost cell beyond the grid, so they must carry one filled
+   * lateral ghost cell.
+   *
+   * @param[in] lev level index
+   * @param[in] mfi iterator over a MultiFab with the cons BoxArray and DistributionMapping
+   */
+  [[nodiscard]] SurfaceFluxView get_lsm_flux_view (const int& lev,
+                                                   const amrex::MFIter& mfi) const;
+
+  /**
+   * Set kinematic u*, t*, and q* from the fluxes interpolated from most.sfc_file.
+   *
+   * @param[in] lev       level index
+   * @param[in] cons_in   conserved state supplying the first-cell density
+   * @param[in] tflux_in  sensible heat flux H [W/m2]
+   * @param[in] qflux_in  latent heat flux LE [W/m2]
+   * @param[in] sfc_tau   kinematic surface stress TAU [m2/s2]
+   */
+  void set_sfc_params_from_file_fluxes (const int& lev,
+                                        const amrex::MultiFab& cons_in,
+                                        const amrex::Real& tflux_in,
+                                        const amrex::Real& qflux_in,
+                                        const amrex::Real& sfc_tau);
+
+  /**
    * Fill surface temperature from available SST and TSK data.
    *
    * @param[in] lev  level index
@@ -1017,6 +1213,23 @@ public:
   void fill_tsurf_with_coupled_sst (const int& lev,
                                     const amrex::MultiFab& cons_in,
                                     const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
+  /**
+   * Set t_surf from the prescribed absolute surface temperature (most.abs_surf_temp, plus
+   * most.surf_heating_rate times the time), converted to the potential temperature the
+   * surface layer works in with the pressure at the surface diagnosed from the lowest
+   * cell, as for coupled SST. Like update_surf_temp, which it replaces in that case, it
+   * writes every cell of the surface.
+   *
+   * @param[in] lev       level index
+   * @param[in] time      elapsed simulation time
+   * @param[in] cons_in   conserved state used to evaluate surface pressure
+   * @param[in] z_phys_nd nodal physical-height field
+   */
+  void fill_tsurf_with_abs_surf_temp (const int& lev,
+                                      const double& time,
+                                      const amrex::MultiFab& cons_in,
+                                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
    * Overwrite the land surface temperature with an external skin temperature.
@@ -1083,11 +1296,17 @@ public:
                                       int col) const;
 
   /**
-   * Fill surface temperature from the LSM surface-temperature field.
+   * Fill surface temperature from the LSM surface-temperature field, converted to
+   * potential temperature at the surface pressure when the field is an absolute
+   * temperature.
    *
-   * @param[in] lev level index
+   * @param[in] lev       level index
+   * @param[in] cons_in   conserved state (surface pressure from the lowest cell)
+   * @param[in] z_phys_nd nodal heights, or nullptr on a flat mesh
    */
-  void get_lsm_tsurf (const int& lev);
+  void get_lsm_tsurf (const int& lev,
+                      const amrex::MultiFab& cons_in,
+                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
    * Wrapper around compute_pblh.
@@ -1110,6 +1329,15 @@ public:
    * @param[in] lev Current level (> 0)
    */
   void fill_pblh_from_coarser (const int& lev);
+
+  /**
+   * The PBL height of the next coarser level, injected onto the grids of this level over all
+   * of their cells, ghost cells included.  Public because it launches a device lambda.
+   *
+   * @param[in]  lev  Current level (> 0)
+   * @param[out] fine MultiFab on the grids of pblh[lev]
+   */
+  void inject_pblh_from_coarser (const int& lev, amrex::MultiFab& fine) const;
 
   /**
    * Compute planetary-boundary-layer height with the selected estimator.
@@ -1146,6 +1374,8 @@ public:
       // NOTE: this is a whole-domain setVal, so it overwrites the SST/TSK fill
       //       done earlier in update_fluxes. Coupled SST is applied after this
       //       call and therefore still wins on the water cells it covers.
+      // An absolute surface temperature is written, converted, by fill_tsurf_with_abs_surf_temp
+      if (surf_temp_is_absolute) { return; }
       if (surf_heating_rate != 0) {
           // Use the actual size of t_surf, not m_geom.size(), which is always
           // max_level+1 and so runs past the levels that exist.  t_surf is sized for
@@ -1225,6 +1455,9 @@ public:
    * @param[in] lev level index
    */
   amrex::MultiFab* get_olen (const int& lev) { return olen[lev].get(); }
+
+  /** Similarity functions of this surface layer (most.stable_functions). */
+  const similarity_funs& similarity_functions () const { return m_sfuns; }
 
   /**
    * Return the planetary-boundary-layer-height field.
@@ -1320,7 +1553,7 @@ public:
   /**
    * Why this surface layer cannot take its surface temperature from an external
    * skin temperature, or an empty string when it can: the skin sets t_surf, so the
-   * surface layer must compute its heat flux from t_surf (erf.most.surf_temp given,
+   * surface layer must compute its heat flux from t_surf (a surface temperature given,
    * no heating rate) on a non-EB lower surface without rotated surface fluxes, and no
    * land model may own t_surf.
    */
@@ -1336,7 +1569,8 @@ public:
       }
       if (theta_type != ThetaCalcType::SURFACE_TEMPERATURE) {
           return "the surface layer does not compute its heat flux from a surface "
-                 "temperature (set erf.most.surf_temp, not a flux or custom/bulk fluxes)";
+                 "temperature (set erf.most.pot_surf_temp or erf.most.abs_surf_temp, not a "
+                 "flux or custom/bulk fluxes)";
       }
       if (surf_heating_rate != amrex::Real(0)) {
           return "erf.most.surf_heating_rate is set";
@@ -1528,6 +1762,7 @@ public:
    * @param[in] sst_ptr sea-surface-temperature field pointer
    */
   void update_sst_ptr (const int lev, const int itime, amrex::MultiFab* sst_ptr) {
+      AMREX_ALWAYS_ASSERT(itime >= 0 && itime < static_cast<int>(m_sst_lev[lev].size()));
       m_sst_lev[lev][itime] = sst_ptr;
   }
 
@@ -1539,6 +1774,7 @@ public:
    * @param[in] tsk_ptr skin-temperature field pointer
    */
   void update_tsk_ptr (const int lev, const int itime, amrex::MultiFab* tsk_ptr) {
+      AMREX_ALWAYS_ASSERT(itime >= 0 && itime < static_cast<int>(m_tsk_lev[lev].size()));
       m_tsk_lev[lev][itime] = tsk_ptr;
   }
 
@@ -1642,6 +1878,7 @@ public:
   RoughCalcType rough_type_land{RoughCalcType::CONSTANT};
   RoughCalcType rough_type_sea{RoughCalcType::CHARNOCK};
   PBLHeightCalcType pblh_type{PBLHeightCalcType::None};
+  similarity_funs m_sfuns; ///< stable-side similarity functions (most.stable_functions)
 
 private:
   // Set in constructor
@@ -1659,12 +1896,16 @@ private:
   // erf.most.z0 was given (set_default_roughness then leaves z0_const alone).
   bool m_z0_given{false};
   amrex::Real default_land_surf_temp{amrex::Real(300.)};
-  // Negative sentinels: a surface temperature is absolute and a surface moisture is a
+  // Negative sentinels: a surface temperature is in kelvin and a surface moisture is a
   // mixing ratio, so neither can legitimately be negative.  The constructor probes
-  // most.surf_temp / most.surf_moist with these and tests the resulting value to decide
-  // whether the user supplied them.  They were previously left uninitialized, which was
-  // safe only because a plain query() leaves them untouched on a miss.
+  // most.pot_surf_temp / most.abs_surf_temp / most.surf_moist with these and tests the
+  // resulting value to decide whether the user supplied them.  They were previously left
+  // uninitialized, which was safe only because a plain query() leaves them untouched on
+  // a miss.
   amrex::Real surf_temp{amrex::Real(-1.)};
+  // surf_temp (and surf_heating_rate) is an absolute temperature (most.abs_surf_temp),
+  // converted to t_surf's potential temperature with the surface pressure each step.
+  bool surf_temp_is_absolute{false};
   amrex::Real surf_heating_rate{0};
   amrex::Real surf_temp_flux{0};
   amrex::Real default_land_surf_moist{zero};
@@ -1688,6 +1929,8 @@ private:
   bool m_has_lsm_fluxes = false;
   bool m_has_lsm_tsurf  = false;
   int  m_lsm_tsurf_indx = -1;
+  bool m_lsm_tsurf_is_theta = false;
+  bool m_use_lsm_skin_temperature = false;
 
   // variables for sfc/sst forcing from file
   bool m_use_sfc_fluxes = false;
@@ -1710,6 +1953,7 @@ private:
 
   amrex::Vector<const eb_*> m_eb_vec;
   TerrainType m_terrain_type;
+  bool m_has_immersed_buildings = false;
   amrex::Real m_rdOcp = RdoCp;
   MOSTAverage m_ma;
   SurfaceModel* m_surf_model = nullptr;
@@ -1728,6 +1972,9 @@ private:
   // this for u*, w* (only when it is computed), t*, q*, L, t_surf, q_surf, pblh and the
   // diagnostic source, after each is computed on the surface copies.
   amrex::Vector<PlanarBoundary> m_planar_bndry;
+  // 1 in the columns of a refined level that a grid touching the surface holds, within one
+  // cell of each grid; empty on level 0.  Built by make_SurfaceLayer_at_level.
+  amrex::Vector<amrex::iMultiFab> m_lsm_held_columns;
   // Columns for the PBL-height estimator.  The estimator scans each box it is given from its
   // lowest cell to its highest, so the box must start at the ground.  When some box of a
   // level does not (grids stacked in z, or a refined region aloft), compute_pblh runs the
@@ -1784,6 +2031,7 @@ private:
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
 
   bool m_update_k_rans = false;
+  bool m_k_moist_buoyancy = false;   // erf.rans_moist_buoyancy: the wall value of k from theta_v*
   amrex::Real inv_Cmu2 = zero;
   amrex::Real theta_ref = zero;
 };

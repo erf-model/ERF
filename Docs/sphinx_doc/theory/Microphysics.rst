@@ -86,11 +86,12 @@ prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 Anelastic microphysics thermodynamics
 -------------------------------------
 
-ERF supplies the thermodynamic pressure needed by supported Eulerian
-microphysics schemes. No additional pressure field or scheme-specific pressure
-unit conversion is required in the input file.
+ERF supplies the thermodynamic pressure used by supported Eulerian
+microphysics schemes and by ``SuperDroplets``. The pressure and temperature
+relationships below apply to both types of schemes. No additional pressure
+field or scheme-specific pressure-unit conversion is required in the input file.
 
-On each anelastic AMR level (``erf.anelastic = 1``), pressure-dependent
+On each anelastic AMR level (``erf.compressibility_type`` not ``FullyCompressible``), pressure-dependent
 microphysics uses the hydrostatic base-state pressure at each cell. Let
 :math:`p_{\mathrm{base}}` denote this pressure and :math:`p_{\mathrm{ref}}`
 denote ERF's fixed reference pressure used in the definition of potential
@@ -114,15 +115,15 @@ calculations use the same hydrostatic base-state pressure consistently through
 the microphysics source step. Schemes that convert between temperature and
 potential temperature use that same pressure.
 
-On a compressible AMR level, the existing behavior is unchanged: ERF diagnoses
-local pressure and temperature from the prognostic state with the compressible
-equation of state. In a mixed hierarchy, this choice is made independently on
-each AMR level.
+On a compressible AMR level, ERF diagnoses local pressure and temperature from
+the prognostic state with the compressible equation of state. In a mixed
+hierarchy, ``erf.compressibility_type`` selects the dynamics and thermodynamic pressure
+source independently on each AMR level.
 
 The reference-pressure treatment applies to the Kessler family
 (``Kessler`` and ``Kessler_NoRain``), the SAM family (``SAM``, ``SAM_NoIce``,
 and ``SAM_NoPrecip_NoIce``), the Morrison family (``Morrison`` and
-``Morrison_NoIce``), ``WSM6``, and ``WDM6``. ``SatAdj`` already uses the
+``Morrison_NoIce``), ``WSM6``, and ``WDM6``. ``SatAdj`` also uses the
 anelastic base-state pressure. ``MoistNoCondensation`` does not have a
 pressure-dependent condensation source that requires this treatment.
 
@@ -132,12 +133,14 @@ specify only the usual model and dynamics options. For example:
 
 .. code-block:: text
 
-   erf.anelastic = 1
+   erf.compressibility_type = Anelastic
    erf.moisture_model = WSM6
 
-``erf.anelastic`` may also be specified per AMR level. ``SuperDroplets`` is not
-supported when any AMR level is anelastic; see
-:ref:`superdroplets-anelastic-compatibility`.
+``erf.compressibility_type`` may also be specified per AMR level. ``SuperDroplets`` uses
+pressure in Pa and diagnoses anelastic temperature from the same base-state
+pressure; see :ref:`superdroplets-anelastic-compatibility` for its thermodynamic
+and particle-process coupling, including the fixed inverse Exner factor for
+latent heating.
 
 Surface precipitation accumulations
 -----------------------------------

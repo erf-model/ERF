@@ -112,8 +112,8 @@ TEST(SatAdjParallel, DistributedMultiBoxMatchesScalarReference)
     ActiveCellCounts local_counts{};
     compare_public_flow_to_scalar_reference(before, cons, local_worst, local_counts);
 
-    long global_checked = local_counts.checked;
-    long global_changed = local_counts.changed;
+    amrex::Long global_checked = local_counts.checked;
+    amrex::Long global_changed = local_counts.changed;
     amrex::ParallelDescriptor::ReduceLongSum(global_checked);
     amrex::ParallelDescriptor::ReduceLongSum(global_changed);
     const LocatedError global_worst = select_global_worst_error(
@@ -256,7 +256,7 @@ TEST(SatAdjParallel, FullPublicFlowFillBoundaryParallel)
         }
     }
 
-    long global_checked_ghosts = local_checked_ghosts;
+    amrex::Long global_checked_ghosts = local_checked_ghosts;
     amrex::ParallelDescriptor::ReduceLongSum(global_checked_ghosts);
     const LocatedError global_worst = select_global_worst_error(
         local_worst, amrex::ParallelDescriptor::Communicator());

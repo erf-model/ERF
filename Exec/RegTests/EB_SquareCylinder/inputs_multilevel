@@ -24,7 +24,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.cfl                = 0.5     # cfl number for hyperbolic system
 
 # DIAGNOSTICS & VERBOSITY
@@ -90,7 +90,6 @@ erf.dynamic_viscosity = 0.004
 
 erf.use_coriolis = false
 erf.abl_driver_type = "None"
-erf.abl_pressure_grad = -0.2 0. 0.
 
 erf.init_type = "uniform"
 

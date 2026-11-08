@@ -167,10 +167,6 @@ function(build_erf_lib erf_lib_name)
                               )
   endif()
 
-  if(ERF_ENABLE_IMPLICIT_W)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_IMPLICIT_W)
-  endif()
-
   if(ERF_ENABLE_MULTIBLOCK)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
   endif()
@@ -210,14 +206,14 @@ function(build_erf_lib erf_lib_name)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
                    ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
+                   ${SRC_DIR}/Initialization/ERF_InitLandFromMetgrid.cpp
                    ${SRC_DIR}/Initialization/ERF_InitFromNCFile.cpp
                    ${SRC_DIR}/IO/ERF_NCInterface.cpp
                    ${SRC_DIR}/IO/ERF_NCPlotFile.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromMetgrid.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFBdy.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFInput.cpp
-                   ${SRC_DIR}/IO/ERF_ReadFromWRFLow.cpp
-                   ${SRC_DIR}/IO/ERF_NCColumnFile.cpp)
+                   ${SRC_DIR}/IO/ERF_ReadFromWRFLow.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
 
@@ -378,6 +374,54 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
   endif()
 
+  if(ERF_ENABLE_FIRE)
+    # The fire coupling, atmosphere side, shared by every fire engine
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/FireCoupling/ERF_FireCoupler.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireCouplingParams.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireEngineRegistry.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireGrid.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FirePrerequisites.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireWindExtract.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireSurfaceHeight.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireSmokeEmission.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/FireCoupling>)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FIRE)
+
+    # Fire engines live outside ERF, each in a directory that provides
+    # ERFFireEngine.cmake defining erf_fire_engine_add(target). The function is
+    # called right after its file is included, so every engine may use the same
+    # name; ERF_FIRE_ENGINE_DIR holds the engine's directory during the call.
+    foreach(_fire_dir IN LISTS ERF_FIRE_ENGINE_DIRS)
+      get_filename_component(_fire_dir "${_fire_dir}" ABSOLUTE)
+      if(NOT EXISTS "${_fire_dir}/ERFFireEngine.cmake")
+        message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS: ${_fire_dir} has no ERFFireEngine.cmake")
+      endif()
+      set(ERF_FIRE_ENGINE_DIR "${_fire_dir}")
+      include("${_fire_dir}/ERFFireEngine.cmake")
+      if(NOT COMMAND erf_fire_engine_add)
+        message(FATAL_ERROR "${_fire_dir}/ERFFireEngine.cmake does not define erf_fire_engine_add(target)")
+      endif()
+      erf_fire_engine_add(${erf_lib_name})
+      message(STATUS "ERF fire engine directory: ${_fire_dir}")
+    endforeach()
+  elseif(ERF_FIRE_ENGINE_DIRS)
+    message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS is set but ERF_ENABLE_FIRE is OFF")
+  endif()
+
+  if(ERF_ENABLE_MOVING_BODIES)
+    # The actuator core: velocity sampling at points, Gaussian force spreading onto the
+    # momentum sources, wake sampling lines and running statistics, for bodies in the flow.
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/MovingBodies/Core/ERF_ActuatorSampling.cpp
+      ${SRC_DIR}/MovingBodies/Core/ERF_ActuatorSpreading.cpp
+      ${SRC_DIR}/MovingBodies/Core/ERF_WakeLines.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Core>)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOVING_BODIES)
+  endif()
+
   if(ERF_BUILD_LIBRARY_ONLY)
     # In library-only superbuild mode, archive extraction + weak amrex_probinit
     # requires a forced reference path (see ERF.cpp/ERF_Prob.cpp link anchor).
@@ -483,6 +527,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Plotfile2D.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DFill.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DMetadata.cpp
+       ${SRC_DIR}/IO/ERF_Plotfile2DCloudOptics.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DWaterPath.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DPrecip.cpp
        ${SRC_DIR}/IO/ERF_Plotfile2DSampledField.cpp
@@ -494,19 +539,25 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diagnostics/ERF_SeaLevelPressure.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
+       ${SRC_DIR}/IO/ERF_NoahMPGitHash.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
        ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp
        ${SRC_DIR}/IO/ERF_WriteERFBdy.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_CoarseFineFaces.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
        ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp
        ${SRC_DIR}/LinearSolvers/ERF_FillZeroAreaFaceFluxes.cpp
        ${SRC_DIR}/LinearSolvers/ERF_ImposeBCsOnPhi.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ImmersedPoisson.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ImmersedProjection.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_SolveWithTerrainMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
+       ${SRC_DIR}/Microphysics/ERF_MicrophysicsColumns.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
@@ -555,6 +606,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSUNew.cpp
+       ${SRC_DIR}/Radiation/ERF_TopographicShading.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_RadiationDiagnostics.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_TwoStreamRadiation.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_SEBTurbulentFlux.cpp
@@ -591,6 +643,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPost.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Substep_NS.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_CFFluxHistory.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Substep_T.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Substep_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
@@ -598,6 +651,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_ColumnBands.cpp
        ${SRC_DIR}/Utils/ERF_LatLonMap.cpp
        ${SRC_DIR}/Utils/ERF_TerrainSurfaceSlab.cpp
+       ${SRC_DIR}/Utils/ERF_TerrainFileChecks.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
        ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics.cpp
@@ -626,6 +680,29 @@ function(build_erf_lib erf_lib_name)
 
   include(AMReXBuildInfo)
   generate_buildinfo(${erf_lib_name} ${PROJECT_SOURCE_DIR})
+
+  # AMReX's generate_buildinfo() hard-codes exactly two hash slots (the app and
+  # AMReX), so the Noah-MP hash is captured here instead and compiled into
+  # ERF_NoahMPGitHash.cpp alone -- scoping the definition to that one file keeps
+  # a dirty Noah-MP working tree from rebuilding all of ERF. Like the other two
+  # hashes under CMake, this is read at configure time, so it refreshes on the
+  # next cmake run. NOAHMP_HOME is NOT used here: under CMake it points at
+  # Submodules/Noah-MP/drivers/erf, while git describe needs the submodule root.
+  if(ERF_ENABLE_NOAHMP)
+    find_package(Git QUIET)
+    set(ERF_NOAHMP_HASH "")
+    if(GIT_FOUND AND EXISTS ${PROJECT_SOURCE_DIR}/Submodules/Noah-MP/.git)
+      execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --abbrev=12 --dirty --always --tags
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/Submodules/Noah-MP
+        OUTPUT_VARIABLE ERF_NOAHMP_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    endif()
+    set_source_files_properties(${SRC_DIR}/IO/ERF_NoahMPGitHash.cpp PROPERTIES
+      COMPILE_DEFINITIONS "ERF_NOAHMP_GIT_HASH=\"${ERF_NOAHMP_HASH}\"")
+  endif()
+
   if(AMREX_C_SCRIPTS_DIR)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${AMREX_C_SCRIPTS_DIR}>)
   elseif(ERF_USE_INTERNAL_AMREX)

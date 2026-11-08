@@ -10,7 +10,9 @@
 #include "AMReX_FillPatchUtil.H"
 #include "AMReX_GpuLaunch.H"
 
+#include <ERF_Constants.H>
 #include <ERF_DataStruct.H>
+#include <ERF_TypedInterp.H>
 
 enum SurfaceModelType { LAND = 0, URBAN = 1};
 
@@ -24,6 +26,17 @@ struct SurfaceFluxView {
     amrex::Array4<const amrex::Real> tau23;
     amrex::Array4<const amrex::Real> t_flux;
     amrex::Array4<const amrex::Real> q_flux;
+
+    /** Whether all four fluxes exist and hold a valid LSM value (is_valid_lsm_value) at (i,j). */
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool valid (int i, int j) const noexcept
+    {
+        return t_flux && q_flux && tau13 && tau23 &&
+               is_valid_lsm_value(t_flux(i,j,0)) &&
+               is_valid_lsm_value(q_flux(i,j,0)) &&
+               is_valid_lsm_value(tau13 (i,j,0)) &&
+               is_valid_lsm_value(tau23 (i,j,0));
+    }
 };
 
 /**
@@ -65,30 +78,8 @@ public:
                            amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& /*lmask_lev*/)
         : m_nlevs(nlevs), m_ba(ba), m_geom(geom), m_dmap(dm) {
 
-        u_star.resize(m_nlevs);
-        t_star.resize(m_nlevs);
-        q_star.resize(m_nlevs);
-        t_surf.resize(m_nlevs);
-
-        wavg.resize(m_nlevs);
-        m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
+        resize_levels(m_nlevs);
         m_output_fields_registered = {false, false};
-
-        m_ba2d.resize(m_nlevs);
-        m_geom2d.resize(m_nlevs);
-        m_lmask.resize(m_nlevs);
-
-
-        urban_frac_lev.resize(m_nlevs);
-        lsm_data_lev.resize(m_nlevs);
-        urban_data_lev.resize(m_nlevs);
-        weighted_lsm_data_lev.resize(m_nlevs);
-        weighted_urban_data_lev.resize(m_nlevs);
-
-        rad_fields.resize(m_nlevs);
-        rad_output_fields.resize(m_nlevs);
-        m_surface_outputs_requested.resize(m_nlevs, false);
-        m_last_urban_frac.resize(m_nlevs, nullptr);
 
         // set initial fields for each model to none
         lsm_fields = amrex::Vector<int>(5, -1);
@@ -111,35 +102,7 @@ public:
      */
     void initialize_for_level (int lev, const amrex::BoxArray &ba, const amrex::Geometry &geom, const amrex::DistributionMapping &dm, const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev, const amrex::Vector <amrex::BCRec> &domain_bcs_type, const amrex::Vector<amrex::IntVect> &refRatio)
     {
-        if (lev >= m_nlevs) {
-            m_nlevs = lev+1;
-
-            u_star.resize(m_nlevs);
-            t_star.resize(m_nlevs);
-            q_star.resize(m_nlevs);
-            t_surf.resize(m_nlevs);
-
-            wavg.resize(m_nlevs);
-            m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
-
-            m_dmap.resize(m_nlevs);
-            m_ba.resize(m_nlevs);
-            m_ba2d.resize(m_nlevs);
-            m_geom.resize(m_nlevs);
-            m_geom2d.resize(m_nlevs);
-            m_lmask.resize(m_nlevs);
-
-            urban_frac_lev.resize(m_nlevs);
-            lsm_data_lev.resize(m_nlevs);
-            urban_data_lev.resize(m_nlevs);
-            weighted_lsm_data_lev.resize(m_nlevs);
-            weighted_urban_data_lev.resize(m_nlevs);
-
-            rad_fields.resize(m_nlevs);
-            rad_output_fields.resize(m_nlevs);
-            m_surface_outputs_requested.resize(m_nlevs, m_surface_outputs_enabled);
-            m_last_urban_frac.resize(m_nlevs, nullptr);
-        }
+        if (lev >= m_nlevs) { resize_levels(lev+1); }
 
         m_ba[lev] = ba;
         m_geom[lev] = geom;
@@ -174,20 +137,16 @@ public:
         // Recreate registered fields on the current level layout. This is also
         // needed when an existing AMR level is remade with a new grid layout.
         for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
-            if (static_cast<int>(fields[field].size()) < m_nlevs) {
-                fields[field].resize(m_nlevs);
-            }
             fields[field][lev].reset();
         }
+        // Keep each map's consumer kind: a map active only for one output must not
+        //    become persistent because a regrid happened while it was active
         for (const auto& entry : fieldmap) {
             if (entry.second.active) {
-                activate_field_map(entry.first);
+                activate_field_map(entry.first, entry.second.persistent_consumer);
             }
         }
         for (auto& entry : radiation_input_map) {
-            if (static_cast<int>(entry.second.weighted.size()) < m_nlevs) {
-                entry.second.weighted.resize(m_nlevs);
-            }
             entry.second.weighted[lev].reset();
         }
 
@@ -196,84 +155,45 @@ public:
         rad_fields[lev].clear();
         rad_output_fields[lev].clear();
 
-        // Interpolate the new finer level using coarse data
+        // Interpolate the new finer level using coarse data.  These fields hold lsm_undefined
+        // where no provider has a value, and their consumers fall back to MOST there.  A valid
+        // and an invalid value are two types (interp_by_type), so no valid fine cell takes a
+        // slope toward an invalid coarse cell, and a fine cell under an invalid one is
+        // lsm_undefined.  Every field moves in one pack: one ghost exchange and one
+        // coarse-to-fine copy.
         if (lev > 0) {
-            amrex::Real time_for_fp = zero; // This is not actually used
-            amrex::Vector<amrex::Real> ftime    = {time_for_fp, time_for_fp};
-            amrex::Vector<amrex::Real> ctime    = {time_for_fp, time_for_fp};
-            amrex::IntVect ng_od(0, 0, 0); // ng outside domain
-            amrex::Interpolater* mapper = &amrex::cell_cons_interp;
-            amrex::Vector<amrex::MultiFab*> fmf;
-            amrex::Vector<amrex::MultiFab*> cmf;
+            amrex::Vector<InterpTransfer> transfers;
             if (u_star[lev] != nullptr && u_star[lev-1] != nullptr) {
-            amrex::InterpFromCoarseLevel(*u_star[lev], u_star[lev-1]->nGrowVect(), ng_od,
-                                         *u_star[lev-1], 0, 0, 2,
-                                         m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
-                                         domain_bcs_type, BCVars::cons_bc);
-            amrex::InterpFromCoarseLevel(*t_star[lev], t_star[lev-1]->nGrowVect(), ng_od,
-                                         *t_star[lev-1], 0, 0, 1,
-                                         m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
-                                         domain_bcs_type, BCVars::cons_bc);
-            amrex::InterpFromCoarseLevel(*q_star[lev], q_star[lev-1]->nGrowVect(), ng_od,
-                                         *q_star[lev-1], 0, 0, 1,
-                                         m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
-                                         domain_bcs_type, BCVars::cons_bc);
-            amrex::InterpFromCoarseLevel(*t_surf[lev], t_surf[lev-1]->nGrowVect(), ng_od,
-                                         *t_surf[lev-1], 0, 0, 1,
-                                         m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
-                                         domain_bcs_type, BCVars::cons_bc);
-
-            fmf = {u_star[lev  ].get(), u_star[lev  ].get()};
-            cmf = {u_star[lev-1].get(), u_star[lev-1].get()};
-            amrex::FillPatchTwoLevels(*u_star[lev].get(), u_star[lev]->nGrowVect(), ng_od,
-                                      time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 2, m_geom[lev-1], m_geom[lev],
-                                      refRatio[lev-1], mapper, domain_bcs_type,
-                                      BCVars::cons_bc);
-            fmf = {t_star[lev  ].get(), t_star[lev  ].get()};
-            cmf = {t_star[lev-1].get(), t_star[lev-1].get()};
-            amrex::FillPatchTwoLevels(*t_star[lev].get(), t_star[lev]->nGrowVect(), ng_od,
-                                      time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, m_geom[lev-1], m_geom[lev],
-                                      refRatio[lev-1], mapper, domain_bcs_type,
-                                      BCVars::cons_bc);
-            fmf = {q_star[lev  ].get(), q_star[lev  ].get()};
-            cmf = {q_star[lev-1].get(), q_star[lev-1].get()};
-            amrex::FillPatchTwoLevels(*q_star[lev].get(), q_star[lev]->nGrowVect(), ng_od,
-                                      time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, m_geom[lev-1], m_geom[lev],
-                                      refRatio[lev-1], mapper, domain_bcs_type,
-                                      BCVars::cons_bc);
-            fmf = {t_surf[lev  ].get(), t_surf[lev  ].get()};
-            cmf = {t_surf[lev-1].get(), t_surf[lev-1].get()};
-            amrex::FillPatchTwoLevels(*t_surf[lev].get(), t_surf[lev]->nGrowVect(), ng_od,
-                                      time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, m_geom[lev-1], m_geom[lev],
-                                      refRatio[lev-1], mapper, domain_bcs_type,
-                                      BCVars::cons_bc);
+                transfers.push_back({u_star[lev].get(), u_star[lev-1].get(), 2});
+                transfers.push_back({t_star[lev].get(), t_star[lev-1].get(), 1});
+                transfers.push_back({q_star[lev].get(), q_star[lev-1].get(), 1});
+                // t_surf starts at 300 but is lsm_undefined where its provider has no field
+                transfers.push_back({t_surf[lev].get(), t_surf[lev-1].get(), 1});
             }
-
             for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
                 if (fields[field][lev] == nullptr || fields[field][lev-1] == nullptr) { continue; }
-                amrex::IntVect ngv = fields[field][lev-1]->nGrowVect(); ngv[2] = 0;
-                amrex::InterpFromCoarseLevel(*fields[field][lev], ngv, ng_od,
-                                             *fields[field][lev-1], 0, 0, 1,
-                                             m_geom[lev-1], m_geom[lev],
-                                             refRatio[lev-1], &amrex::cell_cons_interp,
-                                             domain_bcs_type, BCVars::cons_bc);
-                fmf = {fields[field][lev  ].get(), fields[field][lev  ].get()};
-                cmf = {fields[field][lev-1].get(), fields[field][lev-1].get()};
-                amrex::FillPatchTwoLevels(*fields[field][lev].get(), ngv, ng_od,
-                                          time_for_fp, cmf, ctime, fmf, ftime,
-                                          0, 0, 1, m_geom[lev-1], m_geom[lev],
-                                          refRatio[lev-1], mapper, domain_bcs_type,
-                                          BCVars::cons_bc);
+                transfers.push_back({fields[field][lev].get(), fields[field][lev-1].get(), 1});
+            }
+            if (!transfers.empty()) {
+                interp_surface_fields_from_coarse(lev, transfers, domain_bcs_type[BCVars::cons_bc],
+                                                  refRatio[lev-1]);
             }
         }
+    }
+
+    /**
+     * @brief Removes an AMR level, and every level above it, from the surface model.
+     *
+     * Called when ERF destroys a level during regridding so that m_nlevs tracks the
+     * levels that actually exist. Otherwise the checkpoint and other level loops
+     * would still visit the destroyed levels and their stale provider pointers.
+     *
+     * @param lev AMR level being destroyed.
+     */
+    void clear_level (int lev)
+    {
+        if (lev < 0 || lev >= m_nlevs) { return; }
+        resize_levels(lev);
     }
 
     /**
@@ -923,7 +843,139 @@ public:
     void weight_model_field (int lev, const amrex::MultiFab* source,
                              amrex::MultiFab* weighted, SurfaceModelType type);
 
+    /** A field to interpolate to a new fine level: its fine and coarse data and components. */
+    struct InterpTransfer
+    {
+        amrex::MultiFab* fine;
+        const amrex::MultiFab* crse;
+        int ncomp;
+    };
+
+    /**
+     * @brief Fills fine-level surface fields from the next coarser level with interp_by_type.
+     *
+     * Each component is typed valid or invalid (is_valid_lsm_value) per coarse cell, so a
+     * valid fine cell takes no slope toward an invalid coarse cell; where every neighbour is
+     * valid this is cell_cons_interp.  A fine cell whose parent is invalid is set to
+     * lsm_undefined.  Fine ghost cells outside the domain keep their values.
+     *
+     * @param lev Fine AMR level.
+     * @param transfers Fields to fill; all share one fine and one coarse layout.
+     * @param bc Boundary condition every field takes.
+     * @param ratio Refinement ratio from level lev-1 to lev.
+     */
+    void interp_surface_fields_from_coarse (const int lev,
+                                            const amrex::Vector<InterpTransfer>& transfers,
+                                            const amrex::BCRec& bc, const amrex::IntVect& ratio)
+    {
+        constexpr amrex::Real valid_type     = 0.0;
+        constexpr amrex::Real undefined_type = 1.0;
+
+        int nfield = 0;
+        for (const auto& t : transfers) { nfield += t.ncomp; }
+
+        // Each pack holds the nfield components and then their nfield types
+        const amrex::MultiFab& f0 = *transfers[0].fine;
+        const amrex::MultiFab& c0 = *transfers[0].crse;
+        amrex::MultiFab fine_pack(f0.boxArray(), f0.DistributionMap(), 2*nfield, f0.nGrowVect());
+        amrex::MultiFab crse_pack(c0.boxArray(), c0.DistributionMap(), 2*nfield, c0.nGrowVect());
+        int n0 = 0;
+        for (const auto& t : transfers) {
+            AMREX_ALWAYS_ASSERT(t.fine->boxArray() == f0.boxArray() &&
+                                t.fine->DistributionMap() == f0.DistributionMap() &&
+                                t.fine->nGrowVect() == f0.nGrowVect());
+            AMREX_ALWAYS_ASSERT(t.crse->boxArray() == c0.boxArray() &&
+                                t.crse->DistributionMap() == c0.DistributionMap() &&
+                                t.crse->nGrowVect() == c0.nGrowVect());
+            amrex::MultiFab::Copy(fine_pack, *t.fine, 0, n0, t.ncomp, f0.nGrowVect());
+            amrex::MultiFab::Copy(crse_pack, *t.crse, 0, n0, t.ncomp, c0.nGrowVect());
+            n0 += t.ncomp;
+        }
+
+        // The interpolation reads the coarse ghost cells; fill them in the pack only, so the
+        // coarse fields themselves are not touched
+        crse_pack.FillBoundary(0, nfield, m_geom2d[lev-1].periodicity());
+        for (amrex::MFIter mfi(crse_pack, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto p = crse_pack.array(mfi);
+            amrex::ParallelFor(mfi.growntilebox(), nfield,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                p(i,j,k,nfield+n) = is_valid_lsm_value(p(i,j,k,n)) ? valid_type : undefined_type;
+            });
+        }
+        // The fine types come out as their parents'; a cell the interpolation does not fill
+        // keeps valid_type and so its value
+        fine_pack.setVal(valid_type, nfield, nfield, f0.nGrowVect());
+
+        // The fields are planar
+        amrex::IntVect rr2d = ratio;
+        rr2d[2] = 1;
+        interp_by_type_packed(fine_pack, crse_pack, nfield, m_geom2d[lev-1], m_geom2d[lev], rr2d,
+                              bc);
+
+        for (amrex::MFIter mfi(fine_pack, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto p = fine_pack.array(mfi);
+            amrex::ParallelFor(mfi.growntilebox(), nfield,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                if (p(i,j,k,nfield+n) != valid_type) { p(i,j,k,n) = lsm_undefined; }
+            });
+        }
+
+        n0 = 0;
+        for (const auto& t : transfers) {
+            amrex::MultiFab::Copy(*t.fine, fine_pack, n0, 0, t.ncomp, f0.nGrowVect());
+            n0 += t.ncomp;
+        }
+    }
+
 private:
+
+    /**
+     * @brief Sets the number of AMR levels and resizes all per-level storage to match.
+     *
+     * Shared by the constructor, initialize_for_level and clear_level so that every
+     * per-level member is grown and shrunk together. New levels start empty.
+     *
+     * @param nlevs New number of AMR levels.
+     */
+    void resize_levels (int nlevs)
+    {
+        m_nlevs = nlevs;
+
+        u_star.resize(m_nlevs);
+        t_star.resize(m_nlevs);
+        q_star.resize(m_nlevs);
+        t_surf.resize(m_nlevs);
+
+        wavg.resize(m_nlevs);
+        m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
+
+        m_dmap.resize(m_nlevs);
+        m_ba.resize(m_nlevs);
+        m_ba2d.resize(m_nlevs);
+        m_geom.resize(m_nlevs);
+        m_geom2d.resize(m_nlevs);
+        m_lmask.resize(m_nlevs);
+
+        urban_frac_lev.resize(m_nlevs);
+        lsm_data_lev.resize(m_nlevs);
+        urban_data_lev.resize(m_nlevs);
+        weighted_lsm_data_lev.resize(m_nlevs);
+        weighted_urban_data_lev.resize(m_nlevs);
+
+        rad_fields.resize(m_nlevs);
+        rad_output_fields.resize(m_nlevs);
+        m_surface_outputs_requested.resize(m_nlevs, m_surface_outputs_enabled);
+        m_last_urban_frac.resize(m_nlevs, nullptr);
+
+        for (auto& field_lev : fields) { field_lev.resize(m_nlevs); }
+        for (auto& entry : fieldmap) {
+            entry.second.lsm_ptr.resize(m_nlevs, nullptr);
+            entry.second.urb_ptr.resize(m_nlevs, nullptr);
+        }
+        for (auto& entry : radiation_input_map) { entry.second.weighted.resize(m_nlevs); }
+    }
 
     /**
      * @brief Updates the provider mode after model data are registered.
@@ -981,9 +1033,9 @@ private:
         t_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
         q_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
         t_surf[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
-        u_star[lev]->setVal(0.0);
-        t_star[lev]->setVal(0.0);
-        q_star[lev]->setVal(0.0);
+        u_star[lev]->setVal(lsm_undefined);
+        t_star[lev]->setVal(lsm_undefined);
+        q_star[lev]->setVal(lsm_undefined);
         t_surf[lev]->setVal(300.0);
     }
 

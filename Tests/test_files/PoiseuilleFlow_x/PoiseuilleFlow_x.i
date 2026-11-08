@@ -18,7 +18,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "NoSlipWall"
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.cfl                = 0.5     # cfl number for hyperbolic system
 erf.init_shrink        = 1.0     # scale back initial timestep
 erf.change_max         = 1.05    # scale back initial timestep

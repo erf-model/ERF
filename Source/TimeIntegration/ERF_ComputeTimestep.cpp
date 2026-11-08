@@ -27,7 +27,8 @@ ERF::ComputeDt (int step, double cur_time_d)
 {
     Vector<double> dt_tmp(finest_level+1);
 
-    // Explicit eddy-diffusion rates per level (1/s), from the diffusivities of the last step
+    // Explicit diffusion rates per level (1/s): eddy, from the diffusivities of the last step,
+    // plus molecular
     const bool do_diffusive_check = (diffusive_dt_check || diffusive_dt_limit);
     Vector<Real> rate_mom (finest_level+1, zero);
     Vector<Real> rate_scal(finest_level+1, zero);
@@ -35,6 +36,7 @@ ERF::ComputeDt (int step, double cur_time_d)
     // Track exactly the current levels, so a level removed and later re-created is reported again
     slope_report_grids.resize(finest_level+1);
     slope_report_alpha.resize(finest_level+1, zero);
+    openface_grids.resize(finest_level+1);
 
     const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
                          solverChoice.terrain_type == TerrainType::MovingFittedMesh);
@@ -56,6 +58,12 @@ ERF::ComputeDt (int step, double cur_time_d)
                 ReportTerrainSlopeFactor(lev, new_grids);
                 slope_report_grids[lev] = grids[lev];
             }
+        }
+
+        // Steep terrain next to an inflow or outflow face: checked for every new set of grids
+        if (openface_grids[lev] != grids[lev]) {
+            WarnSteepTerrainAtOpenFaces(lev);
+            openface_grids[lev] = grids[lev];
         }
 
         dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev]);
@@ -130,13 +138,13 @@ ERF::ComputeDt (int step, double cur_time_d)
                         << " (momentum " << F_mom << ", scalars " << F_scal << ")" << std::endl;
             }
             if (F > diffusive_cfl && F > Real(1.5) * diffusive_fourier_warned[lev]) {
-                Print() << "WARNING: explicit eddy diffusion at level " << lev
+                Print() << "WARNING: explicit diffusion at level " << lev
                         << " has Fourier number dt * rate = " << F
                         << " (momentum " << F_mom << ", scalars " << F_scal
                         << ") > erf.diffusive_cfl = " << diffusive_cfl
                         << " with dt = " << dt[lev] << ".\n"
                         << "         The rate is a conservative estimate of the horizontal, terrain-metric and"
-                        << " explicit vertical eddy diffusion; the run may go unstable.  Consider"
+                        << " explicit vertical eddy and molecular diffusion; the run may go unstable.  Consider"
                         << " erf.diffusive_dt_limit = true (adaptive dt), a smaller erf.fixed_dt, or for"
                         << " Smagorinsky2D erf.smag2d_slope_limiter / erf.smag2d_kh_cap; on a terrain-fitted"
                         << " mesh, erf.implicit_terrain_metric = true with erf.vert_implicit_fac = 1 1 1."
@@ -148,13 +156,13 @@ ERF::ComputeDt (int step, double cur_time_d)
 }
 
 /**
- * Largest explicit eddy-diffusion rates on a level, for the diffusive time-step check: the
+ * Largest explicit diffusion rates on a level, for the diffusive time-step check: the
  * maximum over valid cells of CellDiffusiveRates (ERF_TerrainDiffusionLimits.H), which takes
  * the largest diffusivities and the smallest density over each cell's 3x3x3 neighbourhood,
  * built from the eddy diffusivities of the last step (zero
  * before the first step and on the first step after a restart, since they are not
- * checkpointed; a regrid happens before the advance that recomputes them).  Molecular
- * diffusion is not included.
+ * checkpointed; a regrid happens before the advance that recomputes them) plus the molecular
+ * ones of erf.molec_diff_type.
  *
  * @param[in]  lev       level
  * @param[out] rate_mom  momentum rate (1/s), Mom_h and Mom_v
@@ -166,7 +174,10 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
 {
     rate_mom  = zero;
     rate_scal = zero;
-    if (!eddyDiffs_lev[lev]) { return; }
+    const DiffChoice& dc = solverChoice.diffChoice;
+    const bool has_eddy  = (eddyDiffs_lev[lev] != nullptr);
+    const bool has_molec = (dc.molec_diff_type != MolecDiffType::None);
+    if (!has_eddy && !has_molec) { return; }
 
     const auto dxinv       = geom[lev].InvCellSizeArray();
     const bool variable_dz = (SolverChoice::mesh_type != MeshType::ConstantDz);
@@ -176,36 +187,39 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     // three-stage scheme; anelastic MidPoint is two stages; anelastic RK2 turns the implicit
     // solve off (its factors are zero).
     const auto& fac = solverChoice.vert_implicit_fac[lev];
-    const int nstages = (solverChoice.anelastic[lev] &&
-                         solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? 2 : 3;
+    const int nstages = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible &&
+                         solverChoice.timestepping_type[lev] == TimesteppingType::MidPoint) ? 2 : 3;
     const Real e_uv = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_momentum_diffusion);
-#ifdef ERF_IMPLICIT_W
-    const Real e_w  = e_uv;
-#else
-    const Real e_w  = one;  // w's vertical diffusion is always explicit in this build
-#endif
     const Real e_th = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_thermal_diffusion);
     const Real e_ke = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_ke_diffusion);
-    // The implicit solve treats only the first moisture variable (qv); any other moist species
-    // shares the Q diffusivities and diffuses explicitly, and so do the advected scalars.
-    // "Only qv" is read from the condensate indices: every scheme that carries number or bin
-    // variables also carries qc.
-    const auto& mi = solverChoice.moisture_indices;
-    const bool only_qv = (mi.qc < 0 && mi.qi < 0 && mi.qr < 0 && mi.qs < 0 && mi.qg < 0);
-    const Real e_q  = only_qv ? ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion)
-                              : one;
+    const Real e_q = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion);
     DiffusiveRateSettings set;
     set.variable_dz = variable_dz;
     set.has_q       = (solverChoice.moisture_type != MoistureType::None);
     set.has_ke      = solverChoice.turbChoice[lev].use_tke;
     set.has_scalar  = solverChoice.transport_scalar;
     set.implicit_metric = solverChoice.implicit_terrain_metric;
-    set.e_uv = e_uv; set.e_w = e_w; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
+    set.e_uv = e_uv; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
+    set.has_eddy = has_eddy;
+    // Molecular diffusivities as the diffusion operators use them: the stresses take
+    // 2 * dynamic_viscosity (ComputeStress*), i.e. dynamic_viscosity in the convention of
+    // MomentumDiffusiveRate, and the scalars rhoAlpha_T and rhoAlpha_C; with ConstantAlpha
+    // these are kinematic and scaled by the local density
+    if (dc.molec_diff_type == MolecDiffType::Constant) {
+        set.mol_mom = dc.dynamic_viscosity;
+        set.mol_th  = dc.rhoAlpha_T;
+        set.mol_c   = dc.rhoAlpha_C;
+    } else if (dc.molec_diff_type == MolecDiffType::ConstantAlpha) {
+        set.mol_mom = dc.dynamic_viscosity / dc.rho0_trans;
+        set.mol_th  = dc.alpha_T;
+        set.mol_c   = dc.alpha_C;
+        set.mol_times_rho = true;
+    }
 
-    const MultiFab& K = *eddyDiffs_lev[lev];
     const MultiFab& S = vars_new[lev][Vars::cons];
     // CellDiffusiveRates reads the 3x3x3 neighbourhood of each valid cell
-    AMREX_ALWAYS_ASSERT(K.nGrowVect().min() >= 1 && S.nGrowVect().min() >= 1);
+    AMREX_ALWAYS_ASSERT(S.nGrowVect().min() >= 1);
+    AMREX_ALWAYS_ASSERT(!has_eddy || eddyDiffs_lev[lev]->nGrowVect().min() >= 1);
 
     ReduceOps<ReduceOpMax, ReduceOpMax> reduce_op;
     ReduceData<Real, Real> reduce_data(reduce_op);
@@ -215,7 +229,8 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     {
         const Box& bx = mfi.tilebox();
         const Array4<const Real> s_arr = S.const_array(mfi);
-        const Array4<const Real> k_arr = K.const_array(mfi);
+        const Array4<const Real> k_arr = has_eddy ? eddyDiffs_lev[lev]->const_array(mfi)
+                                                  : Array4<const Real>{};
         const Array4<const Real> z_nd  = z_phys_nd[lev]->const_array(mfi);
         const Array4<const Real> mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
         const Array4<const Real> mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
@@ -364,8 +379,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::yvel],
                                                         &vars_new[level][Vars::zvel],});
 
-    const bool chamber_cloudy = cloud_chamber_config.active &&
-        cloud_chamber_config.cloudy;
+    const bool chamber_has_moisture = cloud_chamber_config.active &&
+        cloud_chamber_config.has_moisture;
     const Real rdOcp = solverChoice.rdOcp;
     const MultiFab& chamber_base_state = base_state[level];
     for (MFIter mfi(S_new); mfi.isValid(); ++mfi) {
@@ -377,15 +392,15 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         {
             const Real rho = state(i,j,k,Rho_comp);
             velocity(i,j,k,3) = state(i,j,k,RhoTheta_comp) / rho;
-            velocity(i,j,k,4) = chamber_cloudy ?
+            velocity(i,j,k,4) = chamber_has_moisture ?
                 state(i,j,k,RhoQ1_comp) / rho : Real(0.0);
             velocity(i,j,k,5) = base(i,j,k,BaseState::p0_comp);
             velocity(i,j,k,6) = rdOcp;
         });
     }
 
-    bool l_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
-    int  l_anelastic   = solverChoice.anelastic[level];
+    bool l_substepping = (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep);
+    int  l_anelastic   = solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible;
 
     bool l_comp_substepping_diag = (verbose && l_substepping && !l_anelastic && solverChoice.substepping_diag);
 
@@ -405,15 +420,26 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         const eb_& eb_lev = get_eb(level);
         const MultiFab& detJ = (eb_lev.get_const_factory())->getVolFrac();
 
-        estdt_comp_inv_N = ReduceMax(S_new, ccvel_N, detJ, 0,
-        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                   Array4<Real const> const& s,
-                                   Array4<Real const> const& u,
-                                   Array4<Real const> const& vf) -> Real
+        ReduceOps<ReduceOpMax> reduce_op;
+        ReduceData<Real>       reduce_data(reduce_op);
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(S_new,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-           Real new_comp_dt = -bogus_large_value;
-           amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
-           {
+            const Box& bx = mfi.tilebox();
+
+            const Array4<const Real>& s     = S_new.const_array(mfi);
+            const Array4<const Real>& u     = ccvel_N.const_array(mfi);
+            const Array4<const Real>& vf    = detJ.const_array(mfi);
+            const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
+
+            reduce_op.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real>
+            {
+               Real new_comp_dt = -bogus_large_value;
                if (vf(i,j,k) > zero)
                {
                    const Real rho      = s(i, j, k, Rho_comp);
@@ -425,43 +451,49 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    Real pressure = getPgivenRTh(rhotheta);
                    Real c = std::sqrt(Gamma * pressure / rho);
 
+                   // Inverse physical horizontal spacing
+                   const Real idx = mf_mx(i,j,0) * dxinv_EB[0];
+                   const Real idy = mf_my(i,j,0) * dxinv_EB[1];
+
                    // If we are doing implicit acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
                    if (l_substepping) {
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx), new_comp_dt);
                        } else if ((nyc > 1) && (nxc==1)) {
                            // 2-D in y-z
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*idy), new_comp_dt);
                        } else {
                            // 3-D
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx
+                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*idy ), new_comp_dt);
                        }
 
                    // If we are not doing implicit acoustic substepping, then the z-direction contributes
                    //    to the computation of the time step
                    } else {
                        if (nxc > 1 && nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx
+                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*idy
+                                                     + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        } else if (nxc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx
+                                                     + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        } else if (nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*idy
+                                                     + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        } else {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        }
 
                    }
                }
-           });
-           return new_comp_dt;
-       });
+               return {new_comp_dt};
+            });
+        }
+
+        estdt_comp_inv_N = amrex::get<0>(reduce_data.value(reduce_op));
 
         // The metric terms do not exist for EB, so the terrain aware
         // estimate is identical to the terrain unaware estimate
@@ -480,10 +512,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         {
             const Box& bx = mfi.tilebox();
 
-            const Array4<const Real>& s    = S_new.const_array(mfi);
-            const Array4<const Real>& u_T  = ccvel_T.const_array(mfi);
-            const Array4<const Real>& u_N  = ccvel_N.const_array(mfi);
-            const Array4<const Real>& z_nd = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& s     = S_new.const_array(mfi);
+            const Array4<const Real>& u_T   = ccvel_T.const_array(mfi);
+            const Array4<const Real>& u_N   = ccvel_N.const_array(mfi);
+            const Array4<const Real>& z_nd  = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
 
             reduce_op.eval(bx, reduce_data,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real,Real>
@@ -499,11 +533,13 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
                 Real inv_dt_T = Compute_InvDt_Compressible(i,j,k, c,
                                     u_T(i,j,k,0), u_T(i,j,k,1), u_T(i,j,k,2),
-                                    z_nd, dxinv, true, l_substepping, nxc, nyc);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv,
+                                    true, l_substepping, nxc, nyc);
 
                 Real inv_dt_N = Compute_InvDt_Compressible(i,j,k, c,
                                     u_N(i,j,k,0), u_N(i,j,k,1), u_N(i,j,k,2),
-                                    z_nd, dxinv, false, l_substepping, nxc, nyc);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv,
+                                    false, l_substepping, nxc, nyc);
 
                 return {inv_dt_T, inv_dt_N};
             });
@@ -531,21 +567,33 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     //
     if (solverChoice.terrain_type == TerrainType::EB)
     {
-        estdt_lowM_inv_N = ReduceMax(ccvel_N, z_nd_mf, 0,
-        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                   Array4<Real const> const& u,
-                                   Array4<Real const> const& z_nd) -> Real
+        ReduceOps<ReduceOpMax> reduce_op;
+        ReduceData<Real>       reduce_data(reduce_op);
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(ccvel_N,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Real new_lm_dt = -bogus_large_value;
-            Loop(b, [=,&new_lm_dt] (int i, int j, int k) noexcept
+            const Box& bx = mfi.tilebox();
+
+            const Array4<const Real>& u     = ccvel_N.const_array(mfi);
+            const Array4<const Real>& z_nd  = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
+
+            reduce_op.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real>
             {
                 Real inv_dt_lowM_N = Compute_InvDt_Anelastic(i,j,k,
                                              u(i,j,k,0), u(i,j,k,1), u(i,j,k,2),
-                                             z_nd, dxinv_EB, false);
-                new_lm_dt = amrex::max(inv_dt_lowM_N, new_lm_dt);
+                                             z_nd, mf_mx(i,j,0), mf_my(i,j,0),
+                                             dxinv_EB, false);
+                return {inv_dt_lowM_N};
             });
-            return new_lm_dt;
-        });
+        }
+
+        estdt_lowM_inv_N = amrex::get<0>(reduce_data.value(reduce_op));
 
         // The metric terms do not exist for EB
         estdt_lowM_inv_T = estdt_lowM_inv_N;
@@ -562,20 +610,22 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         {
             const Box& bx = mfi.tilebox();
 
-            const Array4<const Real>& u_T  = ccvel_T.const_array(mfi);
-            const Array4<const Real>& u_N  = ccvel_N.const_array(mfi);
-            const Array4<const Real>& z_nd = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& u_T   = ccvel_T.const_array(mfi);
+            const Array4<const Real>& u_N   = ccvel_N.const_array(mfi);
+            const Array4<const Real>& z_nd  = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
 
             reduce_op.eval(bx, reduce_data,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real,Real>
             {
                 Real inv_dt_T = Compute_InvDt_Anelastic(i,j,k,
                                     u_T(i,j,k,0), u_T(i,j,k,1), u_T(i,j,k,2),
-                                    z_nd, dxinv, true);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, true);
 
                 Real inv_dt_N = Compute_InvDt_Anelastic(i,j,k,
                                     u_N(i,j,k,0), u_N(i,j,k,1), u_N(i,j,k,2),
-                                    z_nd, dxinv, false);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, false);
 
                 return {inv_dt_T, inv_dt_N};
             });
@@ -631,62 +681,54 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         erf_auxiliary::MappedFaceFluxRate mapped_carrier;
         mapped_carrier.define(cell_ba, cell_dm, 1, 0);
         std::string sbm_diagnostic;
-        if (l_anelastic) {
-            // Projection restores rho0*w before the anelastic stage seam, so
-            // the donor estimate must use the same three momentum carriers.
-            // Terrain Omega is only an internal projection representation.
-            if (!erf_auxiliary::CopyNativeMappedDryAirCarrierFluxRate(
-                    mapped_carrier, rho_u, rho_v, rho_w, sbm_diagnostic)) {
-                amrex::Abort("SBM anelastic native carrier: " + sbm_diagnostic);
-            }
-        } else {
-            MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
-            const bool terrain_fitted =
-                solverChoice.mesh_type == MeshType::VariableDz;
-            const int zlo = geom[level].Domain().smallEnd(2);
-            const int zhi = geom[level].Domain().bigEnd(2);
-            const auto inv_dx = geom[level].InvCellSizeArray();
-            const MultiFab& z_nd = *z_phys_nd[level];
-            const MultiFab& mf_ux = *mapfac[level][MapFacType::u_x];
-            const MultiFab& mf_vy = *mapfac[level][MapFacType::v_y];
-            for (MFIter mfi(sbm_vertical_carrier, TilingIfNotGPU());
-                 mfi.isValid(); ++mfi) {
-                const Box bx = mfi.tilebox();
-                const auto ru = rho_u.const_array(mfi);
-                const auto rv = rho_v.const_array(mfi);
-                const auto rw = rho_w.const_array(mfi);
-                const auto ux = mf_ux.const_array(mfi);
-                const auto vy = mf_vy.const_array(mfi);
-                const auto z = z_nd.const_array(mfi);
-                const auto out = sbm_vertical_carrier.array(mfi);
-                const bool fitted = terrain_fitted;
-                const int bottom = zlo;
-                const int top = zhi + 1;
-                const auto dx = inv_dx;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    if (!fitted) {
-                        out(i, j, k, 0) = rw(i, j, k, 0);
-                    } else if (k == bottom) {
-                        out(i, j, k, 0) = Real(0.0);
-                    } else if (k == top) {
-                        out(i, j, k, 0) = rw(i, j, k, 0);
-                    } else {
-                        out(i, j, k, 0) = OmegaFromW(i, j, k, rw(i, j, k, 0),
-                                                      ru, rv, ux, vy, z, dx);
-                    }
-                });
-            }
-            const bool carrier_ok =
-                erf_auxiliary::BuildMappedDryAirCarrierFluxRate(
-                    mapped_carrier, rho_u, rho_v, sbm_vertical_carrier,
-                    *ax[level], *ay[level], *az[level],
-                    *mapfac[level][MapFacType::u_y],
-                    *mapfac[level][MapFacType::v_x],
-                    *mapfac[level][MapFacType::m_x],
-                    *mapfac[level][MapFacType::m_y], sbm_diagnostic);
-            if (!carrier_ok) {
-                Abort("SBM M3 current mapped carrier: " + sbm_diagnostic);
-            }
+        // The same mapped carrier for both integrators: erf_slow_rhs_pre gives the anelastic
+        // transport these faces too, from the current momenta
+        MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
+        const bool terrain_fitted =
+            solverChoice.mesh_type == MeshType::VariableDz;
+        const int zlo = geom[level].Domain().smallEnd(2);
+        const int zhi = geom[level].Domain().bigEnd(2);
+        const auto inv_dx = geom[level].InvCellSizeArray();
+        const MultiFab& z_nd = *z_phys_nd[level];
+        const MultiFab& mf_ux = *mapfac[level][MapFacType::u_x];
+        const MultiFab& mf_vy = *mapfac[level][MapFacType::v_y];
+        for (MFIter mfi(sbm_vertical_carrier, TilingIfNotGPU());
+             mfi.isValid(); ++mfi) {
+            const Box bx = mfi.tilebox();
+            const auto ru = rho_u.const_array(mfi);
+            const auto rv = rho_v.const_array(mfi);
+            const auto rw = rho_w.const_array(mfi);
+            const auto ux = mf_ux.const_array(mfi);
+            const auto vy = mf_vy.const_array(mfi);
+            const auto z = z_nd.const_array(mfi);
+            const auto out = sbm_vertical_carrier.array(mfi);
+            const bool fitted = terrain_fitted;
+            const int bottom = zlo;
+            const int top = zhi + 1;
+            const auto dx = inv_dx;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (!fitted) {
+                    out(i, j, k, 0) = rw(i, j, k, 0);
+                } else if (k == bottom) {
+                    out(i, j, k, 0) = Real(0.0);
+                } else if (k == top) {
+                    out(i, j, k, 0) = rw(i, j, k, 0);
+                } else {
+                    out(i, j, k, 0) = OmegaFromW(i, j, k, rw(i, j, k, 0),
+                                                  ru, rv, ux, vy, z, dx);
+                }
+            });
+        }
+        const bool carrier_ok =
+            erf_auxiliary::BuildMappedDryAirCarrierFluxRate(
+                mapped_carrier, rho_u, rho_v, sbm_vertical_carrier,
+                *ax[level], *ay[level], *az[level],
+                *mapfac[level][MapFacType::u_y],
+                *mapfac[level][MapFacType::v_x],
+                *mapfac[level][MapFacType::m_x],
+                *mapfac[level][MapFacType::m_y], sbm_diagnostic);
+        if (!carrier_ok) {
+            Abort("SBM M3 current mapped carrier: " + sbm_diagnostic);
         }
 
         if (sbm_transport == nullptr || !sbm_transport->is_defined(level) ||
@@ -891,8 +933,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          // Terrain aware   (T): includes h_xi, h_eta and h_zeta
          // Terrain unaware (N): no metric terms, dxinv[2] used for the vertical spacing
          if (fixed_dt[level] <= zero) {
+             // Smallest physical horizontal spacing, dx/mf_x and dy/mf_y
+             const Real mf_x_max = mapfac[level][MapFacType::m_x]->max(0);
+             const Real mf_y_max = mapfac[level][MapFacType::m_y]->max(0);
              Print() << "Using cfl = " << cfl << " and dx/dy/dz_min = " <<
-               one/dxinv[0] << " " << one/dxinv[1] << " " << dz_min[level] << std::endl;
+               one/(mf_x_max*dxinv[0]) << " " << one/(mf_y_max*dxinv[1]) << " " << dz_min[level] << std::endl;
              Print() << "Compressible dt at level " << level << ":  "
                      << estdt_comp_T << " (terrain aware)  "
                      << estdt_comp_N << " (terrain unaware)" << std::endl;
@@ -924,7 +969,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      }
 
-     if (solverChoice.substepping_type[level] != SubsteppingType::None) {
+     if (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep) {
          if (fixed_dt[level] > zero && fixed_fast_dt[level] > zero) {
              dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
              if (dt_fast_ratio < 1) {
@@ -965,15 +1010,14 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              if (std::isnan(dt_sub_max) || (dt_sub_max <= 0.0)) {
                  bad_substep_ratio("dt_sub_max", dt_sub_max);
              }
-             const double sub_ratio = std::max(fixed_dt[level]/dt_sub_max, 4.0);
+             const double sub_ratio = std::max(std::ceil(fixed_dt[level]/dt_sub_max), double(4.0));
              if (!std::isfinite(sub_ratio) || (sub_ratio > 1.0e9)) {
                  bad_substep_ratio("mri_dt_ratio", sub_ratio);
              }
-             dt_fast_ratio = static_cast<long>( sub_ratio );
+             dt_fast_ratio = static_cast<long>(sub_ratio);
          } else {
-             // auto dt_sub_max = (estdt_comp_T/cfl * sub_cfl);
-             // dt_fast_ratio = static_cast<long>( std::max(estdt_comp_T/dt_sub_max,Real(4.)) );
-         dt_fast_ratio = static_cast<long>( std::max((cfl/third) / sub_cfl, Real(4.)) );
+             const double sub_ratio = std::max(std::ceil((cfl/third)/sub_cfl), Real(4.0));
+             dt_fast_ratio = static_cast<long>(sub_ratio);
          }
 
          // Force time step ratio to be an even value

@@ -3,6 +3,7 @@
 #include <AMReX_ParmParse.H>
 #include <ERF_NumericalConstants.H>
 #include <ERF_Interpolation_1D.H>
+#include <ERF_GridUtils.H>
 #include <cmath>
 
 using namespace amrex;
@@ -15,9 +16,13 @@ using namespace amrex;
  * @param[out] stretched_dz_d Device-side cell heights in z.
  * @param[in] geom Geometry describing the domain.
  * @param[in] ref_ratio Refinement ratios between levels.
- * @param[in] grid_stretching_ratio Ratio used for stretching the vertical grid.
- * @param[in] zsurf Height of the surface.
+ * @param[in] grid_stretching_ratio Ratio used for stretching the vertical grid; if zero and
+ *                                  dz0 is positive, the ratio is solved for so that the grid
+ *                                  closes on the top of the domain.
  * @param[in] dz0 Initial cell height at the surface.
+ *
+ * Every grid starts at geometry.prob_lo[2]: the uniform and stretched grids are built up
+ * from it, and erf.terrain_z_levels must begin there.
  */
 void
 init_zlevels (Vector<Vector<Real>>& zlevels_stag,
@@ -26,7 +31,6 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
               Vector<Geometry> const& geom,
               Vector<IntVect> const& ref_ratio,
               const Real grid_stretching_ratio,
-              const Real zsurf,
               const Real dz0)
 {
     int max_level = zlevels_stag.size()-1;
@@ -41,18 +45,52 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
 
         stretched_dz_h[lev].resize(domain.length(2));
 
-        if (grid_stretching_ratio == 0) {
+        if (grid_stretching_ratio == 0 && !(dz0 > 0)) {
             // This is the default for z_levels
+            const Real zsurf = geom[lev].ProbLo(2);
             for (int k = 0; k < nz+1; k++)
             {
-                zlevels_stag[lev][k] = k * dx[2];
+                zlevels_stag[lev][k] = zsurf + k * dx[2];
             }
             for (int k = 0; k < nz; k++)
             {
                 stretched_dz_h[lev][k] = dx[2];
             }
+        } else if (lev == 0 && grid_stretching_ratio == 0) {
+            // Solve for the geometric stretch factor that fills the domain above prob_lo with
+            //    nz layers whose first is dz0 thick, as the wrfinput path does when it builds
+            //    its grid by geometric stretching
+#ifdef AMREX_USE_FLOAT
+            const Real tol = Real(1.e-4);
+#else
+            const Real tol = Real(1.e-8);
+#endif
+            const Real zsurf = geom[lev].ProbLo(2);
+            const Real depth = geom[lev].ProbHi(2) - zsurf;
+            const erf_grid_utils::GeometricStretch gs =
+                erf_grid_utils::build_geometric_zlevels(zlevels_stag[lev], dz0, depth, tol);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(gs.converged,
+                "Newton iterations to determine the grid stretching factor failed!\n");
+            if (gs.uniform) {
+                Print() << "Note: erf.initial_dz = " << dz0 << " is no thinner than the uniform "
+                        << "spacing, so the vertical grid is uniform with dz = " << gs.dz0 << std::endl;
+            }
+            Print() << "Building a stretched grid with dz0: " << gs.dz0
+                    << " and stretching factor: " << gs.ratio << std::endl;
+
+            Print() << "Stretched grid levels at level : " << lev << " is " <<  zsurf;
+            for (int k = 0; k < nz+1; k++)
+            {
+                zlevels_stag[lev][k] += zsurf;
+                if (k > 0) {
+                    stretched_dz_h[lev][k-1] = zlevels_stag[lev][k] - zlevels_stag[lev][k-1];
+                    Print() << " " << zlevels_stag[lev][k];
+                }
+            }
+            Print() << std::endl;
         } else if (lev == 0) {
             // Create stretched grid based on initial dz and stretching ratio
+            const Real zsurf = geom[lev].ProbLo(2);
             zlevels_stag[lev][0] = zsurf;
             Real dz = dz0;
             Print() << "Stretched grid levels at level : " << lev << " is " <<  zsurf;
@@ -90,14 +128,20 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
 
         if (grid_stretching_ratio > 0) {
             Print() << "Note: Found terrain_z_levels, ignoring grid_stretching_ratio" << std::endl;
+        } else if (dz0 > 0) {
+            Print() << "Note: Found terrain_z_levels, ignoring initial_dz" << std::endl;
         }
 
         pp.getarr("terrain_z_levels", zlevels_stag[0], 0, nz+1);
 
-        // These levels should range from 0 at the surface to the height of the
-        // top of model domain (see the coordinate surface height, zeta, in
-        // Klemp 2011)
-        AMREX_ALWAYS_ASSERT(zlevels_stag[0][0] == 0);
+        // These levels should range from geometry.prob_lo[2] at the surface to the
+        // height of the top of model domain (see the coordinate surface height, zeta,
+        // in Klemp 2011)
+        if (zlevels_stag[0][0] != geom[0].ProbLo(2)) {
+            Abort("erf.terrain_z_levels must start at geometry.prob_lo[2] = " +
+                  std::to_string(geom[0].ProbLo(2)) + ", not at " +
+                  std::to_string(zlevels_stag[0][0]));
+        }
 
         for (int lev = 1; lev <= max_level; lev++) {
             int rr = ref_ratio[lev-1][2];

@@ -86,20 +86,22 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
 
         Real x = ProbLoArr[0] + ii * dx[0];
         Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
-        Real z = z_phys_cc(i,j,k);
+        // Height and density on the x-face
+        Real z = myhalf * (z_phys_cc(i-1,j,k) + z_phys_cc(i,j,k));
+        Real rho_on_u_face = myhalf * (cell_data(i-1,j,k,0) + cell_data(i,j,k,0));
 
         // x lo sponge
         if(use_xlo_sponge_damping){
             if (x < xlo_sponge_end) {
                 Real xi = (xlo_sponge_end - x) / L_xlo;
-                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
+                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - rho_on_u_face*ubar_sponge[k]);
             }
         }
         // x hi sponge
         if(use_xhi_sponge_damping){
             if (x > xhi_sponge_start) {
                 Real xi = (x - xhi_sponge_start) / L_xhi;
-                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
+                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - rho_on_u_face*ubar_sponge[k]);
             }
         }
 
@@ -107,14 +109,14 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         if(use_ylo_sponge_damping){
             if (y < ylo_sponge_end) {
                 Real xi = (ylo_sponge_end - y) / L_ylo;
-                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
+                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - rho_on_u_face*ubar_sponge[k]);
             }
         }
         // x right sponge
         if(use_yhi_sponge_damping){
             if (y > yhi_sponge_start) {
                 Real xi = (y - yhi_sponge_start) / L_yhi;
-                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
+                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - rho_on_u_face*ubar_sponge[k]);
             }
         }
 
@@ -122,7 +124,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         if(use_zlo_sponge_damping){
             if (z < zlo_sponge_end) {
                 Real xi = (zlo_sponge_end - z) / L_zlo;
-                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
+                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - rho_on_u_face*ubar_sponge[k]);
             }
         }
 
@@ -131,7 +133,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         if(use_zhi_sponge_damping){
             if (z > zhi_sponge_start) {
                 Real xi = (z - zhi_sponge_start) / L_zhi;
-                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
+                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - rho_on_u_face*ubar_sponge[k]);
             }
         }
     });
@@ -144,20 +146,22 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
 
         Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
         Real y = ProbLoArr[1] + jj * dx[1];
-        Real z = z_phys_cc(i,j,k);
+        // Height and density on the y-face
+        Real z = myhalf * (z_phys_cc(i,j-1,k) + z_phys_cc(i,j,k));
+        Real rho_on_v_face = myhalf * (cell_data(i,j-1,k,0) + cell_data(i,j,k,0));
 
         // x lo sponge
         if(use_xlo_sponge_damping){
             if (x < xlo_sponge_end) {
                 Real xi = (xlo_sponge_end - x) / L_xlo;
-                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
+                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - rho_on_v_face*vbar_sponge[k]);
             }
         }
         // x hi sponge
         if(use_xhi_sponge_damping){
             if (x > xhi_sponge_start) {
                 Real xi = (x - xhi_sponge_start) / L_xhi;
-                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
+                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - rho_on_v_face*vbar_sponge[k]);
             }
         }
 
@@ -165,14 +169,14 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         if(use_ylo_sponge_damping){
             if (y < ylo_sponge_end) {
                 Real xi = (ylo_sponge_end - y) / L_ylo;
-                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
+                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - rho_on_v_face*vbar_sponge[k]);
             }
         }
         // x right sponge
         if(use_yhi_sponge_damping){
             if (y > yhi_sponge_start) {
                 Real xi = (y - yhi_sponge_start) / L_yhi;
-                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
+                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - rho_on_v_face*vbar_sponge[k]);
             }
         }
 
@@ -180,7 +184,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         if(use_zlo_sponge_damping){
             if (z < zlo_sponge_end) {
                 Real xi = (zlo_sponge_end - z) / L_zlo;
-                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
+                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - rho_on_v_face*vbar_sponge[k]);
             }
         }
 
@@ -189,7 +193,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         if(use_zhi_sponge_damping){
             if (z > zhi_sponge_start) {
                 Real xi = (z - zhi_sponge_start) / L_zhi;
-                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
+                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - rho_on_v_face*vbar_sponge[k]);
             }
         }
     });

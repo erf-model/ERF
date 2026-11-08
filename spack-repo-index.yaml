@@ -1,0 +1,5 @@
+# Lets `spack repo add https://github.com/erf-model/ERF.git` find ERF's Spack
+# package repository (Spack 1.1 or newer). See Build/spack/README.md.
+repo_index:
+  paths:
+  - Build/spack/spack_repo/erf

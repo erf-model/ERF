@@ -31,8 +31,8 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY - Strong surface cooling
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
-erf.most.zref = 10.0     # reference height [m]
-erf.most.surf_temp = 265.0      # surface temperature [K] (very cold)
+erf.most.zref = 15.625   # reference height [m]: first cell center (dz = 31.25 m)
+erf.most.pot_surf_temp = 265.0      # surface temperature [K] (very cold)
 erf.most.surf_heating_rate = -0.25  # strong cooling rate [K/h]
 
 # Upper boundary - capping inversion

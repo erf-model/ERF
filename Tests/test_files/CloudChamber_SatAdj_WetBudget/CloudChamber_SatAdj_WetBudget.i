@@ -1,7 +1,7 @@
 # SatAdj wet-wall budget regression with three interval reports.
 erf.prob_name = "Cloud Chamber"
 erf.init_type = ConstantDensity
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_gravity = true
 erf.moisture_model = SatAdj
 erf.vert_implicit = false

@@ -1,4 +1,9 @@
 
+    // On a mesh other than ConstantDz, heights come from z_nd and the vertical levels,
+    //    not from geomdata's prob_lo[2], prob_hi[2] and CellSize(2)
+    const bool use_z_phys = use_physical_z();
+    const Real phys_z_lo  = phys_zlo(geomdata, lev);
+
     ParmParse pp_for_pert_vels("erf");
     InitType init_type = InitType::None; // the default of erf.init_type
     pp_for_pert_vels.query_enum_case_insensitive("init_type",init_type);
@@ -30,7 +35,7 @@
         // Set the x-velocity
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto dx = geomdata.CellSize();
-            const Real z = (k + myhalf) * dx[2];
+            const Real z = use_z_phys ? erf_prob_heights::z_xface(i,j,k,z_nd) - phys_z_lo : (k + myhalf) * dx[2];
 
             // Set the x-velocity
             x_vel_pert(i, j, k) = u_0 * (one - std::exp(-a * z) * std::cos(-a * z));
@@ -39,7 +44,7 @@
         // Set the y-velocity
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto dx = geomdata.CellSize();
-            const Real z = (k + myhalf) * dx[2];
+            const Real z = use_z_phys ? erf_prob_heights::z_yface(i,j,k,z_nd) - phys_z_lo : (k + myhalf) * dx[2];
 
             // Set the y-velocity
             y_vel_pert(i, j, k) = -u_0 * std::exp(-a * z) * std::sin(-a * z);

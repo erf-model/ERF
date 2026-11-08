@@ -22,7 +22,9 @@
     X(noahmp_temperature_2m_bare)                                            \
     X(noahmp_water_vapor_mixing_ratio_2m_vegetated)                           \
     X(noahmp_water_vapor_mixing_ratio_2m_bare)                                \
-    X(noahmp_vegetation_fraction)
+    X(noahmp_vegetation_fraction)                                             \
+    /* snowpack: SNOW [mm water equiv. = kg m-2], SNOWH [m] (WRF names) */   \
+    X(snow) X(snowh)
 
 // Forcing ERF -> Noah-MP, mechanical 1:1 copies: X( ERF comp, NoahmpIO member ).
 // 3D members use the k/j transpose MEMBER(i,1,j); 2D use MEMBER(i,j).
@@ -65,7 +67,9 @@
     X(    o_noahmp_t2m_bare, T2MBXY )                                         \
     X(    o_noahmp_q2m_veg,  Q2MVXY )                                         \
     X(    o_noahmp_q2m_bare, Q2MBXY )                                         \
-    X(    o_noahmp_fveg,     FVEGXY )
+    X(    o_noahmp_fveg,     FVEGXY )                                         \
+    X(    o_snow,            SNOW   )                                         \
+    X(    o_snowh,           SNOWH  )
 
 #define NOAHMP_OUTPUT_2D_FIELDS(X) NOAHMP_OUTPUT_2D_FIELDS_HEAD(X)            \
                                    NOAHMP_OUTPUT_2D_FIELDS_TAIL(X)
@@ -91,7 +95,9 @@
     X(   T2MBXY_o,         noahmp_temperature_2m_bare,      o_noahmp_t2m_bare) \
     X(   Q2MVXY_o,         noahmp_water_vapor_mixing_ratio_2m_vegetated, o_noahmp_q2m_veg ) \
     X(   Q2MBXY_o,         noahmp_water_vapor_mixing_ratio_2m_bare,      o_noahmp_q2m_bare) \
-    X(   FVEGXY_o,         noahmp_vegetation_fraction, o_noahmp_fveg       )
+    X(   FVEGXY_o,         noahmp_vegetation_fraction, o_noahmp_fveg       ) \
+    X(   SNOW_o,           snow,              o_snow        )                  \
+    X(   SNOWH_o,          snowh,             o_snowh       )
 
 // ---------------------------------------------------------------------------
 //  Reusable field emitters -- the per-row action applied when a registry is

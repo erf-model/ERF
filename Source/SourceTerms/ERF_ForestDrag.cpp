@@ -300,7 +300,11 @@ ForestDrag::define_drag_field (const BoxArray& ba,
             all_boxes_touch_bottom = false;
         }
     }
-    AMREX_ALWAYS_ASSERT(all_boxes_touch_bottom);
+    // The drag field reads each column's ground nodes at k = 0 from its own box
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(all_boxes_touch_bottom,
+        "Forest drag needs every box of the level to reach the ground: do not split the grids "
+        "in z (amr.max_grid_size in z at least the number of cells in z), and refine forested "
+        "levels from the ground up");
 
     // Allocate the forest drag MF and frontal area MF
     // NOTE: 1 ghost cell for averaging to faces
@@ -502,21 +506,24 @@ ForestDrag::define_drag_field (const BoxArray& ba,
                     const Real radius = std::sqrt((x - xf) * (x - xf) +
                                                   (y - yf) * (y - yf));
 
+                    // Strictly below the tree top, as in the gridded mode: the
+                    // type-2 profile tends to zero at z = hf, where its ratio
+                    // would divide by zero. Overlapping patches add their drag.
                     Real factor = one_d;
-                    if ((z <= hf) && (radius <= (myhalf_d * df))) {
+                    if ((z < hf) && (radius <= (myhalf_d * df))) {
                         if (tf == 2) {
                             Real ratio = (hf - treeZm) / (hf - z);
                             if (z < treeZm) {
                                 factor = amrex::Math::powi<6>(ratio) *
                                          std::exp(Real(6.0) * (one_d - ratio));
-                            } else if (z <= hf) {
+                            } else {
                                 factor = std::sqrt(ratio) *
                                          std::exp(myhalf_d * (one_d - ratio));
                             }
                         }
-                        levelDrag(i, j, k)   = cdf * af * factor;
+                        levelDrag(i, j, k) += cdf * af * factor;
                         if (store_frontal_area) {
-                            frontalArea(i, j, k) = af * factor;
+                            frontalArea(i, j, k) += af * factor;
                         }
                     }
                 });

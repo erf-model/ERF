@@ -17,7 +17,8 @@ using namespace amrex;
  * @param[in   ]  S_stage_data solution            at previous RK stage
  * @param[in   ]  S_stage_prim primitive variables at previous RK stage
  * @param[in   ]  pi_stage   Exner function      at previous RK stage
- * @param[in   ]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[in   ]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator,
+ *                           and beta_s on the w-faces (component 5)
  * @param[  out]  S_data    current solution
  * @param[inout]  lagged_delta_rt
  * @param[inout] avg_xmom: time-averaged x-momentum to be used for updating slow variables
@@ -31,13 +32,14 @@ using namespace amrex;
  * @param[in   ]  gravity magnitude of gravity
  * @param[in   ]  stretched_dz_d
  * @param[in   ]  dtau fast time step
- * @param[in   ]  beta_s  Coefficient which determines how implicit vs explicit the solve is
  * @param[in   ]  facinv inverse factor for time-averaging the momenta
  * @param[in   ]  mapfac   vector of map factors
  * @param[inout]  fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout]  fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ]  l_use_moisture
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
+ * @param[in   ]  l_real_bc
+ * @param[inout]  cf_fluxes coarse/fine face fluxes: recorded here on a coarse level, imposed on a fine one
  */
 
 void erf_substep_NS (int step, int nrk,
@@ -61,7 +63,7 @@ void erf_substep_NS (int step, int nrk,
                      const Geometry geom,
                      const Real gravity,
                      amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                     const double dtau_d, const Real beta_s,
+                     const double dtau_d,
                      const Real facinv,
                      Vector<std::unique_ptr<MultiFab>>& mapfac,
                      YAFluxRegister* fr_as_crse,
@@ -70,7 +72,9 @@ void erf_substep_NS (int step, int nrk,
                      bool l_reflux,
                      bool l_real_bc,
                      const amrex::Real* sinesq_stag_d,
-                     const Real l_damp_coef)
+                     const Real l_damp_coef,
+                     const Real beta_d,
+                     const CFFaceFluxes& cf_fluxes)
 {
     //
     // NOTE: for step > 0, S_data and S_prev point to the same MultiFab data!!
@@ -88,12 +92,6 @@ void erf_substep_NS (int step, int nrk,
     int ihi = domhi.x + 1;
     int jlo = domlo.y;
     int jhi = domhi.y + 1;
-
-    Real beta_1 = myhalf * (one - beta_s);  // multiplies explicit terms
-    Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
-
-    // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
-    Real beta_d = Real(0.1);
 
     bool l_rayleigh_impl_for_w = (sinesq_stag_d != nullptr);
 
@@ -117,6 +115,11 @@ void erf_substep_NS (int step, int nrk,
     MultiFab     coeff_C_mf(fast_coeffs, make_alias, 2, 1);
     MultiFab     coeff_P_mf(fast_coeffs, make_alias, 3, 1);
     MultiFab     coeff_Q_mf(fast_coeffs, make_alias, 4, 1);
+
+    // beta_s on the w-faces, from which
+    //    beta_1 = myhalf * (one - beta_s) multiplies explicit terms
+    //    beta_2 = myhalf * (one + beta_s) multiplies implicit terms
+    MultiFab      beta_s_mf(fast_coeffs, make_alias, 5, 1);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -314,6 +317,39 @@ void erf_substep_NS (int step, int nrk,
                 temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
             });
         } // nrk > 0 and/or step > 0
+
+        // On the coarse/fine faces of a fine level, the coarse level's flux over this substep
+        // (CFFaceFluxes) in place of the level's own
+        for (int dir = 0; dir < 2; ++dir) {
+            if (!cf_fluxes.tgt[dir]) { continue; }
+            const Box& fbx = (dir == 0) ? tbx : tby;
+            const Array4<const Real>& tgt = cf_fluxes.tgt[dir]->const_array(mfi);
+            const Array4<Real>& cur = (dir == 0) ? temp_cur_xmom_arr : temp_cur_ymom_arr;
+            const Array4<Real>& avg = (dir == 0) ? avg_xmom_arr      : avg_ymom_arr;
+            const Array4<const Real>& mf = (dir == 0) ? mf_uy : mf_vx;
+            ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                if (tgt(i,j,k,1) > myhalf) {
+                    Real new_mom = tgt(i,j,k,0) * mf(i,j,0);
+                    Real h_zeta  = dz_ptr[k] * dzi;
+                    avg(i,j,k) += facinv * (new_mom - cur(i,j,k)) * h_zeta / mf(i,j,0);
+                    cur(i,j,k)  = new_mom;
+                }
+            });
+        }
+
+        // On a coarse level, the flux each face applied over this substep
+        for (int dir = 0; dir < 2; ++dir) {
+            if (!cf_fluxes.rec[dir]) { continue; }
+            const Box& fbx = (dir == 0) ? tbx : tby;
+            const Array4<Real>& rec = cf_fluxes.rec[dir]->array(mfi);
+            const Array4<const Real>& cur = (dir == 0) ? temp_cur_xmom_arr : temp_cur_ymom_arr;
+            const Array4<const Real>& mf  = (dir == 0) ? mf_uy : mf_vx;
+            ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                rec(i,j,k) = cur(i,j,k) / mf(i,j,0);
+            });
+        }
     } //mfi
 
 #ifdef _OPENMP
@@ -375,6 +411,7 @@ void erf_substep_NS (int step, int nrk,
         auto const&     coeffC_a =     coeff_C_mf.array(mfi);
         auto const&     coeffP_a =     coeff_P_mf.array(mfi);
         auto const&     coeffQ_a =     coeff_Q_mf.array(mfi);
+        auto const&     beta_s_a =      beta_s_mf.const_array(mfi);
 
         // *************************************************************************
         // Define flux arrays for use in advection
@@ -460,17 +497,28 @@ void erf_substep_NS (int step, int nrk,
                 + ( coeff_P * (slow_rhs_cons(i,j,k  ,RhoTheta_comp) - temp_rhs_arr(i,j,k  ,RhoTheta_comp)) +
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
+            // Explicit part of the vertical flux on each face is beta_1 * Omega. beta_1 on face k
+            // is factored out, and dbeta_1 is how much larger beta_1 is on the neighbouring faces,
+            // which is exactly zero (so the roundoff is that of a scalar beta_1) for uniform beta_s
+            Real beta_1      = myhalf * (one - beta_s_a(i,j,k));
+            Real dbeta_1_kp1 = myhalf * (one - beta_s_a(i,j,k+1)) - beta_1;
+            Real dbeta_1_km1 = myhalf * (one - beta_s_a(i,j,k-1)) - beta_1;
+
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
             R1_tmp +=  beta_1 * ( ( (Omega_kp1 - Omega_k) / dz_ptr[k] + (Omega_k - Omega_km1) / dz_ptr[k-1] ) * halfg
                                  +(-(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P / dz_ptr[k]
-                                   -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q / dz_ptr[k-1]) );
+                                   -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q / dz_ptr[k-1]) )
+                     + ( ( dbeta_1_kp1*Omega_kp1 / dz_ptr[k] - dbeta_1_km1*Omega_km1 / dz_ptr[k-1] ) * halfg
+                        -  dbeta_1_kp1*Omega_kp1*theta_t_hi * coeff_P / dz_ptr[k]
+                        +  dbeta_1_km1*Omega_km1*theta_t_lo * coeff_Q / dz_ptr[k-1] );
 
             // line 1
+            Real beta_2 = myhalf * (one + beta_s_a(i,j,k));
             RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp + zmom_src_arr(i,j,k));
 
         }); // bx_shrunk_in_k
 
-        Box b2d = tbz; // Copy constructor
+        Box b2d = tbz;
         b2d.setRange(2,0);
 
         auto const lo = lbound(bx);
@@ -478,21 +526,44 @@ void erf_substep_NS (int step, int nrk,
 
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
-            RHS_a (i,j,lo.z) = prev_zmom(i,j,lo.z) - stage_zmom(i,j,lo.z)
+            // NOTE: RHS is built on a shrunk box in z, explicitly set
+            //       the lo and hi faces here
+            // On a box face inside the domain (a c/f face), w = w_old + dtau * slow_rhs.
+            // At the domain bottom and top the row is zero: W'' = 0 at the ground and at
+            // a wall, and W''_top = W''_top-1 for outflow, the matrix row set in
+            // make_fast_coeffs deciding which
+            RHS_a (i,j,lo.z) = (lo.z == domlo.z)
+                             ? zero
+                             : prev_zmom(i,j,lo.z) - stage_zmom(i,j,lo.z)
                              + dtau * slow_rhs_rho_w(i,j,lo.z)
                              + dtau * zmom_src_arr(i,j,lo.z);
 
-            // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
-            RHS_a (i,j,hi.z+1) = prev_zmom(i,j,hi.z+1) - stage_zmom(i,j,hi.z+1)
+            RHS_a (i,j,hi.z+1) = (hi.z == domhi.z)
+                               ? zero
+                               : prev_zmom(i,j,hi.z+1) - stage_zmom(i,j,hi.z+1)
                                + dtau * slow_rhs_rho_w(i,j,hi.z+1)
                                + dtau * zmom_src_arr(i,j,hi.z+1);
         }); // b2d
 
+        // (rho w) on the coarse/fine faces of a fine level at the end of this substep, from the coarse level
+        if (cf_fluxes.tgt_w) {
+            const Array4<const Real>& tgt   = cf_fluxes.tgt[2]->const_array(mfi);
+            const Array4<const Real>& tgt_w = cf_fluxes.tgt_w->const_array(mfi);
+            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+                if (tgt(i,j,lo.z,1) > myhalf) {
+                    RHS_a(i,j,lo.z) = tgt_w(i,j,lo.z) - stage_zmom(i,j,lo.z);
+                }
+                if (tgt(i,j,hi.z+1,1) > myhalf) {
+                    RHS_a(i,j,hi.z+1) = tgt_w(i,j,hi.z+1) - stage_zmom(i,j,hi.z+1);
+                }
+            });
+        }
+
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-          // w = specified Dirichlet value at k = lo.z
+            // Dirichlet condition at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
           cur_zmom(i,j,lo.z) = stage_zmom(i,j,lo.z) + soln_a(i,j,lo.z);
 
@@ -539,10 +610,19 @@ void erf_substep_NS (int step, int nrk,
         }
 #endif
         if (l_rayleigh_impl_for_w) {
-            ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            // Every face but the ground, as in erf_substep_T: the top face is no longer
+            // pinned with an outflow top, and the faces at the ends of the box are solved for.
+            // A coarse/fine face whose (rho w) is imposed from the coarse level's record is not
+            // damped: the coarse level has damped it already, and it must match the record
+            const bool has_tgt_w = (cf_fluxes.tgt_w != nullptr);
+            const Array4<const Real> tgt_flag = (has_tgt_w) ? cf_fluxes.tgt[2]->const_array(mfi) : Array4<const Real>{};
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-              Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
-              cur_zmom(i,j,k) /= (one + damping_coeff);
+              const bool imposed = has_tgt_w && (tgt_flag(i,j,k,1) > myhalf);
+              if (k > domlo.z && !imposed) {
+                  Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
+                  cur_zmom(i,j,k) /= (one + damping_coeff);
+              }
             });
         }
 
@@ -550,10 +630,32 @@ void erf_substep_NS (int step, int nrk,
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
         const Array4<Real>&  prev_drho_w = Delta_rho_w.array(mfi);
+        const bool has_tgt_z = (cf_fluxes.tgt[2] != nullptr);
+        const bool has_rec_z = (cf_fluxes.rec[2] != nullptr);
+        const Array4<const Real> tgt_z = (has_tgt_z) ? cf_fluxes.tgt[2]->const_array(mfi) : Array4<const Real>{};
+        const Array4<      Real> rec_z = (has_rec_z) ? cf_fluxes.rec[2]->array(mfi)       : Array4<Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * prev_drho_w(i,j,k  );
-            Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * prev_drho_w(i,j,k+1);
+            Real zflux_lo = myhalf * (one + beta_s_a(i,j,k  )) * soln_a(i,j,k  )
+                          + myhalf * (one - beta_s_a(i,j,k  )) * prev_drho_w(i,j,k  );
+            Real zflux_hi = myhalf * (one + beta_s_a(i,j,k+1)) * soln_a(i,j,k+1)
+                          + myhalf * (one - beta_s_a(i,j,k+1)) * prev_drho_w(i,j,k+1);
+
+            // On the coarse/fine faces of a fine level, the coarse level's flux over this substep
+            if (has_tgt_z) {
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+                if (tgt_z(i,j,k  ,1) > myhalf) { zflux_lo = tgt_z(i,j,k  ,0) * mfsq - stage_zmom(i,j,k  ); }
+                if (tgt_z(i,j,k+1,1) > myhalf) { zflux_hi = tgt_z(i,j,k+1,0) * mfsq - stage_zmom(i,j,k+1); }
+            }
+
+            // On a coarse level, the flux each face applied over this substep
+            if (has_rec_z) {
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+                rec_z(i,j,k) = (zflux_lo + stage_zmom(i,j,k)) / mfsq;
+                if (k == vbx_hi.z) {
+                    rec_z(i,j,k+1) = (zflux_hi + stage_zmom(i,j,k+1)) / mfsq;
+                }
+            }
 
             avg_zmom_arr(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
             if (l_reflux) {

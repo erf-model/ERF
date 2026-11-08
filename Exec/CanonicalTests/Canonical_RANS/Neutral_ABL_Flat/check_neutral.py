@@ -13,10 +13,10 @@ import math
 import os
 import sys
 
-# erf_plotfile.py lives in Canonical_RANS/ next to the case directories; the
-# CTest copies it beside this script, so look in both places.
+# erf_plotfile.py lives in Exec/Tools; the CTest copies it beside this script,
+# so look in both places.
 _here = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [_here, os.path.join(_here, "..")]
+sys.path[:0] = [_here, os.path.join(_here, ".."), os.path.join(_here, "..", "..", "..", "Tools")]
 import erf_plotfile  # noqa: E402
 
 KAPPA = 0.41
@@ -78,9 +78,10 @@ def main(argv):
     rep.check("min Kmv [kg/m/s]", min(p["Kmv"]), 0.0, 0.0, "min")
     rep.check("min diss [kg/m/s3]", min(p["diss"]), 0.0, 0.0, "min")
 
-    # wall distance on a flat constant-dz mesh is the cell-centre height
-    wd_err = max(abs(p["walldist"][k] - z[k]) for k in range(nz))
-    rep.check("max |walldist - z_cc| [m]", wd_err, 0.0, 1e-8)
+    # wall distance on a flat constant-dz mesh is the height above the bottom wall
+    zlo = hdr["prob_lo"][2]
+    wd_err = max(abs(p["walldist"][k] - (z[k] - zlo)) for k in range(nz))
+    rep.check("max |walldist - (z_cc - prob_lo[2])| [m]", wd_err, 0.0, 1e-8)
 
     # AL01 geometric length with the harmonic cap, exact in neutral air
     def l_geom(zc):

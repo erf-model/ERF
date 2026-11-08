@@ -98,7 +98,7 @@ Prerequisites
 ERF unit tests require:
 
 - CMake 3.20 or newer;
-- a C++17 compiler;
+- a C++20 compiler;
 - the ERF submodules;
 - MPI for the parallel suite;
 - the libraries and runtime required by the selected ERF backend.
@@ -257,6 +257,13 @@ Test configuration options
      - Selects ``DOUBLE`` or ``SINGLE`` mesh precision.
    * - ``ERF_ENABLE_PARTICLES``
      - Enables particle code and tests that depend on it.
+   * - ``ERF_ENABLE_FIRE``
+     - Enables the fire coupling and its tests (``FireCoupler``, ``FireAnchorLevel``,
+       ``FirePrecip``, ``ExnerTendency``, ``HeatInjection``, ``SmokeInjection``, and
+       ``FireCouplingGTests_FpeTraps``, which reruns them with floating-point traps armed).
+   * - ``ERF_ENABLE_MOVING_BODIES``
+     - Enables the actuator core and its tests (``ActuatorSampling``, ``ActuatorSpreading``,
+       ``WakeLines``, ``RunningStats``; the first two also in the parallel executable).
    * - ``ERF_PARTICLES_PRECISION``
      - Selects particle precision when particles are enabled.
 
@@ -867,7 +874,7 @@ Keep tests portable
 
 A new test must preserve ERF's supported build configurations.
 
-- Use standard C++17.
+- Use standard C++20.
 - Use ``amrex::Real`` for ERF real-valued state.
 - Respect single and double precision.
 - Keep host-only code out of device paths.

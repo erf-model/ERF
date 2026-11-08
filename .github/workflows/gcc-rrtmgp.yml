@@ -3,12 +3,32 @@ name: Linux GCC NetCDF RRTMGP
 on:
   push:
     branches: [development]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/gcc-rrtmgp.yml'
+      - '.github/actions/**'
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/gcc-rrtmgp.yml'
+      - '.github/actions/**'
   workflow_dispatch:
 
+# Development pushes finish the active run and keep only the newest pending commit.
+# PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-linux-gcc-rrtmgp
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-linux-gcc-rrtmgp
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -23,10 +43,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # This workflow exercises the NetCDF and RRTMGP combinations, which
-        # are orthogonal to particles -- crossing the axis doubled the matrix
-        # for no added coverage of either. Particles OFF is still built by
-        # ci, gcc and windows-mpi.
         particles: [ON]
         # PR tier: NetCDF+RRTMGP only. The NetCDF-OFF (= gcc.yml + Kokkos) and NetCDF-only
         # variants build on merge to development.
@@ -36,12 +52,14 @@ jobs:
         - rrtmgp: ON
           netcdf: OFF
     env:
+      CCACHE_TRUNK_KEY: ubuntu-22.04-x64-gcc-spack-openmpi-double-particles-on-kokkos-netcdf-${{ matrix.netcdf }}-rrtmgp-${{ matrix.rrtmgp }}
       ERF_DIR: ${{ github.workspace }}/erf_clone
     steps:
 
     - uses: actions/checkout@v7
       with:
         submodules: recursive
+        persist-credentials: false
         path: erf_clone
 
     - name: Install Dependencies
@@ -53,8 +71,19 @@ jobs:
     - name: Free up disk space
       uses: ./erf_clone/.github/actions/free-space-ubuntu
 
-    # ccache per matrix variant, written only from development; see ci.yml for how it works.
+    # GHCR trunk per configuration; the old Actions cache seeds the first restore.
     - name: Restore Cache
+      id: ghcr-cache
+      uses: ./erf_clone/.github/actions/ccache-trunk
+      with:
+        mode: restore
+        key: ${{ env.CCACHE_TRUNK_KEY }}
+        path: ~/.cache/ccache
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Restore legacy Actions cache
+      if: steps.ghcr-cache.outputs.hit != 'true'
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with:
         path: ~/.cache/ccache
@@ -66,6 +95,8 @@ jobs:
       uses: spack/setup-spack@v3
       with:
         spack_path: ${{ github.workspace }}/spack_install_dir
+        spack_ref: cd657f2c90770f5722715f6a0f95d7a5a359359b
+        packages_ref: fa11df3be41f58bac19b73346422e06b103ee5b5
 
     - name: Install CA certificates
       run: |
@@ -83,20 +114,30 @@ jobs:
         export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
         spack env create erf_netcdf
         spack env activate erf_netcdf
+        spack config add "packages:all:require:target=x86_64_v3"
+        spack config add "packages:all:providers:mpi:[openmpi]"
         spack add netcdf-c netcdf-fortran parallel-netcdf hdf5 openmpi
-        spack concretize -f
+        spack concretize -f --fresh
+        spack mirror add --unsigned \
+          --oci-username-variable GHCR_USER --oci-password-variable GHCR_TOKEN \
+          erf-buildcache oci://ghcr.io/${{ github.repository_owner }}/spack-buildcache
         spack install --deprecated
+        spack find -lv openmpi hdf5 netcdf-c parallel-netcdf
+      env:
+        GHCR_USER: ${{ github.actor }}
+        GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Configure Project and Generate Build System
       run: |
         . ${{ github.workspace }}/spack_install_dir/share/spack/setup-env.sh
         spack env activate erf_netcdf
-        export HDF5_ROOT=$(spack location -i hdf5)
-        export NETCDF_ROOT=$(spack location -i netcdf-c)
+        HDF5_ROOT=$(spack location -i hdf5); export HDF5_ROOT
+        NETCDF_ROOT=$(spack location -i netcdf-c); export NETCDF_ROOT
         cmake \
           -B${ERF_DIR}/build \
           -DCMAKE_INSTALL_PREFIX:PATH=${ERF_DIR}/install \
           -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -g1 -DNDEBUG" \
           -DAMReX_ASSERTIONS:BOOL=ON \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
@@ -117,10 +158,10 @@ jobs:
           ${ERF_DIR};
 
     - name: Compile and Link
+      shell: bash
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
-        export CCACHE_MAXSIZE=600M
         ccache -z
         build_start=$(date +%s)
 
@@ -128,29 +169,34 @@ jobs:
         2>&1 | tee -a ${ERF_DIR}/build-output.txt;
 
         echo '```' >> "$GITHUB_STEP_SUMMARY"
-        # Keep only what this build used: ccache touches an object on every hit, so
-        # anything older than the build is stale. Without this the cache fills with
-        # objects from superseded commits, hits its cap, and evicts live objects.
         ccache --evict-older-than "$(( $(date +%s) - build_start + 120 ))s"
         ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
         echo '```' >> "$GITHUB_STEP_SUMMARY"
         du -hs ~/.cache/ccache
 
     - name: Save Cache
-      if: always() && github.ref_name == github.event.repository.default_branch
-      uses: actions/cache/save@v6
+      if: always() && github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+      uses: ./erf_clone/.github/actions/ccache-trunk
       with:
+        mode: save
+        key: ${{ env.CCACHE_TRUNK_KEY }}
         path: ~/.cache/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.netcdf }}-${{ matrix.rrtmgp }}-git-${{ github.sha }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
 
     - name: Report
       run: |
-        grep -Ei "warning:|error:" ${ERF_DIR}/build-output.txt \
-          | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
+        build_log="${ERF_DIR}/build-output.txt"
+        if [ ! -f "$build_log" ] || [ ! -r "$build_log" ]; then
+          echo "::error::Missing or unreadable build log: $build_log"
+          exit 1
+        fi
+        grep -Ei "warning:|error:" "$build_log" \
+          | grep -Ev "Submodules/(amrex|AMReX|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/build-output-warnings.txt
         cat ${ERF_DIR}/build-output-warnings.txt
-        export return=$(tail -n 1 ${ERF_DIR}/build-output-warnings.txt | awk '{print $2}')
-        exit ${return}
+        return=$(tail -n 1 ${ERF_DIR}/build-output-warnings.txt | awk '{print $2}')
+        test "${return}" -eq 0
 
     - name: Check Unit Test Registration
       run: |
@@ -160,7 +206,7 @@ jobs:
 
     - name: Run Serial Unit Tests
       run: |
-        ctest -L unit --output-on-failure --no-tests=error
+        ctest -L unit -j 4 --output-on-failure --no-tests=error
       working-directory: ${{ github.workspace }}/erf_clone/build
 
     - name: Run Parallel Tests
@@ -170,12 +216,9 @@ jobs:
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       run: |
-        ctest -L regression -VV
+        ctest -L regression --parallel "$(nproc)" -VV
       working-directory: ${{ github.workspace }}/erf_clone/build
 
-    # A test that dies on a signal (for example SIGILL from amrex.fpe_trap_invalid)
-    # writes Backtrace.<rank> into its run directory; the log only says "See
-    # Backtrace.0 file for details", so keep those files when a step has failed.
     - name: Upload backtraces from failed tests
       if: failure()
       uses: actions/upload-artifact@v7
@@ -184,3 +227,14 @@ jobs:
         path: ${{ github.workspace }}/erf_clone/build/Tests/**/Backtrace.*
         if-no-files-found: ignore
         retention-days: 14
+
+    - name: Push Spack binaries to GHCR
+      if: always() && github.event_name != 'pull_request'
+      continue-on-error: true
+      env:
+        GHCR_USER: ${{ github.actor }}
+        GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        . ${{ github.workspace }}/spack_install_dir/share/spack/setup-env.sh
+        spack env activate erf_netcdf
+        spack buildcache push --unsigned --update-index --without-build-dependencies erf-buildcache

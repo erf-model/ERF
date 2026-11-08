@@ -22,9 +22,14 @@ latent-heat, and momentum fluxes for land cells.  Select it with
 ``erf.land_surface_model = "SLM"``.  SLM uses the ``slm.`` input prefix.
 
 SLM can initialize a horizontally uniform land surface from the input file or
-read land-surface fields from ``WRFInput``.  The soil layers are ordered from
+read land-surface fields from ``WRFInput`` or from metgrid (``met_em``) files.  The soil layers are ordered from
 the surface downward.  ``slm.soil_dz`` gives the thickness of each layer in m
-and must contain exactly ``slm.nsoil`` values.
+and must contain exactly ``slm.nsoil`` values.  An idealized run must set it.
+A run initialized from ``WRFInput`` or metgrid files may leave ``slm.nsoil``
+and ``slm.soil_dz`` unset, and SLM then takes the layers of the data: the
+file's ``DZS`` for ``WRFInput``, the Noah layers (0.1, 0.3, 0.6 and 1.0 m) for
+metgrid.  If they are set, they must match those layers, and the run stops
+with a message giving the data's layers if they do not.
 
 Build and coupling requirements
 -------------------------------
@@ -52,15 +57,15 @@ soil-layer thicknesses and initial soil/vegetation properties.  For example:
    slm.sw0 = 0.50
    slm.st0 = 300.0
 
-For real cases using ``erf.init_type == WRFInput``, an example minimal configuration is:
+For real cases using ``erf.init_type == WRFInput`` or ``Metgrid``, the minimal
+configuration is
 
 .. code-block:: text
 
    erf.land_surface_model = "SLM"
-   slm.nsoil = 4
-   slm.soil_dz = 0.1 0.3 0.6 1.0
 
-where ``slm.nsoil`` and ``slm.soil_dz`` should match the WRFInput file values.
+with the soil layers taken from the data, as above; see also
+:ref:`sec:slm-metgrid-init`.
 
 Core soil and surface options
 -----------------------------
@@ -68,28 +73,30 @@ Core soil and surface options
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | Parameter                        | Definition                                               | Acceptable Values    | Default          |
 +==================================+==========================================================+======================+==================+
-| **slm.nsoil**                    | number of soil layers                                    | Integer >= 2         | 7                |
+| **slm.nsoil**                    | number of soil layers                                    | Integer >= 2         | 7; the data's    |
+|                                  |                                                          |                      | for WRFInput and |
+|                                  |                                                          |                      | Metgrid          |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.soil_dz**                  | SLM layer layout: thickness of each soil layer [m],      | Real > 0; exactly    | must be set      |
-|                                  | from the surface downward; the number of values must     | ``nsoil`` values     |                  |
-|                                  | equal ``nsoil``. For WRFInput, per-cell thickness comes  |                      |                  |
-|                                  | from WRF ``DZS``.                                        |                      |                  |
+| **slm.soil_dz**                  | SLM layer layout: thickness of each soil layer [m],      | Real > 0; exactly    | must be set;     |
+|                                  | from the surface downward; the number of values must     | ``nsoil`` values     | the data's for   |
+|                                  | equal ``nsoil``. For WRFInput and Metgrid it must match  |                      | WRFInput and     |
+|                                  | the data's layers (``DZS``, or the Noah layers).         |                      | Metgrid          |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.landtype0**                | initial land-use category applied over the domain        | Integer land type    | 16               |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.LAI0**                     | initial leaf-area index                                  | Real >= 0            | 0.0              |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.clay0**                    | clay fraction/content for each soil layer [%]; not read  | One Real in [0,100]  | required unless  |
-|                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
+|                                  | when initializing from ``WRFInput`` or ``Metgrid``       | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.sand0**                    | sand fraction/content for each soil layer [%]; not read  | One Real in [0,100]  | required unless  |
-|                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
+|                                  | when initializing from ``WRFInput`` or ``Metgrid``       | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.sw0**                      | initial soil wetness fraction for each layer; not read   | One Real in [0,1]    | must be set      |
-|                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
+|                                  | when initializing from ``WRFInput`` or ``Metgrid``       | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.st0**                      | initial soil temperature [K] for each layer; not read    | One Real or          | must be set      |
-|                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
+|                                  | when initializing from ``WRFInput`` or ``Metgrid``       | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.relax_hgt**                | depth-dependent soil nudging weights; read when either   | One Real in [0,1] or | required when    |
 |                                  | soil nudging option is enabled                           | ``nsoil`` Reals      | nudging is on    |
@@ -175,9 +182,9 @@ LAI, vegetation and soil type, skin temperature, and vegetation fractions.
 The uniform ``clay0``, ``sand0``, ``sw0``, and ``st0`` values are therefore not
 used in this mode; clay and sand are derived from the WRF soil type.
 
-``slm.soil_dz`` is still required to define the SLM layer layout and must contain
-exactly ``slm.nsoil`` values.  The per-cell soil thickness used by SLM is read
-from WRF ``DZS``.
+``slm.nsoil`` and ``slm.soil_dz`` may be left unset, and SLM then takes its
+layers from the file's ``DZS``, which is also the soil thickness its physics
+uses.  If they are set they must match ``DZS``.
 
 The active WRF-to-SLM field mapping is:
 
@@ -293,6 +300,78 @@ one.  WRF vegetation fractions replace that default before category handling;
 water-category cells subsequently receive the zero vegetation values listed
 above.  The configured ``slm.landtype0`` and ``slm.LAI0`` defaults are used by
 the non-WRFInput path and are overwritten by WRF fields in this path.
+
+.. _sec:slm-metgrid-init:
+
+Metgrid initialization
+----------------------
+
+With ``erf.init_type = Metgrid``, ERF builds from each level's ``met_em`` file
+for the start time the same fields that WRF's ``real.exe`` writes to a wrfinput
+file, and hands them to SLM, which then initializes exactly as described above
+for WRFInput.  The fields are built as follows:
+
++----------------------+----------------------------------------------------------+
+| WRF name             | Built from the met_em file                               |
++======================+==========================================================+
+| **TSLB**, **SMOIS**  | the ``ST*`` and ``SM*`` soil layers (e.g. ``ST000010``   |
+|                      | for 0--10 cm), interpolated linearly in depth from the   |
+|                      | layer midpoints to the Noah layer midpoints and held     |
+|                      | constant beyond the shallowest and deepest; over water,  |
+|                      | ``TSK`` and 1                                            |
++----------------------+----------------------------------------------------------+
+| **DZS**, **ZS**      | the Noah layers: thicknesses 0.1, 0.3, 0.6, 1.0 m        |
++----------------------+----------------------------------------------------------+
+| **IVGTYP**           | ``LU_INDEX``                                             |
++----------------------+----------------------------------------------------------+
+| **ISLTYP**           | over land, the dominant ``SOILCTOP`` category other than |
+|                      | soil water (clay loam, 8, where ``SOILCTOP`` is all      |
+|                      | zero); over water, ``ISOILWATER`` (14)                   |
++----------------------+----------------------------------------------------------+
+| **TSK**              | ``SKINTEMP``, replaced over water by ``SST`` where the   |
+|                      | file has it                                              |
++----------------------+----------------------------------------------------------+
+| **VEGFRA**, **LAI**  | the monthly ``GREENFRAC`` and ``LAI12M`` interpolated    |
+|                      | linearly in time to the start date, each monthly value   |
+|                      | applying on the 15th of its month                        |
++----------------------+----------------------------------------------------------+
+| **SHDMIN**,          | the smallest and largest monthly ``GREENFRAC``           |
+| **SHDMAX**           |                                                          |
++----------------------+----------------------------------------------------------+
+
+Land and water are distinguished by ``LANDMASK``.  The soil layers in a met_em
+file depend on the source dataset (GFS gives 0--10, 10--40, 40--100 and
+100--200 cm, for which the depth interpolation is an exact copy; ERA5 gives
+0--7, 7--28, 28--100 and 100--289 cm), so they are found from the variable
+names.  Soil temperature is not adjusted for the difference between the source
+model's terrain height (``SOILHGT``) and the met_em terrain (``HGT_M``), as
+``real.exe`` can do; in steep terrain the initial soil temperature may be off
+by the lapse rate times that difference.
+
+Requirements:
+
+* The Noah layers, ``slm.nsoil = 4`` and ``slm.soil_dz = 0.1 0.3 0.6 1.0``,
+  which SLM takes when the two are left unset.
+* The met_em file must contain ``LANDMASK``, ``SKINTEMP``, ``LU_INDEX``,
+  ``SOILCTOP``, ``GREENFRAC``, ``LAI12M``, and matching ``ST*``/``SM*`` soil
+  layers; ``SST`` is optional.
+* A land soil temperature outside 170--400 K, or a moisture outside 0--1, is
+  taken to be missing (metgrid can leave such values where its source data had
+  none, typically along coastlines).  The temperature is replaced by ``TSK``
+  there, and the moisture by the mean of that layer over the other land points,
+  and the number of points filled is printed.  If more than 1% of the land
+  points need filling, the run stops.
+* SLM's tables assume the MODIS land-use categories; a warning is printed if the
+  file's ``MMINLU`` is not a MODIS dataset.
+
+Every level reads its land state from its own met_em file
+(``erf.nc_init_file_<lev>``), so a finer level gets that file's higher-resolution
+land use and soil, and the same coastline as its ``LANDMASK``.
+
+Each rank reads only the columns of its own grids.  At most
+``erf.metgrid_max_readers`` ranks (default 256) read the file at the same time.
+
+An example is ``Exec/RegTests/MetGrid/inputs_metgrid_slm``.
 
 Diagnostics and coupling
 ------------------------

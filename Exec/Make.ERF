@@ -13,6 +13,12 @@ ERF_ABS_HOME := $(abspath $(ERF_HOME))
 #   and do not rebuild it unless BUILD_EKAT=TRUE is explicitly requested.
 # - EKAT_INSTALL_LIBDIR defaults to lib, but can be set to lib64 or another
 #   install libdir on systems with a different CMake layout.
+# - EKAT_BUILD_JOBS (default 4) is the number of parallel jobs for building the
+#   bundled EKAT/Kokkos.  Compiling Kokkos with nvcc takes a lot of memory per
+#   job, and an unbounded build can exhaust a workstation's memory.
+# - With USE_CUDA=TRUE, NVCC_WRAPPER_DEFAULT_COMPILER is the host compiler of
+#   Kokkos' nvcc_wrapper for the EKAT/Kokkos build. It defaults to mpicxx (CC
+#   under the Cray PE), and must be an MPI C++ wrapper, never nvcc.
 #
 # The config-dependent paths are derived after the Make.defs include, where the
 # USE_* backend switches and COMP have been normalized.
@@ -267,6 +273,7 @@ VPATH_LOCATIONS   += $(ERF_PARTICLES_DIR)
 INCLUDE_LOCATIONS += $(ERF_PARTICLES_DIR)
 endif
 
+ERF_PROBLEM_DIR ?= $(CURDIR)
 include $(ERF_PROBLEM_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_PROBLEM_DIR)
 INCLUDE_LOCATIONS += $(ERF_PROBLEM_DIR)
@@ -371,6 +378,31 @@ ERF_MOISTURE_SUPERDROPLETSMOIST_DIR = $(ERF_SOURCE_DIR)/Microphysics/SuperDrople
 include $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
+
+# The fire coupling (atmosphere side); fire engines plug into it. Each
+# directory in FIRE_HOME (one or more, space separated) is a fire engine
+# directory with its own Make.package; FIRE_ENGINE_DIR holds the directory
+# while its Make.package is read.
+ifeq ($(USE_FIRE), TRUE)
+    DEFINES += -DERF_USE_FIRE
+    ERF_FIRE_COUPLING_DIR = $(ERF_SOURCE_DIR)/FireCoupling
+    include $(ERF_FIRE_COUPLING_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_FIRE_COUPLING_DIR)
+    INCLUDE_LOCATIONS += $(ERF_FIRE_COUPLING_DIR)
+    $(foreach d,$(FIRE_HOME),$(if $(wildcard $(d)/Make.package),,$(error FIRE_HOME: $(d) has no Make.package)))
+    $(foreach d,$(FIRE_HOME),$(eval FIRE_ENGINE_DIR := $(abspath $(d)))$(eval include $(FIRE_ENGINE_DIR)/Make.package)$(eval VPATH_LOCATIONS += $(FIRE_ENGINE_DIR))$(eval INCLUDE_LOCATIONS += $(FIRE_ENGINE_DIR)))
+else ifneq ($(strip $(FIRE_HOME)),)
+    $(error FIRE_HOME is set but USE_FIRE is not TRUE)
+endif
+
+# The actuator core for bodies in the flow (Source/MovingBodies/Core)
+ifeq ($(USE_MOVING_BODIES), TRUE)
+    DEFINES += -DERF_USE_MOVING_BODIES
+    ERF_MOVING_BODIES_CORE_DIR = $(ERF_SOURCE_DIR)/MovingBodies/Core
+    include $(ERF_MOVING_BODIES_CORE_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_MOVING_BODIES_CORE_DIR)
+    INCLUDE_LOCATIONS += $(ERF_MOVING_BODIES_CORE_DIR)
+endif
 
 # If using windfarm parametrization, then compile all models and choose
 # at runtime from the inputs
@@ -645,10 +677,6 @@ AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/M
 
 include $(AMReXpack)
 
-ifeq ($(COMPUTE_ERROR), TRUE)
-  DEFINES += -DERF_COMPUTE_ERROR
-endif
-
 ifeq ($(USE_PARTICLES), TRUE)
   DEFINES += -DERF_USE_PARTICLES
 endif
@@ -673,7 +701,25 @@ ifeq ($(USE_KOKKOS), TRUE)
 EKAT_CXX := $(CXX)
 ifeq ($(USE_CUDA), TRUE)
     EKAT_CXX := $(EKAT_SOURCE_DIR)/extern/kokkos/bin/nvcc_wrapper
+    # nvcc_wrapper's host compiler is the MPI C++ wrapper, so that it finds mpi.h (EKAT is
+    # always built with MPI).  It cannot be $(CXX): in a CUDA build that is nvcc itself on
+    # some sites (Perlmutter), and on others the MPI wrapper with OMPI_CXX/MPICH_CXX/
+    # MPICXX_CXX=nvcc exported by Make.defs, so that nvcc and the wrapper call each other
+    # in a loop.  So take the MPI wrapper by name (Cray's CC under the Cray PE) ...
+    ifdef CRAYPE_VERSION
+        NVCC_WRAPPER_DEFAULT_COMPILER ?= $(shell command -v CC 2>/dev/null)
+    else
+        NVCC_WRAPPER_DEFAULT_COMPILER ?= $(shell command -v mpicxx 2>/dev/null)
+    endif
+    export NVCC_WRAPPER_DEFAULT_COMPILER
+    # ... and configure and build EKAT without the variables Make.defs exports to point the
+    # MPI wrappers at nvcc (and the OMPI flags with nvcc's -Xcompiler), and without CC/CXX
+    EKAT_ENV := env -u CC -u CXX \
+      -u OMPI_CC -u OMPI_CXX -u OMPI_CFLAGS -u OMPI_CXXFLAGS \
+      -u MPICH_CC -u MPICH_CXX -u MPICXX_CXX -u MPICC_CC
+    EKAT_MPI_CMAKE_FLAGS := -D MPI_CXX_COMPILER:FILEPATH="$(NVCC_WRAPPER_DEFAULT_COMPILER)"
 endif
+EKAT_BUILD_JOBS ?= 4
 
 # These defaults build the subset of EKAT/Kokkos needed by ERF. Backend choices
 # mirror the AMReX-style USE_OMP/USE_CUDA/USE_HIP/USE_SYCL switches from the
@@ -682,7 +728,7 @@ endif
 EKAT_CMAKE_FLAGS := \
   -D CMAKE_BUILD_TYPE:STRING=Release \
   -D CMAKE_CXX_COMPILER:STRING="$(EKAT_CXX)" \
-  -D CMAKE_CXX_STANDARD:STRING=17 \
+  -D CMAKE_CXX_STANDARD:STRING=20 \
   -D CMAKE_INSTALL_PREFIX:PATH="$(EKAT_INSTALL_PREFIX)" \
   -D CMAKE_INSTALL_LIBDIR:PATH="$(EKAT_INSTALL_LIBDIR)" \
   -D CMAKE_DISABLE_FIND_PACKAGE_spdlog:BOOL=TRUE \
@@ -720,7 +766,7 @@ ifeq ($(USE_SYCL), TRUE)
   EKAT_CMAKE_FLAGS += \
     -D Kokkos_ENABLE_SYCL_LAMBDA:BOOL=ON
 endif
-EKAT_CMAKE_FLAGS += $(EKAT_EXTRA_CMAKE_FLAGS)
+EKAT_CMAKE_FLAGS += $(EKAT_MPI_CMAKE_FLAGS) $(EKAT_EXTRA_CMAKE_FLAGS)
 
 # The backend state build_ekat expects to find recorded in the installed
 # KokkosCore_config.h. Keying the paths by configuration keeps configurations
@@ -827,9 +873,24 @@ ifeq ($(BUILD_EKAT), TRUE)
 	  echo "Removing the stale bundled build and reconfiguring from scratch."; \
 	  rm -rf "$(EKAT_BUILD_DIR)" "$(EKAT_INSTALL_PREFIX)"; \
 	fi; \
+	if [ "$(USE_CUDA)" = "TRUE" ]; then \
+	  host_cxx="$(NVCC_WRAPPER_DEFAULT_COMPILER)"; \
+	  host_out=''; host_rc=1; \
+	  if [ -n "$$host_cxx" ]; then \
+	    host_rc=0; host_out=$$($(EKAT_ENV) timeout 30 "$$host_cxx" --version 2>&1) || host_rc=$$?; \
+	  fi; \
+	  if [ $$host_rc -ne 0 ] || printf '%s\n' "$$host_out" | grep -qi -e nvcc -e 'cuda compiler'; then \
+	    echo "nvcc_wrapper's host compiler NVCC_WRAPPER_DEFAULT_COMPILER='$$host_cxx' is missing,"; \
+	    echo "failed (status $$host_rc), or runs nvcc, which would make nvcc call itself:"; \
+	    printf '%s\n' "$$host_out" | head -n 5; \
+	    echo "Set NVCC_WRAPPER_DEFAULT_COMPILER to the MPI C++ wrapper (mpicxx, or CC on Cray)."; \
+	    exit 1; \
+	  fi; \
+	  echo "nvcc_wrapper host compiler: $$host_cxx ($$(printf '%s\n' "$$host_out" | head -n 1))"; \
+	fi; \
 	echo "Building EKAT/Kokkos in $(EKAT_BUILD_DIR)"; \
-	cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS); \
-	cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel
+	$(EKAT_ENV) cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS); \
+	$(EKAT_ENV) cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel $(EKAT_BUILD_JOBS)
 else
 	@# EKAT_HOME was supplied externally unless BUILD_EKAT=TRUE was requested.
 	@# Nothing here may rebuild or delete it, so a backend disagreement is a
@@ -891,6 +952,17 @@ all: $(ERF_PREBUILD_TARGETS) $(executable)
 # deleting the file from a build target instead -- a bare `make` builds
 # $(executable), not `all`, because Make.rules is included above and defines the
 # default goal, so that cleanup would never run.
+#
+# The --GIT order below fixes the buildInfoGetGitHash() indices: 1 = ERF,
+# 2 = AMReX, 3 = Noah-MP. Noah-MP is appended only when it is in the build, so
+# index 3 returns "" otherwise and every print site's strlen guard skips it.
+# NOAHMP_HOME is the submodule root (set above, inside the USE_NOAHMP block),
+# which is what git describe needs.
+ERF_GIT_DIRS := $(ERF_HOME) $(AMREX_HOME)
+ifeq ($(USE_NOAHMP), TRUE)
+  ERF_GIT_DIRS += $(NOAHMP_HOME)
+endif
+
 $(ERF_BUILDINFO_SRC): $(filter-out $(ERF_BUILDINFO_OBJ),$(objForExecs))
 	$(AMREX_HOME)/Tools/C_scripts/makebuildinfo_C.py \
           --output_dir $(objEXETempDir) \
@@ -901,7 +973,7 @@ $(ERF_BUILDINFO_SRC): $(filter-out $(ERF_BUILDINFO_OBJ),$(objForExecs))
           --link_flags "$(LINKFLAGS) $(CPPFLAGS) $(includes) $(LDFLAGS)" \
           --libraries "$(FINAL_LIBS)" \
           --MODULES "$(MNAMES)" \
-          --GIT "$(ERF_HOME) $(AMREX_HOME)" \
+          --GIT "$(ERF_GIT_DIRS)" \
           --GIT_STYLE "--always --dirty"
 	$(SILENT) mv $(objEXETempDir)/AMReX_buildInfo.cpp $@
 
@@ -911,5 +983,5 @@ ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile clean_noahmp
 endif
 ifeq ($(USE_KOKKOS), TRUE)
-	rm -rf $(EKAT_BUILD_DIR)
+	rm -rf $(EKAT_SOURCE_DIR)/build/*
 endif

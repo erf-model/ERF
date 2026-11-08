@@ -93,10 +93,119 @@
                           cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                           cloud_chamber_budget.get(), auxiliary_inert_tracer.get(),
                           sbm_state_manager.get(), sbm_transport.get(),
+                          ib_wall_face33[level].get(), ib_wall_ktarget[level].get(), ib_wall_qfx[level].get(),
                           sbm_parent_stage_ptr);
+
+        // One component list for the solve, stage ghosts and implicit reflux.
+        Vector<int> implicit_post_comps;
+        if (solverChoice.vert_implicit_fac[level][nrk] > zero) {
+            if (solverChoice.implicit_ke_diffusion && solverChoice.turbChoice[level].use_tke) {
+                implicit_post_comps.push_back(RhoKE_comp);
+            }
+            if (solverChoice.implicit_moisture_diffusion && solverChoice.moisture_type != MoistureType::None) {
+                const int q_end = (solverChoice.moisture_type == MoistureType::SBM) ?
+                    RhoQ1_comp + 1 : S_new[IntVars::cons].nComp();
+                for (int n = RhoQ1_comp; n < q_end; ++n) {
+                    if (solverChoice.diffChoice.implicit_q(n)) {
+                        implicit_post_comps.push_back(n);
+                    }
+                }
+            }
+        }
+
+        // The ghost cells of S_new still hold the previous stage (S_old at the first stage): only
+        // its valid region has been advanced.  At a coarse/fine boundary fill them with the coarse
+        // data at the time we are advancing to, since a column that ends there is closed with the
+        // value on the other side (as for the scratch state in slow_rhs_fun_pre)
+        if (level > 0 && !implicit_post_comps.empty()) {
+            FillCoarseFineGhostsForImplicit(level, new_stage_time, S_new[IntVars::cons], implicit_post_comps,
+                                            {nullptr, nullptr, nullptr});
+        }
 
         // Implicit diffusion of moisture
         #include "ERF_ImplicitPost.H"
+
+        // In the stage whose fluxes are refluxed, add the implicit part of the vertical diffusive
+        // fluxes the solves above applied to the flux registers.  erf_slow_rhs_post has added the
+        // advective fluxes and the explicit part of the diffusive ones.
+        if (IsRefluxStage(solverChoice, level, finest_level, nrk) && !implicit_post_comps.empty() &&
+            solverChoice.terrain_type != TerrainType::EB)
+        {
+            const Real l_fac = solverChoice.vert_implicit_fac[level][nrk];
+            // weighted as in the step's update (RefluxStageWeight)
+            const Real l_dt  = RefluxStageWeight(solverChoice, level, finest_level, nrk) *
+                               static_cast<Real>(slow_dt);
+            const bool l_stretched = (solverChoice.mesh_type == MeshType::StretchedDz);
+            const bool l_implicit_metric = solverChoice.implicit_terrain_metric &&
+                                           l_use_terrain_fitted_coords;
+            const bool l_turb_post = solverChoice.turbChoice[level].use_kturb;
+            // As in ERF_ImplicitPost.H: the moisture solve adds the MRF countergradient flux for q1
+            const bool l_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient &&
+                                  (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
+            const Real* l_dx = fine_geom.CellSize();
+            const GpuArray<Real, AMREX_SPACEDIM> l_dxInv = fine_geom.InvCellSizeArray();
+
+            // The fluxes hold only the components solved for, packed in the order of
+            // implicit_post_comps; each run of consecutive state components goes to the
+            // registers in one call
+            const int l_ncomp = static_cast<int>(implicit_post_comps.size());
+
+            for (MFIter mfi(S_new[IntVars::cons], false); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.validbox();
+
+                // The solves are vertical, so the x and y fluxes are zero
+                FArrayBox fx(surroundingNodes(bx,0), l_ncomp, The_Async_Arena());
+                FArrayBox fy(surroundingNodes(bx,1), l_ncomp, The_Async_Arena());
+                FArrayBox fz(surroundingNodes(bx,2), l_ncomp, The_Async_Arena());
+                fx.setVal<RunOn::Device>(zero);
+                fy.setVal<RunOn::Device>(zero);
+
+                const Array4<const Real>& cell_data = S_new[IntVars::cons].const_array(mfi);
+                const Array4<const Real>& mu_turb   = l_turb_post ? eddyDiffs->const_array(mfi)
+                                                                  : Array4<const Real>{};
+                const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+                const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
+
+                for (int m = 0; m < l_ncomp; ++m) {
+                    const int c = implicit_post_comps[m];
+                    const bool use_cg = l_mrf_cg && (c == RhoQ1_comp);
+                    const Array4<Real> fz_arr(fz.array(), m, 1);
+                    if (l_stretched) {
+                        ImplicitVerticalFluxForReflux_S(bx, fine_geom.Domain(), level, c, l_fac, cell_data,
+                                                        stretched_dz_d[level], mu_turb, solverChoice,
+                                                        mf_mx, mf_my, use_cg, fz_arr);
+                    } else if (l_use_terrain_fitted_coords) {
+                        ImplicitVerticalFluxForReflux_T(bx, fine_geom.Domain(), level, c, l_fac, cell_data,
+                                                        z_phys_nd[level]->const_array(mfi), l_dxInv, mu_turb,
+                                                        solverChoice, mf_mx, mf_my, l_implicit_metric, use_cg,
+                                                        fz_arr);
+                    } else {
+                        ImplicitVerticalFluxForReflux_N(bx, fine_geom.Domain(), level, c, l_fac, cell_data,
+                                                        l_dxInv, mu_turb, solverChoice, mf_mx, mf_my, use_cg,
+                                                        fz_arr);
+                    }
+                }
+
+                for (int m = 0; m < l_ncomp; ) {
+                    int len = 1;
+                    while (m + len < l_ncomp && implicit_post_comps[m+len] == implicit_post_comps[m] + len) {
+                        ++len;
+                    }
+                    if (fr_as_crse) {
+                        fr_as_crse->CrseAdd(mfi, {{AMREX_D_DECL(&fx, &fy, &fz)}}, l_dx, l_dt,
+                                            m, implicit_post_comps[m], len, RunOn::Device);
+                    }
+                    if (fr_as_fine) {
+                        fr_as_fine->FineAdd(mfi, {{AMREX_D_DECL(&fx, &fy, &fz)}}, l_dx, l_dt,
+                                            m, implicit_post_comps[m], len, RunOn::Device);
+                    }
+                    m += len;
+                }
+                // The FArrayBoxes come from The_Async_Arena, which frees them only once the
+                // kernels queued on the stream above have finished with them
+            }
+        }
 
         // Apply state redistribution for cons states
 
@@ -111,6 +220,7 @@
             const int num_comp_total = S_rhs[IntVars::cons].nComp();
             const int num_grow       = S_rhs[IntVars::cons].nGrow();
             const int nvars          = S_data[IntVars::cons].nComp();
+            const DiffChoice l_diff_choice = solverChoice.diffChoice;
 
             MultiFab dUdt_tmp(ba, dm, num_comp_total, num_grow, MFInfo(), EBFactory(level));
             dUdt_tmp.setVal(0, 0, num_comp_total, num_grow);
@@ -144,12 +254,21 @@
                                 S_old[IntVars::cons], EBFactory(level), bc_ptr_d, slow_dt);
 
             // Update state using the updated S_rhs. (NOTE: redistribute_term returns RHS not state variables.)
+            //
+            // erf_slow_rhs_post has already advanced S_new with the RHS before redistribution, and
+            // in the second stage of anelastic RK2 that update is the Heun average
+            // old + (dt R1 + dt R2) / 2.  So add only the change redistribution makes to this
+            // stage's RHS, with this stage's weight: setting S_new = S_old + dt R2 here would
+            // drop R1 and make the scalars first order in time (#4876).
+            const Real stage_wt = (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible &&
+                                   solverChoice.timestepping_type[level] == TimesteppingType::RK2 &&
+                                   nrk == 1) ? myhalf : one;
             for ( MFIter mfi(S_new[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box tbx  = mfi.tilebox();
                 const Array4<Real>& snew = S_new[IntVars::cons].array(mfi);
-                const Array4<Real>& sold = S_old[IntVars::cons].array(mfi);
-                const Array4<Real>& srhs = S_rhs[IntVars::cons].array(mfi);
+                const Array4<const Real>& srhs = S_rhs[IntVars::cons].const_array(mfi);
+                const Array4<const Real>& srhs_unredist = dUdt_tmp.const_array(mfi);
                 Array4<const Real> detJ_arr = EBFactory(level).getVolFrac().const_array(mfi);
 
                 for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
@@ -163,12 +282,14 @@
                         } else if (ivar == RhoScalar_comp) {
                             num_comp = NSCALARS;
                         }
-                        Real sdt = static_cast<Real>(slow_dt);
+                        Real wdt = stage_wt * static_cast<Real>(slow_dt);
                         ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
                         {
                             if (detJ_arr(i,j,k) > zero) {
                                 const int n = start_comp + nn;
-                                snew(i,j,k,n) = sold(i,j,k,n) + sdt * srhs(i,j,k,n);
+                                if (l_diff_choice.host_transports(n)) {
+                                    snew(i,j,k,n) += wdt * (srhs(i,j,k,n) - srhs_unredist(i,j,k,n));
+                                }
                             }
                         });
                     }

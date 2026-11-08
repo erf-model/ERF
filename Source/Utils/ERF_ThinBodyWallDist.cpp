@@ -18,8 +18,8 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
 {
     BL_PROFILE("thinbody_wall_dist()");
 
-    const Real* prob_lo = geomdata.ProbLo();
-    const Real* dx = geomdata.CellSize();
+    const auto prob_lo = geomdata.ProbLoArray();
+    const auto dx      = geomdata.CellSizeArray();
 
     const bool use_terrain = (z_phys_cc != nullptr);
     if (use_terrain) {
@@ -56,18 +56,15 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     int jj = xfaces_d_ptr[iface][1];
                     int kk = xfaces_d_ptr[iface][2];
                     Real xfc = prob_lo[0] +  ii            * dx[0];
-                    Real yfc = prob_lo[1] + (jj+Real(0.5)) * dx[1];
-                    Real zfc = prob_lo[2] + (kk+Real(0.5)) * dx[2];
                     Real y0  = prob_lo[1] +  jj            * dx[1];
-                    Real y1  = prob_lo[1] + (jj+1)* dx[1];
-                    Real z0  = prob_lo[2] +  kk   * dx[2];
-                    Real z1  = prob_lo[2] + (kk+1)* dx[2];
+                    Real y1  = prob_lo[1] + (jj+1)         * dx[1];
+                    Real z0  = prob_lo[2] +  kk            * dx[2];
+                    Real z1  = prob_lo[2] + (kk+1)         * dx[2];
+                    // Nearest point of the face: the cell centre clamped onto the rectangle
+                    Real yn  = amrex::min(amrex::max(yr, y0), y1);
+                    Real zn  = amrex::min(amrex::max(zr, z0), z1);
                     Real wd2 = wd_arr(i, j, k) * wd_arr(i, j, k);
-                    wd2 = min(wd2, (xfc-xr)*(xfc-xr) + (yfc-yr)*(yfc-yr) + (zfc-zr)*(zfc-zr));
-                    wd2 = min(wd2, (xfc-xr)*(xfc-xr) + ( y0-yr)*( y0-yr) + ( z0-zr)*( z0-zr));
-                    wd2 = min(wd2, (xfc-xr)*(xfc-xr) + ( y0-yr)*( y0-yr) + ( z1-zr)*( z1-zr));
-                    wd2 = min(wd2, (xfc-xr)*(xfc-xr) + ( y1-yr)*( y1-yr) + ( z0-zr)*( z0-zr));
-                    wd2 = min(wd2, (xfc-xr)*(xfc-xr) + ( y1-yr)*( y1-yr) + ( z1-zr)*( z1-zr));
+                    wd2 = min(wd2, (xfc-xr)*(xfc-xr) + (yn-yr)*(yn-yr) + (zn-zr)*(zn-zr));
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
 
@@ -75,19 +72,16 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     int ii = yfaces_d_ptr[iface][0];
                     int jj = yfaces_d_ptr[iface][1];
                     int kk = yfaces_d_ptr[iface][2];
-                    Real xfc = prob_lo[0] + (ii+Real(0.5)) * dx[0];
                     Real yfc = prob_lo[1] +  jj            * dx[1];
-                    Real zfc = prob_lo[2] + (kk+Real(0.5)) * dx[2];
                     Real x0  = prob_lo[0] +  ii            * dx[0];
                     Real x1  = prob_lo[0] + (ii+1)         * dx[0];
                     Real z0  = prob_lo[2] +  kk            * dx[2];
                     Real z1  = prob_lo[2] + (kk+1)         * dx[2];
+                    // Nearest point of the face: the cell centre clamped onto the rectangle
+                    Real xn  = amrex::min(amrex::max(xr, x0), x1);
+                    Real zn  = amrex::min(amrex::max(zr, z0), z1);
                     Real wd2 = wd_arr(i, j, k) * wd_arr(i, j, k);
-                    wd2 = min(wd2, (xfc-xr)*(xfc-xr) + (yfc-yr)*(yfc-yr) + (zfc-zr)*(zfc-zr));
-                    wd2 = min(wd2, ( x0-xr)*( x0-xr) + (yfc-yr)*(yfc-yr) + ( z0-zr)*( z0-zr));
-                    wd2 = min(wd2, ( x0-xr)*( x0-xr) + (yfc-yr)*(yfc-yr) + ( z1-zr)*( z1-zr));
-                    wd2 = min(wd2, ( x1-xr)*( x1-xr) + (yfc-yr)*(yfc-yr) + ( z0-zr)*( z0-zr));
-                    wd2 = min(wd2, ( x1-xr)*( x1-xr) + (yfc-yr)*(yfc-yr) + ( z1-zr)*( z1-zr));
+                    wd2 = min(wd2, (xn-xr)*(xn-xr) + (yfc-yr)*(yfc-yr) + (zn-zr)*(zn-zr));
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
 
@@ -95,19 +89,16 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     int ii = zfaces_d_ptr[iface][0];
                     int jj = zfaces_d_ptr[iface][1];
                     int kk = zfaces_d_ptr[iface][2];
-                    Real xfc = prob_lo[0] + (ii+Real(0.5)) * dx[0];
-                    Real yfc = prob_lo[1] + (jj+Real(0.5)) * dx[1];
                     Real zfc = prob_lo[2] +  kk            * dx[2];
                     Real x0  = prob_lo[0] +  ii            * dx[0];
                     Real x1  = prob_lo[0] + (ii+1)         * dx[0];
                     Real y0  = prob_lo[1] +  jj            * dx[1];
                     Real y1  = prob_lo[1] + (jj+1)         * dx[1];
+                    // Nearest point of the face: the cell centre clamped onto the rectangle
+                    Real xn  = amrex::min(amrex::max(xr, x0), x1);
+                    Real yn  = amrex::min(amrex::max(yr, y0), y1);
                     Real wd2 = wd_arr(i, j, k) * wd_arr(i, j, k);
-                    wd2 = min(wd2, (xfc-xr)*(xfc-xr) + (yfc-yr)*(yfc-yr) + (zfc-zr)*(zfc-zr));
-                    wd2 = min(wd2, ( x0-xr)*( x0-xr) + ( y0-yr)*( y0-yr) + (zfc-zr)*(zfc-zr));
-                    wd2 = min(wd2, ( x0-xr)*( x0-xr) + ( y1-yr)*( y1-yr) + (zfc-zr)*(zfc-zr));
-                    wd2 = min(wd2, ( x1-xr)*( x1-xr) + ( y1-yr)*( y1-yr) + (zfc-zr)*(zfc-zr));
-                    wd2 = min(wd2, ( x1-xr)*( x1-xr) + ( y0-yr)*( y0-yr) + (zfc-zr)*(zfc-zr));
+                    wd2 = min(wd2, (xn-xr)*(xn-xr) + (yn-yr)*(yn-yr) + (zfc-zr)*(zfc-zr));
                     wd_arr(i, j, k) = std::sqrt(wd2);
                 }
             });

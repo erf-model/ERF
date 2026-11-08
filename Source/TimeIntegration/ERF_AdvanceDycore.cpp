@@ -7,6 +7,7 @@
 #include <ERF_EOS.H>
 #include <ERF_TerrainMetrics.H>
 #include <ERF_Diffusion.H>
+#include <ERF_NativeScalarDiffusion.H>
 #include <ERF_TileNoZ.H>
 #include <ERF_Utils.H>
 #include <ERF_EBRedistribute.H>
@@ -119,7 +120,7 @@ void ERF::advance_dycore (int level,
 
     MultiFab    S_prim  (ba  , dm, num_prim,          state_old[IntVars::cons].nGrowVect());
     MultiFab  pi_stage  (ba  , dm,        1,          1);
-    MultiFab fast_coeffs(ba_z, dm,        5,          0);
+    MultiFab fast_coeffs(ba_z, dm,        6,          0);
 
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
@@ -620,6 +621,7 @@ void ERF::advance_dycore (int level,
     MultiFab* Q1fx3 = SFS_q1fx3_lev[level].get();
     MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
     MultiFab* Diss  = SFS_diss_lev[level].get();
+    MultiFab* mf_surface_fluxes = &mfvec_surface_fluxes[level];
 
     MultiFab* Hfx3_EB = nullptr;
     if (solverChoice.terrain_type == TerrainType::EB) {
@@ -656,7 +658,9 @@ void ERF::advance_dycore (int level,
                                   qheating_rates[level].get(),
                                   (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
-                                      terrain_blanking[level].get() : nullptr);
+                                      terrain_blanking[level].get() : nullptr,
+                                  (solverChoice.do_forest_drag) ?
+                                      m_forest_drag[level]->get_drag_field() : nullptr);
 
         // Zero turbulent mixing in fully immersed cells
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
@@ -717,10 +721,13 @@ void ERF::advance_dycore (int level,
     //
     // This is an optimization since we won't need more than one ghost
     // cell of momentum in the integrator if not using numerical diffusion
+    // or EB (the EB momentum fluxes and Omega read two cells outside the valid region)
     //
-    IntVect ngu = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
-    IntVect ngv = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
-    IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    const bool all_mom_ghosts = solverChoice.use_num_diff ||
+                                (solverChoice.terrain_type == TerrainType::EB);
+    IntVect ngu = (!all_mom_ghosts) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (!all_mom_ghosts) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (!all_mom_ghosts) ? IntVect(1,1,0) : zvel_old.nGrowVect();
 
     const MultiFab* c_vfrac = nullptr;
     if (solverChoice.terrain_type == TerrainType::EB) {

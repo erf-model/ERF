@@ -1,3 +1,22 @@
+#26.12
+    -- Two-stream radiation sees the immersed-boundary buildings: no heating in solid
+       cells, the ground under a footprint held, the shaded ground without the direct
+       beam. On by default with erf.ibseb.enable; erf.ibseb.two_stream_buildings = false
+       keeps the previous answers (#5004)
+
+#26.11
+    -- Implicit diffusion for all moist scalars (#4936)
+
+    -- Anelastic interpolate omega/ (m_x * m_y) bug fix (#4922)
+
+    -- Include map factors in CFL estimate (#4880)
+
+    -- Variable beta implicit vertical solve (#4377)
+
+    -- Terrain diffusion rotation bug fix (#4231)
+
+    -- SLM model added (#4095)
+
 #26.09
     -- Surface Layer restart w/ input_sounding fix (#3956)
 

@@ -100,16 +100,48 @@ if(ERF_ENABLE_TESTS)
   set(ANELASTIC_WALL_DIFFUSION_CHECKER
       "${CMAKE_CURRENT_BINARY_DIR}/erf_anelastic_wall_diffusion_check${CMAKE_EXECUTABLE_SUFFIX}")
 
+  # Motivation: the average down over immersed-forcing levels must give every covered coarse
+  # cell the fluid-mass-weighted average of the fine cells over it; checked on the plotfile
+  # instead of a gold file, with a leg that proves the plain average fails the check.
+  add_executable(erf_immersed_average_down_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/ImmersedAverageDownCheck.cpp)
+  target_link_libraries(erf_immersed_average_down_check PRIVATE AMReX::amrex)
+  target_compile_features(erf_immersed_average_down_check PRIVATE cxx_std_17)
+
+  # Motivation: a refined patch whose coarse/fine faces cross an immersed surface must leave no net
+  # heat source; checked on the plotfile instead of a gold file, with a leg that proves the explicit
+  # solid freeze fails the check.
+  add_executable(erf_immersed_cf_heat_balance_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/ImmersedCFHeatBalanceCheck.cpp)
+  target_link_libraries(erf_immersed_cf_heat_balance_check PRIVATE AMReX::amrex)
+  target_compile_features(erf_immersed_cf_heat_balance_check PRIVATE cxx_std_17)
+
+  # Motivation: the fraction-stress immersed wall law on a face-aligned surface must reproduce flat
+  # ground; checked by comparing two runs' profiles, with a leg that proves the legacy law fails.
+  add_executable(erf_immersed_flat_equivalence_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/ImmersedFlatEquivalenceCheck.cpp)
+  target_link_libraries(erf_immersed_flat_equivalence_check PRIVATE AMReX::amrex)
+  target_compile_features(erf_immersed_flat_equivalence_check PRIVATE cxx_std_17)
+
   # Motivation: the chamber regressions must prove the initializer is wired
   # into a real 3-D run and that the SatAdj deck forms finite cloud water.
   add_executable(erf_cloud_chamber_check
     ${CMAKE_CURRENT_SOURCE_DIR}/CloudChamberCheck.cpp)
   target_link_libraries(erf_cloud_chamber_check PRIVATE AMReX::amrex)
   target_include_directories(erf_cloud_chamber_check PRIVATE
-    ${PROJECT_SOURCE_DIR}/Source)
+    $<TARGET_PROPERTY:erf_srclib,INTERFACE_INCLUDE_DIRECTORIES>)
   target_compile_features(erf_cloud_chamber_check PRIVATE cxx_std_17)
-  set(CLOUD_CHAMBER_CHECKER
-      "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_check${CMAKE_EXECUTABLE_SUFFIX}")
+  set(CLOUD_CHAMBER_CHECKER "$<TARGET_FILE:erf_cloud_chamber_check>")
+
+  # Run the typed Cloud Chamber parser directly in a child process so its
+  # allowlist abort can be tested without the earlier global solver guards.
+  add_executable(erf_cloud_chamber_parser_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/CloudChamberParserCheck.cpp)
+  target_link_libraries(erf_cloud_chamber_parser_check PRIVATE AMReX::amrex)
+  target_include_directories(erf_cloud_chamber_parser_check PRIVATE
+    $<TARGET_PROPERTY:erf_srclib,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_compile_features(erf_cloud_chamber_parser_check PRIVATE cxx_std_17)
+  set(CLOUD_CHAMBER_PARSER_CHECKER "$<TARGET_FILE:erf_cloud_chamber_parser_check>")
 
   # Motivation: the TwoStream column sweep must keep the surface at k = 0 and
   # cool to space from the top layer; this checker reads qsrc_sw / qsrc_lw
@@ -126,7 +158,7 @@ if(ERF_ENABLE_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/CloudChamberWallDtGuardCheck.cpp)
   target_link_libraries(erf_cloud_chamber_wall_dt_guard_check PRIVATE AMReX::amrex)
   target_include_directories(erf_cloud_chamber_wall_dt_guard_check PRIVATE
-    ${PROJECT_SOURCE_DIR}/Source)
+    $<TARGET_PROPERTY:erf_srclib,INTERFACE_INCLUDE_DIRECTORIES>)
   target_compile_features(erf_cloud_chamber_wall_dt_guard_check PRIVATE cxx_std_17)
 
   # Motivation: station output is compared against itself (the same point asked
@@ -145,8 +177,12 @@ if(ERF_ENABLE_TESTS)
         erf_shoc_gold_differential
         erf_anelastic_wall_diffusion_check
         erf_cloud_chamber_check
+        erf_cloud_chamber_parser_check
         erf_two_stream_radiation_check
-        erf_cloud_chamber_wall_dt_guard_check)
+        erf_cloud_chamber_wall_dt_guard_check
+        erf_immersed_average_down_check
+        erf_immersed_cf_heat_balance_check
+        erf_immersed_flat_equivalence_check)
       setup_target_for_cuda_compilation(${_erf_test_tool})
     endforeach()
   endif()
@@ -359,6 +395,16 @@ if(ERF_ENABLE_TESTS)
             DEPENDS SBM_AMR_Profile_N${_sbm_profile_ncomp}_R1)
         endif()
       endforeach()
+    endforeach()
+  endif()
+
+  if(ERF_ENABLE_MPI)
+    # Open MPI 4 keeps one session directory per user under TMPDIR; concurrent mpiexec
+    # launches race on it. Open MPI 5 makes the directory unique per launch itself.
+    get_property(_erf_tests DIRECTORY PROPERTY TESTS)
+    foreach(_erf_test IN LISTS _erf_tests)
+      set_property(TEST ${_erf_test} APPEND PROPERTY ENVIRONMENT
+        "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/${_erf_test}")
     endforeach()
   endif()
 endif()
