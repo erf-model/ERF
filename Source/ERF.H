@@ -475,10 +475,9 @@ public:
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, double dt_lev);
-#ifdef ERF_SBM_AMR_QUALIFICATION
+    // Defined only in ERF_SBM_AMR_QUALIFICATION builds.
     [[nodiscard]] std::vector<amrex::Real>
     sbm_qualification_composite_inventory () const;
-#endif
 
     // Do whatever writing needs to be done at intermediate times
     void WriteAtIntermediateTime (int nstep, double time);
@@ -1373,9 +1372,7 @@ private:
     // Declared before SBMTransport so the non-owning interface references in
     // transport are destroyed before these register owners.
     amrex::Vector<std::unique_ptr<erf_sbm::SBMAMRFluxRegister>> sbm_amr_flux_regs;
-#ifdef ERF_SBM_AMR_QUALIFICATION
     std::vector<amrex::Real> sbm_qualification_initial_inventory;
-#endif
     // Declared after the state manager so its non-owning layout reference is
     // destroyed before the authoritative SBM owner.
     std::unique_ptr<erf_sbm::SBMTransport> sbm_transport;

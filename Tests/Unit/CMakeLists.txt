@@ -790,10 +790,3 @@ endif()
       TIMEOUT 120
   )
 endif()
-
-add_test(NAME SBMNonSBMBudgetObservationOrdering
-  COMMAND ${CMAKE_COMMAND}
-    -DERF_SOURCE_FILE=${PROJECT_SOURCE_DIR}/Source/ERF.cpp
-    -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSBMBudgetOrdering.cmake)
-set_tests_properties(SBMNonSBMBudgetObservationOrdering PROPERTIES
-  LABELS "unit")

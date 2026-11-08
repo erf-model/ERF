@@ -302,7 +302,8 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
 
     if (sbm_state_manager) {
         std::string diagnostic;
-        if (!sbm_transport->accept_physical_step(
+        if (!sbm_transport ||
+            !sbm_transport->accept_physical_step(
                 lev, time, time + dt[lev], diagnostic)) {
             Abort("SBM AMR register step admission at ERF::timeStep: " + diagnostic);
         }

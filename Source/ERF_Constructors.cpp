@@ -419,10 +419,8 @@ ERF::ERF_shared ()
             std::move(layout), max_level + 1);
         sbm_transport = std::make_unique<erf_sbm::SBMTransport>(
             sbm_state_manager->layout(), max_level + 1, 16, false);
-#ifdef ERF_SBM_AMR_QUALIFICATION
         sbm_transport->enable_zero_flow_diagnostics(
             solverChoice.sbm_amr_qualification_expect_zero_flow);
-#endif
     }
     // Create one invocation identity after inputs are available and before
     // InitData can read restart metadata or write an output on restart.

@@ -563,9 +563,13 @@ SBMAMRFluxRegister::accept_reflux (std::string& diagnostic)
     m_consumed = true;
     m_interval_active = false;
     m_reflux_applied = false;
+    m_coarse_step_accepted = false;
     m_min_fine_dt = 0.0;
+    m_accepted_fine_steps = 0;
     std::fill(m_reflux_components_seen.begin(),
               m_reflux_components_seen.end(), 0);
+    reset_side(m_coarse);
+    reset_side(m_fine);
     return true;
 }
 

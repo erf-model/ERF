@@ -962,12 +962,12 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     // YA reflux, and full canonical admission all succeed. It remains in U
     // representation except at uncovered interface cells with a nonzero YA
     // correction. Direct stage-rate additions remain pending until admission.
- #ifdef ERF_SBM_AMR_QUALIFICATION
+#ifdef ERF_SBM_AMR_QUALIFICATION
     bool sbm_qualification_nonzero_correction = false;
     Real sbm_qualification_correction_linf = Real(0.0);
     std::uint64_t sbm_qualification_reflux_calls = 0;
     std::uint64_t sbm_qualification_reflux_syncs = 0;
- #endif
+#endif
     if (sbm_state_manager && solverChoice.moisture_type == MoistureType::SBM) {
         const auto& layout = sbm_state_manager->layout();
         for (int lev = finest_level - 1; lev >= 0; --lev) {

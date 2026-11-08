@@ -494,6 +494,26 @@ verify_split_ghost_values (const MultiFab& destination,
                    << " requested_time=" << requested_time
                    << " samples=" << samples.size() << '\n';
 }
+
+amrex::IntVect
+first_coarse_only_ghost (const MultiFab& mask)
+{
+    for (amrex::MFIter mfi(mask, false); mfi.isValid(); ++mfi) {
+        const amrex::Box fab_box = mfi.fabbox();
+        const auto npts = static_cast<std::size_t>(fab_box.numPts());
+        std::vector<Real> host(npts);
+        const Real* device = mask[mfi].dataPtr(0);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, device, device + npts,
+                         host.begin());
+        amrex::Gpu::streamSynchronize();
+        for (std::size_t offset = 0; offset < npts; ++offset) {
+            if (host[offset] == Real(1.0)) {
+                return fab_box.atOffset(static_cast<amrex::Long>(offset));
+            }
+        }
+    }
+    return amrex::IntVect(std::numeric_limits<int>::min());
+}
 #endif
 
 void
@@ -531,7 +551,7 @@ fill_coarse_parent_ghosts (MultiFab& destination,
 #ifdef ERF_SBM_AMR_QUALIFICATION
     // Private MPI negative-oracle hook.  The CTest runner sets this only for
     // the split-grid failure case; rank 0 then skips component 0's actual
-    // destination store at the remote-parent ghost while retaining the
+    // destination store at its first coarse-only ghost while retaining the
     // independent wrote_components tally.
     if (const char* fault = std::getenv(
             "ERF_SBM_AMR_TEST_SKIP_REMOTE_PARENT_STORE")) {
@@ -623,6 +643,12 @@ fill_coarse_parent_ghosts (MultiFab& destination,
     missing_fine_ghosts.setVal(Real(1.0), 0, 1, 2);
     missing_fine_ghosts.setVal(Real(0.0), 0, 1, 0);
     missing_fine_ghosts.FillBoundary(0, 1, fine_geometry.periodicity());
+    amrex::IntVect fault_cell(std::numeric_limits<int>::min());
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    if (inject_rank_local_store_fault) {
+        fault_cell = first_coarse_only_ghost(missing_fine_ghosts);
+    }
+#endif
 
     if (probe != nullptr && probe_this_role &&
         probe->seed_finite_stale_value) {
@@ -822,7 +848,8 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                             probe_fault_cell && !skip_tally_only;
                         const bool skip_rank_local_assignment =
                             inject_rank_local_store_fault && global == 0 &&
-                            i == 2 && j == -2 && k == -2;
+                            i == fault_cell[0] && j == fault_cell[1] &&
+                            k == fault_cell[2];
                         const Real u0 = coarse(parent_cell[0], parent_cell[1],
                                                parent_cell[2], local);
                         const Real u1 = coarse(
@@ -893,7 +920,10 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                         // its invalid marker. Keep that distinct from the
                         // NaN poison that proves a destination store was
                         // skipped; any other bad component remains visible.
-                        if (quotient_failed && value > Real(0.0)) continue;
+                        if (quotient_failed &&
+                            value == std::numeric_limits<Real>::infinity()) {
+                            continue;
+                        }
                         destination_invalid = 1;
                         break;
                     }
@@ -1157,6 +1187,152 @@ include_neighbourhood (const Array4<const Real>& field,
     consider_donor_ratio(field, i, j + 1, k, support, lower, upper, found);
     consider_donor_ratio(field, i, j, k - 1, support, lower, upper, found);
     consider_donor_ratio(field, i, j, k + 1, support, lower, upper, found);
+}
+
+// Unit-test observation probes; each returns immediately unless a test
+// supplies device sample storage for the requested stage.
+void
+sample_probe_endpoint_value (const SBMAMRStageGhostProbe* probe,
+                             const int stage,
+                             const MultiFab& endpoint_input)
+{
+    if (probe == nullptr || probe->sampled_endpoint_device == nullptr ||
+        probe->endpoint_hit_device == nullptr ||
+        (probe->requested_stage >= 0 && probe->requested_stage != stage)) {
+        return;
+    }
+    const amrex::IntVect cell = probe->fine_cell;
+    const int component = probe->global_component;
+    auto* value = probe->sampled_endpoint_device;
+    auto* hit = probe->endpoint_hit_device;
+    for (amrex::MFIter mfi(endpoint_input, false); mfi.isValid(); ++mfi) {
+        if (!mfi.fabbox().contains(cell)) continue;
+        const auto endpoint = endpoint_input.const_array(mfi);
+        amrex::ParallelFor(amrex::Box(cell, cell),
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                *value = endpoint(i, j, k, component);
+                *hit = 1;
+            });
+    }
+}
+
+void
+sample_probe_stencil (const SBMAMRStageGhostProbe* probe,
+                      const int stage,
+                      const MultiFab& physical_input,
+                      const MultiFab& endpoint_input)
+{
+    if (probe == nullptr || probe->sampled_face_direction != 0 ||
+        probe->sampled_physical_stencil_device == nullptr ||
+        probe->sampled_endpoint_stencil_device == nullptr ||
+        (probe->sampled_stage >= 0 && probe->sampled_stage != stage)) {
+        return;
+    }
+    // Positive-x WENO-Z3 stencil of face i: cells i-2, i-1, i.
+    amrex::IntVect lo = probe->sampled_face;
+    lo[0] -= 2;
+    const amrex::Box stencil(lo, probe->sampled_face);
+    const int first = lo[0];
+    const int mass = probe->sampled_mass_component;
+    const int number = probe->sampled_number_component;
+    const int property = probe->sampled_property_component;
+    auto* physical_out = probe->sampled_physical_stencil_device;
+    auto* endpoint_out = probe->sampled_endpoint_stencil_device;
+    for (amrex::MFIter mfi(endpoint_input, false); mfi.isValid(); ++mfi) {
+        const amrex::Box bx = mfi.fabbox() & stencil;
+        if (!bx.ok()) continue;
+        const auto physical = physical_input.const_array(mfi);
+        const auto endpoint = endpoint_input.const_array(mfi);
+        amrex::ParallelFor(bx,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                const int offset = 3 * (i - first);
+                physical_out[offset] = physical(i, j, k, mass);
+                physical_out[offset + 1] = physical(i, j, k, number);
+                physical_out[offset + 2] = physical(i, j, k, property);
+                endpoint_out[offset] = endpoint(i, j, k, mass);
+                endpoint_out[offset + 1] = endpoint(i, j, k, number);
+                endpoint_out[offset + 2] = endpoint(i, j, k, property);
+            });
+    }
+}
+
+void
+sample_probe_face_rates (const SBMAMRStageGhostProbe* probe,
+                         const int stage,
+                         const std::vector<int>& members,
+                         const std::vector<int>& global_to_local,
+                         const erf_auxiliary::MappedFaceFluxRate& accepted_rate,
+                         const erf_auxiliary::MappedFaceFluxRate& high_rate,
+                         const erf_auxiliary::MappedFaceFluxRate& low_rate,
+                         const erf_auxiliary::MappedFaceFluxRate& face_lambda)
+{
+    if (probe == nullptr || probe->sampled_face_direction < 0 ||
+        (probe->sampled_stage >= 0 && probe->sampled_stage != stage) ||
+        probe->sampled_mass_rate_device == nullptr ||
+        probe->sampled_number_rate_device == nullptr ||
+        probe->sampled_property_rate_device == nullptr ||
+        probe->sampled_high_mass_rate_device == nullptr ||
+        probe->sampled_high_number_rate_device == nullptr ||
+        probe->sampled_high_property_rate_device == nullptr ||
+        probe->sampled_low_mass_rate_device == nullptr ||
+        probe->sampled_low_number_rate_device == nullptr ||
+        probe->sampled_low_property_rate_device == nullptr ||
+        probe->sampled_lambda_device == nullptr ||
+        probe->sampled_rate_hit_device == nullptr) {
+        return;
+    }
+    const auto local_member = [&] (const int component) {
+        const bool member = std::find(members.begin(), members.end(),
+                                      component) != members.end();
+        return member
+            ? global_to_local[static_cast<std::size_t>(component)] : -1;
+    };
+    const int m = local_member(probe->sampled_mass_component);
+    const int n = local_member(probe->sampled_number_component);
+    const int p = local_member(probe->sampled_property_component);
+    if (m < 0 || n < 0 || p < 0) return;
+
+    const int dir = probe->sampled_face_direction;
+    const amrex::IntVect face = probe->sampled_face;
+    const amrex::Box face_box(face, face,
+                              amrex::IntVect::TheDimensionVector(dir));
+    const auto& accepted = accepted_rate.dir(dir);
+    const auto& high = high_rate.dir(dir);
+    const auto& low = low_rate.dir(dir);
+    const auto& lambda_field = face_lambda.dir(dir);
+    auto* am = probe->sampled_mass_rate_device;
+    auto* an = probe->sampled_number_rate_device;
+    auto* ap = probe->sampled_property_rate_device;
+    auto* hm = probe->sampled_high_mass_rate_device;
+    auto* hn = probe->sampled_high_number_rate_device;
+    auto* hp = probe->sampled_high_property_rate_device;
+    auto* lm = probe->sampled_low_mass_rate_device;
+    auto* ln = probe->sampled_low_number_rate_device;
+    auto* lp = probe->sampled_low_property_rate_device;
+    auto* out_lambda = probe->sampled_lambda_device;
+    auto* out_hit = probe->sampled_rate_hit_device;
+    for (amrex::MFIter mfi(accepted, amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        if (!mfi.tilebox().contains(face)) continue;
+        const auto accepted_values = accepted.const_array(mfi);
+        const auto high_values = high.const_array(mfi);
+        const auto low_values = low.const_array(mfi);
+        const auto limiter = lambda_field.const_array(mfi);
+        amrex::ParallelFor(face_box,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                am[0] = accepted_values(i, j, k, m);
+                an[0] = accepted_values(i, j, k, n);
+                ap[0] = accepted_values(i, j, k, p);
+                hm[0] = high_values(i, j, k, m);
+                hn[0] = high_values(i, j, k, n);
+                hp[0] = high_values(i, j, k, p);
+                lm[0] = low_values(i, j, k, m);
+                ln[0] = low_values(i, j, k, n);
+                lp[0] = low_values(i, j, k, p);
+                out_lambda[0] = limiter(i, j, k, 0);
+                out_hit[0] = 1;
+            });
+    }
 }
 
 } // namespace
@@ -1763,11 +1939,6 @@ SBMTransport::advance_stage (const int level,
         }
         const MultiFab& coarse_old_spectrum = state_manager.old_state(level - 1);
         const MultiFab& coarse_new_spectrum = state_manager.new_state(level - 1);
-#ifdef ERF_SBM_AMR_QUALIFICATION
-        bool* split_values_checked = &m_split_ghost_values_checked;
-#else
-        bool* split_values_checked = nullptr;
-#endif
         fill_coarse_parent_ghosts(
             data.input_intensive, data.coarse_fill_mask,
             coarse_old_spectrum, coarse_new_spectrum, spectrum,
@@ -1776,7 +1947,7 @@ SBMTransport::advance_stage (const int level,
             state_manager.old_time(level - 1),
             state_manager.new_time(level - 1), level, stage, "input",
             data.coarse_source_pack,
-            parent->ghost_probe, split_values_checked);
+            parent->ghost_probe, &m_split_ghost_values_checked);
         const double base_time =
             recipe.limiter_trial_base ==
                     erf_auxiliary::LimiterTrialBase::Anchor
@@ -1812,60 +1983,9 @@ SBMTransport::advance_stage (const int level,
     const int population_count =
         static_cast<int>(m_layout.populations().size());
     data.coarse_fill_mask.setVal(Real(0.0), 0, 1, 2);
-    const auto* endpoint_probe = parent == nullptr ? nullptr : parent->ghost_probe;
-    const amrex::IntVect endpoint_probe_cell = endpoint_probe == nullptr
-        ? amrex::IntVect(-1) : endpoint_probe->fine_cell;
-    const int endpoint_probe_component = endpoint_probe == nullptr
-        ? -1 : endpoint_probe->global_component;
-    const int endpoint_probe_stage = endpoint_probe == nullptr
-        ? -1 : endpoint_probe->requested_stage;
-    auto* endpoint_probe_value = endpoint_probe == nullptr
-        ? nullptr : endpoint_probe->sampled_endpoint_device;
-    auto* endpoint_probe_hit = endpoint_probe == nullptr
-        ? nullptr : endpoint_probe->endpoint_hit_device;
-    const bool sample_a4_stencil = endpoint_probe != nullptr &&
-        endpoint_probe->sampled_face_direction == 0 &&
-        endpoint_probe->sampled_physical_stencil_device != nullptr &&
-        endpoint_probe->sampled_endpoint_stencil_device != nullptr &&
-        (endpoint_probe->sampled_stage < 0 ||
-         endpoint_probe->sampled_stage == stage);
-    const amrex::IntVect a4_face = sample_a4_stencil
-        ? endpoint_probe->sampled_face : amrex::IntVect(-1);
-    const int a4_mass_component = sample_a4_stencil
-        ? endpoint_probe->sampled_mass_component : -1;
-    const int a4_number_component = sample_a4_stencil
-        ? endpoint_probe->sampled_number_component : -1;
-    const int a4_property_component = sample_a4_stencil
-        ? endpoint_probe->sampled_property_component : -1;
-    auto* a4_physical_stencil = sample_a4_stencil
-        ? endpoint_probe->sampled_physical_stencil_device : nullptr;
-    auto* a4_endpoint_stencil = sample_a4_stencil
-        ? endpoint_probe->sampled_endpoint_stencil_device : nullptr;
-    const auto* a4_secondary_probe = parent == nullptr
-        ? nullptr : parent->secondary_ghost_probe;
-    const bool sample_a4_secondary = a4_secondary_probe != nullptr &&
-        a4_secondary_probe->sampled_face_direction == 0 &&
-        a4_secondary_probe->sampled_physical_stencil_device != nullptr &&
-        a4_secondary_probe->sampled_endpoint_stencil_device != nullptr &&
-        (a4_secondary_probe->sampled_stage < 0 ||
-         a4_secondary_probe->sampled_stage == stage);
-    const amrex::IntVect a4_secondary_face = sample_a4_secondary
-        ? a4_secondary_probe->sampled_face : amrex::IntVect(-1);
-    const int a4_secondary_mass_component = sample_a4_secondary
-        ? a4_secondary_probe->sampled_mass_component : -1;
-    const int a4_secondary_number_component = sample_a4_secondary
-        ? a4_secondary_probe->sampled_number_component : -1;
-    const int a4_secondary_property_component = sample_a4_secondary
-        ? a4_secondary_probe->sampled_property_component : -1;
-    auto* a4_secondary_physical_stencil = sample_a4_secondary
-        ? a4_secondary_probe->sampled_physical_stencil_device : nullptr;
-    auto* a4_secondary_endpoint_stencil = sample_a4_secondary
-        ? a4_secondary_probe->sampled_endpoint_stencil_device : nullptr;
     for (amrex::MFIter mfi(data.input_intensive, false); mfi.isValid(); ++mfi) {
         const amrex::Box bx = mfi.fabbox();
         const auto input = data.input_intensive.array(mfi);
-        const auto physical_input =
-            data.physical_input_intensive.const_array(mfi);
         const auto invalid = data.coarse_fill_mask.array(mfi);
         const auto endpoint_populations = populations;
         amrex::ParallelFor(
@@ -1891,60 +2011,17 @@ SBMTransport::advance_stage (const int level,
                         }
                     }
                 }
-                if (a4_physical_stencil != nullptr &&
-                    j == a4_face[1] && k == a4_face[2] &&
-                    i >= a4_face[0] - 2 && i <= a4_face[0]) {
-                    const int slot = i - (a4_face[0] - 2);
-                    const int offset = 3 * slot;
-                    a4_physical_stencil[offset] =
-                        physical_input(i, j, k, a4_mass_component);
-                    a4_physical_stencil[offset + 1] =
-                        physical_input(i, j, k, a4_number_component);
-                    a4_physical_stencil[offset + 2] =
-                        physical_input(i, j, k, a4_property_component);
-                    a4_endpoint_stencil[offset] =
-                        input(i, j, k, a4_mass_component);
-                    a4_endpoint_stencil[offset + 1] =
-                        input(i, j, k, a4_number_component);
-                    a4_endpoint_stencil[offset + 2] =
-                        input(i, j, k, a4_property_component);
-                }
-                if (a4_secondary_physical_stencil != nullptr &&
-                    j == a4_secondary_face[1] &&
-                    k == a4_secondary_face[2] &&
-                    i >= a4_secondary_face[0] - 2 &&
-                    i <= a4_secondary_face[0]) {
-                    const int slot = i - (a4_secondary_face[0] - 2);
-                    const int offset = 3 * slot;
-                    a4_secondary_physical_stencil[offset] =
-                        physical_input(i, j, k,
-                                       a4_secondary_mass_component);
-                    a4_secondary_physical_stencil[offset + 1] =
-                        physical_input(i, j, k,
-                                       a4_secondary_number_component);
-                    a4_secondary_physical_stencil[offset + 2] =
-                        physical_input(i, j, k,
-                                       a4_secondary_property_component);
-                    a4_secondary_endpoint_stencil[offset] =
-                        input(i, j, k, a4_secondary_mass_component);
-                    a4_secondary_endpoint_stencil[offset + 1] =
-                        input(i, j, k, a4_secondary_number_component);
-                    a4_secondary_endpoint_stencil[offset + 2] =
-                        input(i, j, k, a4_secondary_property_component);
-                }
-                if (endpoint_probe_value != nullptr &&
-                    endpoint_probe_hit != nullptr &&
-                    (endpoint_probe_stage < 0 ||
-                     endpoint_probe_stage == stage) &&
-                    i == endpoint_probe_cell[0] &&
-                    j == endpoint_probe_cell[1] &&
-                    k == endpoint_probe_cell[2]) {
-                    *endpoint_probe_value =
-                        input(i, j, k, endpoint_probe_component);
-                    *endpoint_probe_hit = 1;
-                }
                 invalid(i, j, k, 0) = static_cast<Real>(cell_invalid);
             });
+    }
+    if (parent != nullptr) {
+        sample_probe_endpoint_value(parent->ghost_probe, stage,
+                                    data.input_intensive);
+        for (const auto* probe :
+             {parent->ghost_probe, parent->secondary_ghost_probe}) {
+            sample_probe_stencil(probe, stage, data.physical_input_intensive,
+                                 data.input_intensive);
+        }
     }
     if (data.coarse_fill_mask.max(0, 2) != Real(0.0)) {
         amrex::Abort("SBM M3 input spectrum could not be represented in "
@@ -2450,186 +2527,14 @@ SBMTransport::advance_stage (const int level,
             }
 
             // A small-grid scientific oracle may observe one group's native
-            // post-FCT face values. This optional device-side probe adds no
-            // transport storage and is inactive in normal execution.
-            const auto* a4_probe = parent == nullptr
-                ? nullptr : parent->ghost_probe;
-            if (a4_probe != nullptr &&
-                a4_probe->sampled_mass_rate_device != nullptr &&
-                a4_probe->sampled_number_rate_device != nullptr &&
-                a4_probe->sampled_property_rate_device != nullptr &&
-                a4_probe->sampled_high_mass_rate_device != nullptr &&
-                a4_probe->sampled_high_number_rate_device != nullptr &&
-                a4_probe->sampled_high_property_rate_device != nullptr &&
-                a4_probe->sampled_low_mass_rate_device != nullptr &&
-                a4_probe->sampled_low_number_rate_device != nullptr &&
-                a4_probe->sampled_low_property_rate_device != nullptr &&
-                a4_probe->sampled_lambda_device != nullptr &&
-                a4_probe->sampled_rate_hit_device != nullptr &&
-                a4_probe->sampled_face_direction >= 0 &&
-                (a4_probe->sampled_stage < 0 ||
-                 a4_probe->sampled_stage == stage) &&
-                std::find(group.members.begin(), group.members.end(),
-                          a4_probe->sampled_mass_component) !=
-                    group.members.end() &&
-                std::find(group.members.begin(), group.members.end(),
-                          a4_probe->sampled_number_component) !=
-                    group.members.end() &&
-                std::find(group.members.begin(), group.members.end(),
-                          a4_probe->sampled_property_component) !=
-                    group.members.end()) {
-                const int probe_dir = a4_probe->sampled_face_direction;
-                const amrex::IntVect probe_face = a4_probe->sampled_face;
-                const int mass_local = global_to_local[static_cast<std::size_t>(
-                    a4_probe->sampled_mass_component)];
-                const int number_local = global_to_local[static_cast<std::size_t>(
-                    a4_probe->sampled_number_component)];
-                const int property_local = global_to_local[static_cast<std::size_t>(
-                    a4_probe->sampled_property_component)];
-                if (mass_local >= 0 && number_local >= 0 &&
-                    property_local >= 0) {
-                    const auto& accepted = data.accepted_rate.dir(probe_dir);
-                    const auto& high = data.high_rate.dir(probe_dir);
-                    const auto& low = data.low_rate.dir(probe_dir);
-                    const auto& lambda_field = data.face_lambda.dir(probe_dir);
-                    for (amrex::MFIter mfi(accepted,
-                                           amrex::TilingIfNotGPU());
-                         mfi.isValid(); ++mfi) {
-                        const amrex::Box box = mfi.tilebox();
-                        if (!box.contains(probe_face)) continue;
-                        const amrex::Box sample_box(
-                            probe_face, probe_face,
-                            amrex::IntVect::TheDimensionVector(probe_dir));
-                        const auto rate = accepted.const_array(mfi);
-                        const auto high_rate = high.const_array(mfi);
-                        const auto low_rate = low.const_array(mfi);
-                        const auto lambda = lambda_field.const_array(mfi);
-                        auto* mass_sample =
-                            a4_probe->sampled_mass_rate_device;
-                        auto* number_sample =
-                            a4_probe->sampled_number_rate_device;
-                        auto* property_sample =
-                            a4_probe->sampled_property_rate_device;
-                        auto* high_mass_sample =
-                            a4_probe->sampled_high_mass_rate_device;
-                        auto* high_number_sample =
-                            a4_probe->sampled_high_number_rate_device;
-                        auto* high_property_sample =
-                            a4_probe->sampled_high_property_rate_device;
-                        auto* low_mass_sample =
-                            a4_probe->sampled_low_mass_rate_device;
-                        auto* low_number_sample =
-                            a4_probe->sampled_low_number_rate_device;
-                        auto* low_property_sample =
-                            a4_probe->sampled_low_property_rate_device;
-                        auto* lambda_sample = a4_probe->sampled_lambda_device;
-                        auto* hit = a4_probe->sampled_rate_hit_device;
-                        amrex::ParallelFor(
-                            sample_box,
-                            [=] AMREX_GPU_DEVICE(int i, int j,
-                                                 int k) noexcept {
-                                mass_sample[0] =
-                                    rate(i, j, k, mass_local);
-                                number_sample[0] =
-                                    rate(i, j, k, number_local);
-                                property_sample[0] =
-                                    rate(i, j, k, property_local);
-                                high_mass_sample[0] =
-                                    high_rate(i, j, k, mass_local);
-                                high_number_sample[0] =
-                                    high_rate(i, j, k, number_local);
-                                high_property_sample[0] =
-                                    high_rate(i, j, k, property_local);
-                                low_mass_sample[0] =
-                                    low_rate(i, j, k, mass_local);
-                                low_number_sample[0] =
-                                    low_rate(i, j, k, number_local);
-                                low_property_sample[0] =
-                                    low_rate(i, j, k, property_local);
-                                lambda_sample[0] = lambda(i, j, k, 0);
-                                hit[0] = 1;
-                            });
-                    }
-                }
-            }
-
-            const auto* second_probe = parent == nullptr
-                ? nullptr : parent->secondary_ghost_probe;
-            if (second_probe != nullptr &&
-                second_probe->sampled_mass_rate_device != nullptr &&
-                second_probe->sampled_number_rate_device != nullptr &&
-                second_probe->sampled_property_rate_device != nullptr &&
-                second_probe->sampled_high_mass_rate_device != nullptr &&
-                second_probe->sampled_high_number_rate_device != nullptr &&
-                second_probe->sampled_high_property_rate_device != nullptr &&
-                second_probe->sampled_low_mass_rate_device != nullptr &&
-                second_probe->sampled_low_number_rate_device != nullptr &&
-                second_probe->sampled_low_property_rate_device != nullptr &&
-                second_probe->sampled_lambda_device != nullptr &&
-                second_probe->sampled_rate_hit_device != nullptr &&
-                second_probe->sampled_face_direction >= 0 &&
-                (second_probe->sampled_stage < 0 ||
-                 second_probe->sampled_stage == stage) &&
-                std::find(group.members.begin(), group.members.end(),
-                          second_probe->sampled_mass_component) !=
-                    group.members.end() &&
-                std::find(group.members.begin(), group.members.end(),
-                          second_probe->sampled_number_component) !=
-                    group.members.end() &&
-                std::find(group.members.begin(), group.members.end(),
-                          second_probe->sampled_property_component) !=
-                    group.members.end()) {
-                const int dir = second_probe->sampled_face_direction;
-                const amrex::IntVect face = second_probe->sampled_face;
-                const int m = global_to_local[static_cast<std::size_t>(
-                    second_probe->sampled_mass_component)];
-                const int n = global_to_local[static_cast<std::size_t>(
-                    second_probe->sampled_number_component)];
-                const int p = global_to_local[static_cast<std::size_t>(
-                    second_probe->sampled_property_component)];
-                if (m >= 0 && n >= 0 && p >= 0) {
-                    const auto& accepted = data.accepted_rate.dir(dir);
-                    const auto& high = data.high_rate.dir(dir);
-                    const auto& low = data.low_rate.dir(dir);
-                    const auto& lambda_field = data.face_lambda.dir(dir);
-                    for (amrex::MFIter mfi(accepted,
-                                           amrex::TilingIfNotGPU());
-                         mfi.isValid(); ++mfi) {
-                        if (!mfi.tilebox().contains(face)) continue;
-                        const amrex::Box face_box(
-                            face, face,
-                            amrex::IntVect::TheDimensionVector(dir));
-                        const auto accepted_values = accepted.const_array(mfi);
-                        const auto high_values = high.const_array(mfi);
-                        const auto low_values = low.const_array(mfi);
-                        const auto limiter = lambda_field.const_array(mfi);
-                        auto* am = second_probe->sampled_mass_rate_device;
-                        auto* an = second_probe->sampled_number_rate_device;
-                        auto* ap = second_probe->sampled_property_rate_device;
-                        auto* hm = second_probe->sampled_high_mass_rate_device;
-                        auto* hn = second_probe->sampled_high_number_rate_device;
-                        auto* hp = second_probe->sampled_high_property_rate_device;
-                        auto* lm = second_probe->sampled_low_mass_rate_device;
-                        auto* ln = second_probe->sampled_low_number_rate_device;
-                        auto* lp = second_probe->sampled_low_property_rate_device;
-                        auto* out_lambda = second_probe->sampled_lambda_device;
-                        auto* out_hit = second_probe->sampled_rate_hit_device;
-                        amrex::ParallelFor(face_box,
-                            [=] AMREX_GPU_DEVICE(int i, int j,
-                                                 int k) noexcept {
-                                am[0] = accepted_values(i, j, k, m);
-                                an[0] = accepted_values(i, j, k, n);
-                                ap[0] = accepted_values(i, j, k, p);
-                                hm[0] = high_values(i, j, k, m);
-                                hn[0] = high_values(i, j, k, n);
-                                hp[0] = high_values(i, j, k, p);
-                                lm[0] = low_values(i, j, k, m);
-                                ln[0] = low_values(i, j, k, n);
-                                lp[0] = low_values(i, j, k, p);
-                                out_lambda[0] = limiter(i, j, k, 0);
-                                out_hit[0] = 1;
-                            });
-                    }
+            // post-FCT face values.
+            if (parent != nullptr) {
+                for (const auto* probe :
+                     {parent->ghost_probe, parent->secondary_ghost_probe}) {
+                    sample_probe_face_rates(
+                        probe, stage, group.members, global_to_local,
+                        data.accepted_rate, data.high_rate, data.low_rate,
+                        data.face_lambda);
                 }
             }
 
