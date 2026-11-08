@@ -1,3 +1,9 @@
+#26.12
+    -- Two-stream radiation sees the immersed-boundary buildings: no heating in solid
+       cells, the ground under a footprint held, the shaded ground without the direct
+       beam. On by default with erf.ibseb.enable; erf.ibseb.two_stream_buildings = false
+       keeps the previous answers (#5004)
+
 #26.11
     -- Implicit diffusion for all moist scalars (#4936)
 

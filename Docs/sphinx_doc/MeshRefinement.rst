@@ -388,18 +388,18 @@ Dynamic Mesh Refinement
 -----------------------
 
 Dynamically created tagging functions are based on runtime data specified in the inputs file.
-These dynamically generated functions test on either state variables or derived variables
-defined in ERF_derive.cpp and included in the derive_lst in Setup.cpp.
+These dynamically generated functions test on either state variables or quantities derived
+from them; the fields available are listed under ``erf.<indicator>.field_name`` in :ref:`inputs-regridding`.
 (We note that static refinement can also be achieved by using the refinement criteria as specified below
 but setting ``erf.regrid_int`` to a number greater than the total number of steps that will be taken.)
 
 Available tests include
 
--  “greater\_than”: :math:`field >= threshold`
+-  ``value_greater``: :math:`field >= threshold`
 
--  “less\_than”: :math:`field <= threshold`
+-  ``value_less``: :math:`field <= threshold`
 
--  “adjacent\_difference\_greater”: :math:`max( | \text{difference between any nearest-neighbor cell} | ) >= threshold`
+-  ``adjacent_difference_greater``: :math:`max( | \text{difference between any nearest-neighbor cell} | ) >= threshold`
 
 This example adds three user-named criteria –
 hi\_rho: cells with density greater than 1 on level 0, and greater than 2 on level 1 and higher;
@@ -408,8 +408,8 @@ and adv_diff: cells having a difference in the scalar of 0.01 or more from that 
 The first will trigger up to AMR level 3, the second only to level 1, and the third to level 2.
 The third will be active only when the problem time is between 0.001 and 0.002 seconds.
 
-Note that density and rhoadv_0 are the names of state variables, whereas theta is the name of a derived variable,
-computed by dividing the variable named rhotheta by the variable named density.
+Note that density is the name of a state variable, whereas theta and scalar are the names of derived variables,
+computed by dividing the state variables rhotheta and rhoadv_0, respectively, by density.
 
 ::
 
@@ -421,13 +421,13 @@ computed by dividing the variable named rhotheta by the variable named density.
 
           erf.lo_theta.max_level = 1
           erf.lo_theta.value_less = 300
-          erf.lo_theta.field_name = rhotheta
+          erf.lo_theta.field_name = theta
           erf.lo_theta.in_box_lo = .25 .25 .25
           erf.lo_theta.in_box_hi = .75 .75 .75
 
           erf.advdiff.max_level = 2
           erf.advdiff.adjacent_difference_greater = 0.01
-          erf.advdiff.field_name = rhoadv_0
+          erf.advdiff.field_name = scalar
           erf.advdiff.start_time = 0.001
           erf.advdiff.end_time = 0.002
 

@@ -565,8 +565,22 @@ List of Parameters
 | **erf.refinement_indicators**                    | names of the refinement indicators to apply; each name   | List of Strings    | None                 |
 |                                                  | becomes the prefix of its own group of options below     |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
-| **erf.<indicator>.field_name**                   | field the indicator tests.  ``hurricane_tracker`` is a   | String             | None                 |
-|                                                  | reserved indicator name that needs no field              |                    |                      |
+| **erf.<indicator>.field_name**                   | field the indicator tests, matched without regard to     | String             | None                 |
+|                                                  | case: ``density``, ``theta``, ``scalar``, ``qv``,        |                    |                      |
+|                                                  | ``qc``, ``qi``, ``qr``, ``qs``, ``qg``, ``qt``,          |                    |                      |
+|                                                  | ``vorticity``, ``helicity``, ``max_reflectivity``,       |                    |                      |
+|                                                  | ``velmag``, ``u``, ``v``, ``w``, ``omega`` (the          |                    |                      |
+|                                                  | contravariant vertical velocity; equal to ``w``          |                    |                      |
+|                                                  | without terrain-fitted coordinates; with moving          |                    |                      |
+|                                                  | terrain the mesh velocity is not subtracted) or          |                    |                      |
+|                                                  | ``terrain_blanking`` (only with                          |                    |                      |
+|                                                  | ``erf.terrain_type = ImmersedForcing``); with            |                    |                      |
+|                                                  | particles also ``<species>_count`` or                    |                    |                      |
+|                                                  | ``<species>_<mesh_var>``, matched as given.              |                    |                      |
+|                                                  | An unrecognized name, or a field the configuration       |                    |                      |
+|                                                  | does not provide, aborts at setup.                       |                    |                      |
+|                                                  | ``hurricane_tracker`` is a reserved indicator name       |                    |                      |
+|                                                  | that needs no field                                      |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.value_greater**                | tag cells where the field exceeds this value, one value  | List of Reals      | None                 |
 |                                                  | per level                                                |                    |                      |
@@ -2128,15 +2142,15 @@ List of Parameters
 | **erf.moistscal_vert_upw_frac**   | as above, for the vertical advection of moist scalars    | Real in [0,1]      | 1.0              |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_xflux_faces**          | list of (i,j,k) x-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these     | triples            |                  |
+|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
 |                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_yflux_faces**          | list of (i,j,k) y-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these     | triples            |                  |
+|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
 |                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_zflux_faces**          | list of (i,j,k) z-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these     | triples            |                  |
+|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
 |                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
@@ -3409,6 +3423,16 @@ Notes
   that writes ``temperature`` must therefore also write ``qv``, and a run that reads
   ``temperature`` from planes that include ``qv`` must also read ``qv``; otherwise ERF stops.
   ``theta`` planes need no qv.
+- A plane holds the domain's cells along its face only.  The ghost cells beside the face in the
+  other horizontal direction (the corner ghosts) take the plane's value at the periodic image
+  when that direction is periodic, as the interior cells across the seam do, and the nearest
+  cell of the plane otherwise; the ghost rows below and above the domain always take the
+  nearest row of the plane.  On a refined level the plane is interpolated linearly along the
+  face with the same rule for the two cells it blends.
+- The planes hold velocity at cell centres (the writer averages the face values).  A velocity
+  component that is nodal along the face (y-velocity on an x face, x-velocity on a y face,
+  z-velocity on either) therefore takes, at each node, the average of the two plane cells on
+  either side of it, at every level.
 
 .. _sec:NumericalStability:
 
@@ -4160,6 +4184,21 @@ column would be taken for a building), a uniform vertical grid (no
 |                                   | in z. Then sw_direct_normal, sw_diffuse,                 |                    |                        |
 |                                   | sw_transmission, sw_diffuse_coeff, solar_constant and    |                    |                        |
 |                                   | albedo_ground must not be given                          |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.two_stream_buildings**| with erf.radiation_model = TwoStream, the columns see    | Boolean            | true                   |
+|                                   | the buildings: no two-stream heating in a building's     |                    |                        |
+|                                   | solid cells; the two-stream ground balance holds its     |                    |                        |
+|                                   | state under a building (a column whose bottom cell is    |                    |                        |
+|                                   | solid), gives it no shortwave and leaves it out of its   |                    |                        |
+|                                   | means; with erf.radiation.seb_use_radiation_fluxes, the  |                    |                        |
+|                                   | shortwave on and a level that sweeps its own columns,    |                    |                        |
+|                                   | the open ground the buildings shade (the faces' ray cast |                    |                        |
+|                                   | from each column's ground toward the sun, within the ray |                    |                        |
+|                                   | map's halo) loses the direct beam. false: the columns    |                    |                        |
+|                                   | are blind to the buildings, as before. Without the two-  |                    |                        |
+|                                   | stream radiation: stops when no erf.radiation_model is   |                    |                        |
+|                                   | set, warns when another one (or None) is named; ignored, |                    |                        |
+|                                   | with a warning, when erf.ibseb.enable is off             |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.sun_mode**            | the sun's position, and with the prescribed provider its | "fixed", "solar",  | "fixed"                |
 |                                   | irradiances: ``fixed``: the given zenith and azimuth     | "two_stream"       |                        |
@@ -5056,7 +5095,11 @@ land-surface model supplies them; ``seb_turbulent_flux_source = defaults`` uses 
 ``seb_hfx_default`` and ``seb_lh_default`` instead. The fluxes it used are written as ``seb_hfx``
 and ``seb_lh``. With ``erf.radiation.seb_surface_layer_uses_skin = true`` the coupling runs both
 ways: the surface layer also takes its land surface temperature from the balance's skin, so the
-heat flux it computes responds to the skin.
+heat flux it computes responds to the skin. The net shortwave the balance absorbed at its last
+update after the dycore is written as ``seb_sw_net``. With immersed-boundary buildings and
+``erf.ibseb.two_stream_buildings`` (the default) the balance holds the ground under the buildings
+and, with ``seb_use_radiation_fluxes``, takes the direct beam off the ground they shade
+(``ibseb_ground_shadow``); see :ref:`the IBSEB theory page <sec:IBSEB>`.
 
 
 

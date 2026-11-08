@@ -42,9 +42,14 @@ checks.
      of level 1 ends above 300 K, and so does level 0's outside the refined
      area. The two means are reported, not compared: under the refined area
      level 0 holds level 1's average (the average down), and the open ground
-     outside it differs by the buildings' influence. The two-stream ground
-     balance still covers the footprints; they are left out here and reported
-     separately with their sensible heat flux.
+     outside it differs by the buildings' influence. The footprints and the cell
+     around them are left out here and reported separately with their sensible
+     heat flux;
+  8. the ground under the buildings is held (erf.ibseb.two_stream_buildings):
+     every column whose centre lies in a footprint of buildings.csv (the immersed
+     forcing fills those cells, and on level 0 the ramp beyond them) ends at the
+     skin temperature it started with, on both levels, and gets no shortwave. The shaded share of the open ground and its shortwave
+     against the sunlit ground's are reported, not checked.
 """
 import glob
 import os
@@ -309,6 +314,42 @@ def main():
           g1 > 300.0 and g_out > 300.0,
           f"{plts[-1]}: open ground {g1:.2f} K in the refined area (level 1) and {g_out:.2f} K outside it (level 0); "
           f"the footprints and their surroundings, left out, {under:.2f} K on level 1{flux}")
+
+    # 8. the ground under the buildings
+    first = plts[0]
+    names_0, levels_0, _ = read_plotfile_2d(first)
+    def inside(nx, ny, dx, dy):
+        x = (np.arange(nx) + 0.5) * dx; y = (np.arange(ny) + 0.5) * dy
+        m = np.zeros((nx, ny), dtype=bool)
+        for b in range(nb):
+            m |= np.outer((x > bld["x_lo_m"][b]) & (x < bld["x_hi_m"][b]),
+                          (y > bld["y_lo_m"][b]) & (y < bld["y_hi_m"][b]))
+        return m
+    held, n_in, sw_in = True, 0, 0.0
+    for L, (nxl, nyl) in enumerate(((nx0, ny0), (2 * nx0, 2 * ny0))):
+        t_end = level_field(levels[L], k, (nxl, nyl))
+        t_start = level_field(levels_0[L], names_0.index("seb_t_sfc"), (nxl, nyl))
+        sw_l = level_field(levels[L], names.index("seb_sw_net"), (nxl, nyl))
+        ins = inside(nxl, nyl, dxs[L][0], dxs[L][1]) & ~np.isnan(t_end)
+        n_in += int(ins.sum())
+        held &= bool(np.all(t_end[ins] == t_start[ins]))
+        sw_in = max(sw_in, float(np.abs(sw_l[ins]).max()) if ins.any() else 0.0)
+    sh1 = level_field(levels[1], names.index("ibseb_ground_shadow"), (2 * nx0, 2 * ny0))
+    sw1 = level_field(levels[1], names.index("seb_sw_net"), (2 * nx0, 2 * ny0))
+    # The open ground of level 1: outside the footprints grown by one fine cell (the ramp).
+    x1 = (np.arange(2 * nx0) + 0.5) * dxs[1][0]; y1 = (np.arange(2 * ny0) + 0.5) * dxs[1][1]
+    fp1 = np.zeros((2 * nx0, 2 * ny0), dtype=bool)
+    for b in range(nb):
+        fp1 |= np.outer((x1 > bld["x_lo_m"][b] - dxs[1][0]) & (x1 < bld["x_hi_m"][b] + dxs[1][0]),
+                        (y1 > bld["y_lo_m"][b] - dxs[1][1]) & (y1 < bld["y_hi_m"][b] + dxs[1][1]))
+    open1 = on1 & ~fp1
+    lit1, shd1 = open1 & (sh1 < 0.5), open1 & (sh1 > 0.5)
+    check("8. the ground under the buildings is held",
+          held and n_in > 0 and sw_in == 0.0,
+          f"{plts[-1]}: {n_in} columns under the footprints on both levels keep their starting skin and absorb "
+          f"{sw_in:.3g} W/m2; level 1's open ground: {100.0 * shd1.sum() / max(open1.sum(), 1):.1f} % "
+          f"shaded, absorbing {np.nanmean(sw1[shd1]) if shd1.any() else float('nan'):.0f} W/m2 there against "
+          f"{np.nanmean(sw1[lit1]):.0f} W/m2 in the sun")
 
     # Not a check: each building's parts at the last common dump, on both
     # levels, the numbers the README's reading rests on.

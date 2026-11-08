@@ -40,9 +40,17 @@ erf.city.in_box_lo = 160.0 160.0
 erf.city.in_box_hi = 480.0 480.0
 
 # Level 0 steps 1 s, level 1 two 0.5 s steps (the building-set case's step at
-# 10 m); the acoustic waves are substepped.
+# 10 m); the acoustic waves are substepped. Since #4379 the substep count comes
+# from the sum of the directional CFL terms, not their largest, so a CFL of 1.0
+# gives the 36 to 38 substeps per step this case was validated with (0.5 gave 38
+# before #4379 and gives 72 now). With 72 or more substeps the two-way
+# compressible coupling blows up at the fine box's x faces after about 90 steps
+# (erf-model/ERF#5003); one-way coupling and 60 or fewer substeps run. Keep 1.0
+# once #5003 is fixed: the results in the README were made with this count, and
+# the acoustic CFL of a substep stays below 1 (0.33 horizontal, 0.96 vertical on
+# level 0).
 erf.fixed_dt = 1.0
-erf.substepping_cfl = 0.5
+erf.substepping_cfl = 1.0
 erf.sum_interval = -1
 erf.v = 0
 amr.v = 0
@@ -82,8 +90,9 @@ erf.radiation.diag_stdout_enable = false
 erf.radiation.diag_callsite_mode = pre_only
 erf.radiation.diag_file = "radiation_diag.csv"
 
-# The ground: case 2's force-restore balance, dry. It covers every column,
-# under the buildings too; the checker leaves the footprint columns out.
+# The ground: case 2's force-restore balance, dry. The columns see the buildings
+# (erf.ibseb.two_stream_buildings, on by default): the ground under a building keeps
+# its starting state, and the ground a building shades loses the direct beam.
 erf.radiation.seb_prognostic_enable = true
 erf.radiation.seb_use_radiation_fluxes = true
 erf.radiation.seb_turbulent_flux_source = surface_layer
@@ -137,4 +146,4 @@ erf.plot_per_1 = 1800.0
 erf.plot_vars_1 = theta temp x_velocity y_velocity z_velocity terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_shadow ibseb_H
 erf.plot2d_file_1 = plt2d
 erf.plot2d_per_1 = 600.0
-erf.plot2d_vars_1 = seb_t_sfc seb_hfx sensible_heat_flux t_surf
+erf.plot2d_vars_1 = seb_t_sfc seb_hfx sensible_heat_flux t_surf seb_sw_net ibseb_ground_shadow
