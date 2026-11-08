@@ -5512,3 +5512,59 @@ endif()
 #=============================================================================
 # Performance tests
 #=============================================================================
+
+# The structure coupling (erf.structures.model, Source/MovingBodies/Coupling) with the
+# example model directory (Tests/StructureModelExample) compiled in: one point pushes
+# on still air in a periodic box with 50 N along x. With no friction or gravity, the
+# volume integral of x_velocity at t = 4 s is F t / rho_0 = 200 m^4/s (rho_0 = 1, and
+# the density stays 1 to 6e-9 at these speeds), checked to 1e-5 relative because
+# fvolumesum prints 6 significant digits; the model's fields reach the
+# ERF plotfile; and a restart from the mid-run checkpoint reproduces the final
+# plotfile exactly, and the model's checkpointed impulse (50 N for 4 s = 200 N s) is the
+# same in both logs.
+set(_smx_src ${CMAKE_CURRENT_SOURCE_DIR}/StructureModelExample)
+get_filename_component(_smx_src_abs "${_smx_src}" ABSOLUTE)
+set(_smx_in_build FALSE)
+foreach(_d IN LISTS ERF_STRUCTURE_MODEL_DIRS)
+  get_filename_component(_d_abs "${_d}" ABSOLUTE)
+  if(_d_abs STREQUAL _smx_src_abs)
+    set(_smx_in_build TRUE)
+  endif()
+endforeach()
+if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as the fire tests do
+if(ERF_ENABLE_MOVING_BODIES)
+  if(_smx_in_build)
+    if(ERF_ENABLE_FCOMPARE AND ERF_PRECISION STREQUAL "DOUBLE")
+      set(_smx_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Structures_ExampleModel)
+      file(MAKE_DIRECTORY ${_smx_dir})
+      file(COPY ${_smx_src}/inputs_structure_example DESTINATION ${_smx_dir})
+      resolve_test_exe("" "erf_exec" _smx_exe)
+      get_filename_component(_smx_tools "${FCOMPARE_EXE}" DIRECTORY)
+      get_filename_component(_smx_fcmp_name "${FCOMPARE_EXE}" NAME)
+      string(REPLACE "fcompare" "fvolumesum" _smx_fvs_name "${_smx_fcmp_name}")
+      set(_smx_fvs "${_smx_tools}/${_smx_fvs_name}")
+      set(_smx_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
+      add_test(NAME Structures_ExampleModel
+               COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
+               WORKING_DIRECTORY ${_smx_dir})
+      set_tests_properties(Structures_ExampleModel PROPERTIES
+          LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
+          ATTACHED_FILES_ON_FAIL "${_smx_dir}/straight.log;${_smx_dir}/momentum.txt;${_smx_dir}/restart.log")
+    endif()
+    add_test_abort(Structures_Abort_UnknownModel ${_smx_src} inputs_structure_example
+                   "erf.structures.model = .no_such_model. is not one of the structure models compiled in .*\"example\""
+                   "erf.structures.model=no_such_model")
+    add_test_abort(Structures_Abort_ExampleLevel ${_smx_src} inputs_structure_example
+                   "structure.example.level must be -1 .the finest level. or 0 to amr.max_level = 0, got 1"
+                   "structure.example.level=1")
+  elseif(NOT ERF_STRUCTURE_MODEL_DIRS)
+    add_test_abort(Structures_Abort_NoModelBuiltIn ${_smx_src} inputs_structure_example
+                   "erf.structures.model = .example. is not one of the structure models compiled in .none"
+                   "")
+  endif()
+else()
+  add_test_abort(Structures_Abort_NoCoupling ${_smx_src} inputs_structure_example
+                 "erf.structures.model needs ERF built with the structure coupling"
+                 "")
+endif()
+endif()

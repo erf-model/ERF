@@ -189,6 +189,20 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
 #endif
 
+#ifdef ERF_USE_MOVING_BODIES
+    // **************************************************************************************
+    // Advance the structure model (erf.structures.model) over this step of its level,
+    // from the state at the start of the step; its momentum source then holds over the step
+    // **************************************************************************************
+    if (m_structure_model && lev == m_structure_model->level(finest_level)) {
+        const bool fitted = (SolverChoice::mesh_type != MeshType::ConstantDz);
+        const StructureStep step{lev, finest_level, time, static_cast<Real>(dt_lev), Geom(lev),
+                                 U_old, V_old, W_old, S_old,
+                                 fitted ? z_phys_nd[lev].get() : nullptr, fitted ? detJ_cc[lev].get() : nullptr};
+        m_structure_model->advance(step);
+    }
+#endif
+
     // **************************************************************************************
     // Update the radiation sources with the "old" state
     // **************************************************************************************

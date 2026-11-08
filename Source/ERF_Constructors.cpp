@@ -15,6 +15,9 @@
 #include "ERF_SBMRemapping.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
+#ifdef ERF_USE_MOVING_BODIES
+#include "ERF_StructureModelRegistry.H"
+#endif
 
 #include <algorithm>
 #include <string>
@@ -351,6 +354,23 @@ ERF::ERF_shared ()
 
 #ifdef ERF_USE_WINDFARM
     initializeWindFarm(nlevs_max);
+#endif
+
+#ifdef ERF_USE_MOVING_BODIES
+    // The structure model erf.structures.model selects; it reads its own inputs here
+    m_structure_model = make_structure_model_from_inputs(max_level);
+    if (m_structure_model) {
+        amrex::Print() << "Structure model: " << m_structure_model->name() << "\n";
+    }
+#else
+    // A build without the structure coupling refuses the key instead of ignoring it
+    {
+        amrex::ParmParse pp_structures("erf.structures");
+        if (pp_structures.contains("model")) {
+            amrex::Abort("erf.structures.model needs ERF built with the structure coupling"
+                         " (ERF_ENABLE_MOVING_BODIES=ON in CMake, USE_MOVING_BODIES=TRUE in GNU make)");
+        }
+    }
 #endif
 
 #ifdef ERF_USE_EAMXX_SHOC

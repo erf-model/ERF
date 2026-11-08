@@ -5900,6 +5900,24 @@ geometry is resolved at the finest level's cell size; points outside the sampled
 region are treated as fluid.  Very large or highly detailed meshes will
 therefore be limited by the mesh resolution rather than by the STL itself.
 
+.. _sec:InputsStructures:
+
+Structure Coupling
+==================
+
+This input selects the structure model described in :ref:`sec:StructureCoupling`;
+it needs a build with ``ERF_ENABLE_MOVING_BODIES=ON`` (``USE_MOVING_BODIES = TRUE``
+with GNU make), and a build without it stops the run when the key is set. The
+model reads its own inputs under its own prefix besides.
+
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| Parameter                                      | Definition                                                 | Acceptable Values              | Default                |
++================================================+============================================================+================================+========================+
+| **erf.structures.model**                       | The structure model to run, one of the models compiled in  | String: a registered model     | (none: no model)       |
+|                                                | (ERF_REGISTER_STRUCTURE_MODEL); any other name stops the   | name                           |                        |
+|                                                | run, listing the names that are                            |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+
 .. _sec:InputsFire:
 
 Fire Coupling

@@ -82,6 +82,9 @@
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
 #endif
+#ifdef ERF_USE_MOVING_BODIES
+#include "ERF_StructureModel.H"
+#endif
 #include <ERF_SurfaceModel.H>
 
 #include <ERF_RadiationModels.H>
@@ -2262,6 +2265,14 @@ private:
     std::string m_fire_plot_file {"plt_fire_"};
     int         m_fire_plot_int  = -1;
     amrex::Real m_fire_plot_per  = -1.0;
+#endif
+
+#ifdef ERF_USE_MOVING_BODIES
+    /// The structure model erf.structures.model selects (ERF_StructureModel.H); nullptr when the key is not set
+    std::unique_ptr<StructureModel> m_structure_model = nullptr;
+
+    /// Hand the structure model the mesh and the initial (or restart) state, once, in InitData_post
+    void initialize_structure_model ();
 #endif
 
     //
