@@ -391,9 +391,10 @@ TEST(Plotfile2DWaterPath, NoPrecipitationSchemesExcludeAccumulations)
 }
 
 // Motivation: Availability must reflect the compiled/provider path: raw
-// Noah-MP fields are hidden without Noah-MP, while SurfaceLayer-only unified
-// temperature remains selectable and dry-run humidity does not.
-TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
+// Noah-MP (LandSurface) fields are hidden without Noah-MP, while the NearSurface
+// 2 m temperature remains selectable from the surface layer alone and the 2 m
+// humidity is offered only in a moist run.
+TEST(Plotfile2DWaterPath, NearSurfaceAvailabilityIsSchemeAware)
 {
     SolverChoice dry;
     // This case has no land model, including in a Noah-MP-enabled build.
@@ -408,10 +409,37 @@ TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
 
     SolverChoice moist = dry;
     moist.moisture_type = MoistureType::MoistNoCondensation;
+    const auto moist_surface_layer_names = plotfile2d::available_diagnostic_names(moist, true);
+    EXPECT_TRUE(has_name(moist_surface_layer_names, "temperature_2m"));
+    EXPECT_TRUE(has_name(moist_surface_layer_names, "water_vapor_mixing_ratio_2m"));
+    EXPECT_TRUE(has_name(moist_surface_layer_names, "near_surface_diagnostic_source"));
+    EXPECT_FALSE(has_name(moist_surface_layer_names, "noahmp_vegetation_fraction"));
+
     const auto no_surface_layer_names = plotfile2d::available_diagnostic_names(moist, false);
     EXPECT_FALSE(has_name(no_surface_layer_names, "temperature_2m"));
     EXPECT_FALSE(has_name(no_surface_layer_names, "water_vapor_mixing_ratio_2m"));
     EXPECT_FALSE(has_name(no_surface_layer_names, "near_surface_diagnostic_source"));
+}
+
+// Motivation: The unified 2 m fields come from Noah-MP's native 2 m fields or,
+// without them, from the surface layer, so they must not be labelled as needing
+// a land model, while Noah-MP's own 2 m tiles remain land-surface fields.
+TEST(Plotfile2D, Unified2mFieldsAreNearSurfaceNotLandSurface)
+{
+    for (const char* name : {"temperature_2m", "water_vapor_mixing_ratio_2m",
+                             "near_surface_diagnostic_source"}) {
+        const auto* descriptor = plotfile2d::find_diagnostic(name);
+        ASSERT_NE(descriptor, nullptr) << name;
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::NearSurface) << name;
+    }
+    for (const char* name : {"noahmp_temperature_2m_vegetated", "noahmp_temperature_2m_bare",
+                             "noahmp_water_vapor_mixing_ratio_2m_vegetated",
+                             "noahmp_water_vapor_mixing_ratio_2m_bare",
+                             "noahmp_vegetation_fraction"}) {
+        const auto* descriptor = plotfile2d::find_diagnostic(name);
+        ASSERT_NE(descriptor, nullptr) << name;
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::LandSurface) << name;
+    }
 }
 
 // Motivation: Terrain radiation fields are offered only when their correction
@@ -557,6 +585,7 @@ TEST(Plotfile2D, CatalogDescriptorsHaveRequiredMetadata)
         case plotfile2d::DiagnosticCategory::Precipitation:
         case plotfile2d::DiagnosticCategory::ColumnIntegral:
         case plotfile2d::DiagnosticCategory::LandSurface:
+        case plotfile2d::DiagnosticCategory::NearSurface:
         case plotfile2d::DiagnosticCategory::SampledLevel:
             valid_category = true;
             break;
@@ -2890,6 +2919,8 @@ TEST(Plotfile2DMetadata, CategoryStringsMatchPublicMetadataSchema)
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceState), "SurfaceState");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::Precipitation), "Precipitation");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::ColumnIntegral), "ColumnIntegral");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::LandSurface), "LandSurface");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::NearSurface), "NearSurface");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SampledLevel), "SampledLevel");
 }
 

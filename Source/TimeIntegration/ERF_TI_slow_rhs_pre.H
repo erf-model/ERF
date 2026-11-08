@@ -244,6 +244,13 @@
                          sounding_at_level(level), lsf_at_level(level), lsf_data[level],
                          get_eb(level), true);
 
+#ifdef ERF_USE_MOVING_BODIES
+        // The structures' force on the air (erf.structures.model), fixed over the step
+        if (m_structure_model && level == m_structure_model->level(finest_level)) {
+            m_structure_model->add_momentum_sources(level, xmom_src, ymom_src, zmom_src);
+        }
+#endif
+
         // Nudging of the velocity towards observations at stations
         if (solverChoice.nudging_from_observations && obs_nudging) {
             obs_nudging->add_momentum_sources(level, old_stage_time, static_cast<Real>(slow_dt), fine_geom,

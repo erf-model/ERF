@@ -1279,6 +1279,10 @@ struct SolverChoice {
             amrex::Abort("erf.beta_d must lie in [0, 1]; got " + std::to_string(beta_d));
         }
 
+        // Number of steps between the synchronization of the two copies of a periodic face
+        // velocity (0 = never)
+        pp.query("face_sync_int", face_sync_int);
+
         // Spatially varying beta_s on the w-faces (implicit substepping only):
         //    beta_s = max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
         pp.queryAdd("use_variable_beta_s", use_variable_beta_s);
@@ -2843,6 +2847,7 @@ struct SolverChoice {
     // time off-centering coefficient, > 0 for forward weighting (i.e., bias
     // towards the future time step)
     amrex::Real beta_s = amrex::Real(0.1);
+    int face_sync_int = 1;
 
     // if true, beta_s varies on the w-faces as max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
     // and beta_s itself is not used (implicit substepping only)
@@ -3042,6 +3047,14 @@ struct SolverChoice {
     {
         return level_substeps(lev) &&
                dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit;
+    }
+
+    // Implicit Rayleigh damping of w in the substeps (FastImplicit with erf.rayleigh_damp_W).
+    // It replaces the explicit w damping, which is then applied on neither step.
+    [[nodiscard]] bool rayleigh_implicit_w (int lev) const noexcept
+    {
+        return level_substeps(lev) && dampingChoice.rayleigh_damp_W &&
+               dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit;
     }
 
     // Canopy drag in the substeps (erf.forest_substep)

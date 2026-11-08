@@ -205,11 +205,8 @@ ERF::sum_integrated_quantities (double time)
             sample_points(i, lev, time, SamplePoint(i), vars_new[lev][Vars::cons]);
         }
     }
-    if (NumSampleLineLogs() > 0 && NumSampleLines() > 0) {
-        for (int i = 0; i < NumSampleLines(); ++i)
-        {
-            sample_lines(i, lev, time, SampleLine(i), vars_new[lev][Vars::cons]);
-        }
+    if (sample_line_sampler) {
+        run_line_sampler(*sample_line_sampler);
     }
 }
 
@@ -609,97 +606,40 @@ ERF::sample_points (int ifile, int /*lev*/, double time, IntVect cell, MultiFab&
 }
 
 /**
- * Utility function for sampling data along a line along the z-dimension
- * at the (x,y) indices specified and writes it to an output file.
+ * Sample the lines of a LineSampler and write them, passing it the stresses, the SGS heat
+ * flux, whether each level carries a prognostic TKE, the heights of each level and the ground
+ * on level 0.  Used for erf.do_line_sampling and
+ * for erf.sample_line, which is a LineSampler of full-depth columns on level 0.
  *
- * The line can cross several boxes owned by different ranks, so each field
- * is first copied onto a single box on the IO processor, which writes the log.
- *
- * @param ifile Index of the sample line and of its log file
- * @param lev Current level
- * @param time Current time
- * @param cell IntVect containing the x,y-dimension indices to sample along z
- * @param mf MultiFab from which we sample the data
+ * @param sampler the line sampler
  */
 void
-ERF::sample_lines (int ifile, int lev, double time, IntVect cell, MultiFab& mf)
+ERF::run_line_sampler (LineSampler& sampler)
 {
-    const int ncomp = mf.nComp(); // cell-centered state vars
-
-    MultiFab mf_vels(grids[lev], dmap[lev], AMREX_SPACEDIM, 0);
-    average_face_to_cellcenter(mf_vels, 0,
-                               Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
-
-    //
-    // Sample the data at a line (in direction "dir") in space
-    // In this case we sample in the vertical direction so dir = 2
-    // The "k" value of "cell" is ignored
-    //
-    int dir = 2;
-    const Box& domain = geom[lev].Domain();
-    IntVect line_lo(cell); line_lo[dir] = domain.smallEnd(dir);
-    IntVect line_hi(cell); line_hi[dir] = domain.bigEnd(dir);
-    const Box line_box(line_lo, line_hi);
-    const int klo = line_box.smallEnd(dir);
-    const int khi = line_box.bigEnd(dir);
-
-    DistributionMapping io_dm(Vector<int>{ParallelDescriptor::IOProcessorNumber()});
-
-    // Copy the line through src onto the IO processor, in host-accessible memory
-    auto gather_line = [&] (const MultiFab& src) -> MultiFab
-    {
-        BoxArray line_ba(convert(line_box, src.ixType()));
-        MultiFab line(line_ba, io_dm, src.nComp(), 0, MFInfo().SetArena(The_Pinned_Arena()));
-        line.ParallelCopy(src, 0, 0, src.nComp());
-        Gpu::streamSynchronize();
-        return line;
-    };
-
-    MultiFab my_line      = gather_line(mf);
-    MultiFab my_line_vels = gather_line(mf_vels);
-
-    // The stresses exist only when diffusion is on; write zeros otherwise so the
-    // columns of the log do not depend on the physics options
-    constexpr int ntau = 6;
-    const std::array<int,ntau> tau_types = {TauType::tau11, TauType::tau12, TauType::tau13,
-                                            TauType::tau22, TauType::tau23, TauType::tau33};
-    Vector<MultiFab> my_line_tau(ntau);
-    for (int t = 0; t < ntau; ++t) {
-        if (Tau[lev][tau_types[t]]) {
-            my_line_tau[t] = gather_line(*Tau[lev][tau_types[t]]);
+    const int nlev = static_cast<int>(vars_new.size());
+    Vector<Vector<MultiFab*>> tau_lev(nlev);
+    Vector<MultiFab*> hfx3_lev(nlev, nullptr);
+    Vector<int> prognostic_tke_available(nlev, 0);
+    Vector<MultiFab*> z_cc_lev(nlev, nullptr);
+    Vector<MultiFab*> z_nd_lev(nlev, nullptr);
+    for (int lev = 0; lev < nlev; ++lev) {
+        prognostic_tke_available[lev] = solverChoice.turbChoice[lev].use_tke ? 1 : 0;
+        if (lev < static_cast<int>(z_phys_cc.size())) { z_cc_lev[lev] = z_phys_cc[lev].get(); }
+        if (lev < static_cast<int>(z_phys_nd.size())) { z_nd_lev[lev] = z_phys_nd[lev].get(); }
+        if (lev < static_cast<int>(Tau.size())) {
+            for (const auto& tau : Tau[lev]) {
+                tau_lev[lev].push_back(tau.get());
+            }
+        }
+        if (lev < static_cast<int>(SFS_hfx3_lev.size())) {
+            hfx3_lev[lev] = SFS_hfx3_lev[lev].get();
         }
     }
-
-    if (!ParallelDescriptor::IOProcessor()) return;
-
-    // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
-
-    std::ostream& sample_log = SampleLineLog(ifile);
-    if (sample_log.good()) {
-      sample_log << std::setw(datwidth) << std::setprecision(datprecision) << time;
-      const auto& my_line_arr      = my_line[0].const_array();
-      const auto& my_line_vels_arr = my_line_vels[0].const_array();
-      int i = cell[0];
-      int j = cell[1];
-      for (int n = 0; n < ncomp; n++) {
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_arr(i,j,k,n);
-          }
-      }
-      for (int n = 0; n < AMREX_SPACEDIM; n++) {
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_vels_arr(i,j,k,n);
-          }
-      }
-      for (int t = 0; t < ntau; ++t) {
-          const bool has_tau = !my_line_tau[t].empty();
-          for (int k = klo; k <= khi; k++) {
-              Real val = has_tau ? my_line_tau[t][0].const_array()(i,j,k) : zero;
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << val;
-          }
-      }
-      sample_log << std::endl;
-    } // if good
+    // With immersed terrain the ground is the terrain surface, not the bottom of the mesh
+    const MultiFab* ground_nd = sampler.needs_ground() ? &station_ground(0) : nullptr;
+    sampler.get_sample_data(geom, vars_new, tau_lev, hfx3_lev, prognostic_tke_available,
+                            z_cc_lev, z_nd_lev, ground_nd);
+    sampler.write_sample_data(t_new, istep, ref_ratio, geom);
 }
 
 /**

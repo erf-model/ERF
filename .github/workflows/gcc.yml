@@ -269,6 +269,18 @@ jobs:
         mpiexec -n 2 ./ERF3d.gnu*.ex inputs_fire_example max_step=4 erf.check_int=-1 | tee run.log
         grep -q "fire_phi" plt00004/Header
 
+    - name: GNUmake Compile and Link with an out-of-tree structure model
+      run: |
+        mkdir -p ${{runner.temp}}/structure_build
+        cd ${{runner.temp}}/structure_build
+        printf 'ERF_HOME = %s\nSTRUCTURE_HOME = %s/Tests/StructureModelExample\nUSE_MOVING_BODIES = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
+          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
+        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
+        make -j2
+        cp ${{github.workspace}}/Tests/StructureModelExample/inputs_structure_example .
+        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_structure_example max_step=8 erf.check_int=-1 | tee run.log
+        grep -q "structure_example_fx" plt00008/Header
+
   # Single stable required status check. Branch protection previously pinned the
   # individual matrix job names ("GNU@9.3 C++17 Release - Particles OFF"), which silently
   # stopped matching when the matrix gained its Mesh/precision axes -- leaving every PR

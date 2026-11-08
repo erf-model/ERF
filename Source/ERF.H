@@ -84,6 +84,9 @@
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
 #endif
+#ifdef ERF_USE_MOVING_BODIES
+#include "ERF_StructureModel.H"
+#endif
 #include <ERF_SurfaceModel.H>
 
 #include <ERF_RadiationModels.H>
@@ -631,7 +634,8 @@ public:
     void FillBdyCCVels (amrex::MultiFab& mf_cc_vel, amrex::Geometry& lev_geom);
 
     void sample_points (int ifile, int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
-    void sample_lines (int ifile, int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
+    // Sample and write the lines of sampler, with the stresses and heat flux of each level
+    void run_line_sampler (LineSampler& sampler);
 
     void derive_diag_profiles (double time,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
@@ -2293,6 +2297,22 @@ private:
     amrex::Real m_fire_plot_per  = -1.0;
 #endif
 
+#ifdef ERF_USE_MOVING_BODIES
+    /// The structure model erf.structures.model selects (ERF_StructureModel.H); nullptr when the key is not set
+    std::unique_ptr<StructureModel> m_structure_model = nullptr;
+
+    /// Hand the structure model the mesh and the initial (or restart) state, once, in InitData_post
+    void initialize_structure_model ();
+
+    /// Advance the structure model over this step of level lev, then check its support() against level lev+1
+    void advance_structure_model (int lev, double time, amrex::Real dt_lev,
+                                  const amrex::MultiFab& U_old, const amrex::MultiFab& V_old,
+                                  const amrex::MultiFab& W_old, const amrex::MultiFab& S_old);
+
+    /// Whether every map factor of level lev is 1 (the actuator core assumes so); a collective
+    bool structure_unit_map_factors (int lev) const;
+#endif
+
     //
     // Holds info for dynamically generated tagging criteria
     //
@@ -2439,20 +2459,6 @@ private:
         return static_cast<int>(sampleptlog.size());
     }
 
-    AMREX_FORCE_INLINE
-    std::ostream&
-    SampleLineLog (int i)
-    {
-        return *samplelinelog[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSampleLineLogs () noexcept
-    {
-        return static_cast<int>(samplelinelog.size());
-    }
-
     amrex::IntVect&
     SamplePoint (int i)
     {
@@ -2464,19 +2470,6 @@ private:
     NumSamplePoints () noexcept
     {
         return static_cast<int>(samplepoint.size());
-    }
-
-    amrex::IntVect&
-    SampleLine (int i)
-    {
-        return sampleline[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSampleLines () noexcept
-    {
-        return static_cast<int>(sampleline.size());
     }
 
     static double startCPUTime;
@@ -2553,27 +2546,15 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
     }
 
-    // The line can span boxes on several ranks; sample_lines gathers it onto
-    // the IO processor, so only that rank opens the log
-    void setRecordSampleLineInfo (int i, const std::string& filename) // NOLINT
-    {
-        if (amrex::ParallelDescriptor::IOProcessor())
-        {
-            samplelinelog[i] = std::make_unique<std::fstream>();
-            samplelinelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
-            if (!samplelinelog[i]->good()) {
-                amrex::FileOpenFailed(filename);
-            }
-        }
-        amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleLineInfo");
-    }
-
     // Data sampler for line and plane output
     int line_sampling_interval = -1;
     int plane_sampling_interval = -1;
     amrex::Real line_sampling_per = -one;
     amrex::Real plane_sampling_per = -one;
     std::unique_ptr<LineSampler> line_sampler = nullptr;
+    // erf.sample_line / erf.sample_line_real: full-depth columns on level 0, written to logs
+    // at the cadence of the other logs (erf.sum_interval / erf.sum_per)
+    std::unique_ptr<LineSampler> sample_line_sampler = nullptr;
     std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 
     // Station time-series output
@@ -2602,19 +2583,12 @@ private:
     amrex::Vector<std::string> sampleptlogname;
     amrex::Vector<amrex::IntVect> samplepoint;
 
-    amrex::Vector<std::unique_ptr<std::fstream> > samplelinelog;
-    amrex::Vector<std::string> samplelinelogname;
-    amrex::Vector<amrex::IntVect> sampleline;
-
     //! The filename of the ith datalog file.
     [[nodiscard]] std::string DataLogName (int i) const noexcept { return datalogname[i]; }
     [[nodiscard]] std::string DerDataLogName (int i) const noexcept { return der_datalogname[i]; }
 
     //! The filename of the ith sampleptlog file.
     [[nodiscard]] std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
-
-    //! The filename of the ith samplelinelog file.
-    [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;

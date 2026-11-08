@@ -24,6 +24,37 @@ The public unified fields are:
 ``near_surface_diagnostic_source``
    Categorical code for the source selected for the requested bundle.
 
+These fields have the metadata category ``NearSurface``, not ``LandSurface``:
+they do not need a land model. In each cell they come from
+
+#. Noah-MP's native 2-m fields (``noahmp_temperature_2m_vegetated``,
+   ``noahmp_temperature_2m_bare``,
+   ``noahmp_water_vapor_mixing_ratio_2m_vegetated``,
+   ``noahmp_water_vapor_mixing_ratio_2m_bare`` and
+   ``noahmp_vegetation_fraction``) when the ones the request needs are present
+   and valid (see the native requirements below); otherwise
+#. the SurfaceLayer's MOST profile, from ``t_surf``, ``t_star``, ``q_surf``,
+   ``q_star``, ``z0`` and the Obukhov length ``Olen``; otherwise
+#. ``-999`` for the continuous fields and ``0`` for the source code.
+
+A run with a surface layer and no land model therefore writes real MOST values.
+
+``temperature_2m`` and ``near_surface_diagnostic_source`` are offered when
+Noah-MP is active or the run has a surface layer. ``water_vapor_mixing_ratio_2m``
+is offered under the same condition, but only in a moist run. A run with neither
+Noah-MP nor a surface layer offers none of the three.
+
+Which native fields a request uses and how its MOST cells are labeled follow
+separate rules. A request uses the native values whenever the native fields it
+needs are present and valid. A MOST cell, however, is labeled
+``surface_layer_fallback`` (code 3) rather than ``surface_layer_land`` (code 1)
+only when all five native fields listed above are present in the run. This
+labeling rule applies when the SurfaceLayer supplies no source code of its own
+for the cell and the cell is not sea. A provider that supplies the native
+temperature fields but not the humidity fields therefore gives native
+``temperature_2m`` values, and its MOST cells are labeled
+``surface_layer_land``.
+
 The requested bundle consists of the requested continuous unified fields:
 temperature, humidity, or both. A source-only request follows the separate
 selection rule documented below. Selection is cell-local and request-aware. ERF

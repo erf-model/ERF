@@ -2892,6 +2892,22 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  "reads temperature but not qv"
                  "erf.bndry_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature/BndryFiles 'erf.bndry_input_var_names=temperature density velocity'")
   set_tests_properties(BndryPlanes_MoistTemperature_ReadWithoutQv PROPERTIES FIXTURES_REQUIRED BndryPlanesMoist)
+
+  # A reader that ends at the last plane time to within round-off: the writer's 60 steps of 0.02 s
+  # sum to 1.2000000000000006, and the reader's 75 steps of 0.016 s to 1.2000000000000008, 2 ULP
+  # past the last plane.  The reader stopped there on the bounds check of read_input_files.
+  set(_bp_end_bin ${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature_ReadToLastPlane)
+  file(MAKE_DIRECTORY ${_bp_end_bin})
+  file(COPY ${_bp_moist_dir}/BndryPlanes_MoistTemperature.i ${_bp_moist_dir}/input_sounding
+       DESTINATION ${_bp_end_bin})
+  resolve_test_exe("" "erf_exec" _bp_end_exe)
+  add_test(NAME BndryPlanes_MoistTemperature_ReadToLastPlane
+           COMMAND sh -c "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS} ${_bp_end_exe} BndryPlanes_MoistTemperature.i erf.bndry_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature/BndryFiles max_step=75 erf.fixed_dt=0.016 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 > ReadToLastPlane.log 2>&1 || ( tail -n 20 ReadToLastPlane.log && false )"
+           WORKING_DIRECTORY ${_bp_end_bin})
+  set_tests_properties(BndryPlanes_MoistTemperature_ReadToLastPlane PROPERTIES
+                       TIMEOUT 600 PROCESSORS 1 LABELS "regression"
+                       FIXTURES_REQUIRED BndryPlanesMoist
+                       ATTACHED_FILES_ON_FAIL "${_bp_end_bin}/ReadToLastPlane.log")
 endif()
 add_test_abort(BndryPlanes_MoistTemperature_WriteWithoutQv ${_bp_moist_dir}
                BndryPlanes_MoistTemperature_Write.i
@@ -4967,6 +4983,80 @@ add_test_abort(Fire_Abort_BuiltWithoutFire ${_fire_abort_dir} Terrain_Stress_Rid
 endif()
 endif()
 
+# The structure coupling (erf.structures.model, Source/MovingBodies/Coupling) with the
+# example model directory (Tests/StructureModelExample) compiled in: one point pushes
+# on still air in a periodic box with 50 N along x. With no friction or gravity, the
+# volume integral of x_velocity at t = 4 s is F t / rho_0 = 200 m^4/s (rho_0 = 1, and
+# the density stays 1 to 6e-9 at these speeds), checked to 1e-5 relative because
+# fvolumesum prints 6 significant digits; the model's fields reach the
+# ERF plotfile; and a restart from the mid-run checkpoint reproduces the final
+# plotfile exactly, and the model's checkpointed impulse (50 N for 4 s = 200 N s) is the
+# same in both logs.
+set(_smx_src ${CMAKE_CURRENT_SOURCE_DIR}/StructureModelExample)
+get_filename_component(_smx_src_abs "${_smx_src}" ABSOLUTE)
+set(_smx_in_build FALSE)
+foreach(_d IN LISTS ERF_STRUCTURE_MODEL_DIRS)
+  get_filename_component(_d_abs "${_d}" ABSOLUTE)
+  if(_d_abs STREQUAL _smx_src_abs)
+    set(_smx_in_build TRUE)
+  endif()
+endforeach()
+# A refined level 1 with the model on level 0 (the box indices are level-1 cells of 12.5 m).
+# Where level 1 covers the point (100 m to 300 m) the averaging down would remove the force:
+# with the check disabled the momentum integral at t = 4 s is 41.8 m^4/s instead of 200, so
+# the run must stop. Where level 1 covers only the lowest 50 m, below the kernel's reach
+# (50 m to 350 m), it must run.
+set(_smx_finer "amr.max_level=1 structure.example.level=0 erf.refinement_indicators=box1 erf.box1.max_level=1")
+if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as the fire tests do
+  if(ERF_ENABLE_MOVING_BODIES)
+    if(_smx_in_build)
+      set(_smx_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
+      resolve_test_exe("" "erf_exec" _smx_exe)
+      if(ERF_ENABLE_FCOMPARE AND ERF_PRECISION STREQUAL "DOUBLE")
+        set(_smx_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Structures_ExampleModel)
+        file(MAKE_DIRECTORY ${_smx_dir})
+        file(COPY ${_smx_src}/inputs_structure_example DESTINATION ${_smx_dir})
+        get_filename_component(_smx_tools "${FCOMPARE_EXE}" DIRECTORY)
+        get_filename_component(_smx_fcmp_name "${FCOMPARE_EXE}" NAME)
+        string(REPLACE "fcompare" "fvolumesum" _smx_fvs_name "${_smx_fcmp_name}")
+        set(_smx_fvs "${_smx_tools}/${_smx_fvs_name}")
+        add_test(NAME Structures_ExampleModel
+                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
+                 WORKING_DIRECTORY ${_smx_dir})
+        set_tests_properties(Structures_ExampleModel PROPERTIES
+            LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
+            ATTACHED_FILES_ON_FAIL "${_smx_dir}/straight.log;${_smx_dir}/momentum.txt;${_smx_dir}/restart.log")
+      endif()
+      set(_smx_fe_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Structures_ExampleModel_FinerLevelElsewhere)
+      file(MAKE_DIRECTORY ${_smx_fe_dir})
+      file(COPY ${_smx_src}/inputs_structure_example DESTINATION ${_smx_fe_dir})
+      add_test(NAME Structures_ExampleModel_FinerLevelElsewhere
+               COMMAND sh -c "${_smx_mpi} ${_smx_exe} inputs_structure_example max_step=2 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 ${_smx_finer} erf.box1.in_box_lo_indices=0 0 0 erf.box1.in_box_hi_indices=31 31 3 > run.log 2>&1 && grep -q 'structure example: t = 0.5 ' run.log"
+               WORKING_DIRECTORY ${_smx_fe_dir})
+      set_tests_properties(Structures_ExampleModel_FinerLevelElsewhere PROPERTIES
+          LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
+          ATTACHED_FILES_ON_FAIL "${_smx_fe_dir}/run.log")
+      add_test_abort(Structures_Abort_FinerLevelCovers ${_smx_src} inputs_structure_example
+                     "structure model .example. couples to level 0, but level 1 covers part of its support"
+                     "${_smx_finer} erf.box1.in_box_lo_indices=8 8 8 erf.box1.in_box_hi_indices=23 23 23")
+      add_test_abort(Structures_Abort_UnknownModel ${_smx_src} inputs_structure_example
+                     "erf.structures.model = .no_such_model. is not one of the structure models compiled in .*\"example\""
+                     "erf.structures.model=no_such_model")
+      add_test_abort(Structures_Abort_ExampleLevel ${_smx_src} inputs_structure_example
+                     "structure.example.level must be -1 .the finest level. or 0 to amr.max_level = 0, got 1"
+                     "structure.example.level=1")
+    elseif(NOT ERF_STRUCTURE_MODEL_DIRS)
+      add_test_abort(Structures_Abort_NoModelBuiltIn ${_smx_src} inputs_structure_example
+                     "erf.structures.model = .example. is not one of the structure models compiled in .none"
+                     "")
+    endif()
+  else()
+    add_test_abort(Structures_Abort_NoCoupling ${_smx_src} inputs_structure_example
+                   "erf.structures.model needs ERF built with the structure coupling"
+                   "")
+  endif()
+endif()
+
 #=============================================================================
 # The terrain Poisson operator at Neumann faces (#4272)
 #
@@ -5508,6 +5598,54 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
         CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
   endif()
 endif()
+
+#=============================================================================
+# erf.sample_line is a LineSampler of full-depth columns on level 0: its logs must agree
+# with erf.do_line_sampling text output of the same columns (test_files/SampleLine)
+#=============================================================================
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  function(add_test_sample_line TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    # Remove the logs and text files of an earlier pass: both are appended to
+    add_test(${TEST_NAME} sh -c
+        "rm -f col_a col_b dls_a.* dls_b.* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_sample_line.py col_a:dls_a col_b:dls_b")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_sample_line)
+  add_test_sample_line(SampleLine)
+
+  # Vertical lines given by real coordinates over a hill, by height above sea level and above
+  # the ground: each must sample the cells that hold its heights, and write their heights
+  function(add_test_line_sampling_terrain TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    set(_lines "top:16:16:0:300 far:0:0:0:300 top_high:16:16:150:420 across:x:16:150")
+    set(_agl "erf.sample_line_z_agl=1 erf.plot_file_1=agl_plt 'erf.sample_line_name=agl_top agl_far agl_top_high agl_across'")
+    set(_check "ERF_TOOLS=${PROJECT_SOURCE_DIR}/Exec/Tools ${ERF_TEST_PYTHON} check_line_heights.py")
+    add_test(${TEST_NAME} sh -c
+        "rm -rf plt0* agl_plt0* top.* far.* top_high.* across.* agl_top.* agl_far.* agl_top_high.* agl_across.* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${_check} plt00001 0 '' ${_lines} && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i ${_agl} > ${_log}.agl 2>&1 || ( tail -n 40 ${_log}.agl && false ) ) && ${_check} agl_plt00001 1 agl_ ${_lines}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_line_sampling_terrain)
+  add_test_line_sampling_terrain(LineSamplingTerrain)
+endif()
+
+# Line sampling: a line must run along sample_line_dir, and a line placed by height is not
+# supported with moving terrain (lines given by indices are)
+add_test_abort(LineSampling_Abort_NotAxisAligned ${CMAKE_CURRENT_SOURCE_DIR}/test_files/SampleLine SampleLine.i
+               "Line 0 of erf.sample_line_lo/hi is not along erf.sample_line_dir"
+               "erf.sample_line_hi=4 4 15 12 10 15")
+add_test_abort(LineSampling_Abort_NotAxisAlignedReal ${CMAKE_CURRENT_SOURCE_DIR}/test_files/LineSamplingTerrain LineSamplingTerrain.i
+               "Line 1 of erf.sample_line_lo/hi_real is not along erf.sample_line_dir"
+               "erf.sample_line_hi_real=40. 40. 300. -1240. -1200. 300. 40. 40. 420. 1240. 40. 150.")
+add_test_abort(LineSampling_Abort_MovingTerrain ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MovingTerrain_nosub MovingTerrain_nosub.i
+               "is not supported with erf.terrain_type = MovingFittedMesh"
+               "erf.do_line_sampling=1 erf.line_sampling_interval=1 erf.sample_line_lo_real=50. 20. 0. erf.sample_line_hi_real=50. 20. 100. erf.sample_line_dir=2")
 
 #=============================================================================
 # Performance tests

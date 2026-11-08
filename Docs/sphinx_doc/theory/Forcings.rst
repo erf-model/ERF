@@ -145,8 +145,9 @@ RK stage; if the type is FastExplicit then the damping terms are computed once p
 Either way, they are added explicitly.
 
 If the Rayleigh damping type is set to FastImplicit then the damping term for w only is included implicitly
-within the acoustic substepping algorithm; any additional Rayleigh damping (e.g. for u, v, or T) occurs
-as if the type is FastExplicit.
+within the acoustic substepping algorithm (when ``erf.rayleigh_damp_W`` is true), and is not also added
+explicitly; any additional Rayleigh damping (e.g. for u, v, or T) occurs as if the type is FastExplicit.
+The implicit form damps w towards zero rather than towards the reference profile.
 
 A level that takes no acoustic substeps (anelastic, pseudo-incompressible, or
 ``RK3_NoSubstepping``) has no substeps to apply them in, so with FastExplicit or FastImplicit

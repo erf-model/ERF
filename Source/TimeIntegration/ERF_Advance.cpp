@@ -198,6 +198,16 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
 #endif
 
+#ifdef ERF_USE_MOVING_BODIES
+    // **************************************************************************************
+    // Advance the structure model (erf.structures.model) over this step of its level,
+    // from the state at the start of the step; its momentum source then holds over the step
+    // **************************************************************************************
+    if (m_structure_model && lev == m_structure_model->level(finest_level)) {
+        advance_structure_model(lev, time, static_cast<Real>(dt_lev), U_old, V_old, W_old, S_old);
+    }
+#endif
+
     // **************************************************************************************
     // Update the radiation sources with the "old" state
     // **************************************************************************************
@@ -507,6 +517,15 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // ***********************************************************************************************
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
+    }
+
+    // A periodic face velocity is stored twice, at both ends of the domain; make the two copies equal
+    if (solverChoice.face_sync_int > 0 && (istep[lev] % solverChoice.face_sync_int == 0)
+        && geom[lev].isAnyPeriodic())
+    {
+        U_new.OverrideSync(geom[lev].periodicity());
+        V_new.OverrideSync(geom[lev].periodicity());
+        W_new.OverrideSync(geom[lev].periodicity());
     }
 
 #ifdef ERF_USE_FIRE
