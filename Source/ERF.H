@@ -2273,6 +2273,14 @@ private:
 
     /// Hand the structure model the mesh and the initial (or restart) state, once, in InitData_post
     void initialize_structure_model ();
+
+    /// Advance the structure model over this step of level lev, then check its support() against level lev+1
+    void advance_structure_model (int lev, double time, amrex::Real dt_lev,
+                                  const amrex::MultiFab& U_old, const amrex::MultiFab& V_old,
+                                  const amrex::MultiFab& W_old, const amrex::MultiFab& S_old);
+
+    /// Whether every map factor of level lev is 1 (the actuator core assumes so); a collective
+    bool structure_unit_map_factors (int lev) const;
 #endif
 
     //

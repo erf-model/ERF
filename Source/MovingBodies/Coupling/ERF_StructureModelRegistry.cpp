@@ -3,6 +3,8 @@
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
 
+#include <algorithm>
+#include <cstddef>
 #include <map>
 
 namespace {
@@ -65,4 +67,24 @@ make_structure_model_from_inputs (int max_level)
                                       : known) + ")");
     }
     return model;
+}
+
+void
+check_structure_plot_names (const StructureModel& model, const std::vector<std::string>& taken)
+{
+    const std::vector<std::string> names = model.plot_var_names();
+    for (std::size_t i = 0; i < names.size(); ++i) {
+        const std::string& n = names[i];
+        const std::string who = std::string("structure model \"") + model.name() + "\"";
+        if (n.empty()) {
+            amrex::Abort(who + " lists an empty plot variable name");
+        }
+        if (std::find(names.begin(), names.begin() + static_cast<std::ptrdiff_t>(i), n) != names.begin() + static_cast<std::ptrdiff_t>(i)) {
+            amrex::Abort(who + " lists the plot variable \"" + n + "\" twice");
+        }
+        if (std::find(taken.begin(), taken.end(), n) != taken.end()) {
+            amrex::Abort(who + " lists the plot variable \"" + n
+                         + "\", which ERF or another model already provides; give the model's names its own prefix");
+        }
+    }
 }

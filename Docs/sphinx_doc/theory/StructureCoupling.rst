@@ -33,9 +33,12 @@ and its checkpoint data.
        compiled-in model has stops the run, listing the names that are.
    * - ``level()``
      - The model names the AMR level it couples to; ERF calls ``advance()`` and
-       ``add_momentum_sources()`` on that level only. On a refined level the
-       model's points and kernels must stay inside the level's boxes, also after
-       a regrid; coarser levels see the force only through averaging down.
+       ``add_momentum_sources()`` on that level only. It must be the finest
+       level that covers the model's support. On a refined level the model's
+       points and kernels must stay inside the level's boxes, also after a
+       regrid. Coarser levels see the force only through averaging down. A finer
+       level would never see it: averaging down would overwrite the forced cells
+       with that level's unforced data.
    * - ``initialize()``
      - Once, after the initial data (or the checkpoint) exist and before the
        step-0 plotfile, and not again after a regrid (the model reads the mesh
@@ -48,19 +51,29 @@ and its checkpoint data.
      - Once per step of the model's level, with the state at the start of the
        step (``StructureStep``), before the step's Runge-Kutta stages. The model
        samples the wind, advances its structures and sets the momentum source.
+       ``StructureStep`` also says whether every map factor of the level is 1
+       now, so a level a regrid made is checked as well.
+   * - ``support()``
+     - Right after each ``advance()``: boxes [m] that hold the model's points
+       and their kernels' reach. When a level finer than the model's exists and
+       its boxes overlap a support box, ERF stops the run and asks for the
+       finer level (``structure.example.level`` for the example). On a
+       terrain-following mesh the check uses the finer level's lowest and
+       highest ground and spacing, so it errs on the side of stopping.
    * - ``add_momentum_sources()``
      - At every Runge-Kutta stage of the model's level: the model adds its force
        on the air [N/m\ :sup:`3`] to the face-centred momentum sources. The source
-       is held fixed over the step. A share that falls inside an embedded
-       boundary, immersed terrain or buildings is discarded there, as other
-       momentum is.
+       is held fixed over the step. ERF applies no mask to it: the model keeps
+       its kernels clear of embedded boundaries, immersed terrain and buildings.
    * - ``write_checkpoint()``
      - Each time ERF writes a checkpoint, under ``<checkpoint>/<model name>``.
        A model that restores its state in ``initialize()`` returns true from
        ``supports_restart()``; otherwise a restart stops the run.
    * - ``plot_var_names()``, ``fill_plot_var()``
      - The model's fields that ``erf.plot_vars_*`` may list, filled into the
-       ERF plotfile on every level.
+       ERF plotfile on every level. The names carry the model's prefix; an
+       empty name, a name listed twice or a name ERF or another model already
+       uses stops the run.
 
 Writing a model
 ---------------
@@ -129,6 +142,11 @@ pressure waves change by at most :math:`6 \times 10^{-9}`. The test reads the
 volume integral of ``x_velocity`` from the plotfile (``fvolumesum``, which prints
 6 significant digits) and checks it against 200 m\ :sup:`4`/s to a relative
 :math:`10^{-5}`, then restarts from
-the mid-run checkpoint and compares the final plotfiles at zero tolerance. The
+the mid-run checkpoint and compares the final plotfiles at zero tolerance.
+
+Two more runs check the finer-level rule with a refined level 1 and the model on
+level 0: ``Structures_Abort_FinerLevelCovers`` refines the box around the point
+and must stop; ``Structures_ExampleModel_FinerLevelElsewhere`` refines only the
+lowest 50 m, below the kernel's reach, and must run. The
 unit tests ``StructureRegistry.*`` check the registry and the selection by
-``erf.structures.model``.
+``erf.structures.model`` and the plot-name checks.

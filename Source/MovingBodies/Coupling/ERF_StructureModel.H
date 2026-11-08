@@ -6,6 +6,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
+#include <AMReX_RealBox.H>
 
 #include <string>
 #include <vector>
@@ -38,6 +39,9 @@
  *   regrid: what the model needs of the mesh it reads from StructureStep each step;
  * - advance() once per step of level(), with the state at the start of the step,
  *   before that step's Runge-Kutta stages;
+ * - support() right after each advance(): when a finer level than level() exists,
+ *   ERF stops the run if that level's boxes overlap the support (the force would
+ *   be lost there, see level());
  * - add_momentum_sources() at every Runge-Kutta stage of level();
  * - write_checkpoint() each time ERF writes a checkpoint;
  * - plot_var_names() each time ERF builds its plotfile variable list, and
@@ -92,6 +96,7 @@ struct StructureStep
     const amrex::MultiFab& cons;       ///< The conserved state (rho, rho theta, the scalars; rho k with the k-equation RANS)
     const amrex::MultiFab* z_phys_nd;  ///< Nodal height [m]; nullptr on a uniform-dz mesh, as in StructureInit
     const amrex::MultiFab* detJ_cc;    ///< Cell Jacobian; nullptr on a uniform-dz mesh, as in StructureInit
+    bool                   unit_map_factors; ///< Every map factor of level lev is 1 now (checked each step, so also after a regrid)
 };
 
 /**
@@ -110,14 +115,30 @@ public:
      *
      * ERF calls advance() and add_momentum_sources() on this level only.
      * Aborts, naming the model's input, when the model cannot couple to a level
-     * of this run (for example a level above finest_level). On a refined level
-     * the model's points and their kernels must lie inside the level's boxes,
-     * also after a regrid (erf_actuator::points_covered_by checks it), and the
-     * force reaches the coarser levels only through ERF's averaging down.
+     * of this run (for example a level above finest_level).
+     *
+     * The level must be the finest level that covers the model's support. On a
+     * refined level the model's points and their kernels must lie inside the
+     * level's boxes, also after a regrid (erf_actuator::points_covered_by checks
+     * it). The force reaches the coarser levels only through ERF's averaging down.
+     * It never reaches a finer level: averaging down would overwrite the forced
+     * cells with that level's unforced data, so ERF stops the run when a finer
+     * level's boxes overlap support().
      *
      * @param[in] finest_level  ERF's finest level now
      */
     virtual int level (int finest_level) const = 0;
+
+    /**
+     * @brief Where the model's force can be nonzero this step
+     *
+     * Boxes in physical coordinates [m] (z as the height of z_phys_nd on a
+     * terrain-following mesh) that hold every point together with its kernel's
+     * reach, as of the last advance(). The same on every rank. ERF checks them
+     * against the next finer level's boxes after each advance() (see level()).
+     * The boxes may extend past the domain; a periodic direction wraps.
+     */
+    virtual std::vector<amrex::RealBox> support () const = 0;
 
     /// The model wants StructureInit::immersed_terrain_surface (ERF builds it only on request).
     virtual bool wants_immersed_terrain_surface () const { return false; }
@@ -145,9 +166,8 @@ public:
      *
      * Face-centred sources on level lev [N/m^3, i.e. kg/(m^2 s^2)], added (not set),
      * held fixed over the step. Called at every Runge-Kutta stage, after ERF's
-     * own sources: a share that falls on faces inside an embedded boundary,
-     * immersed terrain or buildings is discarded there with the rest of the
-     * momentum, so the model keeps its points clear of them.
+     * own sources. ERF applies no mask to them: the model keeps its kernels clear
+     * of embedded boundaries, immersed terrain and buildings.
      */
     virtual void add_momentum_sources (int lev,
                                        amrex::MultiFab& xmom_src,
@@ -179,7 +199,9 @@ public:
      *
      * The names the deck may list in erf.plot_vars_*; they start with the model's
      * own prefix (for example "conductor_") so they never collide with an ERF
-     * variable. The answer depends on the model's inputs only. The default lists none.
+     * variable. ERF stops the run on an empty name, a name listed twice, or a
+     * name ERF or another model already uses. The answer depends on the model's
+     * inputs only. The default lists none.
      */
     virtual std::vector<std::string> plot_var_names () const { return {}; }
 

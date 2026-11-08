@@ -11,6 +11,9 @@
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Utils.H"
+#ifdef ERF_USE_MOVING_BODIES
+#include "ERF_StructureModelRegistry.H"
+#endif
 #include <AMReX_buildInfo.H>
 
 using namespace amrex;
@@ -281,6 +284,24 @@ ERF::appendPlot3DVariables (const Vector<std::string>& plot_var_names,
 #ifdef ERF_USE_MOVING_BODIES
     // The structure model's fields; filled after the fire's in FillPlot3DVars, in this order
     if (m_structure_model) {
+        // Every name ERF and the other models provide, requested or not: a model name among
+        // them would be dropped here and still filled there
+        std::vector<std::string> taken(cons_names.begin(), cons_names.end());
+        taken.insert(taken.end(), derived_names.begin(), derived_names.end());
+        {
+            Vector<std::string> micro_names;
+            micro->GetPlotVarNames(micro_names);
+            taken.insert(taken.end(), micro_names.begin(), micro_names.end());
+        }
+#ifdef ERF_USE_PARTICLES
+        taken.insert(taken.end(), particle_mesh_plot_names.begin(), particle_mesh_plot_names.end());
+#endif
+#ifdef ERF_USE_FIRE
+        if (m_fire_coupler) {
+            for (const auto& n : m_fire_coupler->plot_var_names()) { taken.push_back(n); }
+        }
+#endif
+        check_structure_plot_names(*m_structure_model, taken);
         for (const auto& plot_name : m_structure_model->plot_var_names()) {
             if (containerHasElement(plot_var_names, plot_name) &&
                 !containerHasElement(tmp_plot_names, plot_name)) {

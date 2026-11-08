@@ -6,8 +6,9 @@
  * These tests register models from this file alone, as a model directory outside
  * ERF does, and check that erf.structures.model finds them, that an unknown name
  * stops the run with the names it accepts, that a name registered twice or an
- * empty name stops the run, and that the defaults of the optional methods hold
- * (no restart support, no plot fields, zeros from fill_plot_var).
+ * empty name stops the run, that the defaults of the optional methods hold
+ * (no restart support, no plot fields, zeros from fill_plot_var), and that plot
+ * names that are empty, repeated or already taken stop the run.
  */
 #include <gtest/gtest.h>
 
@@ -18,6 +19,7 @@
 #include <AMReX_ParmParse.H>
 
 #include <algorithm>
+#include <utility>
 
 using namespace amrex;
 
@@ -32,8 +34,18 @@ public:
     int level (int finest_level) const override { return finest_level; }
     void initialize (const StructureInit&) override {}
     void advance (const StructureStep&) override {}
+    std::vector<RealBox> support () const override { return {}; }
     void add_momentum_sources (int, MultiFab&, MultiFab&, MultiFab&) const override {}
     int m_max_level;
+};
+
+/// A model whose plot names a test sets
+class PlotNamesTestModel : public RegistryTestModel
+{
+public:
+    explicit PlotNamesTestModel (std::vector<std::string> names) : RegistryTestModel(0), m_names(std::move(names)) {}
+    std::vector<std::string> plot_var_names () const override { return m_names; }
+    std::vector<std::string> m_names;
 };
 
 class RegistryTestModelB : public RegistryTestModel
@@ -123,4 +135,22 @@ TEST(StructureRegistry, OptionalMethodDefaults)
     EXPECT_EQ(dst.min(1), Real(0.0));
     EXPECT_EQ(dst.max(1), Real(0.0));
     EXPECT_EQ(dst.min(0), Real(7.0));   // the other component is left alone
+}
+
+TEST(StructureRegistry, PlotNamesMustBeFreeAndDistinct)
+{
+    const std::vector<std::string> taken{"density", "x_velocity", "fire_phi"};
+    // Distinct names that ERF does not use pass
+    check_structure_plot_names(PlotNamesTestModel({"test_fx", "test_fy"}), taken);
+
+    const std::string clash = erf_gtest::abort_message([&]{
+        check_structure_plot_names(PlotNamesTestModel({"test_fx", "x_velocity"}), taken); });
+    EXPECT_NE(clash.find("lists the plot variable \"x_velocity\", which ERF or another model already provides"),
+              std::string::npos) << clash;
+    const std::string twice = erf_gtest::abort_message([&]{
+        check_structure_plot_names(PlotNamesTestModel({"test_fx", "test_fx"}), taken); });
+    EXPECT_NE(twice.find("lists the plot variable \"test_fx\" twice"), std::string::npos) << twice;
+    const std::string empty = erf_gtest::abort_message([&]{
+        check_structure_plot_names(PlotNamesTestModel({""}), taken); });
+    EXPECT_NE(empty.find("lists an empty plot variable name"), std::string::npos) << empty;
 }

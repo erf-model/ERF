@@ -51,6 +51,16 @@ std::unique_ptr<StructureModel> make_structure_model (const std::string& name, i
  */
 std::unique_ptr<StructureModel> make_structure_model_from_inputs (int max_level);
 
+/**
+ * @brief Stop the run when the model's plot_var_names() cannot all be plotted
+ *
+ * Aborts, naming the model and the name, on an empty name, a name the model lists
+ * twice, or a name in taken (the names ERF and the other models already provide).
+ * ERF's plotfile assembly would otherwise drop the name from the list and still
+ * fill it, and fail with a less helpful message.
+ */
+void check_structure_plot_names (const StructureModel& model, const std::vector<std::string>& taken);
+
 #define ERF_STRUCTURE_MODEL_CONCAT_(a, b) a##b
 #define ERF_STRUCTURE_MODEL_CONCAT(a, b) ERF_STRUCTURE_MODEL_CONCAT_(a, b)
 

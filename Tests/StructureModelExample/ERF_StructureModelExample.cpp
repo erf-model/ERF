@@ -94,6 +94,9 @@ public:
 
     void advance (const StructureStep& step) override
     {
+        if (!step.unit_map_factors) {
+            Abort("structure model \"example\": the actuator core needs map factors of 1");
+        }
         // The point and its kernel (3 epsilon) must lie inside the level's boxes, also after a regrid
         std::string outside;
         if (!erf_actuator::points_covered_by(step.xvel.boxArray(), step.geom, m_pos, Real(3.0) * m_eps, outside,
@@ -122,6 +125,13 @@ public:
 
         Print() << std::setprecision(10) << "structure example: t = " << step.time + step.dt
                 << " impulse_x = " << m_impulse[0] << " wind_x = " << m_wind[0] << "\n";
+    }
+
+    std::vector<RealBox> support () const override
+    {
+        // The point with its kernel's reach (3 epsilon), as advance() checks the coverage
+        const Real r = Real(3.0) * m_eps;
+        return {RealBox(m_pos[0] - r, m_pos[1] - r, m_pos[2] - r, m_pos[0] + r, m_pos[1] + r, m_pos[2] + r)};
     }
 
     void add_momentum_sources (int /*lev*/, MultiFab& xmom_src, MultiFab& ymom_src, MultiFab& zmom_src) const override
