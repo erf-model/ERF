@@ -561,6 +561,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diagnostics/ERF_SeaLevelPressure.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
+       ${SRC_DIR}/IO/ERF_BuildDescription.cpp
        ${SRC_DIR}/IO/ERF_NoahMPGitHash.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
        ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp

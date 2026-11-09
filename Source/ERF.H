@@ -2644,6 +2644,8 @@ public:
                        int artifact_step,
                        double artifact_time_seconds) const;
     static void writeBuildInfo (std::ostream& os);
+    static void writeBuildInfoJSON (std::ostream& os);
+    static void writeBuildInfoYAML (std::ostream& os);
 
     static void print_banner (MPI_Comm /*comm*/, std::ostream& /*out*/);
     static void print_usage (MPI_Comm /*comm*/, std::ostream& /*out*/);
