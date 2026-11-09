@@ -2282,6 +2282,16 @@ private:
 
     /// Whether every map factor of level lev is 1 (the actuator core assumes so); a collective
     bool structure_unit_map_factors (int lev) const;
+
+    /// Restrict the structure model's latest source onto level lev < level(), for lev's next step
+    void make_structure_coarse_sources (int lev);
+
+    /// The structure model's source restricted onto a coarser level (x, y, z faces); undefined when unset
+    amrex::Vector<std::array<amrex::MultiFab,AMREX_SPACEDIM>> m_structure_crse_src;
+
+    /// The grids of the model's level at its last advance(): the source add_momentum_sources() returns lives there
+    amrex::BoxArray            m_structure_src_ba;
+    amrex::DistributionMapping m_structure_src_dm;
 #endif
 
     //

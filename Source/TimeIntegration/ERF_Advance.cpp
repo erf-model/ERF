@@ -197,6 +197,12 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     if (m_structure_model && lev == m_structure_model->level(finest_level)) {
         advance_structure_model(lev, time, static_cast<Real>(dt_lev), U_old, V_old, W_old, S_old);
     }
+
+    // On a coarser level, the model's latest source restricted onto this level, held over the
+    // step, so that the air under the finer level feels the force while this level steps
+    if (m_structure_model && lev < m_structure_model->level(finest_level)) {
+        make_structure_coarse_sources(lev);
+    }
 #endif
 
     // **************************************************************************************
