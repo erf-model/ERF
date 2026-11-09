@@ -3,12 +3,16 @@
 #include <AMReX_Box.H>
 #include <AMReX_BoxIterator.H>
 #include <AMReX_Gpu.H>
+#include <AMReX_GpuContainers.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_YAFluxRegister.H>
 
 #include "ERF_AdvectionSrcForScalars.H"
 #include "ERF_SBMAdvectionBoundary.H"
+#include "ERF_SBMAMRFluxRegister.H"
+#include "ERF_SBMAMRTransfer.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SBMRemapping.H"
 #include "ERF_SBMConstraintGroups.H"
@@ -25,6 +29,7 @@
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -76,6 +81,104 @@ make_layout (const erf_sbm::MomentMode mode, const bool with_property = false)
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
+#if !defined(AMREX_USE_FLOAT)
+struct A4FixturePoint
+{
+    Real rho;
+    Real mass0;
+    Real number0;
+    Real mass1;
+    Real number1;
+    Real property0;
+    Real property1;
+};
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE A4FixturePoint
+a4_fixture_point (const Real x, const Real y, const Real z, const Real time)
+{
+    A4FixturePoint point{};
+    point.rho = Real(1.0) + Real(0.07) * x + Real(0.025) * y +
+        Real(0.015) * z + Real(0.12) * time + Real(0.018) * x * time;
+    point.number0 = Real(0.012) + Real(0.0011) * x + Real(0.0003) * y +
+        Real(0.0002) * z + Real(0.0007) * time + Real(0.00015) * x * time;
+    const Real mean0 = Real(0.25) + Real(0.012) * x + Real(0.004) * y +
+        Real(0.002) * z + Real(0.014) * time + Real(0.003) * x * time;
+    point.mass0 = point.number0 * mean0;
+    point.number1 = Real(0.008) + Real(0.0004) * x + Real(0.0002) * y +
+        Real(0.0001) * z + Real(0.0003) * time + Real(0.00008) * x * time;
+    const Real mean1 = Real(0.70) + Real(0.009) * x + Real(0.003) * y +
+        Real(0.001) * z + Real(0.008) * time + Real(0.002) * x * time;
+    point.mass1 = point.number1 * mean1;
+    point.property0 = point.number0 *
+        (Real(0.18) + Real(0.006) * x + Real(0.002) * y + Real(0.005) * time);
+    point.property1 = point.number1 *
+        (Real(0.32) + Real(0.004) * x + Real(0.001) * y + Real(0.003) * time);
+    return point;
+}
+
+Real a4_weno_z3_left (const Real sm2, const Real sm1, const Real s)
+{
+    const Real b1 = (sm1 - sm2) * (sm1 - sm2);
+    const Real b2 = (s - sm1) * (s - sm1);
+    const Real tau = std::abs(b2 - b1);
+    const Real eps = sizeof(Real) == sizeof(float)
+        ? Real(1.0e-12) : Real(1.0e-40);
+    const Real w1 = Real(1.0 / 3.0) *
+        (Real(1.0) + tau * tau / ((eps + b1) * (eps + b1)));
+    const Real w2 = Real(2.0 / 3.0) *
+        (Real(1.0) + tau * tau / ((eps + b2) * (eps + b2)));
+    return (w1 * (-sm2 + Real(3.0) * sm1) +
+            w2 * (sm1 + s)) / (Real(2.0) * (w1 + w2));
+}
+
+void fill_a4_fixture_state (MultiFab& state, MultiFab& density,
+                            const bool fine, const Real time,
+                            const int mass0, const int number0,
+                            const int property0)
+{
+    const int scale = fine ? 2 : 1;
+    for (amrex::MFIter mfi(state, amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto values = state.array(mfi);
+        const auto rho = density.array(mfi);
+        const int m0 = mass0, n0 = number0;
+        const int m1 = mass0 + 1, n1 = number0 + 1, p0 = property0;
+        amrex::ParallelFor(box,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                const Real x = static_cast<Real>(i) / scale;
+                const Real y = static_cast<Real>(j) / scale;
+                const Real z = static_cast<Real>(k) / scale;
+                const A4FixturePoint q = a4_fixture_point(x, y, z, time);
+                const Real state_rho = fine ? Real(1.0) : q.rho;
+                rho(i, j, k, Rho_comp) = state_rho;
+                values(i, j, k, m0) = state_rho * q.mass0;
+                values(i, j, k, n0) = state_rho * q.number0;
+                values(i, j, k, m1) = state_rho * q.mass1;
+                values(i, j, k, n1) = state_rho * q.number1;
+                values(i, j, k, p0) = state_rho * q.property0;
+                values(i, j, k, p0 + 1) = state_rho * q.property1;
+            });
+    }
+}
+
+void set_a4_x_face_velocity (MultiFab& avg_xmom, const IntVect& face,
+                             const Real velocity)
+{
+    for (amrex::MFIter mfi(avg_xmom, amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto u = avg_xmom.array(mfi);
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j,
+                                                      int k) noexcept {
+            if ((i == face[0] || i == face[0] + 1) &&
+                j == face[1] && k == face[2])
+                u(i, j, k, 0) = velocity;
+        });
+    }
+}
+#endif
+
 BoxArray
 project_to_xy (const BoxArray& cell_ba)
 {
@@ -109,6 +212,7 @@ struct RunOptions
     bool mapped_geometry{false};
     bool advance_all_rk3_stages{false};
     bool verify_spectral_ledger_identity{false};
+    bool verify_direct_register_reference{false};
     int completed_steps{1};
     bool amplify_corrector_input{false};
     bool distinct_density_roles{false};
@@ -529,9 +633,36 @@ run_transport (const RunOptions& options)
     erf_sbm::SBMStateManager state_manager(layout, 1);
     state_manager.define(0, ba, dm, 0.0);
     erf_sbm::SBMTransport transport(state_manager.layout(),
-                                    options.verify_spectral_ledger_identity ? 2 : 1,
+                                    (options.verify_spectral_ledger_identity ||
+                                     options.verify_direct_register_reference) ? 2 : 1,
                                     options.max_groups_per_chunk);
     transport.define(0, ba, dm);
+
+    std::unique_ptr<erf_sbm::SBMAMRFluxRegister> direct_register;
+    BoxArray fine_interface_ba;
+    DistributionMapping fine_interface_dm;
+    std::unique_ptr<Geometry> fine_interface_geom;
+    const IntVect interface_ratio(2);
+    if (options.verify_direct_register_reference) {
+        const Box fine_domain = amrex::refine(domain, interface_ratio);
+        const Box covered_coarse(
+            IntVect(nx / 4, 0, 0), IntVect(3 * nx / 4 - 1, ny - 1, nz - 1));
+        fine_interface_ba = BoxArray(amrex::refine(covered_coarse,
+                                                   interface_ratio));
+        fine_interface_dm = DistributionMapping(fine_interface_ba);
+        const amrex::RealBox fine_physical({0.0, 0.0, 0.0},
+                                           {1.0, 1.0, 1.0});
+        const int fine_periodic[AMREX_SPACEDIM] = {1, 1, 1};
+        fine_interface_geom = std::make_unique<Geometry>(
+            fine_domain, &fine_physical, amrex::CoordSys::cartesian,
+            fine_periodic);
+        direct_register =
+            std::make_unique<erf_sbm::SBMAMRFluxRegister>();
+        direct_register->define(fine_interface_ba, ba, fine_interface_dm, dm,
+                                *fine_interface_geom, geom, interface_ratio,
+                                1, layout.ncomp());
+        transport.set_amr_flux_registers(0, direct_register.get(), nullptr);
+    }
 
     MultiFab detj(ba, dm, 1, 0);
     const auto map_ba = project_to_xy(ba);
@@ -845,6 +976,18 @@ run_transport (const RunOptions& options)
             layout, initial, conserved_input, avg_xmom, avg_ymom, avg_zmom,
             transport.static_measure(0), geom, dt);
     }
+    if (direct_register) {
+        if (options.completed_steps != 1 ||
+            (!options.advance_all_rk3_stages && !options.anelastic_heun)) {
+            ADD_FAILURE() << "direct YA reference check requires one complete RK3 or Heun step";
+            return {};
+        }
+        if (!direct_register->begin_interval(0.0, dt, 2, diagnostic) ||
+            !transport.begin_physical_step(0, 0.0, dt, diagnostic)) {
+            ADD_FAILURE() << diagnostic;
+            return {};
+        }
+    }
     if (!state_manager.begin_step(0, 0.0, diagnostic)) {
         ADD_FAILURE() << diagnostic;
         return {};
@@ -1097,6 +1240,114 @@ run_transport (const RunOptions& options)
                     << "component=" << component << " step=" << step;
             }
         }
+    }
+
+    if (direct_register) {
+        if (!transport.accept_physical_step(0, 0.0, dt, diagnostic)) {
+            ADD_FAILURE() << "coarse transport step rejected by direct YA owner: "
+                          << diagnostic;
+            return {};
+        }
+
+        // This fixture supplies real coarse-side rates from the FCT
+        // transport. Complete the interface with two zero fine substeps so
+        // the owner can form a reflux candidate without inventing any fine
+        // transfer. The reference below uses the full accepted integral
+        // ledger produced by the same transport stages.
+        erf_auxiliary::MappedFaceFluxRate zero_fine_rate;
+        zero_fine_rate.define(fine_interface_ba, fine_interface_dm,
+                              layout.ncomp(), 0);
+        zero_fine_rate.setVal(Real(0.0));
+        std::vector<int> global_components(
+            static_cast<std::size_t>(layout.ncomp()));
+        for (int component = 0; component < layout.ncomp(); ++component) {
+            global_components[static_cast<std::size_t>(component)] = component;
+        }
+        const auto method = options.anelastic_heun
+            ? erf_auxiliary::HostIntegrator::AnelasticHeun
+            : erf_auxiliary::HostIntegrator::CompressibleRK3;
+        const int stages = options.anelastic_heun ? 2 : 3;
+        for (int substep = 0; substep < 2; ++substep) {
+            const double fine_begin = dt * static_cast<double>(substep) / 2.0;
+            const double fine_end = dt * static_cast<double>(substep + 1) / 2.0;
+            const double fine_dt = fine_end - fine_begin;
+            if (!direct_register->begin_level_step(false, fine_begin, fine_end,
+                                                   diagnostic)) {
+                ADD_FAILURE() << diagnostic;
+                return {};
+            }
+            for (int stage = 0; stage < stages; ++stage) {
+                if (!direct_register->begin_stage(false, method, stage,
+                                                  fine_begin, diagnostic)) {
+                    ADD_FAILURE() << diagnostic;
+                    return {};
+                }
+                const double ledger_time = options.anelastic_heun
+                    ? 0.5 * fine_dt : (stage == 2 ? fine_dt : 0.0);
+                if (!direct_register->add_stage_rates(
+                        false, zero_fine_rate, global_components, ledger_time,
+                        diagnostic) ||
+                    !direct_register->finish_stage(false, diagnostic)) {
+                    ADD_FAILURE() << diagnostic;
+                    return {};
+                }
+            }
+            if (!direct_register->accept_level_step(false, fine_begin, fine_end,
+                                                    diagnostic)) {
+                ADD_FAILURE() << diagnostic;
+                return {};
+            }
+        }
+
+        amrex::YAFluxRegister reference_register(
+            fine_interface_ba, ba, fine_interface_dm, dm,
+            *fine_interface_geom, geom, interface_ratio, 1, layout.ncomp());
+        reference_register.reset();
+        const auto& integrated =
+            transport.completed_spectral_ledger(0).integrated_flux();
+        MultiFab no_allocation_cells(
+            ba, dm, 1, 0, amrex::MFInfo().SetAlloc(false));
+        const auto dx = geom.CellSizeArray();
+        const amrex::RunOn run_on = amrex::Gpu::inLaunchRegion()
+            ? amrex::RunOn::Gpu : amrex::RunOn::Host;
+        for (amrex::MFIter mfi(no_allocation_cells,
+                               amrex::TilingIfNotGPU());
+             mfi.isValid(); ++mfi) {
+            std::array<amrex::FArrayBox const*, AMREX_SPACEDIM> faces{};
+            for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
+                faces[static_cast<std::size_t>(direction)] =
+                    &integrated.dir(direction)[mfi];
+            }
+            reference_register.CrseAdd(
+                mfi, faces, dx.data(), Real(1.0), 0, 0, layout.ncomp(),
+                run_on);
+        }
+        MultiFab direct_candidate(ba, dm, layout.ncomp(), 0);
+        MultiFab reference_candidate(ba, dm, layout.ncomp(), 0);
+        direct_candidate.setVal(Real(0.0));
+        reference_candidate.setVal(Real(0.0));
+        if (!direct_register->reflux(direct_candidate, diagnostic)) {
+            ADD_FAILURE() << diagnostic;
+            return {};
+        }
+        reference_register.Reflux(reference_candidate, 0, 0, layout.ncomp());
+        amrex::Gpu::streamSynchronize();
+        // norm0 skips NaN, so check finiteness before comparing.
+        EXPECT_TRUE(direct_candidate.is_finite(0, layout.ncomp(), 0));
+        EXPECT_TRUE(reference_candidate.is_finite(0, layout.ncomp(), 0));
+        MultiFab direct_reference_error(ba, dm, layout.ncomp(), 0);
+        MultiFab::Copy(direct_reference_error, direct_candidate, 0, 0,
+                       layout.ncomp(), 0);
+        direct_reference_error.minus(reference_candidate, 0,
+                                     layout.ncomp(), 0);
+        const Real comparison_scale = std::max(
+            {direct_candidate.norm0(), reference_candidate.norm0(), Real(1.0)});
+        EXPECT_LE(direct_reference_error.norm0(),
+                  Real(4096.0) * std::numeric_limits<Real>::epsilon() *
+                      comparison_scale)
+            << "limiter-accepted direct YA contributions differ from the "
+               "completed-integral reference";
+        EXPECT_TRUE(direct_register->accept_reflux(diagnostic)) << diagnostic;
     }
 
     const auto& current_spectrum = state_manager.new_state(0);
@@ -1813,6 +2064,530 @@ void run_host_slow_copy_preserves_accepted_liquid_projection_test ()
     EXPECT_EQ(projection_error.norm0(1), Real(0.0));
 }
 
+struct G1GhostSample
+{
+    Real physical{Real(-1.0)};
+    Real endpoint{Real(-1.0)};
+    int physical_hit{0};
+    int endpoint_hit{0};
+};
+
+void run_coarse_stage_g1_ghost_test (const bool inject_stale_write_fault = false,
+                                    const bool rounded_three_substeps = false,
+                                    const int quotient_fault = 0,
+                                    const bool two_moment_attached = false,
+                                    const IntVect probe_cell = IntVect(1, 3, 3),
+                                    const int probe_component = 0,
+                                    G1GhostSample* sample_result = nullptr,
+                                    const int probe_stage = -1,
+                                    const int probe_role = 0,
+                                    const bool full_rk3_step = false,
+                                    const bool componentwise_parent_fill = true,
+                                    const bool omit_write_tally = false)
+{
+    const erf_sbm::SBMLayout layout =
+        make_layout(two_moment_attached ? erf_sbm::MomentMode::TwoMoment
+                                        : erf_sbm::MomentMode::OneMoment,
+                    two_moment_attached);
+    const Box coarse_domain(IntVect(0, 0, 0), IntVect(3, 3, 3));
+    const Box fine_domain = amrex::refine(coarse_domain, IntVect(2));
+    const BoxArray coarse_ba(coarse_domain);
+    const DistributionMapping coarse_dm(coarse_ba);
+    const BoxArray fine_ba(amrex::refine(
+        Box(IntVect(1, 1, 1), IntVect(2, 2, 2)), IntVect(2)));
+    const DistributionMapping fine_dm(fine_ba);
+    const amrex::RealBox fine_physical({0.0, 0.0, 0.0},
+                                       {1.0, 1.0, 1.0});
+    const int periodic[AMREX_SPACEDIM] = {1, 1, 1};
+    const Geometry fine_geom(fine_domain, &fine_physical,
+                             amrex::CoordSys::cartesian, periodic);
+    const double coarse_begin =
+        (rounded_three_substeps || two_moment_attached) ? 0.1 : 0.0;
+    const double coarse_end =
+        (rounded_three_substeps || two_moment_attached) ? 0.2 : 1.0;
+    const double fine_dt = rounded_three_substeps
+        ? (coarse_end - coarse_begin) / 3.0 : (coarse_end - coarse_begin);
+
+    erf_sbm::SBMStateManager state_manager(layout, 2);
+    std::string diagnostic;
+    state_manager.define(0, coarse_ba, coarse_dm, coarse_begin);
+    state_manager.define(1, fine_ba, fine_dm, coarse_begin);
+    const auto set_two_moment_state = [&layout] (MultiFab& state,
+                                                  const bool future) {
+        state.setVal(Real(0.0));
+        const auto& population = layout.populations().front();
+        const int property = layout.property_offset(0);
+        const std::array<Real, 6> values = future
+            ? std::array<Real, 6>{Real(1.2), Real(1.4), Real(4.0),
+                                  Real(2.0), Real(0.8), Real(0.4)}
+            : std::array<Real, 6>{Real(0.3), Real(0.7), Real(2.0),
+                                  Real(1.0), Real(0.2), Real(0.1)};
+        state.setVal(values[0], population.mass_offset, 1, 0);
+        state.setVal(values[1], population.mass_offset + 1, 1, 0);
+        state.setVal(values[2], population.number_offset, 1, 0);
+        state.setVal(values[3], population.number_offset + 1, 1, 0);
+        state.setVal(values[4], property, 1, 0);
+        state.setVal(values[5], property + 1, 1, 0);
+    };
+    if (two_moment_attached) {
+        set_two_moment_state(state_manager.new_state_for_initialization(0), false);
+        set_two_moment_state(state_manager.new_state_for_initialization(1), false);
+        ASSERT_TRUE(erf_sbm::authoritative_state_admissible(
+            state_manager.new_state(0), layout, 0, &diagnostic)) << diagnostic;
+        ASSERT_TRUE(erf_sbm::authoritative_state_admissible(
+            state_manager.new_state(1), layout, 1, &diagnostic)) << diagnostic;
+    } else {
+        state_manager.new_state_for_initialization(0).setVal(Real(1.0));
+        state_manager.new_state_for_initialization(1).setVal(Real(1.0));
+    }
+    if (quotient_fault == 1) {
+        // Make the first requested stage itself unrepresentable.  A huge
+        // future endpoint alone can drive WENO's smoothness arithmetic out
+        // of range before the next stage reaches the intended quotient check.
+        state_manager.new_state_for_initialization(0).setVal(
+            std::numeric_limits<Real>::max(), 0, 1, 0);
+    }
+    MultiFab coarse_rho_old(coarse_ba, coarse_dm, 3, 0);
+    MultiFab coarse_rho_new(coarse_ba, coarse_dm, 3, 0);
+    coarse_rho_old.setVal(Real(0.0));
+    coarse_rho_new.setVal(Real(0.0));
+    Real rho_old_value = Real(1.0);
+    Real rho_new_value = Real(3.0);
+    if (quotient_fault == 1) {
+        rho_old_value = rho_new_value = std::numeric_limits<Real>::min();
+    } else if (quotient_fault == 2) {
+        rho_old_value = rho_new_value = std::numeric_limits<Real>::max();
+    } else if (quotient_fault == 3) {
+        rho_old_value = Real(0.0);
+    }
+    coarse_rho_old.setVal(rho_old_value, Rho_comp, 1, 0);
+    coarse_rho_new.setVal(rho_new_value, Rho_comp, 1, 0);
+    if (quotient_fault == 2) {
+        state_manager.new_state_for_initialization(0).setVal(
+            std::numeric_limits<Real>::denorm_min(), 0, 1, 0);
+    }
+    ASSERT_TRUE(state_manager.begin_step(0, coarse_begin, diagnostic)) << diagnostic;
+    if (two_moment_attached) {
+        set_two_moment_state(state_manager.new_target_storage(0), true);
+        ASSERT_TRUE(erf_sbm::authoritative_state_admissible(
+            state_manager.new_target_storage(0), layout, 0, &diagnostic))
+            << diagnostic;
+    } else {
+        state_manager.new_target_storage(0).setVal(Real(9.0));
+    }
+    if (quotient_fault == 1) {
+        state_manager.new_target_storage(0).setVal(
+            std::numeric_limits<Real>::max(), 0, 1, 0);
+    } else if (quotient_fault == 2) {
+        state_manager.new_target_storage(0).setVal(
+            std::numeric_limits<Real>::denorm_min(), 0, 1, 0);
+    } else if (quotient_fault == 4) {
+        state_manager.new_target_storage(0).setVal(
+            std::numeric_limits<Real>::quiet_NaN(), 0, 1, 0);
+    }
+    ASSERT_TRUE(state_manager.accept_stage_target(0, coarse_end, true, diagnostic))
+        << diagnostic;
+
+    erf_sbm::SBMTransport transport(layout, 2, 16, false);
+    transport.define(0, coarse_ba, coarse_dm);
+    transport.define(1, fine_ba, fine_dm);
+    MultiFab coarse_detj(coarse_ba, coarse_dm, 1, 0);
+    MultiFab fine_detj(fine_ba, fine_dm, 1, 0);
+    const auto coarse_map_ba = project_to_xy(coarse_ba);
+    const auto fine_map_ba = project_to_xy(fine_ba);
+    MultiFab coarse_mx(coarse_map_ba, coarse_dm, 1, 0);
+    MultiFab coarse_my(coarse_map_ba, coarse_dm, 1, 0);
+    MultiFab fine_mx(fine_map_ba, fine_dm, 1, 0);
+    MultiFab fine_my(fine_map_ba, fine_dm, 1, 0);
+    coarse_detj.setVal(Real(1.0));
+    fine_detj.setVal(Real(1.0));
+    coarse_mx.setVal(Real(1.0));
+    coarse_my.setVal(Real(1.0));
+    fine_mx.setVal(Real(1.0));
+    fine_my.setVal(Real(1.0));
+    ASSERT_TRUE(transport.rebuild_static_measure(
+        1, fine_detj, fine_mx, fine_my, diagnostic)) << diagnostic;
+
+    MultiFab fine_rho_anchor(fine_ba, fine_dm, 3, 0);
+    MultiFab fine_rho_input(fine_ba, fine_dm, 3, 0);
+    MultiFab fine_rho_target(fine_ba, fine_dm, 3, 0);
+    fine_rho_anchor.setVal(Real(0.0));
+    fine_rho_input.setVal(Real(0.0));
+    fine_rho_target.setVal(Real(0.0));
+    fine_rho_anchor.setVal(Real(1.0), Rho_comp, 1, 0);
+    fine_rho_input.setVal(Real(1.0), Rho_comp, 1, 0);
+    fine_rho_target.setVal(Real(1.0), Rho_comp, 1, 0);
+    MultiFab avg_xmom(amrex::convert(fine_ba,
+                                    IntVect::TheDimensionVector(0)),
+                      fine_dm, 1, 0);
+    MultiFab avg_ymom(amrex::convert(fine_ba,
+                                    IntVect::TheDimensionVector(1)),
+                      fine_dm, 1, 0);
+    MultiFab avg_zmom(amrex::convert(fine_ba,
+                                    IntVect::TheDimensionVector(2)),
+                      fine_dm, 1, 0);
+    avg_xmom.setVal(Real(0.0));
+    avg_ymom.setVal(Real(0.0));
+    avg_zmom.setVal(Real(0.0));
+
+    amrex::Gpu::DeviceVector<Real> sampled_intensive(1, Real(-1.0));
+    amrex::Gpu::DeviceVector<Real> sampled_endpoint(1, Real(-1.0));
+    amrex::Gpu::DeviceVector<int> sample_hit(1, 0);
+    amrex::Gpu::DeviceVector<int> endpoint_hit(1, 0);
+    erf_sbm::SBMAMRStageGhostProbe probe;
+    probe.fine_cell = probe_cell;
+    probe.global_component = probe_component;
+    probe.requested_stage = probe_stage >= 0 ? probe_stage
+        : (rounded_three_substeps ? 0 : -1);
+    probe.requested_role = probe_role;
+    probe.sampled_intensive_device = sampled_intensive.data();
+    probe.sampled_endpoint_device = two_moment_attached && probe_role == 0
+        ? sampled_endpoint.data() : nullptr;
+    probe.hit_device = sample_hit.data();
+    probe.endpoint_hit_device = two_moment_attached && probe_role == 0
+        ? endpoint_hit.data() : nullptr;
+    probe.seed_finite_stale_value = inject_stale_write_fault;
+    probe.skipped_global_component =
+        (inject_stale_write_fault || omit_write_tally) ? probe_component : -1;
+    probe.skip_write_tally_only = omit_write_tally;
+    erf_sbm::SBMAMRStageParent parent;
+    parent.conserved_old = &coarse_rho_old;
+    parent.conserved_new = &coarse_rho_new;
+    parent.old_time = coarse_begin;
+    parent.new_time = coarse_end;
+    parent.fine_step_dt = fine_dt;
+    parent.refinement_ratio = IntVect(2);
+    parent.ghost_probe = &probe;
+    parent.componentwise_parent_fill = componentwise_parent_fill;
+
+    if (rounded_three_substeps) {
+        for (int substep = 0; substep < 3; ++substep) {
+            const double step_old_time =
+                coarse_begin + static_cast<double>(substep) * fine_dt;
+            if (substep == 2) {
+                ASSERT_NE(state_manager.new_time(1), step_old_time)
+                    << "the fixture must reproduce ERF's non-bitwise third fine start";
+            }
+            ASSERT_TRUE(state_manager.begin_step(
+                1, step_old_time, diagnostic, fine_dt)) << diagnostic;
+            EXPECT_DOUBLE_EQ(state_manager.old_time(1), step_old_time);
+            const double stage0_time = step_old_time + fine_dt / 3.0;
+            const double stage1_time = step_old_time + fine_dt / 2.0;
+            const double step_end_time = step_old_time + fine_dt;
+            transport.advance_stage_from_host(
+                1, erf_auxiliary::HostIntegrator::CompressibleRK3, 0,
+                step_old_time, step_old_time, stage0_time, fine_dt / 3.0,
+                state_manager, fine_rho_anchor, fine_rho_input,
+                fine_rho_target, avg_xmom, avg_ymom, avg_zmom, fine_geom,
+                1, 2, &parent);
+            transport.advance_stage_from_host(
+                1, erf_auxiliary::HostIntegrator::CompressibleRK3, 1,
+                step_old_time, stage0_time, stage1_time, fine_dt / 2.0,
+                state_manager, fine_rho_anchor, fine_rho_input,
+                fine_rho_target, avg_xmom, avg_ymom, avg_zmom, fine_geom,
+                1, 2, &parent);
+            transport.advance_stage_from_host(
+                1, erf_auxiliary::HostIntegrator::CompressibleRK3, 2,
+                step_old_time, stage1_time, step_end_time, fine_dt,
+                state_manager, fine_rho_anchor, fine_rho_input,
+                fine_rho_target, avg_xmom, avg_ymom, avg_zmom, fine_geom,
+                1, 2, &parent);
+            EXPECT_TRUE(transport.projected_ledger(1).step_complete());
+        }
+    } else if (full_rk3_step) {
+        ASSERT_TRUE(state_manager.begin_step(1, coarse_begin, diagnostic,
+                                             fine_dt)) << diagnostic;
+        const double stage0_time = coarse_begin + fine_dt / 3.0;
+        const double stage1_time = coarse_begin + fine_dt / 2.0;
+        const double step_end_time = coarse_begin + fine_dt;
+        transport.advance_stage_from_host(
+            1, erf_auxiliary::HostIntegrator::CompressibleRK3, 0,
+            coarse_begin, coarse_begin, stage0_time, fine_dt / 3.0,
+            state_manager, fine_rho_anchor, fine_rho_input, fine_rho_target,
+            avg_xmom, avg_ymom, avg_zmom, fine_geom, 1, 2, &parent);
+        transport.advance_stage_from_host(
+            1, erf_auxiliary::HostIntegrator::CompressibleRK3, 1,
+            coarse_begin, stage0_time, stage1_time, fine_dt / 2.0,
+            state_manager, fine_rho_anchor, fine_rho_input, fine_rho_target,
+            avg_xmom, avg_ymom, avg_zmom, fine_geom, 1, 2, &parent);
+        transport.advance_stage_from_host(
+            1, erf_auxiliary::HostIntegrator::CompressibleRK3, 2,
+            coarse_begin, stage1_time, step_end_time, fine_dt,
+            state_manager, fine_rho_anchor, fine_rho_input, fine_rho_target,
+            avg_xmom, avg_ymom, avg_zmom, fine_geom, 1, 2, &parent);
+    } else {
+        ASSERT_TRUE(state_manager.begin_step(1, coarse_begin, diagnostic,
+                                             fine_dt)) << diagnostic;
+        const double stage_mid_time =
+            coarse_begin + 0.5 * (coarse_end - coarse_begin);
+        const double half_dt = 0.5 * (coarse_end - coarse_begin);
+        transport.advance_stage_from_host(
+            1, erf_auxiliary::HostIntegrator::CompressibleRK3, 0,
+            coarse_begin, coarse_begin, stage_mid_time, half_dt,
+            state_manager, fine_rho_anchor, fine_rho_input, fine_rho_target,
+            avg_xmom, avg_ymom, avg_zmom, fine_geom, 1, 2, &parent);
+        transport.advance_stage_from_host(
+            1, erf_auxiliary::HostIntegrator::CompressibleRK3, 1,
+            coarse_begin, stage_mid_time, coarse_end, half_dt,
+            state_manager, fine_rho_anchor, fine_rho_input, fine_rho_target,
+            avg_xmom, avg_ymom, avg_zmom, fine_geom, 1, 2, &parent);
+    }
+
+    Real sampled_value = Real(-1.0);
+    int sample_was_hit = 0;
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                     sampled_intensive.begin(), sampled_intensive.end(),
+                     &sampled_value);
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost, sample_hit.begin(),
+                     sample_hit.end(), &sample_was_hit);
+    Real sampled_endpoint_value = Real(-1.0);
+    int endpoint_was_hit = 0;
+    if (two_moment_attached) {
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                         sampled_endpoint.begin(), sampled_endpoint.end(),
+                         &sampled_endpoint_value);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, endpoint_hit.begin(),
+                         endpoint_hit.end(), &endpoint_was_hit);
+    }
+    amrex::Gpu::streamSynchronize();
+    EXPECT_EQ(sample_was_hit, 1)
+        << "the probe cell must be a two-ghost coarse/fine donor cell";
+    if (two_moment_attached && probe_role == 0) {
+        EXPECT_EQ(endpoint_was_hit, 1)
+            << "the probe cell must be transformed after physical G1 fill";
+    }
+    if (sample_result != nullptr) {
+        sample_result->physical = sampled_value;
+        sample_result->endpoint = sampled_endpoint_value;
+        sample_result->physical_hit = sample_was_hit;
+        sample_result->endpoint_hit = endpoint_was_hit;
+    }
+    if (two_moment_attached) {
+        double requested = coarse_begin;
+        if (probe_role == 0 && probe_stage == 1) {
+            requested = coarse_begin + fine_dt / 3.0;
+        } else if (probe_role == 0 && probe_stage == 2) {
+            requested = coarse_begin + fine_dt / 2.0;
+        }
+        const Real theta = static_cast<Real>((requested - coarse_begin) /
+                                             (coarse_end - coarse_begin));
+        Real old_value = Real(0.0);
+        Real new_value = Real(0.0);
+        switch (probe_component) {
+        case 0: old_value = Real(0.3); new_value = Real(1.2); break;
+        case 1: old_value = Real(0.7); new_value = Real(1.4); break;
+        case 2: old_value = Real(2.0); new_value = Real(4.0); break;
+        case 3: old_value = Real(1.0); new_value = Real(2.0); break;
+        case 4: old_value = Real(0.2); new_value = Real(0.8); break;
+        default: old_value = Real(0.1); new_value = Real(0.4); break;
+        }
+        const Real rho_t = (Real(1.0) - theta) * Real(1.0) +
+                           theta * Real(3.0);
+        const Real expected_physical =
+            ((Real(1.0) - theta) * old_value + theta * new_value) / rho_t;
+        EXPECT_NEAR(sampled_value, expected_physical, Real(64.0) *
+                    std::numeric_limits<Real>::epsilon());
+        Real expected_endpoint = Real(-1.0);
+        if (probe_role == 0) {
+            expected_endpoint = expected_physical;
+        }
+        if (probe_role == 0 && (probe_component == 0 || probe_component == 2)) {
+            const Real mass = probe_component == 0
+                ? expected_physical
+                : ((Real(1.0) - theta) * Real(0.3) +
+                   theta * Real(1.2)) / rho_t;
+            const Real number = probe_component == 2
+                ? expected_physical
+                : ((Real(1.0) - theta) * Real(2.0) +
+                   theta * Real(4.0)) / rho_t;
+            expected_endpoint = probe_component == 0
+                ? (Real(0.5) * number - mass) / Real(0.4)
+                : (mass - Real(0.1) * number) / Real(0.4);
+        }
+        if (probe_role == 0) {
+            EXPECT_NEAR(sampled_endpoint_value, expected_endpoint, Real(96.0) *
+                        std::numeric_limits<Real>::epsilon());
+        }
+        if (probe_component == 0 && probe_role == 0 && theta > Real(0.0)) {
+            const Real endpoint_ratio_interpolation =
+                (Real(1.0) - theta) * (Real(0.3) / Real(1.0)) +
+                theta * (Real(1.2) / Real(3.0));
+            const Real future_density_substitution =
+                ((Real(1.0) - theta) * Real(0.3) +
+                 theta * Real(1.2)) / Real(3.0);
+            EXPECT_GT(std::abs(sampled_value - endpoint_ratio_interpolation),
+                      Real(100.0) * std::numeric_limits<Real>::epsilon());
+            EXPECT_GT(std::abs(sampled_value - future_density_substitution),
+                      Real(100.0) * std::numeric_limits<Real>::epsilon());
+            EXPECT_GT(std::abs(sampled_endpoint_value - sampled_value),
+                      Real(100.0) * std::numeric_limits<Real>::epsilon())
+                << "the physical M,N ghost must be endpoint-transformed before WENO";
+        }
+    } else if (rounded_three_substeps) {
+        const double requested = coarse_begin + 2.0 * fine_dt;
+        const Real theta = static_cast<Real>((requested - coarse_begin) /
+                                             (coarse_end - coarse_begin));
+        const Real expected = (Real(1.0) + Real(8.0) * theta) /
+                              (Real(1.0) + Real(2.0) * theta);
+        EXPECT_NEAR(sampled_value, expected, Real(64.0) *
+                    std::numeric_limits<Real>::epsilon());
+    } else {
+        EXPECT_NEAR(sampled_value, Real(2.5), Real(32.0) *
+                    std::numeric_limits<Real>::epsilon());
+        const Real endpoint_ratio_interpolation =
+            Real(0.5) * (Real(1.0) / Real(1.0) + Real(9.0) / Real(3.0));
+        const Real future_density_substitution =
+            (Real(0.5) * Real(1.0) + Real(0.5) * Real(9.0)) / Real(3.0);
+        EXPECT_NE(sampled_value, endpoint_ratio_interpolation);
+        EXPECT_NE(sampled_value, future_density_substitution);
+    }
+
+    const auto& fine_state = state_manager.new_state(1);
+    for (int component = 0; component < layout.ncomp(); ++component) {
+        if (two_moment_attached) {
+            const std::array<Real, 6> initial{
+                Real(0.3), Real(0.7), Real(2.0), Real(1.0),
+                Real(0.2), Real(0.1)};
+            const Real expected = initial[static_cast<std::size_t>(component)];
+            EXPECT_EQ(fine_state.min(component), expected);
+            EXPECT_EQ(fine_state.max(component), expected);
+        } else {
+            EXPECT_EQ(fine_state.min(component), Real(1.0));
+            EXPECT_EQ(fine_state.max(component), Real(1.0));
+        }
+    }
+}
+
+TEST(SBMTransport, FineStageCoarseGhostUsesG1PhysicalEndpointInterpolation)
+{
+    run_coarse_stage_g1_ghost_test();
+}
+
+TEST(SBMTransport, RoundedThirdFineSubstepCompletesRealStageZeroAndRK3)
+{
+    run_coarse_stage_g1_ghost_test(false, true);
+}
+
+TEST(SBMTransport, TwoMomentAttachedG1AndEndpointGhostsCoverFaceEdgeCornerLayers)
+{
+    const std::array<IntVect, 6> ghost_cells{
+        IntVect(1, 3, 3), IntVect(0, 3, 3),
+        IntVect(1, 1, 3), IntVect(0, 0, 3),
+        IntVect(1, 1, 1), IntVect(0, 0, 0)};
+    for (const IntVect& cell : ghost_cells) {
+        for (const int component : {0, 2, 4}) {
+            SCOPED_TRACE(::testing::Message()
+                         << "ghost=" << cell << " component=" << component);
+            for (int stage = 0; stage < 3; ++stage) {
+                for (int role = 0; role < 3; ++role) {
+                    SCOPED_TRACE(::testing::Message()
+                                 << "stage=" << stage << " role=" << role);
+                    G1GhostSample componentwise_reference;
+                    G1GhostSample packed_comparison;
+                    run_coarse_stage_g1_ghost_test(
+                        false, false, 0, true, cell, component,
+                        &componentwise_reference, stage, role, true, true);
+                    run_coarse_stage_g1_ghost_test(
+                        false, false, 0, true, cell, component,
+                        &packed_comparison, stage, role, true, false);
+                    EXPECT_EQ(componentwise_reference.physical_hit, 1);
+                    EXPECT_EQ(packed_comparison.physical_hit, 1);
+                    EXPECT_EQ(componentwise_reference.endpoint_hit,
+                              role == 0 ? 1 : 0);
+                    EXPECT_EQ(packed_comparison.endpoint_hit,
+                              role == 0 ? 1 : 0);
+                    EXPECT_EQ(packed_comparison.physical,
+                              componentwise_reference.physical);
+                    EXPECT_EQ(packed_comparison.endpoint,
+                              componentwise_reference.endpoint);
+                }
+            }
+        }
+    }
+}
+
+// Forked death tests hang under MPI on Linux CI, so the expected
+// amrex::Abort is raised as an exception for the duration of the check.
+template <typename Action>
+void expect_amrex_abort (Action&& action, const std::string& expected)
+{
+    const bool saved = amrex::system::throw_exception;
+    amrex::system::throw_exception = true;
+    std::string message;
+    try {
+        action();
+    } catch (const std::runtime_error& error) {
+        message = error.what();
+    }
+    amrex::system::throw_exception = saved;
+    EXPECT_NE(message.find(expected), std::string::npos)
+        << "expected amrex::Abort containing \"" << expected << "\", got \""
+        << message << '"';
+}
+
+TEST(SBMTransport, MissingParentGhostWriteRejectsFiniteStaleSentinel)
+{
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(true, false); },
+                       "left a coarse-only parent ghost component unwritten or invalid");
+}
+
+TEST(SBMTransport, MissingParentGhostWriteTallyRejectsCompleteStores)
+{
+    expect_amrex_abort(
+        [] {
+            run_coarse_stage_g1_ghost_test(
+                false, false, 0, false, IntVect(1, 3, 3), 0, nullptr, -1,
+                0, false, true, true);
+        },
+        "omitted a required parent ghost component write");
+}
+
+TEST(SBMTransport, AssignmentOnlyMissingParentStoreFailsAcrossModesRolesAndHaloDepths)
+{
+    const std::array<IntVect, 2> ghost_cells{
+        IntVect(1, 3, 3), IntVect(0, 3, 3)};
+    for (const bool two_moment_attached : {false, true}) {
+        for (const int role : {0, 1}) {
+            for (const IntVect& ghost : ghost_cells) {
+                SCOPED_TRACE(::testing::Message()
+                             << "two_moment_attached=" << two_moment_attached
+                             << " role=" << role << " ghost=" << ghost);
+                expect_amrex_abort(
+                    [&] {
+                        run_coarse_stage_g1_ghost_test(
+                            true, false, 0, two_moment_attached, ghost, 0,
+                            nullptr, 0, role);
+                    },
+                    "left a coarse-only parent ghost component unwritten or invalid");
+            }
+        }
+    }
+}
+
+TEST(SBMTransport, ParentGhostRejectsOverflowingUOverRho)
+{
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(false, false, 1); },
+                       "unrepresentable U(t)/rho_d(t) quotient");
+}
+
+TEST(SBMTransport, ParentGhostRejectsPositiveSupportUnderflow)
+{
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(false, false, 2); },
+                       "unrepresentable U(t)/rho_d(t) quotient");
+}
+
+TEST(SBMTransport, ParentGhostRejectsZeroDensityEndpoint)
+{
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(false, false, 3); },
+                       "endpoint data are not finite with positive density");
+}
+
+TEST(SBMTransport, ParentGhostRejectsNonfiniteSpectrumEndpoint)
+{
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(false, false, 4); },
+                       "endpoint data are not finite with positive density");
+}
+
 struct SpectralLedgerResult {
     std::vector<Real> spectrum;
     std::vector<Real> projected;
@@ -1996,6 +2771,8 @@ TEST(SBMTransport, LimiterActiveCompletedSpectralLedgerReconstructsAcceptedUpdat
     options.expect_limiter_active = true;
     options.compare_native_candidate = true;
     options.verify_spectral_ledger_identity = true;
+    options.verify_direct_register_reference = true;
+    options.max_groups_per_chunk = 1;
 
     const auto summary = run_transport(options);
     const auto layout = make_layout(options.mode, options.attached_property);
@@ -2103,6 +2880,9 @@ TEST(SBMTransport, ActiveLimiterRestrictsNativeWENOZ3Proposal)
     options.carrier_x = Real(0.2);
     options.dt = 0.55;
     options.compare_native_candidate = true;
+    options.expect_limiter_active = true;
+    options.anelastic_heun = true;
+    options.verify_direct_register_reference = true;
     run_transport(options);
 }
 
@@ -2188,6 +2968,7 @@ TEST(SBMTransport, HeunLimiterUsesFullDtTrialWhenActive)
     options.compare_native_candidate = true;
     options.expect_limiter_active = true;
     options.anelastic_heun = true;
+    options.verify_direct_register_reference = true;
     run_transport(options);
 }
 
@@ -2385,6 +3166,532 @@ TEST(SBMTransport, CompressiblePredictorCannotReplaceAnchorLimiterBase)
     options.advance_all_rk3_stages = true;
     options.amplify_corrector_input = true;
     run_transport(options);
+}
+
+
+TEST(SBMTransport, FineStageG1WenoAcceptedRateReachesMappedYAOracle)
+{
+#if defined(AMREX_USE_FLOAT)
+    GTEST_SKIP() << "The coupled WENO/FCT/YA separations are qualified in "
+                    "DOUBLE; SINGLE cannot resolve them.";
+#else
+    ASSERT_EQ(AMREX_SPACEDIM, 3);
+    const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment, true);
+    const auto& population = layout.populations().front();
+    const int mass0 = population.mass_offset;
+    const int number0 = population.number_offset;
+    const int property0 = layout.property_offset(0);
+    ASSERT_GE(property0, 0);
+
+    const IntVect ratio(2);
+    const Box coarse_domain(IntVect(0), IntVect(3));
+    const Box fine_domain = amrex::refine(coarse_domain, ratio);
+    const BoxArray coarse_ba(coarse_domain);
+    const BoxArray fine_ba(amrex::refine(Box(IntVect(1), IntVect(2)), ratio));
+    const DistributionMapping coarse_dm(coarse_ba);
+    const DistributionMapping fine_dm(fine_ba);
+    const amrex::RealBox physical({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
+    const int periodic[AMREX_SPACEDIM] = {1, 1, 1};
+    const Geometry coarse_geom(coarse_domain, &physical,
+                               amrex::CoordSys::cartesian, periodic);
+    const Geometry fine_geom(fine_domain, &physical,
+                             amrex::CoordSys::cartesian, periodic);
+    constexpr double t0 = 0.1;
+    constexpr double t1 = 0.13;
+    constexpr int fine_steps = 3;
+    const double fine_dt = (t1 - t0) / fine_steps;
+
+    erf_sbm::SBMStateManager state_manager(layout, 2);
+    std::string diagnostic;
+    state_manager.define(0, coarse_ba, coarse_dm, t0);
+    state_manager.define(1, fine_ba, fine_dm, t0);
+    MultiFab rho_old(coarse_ba, coarse_dm, 3, 0);
+    MultiFab rho_new(coarse_ba, coarse_dm, 3, 0);
+    MultiFab unused_density(fine_ba, fine_dm, 3, 0);
+    rho_old.setVal(Real(0.0));
+    rho_new.setVal(Real(0.0));
+    unused_density.setVal(Real(0.0));
+
+    auto fill_state = [&] (MultiFab& state, MultiFab& density,
+                           const bool fine, const Real time) {
+        fill_a4_fixture_state(state, density, fine, time,
+                              mass0, number0, property0);
+    };
+
+    fill_state(state_manager.new_state_for_initialization(0), rho_old,
+               false, Real(0.0));
+    ASSERT_TRUE(state_manager.begin_step(0, t0, diagnostic)) << diagnostic;
+    fill_state(state_manager.new_target_storage(0), rho_new,
+               false, Real(1.0));
+    ASSERT_TRUE(erf_sbm::authoritative_state_admissible(
+        state_manager.new_target_storage(0), layout, 0, &diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(state_manager.accept_stage_target(0, t1, true, diagnostic))
+        << diagnostic;
+    fill_state(state_manager.new_state_for_initialization(1), unused_density,
+               true, Real(0.0));
+
+    MultiFab fine_rho_anchor(fine_ba, fine_dm, 3, 0);
+    MultiFab fine_rho_input(fine_ba, fine_dm, 3, 0);
+    MultiFab fine_rho_target(fine_ba, fine_dm, 3, 0);
+    for (MultiFab* rho : {&fine_rho_anchor, &fine_rho_input,
+                          &fine_rho_target}) {
+        rho->setVal(Real(0.0));
+        rho->setVal(Real(1.0), Rho_comp, 1, 0);
+    }
+
+    erf_sbm::SBMTransport transport(layout, 2, 16, false);
+    transport.define(0, coarse_ba, coarse_dm);
+    transport.define(1, fine_ba, fine_dm);
+    const auto fine_map_ba = project_to_xy(fine_ba);
+    MultiFab detj(fine_ba, fine_dm, 1, 0);
+    MultiFab mx(fine_map_ba, fine_dm, 1, 0);
+    MultiFab my(fine_map_ba, fine_dm, 1, 0);
+    detj.setVal(Real(1.0));
+    mx.setVal(Real(1.0));
+    my.setVal(Real(1.0));
+    ASSERT_TRUE(transport.rebuild_static_measure(
+        1, detj, mx, my, diagnostic)) << diagnostic;
+
+    const IntVect face(2, 3, 3);
+    MultiFab avg_xmom(amrex::convert(
+                          fine_ba, IntVect::TheDimensionVector(0)),
+                      fine_dm, 1, 0);
+    MultiFab avg_ymom(amrex::convert(
+                          fine_ba, IntVect::TheDimensionVector(1)),
+                      fine_dm, 1, 0);
+    MultiFab avg_zmom(amrex::convert(
+                          fine_ba, IntVect::TheDimensionVector(2)),
+                      fine_dm, 1, 0);
+    avg_xmom.setVal(Real(0.0));
+    avg_ymom.setVal(Real(0.0));
+    avg_zmom.setVal(Real(0.0));
+    constexpr Real velocity = Real(0.001);
+    set_a4_x_face_velocity(avg_xmom, face, velocity);
+
+    amrex::Gpu::DeviceVector<Real> physical_stencil(9, Real(-1.0));
+    amrex::Gpu::DeviceVector<Real> endpoint_stencil(9, Real(-1.0));
+    amrex::Gpu::DeviceVector<Real> secondary_physical_stencil(9, Real(-1.0));
+    amrex::Gpu::DeviceVector<Real> secondary_endpoint_stencil(9, Real(-1.0));
+    amrex::Gpu::DeviceVector<Real> accepted_rate(9, Real(-1.0));
+    amrex::Gpu::DeviceVector<Real> accepted_lambda(1, Real(-1.0));
+    amrex::Gpu::DeviceVector<int> accepted_hit(1, 0);
+    amrex::Gpu::DeviceVector<Real> secondary_rate(9, Real(-1.0));
+    amrex::Gpu::DeviceVector<Real> secondary_lambda(1, Real(-1.0));
+    amrex::Gpu::DeviceVector<int> secondary_hit(1, 0);
+    erf_sbm::SBMAMRStageGhostProbe probe;
+    probe.sampled_face = face;
+    probe.sampled_face_direction = 0;
+    probe.sampled_stage = 2;
+    probe.sampled_mass_component = mass0;
+    probe.sampled_number_component = number0;
+    probe.sampled_property_component = property0;
+    probe.sampled_physical_stencil_device = physical_stencil.data();
+    probe.sampled_endpoint_stencil_device = endpoint_stencil.data();
+    probe.sampled_mass_rate_device = accepted_rate.data();
+    probe.sampled_number_rate_device = accepted_rate.data() + 1;
+    probe.sampled_property_rate_device = accepted_rate.data() + 2;
+    probe.sampled_high_mass_rate_device = accepted_rate.data() + 3;
+    probe.sampled_high_number_rate_device = accepted_rate.data() + 4;
+    probe.sampled_high_property_rate_device = accepted_rate.data() + 5;
+    probe.sampled_low_mass_rate_device = accepted_rate.data() + 6;
+    probe.sampled_low_number_rate_device = accepted_rate.data() + 7;
+    probe.sampled_low_property_rate_device = accepted_rate.data() + 8;
+    probe.sampled_lambda_device = accepted_lambda.data();
+    probe.sampled_rate_hit_device = accepted_hit.data();
+    erf_sbm::SBMAMRStageGhostProbe secondary_probe;
+    secondary_probe.sampled_face = IntVect(3, 3, 3);
+    secondary_probe.sampled_face_direction = 0;
+    secondary_probe.sampled_stage = 2;
+    secondary_probe.sampled_mass_component = mass0;
+    secondary_probe.sampled_number_component = number0;
+    secondary_probe.sampled_property_component = property0;
+    secondary_probe.sampled_physical_stencil_device =
+        secondary_physical_stencil.data();
+    secondary_probe.sampled_endpoint_stencil_device =
+        secondary_endpoint_stencil.data();
+    secondary_probe.sampled_mass_rate_device = secondary_rate.data();
+    secondary_probe.sampled_number_rate_device = secondary_rate.data() + 1;
+    secondary_probe.sampled_property_rate_device = secondary_rate.data() + 2;
+    secondary_probe.sampled_high_mass_rate_device = secondary_rate.data() + 3;
+    secondary_probe.sampled_high_number_rate_device = secondary_rate.data() + 4;
+    secondary_probe.sampled_high_property_rate_device = secondary_rate.data() + 5;
+    secondary_probe.sampled_low_mass_rate_device = secondary_rate.data() + 6;
+    secondary_probe.sampled_low_number_rate_device = secondary_rate.data() + 7;
+    secondary_probe.sampled_low_property_rate_device = secondary_rate.data() + 8;
+    secondary_probe.sampled_lambda_device = secondary_lambda.data();
+    secondary_probe.sampled_rate_hit_device = secondary_hit.data();
+    erf_sbm::SBMAMRStageParent parent;
+    parent.conserved_old = &rho_old;
+    parent.conserved_new = &rho_new;
+    parent.old_time = t0;
+    parent.new_time = t1;
+    parent.fine_step_dt = fine_dt;
+    parent.refinement_ratio = ratio;
+    parent.ghost_probe = &probe;
+    parent.secondary_ghost_probe = &secondary_probe;
+
+    erf_sbm::SBMAMRFluxRegister ya;
+    ya.define(fine_ba, coarse_ba, fine_dm, coarse_dm, fine_geom, coarse_geom,
+              ratio, 1, layout.ncomp());
+    ASSERT_TRUE(ya.begin_interval(t0, t1, fine_steps, diagnostic)) << diagnostic;
+    transport.set_amr_flux_registers(1, nullptr, &ya);
+
+    std::vector<int> components(static_cast<std::size_t>(layout.ncomp()));
+    for (int n = 0; n < layout.ncomp(); ++n)
+        components[static_cast<std::size_t>(n)] = n;
+    erf_auxiliary::MappedFaceFluxRate zero_coarse;
+    zero_coarse.define(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    zero_coarse.setVal(Real(0.0));
+    ASSERT_TRUE(ya.begin_level_step(true, t0, t1, diagnostic)) << diagnostic;
+    for (int stage = 0; stage < 3; ++stage) {
+        ASSERT_TRUE(ya.begin_stage(
+            true, erf_auxiliary::HostIntegrator::CompressibleRK3,
+            stage, t0, diagnostic)) << diagnostic;
+        ASSERT_TRUE(ya.add_stage_rates(
+            true, zero_coarse, components, stage == 2 ? t1 - t0 : 0.0,
+            diagnostic)) << diagnostic;
+        ASSERT_TRUE(ya.finish_stage(true, diagnostic)) << diagnostic;
+    }
+    ASSERT_TRUE(ya.accept_level_step(true, t0, t1, diagnostic)) << diagnostic;
+
+    std::array<Real, 3> fine_integral{Real(0.0), Real(0.0), Real(0.0)};
+    std::array<Real, 3> ratio_wrong_integral{
+        Real(0.0), Real(0.0), Real(0.0)};
+    Real interface_lambda = Real(1.0);
+    const Real lower = population.grid.edges()[0];
+    const Real upper = population.grid.edges()[1];
+    const Real width = upper - lower;
+    for (int substep = 0; substep < fine_steps; ++substep) {
+        const double begin = t0 + substep * fine_dt;
+        const double end = begin + fine_dt;
+        ASSERT_TRUE(state_manager.begin_step(1, begin, diagnostic, fine_dt))
+            << diagnostic;
+        ASSERT_TRUE(transport.begin_physical_step(1, begin, end, diagnostic))
+            << diagnostic;
+        const double stage0 = begin + fine_dt / 3.0;
+        const double stage1 = begin + fine_dt / 2.0;
+        transport.advance_stage_from_host(
+            1, erf_auxiliary::HostIntegrator::CompressibleRK3, 0,
+            begin, begin, stage0, fine_dt / 3.0, state_manager,
+            fine_rho_anchor, fine_rho_input, fine_rho_target,
+            avg_xmom, avg_ymom, avg_zmom, fine_geom, 1, 2, &parent);
+        transport.advance_stage_from_host(
+            1, erf_auxiliary::HostIntegrator::CompressibleRK3, 1,
+            begin, stage0, stage1, fine_dt / 2.0, state_manager,
+            fine_rho_anchor, fine_rho_input, fine_rho_target,
+            avg_xmom, avg_ymom, avg_zmom, fine_geom, 1, 2, &parent);
+        const int clear_hit = 0;
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, &clear_hit,
+                         &clear_hit + 1, accepted_hit.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, &clear_hit,
+                         &clear_hit + 1, secondary_hit.begin());
+        transport.advance_stage_from_host(
+            1, erf_auxiliary::HostIntegrator::CompressibleRK3, 2,
+            begin, stage1, end, fine_dt, state_manager,
+            fine_rho_anchor, fine_rho_input, fine_rho_target,
+            avg_xmom, avg_ymom, avg_zmom, fine_geom, 1, 2, &parent);
+
+        std::array<Real, 9> physical_values{};
+        std::array<Real, 9> endpoint_values{};
+        std::array<Real, 9> secondary_physical_values{};
+        std::array<Real, 9> secondary_endpoint_values{};
+        std::array<Real, 9> rate_values{};
+        std::array<Real, 9> secondary_rate_values{};
+        Real lambda = Real(-1.0);
+        Real secondary_limiter = Real(-1.0);
+        int hit = 0;
+        int secondary_hit_value = 0;
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, physical_stencil.begin(),
+                         physical_stencil.end(), physical_values.begin());
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, endpoint_stencil.begin(),
+                         endpoint_stencil.end(), endpoint_values.begin());
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, accepted_rate.begin(),
+                         accepted_rate.end(), rate_values.begin());
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                         secondary_physical_stencil.begin(),
+                         secondary_physical_stencil.end(),
+                         secondary_physical_values.begin());
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost,
+                         secondary_endpoint_stencil.begin(),
+                         secondary_endpoint_stencil.end(),
+                         secondary_endpoint_values.begin());
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, secondary_rate.begin(),
+                         secondary_rate.end(), secondary_rate_values.begin());
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, accepted_lambda.begin(),
+                         accepted_lambda.end(), &lambda);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, secondary_lambda.begin(),
+                         secondary_lambda.end(), &secondary_limiter);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, accepted_hit.begin(),
+                         accepted_hit.end(), &hit);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, secondary_hit.begin(),
+                         secondary_hit.end(), &secondary_hit_value);
+        amrex::Gpu::streamSynchronize();
+        ASSERT_EQ(hit, 1) << "selected accepted interface rate was not captured";
+        ASSERT_EQ(secondary_hit_value, 1)
+            << "interior WENO discriminator was not captured";
+        EXPECT_LT(lambda, Real(1.0))
+            << "the selected interface face must exercise group FCT limiting";
+        interface_lambda = lambda;
+
+        const Real theta = static_cast<Real>((stage1 - t0) / (t1 - t0));
+        const A4FixturePoint oldp =
+            a4_fixture_point(Real(0.0), Real(1.0), Real(1.0), Real(0.0));
+        const A4FixturePoint newp =
+            a4_fixture_point(Real(0.0), Real(1.0), Real(1.0), Real(1.0));
+        const Real rho_t = (Real(1.0) - theta) * oldp.rho +
+                           theta * newp.rho;
+        const auto interpolate_physical = [=] (Real a, Real b) {
+            return ((Real(1.0) - theta) * oldp.rho * a +
+                    theta * newp.rho * b) / rho_t;
+        };
+        const Real donor_m = interpolate_physical(oldp.mass0, newp.mass0);
+        const Real donor_n = interpolate_physical(oldp.number0, newp.number0);
+        const Real donor_p = interpolate_physical(oldp.property0, newp.property0);
+        const Real donor_l = (upper * donor_n - donor_m) / width;
+        const Real donor_h = (donor_m - lower * donor_n) / width;
+        const Real endpoint_tol = Real(512.0) *
+                                  std::numeric_limits<Real>::epsilon();
+        EXPECT_NEAR(physical_values[0], donor_m, endpoint_tol);
+        EXPECT_NEAR(physical_values[1], donor_n, endpoint_tol);
+        EXPECT_NEAR(physical_values[2], donor_p, endpoint_tol);
+        EXPECT_NEAR(physical_values[3], donor_m, endpoint_tol);
+        EXPECT_NEAR(endpoint_values[0], donor_l, endpoint_tol);
+        EXPECT_NEAR(endpoint_values[1], donor_h, endpoint_tol);
+        EXPECT_NEAR(endpoint_values[3], donor_l, endpoint_tol);
+        EXPECT_NEAR(endpoint_values[4], donor_h, endpoint_tol);
+
+        const Real flux_l = a4_weno_z3_left(
+            endpoint_values[0], endpoint_values[3], endpoint_values[6]);
+        const Real flux_h = a4_weno_z3_left(
+            endpoint_values[1], endpoint_values[4], endpoint_values[7]);
+        const Real expected_high_m =
+            velocity * (lower * flux_l + upper * flux_h);
+        const Real expected_high_n = velocity * (flux_l + flux_h);
+        const Real expected_high_p = velocity * a4_weno_z3_left(
+            physical_values[2], physical_values[5], physical_values[8]);
+        const Real base_theta = static_cast<Real>((begin - t0) / (t1 - t0));
+        const Real base_rho = (Real(1.0) - base_theta) * oldp.rho +
+                              base_theta * newp.rho;
+        const auto base_physical = [=] (Real a, Real b) {
+            return ((Real(1.0) - base_theta) * oldp.rho * a +
+                    base_theta * newp.rho * b) / base_rho;
+        };
+        const std::array<Real, 3> expected_low{
+            velocity * base_physical(oldp.mass0, newp.mass0),
+            velocity * base_physical(oldp.number0, newp.number0),
+            velocity * base_physical(oldp.property0, newp.property0)};
+        const Real rate_tol = Real(2048.0) *
+                              std::numeric_limits<Real>::epsilon();
+        EXPECT_NEAR(rate_values[3], expected_high_m, rate_tol);
+        EXPECT_NEAR(rate_values[4], expected_high_n, rate_tol);
+        EXPECT_NEAR(rate_values[5], expected_high_p, rate_tol);
+        for (int n = 0; n < 3; ++n) {
+            EXPECT_NEAR(rate_values[6 + n], expected_low[
+                static_cast<std::size_t>(n)], rate_tol);
+            EXPECT_NEAR(rate_values[n], rate_values[6 + n] + lambda *
+                        (rate_values[3 + n] - rate_values[6 + n]), rate_tol)
+                << "accepted flux must use one shared complete-group lambda";
+        }
+
+        const Real wrong_m = (Real(1.0) - theta) * oldp.mass0 +
+                             theta * newp.mass0;
+        const Real wrong_n = (Real(1.0) - theta) * oldp.number0 +
+                             theta * newp.number0;
+        const Real wrong_p = (Real(1.0) - theta) * oldp.property0 +
+                             theta * newp.property0;
+        const Real wrong_l = (upper * wrong_n - wrong_m) / width;
+        const Real wrong_h = (wrong_m - lower * wrong_n) / width;
+        const Real wrong_ratio_m = velocity *
+            (lower * a4_weno_z3_left(wrong_l, wrong_l, endpoint_values[6]) +
+             upper * a4_weno_z3_left(wrong_h, wrong_h, endpoint_values[7]));
+        const Real wrong_ratio_n = velocity *
+            (a4_weno_z3_left(wrong_l, wrong_l, endpoint_values[6]) +
+             a4_weno_z3_left(wrong_h, wrong_h, endpoint_values[7]));
+        const Real wrong_ratio_p = velocity *
+            a4_weno_z3_left(wrong_p, wrong_p, physical_values[8]);
+        EXPECT_GT(std::abs(expected_high_m - wrong_ratio_m),
+                  Real(100.0) * rate_tol);
+        EXPECT_GT(std::abs(expected_high_n - wrong_ratio_n),
+                  Real(100.0) * rate_tol);
+        EXPECT_GT(std::abs(expected_high_p - wrong_ratio_p),
+                  Real(100.0) * rate_tol);
+
+        // One fine cell inside the interface has a non-degenerate native
+        // stencil containing a coarse-only parent ghost and two distinct fine
+        // cells. It separates physical-M/N-before-endpoint WENO from the
+        // required endpoint-coordinate WENO independently of the interface
+        // limiter, which is deliberately active at the boundary face.
+        const Real secondary_flux_l = a4_weno_z3_left(
+            secondary_endpoint_values[0], secondary_endpoint_values[3],
+            secondary_endpoint_values[6]);
+        const Real secondary_flux_h = a4_weno_z3_left(
+            secondary_endpoint_values[1], secondary_endpoint_values[4],
+            secondary_endpoint_values[7]);
+        const Real secondary_high_m = velocity *
+            (lower * secondary_flux_l + upper * secondary_flux_h);
+        const Real secondary_high_n = velocity *
+            (secondary_flux_l + secondary_flux_h);
+        const Real secondary_high_p = velocity * a4_weno_z3_left(
+            secondary_physical_values[2], secondary_physical_values[5],
+            secondary_physical_values[8]);
+        const Real secondary_wrong_ratio_m = velocity *
+            (lower * a4_weno_z3_left(wrong_l,
+                                     secondary_endpoint_values[3],
+                                     secondary_endpoint_values[6]) +
+             upper * a4_weno_z3_left(wrong_h,
+                                     secondary_endpoint_values[4],
+                                     secondary_endpoint_values[7]));
+        const Real secondary_wrong_ratio_n = velocity *
+            (a4_weno_z3_left(wrong_l, secondary_endpoint_values[3],
+                             secondary_endpoint_values[6]) +
+             a4_weno_z3_left(wrong_h, secondary_endpoint_values[4],
+                             secondary_endpoint_values[7]));
+        const Real secondary_wrong_ratio_p = velocity * a4_weno_z3_left(
+            wrong_p, secondary_physical_values[5], secondary_physical_values[8]);
+        EXPECT_NEAR(secondary_rate_values[3], secondary_high_m, rate_tol);
+        EXPECT_NEAR(secondary_rate_values[4], secondary_high_n, rate_tol);
+        EXPECT_NEAR(secondary_rate_values[5], secondary_high_p, rate_tol);
+        for (int n = 0; n < 3; ++n) {
+            EXPECT_NEAR(secondary_rate_values[n],
+                secondary_rate_values[6 + n] + secondary_limiter *
+                    (secondary_rate_values[3 + n] -
+                     secondary_rate_values[6 + n]), rate_tol);
+        }
+        const Real physical_mass_weno = velocity * a4_weno_z3_left(
+            secondary_physical_values[0], secondary_physical_values[3],
+            secondary_physical_values[6]);
+        const Real physical_number_weno = velocity * a4_weno_z3_left(
+            secondary_physical_values[1], secondary_physical_values[4],
+            secondary_physical_values[7]);
+        EXPECT_GT(std::abs(secondary_high_m - physical_mass_weno),
+                  Real(100.0) * rate_tol);
+        EXPECT_GT(std::abs(secondary_high_n - physical_number_weno),
+                  Real(100.0) * rate_tol);
+        EXPECT_GT(std::abs(secondary_high_m - secondary_wrong_ratio_m),
+                  Real(100.0) * rate_tol);
+        EXPECT_GT(std::abs(secondary_high_n - secondary_wrong_ratio_n),
+                  Real(100.0) * rate_tol);
+        EXPECT_GT(std::abs(secondary_high_p - secondary_wrong_ratio_p),
+                  Real(100.0) * rate_tol);
+        std::cout << std::setprecision(17)
+                  << "SBM_A4_WENO substep=" << substep
+                  << " interface_lambda=" << lambda
+                  << " interface_high_mass=" << expected_high_m
+                  << " interface_high_ratio_wrong_separation="
+                  << std::abs(expected_high_m - wrong_ratio_m)
+                  << " interior_high_mass=" << secondary_high_m
+                  << " interior_physical_M_weno_separation="
+                  << std::abs(secondary_high_m - physical_mass_weno)
+                  << " interior_physical_N_weno_separation="
+                  << std::abs(secondary_high_n - physical_number_weno)
+                  << " interior_wrong_ratio_separation="
+                  << std::abs(secondary_high_m - secondary_wrong_ratio_m)
+                  << " interior_lambda=" << secondary_limiter << '\n';
+
+        const Real ratio_base_m = (Real(1.0) - base_theta) * oldp.mass0 +
+                                  base_theta * newp.mass0;
+        const Real ratio_base_n = (Real(1.0) - base_theta) * oldp.number0 +
+                                  base_theta * newp.number0;
+        const Real ratio_base_p = (Real(1.0) - base_theta) * oldp.property0 +
+                                  base_theta * newp.property0;
+
+        fine_integral[0] += static_cast<Real>(fine_dt) * rate_values[0];
+        fine_integral[1] += static_cast<Real>(fine_dt) * rate_values[1];
+        fine_integral[2] += static_cast<Real>(fine_dt) * rate_values[2];
+        ratio_wrong_integral[0] += static_cast<Real>(fine_dt) * velocity * ratio_base_m;
+        ratio_wrong_integral[1] += static_cast<Real>(fine_dt) * velocity * ratio_base_n;
+        ratio_wrong_integral[2] += static_cast<Real>(fine_dt) * velocity * ratio_base_p;
+        ASSERT_TRUE(transport.accept_physical_step(
+            1, begin, end, diagnostic)) << diagnostic;
+    }
+    ASSERT_TRUE(ya.ready_to_reflux());
+
+    MultiFab coarse_measure(coarse_ba, coarse_dm, 1, 0);
+    MultiFab fine_measure(fine_ba, fine_dm, 1, 0);
+    coarse_measure.setVal(Real(1.0));
+    fine_measure.setVal(Real(1.0));
+    erf_sbm::SBMAMRStateView coarse_view{
+        &state_manager.new_state(0), t1, &rho_new, Rho_comp, t1,
+        &coarse_measure, 0, t1};
+    erf_sbm::SBMAMRStateView fine_view{
+        &state_manager.new_state(1), t1, &fine_rho_target, Rho_comp, t1,
+        &fine_measure, 0, t1};
+    MultiFab candidate(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab::Copy(candidate, state_manager.new_state(0), 0, 0,
+                   layout.ncomp(), 0);
+    ASSERT_TRUE(erf_sbm::RestrictMappedSpectrumPrivate(
+        layout, fine_view, coarse_view, ratio, 0, candidate, diagnostic,
+        16, false, nullptr, nullptr, fine_dt)) << diagnostic;
+
+    MultiFab correction(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    correction.setVal(Real(0.0));
+    ASSERT_TRUE(ya.reflux(correction, diagnostic)) << diagnostic;
+    MultiFab marker(fine_ba, fine_dm, 1, 0);
+    MultiFab covered(coarse_ba, coarse_dm, 1, 1);
+    marker.setVal(Real(1.0));
+    covered.setVal(Real(0.0));
+    amrex::average_down(marker, covered, 0, 1, ratio);
+    covered.FillBoundary(coarse_geom.periodicity());
+    MultiFab invalid(coarse_ba, coarse_dm, 1, 0);
+    invalid.setVal(Real(0.0));
+    ASSERT_TRUE(erf_sbm::ApplyMappedRefluxCorrectionChunk(
+        candidate, correction, coarse_measure, covered, components, invalid,
+        diagnostic)) << diagnostic;
+    ASSERT_TRUE(erf_sbm::MappedRefluxCorrectionMaskIsValid(
+        invalid, diagnostic)) << diagnostic;
+
+    const IntVect coarse_cell(0, 1, 1);
+    const Box cell(coarse_cell, coarse_cell);
+    const Real dx = coarse_geom.CellSize(0);
+    const Real tol = Real(512.0) *
+                     std::numeric_limits<Real>::epsilon();
+    const std::array<int, 3> tested{mass0, number0, property0};
+    for (int slot = 0; slot < 3; ++slot) {
+        const int component = tested[static_cast<std::size_t>(slot)];
+        const Real expected = -fine_integral[static_cast<std::size_t>(slot)] /
+                              (Real(4.0) * dx);
+        const Real base = state_manager.new_state(0).sum(cell, component, false);
+        const Real actual = candidate.sum(cell, component, false) - base;
+        EXPECT_NEAR(actual, expected, tol) << "component=" << component;
+        EXPECT_GT(std::abs(actual + expected), Real(100.0) * tol)
+            << "signed oracle must reject reversed FV sign";
+        EXPECT_GT(std::abs(actual), Real(100.0) * tol)
+            << "signed oracle must reject omitted fine amount";
+        EXPECT_GT(std::abs(actual - expected * (t1 - t0)), Real(100.0) * tol)
+            << "signed oracle must reject repeated interval weighting";
+        EXPECT_GT(std::abs(actual +
+                           ratio_wrong_integral[static_cast<std::size_t>(slot)] /
+                               (Real(4.0) * dx)),
+                  Real(100.0) * tol)
+            << "FV result must distinguish endpoint-ratio interpolation";
+    }
+    const Real mass_delta = candidate.sum(cell, mass0, false) -
+        state_manager.new_state(0).sum(cell, mass0, false);
+    const Real wrong_component = -fine_integral[1] / (Real(4.0) * dx);
+    EXPECT_GT(std::abs(mass_delta - wrong_component), Real(100.0) * tol)
+        << "signed oracle must reject mass/number permutation";
+    ASSERT_TRUE(erf_sbm::authoritative_state_admissible(
+        candidate, layout, 0, &diagnostic)) << diagnostic;
+    ASSERT_TRUE(state_manager.can_accept_synchronized_state(
+        0, candidate, t1, diagnostic)) << diagnostic;
+    const Real old_coarse_mass = state_manager.new_state(0).sum(
+        cell, mass0, false);
+    ASSERT_TRUE(ya.accept_reflux(diagnostic)) << diagnostic;
+    state_manager.publish_synchronized_state(0, candidate);
+    EXPECT_NEAR(state_manager.new_state(0).sum(cell, mass0, false) -
+                    old_coarse_mass,
+                -fine_integral[0] / (Real(4.0) * dx), tol);
+
+    std::cout << std::setprecision(17)
+              << "SBM_A4_COUPLED_ORACLE mass_integral=" << fine_integral[0]
+              << " number_integral=" << fine_integral[1]
+              << " property_integral=" << fine_integral[2]
+              << " mass_delta_h=" << -fine_integral[0] / (Real(4.0) * dx)
+              << " wrong_ratio_mass_integral=" << ratio_wrong_integral[0]
+              << " interface_lambda=" << interface_lambda
+              << " stages=RK3x3 direct_YA=true\n";
+#endif
 }
 
 } // namespace

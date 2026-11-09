@@ -116,7 +116,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         erf_sbm::SBMTransport* sbm_transport,
                         const MultiFab* ib_wall_face33,
                         const MultiFab* ib_wall_ktarget,
-                        const MultiFab* ib_wall_qfx)
+                        const MultiFab* ib_wall_qfx,
+                        const erf_sbm::SBMAMRStageParent* sbm_parent_stage)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -306,7 +307,8 @@ void erf_slow_rhs_post (int level, int finest_level,
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
             *sbm_state_manager, stage_cons_anchor, stage_cons_input,
             stage_cons_target, avg_xmom, avg_ymom, avg_zmom, geom,
-            solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr);
+            solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr,
+            sbm_parent_stage);
     }
 
     // *************************************************************************

@@ -43,7 +43,10 @@
  * - support() right after each advance(): when a finer level than level() exists,
  *   ERF stops the run if that level's boxes overlap the support (the force would
  *   be lost there, see level());
- * - add_momentum_sources() at every Runge-Kutta stage of level();
+ * - add_momentum_sources() at every Runge-Kutta stage of level(), and, with
+ *   erf.coupling_type = TwoWay, once at the start of each step of every coarser
+ *   level, into zeroed MultiFabs on the grids of level(), which ERF restricts
+ *   onto that level (see add_momentum_sources());
  * - write_checkpoint() each time ERF writes a checkpoint;
  * - plot_var_names() each time ERF builds its plotfile variable list, and
  *   fill_plot_var() for each listed name on every level of each plotfile.
@@ -148,14 +151,16 @@ public:
     /**
      * @brief The level the model couples to
      *
-     * ERF calls advance() and add_momentum_sources() on this level only.
+     * ERF calls advance() on this level only, and add_momentum_sources() for
+     * this level only (see add_momentum_sources() for the coarser levels).
      * Aborts, naming the model's input, when the model cannot couple to a level
      * of this run (for example a level above finest_level).
      *
      * The level must be the finest level that covers the model's support. On a
      * refined level the model's points and their kernels must lie inside the
      * level's boxes, also after a regrid (erf_actuator::points_covered_by checks
-     * it). The force reaches the coarser levels only through ERF's averaging down.
+     * it). The force reaches the coarser levels through ERF's averaging down and,
+     * with TwoWay coupling, as a source restricted from this level.
      * It never reaches a finer level: averaging down would overwrite the forced
      * cells with that level's unforced data, so ERF stops the run when a finer
      * level's boxes overlap support().
@@ -203,6 +208,17 @@ public:
      * held fixed over the step. Called at every Runge-Kutta stage, after ERF's
      * own sources. ERF applies no mask to them: the model keeps its kernels clear
      * of embedded boundaries, immersed terrain and buildings.
+     *
+     * With erf.coupling_type = TwoWay, ERF also calls it at the start of each step
+     * of every coarser level, with lev = level() and zeroed MultiFabs on the grids
+     * of level() as of the last advance() (they may have ghost faces, which the
+     * model leaves alone). It adds the source of its last advance(), as at a
+     * stage. ERF restricts that source onto the coarser level, keeping its
+     * integral, and holds it over that level's step: the air under the finer
+     * level then feels the force while the coarser level steps, and the coarse/fine
+     * faces, which the finer level takes from the coarser one, get the force once.
+     * Before the first advance() and after a regrid of level(), until the next
+     * advance(), ERF does not call it for the coarser levels.
      */
     virtual void add_momentum_sources (int lev,
                                        amrex::MultiFab& xmom_src,

@@ -1,8 +1,13 @@
 #include "ERF_SBMStateManager.H"
+#include "ERF_SBMAMRTime.H"
+#include "AuxiliaryState/ERF_AuxiliaryMappedTransport.H"
 
 #include <AMReX_MFIter.H>
+#include <AMReX_ParallelDescriptor.H>
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <sstream>
 #include <utility>
 
@@ -126,7 +131,8 @@ amrex::MultiFab& SBMStateManager::new_target_storage (const int lev)
 }
 
 bool SBMStateManager::begin_step (const int lev, const double step_old_time,
-                                  std::string& diagnostic)
+                                  std::string& diagnostic,
+                                  const std::optional<double> dt_min)
 {
     diagnostic.clear();
     auto& state = level(lev);
@@ -146,7 +152,10 @@ bool SBMStateManager::begin_step (const int lev, const double step_old_time,
         diagnostic = "SBM begin-step has no accepted current/new spectrum";
         return false;
     }
-    if (state.new_time != step_old_time) {
+    const bool same_time = dt_min.has_value()
+        ? semantic_time_matches(state.new_time, step_old_time, *dt_min)
+        : semantic_time_matches_exact(state.new_time, step_old_time);
+    if (!same_time) {
         std::ostringstream message;
         message.precision(17);
         message << "SBM begin-step time mismatch at level " << lev
@@ -158,9 +167,14 @@ bool SBMStateManager::begin_step (const int lev, const double step_old_time,
     }
 
     // Match ERF::Advance: rotate storage by swapping ownership, never by
-    // copying the full spectral state.
+    // copying the full spectral state.  When the host scheduler's current
+    // step-start expression was admitted as the same endpoint within the
+    // bounded fine-step roundoff test above, the rotated old FAB now owns
+    // that step-start semantic label.  The spectrum values are unchanged;
+    // this only keeps the owner timestamp in lockstep with S_old/t_old at
+    // stage 0.  With no dt_min, the exact-time path above still applies.
     std::swap(state.old_state, state.new_state);
-    state.old_time = state.new_time;
+    state.old_time = step_old_time;
     state.old_valid = true;
     state.new_valid = false;
     state.step_active = true;
@@ -185,6 +199,57 @@ bool SBMStateManager::accept_stage_target (const int lev, const double target_ti
     state.new_valid = true;
     if (physical_step_complete) state.step_active = false;
     return true;
+}
+
+bool SBMStateManager::accept_synchronized_state (
+    const int lev, const amrex::MultiFab& candidate,
+    const double semantic_time, std::string& diagnostic)
+{
+    if (!can_accept_synchronized_state(lev, candidate, semantic_time,
+                                       diagnostic)) {
+        return false;
+    }
+    publish_synchronized_state(lev, candidate);
+    return true;
+}
+
+bool SBMStateManager::can_accept_synchronized_state (
+    const int lev, const amrex::MultiFab& candidate,
+    const double semantic_time, std::string& diagnostic) const
+{
+    diagnostic.clear();
+    const auto& state = level(lev);
+    const double scale = std::max({1.0, std::abs(semantic_time),
+                                   std::abs(state.new_time)});
+    const bool time_matches = std::isfinite(semantic_time) &&
+        std::abs(semantic_time - state.new_time) <=
+            64.0 * std::numeric_limits<double>::epsilon() * scale;
+    const bool local_ok = state.new_state != nullptr && state.new_valid &&
+        !state.step_active && time_matches &&
+        candidate.nComp() == m_layout.ncomp() &&
+        erf_auxiliary::SameCellLayout(candidate, *state.new_state);
+    int vote = local_ok ? 1 : 0;
+    amrex::ParallelDescriptor::ReduceIntMin(vote);
+    if (vote == 0) {
+        diagnostic = local_ok
+            ? "SBM synchronized candidate is invalid on another MPI rank"
+            : "SBM synchronized candidate must match the accepted level layout and time";
+        return false;
+    }
+    return true;
+}
+
+void SBMStateManager::publish_synchronized_state (
+    const int lev, const amrex::MultiFab& candidate)
+{
+    auto& state = level(lev);
+    AMREX_ALWAYS_ASSERT(state.new_state != nullptr && state.new_valid &&
+                        !state.step_active &&
+                        candidate.nComp() == m_layout.ncomp() &&
+                        erf_auxiliary::SameCellLayout(candidate,
+                                                      *state.new_state));
+    amrex::MultiFab::Copy(*state.new_state, candidate, 0, 0,
+                          m_layout.ncomp(), 0);
 }
 
 bool SBMStateManager::step_active (const int lev) const
