@@ -11,6 +11,7 @@
 #include "ERF_ActuatorSampling.H"
 
 #include <cmath>
+#include <optional>
 
 using namespace amrex;
 
@@ -79,10 +80,23 @@ ERF::advance_structure_model (int lev, double time, Real dt_lev,
     AMREX_ALWAYS_ASSERT(m_structure_model);
 
     const bool fitted = (SolverChoice::mesh_type != MeshType::ConstantDz);
+
+    // The fire's fields, when the run has a fire, at the time they belong to
+    std::optional<StructureFire> fire;
+#ifdef ERF_USE_FIRE
+    if (m_fire_coupler) {
+        const FireEngine& engine = m_fire_coupler->engine();
+        fire.emplace(StructureFire{m_fire_coupler->fire_grid().geom, m_fire_coupler->level(),
+                                   m_fire_coupler->fields_time(),
+                                   engine.heat_release(), engine.level_set(),
+                                   [&engine] () { return engine.burned_area(); }});
+    }
+#endif
+
     const StructureStep step{lev, finest_level, time, dt_lev, geom[lev],
                              U_old, V_old, W_old, S_old,
                              fitted ? z_phys_nd[lev].get() : nullptr, fitted ? detJ_cc[lev].get() : nullptr,
-                             structure_unit_map_factors(lev)};
+                             structure_unit_map_factors(lev), fire ? &*fire : nullptr};
     m_structure_model->advance(step);
 
     // The force goes into level lev only. Where level lev+1 covers it, averaging down would

@@ -93,7 +93,8 @@ public:
      * lagged coupling) or after it (synchronous).
      *
      * @param[in] time            Start of the step [s]
-     * @param[in] dt              Step of the level [s]
+     * @param[in] dt              Step of the level [s], ERF's double dt[lev]: fields_time()
+     *                            becomes time + dt, the time ERF assigns to the level
      * @param[in] S_old           Conserved state before the dycore
      * @param[in] xvel_old, yvel_old  Face velocities before the dycore [m/s]
      * @param[in] xvel_new, yvel_new  Face velocities after the dycore [m/s]
@@ -102,7 +103,7 @@ public:
      * @param[in] geom            Geometry of the level
      * @param[in] precip_sources  The microphysics surface precipitation accumulators of the level
      */
-    void advance (amrex::Real time, amrex::Real dt,
+    void advance (double time, double dt,
                   const amrex::MultiFab& S_old,
                   const amrex::MultiFab& xvel_old, const amrex::MultiFab& yvel_old,
                   const amrex::MultiFab& xvel_new, const amrex::MultiFab& yvel_new,
@@ -203,6 +204,19 @@ public:
     const FireGrid& fire_grid () const { return m_fg; }
 
     /**
+     * @brief The time the engine's fields belong to [s], in ERF's double time
+     *
+     * ERF sets it to the fire level's time at start-up and on a restart
+     * (set_fields_time), advance() to the end of the step, and ERF again to
+     * the coarser level's time once the finer levels' substeps have reached
+     * it, so that it equals the time ERF assigns to the level and carries no
+     * round-off from summing substeps.
+     */
+    double fields_time () const { return m_fields_time; }
+    /// Set fields_time() to t [s] (ERF only: start-up, restart, end of a coarser step).
+    void set_fields_time (double t) { m_fields_time = t; }
+
+    /**
      * @brief Sensible heat flux [W/m2] of the previous fire step on the
      *        atmospheric columns of the fire grid's level, with 5 ghost columns
      *        (for a reader that samples a halo around each tile, such as a
@@ -222,6 +236,7 @@ private:
     FireGrid                    m_fg;
     int                         m_lev = 0;
     amrex::Geometry             m_geom_atm;   ///< geometry of the fire grid's level
+    double                      m_fields_time = 0.0;  ///< the time the engine's fields belong to (fields_time())
 
     // The engine's fluxes averaged onto the atmospheric columns of the fire
     // grid's level (one slab per box of that level), held from the previous
