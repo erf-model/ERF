@@ -25,8 +25,8 @@
  *     https://doi.org/10.1175/MWR-D-13-00229.1
  *   Smagorinsky, J. (1963). Mon. Wea. Rev., 91, 99.
  *     https://doi.org/10.1175/1520-0493(1963)091<0099:GCEWTP>2.3.CO;2
- *   Honnert, R. et al. (2011). J. Atmos. Sci., 68, 2742.
- *     https://doi.org/10.1175/JAS-D-11-025.1
+ *   Honnert, R., V. Masson, and F. Couvreux (2011). J. Atmos. Sci., 68, 3112.
+ *     https://doi.org/10.1175/JAS-D-11-061.1
  *   Beare, R.J. (2014). Bound.-Layer Meteor., 153, 345.
  *     https://doi.org/10.1007/s10546-013-9881-3
  *   Hong, S.-Y., & Pan, H.-L. (1996). Mon. Wea. Rev., 124, 2322.
@@ -95,7 +95,6 @@ amrex::Real pbl_kh_ceiling_smag (amrex::Real dx,
  * K_h_max = c_max * dx^(4/3)
  *
  * Derived from dimensional analysis of the inertial subrange.
- * Reference: Honnert et al. (2011). https://doi.org/10.1175/JAS-D-11-025.1
  *
  * @param dx     Horizontal grid spacing [m].
  * @param c_max  Coefficient [m^(2/3) s^-1]. Typical: 0.1.

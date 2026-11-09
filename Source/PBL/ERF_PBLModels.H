@@ -199,7 +199,7 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
  * WRF Yonsei University (YSU) PBL scheme.
  *
  * Based on:
- *   Hong, Noh &amp; Dudhia (2006), MWR, https://doi.org/10.1175/MWR3250.1
+ *   Hong, Noh & Dudhia (2006), MWR, https://doi.org/10.1175/MWR3199.1
  *   Hong (2010), QJRMS, https://doi.org/10.1002/qj.665
  *
  * Features: three-pass bulk-Richardson PBLH diagnosis, nonlocal
