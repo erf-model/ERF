@@ -3,6 +3,8 @@
 #include <ERF_ReadFromWRFBdy.H>
 #include <ERF_ReadFromERFBdy.H>
 #include <ERF_LagrangianMicrophysics.H>
+#include "Microphysics/SBM/ERF_SBMAMRFluxRegister.H"
+#include "Microphysics/SBM/ERF_SBMTransport.H"
 
 using namespace amrex;
 
@@ -310,8 +312,30 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
     //send_to_ww3(lev);
 #endif
 
+    // Start each SBM coarse/fine register interval before the coarse step.
+    // It remains pending until the coarse advance and every fine substep are
+    // accepted below; only then may post_timestep consume it.
+    if (sbm_state_manager && lev < finest_level &&
+        lev + 1 < static_cast<int>(sbm_amr_flux_regs.size()) &&
+        sbm_amr_flux_regs[lev + 1]) {
+        std::string diagnostic;
+        if (!sbm_amr_flux_regs[lev + 1]->begin_interval(
+                time, time + dt[lev], nsubsteps[lev + 1], diagnostic)) {
+            Abort("SBM AMR register interval at ERF::timeStep: " + diagnostic);
+        }
+    }
+
     // Advance a single level for a single time step
     Advance(lev, time, dt[lev], istep[lev], nsubsteps[lev]);
+
+    if (sbm_state_manager) {
+        std::string diagnostic;
+        if (!sbm_transport ||
+            !sbm_transport->accept_physical_step(
+                lev, time, time + dt[lev], diagnostic)) {
+            Abort("SBM AMR register step admission at ERF::timeStep: " + diagnostic);
+        }
+    }
 
     ++istep[lev];
 

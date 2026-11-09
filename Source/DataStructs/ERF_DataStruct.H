@@ -774,6 +774,32 @@ struct SolverChoice {
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
 
+#ifdef ERF_SBM_AMR_QUALIFICATION
+        pp.queryAdd("sbm_amr_qualification_test", sbm_amr_qualification_test);
+        pp.queryAdd("sbm_amr_qualification_expect_zero_flow",
+                    sbm_amr_qualification_expect_zero_flow);
+        pp.queryAdd("sbm_amr_qualification_expect_split",
+                    sbm_amr_qualification_expect_split);
+        pp.queryAdd("sbm_amr_qualification_expect_empty_fine_rank",
+                    sbm_amr_qualification_expect_empty_fine_rank);
+        pp.queryAdd("sbm_amr_qualification_unique_profile",
+                    sbm_amr_qualification_unique_profile);
+        pp.queryAdd("sbm_amr_qualification_parent_store_fault",
+                    sbm_amr_qualification_parent_store_fault);
+#else
+        for (const char* name : {"sbm_amr_qualification_test",
+                                 "sbm_amr_qualification_expect_zero_flow",
+                                 "sbm_amr_qualification_expect_split",
+                                 "sbm_amr_qualification_expect_empty_fine_rank",
+                                 "sbm_amr_qualification_unique_profile",
+                                 "sbm_amr_qualification_parent_store_fault"}) {
+            if (pp.contains(name)) {
+                amrex::Error(std::string("erf.") + name + " is available only in "
+                             "the isolated ERF_ENABLE_SBM_AMR_QUALIFICATION build");
+            }
+        }
+#endif
+
         // Test-only SBM failure injections. They remain disabled unless an
         // integration test explicitly enables the corresponding option.
         pp.queryAdd("sbm_test_native_qc_write_fault", sbm_test_native_qc_write_fault);
@@ -839,7 +865,12 @@ struct SolverChoice {
             if (sbm_cloud_rain_split <= 0 || sbm_cloud_rain_split >= sbm_nbins) {
                 amrex::Error("sbm_cloud_rain_split must be strictly inside the liquid bin range");
             }
-            const int expected_sbm_components = sbm_nbins * (sbm_moment_mode == 2 ? 2 : 1);
+            int expected_sbm_components = sbm_nbins * (sbm_moment_mode == 2 ? 2 : 1);
+#ifdef ERF_SBM_AMR_QUALIFICATION
+            if (sbm_amr_qualification_test && sbm_moment_mode == 2) {
+                expected_sbm_components += sbm_nbins;
+            }
+#endif
             if (!sbm_fixture_initial_state.empty() &&
                 sbm_fixture_initial_state.size() != static_cast<amrex::Long>(expected_sbm_components)) {
                 amrex::Error("sbm_fixture_initial_state must match the full runtime SBM component count");
@@ -3169,6 +3200,12 @@ struct SolverChoice {
     int sbm_nbins{4};
     int sbm_moment_mode{1};
     int sbm_cloud_rain_split{-1};
+    bool sbm_amr_qualification_test{false};
+    bool sbm_amr_qualification_expect_zero_flow{false};
+    bool sbm_amr_qualification_expect_split{false};
+    bool sbm_amr_qualification_expect_empty_fine_rank{false};
+    bool sbm_amr_qualification_unique_profile{false};
+    bool sbm_amr_qualification_parent_store_fault{false};
     bool sbm_test_native_qc_write_fault{false};
     bool sbm_test_donor_cfl_fault{false};
     amrex::Vector<amrex::Real> sbm_edges;

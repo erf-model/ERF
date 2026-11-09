@@ -122,6 +122,8 @@ option(ERF_ENABLE_DOCUMENTATION "Build documentation" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
+option(ERF_ENABLE_SBM_AMR_QUALIFICATION
+  "Build an isolated internal executable for fixed two-level periodic SBM qualification" OFF)
 set(_erf_enable_unit_tests_default OFF)
 if(ERF_ENABLE_TESTS AND NOT ERF_ENABLE_REGRESSION_TESTS_ONLY)
   set(_erf_enable_unit_tests_default ON)

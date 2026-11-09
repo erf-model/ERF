@@ -2,9 +2,11 @@
 #define ERF_H_
 
 #include <string>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <set>
+#include <vector>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -114,7 +116,11 @@ class MultiBlockContainer;
 // Describes one component of a 2D plotfile; defined in
 // IO/ERF_Plotfile2DSampledLevel.H, which ERF.H does not need to include.
 namespace plotfile2d { struct Plotfile2DOutputDescriptor; }
-namespace erf_sbm { class SBMStateManager; class SBMTransport; }
+namespace erf_sbm {
+class SBMAMRFluxRegister;
+class SBMStateManager;
+class SBMTransport;
+}
 
 /**
  * Main class in ERF code, instantiated from main.cpp
@@ -593,6 +599,17 @@ public:
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, double dt_lev);
+
+    // Defined only in ERF_SBM_AMR_QUALIFICATION builds
+    // (Microphysics/SBM/ERF_SBMAMRQualification.cpp); public because they
+    // launch device lambdas.
+    void sbm_qualification_apply_initial_profile (int lev);
+    void sbm_qualification_record_initial_inventory ();
+    void sbm_qualification_check_step (int nstep, amrex::Real correction_linf,
+                                       std::uint64_t reflux_calls,
+                                       std::uint64_t reflux_syncs);
+    [[nodiscard]] std::vector<amrex::Real>
+    sbm_qualification_composite_inventory () const;
 
     // Do whatever writing needs to be done at intermediate times
     void WriteAtIntermediateTime (int nstep, double time);
@@ -1214,6 +1231,14 @@ private:
 
     void make_flux_register (int lev);
 
+    // SBM coarse/fine coupling (Microphysics/SBM/ERF_SBMAMRCoupling.cpp)
+    void make_sbm_flux_register (int lev);
+    void bind_sbm_amr_flux_registers (int lev);
+    void init_sbm_level_from_coarse (int lev, amrex::Real time,
+                                     const amrex::BoxArray& ba,
+                                     const amrex::DistributionMapping& dm);
+    void sbm_synchronize_levels (int nstep);
+
     void Construct_ERFFillPatchers (int lev);
 
     void Define_ERFFillPatchers (int lev);
@@ -1535,6 +1560,10 @@ private:
 
     std::unique_ptr<Microphysics> micro;
     std::unique_ptr<erf_sbm::SBMStateManager> sbm_state_manager;
+    // Declared before SBMTransport so the non-owning interface references in
+    // transport are destroyed before these register owners.
+    amrex::Vector<std::unique_ptr<erf_sbm::SBMAMRFluxRegister>> sbm_amr_flux_regs;
+    std::vector<amrex::Real> sbm_qualification_initial_inventory;
     // Declared after the state manager so its non-owning layout reference is
     // destroyed before the authoritative SBM owner.
     std::unique_ptr<erf_sbm::SBMTransport> sbm_transport;
