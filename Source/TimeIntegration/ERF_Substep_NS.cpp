@@ -40,6 +40,7 @@ using namespace amrex;
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ]  l_real_bc
  * @param[inout]  cf_fluxes coarse/fine face fluxes: recorded here on a coarse level, imposed on a fine one
+ * @param[inout]  mom_reflux_p if not null, the sum of the pressure the horizontal momenta see, added to (ERF_MomentumReflux.cpp)
  */
 
 void erf_substep_NS (int step, int nrk,
@@ -74,7 +75,8 @@ void erf_substep_NS (int step, int nrk,
                      const amrex::Real* sinesq_stag_d,
                      const Real l_damp_coef,
                      const Real beta_d,
-                     const CFFaceFluxes& cf_fluxes)
+                     const CFFaceFluxes& cf_fluxes,
+                     MultiFab* mom_reflux_p)
 {
     //
     // NOTE: for step > 0, S_data and S_prev point to the same MultiFab data!!
@@ -180,6 +182,19 @@ void erf_substep_NS (int step, int nrk,
             // (after using it above to extrapolate theta for this step)
             lagged_arr(i,j,k) = prev_drho_theta(i,j,k);
         });
+
+        // The acoustic pressure the horizontal momenta see in this substep, gamma R_d pi (rho theta)'',
+        // for the reflux of the pressure impulse on the coarse/fine faces (ERF_MomentumReflux.cpp)
+        if (mom_reflux_p && !(nrk == 0 && step == 0)) {
+            const Array4<Real>&       p_reflux = mom_reflux_p->array(mfi);
+            const Array4<const Real>& pi_arr   = pi_stage.const_array(mfi);
+            const Array4<const Real>& qt_arr   = qt.const_array(mfi);
+            ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real q = (l_use_moisture) ? qt_arr(i,j,k) : zero;
+                p_reflux(i,j,k) += dtau * Gamma * R_d * pi_arr(i,j,k,0) * theta_extrap(i,j,k) / (one + q);
+            });
+        }
 
         // NOTE: We must do this here because for step > 0, prev_zmom and cur_zmom both point to the same data,
         //       so by the time we would use prev_zmom to define zflux, it would have already been over-written.

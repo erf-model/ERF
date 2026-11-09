@@ -53,6 +53,23 @@ is ``true``) goes back to interpolating the coarse momentum linearly in time on 
 not done with moving terrain.  This is done under one-way coupling as well as two-way, so that
 the fine level sees the same fluxes through its coarse-fine faces whichever coupling is used.
 
+The momenta themselves are not refluxed by default, so with two-way coupling the composite momentum
+is not conserved across coarse-fine faces normal to it: the fine interior gives up its momentum flux
+at the first fine cell, while the coarse level updates the coarse-fine face with its own flux at the
+covered coarse cell (issue #5017). With ``erf.momentum_reflux = true`` (the default is ``false``) the
+pressure part of that flux, which is most of it in still air, is refluxed on the coarse-fine faces
+normal to the x- and y-momenta. Each level adds up the pressure its momenta saw over the coarse step
+of level 0, and at the end of that step each such coarse face is given the difference between the
+impulse of the pressure difference from the uncovered coarse cell to the first fine cell, over the
+width of the composite control volume :math:`(\Delta x_c + \Delta x_f)/2`, and the one the coarse level
+gave it. The impulse is given as a momentum source on those faces over the next coarse step, not at
+once: added at once it acts as an explicit acoustic update over a whole coarse step and grows where
+the coarse-fine faces of two directions meet. The momentum at the end of a step is therefore short
+by that step's impulse, which is not written to checkpoints. The advective and diffusive momentum
+fluxes, the momentum sources on these faces, the tangential momenta and :math:`\rho w` on z-faces are
+not refluxed. This is done only for fully compressible levels without terrain or EB, and takes the
+map factors to be one.
+
 When using the anelastic approximation, this ensures that the computation of the updates to the
 fine momentum do not use any values of the perturbational pressure from the coarser level since
 the perturbational pressure is not synchronized between levels.

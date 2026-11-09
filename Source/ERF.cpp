@@ -742,6 +742,10 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             int num_comp = ncomp - src_comp;
             AverageDownTo(lev,src_comp,num_comp);
 
+            // The impulse the reflux of the pressure gives the coarse/fine faces normal to the
+            // momentum, from this step, given over the next (erf.momentum_reflux, ERF_MomentumReflux.cpp)
+            momentum_reflux(lev);
+
             // The surface precipitation accumulators under the fine level's patches that
             // stand on the ground, which (like the state) the fine level tracks better
             average_down_precip_accumulators(lev);
@@ -785,6 +789,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             }
         }
     }
+
+    // The next coarse step sums the pressure afresh
+    if (momentum_reflux_enabled()) { momentum_reflux_reset(); }
 
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
         sum_integrated_quantities(time);
