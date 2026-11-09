@@ -33,18 +33,19 @@
  * Switches and constants of the Morrison scheme (the module variables of
  * module_mp_morr_two_moment), including the precomputed CONS1..CONS41.
  * Build it with make_morrison_params(); it is cheap to copy into device kernels.
+ *
+ * Only the Fortran's INUM = 1 (constant droplet number), INUC = 0 (Cooper ice
+ * nucleation) and IHAIL = 0 (graupel) are ported, so those switches are not
+ * here: there is no droplet activation, arctic nucleation or hail. IACT does not
+ * matter while the droplet number is constant.
  */
 struct MorrisonParams
 {
     // Switches
-    int iact;    // CCN activation option (1: power-law, 2: lognormal aerosol)
-    int inum;    // Droplet number option (0: predict, 1: constant)
     int iliq;    // Liquid-only option (0: include ice, 1: liquid only)
-    int inuc;    // Ice nucleation option (0: mid-latitude, 1: arctic)
     int igraup;  // Graupel option (0: include graupel, 1: no graupel)
-    int ihail;   // Graupel/hail option (0: graupel, 1: hail)
 
-    amrex::Real ndcnst; // Constant droplet number concentration (cm^-3), used when INUM = 1
+    amrex::Real ndcnst; // Constant droplet number concentration (cm^-3)
 
     // Physical constants
     amrex::Real pi;     // Pi
@@ -96,10 +97,6 @@ struct MorrisonParams
     amrex::Real lammaxs, lammins; // Snow
     amrex::Real lammaxg, lamming; // Graupel
 
-    // Aerosol concentrations (IACT = 2), used to bound predicted droplet number (m^-3)
-    amrex::Real nanew1; // Mode 1
-    amrex::Real nanew2; // Mode 2
-
     // Precomputed constants
     amrex::Real cons1, cons2, cons3, cons4, cons5;
     amrex::Real cons6, cons7, cons8, cons9, cons10;
@@ -124,12 +121,8 @@ make_morrison_params (const bool no_ice, const amrex::Real ndcnst)
     using amrex::Real;
     MorrisonParams mp;
 
-    mp.iact   = 2;              // Lognormal aerosol activation
-    mp.inum   = 1;              // Constant droplet number concentration
     mp.iliq   = no_ice ? 1 : 0; // Liquid only for Morrison_NoIce
-    mp.inuc   = 0;              // Mid-latitude ice nucleation (Cooper)
     mp.igraup = no_ice ? 1 : 0; // No graupel for Morrison_NoIce
-    mp.ihail  = 0;              // Graupel (0) rather than hail (1)
 
     mp.ndcnst = ndcnst;
 
@@ -143,7 +136,7 @@ make_morrison_params (const bool no_ice, const amrex::Real ndcnst)
     mp.rhow  = Real(997.0);
     mp.rhoi  = Real(500.0);
     mp.rhosn = Real(100.0);
-    mp.rhog  = (mp.ihail == 0) ? Real(400.0) : Real(900.0);
+    mp.rhog  = Real(400.0);
 
     mp.ai = Real(700.0);
     mp.bi = one;
@@ -152,14 +145,8 @@ make_morrison_params (const bool no_ice, const amrex::Real ndcnst)
     mp.bs = Real(0.41);
     mp.ar = Real(841.99667);
     mp.br = Real(0.8);
-    if (mp.ihail == 0) {
-        mp.ag = Real(19.3);
-        mp.bg = Real(0.37);
-    } else {
-        // Hail (Matsun and Huggins 1980)
-        mp.ag = Real(114.5);
-        mp.bg = myhalf;
-    }
+    mp.ag = Real(19.3);
+    mp.bg = Real(0.37);
 
     mp.aimm   = Real(0.66);
     mp.bimm   = Real(100.0);
@@ -194,11 +181,6 @@ make_morrison_params (const bool no_ice, const amrex::Real ndcnst)
     mp.lammins = one/Real(2000.0E-6);
     mp.lammaxg = one/Real(20.0E-6);
     mp.lamming = one/Real(2000.0E-6);
-
-    // Aerosol size distribution for MPACE (Morrison et al. 2007, JGR). The other
-    // activation parameters of the Fortran are not needed while INUM = 1.
-    mp.nanew1 = Real(72.2E6);
-    mp.nanew2 = Real(1.8E6);
 
     mp.cons1  = gamma_function(one + mp.ds) * mp.cs;
     mp.cons2  = gamma_function(one + mp.dg) * mp.cg;
@@ -416,14 +398,27 @@ amrex::Real morrison_fallspeed_density_factor (const amrex::Real rhosu,
     return std::pow(rhosu / rho, amrex::Real(0.54));
 }
 
-//! Air-density corrected fall speed coefficients A of V = A D^B
+/**
+ * Air-density correction of the cloud ice fall speed, (RHOSU/RHO)^0.35 (Ikawa and
+ * Saito 1991). Also scales the upper limit on the cloud ice fall speed.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real morrison_ice_fallspeed_density_factor (const amrex::Real rhosu,
+                                                   const amrex::Real rho) noexcept
+{
+    return std::pow(rhosu / rho, amrex::Real(0.35));
+}
+
+//! Air-density corrected fall speed coefficients A of V = A D^B, and the density factors in them
 struct MorrisonFallSpeedCoefficients
 {
-    amrex::Real ain; // Cloud ice (Ikawa and Saito 1991 correction)
-    amrex::Real arn; // Rain
-    amrex::Real asn; // Snow
-    amrex::Real acn; // Cloud droplets (temperature-dependent Stokes)
-    amrex::Real agn; // Graupel
+    amrex::Real ain;     // Cloud ice (Ikawa and Saito 1991 correction)
+    amrex::Real arn;     // Rain
+    amrex::Real asn;     // Snow
+    amrex::Real acn;     // Cloud droplets (temperature-dependent Stokes)
+    amrex::Real agn;     // Graupel
+    amrex::Real rhofac;  // (RHOSU/RHO)^0.54, in ARN, ASN and AGN
+    amrex::Real rhofaci; // (RHOSU/RHO)^0.35, in AIN
 };
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -431,13 +426,14 @@ MorrisonFallSpeedCoefficients
 morrison_fallspeed_coefficients (const amrex::Real rho, const amrex::Real mu,
                                  const MorrisonParams& mp) noexcept
 {
-    const amrex::Real dum = morrison_fallspeed_density_factor(mp.rhosu, rho);
     MorrisonFallSpeedCoefficients c;
-    c.ain = std::pow(mp.rhosu / rho, amrex::Real(0.35)) * mp.ai;
-    c.arn = dum * mp.ar;
-    c.asn = dum * mp.as;
+    c.rhofac  = morrison_fallspeed_density_factor(mp.rhosu, rho);
+    c.rhofaci = morrison_ice_fallspeed_density_factor(mp.rhosu, rho);
+    c.ain = c.rhofaci * mp.ai;
+    c.arn = c.rhofac * mp.ar;
+    c.asn = c.rhofac * mp.as;
     c.acn = mp.g * mp.rhow / (amrex::Real(18.0) * mu);
-    c.agn = dum * mp.ag;
+    c.agn = c.rhofac * mp.ag;
     return c;
 }
 
@@ -618,25 +614,30 @@ MorrisonFallSpeed morrison_graupel_fallspeed (const amrex::Real agn, const amrex
             std::min(morrison_fallspeed(agn, mp.cons8, lamg, mp.bg), amrex::Real(20.0) * rhofac)};
 }
 
-//! Cloud ice fall speeds, limited to 1.2 m/s times (RHOSU/RHO)^0.35
+//! Cloud ice fall speeds, limited to 1.2 m/s times the ice density factor rhofaci
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 MorrisonFallSpeed morrison_ice_fallspeed (const amrex::Real ain, const amrex::Real lami,
-                                          const amrex::Real rho, const MorrisonParams& mp) noexcept
+                                          const amrex::Real rhofaci, const MorrisonParams& mp) noexcept
 {
-    const amrex::Real umax = amrex::Real(1.2) * std::pow(mp.rhosu / rho, amrex::Real(0.35));
+    const amrex::Real umax = amrex::Real(1.2) * rhofaci;
     return {std::min(morrison_fallspeed(ain, mp.cons28, lami, mp.bi), umax),
             std::min(morrison_fallspeed(ain, mp.cons27, lami, mp.bi), umax)};
 }
 
-//! Cloud droplet fall speeds of the gamma distribution (not limited)
+/**
+ * Cloud droplet fall speeds of the gamma distribution (not limited), given
+ * g1 = GAMMA(PGAM+1) and g4 = GAMMA(PGAM+4).
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 MorrisonFallSpeed morrison_cloud_droplet_fallspeed (const amrex::Real acn, const amrex::Real lamc,
-                                                    const amrex::Real pgam, const MorrisonParams& mp) noexcept
+                                                    const amrex::Real pgam,
+                                                    const amrex::Real g1, const amrex::Real g4,
+                                                    const MorrisonParams& mp) noexcept
 {
     return {acn * gamma_function(amrex::Real(4.) + mp.bc + pgam) /
-                (std::pow(lamc, mp.bc) * gamma_function(pgam + amrex::Real(4.))),
+                (std::pow(lamc, mp.bc) * g4),
             acn * gamma_function(one + mp.bc + pgam) /
-                (std::pow(lamc, mp.bc) * gamma_function(pgam + one))};
+                (std::pow(lamc, mp.bc) * g1)};
 }
 
 // ---------------------------------------------------------------------------
@@ -810,37 +811,45 @@ amrex::Real morrison_melting (const amrex::Real n0, const amrex::Real kap,
     return amrex::Real(2) * mp.pi * n0 * kap * (amrex::Real(273.15) - t) / xlf * ventilation + dum;
 }
 
+//! Melting of snow or graupel and the evaporation of the melt
+struct MorrisonMelting
+{
+    amrex::Real pmlt; // PSMLT or PGMLT: melting
+    amrex::Real evpm; // EVPMS or EVPMG: evaporation of the melt
+};
+
 /**
  * Snow or graupel melting above freezing, PSMLT/PGMLT, and the evaporation of the
  * melt in water subsaturation, EVPMS/EVPMG. q, n0, lam and a are those of the
  * species, cons and cons_exp its ventilation constants, prac the rain it collects.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void morrison_melting_and_evaporation (const amrex::Real q, const amrex::Real n0,
-                                       const amrex::Real lam, const amrex::Real a,
-                                       const amrex::Real cons, const amrex::Real cons_exp,
-                                       const amrex::Real prac,
-                                       const amrex::Real t, const amrex::Real qv,
-                                       const amrex::Real rho, const amrex::Real mu,
-                                       const amrex::Real xlf, const amrex::Real kap,
-                                       const amrex::Real dv, const amrex::Real sc,
-                                       const amrex::Real ab,
-                                       const MorrisonSaturation& sat,
-                                       const MorrisonParams& mp,
-                                       amrex::Real& pmlt, amrex::Real& evpm) noexcept
+MorrisonMelting morrison_melting_and_evaporation (const amrex::Real q, const amrex::Real n0,
+                                                  const amrex::Real lam, const amrex::Real a,
+                                                  const amrex::Real cons, const amrex::Real cons_exp,
+                                                  const amrex::Real prac,
+                                                  const amrex::Real t, const amrex::Real qv,
+                                                  const amrex::Real rho, const amrex::Real mu,
+                                                  const amrex::Real xlf, const amrex::Real kap,
+                                                  const amrex::Real dv, const amrex::Real sc,
+                                                  const amrex::Real ab,
+                                                  const MorrisonSaturation& sat,
+                                                  const MorrisonParams& mp) noexcept
 {
+    MorrisonMelting r{amrex::Real(0), amrex::Real(0)};
     if (q >= amrex::Real(1.0e-8)) {
         const amrex::Real vent = morrison_ventilation(mp.f1s, mp.f2s, a, rho, mu, sc, cons, lam, cons_exp);
-        pmlt = morrison_melting(n0, kap, t, xlf, vent, prac, mp);
+        r.pmlt = morrison_melting(n0, kap, t, xlf, vent, prac, mp);
 
         // In water subsaturation, snow/graupel melts and evaporates
         if (sat.qvqvs < one) {
             const amrex::Real eps = morrison_phase_relaxation(mp.pi, n0, rho, dv, vent);
-            evpm = (qv - sat.qvs) * eps / ab;
-            evpm = std::max(evpm, pmlt);
-            pmlt = pmlt - evpm;
+            r.evpm = (qv - sat.qvs) * eps / ab;
+            r.evpm = std::max(r.evpm, r.pmlt);
+            r.pmlt = r.pmlt - r.evpm;
         }
     }
+    return r;
 }
 
 /**
@@ -962,25 +971,28 @@ struct MorrisonRainIceCollision
 };
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-MorrisonRainIceCollision morrison_rain_ice_collision (const amrex::Real qi, const amrex::Real ni,
+MorrisonRainIceCollision morrison_rain_ice_collision (const amrex::Real qr, const amrex::Real qi,
+                                                      const amrex::Real ni,
                                                       const amrex::Real nr, const amrex::Real n0r,
                                                       const amrex::Real lamr, const amrex::Real arn,
                                                       const amrex::Real rho,
                                                       const MorrisonParams& mp, const amrex::Real dt) noexcept
 {
-    MorrisonRainIceCollision r;
-    r.niacr = mp.cons24 * ni * n0r * arn / std::pow(lamr, (mp.br + three)) * rho;
-    r.piacr = mp.cons25 * ni * n0r * arn / std::pow(lamr, (mp.br + three)) /
-        amrex::Math::powi<3>(lamr) * rho;
-    r.praci = mp.cons24 * qi * n0r * arn / std::pow(lamr, (mp.br + three)) * rho;
-    r.niacr = std::min(r.niacr, nr / dt);
-    r.niacr = std::min(r.niacr, ni / dt);
+    MorrisonRainIceCollision r{amrex::Real(0), amrex::Real(0), amrex::Real(0)};
+    if (qr >= amrex::Real(1.0e-8) && qi >= amrex::Real(1.0e-8)) {
+        r.niacr = mp.cons24 * ni * n0r * arn / std::pow(lamr, (mp.br + three)) * rho;
+        r.piacr = mp.cons25 * ni * n0r * arn / std::pow(lamr, (mp.br + three)) /
+            amrex::Math::powi<3>(lamr) * rho;
+        r.praci = mp.cons24 * qi * n0r * arn / std::pow(lamr, (mp.br + three)) * rho;
+        r.niacr = std::min(r.niacr, nr / dt);
+        r.niacr = std::min(r.niacr, ni / dt);
+    }
     return r;
 }
 
 /**
  * Nucleation of cloud ice from homogeneous and heterogeneous freezing on aerosol,
- * MNUCCD and NNUCCD (Cooper curve for INUC = 0, constant for INUC = 1).
+ * MNUCCD and NNUCCD (Cooper curve, the Fortran's INUC = 0).
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 MorrisonRates morrison_ice_nucleation (const amrex::Real t, const amrex::Real rho,
@@ -991,25 +1003,15 @@ MorrisonRates morrison_ice_nucleation (const amrex::Real t, const amrex::Real rh
 {
     using amrex::Real;
     MorrisonRates r{Real(0), Real(0)};
-    if (mp.inuc == 0) {
-        // Add threshold according to Greg Thompson
-        if ((sat.qvqvs >= Real(0.999) && t <= Real(265.15)) || sat.qvqvsi >= Real(1.08)) {
-            // hm, modify dec. 5, 2006, replace with cooper curve
-            Real kc2 = Real(0.005) * std::exp(Real(0.304) * (Real(273.15) - t)) * Real(1000.0); // L^-1 to m^-3
-            kc2 = std::min(kc2, Real(500.0e3));     // Limit to 500 L^-1
-            kc2 = std::max(kc2 / rho, Real(0));    // Convert to kg^-1
-            if (kc2 > ni + ns + ng) {
-                r.number = (kc2 - ni - ns - ng) / dt;
-                r.mass = r.number * mp.mi0;
-            }
-        }
-    } else if (mp.inuc == 1) {
-        if (t < Real(273.15) && sat.qvqvsi > one) {
-            const Real kc2 = Real(0.16) * Real(1000.0) / rho; // L^-1 to kg^-1
-            if (kc2 > ni + ns + ng) {
-                r.number = (kc2 - ni - ns - ng) / dt;
-                r.mass = r.number * mp.mi0;
-            }
+    // Add threshold according to Greg Thompson
+    if ((sat.qvqvs >= Real(0.999) && t <= Real(265.15)) || sat.qvqvsi >= Real(1.08)) {
+        // hm, modify dec. 5, 2006, replace with cooper curve
+        Real kc2 = Real(0.005) * std::exp(Real(0.304) * (Real(273.15) - t)) * Real(1000.0); // L^-1 to m^-3
+        kc2 = std::min(kc2, Real(500.0e3));     // Limit to 500 L^-1
+        kc2 = std::max(kc2 / rho, Real(0));    // Convert to kg^-1
+        if (kc2 > ni + ns + ng) {
+            r.number = (kc2 - ni - ns - ng) / dt;
+            r.mass = r.number * mp.mi0;
         }
     }
     return r;
@@ -1033,6 +1035,15 @@ amrex::Real morrison_rime_splinter_factor (const amrex::Real t) noexcept
     return fmult;
 }
 
+//! Ice splinters of rime-splintering, from rimed cloud water and from rimed rain
+struct MorrisonRimeSplintering
+{
+    amrex::Real nmult_c; // NMULTS or NMULTG: splinter number from rimed cloud water
+    amrex::Real qmult_c; // QMULTS or QMULTG: splinter mass from rimed cloud water
+    amrex::Real nmult_r; // NMULTR or NMULTRG: splinter number from rimed rain
+    amrex::Real qmult_r; // QMULTR or QMULTRG: splinter mass from rimed rain
+};
+
 /**
  * Rime-splintering (Hallet and Mossop 1974) on snow or graupel of mixing ratio
  * qx, which collects cloud water at psacw (PSACWS or PSACWG) and rain at prac
@@ -1040,14 +1051,13 @@ amrex::Real morrison_rime_splinter_factor (const amrex::Real t) noexcept
  * the splinter mass is taken out of the riming rates, which it cannot exceed.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void morrison_rime_splintering (const amrex::Real qx, const amrex::Real qc,
-                                const amrex::Real qr, const amrex::Real t,
-                                const amrex::Real mmult,
-                                amrex::Real& psacw, amrex::Real& prac,
-                                amrex::Real& nmult_c, amrex::Real& qmult_c,
-                                amrex::Real& nmult_r, amrex::Real& qmult_r) noexcept
+MorrisonRimeSplintering morrison_rime_splintering (const amrex::Real qx, const amrex::Real qc,
+                                                   const amrex::Real qr, const amrex::Real t,
+                                                   const amrex::Real mmult,
+                                                   amrex::Real& psacw, amrex::Real& prac) noexcept
 {
     using amrex::Real;
+    MorrisonRimeSplintering r{Real(0), Real(0), Real(0), Real(0)};
     // Thresholds limit rime-splintering in stratiform clouds; they correspond with
     // the graupel thresholds in Rutledge and Hobbs 1984
     if (qx >= Real(0.1e-3)) {
@@ -1059,23 +1069,24 @@ void morrison_rime_splintering (const amrex::Real qx, const amrex::Real qc,
                     // 1000 is to convert from kg to g
                     // Splintering from droplets accreted onto snow/graupel
                     if (psacw > Real(0)) {
-                        nmult_c = Real(35.0e4) * psacw * fmult * Real(1000.0);
-                        qmult_c = nmult_c * mmult;
-                        qmult_c = std::min(qmult_c, psacw);
-                        psacw = psacw - qmult_c;
+                        r.nmult_c = Real(35.0e4) * psacw * fmult * Real(1000.0);
+                        r.qmult_c = r.nmult_c * mmult;
+                        r.qmult_c = std::min(r.qmult_c, psacw);
+                        psacw = psacw - r.qmult_c;
                     }
 
                     // Riming and splintering from accreted raindrops
                     if (prac > Real(0)) {
-                        nmult_r = Real(35.0e4) * prac * fmult * Real(1000.0);
-                        qmult_r = nmult_r * mmult;
-                        qmult_r = std::min(qmult_r, prac);
-                        prac = prac - qmult_r;
+                        r.nmult_r = Real(35.0e4) * prac * fmult * Real(1000.0);
+                        r.qmult_r = r.nmult_r * mmult;
+                        r.qmult_r = std::min(r.qmult_r, prac);
+                        prac = prac - r.qmult_r;
                     }
                 }
             }
         }
     }
+    return r;
 }
 
 /**
@@ -1167,15 +1178,14 @@ void morrison_evaporate_small_at_subsaturation (const MorrisonSaturation& sat,
     }
 }
 
-//! Below QSMALL, set the mixing ratio, number and effective radius to zero
+//! Below QSMALL, set the mixing ratio and number to zero
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void morrison_zero_below_qsmall (amrex::Real& q, amrex::Real& n, amrex::Real& eff,
+void morrison_zero_below_qsmall (amrex::Real& q, amrex::Real& n,
                                  const amrex::Real qsmall) noexcept
 {
     if (q < qsmall) {
-        q   = amrex::Real(0);
-        n   = amrex::Real(0);
-        eff = amrex::Real(0);
+        q = amrex::Real(0);
+        n = amrex::Real(0);
     }
 }
 

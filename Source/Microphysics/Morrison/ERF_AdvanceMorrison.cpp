@@ -53,7 +53,6 @@ namespace MORRInd {
            qv3d,        // WATER VAPOR MIXING RATIO
            pres,        // ATMOSPHERIC PRESSURE
            dzq,         // DIFFERENCE IN HEIGHT ACROSS LEVEL
-           w3d,         // GRID-SCALE VERTICAL VELOCITY
            nc3d,        // CLOUD DROPLET NUMBER CONCENTRATION
            nc3dten,     // CLOUD DROPLET NUMBER CONCENTRATION TENDENCY
            qg3dten,     // GRAUPEL MIX RATIO TENDENCY
@@ -65,20 +64,10 @@ namespace MORRInd {
            qisten,      // CLOUD ICE SED TEND
            qnisten,     // SNOW SED TEND
            qcsten,      // CLOUD WAT SED TEND
-           qrcu1d,      // RAIN FROM CUMULUS PARAMETERIZATION
-           qscu1d,      // SNOW FROM CUMULUS PARAMETERIZATION
-           qicu1d,      // ICE FROM CUMULUS PARAMETERIZATION
            precrt,      // TOTAL PRECIP PER TIME STEP
-           snowrt,      // SNOW PER TIME STEP
-           snowprt,     // TOTAL CLOUD ICE PLUS SNOW PER TIME STEP
            grplprt,     // TOTAL GRAUPEL PER TIME STEP
            rainonlyprt, // RAIN ALONE PER TIME STEP
            snowonlyprt, // SNOW ALONE (NO CLOUD ICE) PER TIME STEP
-           effc,        // DROPLET EFFECTIVE RADIUS
-           effi,        // CLOUD ICE EFFECTIVE RADIUS
-           effs,        // SNOW EFFECTIVE RADIUS
-           effr,        // RAIN EFFECTIVE RADIUS
-           effg,        // GRAUPEL EFFECTIVE RADIUS
            rho,         // AIR DENSITY P/(R T)
            mu,          // AIR VISCOSITY
            ain,         // Air-density corrected fall speed coefficients
@@ -86,6 +75,8 @@ namespace MORRInd {
            asn,
            acn,
            agn,
+           rhofac,      // (RHOSU/RHO)^0.54, in ARN, ASN and AGN
+           rhofaci,     // (RHOSU/RHO)^0.35, in AIN
            dumi,        // Sedimenting moments, multiplied by RHO
            dumr,
            dumfni,
@@ -162,6 +153,7 @@ void morrison_warm_processes (Array4<Real> const& m, int i, int j, int k,
     const Real arn  = m(i,j,k,MORRInd::arn);
     const Real asn  = m(i,j,k,MORRInd::asn);
     const Real agn  = m(i,j,k,MORRInd::agn);
+    const Real rhofac = m(i,j,k,MORRInd::rhofac);
     const Real xxlv = m(i,j,k,MORRInd::xxlv);
     const Real xxls = m(i,j,k,MORRInd::xxls);
     const Real xlf  = m(i,j,k,MORRInd::xlf);
@@ -175,10 +167,8 @@ void morrison_warm_processes (Array4<Real> const& m, int i, int j, int k,
 
     const MorrisonSaturation& sat = env.sat;
 
-    // Constant droplet number (INUM = 1): convert NDCNST from cm^-3 to kg^-1
-    if (mp.inum == 1) {
-        nc3d = morrison_ndcnst_to_number_mixing_ratio(mp.ndcnst, rho_erf);
-    }
+    // Constant droplet number: convert NDCNST from cm^-3 to kg^-1
+    nc3d = morrison_ndcnst_to_number_mixing_ratio(mp.ndcnst, rho_erf);
 
     // Melt very small snow and graupel mixing ratios, add to rain
     if (qni3d < Real(1.0e-6)) {
@@ -220,14 +210,16 @@ void morrison_warm_processes (Array4<Real> const& m, int i, int j, int k,
         const Real nprc  = auto_c.nprc;
         const Real nprc1 = auto_c.nprc1;
 
+        // Rain fall speeds, for the collection of snow and graupel by rain
+        const MorrisonFallSpeed vr = (qr3d >= Real(1.0e-8))
+            ? morrison_rain_fallspeed(arn, lamr, rhofac, mp) : MorrisonFallSpeed{Real(0), Real(0)};
+
         // Collection of snow by rain above freezing (Ikawa and Saito 1991)
         // hm fix, 2/12/13: for above freezing conditions to get accelerated melting of
         // snow, we need collection of rain by snow (following Lin et al. 1983)
         Real pracs = Real(0);
         if (qr3d >= Real(1.0e-8) && qni3d >= Real(1.0e-8)) {
-            const Real rhofac = morrison_fallspeed_density_factor(mp.rhosu, rho);
             const MorrisonFallSpeed vs = morrison_snow_fallspeed(asn, lams, rhofac, mp);
-            const MorrisonFallSpeed vr = morrison_rain_fallspeed(arn, lamr, rhofac, mp);
             pracs = morrison_rain_collection_mass(mp.cons41, vr.mass, vs.mass, rho, n0r, n0s, lamr, lams);
         }
 
@@ -236,9 +228,7 @@ void morrison_warm_processes (Array4<Real> const& m, int i, int j, int k,
         Real pracg  = Real(0);
         Real npracg = Real(0);
         if (qr3d >= Real(1.0e-8) && qg3d >= Real(1.0e-8)) {
-            const Real rhofac = morrison_fallspeed_density_factor(mp.rhosu, rho);
             const MorrisonFallSpeed vg = morrison_graupel_fallspeed(agn, lamg, rhofac, mp);
-            const MorrisonFallSpeed vr = morrison_rain_fallspeed(arn, lamr, rhofac, mp);
             pracg = morrison_rain_collection_mass(mp.cons41, vr.mass, vg.mass, rho, n0r, n0g, lamr, lamg);
 
             // Number of 1 mm drops shed per second
@@ -266,16 +256,16 @@ void morrison_warm_processes (Array4<Real> const& m, int i, int j, int k,
 
         // Melting of snow and graupel (Rutledge and Hobbs 1984), which may persist above
         // freezing; in water supersaturation the melt forms rain, otherwise it also evaporates
-        Real psmlt = Real(0);
-        Real evpms = Real(0);
-        morrison_melting_and_evaporation(qni3d, n0s, lams, asn, mp.cons10, mp.cons35, pracs,
-                                         t3d, qv3d, rho, mu, xlf, env.kap, env.dv, env.sc, env.ab,
-                                         sat, mp, psmlt, evpms);
-        Real pgmlt = Real(0);
-        Real evpmg = Real(0);
-        morrison_melting_and_evaporation(qg3d, n0g, lamg, agn, mp.cons11, mp.cons36, pracg,
-                                         t3d, qv3d, rho, mu, xlf, env.kap, env.dv, env.sc, env.ab,
-                                         sat, mp, pgmlt, evpmg);
+        const MorrisonMelting mlt_s = morrison_melting_and_evaporation(
+            qni3d, n0s, lams, asn, mp.cons10, mp.cons35, pracs,
+            t3d, qv3d, rho, mu, xlf, env.kap, env.dv, env.sc, env.ab, sat, mp);
+        Real psmlt = mlt_s.pmlt;
+        Real evpms = mlt_s.evpm;
+        const MorrisonMelting mlt_g = morrison_melting_and_evaporation(
+            qg3d, n0g, lamg, agn, mp.cons11, mp.cons36, pracg,
+            t3d, qv3d, rho, mu, xlf, env.kap, env.dv, env.sc, env.ab, sat, mp);
+        Real pgmlt = mlt_g.pmlt;
+        Real evpmg = mlt_g.evpm;
 
         // HM, V3.2: reset PRACG and PRACS to zero, this is done because there is no
         // transfer of mass from snow and graupel to rain directly from collection above
@@ -385,6 +375,7 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
     const Real arn  = m(i,j,k,MORRInd::arn);
     const Real asn  = m(i,j,k,MORRInd::asn);
     const Real agn  = m(i,j,k,MORRInd::agn);
+    const Real rhofac = m(i,j,k,MORRInd::rhofac);
     const Real xxlv = m(i,j,k,MORRInd::xxlv);
     const Real xxls = m(i,j,k,MORRInd::xxls);
     const Real xlf  = m(i,j,k,MORRInd::xlf);
@@ -402,10 +393,8 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
     const Real dv = env.dv;
     const Real sc = env.sc;
 
-    // Constant droplet number (INUM = 1): convert NDCNST from cm^-3 to kg^-1
-    if (mp.inum == 1) {
-        nc3d = morrison_ndcnst_to_number_mixing_ratio(mp.ndcnst, rho_erf);
-    }
+    // Constant droplet number: convert NDCNST from cm^-3 to kg^-1
+    nc3d = morrison_ndcnst_to_number_mixing_ratio(mp.ndcnst, rho_erf);
 
     ni3d = amrex::max(Real(0),ni3d);
     ns3d = amrex::max(Real(0),ns3d);
@@ -479,15 +468,17 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
         }
     }
 
+    // Rain fall speeds, for the collection of rain by snow and graupel
+    const MorrisonFallSpeed vr = (qr3d >= Real(1.0e-8))
+        ? morrison_rain_fallspeed(arn, lamr, rhofac, mp) : MorrisonFallSpeed{Real(0), Real(0)};
+
     // Accretion of rain water by snow (Ikawa and Saito 1991, used by Reisner et al. 1998),
     // and the collection of snow by rain needed for the graupel conversion
     Real pracs  = Real(0);
     Real npracs = Real(0);
     Real psacr  = Real(0);
     if (qr3d >= Real(1.0e-8) && qni3d >= Real(1.0e-8)) {
-        const Real rhofac = morrison_fallspeed_density_factor(mp.rhosu, rho);
         const MorrisonFallSpeed vs = morrison_snow_fallspeed(asn, lams, rhofac, mp);
-        const MorrisonFallSpeed vr = morrison_rain_fallspeed(arn, lamr, rhofac, mp);
 
         pracs  = morrison_rain_collection_mass(mp.cons41, vr.mass, vs.mass, rho, n0r, n0s, lamr, lams);
         npracs = morrison_rain_collection_number(mp.cons32, vr.number, vs.number, rho, n0r, n0s, lamr, lams);
@@ -506,9 +497,7 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
     Real pracg  = Real(0);
     Real npracg = Real(0);
     if (qr3d >= Real(1.0e-8) && qg3d >= Real(1.0e-8)) {
-        const Real rhofac = morrison_fallspeed_density_factor(mp.rhosu, rho);
         const MorrisonFallSpeed vg = morrison_graupel_fallspeed(agn, lamg, rhofac, mp);
-        const MorrisonFallSpeed vr = morrison_rain_fallspeed(arn, lamr, rhofac, mp);
 
         pracg  = morrison_rain_collection_mass(mp.cons41, vr.mass, vg.mass, rho, n0r, n0g, lamr, lamg);
         npracg = morrison_rain_collection_number(mp.cons32, vr.number, vg.number, rho, n0r, n0g, lamr, lamg);
@@ -518,12 +507,18 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
     }
 
     // Rime-splintering on snow and on graupel
-    Real nmults = Real(0), qmults = Real(0), nmultr = Real(0), qmultr = Real(0);
-    morrison_rime_splintering(qni3d, qc3d, qr3d, t3d, mp.mmult, psacws, pracs,
-                              nmults, qmults, nmultr, qmultr);
-    Real nmultg = Real(0), qmultg = Real(0), nmultrg = Real(0), qmultrg = Real(0);
-    morrison_rime_splintering(qg3d, qc3d, qr3d, t3d, mp.mmult, psacwg, pracg,
-                              nmultg, qmultg, nmultrg, qmultrg);
+    const MorrisonRimeSplintering spl_s = morrison_rime_splintering(qni3d, qc3d, qr3d, t3d, mp.mmult,
+                                                                    psacws, pracs);
+    const Real nmults = spl_s.nmult_c;
+    Real qmults       = spl_s.qmult_c;
+    const Real nmultr = spl_s.nmult_r;
+    Real qmultr       = spl_s.qmult_r;
+    const MorrisonRimeSplintering spl_g = morrison_rime_splintering(qg3d, qc3d, qr3d, t3d, mp.mmult,
+                                                                    psacwg, pracg);
+    const Real nmultg  = spl_g.nmult_c;
+    Real qmultg        = spl_g.qmult_c;
+    const Real nmultrg = spl_g.nmult_r;
+    Real qmultrg       = spl_g.qmult_r;
 
     // Conversion of rimed cloud water onto snow to graupel/hail
     Real pgsacw = Real(0);
@@ -606,9 +601,9 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
     // formation from rain-ice collisions only if rain mixing ratio > 0.1 g/kg, otherwise add to snow
     Real niacr = Real(0), piacr = Real(0), praci = Real(0);
     Real niacrs = Real(0), piacrs = Real(0), pracis = Real(0);
-    if (qr3d >= Real(1.0e-8) && qi3d >= Real(1.0e-8) && t3d <= Real(273.15)) {
-        const MorrisonRainIceCollision c = morrison_rain_ice_collision(qi3d, ni3d, nr3d, n0r, lamr, arn,
-                                                                       rho, mp, dt);
+    if (t3d <= Real(273.15)) {
+        const MorrisonRainIceCollision c = morrison_rain_ice_collision(qr3d, qi3d, ni3d, nr3d, n0r, lamr,
+                                                                       arn, rho, mp, dt);
         if (qr3d >= Real(0.1e-3)) {
             niacr = c.niacr;
             piacr = c.piacr;
@@ -930,20 +925,8 @@ bool morrison_cell_microphysics (Array4<Real> const& m, int i, int j, int k,
 
     rho = pres / (mp.R * t3d);
 
-    // Add number concentration due to cumulus tendency. Assume N0 associated with cumulus
-    // parameterization rain is 10^7 m^-4 and with snow 2 x 10^7 m^-4; for detrained cloud
-    // ice, assume a mean volume diameter of 80 microns.
-    if (m(i,j,k,MORRInd::qrcu1d) >= Real(1.0e-10)) {
-        m(i,j,k,MORRInd::nr3d) += Real(1.8e5) * std::pow(m(i,j,k,MORRInd::qrcu1d) * dt /
-                                     (mp.pi * mp.rhow * powi<3>(rho)), fourth);
-    }
-    if (m(i,j,k,MORRInd::qscu1d) >= Real(1.0e-10)) {
-        m(i,j,k,MORRInd::ns3d) += Real(3.e5) * std::pow(m(i,j,k,MORRInd::qscu1d) * dt /
-                                     (mp.cons1 * powi<3>(rho)), one / (mp.ds + one));
-    }
-    if (m(i,j,k,MORRInd::qicu1d) >= Real(1.0e-10)) {
-        m(i,j,k,MORRInd::ni3d) += m(i,j,k,MORRInd::qicu1d) * dt / (mp.ci * std::pow(Real(80.0e-6), mp.di));
-    }
+    // No cumulus scheme is coupled to Morrison, so the Fortran's number sources from
+    // cumulus rain, snow and detrained ice (QRCU1D, QSCU1D, QICU1D) are left out.
 
     morrison_evaporate_small_at_subsaturation(sat, xxlv, xxls, cpm, qv3d, t3d,
                                               qc3d, qr3d, qi3d, qni3d, qg3d);
@@ -952,11 +935,11 @@ bool morrison_cell_microphysics (Array4<Real> const& m, int i, int j, int k,
     const Real xlf = xxls - xxlv;
     m(i,j,k,MORRInd::xlf) = xlf;
 
-    morrison_zero_below_qsmall(qc3d,  m(i,j,k,MORRInd::nc3d), m(i,j,k,MORRInd::effc), mp.qsmall);
-    morrison_zero_below_qsmall(qr3d,  m(i,j,k,MORRInd::nr3d), m(i,j,k,MORRInd::effr), mp.qsmall);
-    morrison_zero_below_qsmall(qi3d,  m(i,j,k,MORRInd::ni3d), m(i,j,k,MORRInd::effi), mp.qsmall);
-    morrison_zero_below_qsmall(qni3d, m(i,j,k,MORRInd::ns3d), m(i,j,k,MORRInd::effs), mp.qsmall);
-    morrison_zero_below_qsmall(qg3d,  m(i,j,k,MORRInd::ng3d), m(i,j,k,MORRInd::effg), mp.qsmall);
+    morrison_zero_below_qsmall(qc3d,  m(i,j,k,MORRInd::nc3d), mp.qsmall);
+    morrison_zero_below_qsmall(qr3d,  m(i,j,k,MORRInd::nr3d), mp.qsmall);
+    morrison_zero_below_qsmall(qi3d,  m(i,j,k,MORRInd::ni3d), mp.qsmall);
+    morrison_zero_below_qsmall(qni3d, m(i,j,k,MORRInd::ns3d), mp.qsmall);
+    morrison_zero_below_qsmall(qg3d,  m(i,j,k,MORRInd::ng3d), mp.qsmall);
 
     // Initialize sedimentation tendencies for mixing ratio
     m(i,j,k,MORRInd::qrsten)  = Real(0);
@@ -975,6 +958,8 @@ bool morrison_cell_microphysics (Array4<Real> const& m, int i, int j, int k,
     m(i,j,k,MORRInd::asn) = fc.asn;
     m(i,j,k,MORRInd::acn) = fc.acn;
     m(i,j,k,MORRInd::agn) = fc.agn;
+    m(i,j,k,MORRInd::rhofac)  = fc.rhofac;
+    m(i,j,k,MORRInd::rhofaci) = fc.rhofaci;
 
     // hm 4/7/09 bug fix, initialize LAMI to prevent later division by zero
     m(i,j,k,MORRInd::lami) = Real(0);
@@ -1049,10 +1034,8 @@ void morrison_column_sedimentation (Array4<Real> const& m, Array4<Real> const& s
             m(i,j,k,dum_c[n]) = m(i,j,k,q_c[n]) + m(i,j,k,qten_c[n]) * dt;
         }
 
-        // Switch for constant droplet number
-        if (mp.inum == 1) {
-            m(i,j,k,MORRInd::dumfnc) = m(i,j,k,MORRInd::nc3d);
-        }
+        // Constant droplet number
+        m(i,j,k,MORRInd::dumfnc) = m(i,j,k,MORRInd::nc3d);
 
         // Make sure number concentrations are positive
         Real& dumfni = m(i,j,k,MORRInd::dumfni);
@@ -1072,24 +1055,24 @@ void morrison_column_sedimentation (Array4<Real> const& m, Array4<Real> const& s
         const Real dumqs = m(i,j,k,MORRInd::dumqs);
         const Real dumg  = m(i,j,k,MORRInd::dumg);
         const Real rho   = m(i,j,k,MORRInd::rho);
-
-        const Real rhofac = morrison_fallspeed_density_factor(mp.rhosu, rho);
+        const Real rhofac = m(i,j,k,MORRInd::rhofac);
 
         // Mass- and number-weighted fall speeds from the slopes of the updated moments
         MorrisonFallSpeed vc{Real(0), Real(0)};
         if (dumc >= mp.qsmall) {
             Real& pgam = m(i,j,k,MORRInd::pgam);
             pgam = morrison_cloud_droplet_pgam(m(i,j,k,MORRInd::nc3d), m(i,j,k,MORRInd::pres), m(i,j,k,MORRInd::t3d));
-            Real dlamc = morrison_cloud_droplet_lambda(dumc, dumfnc, mp.cons26,
-                                                       gamma_function(pgam + one), gamma_function(pgam + Real(4.0)));
+            const Real g1 = gamma_function(pgam + one);
+            const Real g4 = gamma_function(pgam + Real(4.0));
+            Real dlamc = morrison_cloud_droplet_lambda(dumc, dumfnc, mp.cons26, g1, g4);
             dlamc = amrex::max(dlamc, morrison_cloud_droplet_lammin(pgam));
             dlamc = amrex::min(dlamc, morrison_cloud_droplet_lammax(pgam));
-            vc = morrison_cloud_droplet_fallspeed(m(i,j,k,MORRInd::acn), dlamc, pgam, mp);
+            vc = morrison_cloud_droplet_fallspeed(m(i,j,k,MORRInd::acn), dlamc, pgam, g1, g4, mp);
         }
         MorrisonFallSpeed vi{Real(0), Real(0)};
         if (dumi >= mp.qsmall) {
             const Real dlami = morrison_limited_slope(dumi, dumfni, mp.cons12, one/mp.di, mp.lammini, mp.lammaxi);
-            vi = morrison_ice_fallspeed(m(i,j,k,MORRInd::ain), dlami, rho, mp);
+            vi = morrison_ice_fallspeed(m(i,j,k,MORRInd::ain), dlami, m(i,j,k,MORRInd::rhofaci), mp);
         }
         MorrisonFallSpeed vr{Real(0), Real(0)};
         if (dumr >= mp.qsmall) {
@@ -1173,8 +1156,6 @@ void morrison_column_sedimentation (Array4<Real> const& m, Array4<Real> const& s
         const Real falouti = m(i,j,klo,MORRInd::falouti);
         const Real faloutg = m(i,j,klo,MORRInd::faloutg);
         m(i,j,klo,MORRInd::precrt)      += (faloutr + faloutc + falouts + falouti + faloutg) * dt / nstep;
-        m(i,j,klo,MORRInd::snowrt)      += (falouts + falouti + faloutg) * dt / nstep;
-        m(i,j,klo,MORRInd::snowprt)     += (falouti + falouts) * dt / nstep;
         m(i,j,klo,MORRInd::grplprt)     += faloutg * dt / nstep;
         m(i,j,klo,MORRInd::rainonlyprt) += faloutr * dt / nstep;
         m(i,j,klo,MORRInd::snowonlyprt) += falouts * dt / nstep;
@@ -1183,7 +1164,9 @@ void morrison_column_sedimentation (Array4<Real> const& m, Array4<Real> const& s
 
 /**
  * Apply the tendencies of one level, then the instantaneous processes (melting of cloud
- * ice, homogeneous freezing), the final size distributions and the effective radii.
+ * ice, homogeneous freezing) and the final size distributions. The Fortran's effective
+ * radii are not computed, as nothing reads them; morrison_effective_radius and
+ * morrison_cloud_droplet_effective_radius give them from the slopes left here.
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
@@ -1260,11 +1243,11 @@ void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
     morrison_evaporate_small_at_subsaturation(sat, xxlv, xxls, cpm, qv3d, t3d,
                                               qc3d, qr3d, qi3d, qni3d, qg3d);
 
-    morrison_zero_below_qsmall(qc3d,  nc3d, m(i,j,k,MORRInd::effc), mp.qsmall);
-    morrison_zero_below_qsmall(qr3d,  nr3d, m(i,j,k,MORRInd::effr), mp.qsmall);
-    morrison_zero_below_qsmall(qi3d,  ni3d, m(i,j,k,MORRInd::effi), mp.qsmall);
-    morrison_zero_below_qsmall(qni3d, ns3d, m(i,j,k,MORRInd::effs), mp.qsmall);
-    morrison_zero_below_qsmall(qg3d,  ng3d, m(i,j,k,MORRInd::effg), mp.qsmall);
+    morrison_zero_below_qsmall(qc3d,  nc3d, mp.qsmall);
+    morrison_zero_below_qsmall(qr3d,  nr3d, mp.qsmall);
+    morrison_zero_below_qsmall(qi3d,  ni3d, mp.qsmall);
+    morrison_zero_below_qsmall(qni3d, ns3d, mp.qsmall);
+    morrison_zero_below_qsmall(qg3d,  ng3d, mp.qsmall);
 
     if (!(qc3d < mp.qsmall && qi3d < mp.qsmall && qni3d < mp.qsmall && qr3d < mp.qsmall && qg3d < mp.qsmall))
     {
@@ -1321,27 +1304,13 @@ void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
         }
     }
 
-    // Effective radii (25 microns when the species is absent)
-    m(i,j,k,MORRInd::effi) = (qi3d  >= mp.qsmall) ? morrison_effective_radius(lami) : Real(25.0);
-    m(i,j,k,MORRInd::effs) = (qni3d >= mp.qsmall) ? morrison_effective_radius(lams) : Real(25.0);
-    m(i,j,k,MORRInd::effr) = (qr3d  >= mp.qsmall) ? morrison_effective_radius(lamr) : Real(25.0);
-    m(i,j,k,MORRInd::effc) = (qc3d  >= mp.qsmall) ? morrison_cloud_droplet_effective_radius(pgam, lamc) : Real(25.0);
-    m(i,j,k,MORRInd::effg) = (qg3d  >= mp.qsmall) ? morrison_effective_radius(lamg) : Real(25.0);
-
     // HM, 12/28/12: upper bound on ice number, needed to prevent very large ice number due
     // to homogeneous freezing of droplets, especially when INUM = 1; lowered to address the
     // problem of excessive and persistent anvil. This may reduce sensitivity to aerosol/CCN.
     ni3d = std::min(ni3d, Real(0.3e6) / rho);
 
-    // Droplet number cannot exceed the aerosol concentration
-    if (mp.inum == 0 && mp.iact == 2) {
-        nc3d = std::min(nc3d, (mp.nanew1 + mp.nanew2) / rho);
-    }
-
-    // Switch for constant droplet number: change NDCNST from cm^-3 to kg^-1
-    if (mp.inum == 1) {
-        nc3d = morrison_ndcnst_to_number_mixing_ratio(mp.ndcnst, rho_erf);
-    }
+    // Constant droplet number: change NDCNST from cm^-3 to kg^-1
+    nc3d = morrison_ndcnst_to_number_mixing_ratio(mp.ndcnst, rho_erf);
 }
 
 } // namespace
@@ -1462,7 +1431,7 @@ void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
           auto const& graupel_accum_arr = mic_fab_vars[MicVar_Morr::graupel_accum]->array(mfi);
           auto const& precip_accum_arr  = mic_fab_vars[MicVar_Morr::precip_accum]->array(mfi);
-          auto const& w_arr           = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
+          [[maybe_unused]] auto const& w_arr = mic_fab_vars[MicVar_Morr::omega]->array(mfi); // Fortran bridge only
           auto const& sed_arr         = m_sed.down->array(mfi);
           const auto inflow_arr = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
                                                  : Array4<const Real>{};
@@ -1479,12 +1448,12 @@ void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
 
           // Every array handed to the Fortran bridge -- both the mic_fab_vars and the staging
           // FABs below -- is declared there as DIMENSION(ims:ime,jms:jme,kms:kme), and those
-          // bounds are taken from mfi.fabbox(). So the staging FABs must be allocated on the
-          // fab box too; sizing them from a tilebox grown by a hard-coded 3 mis-declares the
-          // strides whenever ngrow_state != 3 or the MFIter tiles the box.
-          // Note fab_box always contains grown_box (ComputeGhostCells() >= 2, so the state
-          // carries at least 3 ghost cells), so this only ever widens the staged region.
+          // bounds are taken from mfi.fabbox(). So on that path the staging FABs must be
+          // allocated on the fab box too; sizing them from a tilebox grown by a hard-coded 3
+          // mis-declares the strides whenever ngrow_state != 3 or the MFIter tiles the box.
+          // The C++ path reads them on the tile box only, so they are sized to it there.
           const Box& fab_box = mfi.fabbox();
+          const Box& stage_box = run_morr_fort ? fab_box : box;
 
 #if defined(ERF_USE_MORR_FORT) && defined(AMREX_USE_GPU)
           Arena* Arena_Used = The_Pinned_Arena();
@@ -1494,7 +1463,7 @@ void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
 
           // Calculate Exner function (PII) to convert potential temperature to temperature
           // PII = (P/P0)^(R/cp)
-          FArrayBox pii_fab(fab_box, 1, Arena_Used);
+          FArrayBox pii_fab(stage_box, 1, Arena_Used);
           auto const& pii_arr = pii_fab.array();
 
           const Real p0 = Real(100000.0); // Reference pressure (Pa)
@@ -1502,14 +1471,14 @@ void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
           const Real rdcp = m_rdOcp; // R/cp ratio
 
           // Calculate Exner function
-          ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          ParallelFor(stage_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             // NOTE: the Morrison Fortran version uses Pa not hPa so we didn't divide p by 100
             //       so we don't need to multiply by 100 here
             pii_arr(i,j,k) = std::pow((pres_arr(i,j,k)) / p0, rdcp);
           });
 
           // Create arrays for height differences (dz)
-          FArrayBox dz_fab(fab_box, 1, Arena_Used);
+          FArrayBox dz_fab(stage_box, 1, Arena_Used);
           auto const& dz_arr = dz_fab.array();
 
           // Calculate height differences
@@ -1517,34 +1486,11 @@ void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
           const Array4<const Real> z_arr = (m_z_phys_nd) ? m_z_phys_nd->const_array(mfi) : Array4<const Real> {};
           // z_phys_nd carries ComputeGhostCells()+2 ghost nodes, i.e. one more than the state,
           // so the (i+1,j+1,k+1) reads stay in bounds over the whole fab box.
-          ParallelFor(fab_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          ParallelFor(stage_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             dz_arr(i,j,k) = (z_arr) ? Real(0.25) * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
                                                    + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
                                                    + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
                                                    + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz_val;
-          });
-
-          // The 2D Fortran arrays are declared DIMENSION(ims:ime,jms:jme), so this slab must
-          // carry the fab box extents in x and y.
-          Box fab_boxD(fab_box); fab_boxD.makeSlab(2,0);
-
-          // Arrays to store precipitation rates
-          FArrayBox    rainncv_fab(fab_boxD, 1, Arena_Used);
-          FArrayBox         sr_fab(fab_boxD, 1, Arena_Used);     // Ratio of snow to total precipitation
-          FArrayBox    snowncv_fab(fab_boxD, 1, Arena_Used);
-          FArrayBox graupelncv_fab(fab_boxD, 1, Arena_Used);
-
-          auto const& rainncv_arr = rainncv_fab.array();
-          auto const& sr_arr      = sr_fab.array();
-          auto const& snowncv_arr = snowncv_fab.array();
-          auto const& graupelncv_arr = graupelncv_fab.array();
-
-          // Initialize precipitation rate arrays to Real(0)
-          ParallelFor(fab_boxD, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            rainncv_arr(i,j,k)    = Real(0);
-            sr_arr(i,j,k)         = Real(0);
-            snowncv_arr(i,j,k)    = Real(0);
-            graupelncv_arr(i,j,k) = Real(0);
           });
 
           Box boxD(box); boxD.makeSlab(2,0);
@@ -1575,12 +1521,6 @@ void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
               morr_arr(i,j,k,MORRInd::qv3d) = qv_arr(i,j,k);                     // WATER VAPOR MIXING RATIO
               morr_arr(i,j,k,MORRInd::pres) = pres_arr(i,j,k);                   // ATMOSPHERIC PRESSURE
               morr_arr(i,j,k,MORRInd::dzq)  = dz_arr(i,j,k);                     // DIFFERENCE IN HEIGHT ACROSS LEVEL
-              morr_arr(i,j,k,MORRInd::w3d)  = w_arr(i,j,k);                      // GRID-SCALE VERTICAL VELOCITY
-
-              // There are no cumulus tendencies passed to Morrison (the Fortran zeros these too)
-              morr_arr(i,j,k,MORRInd::qrcu1d) = Real(0); // RAIN FROM CUMULUS PARAMETERIZATION
-              morr_arr(i,j,k,MORRInd::qscu1d) = Real(0); // SNOW FROM CUMULUS PARAMETERIZATION
-              morr_arr(i,j,k,MORRInd::qicu1d) = Real(0); // ICE FROM CUMULUS PARAMETERIZATION
             });
 
             // MORR_TWO_MOMENT_MICRO, one column at a time
@@ -1641,11 +1581,6 @@ void morrison_cell_finalize (Array4<Real> const& m, int i, int j, int k,
                   theta_arr(i,j,k) = morr_arr(i,j,k,MORRInd::t3d) / pii_arr(i,j,k); // Convert temp back to potential temp
                   qv_arr(i,j,k)    = morr_arr(i,j,k,MORRInd::qv3d);
               }
-
-              rainncv_arr(i,j,0)    = morr_arr(i,j,klo,MORRInd::precrt);
-              snowncv_arr(i,j,0)    = morr_arr(i,j,klo,MORRInd::snowprt);
-              graupelncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::grplprt);
-              sr_arr(i,j,0)         = morr_arr(i,j,klo,MORRInd::snowrt) / (morr_arr(i,j,klo,MORRInd::precrt) + Real(1.e-12));
 
               // Each species alone, and the total, which also holds the cloud water
               // and cloud ice that fell out

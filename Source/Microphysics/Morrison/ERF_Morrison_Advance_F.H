@@ -23,6 +23,29 @@
     Arena* Arena_Used = The_Arena();
 #endif
 
+          // The 2D Fortran arrays are declared DIMENSION(ims:ime,jms:jme), so this slab must
+          // carry the fab box extents in x and y.
+          Box fab_boxD(fab_box); fab_boxD.makeSlab(2,0);
+
+          // Arrays to store precipitation rates
+          FArrayBox    rainncv_fab(fab_boxD, 1, Arena_Used);
+          FArrayBox         sr_fab(fab_boxD, 1, Arena_Used);     // Ratio of snow to total precipitation
+          FArrayBox    snowncv_fab(fab_boxD, 1, Arena_Used);
+          FArrayBox graupelncv_fab(fab_boxD, 1, Arena_Used);
+
+          auto const& rainncv_arr = rainncv_fab.array();
+          auto const& sr_arr      = sr_fab.array();
+          auto const& snowncv_arr = snowncv_fab.array();
+          auto const& graupelncv_arr = graupelncv_fab.array();
+
+          // Initialize precipitation rate arrays to Real(0)
+          ParallelFor(fab_boxD, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            rainncv_arr(i,j,k)    = Real(0);
+            sr_arr(i,j,k)         = Real(0);
+            snowncv_arr(i,j,k)    = Real(0);
+            graupelncv_arr(i,j,k) = Real(0);
+          });
+
           // Create dummy arrays for cumulus tendencies (if needed)
           FArrayBox qrcuten_fab(fab_box, 1, Arena_Used);
           FArrayBox qscuten_fab(fab_box, 1, Arena_Used);

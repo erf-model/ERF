@@ -23,7 +23,6 @@
 #include "ERF_SurfacePrecipitation.H"
 #include "ERF_MicrophysicsColumns.H"
 #include <ERF_Morrison_Fortran_Interface.H>
-#include "ERF_MorrisonUtils.H"
 
 namespace MicVar_Morr {
    enum {
