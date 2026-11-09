@@ -99,7 +99,7 @@ struct StructureFire
 {
     const amrex::Geometry& geom;          ///< Geometry of the fire grid [m] (one cell in z)
     int                    lev;           ///< The atmospheric level the fire grid refines
-    double                 time;          ///< End of the fire's last step [s]; the start of the run before its first step
+    double                 time;          ///< End of the fire's last step [s]; before its first step in this run, the time ERF started or restarted from
     const amrex::MultiFab* heat_release;  ///< Heat released [W/m2] on the fire grid (FireEngine::heat_release); nullptr if the engine has none
     const amrex::MultiFab* level_set;     ///< Level set on the fire grid, negative where burned (FireEngine::level_set); nullptr if the engine has none
 };

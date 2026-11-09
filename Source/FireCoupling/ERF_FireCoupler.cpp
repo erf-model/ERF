@@ -133,7 +133,7 @@ FireCoupler::set_fire_grid (int lev, const FireGrid& fg,
 }
 
 void
-FireCoupler::advance (Real time, Real dt,
+FireCoupler::advance (double time_d, Real dt,
                       const MultiFab& S_old,
                       const MultiFab& xvel_old, const MultiFab& yvel_old,
                       const MultiFab& xvel_new, const MultiFab& yvel_new,
@@ -142,6 +142,9 @@ FireCoupler::advance (Real time, Real dt,
                       const Geometry& geom,
                       const SurfacePrecipAccumulationSources& precip_sources)
 {
+    // ERF keeps its time in double; the engine takes it in Real
+    const Real time = static_cast<Real>(time_d);
+
     // Air temperature and RH at k=0 (an engine may drive a fuel moisture
     // model with them), derived from the pre-dycore state. This is used in both lagged and synchronous
     // modes: the moisture ODE uses time-averaged T, and the change in T from
@@ -183,7 +186,7 @@ FireCoupler::advance (Real time, Real dt,
                               z_phys_cc, T_atm_k0, RH_atm_k0, precip_accum_k0.get()};
     m_engine->advance(forcing);
     m_stepped = true;
-    m_step_end_time = time + dt;
+    m_step_end_time = time_d + static_cast<double>(dt);
     if (m_params.fire_debug) {
         const Real area = m_engine->burned_area();   // every rank: it may reduce over the fire grid
         if (area >= 0.0_rt) {

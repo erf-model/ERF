@@ -1,6 +1,11 @@
 # Checks the "structure example fire:" lines the example structure model prints when
-# the run has the example fire engine (Tests/FireEngineExample) with nsub = 1: a disk
-# of radius r(t) = r0 + ros t releasing q0 [W/m2] inside it.
+# the run has the example fire engine (Tests/FireEngineExample): a disk of radius
+# r(t) = r0 + ros t releasing q0 [W/m2] inside it.
+#
+# Limits: the engine must take one substep per step (fire.example.nsub = 1; with more,
+# its flux is the mean over the substeps, not the flux at the step's midpoint); every
+# step of the fire's level has the same length dtf, and the coarse steps start at
+# multiples of lead (a fixed step from t = 0, also after a restart from such a time).
 #
 # Variables (awk -v):
 #   lev     the level the fire grid refines
@@ -11,12 +16,13 @@
 #           coarse step that contains the model's step
 #   r0, ros, q0  the example engine's inputs
 #   nlines  the number of model steps expected
-#   tol     relative tolerance of the heat and area against the disk (the fire cells
-#           resolve the circle to about 1 per cent)
+#   tol     relative tolerance of the heat and area against the disk (fire cells of 10 m
+#           resolve these disks to 1.4 per cent or better, wherever they sit)
 #
 # Expected, with tf the time of the fire's fields: tf = t, or the end of the coarse step;
 # heat = q0 pi r(tf - dtf/2)^2 (the flux of the step that ended at tf; 0 before the
-# fire's first step at t = 0); burned = pi r(tf)^2.
+# fire's first step at t = 0, while after a restart the engine restores the flux of
+# the step before it); burned = pi r(tf)^2.
 function abs(x) { return x < 0 ? -x : x }
 BEGIN { pi = atan2(0, -1); n = 0; bad = 0 }
 /^structure example fire: / {

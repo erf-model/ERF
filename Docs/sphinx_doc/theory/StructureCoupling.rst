@@ -79,7 +79,7 @@ and its checkpoint data.
 Reading the fire
 ----------------
 
-When ERF runs with a fire (``erf.fire.enable``, :ref:`sec:FireCoupling`),
+When ERF runs with a fire (``erf.fire.enable`` or ``erf.fire.engine``, :ref:`sec:FireCoupling`),
 ``StructureStep::fire`` points to a ``StructureFire``; without a fire it is
 ``nullptr``. A model can then heat its structures from the fire, for example.
 The view holds:
@@ -99,8 +99,8 @@ The view holds:
      - The atmospheric level the fire grid refines (``erf.fire.anchor_level``).
        It need not be the model's level.
    * - ``time``
-     - End of the fire's last step [s]; the start of the run before its first
-       step.
+     - End of the fire's last step [s]; before its first step in this run, the
+       time ERF started or restarted from.
    * - ``heat_release``
      - Heat released [W/m\ :sup:`2`] on the fire grid, before its split into
        sensible and latent heat (``FireEngine::heat_release()``); ``nullptr``
@@ -115,7 +115,9 @@ own step's time. A model on a finer level sees the fire up to one step of the
 fire's level ahead of its own step. The fields are spread over the ranks as the
 fire grid is, so a model that needs the fire at its own points reduces over the
 ranks itself. After a restart, until the fire's first step, the fields are what
-the engine restored from the checkpoint.
+the engine restored from the checkpoint; an engine that does not restore a field
+holds its initial value there. Like the flow fields, the view and its fields
+are valid only during ``advance()``: a model keeps no pointer to them.
 
 Writing a model
 ---------------
@@ -209,12 +211,15 @@ fire's fields, the heat released :math:`Q` and the burned area :math:`A`.
 
 where :math:`\Delta t_f` is the step of the fire's level (:math:`Q = 0` before
 the fire's first step). The fire cells are 10 m (5 m on the refined level), and
-the three runs match these to 1.3 % or better; the tolerance is 3 %. Fields one
-fire step late would miss by 12 % or more.
+the disk is resolved to 1.4 % or better wherever it sits on the grid; the
+tolerance is 3 %. Fields one fire step late or early would miss by 11 % or more.
 ``Structures_ExampleModel_FireView`` has both on level 0, so :math:`t_f` is
 the model's step time. ``Structures_ExampleModel_FireViewFinerFire`` has the fire on
 a level-1 patch and the model on level 0, so :math:`t_f` is again the model's
 step time. ``Structures_ExampleModel_FireViewFinerModel`` has the fire on level
 0 and the model on a level-1 patch, so :math:`t_f` is the end of the coarse
-step. ``Structures_ExampleModel``, without a fire, checks that the model gets
-no fire view.
+step. ``Structures_ExampleModel_FireView`` then restarts from its mid-run
+checkpoint: the first fields after the restart must hold the time of the restart
+and the heat of the fire step before it, which the example engine restores.
+``Structures_ExampleModel``, without a fire, checks that the model gets no fire
+view.

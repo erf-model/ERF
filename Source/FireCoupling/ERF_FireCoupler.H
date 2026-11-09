@@ -102,7 +102,7 @@ public:
      * @param[in] geom            Geometry of the level
      * @param[in] precip_sources  The microphysics surface precipitation accumulators of the level
      */
-    void advance (amrex::Real time, amrex::Real dt,
+    void advance (double time, amrex::Real dt,
                   const amrex::MultiFab& S_old,
                   const amrex::MultiFab& xvel_old, const amrex::MultiFab& yvel_old,
                   const amrex::MultiFab& xvel_new, const amrex::MultiFab& yvel_new,
@@ -205,7 +205,7 @@ public:
     /// The engine has taken a step in this run (advance() was called at least once).
     bool stepped () const { return m_stepped; }
     /// End of the engine's last step in this run [s]: time + dt of the last advance(); valid when stepped().
-    amrex::Real step_end_time () const { return m_step_end_time; }
+    double step_end_time () const { return m_step_end_time; }
 
     /**
      * @brief Sensible heat flux [W/m2] of the previous fire step on the
@@ -228,7 +228,7 @@ private:
     int                         m_lev = 0;
     amrex::Geometry             m_geom_atm;   ///< geometry of the fire grid's level
     bool                        m_stepped = false;            ///< advance() was called in this run
-    amrex::Real                 m_step_end_time = amrex::Real(0.0); ///< time + dt of the last advance()
+    double                      m_step_end_time = 0.0;        ///< time + dt of the last advance(), in ERF's double time
 
     // The engine's fluxes averaged onto the atmospheric columns of the fire
     // grid's level (one slab per box of that level), held from the previous

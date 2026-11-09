@@ -71,16 +71,7 @@ public:
 
     void advance (const FireForcing& forcing) override
     {
-        // Mean over [time, time + dt] of the flux of each substep
-        m_sensible->setVal(0.0_rt);
-        const Real dt_sub = forcing.dt / Real(m_nsub);
-        for (int n = 0; n < m_nsub; ++n) {
-            add_disk_flux(*m_sensible, forcing.time + (Real(n) + 0.5_rt) * dt_sub, 1.0_rt / Real(m_nsub));
-        }
-        MultiFab::Copy(*m_heat, *m_sensible, 0, 0, 1, 0);
-        MultiFab::Copy(*m_latent, *m_sensible, 0, 0, 1, 0);
-        m_sensible->mult(1.0_rt - m_latent_fraction);
-        m_latent->mult(m_latent_fraction);
+        fill_step_fluxes(forcing.time, forcing.dt);
         m_time = forcing.time + forcing.dt;
         fill_level_set();
     }
@@ -101,7 +92,7 @@ public:
         if (ParallelDescriptor::IOProcessor()) {
             std::ofstream os(checkpointname + "/FireEngineExample");
             os.precision(17);
-            os << m_time << "\n";
+            os << m_time << "\n" << m_step_start << " " << m_step_dt << "\n";
         }
     }
 
@@ -110,7 +101,11 @@ public:
         Vector<char> buf;
         ParallelDescriptor::ReadAndBcastFile(restart_chkfile + "/FireEngineExample", buf);
         std::istringstream is(std::string(buf.dataPtr()));
-        is >> m_time;
+        is >> m_time >> m_step_start >> m_step_dt;
+        if (!is) { Abort("[FIRE] fire.example: cannot read " + restart_chkfile + "/FireEngineExample"); }
+        // The fluxes of the last step, so that readers of heat_release() see the same
+        // fields as in the run that wrote the checkpoint
+        if (m_step_dt > 0.0_rt) { fill_step_fluxes(m_step_start, m_step_dt); }
         fill_level_set();
     }
 
@@ -138,6 +133,23 @@ public:
 
 private:
     Real radius (Real t) const { return m_r0 + m_ros * t; }
+
+    // The fluxes of the step [t0, t0 + dt]: the mean over its substeps, then the split
+    // into sensible and latent heat
+    void fill_step_fluxes (Real t0, Real dt)
+    {
+        m_sensible->setVal(0.0_rt);
+        const Real dt_sub = dt / Real(m_nsub);
+        for (int n = 0; n < m_nsub; ++n) {
+            add_disk_flux(*m_sensible, t0 + (Real(n) + 0.5_rt) * dt_sub, 1.0_rt / Real(m_nsub));
+        }
+        MultiFab::Copy(*m_heat, *m_sensible, 0, 0, 1, 0);
+        MultiFab::Copy(*m_latent, *m_sensible, 0, 0, 1, 0);
+        m_sensible->mult(1.0_rt - m_latent_fraction);
+        m_latent->mult(m_latent_fraction);
+        m_step_start = t0;
+        m_step_dt = dt;
+    }
 
     void fill_level_set ()
     {
@@ -171,6 +183,7 @@ private:
         }
     }
 
+    Real m_step_start = 0.0_rt, m_step_dt = 0.0_rt;   // the last step, for the checkpoint
     Real m_x0 = 0.0_rt, m_y0 = 0.0_rt, m_r0 = 50.0_rt, m_ros = 0.5_rt;
     Real m_q0 = 5.0e4_rt, m_latent_fraction = 0.0_rt;
     int  m_nsub = 1;
