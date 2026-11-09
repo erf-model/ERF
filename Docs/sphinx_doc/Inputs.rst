@@ -2583,7 +2583,7 @@ List of Parameters
 |                                          | HGAMQ, HGAMU, HGAMV); false gives strict HND06 mixing    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.enable_ysu_entrainment**           | YSUNew only: add the entrainment diffusivity at the      | Boolean            | true             |
-|                                          | first cell above the PBL top (HND06 Eq. 6)               |                    |                  |
+|                                          | first cell above the PBL top (HND06 A9-A13)              |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.ysu_moistvars**                    | YSUNew only: give moisture its own diffusivity, from the | Boolean            | false            |
 |                                          | moisture Prandtl number, and add the entrainment term to |                    |                  |
