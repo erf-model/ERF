@@ -101,8 +101,11 @@ public:
         Vector<char> buf;
         ParallelDescriptor::ReadAndBcastFile(restart_chkfile + "/FireEngineExample", buf);
         std::istringstream is(std::string(buf.dataPtr()));
-        is >> m_time >> m_step_start >> m_step_dt;
+        is >> m_time;
         if (!is) { Abort("[FIRE] fire.example: cannot read " + restart_chkfile + "/FireEngineExample"); }
+        // A checkpoint written before the last step was recorded holds the time only:
+        // the fluxes then stay zero until the first step, as they did then
+        if (!(is >> m_step_start >> m_step_dt)) { m_step_start = 0.0_rt; m_step_dt = 0.0_rt; }
         // The fluxes of the last step, so that readers of heat_release() see the same
         // fields as in the run that wrote the checkpoint
         if (m_step_dt > 0.0_rt) { fill_step_fluxes(m_step_start, m_step_dt); }

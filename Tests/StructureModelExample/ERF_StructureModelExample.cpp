@@ -37,26 +37,15 @@ namespace {
 
 // What the fire view holds this step: the level and time of the fire's fields, the heat
 // released over the fire grid [W] and the area burned [m2] (-1 where the engine has no
-// such field). Every rank calls it: both integrals reduce over the ranks. A free function:
-// nvcc does not take a device lambda inside a private member function.
+// such field). Every rank calls it: the sum and burned_area() reduce over the ranks.
 void report_fire (const StructureStep& step)
 {
     const StructureFire& f = *step.fire;
     const Real dA = f.geom.CellSize(0) * f.geom.CellSize(1);
-    Real heat = Real(-1.0), burned = Real(-1.0);
-    if (f.heat_release) { heat = f.heat_release->sum(0) * dA; }
-    if (f.level_set) {
-        burned = dA * amrex::ReduceSum(*f.level_set, 0,
-            [=] AMREX_GPU_HOST_DEVICE (Box const& bx, Array4<Real const> const& phi) -> Real
-            {
-                Real n = Real(0.0);
-                amrex::Loop(bx, [&] (int i, int j, int k) { if (phi(i, j, k) < Real(0.0)) { n += Real(1.0); } });
-                return n;
-            });
-        ParallelDescriptor::ReduceRealSum(burned);
-    }
-    Print() << std::setprecision(10) << "structure example fire: t = " << step.time << " fire_lev = " << f.lev
-            << " fire_t = " << f.time << " heat = " << heat << " burned = " << burned << "\n";
+    const Real heat = f.heat_release ? f.heat_release->sum(0) * dA : Real(-1.0);
+    const Real burned = f.burned_area();
+    Print() << std::setprecision(17) << "structure example fire: t = " << step.time << " fire_lev = " << f.lev
+            << " fire_t = " << f.time << std::setprecision(10) << " heat = " << heat << " burned = " << burned << "\n";
 }
 
 } // namespace
@@ -214,7 +203,6 @@ public:
     }
 
 private:
-
     std::vector<Real> m_pos;
     std::vector<Real> m_force;
     Real m_eps = Real(0.0);

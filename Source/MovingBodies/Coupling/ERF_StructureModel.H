@@ -8,6 +8,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_RealBox.H>
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -85,9 +86,11 @@ struct StructureInit
  * Fire cell (i, j) has its centre at geom.ProbLo() + ((i + 1/2) dx, (j + 1/2) dy),
  * in the coordinates of the model's own points.
  *
- * The fields are the engine's state after its last step, which ended at time.
- * The fire steps after the dycore of its own level. A model on a coarser level
- * therefore sees the fire at the end of the finer level's last substep; a model
+ * The fields are the engine's state at time: the time ERF assigns to the fire's
+ * level at the end of the fire's last step, or the time ERF started or restarted
+ * from before that step. The fire steps after the dycore of its own level. A
+ * model on the fire's level or a coarser one therefore sees the fire at its own
+ * step's time, exactly; a model
  * on a finer level sees it up to one step of the fire's level ahead of its own
  * step. On a restart, until the fire's first step, they are what the engine
  * restored from the checkpoint (an engine that does not restore a field holds
@@ -99,9 +102,12 @@ struct StructureFire
 {
     const amrex::Geometry& geom;          ///< Geometry of the fire grid [m] (one cell in z)
     int                    lev;           ///< The atmospheric level the fire grid refines
-    double                 time;          ///< End of the fire's last step [s]; before its first step in this run, the time ERF started or restarted from
+    double                 time;          ///< The time the fields belong to [s] (see above)
     const amrex::MultiFab* heat_release;  ///< Heat released [W/m2] on the fire grid (FireEngine::heat_release); nullptr if the engine has none
     const amrex::MultiFab* level_set;     ///< Level set on the fire grid, negative where burned (FireEngine::level_set); nullptr if the engine has none
+    /// Area burned so far [m2] (FireEngine::burned_area), negative when the engine does not
+    /// track it. It may reduce over the ranks: every rank calls it, or none.
+    std::function<amrex::Real()> burned_area;
 };
 
 /**

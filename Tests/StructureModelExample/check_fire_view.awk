@@ -11,13 +11,15 @@
 #   lev     the level the fire grid refines
 #   dtf     the step of that level [s]
 #   lead    0 when the fire is on the model's level or a finer one: its fields belong to
-#           the fire step that ended at the model's step time; otherwise the step of the
+#           the fire step that ended at the model's step time, and the two printed times
+#           (17 digits) must agree exactly; otherwise the step of the
 #           fire's (coarser) level [s]: the fire has already stepped to the end of the
 #           coarse step that contains the model's step
 #   r0, ros, q0  the example engine's inputs
 #   nlines  the number of model steps expected
 #   tol     relative tolerance of the heat and area against the disk (fire cells of 10 m
-#           resolve these disks to 1.4 per cent or better, wherever they sit)
+#           resolve the heat of these disks to 1.4 per cent or better, wherever they sit;
+#           the example engine's burned_area() is exact)
 #
 # Expected, with tf the time of the fire's fields: tf = t, or the end of the coarse step;
 # heat = q0 pi r(tf - dtf/2)^2 (the flux of the step that ended at tf; 0 before the
@@ -30,7 +32,9 @@ BEGIN { pi = atan2(0, -1); n = 0; bad = 0 }
     t = $6 + 0; flev = $9 + 0; tf = $12 + 0; heat = $15 + 0; burned = $18 + 0
     want_tf = (lead > 0) ? lead * (int(t / lead + 1.0e-9) + 1) : t
     if (flev != lev)                   { print "line " n ": fire_lev = " flev ", expected " lev; bad = 1 }
-    if (abs(tf - want_tf) > 1.0e-9)    { print "line " n ": fire_t = " tf " at t = " t ", expected " want_tf; bad = 1 }
+    if (lead > 0) {
+        if (abs(tf - want_tf) > 1.0e-9) { print "line " n ": fire_t = " tf " at t = " t ", expected " want_tf; bad = 1 }
+    } else if ($12 != $6)              { print "line " n ": fire_t = " $12 ", expected the step time " $6 " exactly"; bad = 1 }
     r = r0 + ros * tf
     want_area = pi * r * r
     if (abs(burned - want_area) > tol * want_area) {

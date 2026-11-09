@@ -5059,21 +5059,27 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       #   heat of the step before it, which the example engine restores;
       # - the fire on a level-1 patch, the model on level 0: as above;
       # - the fire on level 0, the model on a level-1 patch: the fire is already at the end
-      #   of the coarse step.
+      #   of the coarse step;
+      # - the fire on a level-1 patch with three substeps of 0.1/3 s, the model on level 0:
+      #   the fire's time must equal the model's step time exactly, although three
+      #   substeps add up to 0.3 s where the coarse level has 0.30000000000000004 s.
       if(ERF_ENABLE_FIRE AND _fex_in_build)
         set(_smf_common "erf.structures.model=example structure.example.force=50 0 0 structure.example.epsilon=50 fire.example.r0=150 fire.example.ros=50 fire.example.heat_flux=5.0e4 fire.example.nsub=1 fire.example.latent_fraction=0.25 erf.fire.grid_ratio=10 amr.max_grid_size=10 10 60 max_step=4 erf.check_int=-1 erf.plot_int_1=-1 amrex.call_addr2line=0")
         set(_smf_two "amr.max_level=1 erf.dt_ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1")
         set(_smf_awk "awk -v r0=150 -v ros=50 -v q0=5.0e4 -v tol=0.03")
-        set(_smf_names Structures_ExampleModel_FireView Structures_ExampleModel_FireViewFinerFire Structures_ExampleModel_FireViewFinerModel)
+        set(_smf_names Structures_ExampleModel_FireView Structures_ExampleModel_FireViewFinerFire Structures_ExampleModel_FireViewFinerModel Structures_ExampleModel_FireViewExactTime)
         set(_smf_args_0 "structure.example.position=300 300 300")
         set(_smf_args_1 "${_smf_two} erf.box1.in_box_lo_indices_crse=5 5 0 erf.box1.in_box_hi_indices_crse=14 14 29 erf.fire.anchor_level=1 structure.example.level=0 structure.example.position=200 200 300")
         set(_smf_args_2 "${_smf_two} erf.box1.in_box_lo_indices_crse=0 0 0 erf.box1.in_box_hi_indices_crse=9 9 29 erf.fire.anchor_level=0 structure.example.level=1 structure.example.position=300 300 300")
+        set(_smf_args_3 "amr.max_level=1 erf.dt_ref_ratio=3 erf.fixed_dt=0.1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices_crse=5 5 0 erf.box1.in_box_hi_indices_crse=14 14 29 erf.fire.anchor_level=1 structure.example.level=0 structure.example.position=200 200 300")
         set(_smf_check_0 "-v lev=0 -v dtf=0.5 -v lead=0")
         set(_smf_check_1 "-v lev=1 -v dtf=0.25 -v lead=0")
         set(_smf_check_2 "-v lev=0 -v dtf=0.5 -v lead=0.5")
+        set(_smf_check_3 "-v lev=1 -v dtf=0.0333333333333333 -v lead=0")
         set(_smf_nlines_0 4)
         set(_smf_nlines_1 4)
         set(_smf_nlines_2 8)
+        set(_smf_nlines_3 4)
         # The restart leg of the first run: checkpoint at step 2 (t = 1 s), restart, two steps
         set(_smf_more_0 "erf.check_int=2")
         set(_smf_rst_0 " && rm -rf rst && mkdir rst && cd rst && cp ../input_sounding . && ${_smx_mpi} ${_smx_exe} ../inputs_fire_example ${_smf_common} ${_smf_args_0} erf.restart=../chk00002 > ../restart.log 2>&1 && cd .. && ${_smf_awk} ${_smf_check_0} -v nlines=2 -f ${_smx_src_abs}/check_fire_view.awk restart.log && grep -q 'structure example fire: t = 1 fire_lev = 0 fire_t = 1 ' restart.log")
@@ -5081,7 +5087,9 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
         set(_smf_more_2 "")
         set(_smf_rst_1 "")
         set(_smf_rst_2 "")
-        foreach(_i RANGE 2)
+        set(_smf_more_3 "")
+        set(_smf_rst_3 "")
+        foreach(_i RANGE 3)
           list(GET _smf_names ${_i} _smf_name)
           set(_smf_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${_smf_name})
           file(MAKE_DIRECTORY ${_smf_dir})

@@ -99,8 +99,9 @@ The view holds:
      - The atmospheric level the fire grid refines (``erf.fire.anchor_level``).
        It need not be the model's level.
    * - ``time``
-     - End of the fire's last step [s]; before its first step in this run, the
-       time ERF started or restarted from.
+     - The time the fields belong to [s]: the time ERF assigns to the fire's
+       level at the end of the fire's last step, or the time ERF started or
+       restarted from before that step.
    * - ``heat_release``
      - Heat released [W/m\ :sup:`2`] on the fire grid, before its split into
        sensible and latent heat (``FireEngine::heat_release()``); ``nullptr``
@@ -108,10 +109,15 @@ The view holds:
    * - ``level_set``
      - Level set on the fire grid, negative where burned
        (``FireEngine::level_set()``); ``nullptr`` when the engine has none.
+   * - ``burned_area()``
+     - Area burned so far [m\ :sup:`2`] (``FireEngine::burned_area()``),
+       negative when the engine does not track it. It may reduce over the
+       ranks, so every rank calls it or none does.
 
 The fire steps after the dycore of its own level. A model on that level, or on
-a coarser one, therefore sees the fire at the end of the step that ended at its
-own step's time. A model on a finer level sees the fire up to one step of the
+a coarser one, therefore sees the fire at its own step's time, exactly: ERF
+gives the fire's fields the time it assigns to the level, not a sum of
+substeps, which could differ by round-off. A model on a finer level sees the fire up to one step of the
 fire's level ahead of its own step. The fields are spread over the ranks as the
 fire grid is, so a model that needs the fire at its own points reduces over the
 ranks itself. After a restart, until the fire's first step, the fields are what
@@ -196,11 +202,13 @@ unit tests ``StructureRegistry.*`` check the registry and the selection by
 ``erf.structures.model`` and the plot-name checks.
 
 When the example fire engine (``Tests/FireEngineExample``) is compiled in as
-well, three runs check the fire view. Each runs the engine's deck with the example model
+well, four runs check the fire view. Each runs the engine's deck with the example model
 added: a disk of radius :math:`r(t) = 150 + 50\,t` m releasing
 :math:`q_0 = 5 \times 10^4` W/m\ :sup:`2` inside it, a quarter of it as latent
 heat. At each step the model prints the level and time :math:`t_f` of the
-fire's fields, the heat released :math:`Q` and the burned area :math:`A`.
+fire's fields, the heat released :math:`Q` (the sum of ``heat_release``) and
+the burned area :math:`A` (``burned_area()``, which the example engine
+computes from the disk's radius).
 ``check_fire_view.awk`` compares them with
 
 .. math::
@@ -211,14 +219,19 @@ fire's fields, the heat released :math:`Q` and the burned area :math:`A`.
 
 where :math:`\Delta t_f` is the step of the fire's level (:math:`Q = 0` before
 the fire's first step). The fire cells are 10 m (5 m on the refined level), and
-the disk is resolved to 1.4 % or better wherever it sits on the grid; the
-tolerance is 3 %. Fields one fire step late or early would miss by 11 % or more.
+they resolve the disk's heat to 1.4 % or better wherever it sits on the grid;
+the tolerance is 3 %. Fields one fire step late or early would miss by 11 % or more.
 ``Structures_ExampleModel_FireView`` has both on level 0, so :math:`t_f` is
 the model's step time. ``Structures_ExampleModel_FireViewFinerFire`` has the fire on
 a level-1 patch and the model on level 0, so :math:`t_f` is again the model's
 step time. ``Structures_ExampleModel_FireViewFinerModel`` has the fire on level
 0 and the model on a level-1 patch, so :math:`t_f` is the end of the coarse
-step. ``Structures_ExampleModel_FireView`` then restarts from its mid-run
+step. ``Structures_ExampleModel_FireViewExactTime`` has the fire on a level-1
+patch with three substeps of 0.1/3 s and the model on level 0: three substeps
+add up to 0.3 s where the coarse level is at 0.30000000000000004 s, and the
+fire's :math:`t_f` must still equal the model's step time to all 17 printed
+digits. Where :math:`t_f` is the model's step time, the check compares the two
+exactly. ``Structures_ExampleModel_FireView`` then restarts from its mid-run
 checkpoint: the first fields after the restart must hold the time of the restart
 and the heat of the fire step before it, which the example engine restores.
 ``Structures_ExampleModel``, without a fire, checks that the model gets no fire

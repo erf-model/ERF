@@ -81,16 +81,15 @@ ERF::advance_structure_model (int lev, double time, Real dt_lev,
 
     const bool fitted = (SolverChoice::mesh_type != MeshType::ConstantDz);
 
-    // The fire's fields, when the run has a fire. Before the fire's first step in this run
-    // (a fire on this level or a finer one, at the first step, or right after a restart)
-    // they hold its state at the time ERF started or restarted from, which is this step's time.
+    // The fire's fields, when the run has a fire, at the time they belong to
     std::optional<StructureFire> fire;
 #ifdef ERF_USE_FIRE
     if (m_fire_coupler) {
         const FireEngine& engine = m_fire_coupler->engine();
-        const double fire_time = m_fire_coupler->stepped() ? m_fire_coupler->step_end_time() : time;
-        fire.emplace(StructureFire{m_fire_coupler->fire_grid().geom, m_fire_coupler->level(), fire_time,
-                                   engine.heat_release(), engine.level_set()});
+        fire.emplace(StructureFire{m_fire_coupler->fire_grid().geom, m_fire_coupler->level(),
+                                   m_fire_coupler->fields_time(),
+                                   engine.heat_release(), engine.level_set(),
+                                   [&engine] () { return engine.burned_area(); }});
     }
 #endif
 
