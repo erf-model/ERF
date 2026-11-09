@@ -52,7 +52,8 @@ and its checkpoint data.
        step (``StructureStep``), before the step's Runge-Kutta stages. The model
        samples the wind, advances its structures and sets the momentum source.
        ``StructureStep`` also says whether every map factor of the level is 1
-       now, so a level a regrid made is checked as well.
+       now, so a level a regrid made is checked as well, and holds the fire view
+       (``StructureStep::fire``, below) when the run has a fire.
    * - ``support()``
      - Right after each ``advance()``: boxes [m] that hold the model's points
        and their kernels' reach. When a level finer than the model's exists and
@@ -74,6 +75,47 @@ and its checkpoint data.
        ERF plotfile on every level. The names carry the model's prefix; an
        empty name, a name listed twice or a name ERF or another model already
        uses stops the run.
+
+Reading the fire
+----------------
+
+When ERF runs with a fire (``erf.fire.enable``, :ref:`sec:FireCoupling`),
+``StructureStep::fire`` points to a ``StructureFire``; without a fire it is
+``nullptr``. A model can then heat its structures from the fire, for example.
+The view holds:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Member
+     - Meaning
+   * - ``geom``
+     - Geometry of the fire grid [m], one cell in z. Fire cell
+       :math:`(i, j)` has its centre at the lower corner plus
+       :math:`((i + \tfrac12)\,\Delta x,\ (j + \tfrac12)\,\Delta y)`, in the
+       coordinates of the model's own points.
+   * - ``lev``
+     - The atmospheric level the fire grid refines (``erf.fire.anchor_level``).
+       It need not be the model's level.
+   * - ``time``
+     - End of the fire's last step [s]; the start of the run before its first
+       step.
+   * - ``heat_release``
+     - Heat released [W/m\ :sup:`2`] on the fire grid, before its split into
+       sensible and latent heat (``FireEngine::heat_release()``); ``nullptr``
+       when the engine has none.
+   * - ``level_set``
+     - Level set on the fire grid, negative where burned
+       (``FireEngine::level_set()``); ``nullptr`` when the engine has none.
+
+The fire steps after the dycore of its own level. A model on that level, or on
+a coarser one, therefore sees the fire at the end of the step that ended at its
+own step's time. A model on a finer level sees the fire up to one step of the
+fire's level ahead of its own step. The fields are spread over the ranks as the
+fire grid is, so a model that needs the fire at its own points reduces over the
+ranks itself. After a restart, until the fire's first step, the fields are what
+the engine restored from the checkpoint.
 
 Writing a model
 ---------------
@@ -150,3 +192,29 @@ and must stop; ``Structures_ExampleModel_FinerLevelElsewhere`` refines only the
 lowest 50 m, below the kernel's reach, and must run. The
 unit tests ``StructureRegistry.*`` check the registry and the selection by
 ``erf.structures.model`` and the plot-name checks.
+
+When the example fire engine (``Tests/FireEngineExample``) is compiled in as
+well, three runs check the fire view. Each runs the engine's deck with the example model
+added: a disk of radius :math:`r(t) = 150 + 50\,t` m releasing
+:math:`q_0 = 5 \times 10^4` W/m\ :sup:`2` inside it, a quarter of it as latent
+heat. At each step the model prints the level and time :math:`t_f` of the
+fire's fields, the heat released :math:`Q` and the burned area :math:`A`.
+``check_fire_view.awk`` compares them with
+
+.. math::
+
+   A = \pi\, r(t_f)^2 ,
+   \qquad
+   Q = q_0\, \pi\, r\!\left(t_f - \tfrac12 \Delta t_f\right)^2 ,
+
+where :math:`\Delta t_f` is the step of the fire's level (:math:`Q = 0` before
+the fire's first step). The fire cells are 10 m (5 m on the refined level), and
+the three runs match these to 1.3 % or better; the tolerance is 3 %. Fields one
+fire step late would miss by 12 % or more.
+``Structures_ExampleModel_FireView`` has both on level 0, so :math:`t_f` is
+the model's step time. ``Structures_ExampleModel_FireViewFinerFire`` has the fire on
+a level-1 patch and the model on level 0, so :math:`t_f` is again the model's
+step time. ``Structures_ExampleModel_FireViewFinerModel`` has the fire on level
+0 and the model on a level-1 patch, so :math:`t_f` is the end of the coarse
+step. ``Structures_ExampleModel``, without a fire, checks that the model gets
+no fire view.

@@ -11,6 +11,9 @@
  * out-of-tree build, the registry, the advance and momentum-source calls, the
  * ERF plotfile fields and the checkpoint. In a periodic box with no friction the
  * air's momentum grows by exactly force times time, which the CTest checks.
+ * When the run has a fire (StructureStep::fire), it prints each step what the
+ * fire view holds (the level and time of the fire's fields, the heat released
+ * and the area burned), which the CTests with the example fire engine check.
  * ERF's CI builds it through ERF_STRUCTURE_MODEL_DIRS (CMake) and
  * STRUCTURE_HOME (GNU make).
  */
@@ -121,6 +124,7 @@ public:
         }
         erf_actuator::spread_forces(m_pos, m_force, m_eps, step.z_phys_nd, step.detJ_cc, step.geom,
                                     m_src_x, m_src_y, m_src_z);
+        if (step.fire) { report_fire(step); }
         for (int d = 0; d < 3; ++d) { m_impulse[d] += m_force[d] * step.dt; }
 
         Print() << std::setprecision(10) << "structure example: t = " << step.time + step.dt
@@ -182,6 +186,29 @@ public:
     }
 
 private:
+    // What the fire view holds this step: the level and time of the fire's fields, the heat
+    // released over the fire grid [W] and the area burned [m2] (-1 where the engine has no
+    // such field). Every rank calls it: both integrals reduce over the ranks.
+    static void report_fire (const StructureStep& step)
+    {
+        const StructureFire& f = *step.fire;
+        const Real dA = f.geom.CellSize(0) * f.geom.CellSize(1);
+        Real heat = Real(-1.0), burned = Real(-1.0);
+        if (f.heat_release) { heat = f.heat_release->sum(0) * dA; }
+        if (f.level_set) {
+            burned = dA * amrex::ReduceSum(*f.level_set, 0,
+                [=] AMREX_GPU_HOST_DEVICE (Box const& bx, Array4<Real const> const& phi) -> Real
+                {
+                    Real n = Real(0.0);
+                    amrex::Loop(bx, [&] (int i, int j, int k) { if (phi(i, j, k) < Real(0.0)) { n += Real(1.0); } });
+                    return n;
+                });
+            ParallelDescriptor::ReduceRealSum(burned);
+        }
+        Print() << std::setprecision(10) << "structure example fire: t = " << step.time << " fire_lev = " << f.lev
+                << " fire_t = " << f.time << " heat = " << heat << " burned = " << burned << "\n";
+    }
+
     std::vector<Real> m_pos;
     std::vector<Real> m_force;
     Real m_eps = Real(0.0);

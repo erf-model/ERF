@@ -202,6 +202,11 @@ public:
     /// The fire grid.
     const FireGrid& fire_grid () const { return m_fg; }
 
+    /// The engine has taken a step in this run (advance() was called at least once).
+    bool stepped () const { return m_stepped; }
+    /// End of the engine's last step in this run [s]: time + dt of the last advance(); valid when stepped().
+    amrex::Real step_end_time () const { return m_step_end_time; }
+
     /**
      * @brief Sensible heat flux [W/m2] of the previous fire step on the
      *        atmospheric columns of the fire grid's level, with 5 ghost columns
@@ -222,6 +227,8 @@ private:
     FireGrid                    m_fg;
     int                         m_lev = 0;
     amrex::Geometry             m_geom_atm;   ///< geometry of the fire grid's level
+    bool                        m_stepped = false;            ///< advance() was called in this run
+    amrex::Real                 m_step_end_time = amrex::Real(0.0); ///< time + dt of the last advance()
 
     // The engine's fluxes averaged onto the atmospheric columns of the fire
     // grid's level (one slab per box of that level), held from the previous

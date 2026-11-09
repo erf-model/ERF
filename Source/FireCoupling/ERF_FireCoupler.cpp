@@ -182,6 +182,8 @@ FireCoupler::advance (Real time, Real dt,
                               post_dycore ? yvel_new : yvel_old,
                               z_phys_cc, T_atm_k0, RH_atm_k0, precip_accum_k0.get()};
     m_engine->advance(forcing);
+    m_stepped = true;
+    m_step_end_time = time + dt;
     if (m_params.fire_debug) {
         const Real area = m_engine->burned_area();   // every rank: it may reduce over the fire grid
         if (area >= 0.0_rt) {

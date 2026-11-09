@@ -62,8 +62,10 @@ public:
         m_phi      = std::make_unique<MultiFab>(fg.ba, fg.dm, 1, 0);
         m_sensible = std::make_unique<MultiFab>(fg.ba, fg.dm, 1, 0);
         m_latent   = std::make_unique<MultiFab>(fg.ba, fg.dm, 1, 0);
+        m_heat     = std::make_unique<MultiFab>(fg.ba, fg.dm, 1, 0);
         m_sensible->setVal(0.0_rt);
         m_latent->setVal(0.0_rt);
+        m_heat->setVal(0.0_rt);
         fill_level_set();
     }
 
@@ -75,6 +77,7 @@ public:
         for (int n = 0; n < m_nsub; ++n) {
             add_disk_flux(*m_sensible, forcing.time + (Real(n) + 0.5_rt) * dt_sub, 1.0_rt / Real(m_nsub));
         }
+        MultiFab::Copy(*m_heat, *m_sensible, 0, 0, 1, 0);
         MultiFab::Copy(*m_latent, *m_sensible, 0, 0, 1, 0);
         m_sensible->mult(1.0_rt - m_latent_fraction);
         m_latent->mult(m_latent_fraction);
@@ -124,6 +127,8 @@ public:
     }
 
     const MultiFab* level_set () const override { return m_phi.get(); }
+    // The whole flux of the last step, before its split into sensible and latent heat
+    const MultiFab* heat_release () const override { return m_heat.get(); }
 
     Real burned_area () const override
     {
@@ -171,7 +176,7 @@ private:
     int  m_nsub = 1;
     Real m_time = 0.0_rt;
     Geometry m_geom;
-    std::unique_ptr<MultiFab> m_phi, m_sensible, m_latent;
+    std::unique_ptr<MultiFab> m_phi, m_sensible, m_latent, m_heat;
 };
 
 ERF_REGISTER_FIRE_ENGINE(FireEngineExample, "example")

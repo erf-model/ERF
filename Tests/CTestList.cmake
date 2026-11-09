@@ -4991,7 +4991,8 @@ endif()
 # fvolumesum prints 6 significant digits; the model's fields reach the
 # ERF plotfile; and a restart from the mid-run checkpoint reproduces the final
 # plotfile exactly, and the model's checkpointed impulse (50 N for 4 s = 200 N s) is the
-# same in both logs.
+# same in both logs. Without a fire the model gets no fire view (StructureStep::fire is
+# nullptr), so it prints no fire line.
 set(_smx_src ${CMAKE_CURRENT_SOURCE_DIR}/StructureModelExample)
 get_filename_component(_smx_src_abs "${_smx_src}" ABSOLUTE)
 set(_smx_in_build FALSE)
@@ -5021,7 +5022,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
         string(REPLACE "fcompare" "fvolumesum" _smx_fvs_name "${_smx_fcmp_name}")
         set(_smx_fvs "${_smx_tools}/${_smx_fvs_name}")
         add_test(NAME Structures_ExampleModel
-                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
+                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && ! grep -q 'structure example fire' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
                  WORKING_DIRECTORY ${_smx_dir})
         set_tests_properties(Structures_ExampleModel PROPERTIES
             LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
@@ -5045,6 +5046,41 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       add_test_abort(Structures_Abort_ExampleLevel ${_smx_src} inputs_structure_example
                      "structure.example.level must be -1 .the finest level. or 0 to amr.max_level = 0, got 1"
                      "structure.example.level=1")
+      # The fire view (StructureStep::fire) with the example fire engine compiled in too:
+      # the fire deck of Tests/FireEngineExample with the example model added. The engine
+      # burns a disk of radius 150 + 50 t m that releases 5e4 W/m2 (a quarter of it as
+      # latent heat, which heat_release still counts); the model prints, each step, the
+      # level and time of the fire's fields, the heat released and the area burned, which
+      # check_fire_view.awk compares with the disk (3 %: on fire cells of 10 m or 5 m the
+      # three runs match it to 1.3 % or better; a field one fire step late is off by 12 % or more). Three
+      # layouts: both on level 0; the fire on a level-1 patch with the model on level 0
+      # (the fire's fields belong to the fire's step that ended at the model's step time);
+      # the fire on level 0 with the model on a level-1 patch (the fire is already at the
+      # end of the coarse step).
+      if(ERF_ENABLE_FIRE AND _fex_in_build)
+        set(_smf_common "erf.structures.model=example structure.example.force=50 0 0 structure.example.epsilon=50 fire.example.r0=150 fire.example.ros=50 fire.example.nsub=1 fire.example.latent_fraction=0.25 erf.fire.grid_ratio=10 amr.max_grid_size=10 10 60 max_step=4 erf.check_int=-1 erf.plot_int_1=-1 amrex.call_addr2line=0")
+        set(_smf_two "amr.max_level=1 erf.dt_ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1")
+        set(_smf_awk "awk -v r0=150 -v ros=50 -v q0=5.0e4 -v tol=0.03")
+        set(_smf_names Structures_ExampleModel_FireView Structures_ExampleModel_FireViewFinerFire Structures_ExampleModel_FireViewFinerModel)
+        set(_smf_args_0 "structure.example.position=300 300 300")
+        set(_smf_args_1 "${_smf_two} erf.box1.in_box_lo_indices_crse=5 5 0 erf.box1.in_box_hi_indices_crse=14 14 29 erf.fire.anchor_level=1 structure.example.level=0 structure.example.position=200 200 300")
+        set(_smf_args_2 "${_smf_two} erf.box1.in_box_lo_indices_crse=0 0 0 erf.box1.in_box_hi_indices_crse=9 9 29 erf.fire.anchor_level=0 structure.example.level=1 structure.example.position=300 300 300")
+        set(_smf_check_0 "-v lev=0 -v dtf=0.5 -v lead=0 -v nlines=4")
+        set(_smf_check_1 "-v lev=1 -v dtf=0.25 -v lead=0 -v nlines=4")
+        set(_smf_check_2 "-v lev=0 -v dtf=0.5 -v lead=0.5 -v nlines=8")
+        foreach(_i RANGE 2)
+          list(GET _smf_names ${_i} _smf_name)
+          set(_smf_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${_smf_name})
+          file(MAKE_DIRECTORY ${_smf_dir})
+          file(COPY ${_fex_src}/inputs_fire_example ${_fex_src}/input_sounding DESTINATION ${_smf_dir})
+          add_test(NAME ${_smf_name}
+                   COMMAND sh -c "${_smx_mpi} ${_smx_exe} inputs_fire_example ${_smf_common} ${_smf_args_${_i}} > run.log 2>&1 && ${_smf_awk} ${_smf_check_${_i}} -f ${_smx_src_abs}/check_fire_view.awk run.log"
+                   WORKING_DIRECTORY ${_smf_dir})
+          set_tests_properties(${_smf_name} PROPERTIES
+              LABELS "regression;structures;fire" TIMEOUT 600 PROCESSORS 2
+              ATTACHED_FILES_ON_FAIL "${_smf_dir}/run.log")
+        endforeach()
+      endif()
     elseif(NOT ERF_STRUCTURE_MODEL_DIRS)
       add_test_abort(Structures_Abort_NoModelBuiltIn ${_smx_src} inputs_structure_example
                      "erf.structures.model = .example. is not one of the structure models compiled in .none"
