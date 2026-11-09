@@ -29,6 +29,7 @@
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -2505,18 +2506,40 @@ TEST(SBMTransport, TwoMomentAttachedG1AndEndpointGhostsCoverFaceEdgeCornerLayers
     }
 }
 
+// Forked death tests hang under MPI on Linux CI, so the expected
+// amrex::Abort is raised as an exception for the duration of the check.
+template <typename Action>
+void expect_amrex_abort (Action&& action, const std::string& expected)
+{
+    const bool saved = amrex::system::throw_exception;
+    amrex::system::throw_exception = true;
+    std::string message;
+    try {
+        action();
+    } catch (const std::runtime_error& error) {
+        message = error.what();
+    }
+    amrex::system::throw_exception = saved;
+    EXPECT_NE(message.find(expected), std::string::npos)
+        << "expected amrex::Abort containing \"" << expected << "\", got \""
+        << message << '"';
+}
+
 TEST(SBMTransport, MissingParentGhostWriteRejectsFiniteStaleSentinel)
 {
-    EXPECT_DEATH(run_coarse_stage_g1_ghost_test(true, false),
-                 "left a coarse-only parent ghost component unwritten or invalid");
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(true, false); },
+                       "left a coarse-only parent ghost component unwritten or invalid");
 }
 
 TEST(SBMTransport, MissingParentGhostWriteTallyRejectsCompleteStores)
 {
-    EXPECT_DEATH(run_coarse_stage_g1_ghost_test(
-                     false, false, 0, false, IntVect(1, 3, 3), 0, nullptr, -1,
-                     0, false, true, true),
-                 "omitted a required parent ghost component write");
+    expect_amrex_abort(
+        [] {
+            run_coarse_stage_g1_ghost_test(
+                false, false, 0, false, IntVect(1, 3, 3), 0, nullptr, -1,
+                0, false, true, true);
+        },
+        "omitted a required parent ghost component write");
 }
 
 TEST(SBMTransport, AssignmentOnlyMissingParentStoreFailsAcrossModesRolesAndHaloDepths)
@@ -2529,10 +2552,12 @@ TEST(SBMTransport, AssignmentOnlyMissingParentStoreFailsAcrossModesRolesAndHaloD
                 SCOPED_TRACE(::testing::Message()
                              << "two_moment_attached=" << two_moment_attached
                              << " role=" << role << " ghost=" << ghost);
-                EXPECT_DEATH(
-                    run_coarse_stage_g1_ghost_test(
-                        true, false, 0, two_moment_attached, ghost, 0,
-                        nullptr, 0, role),
+                expect_amrex_abort(
+                    [&] {
+                        run_coarse_stage_g1_ghost_test(
+                            true, false, 0, two_moment_attached, ghost, 0,
+                            nullptr, 0, role);
+                    },
                     "left a coarse-only parent ghost component unwritten or invalid");
             }
         }
@@ -2541,26 +2566,26 @@ TEST(SBMTransport, AssignmentOnlyMissingParentStoreFailsAcrossModesRolesAndHaloD
 
 TEST(SBMTransport, ParentGhostRejectsOverflowingUOverRho)
 {
-    EXPECT_DEATH(run_coarse_stage_g1_ghost_test(false, false, 1),
-                 "unrepresentable U\\(t\\)/rho_d\\(t\\) quotient");
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(false, false, 1); },
+                       "unrepresentable U(t)/rho_d(t) quotient");
 }
 
 TEST(SBMTransport, ParentGhostRejectsPositiveSupportUnderflow)
 {
-    EXPECT_DEATH(run_coarse_stage_g1_ghost_test(false, false, 2),
-                 "unrepresentable U\\(t\\)/rho_d\\(t\\) quotient");
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(false, false, 2); },
+                       "unrepresentable U(t)/rho_d(t) quotient");
 }
 
 TEST(SBMTransport, ParentGhostRejectsZeroDensityEndpoint)
 {
-    EXPECT_DEATH(run_coarse_stage_g1_ghost_test(false, false, 3),
-                 "endpoint data are not finite with positive density");
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(false, false, 3); },
+                       "endpoint data are not finite with positive density");
 }
 
 TEST(SBMTransport, ParentGhostRejectsNonfiniteSpectrumEndpoint)
 {
-    EXPECT_DEATH(run_coarse_stage_g1_ghost_test(false, false, 4),
-                 "endpoint data are not finite with positive density");
+    expect_amrex_abort([] { run_coarse_stage_g1_ghost_test(false, false, 4); },
+                       "endpoint data are not finite with positive density");
 }
 
 struct SpectralLedgerResult {

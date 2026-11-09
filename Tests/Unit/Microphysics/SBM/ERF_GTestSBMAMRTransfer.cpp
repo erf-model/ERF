@@ -1745,7 +1745,7 @@ TEST(SBMAMRYA, SignedMappedCorrectionMatchesIndependentFaceAmounts)
             for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
                 for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
                     const int c[3] = {i, j, k};
-                    const bool covered = i >= 2 && i <= 5 &&
+                    const bool cell_covered = i >= 2 && i <= 5 &&
                                          j >= 2 && j <= 5 &&
                                          k >= 2 && k <= 5;
                     const Real omega = Real(1.5) + Real(0.01) * i +
@@ -1754,7 +1754,7 @@ TEST(SBMAMRYA, SignedMappedCorrectionMatchesIndependentFaceAmounts)
                         const Real initial = Real(100.0) * (n + 1);
                         Real expected_delta_h = Real(0.0);
                         Real expected_delta_q = Real(0.0);
-                        if (!covered) {
+                        if (!cell_covered) {
                             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
                                 for (int side : {-1, 1}) {
                                     const int neighbor = c[dir] + side;
@@ -1815,7 +1815,7 @@ TEST(SBMAMRYA, SignedMappedCorrectionMatchesIndependentFaceAmounts)
                         EXPECT_NEAR(mapped_amount,
                                      expected_delta_q,
                                      Real(2.0e-11));
-                        if (covered) {
+                        if (cell_covered) {
                             EXPECT_EQ(state(i,j,k,n), initial)
                                 << "covered coarse parent changed at "
                                 << i << ',' << j << ',' << k
