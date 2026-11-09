@@ -28,6 +28,88 @@ wrf_moisture_target (const amrex::Real rho,
     return rho * amrex::max(q, amrex::Real(0.0));
 }
 
+/**
+ * Number concentration (#/m^3, i.e. the conserved rho*n) of an exponential
+ * size distribution N(D) = N0 exp(-lambda D) of spheres of density rho_x
+ * holding the mass content rho_q (kg/m^3).  With n0 > 0 the intercept is
+ * fixed (Marshall-Palmer style); with n0 <= 0 the number follows the cloud-ice
+ * relation of Hong et al. (2004), N = 5.38e7 (rho_q)^0.75.  Either way lambda
+ * is then held within [lam_min, lam_max] and the number recomputed from it.
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+wrf_bdy_number_target (const amrex::Real rho_q,
+                       const amrex::Real rho_x,
+                       const amrex::Real n0,
+                       const amrex::Real lam_min,
+                       const amrex::Real lam_max) noexcept
+{
+    if (rho_q <= amrex::Real(0.0)) { return amrex::Real(0.0); }
+    amrex::Real lam;
+    if (n0 > amrex::Real(0.0)) {
+        lam = std::pow(PI * rho_x * n0 / rho_q, myhalf * myhalf);
+    } else {
+        const amrex::Real n_hong = amrex::Real(5.38e7) * std::pow(rho_q, amrex::Real(0.75));
+        lam = std::cbrt(PI * rho_x * n_hong / rho_q);
+    }
+    lam = amrex::min(amrex::max(lam, lam_min), lam_max);
+    return rho_q * lam * lam * lam / (PI * rho_x);
+}
+
+/**
+ * The number concentrations relaxed toward the WRF boundary under
+ * erf.bdy_moist_nudge_type = 3.  Target n is the state component num_comps[n],
+ * derived from moisture target mass_target[n] (the index into
+ * {qv, qc, qi, qr, qs, qg}) with the parameters of wrf_bdy_number_target.
+ */
+struct WrfBdyNumberTargets
+{
+    static constexpr int max_targets = 4;
+    int n_targets = 0;
+    amrex::GpuArray<int,max_targets>         num_comps{};
+    amrex::GpuArray<int,max_targets>         mass_target{};
+    amrex::GpuArray<amrex::Real,max_targets> rho_x{};
+    amrex::GpuArray<amrex::Real,max_targets> n0{};
+    amrex::GpuArray<amrex::Real,max_targets> lam_min{};
+    amrex::GpuArray<amrex::Real,max_targets> lam_max{};
+};
+
+/**
+ * Number targets for the active scheme, empty unless it is Morrison carrying
+ * all five hydrometeor masses.  Densities and lambda limits are Morrison's
+ * (ERF_AdvanceMorrison.cpp, graupel rather than hail); the intercepts are the
+ * Marshall-Palmer / Lin values.  Cloud droplet number is left out: Morrison
+ * runs with a constant droplet number (inum = 1) and resets it every step.
+ */
+inline WrfBdyNumberTargets
+wrf_bdy_number_targets (const MoistureType moisture_type,
+                        const MoistureComponentIndices& mi)
+{
+    WrfBdyNumberTargets t;
+    if (moisture_type != MoistureType::Morrison ||
+        mi.qi < 0 || mi.qr < 0 || mi.qs < 0 || mi.qg < 0) {
+        return t;
+    }
+    auto add = [&] (int num_comp, int mass_target, amrex::Real rho_x, amrex::Real n0,
+                    amrex::Real d_max, amrex::Real d_min) {
+        if (num_comp < 0) { return; }
+        const int n = t.n_targets++;
+        t.num_comps[n]   = num_comp;
+        t.mass_target[n] = mass_target;
+        t.rho_x[n]       = rho_x;
+        t.n0[n]          = n0;
+        t.lam_min[n]     = one / d_max;
+        t.lam_max[n]     = one / d_min;
+    };
+    add(mi.ni, 2, amrex::Real(500.0), amrex::Real(0.0),
+        amrex::Real(2.0*125.0e-6 + 100.0e-6), amrex::Real(1.0e-6));
+    add(mi.nr, 3, amrex::Real(997.0), amrex::Real(8.0e6), amrex::Real(2800.0e-6), amrex::Real(20.0e-6));
+    add(mi.ns, 4, amrex::Real(100.0), amrex::Real(3.0e6), amrex::Real(2000.0e-6), amrex::Real(10.0e-6));
+    add(mi.ng, 5, amrex::Real(400.0), amrex::Real(4.0e6), amrex::Real(2000.0e-6), amrex::Real(20.0e-6));
+    return t;
+}
+
 /** True when ERF carries all five hydrometeor mass species separately. */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
@@ -739,13 +821,15 @@ realbdy_compute_relaxation (const int& icomp,
 
 /**
  * Apply Davies relaxation to explicitly mapped moisture components.  Target
- * component n corresponds to state component moisture_comps[n].
+ * component n corresponds to state component moisture_comps[n]; a negative
+ * component is skipped.
  */
+template <unsigned int N>
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
 realbdy_compute_moisture_relaxation (
-                            const amrex::GpuArray<int,6>& moisture_comps,
+                            const amrex::GpuArray<int,N>& moisture_comps,
                             const int n_targets,
                             const int& width,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,

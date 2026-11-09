@@ -140,3 +140,57 @@ TEST(WrfBoundaryMoisture, ModeThreeRelaxesMappedSpeciesOnEveryFaceOnly)
         EXPECT_DOUBLE_EQ(rhs_arr(iv, RhoQ4_comp), 0.0);
     }
 }
+
+// Issue #4493: the number targets must follow the assumed exponential
+// distribution and keep its slope within the scheme's limits.
+TEST(WrfBoundaryMoisture, NumberTargetFollowsFixedIntercept)
+{
+    const double rho_q = 1.0e-4;   // 0.1 g/m^3 of snow
+    const double rho_x = 100.0;
+    const double n0    = 3.0e6;
+    const double lam   = std::pow(PI * rho_x * n0 / rho_q, 0.25);
+    const double expected = n0 / lam;
+    const double number = static_cast<double>(wrf_bdy_number_target(
+        rho_q, rho_x, n0, 1.0/2000.0e-6, 1.0/10.0e-6));
+    EXPECT_NEAR(number, expected, 1.0e-10 * expected);
+    // Same mass back out of the distribution
+    EXPECT_NEAR(PI * rho_x * number / (lam*lam*lam), rho_q, 1.0e-10 * rho_q);
+}
+
+TEST(WrfBoundaryMoisture, NumberTargetFollowsHongIceRelation)
+{
+    const double rho_q = 1.0e-5;
+    const double expected = 5.38e7 * std::pow(rho_q, 0.75);
+    const double number = static_cast<double>(wrf_bdy_number_target(
+        rho_q, 500.0, 0.0, 1.0/350.0e-6, 1.0/1.0e-6));
+    EXPECT_NEAR(number, expected, 1.0e-10 * expected);
+}
+
+TEST(WrfBoundaryMoisture, NumberTargetHoldsSlopeWithinLimits)
+{
+    const double rho_q = 2.0e-2;   // so much mass that lambda falls below lam_min
+    const double rho_x = 100.0;
+    const double lam_min = 1.0/2000.0e-6;
+    ASSERT_LT(std::pow(PI * rho_x * 3.0e6 / rho_q, 0.25), lam_min);
+    const double number = static_cast<double>(wrf_bdy_number_target(
+        rho_q, rho_x, 3.0e6, lam_min, 1.0/10.0e-6));
+    const double expected = rho_q * lam_min * lam_min * lam_min / (PI * rho_x);
+    EXPECT_NEAR(number, expected, 1.0e-10 * expected);
+    EXPECT_DOUBLE_EQ(static_cast<double>(wrf_bdy_number_target(0.0, rho_x, 3.0e6, lam_min, 1.0e5)), 0.0);
+}
+
+TEST(WrfBoundaryMoisture, NumberTargetsOnlyForFullMorrison)
+{
+    const auto morr = MoistureComponentIndices::from_moisture_model(MoistureType::Morrison);
+    const WrfBdyNumberTargets t = wrf_bdy_number_targets(MoistureType::Morrison, morr);
+    ASSERT_EQ(t.n_targets, 4);
+    EXPECT_EQ(t.num_comps[0], morr.ni); EXPECT_EQ(t.mass_target[0], 2);
+    EXPECT_EQ(t.num_comps[1], morr.nr); EXPECT_EQ(t.mass_target[1], 3);
+    EXPECT_EQ(t.num_comps[2], morr.ns); EXPECT_EQ(t.mass_target[2], 4);
+    EXPECT_EQ(t.num_comps[3], morr.ng); EXPECT_EQ(t.mass_target[3], 5);
+
+    const auto noice = MoistureComponentIndices::from_moisture_model(MoistureType::Morrison_NoIce);
+    EXPECT_EQ(wrf_bdy_number_targets(MoistureType::Morrison_NoIce, noice).n_targets, 0);
+    const auto wdm6 = MoistureComponentIndices::from_moisture_model(MoistureType::WDM6);
+    EXPECT_EQ(wrf_bdy_number_targets(MoistureType::WDM6, wdm6).n_targets, 0);
+}

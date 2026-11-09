@@ -127,6 +127,7 @@ void make_sources (int level, int nrk,
  * @param[in] m_r2d Pointer to boundary plane reader.
  * @param[in] c_p Specific heat at constant pressure.
  * @param[in] rdOcp Ratio of gas constants to specific heat.
+ * @param[in] moisture_type Active moisture scheme, which picks the number targets.
  * @param[in] use_wrf_bdy_density Use WRF boundary density.
  * @param[in] bdy_moist_nudge_type Type of moisture nudging.
  */
@@ -151,6 +152,7 @@ add_moist_nudging_terms (const amrex::MultiFab& S_data,
                          const amrex::Real& c_p,
                          const amrex::Real& rdOcp,
                          const MoistureComponentIndices& moisture_indices,
+                         const MoistureType moisture_type,
                          const bool use_wrf_bdy_density,
                          const int bdy_moist_nudge_type);
 #endif
