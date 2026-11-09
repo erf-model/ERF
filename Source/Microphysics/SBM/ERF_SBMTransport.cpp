@@ -1063,6 +1063,10 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
         throw std::invalid_argument(
             "SBM M3 mapped transport currently requires three dimensions");
     }
+    // Local slots follow global order, so YA adds each moment family as one run.
+    for (auto& chunk : m_chunks) {
+        std::sort(chunk.components.begin(), chunk.components.end());
+    }
 
     std::vector<ConstraintDescriptor> local_descriptors;
     std::vector<ConstraintTerm> local_terms;
