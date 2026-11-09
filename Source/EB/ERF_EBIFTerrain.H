@@ -29,9 +29,12 @@ public:
      * \param a_z_terrain Terrain elevation values on the horizontal mesh.
      * \param a_geom Geometry used for grid spacing and problem bounds.
      * \param a_dz_stretched Device vector of stretched vertical cell sizes.
+     * \param a_periodic_wrap In a periodic direction of a_geom, evaluate at the periodic image
+     *        inside the domain, so that the surface is the same across the periodic faces.
      */
     TerrainIF (amrex::FArrayBox const& a_z_terrain, amrex::Geometry const& a_geom,
-               amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched)
+               amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
+               bool a_periodic_wrap = false)
         : terr_arr(a_z_terrain.const_array()),
           dz_s(a_dz_stretched.data()),
           dx(a_geom.CellSize(0)),
@@ -44,7 +47,9 @@ public:
           prob_hi_y(a_geom.ProbHi(1)),
           i_hi(static_cast<int>(std::round((a_geom.ProbHi(0)-a_geom.ProbLo(0))/a_geom.CellSize(0)))),
           j_hi(static_cast<int>(std::round((a_geom.ProbHi(1)-a_geom.ProbLo(1))/a_geom.CellSize(1)))),
-          k_hi(static_cast<int>(std::round((a_geom.ProbHi(2)-a_geom.ProbLo(2))/a_geom.CellSize(2))))
+          k_hi(static_cast<int>(std::round((a_geom.ProbHi(2)-a_geom.ProbLo(2))/a_geom.CellSize(2)))),
+          per_x(a_periodic_wrap && a_geom.isPeriodic(0)),
+          per_y(a_periodic_wrap && a_geom.isPeriodic(1))
         {}
 
     /**
@@ -71,6 +76,19 @@ public:
         amrex::Real w1{};
         amrex::Real w2{};
         amrex::Real terr_z{amrex::Real(0.0)};
+
+        // A point beyond a periodic face sees the surface at its periodic image; a point
+        // inside the domain is left exactly as it is
+        auto wrap = [] (amrex::Real a, amrex::Real lo, amrex::Real hi) {
+            if (a >= lo && a < hi) { return a; }
+            const amrex::Real len = hi - lo;
+            amrex::Real r = std::fmod(a - lo, len);
+            if (r < amrex::Real(0.0)) { r += len; }
+            if (r >= len) { r = amrex::Real(0.0); }
+            return lo + r;
+        };
+        if (per_x) { x = wrap(x, prob_lo_x, prob_hi_x); }
+        if (per_y) { y = wrap(y, prob_lo_y, prob_hi_y); }
 
         // z_stretched
         const int k1 = amrex::Clamp(static_cast<int>(std::floor((z-prob_lo_z) / dz)), 0, k_hi - 1);
@@ -162,6 +180,8 @@ protected:
     int i_hi, j_hi;
     //! Number of vertical cells (one past the highest valid dz_s index).
     int k_hi;
+    //! Whether x and y are evaluated at their periodic image inside the domain.
+    bool per_x, per_y;
     /**
      * \var TerrainIF::dy
      * \brief Uniform computational grid spacing in y.
