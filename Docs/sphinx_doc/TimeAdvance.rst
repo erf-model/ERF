@@ -40,7 +40,8 @@ Anelastic Advance
 ---------------------
 
 When solving the anelastic rather than fully compressible equations, ERF supports
-a 2nd order Runge-Kutta method and the 2nd order midpoint method (both with no substepping):
+a 2nd order Runge-Kutta method and the 2nd order midpoint method (both with no substepping).
+The midpoint method is the default; set ``erf.timestepping_type = RK2`` for the Runge-Kutta method.
 
 The 2nd order Runge-Kutta method solves
 

@@ -1172,12 +1172,12 @@ struct SolverChoice {
         // *******************************************************************************
         // Read timestepping_type and allow for different values at each level.  The default
         // depends on the level's compressibility: RK3_ImplicitSubstep at a FullyCompressible
-        // level, RK2 otherwise.
+        // level, MidPoint otherwise.
         // *******************************************************************************
         timestepping_type.resize(max_level+1);
         for (int i = 0; i <= max_level; i++) {
             timestepping_type[i] = (compressibility_type[i] == CompressibilityType::FullyCompressible)
-                                 ? TimesteppingType::RK3_ImplicitSubstep : TimesteppingType::RK2;
+                                 ? TimesteppingType::RK3_ImplicitSubstep : TimesteppingType::MidPoint;
         }
 
         const bool substepping_type_given = pp.contains("substepping_type");
@@ -1215,7 +1215,7 @@ struct SolverChoice {
                                    << std::endl;
                 }
                 for (int i = 0; i <= max_level; i++) {
-                    AnelasticType anelastic_scheme = AnelasticType::RK2;
+                    AnelasticType anelastic_scheme = AnelasticType::MidPoint;
                     query_one_or_per_level_enum_case_insensitive(pp, "anelastic_type", anelastic_scheme, i, max_level);
                     if (compressibility_type[i] != CompressibilityType::FullyCompressible) {
                         timestepping_type[i] = (anelastic_scheme == AnelasticType::MidPoint)
