@@ -2,7 +2,7 @@
           double* dummy_reflectivity_ptr = &dummy_reflectivity;
 
           // If using Fortran version, update the Fortran module variable as well
-          set_morrison_ndcnst_c(m_ndcnst);
+          set_morrison_ndcnst_c(mp.ndcnst);
 
           // The pointers handed to Fortran are Array4::dataPtr() of the mic_fab_vars, whose
           // origin/strides come from the FAB box. Deriving the declared bounds from anything

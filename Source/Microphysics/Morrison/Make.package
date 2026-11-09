@@ -7,6 +7,7 @@ CEXE_headers += ERF_Morrison.H
 CEXE_headers += ERF_Morrison_Advance_F.H
 CEXE_headers += ERF_MorrisonGammaFunction.H
 CEXE_headers += ERF_MorrisonVaporPressure.H
+CEXE_headers += ERF_MorrisonUtils.H
 
 # The shared support module this scheme needs -- module_model_constants -- is
 # added once in Exec/Make.ERF so that enabling several Fortran bridges together
