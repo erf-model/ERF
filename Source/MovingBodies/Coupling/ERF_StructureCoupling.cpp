@@ -84,6 +84,8 @@ ERF::advance_structure_model (int lev, double time, Real dt_lev,
                              fitted ? z_phys_nd[lev].get() : nullptr, fitted ? detJ_cc[lev].get() : nullptr,
                              structure_unit_map_factors(lev)};
     m_structure_model->advance(step);
+    m_structure_src_ba = grids[lev];
+    m_structure_src_dm = dmap[lev];
 
     // The force goes into level lev only. Where level lev+1 covers it, averaging down would
     // overwrite the forced cells with unforced fine data, so the run stops instead. Level
@@ -124,5 +126,104 @@ ERF::advance_structure_model (int lev, double time, Real dt_lev,
                       + " is averaged down; couple the model to the finest level that covers its points");
             }
         }
+    }
+}
+
+namespace {
+
+/**
+ * Restrict a face source from a level onto the faces normal to dir of the next coarser level,
+ * keeping its integral: coarse face I takes the fine faces r I + m, |m| < r, along dir with the
+ * weights (r - |m|) / r^2 (the share of each fine face's control volume inside the coarse
+ * face's), averaged over the fine faces across it. On a uniform mesh the coarse source then
+ * gives the air the same impulse as the fine one. fine must have r - 1 ghost faces along dir,
+ * filled where another box of its level holds them and zero outside the level.
+ */
+void
+restrict_face_source (const MultiFab& fine, MultiFab& crse, int dir, const IntVect& rr, const Geometry& cgeom)
+{
+    BoxArray cba = fine.boxArray();
+    cba.coarsen(rr);
+    MultiFab crse_on_fine(cba, fine.DistributionMap(), 1, 0);
+
+    const int rn = rr[dir];
+    const int t1 = (dir + 1) % AMREX_SPACEDIM;
+    const int t2 = (dir + 2) % AMREX_SPACEDIM;
+    const int r1 = rr[t1];
+    const int r2 = rr[t2];
+    const Real inv_w = Real(1.0) / Real(rn * rn * r1 * r2);
+
+    for (MFIter mfi(crse_on_fine, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const auto f = fine.const_array(mfi);
+        const auto c = crse_on_fine.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const IntVect base = IntVect(AMREX_D_DECL(i, j, k)) * rr;
+            Real s = Real(0.0);
+            for (int m = 1 - rn; m < rn; ++m) {
+                const Real w = Real(rn - amrex::Math::abs(m));
+                for (int a = 0; a < r1; ++a) {
+                    for (int b = 0; b < r2; ++b) {
+                        IntVect iv = base;
+                        iv[dir] += m;
+                        iv[t1]  += a;
+                        iv[t2]  += b;
+                        s += w * f(iv);
+                    }
+                }
+            }
+            c(i, j, k) = s * inv_w;
+        });
+    }
+
+    crse.setVal(Real(0.0));
+    crse.ParallelCopy(crse_on_fine, 0, 0, 1, IntVect(0), IntVect(0), cgeom.periodicity());
+}
+
+} // namespace
+
+void
+ERF::make_structure_coarse_sources (int lev)
+{
+    if (static_cast<int>(m_structure_crse_src.size()) < finest_level + 1) {
+        m_structure_crse_src.resize(finest_level + 1);
+    }
+    for (MultiFab& mf : m_structure_crse_src[lev]) { mf.clear(); }
+
+    // With OneWay coupling the coarser levels never see the finer ones, and the force stays
+    // on the model's level
+    if (!m_structure_model || solverChoice.coupling_type != CouplingType::TwoWay) { return; }
+    const int L = m_structure_model->level(finest_level);
+    if (lev >= L) { return; }
+
+    // The model holds a source on its level's grids only after an advance() on those grids:
+    // before its first step since the start or a restart, and after a regrid of its level,
+    // level lev takes this step without it
+    if (m_structure_src_ba != grids[L] || m_structure_src_dm != dmap[L]) { return; }
+
+    // The source of the model's last step, on its own level, with the ghost faces the
+    // restriction onto level L-1 reads
+    std::array<MultiFab,AMREX_SPACEDIM> src;
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        IntVect ng(0);
+        ng[d] = refRatio(L-1)[d] - 1;
+        src[d].define(convert(grids[L], IntVect::TheDimensionVector(d)), dmap[L], 1, ng);
+        src[d].setVal(Real(0.0));
+    }
+    m_structure_model->add_momentum_sources(L, src[0], src[1], src[2]);
+
+    // Down one level at a time to level lev
+    for (int l = L - 1; l >= lev; --l) {
+        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+            src[d].FillBoundary(geom[l+1].periodicity());
+            IntVect ng(0);
+            if (l > lev) { ng[d] = refRatio(l-1)[d] - 1; }
+            MultiFab crse(convert(grids[l], IntVect::TheDimensionVector(d)), dmap[l], 1, ng);
+            restrict_face_source(src[d], crse, d, refRatio(l), geom[l]);
+            src[d] = std::move(crse);
+        }
+    }
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        m_structure_crse_src[lev][d] = std::move(src[d]);
     }
 }
