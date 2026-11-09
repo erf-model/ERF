@@ -451,33 +451,22 @@ morrison_fallspeed_coefficients (const amrex::Real rho, const amrex::Real mu,
  * or CONS2) and exponent 1/d. When LAM falls outside [lammin, lammax] it is
  * limited and the number concentration n is adjusted to match.
  * Call only for q >= QSMALL.
- *
- * TODO(MorrisonUtils): the StdPow4 switch only keeps answers bit-for-bit while the
- * call sites are converted; it is removed in the next commit.
  */
-template <bool StdPow4 = false>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void morrison_exponential_psd (const amrex::Real q, amrex::Real& n,
                                const amrex::Real c, const amrex::Real inv_d,
                                const amrex::Real lammin, const amrex::Real lammax,
                                amrex::Real& lam, amrex::Real& n0) noexcept
 {
-    auto pow4 = [] (amrex::Real x) {
-        if constexpr (StdPow4) {
-            return std::pow(x, amrex::Real(4.0));
-        } else {
-            return amrex::Math::powi<4>(x);
-        }
-    };
     lam = std::pow(c * n / q, inv_d);
     n0 = n * lam;
     if (lam < lammin) {
         lam = lammin;
-        n0 = pow4(lam) * q / c;
+        n0 = amrex::Math::powi<4>(lam) * q / c;
         n = n0 / lam;
     } else if (lam > lammax) {
         lam = lammax;
-        n0 = pow4(lam) * q / c;
+        n0 = amrex::Math::powi<4>(lam) * q / c;
         n = n0 / lam;
     }
 }

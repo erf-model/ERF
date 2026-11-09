@@ -146,8 +146,6 @@ void morrison_warm_processes (Array4<Real> const& m, int i, int j, int k,
                               const Real rho_erf, const MorrisonCellEnv& env,
                               const MorrisonParams& mp, const Real dt, const bool do_cond)
 {
-    using amrex::Math::powi;
-
     Real& qc3d  = m(i,j,k,MORRInd::qc3d);
     Real& qr3d  = m(i,j,k,MORRInd::qr3d);
     Real& qni3d = m(i,j,k,MORRInd::qni3d);
@@ -199,7 +197,7 @@ void morrison_warm_processes (Array4<Real> const& m, int i, int j, int k,
 
         // Size distribution parameters
         if (qr3d >= mp.qsmall) {
-            morrison_exponential_psd<true>(qr3d, nr3d, mp.pi * mp.rhow, one/three,
+            morrison_exponential_psd(qr3d, nr3d, mp.pi * mp.rhow, one/three,
                                            mp.lamminr, mp.lammaxr, lamr, n0r);
         }
         if (qc3d >= mp.qsmall) {
@@ -208,11 +206,11 @@ void morrison_warm_processes (Array4<Real> const& m, int i, int j, int k,
                                        m(i,j,k,MORRInd::cdist1));
         }
         if (qni3d >= mp.qsmall) {
-            morrison_exponential_psd<true>(qni3d, ns3d, mp.cons1, one/mp.ds,
+            morrison_exponential_psd(qni3d, ns3d, mp.cons1, one/mp.ds,
                                            mp.lammins, mp.lammaxs, lams, n0s);
         }
         if (qg3d >= mp.qsmall) {
-            morrison_exponential_psd<true>(qg3d, ng3d, mp.cons2, one/mp.dg,
+            morrison_exponential_psd(qg3d, ng3d, mp.cons2, one/mp.dg,
                                            mp.lamming, mp.lammaxg, lamg, n0g);
         }
 
@@ -246,13 +244,7 @@ void morrison_warm_processes (Array4<Real> const& m, int i, int j, int k,
             // Number of 1 mm drops shed per second
             const Real dum = pracg/Real(5.2e-7);
 
-            // TODO(MorrisonUtils): the product is grouped differently from the cold branch
-            // and the Fortran; morrison_rain_collection_number replaces this next commit
-            npracg = mp.cons32 * rho * (std::sqrt(Real(1.7)*powi<2>(vr.number-vg.number) +
-                                                  Real(0.3)*vr.number*vg.number) * n0r * n0g *
-                                        (one/(powi<3>(lamr) * lamg) +
-                                         one/(powi<2>(lamr) * powi<2>(lamg)) +
-                                         one/(lamr * powi<3>(lamg))));
+            npracg = morrison_rain_collection_number(mp.cons32, vr.number, vg.number, rho, n0r, n0g, lamr, lamg);
             // hm 7/15/13, remove limit so that the number of collected drops can be
             // smaller than the number of shed drops
             npracg = npracg - dum;
@@ -423,20 +415,8 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
 
     // Size distribution parameters
     if (qr3d >= mp.qsmall) {
-        // TODO(MorrisonUtils): N0R differs from the warm branch and the Fortran when LAMR
-        // is not limited; morrison_exponential_psd replaces this next commit
-        lamr = std::pow(mp.pi * mp.rhow * nr3d / qr3d, one/three);
-        if (lamr < mp.lamminr) {
-            lamr = mp.lamminr;
-            n0r = std::pow(lamr, Real(4.0)) * qr3d / (mp.pi * mp.rhow);
-            nr3d = n0r / lamr;
-        } else if (lamr > mp.lammaxr) {
-            lamr = mp.lammaxr;
-            n0r = std::pow(lamr, Real(4.0)) * qr3d / (mp.pi * mp.rhow);
-            nr3d = n0r / lamr;
-        } else {
-            n0r = std::pow(lamr, Real(4.0)) * qr3d / (mp.pi * mp.rhow);
-        }
+        morrison_exponential_psd(qr3d, nr3d, mp.pi * mp.rhow, one/three,
+                                 mp.lamminr, mp.lammaxr, lamr, n0r);
     }
     if (qc3d >= mp.qsmall) {
         morrison_cloud_droplet_psd(qc3d, nc3d, pres, t3d, mp.cons26,
@@ -444,15 +424,15 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
                                    m(i,j,k,MORRInd::cdist1));
     }
     if (qni3d >= mp.qsmall) {
-        morrison_exponential_psd<true>(qni3d, ns3d, mp.cons1, one/mp.ds,
+        morrison_exponential_psd(qni3d, ns3d, mp.cons1, one/mp.ds,
                                        mp.lammins, mp.lammaxs, lams, n0s);
     }
     if (qi3d >= mp.qsmall) {
-        morrison_exponential_psd<true>(qi3d, ni3d, mp.cons12, one/three,
+        morrison_exponential_psd(qi3d, ni3d, mp.cons12, one/three,
                                        mp.lammini, mp.lammaxi, lami, n0i);
     }
     if (qg3d >= mp.qsmall) {
-        morrison_exponential_psd<true>(qg3d, ng3d, mp.cons2, one/mp.dg,
+        morrison_exponential_psd(qg3d, ng3d, mp.cons2, one/mp.dg,
                                        mp.lamming, mp.lammaxg, lamg, n0g);
     }
 
@@ -460,8 +440,8 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
     const MorrisonRates frz_c = morrison_cloud_droplet_freezing(
         qc3d, nc3d, t3d, pres, mu, m(i,j,k,MORRInd::cdist1), m(i,j,k,MORRInd::pgam),
         m(i,j,k,MORRInd::lamc), mp, dt);
-    Real mnuccc       = frz_c.mass;
-    Real nnuccc       = frz_c.number;
+    Real mnuccc = frz_c.mass;
+    Real nnuccc = frz_c.number;
 
     // Autoconversion of cloud liquid water to rain
     const MorrisonAutoconversion auto_c = morrison_cloud_autoconversion(qc3d, nc3d, rho, mp.cons29, dt);
@@ -598,8 +578,8 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
 
     // Freezing of rain drops, allowed below -4C
     const MorrisonRates frz_r = morrison_rain_freezing(qr3d, nr3d, lamr, t3d, mp, dt);
-    Real mnuccr       = frz_r.mass;
-    Real nnuccr       = frz_r.number;
+    Real mnuccr = frz_r.mass;
+    Real nnuccr = frz_r.number;
 
     // Accretion of cloud liquid water by rain, and self-collection of rain
     const MorrisonRates acc = morrison_cloud_accretion_by_rain(qc3d, qr3d, nc3d);
@@ -642,39 +622,29 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
 
     // Nucleation of cloud ice from homogeneous and heterogeneous freezing on aerosol
     const MorrisonRates nuc = morrison_ice_nucleation(t3d, rho, ni3d, ns3d, ng3d, sat, mp, dt);
-    Real mnuccd       = nuc.mass;
-    Real nnuccd       = nuc.number;
+    Real mnuccd = nuc.mass;
+    Real nnuccd = nuc.number;
 
     // Evaporation/sublimation/deposition terms for qi, qni, qg and qr; no ventilation for cloud ice
     Real epsi = Real(0);
     if (qi3d >= mp.qsmall) {
         epsi = Real(2) * mp.pi * n0i * rho * dv / (lami * lami);
     }
-    // TODO(MorrisonUtils): these take (A RHO/MU)^0.5 with pow rather than sqrt as the warm
-    // branch does; morrison_ventilation replaces them next commit
+    // Ventilation for snow, graupel and rain
     Real epss = Real(0);
     if (qni3d >= mp.qsmall) {
-        epss = Real(2) * mp.pi * n0s * rho * dv *
-            (mp.f1s / (lams * lams) +
-             mp.f2s * std::pow(asn * rho / mu, myhalf) *
-             std::pow(sc, (one / three)) * mp.cons10 /
-             std::pow(lams, mp.cons35));
+        epss = morrison_phase_relaxation(mp.pi, n0s, rho, dv,
+                   morrison_ventilation(mp.f1s, mp.f2s, asn, rho, mu, sc, mp.cons10, lams, mp.cons35));
     }
     Real epsg = Real(0);
     if (qg3d >= mp.qsmall) {
-        epsg = Real(2) * mp.pi * n0g * rho * dv *
-            (mp.f1s / (lamg * lamg) +
-             mp.f2s * std::pow(agn * rho / mu, myhalf) *
-             std::pow(sc, (one / three)) * mp.cons11 /
-             std::pow(lamg, mp.cons36));
+        epsg = morrison_phase_relaxation(mp.pi, n0g, rho, dv,
+                   morrison_ventilation(mp.f1s, mp.f2s, agn, rho, mu, sc, mp.cons11, lamg, mp.cons36));
     }
     Real epsr = Real(0);
     if (qr3d >= mp.qsmall) {
-        epsr = Real(2) * mp.pi * n0r * rho * dv *
-            (mp.f1r / (lamr * lamr) +
-             mp.f2r * std::pow(arn * rho / mu, myhalf) *
-             std::pow(sc, (one / three)) * mp.cons9 /
-             std::pow(lamr, mp.cons34));
+        epsr = morrison_phase_relaxation(mp.pi, n0r, rho, dv,
+                   morrison_ventilation(mp.f1r, mp.f2r, arn, rho, mu, sc, mp.cons9, lamr, mp.cons34));
     }
 
     // Only include the region of the ice size distribution < DCS; DUM is the fraction
@@ -750,7 +720,7 @@ void morrison_cold_processes (Array4<Real> const& m, int i, int j, int k,
     }
 
     // ****SENSITIVITY - NO GRAUPEL
-    Real nsubg  = Real(0);
+    Real nsubg = Real(0);
     if (mp.igraup == 1) {
         pracg   = Real(0);
         psacr   = Real(0);
