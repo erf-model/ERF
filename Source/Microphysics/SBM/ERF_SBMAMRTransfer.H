@@ -83,7 +83,8 @@ bool RestrictMappedSpectrumPrivate (const SBMLayout& layout,
                                     bool reverse_chunk_order = false,
                                     const SBMStateAdmission* admission = nullptr,
                                     SBMTransferAllocationCensus* allocation_census = nullptr,
-                                    std::optional<double> cross_level_dt_min = std::nullopt);
+                                    std::optional<double> cross_level_dt_min = std::nullopt,
+                                    const amrex::MultiFab* covered_parent_mask = nullptr);
 
 /**
  * Form a same-time piecewise-constant carrier-relative fine candidate. On

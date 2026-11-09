@@ -1,7 +1,7 @@
 #include "ERF.H"
 #include "ERF_SBMAMRFluxRegister.H"
+#include "ERF_SBMAMRTime.H"
 #include "ERF_SBMAMRTransfer.H"
-#include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMRestart.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
@@ -38,6 +38,10 @@ ERF::make_sbm_flux_register (int lev)
         if (solverChoice.coupling_type == CouplingType::TwoWay &&
             solverChoice.moisture_type == MoistureType::SBM) {
             AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr);
+            // Each interface interval is consumed once per level-0 step.
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev == 1,
+                "SBM coarse/fine synchronization runs once per level-0 step and "
+                "supports only the level-0/level-1 interface");
             sbm_amr_flux_regs[lev] = std::make_unique<erf_sbm::SBMAMRFluxRegister>();
             sbm_amr_flux_regs[lev]->define(
                 grids[lev], grids[lev-1], dmap[lev], dmap[lev-1], geom[lev],
@@ -95,6 +99,11 @@ ERF::init_sbm_level_from_coarse (int lev, Real time, const BoxArray& ba,
     AMREX_ALWAYS_ASSERT(sbm_transport->measure_is_ready(lev - 1));
     const double coarse_time = sbm_state_manager->new_time(lev - 1);
     const double fine_time = static_cast<double>(time);
+    if (!erf_sbm::semantic_time_matches(coarse_time, t_new[lev - 1], dt[lev - 1]) ||
+        !erf_sbm::semantic_time_matches(fine_time, t_new[lev - 1], dt[lev - 1])) {
+        Abort("SBM fine-level initialization: the coarse spectrum and host "
+              "state times differ");
+    }
     const auto& coarse_measure = sbm_transport->static_measure(lev - 1);
     const auto& fine_measure = sbm_transport->static_measure(lev);
     const auto& coarse_spectrum = sbm_state_manager->new_state(lev - 1);
@@ -111,7 +120,7 @@ ERF::init_sbm_level_from_coarse (int lev, Real time, const BoxArray& ba,
     if (!erf_sbm::ProlongCarrierRelativeSpectrumPrivate(
             sbm_state_manager->layout(), coarse_view, fine_view,
             geom[lev - 1], geom[lev], ref_ratio[lev - 1], lev,
-            candidate, diagnostic, 16, false,
+            candidate, diagnostic, sbm_transport->max_groups_per_chunk(), false,
             &sbm_transport->admission())) {
         Abort("SBM fine-level carrier-relative initialization: " + diagnostic);
     }
@@ -153,6 +162,13 @@ ERF::sbm_synchronize_levels (int nstep)
         auto& flux_register = *sbm_amr_flux_regs[interface_index];
         const double coarse_time = sbm_state_manager->new_time(lev);
         const double fine_time = sbm_state_manager->new_time(lev + 1);
+        const double interval_dt_min = flux_register.minimum_fine_dt();
+        if (!erf_sbm::semantic_time_matches(coarse_time, t_new[lev], interval_dt_min) ||
+            !erf_sbm::semantic_time_matches(fine_time, t_new[lev + 1], interval_dt_min)) {
+            discard_sbm_sync_interval(flux_register,
+                "SBM spectral and host state times differ");
+            Abort("SBM synchronization: the spectral and host state times differ");
+        }
         const auto& coarse_measure = sbm_transport->static_measure(lev);
         const auto& fine_measure = sbm_transport->static_measure(lev + 1);
         erf_sbm::SBMAMRStateView coarse_view{
@@ -164,29 +180,19 @@ ERF::sbm_synchronize_levels (int nstep)
             &vars_new[lev + 1][Vars::cons], Rho_comp, fine_time,
             &fine_measure, 0, fine_time};
         MultiFab candidate(grids[lev], dmap[lev], layout.ncomp(), 0);
+        const MultiFab& covered = flux_register.covered_parent_mask();
         std::string diagnostic;
         if (!erf_sbm::RestrictMappedSpectrumPrivate(
                 layout, fine_view, coarse_view, ref_ratio[lev], lev,
-                candidate, diagnostic, 16, false,
-                &sbm_transport->admission(), nullptr,
-                flux_register.minimum_fine_dt())) {
+                candidate, diagnostic, sbm_transport->max_groups_per_chunk(),
+                false, &sbm_transport->admission(), nullptr,
+                interval_dt_min, &covered)) {
             discard_sbm_sync_interval(flux_register, diagnostic);
             Abort("SBM mapped coarse restriction rejected: " + diagnostic);
         }
 
-        MultiFab fine_coverage(grids[lev + 1], dmap[lev + 1], 1, 0);
-        MultiFab covered(grids[lev], dmap[lev], 1, 1);
-        fine_coverage.setVal(Real(1.0));
-        covered.setVal(Real(0.0));
-        average_down(fine_coverage, covered, 0, 1, ref_ratio[lev]);
-        covered.FillBoundary(geom[lev].periodicity());
-
-        const auto chunks = erf_sbm::make_constraint_closure_chunks(layout, 16);
-        int max_chunk_components = 0;
-        for (const auto& chunk : chunks) {
-            max_chunk_components = std::max(
-                max_chunk_components, static_cast<int>(chunk.components.size()));
-        }
+        const auto& chunks = sbm_transport->chunks();
+        const int max_chunk_components = sbm_transport->max_chunk_components();
         if (max_chunk_components <= 0) {
             discard_sbm_sync_interval(flux_register,
                 "SBM interface has no complete constraint-group chunks");

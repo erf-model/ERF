@@ -3,6 +3,7 @@
 
 #include <AMReX_Gpu.H>
 #include <AMReX_MFIter.H>
+#include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
 
 #include <algorithm>
@@ -48,6 +49,12 @@ SBMAMRFluxRegister::define (const amrex::BoxArray& fine_ba,
     m_register = std::make_unique<amrex::YAFluxRegister>(
         m_fine_ba, m_coarse_ba, m_fine_dm, m_coarse_dm, m_fine_geom,
         m_coarse_geom, m_ratio, m_fine_level, m_ncomp);
+    amrex::MultiFab fine_coverage(m_fine_ba, m_fine_dm, 1, 0);
+    m_covered_parent_mask.define(m_coarse_ba, m_coarse_dm, 1, 1);
+    fine_coverage.setVal(amrex::Real(1.0));
+    m_covered_parent_mask.setVal(amrex::Real(0.0));
+    amrex::average_down(fine_coverage, m_covered_parent_mask, 0, 1, m_ratio);
+    m_covered_parent_mask.FillBoundary(m_coarse_geom.periodicity());
     reset_side(m_coarse);
     reset_side(m_fine);
 }
@@ -57,6 +64,7 @@ SBMAMRFluxRegister::clear ()
 {
     if (m_register) { m_register->clear(); }
     m_register.reset();
+    m_covered_parent_mask.clear();
     m_fine_ba.clear();
     m_coarse_ba.clear();
     m_fine_dm = amrex::DistributionMapping();
@@ -301,17 +309,26 @@ SBMAMRFluxRegister::add_stage_rates (
                 fluxes[static_cast<std::size_t>(dir)] =
                     &accepted_rate.dir(dir)[mfi];
             }
-            for (std::size_t local = 0; local < register_components.size(); ++local) {
-                const int global_component = register_components[local];
+            for (std::size_t first = 0; first < register_components.size();) {
+                std::size_t end = first + 1U;
+                while (end < register_components.size() &&
+                       register_components[end] ==
+                           register_components[end - 1U] + 1) {
+                    ++end;
+                }
+                const int local = static_cast<int>(first);
+                const int global_component = register_components[first];
+                const int count = static_cast<int>(end - first);
                 if (coarse_side) {
                     m_register->CrseAdd(mfi, fluxes, dx.data(),
                         static_cast<amrex::Real>(completed_ledger_time),
-                        static_cast<int>(local), global_component, 1, run_on);
+                        local, global_component, count, run_on);
                 } else {
                     m_register->FineAdd(mfi, fluxes, dx.data(),
                         static_cast<amrex::Real>(completed_ledger_time),
-                        static_cast<int>(local), global_component, 1, run_on);
+                        local, global_component, count, run_on);
                 }
+                first = end;
             }
         }
         // accepted_rate is reused by the next chunk; finish all YA readers

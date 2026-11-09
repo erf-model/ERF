@@ -66,6 +66,9 @@ public:
     { return m_reflux_call_count; }
     [[nodiscard]] std::uint64_t reflux_sync_count () const noexcept
     { return m_reflux_sync_count; }
+    /** Coarse cells covered by the fine level (1) or not (0), one periodic ghost. */
+    [[nodiscard]] const amrex::MultiFab& covered_parent_mask () const noexcept
+    { return m_covered_parent_mask; }
     bool reflux (amrex::MultiFab& mapped_candidate,
                  std::string& diagnostic);
     /** Apply selected global components into matching local slots of a
@@ -102,6 +105,7 @@ private:
                            std::string& diagnostic) const;
 
     std::unique_ptr<amrex::YAFluxRegister> m_register;
+    amrex::MultiFab m_covered_parent_mask;
     amrex::BoxArray m_fine_ba;
     amrex::BoxArray m_coarse_ba;
     amrex::DistributionMapping m_fine_dm;

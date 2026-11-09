@@ -360,7 +360,8 @@ ERF::ERF_shared ()
         sbm_state_manager = std::make_unique<erf_sbm::SBMStateManager>(
             std::move(layout), max_level + 1);
         sbm_transport = std::make_unique<erf_sbm::SBMTransport>(
-            sbm_state_manager->layout(), max_level + 1, 16, false);
+            sbm_state_manager->layout(), max_level + 1,
+            erf_sbm::SBMTransport::default_max_groups_per_chunk, false);
         sbm_transport->enable_zero_flow_diagnostics(
             solverChoice.sbm_amr_qualification_expect_zero_flow);
     }

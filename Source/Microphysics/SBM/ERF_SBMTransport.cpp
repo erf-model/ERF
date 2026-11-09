@@ -149,6 +149,38 @@ coarse_stage_theta (const double requested_time,
     return true;
 }
 
+// One collective: every staged endpoint value (valid and ghost) is finite and
+// both staged densities are positive.
+bool
+coarse_stage_endpoints_valid (const MultiFab& coarse_stage,
+                              const int component_count,
+                              const int new_offset,
+                              const int rho_old_local)
+{
+    amrex::ReduceOps<amrex::ReduceOpMin> reduce_op;
+    amrex::ReduceData<int> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    for (amrex::MFIter mfi(coarse_stage, false); mfi.isValid(); ++mfi) {
+        const auto values = coarse_stage.const_array(mfi);
+        reduce_op.eval(mfi.fabbox(), reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> ReduceTuple {
+                const Real rho_old = values(i, j, k, rho_old_local);
+                const Real rho_new = values(i, j, k, rho_old_local + 1);
+                bool ok = amrex::Math::isfinite(rho_old) &&
+                          amrex::Math::isfinite(rho_new) &&
+                          rho_old > Real(0.0) && rho_new > Real(0.0);
+                for (int n = 0; n < component_count && ok; ++n) {
+                    ok = amrex::Math::isfinite(values(i, j, k, n)) &&
+                         amrex::Math::isfinite(values(i, j, k, new_offset + n));
+                }
+                return {ok ? 1 : 0};
+            });
+    }
+    int all_valid = amrex::get<0>(reduce_data.value(reduce_op));
+    amrex::ParallelDescriptor::ReduceIntMin(all_valid);
+    return all_valid != 0;
+}
+
 void
 fill_coarse_parent_ghosts (MultiFab& destination,
                            MultiFab& missing_fine_ghosts,
@@ -167,6 +199,7 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                            const int stage,
                            const char* role,
                            MultiFab& coarse_pack,
+                           MultiFab& coarse_stage,
                            const SBMAMRStageGhostProbe* probe = nullptr,
                            bool* split_values_checked = nullptr)
 {
@@ -193,7 +226,7 @@ fill_coarse_parent_ghosts (MultiFab& destination,
     double theta = 0.0;
     std::string diagnostic;
     if (!coarse_stage_theta(requested_time, parent.old_time, parent.new_time,
-                            parent.fine_step_dt, theta, diagnostic)) {
+                            dt_min, theta, diagnostic)) {
         amrex::Abort("SBM coarse/fine stage interpolation: " + diagnostic);
     }
     if (!semantic_time_matches(coarse_old_spectrum_time, parent.old_time,
@@ -226,9 +259,13 @@ fill_coarse_parent_ghosts (MultiFab& destination,
     amrex::BoxArray coarse_on_fine_ba = destination.boxArray();
     coarse_on_fine_ba.coarsen(parent.refinement_ratio);
     const amrex::IntVect coarse_ghosts(2);
-    MultiFab coarse_stage(
-        coarse_on_fine_ba, destination.DistributionMap(),
-        2 * max_chunk_components + 2, coarse_ghosts);
+    if (coarse_stage.nComp() != 2 * max_chunk_components + 2 ||
+        coarse_stage.boxArray() != coarse_on_fine_ba ||
+        coarse_stage.DistributionMap() != destination.DistributionMap() ||
+        coarse_stage.nGrowVect() != coarse_ghosts) {
+        coarse_stage.define(coarse_on_fine_ba, destination.DistributionMap(),
+                            2 * max_chunk_components + 2, coarse_ghosts);
+    }
     coarse_stage.setVal(std::numeric_limits<Real>::quiet_NaN());
     const bool componentwise_parent_fill = parent.componentwise_parent_fill;
     if (!componentwise_parent_fill) {
@@ -414,12 +451,9 @@ fill_coarse_parent_ghosts (MultiFab& destination,
             });
         }
 
-        if (!coarse_stage.is_finite(0, component_count, coarse_ghosts) ||
-            !coarse_stage.is_finite(max_chunk_components,
-                                    component_count, coarse_ghosts) ||
-            !coarse_stage.is_finite(rho_old_local, 2, coarse_ghosts) ||
-            !(coarse_stage.min(rho_old_local, 2) > Real(0.0)) ||
-            !(coarse_stage.min(rho_new_local, 2) > Real(0.0))) {
+        if (!coarse_stage_endpoints_valid(coarse_stage, component_count,
+                                          max_chunk_components,
+                                          rho_old_local)) {
             std::ostringstream message;
             message.precision(17);
             message << "SBM coarse/fine endpoint data are not finite with "
@@ -973,6 +1007,7 @@ struct SBMTransport::LevelStorage
     MultiFab anchor_intensive;
     MultiFab coarse_fill_mask;
     MultiFab coarse_source_pack;
+    MultiFab coarse_stage;
     MultiFab low_trial_h;
     MultiFab cell_ratios;
     MultiFab invalid;
@@ -1016,6 +1051,7 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
       m_flat_constraints(make_constraint_descriptors(layout)),
       m_property_support(make_attached_property_support_descriptors(layout)),
       m_chunks(make_constraint_closure_chunks(layout, max_groups_per_chunk)),
+      m_max_groups_per_chunk(max_groups_per_chunk),
       m_max_constraints_per_group(m_groups.size(), 0),
       m_levels(static_cast<std::size_t>(number_of_levels)),
       m_device_metadata(std::make_unique<DeviceMetadata>()),
@@ -1276,7 +1312,9 @@ SBMTransport::define (const int level,
     data->physical_input_intensive.define(cell_ba, dm, ncomp, 2);
     data->base_intensive.define(cell_ba, dm, ncomp, 2);
     data->anchor_intensive.define(cell_ba, dm, ncomp, 2);
-    data->coarse_fill_mask.define(cell_ba, dm, 3, 2);
+    if (level > 0) {
+        data->coarse_fill_mask.define(cell_ba, dm, 3, 2);
+    }
     data->low_trial_h.define(cell_ba, dm, max_chunk_components, 0);
     data->cell_ratios.define(cell_ba, dm,
                              std::max(1, max_chunk_ratio_components), 1);
@@ -1572,7 +1610,7 @@ SBMTransport::advance_stage (const int level,
             m_chunks, m_max_chunk_components, input_time,
             state_manager.old_time(level - 1),
             state_manager.new_time(level - 1), level, stage, "input",
-            data.coarse_source_pack,
+            data.coarse_source_pack, data.coarse_stage,
             parent->ghost_probe, &m_split_ghost_values_checked);
         const double base_time =
             recipe.limiter_trial_base ==
@@ -1585,7 +1623,8 @@ SBMTransport::advance_stage (const int level,
             m_chunks, m_max_chunk_components, base_time,
             state_manager.old_time(level - 1),
             state_manager.new_time(level - 1), level, stage,
-            "limiter-base", data.coarse_source_pack, parent->ghost_probe);
+            "limiter-base", data.coarse_source_pack, data.coarse_stage,
+            parent->ghost_probe);
         fill_coarse_parent_ghosts(
             data.anchor_intensive, data.coarse_fill_mask,
             coarse_old_spectrum, coarse_new_spectrum, data.anchor,
@@ -1593,7 +1632,7 @@ SBMTransport::advance_stage (const int level,
             m_chunks, m_max_chunk_components, step_old_time,
             state_manager.old_time(level - 1),
             state_manager.new_time(level - 1), level, stage, "anchor",
-            data.coarse_source_pack,
+            data.coarse_source_pack, data.coarse_stage,
             parent->ghost_probe);
     } else if (parent != nullptr) {
         amrex::Abort("coarse SBM stage unexpectedly received a parent bracket");
@@ -1608,11 +1647,21 @@ SBMTransport::advance_stage (const int level,
     const auto populations = m_device_metadata->populations.data();
     const int population_count =
         static_cast<int>(m_layout.populations().size());
-    data.coarse_fill_mask.setVal(Real(0.0), 0, 1, 2);
-    for (amrex::MFIter mfi(data.input_intensive, false); mfi.isValid(); ++mfi) {
-        const amrex::Box bx = mfi.fabbox();
+    // A fine level also transforms the parent-filled coarse-only ghosts that
+    // FillBoundary below does not refill; a single level needs valid cells only.
+    const bool transform_ghosts = level > 0;
+    MultiFab& transform_invalid =
+        transform_ghosts ? data.coarse_fill_mask : data.invalid;
+    const int transform_ghost_cells = transform_ghosts ? 2 : 0;
+    if (transform_ghosts) {
+        data.coarse_fill_mask.setVal(Real(0.0), 0, 1, transform_ghost_cells);
+    }
+    for (amrex::MFIter mfi(data.input_intensive,
+                           transform_ghosts ? false : amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const amrex::Box bx = transform_ghosts ? mfi.fabbox() : mfi.tilebox();
         const auto input = data.input_intensive.array(mfi);
-        const auto invalid = data.coarse_fill_mask.array(mfi);
+        const auto invalid = transform_invalid.array(mfi);
         const auto endpoint_populations = populations;
         amrex::ParallelFor(
             bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -1649,7 +1698,7 @@ SBMTransport::advance_stage (const int level,
                                  data.input_intensive);
         }
     }
-    if (data.coarse_fill_mask.max(0, 2) != Real(0.0)) {
+    if (transform_invalid.max(0, transform_ghost_cells) != Real(0.0)) {
         amrex::Abort("SBM M3 input spectrum could not be represented in "
                      "endpoint-number coordinates");
     }

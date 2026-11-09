@@ -584,6 +584,7 @@ static bool restrict_mapped_spectrum_impl (
     const bool reverse_chunk_order, const SBMStateAdmission* admission,
     SBMTransferAllocationCensus* allocation_census,
     const std::optional<double> cross_level_dt_min,
+    const MultiFab* covered_parent_mask,
     std::string& diagnostic)
 {
     diagnostic.clear();
@@ -629,13 +630,18 @@ static bool restrict_mapped_spectrum_impl (
     const bool candidate_layout_ok =
         coarse_candidate.nComp() == layout.ncomp() &&
         erf_auxiliary::SameCellLayout(coarse_candidate, *coarse.spectrum);
+    const bool coverage_layout_ok = covered_parent_mask == nullptr ||
+        (covered_parent_mask->nComp() >= 1 &&
+         covered_parent_mask->boxArray() == coarse.spectrum->boxArray() &&
+         covered_parent_mask->DistributionMap() ==
+             coarse.spectrum->DistributionMap());
     const bool separate_from_fine = candidate_is_separate(coarse_candidate, fine);
     const bool separate_from_coarse = candidate_is_separate(coarse_candidate, coarse);
-    const bool local_candidate_ok = candidate_layout_ok && separate_from_fine &&
-                                    separate_from_coarse;
+    const bool local_candidate_ok = candidate_layout_ok && coverage_layout_ok &&
+                                    separate_from_fine && separate_from_coarse;
     if (!collective_all_true(
             local_candidate_ok,
-            "restriction candidate must be separate from both input tuples and match the coarse SBM layout",
+            "restriction candidate must be separate from both input tuples and match the coarse SBM layout, as must any covered-parent mask",
             "SBM restriction candidate aliases an input on another MPI rank",
             diagnostic)) {
         return false;
@@ -706,10 +712,14 @@ static bool restrict_mapped_spectrum_impl (
     MultiFab coarse_support_chunk(coarse.spectrum->boxArray(),
                                   coarse.spectrum->DistributionMap(),
                                   max_chunk_components, 0);
-    MultiFab fine_coverage(fine.spectrum->boxArray(),
-                           fine.spectrum->DistributionMap(), 1, 0);
-    MultiFab coarse_coverage(coarse.spectrum->boxArray(),
-                             coarse.spectrum->DistributionMap(), 1, 0);
+    MultiFab fine_coverage;
+    MultiFab coarse_coverage_scratch;
+    if (covered_parent_mask == nullptr) {
+        fine_coverage.define(fine.spectrum->boxArray(),
+                             fine.spectrum->DistributionMap(), 1, 0);
+        coarse_coverage_scratch.define(coarse.spectrum->boxArray(),
+                                       coarse.spectrum->DistributionMap(), 1, 0);
+    }
     MultiFab lost_positive_support(coarse.spectrum->boxArray(),
                                    coarse.spectrum->DistributionMap(), 1, 0);
     MultiFab fine_invalid(fine.spectrum->boxArray(),
@@ -732,9 +742,13 @@ static bool restrict_mapped_spectrum_impl (
     fine_invalid.setVal(Real(0.0));
     coarse_invalid.setVal(Real(0.0));
     lost_positive_support.setVal(Real(0.0));
-    fine_coverage.setVal(Real(1.0));
-    coarse_coverage.setVal(Real(0.0));
-    amrex::average_down(fine_coverage, coarse_coverage, 0, 1, ratio);
+    if (covered_parent_mask == nullptr) {
+        fine_coverage.setVal(Real(1.0));
+        coarse_coverage_scratch.setVal(Real(0.0));
+        amrex::average_down(fine_coverage, coarse_coverage_scratch, 0, 1, ratio);
+    }
+    const MultiFab& coarse_coverage = covered_parent_mask != nullptr
+        ? *covered_parent_mask : coarse_coverage_scratch;
     amrex::Gpu::DeviceVector<int> device_components(
         static_cast<std::size_t>(max_chunk_components));
     for (std::size_t pass = 0; pass < chunks.size(); ++pass) {
@@ -832,7 +846,7 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
                                          max_groups_per_chunk,
                                          reverse_chunk_order, admission,
                                          allocation_census,
-                                         cross_level_dt_min,
+                                         cross_level_dt_min, nullptr,
                                          diagnostic);
 }
 
@@ -847,7 +861,8 @@ bool RestrictMappedSpectrumPrivate (const SBMLayout& layout,
                                     const bool reverse_chunk_order,
                                     const SBMStateAdmission* admission,
                                     SBMTransferAllocationCensus* allocation_census,
-                                    const std::optional<double> cross_level_dt_min)
+                                    const std::optional<double> cross_level_dt_min,
+                                    const MultiFab* covered_parent_mask)
 {
     return restrict_mapped_spectrum_impl(layout, fine, coarse, ratio,
                                          coarse_level, private_candidate, true,
@@ -855,7 +870,7 @@ bool RestrictMappedSpectrumPrivate (const SBMLayout& layout,
                                          reverse_chunk_order, admission,
                                          allocation_census,
                                          cross_level_dt_min,
-                                         diagnostic);
+                                         covered_parent_mask, diagnostic);
 }
 
 static bool prolong_carrier_relative_spectrum_impl (

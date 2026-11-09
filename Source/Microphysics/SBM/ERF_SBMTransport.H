@@ -99,9 +99,11 @@ struct SBMAMRStageParent {
 class SBMTransport
 {
   public:
+    static constexpr int default_max_groups_per_chunk = 16;
+
     explicit SBMTransport (const SBMLayout& layout,
                            int number_of_levels,
-                           int max_groups_per_chunk = 16,
+                           int max_groups_per_chunk = default_max_groups_per_chunk,
                            bool keep_spectral_ledger_reference = true);
     ~SBMTransport ();
     SBMTransport (const SBMTransport&) = delete;
@@ -176,6 +178,13 @@ class SBMTransport
     [[nodiscard]] bool measure_is_ready (int level) const;
     [[nodiscard]] SBMStateAdmission& admission () noexcept;
     [[nodiscard]] const amrex::MultiFab& static_measure (int level) const;
+    /** Complete constraint-group chunks shared by transport and AMR transfer. */
+    [[nodiscard]] int max_groups_per_chunk () const noexcept
+    { return m_max_groups_per_chunk; }
+    [[nodiscard]] const std::vector<ConstraintClosureChunk>& chunks () const noexcept
+    { return m_chunks; }
+    [[nodiscard]] int max_chunk_components () const noexcept
+    { return m_max_chunk_components; }
     [[nodiscard]] const erf_auxiliary::CompletedStepFluxLedger&
     projected_ledger (int level) const;
     /** Full all-component accepted-integral reference, present only when enabled. */
@@ -202,6 +211,7 @@ class SBMTransport
     FlattenedConstraintSet m_flat_constraints;
     std::vector<AttachedPropertySupportDescriptor> m_property_support;
     std::vector<ConstraintClosureChunk> m_chunks;
+    int m_max_groups_per_chunk{default_max_groups_per_chunk};
     std::vector<int> m_max_constraints_per_group;
     int m_max_chunk_components{0};
     std::vector<std::unique_ptr<LevelStorage>> m_levels;
