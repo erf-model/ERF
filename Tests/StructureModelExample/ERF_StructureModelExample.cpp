@@ -11,6 +11,9 @@
  * out-of-tree build, the registry, the advance and momentum-source calls, the
  * ERF plotfile fields and the checkpoint. In a periodic box with no friction the
  * air's momentum grows by exactly force times time, which the CTest checks.
+ * When the run has a fire (StructureStep::fire), it prints each step what the
+ * fire view holds (the level and time of the fire's fields, the heat released
+ * and the area burned), which the CTests with the example fire engine check.
  * ERF's CI builds it through ERF_STRUCTURE_MODEL_DIRS (CMake) and
  * STRUCTURE_HOME (GNU make).
  */
@@ -29,6 +32,23 @@
 #include <sstream>
 
 using namespace amrex;
+
+namespace {
+
+// What the fire view holds this step: the level and time of the fire's fields, the heat
+// released over the fire grid [W] and the area burned [m2] (-1 where the engine has no
+// such field). Every rank calls it: the sum and burned_area() reduce over the ranks.
+void report_fire (const StructureStep& step)
+{
+    const StructureFire& f = *step.fire;
+    const Real dA = f.geom.CellSize(0) * f.geom.CellSize(1);
+    const Real heat = f.heat_release ? f.heat_release->sum(0) * dA : Real(-1.0);
+    const Real burned = f.burned_area();
+    Print() << std::setprecision(17) << "structure example fire: t = " << step.time << " fire_lev = " << f.lev
+            << " fire_t = " << f.time << std::setprecision(10) << " heat = " << heat << " burned = " << burned << "\n";
+}
+
+} // namespace
 
 class StructureModelExample : public StructureModel
 {
@@ -121,6 +141,7 @@ public:
         }
         erf_actuator::spread_forces(m_pos, m_force, m_eps, step.z_phys_nd, step.detJ_cc, step.geom,
                                     m_src_x, m_src_y, m_src_z);
+        if (step.fire) { report_fire(step); }
         for (int d = 0; d < 3; ++d) { m_impulse[d] += m_force[d] * step.dt; }
 
         Print() << std::setprecision(10) << "structure example: t = " << step.time + step.dt

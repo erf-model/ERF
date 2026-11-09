@@ -128,7 +128,8 @@ ERF::initializeEB ()
                 FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
                 double dummy_time = 0.0;
                 prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
-                TerrainIF terrain_if(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+                TerrainIF terrain_if(terrain_fab, geom[max_level], stretched_dz_d[max_level],
+                                     /*a_periodic_wrap=*/true);
 
                 if (has_buildings_stl) {
                     // Terrain + Buildings

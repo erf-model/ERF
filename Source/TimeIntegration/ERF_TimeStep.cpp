@@ -332,6 +332,12 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         // The finer level has now reached this level's new time; make the two agree
         // exactly rather than to within the roundoff of summing its substeps.
         t_new[lev+1] = t_new[lev];
+#ifdef ERF_USE_FIRE
+        // A fire on a finer level has reached this time too; its fields take the same time
+        if (m_fire_coupler && m_fire_coupler->level() > lev) {
+            m_fire_coupler->set_fields_time(t_new[lev]);
+        }
+#endif
     }
 
     if ( verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {

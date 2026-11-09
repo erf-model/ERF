@@ -2067,6 +2067,8 @@ ERF::InitData_post ()
     if (m_fire_coupler) {
         const int fire_lev = fire_anchor_level(m_fire_coupler->params().anchor_level, finest_level);
         m_fire_coupler->initialize(*this, fire_lev, m_SurfaceLayer[Orientation::zlo()].get(), z_phys_nd[fire_lev].get());
+        // The fields' time: the start, or the time of the checkpoint on a restart
+        m_fire_coupler->set_fields_time(t_new[fire_lev]);
         // An engine that takes the rain per column needs the microphysics
         // accumulators of the fire grid's level, which exist now that every
         // level is built.

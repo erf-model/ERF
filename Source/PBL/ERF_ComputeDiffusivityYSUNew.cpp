@@ -69,7 +69,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
       - Hong, S.-Y., Y. Noh, and J. Dudhia, 2006: A new vertical diffusion
         package with an explicit treatment of entrainment processes.
         Monthly Weather Review, 134, 2318-2341. [HND06]
-        https://doi.org/10.1175/MWR3250.1
+        https://doi.org/10.1175/MWR3199.1
       - Hong, S.-Y., 2010: A new stable boundary-layer mixing scheme and
         its impact on the simulated East Asian summer monsoon.
         Quarterly Journal of the Royal Meteorological Society, 136, 1481-1496. [H10]
@@ -89,7 +89,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
        HGAMQ = -const_b * u_* * q_* / wscale  (capped at GAMCRQ=2e-3)
        VPERT = max(HGAMT + 0.61*θ*HGAMQ, 0)
 
-    3. K-Profile Below PBL (HND06 Eq. 2):
+    3. K-Profile Below PBL (HND06 Eq. A1):
        K_m = ρ * wscale * κ * z * (1 - z/h)^pfac
        K_t = K_m / Pr_t
        wscale = (u_*³ + phifac * κ * wstar_conv³ * (1-zfac))^(1/3)
@@ -1578,7 +1578,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // Stability function phit for heat/temperature - BUSINGER-DYER form
                 // Unstable (L < 0): phit = (1 - 16*sf*h/L)^(-1/2)
                 // Stable (L > 0):   phit = 1 + 5*sf*h/L  (same as phiM for stability)
-                // Reference: HND06, Table 1; WRF L857-861
+                // Reference: WRF L857-861
                 const Real phit = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
                                 : std::pow(
@@ -1853,7 +1853,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real dtheta_v_dz = dthetadz;
 
                 // Gradient Richardson number: Ri_g = (g/θ_v) * (dθ_v/dz) / (shear²)
-                // Reference: WRF module_bl_ysu.F line ~450-456, Hong et al. 2006, Eqn. A18
+                // Reference: WRF module_bl_ysu.F line ~450-456, Hong et al. 2006, Eqn. A16a
                 //
                 // For STABILITY ANALYSIS:
                 // Ri_g > 0.5: typically considered strongly stable (turbulence suppressed)
@@ -1909,26 +1909,26 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 }
 
                 // YSU stability functions (Hong et al. 2006, MWR, Appendix A)
-                // Reference: https://doi.org/10.1175/MWR3250.1
-                // See equations A19-A20
+                // Reference: https://doi.org/10.1175/MWR3199.1
+                // See equations A18-A20
                 //
                 // Prandtl number in stable regime:
                 //   Pr = 1 + 2.1 * Ri_g  (Eqn. A19)
                 // Stability functions for momentum and heat:
                 //   For Ri_g > 0 (stable):
-                //     f_m = 1 / ((1 + 5*Ri_g)²)     (Eqn. A20a)
-                //     f_t = 1 / ((1 + 5*Ri_g)²)     (Eqn. A20b, same as f_m for this scheme)
+                //     f_t = 1 / ((1 + 5*Ri_g)²)     (Eqn. A18)
+                //     f_m = 1 / ((1 + 5*Ri_g)²)     (same function as f_t; HND06 gives f_t only)
                 //   For Ri_g < 0 (unstable):
-                //     f_m = 1 - 8*Ri_g / (1 + 1.746*sqrt(-Ri_g))  (Eqn. A20d)
-                //     f_t = 1 - 8*Ri_g / (1 + 1.286*sqrt(-Ri_g))  (Eqn. A20c)
+                //     f_m = 1 - 8*Ri_g / (1 + 1.746*sqrt(-Ri_g))  (Eqn. A20b)
+                //     f_t = 1 - 8*Ri_g / (1 + 1.286*sqrt(-Ri_g))  (Eqn. A20a)
                 // Protect against numerical errors causing negative grad_Ri
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0)); // Bound negative values
                 const Real fm = (grad_Ri_safe > 0)
                               ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero_d))); // Eqn. A20b/d
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, zero_d))); // stable: as Eqn. A18; unstable: Eqn. A20b
                 const Real ft = (grad_Ri_safe > 0)
                               ? one / ((one + Real(5.0) * grad_Ri_safe) * (one + Real(5.0) * grad_Ri_safe))
-                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero_d))); // Eqn. A20a/c
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, zero_d))); // stable: Eqn. A18; unstable: Eqn. A20a
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm;
@@ -1950,7 +1950,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // Note: The conditions (k < pbli_extent) and (k >= pbli_extent) are exhaustive,
             // so the else clause would be unreachable. All cells reach K-bounds clipping below.
 
-            // Add entrainment diffusivity at PBL top cell (HND06 Eq. 6)
+            // Add entrainment diffusivity at PBL top cell (HND06 Eqs. A9-A13, A21)
             // Applied only at k == pbli_arr(i,j,0) (the first cell above the PBL)
             if (k == pbli_arr(i,j,0)) {
                 K_turb(i,j,k,EddyDiff::Mom_v)   += entr_arr(i,j,0);
@@ -1964,7 +1964,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // These bounds ensure numerical stability and prevent unrealistic diffusivity
             // that could violate conservation principles or cause solver issues.
             //
-            // HND06 Conservative Limits (module_bl_ysu.F lines 300-320):
+            // Conservative Limits (module_bl_ysu.F lines 300-320):
             // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_ysu.F#L300-L320
             // Kmin = 0.1 m²/s, Kmax = 300 m²/s
             //
@@ -1974,7 +1974,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             //   - Numerical instability from too-small diffusion (Kmin bound)
             //   - CFL violations from over-diffusive mixing
             //
-            // Alternative (Higher Limits) H10 formulation (QJRMS Appendix A):
+            // Alternative (Higher Limits) HND06 formulation (MWR, end of Appendix A):
             // Kmin = ckz * dz * rho (where ckz = 0.001), Kmax = 1000 m²/s
             // These higher limits allow greater mixing in free atmosphere and are
             // more appropriate for high-resolution simulations.
@@ -1988,7 +1988,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 rhoKmin  = ckz * dz_terrain * rho;
                 rhoKmax  = rho * Kmax;
             } else {
-                // HND06 Conservative limits (default, used in global forecasts)
+                // Conservative limits (default; not taken from HND06)
                 // These provide good results for typical meteorological scales (Δz > 100 m)
                 // and are the standard in legacy WRF configurations.
                 constexpr Real Kmin = Real(0.1);

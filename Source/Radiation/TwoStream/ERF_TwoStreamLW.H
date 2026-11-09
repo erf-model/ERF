@@ -60,7 +60,7 @@ constexpr amrex::Real stefan_boltzmann = amrex::Real(5.670374419e-8);
  * - Toon, O. B., C. P. McKay, T. P. Ackerman, and K. Santhanam, 1989:
  *   Rapid calculation of radiative heating rates and photodissociation rates
  *   in inhomogeneous multiple scattering atmospheres. J. Geophys. Res., 94,
- *   16387-16405. https://doi.org/10.1029/JD094iD13p16387
+ *   16287-16301. https://doi.org/10.1029/JD094iD13p16287
  *
  * - Kirchhoff, G., 1860: Ueber den Zusammenhang zwischen den
  *   Emissionsvermögen und den Absorptionsvermögen der Körper für Wärmestrahlung.
