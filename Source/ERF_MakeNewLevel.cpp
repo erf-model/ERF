@@ -17,6 +17,7 @@
 #include "ERF_ProbCommon.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
+#include "ERF_SBMAMRFluxRegister.H"
 
 using namespace amrex;
 
@@ -208,8 +209,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             sbm_state_manager->new_state_for_initialization(lev).setVal(
                 solverChoice.sbm_fixture_initial_state[static_cast<std::size_t>(comp)], comp, 1, 0);
         }
+#ifdef ERF_SBM_AMR_QUALIFICATION
+        sbm_qualification_apply_initial_profile(lev);
+#endif
         AMREX_ALWAYS_ASSERT(sbm_transport != nullptr);
         sbm_transport->define(lev, ba, dm);
+        bind_sbm_amr_flux_registers(lev);
+        if (lev > 0) { bind_sbm_amr_flux_registers(lev - 1); }
     }
 
     // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
@@ -550,8 +556,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
         "M2 auxiliary inert tracer fixture does not support coarse-to-fine initialization");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
-        "SBM M3 does not support coarse-to-fine spectral initialization");
     //
     // Note that "time" here is elapsed time
     //
@@ -1011,6 +1015,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         initRayleigh_at_level(lev);
     }
 
+    if (sbm_state_manager) {
+        init_sbm_level_from_coarse(lev, time, ba, dm);
+    }
+
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -1023,7 +1031,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
         "M2 auxiliary inert tracer fixture does not support regrid/remake");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
-        "SBM M3 does not support regridding or spectral remap");
+        "SBM M3/M4b does not support regridding until conservative hierarchy remap is qualified");
     //
     // Note that "time" here is elapsed time
     //
@@ -1760,6 +1768,14 @@ ERF::ClearLevel (int lev)
     if (sbm_transport && sbm_transport->is_defined(lev)) {
         sbm_transport->destroy(lev);
     }
+    if (lev >= 0 && lev < static_cast<int>(sbm_amr_flux_regs.size())) {
+        sbm_amr_flux_regs[lev].reset();
+    }
+    if (lev + 1 >= 0 && lev + 1 < static_cast<int>(sbm_amr_flux_regs.size())) {
+        sbm_amr_flux_regs[lev + 1].reset();
+    }
+    bind_sbm_amr_flux_registers(lev - 1);
+    bind_sbm_amr_flux_registers(lev + 1);
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         vars_new[lev][var_idx].clear();
         vars_old[lev][var_idx].clear();

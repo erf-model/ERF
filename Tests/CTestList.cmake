@@ -3072,7 +3072,7 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   setup_test()
   resolve_test_exe("" "erf_exec" TEST_EXE)
   add_test(${TEST_NAME} sh -c
-    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MassFlux_TrapInvalid.i max_step=3 erf.const_massflux_u=1.0 erf.const_massflux_layer_lo=0.2 erf.const_massflux_layer_hi=0.6 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_massflux_relaxation.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log --dt 0.025 --steps 3 --tol ${_massflux_tol}")
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MassFlux_TrapInvalid.i max_step=3 erf.timestepping_type=RK2 erf.const_massflux_u=1.0 erf.const_massflux_layer_lo=0.2 erf.const_massflux_layer_hi=0.6 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_massflux_relaxation.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log --dt 0.025 --steps 3 --tol ${_massflux_tol}")
   set_tests_properties(${TEST_NAME} PROPERTIES
       TIMEOUT 300 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
       LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
@@ -3655,7 +3655,7 @@ add_test_rans(RANS_WallDist_RaisedBase   Neutral_ABL_Flat     inputs_neutral    
 # this mesh whatever erf.use_fft says, so the option is not given.
 if(ERF_ENABLE_FFT)
     add_test_rans(RANS_WallDist_RaisedBase_StretchedZSplit Neutral_ABL_Flat inputs_neutral 1 check_walldist.py
-        RUNTIME_OPTIONS "'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist z_phys KE' erf.initial_dz=4 amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16'")
+        RUNTIME_OPTIONS "'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist z_phys KE' erf.initial_dz=4 amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16' erf.timestepping_type=RK2")
 endif()
 
 # Runs a case twice, with OPTIONS_A and with OPTIONS_B on top of RUNTIME_OPTIONS,
@@ -5218,9 +5218,9 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # equation solved is A phi = rhs / (m_x m_y).  Without that division every solve left
     # 1 - m_x m_y = 75 % of the divergence (1.17e-2 of 1.56e-2 on level 0)
     add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors TerrainPoisson_Hill 1
-        COMMON_OPTIONS "erf.test_mapfactor=true")
+        COMMON_OPTIONS "erf.test_mapfactor=true erf.timestepping_type=RK2")
     add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors_Walls TerrainPoisson_Hill 0
-        COMMON_OPTIONS "${_tp_walls} erf.test_mapfactor=true")
+        COMMON_OPTIONS "${_tp_walls} erf.test_mapfactor=true erf.timestepping_type=RK2")
     # The answer on two levels must not depend on the decomposition (one box on one rank
     # against level-1 boxes split in x and y on NP ranks; they agree to 1e-14) or on a
     # restart, which re-makes the solve from the checkpoint
@@ -5309,7 +5309,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # Map factors other than one (erf.test_mapfactor) with MLMG: in every MPI build, so the
     # map-factor scaling of the projection runs in CI
     add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors_mlmg TerrainPoisson_Hill 1
-        COMMON_OPTIONS "erf.test_mapfactor=true ${_tp_mg_tol} erf.terrain_poisson_solver=mlmg")
+        COMMON_OPTIONS "erf.test_mapfactor=true ${_tp_mg_tol} erf.terrain_poisson_solver=mlmg erf.timestepping_type=RK2")
     # An Outflow face (a Dirichlet face of the solve) on the walled hill: the problem is not
     # singular, and the solve converges as at the walls (at most 5e-9 left at the default
     # tolerance)
@@ -5572,7 +5572,7 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
   # Boxes split in z: the lowest and highest w-face of a box read the horizontal momenta from ghost faces
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_SplitZ inputs_hill 30
-      RUNTIME_OPTIONS "amr.no_box_split_dir=-1 amr.max_grid_size_x=16 amr.max_grid_size_y=16 amr.max_grid_size_z=6"
+      RUNTIME_OPTIONS "amr.no_box_split_dir=-1 amr.max_grid_size_x=16 amr.max_grid_size_y=16 amr.max_grid_size_z=6 erf.timestepping_type=RK2"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol} --require-z-split)
   # Map factors over terrain: the vertical flux carries 1 / (mf_mx mf_my) only where Omega is nonzero
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MapFactor inputs_hill 30

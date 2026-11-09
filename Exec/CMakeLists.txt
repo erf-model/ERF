@@ -9,6 +9,15 @@ include(${PROJECT_SOURCE_DIR}/CMake/BuildERFExe.cmake)
 
 build_erf_lib(${erf_lib_name})
 
+# This compile-time capability exists only in a separately configured
+# qualification build.  The normal executable retains the max_level == 0
+# guard and does not recognize the internal qualification input switch.
+if(ERF_ENABLE_SBM_AMR_QUALIFICATION)
+  target_compile_definitions(${erf_lib_name} PUBLIC ERF_SBM_AMR_QUALIFICATION=1)
+  target_sources(${erf_lib_name} PRIVATE
+    ${PROJECT_SOURCE_DIR}/Source/Microphysics/SBM/ERF_SBMAMRQualification.cpp)
+endif()
+
 if(NOT ERF_BUILD_LIBRARY_ONLY)
   # Build the shared regtests executable from Exec so it can be used by
   # both RegTests and CanonicalTests input decks.
