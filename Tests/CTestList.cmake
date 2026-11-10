@@ -4344,6 +4344,34 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
       LABELS "regression;wrfinput"
       ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run.log;${CURRENT_TEST_BINARY_DIR}/run.err;${CURRENT_TEST_BINARY_DIR}/restart.log;${CURRENT_TEST_BINARY_DIR}/restart.err")
     unset(TEST_NAME)
+
+    # The same files with level 2 refined only from k = 2 up (#4995): a WRF nest carries the
+    # full eta column, so cell k of level 2 must hold layer k of d03, not layer k - 2. And with
+    # level 1 cropped to start at i = 32, d03 (level-1 cells 26..31) does not fit inside it,
+    # which must abort rather than be clipped by tagging.
+    function(add_test_wrfinput_nest TEST_NAME RUNTIME_OPTIONS EXPECTED_MESSAGE CHECK_OPTIONS)
+      set(TEST_FILES_DIR WRFInput_CroppedParent)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_run "${ERF_TEST_PYTHON} make_wrfinputs.py > generate.log && ${TEST_EXE} WRFInput_CroppedParent.i erf.check_int=-1 amrex.call_addr2line=0 ${RUNTIME_OPTIONS} > ${_log} 2>&1")
+      if("${EXPECTED_MESSAGE}" STREQUAL "")
+        add_test(${TEST_NAME} sh -c
+            "( ${_run} || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_result.py . ${PROJECT_SOURCE_DIR}/Exec/Tools --log ${TEST_NAME}.log ${CHECK_OPTIONS}")
+      else()
+        add_test(${TEST_NAME} sh -c "${_run}; cat ${_log}")
+        set_tests_properties(${TEST_NAME} PROPERTIES PASS_REGULAR_EXPRESSION "${EXPECTED_MESSAGE}")
+      endif()
+      set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS 1
+          WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_wrfinput_nest)
+    add_test_wrfinput_nest(WRFInput_ShallowNest
+        "amr.refine_whole_domain_dir=-1 amr.blocking_factor_z=2 amr.n_error_buf=0 erf.refinement_indicators=crop nest2 erf.nest2.max_level=2 erf.nest2.in_box_lo_indices=78 78 2 erf.nest2.in_box_hi_indices=95 95 7"
+        "" "--klo 2")
+    add_test_wrfinput_nest(WRFInput_Abort_NestOutsideParent
+        "erf.crop.in_box_lo_indices=32 24 0"
+        "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
   else()
     message(STATUS "Skipping WRFInput_CroppedParent: Python netCDF4 and numpy are required")
   endif()
