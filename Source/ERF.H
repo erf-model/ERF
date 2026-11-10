@@ -1248,6 +1248,9 @@ private:
     void init_bcs ();
     void init_phys_bcs (bool& read_prim_theta);
 
+    // The EB factories of a level on the grids (ba, dm), built before init_stuff needs them
+    void make_eb_factories (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
                      amrex::MultiFab& tmp_base_state,
