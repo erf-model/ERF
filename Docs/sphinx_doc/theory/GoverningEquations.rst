@@ -10,8 +10,9 @@
 Governing Equations
 =============================
 
-ERF solves either the fully compressible or the anelastic equations.
-Both formulations predict velocity, dry potential temperature, and any
+ERF solves the fully compressible, the anelastic or the
+pseudo-incompressible equations.
+All formulations predict velocity, dry potential temperature, and any
 moisture or other scalars. They differ in their treatment of density and
 pressure.
 
@@ -26,6 +27,11 @@ In **anelastic** mode, ERF holds dry density at the reference value
 projection. Buoyancy remains a source in vertical momentum, but its
 pressure-gradient term is not recomputed from the compressible equation
 of state.
+
+In **pseudo-incompressible** mode, ERF enforces
+:math:`\nabla\cdot(\rho_0\theta_0\mathbf{u})=0` with a
+variable-coefficient pressure projection; see
+:ref:`PseudoIncompressibleEquations`.
 
 Here :math:`T`, :math:`\theta_d`, and :math:`p` denote temperature,
 dry potential temperature, and pressure at cell centers, while
@@ -106,6 +112,93 @@ recomputed as an independently diagnosed compressible EOS pressure
 perturbation. The projection also updates the momenta separately.
 See :ref:`Buoyancy` for the gravitational source definitions and
 face-average conventions.
+
+.. _PseudoIncompressibleEquations:
+
+Pseudo-Incompressible Equations
+--------------------------------
+
+The pseudo-incompressible formulation (Durran, 1989) sits between the
+compressible and anelastic formulations.  Like the compressible
+equations it evolves the density; like the anelastic equations it
+filters acoustic waves by imposing a constraint on the velocity and
+solving for the pressure that enforces it.  The constraint is
+
+.. math::
+  \nabla \cdot (\rho_0 \theta_0 \mathbf{u}) = 0,
+
+where :math:`\rho_0(z)` and :math:`\theta_0(z)` are the density and dry
+potential temperature of the hydrostatic base state.  The anelastic
+constraint is recovered with :math:`\theta_0` constant.
+
+**Projection.**  Both the anelastic and pseudo-incompressible
+projections can be written in terms of a face-centered weight
+:math:`\sigma`, with :math:`\sigma = \rho_0` (anelastic) or
+:math:`\sigma = \rho_0 \theta_0` (pseudo-incompressible).  The
+momentum update from the pressure is
+
+.. math::
+  (\rho \mathbf{u})^{n+1} = (\rho \mathbf{u})^{*} - \Delta t \, \nabla \phi ,
+
+so the projected quantity
+:math:`\tilde{\mathbf{m}} = \beta\,(\rho \mathbf{u})`, with
+:math:`\beta = \sigma / \rho` on each face, satisfies
+:math:`\tilde{\mathbf{m}}^{n+1} = \tilde{\mathbf{m}}^{*} - \Delta t\,\beta\,\nabla\phi`.
+Imposing :math:`\nabla \cdot \tilde{\mathbf{m}}^{n+1} = 0` gives the
+variable-coefficient Poisson equation
+
+.. math::
+  \nabla \cdot \left( \beta \nabla \phi \right) = \frac{1}{\Delta t} \nabla \cdot \tilde{\mathbf{m}}^{*} .
+
+In the anelastic formulation :math:`\rho = \rho_0`, so
+:math:`\beta = 1` and the Poisson equation has constant coefficients,
+which allows the FFT solvers.  In the pseudo-incompressible
+formulation :math:`\beta = \rho_0 \theta_0 / \rho`, which varies in
+space and time; since :math:`\rho\theta \approx \rho_0\theta_0`,
+:math:`\beta \approx \theta`, the coefficient of the Exner-pressure
+gradient in Durran's form of the momentum equation.  ERF never assumes
+:math:`\rho = \rho_0` in the pseudo-incompressible projection: the
+momenta are divided by the face-averaged :math:`\rho` and multiplied by
+the face-averaged :math:`\rho_0\theta_0` before the solve, and converted
+back afterwards.  The same face values of :math:`\beta` are used in the
+conversion, in the Poisson operator and in the momentum correction, so
+the projected momenta are discretely divergence-free.  The stored
+pressure gradient is :math:`\nabla\phi / \Delta t` itself, without
+:math:`\beta`.
+
+**Solvers.**  Every pseudo-incompressible projection on a mesh without
+embedded boundaries uses the terrain Poisson operator with :math:`\beta`
+folded into the face area factors, on uniform, stretched and
+terrain-fitted meshes alike.  On a terrain-fitted mesh
+``erf.terrain_poisson_solver`` selects the solver as for an anelastic
+level; the FFT preconditioner of ``gmres_fft`` has constant coefficients,
+so GMRES may take more iterations where :math:`\beta` varies.  A flat
+(uniform or stretched) mesh always uses ``amrex::MLTerrainPoisson`` with
+multigrid, and needs no FFT build.  On an embedded-boundary mesh the
+multigrid :math:`b` coefficient is :math:`\beta`.  The
+constant-coefficient FFT and multigrid solvers are used only for
+anelastic levels.  On a terrain-fitted mesh the
+correction to :math:`w` is recovered from the corrected contravariant
+momentum, so it equals :math:`\beta\,\partial\phi/\partial z` only to
+second order in the mesh spacing where :math:`\beta` varies.
+
+**Current status.**  ``erf.compressibility_type = PseudoIncompressible``
+uses the constraint and projection above.  The following are not yet
+implemented, and the level otherwise runs the anelastic equations:
+
+- evolution of the density (the level still holds
+  :math:`\rho = \rho_0`, ``fixed_density = 1``),
+- a source term in the constraint, :math:`\nabla\cdot(\rho_0\theta_0\mathbf{u}) = S`,
+  representing diabatic heating,
+- pseudo-incompressible buoyancy and equation of state,
+- moist pseudo-incompressible flow (the constraint uses the dry
+  :math:`\theta_0`),
+- the implicit immersed-forcing drag in the projection
+  (``erf.if_implicit_projection``),
+- a refined level that stops inside the domain in :math:`z` on a
+  terrain-fitted mesh (refinement through the full depth is supported),
+- a refined level of a flat mesh with map factors other than one (as
+  for an anelastic level).
 
 (Dry and Moist) Scalars
 -----------------------

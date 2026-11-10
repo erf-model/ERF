@@ -451,7 +451,8 @@ public:
     bool has_nonunit_mapfac (int lev) const;
 
     // Does the projection at this level use the terrain Poisson solver?  Always on a
-    //     terrain-fitted mesh, and on a flat mesh whose map factors are not all one (#4903)
+    //     terrain-fitted mesh, on a flat mesh whose map factors are not all one (#4903),
+    //     and at a pseudo-incompressible level (variable-coefficient operator)
     bool projection_uses_terrain_solver (int lev) const;
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1

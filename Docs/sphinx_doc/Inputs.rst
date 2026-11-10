@@ -39,8 +39,10 @@ Governing Equations
 |                                 | set ``project_initial_velocity=1``,                      |                    |                  |
 |                                 | ``fixed_density=1``, and never substep acoustically.     |                    |                  |
 |                                 | The stored ``buoyancy_type=3`` does not select the       |                    |                  |
-|                                 | buoyancy kernel. PseudoIncompressible currently runs     |                    |                  |
-|                                 | exactly the anelastic equations.                         |                    |                  |
+|                                 | buoyancy kernel. PseudoIncompressible enforces           |                    |                  |
+|                                 | div(rho_0 theta_0 u) = 0 with a variable-coefficient     |                    |                  |
+|                                 | projection but otherwise still runs the anelastic        |                    |                  |
+|                                 | equations; see :ref:`PseudoIncompressibleEquations`.     |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.buoyancy_type**           | Compressible choices: 1=full density departure;          | 1, 2, 3, 4         | 1 (3 if          |
 |                                 | 2/3=identical temperature approximations;                |                    | anelastic)       |

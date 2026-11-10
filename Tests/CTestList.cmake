@@ -5672,6 +5672,42 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
         RUNTIME_OPTIONS "erf.terrain_poisson_solver=gmres_fft"
         CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
   endif()
+
+  # The pseudo-incompressible projection, div(rho0 theta0 u) = 0, solves div(beta grad phi) with
+  # beta = rho0 theta0 / rho on the faces, through the terrain Poisson solver on every mesh
+  # without EB (and the b coefficient with EB).  These decks have no gravity, so theta0 is
+  # uniform (prob.T_0 = 300 where a deck sets 1, so that beta is not one) and the constraint is
+  # the anelastic one: each case must pass the same check as its anelastic counterpart.
+  set(_pi "erf.compressibility_type=PseudoIncompressible")
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Fitted inputs_fitted 50
+      RUNTIME_OPTIONS "${_pi}"
+      CHECK check_scalar_centroid.py PLOTFILES)
+  # No FFT needed: a stretched mesh is projected with the terrain Poisson solver
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched inputs_stretched 50
+      RUNTIME_OPTIONS "${_pi} erf.use_fft=false"
+      CHECK check_scalar_centroid.py PLOTFILES)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill inputs_hill 30
+      RUNTIME_OPTIONS "${_pi}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_TwoWay inputs_hill 30
+      RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_full}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Inertial_RK2 inputs_inertial 40
+      RUNTIME_OPTIONS "${_pi} erf.timestepping_type=RK2 prob.T_0=300"
+      CHECK check_inertial_drift.py PLOTFILES)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Inertial_EB_RK2 inputs_inertial_eb 40
+      RUNTIME_OPTIONS "${_pi} erf.timestepping_type=RK2 prob.T_0=300"
+      CHECK check_inertial_drift.py PLOTFILES --layers 1 2)
+  if(ERF_ENABLE_FFT)
+    add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_GmresFFT inputs_hill 30
+        RUNTIME_OPTIONS "${_pi} erf.terrain_poisson_solver=gmres_fft"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+  endif()
+  # Not yet supported: a refined level that stops inside the domain in z on a terrain-fitted mesh
+  add_test_abort(PseudoIncompressible_Hill_PartialDepth_Abort
+      ${PROJECT_SOURCE_DIR}/Exec/RegTests/AnelasticScalarAdvection inputs_hill
+      "a refined level that stops inside the domain in z is not yet supported"
+      "${_pi} ${_hill_amr} ${_hill_part}")
 endif()
 
 #=============================================================================
