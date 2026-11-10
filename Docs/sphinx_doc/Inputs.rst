@@ -34,15 +34,17 @@ Governing Equations
 +=================================+==========================================================+====================+==================+
 | **erf.compressibility_type**    | Equation set at each AMR level (per-level).              | FullyCompressible, | Fully-           |
 |                                 | FullyCompressible solves the compressible equations.     | Anelastic,         | Compressible     |
-|                                 | Anelastic and PseudoIncompressible hold the density at   | Pseudo-            |                  |
-|                                 | its base-state value and project the velocity; they      | Incompressible     |                  |
-|                                 | set ``project_initial_velocity=1``,                      |                    |                  |
-|                                 | ``fixed_density=1``, and never substep acoustically.     |                    |                  |
-|                                 | The stored ``buoyancy_type=3`` does not select the       |                    |                  |
-|                                 | buoyancy kernel. PseudoIncompressible enforces           |                    |                  |
-|                                 | div(rho_0 theta_0 u) = 0 with a variable-coefficient     |                    |                  |
-|                                 | projection but otherwise still runs the anelastic        |                    |                  |
-|                                 | equations; see :ref:`PseudoIncompressibleEquations`.     |                    |                  |
+|                                 | Anelastic holds the density at its base-state value      | Pseudo-            |                  |
+|                                 | and projects the velocity; it sets                       | Incompressible     |                  |
+|                                 | ``project_initial_velocity=1``, ``fixed_density=1``,     |                    |                  |
+|                                 | and never substeps acoustically. The stored              |                    |                  |
+|                                 | ``buoyancy_type=3`` does not select the buoyancy         |                    |                  |
+|                                 | kernel. PseudoIncompressible evolves the density,        |                    |                  |
+|                                 | enforces div(rho_0 theta_0 u) = 0 with a                 |                    |                  |
+|                                 | variable-coefficient projection, and sets                |                    |                  |
+|                                 | ``project_initial_velocity=1``, ``fixed_density=0``      |                    |                  |
+|                                 | and ``buoyancy_type=1``; see                             |                    |                  |
+|                                 | :ref:`PseudoIncompressibleEquations`.                    |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.buoyancy_type**           | Compressible choices: 1=full density departure;          | 1, 2, 3, 4         | 1 (3 if          |
 |                                 | 2/3=identical temperature approximations;                |                    | anelastic)       |

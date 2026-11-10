@@ -147,7 +147,8 @@ anelastic_wall_density_error (const std::string& face,
     }
 
     std::string message = face + ": density and density_grad must be omitted "
-        "on solid walls in anelastic mode (density is fixed by the base state)";
+        "on solid walls in anelastic mode (density is fixed by the base state) and in "
+        "pseudo-incompressible mode (not yet supported there)";
     if (density_specified && density_gradient_specified) {
         message += "; both keywords were supplied";
     } else if (density_specified) {

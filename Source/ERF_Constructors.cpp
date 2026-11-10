@@ -119,6 +119,13 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
     erf_sbm::qualification::validate_configuration(choice, max_level);
 #endif
     const bool anelastic = !choice.compressibility_type.empty() && choice.compressibility_type[0] != CompressibilityType::FullyCompressible;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        std::none_of(choice.compressibility_type.begin(), choice.compressibility_type.end(),
+                     [] (CompressibilityType type) {
+                         return type == CompressibilityType::PseudoIncompressible;
+                     }),
+        "SBM M3 does not yet support erf.compressibility_type = PseudoIncompressible "
+        "(the density evolves there; SBM has been validated with a fixed density only)");
     // Grid stretching may set StaticFittedMesh as a label while retaining
     // StretchedDz; only VariableDz selects the fitted-terrain projection.
     const bool fitted_terrain_mesh =
