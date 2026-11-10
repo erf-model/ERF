@@ -209,6 +209,7 @@ struct RunOptions
     bool compare_historical_p2{false};
     bool expect_limiter_active{false};
     bool anelastic_heun{false};
+    bool anelastic_midpoint{false};
     bool mapped_geometry{false};
     bool advance_all_rk3_stages{false};
     bool verify_spectral_ledger_identity{false};
@@ -928,8 +929,13 @@ run_transport (const RunOptions& options)
     // each stage below supplies ERF's own stage interval and times.
     const double dt = options.dt;
     const double stage0_interval =
-        options.advance_all_rk3_stages ? dt / 3.0 : dt;
+        options.advance_all_rk3_stages ? dt / 3.0
+                                       : (options.anelastic_midpoint ? dt / 2.0 : dt);
     const double stage0_target_time = stage0_interval;
+    const auto stage0_method =
+        options.anelastic_heun ? erf_auxiliary::HostIntegrator::AnelasticHeun
+        : options.anelastic_midpoint ? erf_auxiliary::HostIntegrator::AnelasticMidPoint
+                                     : erf_auxiliary::HostIntegrator::CompressibleRK3;
     std::unique_ptr<MultiFab> native_candidate;
     std::unique_ptr<MultiFab> direct_moment_candidate;
     std::unique_ptr<MultiFab> historical_candidate;
@@ -993,9 +999,7 @@ run_transport (const RunOptions& options)
         return {};
     }
     transport.advance_stage_from_host(
-        0,
-        options.anelastic_heun ? erf_auxiliary::HostIntegrator::AnelasticHeun
-                               : erf_auxiliary::HostIntegrator::CompressibleRK3,
+        0, stage0_method,
         0, 0.0, 0.0, stage0_target_time, stage0_interval, state_manager,
         conserved_anchor, conserved_input, conserved_target, avg_xmom,
         avg_ymom, avg_zmom, geom, 1, 2);
@@ -1178,6 +1182,65 @@ run_transport (const RunOptions& options)
         EXPECT_EQ(transport.projected_ledger(0).next_stage(), 2);
     }
 
+    if (options.anelastic_midpoint) {
+        MultiFab half_step_state(ba, dm, layout.ncomp(), 0);
+        MultiFab::Copy(half_step_state, final_state, 0, 0, layout.ncomp(), 0);
+        // The corrector applies the half-step state's rates over dt to the old state.
+        auto midpoint_expected = make_native_candidate(
+            layout, half_step_state, conserved_input, avg_xmom, avg_ymom,
+            avg_zmom, transport.static_measure(0), geom, dt, false, &initial);
+        auto old_rate_forward_euler = make_native_candidate(
+            layout, initial, conserved_anchor, avg_xmom, avg_ymom, avg_zmom,
+            transport.static_measure(0), geom, dt);
+        MultiFab heun_weighted(ba, dm, layout.ncomp(), 0);
+        MultiFab::LinComb(heun_weighted, Real(0.5), *old_rate_forward_euler, 0,
+                          Real(0.5), *midpoint_expected, 0, 0, layout.ncomp(), 0);
+        transport.advance_stage_from_host(
+            0, erf_auxiliary::HostIntegrator::AnelasticMidPoint, 1, 0.0,
+            stage0_target_time, dt, dt, state_manager, conserved_anchor,
+            conserved_input, conserved_target, avg_xmom, avg_ymom, avg_zmom,
+            geom, 1, 2);
+        const auto difference_from = [&] (const MultiFab& reference) {
+            MultiFab difference(ba, dm, layout.ncomp(), 0);
+            MultiFab::Copy(difference, final_state, 0, 0, layout.ncomp(), 0);
+            difference.minus(reference, 0, layout.ncomp(), 0);
+            return difference.norm0();
+        };
+        const Real scale = std::max(midpoint_expected->norm0(),
+                                    std::numeric_limits<Real>::min());
+        if (!options.expect_limiter_active) {
+            EXPECT_LE(difference_from(*midpoint_expected),
+                      Real(8.0) * std::numeric_limits<Real>::epsilon() * scale);
+            // Neither old-state rates nor Heun's stage average reproduce MidPoint.
+            EXPECT_GT(difference_from(*old_rate_forward_euler),
+                      Real(1.0e6) * std::numeric_limits<Real>::epsilon() * scale);
+            EXPECT_GT(difference_from(heun_weighted),
+                      Real(1.0e6) * std::numeric_limits<Real>::epsilon() * scale);
+        }
+        diagnostic.clear();
+        EXPECT_TRUE(erf_sbm::authoritative_state_admissible(final_state, layout,
+                                                            0, &diagnostic))
+            << diagnostic;
+        for (int component = 0; component < layout.ncomp(); ++component) {
+            const Real initial_inventory =
+                options.mapped_geometry
+                    ? mapped_inventory(initial, transport.static_measure(0), component)
+                    : initial.sum(component);
+            const Real final_inventory =
+                options.mapped_geometry
+                    ? mapped_inventory(final_state, transport.static_measure(0), component)
+                    : final_state.sum(component);
+            EXPECT_NEAR(final_inventory, initial_inventory,
+                        Real(256.0) * std::numeric_limits<Real>::epsilon() *
+                            std::max(std::abs(initial_inventory),
+                                     std::numeric_limits<Real>::min()))
+                << "component=" << component;
+        }
+        EXPECT_TRUE(transport.projected_ledger(0).step_complete());
+        EXPECT_EQ(transport.projected_ledger(0).next_stage(), 2);
+        EXPECT_EQ(state_manager.new_time(0), dt);
+    }
+
     if (options.advance_all_rk3_stages) {
         if (options.completed_steps < 1) {
             ADD_FAILURE() << "RK3 transport test requires at least one step";
@@ -1353,13 +1416,14 @@ run_transport (const RunOptions& options)
     const auto& current_spectrum = state_manager.new_state(0);
     std::vector<Real> spectral_ledger_relative_errors;
     if (options.verify_spectral_ledger_identity) {
-        if (!options.advance_all_rk3_stages || options.completed_steps != 1) {
-            ADD_FAILURE() << "completed spectral-ledger identity requires one full RK3 step";
+        if (!(options.advance_all_rk3_stages || options.anelastic_midpoint) ||
+            options.completed_steps != 1) {
+            ADD_FAILURE() << "completed spectral-ledger identity requires one full RK3 or MidPoint step";
             return {};
         }
         const auto& ledger = transport.completed_spectral_ledger(0);
         if (!ledger.step_complete()) {
-            ADD_FAILURE() << "completed spectral ledger did not finish the RK3 step";
+            ADD_FAILURE() << "completed spectral ledger did not finish the step";
             return {};
         }
         MultiFab identity_error(ba, dm, layout.ncomp(), 0);
@@ -3133,6 +3197,53 @@ TEST(SBMTransport, HeunInputTrialUsesItsMatchingPredictorDensity)
     options.rho_input_slope = Real(0.15);
     options.rho_target_slope = Real(0.5);
     run_transport(options);
+}
+
+TEST(SBMTransport, MidPointCorrectorAppliesHalfStepRatesToTheOldState)
+{
+    RunOptions options;
+    options.mode = erf_sbm::MomentMode::TwoMoment;
+    options.varying_density = true;
+    options.smooth_profile = true;
+    options.carrier_x = Real(0.2);
+    options.dt = 0.3;
+    options.compare_native_candidate = true;
+    options.anelastic_midpoint = true;
+    run_transport(options);
+
+    options.mode = erf_sbm::MomentMode::OneMoment;
+    options.varying_density = false;
+    options.multidirectional_carrier = true;
+    options.mapped_geometry = true;
+    options.dt = 0.2;
+    run_transport(options);
+}
+
+TEST(SBMTransport, MidPointLimiterActiveCompletedLedgerKeepsOnlyTheCorrectorRate)
+{
+    RunOptions options;
+    options.mode = erf_sbm::MomentMode::TwoMoment;
+    options.canonical_upper_edge_profile = true;
+    options.canonical_upper_edge_seed = 2;
+    options.attached_property = true;
+    options.carrier_x = Real(0.2);
+    options.dt = 0.55;
+    options.anelastic_midpoint = true;
+    options.expect_limiter_active = true;
+    options.compare_native_candidate = true;
+    options.verify_spectral_ledger_identity = true;
+    options.max_groups_per_chunk = 1;
+
+    const auto summary = run_transport(options);
+    const auto layout = make_layout(options.mode, options.attached_property);
+    ASSERT_EQ(summary.spectral_ledger_relative_errors.size(),
+              static_cast<std::size_t>(layout.ncomp()));
+    for (std::size_t component = 0;
+         component < summary.spectral_ledger_relative_errors.size(); ++component) {
+        EXPECT_LE(summary.spectral_ledger_relative_errors[component],
+                  Real(512.0) * std::numeric_limits<Real>::epsilon())
+            << "accepted-ledger component=" << component;
+    }
 }
 
 TEST(SBMTransport, StaticMappedMeasureConservesHAcrossJacobianAndMapFactors)

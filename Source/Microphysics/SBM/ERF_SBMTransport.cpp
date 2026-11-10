@@ -2400,7 +2400,8 @@ SBMTransport::advance_stage (const int level,
                    m_layout.ncomp(), 0);
     const bool physical_step_complete =
         (method == erf_auxiliary::HostIntegrator::CompressibleRK3 && stage == 2) ||
-        (method == erf_auxiliary::HostIntegrator::AnelasticHeun && stage == 1);
+        (method == erf_auxiliary::HostIntegrator::AnelasticHeun && stage == 1) ||
+        (method == erf_auxiliary::HostIntegrator::AnelasticMidPoint && stage == 1);
     if (!state_manager.accept_stage_target(level, target_time,
                                           physical_step_complete, diagnostic)) {
         amrex::Abort("SBM M4a accepted-state lifecycle commit: " + diagnostic);

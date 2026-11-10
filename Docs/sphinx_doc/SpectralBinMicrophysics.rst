@@ -929,7 +929,8 @@ The current configuration requires:
   other problem-specific initialization or forcing is rejected.
 
 Anelastic SBM advection is supported only for the currently qualified
-non-fitted-terrain cases, including constant- and stretched-z grids.
+non-fitted-terrain cases, including constant- and stretched-z grids, with
+either anelastic integrator: ``RK2`` (Heun) or ``MidPoint``, ERF's default.
 ``StaticFittedMesh`` with ``VariableDz`` is explicitly rejected for anelastic
 SBM because ERF's fitted-terrain anelastic projection requires a nonperiodic
 vertical boundary, whereas the current spectral transport capability requires

@@ -657,6 +657,21 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     LABELS "integration;sbm"
     RUN_SERIAL TRUE
     TIMEOUT 120)
+  # The same deck with ERF's default anelastic integrator, MidPoint
+  add_test(NAME SBM_M3_Adaptive_Anelastic_MidPoint_Donor_CFL
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_donor
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DRUN_ARGS=erf.timestepping_type=MidPoint
+      -DEXPECT_SECOND_CHECKPOINT=true
+      -DSKIP_RESTART=true
+      -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_Adaptive_Anelastic_MidPoint_Donor_CFL PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
   add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Donor_DT
     inputs_adaptive_anelastic_donor
     "SBM M3 fixed timestep exceeds donor positivity limit"

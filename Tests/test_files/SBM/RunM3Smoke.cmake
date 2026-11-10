@@ -58,7 +58,7 @@ file(MAKE_DIRECTORY "${_run_dir}")
 
 function(run_erf description)
   execute_process(
-    COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}" ${ARGN}
+    COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}" ${RUN_ARGS} ${ARGN}
     WORKING_DIRECTORY "${_run_dir}"
     RESULT_VARIABLE _result
     OUTPUT_VARIABLE _stdout

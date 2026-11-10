@@ -103,8 +103,9 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
         "SBM M3 does not support acoustic substepping (erf.timestepping_type = RK3_ImplicitSubstep)");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.timestepping_type.empty() ||
                                      choice.compressibility_type[0] == CompressibilityType::FullyCompressible ||
-                                     choice.timestepping_type[0] == TimesteppingType::RK2,
-        "SBM M3 supports the Anelastic RK2 Heun integrator only");
+                                     choice.timestepping_type[0] == TimesteppingType::RK2 ||
+                                     choice.timestepping_type[0] == TimesteppingType::MidPoint,
+        "SBM M3 supports the anelastic RK2 (Heun) and MidPoint integrators only");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
         "SBM M3 does not support scalar or particle diffusion");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.turbChoice[0].use_kturb &&

@@ -76,21 +76,21 @@ bool MakeAuxiliaryStageRecipe (const HostIntegrator method,
         diagnostic = "host stage interval must be finite and positive";
         return false;
     }
-    if (method == HostIntegrator::AnelasticMidPoint) {
-        diagnostic = "AnelasticMidPoint is represented but is not qualified by the M2 fixture";
-        return false;
-    }
     if (stage < 0 || stage >= stage_count(method)) {
         diagnostic = "stage index is outside the selected host integrator sequence";
         return false;
     }
 
-    if (method == HostIntegrator::CompressibleRK3) {
+    if (method == HostIntegrator::CompressibleRK3 ||
+        method == HostIntegrator::AnelasticMidPoint) {
+        // Every stage restarts from the old state, so only the final stage's rate is the step's flux.
         recipe.limiter_trial_base = LimiterTrialBase::Anchor;
         recipe.anchor_weight = 1.0;
         recipe.limiter_trial_interval = host_stage_interval;
         recipe.face_rate_time_coefficient = host_stage_interval;
-        if (stage == 2) { recipe.completed_ledger_time = host_stage_interval; }
+        if (stage + 1 == stage_count(method)) {
+            recipe.completed_ledger_time = host_stage_interval;
+        }
     } else if (method == HostIntegrator::AnelasticHeun) {
         if (stage == 0) {
             recipe.limiter_trial_base = LimiterTrialBase::Anchor;
@@ -340,11 +340,6 @@ bool CompletedStepFluxLedger::begin_stage (const HostIntegrator method,
     }
     if (!is_defined()) {
         diagnostic = "completed-step ledger storage is not defined";
-        latch_stage_failure(diagnostic);
-        return false;
-    }
-    if (method == HostIntegrator::AnelasticMidPoint) {
-        diagnostic = "AnelasticMidPoint completed-step ledger is not qualified by M2";
         latch_stage_failure(diagnostic);
         return false;
     }
