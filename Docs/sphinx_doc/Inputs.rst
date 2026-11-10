@@ -1751,7 +1751,9 @@ snapshot, with all output variables in the same file. Alternatively, line sampli
 the ``erf.line_sampling_text_output`` option, which writes one text file per output
 variable, with all snapshots appended to the same file over time. This is similar to the
 tslist output from WRF but output is provided only from the finest domain that contains
-the entire requested sampling line; velocities are also destaggered.
+the entire requested sampling line; velocities are also destaggered. With text output, the
+heights of the cells of each line on level ``L`` are written to ``plt_line_levL.zcc``, one row
+per line, when the level is made and again whenever a regrid changes its grids.
 
 The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
@@ -1776,8 +1778,14 @@ slot is never sampled.
 With immersed terrain (``erf.terrain_type = EB`` or ``ImmersedForcing``), a cell covered by the
 terrain (volume fraction 0) holds no fluid, so every variable sampled there is written as
 ``erf.sampling_covered_value`` (default -9999) instead, except ``z`` and ``volfrac``. A plane
-sample interpolated from a covered cell is written the same way. A cut cell is written as is,
-with the value of the cell; requesting ``volfrac`` shows which samples are in cut cells.
+sample interpolated from a covered cell is written the same way. This applies to
+``ImmersedForcing`` too, where covered cells carry a state forced towards rest; that state is not
+written. The fill value is finite rather than NaN so that writing the samples cannot trip a
+floating-point exception trap.
+
+A cut cell is written as is, with the value of the cell. Requesting ``volfrac`` shows which
+samples are in cut cells; to leave out cells that are almost covered, threshold on ``volfrac``
+rather than test for ``erf.sampling_covered_value``.
 
 .. _list-of-parameters-10b:
 
@@ -1825,8 +1833,8 @@ List of Parameters
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plane_sampling_vars**        | Specify sampled variables                                | List of strings    | theta, magvel    |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.sampling_covered_value**     | Value written for samples in cells covered by immersed   | Real               | -9999            |
-|                                    | terrain (EB or ImmersedForcing)                          |                    |                  |
+| **erf.sampling_covered_value**     | Line and plane sampling: value written for samples in    | Real               | -9999            |
+|                                    | cells covered by immersed terrain (EB, ImmersedForcing)  |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plane_sampling_max_level**   | Cap on finest level written to the plane plotfile        | Integer            | -1 (all          |
 |                                    |                                                          |                    | intersecting     |

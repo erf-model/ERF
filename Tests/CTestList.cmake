@@ -5690,6 +5690,42 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
         LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
   endfunction(add_test_line_sampling_terrain)
   add_test_line_sampling_terrain(LineSamplingTerrain)
+
+  # Line and plane sampling with EB terrain (#4977): covered cells are written as
+  # erf.sampling_covered_value, in a column through the top of the hill (the lowest 14 of
+  # its 86 cells are covered; as an erf.sample_line log and as do_line_sampling text) and in
+  # a plane through its flanks. amr.max_level = 1 but the fine level is never made, so its
+  # EB factory and its heights do not exist and must not be read.
+  function(add_test_eb_sampling TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    set(_check "ERF_TOOLS=${PROJECT_SOURCE_DIR}/Exec/Tools ${ERF_TEST_PYTHON} check_eb_sampling.py")
+    # Remove the logs, text files and planes of an earlier pass: the logs and text files are
+    # appended to
+    add_test(${TEST_NAME} sh -c
+        "rm -rf col_top line_top.* plt_line_lev* plane_z30_* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${_check} col_top 86 14 plane_z30_step_00002 line_top")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_eb_sampling)
+  add_test_eb_sampling(EBSampling_UnpopulatedLevel)
+
+  # Line coordinates of a level made by a regrid after the start: level 1 is made by the
+  # regrid after step 1, so plt_line_lev1.zcc must then be written, one row of the 32 cell
+  # centres of the level-1 column, and the line sampled on level 1 from step 2
+  function(add_test_line_sampling_regrid_coords TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    # Remove the text files of an earlier pass: they are appended to
+    add_test(${TEST_NAME} sh -c
+        "rm -f col.* plt_line_lev* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_line_zcc.py plt_line_lev1.zcc 32 8 col.x_velocity 1")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_line_sampling_regrid_coords)
+  add_test_line_sampling_regrid_coords(LineSampling_RegridCoords)
 endif()
 
 # Line sampling: a line must run along sample_line_dir, and a line placed by height is not

@@ -21,6 +21,35 @@
 
 #include <iostream>
 
+/**
+ * The value line and plane sampling write at cells covered by immersed terrain
+ * (erf.sampling_covered_value)
+ */
+inline amrex::Real
+sampling_covered_value ()
+{
+    amrex::Real value = amrex::Real(-9999.0);
+    amrex::ParmParse pp("erf");
+    pp.queryAdd("sampling_covered_value", value);
+    return value;
+}
+
+/**
+ * The number of levels that exist, counted from level 0: vars_new holds a slot for every
+ * level up to amr.max_level, but the state of a level that has not been made is undefined
+ */
+inline int
+sampling_num_levels (const amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+{
+    int nlev = 0;
+    while (nlev < static_cast<int>(vars_new.size()) &&
+           static_cast<int>(vars_new[nlev].size()) > Vars::cons &&
+           vars_new[nlev][Vars::cons].ok()) {
+        ++nlev;
+    }
+    return nlev;
+}
+
 struct LineSampler
 {
     LineSampler ()
@@ -208,9 +237,6 @@ struct LineSampler
             // the ground under it instead of the height above sea level
             pp.queryAdd("sample_line_z_agl",m_z_agl);
 
-            // The value written at cells covered by immersed terrain
-            pp.queryAdd("sampling_covered_value",m_covered_value);
-
             // The cells of a line placed by height are found once, so they do not follow a
             // mesh that moves; lines given by indices do not use heights
             if (m_use_real_bx && use_column_heights() &&
@@ -260,9 +286,6 @@ struct LineSampler
         m_max_level = 0;
         m_varnames = {"conserved", "x_velocity", "y_velocity", "z_velocity",
                       "sgs_tau11", "sgs_tau12", "sgs_tau13", "sgs_tau22", "sgs_tau23", "sgs_tau33"};
-
-        amrex::ParmParse pp("erf");
-        pp.queryAdd("sampling_covered_value",m_covered_value);
 
         m_write_log = true;
         if (amrex::ParallelDescriptor::IOProcessor()) {
@@ -525,12 +548,22 @@ struct LineSampler
     {
         if (!m_write_ascii) return;
 
-        amrex::Print() << "Writing out line coordinates to text" << std::endl;
-
         // Only the levels that are sampled
         int nlev = static_cast<int>(z_phys_cc.size());
         if (m_max_level >= 0) { nlev = std::min(nlev, m_max_level + 1); }
         for (int lev(0); lev < nlev; ++lev) {
+            // A level allowed by amr.max_level that has not been made has no heights, and
+            // neither does any level above it
+            if (!z_phys_cc[lev] || lev >= static_cast<int>(z_phys_nd.size()) || !z_phys_nd[lev]) { break; }
+
+            // Written for each set of grids of the level: when the level is made, and again
+            // when a regrid changes its grids
+            if (lev >= static_cast<int>(m_zcc_ba.size())) { m_zcc_ba.resize(lev+1); }
+            if (m_zcc_ba[lev] == z_phys_cc[lev]->boxArray()) { continue; }
+            m_zcc_ba[lev] = z_phys_cc[lev]->boxArray();
+
+            amrex::Print() << "Writing out line coordinates of level " << lev << " to text" << std::endl;
+
             // Write one text file per level
             std::ofstream outfile;
             if (amrex::ParallelDescriptor::IOProcessor()) {
@@ -599,7 +632,7 @@ struct LineSampler
     {
         if (m_ncons < 0) { expand_conserved(vars_new[0][Vars::cons].nComp()); }
 
-        int nlev  = static_cast<int>(vars_new.size());
+        int nlev  = sampling_num_levels(vars_new);
         if (m_max_level >= 0) { nlev = std::min(nlev, m_max_level + 1); }
         int nline = static_cast<int>(m_bnd_bx.size());
         int ncomp = static_cast<int>(m_varnames.size());
@@ -1085,7 +1118,7 @@ struct LineSampler
     bool m_write_ascii{false};
     bool m_write_log{false};
     bool m_z_agl{false};   // erf.sample_line_z_agl
-    amrex::Real m_covered_value{-9999.0}; // erf.sampling_covered_value
+    amrex::Real m_covered_value{sampling_covered_value()}; // erf.sampling_covered_value
     int  m_max_level{-1};  // finest level to sample; -1 for all
     int  m_ncons{-1};      // components "conserved" expands into; -1 until the first sample
     amrex::Vector<std::string> m_varnames {"magvel","theta"};
@@ -1098,6 +1131,8 @@ struct LineSampler
     amrex::Vector<amrex::Vector<amrex::Box>> m_box_cache;
     amrex::Vector<amrex::Vector<int>> m_box_cache_found;
     amrex::Vector<amrex::BoxArray> m_box_cache_ba;
+    // The grids of each level when its line coordinates were last written (write_coords)
+    amrex::Vector<amrex::BoxArray> m_zcc_ba;
 };
 
 
@@ -1216,9 +1251,6 @@ struct PlaneSampler
                 }
                 amrex::Print() << std::endl;
             }
-
-            // The value written where a plane meets a cell covered by immersed terrain
-            pp.queryAdd("sampling_covered_value",m_covered_value);
         }
     }
 
@@ -1244,7 +1276,7 @@ struct PlaneSampler
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
                      const amrex::Vector<const amrex::MultiFab*>& volfrac_lev = {})
     {
-        int nlev   = static_cast<int>(vars_new.size());
+        int nlev   = sampling_num_levels(vars_new);
         int nplane = static_cast<int>(m_bnd_rbx.size());
         int ncomp  = static_cast<int>(m_varnames.size());
         bool interpolate = true;
@@ -1423,12 +1455,14 @@ struct PlaneSampler
                 // covered (0 elsewhere), each with the ghost cells the interpolation reads
                 const amrex::MultiFab* volfrac = ilev < static_cast<int>(volfrac_lev.size())
                     ? volfrac_lev[ilev] : nullptr;
+                int vf_comp = -1;
                 if (containerHasElement(m_varnames, "volfrac")) {
                     if (volfrac != nullptr) {
                         amrex::MultiFab::Copy(mf_cc_data, *volfrac, 0, mf_comp, 1, 1);
                     } else {
                         mf_cc_data.setVal(1.0, mf_comp, 1, 1);
                     }
+                    vf_comp = mf_comp;
                     mf_comp += 1;
                 }
                 if (volfrac != nullptr) {
@@ -1462,8 +1496,6 @@ struct PlaneSampler
                 const int rr_l    = 1 << ilev;
                 const int k_slice = slice->boxArray().minimalBox().smallEnd(dir);
                 const int l_dir   = dir;
-                // volfrac is the last of the plane's variables
-                const int vf_comp = (containerHasElement(m_varnames, "volfrac")) ? ncomp-1 : -1;
                 const amrex::Real covered_value = m_covered_value;
 
                 amrex::BoxList bl;
@@ -1579,6 +1611,6 @@ struct PlaneSampler
     amrex::Vector<std::string> m_name;
 
     amrex::Vector<std::string> m_varnames {"magvel","theta"};
-    amrex::Real m_covered_value{-9999.0}; // erf.sampling_covered_value
+    amrex::Real m_covered_value{sampling_covered_value()}; // erf.sampling_covered_value
 };
 #endif

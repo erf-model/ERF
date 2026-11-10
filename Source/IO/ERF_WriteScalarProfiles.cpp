@@ -608,16 +608,16 @@ ERF::sample_points (int ifile, int /*lev*/, double time, IntVect cell, MultiFab&
 /**
  * The volume fraction of each level, which line and plane sampling write as volfrac and use
  * to blank the cells covered by immersed terrain (erf.terrain_type = EB or ImmersedForcing);
- * nullptr on every level otherwise
+ * nullptr otherwise, and on the levels up to max_level that do not exist, whose EB factory
+ * is not built
  */
 Vector<const MultiFab*>
 ERF::sampling_volfrac () const
 {
-    const int nlev = static_cast<int>(vars_new.size());
-    Vector<const MultiFab*> volfrac_lev(nlev, nullptr);
+    Vector<const MultiFab*> volfrac_lev(vars_new.size(), nullptr);
     if (solverChoice.terrain_type == TerrainType::EB ||
         solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-        for (int lev = 0; lev < nlev; ++lev) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
             volfrac_lev[lev] = &EBFactory(lev).getVolFrac();
         }
     }
@@ -656,6 +656,8 @@ ERF::run_line_sampler (LineSampler& sampler)
     }
     // With immersed terrain the ground is the terrain surface, not the bottom of the mesh
     const MultiFab* ground_nd = sampler.needs_ground() ? &station_ground(0) : nullptr;
+    // The line coordinates of a level made or regridded since they were last written
+    sampler.write_coords(z_phys_cc, z_phys_nd, geom, ground_nd);
     sampler.get_sample_data(geom, vars_new, tau_lev, hfx3_lev, prognostic_tke_available,
                             z_cc_lev, z_nd_lev, ground_nd, sampling_volfrac());
     sampler.write_sample_data(t_new, istep, ref_ratio, geom);
