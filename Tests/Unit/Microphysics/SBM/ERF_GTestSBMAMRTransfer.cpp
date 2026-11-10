@@ -3236,6 +3236,28 @@ std::vector<Real> composite_mapped_inventory (const MultiFab& coarse_state,
     return inventory;
 }
 
+// Each new fine cell's expected value from its parent's dry-air-relative
+// state, and the parent amount U copied unchanged (the negative control).
+void fill_regrid_parent_expectations (MultiFab& ratio_expected,
+                                      MultiFab& copied_parent_u,
+                                      const MultiFab& fine_rho,
+                                      const ComponentOffsets& offsets)
+{
+    const int ncomp = ratio_expected.nComp();
+    for (MFIter mfi(ratio_expected, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto rho = fine_rho.const_array(mfi);
+        const auto z_parent = ratio_expected.array(mfi);
+        const auto u_parent = copied_parent_u.array(mfi);
+        amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            for (int n = 0; n < ncomp; ++n) {
+                const Real z = base_component(n, i / 2, j / 2, k / 2, offsets, false);
+                z_parent(i, j, k, n) = rho(i, j, k, 0) * z;
+                u_parent(i, j, k, n) = coarse_density(i / 2, j / 2, k / 2) * z;
+            }
+        });
+    }
+}
+
 TEST(SBMAMRRegrid, CellCountsClassifyRetainedProlongedAndReleasedCells)
 {
     const BoxArray old_ba(regrid_old_fine_box());
@@ -3272,18 +3294,7 @@ TEST(SBMAMRRegrid, RetainedCellsAreBitwiseAndNewCellsCarryTheParentRatio)
     const ComponentOffsets offsets = offsets_for(f.layout);
     MultiFab expected(new_ba, DistributionMapping(new_ba), ncomp, 0);
     MultiFab copied_parent_u(new_ba, DistributionMapping(new_ba), ncomp, 0);
-    for (MFIter mfi(expected, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto rho = f.new_rho.const_array(mfi);
-        const auto z_parent = expected.array(mfi);
-        const auto u_parent = copied_parent_u.array(mfi);
-        amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            for (int n = 0; n < ncomp; ++n) {
-                const Real z = base_component(n, i / 2, j / 2, k / 2, offsets, false);
-                z_parent(i, j, k, n) = rho(i, j, k, 0) * z;
-                u_parent(i, j, k, n) = coarse_density(i / 2, j / 2, k / 2) * z;
-            }
-        });
-    }
+    fill_regrid_parent_expectations(expected, copied_parent_u, f.new_rho, offsets);
     const MultiFab prolonged = restrict_to_box(candidate, regrid_prolonged_box());
     const MultiFab ratio_expected = restrict_to_box(expected, regrid_prolonged_box());
     const MultiFab copy_expected = restrict_to_box(copied_parent_u, regrid_prolonged_box());
