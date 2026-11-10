@@ -2402,11 +2402,12 @@ ERF::InitData_post ()
 
     bool has_sample_line = pp.contains("sample_line");
     bool has_sample_line_real = pp.contains("sample_line_real");
-    if (has_sample_line && has_sample_line_real) {
-        Abort("Specify only one of erf.sample_line or erf.sample_line_real");
+    bool has_sample_line_latlon = pp.contains("sample_line_latlon");
+    if (int(has_sample_line) + int(has_sample_line_real) + int(has_sample_line_latlon) > 1) {
+        Abort("Specify only one of erf.sample_line, erf.sample_line_real or erf.sample_line_latlon");
     }
 
-    if (pp.contains("sample_line_log") && (has_sample_line || has_sample_line_real))
+    if (pp.contains("sample_line_log") && (has_sample_line || has_sample_line_real || has_sample_line_latlon))
     {
         int lev = 0;
 
@@ -2425,17 +2426,54 @@ ERF::InitData_post ()
                 }
             }
         } else {
-            int num_real_vals = pp.countval("sample_line_real");
-            if (num_real_vals % AMREX_SPACEDIM != 0) {
-                Abort("erf.sample_line_real must be specified as (x,y,z) triples");
+            // (x,y,z) triples, or (lat,long) pairs placed on the grid as stations are; the
+            //    z of a triple is not used
+            const std::string key = has_sample_line_real ? "sample_line_real" : "sample_line_latlon";
+            const int nper = has_sample_line_real ? AMREX_SPACEDIM : 2;
+            int num_real_vals = pp.countval(key.c_str());
+            if (num_real_vals % nper != 0) {
+                Abort(has_sample_line_real ? "erf.sample_line_real must be specified as (x,y,z) triples"
+                                           : "erf.sample_line_latlon must be specified as (lat,long) pairs");
             }
 
-            num_samplelines = num_real_vals / AMREX_SPACEDIM;
+            num_samplelines = num_real_vals / nper;
             if (num_samplelines > 0) {
-                Vector<Real> location; location.resize(num_real_vals);
+                Vector<Real> location; location.resize(num_samplelines*AMREX_SPACEDIM);
                 sampleline.resize(num_samplelines);
 
-                pp.queryarr("sample_line_real",location,0,num_real_vals);
+                if (has_sample_line_real) {
+                    pp.queryarr("sample_line_real",location,0,num_real_vals);
+                } else {
+                    if (lat_m.empty() || lat_m[0] == nullptr || lon_m.empty() || lon_m[0] == nullptr) {
+                        Abort("erf.sample_line_latlon needs a run with latitude/longitude arrays "
+                              "(a WRF or metgrid initialization, or a restart from one).  Give the "
+                              "lines with erf.sample_line_real in domain coordinates instead");
+                    }
+                    Vector<Real> latlon;
+                    pp.getarr("sample_line_latlon",latlon,0,num_real_vals);
+                    const LatLonMap latlon_map(*lat_m[0], *lon_m[0], ba2d[0], dmap[0], geom[0]);
+                    for (int i = 0; i < num_samplelines; i++) {
+                        const Real req_lat = latlon[2*i], req_lon = latlon[2*i+1];
+                        const std::string at = "erf.sample_line_latlon line " + std::to_string(i) +
+                            " at lat=" + std::to_string(req_lat) + " long=" + std::to_string(req_lon);
+                        LatLonLocation where;
+                        const LatLonStatus status = latlon_map.locate(req_lat, req_lon, where);
+                        if (status == LatLonStatus::Degenerate) {
+                            Abort(at + ": the latitude/longitude arrays are degenerate near it, so it "
+                                  "cannot be inverted");
+                        }
+                        if (status == LatLonStatus::TooFar) {
+                            Abort(at + " is outside the domain (the nearest grid point is at lat=" +
+                                  std::to_string(where.near_lat) + " long=" +
+                                  std::to_string(where.near_lon) + ")");
+                        }
+                        location[AMREX_SPACEDIM*i+0] = where.x;
+                        location[AMREX_SPACEDIM*i+1] = where.y;
+                        location[AMREX_SPACEDIM*i+2] = Real(0.0);
+                        Print() << at << " reaches lat=" << where.lat << " long=" << where.lon
+                                << " (x=" << where.x << " y=" << where.y << ")" << std::endl;
+                    }
+                }
 
                 const Box& domain = geom[lev].Domain();
                 const auto* prob_lo = geom[lev].ProbLo();
@@ -2449,7 +2487,8 @@ ERF::InitData_post ()
 
                     if (xloc < prob_lo[0] || xloc > prob_hi[0] ||
                         yloc < prob_lo[1] || yloc > prob_hi[1]) {
-                        Abort("erf.sample_line_real must lie within the level-0 domain in x and y");
+                        Abort(has_sample_line_real ? "erf.sample_line_real must lie within the level-0 domain in x and y"
+                                                   : "erf.sample_line_latlon must lie within the level-0 domain");
                     }
 
                     int i_cell = domain.smallEnd(0) + static_cast<int>(std::floor((xloc - prob_lo[0]) / dx[0]));
@@ -2490,6 +2529,15 @@ ERF::InitData_post ()
             Abort("Need to specify line_sampling_interval or line_sampling_per");
         }
         line_sampler = std::make_unique<LineSampler>();
+        if (line_sampler->uses_latlon()) {
+            if (lat_m.empty() || lat_m[0] == nullptr || lon_m.empty() || lon_m[0] == nullptr) {
+                Abort("erf.sample_line_lo/hi_latlon need a run with latitude/longitude arrays "
+                      "(a WRF or metgrid initialization, or a restart from one).  Give the "
+                      "lines with erf.sample_line_lo/hi_real in domain coordinates instead");
+            }
+            const LatLonMap latlon_map(*lat_m[0], *lon_m[0], ba2d[0], dmap[0], geom[0]);
+            line_sampler->resolve_latlon(latlon_map, geom[0]);
+        }
         line_sampler->write_coords(z_phys_cc, z_phys_nd, geom,
                                    line_sampler->needs_ground() ? &station_ground(0) : nullptr);
     }

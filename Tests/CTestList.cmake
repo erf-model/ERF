@@ -5758,6 +5758,60 @@ add_test_abort(LineSampling_Abort_MovingTerrain ${CMAKE_CURRENT_SOURCE_DIR}/test
                "is not supported with erf.terrain_type = MovingFittedMesh"
                "erf.do_line_sampling=1 erf.line_sampling_interval=1 erf.sample_line_lo_real=50. 20. 0. erf.sample_line_hi_real=50. 20. 100. erf.sample_line_dir=2")
 
+# Lines given by latitude and longitude need latitude/longitude arrays, and only one way of
+# giving the lines may be used
+add_test_abort(LineSampling_Abort_LatLonNoArrays ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU ScalarAdvectionUniformU.i
+               "erf.sample_line_lo/hi_latlon need a run with latitude/longitude arrays"
+               "erf.do_line_sampling=1 erf.line_sampling_interval=1 erf.sample_line_lo_latlon=40. -105. 0. erf.sample_line_hi_latlon=40. -105. 100. erf.sample_line_dir=2")
+add_test_abort(LineSampling_Abort_SampleLineLatLonNoArrays ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU ScalarAdvectionUniformU.i
+               "erf.sample_line_latlon needs a run with latitude/longitude arrays"
+               "erf.sample_line_log=col erf.sample_line_latlon=40. -105.")
+add_test_abort(LineSampling_Abort_LatLonAndIndices ${CMAKE_CURRENT_SOURCE_DIR}/test_files/SampleLine SampleLine.i
+               "Specify only one of erf.sample_line_lo/hi, erf.sample_line_lo_real/hi_real or erf.sample_line_lo_latlon/hi_latlon"
+               "erf.sample_line_lo_latlon=40. -105. 0. 40. -105. 0. erf.sample_line_hi_latlon=40. -105. 100. 40. -105. 100.")
+
+# Lines given by latitude and longitude (#4979), on the rotated lat/lon grid of a generated
+# wrfinput: a vertical line at a cell centre, and lines along x and y whose hi ends are 0.4
+# and 0.7 cells across them and are sampled along the cells through their lo ends. theta
+# names the column of each sample; erf.sample_line_latlon must place its column at the
+# profile's cell. The ends of a horizontal line 1.5 cells apart across it,
+# and a vertical line whose ends differ in latitude, abort.
+if(ERF_ENABLE_NETCDF AND NOT WIN32 AND ERF_TEST_PYTHON)
+  execute_process(COMMAND "${ERF_TEST_PYTHON}" -c "import netCDF4, numpy"
+                  RESULT_VARIABLE _line_latlon_python_status OUTPUT_QUIET ERROR_QUIET)
+  if(_line_latlon_python_status EQUAL 0)
+    function(add_test_line_sampling_latlon TEST_NAME EXPECTED_MESSAGE RUNTIME_OPTIONS)
+      set(TEST_FILES_DIR LineSampling_LatLon)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_run "${ERF_TEST_PYTHON} make_wrfinput.py && ${MPI_COMMANDS} ${TEST_EXE} LineSampling_LatLon.i amrex.call_addr2line=0 ${RUNTIME_OPTIONS} > ${_log} 2>&1")
+      if("${EXPECTED_MESSAGE}" STREQUAL "")
+        # The text files are appended to, so those of an earlier pass are removed
+        add_test(${TEST_NAME} sh -c
+            "rm -f prof.* ew.* ns.* col_ll && ( ${_run} || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_line_latlon.py ${_log}")
+        set_tests_properties(${TEST_NAME} PROPERTIES PROCESSORS ${NP})
+      else()
+        add_test(${TEST_NAME} sh -c "${_run}; cat ${_log}")
+        set_tests_properties(${TEST_NAME} PROPERTIES PROCESSORS ${NP}
+            PASS_REGULAR_EXPRESSION "${EXPECTED_MESSAGE}")
+      endif()
+      set_tests_properties(${TEST_NAME} PROPERTIES
+          TIMEOUT 600 WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_line_sampling_latlon)
+    add_test_line_sampling_latlon(LineSampling_LatLon "" "")
+    add_test_line_sampling_latlon(LineSampling_Abort_LatLonAcross
+        "Line 1 of erf.sample_line_lo/hi_latlon is not along erf.sample_line_dir"
+        "erf.sample_line_hi_latlon=40.205500 -104.918150 750. 40.114000 -104.715650 250. 40.270100 -104.977440 250.")
+    add_test_line_sampling_latlon(LineSampling_Abort_LatLonVertical
+        "Line 0 of erf.sample_line_lo/hi_latlon is vertical"
+        "erf.sample_line_hi_latlon=40.206500 -104.918150 750. 40.104100 -104.713450 250. 40.270100 -104.977440 250.")
+  else()
+    message(STATUS "Skipping LineSampling_LatLon: Python netCDF4 and numpy are required")
+  endif()
+endif()
+
 #=============================================================================
 # Performance tests
 #=============================================================================
