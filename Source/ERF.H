@@ -431,7 +431,7 @@ public:
     amrex::MultiFab* momentum_reflux_pressure (int lev);
     void momentum_reflux_add_slow (int lev, amrex::MultiFab& P, const amrex::MultiFab& cons,
                                    const amrex::MultiFab& p0, const amrex::MultiFab& qt,
-                                   bool moist, amrex::Real dt);
+                                   bool moist, amrex::Real dt_stage);
     void momentum_reflux (int crse_lev);
     void momentum_reflux_add_sources (int lev, amrex::MultiFab& xmom_src, amrex::MultiFab& ymom_src);
     void momentum_reflux_reset ();

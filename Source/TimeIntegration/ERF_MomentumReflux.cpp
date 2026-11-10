@@ -127,11 +127,11 @@ ERF::momentum_reflux_pressure (int lev)
  * @param p0    the base-state pressure
  * @param qt    the total moisture
  * @param moist whether qt is defined
- * @param dt    the interval
+ * @param dt_stage the interval
  */
 void
 ERF::momentum_reflux_add_slow (int /*lev*/, MultiFab& P, const MultiFab& cons, const MultiFab& p0,
-                               const MultiFab& qt, bool moist, Real dt)
+                               const MultiFab& qt, bool moist, Real dt_stage)
 {
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -147,7 +147,7 @@ ERF::momentum_reflux_add_slow (int /*lev*/, MultiFab& P, const MultiFab& cons, c
             Real qv = (moist) ? c_arr(i,j,k,RhoQ1_comp) / c_arr(i,j,k,Rho_comp) : zero;
             Real q  = (moist) ? qt_arr(i,j,k) : zero;
             Real pp = getPgivenRTh(c_arr(i,j,k,RhoTheta_comp), qv) - p0_arr(i,j,k);
-            p_arr(i,j,k) += dt * pp / (one + q);
+            p_arr(i,j,k) += dt_stage * pp / (one + q);
         });
     }
 }
