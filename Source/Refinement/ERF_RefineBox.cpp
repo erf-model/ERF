@@ -361,15 +361,15 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
 }
 
 /**
- * Update the refinement box position for moving grids.
+ * Lateral displacement of a moving refinement box from where the inputs file places it.
  *
  * @param[in] ref_prefix Prefix for parsing input parameters.
- * @param[out] lev_for_box Level associated with the refinement box.
- * @param[out] real_box Updated real-space coordinates of the refinement box.
  * @param[in] time Current simulation time.
+ * @param[out] offset_x Displacement in x.
+ * @param[out] offset_y Displacement in y.
  */
 void
-ERF::update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox& real_box, const double time)
+ERF::refinement_box_offset (const std::string& ref_prefix, const double time, Real& offset_x, Real& offset_y)
 {
     ParmParse ppr(ref_prefix);
 
@@ -407,8 +407,8 @@ ERF::update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealB
         amrex::Abort();
     }
 
-    Real offset_x = zero;
-    Real offset_y = zero;
+    offset_x = zero;
+    offset_y = zero;
 
     for (int i = 0; i < ni; i++) {
         if (time > move_start_time[i]) {
@@ -416,6 +416,21 @@ ERF::update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealB
             offset_y += move_speed_y[i] * static_cast<Real>(std::min(time,move_stop_time[i]) - move_start_time[i]);
         }
     }
+}
+
+/**
+ * Update the refinement box position for moving grids.
+ *
+ * @param[in] ref_prefix Prefix for parsing input parameters.
+ * @param[out] lev_for_box Level associated with the refinement box.
+ * @param[out] real_box Updated real-space coordinates of the refinement box.
+ * @param[in] time Current simulation time.
+ */
+void
+ERF::update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox& real_box, const double time)
+{
+    Real offset_x, offset_y;
+    refinement_box_offset(ref_prefix, time, offset_x, offset_y);
 
     RealBox orig_real_box;
     read_box_for_refinement (ref_prefix, lev_for_box, orig_real_box);
