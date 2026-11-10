@@ -345,6 +345,15 @@ ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den
                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
+ * Face weights beta = den_mlt/den_div with which ConvertForProjection converts the momenta
+ */
+void
+MakeProjectionWeights (const amrex::MultiFab& den_div, const amrex::MultiFab& den_mlt,
+                       const amrex::MultiFab& xmom, const amrex::MultiFab& ymom, const amrex::MultiFab& zmom,
+                       amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& beta,
+                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+
+/*
  * Compute lateral boundary mass influx/outflux from base-state-density-weighted
  * boundary normal velocities.
  */

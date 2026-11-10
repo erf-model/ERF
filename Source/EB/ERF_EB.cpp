@@ -155,6 +155,24 @@ eb_::make_all_factories ([[maybe_unused]] int level,
 }
 
 void
+eb_::clear_factories ()
+{
+    m_factory.reset();
+#if USE_FC_FACTORY
+    m_u_factory_fc.reset();
+    m_v_factory_fc.reset();
+    m_w_factory_fc.reset();
+#else
+    m_u_factory.clear();
+    m_v_factory.clear();
+    m_w_factory.clear();
+#endif
+    m_u_cut_cells.clear();
+    m_v_cut_cells.clear();
+    m_w_cut_cells.clear();
+}
+
+void
 eb_::make_cc_factory ([[maybe_unused]] int level,
                         Geometry            const& a_geom,
                         BoxArray            const& ba,
