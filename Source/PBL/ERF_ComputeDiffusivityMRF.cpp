@@ -69,7 +69,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
     - Hong, S. Y., Y. Noh, and J. Dudhia, 2006: A new vertical diffusion
       package with an explicit treatment of entrainment processes. Monthly
-      Weather Review, 134, 2318-2341. https://doi.org/10.1175/MWR3250.1
+      Weather Review, 134, 2318-2341. https://doi.org/10.1175/MWR3199.1
       (YSU scheme, used for free atmosphere mixing)
 
     CORE ALGORITHM (Hong & Pan 1996):
@@ -137,7 +137,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
        - Pr_t = φ_t/φ_m + const_b * κ * sf
        - Bounded: 0.5 ≤ Pr_t ≤ 4.0
        - Consistency with WRF: const_b = 7.8, sf = 0.1
-       - Reference: Hong et al. (2006), Equation A17
+       - Reference: Hong et al. (2006), Pr0 defined with Equation A4
 
     PARAMETER DEFAULTS (Matching WRF):
     -----------------------------------

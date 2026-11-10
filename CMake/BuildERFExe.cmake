@@ -561,6 +561,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diagnostics/ERF_SeaLevelPressure.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
+       ${SRC_DIR}/IO/ERF_BuildDescription.cpp
        ${SRC_DIR}/IO/ERF_NoahMPGitHash.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
        ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp
@@ -616,6 +617,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMRemapping.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMTransport.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRTransfer.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRFluxRegister.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRCoupling.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp

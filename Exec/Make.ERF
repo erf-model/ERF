@@ -974,6 +974,7 @@ ifeq ($(USE_NOAHMP), TRUE)
   ERF_GIT_DIRS += $(NOAHMP_HOME)
 endif
 
+# Same describe style as AMReX's CMake build info; ERF's tags are lightweight, so --tags is needed.
 $(ERF_BUILDINFO_SRC): $(filter-out $(ERF_BUILDINFO_OBJ),$(objForExecs))
 	$(AMREX_HOME)/Tools/C_scripts/makebuildinfo_C.py \
           --output_dir $(objEXETempDir) \
@@ -985,7 +986,7 @@ $(ERF_BUILDINFO_SRC): $(filter-out $(ERF_BUILDINFO_OBJ),$(objForExecs))
           --libraries "$(FINAL_LIBS)" \
           --MODULES "$(MNAMES)" \
           --GIT "$(ERF_GIT_DIRS)" \
-          --GIT_STYLE "--always --dirty"
+          --GIT_STYLE "--abbrev=12 --dirty --always --tags"
 	$(SILENT) mv $(objEXETempDir)/AMReX_buildInfo.cpp $@
 
 clean::

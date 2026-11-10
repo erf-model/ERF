@@ -113,7 +113,12 @@ ERF::ComputeDt (int step, double cur_time_d)
     //
     const double eps = 1.e-3*dt_0;
     if (cur_time_d + dt_0 > (stop_time - start_time) - eps) {
-        dt_0 = (stop_time - start_time) - cur_time_d;
+        const double dt_clamp = (stop_time - start_time) - cur_time_d;
+        // Shorten the step only for a real partial step, not when the remaining interval is dt
+        // to within the round-off of cur_time_d (tolerance as in the stop test of Evolve)
+        if (std::abs(dt_clamp - dt_0) > 1.e-6*dt_0) {
+            dt_0 = dt_clamp;
+        }
     }
 
     dt[0] = dt_0;

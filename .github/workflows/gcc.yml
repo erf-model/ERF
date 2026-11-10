@@ -288,7 +288,7 @@ jobs:
   # the matrix can be reshaped without touching branch protection again.
   ci-required:
     name: ci-required
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [library]
     runs-on: ubuntu-22.04
     timeout-minutes: 5

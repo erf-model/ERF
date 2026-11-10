@@ -885,7 +885,7 @@ stable boundary layer tests (GABLS cases).
 
 - Hong, S. Y., Y. Noh, and J. Dudhia, 2006: A new vertical diffusion package with an explicit
   treatment of entrainment processes. *Monthly Weather Review*, 134, 2318-2341.
-  https://doi.org/10.1175/MWR3250.1
+  https://doi.org/10.1175/MWR3199.1
 
 6. Scale-Aware PBL-LES Blending
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -973,8 +973,8 @@ Two ABL tests in ``Exec/CanonicalTests/ABL/MRF_Enhancements/`` verify the implem
   https://doi.org/10.1175/MWR-D-13-00229.1
 - Beare, R.J., 2014: A length scale defining partially-stirred reactor-like mixing in atmospheric boundary layers. *Boundary-Layer Meteorology*, 153, 345–357.
   https://doi.org/10.1007/s10546-013-9881-3
-- Honnert, R., et al., 2011: A warming list of challenges for atmospheric modellers. *Journal of the Atmospheric Sciences*, 68, 2742–2764.
-  https://doi.org/10.1175/JAS-D-11-025.1
+- Honnert, R., V. Masson, and F. Couvreux, 2011: A diagnostic for evaluating the representation of turbulence in atmospheric models at the kilometric scale. *Journal of the Atmospheric Sciences*, 68, 3112–3131.
+  https://doi.org/10.1175/JAS-D-11-061.1
 - Smagorinsky, J., 1963: General circulation experiments with the primitive equations. *Monthly Weather Review*, 91, 99–164.
   https://doi.org/10.1175/1520-0493(1963)091<0099:GCEWTP>2.3.CO;2
 - Hong, S.-Y., and H.-L. Pan, 1996: Nonlocal boundary layer vertical diffusion in a medium-range forecast model. *Monthly Weather Review*, 124, 2322–2339.

@@ -191,15 +191,13 @@ available_diagnostic_names (const SolverChoice& solver_choice,
              (active_lsm_names.empty() && !has_noahmp))) {
             continue;
         }
-        if (descriptor.id == DiagnosticID::Temperature2m && !(has_noahmp || has_surface_layer)) {
-            continue;
-        }
-        if ((descriptor.id == DiagnosticID::WaterVaporMixingRatio2m ||
-             descriptor.id == DiagnosticID::NearSurfaceDiagnosticSource) &&
-            !(has_moisture && (has_noahmp || has_surface_layer))) {
-            if (descriptor.id == DiagnosticID::NearSurfaceDiagnosticSource &&
-                (has_noahmp || has_surface_layer)) {
-                names.push_back(descriptor.name);
+        // The NearSurface fields need Noah-MP or a surface layer; the
+        //    mixing ratio also needs a moist run
+        if (descriptor.category == DiagnosticCategory::NearSurface) {
+            if (has_noahmp || has_surface_layer) {
+                if (descriptor.id != DiagnosticID::WaterVaporMixingRatio2m || has_moisture) {
+                    names.push_back(descriptor.name);
+                }
             }
             continue;
         }

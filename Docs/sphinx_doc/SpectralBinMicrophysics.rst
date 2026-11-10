@@ -574,21 +574,28 @@ runtime:
   abundance without treating the change in spatial resolution as a physical
   droplet-growth, evaporation, or collision process.
 
-* **Accepted spectral face transfers.** The implementation defines and tests a completed-step
-  transport record for every spectral component,
+* **Accepted spectral face-transfer foundation.** The mapped transport
+  operator forms accepted spectral face **rates** for every prognostic mass,
+  number and attached-property component after its coupled limiter. An
+  AMR-oriented implementation can accumulate those chunk-local accepted
+  rates directly in an AMReX coarse/fine flux register, using the actual
+  host-stage time coefficient and preserving the component layout:
 
   .. math::
 
      \mathcal{I}_{a,f}
-     = \int_{t^n}^{t^{n+1}}
-       \widetilde{F}_{a,f}^{\mathrm{accepted}}(t)\,dt,
+     = \sum_{q}\sum_{k} w_{q,k}
+       \widetilde F^{\mathrm{accepted}}_{a,f,q,k}.
 
-  where :math:`\widetilde{F}_{a,f}^{\mathrm{accepted}}` is the accepted
-  mapped transport rate through face :math:`f`. The record uses the rates
-  accepted after the coupled transport limiter, not an unrestricted
-  high-order proposal or the two bulk cloud/rain sums. It provides the
-  information needed for conservative coarse/fine flux correction in a
-  subsequent AMR implementation.
+  Here :math:`q` indexes physical substeps and :math:`k` the host stages,
+  with :math:`w_{q,k}` equal to the accepted completed-ledger coefficient:
+  for compressible RK3 it is the physical substep length only at stage 2,
+  and for anelastic Heun it is one-half the physical substep length at
+  stages 0 and 1. The complete all-component face-integral ledger remains
+  available as a test/reference path; the normal production transport
+  allocation does not require that additional full-spectrum face record.
+  These numerical foundations are **not** evidence that operational
+  multilevel SBM advection has been enabled or qualified.
 
 * **Physical and numerical admissibility.** A transferred candidate spectrum
   must still satisfy the declared mass, number, attached-property, and
@@ -599,38 +606,89 @@ runtime:
 .. important::
 
    **These are tested grid-transfer foundations, not an enabled multilevel
-   SBM capability.** Although ERF supports adaptive mesh refinement for other
-   atmospheric quantities, simulations using ``erf.moisture_model = SBM``
-   still require ``amr.max_level = 0`` and periodic boundaries in all three
-   directions. Coarse/fine temporal interpolation, accepted-flux correction
-   (reflux), regridding, and multilevel spectral restart must be integrated
-   and qualified before SBM can run on refined meshes. These grid-transfer
-   foundations introduce no new user input parameters and no cloud or aerosol
-   microphysical source processes. The currently exposed spectrum represents
-   liquid water only.
+   SBM capability.** The implementation includes tested coarse/fine transfer
+   and accepted-rate flux-register foundations, but SBM still cannot run on an
+   AMR hierarchy. Its runtime remains restricted to one grid level. A
+   qualified multilevel lifecycle also requires time-matched coarse/fine
+   spectral ghost filling, conservative creation and remake/derefinement of
+   fine levels, synchronized full-state admission, exact-schema multilevel
+   restart, and end-to-end composite leaf-inventory tests. The existence of
+   an AMR flux register or a passing unit test does not remove these
+   requirements. SBM also remains restricted to periodic boundaries in all
+   three directions. These foundations introduce no new user input
+   parameters or cloud and aerosol source processes. The currently exposed
+   spectrum represents liquid water only.
 
 What is still needed for multilevel simulations
 -----------------------------------------------
 
 The present SBM runtime advects the liquid-water spectrum on one atmospheric
-grid level. The conservative grid-transfer operators described above have
-been tested separately, but they are not yet connected to ERF's complete
-adaptive-mesh lifecycle.
+grid level.
 
-A future multilevel simulation must interpolate coarse-grid spectral state
-and dry-air density to the same fine-grid time; reconcile the accepted
+Periodic AMR qualification status
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The normal ERF ``SBM`` runtime remains a **single-level**, advection-only
+liquid spectral-transport capability. The authoritative spectral state is not
+the projected ``qc`` or ``qr`` field. Production SBM does not yet support
+multilevel time integration, regridding, derefinement, multilevel restart,
+or general nonperiodic and terrain-following spectral AMR boundaries.
+
+A separately built internal qualification executable exercises a **fixed**,
+periodic, two-level, 3-D, double-precision AMR hierarchy with two-way
+coupling and fine-level subcycling. Its supported test fixtures cover
+one-moment spectral mass and two-moment spectral mass, droplet number and an
+attached number-carried property. These tests are **not** a general SBM AMR
+runtime option, and the normal build continues to reject unsupported
+multilevel SBM configurations.
+
+At fine-level physical stages, accepted coarse spectral and dry-air density
+endpoints are interpolated at the same requested time. If :math:`U_a` is an
+authoritative density-weighted spectral component and :math:`\rho_d` is the
+dry-air density, the coarse parent donor intensive is
+
+.. math::
+
+   z_a(t) =
+   \frac{(1-\theta)U_a(t_0) + \theta U_a(t_1)}
+        {(1-\theta)\rho_d(t_0) + \theta\rho_d(t_1)},
+   \qquad \theta = \frac{t-t_0}{t_1-t_0}.
+
+For a two-moment bin, the mass and number intensives are converted to
+endpoint-number coordinates **before** WENO-Z3 reconstruction. All spectral
+components, including any attached number-carried quantity, share their
+complete-group flux-corrected acceptance. AMR interface accounting consumes
+the *accepted* spectral face-rate integrals, not the unlimited high-order
+proposal or the projected cloud/rain transfer. Coarse synchronization first
+forms a private mapped-conservative candidate, requires canonical-state
+admission, and only then publishes the spectrum and regenerates ``qc``/``qr``.
+
+The periodic two-level qualification checks composite spectral inventories,
+coarse/fine interface signs, time integration weights, two-layer coarse-only
+ghost completion, and distributed rank ownership. Evidence is specific to the
+executed CPU/MPI fixtures and does not establish GPU performance, dynamic
+regrid/remake/derefinement, nonperiodic spectral boundary handling, or
+multilevel checkpoint/restart capability.
+
+The fixed-grid qualification covers only part of ERF's adaptive-mesh
+lifecycle. A production multilevel simulation must also preserve the full
+spectral state through grid remake, derefinement, restart, and physical
+boundary handling.
+
+A production multilevel simulation must interpolate coarse-grid spectral
+state and dry-air density to the same fine-grid time; reconcile accepted
 bin-resolved transport across coarse/fine interfaces by conservative flux
-correction (reflux); and verify that the synchronized droplet-mass,
-number, and attached-property inventories remain physically admissible.
-Grid creation, regridding, restart, and physical boundary conditions must
-also preserve the full spectral state, rather than reconstructing a size
-distribution from bulk cloud-water and rain-water mixing ratios.
+correction (reflux); and verify that synchronized droplet-mass, number, and
+attached-property inventories remain physically admissible. Grid creation,
+regridding, restart, and physical boundary conditions must preserve the full
+spectral state, rather than reconstructing a size distribution from bulk
+cloud-water and rain-water mixing ratios.
 
 A conservation budget for a refined simulation must count each atmospheric
 region only once, using fine-grid values where refinement is present and
-excluding the underlying coarse-grid cells. Multilevel spectral transport
-will remain unavailable until these coupled operations have been tested in
-ERF, including their failure behavior.
+excluding the underlying coarse-grid cells. Production multilevel spectral
+transport remains unavailable until these coupled operations and their
+failure behavior are fully qualified in ERF.
 
 Numerical reconstruction for resolved spectral advection
 --------------------------------------------------------

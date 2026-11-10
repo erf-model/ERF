@@ -662,10 +662,16 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     // reports by the number of completed steps, the plotfiles' numbering.
     ibseb_report(nstep + 1, time);
 
-    if (cloud_chamber_budget) {
+    // The cloud-chamber budget observes the coarse state before the AMR sync,
+    // except under SBM, where it follows the accepted spectral synchronization.
+    const bool sbm_moisture = solverChoice.moisture_type == MoistureType::SBM;
+    auto report_cloud_chamber_budget = [&] () {
         cloud_chamber_budget->report(
             nstep + 1, time, vars_new[0][Vars::cons], geom[0],
             solverChoice.moisture_type == MoistureType::SatAdj);
+    };
+    if (cloud_chamber_budget && !sbm_moisture) {
+        report_cloud_chamber_budget();
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -784,6 +790,14 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 if (q_crse && q_fine) { average_down(*q_fine, *q_crse, 0, 1, rr2d); }
             }
         }
+
+        if (sbm_state_manager && sbm_moisture) {
+            sbm_synchronize_levels(nstep);
+        }
+    }
+
+    if (cloud_chamber_budget && sbm_moisture) {
+        report_cloud_chamber_budget();
     }
 
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
@@ -829,28 +843,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
     // Write plane/line sampler data
     if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
-        const int nlev = static_cast<int>(vars_new.size());
-        Vector<MultiFab*> tau13_lev(nlev, nullptr);
-        Vector<MultiFab*> tau23_lev(nlev, nullptr);
-        Vector<MultiFab*> hfx3_lev(nlev, nullptr);
-        Vector<int> prognostic_tke_available(nlev, 0);
-        for (int lev = 0; lev < nlev; ++lev) {
-            prognostic_tke_available[lev] = solverChoice.turbChoice[lev].use_tke ? 1 : 0;
-            if (lev < static_cast<int>(Tau.size())) {
-                if (Tau[lev].size() > TauType::tau13) {
-                    tau13_lev[lev] = Tau[lev][TauType::tau13].get();
-                }
-                if (Tau[lev].size() > TauType::tau23) {
-                    tau23_lev[lev] = Tau[lev][TauType::tau23].get();
-                }
-            }
-            if (lev < static_cast<int>(SFS_hfx3_lev.size())) {
-                hfx3_lev[lev] = SFS_hfx3_lev[lev].get();
-            }
-        }
-        line_sampler->get_sample_data(geom, vars_new, tau13_lev, tau23_lev, hfx3_lev,
-                                      prognostic_tke_available);
-        line_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+        run_line_sampler(*line_sampler);
     }
     if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
         plane_sampler->get_sample_data(geom, vars_new);
@@ -2088,6 +2081,8 @@ ERF::InitData_post ()
     if (m_fire_coupler) {
         const int fire_lev = fire_anchor_level(m_fire_coupler->params().anchor_level, finest_level);
         m_fire_coupler->initialize(*this, fire_lev, m_SurfaceLayer[Orientation::zlo()].get(), z_phys_nd[fire_lev].get());
+        // The fields' time: the start, or the time of the checkpoint on a restart
+        m_fire_coupler->set_fields_time(t_new[fire_lev]);
         // An engine that takes the rain per column needs the microphysics
         // accumulators of the fire grid's level, which exist now that every
         // level is built.
@@ -2409,6 +2404,7 @@ ERF::InitData_post ()
         int lev = 0;
 
         int num_samplelines = 0;
+        Vector<IntVect> sampleline;
         if (has_sample_line) {
             num_samplelines = pp.countval("sample_line") / AMREX_SPACEDIM;
             if (num_samplelines > 0) {
@@ -2439,36 +2435,23 @@ ERF::InitData_post ()
                 const auto* prob_hi = geom[lev].ProbHi();
                 const auto* dx = geom[lev].CellSize();
 
-                // Only on a ConstantDz mesh are prob_lo[2], prob_hi[2] and dx[2] physical heights;
-                // otherwise the levels in zlevels_stag are
-                const bool use_zlevels = (SolverChoice::mesh_type != MeshType::ConstantDz);
-                const Real zlo = use_zlevels ? zlevels_stag[lev].front() : prob_lo[2];
-                const Real zhi = use_zlevels ? zlevels_stag[lev].back()  : prob_hi[2];
-
+                // Each line is the full-depth column through (x,y), so z is not used
                 for (int i = 0; i < num_samplelines; i++) {
                     Real xloc = location[AMREX_SPACEDIM*i+0];
                     Real yloc = location[AMREX_SPACEDIM*i+1];
-                    Real zloc = location[AMREX_SPACEDIM*i+2];
 
                     if (xloc < prob_lo[0] || xloc > prob_hi[0] ||
-                        yloc < prob_lo[1] || yloc > prob_hi[1] ||
-                        zloc < zlo        || zloc > zhi) {
-                        Abort("erf.sample_line_real must lie within the level-0 domain");
+                        yloc < prob_lo[1] || yloc > prob_hi[1]) {
+                        Abort("erf.sample_line_real must lie within the level-0 domain in x and y");
                     }
 
                     int i_cell = domain.smallEnd(0) + static_cast<int>(std::floor((xloc - prob_lo[0]) / dx[0]));
                     int j_cell = domain.smallEnd(1) + static_cast<int>(std::floor((yloc - prob_lo[1]) / dx[1]));
-                    int k_cell = (use_zlevels)
-                        ? domain.smallEnd(2) + static_cast<int>(std::upper_bound(zlevels_stag[lev].begin(),
-                                                                                 zlevels_stag[lev].end(), zloc)
-                                                                - zlevels_stag[lev].begin()) - 1
-                        : domain.smallEnd(2) + static_cast<int>(std::floor((zloc - prob_lo[2]) / dx[2]));
 
                     i_cell = std::min(i_cell, domain.bigEnd(0));
                     j_cell = std::min(j_cell, domain.bigEnd(1));
-                    k_cell = std::min(k_cell, domain.bigEnd(2));
 
-                    sampleline[i] = IntVect(i_cell, j_cell, k_cell);
+                    sampleline[i] = IntVect(i_cell, j_cell, domain.smallEnd(2));
                 }
             }
         }
@@ -2476,13 +2459,12 @@ ERF::InitData_post ()
         int num_samplelinelogs = pp.countval("sample_line_log");
         AMREX_ALWAYS_ASSERT(num_samplelinelogs == num_samplelines);
         if (num_samplelinelogs > 0) {
-            samplelinelog.resize(num_samplelinelogs);
-            samplelinelogname.resize(num_samplelinelogs);
+            Vector<std::string> samplelinelogname(num_samplelinelogs);
             pp.queryarr("sample_line_log",samplelinelogname,0,num_samplelinelogs);
 
-            for (int i = 0; i < num_samplelinelogs; i++) {
-                setRecordSampleLineInfo(i,samplelinelogname[i]);
-            }
+            // Each line is the full-depth column through its cell on level 0
+            sample_line_sampler = std::make_unique<LineSampler>(sampleline, samplelinelogname,
+                                                                geom[lev].Domain());
         }
 
     }
@@ -2501,7 +2483,8 @@ ERF::InitData_post ()
             Abort("Need to specify line_sampling_interval or line_sampling_per");
         }
         line_sampler = std::make_unique<LineSampler>();
-        line_sampler->write_coords(z_phys_cc, geom);
+        line_sampler->write_coords(z_phys_cc, z_phys_nd, geom,
+                                   line_sampler->needs_ground() ? &station_ground(0) : nullptr);
     }
     if (do_plane) {
         if (plane_sampling_interval < 0 && plane_sampling_per < 0) {
@@ -2560,6 +2543,10 @@ ERF::InitData_post ()
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
         }
     }
+
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    sbm_qualification_record_initial_inventory();
+#endif
 }
 
 //

@@ -373,9 +373,13 @@ void ReadBndryPlanes::read_input_files (double time,
     BL_PROFILE("ERF::ReadBndryPlanes::read_input_files");
 
     // Assert that both the current time and the next time are within the bounds
-    // of the data that we can read
-    AMREX_ALWAYS_ASSERT((m_in_times[0] <= time) && (time <= m_in_times.back()));
-    AMREX_ALWAYS_ASSERT((m_in_times[0] <= time+dt) && (time+dt <= m_in_times.back()));
+    // of the data that we can read.  A run that stops at the last plane time can end a few
+    // ULP past it, since its time and the plane times are summed from steps separately;
+    // tolerate that drift as interp_in_time does, which then clamps into the data.
+    const int n_intervals = std::max(static_cast<int>(m_in_times.size()) - 1, 1);
+    const double eps = 1.0e-8 * (m_in_times.back() - m_in_times[0]) / n_intervals;
+    AMREX_ALWAYS_ASSERT((m_in_times[0] - eps <= time) && (time <= m_in_times.back() + eps));
+    AMREX_ALWAYS_ASSERT((m_in_times[0] - eps <= time+dt) && (time+dt <= m_in_times.back() + eps));
 
     int ncomp = 1;
 
@@ -428,8 +432,8 @@ void ReadBndryPlanes::read_input_files (double time,
         last_file_read = new_read;
     }
 
-    AMREX_ASSERT(time    >= m_tn && time    <= m_tnp2);
-    AMREX_ASSERT(time+dt >= m_tn && time+dt <= m_tnp2);
+    AMREX_ASSERT(time    >= m_tn - eps && time    <= m_tnp2 + eps);
+    AMREX_ASSERT(time+dt >= m_tn - eps && time+dt <= m_tnp2 + eps);
 }
 
 /**

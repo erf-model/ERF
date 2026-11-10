@@ -918,7 +918,7 @@ List of Parameters
 | **erf.timestepping_type**            | time integrator at each AMR level (per-level).  At a     | RK3_Implicit-      | RK3_Implicit-     |
 |                                      | FullyCompressible level: ``RK3_ImplicitSubstep`` is the  | Substep,           | Substep at a      |
 |                                      | three-stage RK3 with implicit acoustic substepping and   | RK3_NoSubstepping, | FullyCompressible |
-|                                      | ``RK3_NoSubstepping`` the three-stage SSP-RK3 with no    | RK2, MidPoint      | level, RK2        |
+|                                      | ``RK3_NoSubstepping`` the three-stage SSP-RK3 with no    | RK2, MidPoint      | level, MidPoint   |
 |                                      | acoustic substepping.  At an Anelastic or                |                    | otherwise         |
 |                                      | PseudoIncompressible level (never any acoustic           |                    |                   |
 |                                      | substepping): ``RK2`` is SSP (Heun): both stages advance |                    |                   |
@@ -1036,7 +1036,7 @@ Notes
 -----------------
 
 -  | **erf.timestepping_type** must be RK3_ImplicitSubstep or RK3_NoSubstepping at a FullyCompressible level and
-     RK2 or MidPoint at any other level; if it is not given, each level gets RK3_ImplicitSubstep or RK2 accordingly.
+     RK2 or MidPoint at any other level; if it is not given, each level gets RK3_ImplicitSubstep or MidPoint accordingly.
 
 -  | The implicit vertical diffusion is only second-order in time in an anelastic run when the two
      stages are the **midpoint method** and the tridiagonal solve is done in the first stage alone.
@@ -1709,14 +1709,34 @@ users must prescribe either ``sample_line_lo`` and ``sample_line_hi`` inputs, wh
 3 integer values corresponding to the (i,j,k) indices at the beginning and end of the line,
 or ``sample_line_lo_real`` and ``sample_line_hi_real``, which are 3 real values corresponding
 to the physical locations of the beginning and end of the line. These two ways of specifying
-the line are mutually exclusive. Additionally, users must specify ``sample_line_dir`` to
+the line are mutually exclusive. The indices of ``sample_line_lo`` and ``sample_line_hi`` are
+those of level 0, and these lines are sampled on level 0 even when there are finer levels; a line
+given by ``sample_line_lo_real`` and ``sample_line_hi_real`` is sampled on the finest level that
+holds the entire line. Additionally, users must specify ``sample_line_dir`` to
 prescribed the direction of the line. The same inputs are used for the plane sampling except
 that ``sample_plane_lo/hi``
-must be the physical locations of the plane corners. This output functionality has
-not been implemented for terrain. By default, sampled line and plane data will have the
+must be the physical locations of the plane corners. By default, sampled line and plane data will have the
 prefixes "plt_line" and "plt_plane", respectively. Names for sampled data may optionally
 be provided with ``sample_line_name`` and/or ``sample_plane_name`` -- if provided, each
 line and/or plane must be named.
+
+A line runs along one direction, ``sample_line_dir``: its two ends must agree in the other two
+directions, and its lo end may not be above its hi end; ERF aborts otherwise. Lines given by
+``sample_line_lo_real`` and ``sample_line_hi_real`` are not supported with moving terrain
+(``erf.terrain_type = MovingFittedMesh``); lines given by indices are.
+
+On a stretched or terrain-fitted mesh, the cells of a line given by ``sample_line_lo_real`` and
+``sample_line_hi_real`` come from the heights of the column through its first point. A vertical
+line (``sample_line_dir = 2``) runs from the cell that holds the lower z to the cell that holds the
+upper z, each clamped to the column. A horizontal line is the row of cells at the level of cells
+that holds z in that column, so it follows the terrain-fitted mesh rather than a constant height.
+The line is sampled on the finest level that holds these cells. The z values are heights above sea
+level, or above the ground under the first point of the line if ``erf.sample_line_z_agl = true``.
+With immersed terrain (``erf.terrain_type = ImmersedForcing`` or ``EB``) the ground is the
+terrain surface, as for stations, rather than the bottom of the flat mesh. On these meshes the
+variable ``z``, the height of each sample, is always written with the line, since the z
+coordinates of a line plotfile assume equally spaced levels; it may be requested on any mesh.
+Plane sampling has not been implemented for terrain.
 
 Plane samples are written as true multi-level AMReX plotfiles: every refinement level
 whose grids intersect the plane is written (``Level_0``, ``Level_1``, ...), so a plane
@@ -1737,8 +1757,12 @@ The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
 ``density``, ``x_velocity``, ``y_velocity``, ``z_velocity``, ``magvel``,
 ``theta``, ``qv``, ``qc``, and ``pressure``. Line sampling additionally supports
-``sgs_tke``, ``sgs_tau13``, ``sgs_tau23``, and ``sgs_hfx3``. The SGS stress and
-heat-flux values are averaged from their native edge/face locations to cell
+``conserved``, ``z``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
+``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. ``conserved`` writes every component of the
+conserved state as stored, named ``cons_0``, ``cons_1``, ... in component order (density,
+rho theta, ...). The variables are written in a fixed order, not the order they are listed in.
+The SGS stresses ``sgs_tau11``, ``sgs_tau22`` and ``sgs_tau33`` are stored at cell centers; the
+other stresses and the heat flux are averaged from their native edge/face locations to cell
 centers; if their diffusion storage is unavailable, ERF writes zero. Velocities
 are output at cell centers only. The water vapor mixing ratio ``qv`` will only
 output valid values if a moisture model is used. Pressure is calculated from
@@ -1777,6 +1801,9 @@ List of Parameters
 | **erf.sample_line_lo_real**,       | Bounding point on the line(s)                            | 3 Reals per line   | None             |
 | **erf.sample_line_hi_real**        |                                                          |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_z_agl**          | z of the real bounding points of the lines is the height | Boolean            | false            |
+|                                    | above the ground instead of above sea level              |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_plane_lo/hi**         | Bounding point on the plane(s)                           | 3 Reals per plane  | None             |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_line_name**           | Output prefix of each line                               | One string per     | None             |
@@ -1812,6 +1839,16 @@ List of Parameters
 | **erf.sample_line_log**            | log-file name for each sampled line; exactly one name    | List of Strings    | None             |
 |                                    | per line is required                                     |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+``erf.sample_line`` and ``erf.sample_line_real`` are a shorthand for line sampling. Each line is
+the full-depth vertical column through the given cell or point on level 0 (its k or z is not
+used, and only x and y must lie in the domain), sampled with the line-sampling machinery above with the variables
+``conserved``, ``x_velocity``, ``y_velocity``, ``z_velocity`` and ``sgs_tau11`` ...
+``sgs_tau33``. Each line is written to its own log at the cadence of the other logs
+(``erf.sum_interval`` or ``erf.sum_per``), one row per sample: the time, then each variable over
+the column from bottom to top, in that order. The stresses are at cell centers, as for line
+sampling; before this used the line sampler, ``tau12``, ``tau13`` and ``tau23`` were written at the
+lower corner edge of each cell instead.
 
 .. _examples-of-usage-10b:
 
@@ -2546,7 +2583,7 @@ List of Parameters
 |                                          | HGAMQ, HGAMU, HGAMV); false gives strict HND06 mixing    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.enable_ysu_entrainment**           | YSUNew only: add the entrainment diffusivity at the      | Boolean            | true             |
-|                                          | first cell above the PBL top (HND06 Eq. 6)               |                    |                  |
+|                                          | first cell above the PBL top (HND06 A9-A13)              |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.ysu_moistvars**                    | YSUNew only: give moisture its own diffusivity, from the | Boolean            | false            |
 |                                          | moisture Prandtl number, and add the entrainment term to |                    |                  |

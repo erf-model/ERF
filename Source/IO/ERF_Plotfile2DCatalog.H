@@ -111,6 +111,7 @@ enum class DiagnosticCategory
     Precipitation,
     ColumnIntegral,
     LandSurface,
+    NearSurface,
     SampledLevel
 };
 

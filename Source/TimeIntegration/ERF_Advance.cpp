@@ -2,6 +2,7 @@
 #include "ERF_Constants.H"
 #include <ERF_Utils.H>
 #include "Microphysics/SBM/ERF_SBMStateManager.H"
+#include "Microphysics/SBM/ERF_SBMTransport.H"
 
 #ifdef ERF_USE_WINDFARM
 #include <ERF_WindFarm.H>
@@ -28,8 +29,16 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
     if (sbm_state_manager) {
         std::string diagnostic;
-        if (!sbm_state_manager->begin_step(lev, time, diagnostic)) {
+        const bool began = lev > 0
+            ? sbm_state_manager->begin_step(lev, time, diagnostic, dt_lev)
+            : sbm_state_manager->begin_step(lev, time, diagnostic);
+        if (!began) {
             Abort("SBM state lifecycle at ERF::Advance: " + diagnostic);
+        }
+        if (!sbm_transport ||
+            !sbm_transport->begin_physical_step(lev, time, time + dt_lev,
+                                                diagnostic)) {
+            Abort("SBM AMR register step lifecycle at ERF::Advance: " + diagnostic);
         }
     }
 
@@ -196,6 +205,12 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // **************************************************************************************
     if (m_structure_model && lev == m_structure_model->level(finest_level)) {
         advance_structure_model(lev, time, static_cast<Real>(dt_lev), U_old, V_old, W_old, S_old);
+    }
+
+    // On a coarser level, the model's latest source restricted onto this level, held over the
+    // step, so that the air under the finer level feels the force while this level steps
+    if (m_structure_model && lev < m_structure_model->level(finest_level)) {
+        make_structure_coarse_sources(lev);
     }
 #endif
 
@@ -508,6 +523,15 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // ***********************************************************************************************
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
+    }
+
+    // A periodic face velocity is stored twice, at both ends of the domain; make the two copies equal
+    if (solverChoice.face_sync_int > 0 && (istep[lev] % solverChoice.face_sync_int == 0)
+        && geom[lev].isAnyPeriodic())
+    {
+        U_new.OverrideSync(geom[lev].periodicity());
+        V_new.OverrideSync(geom[lev].periodicity());
+        W_new.OverrideSync(geom[lev].periodicity());
     }
 
 #ifdef ERF_USE_FIRE

@@ -8,6 +8,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_RealBox.H>
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -42,7 +43,10 @@
  * - support() right after each advance(): when a finer level than level() exists,
  *   ERF stops the run if that level's boxes overlap the support (the force would
  *   be lost there, see level());
- * - add_momentum_sources() at every Runge-Kutta stage of level();
+ * - add_momentum_sources() at every Runge-Kutta stage of level(), and, with
+ *   erf.coupling_type = TwoWay, once at the start of each step of every coarser
+ *   level, into zeroed MultiFabs on the grids of level(), which ERF restricts
+ *   onto that level (see add_momentum_sources());
  * - write_checkpoint() each time ERF writes a checkpoint;
  * - plot_var_names() each time ERF builds its plotfile variable list, and
  *   fill_plot_var() for each listed name on every level of each plotfile.
@@ -77,6 +81,39 @@ struct StructureInit
 };
 
 /**
+ * @brief What a structure model may read from the fire, when the run has one
+ *
+ * The fire engine's fields (the getters of ERF_FireEngine.H) on the fire grid: a
+ * horizontal grid, one cell in z, that refines one atmospheric level
+ * (erf.fire.anchor_level). That level need not be the one the model couples to.
+ * Fire cell (i, j) has its centre at geom.ProbLo() + ((i + 1/2) dx, (j + 1/2) dy),
+ * in the coordinates of the model's own points.
+ *
+ * The fields are the engine's state at time: the time ERF assigns to the fire's
+ * level at the end of the fire's last step, or the time ERF started or restarted
+ * from before that step. The fire steps after the dycore of its own level. A
+ * model on the fire's level or a coarser one therefore sees the fire at its own
+ * step's time, exactly; a model
+ * on a finer level sees it up to one step of the fire's level ahead of its own
+ * step. On a restart, until the fire's first step, they are what the engine
+ * restored from the checkpoint (an engine that does not restore a field holds
+ * its initial value there). Each field is spread over the ranks as the fire grid is: a model that
+ * needs the fire at its own points reduces over the ranks itself (every rank
+ * calls advance()). Like the flow fields, they are temporaries of the call.
+ */
+struct StructureFire
+{
+    const amrex::Geometry& geom;          ///< Geometry of the fire grid [m] (one cell in z)
+    int                    lev;           ///< The atmospheric level the fire grid refines
+    double                 time;          ///< The time the fields belong to [s] (see above)
+    const amrex::MultiFab* heat_release;  ///< Heat released [W/m2] on the fire grid (FireEngine::heat_release); nullptr if the engine has none
+    const amrex::MultiFab* level_set;     ///< Level set on the fire grid, negative where burned (FireEngine::level_set); nullptr if the engine has none
+    /// Area burned so far [m2] (FireEngine::burned_area), negative when the engine does not
+    /// track it. It may reduce over the ranks: every rank calls it, or none.
+    std::function<amrex::Real()> burned_area;
+};
+
+/**
  * @brief The flow a structure model reads at the start of each step of its level
  *
  * The state at the start of the step, before its Runge-Kutta stages, on level lev
@@ -97,6 +134,7 @@ struct StructureStep
     const amrex::MultiFab* z_phys_nd;  ///< Nodal height [m]; nullptr on a uniform-dz mesh, as in StructureInit
     const amrex::MultiFab* detJ_cc;    ///< Cell Jacobian; nullptr on a uniform-dz mesh, as in StructureInit
     bool                   unit_map_factors; ///< Every map factor of level lev is 1 now (checked each step, so also after a regrid)
+    const StructureFire*   fire;       ///< The fire (see StructureFire) when the run has one; nullptr otherwise
 };
 
 /**
@@ -113,14 +151,16 @@ public:
     /**
      * @brief The level the model couples to
      *
-     * ERF calls advance() and add_momentum_sources() on this level only.
+     * ERF calls advance() on this level only, and add_momentum_sources() for
+     * this level only (see add_momentum_sources() for the coarser levels).
      * Aborts, naming the model's input, when the model cannot couple to a level
      * of this run (for example a level above finest_level).
      *
      * The level must be the finest level that covers the model's support. On a
      * refined level the model's points and their kernels must lie inside the
      * level's boxes, also after a regrid (erf_actuator::points_covered_by checks
-     * it). The force reaches the coarser levels only through ERF's averaging down.
+     * it). The force reaches the coarser levels through ERF's averaging down and,
+     * with TwoWay coupling, as a source restricted from this level.
      * It never reaches a finer level: averaging down would overwrite the forced
      * cells with that level's unforced data, so ERF stops the run when a finer
      * level's boxes overlap support().
@@ -168,6 +208,17 @@ public:
      * held fixed over the step. Called at every Runge-Kutta stage, after ERF's
      * own sources. ERF applies no mask to them: the model keeps its kernels clear
      * of embedded boundaries, immersed terrain and buildings.
+     *
+     * With erf.coupling_type = TwoWay, ERF also calls it at the start of each step
+     * of every coarser level, with lev = level() and zeroed MultiFabs on the grids
+     * of level() as of the last advance() (they may have ghost faces, which the
+     * model leaves alone). It adds the source of its last advance(), as at a
+     * stage. ERF restricts that source onto the coarser level, keeping its
+     * integral, and holds it over that level's step: the air under the finer
+     * level then feels the force while the coarser level steps, and the coarse/fine
+     * faces, which the finer level takes from the coarser one, get the force once.
+     * Before the first advance() and after a regrid of level(), until the next
+     * advance(), ERF does not call it for the coarser levels.
      */
     virtual void add_momentum_sources (int lev,
                                        amrex::MultiFab& xmom_src,

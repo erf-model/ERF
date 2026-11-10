@@ -151,15 +151,26 @@ DistributionMapping shifted_mapping (const BoxArray& boxes, const int offset)
     return DistributionMapping(std::move(owners));
 }
 
-void fill_carriers (MultiFab& density, MultiFab& measure)
+void fill_carriers (MultiFab& density, MultiFab& measure,
+                    const int parent_ratio = 1)
 {
     for (amrex::MFIter mfi(density, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box box = mfi.tilebox();
         const auto rho = density.array(mfi);
         const auto omega = measure.array(mfi);
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            rho(i, j, k, 0) = density_value(i, j, k);
-            omega(i, j, k, 0) = measure_value(i, j, k);
+            const Real fine_rho = density_value(i, j, k);
+            rho(i, j, k, 0) = fine_rho;
+            if (parent_ratio > 1) {
+                const int ci = i / parent_ratio;
+                const int cj = j / parent_ratio;
+                const int ck = k / parent_ratio;
+                omega(i, j, k, 0) =
+                    measure_value(ci, cj, ck) * density_value(ci, cj, ck) /
+                    fine_rho;
+            } else {
+                omega(i, j, k, 0) = measure_value(i, j, k);
+            }
         });
     }
 }
@@ -242,6 +253,32 @@ set_owned_box_values (MultiFab& field,
     }
 }
 
+void
+set_owned_box_overflow_carriers (MultiFab& density, MultiFab& measure,
+                                 const DistributionMapping& mapping,
+                                 const int owner, const int parent_ratio)
+{
+    for (amrex::MFIter mfi(density, amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        if (mapping[mfi.index()] != owner) {
+            continue;
+        }
+        const Box box = mfi.tilebox();
+        const auto rho = density.array(mfi);
+        const auto omega = measure.array(mfi);
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const int ci = i / parent_ratio;
+            const int cj = j / parent_ratio;
+            const int ck = k / parent_ratio;
+            const Real parent_carrier =
+                measure_value(ci, cj, ck) * density_value(ci, cj, ck);
+            const Real large_density = Real(1.0e307);
+            rho(i, j, k, 0) = large_density;
+            omega(i, j, k, 0) = parent_carrier / large_density;
+        });
+    }
+}
+
 bool globally_admissible (const MultiFab& state,
                           const erf_sbm::SBMLayout& layout)
 {
@@ -300,7 +337,7 @@ std::vector<Real> run_transfer_decomposition (const int coarse_max_size,
     MultiFab fine_density(fine_boxes, fine_mapping, 1, 0);
     MultiFab fine_measure(fine_boxes, fine_mapping, 1, 0);
     fill_carriers(coarse_density, coarse_measure);
-    fill_carriers(fine_density, fine_measure);
+    fill_carriers(fine_density, fine_measure, 2);
     MultiFab coarse_state(coarse_boxes, coarse_mapping, layout.ncomp(), 0);
     MultiFab fine_state(fine_boxes, fine_mapping, layout.ncomp(), 0);
     MultiFab fine_target_state(fine_boxes, fine_mapping, layout.ncomp(), 0);
@@ -418,7 +455,7 @@ run_empty_ranks_accept_reference_transfers ()
     MultiFab fine_density(fine_boxes, fine_mapping, 1, 0);
     MultiFab fine_measure(fine_boxes, fine_mapping, 1, 0);
     fill_carriers(coarse_density, coarse_measure);
-    fill_carriers(fine_density, fine_measure);
+    fill_carriers(fine_density, fine_measure, 2);
     MultiFab coarse_state(coarse_boxes, coarse_mapping, ncomp, 0);
     MultiFab fine_state(fine_boxes, fine_mapping, ncomp, 0);
     MultiFab fine_target_state(fine_boxes, fine_mapping, ncomp, 0);
@@ -455,7 +492,14 @@ run_empty_ranks_accept_reference_transfers ()
                             const Real u =
                                 density_value(fi, fj, fk) *
                                 base_component(component, fi, fj, fk, offsets);
-                            mapped_sum += measure_value(fi, fj, fk) * u;
+                            // The fine carrier varies within the parent, while
+                            // omega_f compensates so average_down(omega*rho)
+                            // exactly matches the coarse mapped carrier.
+                            const Real fine_omega =
+                                measure_value(i, j, k) *
+                                density_value(i, j, k) /
+                                density_value(fi, fj, fk);
+                            mapped_sum += fine_omega * u;
                         }
                     }
                 }
@@ -515,7 +559,7 @@ run_rank_local_late_restriction_failure_is_atomic ()
     MultiFab fine_density(split_fine, fine_mapping, 1, 0);
     MultiFab fine_measure(split_fine, fine_mapping, 1, 0);
     fill_carriers(coarse_density, coarse_measure);
-    fill_carriers(fine_density, fine_measure);
+    fill_carriers(fine_density, fine_measure, 2);
     MultiFab coarse_state(split_coarse, coarse_mapping, layout.ncomp(), 0);
     MultiFab fine_state(split_fine, fine_mapping, layout.ncomp(), 0);
     fill_spectrum(coarse_state, coarse_density, layout);
@@ -598,14 +642,14 @@ run_rank_local_late_prolongation_failure_is_atomic ()
     MultiFab fine_density(split_fine, fine_mapping, 1, 0);
     MultiFab fine_measure(split_fine, fine_mapping, 1, 0);
     fill_carriers(coarse_density, coarse_measure);
-    fill_carriers(fine_density, fine_measure);
+    fill_carriers(fine_density, fine_measure, 2);
     MultiFab coarse_state(split_coarse, coarse_mapping, layout.ncomp(), 0);
     MultiFab fine_target_state(split_fine, fine_mapping, layout.ncomp(), 0);
     fill_spectrum(coarse_state, coarse_density, layout);
     coarse_state.mult(Real(100.0), 0, layout.ncomp(), 0);
     fine_target_state.setVal(Real(0.0));
-    set_owned_box_values(fine_density, fine_mapping, 1,
-                         std::numeric_limits<Real>::max());
+    set_owned_box_overflow_carriers(fine_density, fine_measure,
+                                    fine_mapping, 1, 2);
 
     MultiFab candidate(split_fine, fine_mapping, layout.ncomp(), 0);
     candidate.setVal(Real(-321.0));
@@ -636,7 +680,7 @@ run_rank_local_late_prolongation_failure_is_atomic ()
         IntVect(2), 1, candidate, diagnostic);
     EXPECT_FALSE(accepted) << diagnostic;
     if (amrex::ParallelDescriptor::MyProc() == 1) {
-        EXPECT_NE(diagnostic.find("reconstructing U=rho_d*z"),
+        EXPECT_NE(diagnostic.find("overflowed or underflowed"),
                   std::string::npos)
             << diagnostic;
     } else {
@@ -651,7 +695,7 @@ run_rank_local_late_prolongation_failure_is_atomic ()
     expect_same_values(fine_density, fine_density_before);
     expect_same_values(fine_measure, fine_measure_before);
 
-    fill_carriers(fine_density, fine_measure);
+    fill_carriers(fine_density, fine_measure, 2);
     ASSERT_TRUE(erf_sbm::ProlongCarrierRelativeSpectrum(
         layout, coarse_view, fine_view, coarse_geometry, fine_geometry,
         IntVect(2), 1, candidate, diagnostic))
@@ -717,7 +761,7 @@ TEST(SBMAMRTransferParallel,
     MultiFab fine_density(fine_boxes, fine_mapping, 1, 0);
     MultiFab fine_measure(fine_boxes, fine_mapping, 1, 0);
     fill_carriers(coarse_density, coarse_measure);
-    fill_carriers(fine_density, fine_measure);
+    fill_carriers(fine_density, fine_measure, 2);
     MultiFab coarse_state(coarse_boxes, coarse_mapping, layout.ncomp(), 0);
     MultiFab fine_state(fine_boxes, fine_mapping, layout.ncomp(), 0);
     MultiFab fine_target_state(fine_boxes, fine_mapping, layout.ncomp(), 0);
@@ -789,7 +833,7 @@ void run_rank_local_invalid_spectrum_fails_collectively ()
     MultiFab fine_density(fine_boxes, fine_mapping, 1, 0);
     MultiFab fine_measure(fine_boxes, fine_mapping, 1, 0);
     fill_carriers(coarse_density, coarse_measure);
-    fill_carriers(fine_density, fine_measure);
+    fill_carriers(fine_density, fine_measure, 2);
     MultiFab coarse_state(coarse_boxes, coarse_mapping, layout.ncomp(), 0);
     MultiFab fine_state(fine_boxes, fine_mapping, layout.ncomp(), 0);
     fill_spectrum(coarse_state, coarse_density, layout);

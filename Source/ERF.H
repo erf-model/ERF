@@ -2,9 +2,11 @@
 #define ERF_H_
 
 #include <string>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <set>
+#include <vector>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -114,7 +116,11 @@ class MultiBlockContainer;
 // Describes one component of a 2D plotfile; defined in
 // IO/ERF_Plotfile2DSampledLevel.H, which ERF.H does not need to include.
 namespace plotfile2d { struct Plotfile2DOutputDescriptor; }
-namespace erf_sbm { class SBMStateManager; class SBMTransport; }
+namespace erf_sbm {
+class SBMAMRFluxRegister;
+class SBMStateManager;
+class SBMTransport;
+}
 
 /**
  * Main class in ERF code, instantiated from main.cpp
@@ -594,6 +600,17 @@ public:
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, double dt_lev);
 
+    // Defined only in ERF_SBM_AMR_QUALIFICATION builds
+    // (Microphysics/SBM/ERF_SBMAMRQualification.cpp); public because they
+    // launch device lambdas.
+    void sbm_qualification_apply_initial_profile (int lev);
+    void sbm_qualification_record_initial_inventory ();
+    void sbm_qualification_check_step (int nstep, amrex::Real correction_linf,
+                                       std::uint64_t reflux_calls,
+                                       std::uint64_t reflux_syncs);
+    [[nodiscard]] std::vector<amrex::Real>
+    sbm_qualification_composite_inventory () const;
+
     // Do whatever writing needs to be done at intermediate times
     void WriteAtIntermediateTime (int nstep, double time);
 
@@ -617,7 +634,8 @@ public:
     void FillBdyCCVels (amrex::MultiFab& mf_cc_vel, amrex::Geometry& lev_geom);
 
     void sample_points (int ifile, int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
-    void sample_lines (int ifile, int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
+    // Sample and write the lines of sampler, with the stresses and heat flux of each level
+    void run_line_sampler (LineSampler& sampler);
 
     void derive_diag_profiles (double time,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
@@ -1213,6 +1231,14 @@ private:
 
     void make_flux_register (int lev);
 
+    // SBM coarse/fine coupling (Microphysics/SBM/ERF_SBMAMRCoupling.cpp)
+    void make_sbm_flux_register (int lev);
+    void bind_sbm_amr_flux_registers (int lev);
+    void init_sbm_level_from_coarse (int lev, amrex::Real time,
+                                     const amrex::BoxArray& ba,
+                                     const amrex::DistributionMapping& dm);
+    void sbm_synchronize_levels (int nstep);
+
     void Construct_ERFFillPatchers (int lev);
 
     void Define_ERFFillPatchers (int lev);
@@ -1534,6 +1560,10 @@ private:
 
     std::unique_ptr<Microphysics> micro;
     std::unique_ptr<erf_sbm::SBMStateManager> sbm_state_manager;
+    // Declared before SBMTransport so the non-owning interface references in
+    // transport are destroyed before these register owners.
+    amrex::Vector<std::unique_ptr<erf_sbm::SBMAMRFluxRegister>> sbm_amr_flux_regs;
+    std::vector<amrex::Real> sbm_qualification_initial_inventory;
     // Declared after the state manager so its non-owning layout reference is
     // destroyed before the authoritative SBM owner.
     std::unique_ptr<erf_sbm::SBMTransport> sbm_transport;
@@ -2281,6 +2311,16 @@ private:
 
     /// Whether every map factor of level lev is 1 (the actuator core assumes so); a collective
     bool structure_unit_map_factors (int lev) const;
+
+    /// Restrict the structure model's latest source onto level lev < level(), for lev's next step
+    void make_structure_coarse_sources (int lev);
+
+    /// The structure model's source restricted onto a coarser level (x, y, z faces); undefined when unset
+    amrex::Vector<std::array<amrex::MultiFab,AMREX_SPACEDIM>> m_structure_crse_src;
+
+    /// The grids of the model's level at its last advance(): the source add_momentum_sources() returns lives there
+    amrex::BoxArray            m_structure_src_ba;
+    amrex::DistributionMapping m_structure_src_dm;
 #endif
 
     //
@@ -2429,20 +2469,6 @@ private:
         return static_cast<int>(sampleptlog.size());
     }
 
-    AMREX_FORCE_INLINE
-    std::ostream&
-    SampleLineLog (int i)
-    {
-        return *samplelinelog[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSampleLineLogs () noexcept
-    {
-        return static_cast<int>(samplelinelog.size());
-    }
-
     amrex::IntVect&
     SamplePoint (int i)
     {
@@ -2454,19 +2480,6 @@ private:
     NumSamplePoints () noexcept
     {
         return static_cast<int>(samplepoint.size());
-    }
-
-    amrex::IntVect&
-    SampleLine (int i)
-    {
-        return sampleline[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSampleLines () noexcept
-    {
-        return static_cast<int>(sampleline.size());
     }
 
     static double startCPUTime;
@@ -2543,27 +2556,15 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
     }
 
-    // The line can span boxes on several ranks; sample_lines gathers it onto
-    // the IO processor, so only that rank opens the log
-    void setRecordSampleLineInfo (int i, const std::string& filename) // NOLINT
-    {
-        if (amrex::ParallelDescriptor::IOProcessor())
-        {
-            samplelinelog[i] = std::make_unique<std::fstream>();
-            samplelinelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
-            if (!samplelinelog[i]->good()) {
-                amrex::FileOpenFailed(filename);
-            }
-        }
-        amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleLineInfo");
-    }
-
     // Data sampler for line and plane output
     int line_sampling_interval = -1;
     int plane_sampling_interval = -1;
     amrex::Real line_sampling_per = -one;
     amrex::Real plane_sampling_per = -one;
     std::unique_ptr<LineSampler> line_sampler = nullptr;
+    // erf.sample_line / erf.sample_line_real: full-depth columns on level 0, written to logs
+    // at the cadence of the other logs (erf.sum_interval / erf.sum_per)
+    std::unique_ptr<LineSampler> sample_line_sampler = nullptr;
     std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 
     // Station time-series output
@@ -2592,19 +2593,12 @@ private:
     amrex::Vector<std::string> sampleptlogname;
     amrex::Vector<amrex::IntVect> samplepoint;
 
-    amrex::Vector<std::unique_ptr<std::fstream> > samplelinelog;
-    amrex::Vector<std::string> samplelinelogname;
-    amrex::Vector<amrex::IntVect> sampleline;
-
     //! The filename of the ith datalog file.
     [[nodiscard]] std::string DataLogName (int i) const noexcept { return datalogname[i]; }
     [[nodiscard]] std::string DerDataLogName (int i) const noexcept { return der_datalogname[i]; }
 
     //! The filename of the ith sampleptlog file.
     [[nodiscard]] std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
-
-    //! The filename of the ith samplelinelog file.
-    [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;
@@ -2658,6 +2652,8 @@ public:
                        int artifact_step,
                        double artifact_time_seconds) const;
     static void writeBuildInfo (std::ostream& os);
+    static void writeBuildInfoJSON (std::ostream& os);
+    static void writeBuildInfoYAML (std::ostream& os);
 
     static void print_banner (MPI_Comm /*comm*/, std::ostream& /*out*/);
     static void print_usage (MPI_Comm /*comm*/, std::ostream& /*out*/);

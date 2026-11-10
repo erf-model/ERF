@@ -774,6 +774,32 @@ struct SolverChoice {
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
 
+#ifdef ERF_SBM_AMR_QUALIFICATION
+        pp.queryAdd("sbm_amr_qualification_test", sbm_amr_qualification_test);
+        pp.queryAdd("sbm_amr_qualification_expect_zero_flow",
+                    sbm_amr_qualification_expect_zero_flow);
+        pp.queryAdd("sbm_amr_qualification_expect_split",
+                    sbm_amr_qualification_expect_split);
+        pp.queryAdd("sbm_amr_qualification_expect_empty_fine_rank",
+                    sbm_amr_qualification_expect_empty_fine_rank);
+        pp.queryAdd("sbm_amr_qualification_unique_profile",
+                    sbm_amr_qualification_unique_profile);
+        pp.queryAdd("sbm_amr_qualification_parent_store_fault",
+                    sbm_amr_qualification_parent_store_fault);
+#else
+        for (const char* name : {"sbm_amr_qualification_test",
+                                 "sbm_amr_qualification_expect_zero_flow",
+                                 "sbm_amr_qualification_expect_split",
+                                 "sbm_amr_qualification_expect_empty_fine_rank",
+                                 "sbm_amr_qualification_unique_profile",
+                                 "sbm_amr_qualification_parent_store_fault"}) {
+            if (pp.contains(name)) {
+                amrex::Error(std::string("erf.") + name + " is available only in "
+                             "the isolated ERF_ENABLE_SBM_AMR_QUALIFICATION build");
+            }
+        }
+#endif
+
         // Test-only SBM failure injections. They remain disabled unless an
         // integration test explicitly enables the corresponding option.
         pp.queryAdd("sbm_test_native_qc_write_fault", sbm_test_native_qc_write_fault);
@@ -839,7 +865,12 @@ struct SolverChoice {
             if (sbm_cloud_rain_split <= 0 || sbm_cloud_rain_split >= sbm_nbins) {
                 amrex::Error("sbm_cloud_rain_split must be strictly inside the liquid bin range");
             }
-            const int expected_sbm_components = sbm_nbins * (sbm_moment_mode == 2 ? 2 : 1);
+            int expected_sbm_components = sbm_nbins * (sbm_moment_mode == 2 ? 2 : 1);
+#ifdef ERF_SBM_AMR_QUALIFICATION
+            if (sbm_amr_qualification_test && sbm_moment_mode == 2) {
+                expected_sbm_components += sbm_nbins;
+            }
+#endif
             if (!sbm_fixture_initial_state.empty() &&
                 sbm_fixture_initial_state.size() != static_cast<amrex::Long>(expected_sbm_components)) {
                 amrex::Error("sbm_fixture_initial_state must match the full runtime SBM component count");
@@ -1172,12 +1203,12 @@ struct SolverChoice {
         // *******************************************************************************
         // Read timestepping_type and allow for different values at each level.  The default
         // depends on the level's compressibility: RK3_ImplicitSubstep at a FullyCompressible
-        // level, RK2 otherwise.
+        // level, MidPoint otherwise.
         // *******************************************************************************
         timestepping_type.resize(max_level+1);
         for (int i = 0; i <= max_level; i++) {
             timestepping_type[i] = (compressibility_type[i] == CompressibilityType::FullyCompressible)
-                                 ? TimesteppingType::RK3_ImplicitSubstep : TimesteppingType::RK2;
+                                 ? TimesteppingType::RK3_ImplicitSubstep : TimesteppingType::MidPoint;
         }
 
         const bool substepping_type_given = pp.contains("substepping_type");
@@ -1215,7 +1246,7 @@ struct SolverChoice {
                                    << std::endl;
                 }
                 for (int i = 0; i <= max_level; i++) {
-                    AnelasticType anelastic_scheme = AnelasticType::RK2;
+                    AnelasticType anelastic_scheme = AnelasticType::MidPoint;
                     query_one_or_per_level_enum_case_insensitive(pp, "anelastic_type", anelastic_scheme, i, max_level);
                     if (compressibility_type[i] != CompressibilityType::FullyCompressible) {
                         timestepping_type[i] = (anelastic_scheme == AnelasticType::MidPoint)
@@ -1247,6 +1278,10 @@ struct SolverChoice {
         if (!(beta_d >= amrex::Real(0.0) && beta_d <= amrex::Real(1.0))) {
             amrex::Abort("erf.beta_d must lie in [0, 1]; got " + std::to_string(beta_d));
         }
+
+        // Number of steps between the synchronization of the two copies of a periodic face
+        // velocity (0 = never)
+        pp.query("face_sync_int", face_sync_int);
 
         // Spatially varying beta_s on the w-faces (implicit substepping only):
         //    beta_s = max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
@@ -2812,6 +2847,7 @@ struct SolverChoice {
     // time off-centering coefficient, > 0 for forward weighting (i.e., bias
     // towards the future time step)
     amrex::Real beta_s = amrex::Real(0.1);
+    int face_sync_int = 1;
 
     // if true, beta_s varies on the w-faces as max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
     // and beta_s itself is not used (implicit substepping only)
@@ -3164,6 +3200,12 @@ struct SolverChoice {
     int sbm_nbins{4};
     int sbm_moment_mode{1};
     int sbm_cloud_rain_split{-1};
+    bool sbm_amr_qualification_test{false};
+    bool sbm_amr_qualification_expect_zero_flow{false};
+    bool sbm_amr_qualification_expect_split{false};
+    bool sbm_amr_qualification_expect_empty_fine_rank{false};
+    bool sbm_amr_qualification_unique_profile{false};
+    bool sbm_amr_qualification_parent_store_fault{false};
     bool sbm_test_native_qc_write_fault{false};
     bool sbm_test_donor_cfl_fault{false};
     amrex::Vector<amrex::Real> sbm_edges;
