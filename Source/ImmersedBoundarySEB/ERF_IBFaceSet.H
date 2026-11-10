@@ -212,6 +212,15 @@ public:
     void compute_view_fractions ();
 
     /**
+     * For erf.ibseb.ground_view_shadow: keep, for every face, the columns its ground
+     * rays land in (the rays of compute_view_fractions(), which calls this), so that
+     * each step only the rays from those columns toward the sun are cast
+     * (ibseb::ground_view_lit()). 4 bytes per ground ray: with the default 16 x 8 rays,
+     * about 0.2 kB per wall face on open ground.
+     */
+    void build_ground_landings ();
+
+    /**
      * Longwave of the current step. Incoming on a face:
      * ``f_sky LW_sky + f_ground LW_ground + f_bldg sigma T_skin^4``,
      * the sky term fixed or gray (``sky_emissivity sigma T_air^4`` with the
@@ -481,6 +490,16 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_T_slab;        ///< Slab layers [K], face-major: [face * n_layers + layer]
     // Static radiative geometry:
     amrex::Gpu::DeviceVector<amrex::Real> d_f_sky, d_f_ground, d_f_bldg;  ///< View fractions, sum to 1
+    /// With erf.ibseb.ground_view_shadow, the part of f_ground that is ground the sun of the last
+    /// compute_shortwave() reaches (0 at night or where the ground gets no beam; 0 and unused without the input).
+    /// Not state: recomputed every step.
+    amrex::Gpu::DeviceVector<amrex::Real> d_f_ground_lit;
+    /// With erf.ibseb.ground_view_shadow, where each face's ground rays land (build_ground_landings()):
+    /// face f owns the words [d_gnd_start[f], d_gnd_start[f+1]) of d_gnd_land (ibseb::pack_landing()),
+    /// and d_gnd_far[f] of its ground rays end on the far field's open ground. Static, like the view fractions.
+    amrex::Gpu::DeviceVector<int>          d_gnd_start, d_gnd_far;
+    amrex::Gpu::DeviceVector<unsigned int> d_gnd_land;
+    bool m_landings_built = false;   ///< build_ground_landings() has run since build()
     // Fluxes of the current step [W/m2]: SW_abs and LW_net positive into the
     // face, H, LE and G positive out of it:
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_abs, d_LW_net, d_H, d_LE, d_G;
@@ -525,6 +544,7 @@ public:
     bool m_wrap_x = false, m_wrap_y = false;   ///< The patch spans the periodic domain in x / y
     bool m_map_spans_domain = false;           ///< Every rank's patch spans the domain
     int  m_max_steps = 0;                      ///< Columns a walk is followed for: the halo's reach in x plus y, before the domain cap
+    int  m_reach[2] = {0, 0};                  ///< The halo's reach in x and in y before the domain cap [columns]
 
     /// Sun and irradiances of the last compute_shortwave() call, for reports.
     struct SunState {

@@ -249,6 +249,7 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_moisture.resize(nlevs_max);
     m_canopy.resize(nlevs_max);
     m_canopy_cosz.resize(nlevs_max);
+    m_canopy_alb.resize(nlevs_max);
     m_canopy_m.resize(nlevs_max, -1);
     m_canopy_step.resize(nlevs_max, -1);
     m_solid.resize(nlevs_max);
@@ -363,6 +364,7 @@ TwoStreamRadiation::define_level (int lev,
     // must be asked for again on them (the faces do not regrid; ERF::init_ibseb()).
     m_canopy[lev].reset();
     m_canopy_cosz[lev].reset();
+    m_canopy_alb[lev].reset();
     m_canopy_m[lev] = -1;
     m_canopy_step[lev] = -1;
     // The building cover likewise (ERF::init_ibseb() sets it once; the balance refuses a regrid).
@@ -396,9 +398,11 @@ TwoStreamRadiation::supply_canopy_forcing (int lev, int m_top)
     // cosine of the zenith are lost after the sweep.
     m_canopy[lev] = std::make_unique<MultiFab>(BoxArray(std::move(canopy_boxes)), m_alb_sw[lev]->DistributionMap(), 1, 0);
     m_canopy_cosz[lev] = std::make_unique<MultiFab>(m_alb_sw[lev]->boxArray(), m_alb_sw[lev]->DistributionMap(), 1, 0);
+    m_canopy_alb[lev] = std::make_unique<MultiFab>(m_alb_sw[lev]->boxArray(), m_alb_sw[lev]->DistributionMap(), 1, 0);
     // Never read before a sweep has written them: canopy_forcing() returns null until then.
     m_canopy[lev]->setVal(0.0);
     m_canopy_cosz[lev]->setVal(0.0);
+    m_canopy_alb[lev]->setVal(0.0);
     m_canopy_m[lev] = m_top;
     m_canopy_step[lev] = -1;
 }
@@ -1156,7 +1160,7 @@ TwoStreamRadiation::advance (int lev,
             const bool supply_canopy = supplies_canopy_forcing(lev);
             const int  m_canopy_top = supply_canopy ? m_canopy_m[lev] : 0;
             const bool sw_on = rad_choice.sw_enabled;
-            Array4<amrex::Real> canopy_out, canopy_cosz_out;
+            Array4<amrex::Real> canopy_out, canopy_cosz_out, canopy_alb_out;
             if (supply_canopy) {
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(write_fluxes,
                     "TwoStreamRadiation: the canopy forcing of the building faces needs the rad_fluxes array");
@@ -1164,6 +1168,7 @@ TwoStreamRadiation::advance (int lev,
                     "TwoStreamRadiation: the canopy reaches above the top of the column");
                 canopy_out = m_canopy[lev]->array(mfi);
                 canopy_cosz_out = m_canopy_cosz[lev]->array(mfi);
+                canopy_alb_out = m_canopy_alb[lev]->array(mfi);
             }
 
             // The buildings, when the columns see them (set_building_cover): no heating in
@@ -1381,6 +1386,9 @@ TwoStreamRadiation::advance (int lev,
                     // The sun the building faces must share (their beam is in canopy_out).
                     if (supply_canopy) {
                         canopy_cosz_out(i, j, 0) = (cos_zenith_col > amrex::Real(0.0)) ? cos_zenith_col : amrex::Real(0.0);
+                        // The direct-beam albedo the sweep gave this column's ground.
+                        canopy_alb_out(i, j, 0) = resolve_surface_albedo_sw(i, j, &hetero_alb_sw_arr, ts_params,
+                                                                            has_hetero_alb_sw);
                     }
 
                     // The incident TOA flux is the same for both evaluations.

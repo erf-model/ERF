@@ -71,6 +71,7 @@ struct CanopyResult
     amrex::Real beam[kNlev + 1] = {};
     amrex::Real sw_dn[kNlev + 1] = {}, lw_dn[kNlev + 1] = {};
     amrex::Real cos_zenith = 0.0;
+    amrex::Real ground_albedo_dir = -1.0;
 };
 
 // One sweep of a two-column level with the beam kept up to interface m_top, read at column
@@ -137,6 +138,10 @@ CanopyResult run_canopy (amrex::Real cloud_fraction, int m_top, bool sw_enabled)
         r.lw_dn[m] = component_at(rad_fluxes, IntVect(1, 0, m), 3);
     }
     r.cos_zenith = component_at(*view.cos_zenith, IntVect(1, 0, 0), 0);
+    EXPECT_NE(view.ground_albedo_dir, nullptr);
+    if (view.ground_albedo_dir != nullptr) {
+        r.ground_albedo_dir = component_at(*view.ground_albedo_dir, IntVect(1, 0, 0), 0);
+    }
     return r;
 }
 
@@ -162,6 +167,8 @@ TEST(TwoStreamCanopyForcing, BeamAtEveryInterface)
         }
     }
     EXPECT_EQ(r.cos_zenith, kMu);
+    // The direct-beam albedo the sweep gave the ground (erf.radiation.surface_albedo_sw).
+    EXPECT_EQ(r.ground_albedo_dir, amrex::Real(0.2));
     // A canopy that stops lower keeps the same beam up to its top.
     const CanopyResult low = run_canopy(amrex::Real(0.0), 2, true);
     for (int m = 0; m <= 2; ++m) { EXPECT_EQ(low.beam[m], r.beam[m]) << "interface " << m; }
@@ -276,6 +283,42 @@ TEST(TwoStreamCanopyForcing, FaceSkyFromItsColumn)
     cA(0, 0, 0) = Real(0.0);
     TwoStreamFaceSky n = two_stream_face_sky(0, 0, k0 + 3, k0, 2, -1, beam.const_array(), cz.const_array(), flux.const_array());
     EXPECT_EQ(n.dni, Real(0.0));
+}
+
+// The share of a column's shortwave up that is its ground's reflection of the beam
+// (erf.ibseb.ground_view_shadow): the direct-beam albedo times the beam at the surface over
+// the shortwave up there, never above one, and zero where nothing comes up.
+TEST(TwoStreamCanopyForcing, GroundBeamShare)
+{
+    using namespace amrex;
+    const int k0 = 2;
+    const Box bm(IntVect(0, 0, 0), IntVect(0, 0, 1));
+    const Box bf(IntVect(0, 0, k0), IntVect(0, 0, k0 + 1));
+    const Box b2(IntVect(0, 0, 0), IntVect(0, 0, 0));
+    FArrayBox beam(bm, 1, The_Cpu_Arena()), flux(bf, 4, The_Cpu_Arena()), alb(b2, 1, The_Cpu_Arena());
+    flux.setVal<RunOn::Host>(0.0);
+    const auto bA = beam.array(); const auto fA = flux.array(); const auto aA = alb.array();
+    const Real tol = rel_tol();
+    // A beam of 100 W/m2 on a ground of direct albedo 0.2 and diffuse albedo 0.35 under
+    // 60 W/m2 of diffuse light: 20 W/m2 of the 41 coming up is reflected beam. The other
+    // interface holds other values, which must not be read.
+    bA(0, 0, 0) = Real(100.0); bA(0, 0, 1) = Real(170.0);
+    aA(0, 0, 0) = Real(0.2);
+    fA(0, 0, k0, 0) = Real(41.0); fA(0, 0, k0 + 1, 0) = Real(55.0);
+    EXPECT_NEAR(two_stream_ground_beam_share(0, 0, k0, beam.const_array(), flux.const_array(), alb.const_array()),
+                Real(20.0 / 41.0), tol);
+    // No diffuse light: all of it is reflected beam, to the last bit or a round-off below.
+    fA(0, 0, k0, 0) = Real(0.2) * Real(100.0);
+    EXPECT_NEAR(two_stream_ground_beam_share(0, 0, k0, beam.const_array(), flux.const_array(), alb.const_array()),
+                Real(1.0), tol);
+    // Round-off the other way: never above one.
+    fA(0, 0, k0, 0) = Real(19.999);
+    EXPECT_EQ(two_stream_ground_beam_share(0, 0, k0, beam.const_array(), flux.const_array(), alb.const_array()), Real(1.0));
+    // Night, or a black ground: nothing comes up, no share, and no division by zero.
+    fA(0, 0, k0, 0) = Real(0.0); bA(0, 0, 0) = Real(0.0);
+    EXPECT_EQ(two_stream_ground_beam_share(0, 0, k0, beam.const_array(), flux.const_array(), alb.const_array()), Real(0.0));
+    bA(0, 0, 0) = Real(100.0); aA(0, 0, 0) = Real(0.0); fA(0, 0, k0, 0) = Real(21.0);
+    EXPECT_EQ(two_stream_ground_beam_share(0, 0, k0, beam.const_array(), flux.const_array(), alb.const_array()), Real(0.0));
 }
 
 // The faces get the forcing for the step of the sweep that wrote it and no other, nothing
