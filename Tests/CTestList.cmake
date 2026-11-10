@@ -4344,6 +4344,34 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
       LABELS "regression;wrfinput"
       ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run.log;${CURRENT_TEST_BINARY_DIR}/run.err;${CURRENT_TEST_BINARY_DIR}/restart.log;${CURRENT_TEST_BINARY_DIR}/restart.err")
     unset(TEST_NAME)
+
+    # The same files with level 2 refined only from k = 2 up (#4995): a WRF nest carries the
+    # full eta column, so cell k of level 2 must hold layer k of d03, not layer k - 2. And with
+    # level 1 cropped to start at i = 32, d03 (level-1 cells 26..31) does not fit inside it,
+    # which must abort rather than be clipped by tagging.
+    function(add_test_wrfinput_nest TEST_NAME RUNTIME_OPTIONS EXPECTED_MESSAGE CHECK_OPTIONS)
+      set(TEST_FILES_DIR WRFInput_CroppedParent)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_run "${ERF_TEST_PYTHON} make_wrfinputs.py > generate.log && ${TEST_EXE} WRFInput_CroppedParent.i erf.check_int=-1 amrex.call_addr2line=0 ${RUNTIME_OPTIONS} > ${_log} 2>&1")
+      if("${EXPECTED_MESSAGE}" STREQUAL "")
+        add_test(${TEST_NAME} sh -c
+            "( ${_run} || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_result.py . ${PROJECT_SOURCE_DIR}/Exec/Tools --log ${TEST_NAME}.log ${CHECK_OPTIONS}")
+      else()
+        add_test(${TEST_NAME} sh -c "${_run}; cat ${_log}")
+        set_tests_properties(${TEST_NAME} PROPERTIES PASS_REGULAR_EXPRESSION "${EXPECTED_MESSAGE}")
+      endif()
+      set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS 1
+          WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_wrfinput_nest)
+    add_test_wrfinput_nest(WRFInput_ShallowNest
+        "amr.refine_whole_domain_dir=-1 amr.blocking_factor_z=2 amr.n_error_buf=0 erf.refinement_indicators=crop nest2 erf.nest2.max_level=2 erf.nest2.in_box_lo_indices=78 78 2 erf.nest2.in_box_hi_indices=95 95 7"
+        "" "--klo 2")
+    add_test_wrfinput_nest(WRFInput_Abort_NestOutsideParent
+        "erf.crop.in_box_lo_indices=32 24 0"
+        "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
   else()
     message(STATUS "Skipping WRFInput_CroppedParent: Python netCDF4 and numpy are required")
   endif()
@@ -5672,6 +5700,42 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
         RUNTIME_OPTIONS "erf.terrain_poisson_solver=gmres_fft"
         CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
   endif()
+
+  # The pseudo-incompressible projection, div(rho0 theta0 u) = 0, solves div(beta grad phi) with
+  # beta = rho0 theta0 / rho on the faces, through the terrain Poisson solver on every mesh
+  # without EB (and the b coefficient with EB).  These decks have no gravity, so theta0 is
+  # uniform (prob.T_0 = 300 where a deck sets 1, so that beta is not one) and the constraint is
+  # the anelastic one: each case must pass the same check as its anelastic counterpart.
+  set(_pi "erf.compressibility_type=PseudoIncompressible")
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Fitted inputs_fitted 50
+      RUNTIME_OPTIONS "${_pi}"
+      CHECK check_scalar_centroid.py PLOTFILES)
+  # No FFT needed: a stretched mesh is projected with the terrain Poisson solver
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched inputs_stretched 50
+      RUNTIME_OPTIONS "${_pi} erf.use_fft=false"
+      CHECK check_scalar_centroid.py PLOTFILES)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill inputs_hill 30
+      RUNTIME_OPTIONS "${_pi}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_TwoWay inputs_hill 30
+      RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_full}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Inertial_RK2 inputs_inertial 40
+      RUNTIME_OPTIONS "${_pi} erf.timestepping_type=RK2 prob.T_0=300"
+      CHECK check_inertial_drift.py PLOTFILES)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Inertial_EB_RK2 inputs_inertial_eb 40
+      RUNTIME_OPTIONS "${_pi} erf.timestepping_type=RK2 prob.T_0=300"
+      CHECK check_inertial_drift.py PLOTFILES --layers 1 2)
+  if(ERF_ENABLE_FFT)
+    add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_GmresFFT inputs_hill 30
+        RUNTIME_OPTIONS "${_pi} erf.terrain_poisson_solver=gmres_fft"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+  endif()
+  # Not yet supported: a refined level that stops inside the domain in z on a terrain-fitted mesh
+  add_test_abort(PseudoIncompressible_Hill_PartialDepth_Abort
+      ${PROJECT_SOURCE_DIR}/Exec/RegTests/AnelasticScalarAdvection inputs_hill
+      "a refined level that stops inside the domain in z is not yet supported"
+      "${_pi} ${_hill_amr} ${_hill_part}")
 endif()
 
 #=============================================================================
@@ -5757,6 +5821,96 @@ add_test_abort(LineSampling_Abort_NotAxisAlignedReal ${CMAKE_CURRENT_SOURCE_DIR}
 add_test_abort(LineSampling_Abort_MovingTerrain ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MovingTerrain_nosub MovingTerrain_nosub.i
                "is not supported with erf.terrain_type = MovingFittedMesh"
                "erf.do_line_sampling=1 erf.line_sampling_interval=1 erf.sample_line_lo_real=50. 20. 0. erf.sample_line_hi_real=50. 20. 100. erf.sample_line_dir=2")
+
+# Lines given by latitude and longitude need latitude/longitude arrays, and only one way of
+# giving the lines may be used
+add_test_abort(LineSampling_Abort_LatLonNoArrays ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU ScalarAdvectionUniformU.i
+               "erf.sample_line_lo/hi_latlon need a run with latitude/longitude arrays"
+               "erf.do_line_sampling=1 erf.line_sampling_interval=1 erf.sample_line_lo_latlon=40. -105. 0. erf.sample_line_hi_latlon=40. -105. 100. erf.sample_line_dir=2")
+add_test_abort(LineSampling_Abort_SampleLineLatLonNoArrays ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU ScalarAdvectionUniformU.i
+               "erf.sample_line_latlon needs a run with latitude/longitude arrays"
+               "erf.sample_line_log=col erf.sample_line_latlon=40. -105.")
+add_test_abort(SamplePoint_Abort_LatLonNoArrays ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU ScalarAdvectionUniformU.i
+               "erf.sample_point_latlon needs a run with latitude/longitude arrays"
+               "erf.sample_point_log=pt erf.sample_point_latlon=40. -105. 10.")
+add_test_abort(SamplePoint_Abort_TwoForms ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU ScalarAdvectionUniformU.i
+               "Specify only one of erf.sample_point, erf.sample_point_real or erf.sample_point_latlon"
+               "erf.sample_point_log=pt erf.sample_point=1 1 1 erf.sample_point_real=1. 1. 1.")
+add_test_abort(SamplePoint_Abort_IndexAGL ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU ScalarAdvectionUniformU.i
+               "erf.sample_point_z_agl applies to erf.sample_point_real and erf.sample_point_latlon"
+               "erf.sample_point_log=pt erf.sample_point=1 1 1 erf.sample_point_z_agl=true")
+add_test_abort(SamplePoint_Abort_OutsideDomain ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU ScalarAdvectionUniformU.i
+               "erf.sample_point 0 is not a cell of the level-0 domain"
+               "erf.sample_point_log=pt erf.sample_point=1 1 100000")
+add_test_abort(LineSampling_Abort_LatLonAndIndices ${CMAKE_CURRENT_SOURCE_DIR}/test_files/SampleLine SampleLine.i
+               "Specify only one of erf.sample_line_lo/hi, erf.sample_line_lo_real/hi_real or erf.sample_line_lo_latlon/hi_latlon"
+               "erf.sample_line_lo_latlon=40. -105. 0. 40. -105. 0. erf.sample_line_hi_latlon=40. -105. 100. 40. -105. 100.")
+
+# Lines given by latitude and longitude (#4979), on the rotated lat/lon grid of a generated
+# wrfinput: a vertical line at a cell centre, and lines along x and y whose hi ends are 0.4
+# and 0.7 cells across them and are sampled along the cells through their lo ends. theta
+# names the column of each sample; erf.sample_line_latlon must place its column at the
+# profile's cell. The ends of a horizontal line 1.5 cells apart across it,
+# and a vertical line whose ends differ in latitude, abort.
+if(ERF_ENABLE_NETCDF AND NOT WIN32 AND ERF_TEST_PYTHON)
+  execute_process(COMMAND "${ERF_TEST_PYTHON}" -c "import netCDF4, numpy"
+                  RESULT_VARIABLE _line_latlon_python_status OUTPUT_QUIET ERROR_QUIET)
+  if(_line_latlon_python_status EQUAL 0)
+    function(add_test_line_sampling_latlon TEST_NAME EXPECTED_MESSAGE RUNTIME_OPTIONS)
+      set(TEST_FILES_DIR LineSampling_LatLon)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_run "${ERF_TEST_PYTHON} make_wrfinput.py && ${MPI_COMMANDS} ${TEST_EXE} LineSampling_LatLon.i amrex.call_addr2line=0 ${RUNTIME_OPTIONS} > ${_log} 2>&1")
+      if("${EXPECTED_MESSAGE}" STREQUAL "")
+        # The text files are appended to, so those of an earlier pass are removed
+        add_test(${TEST_NAME} sh -c
+            "rm -f prof.* ew.* ns.* col_ll && ( ${_run} || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_line_latlon.py ${_log}")
+        set_tests_properties(${TEST_NAME} PROPERTIES PROCESSORS ${NP})
+      else()
+        add_test(${TEST_NAME} sh -c "${_run}; cat ${_log}")
+        set_tests_properties(${TEST_NAME} PROPERTIES PROCESSORS ${NP}
+            PASS_REGULAR_EXPRESSION "${EXPECTED_MESSAGE}")
+      endif()
+      set_tests_properties(${TEST_NAME} PROPERTIES
+          TIMEOUT 600 WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_line_sampling_latlon)
+    add_test_line_sampling_latlon(LineSampling_LatLon "" "")
+    add_test_line_sampling_latlon(LineSampling_Abort_LatLonAcross
+        "Line 1 of erf.sample_line_lo/hi_latlon is not along erf.sample_line_dir"
+        "erf.sample_line_hi_latlon=40.205500 -104.918150 750. 40.114000 -104.715650 250. 40.270100 -104.977440 250.")
+    add_test_line_sampling_latlon(LineSampling_Abort_LatLonVertical
+        "Line 0 of erf.sample_line_lo/hi_latlon is vertical"
+        "erf.sample_line_hi_latlon=40.206500 -104.918150 750. 40.104100 -104.713450 250. 40.270100 -104.977440 250.")
+
+    # erf.sample_point and its forms (#4978): each point's log must hold the conserved state of
+    # the expected cell of the column through it, on a hill whose ground is 210 m under pt_a
+    # and 510 m under pt_b, with 8 levels to a flat top at 800 m (see SamplePoint_LatLon.i)
+    function(add_test_sample_point_latlon TEST_NAME RUNTIME_OPTIONS EXPECTED)
+      set(TEST_FILES_DIR LineSampling_LatLon)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      # The logs are appended to, so those of an earlier pass are removed
+      add_test(${TEST_NAME} sh -c
+          "rm -f pt_a pt_b col_a col_b && ${ERF_TEST_PYTHON} make_wrfinput.py --hill && ( ${MPI_COMMANDS} ${TEST_EXE} SamplePoint_LatLon.i amrex.call_addr2line=0 ${RUNTIME_OPTIONS} > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_sample_point.py ${EXPECTED}")
+      set_tests_properties(${TEST_NAME} PROPERTIES
+          TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_sample_point_latlon)
+    add_test_sample_point_latlon(SamplePoint_Index
+        "erf.sample_point=10 20 3 25 5 6" "pt_a:col_a:3 pt_b:col_b:6")
+    add_test_sample_point_latlon(SamplePoint_Real
+        "erf.sample_point_real=10500. 20500. 560. 25500. 5500. 700." "pt_a:col_a:4 pt_b:col_b:5")
+    add_test_sample_point_latlon(SamplePoint_RealAGL
+        "erf.sample_point_real=10500. 20500. 50. 25500. 5500. 200. erf.sample_point_z_agl=true" "pt_a:col_a:0 pt_b:col_b:5")
+    add_test_sample_point_latlon(SamplePoint_LatLonAGL
+        "erf.sample_point_latlon=40.205500 -104.918150 250. 40.100500 -104.712650 200. erf.sample_point_z_agl=true" "pt_a:col_a:3 pt_b:col_b:5")
+  else()
+    message(STATUS "Skipping LineSampling_LatLon: Python netCDF4 and numpy are required")
+  endif()
+endif()
 
 #=============================================================================
 # Performance tests

@@ -1866,6 +1866,12 @@ ERF::ClearLevel (int lev)
         rad_interp_from_coarse_pending[lev] = 0;
     }
 
+    // Release the EB factories of the level's grids.  Whichever routine builds the level next
+    // builds them again for its new grids; until then nothing may read them.
+    if (lev < static_cast<int>(eb.size()) && eb[lev]) {
+        eb[lev]->clear_factories();
+    }
+
     // Drop the level from the surface model too, so its level count (used by its
     // checkpoint) matches finest_level once regridding has removed levels.
     if (m_SurfaceModel) {

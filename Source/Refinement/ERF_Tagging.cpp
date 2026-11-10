@@ -199,6 +199,28 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
                         Box coarsened_bx(boxes_at_level[levc+1][isub]); coarsened_bx.coarsen(ref_ratio[levc]);
 
+                        // A nest above level 1 must fit inside its parent's ERF patch, which may
+                        //    cover only part of the parent's file, with the proper-nesting buffer
+                        //    (except at the domain boundary).  Otherwise tagging would clip it
+                        //    quietly while the initial data were still read for the whole box.
+                        if (solverChoice.init_type == InitType::WRFInput && levc > 0) {
+                            const Box needed = amrex::grow(coarsened_bx, nProper()) & geom[levc].Domain();
+                            if (!grids[levc].contains(needed)) {
+                                amrex::Print() << "\n";
+                                amrex::Print() << "Box to refine at level " << levc+1 << "             "
+                                               << boxes_at_level[levc+1][isub] << std::endl;
+                                amrex::Print() << "The same at level " << levc << ", with a buffer of "
+                                               << nProper() << " cells   " << needed << std::endl;
+                                amrex::Print() << "Grids of level " << levc << " cover            "
+                                               << grids[levc].minimalBox() << std::endl;
+                                amrex::Abort("The level-" + std::to_string(levc+1) + " region of " +
+                                             nc_init_file[levc+1][isub] + " does not fit inside the level-" +
+                                             std::to_string(levc) + " grids with the proper-nesting buffer;"
+                                             " enlarge the level-" + std::to_string(levc) + " region, or crop"
+                                             " level " + std::to_string(levc+1) + " with a refinement indicator");
+                            }
+                        }
+
                         for (MFIter mfi(tags); mfi.isValid(); ++mfi)
                         {
                             auto tag_arr = tags.array(mfi);  // Get device-accessible array

@@ -13,11 +13,13 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_RealVect.H>
 
 #include <ERF_IndexDefines.H>
 #include <ERF_EOS.H>
 #include <ERF_Container.H>
 #include <ERF_DataStruct.H>
+#include <ERF_LatLonMap.H>
 
 #include <iostream>
 
@@ -56,10 +58,12 @@ struct LineSampler
     {
         amrex::ParmParse pp("erf");
 
-        bool has_line_idx  = pp.contains("sample_line_lo") || pp.contains("sample_line_hi");
-        bool has_line_real = pp.contains("sample_line_lo_real") || pp.contains("sample_line_hi_real");
-        if (has_line_idx && has_line_real) {
-            amrex::Abort("Specify only one of erf.sample_line_lo/hi or erf.sample_line_lo_real/hi_real");
+        bool has_line_idx    = pp.contains("sample_line_lo") || pp.contains("sample_line_hi");
+        bool has_line_real   = pp.contains("sample_line_lo_real") || pp.contains("sample_line_hi_real");
+        bool has_line_latlon = pp.contains("sample_line_lo_latlon") || pp.contains("sample_line_hi_latlon");
+        if (int(has_line_idx) + int(has_line_real) + int(has_line_latlon) > 1) {
+            amrex::Abort("Specify only one of erf.sample_line_lo/hi, erf.sample_line_lo_real/hi_real"
+                         " or erf.sample_line_lo_latlon/hi_latlon");
         }
 
         // Count number of lo and hi points define the line
@@ -67,6 +71,8 @@ struct LineSampler
         int n_line_hi  = pp.countval("sample_line_hi") / AMREX_SPACEDIM;
         int n_line_lo_real = pp.countval("sample_line_lo_real") / AMREX_SPACEDIM;
         int n_line_hi_real = pp.countval("sample_line_hi_real") / AMREX_SPACEDIM;
+        int n_line_lo_latlon = pp.countval("sample_line_lo_latlon") / 3;
+        int n_line_hi_latlon = pp.countval("sample_line_hi_latlon") / 3;
         int n_line_dir = pp.countval("sample_line_dir");
         if (has_line_idx) {
             AMREX_ALWAYS_ASSERT( (n_line_lo==n_line_hi ) &&
@@ -74,6 +80,13 @@ struct LineSampler
         } else if (has_line_real) {
             AMREX_ALWAYS_ASSERT( (n_line_lo_real==n_line_hi_real ) &&
                                  (n_line_lo_real==n_line_dir) );
+        } else if (has_line_latlon) {
+            if (pp.countval("sample_line_lo_latlon") != 3*n_line_lo_latlon ||
+                pp.countval("sample_line_hi_latlon") != 3*n_line_hi_latlon ||
+                n_line_lo_latlon != n_line_hi_latlon || n_line_lo_latlon != n_line_dir) {
+                amrex::Abort("erf.sample_line_lo_latlon and erf.sample_line_hi_latlon must each give"
+                             " lat, long and z for every line of erf.sample_line_dir");
+            }
         }
 
         // Parse the data
@@ -158,6 +171,19 @@ struct LineSampler
                 // Construct vector of bounding boxes
                 m_bnd_bx.resize(nline);
             }
+        } else if (has_line_latlon) {
+            // The ends are turned into domain coordinates by resolve_latlon, once the run
+            //    has its latitude/longitude arrays; until then the line is not along any
+            //    direction, so its ends are checked there
+            m_use_real_bx = true;
+            m_use_latlon  = true;
+            nline = n_line_lo_latlon;
+            if (nline > 0) {
+                pp.getarr("sample_line_lo_latlon", m_latlon_lo, 0, 3*nline);
+                pp.getarr("sample_line_hi_latlon", m_latlon_hi, 0, 3*nline);
+                m_bnd_rbx.resize(nline);
+                m_bnd_bx.resize(nline);
+            }
         }
 
         if (nline > 0) {
@@ -172,6 +198,7 @@ struct LineSampler
                 if (dir < 0 || dir >= AMREX_SPACEDIM) {
                     amrex::Abort("erf.sample_line_dir must be 0, 1 or 2");
                 }
+                if (m_use_latlon) { continue; }
                 for (int d(0); d<AMREX_SPACEDIM; ++d) {
                     const bool differ = has_line_idx
                         ? (m_bnd_bx[iline].smallEnd(d) != m_bnd_bx[iline].bigEnd(d))
@@ -287,8 +314,68 @@ struct LineSampler
         m_varnames = {"conserved", "x_velocity", "y_velocity", "z_velocity",
                       "sgs_tau11", "sgs_tau12", "sgs_tau13", "sgs_tau22", "sgs_tau23", "sgs_tau33"};
 
+        open_logs(log_names);
+    }
+
+    /**
+     * Sample single cells with every conserved component, as erf.sample_point does: each
+     * point is written to its own log, one row per sample, the time and then each component.
+     * A point given by a cell (erf.sample_point) is that cell of level 0.  A point given by
+     * real coordinates (erf.sample_point_real, or erf.sample_point_latlon once placed) is a
+     * line of one cell, sampled on the finest level that holds it; on a stretched or
+     * terrain-fitted mesh its cell is found from the heights of its column, and with z_agl
+     * its z is the height above the ground under it.
+     *
+     * @param[in] cells     the cell of each point given by indices, or empty
+     * @param[in] points    the (x,y,z) of each point given by real coordinates, or empty
+     * @param[in] log_names the log file of each point
+     * @param[in] z_agl     whether the z of points are heights above the ground
+     */
+    LineSampler (const amrex::Vector<amrex::IntVect>& cells,
+                 const amrex::Vector<amrex::RealVect>& points,
+                 const amrex::Vector<std::string>& log_names,
+                 bool z_agl)
+    {
+        AMREX_ALWAYS_ASSERT(cells.empty() || points.empty());
+        const int nline = static_cast<int>(log_names.size());
+        AMREX_ALWAYS_ASSERT(static_cast<int>(cells.size() + points.size()) == nline);
+
+        m_bnd_bx.resize(nline);
+        if (!cells.empty()) {
+            for (int iline(0); iline<nline; ++iline) {
+                m_bnd_bx[iline] = amrex::Box(cells[iline], cells[iline]);
+            }
+            m_max_level = 0;
+        } else {
+            m_use_real_bx = true;
+            m_z_agl = z_agl;
+            m_bnd_rbx.resize(nline);
+            for (int iline(0); iline<nline; ++iline) {
+                m_bnd_rbx[iline] = amrex::RealBox(points[iline].dataPtr(), points[iline].dataPtr());
+            }
+            // As for lines placed by height, the cells are found once
+            if (use_column_heights() && SolverChoice::terrain_type == TerrainType::MovingFittedMesh) {
+                amrex::Abort("erf.sample_point_real and erf.sample_point_latlon are not supported "
+                             "with erf.terrain_type = MovingFittedMesh");
+            }
+        }
+        // A point is a vertical line of one cell
+        m_dir.assign(nline, 2);
+        m_lev.assign(nline, 0);
+        m_ls_mf.resize(nline);
+        m_name = log_names;
+        m_varnames = {"conserved"};
+
+        open_logs(log_names);
+    }
+
+    //! Open one log per line, appended to, on the I/O rank
+    void
+    open_logs (const amrex::Vector<std::string>& log_names)
+    {
         m_write_log = true;
         if (amrex::ParallelDescriptor::IOProcessor()) {
+            const int nline = static_cast<int>(log_names.size());
             m_logstream.resize(nline);
             for (int iline(0); iline<nline; ++iline) {
                 m_logstream[iline] = std::make_unique<std::fstream>();
@@ -298,7 +385,7 @@ struct LineSampler
                 }
             }
         }
-        amrex::ParallelDescriptor::Barrier("LineSampler::LineSampler");
+        amrex::ParallelDescriptor::Barrier("LineSampler::open_logs");
     }
 
     //! The variables that may be sampled, in the order they are stored and written
@@ -343,6 +430,83 @@ struct LineSampler
                 }
                 i++;
             }
+        }
+    }
+
+    //! Whether the lines are given by latitude and longitude (erf.sample_line_lo/hi_latlon)
+    [[nodiscard]] bool
+    uses_latlon () const
+    {
+        return m_use_latlon;
+    }
+
+    /**
+     * Turn the ends of the lines given by latitude and longitude into domain coordinates,
+     * with the level-0 latitude/longitude map of the run, and check them.  A vertical line
+     * gives one lat/lon at both ends.  The two ends of a horizontal line are in general not
+     * on one row of cells: they must lie within one cell of each other across the line,
+     * which is then sampled along the line of cells through its lo end.  Collective.
+     */
+    void
+    resolve_latlon (const LatLonMap& latlon_map, const amrex::Geometry& geom0)
+    {
+        const int nline = static_cast<int>(m_bnd_rbx.size());
+        for (int iline(0); iline<nline; ++iline) {
+            const int dir = m_dir[iline];
+            const std::string line = "Line " + std::to_string(iline) + " of erf.sample_line_lo/hi_latlon";
+            const amrex::Real* req[2] = {&m_latlon_lo[3*iline], &m_latlon_hi[3*iline]};
+
+            if (dir == 2) {
+                if (req[0][0] != req[1][0] || req[0][1] != req[1][1]) {
+                    amrex::Abort(line + " is vertical (erf.sample_line_dir = 2), so its two ends"
+                                 " must give the same latitude and longitude");
+                }
+                if (req[0][2] > req[1][2]) {
+                    amrex::Abort(line + " has its lo end above its hi end");
+                }
+            } else if (req[0][2] != req[1][2]) {
+                amrex::Abort(line + " is horizontal, so its two ends must give the same z");
+            }
+
+            // A vertical line has one lat/lon
+            const int nend = (dir == 2) ? 1 : 2;
+            LatLonLocation where[2];
+            for (int e(0); e<nend; ++e) {
+                where[e] = latlon_map.locate_or_abort(req[e][0], req[e][1],
+                                                      line + (e == 0 ? ", lo end," : ", hi end,"));
+            }
+            if (dir == 2) { where[1] = where[0]; }
+
+            amrex::Real lo[AMREX_SPACEDIM] = {where[0].x, where[0].y, req[0][2]};
+            amrex::Real hi[AMREX_SPACEDIM] = {where[1].x, where[1].y, req[1][2]};
+            amrex::Real snap = amrex::Real(0.0);
+            if (dir != 2) {
+                const int across = 1 - dir;
+                snap = hi[across] - lo[across];
+                const amrex::Real gap = std::abs(snap) / geom0.CellSize(across);
+                if (gap > amrex::Real(1.0)) {
+                    amrex::Abort(line + " is not along erf.sample_line_dir: its ends are " +
+                                 std::to_string(gap) + " cells apart in direction " +
+                                 std::to_string(across) + ", and a line between two lat/lon"
+                                 " points is sampled along one grid direction, so its ends may"
+                                 " be at most one cell apart across it");
+                }
+                if (hi[dir] < lo[dir]) {
+                    amrex::Abort(line + " has its lo end beyond its hi end in direction " +
+                                 std::to_string(dir) + "; swap the two ends");
+                }
+                hi[across] = lo[across];
+            }
+            m_bnd_rbx[iline] = amrex::RealBox(lo, hi);
+
+            amrex::Print() << line << ": lo end at lat=" << where[0].lat << " long=" << where[0].lon
+                           << " (x=" << lo[0] << " y=" << lo[1] << ")";
+            if (dir != 2) {
+                amrex::Print() << ", hi end at lat=" << where[1].lat << " long=" << where[1].lon
+                               << " (x=" << hi[0] << " y=" << hi[1] << "), sampled along the line of cells"
+                               << " through the lo end, " << std::abs(snap) << " m from the hi end";
+            }
+            amrex::Print() << std::endl;
         }
     }
 
@@ -1115,6 +1279,8 @@ struct LineSampler
     amrex::Vector<std::string> m_name;
 
     bool m_use_real_bx{false};
+    bool m_use_latlon{false};   // erf.sample_line_lo/hi_latlon
+    amrex::Vector<amrex::Real> m_latlon_lo, m_latlon_hi; // lat, long, z of each line's ends
     bool m_write_ascii{false};
     bool m_write_log{false};
     bool m_z_agl{false};   // erf.sample_line_z_agl

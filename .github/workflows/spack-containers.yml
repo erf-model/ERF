@@ -1,0 +1,228 @@
+name: Spack containers
+
+# Runnable ERF images on GHCR from the Spack recipe in Build/spack: Spack installs ERF
+# with MPICH, NetCDF and HDF5, Noah-MP, RRTMGP, FFT and particles for x86_64_v3 and pushes
+# the runtime closure as image layers on a base image. Tags: development and the latest
+# release, rebuilt weekly, plus <tag>-<build date>, which never moves. A release tag
+# builds that release. The first push creates the package private; make
+# ghcr.io/<owner>/erf public once in the package settings.
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # Mondays 08:00 UTC
+  push:
+    tags: ['2[0-9].[0-9][0-9]']
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: build this one spec instead of the image list
+        default: ""
+      tag:
+        description: image tag for that spec (empty = the version the spec names)
+        default: ""
+      base_image:
+        description: base image for the Spack layers (may be pinned by digest)
+        default: "ubuntu:22.04"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: spack-containers-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # The Spack and spack-packages refs of gcc-rrtmgp.yml, which fills the build cache read here.
+  SPACK_REF: cd657f2c90770f5722715f6a0f95d7a5a359359b
+  PACKAGES_REF: fa11df3be41f58bac19b73346422e06b103ee5b5
+  IMAGE_OPTIONS: "+netcdf +noahmp +rrtmgp +fft +particles ^mpich"
+
+jobs:
+  plan:
+    name: image list
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      images: ${{ steps.matrix.outputs.images }}
+      date: ${{ steps.matrix.outputs.date }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Images for this run
+        id: matrix
+        shell: bash
+        env:
+          ONE_SPEC: ${{ inputs.spec }}
+          ONE_TAG: ${{ inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY' > matrix.txt
+          import datetime, json, os, re
+          from pathlib import Path
+
+          options = os.environ["IMAGE_OPTIONS"]
+          def image(version):
+              return {"spec": f"erf@{version} {options}", "tag": "development" if version == "develop" else version}
+
+          if os.environ["ONE_SPEC"]:
+              spec = os.environ["ONE_SPEC"]
+              version = re.match(r"erf@([^\s+~^%]+)", spec)
+              tag = os.environ["ONE_TAG"] or (version.group(1) if version else "")
+              if not tag:
+                  raise SystemExit("the spec names no version; pass a tag")
+              images = [{"spec": spec, "tag": "development" if tag == "develop" else tag}]
+          elif os.environ["REF_TYPE"] == "tag":
+              images = [image(os.environ["REF_NAME"])]
+          else:
+              # The newest release in the recipe's checksum table.
+              recipe = Path("Build/spack/spack_repo/erf/packages/erf/package.py").read_text()
+              releases = re.findall(r'\(\s*"(\d{2}\.\d{2})",\s*"[0-9a-f]{64}"', recipe)
+              latest = max(releases, key=lambda v: tuple(int(x) for x in v.split(".")))
+              images = [image("develop"), image(latest)]
+          print("images=" + json.dumps(images))
+          print("date=" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d"))
+          PY
+          cat matrix.txt
+          cat matrix.txt >> "$GITHUB_OUTPUT"
+
+  images:
+    name: image ${{ matrix.image.tag }}
+    needs: plan
+    # Must match the base image's Ubuntu release (glibc).
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.images) }}
+    env:
+      SPEC: ${{ matrix.image.spec }}
+      TAG: ${{ matrix.image.tag }}
+      DATED_TAG: ${{ matrix.image.tag }}-${{ needs.plan.outputs.date }}
+      BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:22.04' }}
+      GHCR_USER: ${{ github.actor }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/erf" >> "$GITHUB_ENV"
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-space-ubuntu
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential gfortran git python3 unzip \
+            cmake pkg-config
+          sudo mkdir -p /opt/software && sudo chown "$(id -u):$(id -g)" /opt/software
+
+      - uses: spack/setup-spack@v3
+        with:
+          spack_path: ${{ github.workspace }}/spack_install_dir
+          spack_ref: ${{ env.SPACK_REF }}
+          packages_ref: ${{ env.PACKAGES_REF }}
+
+      # Only build tools are externals: everything the executable needs at run time must be
+      # a Spack package, since only those become image layers.
+      - name: Register the recipe, the build tools, the build cache and the image registry
+        run: |
+          . spack_install_dir/share/spack/setup-env.sh
+          spack repo add "$GITHUB_WORKSPACE/Build/spack/spack_repo/erf"
+          spack config add "config:install_tree:root:/opt/software"
+          spack config add "packages:all:target:[x86_64_v3]"
+          spack compiler find
+          spack external find --not-buildable \
+            cmake gmake git python perl pkgconf autoconf automake libtool m4 bison flex
+          spack mirror add --unsigned \
+            --oci-username-variable GHCR_USER --oci-password-variable GHCR_TOKEN \
+            erf-buildcache oci://ghcr.io/${{ github.repository_owner }}/spack-buildcache
+          spack mirror add --unsigned \
+            --oci-username-variable GHCR_USER --oci-password-variable GHCR_TOKEN \
+            erf-images "oci://$IMAGE"
+
+      - name: spack install
+        run: |
+          . spack_install_dir/share/spack/setup-env.sh
+          spack install --verbose --fail-fast "$SPEC"
+
+      # GHCR sometimes answers a manifest upload with 403; a repeat push only redoes the manifests.
+      - name: Push the dated image
+        run: |
+          . spack_install_dir/share/spack/setup-env.sh
+          for attempt in 1 2 3; do
+            if spack buildcache push --unsigned --without-build-dependencies \
+                 --base-image "$BASE_IMAGE" --tag "$DATED_TAG" erf-images "$SPEC"; then
+              exit 0
+            fi
+            echo "push attempt $attempt failed; retrying in 30 s"
+            sleep 30
+          done
+          exit 1
+
+      # The source label links the package to this repository.
+      - name: Label the image
+        env:
+          BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+          SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          docker pull --quiet "$IMAGE:$DATED_TAG"
+          printf 'FROM %s\n' "$IMAGE:$DATED_TAG" | docker build --provenance=false \
+            --label "org.opencontainers.image.source=$SOURCE" \
+            --label "org.opencontainers.image.revision=$REVISION" \
+            --label "org.opencontainers.image.version=$TAG" \
+            --label "org.opencontainers.image.title=erf" \
+            --label "org.opencontainers.image.description=ERF: $SPEC" \
+            -t "$IMAGE:$DATED_TAG" -
+          docker push --quiet "$IMAGE:$DATED_TAG"
+
+      - name: Run the image
+        run: |
+          docker run --rm "$IMAGE:$DATED_TAG" erf_exec --help
+          docker run --rm "$IMAGE:$DATED_TAG" bash -c '
+            set -e
+            prefix=$(dirname "$(dirname "$(command -v erf_exec)")")
+            mkdir -p /tmp/run && cd /tmp/run
+            cp -r "$prefix/share/erf/examples/ScalarAdvDiff/." .
+            mpiexec -n 2 erf_exec inputs_advect_uniformU max_step=2 erf.plot_int_1=-1 erf.check_int=-1'
+
+      - name: Record the image
+        run: |
+          mkdir -p image-record
+          docker image inspect "$IMAGE:$DATED_TAG" --format '{{index .RepoDigests 0}}' | tee image-record/digest.txt
+          docker image inspect "$IMAGE:$DATED_TAG" --format '{{len .RootFS.Layers}} layers, {{.Size}} bytes' | tee image-record/size.txt
+          if ! docker run --rm "$IMAGE:$DATED_TAG" erf_exec --describe-json > image-record/description.json 2>/dev/null; then
+            rm -f image-record/description.json
+            echo "::notice::erf_exec --describe-json is not available in $SPEC"
+          fi
+          printf '### %s\n\n- spec: `%s`\n- digest: `%s`\n- %s\n' "$IMAGE:$DATED_TAG" "$SPEC" \
+            "$(cat image-record/digest.txt)" "$(cat image-record/size.txt)" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: image-${{ matrix.image.tag }}-${{ needs.plan.outputs.date }}
+          path: image-record
+          if-no-files-found: error
+
+      # The moving tag advances only after the image has run.
+      - name: Move the ${{ matrix.image.tag }} tag
+        run: |
+          docker tag "$IMAGE:$DATED_TAG" "$IMAGE:$TAG"
+          docker push --quiet "$IMAGE:$TAG"
+
+      - name: Push dependencies to the build cache
+        if: always()
+        continue-on-error: true
+        run: |
+          . spack_install_dir/share/spack/setup-env.sh
+          spack buildcache push --unsigned --update-index --only dependencies \
+            --without-build-dependencies erf-buildcache "$SPEC"

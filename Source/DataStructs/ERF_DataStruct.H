@@ -92,7 +92,9 @@ AMREX_ENUM(SubsteppingType,
  *
  * FullyCompressible solves the compressible equations with acoustic substepping.
  * Anelastic holds the density at its base-state value and projects the velocity.
- * PseudoIncompressible currently takes exactly the anelastic path.
+ * PseudoIncompressible projects the velocity to satisfy div(rho0 theta0 u) = 0 with a
+ * variable-coefficient solve; otherwise it still takes the anelastic path (the density is
+ * not yet evolved).
  */
 AMREX_ENUM(CompressibilityType,
     FullyCompressible, Anelastic, PseudoIncompressible
