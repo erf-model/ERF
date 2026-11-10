@@ -1876,7 +1876,17 @@ List of Parameters
 |                                    |                                                          |                    | levels)          |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_point**               | points at which the state is written to a log, given as  | List of Integers,  | None             |
-|                                    | flattened (i,j,k) index triples                          | in triples         |                  |
+|                                    | flattened (i,j,k) index triples of level 0               | in triples         |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_point_real**          | as above, but the points are given as flattened (x,y,z)  | List of Reals, in  | None             |
+|                                    | physical-coordinate triples                              | triples            |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_point_latlon**        | as above, but the points are given as flattened          | List of Reals, in  | None             |
+|                                    | (latitude, longitude, z) triples; needs                  | triples            |                  |
+|                                    | latitude/longitude arrays                                |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_point_z_agl**         | z of ``erf.sample_point_real`` / ``_latlon`` is the      | Boolean            | false            |
+|                                    | height above the ground instead of above sea level       |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_point_log**           | log-file name for each sampled point; exactly one name   | List of Strings    | None             |
 |                                    | per point is required                                    |                    |                  |
@@ -1910,6 +1920,25 @@ reaches are printed at start-up. ERF aborts in a run without those arrays, and w
 outside the domain. The stresses are at cell centers, as for line
 sampling; before this used the line sampler, ``tau12``, ``tau13`` and ``tau23`` were written at the
 lower corner edge of each cell instead.
+
+``erf.sample_point``, ``erf.sample_point_real`` and ``erf.sample_point_latlon`` (only one of
+them) give single points, each written to its own log, ``erf.sample_point_log``, at the same
+cadence: one row per sample, the time and then every conserved component of the cell that
+holds the point. Each point is a line of one cell of the line-sampling machinery above.
+
+- A point of ``erf.sample_point`` is that (i,j,k) cell of level 0, and is sampled on level 0.
+- A point of ``erf.sample_point_real`` is sampled on the finest level that holds it. On a
+  stretched or terrain-fitted mesh its cell is found from the heights of its column, as for a
+  line of ``erf.sample_line_lo_real``, and z is clamped to the column. z is the height above
+  sea level, or above the ground under the point if ``erf.sample_point_z_agl = true`` (with
+  immersed terrain, the terrain surface). These points are not supported with moving terrain.
+- A point of ``erf.sample_point_latlon`` is placed on the grid as a station placed by
+  ``.lat`` and ``.long`` is, and is then a point of ``erf.sample_point_real``. It needs a run with
+  latitude and longitude arrays; the latitude and longitude it reaches are printed at start-up.
+
+ERF aborts when a point is outside the domain. With ``erf.terrain_type = EB`` or
+``ImmersedForcing``, a point in a covered cell is written as ``erf.sampling_covered_value``. For
+interpolated values, or other variables at a point, see station output (``erf.station_names``).
 
 .. _examples-of-usage-10b:
 

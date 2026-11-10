@@ -13,6 +13,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_RealVect.H>
 
 #include <ERF_IndexDefines.H>
 #include <ERF_EOS.H>
@@ -313,8 +314,68 @@ struct LineSampler
         m_varnames = {"conserved", "x_velocity", "y_velocity", "z_velocity",
                       "sgs_tau11", "sgs_tau12", "sgs_tau13", "sgs_tau22", "sgs_tau23", "sgs_tau33"};
 
+        open_logs(log_names);
+    }
+
+    /**
+     * Sample single cells with every conserved component, as erf.sample_point does: each
+     * point is written to its own log, one row per sample, the time and then each component.
+     * A point given by a cell (erf.sample_point) is that cell of level 0.  A point given by
+     * real coordinates (erf.sample_point_real, or erf.sample_point_latlon once placed) is a
+     * line of one cell, sampled on the finest level that holds it; on a stretched or
+     * terrain-fitted mesh its cell is found from the heights of its column, and with z_agl
+     * its z is the height above the ground under it.
+     *
+     * @param[in] cells     the cell of each point given by indices, or empty
+     * @param[in] points    the (x,y,z) of each point given by real coordinates, or empty
+     * @param[in] log_names the log file of each point
+     * @param[in] z_agl     whether the z of points are heights above the ground
+     */
+    LineSampler (const amrex::Vector<amrex::IntVect>& cells,
+                 const amrex::Vector<amrex::RealVect>& points,
+                 const amrex::Vector<std::string>& log_names,
+                 bool z_agl)
+    {
+        AMREX_ALWAYS_ASSERT(cells.empty() || points.empty());
+        const int nline = static_cast<int>(log_names.size());
+        AMREX_ALWAYS_ASSERT(static_cast<int>(cells.size() + points.size()) == nline);
+
+        m_bnd_bx.resize(nline);
+        if (!cells.empty()) {
+            for (int iline(0); iline<nline; ++iline) {
+                m_bnd_bx[iline] = amrex::Box(cells[iline], cells[iline]);
+            }
+            m_max_level = 0;
+        } else {
+            m_use_real_bx = true;
+            m_z_agl = z_agl;
+            m_bnd_rbx.resize(nline);
+            for (int iline(0); iline<nline; ++iline) {
+                m_bnd_rbx[iline] = amrex::RealBox(points[iline].dataPtr(), points[iline].dataPtr());
+            }
+            // As for lines placed by height, the cells are found once
+            if (use_column_heights() && SolverChoice::terrain_type == TerrainType::MovingFittedMesh) {
+                amrex::Abort("erf.sample_point_real and erf.sample_point_latlon are not supported "
+                             "with erf.terrain_type = MovingFittedMesh");
+            }
+        }
+        // A point is a vertical line of one cell
+        m_dir.assign(nline, 2);
+        m_lev.assign(nline, 0);
+        m_ls_mf.resize(nline);
+        m_name = log_names;
+        m_varnames = {"conserved"};
+
+        open_logs(log_names);
+    }
+
+    //! Open one log per line, appended to, on the I/O rank
+    void
+    open_logs (const amrex::Vector<std::string>& log_names)
+    {
         m_write_log = true;
         if (amrex::ParallelDescriptor::IOProcessor()) {
+            const int nline = static_cast<int>(log_names.size());
             m_logstream.resize(nline);
             for (int iline(0); iline<nline; ++iline) {
                 m_logstream[iline] = std::make_unique<std::fstream>();
@@ -324,7 +385,7 @@ struct LineSampler
                 }
             }
         }
-        amrex::ParallelDescriptor::Barrier("LineSampler::LineSampler");
+        amrex::ParallelDescriptor::Barrier("LineSampler::open_logs");
     }
 
     //! The variables that may be sampled, in the order they are stored and written
@@ -411,19 +472,8 @@ struct LineSampler
             const int nend = (dir == 2) ? 1 : 2;
             LatLonLocation where[2];
             for (int e(0); e<nend; ++e) {
-                const std::string at = " lat=" + std::to_string(req[e][0]) + " long=" + std::to_string(req[e][1]);
-                const LatLonStatus status = latlon_map.locate(req[e][0], req[e][1], where[e]);
-                if (status == LatLonStatus::Degenerate) {
-                    amrex::Abort(line + ": the latitude/longitude arrays are degenerate near" + at +
-                                 ", so it cannot be inverted");
-                }
-                if (status == LatLonStatus::TooFar ||
-                    where[e].x < geom0.ProbLo(0) || where[e].x > geom0.ProbHi(0) ||
-                    where[e].y < geom0.ProbLo(1) || where[e].y > geom0.ProbHi(1)) {
-                    amrex::Abort(line + ":" + at + " is outside the domain (the nearest grid point"
-                                 " is at lat=" + std::to_string(where[e].near_lat) +
-                                 " long=" + std::to_string(where[e].near_lon) + ")");
-                }
+                where[e] = latlon_map.locate_or_abort(req[e][0], req[e][1],
+                                                      line + (e == 0 ? ", lo end," : ", hi end,"));
             }
             if (dir == 2) { where[1] = where[0]; }
 

@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Write a small, self-contained wrfinput on a rotated latitude/longitude grid.
 
-The 32 x 32 x 8 grid of 1 km cells is flat, 100 m deep per level, at rest. Its
-latitude and longitude are linear in (i, j) but turned from the grid axes, so a
-row of cells is not a line of constant latitude. theta = 300 + 0.1 i + 0.001 j
-names the column a sample comes from. check_line_latlon.py uses latlon() to
-place the lines it asks for.
+The 32 x 32 x 8 grid of 1 km cells is at rest under a flat top at 800 m. It is
+flat, with 100 m levels, or with --hill its ground rises 20 m per cell in i
+(ground() at a cell centre) and its 8 levels are spaced evenly from the ground
+to the top. Its latitude and longitude are linear in (i, j) but turned from the
+grid axes, so a row of cells is not a line of constant latitude.
+theta = 300 + 0.1 i + 0.001 j names the column a sample comes from, and
+qv = 0.001 (k + 1) its level. check_line_latlon.py uses latlon() to place the
+lines it asks for.
 """
+
+import sys
 
 import netCDF4 as nc
 import numpy as np
@@ -16,6 +21,7 @@ DATE = "2026-01-01_00:00:00"
 NX = NY = 32
 NZ = 8
 DX = 1000.0
+ZTOP = 800.0
 GRAV = 9.81
 
 
@@ -30,7 +36,12 @@ def theta(i, j):
     return 300.0 + 0.1 * i + 0.001 * j
 
 
-def write_input(path):
+def ground(fi, hill):
+    """Height of the ground at fractional cell coordinate fi in x."""
+    return 20.0 * fi if hill else 0.0 * fi
+
+
+def write_input(path, hill=False):
     with nc.Dataset(path, "w", format="NETCDF4_CLASSIC") as ds:
         for name, size in (
             ("Time", 1), ("DateStrLen", len(DATE)),
@@ -70,8 +81,10 @@ def write_input(path):
         put("V", ("Time", "bottom_top", "south_north_stag", "west_east"), 0.0)
         put("W", zface, 0.0)
         put("PH", zface, 0.0)
-        height = (GRAV * 100.0 * np.arange(NZ + 1, dtype=np.float64))[None, :, None, None]
-        put("PHB", zface, height)
+        h = ground(i + 0.5, hill)[None, :, :]
+        height = h + (ZTOP - h) * np.arange(NZ + 1, dtype=np.float64)[:, None, None] / NZ
+        put("PHB", zface, GRAV * height[None, :, :, :])
+        put("QVAPOR", xyz, 0.001 * (np.arange(NZ, dtype=np.float64) + 1.0)[None, :, None, None])
         put("PB", xyz, 100000.0)
         put("P", xyz, 0.0)
         for name, value in (
@@ -104,5 +117,5 @@ def write_low_file(path):
 
 
 if __name__ == "__main__":
-    write_input("wrfinput_d01")
+    write_input("wrfinput_d01", hill="--hill" in sys.argv[1:])
     write_low_file("wrflowinp_d01")
