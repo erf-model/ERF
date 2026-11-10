@@ -218,6 +218,17 @@
                         mapfac[level],
                         get_eb(level), gradp[level]);
 
+        // The stage pressure, in the stage whose update the step ends with, for the reflux of
+        // the pressure impulse on the coarse/fine faces (ERF_MomentumReflux.cpp)
+        if (IsRefluxStage(solverChoice, level, finest_level, nrk)) {
+            if (MultiFab* P_reflux = momentum_reflux_pressure(level)) {
+                momentum_reflux_add_slow(level, *P_reflux, S_data[IntVars::cons], p0_to_use, qt,
+                                         solverChoice.moisture_type != MoistureType::None,
+                                         RefluxStageWeight(solverChoice, level, finest_level, nrk) *
+                                         static_cast<Real>(slow_dt));
+            }
+        }
+
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
         // *****************************************************************************
@@ -258,6 +269,12 @@
             MultiFab::Add(zmom_src, m_structure_crse_src[level][2], 0, 0, 1, 0);
         }
 #endif
+
+        // The impulse of the last momentum reflux onto this level, spread over its steps in
+        // this coarse step (erf.momentum_reflux, ERF_MomentumReflux.cpp)
+        if (momentum_reflux_enabled()) {
+            momentum_reflux_add_sources(level, xmom_src, ymom_src);
+        }
 
         // Nudging of the velocity towards observations at stations
         if (solverChoice.nudging_from_observations && obs_nudging) {
