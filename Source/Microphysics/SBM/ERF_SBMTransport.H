@@ -220,6 +220,7 @@ class SBMTransport
     bool m_keep_spectral_ledger_reference{true};
     bool m_zero_flow_diagnostics_enabled{false};
     bool m_split_ghost_values_checked{false};
+    bool m_host_integrator_reported{false};
     int m_interval_limiter_active_groups{0};
     bool m_interval_limiter_changed_rate{false};
     amrex::Real m_interval_carrier_linf{amrex::Real(0.0)};

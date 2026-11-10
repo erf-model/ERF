@@ -649,11 +649,28 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
       -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_donor
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      "-DEXPECTED_STDOUT=SBM transport host integrator: AnelasticHeun"
       -DEXPECT_SECOND_CHECKPOINT=true
       -DSKIP_RESTART=true
       -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
   set_tests_properties(SBM_M3_Adaptive_Anelastic_Donor_CFL PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+  # The same deck with ERF's default anelastic integrator, MidPoint
+  add_test(NAME SBM_M3_Adaptive_Anelastic_MidPoint_Donor_CFL
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_donor
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DRUN_ARGS=erf.timestepping_type=MidPoint
+      "-DEXPECTED_STDOUT=SBM transport host integrator: AnelasticMidPoint"
+      -DEXPECT_SECOND_CHECKPOINT=true
+      -DSKIP_RESTART=true
+      -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_Adaptive_Anelastic_MidPoint_Donor_CFL PROPERTIES
     LABELS "integration;sbm"
     RUN_SERIAL TRUE
     TIMEOUT 120)
@@ -667,11 +684,28 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
       -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_stretched_donor
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      "-DEXPECTED_STDOUT=SBM transport host integrator: AnelasticHeun"
       -DEXPECT_SECOND_CHECKPOINT=true
       -DSKIP_RESTART=true
       -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
   set_tests_properties(SBM_M3_Adaptive_Anelastic_Stretched_Donor_CFL PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+  # The stretched deck with MidPoint: non-uniform cell measures and the dt/2 first stage together
+  add_test(NAME SBM_M3_Adaptive_Anelastic_Stretched_MidPoint_Donor_CFL
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_stretched_donor
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DRUN_ARGS=erf.timestepping_type=MidPoint
+      "-DEXPECTED_STDOUT=SBM transport host integrator: AnelasticMidPoint"
+      -DEXPECT_SECOND_CHECKPOINT=true
+      -DSKIP_RESTART=true
+      -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_Adaptive_Anelastic_Stretched_MidPoint_Donor_CFL PROPERTIES
     LABELS "integration;sbm"
     RUN_SERIAL TRUE
     TIMEOUT 120)
