@@ -62,22 +62,16 @@ public:
         m_phi      = std::make_unique<MultiFab>(fg.ba, fg.dm, 1, 0);
         m_sensible = std::make_unique<MultiFab>(fg.ba, fg.dm, 1, 0);
         m_latent   = std::make_unique<MultiFab>(fg.ba, fg.dm, 1, 0);
+        m_heat     = std::make_unique<MultiFab>(fg.ba, fg.dm, 1, 0);
         m_sensible->setVal(0.0_rt);
         m_latent->setVal(0.0_rt);
+        m_heat->setVal(0.0_rt);
         fill_level_set();
     }
 
     void advance (const FireForcing& forcing) override
     {
-        // Mean over [time, time + dt] of the flux of each substep
-        m_sensible->setVal(0.0_rt);
-        const Real dt_sub = forcing.dt / Real(m_nsub);
-        for (int n = 0; n < m_nsub; ++n) {
-            add_disk_flux(*m_sensible, forcing.time + (Real(n) + 0.5_rt) * dt_sub, 1.0_rt / Real(m_nsub));
-        }
-        MultiFab::Copy(*m_latent, *m_sensible, 0, 0, 1, 0);
-        m_sensible->mult(1.0_rt - m_latent_fraction);
-        m_latent->mult(m_latent_fraction);
+        fill_step_fluxes(forcing.time, forcing.dt);
         m_time = forcing.time + forcing.dt;
         fill_level_set();
     }
@@ -98,7 +92,7 @@ public:
         if (ParallelDescriptor::IOProcessor()) {
             std::ofstream os(checkpointname + "/FireEngineExample");
             os.precision(17);
-            os << m_time << "\n";
+            os << m_time << "\n" << m_step_start << " " << m_step_dt << "\n";
         }
     }
 
@@ -108,6 +102,13 @@ public:
         ParallelDescriptor::ReadAndBcastFile(restart_chkfile + "/FireEngineExample", buf);
         std::istringstream is(std::string(buf.dataPtr()));
         is >> m_time;
+        if (!is) { Abort("[FIRE] fire.example: cannot read " + restart_chkfile + "/FireEngineExample"); }
+        // A checkpoint written before the last step was recorded holds the time only:
+        // the fluxes then stay zero until the first step, as they did then
+        if (!(is >> m_step_start >> m_step_dt)) { m_step_start = 0.0_rt; m_step_dt = 0.0_rt; }
+        // The fluxes of the last step, so that readers of heat_release() see the same
+        // fields as in the run that wrote the checkpoint
+        if (m_step_dt > 0.0_rt) { fill_step_fluxes(m_step_start, m_step_dt); }
         fill_level_set();
     }
 
@@ -124,6 +125,8 @@ public:
     }
 
     const MultiFab* level_set () const override { return m_phi.get(); }
+    // The whole flux of the last step, before its split into sensible and latent heat
+    const MultiFab* heat_release () const override { return m_heat.get(); }
 
     Real burned_area () const override
     {
@@ -133,6 +136,23 @@ public:
 
 private:
     Real radius (Real t) const { return m_r0 + m_ros * t; }
+
+    // The fluxes of the step [t0, t0 + dt]: the mean over its substeps, then the split
+    // into sensible and latent heat
+    void fill_step_fluxes (Real t0, Real dt)
+    {
+        m_sensible->setVal(0.0_rt);
+        const Real dt_sub = dt / Real(m_nsub);
+        for (int n = 0; n < m_nsub; ++n) {
+            add_disk_flux(*m_sensible, t0 + (Real(n) + 0.5_rt) * dt_sub, 1.0_rt / Real(m_nsub));
+        }
+        MultiFab::Copy(*m_heat, *m_sensible, 0, 0, 1, 0);
+        MultiFab::Copy(*m_latent, *m_sensible, 0, 0, 1, 0);
+        m_sensible->mult(1.0_rt - m_latent_fraction);
+        m_latent->mult(m_latent_fraction);
+        m_step_start = t0;
+        m_step_dt = dt;
+    }
 
     void fill_level_set ()
     {
@@ -166,12 +186,13 @@ private:
         }
     }
 
+    Real m_step_start = 0.0_rt, m_step_dt = 0.0_rt;   // the last step, for the checkpoint
     Real m_x0 = 0.0_rt, m_y0 = 0.0_rt, m_r0 = 50.0_rt, m_ros = 0.5_rt;
     Real m_q0 = 5.0e4_rt, m_latent_fraction = 0.0_rt;
     int  m_nsub = 1;
     Real m_time = 0.0_rt;
     Geometry m_geom;
-    std::unique_ptr<MultiFab> m_phi, m_sensible, m_latent;
+    std::unique_ptr<MultiFab> m_phi, m_sensible, m_latent, m_heat;
 };
 
 ERF_REGISTER_FIRE_ENGINE(FireEngineExample, "example")

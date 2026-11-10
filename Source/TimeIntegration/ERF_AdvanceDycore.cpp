@@ -14,6 +14,7 @@
 #include <ERF_PlaneAverage.H>
 #include <ERF_CanopyBiophysics.H>
 #include <ERF_SBMOwnership.H>
+#include "Microphysics/SBM/ERF_SBMTransport.H"
 
 using namespace amrex;
 

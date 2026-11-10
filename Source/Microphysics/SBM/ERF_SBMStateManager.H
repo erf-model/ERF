@@ -6,6 +6,7 @@
 #include <AMReX_MultiFab.H>
 
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -43,12 +44,29 @@ public:
     [[nodiscard]] amrex::MultiFab& new_target_storage (int lev);
 
     /** Rotate accepted new state into old state at the ERF::Advance seam. */
-    bool begin_step (int lev, double step_old_time, std::string& diagnostic);
+    /** A fine-level caller may supply its actual dt to admit bounded
+     * scheduler-roundoff between consecutive substep endpoint expressions.
+     * Without it, owner time identity remains exact.
+     */
+    bool begin_step (int lev, double step_old_time, std::string& diagnostic,
+                     std::optional<double> dt_min = std::nullopt);
 
     /** Publish a candidate accepted by the host stage sequence. */
     bool accept_stage_target (int lev, double target_time,
                               bool physical_step_complete,
                               std::string& diagnostic);
+    /** Publish an admitted same-time AMR synchronization candidate. */
+    bool accept_synchronized_state (int lev,
+                                   const amrex::MultiFab& candidate,
+                                   double semantic_time,
+                                   std::string& diagnostic);
+    bool can_accept_synchronized_state (int lev,
+                                        const amrex::MultiFab& candidate,
+                                        double semantic_time,
+                                        std::string& diagnostic) const;
+    /** Commit a candidate after collective can_accept_synchronized_state succeeds. */
+    void publish_synchronized_state (int lev,
+                                     const amrex::MultiFab& candidate);
     [[nodiscard]] bool step_active (int lev) const;
 
     /** One-way projection from the spectrum into ERF's compact qc and qr lanes. */

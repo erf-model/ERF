@@ -729,6 +729,7 @@ ERF::make_flux_register (int lev)
 {
     if (solverChoice.coupling_type != CouplingType::TwoWay || lev == 0) {
         advflux_reg[lev].reset();
+        make_sbm_flux_register(lev);
         return;
     }
     int ncomp_reflux = vars_new[0][Vars::cons].nComp();
@@ -736,6 +737,7 @@ ERF::make_flux_register (int lev)
                                                         dmap[lev] ,  dmap[lev-1],
                                                         geom[lev] ,  geom[lev-1],
                                                         ref_ratio[lev-1], lev, ncomp_reflux);
+    make_sbm_flux_register(lev);
 }
 
 void

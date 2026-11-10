@@ -189,6 +189,215 @@ if(ERF_ENABLE_TESTS)
 
   include(${CMAKE_CURRENT_SOURCE_DIR}/CTestList.cmake)
 
+  # Keep the end-to-end two-level SBM trajectory reachable only from the
+  # separately compiled qualification executable. The production executable
+  # does not register or enable this internal AMR route.
+  if(ERF_ENABLE_SBM_AMR_QUALIFICATION AND ERF_DIM STREQUAL "3" AND
+     ERF_PRECISION STREQUAL "DOUBLE" AND ERF_ENABLE_MPI)
+    if(NOT ERF_TEST_PYTHON)
+      message(FATAL_ERROR
+        "Split SBM qualification requires Python 3 for operation-aware decomposition parity")
+    endif()
+    resolve_test_exe("" "erf_exec" SBM_AMR_QUALIFICATION_EXECUTABLE)
+    set(_sbm_amr_qualification_script
+        "${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunAMRQualification.cmake")
+    set(_sbm_amr_qualification_root
+        "${CMAKE_CURRENT_BINARY_DIR}/test_files/SBM_AMR_Qualification")
+
+    add_test(NAME SBM_AMR_Qualification_1M
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/1m
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=1
+        -DEXPECTED_COMPONENTS=4
+        -DEXPECTED_FINE_SUBSTEPS=3
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_1M PROPERTIES
+      LABELS "integration;sbm;sbm_amr_qualification"
+      RUN_SERIAL TRUE
+      TIMEOUT 300)
+
+    add_test(NAME SBM_AMR_Qualification_ZeroFlow_1M
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/zero_flow_1m
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=1
+        -DEXPECTED_COMPONENTS=4
+        -DEXPECTED_STEPS=1
+        -DEXPECTED_FINE_SUBSTEPS=3
+        -DMAX_STEPS=1
+        -DZERO_FLOW=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_ZeroFlow_1M PROPERTIES
+      LABELS "integration;sbm;sbm_amr_qualification"
+      RUN_SERIAL TRUE
+      TIMEOUT 300)
+
+    add_test(NAME SBM_AMR_Qualification_2M_Attached_MPI
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_2m_attached_empty
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/2m_attached
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=2
+        -DEXPECTED_COMPONENTS=12
+        -DEXPECTED_FINE_SUBSTEPS=3
+        -DEXPECT_EMPTY_FINE_RANK=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_2M_Attached_MPI PROPERTIES
+      LABELS "integration;sbm;sbm_amr_qualification;parallel"
+      RUN_SERIAL TRUE
+      PROCESSORS 2
+      TIMEOUT 300)
+
+    add_test(NAME SBM_AMR_Qualification_1M_Split_1Rank
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m_split
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/1m_split_1rank
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=1
+        -DEXPECTED_COMPONENTS=4
+        -DEXPECTED_FINE_SUBSTEPS=3
+        -DSPATIAL_SPLIT_FIXTURE=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_1M_Split_1Rank PROPERTIES
+      LABELS "integration;sbm;sbm_amr_qualification"
+      RUN_SERIAL TRUE
+      TIMEOUT 300)
+
+    add_test(NAME SBM_AMR_Qualification_1M_Split_2Rank
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m_split
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/1m_split_2rank
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=2
+        -DEXPECTED_COMPONENTS=4
+        -DEXPECTED_FINE_SUBSTEPS=3
+        -DSPATIAL_SPLIT_FIXTURE=ON
+        -DEXPECT_SPLIT=ON
+        -DPYTHON_EXECUTABLE=${ERF_TEST_PYTHON}
+        -DREFERENCE_LOG=${_sbm_amr_qualification_root}/1m_split_1rank/qualification.log
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_1M_Split_2Rank PROPERTIES
+      LABELS "integration;parallel;sbm;sbm_amr_qualification"
+      RUN_SERIAL TRUE
+      PROCESSORS 2
+      DEPENDS SBM_AMR_Qualification_1M_Split_1Rank
+      TIMEOUT 300)
+
+    add_test(NAME SBM_AMR_Qualification_RankLocalGhostStoreFailure_2Rank
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m_split
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/rank_local_ghost_store_failure_2rank
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=2
+        -DEXPECTED_COMPONENTS=4
+        -DSPATIAL_SPLIT_FIXTURE=ON
+        -DFAILURE_TEST=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_RankLocalGhostStoreFailure_2Rank PROPERTIES
+      LABELS "integration;parallel;sbm;sbm_amr_qualification;negative"
+      RUN_SERIAL TRUE
+      PROCESSORS 2
+      TIMEOUT 60)
+
+    add_test(NAME SBM_AMR_Qualification_2M_Attached_Split_1Rank
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_2m_attached_split
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/2m_attached_split_1rank
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=1
+        -DEXPECTED_COMPONENTS=12
+        -DEXPECTED_FINE_SUBSTEPS=3
+        -DSPATIAL_SPLIT_FIXTURE=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_2M_Attached_Split_1Rank PROPERTIES
+      LABELS "integration;sbm;sbm_amr_qualification"
+      RUN_SERIAL TRUE
+      TIMEOUT 300)
+
+    add_test(NAME SBM_AMR_Qualification_2M_Attached_Split_2Rank
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_2m_attached_split
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/2m_attached_split_2rank
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=2
+        -DEXPECTED_COMPONENTS=12
+        -DEXPECTED_FINE_SUBSTEPS=3
+        -DSPATIAL_SPLIT_FIXTURE=ON
+        -DEXPECT_SPLIT=ON
+        -DPYTHON_EXECUTABLE=${ERF_TEST_PYTHON}
+        -DREFERENCE_LOG=${_sbm_amr_qualification_root}/2m_attached_split_1rank/qualification.log
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_2M_Attached_Split_2Rank PROPERTIES
+      LABELS "integration;parallel;sbm;sbm_amr_qualification"
+      RUN_SERIAL TRUE
+      PROCESSORS 2
+      DEPENDS SBM_AMR_Qualification_2M_Attached_Split_1Rank
+      TIMEOUT 300)
+
+    # Measure the actual coarse-parent halo path at the requested spectral
+    # widths and process counts with the nonzero carrier from the profile
+    # deck.  This keeps complete fine-step timings representative of transport;
+    # the split runs also assert remote parent and fine-fine donor ownership.
+    foreach(_sbm_profile_ncomp IN ITEMS 32 128 256)
+      foreach(_sbm_profile_ranks IN ITEMS 1 2 4)
+        set(_sbm_profile_test
+            "SBM_AMR_Profile_N${_sbm_profile_ncomp}_R${_sbm_profile_ranks}")
+        set(_sbm_profile_root
+            "${_sbm_amr_qualification_root}/profile_n${_sbm_profile_ncomp}_r${_sbm_profile_ranks}")
+        set(_sbm_profile_args
+            -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+            -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_profile
+            -DTEST_ROOT=${_sbm_profile_root}
+            -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+            -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+            -DMPI_RANKS=${_sbm_profile_ranks}
+            -DEXPECTED_COMPONENTS=${_sbm_profile_ncomp}
+            -DEXPECTED_STEPS=1
+            -DEXPECTED_FINE_SUBSTEPS=3
+            -DSBM_NBINS=${_sbm_profile_ncomp}
+            -DMAX_STEPS=1
+            -DSPATIAL_SPLIT_FIXTURE=ON)
+        if(_sbm_profile_ranks GREATER 1)
+          list(APPEND _sbm_profile_args
+               -DEXPECT_SPLIT=ON
+               -DPYTHON_EXECUTABLE=${ERF_TEST_PYTHON}
+               -DREFERENCE_LOG=${_sbm_amr_qualification_root}/profile_n${_sbm_profile_ncomp}_r1/qualification.log)
+        endif()
+        list(APPEND _sbm_profile_args -P ${_sbm_amr_qualification_script})
+        add_test(NAME ${_sbm_profile_test}
+          COMMAND ${CMAKE_COMMAND} ${_sbm_profile_args})
+        set_tests_properties(${_sbm_profile_test} PROPERTIES
+          LABELS "integration;parallel;sbm;sbm_amr_qualification;sbm_amr_profile"
+          RUN_SERIAL TRUE
+          PROCESSORS ${_sbm_profile_ranks}
+          TIMEOUT 600)
+        if(_sbm_profile_ranks GREATER 1)
+          set_tests_properties(${_sbm_profile_test} PROPERTIES
+            DEPENDS SBM_AMR_Profile_N${_sbm_profile_ncomp}_R1)
+        endif()
+      endforeach()
+    endforeach()
+  endif()
+
   if(ERF_ENABLE_MPI)
     # Open MPI 4 keeps one session directory per user under TMPDIR; concurrent mpiexec
     # launches race on it. Open MPI 5 makes the directory unique per launch itself.

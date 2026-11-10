@@ -249,6 +249,14 @@
         if (m_structure_model && level == m_structure_model->level(finest_level)) {
             m_structure_model->add_momentum_sources(level, xmom_src, ymom_src, zmom_src);
         }
+        // On a coarser level, the model's source restricted onto it (ERF::make_structure_coarse_sources)
+        if (m_structure_model && level < m_structure_model->level(finest_level) &&
+            level < static_cast<int>(m_structure_crse_src.size()) &&
+            m_structure_crse_src[level][0].isDefined()) {
+            MultiFab::Add(xmom_src, m_structure_crse_src[level][0], 0, 0, 1, 0);
+            MultiFab::Add(ymom_src, m_structure_crse_src[level][1], 0, 0, 1, 0);
+            MultiFab::Add(zmom_src, m_structure_crse_src[level][2], 0, 0, 1, 0);
+        }
 #endif
 
         // Nudging of the velocity towards observations at stations

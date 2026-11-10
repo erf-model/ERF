@@ -918,7 +918,7 @@ List of Parameters
 | **erf.timestepping_type**            | time integrator at each AMR level (per-level).  At a     | RK3_Implicit-      | RK3_Implicit-     |
 |                                      | FullyCompressible level: ``RK3_ImplicitSubstep`` is the  | Substep,           | Substep at a      |
 |                                      | three-stage RK3 with implicit acoustic substepping and   | RK3_NoSubstepping, | FullyCompressible |
-|                                      | ``RK3_NoSubstepping`` the three-stage SSP-RK3 with no    | RK2, MidPoint      | level, RK2        |
+|                                      | ``RK3_NoSubstepping`` the three-stage SSP-RK3 with no    | RK2, MidPoint      | level, MidPoint   |
 |                                      | acoustic substepping.  At an Anelastic or                |                    | otherwise         |
 |                                      | PseudoIncompressible level (never any acoustic           |                    |                   |
 |                                      | substepping): ``RK2`` is SSP (Heun): both stages advance |                    |                   |
@@ -1036,7 +1036,7 @@ Notes
 -----------------
 
 -  | **erf.timestepping_type** must be RK3_ImplicitSubstep or RK3_NoSubstepping at a FullyCompressible level and
-     RK2 or MidPoint at any other level; if it is not given, each level gets RK3_ImplicitSubstep or RK2 accordingly.
+     RK2 or MidPoint at any other level; if it is not given, each level gets RK3_ImplicitSubstep or MidPoint accordingly.
 
 -  | The implicit vertical diffusion is only second-order in time in an anelastic run when the two
      stages are the **midpoint method** and the tridiagonal solve is done in the first stage alone.
@@ -2583,7 +2583,7 @@ List of Parameters
 |                                          | HGAMQ, HGAMU, HGAMV); false gives strict HND06 mixing    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.enable_ysu_entrainment**           | YSUNew only: add the entrainment diffusivity at the      | Boolean            | true             |
-|                                          | first cell above the PBL top (HND06 Eq. 6)               |                    |                  |
+|                                          | first cell above the PBL top (HND06 A9-A13)              |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.ysu_moistvars**                    | YSUNew only: give moisture its own diffusivity, from the | Boolean            | false            |
 |                                          | moisture Prandtl number, and add the entrainment term to |                    |                  |

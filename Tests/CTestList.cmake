@@ -3072,7 +3072,7 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   setup_test()
   resolve_test_exe("" "erf_exec" TEST_EXE)
   add_test(${TEST_NAME} sh -c
-    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MassFlux_TrapInvalid.i max_step=3 erf.const_massflux_u=1.0 erf.const_massflux_layer_lo=0.2 erf.const_massflux_layer_hi=0.6 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_massflux_relaxation.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log --dt 0.025 --steps 3 --tol ${_massflux_tol}")
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MassFlux_TrapInvalid.i max_step=3 erf.timestepping_type=RK2 erf.const_massflux_u=1.0 erf.const_massflux_layer_lo=0.2 erf.const_massflux_layer_hi=0.6 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_massflux_relaxation.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log --dt 0.025 --steps 3 --tol ${_massflux_tol}")
   set_tests_properties(${TEST_NAME} PROPERTIES
       TIMEOUT 300 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
       LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
@@ -3655,7 +3655,7 @@ add_test_rans(RANS_WallDist_RaisedBase   Neutral_ABL_Flat     inputs_neutral    
 # this mesh whatever erf.use_fft says, so the option is not given.
 if(ERF_ENABLE_FFT)
     add_test_rans(RANS_WallDist_RaisedBase_StretchedZSplit Neutral_ABL_Flat inputs_neutral 1 check_walldist.py
-        RUNTIME_OPTIONS "'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist z_phys KE' erf.initial_dz=4 amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16'")
+        RUNTIME_OPTIONS "'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist z_phys KE' erf.initial_dz=4 amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16' erf.timestepping_type=RK2")
 endif()
 
 # Runs a case twice, with OPTIONS_A and with OPTIONS_B on top of RUNTIME_OPTIONS,
@@ -4991,7 +4991,8 @@ endif()
 # fvolumesum prints 6 significant digits; the model's fields reach the
 # ERF plotfile; and a restart from the mid-run checkpoint reproduces the final
 # plotfile exactly, and the model's checkpointed impulse (50 N for 4 s = 200 N s) is the
-# same in both logs.
+# same in both logs. Without a fire the model gets no fire view (StructureStep::fire is
+# nullptr), so it prints no fire line.
 set(_smx_src ${CMAKE_CURRENT_SOURCE_DIR}/StructureModelExample)
 get_filename_component(_smx_src_abs "${_smx_src}" ABSOLUTE)
 set(_smx_in_build FALSE)
@@ -5021,7 +5022,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
         string(REPLACE "fcompare" "fvolumesum" _smx_fvs_name "${_smx_fcmp_name}")
         set(_smx_fvs "${_smx_tools}/${_smx_fvs_name}")
         add_test(NAME Structures_ExampleModel
-                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
+                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && ! grep -q 'structure example fire' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
                  WORKING_DIRECTORY ${_smx_dir})
         set_tests_properties(Structures_ExampleModel PROPERTIES
             LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
@@ -5045,6 +5046,62 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       add_test_abort(Structures_Abort_ExampleLevel ${_smx_src} inputs_structure_example
                      "structure.example.level must be -1 .the finest level. or 0 to amr.max_level = 0, got 1"
                      "structure.example.level=1")
+      # The fire view (StructureStep::fire), with the example fire engine compiled in too.
+      # Each run is the fire deck of Tests/FireEngineExample with the example model added.
+      # The engine burns a disk of radius 150 + 50 t m that releases 5e4 W/m2; a quarter of
+      # it is latent heat, which heat_release still counts. Each step the model prints the
+      # level and time of the fire's fields, the heat released and the area burned.
+      # check_fire_view.awk compares them with the disk to 3 %: fire cells of 10 m (5 m on
+      # level 1) resolve it to 1.4 % or better, and fields one fire step late or early miss
+      # by 11 % or more. Three layouts:
+      # - both on level 0: the fields belong to the fire step that ended at the model's step
+      #   time; a restart from the mid-run checkpoint must give the restart's time and the
+      #   heat of the step before it, which the example engine restores;
+      # - the fire on a level-1 patch, the model on level 0: as above;
+      # - the fire on level 0, the model on a level-1 patch: the fire is already at the end
+      #   of the coarse step;
+      # - the fire on a level-1 patch with three substeps of 0.1/3 s, the model on level 0:
+      #   the fire's time must equal the model's step time exactly, although three
+      #   substeps add up to 0.3 s where the coarse level has 0.30000000000000004 s.
+      if(ERF_ENABLE_FIRE AND _fex_in_build)
+        set(_smf_common "erf.structures.model=example structure.example.force=50 0 0 structure.example.epsilon=50 fire.example.r0=150 fire.example.ros=50 fire.example.heat_flux=5.0e4 fire.example.nsub=1 fire.example.latent_fraction=0.25 erf.fire.grid_ratio=10 amr.max_grid_size=10 10 60 max_step=4 erf.check_int=-1 erf.plot_int_1=-1 amrex.call_addr2line=0")
+        set(_smf_two "amr.max_level=1 erf.dt_ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1")
+        set(_smf_awk "awk -v r0=150 -v ros=50 -v q0=5.0e4 -v tol=0.03")
+        set(_smf_names Structures_ExampleModel_FireView Structures_ExampleModel_FireViewFinerFire Structures_ExampleModel_FireViewFinerModel Structures_ExampleModel_FireViewExactTime)
+        set(_smf_args_0 "structure.example.position=300 300 300")
+        set(_smf_args_1 "${_smf_two} erf.box1.in_box_lo_indices_crse=5 5 0 erf.box1.in_box_hi_indices_crse=14 14 29 erf.fire.anchor_level=1 structure.example.level=0 structure.example.position=200 200 300")
+        set(_smf_args_2 "${_smf_two} erf.box1.in_box_lo_indices_crse=0 0 0 erf.box1.in_box_hi_indices_crse=9 9 29 erf.fire.anchor_level=0 structure.example.level=1 structure.example.position=300 300 300")
+        set(_smf_args_3 "amr.max_level=1 erf.dt_ref_ratio=3 erf.fixed_dt=0.1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices_crse=5 5 0 erf.box1.in_box_hi_indices_crse=14 14 29 erf.fire.anchor_level=1 structure.example.level=0 structure.example.position=200 200 300")
+        set(_smf_check_0 "-v lev=0 -v dtf=0.5 -v lead=0")
+        set(_smf_check_1 "-v lev=1 -v dtf=0.25 -v lead=0")
+        set(_smf_check_2 "-v lev=0 -v dtf=0.5 -v lead=0.5")
+        set(_smf_check_3 "-v lev=1 -v dtf=0.0333333333333333 -v lead=0")
+        set(_smf_nlines_0 4)
+        set(_smf_nlines_1 4)
+        set(_smf_nlines_2 8)
+        set(_smf_nlines_3 4)
+        # The restart leg of the first run: checkpoint at step 2 (t = 1 s), restart, two steps
+        set(_smf_more_0 "erf.check_int=2")
+        set(_smf_rst_0 " && rm -rf rst && mkdir rst && cd rst && cp ../input_sounding . && ${_smx_mpi} ${_smx_exe} ../inputs_fire_example ${_smf_common} ${_smf_args_0} erf.restart=../chk00002 > ../restart.log 2>&1 && cd .. && ${_smf_awk} ${_smf_check_0} -v nlines=2 -f ${_smx_src_abs}/check_fire_view.awk restart.log && grep -q 'structure example fire: t = 1 fire_lev = 0 fire_t = 1 ' restart.log")
+        set(_smf_more_1 "")
+        set(_smf_more_2 "")
+        set(_smf_rst_1 "")
+        set(_smf_rst_2 "")
+        set(_smf_more_3 "")
+        set(_smf_rst_3 "")
+        foreach(_i RANGE 3)
+          list(GET _smf_names ${_i} _smf_name)
+          set(_smf_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${_smf_name})
+          file(MAKE_DIRECTORY ${_smf_dir})
+          file(COPY ${_fex_src}/inputs_fire_example ${_fex_src}/input_sounding DESTINATION ${_smf_dir})
+          add_test(NAME ${_smf_name}
+                   COMMAND sh -c "rm -rf chk0* && ${_smx_mpi} ${_smx_exe} inputs_fire_example ${_smf_common} ${_smf_args_${_i}} ${_smf_more_${_i}} > run.log 2>&1 && ${_smf_awk} ${_smf_check_${_i}} -v nlines=${_smf_nlines_${_i}} -f ${_smx_src_abs}/check_fire_view.awk run.log${_smf_rst_${_i}}"
+                   WORKING_DIRECTORY ${_smf_dir})
+          set_tests_properties(${_smf_name} PROPERTIES
+              LABELS "regression;structures;fire" TIMEOUT 600 PROCESSORS 2
+              ATTACHED_FILES_ON_FAIL "${_smf_dir}/run.log;${_smf_dir}/restart.log")
+        endforeach()
+      endif()
     elseif(NOT ERF_STRUCTURE_MODEL_DIRS)
       add_test_abort(Structures_Abort_NoModelBuiltIn ${_smx_src} inputs_structure_example
                      "erf.structures.model = .example. is not one of the structure models compiled in .none"
@@ -5161,9 +5218,9 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # equation solved is A phi = rhs / (m_x m_y).  Without that division every solve left
     # 1 - m_x m_y = 75 % of the divergence (1.17e-2 of 1.56e-2 on level 0)
     add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors TerrainPoisson_Hill 1
-        COMMON_OPTIONS "erf.test_mapfactor=true")
+        COMMON_OPTIONS "erf.test_mapfactor=true erf.timestepping_type=RK2")
     add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors_Walls TerrainPoisson_Hill 0
-        COMMON_OPTIONS "${_tp_walls} erf.test_mapfactor=true")
+        COMMON_OPTIONS "${_tp_walls} erf.test_mapfactor=true erf.timestepping_type=RK2")
     # The answer on two levels must not depend on the decomposition (one box on one rank
     # against level-1 boxes split in x and y on NP ranks; they agree to 1e-14) or on a
     # restart, which re-makes the solve from the checkpoint
@@ -5252,7 +5309,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # Map factors other than one (erf.test_mapfactor) with MLMG: in every MPI build, so the
     # map-factor scaling of the projection runs in CI
     add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors_mlmg TerrainPoisson_Hill 1
-        COMMON_OPTIONS "erf.test_mapfactor=true ${_tp_mg_tol} erf.terrain_poisson_solver=mlmg")
+        COMMON_OPTIONS "erf.test_mapfactor=true ${_tp_mg_tol} erf.terrain_poisson_solver=mlmg erf.timestepping_type=RK2")
     # An Outflow face (a Dirichlet face of the solve) on the walled hill: the problem is not
     # singular, and the solve converges as at the walls (at most 5e-9 left at the default
     # tolerance)
@@ -5515,7 +5572,7 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
   # Boxes split in z: the lowest and highest w-face of a box read the horizontal momenta from ghost faces
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_SplitZ inputs_hill 30
-      RUNTIME_OPTIONS "amr.no_box_split_dir=-1 amr.max_grid_size_x=16 amr.max_grid_size_y=16 amr.max_grid_size_z=6"
+      RUNTIME_OPTIONS "amr.no_box_split_dir=-1 amr.max_grid_size_x=16 amr.max_grid_size_y=16 amr.max_grid_size_z=6 erf.timestepping_type=RK2"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol} --require-z-split)
   # Map factors over terrain: the vertical flux carries 1 / (mf_mx mf_my) only where Omega is nonzero
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MapFactor inputs_hill 30

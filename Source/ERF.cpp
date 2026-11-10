@@ -662,10 +662,16 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     // reports by the number of completed steps, the plotfiles' numbering.
     ibseb_report(nstep + 1, time);
 
-    if (cloud_chamber_budget) {
+    // The cloud-chamber budget observes the coarse state before the AMR sync,
+    // except under SBM, where it follows the accepted spectral synchronization.
+    const bool sbm_moisture = solverChoice.moisture_type == MoistureType::SBM;
+    auto report_cloud_chamber_budget = [&] () {
         cloud_chamber_budget->report(
             nstep + 1, time, vars_new[0][Vars::cons], geom[0],
             solverChoice.moisture_type == MoistureType::SatAdj);
+    };
+    if (cloud_chamber_budget && !sbm_moisture) {
+        report_cloud_chamber_budget();
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -784,6 +790,14 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 if (q_crse && q_fine) { average_down(*q_fine, *q_crse, 0, 1, rr2d); }
             }
         }
+
+        if (sbm_state_manager && sbm_moisture) {
+            sbm_synchronize_levels(nstep);
+        }
+    }
+
+    if (cloud_chamber_budget && sbm_moisture) {
+        report_cloud_chamber_budget();
     }
 
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
@@ -2067,6 +2081,8 @@ ERF::InitData_post ()
     if (m_fire_coupler) {
         const int fire_lev = fire_anchor_level(m_fire_coupler->params().anchor_level, finest_level);
         m_fire_coupler->initialize(*this, fire_lev, m_SurfaceLayer[Orientation::zlo()].get(), z_phys_nd[fire_lev].get());
+        // The fields' time: the start, or the time of the checkpoint on a restart
+        m_fire_coupler->set_fields_time(t_new[fire_lev]);
         // An engine that takes the rain per column needs the microphysics
         // accumulators of the fire grid's level, which exist now that every
         // level is built.
@@ -2527,6 +2543,10 @@ ERF::InitData_post ()
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
         }
     }
+
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    sbm_qualification_record_initial_inventory();
+#endif
 }
 
 //

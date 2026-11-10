@@ -178,6 +178,96 @@ TableSummary (const std::string& fname, bool is_usgs, int nx, int ny,
     return os.str();
 }
 
+std::string
+MakeTablePeriodic (HeightTable& t,
+                   const GpuArray<Real,AMREX_SPACEDIM>& prob_lo,
+                   const GpuArray<Real,AMREX_SPACEDIM>& prob_hi,
+                   const Array<bool,2>& periodic,
+                   std::string& note)
+{
+    note.clear();
+    Real zscale = Real(1.);
+    for (const auto& h : t.z) { zscale = amrex::max(zscale, std::abs(h)); }
+    const Real ztol = Real(1.e-6) * zscale;
+
+    for (int d = 0; d < 2; ++d) {
+        const int n = (d == 0) ? t.nx : t.ny;
+        if (!periodic[d] || n == 1) { continue; }
+        Vector<Real>& v = (d == 0) ? t.x : t.y;
+        const char* name  = (d == 0) ? "x" : "y";
+        const char* other = (d == 0) ? "y" : "x";
+        const Real lo = prob_lo[d];
+        const Real hi = prob_hi[d];
+        // A point on a face: within 1e-3 of the table spacing (and a few ulp), as in list_problem
+        const Real ulps = Real(8.) * std::numeric_limits<Real>::epsilon()
+                        * amrex::max(std::abs(lo), std::abs(hi));
+        const bool on_lo = std::abs(v[0]   - lo) <= Real(1.e-3)*(v[1]   - v[0]  ) + ulps;
+        const bool on_hi = std::abs(v[n-1] - hi) <= Real(1.e-3)*(v[n-1] - v[n-2]) + ulps;
+
+        // Index of the height at point m in direction d and point o in the other direction
+        const int n_other = (d == 0) ? t.ny : t.nx;
+        auto idx = [&] (int m, int o) { return (d == 0) ? m*t.ny + o : o*t.ny + m; };
+        auto other_coord = [&] (int o) { return (d == 0) ? t.y[o] : t.x[o]; };
+
+        std::ostringstream os;
+        if (on_lo && on_hi) {
+            // Heights on both faces: they must be the same
+            Real dmax = Real(0.);
+            int omax = 0;
+            for (int o = 0; o < n_other; ++o) {
+                const Real diff = std::abs(t.z[idx(0,o)] - t.z[idx(n-1,o)]);
+                if (diff > dmax) { dmax = diff; omax = o; }
+            }
+            if (dmax > ztol) {
+                os << name << " is periodic, but the heights on the two " << name << " faces differ: "
+                   << t.z[idx(0,omax)] << " at " << name << " = " << v[0] << " and "
+                   << t.z[idx(n-1,omax)] << " at " << name << " = " << v[n-1]
+                   << " (" << other << " = " << other_coord(omax) << "), a difference of " << dmax
+                   << " (allowed: " << ztol << "); a periodic domain needs the same terrain on both faces";
+                return os.str();
+            }
+            os << "    " << name << " is periodic: the heights at " << name << " = " << v[0]
+               << " and " << name << " = " << v[n-1] << " agree\n";
+            note += os.str();
+        } else if ((on_lo && v[n-1] < hi) || (on_hi && v[0] > lo)) {
+            // Heights on one face only: give the other face the same heights
+            const int src = on_lo ? 0 : n-1;
+            const int nx_new = (d == 0) ? t.nx + 1 : t.nx;
+            const int ny_new = (d == 1) ? t.ny + 1 : t.ny;
+            Vector<Real> z_new(Long(nx_new) * Long(ny_new));
+            for (int i = 0; i < nx_new; ++i) {
+                for (int j = 0; j < ny_new; ++j) {
+                    // the new point in direction d is the last (on_lo) or the first (on_hi)
+                    const int m_new = (d == 0) ? i : j;
+                    const int m_old = on_lo ? ((m_new == n) ? src : m_new)
+                                            : ((m_new == 0) ? src : m_new - 1);
+                    const int i_old = (d == 0) ? m_old : i;
+                    const int j_old = (d == 1) ? m_old : j;
+                    z_new[i*ny_new + j] = t.z[i_old*t.ny + j_old];
+                }
+            }
+            t.z = z_new;
+            if (on_lo) {
+                v.push_back(hi);
+            } else {
+                v.insert(v.begin(), lo);
+            }
+            t.nx = nx_new;
+            t.ny = ny_new;
+            os << "    " << name << " is periodic: no heights at " << name << " = "
+               << (on_lo ? hi : lo) << ", so the heights at " << name << " = "
+               << (on_lo ? v[0] : v[n]) << " are used there\n";
+            note += os.str();
+        } else {
+            os << "    " << name << " is periodic, but the table (" << name << " = " << v[0] << " .. "
+               << v[n-1] << ") has no point on either face, or runs past one, of the domain "
+               << lo << " .. " << hi << "; its heights are used as they are\n";
+            note += os.str();
+        }
+    }
+    return "";
+}
+
 namespace {
 
 // Read and check the table on the I/O rank (aborts on any problem), then broadcast it
@@ -185,7 +275,8 @@ HeightTable
 read_and_broadcast (const std::string& fname, bool is_usgs,
                     const GpuArray<Real,AMREX_SPACEDIM>& prob_lo,
                     const GpuArray<Real,AMREX_SPACEDIM>& prob_hi,
-                    bool require_domain_coverage)
+                    bool require_domain_coverage,
+                    const Array<bool,2>& periodic)
 {
     HeightTable t;
     if (ParallelDescriptor::IOProcessor()) {
@@ -309,6 +400,22 @@ read_and_broadcast (const std::string& fname, bool is_usgs,
         if (!problem.empty()) {
             Abort("Terrain file " + fname + ": " + problem);
         }
+        // Same terrain on the two faces of a periodic direction
+        if (periodic[0] || periodic[1]) {
+            if (is_usgs) {
+                Print() << "Height file " << fname << ": the domain is periodic, but a table in"
+                        << " the USGS layout is used as it is\n";
+            } else {
+                std::string note;
+                const std::string pproblem = MakeTablePeriodic(t, prob_lo, prob_hi, periodic, note);
+                if (!pproblem.empty()) {
+                    Abort("Terrain file " + fname + ": " + pproblem);
+                }
+                if (!note.empty()) {
+                    Print() << "Height file " << fname << " in a periodic domain:\n" << note;
+                }
+            }
+        }
         Print() << TableSummary(fname, is_usgs, t.nx, t.ny, t.x, t.y, t.z);
     }
 
@@ -331,17 +438,20 @@ const HeightTable&
 ReadHeightTable (const std::string& fname, bool is_usgs,
                  const GpuArray<Real,AMREX_SPACEDIM>& prob_lo,
                  const GpuArray<Real,AMREX_SPACEDIM>& prob_hi,
-                 bool require_domain_coverage)
+                 bool require_domain_coverage,
+                 const Array<bool,2>& periodic)
 {
     // Include the coverage policy so a cached building patch cannot bypass the terrain check
-    // if the same file is subsequently requested as terrain.
+    // if the same file is subsequently requested as terrain, and the periodicity, which can
+    // add a row of heights to the table.
     static std::map<std::string, HeightTable> tables;
     const std::string key = std::string(require_domain_coverage ? "covered:" : "partial:")
+                          + (periodic[0] ? "px:" : "") + (periodic[1] ? "py:" : "")
                           + (is_usgs ? "USGS:" : "ERF:") + fname;
     auto it = tables.find(key);
     if (it == tables.end()) {
         it = tables.emplace(key, read_and_broadcast(fname, is_usgs, prob_lo, prob_hi,
-                                                    require_domain_coverage)).first;
+                                                    require_domain_coverage, periodic)).first;
     }
     return it->second;
 }
