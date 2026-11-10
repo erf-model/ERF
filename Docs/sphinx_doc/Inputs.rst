@@ -1725,6 +1725,35 @@ directions, and its lo end may not be above its hi end; ERF aborts otherwise. Li
 ``sample_line_lo_real`` and ``sample_line_hi_real`` are not supported with moving terrain
 (``erf.terrain_type = MovingFittedMesh``); lines given by indices are.
 
+In a run with latitude and longitude arrays (a WRF or metgrid initialization, or a restart from
+one), a line may instead be given by ``sample_line_lo_latlon`` and ``sample_line_hi_latlon``:
+latitude, longitude (in degrees) and z of each end. Each end is placed on the grid as a station
+placed by ``.lat`` and ``.long`` is, and the line is then treated as one given by
+``sample_line_lo_real`` and ``sample_line_hi_real``, so z is measured as described below,
+including with ``erf.sample_line_z_agl``. ERF aborts in a run without latitude and longitude
+arrays, and when an end is outside the domain.
+
+- A vertical line (``sample_line_dir = 2``) gives the same latitude and longitude at both ends,
+  for example a profile over a site.
+- A horizontal line (``sample_line_dir = 0`` or ``1``) gives the same z at both ends. On a
+  projected grid two points are in general not on one row of cells, so the ends must lie within
+  one cell of each other across the line; the line is then sampled along the row through its lo
+  end. The lo end must be at the lower x (or y) of the two; ERF aborts otherwise. The latitude
+  and longitude that each end reaches, and how far the hi end is from the row, are printed at
+  start-up.
+
+For example, a profile up to 2 km above the ground over one site, and an east-west transect at
+500 m between two sites at the same latitude:
+
+::
+
+   erf.do_line_sampling      = true
+   erf.line_sampling_interval = 10
+   erf.sample_line_dir       = 2 0
+   erf.sample_line_lo_latlon = 40.00 -105.20    0.   40.00 -105.40 500.
+   erf.sample_line_hi_latlon = 40.00 -105.20 2000.   40.00 -105.00 500.
+   erf.sample_line_z_agl     = true
+
 On a stretched or terrain-fitted mesh, the cells of a line given by ``sample_line_lo_real`` and
 ``sample_line_hi_real`` come from the heights of the column through its first point. A vertical
 line (``sample_line_dir = 2``) runs from the cell that holds the lower z to the cell that holds the
@@ -1819,6 +1848,9 @@ List of Parameters
 | **erf.sample_line_lo_real**,       | Bounding point on the line(s)                            | 3 Reals per line   | None             |
 | **erf.sample_line_hi_real**        |                                                          |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_lo_latlon**,     | Latitude, longitude (degrees) and z of each end of the   | 3 Reals per line   | None             |
+| **erf.sample_line_hi_latlon**      | line(s); needs latitude/longitude arrays                 |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_line_z_agl**          | z of the real bounding points of the lines is the height | Boolean            | false            |
 |                                    | above the ground instead of above sea level              |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -1851,23 +1883,31 @@ List of Parameters
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_line**                | lines along which the state is written to a log, given   | List of Integers,  | None             |
 |                                    | as flattened (i,j,k) index triples; may not be combined  | in triples         |                  |
-|                                    | with ``erf.sample_line_real``                            |                    |                  |
+|                                    | with ``erf.sample_line_real`` or ``_latlon``             |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_line_real**           | as above, but the lines are given as flattened (x,y,z)   | List of Reals, in  | None             |
 |                                    | physical-coordinate triples; may not be combined with    | triples            |                  |
-|                                    | ``erf.sample_line``                                      |                    |                  |
+|                                    | ``erf.sample_line`` or ``_latlon``                       |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_latlon**         | as above, but the lines are given as flattened           | List of Reals, in  | None             |
+|                                    | (latitude, longitude) pairs in degrees; needs            | pairs              |                  |
+|                                    | latitude/longitude arrays                                |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_line_log**            | log-file name for each sampled line; exactly one name    | List of Strings    | None             |
 |                                    | per line is required                                     |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
-``erf.sample_line`` and ``erf.sample_line_real`` are a shorthand for line sampling. Each line is
-the full-depth vertical column through the given cell or point on level 0 (its k or z is not
-used, and only x and y must lie in the domain), sampled with the line-sampling machinery above with the variables
+``erf.sample_line``, ``erf.sample_line_real`` and ``erf.sample_line_latlon`` are a shorthand for
+line sampling. Each line is the full-depth vertical column through the given cell or point on
+level 0 (its k or z is not used, and only x and y must lie in the domain), sampled with the line-sampling machinery above with the variables
 ``conserved``, ``x_velocity``, ``y_velocity``, ``z_velocity`` and ``sgs_tau11`` ...
 ``sgs_tau33``. Each line is written to its own log at the cadence of the other logs
 (``erf.sum_interval`` or ``erf.sum_per``), one row per sample: the time, then each variable over
-the column from bottom to top, in that order. The stresses are at cell centers, as for line
+the column from bottom to top, in that order. A point of ``erf.sample_line_latlon`` is placed on
+the grid as a station placed by ``.lat`` and ``.long`` is, in a run with latitude and longitude
+arrays (a WRF or metgrid initialization, or a restart from one); the latitude and longitude it
+reaches are printed at start-up. ERF aborts in a run without those arrays, and when a point is
+outside the domain. The stresses are at cell centers, as for line
 sampling; before this used the line sampler, ``tau12``, ``tau13`` and ``tau23`` were written at the
 lower corner edge of each cell instead.
 
