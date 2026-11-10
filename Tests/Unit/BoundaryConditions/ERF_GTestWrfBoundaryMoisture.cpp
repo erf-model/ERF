@@ -189,8 +189,8 @@ TEST(WrfBoundaryMoisture, NumberTargetsOnlyForFullMorrison)
     EXPECT_EQ(t.num_comps[2], morr.ns); EXPECT_EQ(t.mass_target[2], 4);
     EXPECT_EQ(t.num_comps[3], morr.ng); EXPECT_EQ(t.mass_target[3], 5);
 
-    const auto noice = MoistureComponentIndices::from_moisture_model(MoistureType::Morrison_NoIce);
-    EXPECT_EQ(wrf_bdy_number_targets(MoistureType::Morrison_NoIce, noice).n_targets, 0);
+    const auto no_ice = MoistureComponentIndices::from_moisture_model(MoistureType::Morrison_NoIce);
+    EXPECT_EQ(wrf_bdy_number_targets(MoistureType::Morrison_NoIce, no_ice).n_targets, 0);
     const auto wdm6 = MoistureComponentIndices::from_moisture_model(MoistureType::WDM6);
     EXPECT_EQ(wrf_bdy_number_targets(MoistureType::WDM6, wdm6).n_targets, 0);
 }
