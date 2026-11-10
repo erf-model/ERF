@@ -473,8 +473,6 @@ void erf_substep_MT (int step, int /*nrk*/,
             // The volume dividing the vertical flux divergence of rho and (rho theta) is the new one, the
             // volume the conservative update below divides by. The face metric of the vertical pressure
             // gradient (in coeff_P and coeff_Q, from make_fast_coeffs) stays at the sub-step midpoint.
-            // (The vertical flux of that update is formed after the solve from Omega_new - Omega_stg,
-            // not from the solve's unknown, so the two still differ by the change of J over the sub-step.)
             Real dJo_k   = detJ_new(i,j,k  );
             Real dJo_km1 = detJ_new(i,j,k-1);
             // Cell volumes of the conservative update, at the sub-step ends and at the stage
@@ -579,6 +577,15 @@ void erf_substep_MT (int step, int /*nrk*/,
             Real UppVpp = (dJ_new_kface/dJ_old_kface) * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
                          -(dJ_stg_kface/dJ_old_kface) * OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
             RHS_a(i,j,k) += UppVpp;
+
+            // Up to here the row is the w equation, conservative in the face volume, for
+            // (J_new Omega_new - J_stg Omega_stg)/J_old.  The unknown of the solve is instead the flux
+            // perturbation X = Omega_new - Omega_stg, which the rho and (rho theta) update below uses, so
+            // that the rho and (rho theta) the solve predicts are the ones stored:
+            // (J_new Omega_new - J_stg Omega_stg)/J_old = (J_new/J_old) X + ((J_new - J_stg)/J_old) Omega_stg.
+            // make_fast_coeffs puts J_new/J_old on the diagonal; the second term moves to the right
+            Real Omega_stg = OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
+            RHS_a(i,j,k) -= ((dJ_new_kface - dJ_stg_kface)/dJ_old_kface) * Omega_stg;
         });
         } // end profile
 
@@ -686,17 +693,13 @@ void erf_substep_MT (int step, int /*nrk*/,
 
             } else {
 
-                // Conservative update: soln = (J_new Omega_new - J_stg Omega_stg) / J_old with Omega = OmegaFromW,
-                // so Omega_new and the new horizontal momenta give W_new
-                Real dJ_old_kface = myhalf * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
-                Real dJ_new_kface = myhalf * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
-                Real dJ_stg_kface = myhalf * (detJ_stg(i,j,k) + detJ_stg(i,j,k-1));
+                // soln is the flux perturbation Omega_new - Omega_stg (see the assembly of the RHS), so
+                // Omega_new and the new horizontal momenta give W_new; the update of rho and (rho theta)
+                // below takes soln itself as the flux, as the solve did
                 Real Omega_stg = OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
-                Real Omega_new = (dJ_old_kface * soln_a(i,j,k) + dJ_stg_kface * Omega_stg) / dJ_new_kface;
+                Real Omega_new = soln_a(i,j,k) + Omega_stg;
                 cur_zmom(i,j,k) = WFromOmega(i,j,k,Omega_new,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv);
 
-                soln_a(i,j,k) = OmegaFromW(i,j,k,cur_zmom(i,j,k),cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
-                              - OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
                 Real rho_stg_face = myhalf * (stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp));
                 soln_a(i,j,k) -= rho_on_face * zp_t_arr(i,j,k) + (rho_on_face - rho_stg_face) * z_t_arr(i,j,k);
             }

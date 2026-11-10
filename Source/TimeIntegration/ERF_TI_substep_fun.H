@@ -168,8 +168,10 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                              (l_mid_metric ? z_phys_nd_mid[level].get() : z_phys_nd[level].get()),
                              l_variable_beta_s, solverChoice.beta_s_min, solverChoice.beta_s_max,
                              phys_bc_type,
-                             // The rho and (rho theta) equations divide by the volume of the update
-                             (l_mid_metric ? detJ_cc_new[level].get() : nullptr));
+                             // The rho and (rho theta) equations divide by the volume of the update,
+                             // and the w equation has J_new/J_old on its diagonal
+                             (l_mid_metric ? detJ_cc_new[level].get() : nullptr),
+                             (l_mid_metric ? detJ_cc[level].get()     : nullptr));
         }
 
         bool l_rayleigh_implicit = solverChoice.rayleigh_implicit_w(level);
