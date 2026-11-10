@@ -591,7 +591,9 @@ runtime:
   with :math:`w_{q,k}` equal to the accepted completed-ledger coefficient:
   for compressible RK3 it is the physical substep length only at stage 2,
   and for anelastic Heun it is one-half the physical substep length at
-  stages 0 and 1. The complete all-component face-integral ledger remains
+  stages 0 and 1. (Anelastic MidPoint would weight only stage 1, by the
+  full substep length, but the interface register does not yet accept it.)
+  The complete all-component face-integral ledger remains
   available as a test/reference path; the normal production transport
   allocation does not require that additional full-spectrum face record.
   These numerical foundations are **not** evidence that operational
@@ -929,7 +931,8 @@ The current configuration requires:
   other problem-specific initialization or forcing is rejected.
 
 Anelastic SBM advection is supported only for the currently qualified
-non-fitted-terrain cases, including constant- and stretched-z grids.
+non-fitted-terrain cases, including constant- and stretched-z grids, with
+either anelastic integrator: ``RK2`` (Heun) or ``MidPoint``, ERF's default.
 ``StaticFittedMesh`` with ``VariableDz`` is explicitly rejected for anelastic
 SBM because ERF's fitted-terrain anelastic projection requires a nonperiodic
 vertical boundary, whereas the current spectral transport capability requires

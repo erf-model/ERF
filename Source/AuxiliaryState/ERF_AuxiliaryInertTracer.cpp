@@ -316,7 +316,7 @@ void AuxiliaryInertTracer::advance_stage (
         }
         const amrex::Real max_absolute = residual.norm0(0);
         const amrex::Real max_scaled = scaled_residual.norm0(0);
-        const int nstages = method == HostIntegrator::CompressibleRK3 ? 3 : 2;
+        const int nstages = HostIntegratorStageCount(method);
         const amrex::Real tolerance = std::numeric_limits<amrex::Real>::epsilon() *
             amrex::Real(64.0 * (nstages + 1));
         amrex::Print() << "AUX_M2_LEDGER max_abs_residual=" << max_absolute

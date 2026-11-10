@@ -9,16 +9,6 @@
 namespace erf_auxiliary {
 namespace {
 
-int stage_count (const HostIntegrator method) noexcept
-{
-    switch (method) {
-    case HostIntegrator::CompressibleRK3: return 3;
-    case HostIntegrator::AnelasticHeun: return 2;
-    case HostIntegrator::AnelasticMidPoint: return 2;
-    }
-    return 0;
-}
-
 bool finite_nonnegative (const double value) noexcept
 {
     return std::isfinite(value) && value >= 0.0;
@@ -54,6 +44,16 @@ bool storage_overlaps (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
 
 } // namespace
 
+int HostIntegratorStageCount (const HostIntegrator method) noexcept
+{
+    switch (method) {
+    case HostIntegrator::CompressibleRK3: return 3;
+    case HostIntegrator::AnelasticHeun: return 2;
+    case HostIntegrator::AnelasticMidPoint: return 2;
+    }
+    return 0;
+}
+
 const char* HostIntegratorName (const HostIntegrator method) noexcept
 {
     switch (method) {
@@ -76,21 +76,21 @@ bool MakeAuxiliaryStageRecipe (const HostIntegrator method,
         diagnostic = "host stage interval must be finite and positive";
         return false;
     }
-    if (method == HostIntegrator::AnelasticMidPoint) {
-        diagnostic = "AnelasticMidPoint is represented but is not qualified by the M2 fixture";
-        return false;
-    }
-    if (stage < 0 || stage >= stage_count(method)) {
+    if (stage < 0 || stage >= HostIntegratorStageCount(method)) {
         diagnostic = "stage index is outside the selected host integrator sequence";
         return false;
     }
 
-    if (method == HostIntegrator::CompressibleRK3) {
+    if (method == HostIntegrator::CompressibleRK3 ||
+        method == HostIntegrator::AnelasticMidPoint) {
+        // Every stage restarts from the old state, so only the final stage's rate is the step's flux.
         recipe.limiter_trial_base = LimiterTrialBase::Anchor;
         recipe.anchor_weight = 1.0;
         recipe.limiter_trial_interval = host_stage_interval;
         recipe.face_rate_time_coefficient = host_stage_interval;
-        if (stage == 2) { recipe.completed_ledger_time = host_stage_interval; }
+        if (stage + 1 == HostIntegratorStageCount(method)) {
+            recipe.completed_ledger_time = host_stage_interval;
+        }
     } else if (method == HostIntegrator::AnelasticHeun) {
         if (stage == 0) {
             recipe.limiter_trial_base = LimiterTrialBase::Anchor;
@@ -343,12 +343,7 @@ bool CompletedStepFluxLedger::begin_stage (const HostIntegrator method,
         latch_stage_failure(diagnostic);
         return false;
     }
-    if (method == HostIntegrator::AnelasticMidPoint) {
-        diagnostic = "AnelasticMidPoint completed-step ledger is not qualified by M2";
-        latch_stage_failure(diagnostic);
-        return false;
-    }
-    if (stage < 0 || stage >= stage_count(method)) {
+    if (stage < 0 || stage >= HostIntegratorStageCount(method)) {
         diagnostic = "stage index is outside the completed-step ledger sequence";
         latch_stage_failure(diagnostic);
         return false;
@@ -446,10 +441,14 @@ bool CompletedStepFluxLedger::accumulate_stage_component (
         return fail();
     }
 
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        amrex::MultiFab::Saxpy(m_integral.dir(dir), m_open_stage_weight,
-                               rate.dir(dir), source_component,
-                               ledger_component, 1, 0);
+    // A zero-weight stage (RK3 and MidPoint predictors) only records that the
+    // component arrived; adding zero times its rate would leave the integral unchanged.
+    if (m_open_stage_weight != amrex::Real(0.0)) {
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            amrex::MultiFab::Saxpy(m_integral.dir(dir), m_open_stage_weight,
+                                   rate.dir(dir), source_component,
+                                   ledger_component, 1, 0);
+        }
     }
     seen = 1;
     return true;
@@ -464,7 +463,7 @@ bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
     const bool local_stage_valid =
         m_stage_failure_diagnostic.empty() && m_stage_open && m_step_active &&
         m_open_stage == m_next_stage &&
-        m_open_stage >= 0 && m_open_stage < stage_count(m_method);
+        m_open_stage >= 0 && m_open_stage < HostIntegratorStageCount(m_method);
     if (!local_stage_valid && diagnostic.empty()) {
         diagnostic = "completed-step stage finish requires an open host stage";
     }
@@ -498,7 +497,7 @@ bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
         }
     }
     const bool completes_step = local_stage_code != 0 &&
-                                m_next_stage + 1 == stage_count(m_method);
+                                m_next_stage + 1 == HostIntegratorStageCount(m_method);
     bool locally_finite = true;
     if (completes_step) {
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
