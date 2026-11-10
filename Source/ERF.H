@@ -645,7 +645,6 @@ public:
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
     void FillBdyCCVels (amrex::MultiFab& mf_cc_vel, amrex::Geometry& lev_geom);
 
-    void sample_points (int ifile, int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
     // Sample and write the lines of sampler, with the stresses and heat flux of each level
     void run_line_sampler (LineSampler& sampler);
     // The volume fraction of each level for line and plane sampling, or nullptr without
@@ -2482,33 +2481,6 @@ private:
     }
 
 
-    AMREX_FORCE_INLINE
-    std::ostream&
-    SamplePointLog (int i)
-    {
-        return *sampleptlog[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSamplePointLogs () noexcept
-    {
-        return static_cast<int>(sampleptlog.size());
-    }
-
-    amrex::IntVect&
-    SamplePoint (int i)
-    {
-        return samplepoint[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSamplePoints () noexcept
-    {
-        return static_cast<int>(samplepoint.size());
-    }
-
     static double startCPUTime;
     static double previousCPUTimeUsed;
 
@@ -2566,23 +2538,6 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordEnergyDataInfo");
     }
 
-    void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename) // NOLINT
-    {
-        amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
-        for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
-        {
-            const amrex::Box& bx = mfi.validbox();
-            if (bx.contains(cell)) {
-                sampleptlog[i] = std::make_unique<std::fstream>();
-                sampleptlog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
-                if (!sampleptlog[i]->good()) {
-                    amrex::FileOpenFailed(filename);
-                }
-            }
-        }
-        amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
-    }
-
     // Data sampler for line and plane output
     int line_sampling_interval = -1;
     int plane_sampling_interval = -1;
@@ -2592,6 +2547,8 @@ private:
     // erf.sample_line / erf.sample_line_real: full-depth columns on level 0, written to logs
     // at the cadence of the other logs (erf.sum_interval / erf.sum_per)
     std::unique_ptr<LineSampler> sample_line_sampler = nullptr;
+    // erf.sample_point / _real / _latlon: single cells, written to logs at the same cadence
+    std::unique_ptr<LineSampler> sample_point_sampler = nullptr;
     std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 
     // Station time-series output
@@ -2616,16 +2573,9 @@ private:
     amrex::Vector<std::string>   der_datalogname;
     amrex::Vector<std::string> tot_e_datalogname;
 
-    amrex::Vector<std::unique_ptr<std::fstream> > sampleptlog;
-    amrex::Vector<std::string> sampleptlogname;
-    amrex::Vector<amrex::IntVect> samplepoint;
-
     //! The filename of the ith datalog file.
     [[nodiscard]] std::string DataLogName (int i) const noexcept { return datalogname[i]; }
     [[nodiscard]] std::string DerDataLogName (int i) const noexcept { return der_datalogname[i]; }
-
-    //! The filename of the ith sampleptlog file.
-    [[nodiscard]] std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
 
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;
