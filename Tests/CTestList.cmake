@@ -4726,6 +4726,14 @@ add_test_restart_parity(SLM_TwoLevel_Restart SLM_Restart 7 20
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
+# SLM does not treat a frozen canopy (issue 4467): the canopy starts at the reference-level air
+# temperature, so the same deck under a sounding at 265 K stops at the start of the run.
+add_test_abort(SLM_FrozenCanopyAbort
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/SLM_Restart
+               SLM_Restart.i
+               "SLM does not treat a frozen canopy"
+               "erf.input_sounding_file=input_sounding_frozen")
+
 # The same for terrain carried by an embedded boundary: the mesh is flat there
 # too, so the ground under the station is the surface the EB was built from and
 # not the bottom of the mesh.  The hill is 50 m up at the station, so 40 m above
