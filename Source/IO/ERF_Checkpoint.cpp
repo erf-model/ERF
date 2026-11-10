@@ -20,6 +20,8 @@
 #include "ERF_CheckpointLsmData.H"
 #include "ERF_CheckpointLandmask.H"
 #include "ERF_ReadCheckpointMF.H"
+#include "ERF_SBMAMRFluxRegister.H"
+#include "ERF_SBMAMRTime.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMRestart.H"
 #include "ERF_SBMTransport.H"
@@ -183,6 +185,27 @@ ERF::WriteCheckpointFile () const
     PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
 
     if (sbm_state_manager) {
+        // A checkpoint holds one accepted spectrum per level, so it may only be
+        // written at a synchronized instant with no partial step or reflux.
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            const double level_time = t_new[lev];
+            const double level_dt = dt[lev];
+            const bool at_level_time = sbm_state_manager->is_defined(lev) &&
+                sbm_state_manager->new_valid(lev) &&
+                (level_dt > 0.0
+                     ? erf_sbm::semantic_time_matches(sbm_state_manager->new_time(lev),
+                                                      level_time, level_dt)
+                     : erf_sbm::semantic_time_matches_exact(
+                           sbm_state_manager->new_time(lev), level_time));
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                at_level_time && !sbm_state_manager->step_active(lev),
+                "SBM checkpoint requires a synchronized accepted spectrum on every level");
+        }
+        for (const auto& flux_register : sbm_amr_flux_regs) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                !flux_register || !flux_register->has_outstanding_amount(),
+                "SBM checkpoint requires every interface reflux amount to be consumed");
+        }
         const std::string schema_file = checkpointname + "/SBM_Schema";
         if (ParallelDescriptor::IOProcessor()) {
             std::ofstream schema(schema_file, std::ofstream::out |

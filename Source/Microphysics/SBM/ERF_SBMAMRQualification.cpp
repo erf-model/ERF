@@ -363,23 +363,6 @@ validate_configuration (const SolverChoice& choice, const int max_level)
         !choice.sbm_amr_qualification_regrid_reject_fault ||
         choice.sbm_amr_qualification_regrid,
         "the SBM regrid rejection fault requires erf.sbm_amr_qualification_regrid");
-    int check_interval = -1;
-    double check_period = -1.0;
-    pp_erf.query("check_int", check_interval);
-    pp_erf.query("check_per", check_period);
-    ParmParse pp_amr("amr");
-    int amr_check_interval = -1;
-    double amr_check_period = -1.0;
-    pp_amr.query("check_int", amr_check_interval);
-    pp_amr.query("check_per", amr_check_period);
-    std::string erf_restart, amr_restart;
-    pp_erf.query("restart", erf_restart);
-    pp_amr.query("restart", amr_restart);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        erf_restart.empty() && amr_restart.empty() &&
-        check_interval <= 0 && check_period <= 0.0 &&
-        amr_check_interval <= 0 && amr_check_period <= 0.0,
-        "SBM AMR qualification excludes checkpoint/restart");
     const bool all_levels_compressible = std::all_of(
         choice.compressibility_type.begin(),
         choice.compressibility_type.end(),
@@ -707,16 +690,19 @@ void
 ERF::sbm_qualification_record_initial_inventory ()
 {
     if (!solverChoice.sbm_amr_qualification_test) return;
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 1,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        finest_level == 1 ||
+        (finest_level == 0 && solverChoice.sbm_amr_qualification_regrid),
         "SBM AMR qualification did not create its fixed fine level");
     sbm_qualification_initial_inventory = sbm_qualification_composite_inventory();
     Print() << "SBM_AMR_QUAL_INIT levels=" << finest_level + 1
             << " ncomp=" << sbm_state_manager->layout().ncomp() << '\n';
     for (std::size_t component = 0;
          component < sbm_qualification_initial_inventory.size(); ++component) {
-        Print() << "SBM_AMR_QUAL_INITIAL_INVENTORY component=" << component
-                << " value=" << sbm_qualification_initial_inventory[component]
-                << '\n';
+        Print().SetPrecision(17)
+            << "SBM_AMR_QUAL_INITIAL_INVENTORY component=" << component
+            << " value=" << sbm_qualification_initial_inventory[component]
+            << '\n';
     }
 }
 

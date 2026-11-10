@@ -477,6 +477,10 @@ policy.
 The representation, transport, and projection policies are versioned parts of
 the exact restart identity. Older zero-transport schemas are rejected rather
 than silently interpreted as the currently supported advection scheme.
+The multilevel lifecycle, restriction, prolongation, reflux,
+synchronization, regrid and boundary policies are also part of the identity,
+so a checkpoint written before they were (schema version 1) is rejected
+rather than restarted under policies it did not record.
 
 Auxiliary prognostic-state transport
 ------------------------------------
@@ -669,9 +673,20 @@ admission, and only then publishes the spectrum and regenerates ``qc``/``qr``.
 The periodic two-level qualification checks composite spectral inventories,
 coarse/fine interface signs, time integration weights, two-layer coarse-only
 ghost completion, and distributed rank ownership. Evidence is specific to the
-executed CPU/MPI fixtures and does not establish GPU performance,
-nonperiodic spectral boundary handling, or multilevel checkpoint/restart
-capability.
+executed CPU/MPI fixtures and does not establish GPU performance or
+nonperiodic spectral boundary handling.
+
+A checkpoint is written only after the hierarchy has been synchronized, with
+no interface correction pending, so each level's accepted spectrum at the
+checkpoint time is the complete multilevel spectral state. A restart reads
+and admits that spectrum on every level and requires the saved ``qc`` and
+``qr`` of each level to match its projection. The qualification restarts
+fixed, regridded and coarse-only (cleared) hierarchies and requires the
+restored composite inventory to equal the continuous run's at the checkpoint
+step, and the final checkpoint to be bitwise identical to the continuous
+run's on every level. A checkpoint with a missing or inadmissible fine-level
+spectrum, inconsistent fine-level ``qc``/``qr``, or a schema of the same size
+but a different policy is rejected before any step.
 
 Regridding happens at the start of a coarse step, after the previous step
 has synchronized the hierarchy, so no interface correction is pending and
@@ -700,7 +715,7 @@ needs no transfer for the same reason as releasing a parent.
 
 The qualification covers only part of ERF's adaptive-mesh lifecycle. A
 production multilevel simulation must also preserve the full spectral state
-through restart and physical boundary handling.
+through physical boundary handling.
 
 A production multilevel simulation must interpolate coarse-grid spectral
 state and dry-air density to the same fine-grid time; reconcile accepted
@@ -1069,7 +1084,8 @@ An SBM checkpoint contains:
 * the ordinary ERF atmospheric state;
 * an ``SBM_Schema`` record describing the exact spectral layout and current
   representation contract; and
-* an ``SBMSpectrum`` containing the authoritative bin-resolved liquid state.
+* an ``SBMSpectrum`` containing the authoritative bin-resolved liquid state,
+  for every level in the checkpoint.
 
 The schema comparison is exact. A restart must use the same spectral
 definition, including quantities such as the bin edges, pivots, moment mode,
@@ -1088,9 +1104,9 @@ Only after the saved spectrum and the saved bulk projection have both passed
 these checks does ERF regenerate the compact cloud- and rain-water fields from
 the authoritative spectrum.
 
-A missing ``SBM_Schema``, missing ``SBMSpectrum``, incompatible spectral
-schema, inadmissible spectrum, or inconsistent cloud/rain projection causes
-the restart to fail. A corrupted checkpoint is not silently repaired by
+A missing ``SBM_Schema``, a missing ``SBMSpectrum`` on any level, an
+incompatible spectral schema, or an inadmissible spectrum or inconsistent
+cloud/rain projection on any level causes the restart to fail. A corrupted checkpoint is not silently repaired by
 projection.
 
 Output and diagnostics

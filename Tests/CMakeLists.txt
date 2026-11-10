@@ -423,6 +423,61 @@ if(ERF_ENABLE_TESTS)
       RUN_SERIAL TRUE
       TIMEOUT 180)
 
+    # Gate 5: a multilevel restart reproduces the continuous run, and a
+    # checkpoint with a missing, inadmissible, or inconsistent fine level, or
+    # an equal-size but different schema, is rejected before any step.  The
+    # host checkpoint helpers are defined in Unit/ under these conditions.
+    if(NOT ERF_ENABLE_CUDA AND NOT ERF_ENABLE_HIP AND NOT ERF_ENABLE_SYCL AND
+       NOT AMReX_HDF5)
+    function(add_sbm_amr_restart_test name input restart_step final_step ncomp mode)
+      add_test(NAME ${name}
+        COMMAND ${CMAKE_COMMAND}
+          -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+          -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/${input}
+          -DTEST_ROOT=${_sbm_amr_qualification_root}/${name}
+          -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+          -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+          -DMPI_RANKS=1
+          -DEXPECTED_COMPONENTS=${ncomp}
+          -DRESTART_STEP=${restart_step}
+          -DFINAL_STEP=${final_step}
+          -DMODE=${mode}
+          ${ARGN}
+          -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunAMRRestart.cmake)
+      set(_labels "integration;sbm;sbm_amr_qualification")
+      if(NOT mode STREQUAL "equivalence")
+        set(_labels "${_labels};negative")
+      endif()
+      set_tests_properties(${name} PROPERTIES
+        LABELS "${_labels}"
+        RUN_SERIAL TRUE
+        TIMEOUT 600)
+    endfunction()
+    set(_sbm_compare -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>)
+    set(_sbm_corrupter -DCORRUPTER=$<TARGET_FILE:erf_sbm_checkpoint_corruptor>)
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_Fixed_1M
+      inputs_amr_qualification_1m 1 2 4 equivalence ${_sbm_compare})
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_AfterRegrid_1M
+      inputs_amr_qualification_1m_regrid 2 4 4 equivalence ${_sbm_compare})
+    # Restarts from a coarse-only checkpoint; the fine level is recreated later.
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_LevelCycle_2M_Attached
+      inputs_amr_qualification_2m_attached_regrid 3 5 12 equivalence ${_sbm_compare})
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_MissingFineSpectrum
+      inputs_amr_qualification_1m 1 2 4 missing_fine_spectrum
+      "-DEXPECTED_DIAGNOSTIC=SBM restart is missing authoritative spectrum for level 1")
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_SchemaMismatch
+      inputs_amr_qualification_1m 1 2 4 schema_mismatch
+      "-DEXPECTED_DIAGNOSTIC=SBM restart schema does not exactly match")
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_InadmissibleFineSpectrum
+      inputs_amr_qualification_1m 1 2 4 corruption ${_sbm_corrupter}
+      -DCORRUPTION=negative-mass -DCORRUPT_LEVEL=1
+      "-DEXPECTED_DIAGNOSTIC=SBM authoritative restart state is inadmissible.*level=1")
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_FineProjectionMismatch
+      inputs_amr_qualification_1m 1 2 4 corruption ${_sbm_corrupter}
+      -DCORRUPTION=compact-qc -DCORRUPT_LEVEL=1
+      "-DEXPECTED_DIAGNOSTIC=SBM restart compact qc/qr do not match the persisted authoritative spectrum")
+    endif()
+
     # Measure the actual coarse-parent halo path at the requested spectral
     # widths and process counts with the nonzero carrier from the profile
     # deck.  This keeps complete fine-step timings representative of transport;
