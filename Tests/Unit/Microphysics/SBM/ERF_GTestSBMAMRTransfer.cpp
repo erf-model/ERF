@@ -1939,12 +1939,17 @@ TEST(SBMAMRYA, DirectAcceptedStageRatesMatchCompletedIntegralReference)
     const double fine_dt = (coarse_end - coarse_begin) / fine_substeps;
 
     for (const auto method : {erf_auxiliary::HostIntegrator::CompressibleRK3,
-                              erf_auxiliary::HostIntegrator::AnelasticHeun}) {
-        const int method_id = method ==
-            erf_auxiliary::HostIntegrator::CompressibleRK3 ? 0 : 1;
+                              erf_auxiliary::HostIntegrator::AnelasticHeun,
+                              erf_auxiliary::HostIntegrator::AnelasticMidPoint}) {
+        const int method_id =
+            method == erf_auxiliary::HostIntegrator::CompressibleRK3 ? 0
+            : method == erf_auxiliary::HostIntegrator::AnelasticHeun ? 1 : 2;
         const int stages = method_id == 0 ? 3 : 2;
+        // RK3 and MidPoint restart every stage from the old state, so only
+        // the final stage's rate is the step's flux; Heun averages its two.
         const auto stage_weight = [=] (int stage, double dt) {
             if (method_id == 0) return stage == 2 ? dt : 0.0;
+            if (method_id == 2) return stage == 1 ? dt : 0.0;
             return 0.5 * dt;
         };
 
@@ -1973,6 +1978,11 @@ TEST(SBMAMRYA, DirectAcceptedStageRatesMatchCompletedIntegralReference)
                     coarse_side, method, stage, step_begin, diagnostic))
                     << diagnostic;
                 const double weight = stage_weight(stage, dt);
+                erf_auxiliary::AuxiliaryStageRecipe recipe;
+                ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(
+                    method, stage, dt, recipe, diagnostic)) << diagnostic;
+                EXPECT_EQ(recipe.completed_ledger_time, weight)
+                    << "method=" << method_id << " stage=" << stage;
                 // Reverse chunk order on alternating stages/substeps.  The
                 // global component identity must be independent of traversal.
                 for (int chunk = 1; chunk >= 0; --chunk) {

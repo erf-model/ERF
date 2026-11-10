@@ -336,7 +336,8 @@ validate_configuration (const SolverChoice& choice, const int max_level)
             !choice.sbm_amr_qualification_unique_profile &&
             !choice.sbm_amr_qualification_parent_store_fault &&
             !choice.sbm_amr_qualification_regrid &&
-            !choice.sbm_amr_qualification_regrid_reject_fault,
+            !choice.sbm_amr_qualification_regrid_reject_fault &&
+            !choice.sbm_amr_qualification_uniform_ratio,
             "the internal SBM AMR qualification flag requires amr.max_level=1");
         return;
     }
@@ -381,15 +382,34 @@ validate_configuration (const SolverChoice& choice, const int max_level)
                     [] (TimesteppingType type) {
                         return type == TimesteppingType::RK2;
                     });
+    const bool all_levels_anelastic =
+        !choice.compressibility_type.empty() &&
+        std::all_of(choice.compressibility_type.begin(),
+                    choice.compressibility_type.end(),
+                    [] (CompressibilityType type) {
+                        return type == CompressibilityType::Anelastic;
+                    }) &&
+        std::all_of(choice.timestepping_type.begin(),
+                    choice.timestepping_type.end(),
+                    [] (TimesteppingType type) {
+                        return type == TimesteppingType::RK2 ||
+                               type == TimesteppingType::MidPoint;
+                    });
     // The compressible host leaves a roundoff carrier at zero wind.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         !choice.sbm_amr_qualification_expect_zero_flow ||
         all_levels_anelastic_rk2,
         "SBM zero-flow AMR qualification requires the exact-zero "
         "anelastic RK2 carrier on every level");
+    // A uniform dry-air-relative ratio needs a common factor-free profile.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        (all_levels_compressible ||
-         choice.sbm_amr_qualification_expect_zero_flow) &&
+        !choice.sbm_amr_qualification_uniform_ratio ||
+        (!choice.sbm_amr_qualification_unique_profile &&
+         !choice.sbm_amr_qualification_expect_zero_flow),
+        "SBM uniform-ratio AMR qualification excludes the unique and "
+        "zero-flow profiles");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        (all_levels_compressible || all_levels_anelastic) &&
         choice.diffChoice.molec_diff_type == MolecDiffType::None &&
         !choice.turbChoice[0].use_kturb &&
         choice.turbChoice[0].pbl_type == PBLType::None &&
@@ -560,6 +580,7 @@ verify_split_ghost_values (const MultiFab& destination,
     }
     Print() << "SBM_AMR_QUAL_GHOST_VALUE_COMPLETE stage=" << stage
             << " requested_time=" << requested_time
+            << " theta=" << theta
             << " samples=" << samples.size() << '\n';
 }
 
@@ -612,7 +633,8 @@ ERF::sbm_qualification_apply_initial_profile (int lev)
                     values(i, j, k, n) *= factor;
                 });
         }
-    } else if (lev == 0 && !solverChoice.sbm_amr_qualification_expect_zero_flow) {
+    } else if (lev == 0 && !solverChoice.sbm_amr_qualification_expect_zero_flow &&
+               !solverChoice.sbm_amr_qualification_uniform_ratio) {
         // A common-factor jump at the left edge of the fixed refined box gives
         // a sharp periodic translation profile with unchanged support ratios.
         const int jump_x = geom[lev].Domain().smallEnd(0) +
@@ -783,6 +805,48 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
             correction_linf <= zero_flow_correction_tolerance,
             "zero-flow SBM AMR qualification produced a correction beyond "
             "its operation-count roundoff bound");
+    } else if (solverChoice.sbm_amr_qualification_uniform_ratio) {
+        // A uniform dry-air-relative spectrum stays uniform only as far as
+        // its fluxes and the dry-air fluxes agree on every level and
+        // interface.  The host's own uniform scalar, carried and refluxed by
+        // the same dry-air fluxes, measures how far that is.
+        const auto relative_spread = [&] (auto&& field_at_level, int component) {
+            Real ratio_min = std::numeric_limits<Real>::max();
+            Real ratio_max = std::numeric_limits<Real>::lowest();
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                const MultiFab& field = field_at_level(lev);
+                MultiFab ratio(field.boxArray(), field.DistributionMap(), 1, 0);
+                MultiFab::Copy(ratio, field, component, 0, 1, 0);
+                MultiFab::Divide(ratio, vars_new[lev][Vars::cons], Rho_comp, 0, 1, 0);
+                ratio_min = std::min(ratio_min, ratio.min(0));
+                ratio_max = std::max(ratio_max, ratio.max(0));
+            }
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ratio_min > Real(0.0),
+                "SBM uniform-ratio AMR qualification needs a positive uniform "
+                "spectrum and host scalar (prob.rad_0 covering the domain)");
+            return (ratio_max - ratio_min) / ratio_max;
+        };
+        const Real host_spread = relative_spread(
+            [&] (int lev) -> const MultiFab& { return vars_new[lev][Vars::cons]; },
+            RhoScalar_comp);
+        Real max_spread = Real(0.0);
+        for (int component = 0; component < sbm_state_manager->layout().ncomp();
+             ++component) {
+            const Real spread = relative_spread(
+                [&] (int lev) -> const MultiFab& {
+                    return sbm_state_manager->new_state(lev);
+                }, component);
+            max_spread = std::max(max_spread, spread);
+            Print().SetPrecision(17)
+                << "SBM_AMR_QUAL_UNIFORM_RATIO step=" << nstep + 1
+                << " component=" << component << " relative_spread=" << spread
+                << " host_scalar_relative_spread=" << host_spread
+                << " bound=" << host_spread + rounding_factor << '\n';
+        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            max_spread <= host_spread + rounding_factor,
+            "SBM AMR qualification did not keep a uniform dry-air-relative "
+            "spectrum as uniform as the host's own scalar");
     } else {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!has_fine_level || correction_linf > Real(0.0),
             "SBM AMR qualification saw no nonzero accepted YA correction");

@@ -94,10 +94,6 @@ int
 SBMAMRFluxRegister::stage_count (
     const erf_auxiliary::HostIntegrator method) const noexcept
 {
-    // The AMR interface is qualified for RK3 and Heun only.
-    if (method == erf_auxiliary::HostIntegrator::AnelasticMidPoint) {
-        return 0;
-    }
     return erf_auxiliary::HostIntegratorStageCount(method);
 }
 

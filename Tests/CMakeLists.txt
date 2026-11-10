@@ -476,7 +476,69 @@ if(ERF_ENABLE_TESTS)
       inputs_amr_qualification_1m 1 2 4 corruption ${_sbm_corrupter}
       -DCORRUPTION=compact-qc -DCORRUPT_LEVEL=1
       "-DEXPECTED_DIAGNOSTIC=SBM restart compact qc/qr do not match the persisted authoritative spectrum")
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_AnelasticMidPoint_AfterRegrid_1M
+      inputs_amr_qualification_1m_regrid 2 4 4 equivalence ${_sbm_compare}
+      -DANELASTIC=MidPoint)
     endif()
+
+    # The anelastic host integrators on a two-level hierarchy.  The
+    # uniform-ratio runs carry a uniform spectrum and a uniform host scalar in
+    # a divergence-free roll with shear: the spectrum must stay as uniform,
+    # relative to dry air, as the host's own refluxed scalar.  Under the
+    # compressible host, whose density is not refluxed, that is a
+    # variable-density test.
+    function(add_sbm_amr_envelope_test name input ranks ncomp)
+      add_test(NAME ${name}
+        COMMAND ${CMAKE_COMMAND}
+          -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+          -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/${input}
+          -DTEST_ROOT=${_sbm_amr_qualification_root}/${name}
+          -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+          -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+          -DMPI_RANKS=${ranks}
+          -DEXPECTED_COMPONENTS=${ncomp}
+          -DEXPECTED_FINE_SUBSTEPS=3
+          ${ARGN}
+          -P ${_sbm_amr_qualification_script})
+      set(_labels "integration;sbm;sbm_amr_qualification")
+      if(ranks GREATER 1)
+        set(_labels "${_labels};parallel")
+      endif()
+      set_tests_properties(${name} PROPERTIES
+        LABELS "${_labels}"
+        RUN_SERIAL TRUE
+        PROCESSORS ${ranks}
+        TIMEOUT 300)
+    endfunction()
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticHeun_1M
+      inputs_amr_qualification_1m 1 4 -DANELASTIC=RK2)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_1M
+      inputs_amr_qualification_1m 1 4 -DANELASTIC=MidPoint)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_2M_Attached
+      inputs_amr_qualification_2m_attached 1 12 -DANELASTIC=MidPoint)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_1Rank
+      inputs_amr_qualification_1m_split 1 4 -DANELASTIC=MidPoint
+      -DSPATIAL_SPLIT_FIXTURE=ON)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_2Rank
+      inputs_amr_qualification_1m_split 2 4 -DANELASTIC=MidPoint
+      -DSPATIAL_SPLIT_FIXTURE=ON -DEXPECT_SPLIT=ON
+      -DPYTHON_EXECUTABLE=${ERF_TEST_PYTHON}
+      -DREFERENCE_LOG=${_sbm_amr_qualification_root}/SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_1Rank/qualification.log)
+    set_tests_properties(SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_2Rank
+      PROPERTIES DEPENDS SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_1Rank)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_Regrid_1M
+      inputs_amr_qualification_1m_regrid 1 4 -DANELASTIC=MidPoint
+      -DREGRID=ON -DEXPECTED_STEPS=4 -DEXPECTED_REGRIDS=3)
+    foreach(_sbm_host IN ITEMS Compressible AnelasticHeun AnelasticMidPoint)
+      set(_sbm_host_args)
+      if(_sbm_host STREQUAL "AnelasticHeun")
+        set(_sbm_host_args -DANELASTIC=RK2)
+      elseif(_sbm_host STREQUAL "AnelasticMidPoint")
+        set(_sbm_host_args -DANELASTIC=MidPoint)
+      endif()
+      add_sbm_amr_envelope_test(SBM_AMR_Qualification_UniformRatio_${_sbm_host}_1M
+        inputs_amr_qualification_1m 1 4 ${_sbm_host_args} -DUNIFORM_RATIO=ON)
+    endforeach()
 
     # Measure the actual coarse-parent halo path at the requested spectral
     # widths and process counts with the nonzero carrier from the profile

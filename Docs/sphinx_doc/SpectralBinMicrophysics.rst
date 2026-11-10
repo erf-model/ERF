@@ -594,9 +594,9 @@ runtime:
   Here :math:`q` indexes physical substeps and :math:`k` the host stages,
   with :math:`w_{q,k}` equal to the accepted completed-ledger coefficient:
   for compressible RK3 it is the physical substep length only at stage 2,
-  and for anelastic Heun it is one-half the physical substep length at
-  stages 0 and 1. (Anelastic MidPoint would weight only stage 1, by the
-  full substep length, but the interface register does not yet accept it.)
+  for anelastic Heun it is one-half the physical substep length at
+  stages 0 and 1, and for anelastic MidPoint it is the full substep length
+  at stage 1 only.
   The complete all-component face-integral ledger remains
   available as a test/reference path; the normal production transport
   allocation does not require that additional full-spectrum face record.
@@ -643,7 +643,8 @@ or general nonperiodic and terrain-following spectral AMR boundaries.
 A separately built internal qualification executable exercises a periodic,
 two-level, 3-D, double-precision AMR hierarchy with two-way coupling and
 fine-level subcycling, on fixed fine grids or with the fine level regridded,
-cleared and recreated. Its supported test fixtures cover
+cleared and recreated, under the compressible RK3 host integrator and the
+anelastic Heun and MidPoint integrators. Its supported test fixtures cover
 one-moment spectral mass and two-moment spectral mass, droplet number and an
 attached number-carried property. These tests are **not** a general SBM AMR
 runtime option, and the normal build continues to reject unsupported
@@ -672,9 +673,26 @@ admission, and only then publishes the spectrum and regenerates ``qc``/``qr``.
 
 The periodic two-level qualification checks composite spectral inventories,
 coarse/fine interface signs, time integration weights, two-layer coarse-only
-ghost completion, and distributed rank ownership. Evidence is specific to the
+ghost completion, and distributed rank ownership. Remote coarse-parent ghost
+values are compared with an independent reconstruction both at the start of
+the coarse step and at the first stage time inside it, which for the MidPoint
+corrector is the half step. Evidence is specific to the
 executed CPU/MPI fixtures and does not establish GPU performance or
 nonperiodic spectral boundary handling.
+
+A uniform dry-air-relative spectrum, :math:`U_a = z_a\rho_d` with constant
+:math:`z_a`, stays uniform only as far as the spectral fluxes and the
+dry-air fluxes agree on every level and across the coarse/fine interface.
+The qualification carries such a spectrum and a uniform host scalar through
+a divergence-free roll with shear and requires the spectrum's relative
+spread in :math:`U_a/\rho_d` to be no larger, to roundoff, than that of the
+host's own refluxed scalar. Under the anelastic integrators both spreads stay
+near :math:`10^{-12}`. Under the compressible RK3 host without acoustic
+substeps, ERF does not reflux dry-air density across the coarse/fine
+interface, so at uncovered cells next to it the dry-air density and every
+refluxed conserved quantity, the spectrum included, change by different
+amounts; both spreads then grow to about :math:`10^{-7}` per step in this
+fixture, with the spectral inventory still conserved to roundoff.
 
 A checkpoint is written only after the hierarchy has been synchronized, with
 no interface correction pending, so each level's accepted spectrum at the

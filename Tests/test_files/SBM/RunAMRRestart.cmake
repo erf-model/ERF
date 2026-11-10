@@ -12,11 +12,16 @@ set(_continuous_dir "${_run_dir}/continuous")
 set(_restarted_dir "${_run_dir}/restarted")
 file(MAKE_DIRECTORY "${_continuous_dir}" "${_restarted_dir}")
 
+set(_host_args)
+if(DEFINED ANELASTIC)
+  set(_host_args "erf.compressibility_type=Anelastic" "erf.timestepping_type=${ANELASTIC}")
+endif()
+
 function(run_erf description working_dir log_name result_var)
   execute_process(
     COMMAND "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "${MPI_RANKS}"
             "${ERF_EXECUTABLE}" "${INPUT_FILE}" "max_step=${FINAL_STEP}"
-            "erf.check_int=1" "erf.check_file=chk" ${ARGN}
+            "erf.check_int=1" "erf.check_file=chk" ${_host_args} ${ARGN}
     WORKING_DIRECTORY "${working_dir}"
     TIMEOUT 240
     RESULT_VARIABLE _result
