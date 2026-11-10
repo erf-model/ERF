@@ -215,8 +215,9 @@ public:
      * For erf.ibseb.ground_view_shadow: keep, for every face, the columns its ground
      * rays land in (the rays of compute_view_fractions(), which calls this), so that
      * each step only the rays from those columns toward the sun are cast
-     * (ibseb::ground_view_lit()). 4 bytes per ground ray: with the default 16 x 8 rays,
-     * about 0.2 kB per wall face on open ground.
+     * (ibseb::ground_view_lit()). The distinct columns are kept with the number of rays
+     * that land in each, 8 bytes per column. Found in one pass over the rays, so the
+     * columns and the counts cannot disagree.
      */
     void build_ground_landings ();
 
@@ -495,9 +496,10 @@ public:
     /// Not state: recomputed every step.
     amrex::Gpu::DeviceVector<amrex::Real> d_f_ground_lit;
     /// With erf.ibseb.ground_view_shadow, where each face's ground rays land (build_ground_landings()):
-    /// face f owns the words [d_gnd_start[f], d_gnd_start[f+1]) of d_gnd_land (ibseb::pack_landing()),
-    /// and d_gnd_far[f] of its ground rays end on the far field's open ground. Static, like the view fractions.
-    amrex::Gpu::DeviceVector<int>          d_gnd_start, d_gnd_far;
+    /// face f owns the entries [d_gnd_start[f], d_gnd_start[f+1]) of d_gnd_land (the distinct landing
+    /// columns, ibseb::pack_landing()) and of d_gnd_rays (the rays that land in each), and d_gnd_far[f]
+    /// of its ground rays end on the far field's open ground. Static, like the view fractions.
+    amrex::Gpu::DeviceVector<int>          d_gnd_start, d_gnd_far, d_gnd_rays;
     amrex::Gpu::DeviceVector<unsigned int> d_gnd_land;
     bool m_landings_built = false;   ///< build_ground_landings() has run since build()
     // Fluxes of the current step [W/m2]: SW_abs and LW_net positive into the

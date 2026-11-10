@@ -248,26 +248,36 @@ receives from the ground. The error grows with the scattering optical depth
 between the ground and the face and with the ground's albedo.
 
 **When, and what it costs.** The columns in which a face's ground rays land
-do not change, so they are found once, with the view fractions, and kept:
-4 bytes per ground ray, about 0.2 kB per wall face on open ground with the
-default :math:`16 \times 8` rays. Each step in which the ground gets a
-beam, one ray is cast toward the sun from each of those columns: about
-1 microsecond per wall face per step on one core of a laptop, which in
-``Exec/CanonicalTests/Radiation/TwoStream_IBSEB_RandomBuildings`` takes the
-faces' balance from 0.11 to 0.27 ms per step on a rank with 212 faces. The sunlit fractions are not
+do not change, so they are found once, with the view fractions, in one
+pass over the rays, and kept: each distinct column once, with the number of
+rays that land in it (8 bytes per column; on level 1 of
+``Exec/CanonicalTests/Radiation/TwoStream_IBSEB_RandomBuildings`` the 22067
+ground rays of the faces land in 13350 columns, 107 kB). Each step in which the
+ground gets a beam, one ray is cast toward the sun from each of a face's
+columns, whatever the number of rays that land there. In that case the faces'
+balance goes from 0.12 to 0.27 ms per step on a rank with 212 faces, on one
+core of a laptop. The sunlit fractions are not
 part of the checkpoint; a restart finds them again. They are written in the
 face dump only (:cpp:`erf.ibseb.dump_faces_file`), as the column
 ``f_ground_lit`` after ``f_bldg`` when the input is on; there is no plotfile
 variable. With the ``two_stream`` provider the dump of the initial state,
 before the first sweep, has ``f_ground_lit`` at zero like the shortwave.
-Whether the input is on or off, the two-stream sweep now keeps the ground's
-direct-beam albedo of every column of a level whose faces read it (one 2D
-field).
+With the input on, the two-stream sweep also keeps the ground's direct-beam
+albedo of every column of a level whose faces read it (one 2D field); with
+it off nothing is added to the sweep. With the ``two_stream`` provider the
+faces' sun casts the shadows and the column's beam is what the ground
+reflects. The two suns may differ by :math:`10^{-4}` in the cosine of the
+zenith (`Radiation from the two-stream columns`_), so at sunrise and sunset a column can bring a beam to its ground
+while the faces' sun is at or below the horizon. No shadow is cast then and
+the ground view takes the column's whole reflection, as without the input.
 
 **Approximations and limits.**
 
-- *One ray per landing column*, from the centre of its ground, as for the
-  ground's own shadow: the edge of a shadow is resolved to a column, and
+- *One ray per landing column*, from the centre of its ground, by the walk
+  of the ground's own shadow (:cpp:`erf.ibseb.two_stream_buildings`) from
+  the same point, so within the reach below a column is shaded for the
+  faces when it is shaded in the plotfile's ground shadow. The two are
+  still computed separately; see the reach. The edge of a shadow is resolved to a column, and
   :math:`f_{lit}` to one ray in :math:`n_{az} n_{el}`. A shadow's edge
   therefore sits up to half a column from where it should, and
   :math:`f_{lit}` moves in steps as the sun moves: by up to 0.02 for a wall

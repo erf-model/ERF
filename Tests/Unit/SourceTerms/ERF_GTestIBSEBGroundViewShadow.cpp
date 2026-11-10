@@ -352,18 +352,32 @@ TEST(IBSEBGroundViewShadow, LandingsAreBuiltWithTheViewFractions)
     faces.release_labels();
     EXPECT_EQ(faces.d_gnd_land.size(), 0U);
     faces.compute_view_fractions();
-    // Every ground ray is a kept landing or a ray to the far field.
+    // Every ground ray lands in one of the face's kept columns or goes to the far field,
+    // and a column is kept once, with the number of rays that land in it.
     const auto fg = host(faces.d_f_ground);
-    const auto start = host(faces.d_gnd_start), far_rays = host(faces.d_gnd_far);
+    const auto start = host(faces.d_gnd_start), far_rays = host(faces.d_gnd_far), rays = host(faces.d_gnd_rays);
+    const auto land = host(faces.d_gnd_land);
     ASSERT_EQ(static_cast<int>(start.size()), faces.n_faces() + 1);
-    EXPECT_EQ(static_cast<int>(faces.d_gnd_land.size()), start.back());
-    int n_land = 0;
+    ASSERT_EQ(static_cast<int>(land.size()), start.back());
+    ASSERT_EQ(rays.size(), land.size());
+    int n_land = 0, n_rays = 0;
     for (int f = 0; f < faces.n_faces(); ++f) {
-        const int n = start[f + 1] - start[f] + far_rays[f];
-        EXPECT_EQ(fg[f], n * (Real(1.0) / Real(32.0))) << "face " << f;
+        int n = far_rays[f];
+        for (int m = start[f]; m < start[f + 1]; ++m) {
+            EXPECT_GE(rays[m], 1);
+            EXPECT_GE(land[m], 65536U);                       // a landing, not one of the two marks
+            if (m > start[f]) { EXPECT_GT(land[m], land[m - 1]) << "face " << f; }   // no column twice
+            n += rays[m];
+        }
+        EXPECT_EQ(fg[f], n * ibseb::hemisphere_ray_weight(8, 4)) << "face " << f;
         n_land += start[f + 1] - start[f];
+        n_rays += n - far_rays[f];
     }
     EXPECT_GT(n_land, 100);
+    EXPECT_GT(n_rays, n_land + 20);   // not vacuous: many rays share a column
+    // The marks of the rays that are not kept are no landing's word.
+    EXPECT_LT(ibseb::landing_none, ibseb::pack_landing(-ibseb::landing_offset_max, -ibseb::landing_offset_max));
+    EXPECT_LT(ibseb::landing_far, ibseb::pack_landing(-ibseb::landing_offset_max, -ibseb::landing_offset_max));
     // The input off: nothing is kept.
     params.ground_view_shadow = false;
     IBFaceSet plain(params, 0);
@@ -371,6 +385,7 @@ TEST(IBSEBGroundViewShadow, LandingsAreBuiltWithTheViewFractions)
     plain.release_labels();
     plain.compute_view_fractions();
     EXPECT_EQ(plain.d_gnd_land.size(), 0U);
+    EXPECT_EQ(plain.d_gnd_rays.size(), 0U);
 }
 
 // A landing's offsets survive the packing, at both ends of what is kept, and what is
@@ -473,6 +488,38 @@ TEST(IBSEBGroundViewShadow, ShadowWalkKeepsToTheReachOfTheFace)
     EXPECT_FALSE(ibseb::ray_blocked_near(29, 1, s, Real(0.0), s, m, 16, 1));
     // The sun at or below the horizon lights nothing.
     EXPECT_TRUE(ibseb::ray_blocked_near(22, 1, Real(1.0), Real(0.0), Real(0.0), m, 20, 1));
+}
+
+// The ground a face sees takes the shadow by the walk of the ground's own shadow, from the
+// same point: inside the reach of the face, ray_blocked_near() is ray_blocked() from the
+// centre of the column's ground, for suns along the street, across it, on the diagonal
+// of the columns (the ray leaves each column through its corner) and low.
+TEST(IBSEBGroundViewShadow, ShadowWalkIsTheGroundShadowsWalk)
+{
+    using namespace amrex;
+    HandMap h(0, 63, 64, false, 100);   // the reach holds the whole map
+    h.tower(30); h.tower(41, 2); h.tower(12, 5);
+    const ibseb::RayMap& m = h.m;
+    const Real pi = amrex::Math::pi<Real>();
+    int n_shaded = 0, n_sunlit = 0;
+    for (const Real zen_deg : {Real(20.0), Real(45.0), Real(70.0), Real(85.0)}) {
+        for (const Real az_deg : {Real(90.0), Real(270.0), Real(45.0), Real(225.0), Real(10.0), Real(133.0)}) {
+            const Real zen = zen_deg * pi / Real(180.0), az = az_deg * pi / Real(180.0);
+            const Real sx = std::sin(az) * std::sin(zen), sy = std::cos(az) * std::sin(zen), sz = std::cos(zen);
+            for (int ci = 0; ci < 64; ++ci) {
+                for (int cj = 0; cj < 3; ++cj) {
+                    const bool ground = ibseb::ray_blocked(m.centre_x(ci), m.centre_y(cj), m.z_ground, sx, sy, sz, m);
+                    EXPECT_EQ(ibseb::ray_blocked_near(ci, cj, sx, sy, sz, m, 32, 1), ground)
+                        << "column " << ci << "," << cj << " sun " << zen_deg << "/" << az_deg;
+                    (ground ? n_shaded : n_sunlit) += 1;
+                }
+            }
+        }
+    }
+    EXPECT_GT(n_shaded, 200);
+    EXPECT_GT(n_sunlit, 200);
+    EXPECT_EQ(m.centre_x(22), Real(225.0));
+    EXPECT_EQ(m.centre_y(1), Real(15.0));
 }
 
 // The same face on two maps of the same periodic street: the whole domain, wrapped, as

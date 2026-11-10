@@ -261,8 +261,11 @@ public:
      *              columns reach @p m_top
      * @param m_top highest interface the faces read (IBFaceSet::top_sample_interface()),
      *              in [0, number of cells in z]
+     * @param ground_albedo also keep the direct-beam albedo the sweep gives each column's
+     *              ground (one more 2D field, TwoStreamCanopyView::ground_albedo_dir), for
+     *              the faces of erf.ibseb.ground_view_shadow; without it that pointer is null
      */
-    void supply_canopy_forcing (int lev, int m_top);
+    void supply_canopy_forcing (int lev, int m_top, bool ground_albedo = false);
 
     /** @brief True when supply_canopy_forcing() was called for @p lev since its last define_level(). */
     [[nodiscard]] bool supplies_canopy_forcing (int lev) const noexcept {

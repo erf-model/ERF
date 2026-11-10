@@ -77,7 +77,7 @@ struct CanopyResult
 // One sweep of a two-column level with the beam kept up to interface m_top, read at column
 // (1, 0). The atmosphere absorbs and scatters, and the cloudy evaluation has a cloud over the
 // middle two layers (centres at 1.5 and 2.5 km).
-CanopyResult run_canopy (amrex::Real cloud_fraction, int m_top, bool sw_enabled)
+CanopyResult run_canopy (amrex::Real cloud_fraction, int m_top, bool sw_enabled, bool ground_albedo = true)
 {
     using namespace amrex;
 
@@ -113,7 +113,7 @@ CanopyResult run_canopy (amrex::Real cloud_fraction, int m_top, bool sw_enabled)
     TwoStreamRadiation radiation;
     radiation.resize(1);
     radiation.define_level(0, rad, RdoCp, ba2d, dm, ba, domain);
-    radiation.supply_canopy_forcing(0, m_top);
+    radiation.supply_canopy_forcing(0, m_top, ground_albedo);
 
     LandSurface lsm;
     lsm.ReSize(1);
@@ -138,7 +138,7 @@ CanopyResult run_canopy (amrex::Real cloud_fraction, int m_top, bool sw_enabled)
         r.lw_dn[m] = component_at(rad_fluxes, IntVect(1, 0, m), 3);
     }
     r.cos_zenith = component_at(*view.cos_zenith, IntVect(1, 0, 0), 0);
-    EXPECT_NE(view.ground_albedo_dir, nullptr);
+    EXPECT_EQ(view.ground_albedo_dir != nullptr, ground_albedo);
     if (view.ground_albedo_dir != nullptr) {
         r.ground_albedo_dir = component_at(*view.ground_albedo_dir, IntVect(1, 0, 0), 0);
     }
@@ -176,6 +176,18 @@ TEST(TwoStreamCanopyForcing, BeamAtEveryInterface)
 
 // The beam is blended clear/cloudy with the cloud fraction, from each evaluation's own
 // beam: under the cloud (at 1 km, below it) the cloudy beam is far weaker.
+// The ground's direct-beam albedo is kept only for the faces that ask for it
+// (erf.ibseb.ground_view_shadow); the beam and the cosine are the same without it.
+TEST(TwoStreamCanopyForcing, GroundAlbedoOnlyWhenAskedFor)
+{
+    const CanopyResult with = run_canopy(amrex::Real(0.0), 3, true);
+    const CanopyResult without = run_canopy(amrex::Real(0.0), 3, true, false);
+    EXPECT_EQ(with.ground_albedo_dir, amrex::Real(0.2));
+    EXPECT_EQ(without.ground_albedo_dir, amrex::Real(-1.0));   // never written: the view holds none
+    for (int m = 0; m <= 3; ++m) { EXPECT_EQ(with.beam[m], without.beam[m]); }
+    EXPECT_EQ(with.cos_zenith, without.cos_zenith);
+}
+
 TEST(TwoStreamCanopyForcing, BlendsTheBeamOfTheCloudyColumn)
 {
     const amrex::Real tol = rel_tol();
