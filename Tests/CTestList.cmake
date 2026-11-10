@@ -2890,6 +2890,36 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
     )
 endfunction(add_test_abort)
 
+# One step of a deck, which passes if the run ends normally. It compares nothing with a gold,
+# so it also runs in single precision; label "eb_build".
+function(add_test_eb_build TEST_NAME SOURCE_DIR INPUT_FILE)
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+    else()
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 amrex.call_addr2line=0 > ${test_log} 2>&1")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "eb_build"
+        ATTACHED_FILES_ON_FAIL "${test_log}"
+    )
+endfunction(add_test_eb_build)
+
 if(NOT WIN32)
   # Inputs that used to index past an array or divide by zero (#4620, #4624)
   add_test_abort(AnelasticWallDiffusion_AxisOutOfRange ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticWallDiffusion_X
@@ -3851,6 +3881,13 @@ add_test_abort(MOST_Zref_BelowRoughness
 # Immersed-boundary surface energy balance on the faces of a height-map cube
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
+
+# The same deck for one step, for its EB build. The single-precision CI job runs it, since in
+# single precision the face-centred EB factories met a face with more than two cuts
+# (erf-model/ERF#5006).
+add_test_eb_build(IBSEB_Cube_EBBuild
+                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+                  IBSEB_Cube.i)
 
 # The clear-sky sun's diffuse share must lie in [0, 1] and its solar constant be positive:
 # one value past each end of the share, and a zero solar constant, stop at start-up
