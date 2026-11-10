@@ -424,6 +424,18 @@ public:
     // (ERF_CFFluxHistory.cpp).  Public because it launches device lambdas (CUDA requires it)
     void cf_flux_history_targets (int lev, amrex::Real t_beg, amrex::Real t_end);
 
+    // The reflux of the pressure impulse on the coarse/fine faces normal to the momentum
+    // (ERF_MomentumReflux.cpp, erf.momentum_reflux).  Public because they launch device lambdas
+    // (CUDA requires it)
+    static bool momentum_reflux_enabled ();
+    amrex::MultiFab* momentum_reflux_pressure (int lev);
+    void momentum_reflux_add_slow (int lev, amrex::MultiFab& P, const amrex::MultiFab& cons,
+                                   const amrex::MultiFab& p0, const amrex::MultiFab& qt,
+                                   bool moist, amrex::Real dt_stage);
+    void momentum_reflux (int crse_lev);
+    void momentum_reflux_add_sources (int lev, amrex::MultiFab& xmom_src, amrex::MultiFab& ymom_src);
+    void momentum_reflux_reset ();
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
@@ -1719,6 +1731,15 @@ private:
         amrex::MultiFab tgt_w;
     };
     amrex::Vector<CFFluxHistory> m_cf_flux_hist;
+
+    // Per level, the time integral of the pressure its x- and y-momenta have seen in each cell
+    // since the start of the coarse step of level 0 (ERF_MomentumReflux.cpp); whether it has been
+    // added to since, and whether the level's grids changed while it was
+    amrex::Vector<amrex::MultiFab> m_mom_reflux_p;
+    amrex::Vector<int> m_mom_reflux_used;
+    amrex::Vector<int> m_mom_reflux_stale;
+    // Per coarse level, the momentum impulse on its coarse/fine faces (x and y) still to be given
+    amrex::Vector<std::array<amrex::MultiFab,2>> m_mom_reflux_src;
     static bool cf_flux_history_enabled ();
     bool cf_flux_history_active (int crse_lev) const;
     CFFluxHistory& cf_flux_history (int lev);
