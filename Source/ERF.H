@@ -1431,7 +1431,8 @@ private:
 
     // The full WRF file box in ERF's global index space, including all ancestor nest offsets;
     // optionally return the requested refined file's parent-grid ratio
-    amrex::Box wrfinput_file_box (int lev, int file_index, int* ratio_out = nullptr) const;
+    amrex::Box wrfinput_file_box (int lev, int file_index, int* ratio_out = nullptr,
+                                  amrex::Box* file_local_box = nullptr) const;
 
     // The cells at a level > 0 that its own init file covers
     amrex::Box nest_box_from_own_init_file (int lev);
