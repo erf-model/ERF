@@ -266,6 +266,11 @@ target_sources(${erf_exe_name}
     # off the ground the buildings shade; the shadow must be the buildings' geometry,
     # across a periodic edge too, and under an overhang, in every box of a level.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBGroundShadow.cpp
+    # Motivation: with erf.ibseb.ground_view_shadow a face takes the beam the ground
+    # reflects through the sunlit part of its ground view; that part must be the
+    # buildings' geometry (a closed form behind a long wall, a count from the geometry
+    # for a building set), and the answer must not depend on where a rank's map ends.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBGroundViewShadow.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed

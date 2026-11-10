@@ -4302,7 +4302,8 @@ column would be taken for a building), a uniform vertical grid (no
 | **erf.ibseb.dump_faces_file**     | prefix of a per-rank CSV of every face (geometry, view   | String             | ""                     |
 |                                   | fractions, shadow, shortwave, skin temperature), written |                    |                        |
 |                                   | at every report; a refined level N adds ``.levN`` to the |                    |                        |
-|                                   | prefix; empty disables                                   |                    |                        |
+|                                   | prefix; with ground_view_shadow a column f_ground_lit    |                    |                        |
+|                                   | after f_bldg; empty disables                             |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.radiation**           | where the faces' sunlight, sky light and longwave come   | "prescribed",      | "prescribed"           |
 |                                   | from. ``prescribed``: the clear-sky formulas and inputs  | "two_stream"       |                        |
@@ -4377,6 +4378,12 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.albedo_ground**       | ground albedo for the reflected diffuse term; not with   | Real in [0, 1]     | 0.2                    |
 |                                   | radiation = two_stream                                   |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.ground_view_shadow**  | true: the ground reflects the direct beam onto a face    | Boolean            | false                  |
+|                                   | through the sunlit part of the face's ground view only   |                    |                        |
+|                                   | (the buildings' shadow at each column its view rays land |                    |                        |
+|                                   | in, cast every step); false: through the whole ground    |                    |                        |
+|                                   | view, the ground a face sees being sunlit everywhere     |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.emissivity**          | longwave emissivity of the faces                         | Real in (0, 1]     | 0.9                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
