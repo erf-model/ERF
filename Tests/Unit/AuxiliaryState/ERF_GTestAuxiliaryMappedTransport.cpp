@@ -950,6 +950,26 @@ void run_auxiliary_mapped_transport_CompletedLedgerUsesExactHostTemporalWeights 
     EXPECT_GT(amrex::Math::abs(midpoint_expected -
                                (Real(0.5 * dt) * Real(2.0) + Real(dt) * Real(9.0))),
               Real(0.1));
+
+    // The zero-weight predictor is never read: 0 * NaN would poison the integral.
+    CompletedStepFluxLedger skipped_predictor;
+    skipped_predictor.define(g.ba, g.dm);
+    fill_constant_rate(rate, std::numeric_limits<Real>::quiet_NaN());
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint, 0,
+                                         0.5 * dt, recipe, diagnostic));
+    ASSERT_TRUE(skipped_predictor.accept_stage(HostIntegrator::AnelasticMidPoint, 0,
+                                               0.0, recipe, rate, diagnostic)) << diagnostic;
+    fill_constant_rate(rate, Real(9.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint, 1,
+                                         dt, recipe, diagnostic));
+    ASSERT_TRUE(skipped_predictor.accept_stage(HostIntegrator::AnelasticMidPoint, 1,
+                                               0.0, recipe, rate, diagnostic)) << diagnostic;
+    ASSERT_TRUE(skipped_predictor.step_complete());
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_TRUE(skipped_predictor.integrated_flux().dir(dir).is_finite(0, 1, 0));
+    }
+    EXPECT_NEAR(skipped_predictor.integrated_flux().dir(0).norm0(0), midpoint_expected,
+                Real(32.0) * std::numeric_limits<Real>::epsilon());
 }
 
 void run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent ()

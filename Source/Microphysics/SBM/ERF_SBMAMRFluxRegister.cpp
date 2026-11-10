@@ -94,12 +94,11 @@ int
 SBMAMRFluxRegister::stage_count (
     const erf_auxiliary::HostIntegrator method) const noexcept
 {
-    switch (method) {
-    case erf_auxiliary::HostIntegrator::CompressibleRK3: return 3;
-    case erf_auxiliary::HostIntegrator::AnelasticHeun: return 2;
-    case erf_auxiliary::HostIntegrator::AnelasticMidPoint: return 0;
+    // The AMR interface is qualified for RK3 and Heun only.
+    if (method == erf_auxiliary::HostIntegrator::AnelasticMidPoint) {
+        return 0;
     }
-    return 0;
+    return erf_auxiliary::HostIntegratorStageCount(method);
 }
 
 bool

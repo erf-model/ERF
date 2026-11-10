@@ -220,6 +220,8 @@ struct RunOptions
     Real rho_anchor_slope{Real(0.0)};
     Real rho_input_slope{Real(0.0)};
     Real rho_target_slope{Real(0.0)};
+    // Scales the carrier between the MidPoint predictor and corrector.
+    Real midpoint_corrector_carrier_scale{Real(1.0)};
 };
 
 struct RunSummary
@@ -619,6 +621,15 @@ minimum_normalized_upper_gap (const MultiFab& state,
 RunSummary
 run_transport (const RunOptions& options)
 {
+    if (options.anelastic_heun && options.anelastic_midpoint) {
+        ADD_FAILURE() << "select at most one anelastic integrator";
+        return {};
+    }
+    if (options.midpoint_corrector_carrier_scale != Real(1.0) &&
+        !options.anelastic_midpoint) {
+        ADD_FAILURE() << "a corrector carrier scale requires the MidPoint integrator";
+        return {};
+    }
     constexpr int nx = transport_nx;
     constexpr int ny = 4;
     constexpr int nz = 4;
@@ -744,6 +755,13 @@ run_transport (const RunOptions& options)
                 });
         }
     }
+    // A MidPoint step has three density times: the predictor runs from the
+    // old (anchor) density to the half-step density, which the corrector then
+    // reads as its input density on its way to the target density.
+    const MultiFab& stage0_input_density =
+        options.anelastic_midpoint ? conserved_anchor : conserved_input;
+    MultiFab& stage0_target_density =
+        options.anelastic_midpoint ? conserved_input : conserved_target;
 
     auto& spectrum = state_manager.new_state_for_initialization(0);
     spectrum.setVal(Real(0.0));
@@ -759,7 +777,7 @@ run_transport (const RunOptions& options)
                               : -1;
     for (amrex::MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
         const Box bx = mfi.validbox();
-        const auto rho = conserved_input.const_array(mfi);
+        const auto rho = stage0_input_density.const_array(mfi);
         const auto state = spectrum.array(mfi);
         const bool two_moment = options.mode == erf_sbm::MomentMode::TwoMoment;
         const bool discontinuity = options.discontinuity;
@@ -941,8 +959,8 @@ run_transport (const RunOptions& options)
     std::unique_ptr<MultiFab> historical_candidate;
     if (options.compare_native_candidate) {
         native_candidate = make_native_candidate(
-            layout, initial, conserved_input, avg_xmom, avg_ymom, avg_zmom,
-            transport.static_measure(0), geom, stage0_interval);
+            layout, initial, stage0_input_density, avg_xmom, avg_ymom,
+            avg_zmom, transport.static_measure(0), geom, stage0_interval);
     }
     Real native_candidate_interior_upper_gap_fraction =
         std::numeric_limits<Real>::max();
@@ -1001,8 +1019,8 @@ run_transport (const RunOptions& options)
     transport.advance_stage_from_host(
         0, stage0_method,
         0, 0.0, 0.0, stage0_target_time, stage0_interval, state_manager,
-        conserved_anchor, conserved_input, conserved_target, avg_xmom,
-        avg_ymom, avg_zmom, geom, 1, 2);
+        conserved_anchor, stage0_input_density, stage0_target_density,
+        avg_xmom, avg_ymom, avg_zmom, geom, 1, 2);
 
     const auto& final_state = state_manager.new_state(0);
     if (!erf_sbm::authoritative_state_admissible(final_state, layout, 0,
@@ -1100,7 +1118,7 @@ run_transport (const RunOptions& options)
         }
         if (options.distinct_density_roles) {
             auto wrong_target_candidate = make_native_candidate(
-                layout, initial, conserved_target, avg_xmom, avg_ymom,
+                layout, initial, stage0_target_density, avg_xmom, avg_ymom,
                 avg_zmom, transport.static_measure(0), geom,
                 stage0_interval);
             MultiFab wrong_density_difference(ba, dm, layout.ncomp(), 0);
@@ -1185,13 +1203,23 @@ run_transport (const RunOptions& options)
     if (options.anelastic_midpoint) {
         MultiFab half_step_state(ba, dm, layout.ncomp(), 0);
         MultiFab::Copy(half_step_state, final_state, 0, 0, layout.ncomp(), 0);
+        auto old_rate_forward_euler = make_native_candidate(
+            layout, initial, conserved_anchor, avg_xmom, avg_ymom, avg_zmom,
+            transport.static_measure(0), geom, dt);
+        // Keep the predictor carrier, then give the corrector its own carrier.
+        MultiFab predictor_xmom(avg_xmom.boxArray(), dm, 1, 0);
+        MultiFab predictor_ymom(avg_ymom.boxArray(), dm, 1, 0);
+        MultiFab predictor_zmom(avg_zmom.boxArray(), dm, 1, 0);
+        MultiFab::Copy(predictor_xmom, avg_xmom, 0, 0, 1, 0);
+        MultiFab::Copy(predictor_ymom, avg_ymom, 0, 0, 1, 0);
+        MultiFab::Copy(predictor_zmom, avg_zmom, 0, 0, 1, 0);
+        avg_xmom.mult(options.midpoint_corrector_carrier_scale);
+        avg_ymom.mult(options.midpoint_corrector_carrier_scale);
+        avg_zmom.mult(options.midpoint_corrector_carrier_scale);
         // The corrector applies the half-step state's rates over dt to the old state.
         auto midpoint_expected = make_native_candidate(
             layout, half_step_state, conserved_input, avg_xmom, avg_ymom,
             avg_zmom, transport.static_measure(0), geom, dt, false, &initial);
-        auto old_rate_forward_euler = make_native_candidate(
-            layout, initial, conserved_anchor, avg_xmom, avg_ymom, avg_zmom,
-            transport.static_measure(0), geom, dt);
         MultiFab heun_weighted(ba, dm, layout.ncomp(), 0);
         MultiFab::LinComb(heun_weighted, Real(0.5), *old_rate_forward_euler, 0,
                           Real(0.5), *midpoint_expected, 0, 0, layout.ncomp(), 0);
@@ -1216,6 +1244,28 @@ run_transport (const RunOptions& options)
                       Real(1.0e6) * std::numeric_limits<Real>::epsilon() * scale);
             EXPECT_GT(difference_from(heun_weighted),
                       Real(1.0e6) * std::numeric_limits<Real>::epsilon() * scale);
+            if (options.distinct_density_roles) {
+                // The corrector's intensive state is U_half / rho_half, not
+                // the old or target density.
+                for (const MultiFab* wrong_density :
+                     {&conserved_anchor, &conserved_target}) {
+                    auto wrong_density_corrector = make_native_candidate(
+                        layout, half_step_state, *wrong_density, avg_xmom,
+                        avg_ymom, avg_zmom, transport.static_measure(0), geom,
+                        dt, false, &initial);
+                    EXPECT_GT(difference_from(*wrong_density_corrector),
+                              Real(1.0e6) * std::numeric_limits<Real>::epsilon() *
+                                  scale);
+                }
+            }
+            if (options.midpoint_corrector_carrier_scale != Real(1.0)) {
+                auto predictor_carrier_corrector = make_native_candidate(
+                    layout, half_step_state, conserved_input, predictor_xmom,
+                    predictor_ymom, predictor_zmom, transport.static_measure(0),
+                    geom, dt, false, &initial);
+                EXPECT_GT(difference_from(*predictor_carrier_corrector),
+                          Real(1.0e6) * std::numeric_limits<Real>::epsilon() * scale);
+            }
         }
         diagnostic.clear();
         EXPECT_TRUE(erf_sbm::authoritative_state_admissible(final_state, layout,
@@ -3216,6 +3266,23 @@ TEST(SBMTransport, MidPointCorrectorAppliesHalfStepRatesToTheOldState)
     options.multidirectional_carrier = true;
     options.mapped_geometry = true;
     options.dt = 0.2;
+    run_transport(options);
+}
+
+TEST(SBMTransport, MidPointCorrectorUsesHalfStepDensityAndCarrier)
+{
+    RunOptions options;
+    options.mode = erf_sbm::MomentMode::TwoMoment;
+    options.smooth_profile = true;
+    options.carrier_x = Real(0.2);
+    options.dt = 0.04;
+    options.compare_native_candidate = true;
+    options.anelastic_midpoint = true;
+    options.distinct_density_roles = true;
+    options.rho_anchor_slope = Real(0.15);
+    options.rho_input_slope = Real(0.3);
+    options.rho_target_slope = Real(0.5);
+    options.midpoint_corrector_carrier_scale = Real(1.5);
     run_transport(options);
 }
 
