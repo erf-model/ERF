@@ -60,14 +60,22 @@ erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
 
 // The qualified multilevel SBM envelope: two periodic levels, refined by 2,
 // two-way coupled, on a flat ConstantDz mesh, with one host integrator for
-// both levels.  Regridding and any fine-level subcycling count are allowed.
+// both levels, in double precision.  Regridding and any fine-level subcycling
+// count are allowed.
 void validate_sbm_amr_capability (const SolverChoice& choice,
                                   const int max_level,
-                                  const amrex::Vector<amrex::IntVect>& ref_ratio)
+                                  const amrex::Vector<amrex::IntVect>& ref_ratio,
+                                  const amrex::Geometry& geom0)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level <= 1,
         "SBM supports at most two AMR levels (amr.max_level <= 1)");
     if (max_level == 0) return;
+#ifdef AMREX_USE_FLOAT
+    amrex::Abort("SBM AMR is qualified in double precision only; use amr.max_level = 0 "
+                 "in a single-precision build");
+#endif
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom0.isAllPeriodic(),
+        "SBM AMR requires a triply periodic domain (geometry.is_periodic = 1 1 1)");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         !ref_ratio.empty() && ref_ratio[0] == amrex::IntVect(2),
         "SBM AMR supports amr.ref_ratio = 2 in every direction only");
@@ -85,16 +93,28 @@ void validate_sbm_amr_capability (const SolverChoice& choice,
         same_on_every_level(choice.compressibility_type) &&
         same_on_every_level(choice.timestepping_type),
         "SBM AMR requires the same compressibility and erf.timestepping_type on every level");
+    // Each anelastic level computes its own base density and does not average
+    // it down, so the coarse and fine dry-air carriers agree only if it is constant.
+    const bool constant_base_density =
+        choice.init_type == InitType::Uniform ||
+        choice.init_type == InitType::ConstantDensity ||
+        choice.init_type == InitType::ConstantDensityLinearTheta;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        choice.compressibility_type.front() == CompressibilityType::FullyCompressible ||
+        constant_base_density,
+        "SBM AMR with anelastic levels requires a constant base density "
+        "(erf.init_type = Uniform, ConstantDensity, or ConstantDensityLinearTheta)");
 }
 
 void validate_sbm_m3_advection (const SolverChoice& choice,
                                 const int max_level,
-                                const amrex::Vector<amrex::IntVect>& ref_ratio)
+                                const amrex::Vector<amrex::IntVect>& ref_ratio,
+                                const amrex::Geometry& geom0)
 {
     if (choice.moisture_type != MoistureType::SBM) return;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(AMREX_SPACEDIM == 3,
         "SBM M3 mapped advection requires three dimensions");
-    validate_sbm_amr_capability(choice, max_level, ref_ratio);
+    validate_sbm_amr_capability(choice, max_level, ref_ratio, geom0);
 #ifdef ERF_SBM_AMR_QUALIFICATION
     erf_sbm::qualification::validate_configuration(choice, max_level);
 #endif
@@ -339,7 +359,7 @@ ERF::ERF_shared ()
     m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
 
     ReadParameters();
-    validate_sbm_m3_advection(solverChoice, max_level, refRatio());
+    validate_sbm_m3_advection(solverChoice, max_level, refRatio(), geom[0]);
     bool auxiliary_inert_tracer_test = false;
     ParmParse pp_auxiliary("erf");
     pp_auxiliary.queryAdd("auxiliary_inert_tracer_test", auxiliary_inert_tracer_test);

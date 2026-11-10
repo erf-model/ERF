@@ -7,7 +7,9 @@
 #include "ERF_SBMTransport.H"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -86,7 +88,12 @@ ERF::init_sbm_level_from_coarse (int lev, Real time, const BoxArray& ba,
 {
     AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr &&
                         sbm_transport != nullptr && lev > 0);
-    sbm_state_manager->define(lev, ba, dm, static_cast<double>(time));
+    // AmrCore passes the creation time as Real; the parent level's time is exact.
+    const double fine_time = t_new[lev - 1];
+    AMREX_ALWAYS_ASSERT(std::abs(static_cast<double>(time) - fine_time) <=
+                        16.0 * std::numeric_limits<Real>::epsilon() *
+                            std::max(1.0, std::abs(fine_time)));
+    sbm_state_manager->define(lev, ba, dm, fine_time);
     sbm_transport->define(lev, ba, dm);
     bind_sbm_amr_flux_registers(lev);
     bind_sbm_amr_flux_registers(lev - 1);
@@ -101,9 +108,7 @@ ERF::init_sbm_level_from_coarse (int lev, Real time, const BoxArray& ba,
     }
     AMREX_ALWAYS_ASSERT(sbm_transport->measure_is_ready(lev - 1));
     const double coarse_time = sbm_state_manager->new_time(lev - 1);
-    const double fine_time = static_cast<double>(time);
-    if (!erf_sbm::semantic_time_matches(coarse_time, t_new[lev - 1], dt[lev - 1]) ||
-        !erf_sbm::semantic_time_matches(fine_time, t_new[lev - 1], dt[lev - 1])) {
+    if (!erf_sbm::semantic_time_matches(coarse_time, fine_time, dt[lev - 1])) {
         Abort("SBM fine-level initialization: the coarse spectrum and host "
               "state times differ");
     }
@@ -142,7 +147,7 @@ ERF::init_sbm_level_from_coarse (int lev, Real time, const BoxArray& ba,
 // covered cells are prolonged from the same-time coarse spectrum. Released
 // cells need nothing: the last synchronization already restricted them onto
 // their parents. The level is replaced only after its whole candidate is
-// admitted; a rejection aborts before any SBM state or projection changes.
+// admitted; a rejection aborts before any spectrum or projection changes.
 void
 ERF::remake_sbm_level (int lev, Real time, const BoxArray& ba,
                        const DistributionMapping& dm)
@@ -160,14 +165,19 @@ ERF::remake_sbm_level (int lev, Real time, const BoxArray& ba,
                         mapfac[lev][MapFacType::m_y] != nullptr);
     const auto& layout = sbm_state_manager->layout();
     const int ncomp = layout.ncomp();
-    const double regrid_time = static_cast<double>(time);
-    const auto same_instant = [] (double lhs, double rhs, double step) {
-        return step > 0.0 ? erf_sbm::semantic_time_matches(lhs, rhs, step)
-                          : erf_sbm::semantic_time_matches_exact(lhs, rhs);
-    };
-    if (!same_instant(sbm_state_manager->new_time(lev), regrid_time,
-                      static_cast<double>(dt[lev]))) {
+    // AmrCore passes the regrid time as Real; the level's own time is exact.
+    const double regrid_time = t_new[lev];
+    AMREX_ALWAYS_ASSERT(std::abs(static_cast<double>(time) - regrid_time) <=
+                        16.0 * std::numeric_limits<Real>::epsilon() *
+                            std::max(1.0, std::abs(regrid_time)));
+    if (!erf_sbm::level_time_matches(sbm_state_manager->new_time(lev), regrid_time,
+                                     dt[lev])) {
         Abort("SBM regrid: the remade level's accepted spectrum is not at the regrid instant");
+    }
+    const double coarse_time = sbm_state_manager->new_time(lev - 1);
+    if (!erf_sbm::level_time_matches(coarse_time, regrid_time, dt[lev - 1]) ||
+        !sbm_transport->measure_is_ready(lev - 1)) {
+        Abort("SBM regrid: the coarse spectrum is not synchronized at the regrid instant");
     }
 
     const MultiFab& retained = sbm_state_manager->new_state(lev);
@@ -177,19 +187,19 @@ ERF::remake_sbm_level (int lev, Real time, const BoxArray& ba,
     std::vector<std::uint64_t> phase_bytes(4, 0);
     phase_bytes[0] = static_cast<std::uint64_t>(TotalBytesAllocatedInFabs());
 #endif
+    // The transport level holds only scratch and the measure, so it moves to
+    // the new grids first and its measure and admission check the candidate.
+    std::string diagnostic;
+    sbm_transport->destroy(lev);
+    sbm_transport->define(lev, ba, dm);
+    if (!sbm_transport->rebuild_static_measure(
+            lev, *detJ_cc[lev], *mapfac[lev][MapFacType::m_x],
+            *mapfac[lev][MapFacType::m_y], diagnostic)) {
+        Abort("SBM regrid mapped measure: " + diagnostic);
+    }
     MultiFab candidate(ba, dm, ncomp, retained.nGrowVect());
     candidate.setVal(Real(0.0));
-    std::string diagnostic;
     {
-        MultiFab fine_measure(ba, dm, 1, 0);
-        if (!erf_auxiliary::BuildMappedCellMeasure(
-                fine_measure, *detJ_cc[lev], *mapfac[lev][MapFacType::m_x],
-                *mapfac[lev][MapFacType::m_y], diagnostic)) {
-            Abort("SBM regrid mapped measure: " + diagnostic);
-        }
-        // The transport's admission still describes the old grids.
-        erf_sbm::SBMStateAdmission fine_admission(layout);
-        fine_admission.define_level(lev, ba, dm);
         erf_sbm::SBMTransferAllocationCensus census;
 
         const MultiFab* retained_source = &retained;
@@ -212,23 +222,18 @@ ERF::remake_sbm_level (int lev, Real time, const BoxArray& ba,
             retained_source = &faulted_retained;
         }
 #endif
-        const double coarse_time = sbm_state_manager->new_time(lev - 1);
-        if (!same_instant(coarse_time, regrid_time,
-                          static_cast<double>(dt[lev - 1])) ||
-            !sbm_transport->measure_is_ready(lev - 1)) {
-            Abort("SBM regrid: the coarse spectrum is not synchronized at the regrid instant");
-        }
         const erf_sbm::SBMAMRStateView coarse_view{
             &sbm_state_manager->new_state(lev - 1), regrid_time,
             &vars_new[lev - 1][Vars::cons], Rho_comp, regrid_time,
             &sbm_transport->static_measure(lev - 1), 0, regrid_time};
         if (!erf_sbm::RemapRegriddedSpectrumPrivate(
                 layout, coarse_view, *retained_source,
-                vars_new[lev][Vars::cons], Rho_comp, fine_measure, 0,
+                vars_new[lev][Vars::cons], Rho_comp,
+                sbm_transport->static_measure(lev), 0,
                 regrid_time, geom[lev - 1], geom[lev], ref_ratio[lev - 1],
                 lev, candidate, diagnostic,
                 sbm_transport->max_groups_per_chunk(),
-                &sbm_transport->admission(), &fine_admission, &census)) {
+                &sbm_transport->admission(), &sbm_transport->admission(), &census)) {
             Abort("SBM regrid candidate rejected before publication: " + diagnostic);
         }
 #ifdef ERF_SBM_AMR_QUALIFICATION
@@ -244,13 +249,6 @@ ERF::remake_sbm_level (int lev, Real time, const BoxArray& ba,
 #endif
 
     sbm_state_manager->replace_level(lev, std::move(candidate), regrid_time);
-    sbm_transport->destroy(lev);
-    sbm_transport->define(lev, ba, dm);
-    if (!sbm_transport->rebuild_static_measure(
-            lev, *detJ_cc[lev], *mapfac[lev][MapFacType::m_x],
-            *mapfac[lev][MapFacType::m_y], diagnostic)) {
-        Abort("SBM regrid mapped measure: " + diagnostic);
-    }
     bind_sbm_amr_flux_registers(lev);
     bind_sbm_amr_flux_registers(lev - 1);
     if (lev < finest_level) { bind_sbm_amr_flux_registers(lev + 1); }

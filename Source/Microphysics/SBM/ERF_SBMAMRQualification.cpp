@@ -320,6 +320,51 @@ validate_empty_fine_rank_layout (const BoxArray& fine_ba,
     Print() << "SBM_AMR_QUAL_EMPTY_FINE_RANK empty_ranks=" << empty_ranks << '\n';
 }
 
+struct InventoryRoundoff
+{
+    std::uint64_t leaf_cell_terms{0};
+    std::uint64_t operation_count{0};
+    int reduction_depth{0};
+    Real rounding_factor{0};
+};
+
+// Operation-count bound on the composite leaf inventory, shared by the
+// per-step and regrid conservation checks.
+InventoryRoundoff
+composite_inventory_roundoff (const std::uint64_t coarse_cells,
+                              const std::uint64_t fine_cells,
+                              const IntVect& ratio,
+                              const bool with_prolongation)
+{
+    std::uint64_t refinement_volume = 1U;
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        refinement_volume *= static_cast<std::uint64_t>(ratio[dir]);
+    }
+    AMREX_ALWAYS_ASSERT(refinement_volume > 0U &&
+                        fine_cells % refinement_volume == 0U &&
+                        coarse_cells >= fine_cells / refinement_volume);
+    InventoryRoundoff roundoff;
+    roundoff.leaf_cell_terms = coarse_cells - fine_cells / refinement_volume + fine_cells;
+    for (int ranks = ParallelDescriptor::NProcs(); ranks > 1;
+         ranks = (ranks + 1) / 2) {
+        ++roundoff.reduction_depth;
+    }
+    // Each positive leaf term uses up to three multiplies and one local
+    // accumulation. Bound both initial and final inventories, the final
+    // subtraction, and a pairwise MPI reduction with a conservative
+    // eight operations per leaf plus two reduction-tree levels per depth;
+    // a regrid adds the prolongation of a new fine cell from its parent.
+    roundoff.operation_count =
+        8U * roundoff.leaf_cell_terms +
+        2U * static_cast<std::uint64_t>(roundoff.reduction_depth) + 1U +
+        (with_prolongation ? refinement_volume + 6U : 0U);
+    const Real q = static_cast<Real>(roundoff.operation_count) *
+                   std::numeric_limits<Real>::epsilon();
+    AMREX_ALWAYS_ASSERT(q < Real(1.0));
+    roundoff.rounding_factor = q / (Real(1.0) - q);
+    return roundoff;
+}
+
 } // namespace
 
 namespace erf_sbm::qualification {
@@ -716,33 +761,15 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
         !has_fine_level || (reflux_calls > 0 && reflux_syncs > 0),
         "SBM AMR qualification did not exercise and synchronize its YA register");
     const bool limiter_changed_rate = sbm_transport->interval_limiter_changed_rate();
-    std::uint64_t refinement_volume = 1U;
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        refinement_volume *= static_cast<std::uint64_t>(ref_ratio[0][dir]);
-    }
     const auto coarse_cells = static_cast<std::uint64_t>(grids[0].numPts());
     const auto fine_cells = has_fine_level
         ? static_cast<std::uint64_t>(grids[1].numPts()) : std::uint64_t(0);
-    AMREX_ALWAYS_ASSERT(refinement_volume > 0U &&
-                        fine_cells % refinement_volume == 0U &&
-                        coarse_cells >= fine_cells / refinement_volume);
-    const std::uint64_t leaf_cell_terms =
-        coarse_cells - fine_cells / refinement_volume + fine_cells;
-    int reduction_depth = 0;
-    for (int ranks = ParallelDescriptor::NProcs(); ranks > 1;
-         ranks = (ranks + 1) / 2) {
-        ++reduction_depth;
-    }
-    // Each positive leaf term uses up to three multiplies and one local
-    // accumulation. Bound both initial and final inventories, the final
-    // subtraction, and a pairwise MPI reduction with a conservative
-    // eight operations per leaf plus two reduction-tree levels per depth.
-    const std::uint64_t inventory_operation_count =
-        8U * leaf_cell_terms + 2U * static_cast<std::uint64_t>(reduction_depth) + 1U;
-    const Real q = static_cast<Real>(inventory_operation_count) *
-                   std::numeric_limits<Real>::epsilon();
-    AMREX_ALWAYS_ASSERT(q < Real(1.0));
-    const Real rounding_factor = q / (Real(1.0) - q);
+    const auto roundoff = composite_inventory_roundoff(
+        coarse_cells, fine_cells, ref_ratio[0], false);
+    const std::uint64_t leaf_cell_terms = roundoff.leaf_cell_terms;
+    const std::uint64_t inventory_operation_count = roundoff.operation_count;
+    const int reduction_depth = roundoff.reduction_depth;
+    const Real rounding_factor = roundoff.rounding_factor;
     const bool zero_flow = solverChoice.sbm_amr_qualification_expect_zero_flow;
     Real zero_flow_correction_tolerance = Real(0.0);
     if (zero_flow) {
@@ -885,31 +912,15 @@ ERF::sbm_qualification_check_regrid (int lev, Long cells, Long retained,
     const auto inventory_after = sbm_qualification_composite_inventory();
     AMREX_ALWAYS_ASSERT(inventory_after.size() == inventory_before.size());
 
-    std::uint64_t refinement_volume = 1U;
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        refinement_volume *= static_cast<std::uint64_t>(ref_ratio[0][dir]);
-    }
     const auto coarse_cells =
         static_cast<std::uint64_t>(sbm_state_manager->new_state(0).boxArray().numPts());
     const auto fine_cells = finest_level == 1
         ? static_cast<std::uint64_t>(sbm_state_manager->new_state(1).boxArray().numPts())
         : std::uint64_t(0);
-    const std::uint64_t leaf_cell_terms =
-        coarse_cells - fine_cells / refinement_volume + fine_cells;
-    int reduction_depth = 0;
-    for (int ranks = ParallelDescriptor::NProcs(); ranks > 1;
-         ranks = (ranks + 1) / 2) {
-        ++reduction_depth;
-    }
-    // Same composite operation bound as the per-step check, plus the
-    // prolongation of every new fine cell from its parent.
-    const std::uint64_t operation_count =
-        8U * leaf_cell_terms + 2U * static_cast<std::uint64_t>(reduction_depth) +
-        refinement_volume + 7U;
-    const Real q = static_cast<Real>(operation_count) *
-                   std::numeric_limits<Real>::epsilon();
-    AMREX_ALWAYS_ASSERT(q < Real(1.0));
-    const Real rounding_factor = q / (Real(1.0) - q);
+    const auto roundoff = composite_inventory_roundoff(
+        coarse_cells, fine_cells, ref_ratio[0], true);
+    const std::uint64_t leaf_cell_terms = roundoff.leaf_cell_terms;
+    const Real rounding_factor = roundoff.rounding_factor;
     Real max_error = Real(0.0);
     Real max_error_over_bound = Real(0.0);
     for (std::size_t component = 0; component < inventory_after.size(); ++component) {

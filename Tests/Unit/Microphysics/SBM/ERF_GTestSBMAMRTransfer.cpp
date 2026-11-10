@@ -3373,6 +3373,36 @@ TEST(SBMAMRRegrid, RejectionLeavesEveryInputUnchanged)
     expect_same_values(f.old_state, old_before);
 }
 
+TEST(SBMAMRRegrid, RetainedCellsDoNotConstrainTheProlongation)
+{
+    const BoxArray old_ba(regrid_old_fine_box());
+    const BoxArray new_ba(regrid_new_fine_box());
+    const Box retained_box = regrid_retained_box();
+    const Box prolonged_box = regrid_prolonged_box();
+    // Breaks its parent's carrier identity and underflows the prolonged ratio.
+    const Real tiny_carrier = std::numeric_limits<Real>::denorm_min();
+    std::string diagnostic;
+
+    RegridFixture retained_fault(old_ba, DistributionMapping(old_ba),
+                                 new_ba, DistributionMapping(new_ba));
+    set_cell_value(retained_fault.new_rho, retained_box.smallEnd(), 0,
+                   tiny_carrier);
+    MultiFab candidate(new_ba, DistributionMapping(new_ba),
+                       retained_fault.layout.ncomp(), 0);
+    candidate.setVal(Real(0.0));
+    ASSERT_TRUE(retained_fault.remap(retained_fault.old_state, candidate, diagnostic))
+        << diagnostic;
+    expect_same_values(restrict_to_box(candidate, retained_box),
+                       restrict_to_box(retained_fault.old_state, retained_box));
+
+    RegridFixture prolonged_fault(old_ba, DistributionMapping(old_ba),
+                                  new_ba, DistributionMapping(new_ba));
+    set_cell_value(prolonged_fault.new_rho, prolonged_box.smallEnd(), 0,
+                   tiny_carrier);
+    EXPECT_FALSE(prolonged_fault.remap(prolonged_fault.old_state, candidate, diagnostic));
+    EXPECT_FALSE(diagnostic.empty());
+}
+
 TEST(SBMAMRRegrid, CandidateIsDecompositionInvariant)
 {
     const BoxArray old_ba(regrid_old_fine_box());
@@ -3414,11 +3444,14 @@ TEST(SBMAMRRegrid, ScratchStaysWithinTheChunkedProlongationModel)
     }
     const auto fine_cells = static_cast<std::uint64_t>(new_ba.numPts());
     const auto coarse_cells = static_cast<std::uint64_t>(coarse_domain().numPts());
-    // Never a second full-spectrum fine buffer: the candidate is the only one.
-    const std::uint64_t bound = std::max<std::uint64_t>(
+    // Never a second full-spectrum fine buffer: the candidate is the only
+    // one.  The prolonged-cell mask and its parent mask add one fine and one
+    // coarse component.
+    const std::uint64_t bound = (std::max<std::uint64_t>(
         3ULL * fine_cells + 5ULL * coarse_cells,
         static_cast<std::uint64_t>(max_chunk_components) *
-            (fine_cells + coarse_cells) + fine_cells + coarse_cells) * sizeof(Real);
+            (fine_cells + coarse_cells) + fine_cells + coarse_cells) +
+        fine_cells + coarse_cells) * sizeof(Real);
     EXPECT_LE(census.peak_extra_bytes(), bound + 64ULL * 1024ULL);
     EXPECT_FALSE(census.processed_chunk_first_components.empty());
 }

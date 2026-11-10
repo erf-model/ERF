@@ -188,15 +188,10 @@ ERF::WriteCheckpointFile () const
         // A checkpoint holds one accepted spectrum per level, so it may only be
         // written at a synchronized instant with no partial step or reflux.
         for (int lev = 0; lev <= finest_level; ++lev) {
-            const double level_time = t_new[lev];
-            const double level_dt = dt[lev];
             const bool at_level_time = sbm_state_manager->is_defined(lev) &&
                 sbm_state_manager->new_valid(lev) &&
-                (level_dt > 0.0
-                     ? erf_sbm::semantic_time_matches(sbm_state_manager->new_time(lev),
-                                                      level_time, level_dt)
-                     : erf_sbm::semantic_time_matches_exact(
-                           sbm_state_manager->new_time(lev), level_time));
+                erf_sbm::level_time_matches(sbm_state_manager->new_time(lev),
+                                            t_new[lev], dt[lev]);
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
                 at_level_time && !sbm_state_manager->step_active(lev),
                 "SBM checkpoint requires a synchronized accepted spectrum on every level");

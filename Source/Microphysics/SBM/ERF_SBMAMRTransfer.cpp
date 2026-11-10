@@ -226,16 +226,19 @@ bool form_carrier_relative_chunk (
     const MultiFab& spectrum, const MultiFab& density,
     const int density_component, const std::vector<int>& components,
     const amrex::Gpu::DeviceVector<int>& device_components,
-    MultiFab& intensive, MultiFab& invalid)
+    MultiFab& intensive, MultiFab& invalid, const MultiFab* used_mask)
 {
     const int ncomp = static_cast<int>(components.size());
     const int* component_map = device_components.data();
+    const bool has_mask = used_mask != nullptr;
     for (amrex::MFIter mfi(spectrum, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const amrex::Box box = mfi.tilebox();
         const auto state = spectrum.const_array(mfi);
         const auto rho = density.const_array(mfi);
         const auto output = intensive.array(mfi);
         const auto bad = invalid.array(mfi);
+        const auto used = has_mask ? used_mask->const_array(mfi)
+                                   : amrex::Array4<const Real>{};
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int cell_bad = bad(i, j, k, 0) > Real(0.0) ? 1 : 0;
             const Real carrier = rho(i, j, k, density_component);
@@ -246,6 +249,7 @@ bool form_carrier_relative_chunk (
                 output(i, j, k, local) = value;
                 if (status != remap_detail::QuotientStatus::Ok) cell_bad = 1;
             }
+            if (has_mask && used(i, j, k, 0) <= Real(0.0)) cell_bad = 0;
             bad(i, j, k, 0) = static_cast<Real>(cell_bad);
         });
     }
@@ -257,10 +261,11 @@ bool reconstruct_carrier_relative_chunk (
     const int density_component, const MultiFab& measure,
     const int measure_component, const std::vector<int>& components,
     const amrex::Gpu::DeviceVector<int>& device_components,
-    MultiFab& candidate, MultiFab& invalid)
+    MultiFab& candidate, MultiFab& invalid, const MultiFab* used_mask)
 {
     const int ncomp = static_cast<int>(components.size());
     const int* component_map = device_components.data();
+    const bool has_mask = used_mask != nullptr;
     for (amrex::MFIter mfi(candidate, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const amrex::Box box = mfi.tilebox();
         const auto z = intensive.const_array(mfi);
@@ -268,7 +273,10 @@ bool reconstruct_carrier_relative_chunk (
         const auto omega = measure.const_array(mfi);
         const auto output = candidate.array(mfi);
         const auto bad = invalid.array(mfi);
+        const auto used = has_mask ? used_mask->const_array(mfi)
+                                   : amrex::Array4<const Real>{};
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (has_mask && used(i, j, k, 0) <= Real(0.0)) return;
             int cell_bad = bad(i, j, k, 0) > Real(0.0) ? 1 : 0;
             const Real carrier = rho(i, j, k, density_component);
             const Real scale = omega(i, j, k, measure_component);
@@ -295,7 +303,8 @@ bool validate_mapped_carrier_inventory (const SBMAMRStateView& coarse,
                                         const SBMAMRStateView& fine,
                                         const amrex::IntVect& ratio,
                                         SBMTransferAllocationCensus* allocation_census,
-                                        std::string& diagnostic)
+                                        std::string& diagnostic,
+                                        const MultiFab* prolonged_mask = nullptr)
 {
     std::uint64_t child_count = 1;
     for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
@@ -326,8 +335,15 @@ bool validate_mapped_carrier_inventory (const SBMAMRStateView& coarse,
 
     MultiFab fine_carrier(fine.spectrum->boxArray(),
                           fine.spectrum->DistributionMap(), 1, 0);
-    MultiFab fine_coverage(fine.spectrum->boxArray(),
-                           fine.spectrum->DistributionMap(), 1, 0);
+    // Only parents of prolonged cells are checked; without a mask, all are.
+    MultiFab fine_coverage;
+    if (prolonged_mask == nullptr) {
+        fine_coverage.define(fine.spectrum->boxArray(),
+                             fine.spectrum->DistributionMap(), 1, 0);
+        fine_coverage.setVal(Real(1.0));
+    }
+    const MultiFab& checked_children =
+        prolonged_mask != nullptr ? *prolonged_mask : fine_coverage;
     MultiFab coarse_average(coarse.spectrum->boxArray(),
                             coarse.spectrum->DistributionMap(), 1, 0);
     MultiFab coarse_coverage(coarse.spectrum->boxArray(),
@@ -345,6 +361,7 @@ bool validate_mapped_carrier_inventory (const SBMAMRStateView& coarse,
         const amrex::Box box = mfi.tilebox();
         const auto rho = fine.dry_air_density->const_array(mfi);
         const auto omega = fine.mapped_measure->const_array(mfi);
+        const auto checked = checked_children.const_array(mfi);
         const auto output = fine_carrier.array(mfi);
         const auto bad = fine_invalid.array(mfi);
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -354,13 +371,14 @@ bool validate_mapped_carrier_inventory (const SBMAMRStateView& coarse,
                 rho(i, j, k, fine.density_component), product);
             output(i, j, k, 0) = product;
             bad(i, j, k, 0) =
-                status == remap_detail::ProductStatus::Ok ? Real(0.0) : Real(1.0);
+                status == remap_detail::ProductStatus::Ok ||
+                        checked(i, j, k, 0) <= Real(0.0)
+                    ? Real(0.0) : Real(1.0);
         });
     }
 
-    fine_coverage.setVal(Real(1.0));
     coarse_coverage.setVal(Real(0.0));
-    amrex::average_down(fine_coverage, coarse_coverage, 0, 1, ratio);
+    amrex::average_down(checked_children, coarse_coverage, 0, 1, ratio);
     coarse_average.setVal(Real(0.0));
     amrex::average_down(fine_carrier, coarse_average, 0, 1, ratio);
 
@@ -884,7 +902,8 @@ static bool prolong_carrier_relative_chunks (
     const amrex::IntVect& ratio, MultiFab& work,
     const int max_groups_per_chunk, const bool reverse_chunk_order,
     SBMTransferAllocationCensus* allocation_census,
-    std::string& diagnostic)
+    std::string& diagnostic,
+    const MultiFab* prolonged_mask = nullptr)
 {
     if (max_groups_per_chunk <= 0) {
         diagnostic = "SBM prolongation chunk group limit must be positive";
@@ -917,6 +936,14 @@ static bool prolong_carrier_relative_chunks (
     MultiFab fine_invalid(work.boxArray(), work.DistributionMap(), 1, 0);
     coarse_invalid.setVal(Real(0.0));
     fine_invalid.setVal(Real(0.0));
+    // With a mask, only the parents of prolonged cells must form a ratio.
+    MultiFab parent_mask;
+    if (prolonged_mask != nullptr) {
+        parent_mask.define(coarse.spectrum->boxArray(),
+                           coarse.spectrum->DistributionMap(), 1, 0);
+        parent_mask.setVal(Real(0.0));
+        amrex::average_down(*prolonged_mask, parent_mask, 0, 1, ratio);
+    }
     if (allocation_census != nullptr) allocation_census->sample();
 
     amrex::Gpu::DeviceVector<int> device_components(
@@ -936,7 +963,8 @@ static bool prolong_carrier_relative_chunks (
         form_carrier_relative_chunk(
             *coarse.spectrum, *coarse.dry_air_density,
             coarse.density_component, chunk.components, device_components,
-            coarse_z_chunk, coarse_invalid);
+            coarse_z_chunk, coarse_invalid,
+            prolonged_mask != nullptr ? &parent_mask : nullptr);
 
         amrex::Vector<amrex::BCRec> bcs(
             static_cast<std::size_t>(chunk_components));
@@ -959,7 +987,7 @@ static bool prolong_carrier_relative_chunks (
             fine_z_chunk, *fine_target.dry_air_density,
             fine_target.density_component, *fine_target.mapped_measure,
             fine_target.measure_component, chunk.components, device_components,
-            work, fine_invalid);
+            work, fine_invalid, prolonged_mask);
     }
 
     const bool reconstructed_ok =
@@ -1286,16 +1314,32 @@ bool RemapRegriddedSpectrumPrivate (
         return false;
     }
 
-    // Retained parents pass too: the host keeps their fine density and the
-    // last synchronization restricted it onto the parent.
+    // Retained cells are copied, so only newly covered cells and their parents
+    // are prolonged and checked.
+    MultiFab prolonged_mask(private_candidate.boxArray(),
+                            private_candidate.DistributionMap(), 1, 0);
+    prolonged_mask.setVal(Real(1.0));
+    const amrex::BoxArray& retained_grids = retained_spectrum.boxArray();
+    if (!retained_grids.empty()) {
+        for (amrex::MFIter mfi(prolonged_mask); mfi.isValid(); ++mfi) {
+            const auto mask = prolonged_mask.array(mfi);
+            for (const auto& overlap : retained_grids.intersections(mfi.validbox())) {
+                amrex::ParallelFor(overlap.second,
+                    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        mask(i, j, k, 0) = Real(0.0);
+                    });
+            }
+        }
+    }
     if (!validate_mapped_carrier_inventory(coarse, fine_target, ratio,
-                                           allocation_census, diagnostic)) {
+                                           allocation_census, diagnostic,
+                                           &prolonged_mask)) {
         return false;
     }
     if (!prolong_carrier_relative_chunks(
             layout, coarse, fine_target, coarse_geometry, fine_geometry,
             ratio, private_candidate, max_groups_per_chunk, false,
-            allocation_census, diagnostic)) {
+            allocation_census, diagnostic, &prolonged_mask)) {
         return false;
     }
     private_candidate.ParallelCopy(retained_spectrum, 0, 0, layout.ncomp());

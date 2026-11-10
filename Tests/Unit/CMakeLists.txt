@@ -667,6 +667,14 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     inputs_amr_production_2level
     "SBM AMR requires the same compressibility and erf.timestepping_type on every level"
     "-DOVERRIDE=erf.compressibility_type=Anelastic erf.timestepping_type=RK2 MidPoint")
+  add_sbm_expected_failure_test(SBM_AMR_Reject_AnelasticStratified
+    inputs_amr_production_2level
+    "SBM AMR with anelastic levels requires a constant base density"
+    "-DOVERRIDE=erf.init_type=Isentropic erf.compressibility_type=Anelastic erf.timestepping_type=MidPoint")
+  add_sbm_expected_failure_test(SBM_AMR_Reject_Nonperiodic
+    inputs_amr_production_2level
+    "geometry.is_periodic = 1 1 1"
+    "-DOVERRIDE=geometry.is_periodic=1 1 0 zlo.type=SlipWall zhi.type=SlipWall")
   add_test(NAME SBM_M3_Adaptive_Anelastic_Donor_CFL
     COMMAND ${CMAKE_COMMAND}
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>

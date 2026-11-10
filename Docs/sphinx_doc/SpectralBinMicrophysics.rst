@@ -619,7 +619,13 @@ following qualified configuration, which ERF checks when it reads the inputs:
 * a ``ConstantDz`` mesh without terrain;
 * the same compressibility and ``erf.timestepping_type`` on both levels:
   compressible ``RK3_NoSubstepping``, or anelastic ``RK2`` (Heun) or
-  ``MidPoint``; and
+  ``MidPoint``;
+* with anelastic levels, a constant base density (``erf.init_type`` =
+  ``Uniform``, ``ConstantDensity``, or ``ConstantDensityLinearTheta``):
+  each anelastic level computes its own hydrostatic density and ERF does not
+  average it down, so a stratified base state would give the coarse and fine
+  levels different dry-air carriers;
+* a double-precision build; and
 * the single-level restrictions of :ref:`sec:SBMRestrictions`, including
   periodic boundaries in all three directions.
 

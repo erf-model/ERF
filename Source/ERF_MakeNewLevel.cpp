@@ -1756,6 +1756,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 void
 ERF::ClearLevel (int lev)
 {
+    for (int iface = lev; iface <= lev + 1; ++iface) {
+        if (iface >= 0 && iface < static_cast<int>(sbm_amr_flux_regs.size()) &&
+            sbm_amr_flux_regs[iface] &&
+            sbm_amr_flux_regs[iface]->has_outstanding_amount()) {
+            Abort("SBM interface register was cleared with a pending reflux amount");
+        }
+    }
     if (auxiliary_inert_tracer && auxiliary_inert_tracer->is_defined(lev)) {
         auxiliary_inert_tracer->destroy(lev);
     }
@@ -1764,13 +1771,6 @@ ERF::ClearLevel (int lev)
     }
     if (sbm_transport && sbm_transport->is_defined(lev)) {
         sbm_transport->destroy(lev);
-    }
-    for (int iface = lev; iface <= lev + 1; ++iface) {
-        if (iface >= 0 && iface < static_cast<int>(sbm_amr_flux_regs.size()) &&
-            sbm_amr_flux_regs[iface] &&
-            sbm_amr_flux_regs[iface]->has_outstanding_amount()) {
-            Abort("SBM interface register was cleared with a pending reflux amount");
-        }
     }
     if (lev >= 0 && lev < static_cast<int>(sbm_amr_flux_regs.size())) {
         sbm_amr_flux_regs[lev].reset();
