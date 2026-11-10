@@ -1269,12 +1269,12 @@ struct SolverChoice {
             }
         }
 
-        // A moving mesh is advanced only by the RK3 integrators: erf_substep_MT with
-        // RK3_ImplicitSubstep, the update without substeps with RK3_NoSubstepping
+        // A moving mesh is advanced only by the RK3 integrators (erf_substep_MT with
+        // RK3_ImplicitSubstep, the update without substeps with RK3_NoSubstepping), which by the
+        // check above are those of a FullyCompressible level
         if (terrain_type == TerrainType::MovingFittedMesh) {
             for (int i = 0; i <= max_level; i++) {
-                if (timestepping_type[i] != TimesteppingType::RK3_ImplicitSubstep &&
-                    timestepping_type[i] != TimesteppingType::RK3_NoSubstepping) {
+                if (compressibility_type[i] != CompressibilityType::FullyCompressible) {
                     amrex::Abort("erf.terrain_type = MovingFittedMesh requires erf.timestepping_type = "
                                  "RK3_ImplicitSubstep or RK3_NoSubstepping (a FullyCompressible level) "
                                  "at level " + std::to_string(i));

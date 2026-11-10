@@ -145,8 +145,7 @@ void erf_substep_MT (int step, int nrk, int level, int finest_level,
                      bool l_use_moisture, bool l_reflux, bool l_real_bc,
                      const amrex::Real* sinesq_at_lev_d,
                      const amrex::Real l_damp_coef,
-                     const amrex::Real beta_d,
-                     const bool mid_metric);
+                     const amrex::Real beta_d);
 
 /**
  * Function for computing the coefficients for the tridiagonal solver used in the fast

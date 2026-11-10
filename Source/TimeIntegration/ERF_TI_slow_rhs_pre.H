@@ -389,12 +389,11 @@
         // *****************************************************************************
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
-            // Fill the lateral and periodic ghost cells of the base state before the column update reads
-            // them.  On a moving mesh the base-state BCs leave the vertical ghost planes alone (see
-            // ERFPhysBCFunct_base); they keep the values the initialization gave them, which are finite.
-            // The column update does not depend on them: its bottom-face flux is extrapolated from the
-            // three lowest cells, and its top-face flux is zero (z_t = 0 there).
-            (*physbcs_base[level])(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());
+            // The column update below works on valid cells, reading only the cells above and below in the
+            // same column, so it needs no ghost-cell fill first.  The ghost planes below and above the
+            // column keep the values the initialization gave them, which are finite (the base-state BCs
+            // leave them alone on a moving mesh, see ERFPhysBCFunct_base): the bottom-face flux is
+            // extrapolated from the three lowest cells, and the top-face flux is zero (z_t = 0 there).
 
             MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
             MultiFab  p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
@@ -419,10 +418,6 @@
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
             double dt_base = new_stage_time - old_step_time;
-
-            // The bottom-face flux below is extrapolated from the three lowest cells of the column
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(fine_geom.Domain().length(2) >= 3,
-                "erf.terrain_type = MovingFittedMesh needs at least 3 cells in z");
 
             const Real l_rdOcp   = solverChoice.rdOcp;
 
@@ -452,7 +447,8 @@
                const Array4<Real const>& dJ_new_arr = detJ_cc_new[level]->const_array(mfi);
                const Array4<Real const>& dJ_src_arr = detJ_cc_src[level]->const_array(mfi);
 
-               Box gbx = mfi.growntilebox({1,1,1});
+               // Valid cells and the planes above and below them, which the fluxes read
+               Box gbx = mfi.tilebox(); gbx.grow(2,1);
                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
                    rt0_arr(i,j,k)     = getRhoThetagivenP(p0_arr(i,j,k));
@@ -461,7 +457,10 @@
                });
 
                const int klo_base = fine_geom.Domain().smallEnd(2);
-               Box gbx2 = mfi.growntilebox({1,1,0});
+               // Valid cells only; the ghost cells are filled from them below.  Every grid spans the
+               // full height of the domain (checked in ERF::ReadParameters), so the three lowest cells
+               // the bottom-face extrapolation reads are in this box
+               Box gbx2 = mfi.tilebox();
                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
                    Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
@@ -504,9 +503,8 @@
                    th0_new_arr(i,j,k) = rt0_tmp_new / r0_new_arr(i,j,k);
                });
             } // MFIter
-            base_state_new[level].FillBoundary(fine_geom.periodicity());
-
-            // Lateral and periodic ghost cells of the updated base state, on the new mesh.  The vertical
+            // Lateral and periodic ghost cells of the updated base state, on the new mesh (the functor
+            // starts with the periodic and interior FillBoundary).  The vertical
             // ghost planes are again left alone: nothing that uses this base state on a moving mesh
             // changes the solution through them.  The pressure gradient, buoyancy and cell-centred
             // sources read only cells inside the domain; the momentum sponge reads the plane below at

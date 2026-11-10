@@ -39,8 +39,8 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
 
         // On a moving fitted mesh the metric terms of the pressure gradient (horizontal and vertical)
         // are taken at the sub-step midpoint.  The cell volumes stay at the sub-step ends: in the
-        // conservative update, and in the vertical flux divergence of the implicit solve, which must
-        // predict the rho and (rho theta) the update stores.  Only RK3_ImplicitSubstep takes acoustic
+        // conservative update, and in the vertical flux divergence of the implicit solve, which divides
+        // by the same volume as the update.  Only RK3_ImplicitSubstep takes acoustic
         // sub-steps, so this applies to every sub-step on a moving mesh
         const bool l_mid_metric = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
 
@@ -222,13 +222,13 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            fine_geom,
                            solverChoice.gravity, solverChoice.use_lagged_delta_rt,
                            z_t_rk[level], z_t_pert.get(),
-                           z_phys_nd[level], (l_mid_metric ? z_phys_nd_mid[level].get() : nullptr),
+                           z_phys_nd[level], z_phys_nd_mid[level].get(),
                            z_phys_nd_new[level], z_phys_nd_src[level],
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                           solverChoice.beta_d, l_mid_metric);
+                           solverChoice.beta_d);
 
         } else if (cf_terrain) {
 

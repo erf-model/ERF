@@ -33,8 +33,8 @@ using namespace amrex;
  * @param[in   ] z_t_rk rate of change of grid height -- only relevant for moving terrain
  * @param[in   ] z_t_pert rate of change of grid height -- interpolated between RK stages
  * @param[in   ] z_phys_nd_old height coordinate at nodes at old time
- * @param[in   ] z_phys_nd_flx height coordinate at nodes for the metric terms of the pressure gradient
- *               (sub-step midpoint); nullptr selects z_phys_nd_old. The cell volumes use z_phys_nd_old.
+ * @param[in   ] z_phys_nd_flx height coordinate at nodes at the sub-step midpoint, for the metric terms of
+ *               the pressure gradient. The cell volumes are those at the sub-step ends.
  * @param[in   ] z_phys_nd_new height coordinate at nodes at new time
  * @param[in   ] z_phys_nd_stg height coordinate at nodes at previous stage
  * @param[in   ] detJ_cc_old Jacobian of the metric transformation at old time
@@ -49,8 +49,6 @@ using namespace amrex;
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_damp_coef
  * @param[in   ] beta_d divergence damping coefficient: how far (rho theta) is projected forward
- * @param[in   ] mid_metric metric terms of the pressure gradient at the sub-step midpoint, and the new cell
- *               volume in the vertical flux divergence of the implicit solve
  */
 
 void erf_substep_MT (int step, int /*nrk*/,
@@ -93,8 +91,7 @@ void erf_substep_MT (int step, int /*nrk*/,
                      bool /*l_real_bc*/,
                      const Real* sinesq_stag_d,
                      const Real l_damp_coef,
-                     const Real beta_d,
-                     const bool mid_metric)
+                     const Real beta_d)
 {
     BL_PROFILE_REGION("erf_substep_MT()");
 
@@ -202,8 +199,7 @@ void erf_substep_MT (int step, int /*nrk*/,
 
         const Array4<const Real>& z_nd_old = z_phys_nd_old->const_array(mfi);
         // Metric terms of the pressure gradient on z_nd_flx; the cell volumes on z_nd_old and z_nd_new
-        const Array4<const Real> z_nd_flx = (z_phys_nd_flx) ? z_phys_nd_flx->const_array(mfi)
-                                                            : z_phys_nd_old->const_array(mfi);
+        const Array4<const Real>& z_nd_flx = z_phys_nd_flx->const_array(mfi);
         const Array4<const Real>& z_nd_new = z_phys_nd_new->const_array(mfi);
         const Array4<const Real>& z_nd_stg = z_phys_nd_stg->const_array(mfi);
         const Array4<const Real>& detJ_old =   detJ_cc_old->const_array(mfi);
@@ -474,12 +470,13 @@ void erf_substep_MT (int step, int /*nrk*/,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // The volume dividing the vertical flux divergence of rho and (rho theta): with mid_metric the
-            // new one, the volume the conservative update below divides by, so the solve predicts the
-            // rho and (rho theta) it stores. The face metric of the vertical pressure gradient (in
-            // coeff_P and coeff_Q, from make_fast_coeffs) stays at the sub-step midpoint
-            Real dJo_k   = mid_metric ? detJ_new(i,j,k  ) : detJ_old(i,j,k  );
-            Real dJo_km1 = mid_metric ? detJ_new(i,j,k-1) : detJ_old(i,j,k-1);
+            // The volume dividing the vertical flux divergence of rho and (rho theta) is the new one, the
+            // volume the conservative update below divides by. The face metric of the vertical pressure
+            // gradient (in coeff_P and coeff_Q, from make_fast_coeffs) stays at the sub-step midpoint.
+            // (The vertical flux of that update is formed after the solve from Omega_new - Omega_stg,
+            // not from the solve's unknown, so the two still differ by the change of J over the sub-step.)
+            Real dJo_k   = detJ_new(i,j,k  );
+            Real dJo_km1 = detJ_new(i,j,k-1);
             // Cell volumes of the conservative update, at the sub-step ends and at the stage
             Real     dJ_old_kface = myhalf * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
             Real     dJ_new_kface = myhalf * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
