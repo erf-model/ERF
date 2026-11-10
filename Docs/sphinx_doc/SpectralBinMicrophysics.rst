@@ -636,9 +636,10 @@ the projected ``qc`` or ``qr`` field. Production SBM does not yet support
 multilevel time integration, regridding, derefinement, multilevel restart,
 or general nonperiodic and terrain-following spectral AMR boundaries.
 
-A separately built internal qualification executable exercises a **fixed**,
-periodic, two-level, 3-D, double-precision AMR hierarchy with two-way
-coupling and fine-level subcycling. Its supported test fixtures cover
+A separately built internal qualification executable exercises a periodic,
+two-level, 3-D, double-precision AMR hierarchy with two-way coupling and
+fine-level subcycling, on fixed fine grids or with the fine level regridded,
+cleared and recreated. Its supported test fixtures cover
 one-moment spectral mass and two-moment spectral mass, droplet number and an
 attached number-carried property. These tests are **not** a general SBM AMR
 runtime option, and the normal build continues to reject unsupported
@@ -668,14 +669,38 @@ admission, and only then publishes the spectrum and regenerates ``qc``/``qr``.
 The periodic two-level qualification checks composite spectral inventories,
 coarse/fine interface signs, time integration weights, two-layer coarse-only
 ghost completion, and distributed rank ownership. Evidence is specific to the
-executed CPU/MPI fixtures and does not establish GPU performance, dynamic
-regrid/remake/derefinement, nonperiodic spectral boundary handling, or
-multilevel checkpoint/restart capability.
+executed CPU/MPI fixtures and does not establish GPU performance,
+nonperiodic spectral boundary handling, or multilevel checkpoint/restart
+capability.
 
-The fixed-grid qualification covers only part of ERF's adaptive-mesh
-lifecycle. A production multilevel simulation must also preserve the full
-spectral state through grid remake, derefinement, restart, and physical
-boundary handling.
+Regridding happens at the start of a coarse step, after the previous step
+has synchronized the hierarchy, so no interface correction is pending and
+every covered coarse cell already holds the mapped average of its fine
+cells. Each coarse parent :math:`P` of the new fine grids is one of three
+kinds:
+
+* **retained** -- its fine cells were also on the old grids, and their
+  accepted spectrum is copied unchanged;
+* **newly refined** -- each child :math:`c` takes the parent's
+  dry-air-relative state,
+  :math:`U_{a,c} = \rho_{d,c}\,U_{a,P}/\rho_{d,P}`, with the child's dry-air
+  density from the host's conservative interpolation;
+* **released** -- the parent is no longer covered, and it already holds the
+  synchronized average of its former children, so nothing is transferred.
+
+With :math:`\omega` the mapped cell measure and :math:`r^3` children per
+parent, the host density satisfies
+:math:`\sum_c \omega_c\rho_{d,c} = r^3\,\omega_P\rho_{d,P}` for every
+parent, so a newly refined parent keeps its mapped inventory
+:math:`\omega_P U_{a,P}` and the composite leaf inventory is unchanged to
+roundoff. The complete candidate must pass the same admission as any other
+spectral state before it replaces the level; otherwise the run aborts before
+any spectral state or ``qc``/``qr`` projection changes. Clearing a fine level
+needs no transfer for the same reason as releasing a parent.
+
+The qualification covers only part of ERF's adaptive-mesh lifecycle. A
+production multilevel simulation must also preserve the full spectral state
+through restart and physical boundary handling.
 
 A production multilevel simulation must interpolate coarse-grid spectral
 state and dry-air density to the same fine-grid time; reconcile accepted

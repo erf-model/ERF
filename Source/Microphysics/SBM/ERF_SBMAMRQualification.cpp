@@ -334,7 +334,9 @@ validate_configuration (const SolverChoice& choice, const int max_level)
             !choice.sbm_amr_qualification_expect_split &&
             !choice.sbm_amr_qualification_expect_empty_fine_rank &&
             !choice.sbm_amr_qualification_unique_profile &&
-            !choice.sbm_amr_qualification_parent_store_fault,
+            !choice.sbm_amr_qualification_parent_store_fault &&
+            !choice.sbm_amr_qualification_regrid &&
+            !choice.sbm_amr_qualification_regrid_reject_fault,
             "the internal SBM AMR qualification flag requires amr.max_level=1");
         return;
     }
@@ -352,8 +354,15 @@ validate_configuration (const SolverChoice& choice, const int max_level)
     ParmParse pp_erf("erf");
     int regrid_interval = -1;
     pp_erf.query("regrid_int", regrid_interval);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(regrid_interval == 0,
-        "SBM AMR qualification requires erf.regrid_int=0 after initial refinement");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        choice.sbm_amr_qualification_regrid ? regrid_interval > 0
+                                            : regrid_interval == 0,
+        "SBM AMR qualification requires erf.regrid_int>0 with "
+        "erf.sbm_amr_qualification_regrid and erf.regrid_int=0 otherwise");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !choice.sbm_amr_qualification_regrid_reject_fault ||
+        choice.sbm_amr_qualification_regrid,
+        "the SBM regrid rejection fault requires erf.sbm_amr_qualification_regrid");
     int check_interval = -1;
     double check_period = -1.0;
     pp_erf.query("check_int", check_interval);
@@ -646,11 +655,18 @@ ERF::sbm_qualification_composite_inventory () const
     for (int component = 0; component < ncomp; ++component) {
         Real total = Real(0.0);
         for (int lev = 0; lev <= finest_level; ++lev) {
-            MultiFab leaf_mask(grids[lev], dmap[lev], 1, 0);
+            // The SBM level layouts, not grids[], define the composite: during
+            // a remake grids[lev] already names the new grids.
+            const MultiFab& spectrum = sbm_state_manager->new_state(lev);
+            const BoxArray& level_ba = spectrum.boxArray();
+            const DistributionMapping& level_dm = spectrum.DistributionMap();
+            MultiFab leaf_mask(level_ba, level_dm, 1, 0);
             leaf_mask.setVal(Real(1.0));
             if (lev < finest_level) {
-                MultiFab fine_coverage(grids[lev + 1], dmap[lev + 1], 1, 0);
-                MultiFab covered(grids[lev], dmap[lev], 1, 0);
+                const MultiFab& fine_spectrum = sbm_state_manager->new_state(lev + 1);
+                MultiFab fine_coverage(fine_spectrum.boxArray(),
+                                       fine_spectrum.DistributionMap(), 1, 0);
+                MultiFab covered(level_ba, level_dm, 1, 0);
                 fine_coverage.setVal(Real(1.0));
                 covered.setVal(Real(0.0));
                 average_down(fine_coverage, covered, 0, 1, ref_ratio[lev]);
@@ -664,8 +680,7 @@ ERF::sbm_qualification_composite_inventory () const
                 }
             }
 
-            MultiFab weighted(grids[lev], dmap[lev], 1, 0);
-            const MultiFab& spectrum = sbm_state_manager->new_state(lev);
+            MultiFab weighted(level_ba, level_dm, 1, 0);
             const MultiFab& measure = sbm_transport->static_measure(lev);
             const Real cell_volume = geom[lev].CellSize(0) *
                                      geom[lev].CellSize(1) *
@@ -711,7 +726,11 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
                                    std::uint64_t reflux_syncs)
 {
     if (!solverChoice.sbm_amr_qualification_test) return;
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 1 && nsubsteps[1] >= 3,
+    // A regrid deck may clear its fine level and later recreate it.
+    const bool has_fine_level = finest_level == 1;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        (has_fine_level && nsubsteps[1] >= 3) ||
+        (finest_level == 0 && solverChoice.sbm_amr_qualification_regrid),
         "SBM AMR qualification did not run three fine substeps on a two-level hierarchy");
     if (solverChoice.sbm_amr_qualification_expect_split && nstep == 0) {
         validate_split_layout(grids[0], dmap[0], grids[1], dmap[1], geom[1],
@@ -720,7 +739,8 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
                nstep == 0) {
         validate_empty_fine_rank_layout(grids[1], dmap[1]);
     }
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(reflux_calls > 0 && reflux_syncs > 0,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !has_fine_level || (reflux_calls > 0 && reflux_syncs > 0),
         "SBM AMR qualification did not exercise and synchronize its YA register");
     const bool limiter_changed_rate = sbm_transport->interval_limiter_changed_rate();
     std::uint64_t refinement_volume = 1U;
@@ -728,7 +748,8 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
         refinement_volume *= static_cast<std::uint64_t>(ref_ratio[0][dir]);
     }
     const auto coarse_cells = static_cast<std::uint64_t>(grids[0].numPts());
-    const auto fine_cells = static_cast<std::uint64_t>(grids[1].numPts());
+    const auto fine_cells = has_fine_level
+        ? static_cast<std::uint64_t>(grids[1].numPts()) : std::uint64_t(0);
     AMREX_ALWAYS_ASSERT(refinement_volume > 0U &&
                         fine_cells % refinement_volume == 0U &&
                         coarse_cells >= fine_cells / refinement_volume);
@@ -777,7 +798,7 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
             "zero-flow SBM AMR qualification produced a correction beyond "
             "its operation-count roundoff bound");
     } else {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(correction_linf > Real(0.0),
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!has_fine_level || correction_linf > Real(0.0),
             "SBM AMR qualification saw no nonzero accepted YA correction");
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
             sbm_transport->interval_limiter_active_groups() > 0 &&
@@ -787,7 +808,8 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
     const auto inventory = sbm_qualification_composite_inventory();
     AMREX_ALWAYS_ASSERT(inventory.size() == sbm_qualification_initial_inventory.size());
     Print() << "SBM_AMR_QUAL step=" << nstep + 1
-            << " fine_substeps=" << nsubsteps[1]
+            << " levels=" << finest_level + 1
+            << " fine_substeps=" << (has_fine_level ? nsubsteps[1] : 0)
             << " leaf_cell_terms=" << leaf_cell_terms
             << " operation_count=" << inventory_operation_count
             << " reduction_depth=" << reduction_depth
@@ -825,4 +847,70 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(error <= tolerance,
             "SBM AMR qualification composite leaf inventory changed beyond its roundoff bound");
     }
+}
+
+void
+ERF::sbm_qualification_check_regrid (int lev, Long cells, Long retained,
+                                     Long prolonged, Long released,
+                                     const std::vector<Real>& inventory_before,
+                                     const std::vector<std::uint64_t>& phase_bytes)
+{
+    if (!solverChoice.sbm_amr_qualification_test) return;
+    AMREX_ALWAYS_ASSERT(phase_bytes.size() == 4);
+    const auto inventory_after = sbm_qualification_composite_inventory();
+    AMREX_ALWAYS_ASSERT(inventory_after.size() == inventory_before.size());
+
+    std::uint64_t refinement_volume = 1U;
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        refinement_volume *= static_cast<std::uint64_t>(ref_ratio[0][dir]);
+    }
+    const auto coarse_cells =
+        static_cast<std::uint64_t>(sbm_state_manager->new_state(0).boxArray().numPts());
+    const auto fine_cells = finest_level == 1
+        ? static_cast<std::uint64_t>(sbm_state_manager->new_state(1).boxArray().numPts())
+        : std::uint64_t(0);
+    const std::uint64_t leaf_cell_terms =
+        coarse_cells - fine_cells / refinement_volume + fine_cells;
+    int reduction_depth = 0;
+    for (int ranks = ParallelDescriptor::NProcs(); ranks > 1;
+         ranks = (ranks + 1) / 2) {
+        ++reduction_depth;
+    }
+    // Same composite operation bound as the per-step check, plus the
+    // prolongation of every new fine cell from its parent.
+    const std::uint64_t operation_count =
+        8U * leaf_cell_terms + 2U * static_cast<std::uint64_t>(reduction_depth) +
+        refinement_volume + 7U;
+    const Real q = static_cast<Real>(operation_count) *
+                   std::numeric_limits<Real>::epsilon();
+    AMREX_ALWAYS_ASSERT(q < Real(1.0));
+    const Real rounding_factor = q / (Real(1.0) - q);
+    Real max_error = Real(0.0);
+    Real max_error_over_bound = Real(0.0);
+    for (std::size_t component = 0; component < inventory_after.size(); ++component) {
+        const Real before = inventory_before[component];
+        const Real after = inventory_after[component];
+        const Real bound = rounding_factor * std::max(
+            std::abs(before) + std::abs(after), std::numeric_limits<Real>::min());
+        const Real error = std::abs(after - before);
+        max_error = std::max(max_error, error);
+        max_error_over_bound = std::max(max_error_over_bound, error / bound);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(error <= bound,
+            "SBM regrid changed the composite leaf inventory beyond its roundoff bound");
+    }
+    Print().SetPrecision(17)
+        << "SBM_AMR_QUAL_REGRID level=" << lev << " step=" << istep[0]
+        << " levels=" << finest_level + 1
+        << " cells=" << cells << " retained=" << retained
+        << " prolonged=" << prolonged << " released=" << released
+        << " leaf_cell_terms=" << leaf_cell_terms
+        << " max_inventory_abs_error=" << max_error
+        << " max_inventory_error_over_bound=" << max_error_over_bound << '\n';
+    AllPrint() << "SBM_AMR_QUAL_REGRID_MEMORY rank=" << ParallelDescriptor::MyProc()
+               << " level=" << lev << " step=" << istep[0]
+               << " baseline_fab_bytes=" << phase_bytes[0]
+               << " validation_peak_fab_bytes=" << phase_bytes[1]
+               << " before_commit_fab_bytes=" << phase_bytes[2]
+               << " after_commit_fab_bytes=" << phase_bytes[3]
+               << " fab_bytes_high_water=" << TotalBytesAllocatedInFabsHWM() << '\n';
 }

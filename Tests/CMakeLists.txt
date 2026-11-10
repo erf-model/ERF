@@ -353,6 +353,76 @@ if(ERF_ENABLE_TESTS)
       DEPENDS SBM_AMR_Qualification_2M_Attached_Split_1Rank
       TIMEOUT 300)
 
+    # Gate 4B: a refined box moving one coarse cell per step makes every regrid
+    # retain, prolong, and release fine cells, each conserving the composite.
+    foreach(_sbm_regrid_ranks IN ITEMS 1 2)
+      set(_sbm_regrid_test "SBM_AMR_Qualification_Regrid_MovingBox_1M_${_sbm_regrid_ranks}Rank")
+      set(_sbm_regrid_args
+          -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+          -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m_regrid
+          -DTEST_ROOT=${_sbm_amr_qualification_root}/regrid_moving_box_${_sbm_regrid_ranks}rank
+          -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+          -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+          -DMPI_RANKS=${_sbm_regrid_ranks}
+          -DEXPECTED_COMPONENTS=4
+          -DEXPECTED_STEPS=4
+          -DEXPECTED_REGRIDS=3
+          -DREGRID=ON)
+      if(_sbm_regrid_ranks GREATER 1)
+        list(APPEND _sbm_regrid_args
+             -DPYTHON_EXECUTABLE=${ERF_TEST_PYTHON}
+             -DREFERENCE_LOG=${_sbm_amr_qualification_root}/regrid_moving_box_1rank/qualification.log)
+      endif()
+      add_test(NAME ${_sbm_regrid_test}
+        COMMAND ${CMAKE_COMMAND} ${_sbm_regrid_args} -P ${_sbm_amr_qualification_script})
+      set_tests_properties(${_sbm_regrid_test} PROPERTIES
+        LABELS "integration;sbm;sbm_amr_qualification"
+        RUN_SERIAL TRUE
+        PROCESSORS ${_sbm_regrid_ranks}
+        TIMEOUT 300)
+      if(_sbm_regrid_ranks GREATER 1)
+        set_tests_properties(${_sbm_regrid_test} PROPERTIES
+          LABELS "integration;parallel;sbm;sbm_amr_qualification"
+          DEPENDS SBM_AMR_Qualification_Regrid_MovingBox_1M_1Rank)
+      endif()
+    endforeach()
+
+    # Gate 4B: the fine level is cleared and later recreated elsewhere.
+    add_test(NAME SBM_AMR_Qualification_Regrid_LevelCycle_2M_Attached
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_2m_attached_regrid
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/regrid_level_cycle_2m_attached
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=1
+        -DEXPECTED_COMPONENTS=12
+        -DEXPECTED_STEPS=5
+        -DREGRID=ON
+        -DEXPECT_LEVEL_CYCLE=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_Regrid_LevelCycle_2M_Attached PROPERTIES
+      LABELS "integration;sbm;sbm_amr_qualification"
+      RUN_SERIAL TRUE
+      TIMEOUT 300)
+
+    # Gate 4B: an inadmissible regrid candidate aborts before publication.
+    add_test(NAME SBM_AMR_Qualification_Regrid_RejectFault
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m_regrid
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/regrid_reject_fault
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=1
+        -DEXPECTED_COMPONENTS=4
+        -DREGRID_REJECT_FAULT=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_Regrid_RejectFault PROPERTIES
+      LABELS "integration;sbm;sbm_amr_qualification;negative"
+      RUN_SERIAL TRUE
+      TIMEOUT 180)
+
     # Measure the actual coarse-parent halo path at the requested spectral
     # widths and process counts with the nonzero carrier from the profile
     # deck.  This keeps complete fine-step timings representative of transport;

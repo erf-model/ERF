@@ -873,6 +873,105 @@ bool RestrictMappedSpectrumPrivate (const SBMLayout& layout,
                                          covered_parent_mask, diagnostic);
 }
 
+// Write the same-time piecewise-constant carrier-relative prolongation of the
+// coarse spectrum into every valid cell of work. The fine tuple supplies only
+// the target density and measure; work defines the target layout.
+static bool prolong_carrier_relative_chunks (
+    const SBMLayout& layout, const SBMAMRStateView& coarse,
+    const SBMAMRStateView& fine_target,
+    const amrex::Geometry& coarse_geometry,
+    const amrex::Geometry& fine_geometry,
+    const amrex::IntVect& ratio, MultiFab& work,
+    const int max_groups_per_chunk, const bool reverse_chunk_order,
+    SBMTransferAllocationCensus* allocation_census,
+    std::string& diagnostic)
+{
+    if (max_groups_per_chunk <= 0) {
+        diagnostic = "SBM prolongation chunk group limit must be positive";
+        return collective_all_true(false, diagnostic,
+            "SBM prolongation chunk group limit is invalid on another MPI rank",
+            diagnostic);
+    }
+    const auto chunks = make_constraint_closure_chunks(
+        layout, max_groups_per_chunk);
+    int max_chunk_components = 0;
+    for (const auto& chunk : chunks) {
+        max_chunk_components = std::max(
+            max_chunk_components, static_cast<int>(chunk.components.size()));
+    }
+    if (!collective_all_true(
+            max_chunk_components > 0,
+            "SBM prolongation layout has no complete semantic component groups",
+            "SBM prolongation layout has no complete semantic component groups on another MPI rank",
+            diagnostic)) {
+        return false;
+    }
+
+    MultiFab coarse_z_chunk(coarse.spectrum->boxArray(),
+                            coarse.spectrum->DistributionMap(),
+                            max_chunk_components, 0);
+    MultiFab fine_z_chunk(work.boxArray(), work.DistributionMap(),
+                          max_chunk_components, 0);
+    MultiFab coarse_invalid(coarse.spectrum->boxArray(),
+                            coarse.spectrum->DistributionMap(), 1, 0);
+    MultiFab fine_invalid(work.boxArray(), work.DistributionMap(), 1, 0);
+    coarse_invalid.setVal(Real(0.0));
+    fine_invalid.setVal(Real(0.0));
+    if (allocation_census != nullptr) allocation_census->sample();
+
+    amrex::Gpu::DeviceVector<int> device_components(
+        static_cast<std::size_t>(max_chunk_components));
+    amrex::PhysBCFunctNoOp no_physical_boundary;
+    for (std::size_t pass = 0; pass < chunks.size(); ++pass) {
+        const std::size_t chunk_index = reverse_chunk_order
+            ? chunks.size() - 1U - pass : pass;
+        const auto& chunk = chunks[chunk_index];
+        if (allocation_census != nullptr && !chunk.components.empty()) {
+            allocation_census->processed_chunk_first_components.push_back(
+                chunk.components.front());
+        }
+        const int chunk_components = static_cast<int>(chunk.components.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, chunk.components.begin(),
+                         chunk.components.end(), device_components.begin());
+        form_carrier_relative_chunk(
+            *coarse.spectrum, *coarse.dry_air_density,
+            coarse.density_component, chunk.components, device_components,
+            coarse_z_chunk, coarse_invalid);
+
+        amrex::Vector<amrex::BCRec> bcs(
+            static_cast<std::size_t>(chunk_components));
+        // PCInterp currently ignores these records under the periodic-only
+        // M4a gate. Keep every face explicit; this is not a nonperiodic BC
+        // policy.
+        for (auto& bc : bcs) {
+            for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
+                bc.setLo(direction, amrex::BCType::int_dir);
+                bc.setHi(direction, amrex::BCType::int_dir);
+            }
+        }
+        amrex::InterpFromCoarseLevel(
+            fine_z_chunk, amrex::IntVect(0),
+            static_cast<Real>(coarse.spectrum_time), coarse_z_chunk, 0, 0,
+            chunk_components, coarse_geometry, fine_geometry,
+            no_physical_boundary, 0, no_physical_boundary, 0, ratio,
+            &amrex::pc_interp, bcs, 0);
+        reconstruct_carrier_relative_chunk(
+            fine_z_chunk, *fine_target.dry_air_density,
+            fine_target.density_component, *fine_target.mapped_measure,
+            fine_target.measure_component, chunk.components, device_components,
+            work, fine_invalid);
+    }
+
+    const bool reconstructed_ok =
+        coarse_invalid.max(0, 0, true) <= Real(0.0) &&
+        fine_invalid.max(0, 0, true) <= Real(0.0);
+    return collective_all_true(
+        reconstructed_ok,
+        "forming or reconstructing a chunked carrier-relative SBM state overflowed or underflowed",
+        "forming or reconstructing a chunked carrier-relative SBM state failed on another MPI rank",
+        diagnostic);
+}
+
 static bool prolong_carrier_relative_spectrum_impl (
     const SBMLayout& layout, const SBMAMRStateView& coarse,
     const SBMAMRStateView& fine_target,
@@ -984,43 +1083,6 @@ static bool prolong_carrier_relative_spectrum_impl (
         return false;
     }
 
-    if (max_groups_per_chunk <= 0) {
-        diagnostic = "SBM prolongation chunk group limit must be positive";
-        return collective_all_true(false, diagnostic,
-            "SBM prolongation chunk group limit is invalid on another MPI rank",
-            diagnostic);
-    }
-    const auto chunks = make_constraint_closure_chunks(
-        layout, max_groups_per_chunk);
-    int max_chunk_components = 0;
-    for (std::size_t pass = 0; pass < chunks.size(); ++pass) {
-        const std::size_t chunk_index = reverse_chunk_order
-            ? chunks.size() - 1U - pass : pass;
-        const auto& chunk = chunks[chunk_index];
-        max_chunk_components = std::max(
-            max_chunk_components, static_cast<int>(chunk.components.size()));
-    }
-    if (!collective_all_true(
-            max_chunk_components > 0,
-            "SBM prolongation layout has no complete semantic component groups",
-            "SBM prolongation layout has no complete semantic component groups on another MPI rank",
-            diagnostic)) {
-        return false;
-    }
-
-    MultiFab coarse_z_chunk(coarse.spectrum->boxArray(),
-                            coarse.spectrum->DistributionMap(),
-                            max_chunk_components, 0);
-    MultiFab fine_z_chunk(fine_target.spectrum->boxArray(),
-                          fine_target.spectrum->DistributionMap(),
-                          max_chunk_components, 0);
-    MultiFab coarse_invalid(coarse.spectrum->boxArray(),
-                            coarse.spectrum->DistributionMap(), 1, 0);
-    MultiFab fine_invalid(fine_target.spectrum->boxArray(),
-                          fine_target.spectrum->DistributionMap(), 1, 0);
-    coarse_invalid.setVal(Real(0.0));
-    fine_invalid.setVal(Real(0.0));
-
     MultiFab private_candidate;
     MultiFab* work = &fine_candidate;
     if (!candidate_is_private) {
@@ -1029,59 +1091,10 @@ static bool prolong_carrier_relative_spectrum_impl (
                                  layout.ncomp(), 0);
         work = &private_candidate;
     }
-    if (allocation_census != nullptr) allocation_census->sample();
-
-    amrex::Gpu::DeviceVector<int> device_components(
-        static_cast<std::size_t>(max_chunk_components));
-    amrex::PhysBCFunctNoOp no_physical_boundary;
-    for (std::size_t pass = 0; pass < chunks.size(); ++pass) {
-        const std::size_t chunk_index = reverse_chunk_order
-            ? chunks.size() - 1U - pass : pass;
-        const auto& chunk = chunks[chunk_index];
-        if (allocation_census != nullptr && !chunk.components.empty()) {
-            allocation_census->processed_chunk_first_components.push_back(
-                chunk.components.front());
-        }
-        const int chunk_components = static_cast<int>(chunk.components.size());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, chunk.components.begin(),
-                         chunk.components.end(), device_components.begin());
-        form_carrier_relative_chunk(
-            *coarse.spectrum, *coarse.dry_air_density,
-            coarse.density_component, chunk.components, device_components,
-            coarse_z_chunk, coarse_invalid);
-
-        amrex::Vector<amrex::BCRec> bcs(
-            static_cast<std::size_t>(chunk_components));
-        // PCInterp currently ignores these records under the periodic-only
-        // M4a gate. Keep every face explicit; this is not a nonperiodic BC
-        // policy.
-        for (auto& bc : bcs) {
-            for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
-                bc.setLo(direction, amrex::BCType::int_dir);
-                bc.setHi(direction, amrex::BCType::int_dir);
-            }
-        }
-        amrex::InterpFromCoarseLevel(
-            fine_z_chunk, amrex::IntVect(0),
-            static_cast<Real>(coarse.spectrum_time), coarse_z_chunk, 0, 0,
-            chunk_components, coarse_geometry, fine_geometry,
-            no_physical_boundary, 0, no_physical_boundary, 0, ratio,
-            &amrex::pc_interp, bcs, 0);
-        reconstruct_carrier_relative_chunk(
-            fine_z_chunk, *fine_target.dry_air_density,
-            fine_target.density_component, *fine_target.mapped_measure,
-            fine_target.measure_component, chunk.components, device_components,
-            *work, fine_invalid);
-    }
-
-    const bool reconstructed_ok =
-        coarse_invalid.max(0, 0, true) <= Real(0.0) &&
-        fine_invalid.max(0, 0, true) <= Real(0.0);
-    if (!collective_all_true(
-            reconstructed_ok,
-            "forming or reconstructing a chunked carrier-relative SBM state overflowed or underflowed",
-            "forming or reconstructing a chunked carrier-relative SBM state failed on another MPI rank",
-            diagnostic)) {
+    if (!prolong_carrier_relative_chunks(
+            layout, coarse, fine_target, coarse_geometry, fine_geometry,
+            ratio, *work, max_groups_per_chunk, reverse_chunk_order,
+            allocation_census, diagnostic)) {
         return false;
     }
 
@@ -1143,6 +1156,163 @@ bool ProlongCarrierRelativeSpectrumPrivate (
         layout, coarse, fine_target, coarse_geometry, fine_geometry, ratio,
         fine_level, private_candidate, true, max_groups_per_chunk,
         reverse_chunk_order, admission, allocation_census, diagnostic);
+}
+
+SBMRegridCellCounts CountRegridCells (const amrex::BoxArray& old_grids,
+                                      const amrex::BoxArray& new_grids)
+{
+    SBMRegridCellCounts counts;
+    counts.cells = new_grids.numPts();
+    for (int box = 0; !old_grids.empty() && box < new_grids.size(); ++box) {
+        for (const auto& overlap : old_grids.intersections(new_grids[box])) {
+            counts.retained += overlap.second.numPts();
+        }
+    }
+    counts.prolonged = counts.cells - counts.retained;
+    counts.released = old_grids.numPts() - counts.retained;
+    return counts;
+}
+
+bool RemapRegriddedSpectrumPrivate (
+    const SBMLayout& layout, const SBMAMRStateView& coarse,
+    const MultiFab& retained_spectrum,
+    const MultiFab& fine_density, const int density_component,
+    const MultiFab& fine_measure, const int measure_component,
+    const double semantic_time,
+    const amrex::Geometry& coarse_geometry,
+    const amrex::Geometry& fine_geometry,
+    const amrex::IntVect& ratio, const int fine_level,
+    MultiFab& private_candidate, std::string& diagnostic,
+    const int max_groups_per_chunk,
+    const SBMStateAdmission* coarse_admission,
+    const SBMStateAdmission* fine_admission,
+    SBMTransferAllocationCensus* allocation_census)
+{
+    diagnostic.clear();
+    if (allocation_census != nullptr) allocation_census->begin();
+    // The candidate supplies the new-grid layout; it is never read.
+    const SBMAMRStateView fine_target{
+        &private_candidate, semantic_time, &fine_density, density_component,
+        semantic_time, &fine_measure, measure_component, semantic_time};
+    const SBMAMRStateView retained{
+        &retained_spectrum, semantic_time, &fine_density, density_component,
+        semantic_time, &fine_measure, measure_component, semantic_time};
+
+    std::string ratio_diagnostic;
+    const bool ratio_ok = valid_ratio(ratio, ratio_diagnostic);
+    const bool level_ok = fine_level > 0;
+    std::string coarse_structure_diagnostic;
+    std::string fine_structure_diagnostic;
+    const bool coarse_structure_ok = validate_view_structure(
+        coarse, layout, "coarse", coarse_structure_diagnostic);
+    const bool fine_structure_ok = validate_view_structure(
+        fine_target, layout, "regrid target", fine_structure_diagnostic);
+    const bool same_time = semantic_time_matches_exact(coarse.spectrum_time,
+                                                        semantic_time);
+    const bool retained_ok = retained_spectrum.ok() &&
+                             retained_spectrum.nComp() == layout.ncomp();
+    const bool local_structure_ok = ratio_ok && level_ok && coarse_structure_ok &&
+                                    fine_structure_ok && same_time && retained_ok;
+    const std::string structure_diagnostic =
+        !ratio_ok ? ratio_diagnostic
+        : !level_ok ? "regrid fine level must be greater than zero"
+        : !coarse_structure_ok ? coarse_structure_diagnostic
+        : !fine_structure_ok ? fine_structure_diagnostic
+        : !same_time ? "regrid requires same-time coarse and fine tuples"
+        : !retained_ok ? "retained regrid spectrum does not match the SBM layout"
+                       : std::string{};
+    if (!collective_all_true(
+            local_structure_ok, structure_diagnostic,
+            "SBM regrid input tuple is invalid on another MPI rank",
+            diagnostic)) {
+        return false;
+    }
+
+    bool local_candidate_ok = candidate_is_separate(private_candidate, coarse) &&
+                              candidate_is_separate(private_candidate, retained);
+    std::string local_candidate_diagnostic =
+        "regrid candidate must be separate from the coarse, retained, and carrier inputs";
+    if (local_candidate_ok) {
+        for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
+            if (!coarse_geometry.isPeriodic(direction) ||
+                !fine_geometry.isPeriodic(direction)) {
+                local_candidate_ok = false;
+                local_candidate_diagnostic =
+                    "M4b carrier-relative regrid requires periodic geometry";
+                break;
+            }
+        }
+    }
+    if (local_candidate_ok) {
+        amrex::Box refined_coarse_domain = coarse_geometry.Domain();
+        refined_coarse_domain.refine(ratio);
+        if (refined_coarse_domain != fine_geometry.Domain() ||
+            (!retained_spectrum.boxArray().empty() &&
+             !fine_geometry.Domain().contains(
+                 retained_spectrum.boxArray().minimalBox()))) {
+            local_candidate_ok = false;
+            local_candidate_diagnostic =
+                "regrid refinement ratio or retained grids do not match the fine domain";
+        }
+    }
+    if (!collective_all_true(
+            local_candidate_ok, local_candidate_diagnostic,
+            "SBM regrid candidate or geometry is invalid on another MPI rank",
+            diagnostic)) {
+        return false;
+    }
+
+    std::string coarse_carrier_diagnostic;
+    std::string fine_carrier_diagnostic;
+    const bool coarse_carriers_ok = validate_view_carriers(
+        coarse, "coarse", coarse_carrier_diagnostic);
+    const bool fine_carriers_ok = validate_view_carriers(
+        fine_target, "regrid target", fine_carrier_diagnostic);
+    std::string coarse_spectrum_diagnostic;
+    const bool coarse_spectrum_ok = validate_view_spectrum(
+        coarse, layout, fine_level - 1, coarse_admission, "coarse",
+        coarse_spectrum_diagnostic);
+    const bool local_sources_ok = coarse_carriers_ok && fine_carriers_ok &&
+                                  coarse_spectrum_ok;
+    const std::string source_diagnostic =
+        !coarse_carriers_ok ? coarse_carrier_diagnostic
+        : !fine_carriers_ok ? fine_carrier_diagnostic
+        : !coarse_spectrum_ok ? coarse_spectrum_diagnostic
+                              : std::string{};
+    if (!collective_all_true(
+            local_sources_ok, source_diagnostic,
+            "SBM regrid source is inadmissible on another MPI rank",
+            diagnostic)) {
+        return false;
+    }
+
+    // Retained parents pass too: the host keeps their fine density and the
+    // last synchronization restricted it onto the parent.
+    if (!validate_mapped_carrier_inventory(coarse, fine_target, ratio,
+                                           allocation_census, diagnostic)) {
+        return false;
+    }
+    if (!prolong_carrier_relative_chunks(
+            layout, coarse, fine_target, coarse_geometry, fine_geometry,
+            ratio, private_candidate, max_groups_per_chunk, false,
+            allocation_census, diagnostic)) {
+        return false;
+    }
+    private_candidate.ParallelCopy(retained_spectrum, 0, 0, layout.ncomp());
+
+    std::string candidate_admission_diagnostic;
+    const bool candidate_admissible = fine_admission != nullptr
+        ? fine_admission->admissible(private_candidate, fine_level,
+                                     candidate_admission_diagnostic)
+        : authoritative_state_admissible(private_candidate, layout, fine_level,
+                                         &candidate_admission_diagnostic);
+    return collective_all_true(
+        candidate_admissible,
+        candidate_admissible ? std::string{}
+            : "regridded SBM candidate is inadmissible: " +
+                  candidate_admission_diagnostic,
+        "regridded SBM candidate is inadmissible on another MPI rank",
+        diagnostic);
 }
 
 } // namespace erf_sbm

@@ -620,6 +620,12 @@ public:
     void sbm_qualification_check_step (int nstep, amrex::Real correction_linf,
                                        std::uint64_t reflux_calls,
                                        std::uint64_t reflux_syncs);
+    void sbm_qualification_check_regrid (int lev, amrex::Long cells,
+                                         amrex::Long retained,
+                                         amrex::Long prolonged,
+                                         amrex::Long released,
+                                         const std::vector<amrex::Real>& inventory_before,
+                                         const std::vector<std::uint64_t>& phase_bytes);
     [[nodiscard]] std::vector<amrex::Real>
     sbm_qualification_composite_inventory () const;
 
@@ -1252,6 +1258,9 @@ private:
     void init_sbm_level_from_coarse (int lev, amrex::Real time,
                                      const amrex::BoxArray& ba,
                                      const amrex::DistributionMapping& dm);
+    void remake_sbm_level (int lev, amrex::Real time,
+                           const amrex::BoxArray& ba,
+                           const amrex::DistributionMapping& dm);
     void sbm_synchronize_levels (int nstep);
 
     void Construct_ERFFillPatchers (int lev);

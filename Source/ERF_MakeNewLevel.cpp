@@ -1041,8 +1041,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
         "M2 auxiliary inert tracer fixture does not support regrid/remake");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
-        "SBM M3/M4b does not support regridding until conservative hierarchy remap is qualified");
     //
     // Note that "time" here is elapsed time
     //
@@ -1743,6 +1741,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         initRayleigh_at_level(lev);
     }
 
+    if (sbm_state_manager) {
+        remake_sbm_level(lev, time, ba, dm);
+    }
+
     // Particle redistribute handled in timeStep() after regrid() completes.
     // Calling it here causes stale-grid crashes.
 }
@@ -1762,6 +1764,13 @@ ERF::ClearLevel (int lev)
     }
     if (sbm_transport && sbm_transport->is_defined(lev)) {
         sbm_transport->destroy(lev);
+    }
+    for (int iface = lev; iface <= lev + 1; ++iface) {
+        if (iface >= 0 && iface < static_cast<int>(sbm_amr_flux_regs.size()) &&
+            sbm_amr_flux_regs[iface] &&
+            sbm_amr_flux_regs[iface]->has_outstanding_amount()) {
+            Abort("SBM interface register was cleared with a pending reflux amount");
+        }
     }
     if (lev >= 0 && lev < static_cast<int>(sbm_amr_flux_regs.size())) {
         sbm_amr_flux_regs[lev].reset();

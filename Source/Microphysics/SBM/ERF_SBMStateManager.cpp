@@ -252,6 +252,59 @@ void SBMStateManager::publish_synchronized_state (
                           m_layout.ncomp(), 0);
 }
 
+bool SBMStateManager::can_replace_level (
+    const int lev, const amrex::MultiFab& candidate,
+    const double semantic_time, std::string& diagnostic) const
+{
+    diagnostic.clear();
+    const auto& state = level(lev);
+    const double scale = std::max({1.0, std::abs(semantic_time),
+                                   std::abs(state.new_time)});
+    const bool time_matches = std::isfinite(semantic_time) &&
+        std::abs(semantic_time - state.new_time) <=
+            64.0 * std::numeric_limits<double>::epsilon() * scale;
+    const bool local_ok = state.old_state != nullptr &&
+        state.new_state != nullptr && state.new_valid && !state.step_active &&
+        time_matches && candidate.ok() &&
+        candidate.nComp() == m_layout.ncomp() &&
+        candidate.nGrowVect() == state.new_state->nGrowVect();
+    int vote = local_ok ? 1 : 0;
+    amrex::ParallelDescriptor::ReduceIntMin(vote);
+    if (vote == 0) {
+        diagnostic = local_ok
+            ? "SBM regrid candidate is invalid on another MPI rank"
+            : "SBM regrid candidate must replace a synchronized accepted level "
+              "with the same components, ghost width, and semantic time";
+        return false;
+    }
+    return true;
+}
+
+void SBMStateManager::replace_level (const int lev,
+                                     amrex::MultiFab&& candidate,
+                                     const double semantic_time)
+{
+    auto& state = level(lev);
+    AMREX_ALWAYS_ASSERT(state.old_state != nullptr &&
+                        state.new_state != nullptr && state.new_valid &&
+                        !state.step_active && candidate.ok() &&
+                        candidate.nComp() == m_layout.ncomp() &&
+                        candidate.nGrowVect() == state.new_state->nGrowVect() &&
+                        std::isfinite(semantic_time));
+    // Release the old-grid storage before allocating the new old buffer.
+    state.old_state.reset();
+    state.new_state = std::make_unique<amrex::MultiFab>(std::move(candidate));
+    state.old_state = std::make_unique<amrex::MultiFab>(
+        state.new_state->boxArray(), state.new_state->DistributionMap(),
+        m_layout.ncomp(), state.new_state->nGrowVect());
+    state.old_state->setVal(amrex::Real(0.0));
+    state.old_valid = false;
+    state.old_time = 0.0;
+    state.new_valid = true;
+    state.new_time = semantic_time;
+    state.step_active = false;
+}
+
 bool SBMStateManager::step_active (const int lev) const
 {
     return level(lev).step_active;
