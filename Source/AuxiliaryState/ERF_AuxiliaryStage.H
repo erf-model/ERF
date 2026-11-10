@@ -103,6 +103,9 @@ bool BuildAuxiliaryIntensiveState (const ConstTimedFieldView& state_input,
 
 const char* HostIntegratorName (HostIntegrator method) noexcept;
 
+/** Number of stages in one physical step of the host integrator. */
+int HostIntegratorStageCount (HostIntegrator method) noexcept;
+
 /** Apply H_target = a H_anchor + b H_input - c D_xi(F_rate). */
 void ApplyAuxiliaryMappedStage (const AuxiliaryStageContext& context,
                                 const MappedFaceFluxRate& rate,
