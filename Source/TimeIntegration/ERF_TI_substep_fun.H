@@ -37,10 +37,11 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             l_variable_beta_s = false;
         }
 
-        // On a moving fitted mesh the metric terms of the pressure gradient and the operator
-        // Jacobians of the implicit solve are taken at the sub-step midpoint; the cell volumes
-        // of the conservative update stay at the sub-step ends.  Only RK3_ImplicitSubstep takes
-        // acoustic sub-steps, so this applies to every sub-step on a moving mesh
+        // On a moving fitted mesh the metric terms of the pressure gradient (horizontal and vertical)
+        // are taken at the sub-step midpoint.  The cell volumes stay at the sub-step ends: in the
+        // conservative update, and in the vertical flux divergence of the implicit solve, which must
+        // predict the rho and (rho theta) the update stores.  Only RK3_ImplicitSubstep takes acoustic
+        // sub-steps, so this applies to every sub-step on a moving mesh
         const bool l_mid_metric = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
@@ -145,9 +146,9 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             update_terrain_substep(level, old_substep_time, new_substep_time, dtau, S_data, z_t_pert);
         }
 
-        // Mesh at the sub-step midpoint for the metric terms of the pressure gradient and the
-        // operator Jacobians; the cell volumes of the conservative update stay at the sub-step ends.
-        // The arrays are allocated with the level (init_stuff) and only rewritten here
+        // Mesh and Jacobian at the sub-step midpoint for the metric terms of the pressure gradient;
+        // the cell volumes stay at the sub-step ends.  The arrays are allocated with the level
+        // (init_stuff) and only rewritten here
         if (l_mid_metric) {
             MultiFab::LinComb(*z_phys_nd_mid[level], Real(0.5), *z_phys_nd[level], 0,
                                                      Real(0.5), *z_phys_nd_new[level], 0,
@@ -166,7 +167,9 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                              (l_mid_metric ? detJ_cc_mid[level] : detJ_cc[level]), dtau, beta_s,
                              (l_mid_metric ? z_phys_nd_mid[level].get() : z_phys_nd[level].get()),
                              l_variable_beta_s, solverChoice.beta_s_min, solverChoice.beta_s_max,
-                             phys_bc_type);
+                             phys_bc_type,
+                             // The rho and (rho theta) equations divide by the volume of the update
+                             (l_mid_metric ? detJ_cc_new[level].get() : nullptr));
         }
 
         bool l_rayleigh_implicit = solverChoice.rayleigh_implicit_w(level);

@@ -49,7 +49,8 @@ using namespace amrex;
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_damp_coef
  * @param[in   ] beta_d divergence damping coefficient: how far (rho theta) is projected forward
- * @param[in   ] mid_metric metric terms of the pressure gradient and operator Jacobians at the sub-step midpoint
+ * @param[in   ] mid_metric metric terms of the pressure gradient at the sub-step midpoint, and the new cell
+ *               volume in the vertical flux divergence of the implicit solve
  */
 
 void erf_substep_MT (int step, int /*nrk*/,
@@ -233,9 +234,12 @@ void erf_substep_MT (int step, int /*nrk*/,
         });
         Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
         ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            // omega is a mass flux, so the grid-velocity part is rho * z_t
+            // omega is the perturbation of the mass flux Omega - rho z_t through the moving face, with
+            // z_t = z_t_rk + z_t'': (Omega - rho z_t) - (Omega_stg - rho_stg z_t_rk)
             Real rho_on_face = myhalf * (prev_cons(i,j,k,Rho_comp) + prev_cons(i,j,k-1,Rho_comp));
-            omega_arr(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k) - rho_on_face * zp_t_arr(i,j,k);
+            Real rho_stg_face = myhalf * (stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp));
+            omega_arr(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k) - rho_on_face * zp_t_arr(i,j,k)
+                             - (rho_on_face - rho_stg_face) * z_t_arr(i,j,k);
         });
 
         // gbxo_lo covers k<=0 and gbxo_hi covers the box's top face, so the mid box is
@@ -247,11 +251,15 @@ void erf_substep_MT (int step, int /*nrk*/,
 
         ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real rho_on_face = myhalf * (prev_cons(i,j,k,Rho_comp) + prev_cons(i,j,k-1,Rho_comp));
-            // Each state on its own mesh: the stage flux was formed on the stage mesh
+            Real rho_stg_face = myhalf * (stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp));
+            // Each state on its own mesh: the stage flux was formed on the stage mesh.  The grid-velocity
+            // part is rho z_t - rho_stg z_t_rk, so every density multiplying the grid velocity is the
+            // current one, as in the volume-change term of the update
             omega_arr(i,j,k) =
                 ( OmegaFromW(i,j,k,prev_zmom(i,j,k),prev_xmom,prev_ymom,mf_ux,mf_vy,z_nd_old,dxInv)
                  -OmegaFromW(i,j,k, stg_zmom(i,j,k), stg_xmom, stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv) )
-                - rho_on_face * zp_t_arr(i,j,k);
+                - rho_on_face * zp_t_arr(i,j,k)
+                - (rho_on_face - rho_stg_face) * z_t_arr(i,j,k);
         });
         } // end profile
         // *********************************************************************
@@ -466,9 +474,12 @@ void erf_substep_MT (int step, int /*nrk*/,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // Operator Jacobians, at the sub-step midpoint with mid_metric
-            Real dJo_k   = mid_metric ? myhalf*(detJ_old(i,j,k  )+detJ_new(i,j,k  )) : detJ_old(i,j,k  );
-            Real dJo_km1 = mid_metric ? myhalf*(detJ_old(i,j,k-1)+detJ_new(i,j,k-1)) : detJ_old(i,j,k-1);
+            // The volume dividing the vertical flux divergence of rho and (rho theta): with mid_metric the
+            // new one, the volume the conservative update below divides by, so the solve predicts the
+            // rho and (rho theta) it stores. The face metric of the vertical pressure gradient (in
+            // coeff_P and coeff_Q, from make_fast_coeffs) stays at the sub-step midpoint
+            Real dJo_k   = mid_metric ? detJ_new(i,j,k  ) : detJ_old(i,j,k  );
+            Real dJo_km1 = mid_metric ? detJ_new(i,j,k-1) : detJ_old(i,j,k-1);
             // Cell volumes of the conservative update, at the sub-step ends and at the stage
             Real     dJ_old_kface = myhalf * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
             Real     dJ_new_kface = myhalf * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
@@ -532,8 +543,9 @@ void erf_substep_MT (int step, int /*nrk*/,
                  coeff_Q/dJo_km1 * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) - dzi * dbeta_1_km1*Omega_km1*theta_t_lo
                                               +temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
-            // The new vertical flux is beta_2 (soln - rho z_t'') + beta_1 omega; the matrix has beta_2 soln and
-            // lines 4-7 have beta_1 omega, so add the beta_2 part of -rho z_t'' here. As for beta_1 above,
+            // The new vertical flux is beta_2 (soln - rho z_t'' - (rho - rho_stg) z_t_rk) + beta_1 omega; the
+            // matrix has beta_2 soln and lines 4-7 have beta_1 omega, so add the beta_2 part of the
+            // grid-velocity terms here. As for beta_1 above,
             // beta_2 of face k is factored out and dbeta_2 (exactly zero for uniform beta_s) carries the
             // difference of the neighbouring faces
             Real beta_2      = myhalf * (one + beta_s_a(i,j,k));
@@ -543,9 +555,12 @@ void erf_substep_MT (int step, int /*nrk*/,
                 Real rf_kp1 = myhalf * (cur_cons(i,j,k+1,Rho_comp) + cur_cons(i,j,k  ,Rho_comp));
                 Real rf_k   = myhalf * (cur_cons(i,j,k  ,Rho_comp) + cur_cons(i,j,k-1,Rho_comp));
                 Real rf_km1 = myhalf * (cur_cons(i,j,k-1,Rho_comp) + cur_cons(i,j,k-2,Rho_comp));
-                Real Z_kp1 = -rf_kp1 * zp_t_arr(i,j,k+1);
-                Real Z_k   = -rf_k   * zp_t_arr(i,j,k  );
-                Real Z_km1 = -rf_km1 * zp_t_arr(i,j,k-1);
+                Real rs_kp1 = myhalf * (stg_cons(i,j,k+1,Rho_comp) + stg_cons(i,j,k  ,Rho_comp));
+                Real rs_k   = myhalf * (stg_cons(i,j,k  ,Rho_comp) + stg_cons(i,j,k-1,Rho_comp));
+                Real rs_km1 = myhalf * (stg_cons(i,j,k-1,Rho_comp) + stg_cons(i,j,k-2,Rho_comp));
+                Real Z_kp1 = -rf_kp1 * zp_t_arr(i,j,k+1) - (rf_kp1 - rs_kp1) * z_t_arr(i,j,k+1);
+                Real Z_k   = -rf_k   * zp_t_arr(i,j,k  ) - (rf_k   - rs_k  ) * z_t_arr(i,j,k  );
+                Real Z_km1 = -rf_km1 * zp_t_arr(i,j,k-1) - (rf_km1 - rs_km1) * z_t_arr(i,j,k-1);
                 R1_tmp += halfg * beta_2 * dzi * (Z_kp1/dJo_k + detJdiff*Z_k - Z_km1/dJo_km1);
                 R1_tmp += halfg * dzi * (dbeta_2_kp1*Z_kp1/dJo_k - dbeta_2_km1*Z_km1/dJo_km1);
                 R1_tmp += -( coeff_P/dJo_k   * beta_2 * dzi * (Z_kp1*theta_t_hi  - Z_k  *theta_t_mid)
@@ -583,8 +598,11 @@ void erf_substep_MT (int step, int /*nrk*/,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Moving terrain
+            // No flux through the moving surface: Omega = rho z_t there, so
+            // Omega'' = rho z_t'' + (rho - rho_stg) z_t_rk
             Real rho_on_bdy = myhalf * ( prev_cons(i,j,lo.z) + prev_cons(i,j,lo.z-1) );
-            RHS_a(i,j,lo.z) = rho_on_bdy * zp_t_arr(i,j,lo.z);
+            Real rho_stg_bdy = myhalf * ( stg_cons(i,j,lo.z) + stg_cons(i,j,lo.z-1) );
+            RHS_a(i,j,lo.z) = rho_on_bdy * zp_t_arr(i,j,lo.z) + (rho_on_bdy - rho_stg_bdy) * z_t_arr(i,j,lo.z);
 
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
@@ -611,7 +629,8 @@ void erf_substep_MT (int step, int /*nrk*/,
              for (int i = lo.x; i <= hi.x; ++i) {
 
                  Real rho_on_bdy = myhalf * ( prev_cons(i,j,lo.z) + prev_cons(i,j,lo.z-1) );
-                 RHS_a(i,j,lo.z) = rho_on_bdy * zp_t_arr(i,j,lo.z);
+                 Real rho_stg_bdy = myhalf * ( stg_cons(i,j,lo.z) + stg_cons(i,j,lo.z-1) );
+                 RHS_a(i,j,lo.z) = rho_on_bdy * zp_t_arr(i,j,lo.z) + (rho_on_bdy - rho_stg_bdy) * z_t_arr(i,j,lo.z);
 
                  soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
              }
@@ -681,7 +700,8 @@ void erf_substep_MT (int step, int /*nrk*/,
 
                 soln_a(i,j,k) = OmegaFromW(i,j,k,cur_zmom(i,j,k),cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
                               - OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
-                soln_a(i,j,k) -= rho_on_face * zp_t_arr(i,j,k);
+                Real rho_stg_face = myhalf * (stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp));
+                soln_a(i,j,k) -= rho_on_face * zp_t_arr(i,j,k) + (rho_on_face - rho_stg_face) * z_t_arr(i,j,k);
             }
 
             if (l_rayleigh_impl_for_w && k > 0) {
