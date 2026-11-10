@@ -186,6 +186,89 @@ TEST(IBSEBTwoStreamFaces, EachFaceReadsItsOwnColumnAtItsHeight)
     EXPECT_GT(static_cast<int>(columns.size()), 10);
 }
 
+// erf.ibseb.ground_view_shadow at sunrise and sunset. The faces' sun and the sweep's may
+// differ by 1e-4 in the cosine of the zenith, so the column can bring a beam to its ground
+// (cosine 4e-5 here) while the faces' sun is just below the horizon (-5e-5) and casts no
+// shadow. The ground view then takes the column's whole reflection, as without the
+// input; it must not lose the beam's share over all of it. By day the same buildings do
+// shade part of the ground the walls see.
+TEST(IBSEBTwoStreamFaces, GroundViewShadowWhenTheFacesSunIsDown)
+{
+    using namespace amrex;
+    const RealBox rb({0.0, 0.0, 0.0}, {160.0, 160.0, 80.0});
+    const Box dom(IntVect(0, 0, 0), IntVect(7, 7, 7));
+    const Geometry geom(dom, rb, 0, {1, 1, 0});
+    BoxArray ba(dom);
+    ba.maxSize(IntVect(4, 4, 8));
+    const DistributionMapping dm(ba);
+    MultiFab blank(ba, dm, 1, 1);
+    fill_blanking(blank, geom, {{2, 3, 3, 5, 2}, {6, 6, 1, 1, 4}});
+    MultiFab cons(ba, dm, 2, 0);
+    cons.setVal(1.0, Rho_comp, 1);
+    cons.setVal(300.0, RhoTheta_comp, 1);
+
+    // The diffuse light on every face for one sun of the faces and one cosine of the sweep.
+    auto diffuse_in = [&] (bool shadow, Real zenith_deg, Real cos_sweep, std::vector<Real>& lit) {
+        IBSEBParams params;
+        params.enable = true;
+        params.radiation = "two_stream";
+        params.lw_mode = "two_stream";
+        params.sun_mode = "fixed";
+        params.sun_zenith_deg = zenith_deg;
+        params.sun_azimuth_deg = 200.0;
+        params.view_n_az = 8;
+        params.view_n_el = 4;
+        params.ground_view_shadow = shadow;
+        IBFaceSet faces(params, 0);
+        faces.build(blank, geom);
+        faces.release_labels();
+        faces.compute_view_fractions();
+        const int m_top = faces.top_sample_interface();
+        BoxList bl = ba.boxList();
+        for (Box& b : bl) { b.setRange(2, 0, m_top + 1); }
+        MultiFab beam(BoxArray(std::move(bl)), dm, 1, 0);
+        BoxList bl2 = ba.boxList();
+        for (Box& b : bl2) { b.setRange(2, 0); }
+        const BoxArray ba2(std::move(bl2));
+        MultiFab cosz(ba2, dm, 1, 0), alb(ba2, dm, 1, 0);
+        MultiFab fluxes(ba, dm, 4, IntVect(1, 1, 1));
+        fill_view(beam, cosz, fluxes);
+        cosz.setVal(cos_sweep);
+        alb.setVal(0.2);
+        TwoStreamCanopyView view;
+        view.beam = &beam;
+        view.cos_zenith = &cosz;
+        view.fluxes = &fluxes;
+        view.ground_albedo_dir = &alb;
+        faces.check_canopy_layout(cons, view);
+        faces.compute_shortwave(Real(0.0), view);
+        lit = host(faces.d_f_ground_lit);
+        return host(faces.d_SW_diffuse_in);
+    };
+
+    std::vector<Real> lit_on, lit_off;
+    // The faces' sun 0.003 degrees below the horizon, the sweep's a hair above it.
+    const auto dusk_on  = diffuse_in(true,  Real(90.003), Real(4.0e-5), lit_on);
+    const auto dusk_off = diffuse_in(false, Real(90.003), Real(4.0e-5), lit_off);
+    ASSERT_EQ(dusk_on.size(), dusk_off.size());
+    int n_ground = 0;
+    for (size_t f = 0; f < dusk_on.size(); ++f) {
+        EXPECT_EQ(dusk_on[f], dusk_off[f]) << "face " << f;
+        EXPECT_EQ(lit_on[f], Real(0.0)) << "face " << f;
+        if (dusk_off[f] > 10.0) { ++n_ground; }
+    }
+    EXPECT_GT(n_ground, 10);   // not vacuous: the columns do bring light to the faces
+    // By day the input changes the walls that see shaded ground, and only lowers them.
+    const auto day_on  = diffuse_in(true,  Real(40.0), kCosZ, lit_on);
+    const auto day_off = diffuse_in(false, Real(40.0), kCosZ, lit_off);
+    int n_less = 0;
+    for (size_t f = 0; f < day_on.size(); ++f) {
+        EXPECT_LE(day_on[f], day_off[f]) << "face " << f;
+        if (day_on[f] < day_off[f] - 1.0) { ++n_less; }
+    }
+    EXPECT_GT(n_less, 4);
+}
+
 // The two-stream beam the faces read is kept up to the highest interface a face samples
 // (IBFaceSet::top_sample_interface()). That is a roof's own interface, or a wall's upper one
 // where no roof lies above the wall: a building reaching the domain top has walls in the

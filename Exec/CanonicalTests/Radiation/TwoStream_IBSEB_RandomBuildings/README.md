@@ -212,6 +212,10 @@ emissivity 0.83, a fixed 300 K ground), is the reference here.
   shaded ground gets no direct sunlight, but the two-stream columns still pass through the
   buildings: the light the column's ground reflects, which the walls see, still includes the beam
   the shaded ground no longer absorbs, and the ground beside a wall still sees the whole sky.
+  `erf.ibseb.ground_view_shadow = true` (off in this deck) takes the reflected beam off the shaded
+  part of the ground each wall sees. Over the first two minutes of this case it lowers the sunlight
+  absorbed by the level-1 walls that get no direct sun from 29.1 to 21.9 W/m², and by the walls in
+  the sun from 301.2 to 300.0 W/m²; the roofs see no ground and do not change.
 - **Mixed-layer depth.** The convective velocity scale (`erf.ibseb.z_i_mode = bulk_ri`) takes the
   mixed-layer depth from level 0's profile on both levels.
 - **Ground temperature output.** The two-stream diagnostics file leaves `T_s_mean` empty (`nan`) with
