@@ -846,7 +846,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         run_line_sampler(*line_sampler);
     }
     if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
-        plane_sampler->get_sample_data(geom, vars_new);
+        plane_sampler->get_sample_data(geom, vars_new, sampling_volfrac());
         plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
 

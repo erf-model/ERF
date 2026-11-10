@@ -1758,7 +1758,8 @@ The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``density``, ``x_velocity``, ``y_velocity``, ``z_velocity``, ``magvel``,
 ``theta``, ``qv``, ``qc``, and ``pressure``. Line sampling additionally supports
 ``conserved``, ``z``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
-``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. ``conserved`` writes every component of the
+``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. Both also support ``volfrac``, the volume
+fraction of each cell (1 without immersed terrain). ``conserved`` writes every component of the
 conserved state as stored, named ``cons_0``, ``cons_1``, ... in component order (density,
 rho theta, ...). The variables are written in a fixed order, not the order they are listed in.
 The SGS stresses ``sgs_tau11``, ``sgs_tau22`` and ``sgs_tau33`` are stored at cell centers; the
@@ -1771,6 +1772,12 @@ rho*theta and will account for moisture if ``qv`` is requested.
 (``Deardorff``, k-equation RANS, MYJ/MYNN, or a SHOC-family PBL); Smagorinsky
 and ``les_type = None`` do not provide prognostic TKE and their unused state
 slot is never sampled.
+
+With immersed terrain (``erf.terrain_type = EB`` or ``ImmersedForcing``), a cell covered by the
+terrain (volume fraction 0) holds no fluid, so every variable sampled there is written as
+``erf.sampling_covered_value`` (default -9999) instead, except ``z`` and ``volfrac``. A plane
+sample interpolated from a covered cell is written the same way. A cut cell is written as is,
+with the value of the cell; requesting ``volfrac`` shows which samples are in cut cells.
 
 .. _list-of-parameters-10b:
 
@@ -1817,6 +1824,9 @@ List of Parameters
 | **erf.line_sampling_vars**         | Specify sampled variables; SGS fields are line- only     | List of strings    | theta, magvel    |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plane_sampling_vars**        | Specify sampled variables                                | List of strings    | theta, magvel    |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sampling_covered_value**     | Value written for samples in cells covered by immersed   | Real               | -9999            |
+|                                    | terrain (EB or ImmersedForcing)                          |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plane_sampling_max_level**   | Cap on finest level written to the plane plotfile        | Integer            | -1 (all          |
 |                                    |                                                          |                    | intersecting     |

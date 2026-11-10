@@ -208,6 +208,9 @@ struct LineSampler
             // the ground under it instead of the height above sea level
             pp.queryAdd("sample_line_z_agl",m_z_agl);
 
+            // The value written at cells covered by immersed terrain
+            pp.queryAdd("sampling_covered_value",m_covered_value);
+
             // The cells of a line placed by height are found once, so they do not follow a
             // mesh that moves; lines given by indices do not use heights
             if (m_use_real_bx && use_column_heights() &&
@@ -258,6 +261,9 @@ struct LineSampler
         m_varnames = {"conserved", "x_velocity", "y_velocity", "z_velocity",
                       "sgs_tau11", "sgs_tau12", "sgs_tau13", "sgs_tau22", "sgs_tau23", "sgs_tau33"};
 
+        amrex::ParmParse pp("erf");
+        pp.queryAdd("sampling_covered_value",m_covered_value);
+
         m_write_log = true;
         if (amrex::ParallelDescriptor::IOProcessor()) {
             m_logstream.resize(nline);
@@ -277,7 +283,7 @@ struct LineSampler
     line_sampling_var_order ()
     {
         static const amrex::Vector<std::string> order = {
-            "conserved", "z", "density", "x_velocity", "y_velocity", "z_velocity", "magvel", "theta",
+            "conserved", "z", "volfrac", "density", "x_velocity", "y_velocity", "z_velocity", "magvel", "theta",
             "qv", "qc", "pressure", "sgs_tke",
             "sgs_tau11", "sgs_tau12", "sgs_tau13", "sgs_tau22", "sgs_tau23", "sgs_tau33", "sgs_hfx3"};
         return order;
@@ -588,7 +594,8 @@ struct LineSampler
                      const amrex::Vector<int>& prognostic_tke_available = {},
                      const amrex::Vector<amrex::MultiFab*>& z_cc_lev = {},
                      const amrex::Vector<amrex::MultiFab*>& z_nd_lev = {},
-                     const amrex::MultiFab* ground_nd = nullptr)
+                     const amrex::MultiFab* ground_nd = nullptr,
+                     const amrex::Vector<const amrex::MultiFab*>& volfrac_lev = {})
     {
         if (m_ncons < 0) { expand_conserved(vars_new[0][Vars::cons].nComp()); }
 
@@ -652,6 +659,8 @@ struct LineSampler
             mf_cc_data.define(ba, dm, ncomp, 1);
 
             int mf_comp = 0;
+            int z_comp  = -1;
+            int vf_comp = -1;
 
             // The raw conserved components, cons_0, cons_1, ..., come first
             if (m_ncons > 0) {
@@ -665,6 +674,20 @@ struct LineSampler
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_cc != nullptr,
                     "Line sampling of z needs the cell-centre heights of each level");
                 amrex::MultiFab::Copy(mf_cc_data, *z_cc, 0, mf_comp, 1, 0);
+                z_comp = mf_comp;
+                mf_comp += 1;
+            }
+
+            // The volume fraction of each cell: 1 without immersed terrain, 0 where covered
+            const amrex::MultiFab* volfrac = ilev < static_cast<int>(volfrac_lev.size())
+                ? volfrac_lev[ilev] : nullptr;
+            if (containerHasElement(m_varnames, std::string("volfrac"))) {
+                if (volfrac != nullptr) {
+                    amrex::MultiFab::Copy(mf_cc_data, *volfrac, 0, mf_comp, 1, 0);
+                } else {
+                    mf_cc_data.setVal(1.0, mf_comp, 1, 0);
+                }
+                vf_comp = mf_comp;
                 mf_comp += 1;
             }
 
@@ -878,6 +901,25 @@ struct LineSampler
                 mf_comp += 1;
             }
 
+            // A cell covered by immersed terrain holds no fluid, so every variable but its
+            // height and volume fraction is written there as erf.sampling_covered_value
+            if (volfrac != nullptr) {
+                const amrex::Real covered_value = m_covered_value;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const amrex::Box& tbx = mfi.tilebox();
+                    const auto& out = mf_cc_data.array(mfi);
+                    const auto& vf  = volfrac->const_array(mfi);
+                    amrex::ParallelFor(tbx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                        if (vf(i,j,k) == amrex::Real(0.0) && n != z_comp && n != vf_comp) {
+                            out(i,j,k,n) = covered_value;
+                        }
+                    });
+                }
+            }
+
             for (int n(0); n<static_cast<int>(lines.size()); ++n) {
                 const int iline = lines[n];
                 const amrex::Box& bnd_bx = boxes[n];
@@ -1043,6 +1085,7 @@ struct LineSampler
     bool m_write_ascii{false};
     bool m_write_log{false};
     bool m_z_agl{false};   // erf.sample_line_z_agl
+    amrex::Real m_covered_value{-9999.0}; // erf.sampling_covered_value
     int  m_max_level{-1};  // finest level to sample; -1 for all
     int  m_ncons{-1};      // components "conserved" expands into; -1 until the first sample
     amrex::Vector<std::string> m_varnames {"magvel","theta"};
@@ -1167,8 +1210,15 @@ struct PlaneSampler
                     m_varnames.push_back("pressure");
                     amrex::Print() << " " << "pressure";
                 }
+                if (containerHasElement(requested_vars, "volfrac")) {
+                    m_varnames.push_back("volfrac");
+                    amrex::Print() << " " << "volfrac";
+                }
                 amrex::Print() << std::endl;
             }
+
+            // The value written where a plane meets a cell covered by immersed terrain
+            pp.queryAdd("sampling_covered_value",m_covered_value);
         }
     }
 
@@ -1191,7 +1241,8 @@ struct PlaneSampler
 
     void
     get_sample_data (amrex::Vector<amrex::Geometry>& geom,
-                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
+                     const amrex::Vector<const amrex::MultiFab*>& volfrac_lev = {})
     {
         int nlev   = static_cast<int>(vars_new.size());
         int nplane = static_cast<int>(m_bnd_rbx.size());
@@ -1231,9 +1282,10 @@ struct PlaneSampler
                                                                                   &vars_new[ilev][Vars::yvel],
                                                                                   &vars_new[ilev][Vars::zvel]});
 
-                // Construct MultiFab holding requested variables
+                // Construct MultiFab holding requested variables, and after them whether
+                // each cell is covered by immersed terrain
                 amrex::MultiFab mf_cc_data;
-                mf_cc_data.define(ba, dm, ncomp, 1);
+                mf_cc_data.define(ba, dm, ncomp+1, 1);
 
                 int mf_comp = 0;
 
@@ -1367,8 +1419,38 @@ struct PlaneSampler
                     mf_comp += 1;
                 }
 
+                // The volume fraction, 1 without immersed terrain, and 1 where a cell is
+                // covered (0 elsewhere), each with the ghost cells the interpolation reads
+                const amrex::MultiFab* volfrac = ilev < static_cast<int>(volfrac_lev.size())
+                    ? volfrac_lev[ilev] : nullptr;
+                if (containerHasElement(m_varnames, "volfrac")) {
+                    if (volfrac != nullptr) {
+                        amrex::MultiFab::Copy(mf_cc_data, *volfrac, 0, mf_comp, 1, 1);
+                    } else {
+                        mf_cc_data.setVal(1.0, mf_comp, 1, 1);
+                    }
+                    mf_comp += 1;
+                }
+                if (volfrac != nullptr) {
+                    const int cov_comp = ncomp;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& gbx = mfi.growntilebox(1);
+                        const auto& out = mf_cc_data.array(mfi);
+                        const auto& vf  = volfrac->const_array(mfi);
+                        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            out(i,j,k,cov_comp) = (vf(i,j,k) == amrex::Real(0.0)) ? amrex::Real(1.0)
+                                                                                  : amrex::Real(0.0);
+                        });
+                    }
+                } else {
+                    mf_cc_data.setVal(0.0, ncomp, 1, 1);
+                }
+
                 auto slice = get_slice_data(dir, point, mf_cc_data, geom[ilev],
-                                            0, ncomp, interpolate, bnd_rbx);
+                                            0, ncomp+1, interpolate, bnd_rbx);
 
                 // Defensive: an empty return means nothing was actually sampled.
                 if (!slice || slice->boxArray().size() == 0) { break; }
@@ -1380,6 +1462,9 @@ struct PlaneSampler
                 const int rr_l    = 1 << ilev;
                 const int k_slice = slice->boxArray().minimalBox().smallEnd(dir);
                 const int l_dir   = dir;
+                // volfrac is the last of the plane's variables
+                const int vf_comp = (containerHasElement(m_varnames, "volfrac")) ? ncomp-1 : -1;
+                const amrex::Real covered_value = m_covered_value;
 
                 amrex::BoxList bl;
                 const amrex::BoxArray& slice_ba = slice->boxArray();
@@ -1403,7 +1488,10 @@ struct PlaneSampler
                         if      (l_dir == 0) { si = k_slice; }
                         else if (l_dir == 1) { sj = k_slice; }
                         else                 { sk = k_slice; }
-                        ofab(i,j,k,n) = sfab(si,sj,sk,n);
+                        // A sample interpolated from a covered cell is written as
+                        // erf.sampling_covered_value, except for the volume fraction
+                        ofab(i,j,k,n) = (sfab(si,sj,sk,ncomp) > amrex::Real(0.0) && n != vf_comp)
+                                      ? covered_value : sfab(si,sj,sk,n);
                     });
                 }
 
@@ -1491,5 +1579,6 @@ struct PlaneSampler
     amrex::Vector<std::string> m_name;
 
     amrex::Vector<std::string> m_varnames {"magvel","theta"};
+    amrex::Real m_covered_value{-9999.0}; // erf.sampling_covered_value
 };
 #endif
