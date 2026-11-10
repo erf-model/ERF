@@ -2570,6 +2570,11 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010")
+# A field criterion (value_greater) given with in_box_lo/hi tags only inside the box, and
+# that box is not registered as a static box, so a static box at the same level survives.
+# Before this was supported AMReX ignored the box for the threshold test and the whole
+# bubble was refined, which fails here with level-1 grids that do not match the gold file.
+add_test_r(Bubble_AMR_CriterionInBox         ""  "erf_exec" "plt00010")
 # erf.energy_data_log (#4602): the logged total mass and energy of the moist bubble at
 # t = 0 against the same sums taken from its plotfile (Tests/check_energy_log.py). The
 # bubble starts with cloud water, so the liquid terms are checked; the rain variant checks

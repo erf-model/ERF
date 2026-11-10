@@ -431,6 +431,12 @@ computed by dividing the state variables rhotheta and rhoadv_0, respectively, by
           erf.advdiff.start_time = 0.001
           erf.advdiff.end_time = 0.002
 
+When a box is given together with a field criterion, as for ``lo_theta``, only cells whose
+centers lie inside the box are tagged by that criterion.  The box is not a static refined
+region: the fine grids may extend past it by ``amr.n_error_buf`` and blocking-factor
+rounding, ``amr.n_error_buf`` need not be zero, and the box is not used for WRF or met_em
+nesting or for NetCDF plotfile output.
+
 .. _subsec:dynamic-full-depth:
 
 Full-Depth Refinement with Dynamic Tagging

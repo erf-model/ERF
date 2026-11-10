@@ -2,6 +2,21 @@
 
 using namespace amrex;
 
+namespace {
+/**
+ * Whether a refinement indicator tags on a field criterion; a box given with one only
+ *    restricts where that criterion tags, rather than defining a static refined region
+ */
+bool
+indicator_has_field_criterion (const ParmParse& ppr)
+{
+    return ppr.contains("field_name")    ||
+           ppr.contains("value_greater") ||
+           ppr.contains("value_less")    ||
+           ppr.contains("adjacent_difference_greater");
+}
+} // namespace
+
 /**
  * Read the refinement box from the inputs file.
  *
@@ -13,6 +28,11 @@ void
 ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox& real_box)
 {
     ParmParse ppr(ref_prefix);
+
+    // If the indicator also has a field criterion then the box only restricts where that
+    //    criterion tags; we compute real_box but do not register the box in boxes_at_level,
+    //    and the rules that apply only to static boxes are not enforced
+    const bool criterion_in_box = indicator_has_field_criterion(ppr);
 
     int num_real_lo      = ppr.countval("in_box_lo");
     int num_real_hi      = ppr.countval("in_box_hi");
@@ -59,6 +79,12 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
     //    inputs file written for more levels than we are currently running with --
     //    but we must not read or write out of bounds, so we simply ignore this box.
     if (lev_for_box < 1 || lev_for_box > max_level) {
+        if (criterion_in_box) {
+            // Ignoring the box here would let the criterion tag everywhere
+            amrex::Abort("Refinement indicator " + ref_prefix + " specifies max_level = " +
+                         std::to_string(lev_for_box) + " which is outside the range of refined levels [1," +
+                         std::to_string(max_level) + "] in this run");
+        }
         Print() << "Refinement indicator " << ref_prefix << " specifies max_level = " << lev_for_box
                 << " which is outside the range of refined levels [1," << max_level
                 << "] in this run -- ignoring the box specified there" << std::endl;
@@ -67,15 +93,17 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
 
     // Clear stale data at this level (this matters when we are moving boxes and
     //    therefore re-reading them at every regrid)
-    num_boxes_at_level[lev_for_box] = 0;
-    boxes_at_level[lev_for_box].clear();
+    if (!criterion_in_box) {
+        num_boxes_at_level[lev_for_box] = 0;
+        boxes_at_level[lev_for_box].clear();
+    }
 
     if (num_real_lo > 0) {
 
         std::vector<Real> rbox_lo(3), rbox_hi(3);
         if (lev_for_box > 0 && lev_for_box <= max_level)
         {
-            if (n_error_buf[0] != IntVect::TheZeroVector()) {
+            if (!criterion_in_box && n_error_buf[0] != IntVect::TheZeroVector()) {
                 amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
             }
 
@@ -97,7 +125,9 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
 
             Print() << "Realbox read in and intersected laterally with domain is " << real_box << std::endl;
 
-            num_boxes_at_level[lev_for_box] += 1;
+            if (!criterion_in_box) {
+                num_boxes_at_level[lev_for_box] += 1;
+            }
 
             int ilo, jlo, klo;
             int ihi, jhi, khi;
@@ -150,6 +180,9 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
                 klo = static_cast<int>((rbox_lo[2] - plo[2])/dx[2]);
                 khi = static_cast<int>((rbox_hi[2] - plo[2])/dx[2]-1);
             }
+
+            // real_box is now final; the rest only builds the static box
+            if (criterion_in_box) { return; }
 
             // Snap box indices to ref_ratio alignment (round lo down, hi up)
             {
@@ -214,7 +247,7 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
         std::vector<int> box_lo(3), box_hi(3);
         if (lev_for_box > 0 && lev_for_box <= max_level)
         {
-            if (n_error_buf[0] != IntVect::TheZeroVector()) {
+            if (!criterion_in_box && n_error_buf[0] != IntVect::TheZeroVector()) {
                 amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
             }
 
@@ -239,6 +272,8 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
             const auto* dx  = geom[lev_for_box].CellSize();
             real_box = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
                                plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
+
+            if (criterion_in_box) { return; }
 
             Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
             num_boxes_at_level[lev_for_box] += 1;
@@ -303,7 +338,7 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
         std::vector<int> box_lo(3), box_hi(3);
         if (lev_for_box > 0 && lev_for_box <= max_level)
         {
-            if (n_error_buf[0] != IntVect::TheZeroVector()) {
+            if (!criterion_in_box && n_error_buf[0] != IntVect::TheZeroVector()) {
                 amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
             }
 
@@ -330,6 +365,8 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
 
             real_box = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
                                plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
+
+            if (criterion_in_box) { return; }
 
             Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
             num_boxes_at_level[lev_for_box] += 1;

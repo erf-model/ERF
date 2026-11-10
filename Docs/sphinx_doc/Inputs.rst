@@ -602,7 +602,9 @@ List of Parameters
 |                                                  | inactive                                                 |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.in_box_lo**                    | low corner, in physical coordinates, of the region the   | 2 or 3 Reals       | None                 |
-|                                                  | indicator tags                                           |                    |                      |
+|                                                  | indicator tags; with a field criterion only cells        |                    |                      |
+|                                                  | inside the box that meet the criterion are tagged,       |                    |                      |
+|                                                  | otherwise the whole box is tagged                        |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.in_box_hi**                    | high corner, in physical coordinates                     | 2 or 3 Reals       | None                 |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+

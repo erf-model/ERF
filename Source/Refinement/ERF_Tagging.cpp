@@ -566,7 +566,30 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 #endif
         }
 
-        ref_tags[t](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
+        if (real_box.ok()) {
+            // AMRErrorTag only honors the real box for the BOX test, so a field criterion
+            //    given with a box is applied to a scratch array and only the tags whose cell
+            //    centers lie inside the box (the same test the BOX case uses) are kept
+            TagBoxArray tags_in_box(tags.boxArray(), tags.DistributionMap(), tags.nGrowVect());
+            tags_in_box.setVal(clearval);
+            ref_tags[t](tags_in_box,mf.get(),clearval,tagval,time,levc,geom[levc]);
+
+            const auto plo = geom[levc].ProbLoArray();
+            const auto dx  = geom[levc].CellSizeArray();
+            auto const& tag_ma = tags.arrays();
+            auto const& tib_ma = tags_in_box.const_arrays();
+            ParallelFor(tags, [=] AMREX_GPU_DEVICE (int bi, int i, int j, int k) noexcept
+            {
+                const Real pt[AMREX_SPACEDIM] = {plo[0]+(Real(i)+myhalf)*dx[0],
+                                                 plo[1]+(Real(j)+myhalf)*dx[1],
+                                                 plo[2]+(Real(k)+myhalf)*dx[2]};
+                if (tib_ma[bi](i,j,k) == tagval && real_box.contains(pt)) {
+                    tag_ma[bi](i,j,k) = tagval;
+                }
+            });
+        } else {
+            ref_tags[t](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
+        }
     } // loop over t
 
     // ********************************************************************************************
