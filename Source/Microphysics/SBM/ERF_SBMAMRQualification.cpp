@@ -341,17 +341,12 @@ validate_configuration (const SolverChoice& choice, const int max_level)
             "the internal SBM AMR qualification flag requires amr.max_level=1");
         return;
     }
+    // The production capability check (ERF_Constructors.cpp) has already
+    // restricted the hierarchy, mesh, coupling, and integrators.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level == 1 &&
                                      choice.sbm_amr_qualification_test,
         "the isolated SBM AMR qualification build permits only its "
         "explicit fixed two-level test deck");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        choice.mesh_type == MeshType::ConstantDz &&
-        choice.terrain_type == TerrainType::None &&
-        choice.buildings_type == BuildingsType::None &&
-        choice.coupling_type == CouplingType::TwoWay,
-        "SBM AMR qualification requires static ConstantDz, no EB/terrain, "
-        "and TwoWay coupling");
     ParmParse pp_erf("erf");
     int regrid_interval = -1;
     pp_erf.query("regrid_int", regrid_interval);
@@ -364,12 +359,6 @@ validate_configuration (const SolverChoice& choice, const int max_level)
         !choice.sbm_amr_qualification_regrid_reject_fault ||
         choice.sbm_amr_qualification_regrid,
         "the SBM regrid rejection fault requires erf.sbm_amr_qualification_regrid");
-    const bool all_levels_compressible = std::all_of(
-        choice.compressibility_type.begin(),
-        choice.compressibility_type.end(),
-        [] (CompressibilityType type) {
-            return type == CompressibilityType::FullyCompressible;
-        });
     const bool all_levels_anelastic_rk2 =
         !choice.compressibility_type.empty() &&
         std::all_of(choice.compressibility_type.begin(),
@@ -381,19 +370,6 @@ validate_configuration (const SolverChoice& choice, const int max_level)
                     choice.timestepping_type.end(),
                     [] (TimesteppingType type) {
                         return type == TimesteppingType::RK2;
-                    });
-    const bool all_levels_anelastic =
-        !choice.compressibility_type.empty() &&
-        std::all_of(choice.compressibility_type.begin(),
-                    choice.compressibility_type.end(),
-                    [] (CompressibilityType type) {
-                        return type == CompressibilityType::Anelastic;
-                    }) &&
-        std::all_of(choice.timestepping_type.begin(),
-                    choice.timestepping_type.end(),
-                    [] (TimesteppingType type) {
-                        return type == TimesteppingType::RK2 ||
-                               type == TimesteppingType::MidPoint;
                     });
     // The compressible host leaves a roundoff carrier at zero wind.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
@@ -408,18 +384,6 @@ validate_configuration (const SolverChoice& choice, const int max_level)
          !choice.sbm_amr_qualification_expect_zero_flow),
         "SBM uniform-ratio AMR qualification excludes the unique and "
         "zero-flow profiles");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        (all_levels_compressible || all_levels_anelastic) &&
-        choice.diffChoice.molec_diff_type == MolecDiffType::None &&
-        !choice.turbChoice[0].use_kturb &&
-        choice.turbChoice[0].pbl_type == PBLType::None &&
-        !choice.use_num_diff &&
-        choice.spongeChoice.sponge_type == SpongeType::None &&
-        !choice.any_perturbation() && !choice.custom_w_subsidence &&
-        !choice.large_scale_forcing && !choice.nudging_from_input_sounding &&
-        !choice.custom_moisture_forcing && !choice.use_real_bcs,
-        "SBM AMR qualification excludes unqualified forcing, diffusion, "
-        "SHOC, and nonperiodic boundary physics");
 }
 
 void
@@ -734,12 +698,13 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
                                    std::uint64_t reflux_syncs)
 {
     if (!solverChoice.sbm_amr_qualification_test) return;
-    // A regrid deck may clear its fine level and later recreate it.
+    // A regrid deck may clear its fine level and later recreate it.  The
+    // runner checks the fine-substep count each deck selects.
     const bool has_fine_level = finest_level == 1;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        (has_fine_level && nsubsteps[1] >= 3) ||
+        has_fine_level ||
         (finest_level == 0 && solverChoice.sbm_amr_qualification_regrid),
-        "SBM AMR qualification did not run three fine substeps on a two-level hierarchy");
+        "SBM AMR qualification lost its fine level outside a regrid deck");
     if (solverChoice.sbm_amr_qualification_expect_split && nstep == 0) {
         validate_split_layout(grids[0], dmap[0], grids[1], dmap[1], geom[1],
                               ref_ratio[0]);
@@ -829,6 +794,15 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
         const Real host_spread = relative_spread(
             [&] (int lev) -> const MultiFab& { return vars_new[lev][Vars::cons]; },
             RhoScalar_comp);
+        // Where the host scalar stays uniform to roundoff the carriers agree
+        // and so must the spectrum.  Where it does not (the compressible host
+        // does not reflux dry-air density), the two nonuniform ratios are then
+        // carried by different advection schemes; the spectrum must track the
+        // host scalar's spread to within one percent.
+        const bool host_uniform = host_spread <= rounding_factor;
+        const Real bound = host_uniform
+            ? rounding_factor
+            : Real(1.01) * host_spread + rounding_factor;
         Real max_spread = Real(0.0);
         for (int component = 0; component < sbm_state_manager->layout().ncomp();
              ++component) {
@@ -841,10 +815,11 @@ ERF::sbm_qualification_check_step (int nstep, Real correction_linf,
                 << "SBM_AMR_QUAL_UNIFORM_RATIO step=" << nstep + 1
                 << " component=" << component << " relative_spread=" << spread
                 << " host_scalar_relative_spread=" << host_spread
-                << " bound=" << host_spread + rounding_factor << '\n';
+                << " host_uniform=" << (host_uniform ? "true" : "false")
+                << " bound=" << bound << '\n';
         }
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            max_spread <= host_spread + rounding_factor,
+            max_spread <= bound,
             "SBM AMR qualification did not keep a uniform dry-air-relative "
             "spectrum as uniform as the host's own scalar");
     } else {

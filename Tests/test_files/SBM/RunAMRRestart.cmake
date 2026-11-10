@@ -1,10 +1,17 @@
-foreach(_required IN ITEMS ERF_EXECUTABLE INPUT_FILE TEST_ROOT MPIEXEC
-                           MPIEXEC_NUMPROC_FLAG MPI_RANKS EXPECTED_COMPONENTS
-                           RESTART_STEP FINAL_STEP MODE)
+# PRODUCTION runs the normal executable, which prints no qualification
+# inventories, without a launcher unless MPIEXEC is given.
+set(_required_inputs ERF_EXECUTABLE INPUT_FILE TEST_ROOT RESTART_STEP FINAL_STEP MODE)
+if(NOT PRODUCTION)
+  list(APPEND _required_inputs MPIEXEC MPIEXEC_NUMPROC_FLAG MPI_RANKS EXPECTED_COMPONENTS)
+endif()
+foreach(_required IN LISTS _required_inputs)
   if(NOT DEFINED ${_required})
     message(FATAL_ERROR "${_required} is required for the SBM AMR restart qualification")
   endif()
 endforeach()
+if(NOT DEFINED MPI_RANKS)
+  set(MPI_RANKS 1)
+endif()
 
 string(RANDOM LENGTH 12 ALPHABET 0123456789abcdef _run_id)
 set(_run_dir "${TEST_ROOT}/sbm_amr_restart_${_run_id}")
@@ -16,10 +23,14 @@ set(_host_args)
 if(DEFINED ANELASTIC)
   set(_host_args "erf.compressibility_type=Anelastic" "erf.timestepping_type=${ANELASTIC}")
 endif()
+set(_launcher)
+if(DEFINED MPIEXEC AND NOT "${MPIEXEC}" STREQUAL "")
+  set(_launcher "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "${MPI_RANKS}")
+endif()
 
 function(run_erf description working_dir log_name result_var)
   execute_process(
-    COMMAND "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "${MPI_RANKS}"
+    COMMAND ${_launcher}
             "${ERF_EXECUTABLE}" "${INPUT_FILE}" "max_step=${FINAL_STEP}"
             "erf.check_int=1" "erf.check_file=chk" ${_host_args} ${ARGN}
     WORKING_DIRECTORY "${working_dir}"
@@ -115,6 +126,14 @@ endif()
 
 # Composite continuity: the restored inventory is the continuous run's
 # inventory at the checkpoint step, and both runs end with the same one.
+if(PRODUCTION)
+  if("${_continuous_log}${_restarted_log}" MATCHES "SBM_AMR_QUAL")
+    message(FATAL_ERROR "The production restart test ran a qualification executable")
+  endif()
+  if(NOT DEFINED COMPARE_EXECUTABLE)
+    message(FATAL_ERROR "A production restart test requires COMPARE_EXECUTABLE")
+  endif()
+else()
 string(REGEX MATCHALL "SBM_AMR_QUAL_INVENTORY component=[0-9]+ initial=[^ ]+ final=[^ ]+"
        _continuous_inventory "${_continuous_log}")
 string(REGEX MATCHALL "SBM_AMR_QUAL_INVENTORY component=[0-9]+ initial=[^ ]+ final=[^ ]+"
@@ -150,6 +169,7 @@ foreach(_component RANGE 0 ${_last_component})
       "Component ${_component} final inventory ${_restarted_value} differs from the continuous run's ${_continuous_value}")
   endif()
 endforeach()
+endif()
 
 if(DEFINED COMPARE_EXECUTABLE)
   execute_process(
@@ -175,6 +195,10 @@ if(DEFINED COMPARE_EXECUTABLE)
   math(EXPR _finest "${_final_level_count} - 1")
   if(NOT _compare_stdout MATCHES "level ${_finest} SBMSpectrum")
     message(FATAL_ERROR "The comparison did not cover level ${_finest}:\n${_compare_stdout}")
+  endif()
+  if(DEFINED EXPECTED_FINAL_LEVELS AND NOT _final_level_count EQUAL EXPECTED_FINAL_LEVELS)
+    message(FATAL_ERROR
+      "The final checkpoint has ${_final_level_count} levels, not ${EXPECTED_FINAL_LEVELS}")
   endif()
 endif()
 message(STATUS

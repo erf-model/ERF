@@ -4732,10 +4732,10 @@ contains the developing Eulerian spectral-bin capability selected with
 ``erf.moisture_model = SBM``.
 
 The current ``SBM`` option transports a liquid-water size distribution by
-resolved advection on one atmospheric grid level. It is not yet a complete
-warm-cloud microphysics scheme and does not support operational multilevel
-spectral transport. See :ref:`sec:SpectralBinMicrophysics` for the spectral
-representation, configuration, and current limitations.
+resolved advection on one atmospheric grid level or on a periodic two-level
+adaptive mesh. It is not yet a complete warm-cloud microphysics scheme. See
+:ref:`sec:SpectralBinMicrophysics` for the spectral representation,
+configuration, and current limitations.
 
 The following run-time options control the moisture model.
 
@@ -4808,7 +4808,7 @@ SBM inputs
 ----------
 
 The inputs below are read only when ``erf.moisture_model = SBM``. They
-configure the current single-level liquid-spectrum advection capability;
+configure the current liquid-spectrum advection capability;
 see :ref:`sec:SpectralBinMicrophysics` for its scientific representation and
 execution restrictions.
 

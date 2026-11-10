@@ -644,6 +644,29 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_M3_Donor_CFL inputs_zero_carrier
     "SBM M3 donor outgoing-demand condition failed"
     "-DOVERRIDE=erf.sbm_test_donor_cfl_fault=true")
+  # Multilevel SBM outside the qualified two-level envelope is rejected at
+  # construction, in production and qualification builds alike.
+  add_sbm_expected_failure_test(SBM_AMR_Reject_ThreeLevels
+    inputs_amr_production_2level
+    "SBM supports at most two AMR levels"
+    "-DOVERRIDE=amr.max_level=2")
+  add_sbm_expected_failure_test(SBM_AMR_Reject_RefRatio4
+    inputs_amr_production_2level
+    "SBM AMR supports amr.ref_ratio = 2 in every direction only"
+    "-DOVERRIDE=amr.ref_ratio=4")
+  add_sbm_expected_failure_test(SBM_AMR_Reject_OneWayCoupling
+    inputs_amr_production_2level
+    "SBM AMR requires erf.coupling_type = TwoWay"
+    "-DOVERRIDE=erf.coupling_type=OneWay")
+  add_sbm_expected_failure_test(SBM_AMR_Reject_StretchedDz
+    inputs_amr_production_2level
+    "SBM AMR requires a ConstantDz mesh without terrain"
+    "-DOVERRIDE=erf.grid_stretching_ratio=1.1 erf.initial_dz=0.025")
+  # (ERF itself makes levels of different compressibility one-way coupled.)
+  add_sbm_expected_failure_test(SBM_AMR_Reject_MixedIntegrators
+    inputs_amr_production_2level
+    "SBM AMR requires the same compressibility and erf.timestepping_type on every level"
+    "-DOVERRIDE=erf.compressibility_type=Anelastic erf.timestepping_type=RK2 MidPoint")
   add_test(NAME SBM_M3_Adaptive_Anelastic_Donor_CFL
     COMMAND ${CMAKE_COMMAND}
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
@@ -818,6 +841,36 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       LABELS "integration;sbm"
       RUN_SERIAL TRUE
       TIMEOUT 180)
+
+    # Production two-level SBM: a refined box that moves one coarse cell per
+    # step is regridded every step, and a restart from the middle of the run
+    # reproduces the continuous run bitwise on both levels.  The qualification
+    # build's executable accepts only its own decks.
+    if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
+      foreach(_sbm_host IN ITEMS Compressible AnelasticMidPoint)
+        set(_sbm_host_args)
+        if(_sbm_host STREQUAL "AnelasticMidPoint")
+          set(_sbm_host_args -DANELASTIC=MidPoint)
+        endif()
+        add_test(NAME SBM_AMR_Production_Regrid_Restart_${_sbm_host}
+          COMMAND ${CMAKE_COMMAND}
+            -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+            -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+            -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_production_2level
+            -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/sbm_amr_production_${_sbm_host}
+            -DPRODUCTION=ON
+            -DMODE=equivalence
+            -DRESTART_STEP=2
+            -DFINAL_STEP=4
+            -DEXPECTED_FINAL_LEVELS=2
+            ${_sbm_host_args}
+            -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunAMRRestart.cmake)
+        set_tests_properties(SBM_AMR_Production_Regrid_Restart_${_sbm_host} PROPERTIES
+          LABELS "integration;sbm"
+          RUN_SERIAL TRUE
+          TIMEOUT 300)
+      endforeach()
+    endif()
   endif()
 
   foreach(_mode IN ITEMS 1m 2m)

@@ -25,6 +25,9 @@ if(DEFINED ANELASTIC)
   list(APPEND _command
     "erf.compressibility_type=Anelastic" "erf.timestepping_type=${ANELASTIC}")
 endif()
+if(DEFINED DT_REF_RATIO)
+  list(APPEND _command "erf.dt_ref_ratio=${DT_REF_RATIO}")
+endif()
 if(UNIFORM_RATIO)
   # A uniform spectrum and a uniform host scalar (a ball that covers the
   # domain) in a divergence-free roll with shear.
@@ -198,19 +201,32 @@ if(UNIFORM_RATIO)
       "Expected ${_expected_ratio_count} uniform-ratio records, got ${_ratio_count}; see ${_log_file}")
   endif()
   # The host scalar must actually have moved, or the comparison is empty.
+  # It stays uniform to roundoff under the anelastic integrators and does not
+  # under the compressible host, whose dry-air density is not refluxed.
   set(_host_moved FALSE)
+  set(_host_nonuniform FALSE)
   foreach(_line IN LISTS _ratio_lines)
     if(NOT _line MATCHES
-       "relative_spread=[0-9.eE+-]+ host_scalar_relative_spread=([0-9.eE+-]+) bound=[0-9.eE+-]+")
+       "relative_spread=[0-9.eE+-]+ host_scalar_relative_spread=([0-9.eE+-]+) host_uniform=(true|false) bound=[0-9.eE+-]+")
       message(FATAL_ERROR "Malformed uniform-ratio record: ${_line}")
     endif()
     if(NOT CMAKE_MATCH_1 STREQUAL "0")
       set(_host_moved TRUE)
     endif()
+    if(CMAKE_MATCH_2 STREQUAL "false")
+      set(_host_nonuniform TRUE)
+    endif()
   endforeach()
   if(NOT _host_moved)
     message(FATAL_ERROR
       "The host scalar stayed exactly uniform, so the carrier comparison is empty; see ${_log_file}")
+  endif()
+  if(DEFINED ANELASTIC AND _host_nonuniform)
+    message(FATAL_ERROR
+      "The anelastic host scalar left roundoff uniformity; see ${_log_file}")
+  elseif(NOT DEFINED ANELASTIC AND NOT _host_nonuniform)
+    message(FATAL_ERROR
+      "The compressible host scalar unexpectedly stayed uniform to roundoff; see ${_log_file}")
   endif()
 endif()
 

@@ -497,7 +497,6 @@ if(ERF_ENABLE_TESTS)
           -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
           -DMPI_RANKS=${ranks}
           -DEXPECTED_COMPONENTS=${ncomp}
-          -DEXPECTED_FINE_SUBSTEPS=3
           ${ARGN}
           -P ${_sbm_amr_qualification_script})
       set(_labels "integration;sbm;sbm_amr_qualification")
@@ -529,6 +528,13 @@ if(ERF_ENABLE_TESTS)
     add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_Regrid_1M
       inputs_amr_qualification_1m_regrid 1 4 -DANELASTIC=MidPoint
       -DREGRID=ON -DEXPECTED_STEPS=4 -DEXPECTED_REGRIDS=3)
+    # One fine step per coarse step, and ERF's default of one per refinement.
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_DtRefRatio1_1M
+      inputs_amr_qualification_1m 1 4
+      -DDT_REF_RATIO=1 -DEXPECTED_FINE_SUBSTEPS=1)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_DtRefRatio2_AnelasticMidPoint_2M_Attached
+      inputs_amr_qualification_2m_attached 1 12 -DANELASTIC=MidPoint
+      -DDT_REF_RATIO=2 -DEXPECTED_FINE_SUBSTEPS=2)
     foreach(_sbm_host IN ITEMS Compressible AnelasticHeun AnelasticMidPoint)
       set(_sbm_host_args)
       if(_sbm_host STREQUAL "AnelasticHeun")
