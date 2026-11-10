@@ -12,8 +12,9 @@ namespace erf_description {
 
 enum class Format { JSON, YAML };
 
-/** Fixed-structure JSON/YAML writer with no parser dependency. Keys and strings
- * are always double-quoted so YAML 1.1 parsers never read them as booleans or numbers.
+/** Fixed-structure JSON/YAML writer with no parser dependency. YAML output uses block
+ * mappings, JSON flow arrays and double-quoted keys and strings, so YAML 1.1 parsers
+ * never read them as booleans or numbers.
  */
 class Writer
 {
@@ -37,10 +38,10 @@ public:
         if (!yaml) os << '}';
     }
 
-    void finish ()
+    void finish (bool newline = true)
     {
         AMREX_ASSERT(first.size() == 1);
-        if (!yaml) os << "}\n";
+        if (!yaml) { os << '}'; if (newline) os << '\n'; }
     }
 
     void value (const char* name, std::nullptr_t)
@@ -70,6 +71,33 @@ public:
     void optional_string (const char* name, const char* v)
     {
         value(name, v != nullptr && *v != '\0' ? v : nullptr);
+    }
+
+    void strings (const char* name, const std::vector<std::string>& values)
+    {
+        key(name);
+        os << '[';
+        for (std::size_t i = 0; i < values.size(); ++i) {
+            if (i) os << ", ";
+            quoted(values[i].c_str());
+        }
+        os << ']';
+        end_value();
+    }
+
+    template <class T, class Emit>
+    void objects (const char* name, const std::vector<T>& values, Emit emit)
+    {
+        key(name);
+        os << '[';
+        for (std::size_t i = 0; i < values.size(); ++i) {
+            if (i) os << ", ";
+            Writer item(os, Format::JSON);
+            emit(item, values[i]);
+            item.finish(false);
+        }
+        os << ']';
+        end_value();
     }
 
 private:
