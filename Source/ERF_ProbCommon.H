@@ -52,7 +52,6 @@ public:
      * @param[in] z_phys_nd height coordinate at nodes
      * @param[in] z_phys_cc height coordinate at cell centers
      * @param[in] geom container for geometric information
-     * @param[in] tall_columns column arrays of 512 cells instead of 256 (a moving mesh)
     */
     virtual void
     erf_init_dens_hse_dry (amrex::MultiFab& /*rho_hse*/,
@@ -60,8 +59,7 @@ public:
                            std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
                            amrex::Geometry const& /*geom*/,
                            const amrex::Vector<amrex::Real>& /*stretched_dz_h*/,
-                           bool /*is_constant_dz*/, bool /*is_stretched_dz*/,
-                           bool /*tall_columns*/)
+                           bool /*is_constant_dz*/, bool /*is_stretched_dz*/)
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"
             << " -- an appropriate init_type should probably have been specified"

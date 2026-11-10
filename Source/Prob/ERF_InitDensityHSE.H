@@ -13,8 +13,8 @@
 /**
  * @brief Hydrostatic columns of a terrain-fitted mesh, integrated upward from the bottom of each box.
  *
- * One column array per (i,j) thread, of NZMAX cells: 256 on a static mesh (the arrays ERF always had)
- * and 512 on a moving mesh, whose domains may be taller.
+ * One column array per (i,j) thread, of NZMAX cells: 256 (the arrays ERF always had) for a domain of
+ * up to 256 cells in z, otherwise 512.
  *
  * @param[out] rho_hse MultiFab to be filled with HSE density.
  * @param[in] z_phys_cc Cell-centered physical height MultiFab.
@@ -114,7 +114,6 @@ hse_terrain_columns (amrex::MultiFab& rho_hse,
  * @param[in] stretched_dz_h Vector of stretched grid spacings.
  * @param[in] is_constant_dz Whether the grid spacing is constant.
  * @param[in] is_stretched_dz Whether the grid spacing is stretched.
- * @param[in] tall_columns Column arrays of 512 cells instead of 256 (a moving mesh).
  */
 void
 erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
@@ -122,8 +121,7 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
                        std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        amrex::Geometry const& geom,
                        const amrex::Vector<amrex::Real>& stretched_dz_h,
-                       bool is_constant_dz, bool is_stretched_dz,
-                       bool tall_columns) override
+                       bool is_constant_dz, bool is_stretched_dz) override
 {
     const amrex::Real T_sfc    = amrex::Real(300.);
     const amrex::Real rho_sfc  = p_0 / (R_d*T_sfc);
@@ -131,7 +129,8 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
 
     if (!is_constant_dz && !is_stretched_dz) {
 
-        if (tall_columns) {
+        // Column arrays sized from the height of the domain, so a tall column on any mesh fits
+        if (geom.Domain().bigEnd(2) > 255) {
             hse_terrain_columns<512>(rho_hse, *z_phys_cc, geom, rho_sfc, Thetabar);
         } else {
             hse_terrain_columns<256>(rho_hse, *z_phys_cc, geom, rho_sfc, Thetabar);

@@ -389,7 +389,11 @@
         // *****************************************************************************
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
-            // Fill the ghost cells of the new base state before the column update reads them
+            // Fill the lateral and periodic ghost cells of the base state before the column update reads
+            // them.  On a moving mesh the base-state BCs leave the vertical ghost planes alone (see
+            // ERFPhysBCFunct_base); they keep the values the initialization gave them, which are finite.
+            // The column update does not depend on them: its bottom-face flux is extrapolated from the
+            // three lowest cells, and its top-face flux is zero (z_t = 0 there).
             (*physbcs_base[level])(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());
 
             MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
@@ -415,6 +419,10 @@
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
             double dt_base = new_stage_time - old_step_time;
+
+            // The bottom-face flux below is extrapolated from the three lowest cells of the column
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(fine_geom.Domain().length(2) >= 3,
+                "erf.terrain_type = MovingFittedMesh needs at least 3 cells in z");
 
             const Real l_rdOcp   = solverChoice.rdOcp;
 
@@ -459,9 +467,11 @@
                    Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
                    Real zflux_r_hi = -z_t_arr(i,j,k+1) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
                    if (k == klo_base) {
-                       // The ghost cell below klo is a copy of cell klo, so the average above would give
-                       // the cell value; use the quadratic extrapolation to the bottom face from three
-                       // cells of equal spacing. At the top face z_t = 0.
+                       // The ghost cell below klo is not on the new mesh (the vertical ghost planes of the
+                       // base state are not filled on a moving mesh), so the average above is not a
+                       // bottom-face value; use the quadratic extrapolation to the bottom face from the
+                       // three lowest cells, of equal spacing in the computational coordinate. At the
+                       // top face z_t = 0, so the ghost cell above the column only has to be finite.
                        zflux_r_lo = -z_t_arr(i,j,k) *
                            ( Real(1.875)*r0_tmp_arr(i,j,k) - Real(1.25)*r0_tmp_arr(i,j,k+1)
                             + Real(0.375)*r0_tmp_arr(i,j,k+2) );
@@ -496,13 +506,12 @@
             } // MFIter
             base_state_new[level].FillBoundary(fine_geom.periodicity());
 
-            // Ghost cells of the updated base state on the new mesh, as at a restart
-            ERFPhysBCFunct_base physbc_base_new(level, fine_geom, domain_bcs_type, domain_bcs_type_d,
-                                                z_phys_nd_new[level],
-                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
-                                                (solverChoice.mesh_type != MeshType::ConstantDz),
-                                                solverChoice.rdOcp, solverChoice.gravity);
-            physbc_base_new(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());
+            // Lateral and periodic ghost cells of the updated base state, on the new mesh.  The vertical
+            // ghost planes are again left alone: nothing that uses this base state on a moving mesh
+            // changes the solution through them.  The pressure gradient, buoyancy and cell-centred
+            // sources read only cells inside the domain; the momentum sponge reads the plane below at
+            // the bottom face, where w is set by the boundary condition instead.
+            (*physbcs_base_new[level])(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());
         }
 
 #ifdef ERF_USE_NETCDF
