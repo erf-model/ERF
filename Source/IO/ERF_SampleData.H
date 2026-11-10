@@ -21,6 +21,35 @@
 
 #include <iostream>
 
+/**
+ * The value line and plane sampling write at cells covered by immersed terrain
+ * (erf.sampling_covered_value)
+ */
+inline amrex::Real
+sampling_covered_value ()
+{
+    amrex::Real value = amrex::Real(-9999.0);
+    amrex::ParmParse pp("erf");
+    pp.queryAdd("sampling_covered_value", value);
+    return value;
+}
+
+/**
+ * The number of levels that exist, counted from level 0: vars_new holds a slot for every
+ * level up to amr.max_level, but the state of a level that has not been made is undefined
+ */
+inline int
+sampling_num_levels (const amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+{
+    int nlev = 0;
+    while (nlev < static_cast<int>(vars_new.size()) &&
+           static_cast<int>(vars_new[nlev].size()) > Vars::cons &&
+           vars_new[nlev][Vars::cons].ok()) {
+        ++nlev;
+    }
+    return nlev;
+}
+
 struct LineSampler
 {
     LineSampler ()
@@ -277,7 +306,7 @@ struct LineSampler
     line_sampling_var_order ()
     {
         static const amrex::Vector<std::string> order = {
-            "conserved", "z", "density", "x_velocity", "y_velocity", "z_velocity", "magvel", "theta",
+            "conserved", "z", "volfrac", "density", "x_velocity", "y_velocity", "z_velocity", "magvel", "theta",
             "qv", "qc", "pressure", "sgs_tke",
             "sgs_tau11", "sgs_tau12", "sgs_tau13", "sgs_tau22", "sgs_tau23", "sgs_tau33", "sgs_hfx3"};
         return order;
@@ -519,12 +548,22 @@ struct LineSampler
     {
         if (!m_write_ascii) return;
 
-        amrex::Print() << "Writing out line coordinates to text" << std::endl;
-
         // Only the levels that are sampled
         int nlev = static_cast<int>(z_phys_cc.size());
         if (m_max_level >= 0) { nlev = std::min(nlev, m_max_level + 1); }
         for (int lev(0); lev < nlev; ++lev) {
+            // A level allowed by amr.max_level that has not been made has no heights, and
+            // neither does any level above it
+            if (!z_phys_cc[lev] || lev >= static_cast<int>(z_phys_nd.size()) || !z_phys_nd[lev]) { break; }
+
+            // Written for each set of grids of the level: when the level is made, and again
+            // when a regrid changes its grids
+            if (lev >= static_cast<int>(m_zcc_ba.size())) { m_zcc_ba.resize(lev+1); }
+            if (m_zcc_ba[lev] == z_phys_cc[lev]->boxArray()) { continue; }
+            m_zcc_ba[lev] = z_phys_cc[lev]->boxArray();
+
+            amrex::Print() << "Writing out line coordinates of level " << lev << " to text" << std::endl;
+
             // Write one text file per level
             std::ofstream outfile;
             if (amrex::ParallelDescriptor::IOProcessor()) {
@@ -588,11 +627,12 @@ struct LineSampler
                      const amrex::Vector<int>& prognostic_tke_available = {},
                      const amrex::Vector<amrex::MultiFab*>& z_cc_lev = {},
                      const amrex::Vector<amrex::MultiFab*>& z_nd_lev = {},
-                     const amrex::MultiFab* ground_nd = nullptr)
+                     const amrex::MultiFab* ground_nd = nullptr,
+                     const amrex::Vector<const amrex::MultiFab*>& volfrac_lev = {})
     {
         if (m_ncons < 0) { expand_conserved(vars_new[0][Vars::cons].nComp()); }
 
-        int nlev  = static_cast<int>(vars_new.size());
+        int nlev  = sampling_num_levels(vars_new);
         if (m_max_level >= 0) { nlev = std::min(nlev, m_max_level + 1); }
         int nline = static_cast<int>(m_bnd_bx.size());
         int ncomp = static_cast<int>(m_varnames.size());
@@ -652,6 +692,8 @@ struct LineSampler
             mf_cc_data.define(ba, dm, ncomp, 1);
 
             int mf_comp = 0;
+            int z_comp  = -1;
+            int vf_comp = -1;
 
             // The raw conserved components, cons_0, cons_1, ..., come first
             if (m_ncons > 0) {
@@ -665,6 +707,20 @@ struct LineSampler
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_cc != nullptr,
                     "Line sampling of z needs the cell-centre heights of each level");
                 amrex::MultiFab::Copy(mf_cc_data, *z_cc, 0, mf_comp, 1, 0);
+                z_comp = mf_comp;
+                mf_comp += 1;
+            }
+
+            // The volume fraction of each cell: 1 without immersed terrain, 0 where covered
+            const amrex::MultiFab* volfrac = ilev < static_cast<int>(volfrac_lev.size())
+                ? volfrac_lev[ilev] : nullptr;
+            if (containerHasElement(m_varnames, std::string("volfrac"))) {
+                if (volfrac != nullptr) {
+                    amrex::MultiFab::Copy(mf_cc_data, *volfrac, 0, mf_comp, 1, 0);
+                } else {
+                    mf_cc_data.setVal(1.0, mf_comp, 1, 0);
+                }
+                vf_comp = mf_comp;
                 mf_comp += 1;
             }
 
@@ -878,6 +934,25 @@ struct LineSampler
                 mf_comp += 1;
             }
 
+            // A cell covered by immersed terrain holds no fluid, so every variable but its
+            // height and volume fraction is written there as erf.sampling_covered_value
+            if (volfrac != nullptr) {
+                const amrex::Real covered_value = m_covered_value;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const amrex::Box& tbx = mfi.tilebox();
+                    const auto& out = mf_cc_data.array(mfi);
+                    const auto& vf  = volfrac->const_array(mfi);
+                    amrex::ParallelFor(tbx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                        if (vf(i,j,k) == amrex::Real(0.0) && n != z_comp && n != vf_comp) {
+                            out(i,j,k,n) = covered_value;
+                        }
+                    });
+                }
+            }
+
             for (int n(0); n<static_cast<int>(lines.size()); ++n) {
                 const int iline = lines[n];
                 const amrex::Box& bnd_bx = boxes[n];
@@ -1043,6 +1118,7 @@ struct LineSampler
     bool m_write_ascii{false};
     bool m_write_log{false};
     bool m_z_agl{false};   // erf.sample_line_z_agl
+    amrex::Real m_covered_value{sampling_covered_value()}; // erf.sampling_covered_value
     int  m_max_level{-1};  // finest level to sample; -1 for all
     int  m_ncons{-1};      // components "conserved" expands into; -1 until the first sample
     amrex::Vector<std::string> m_varnames {"magvel","theta"};
@@ -1055,6 +1131,8 @@ struct LineSampler
     amrex::Vector<amrex::Vector<amrex::Box>> m_box_cache;
     amrex::Vector<amrex::Vector<int>> m_box_cache_found;
     amrex::Vector<amrex::BoxArray> m_box_cache_ba;
+    // The grids of each level when its line coordinates were last written (write_coords)
+    amrex::Vector<amrex::BoxArray> m_zcc_ba;
 };
 
 
@@ -1167,6 +1245,10 @@ struct PlaneSampler
                     m_varnames.push_back("pressure");
                     amrex::Print() << " " << "pressure";
                 }
+                if (containerHasElement(requested_vars, "volfrac")) {
+                    m_varnames.push_back("volfrac");
+                    amrex::Print() << " " << "volfrac";
+                }
                 amrex::Print() << std::endl;
             }
         }
@@ -1191,9 +1273,10 @@ struct PlaneSampler
 
     void
     get_sample_data (amrex::Vector<amrex::Geometry>& geom,
-                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
+                     const amrex::Vector<const amrex::MultiFab*>& volfrac_lev = {})
     {
-        int nlev   = static_cast<int>(vars_new.size());
+        int nlev   = sampling_num_levels(vars_new);
         int nplane = static_cast<int>(m_bnd_rbx.size());
         int ncomp  = static_cast<int>(m_varnames.size());
         bool interpolate = true;
@@ -1231,9 +1314,10 @@ struct PlaneSampler
                                                                                   &vars_new[ilev][Vars::yvel],
                                                                                   &vars_new[ilev][Vars::zvel]});
 
-                // Construct MultiFab holding requested variables
+                // Construct MultiFab holding requested variables, and after them whether
+                // each cell is covered by immersed terrain
                 amrex::MultiFab mf_cc_data;
-                mf_cc_data.define(ba, dm, ncomp, 1);
+                mf_cc_data.define(ba, dm, ncomp+1, 1);
 
                 int mf_comp = 0;
 
@@ -1367,6 +1451,38 @@ struct PlaneSampler
                     mf_comp += 1;
                 }
 
+                // The volume fraction, 1 without immersed terrain, and 1 where a cell is
+                // covered (0 elsewhere)
+                const amrex::MultiFab* volfrac = ilev < static_cast<int>(volfrac_lev.size())
+                    ? volfrac_lev[ilev] : nullptr;
+                int vf_comp = -1;
+                if (containerHasElement(m_varnames, "volfrac")) {
+                    if (volfrac != nullptr) {
+                        amrex::MultiFab::Copy(mf_cc_data, *volfrac, 0, mf_comp, 1, 1);
+                    } else {
+                        mf_cc_data.setVal(1.0, mf_comp, 1, 1);
+                    }
+                    vf_comp = mf_comp;
+                    mf_comp += 1;
+                }
+                if (volfrac != nullptr) {
+                    const int cov_comp = ncomp;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& gbx = mfi.growntilebox(1);
+                        const auto& out = mf_cc_data.array(mfi);
+                        const auto& vf  = volfrac->const_array(mfi);
+                        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            out(i,j,k,cov_comp) = (vf(i,j,k) == amrex::Real(0.0)) ? amrex::Real(1.0)
+                                                                                  : amrex::Real(0.0);
+                        });
+                    }
+                } else {
+                    mf_cc_data.setVal(0.0, ncomp, 1, 1);
+                }
+
                 // The interpolation reads the cell on the other side of the plane, which may be
                 // a ghost cell.  It is taken from the neighbouring grid, or periodic image, where
                 // there is one; at the domain boundary or the edge of the level it is the cell
@@ -1378,7 +1494,7 @@ struct PlaneSampler
                         const int vlo = vbx.smallEnd(fdir);
                         const int vhi = vbx.bigEnd(fdir);
                         auto const& dfab = mf_cc_data.array(mfi);
-                        amrex::ParallelFor(amrex::grow(vbx, fdir, 1), ncomp,
+                        amrex::ParallelFor(amrex::grow(vbx, fdir, 1), ncomp+1,
                         [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
                         {
                             amrex::IntVect iv(i,j,k);
@@ -1392,7 +1508,7 @@ struct PlaneSampler
                 }
 
                 auto slice = get_slice_data(dir, point, mf_cc_data, geom[ilev],
-                                            0, ncomp, interpolate, bnd_rbx);
+                                            0, ncomp+1, interpolate, bnd_rbx);
 
                 // Defensive: an empty return means nothing was actually sampled.
                 if (!slice || slice->boxArray().size() == 0) { break; }
@@ -1404,6 +1520,7 @@ struct PlaneSampler
                 const int rr_l    = 1 << ilev;
                 const int k_slice = slice->boxArray().minimalBox().smallEnd(dir);
                 const int l_dir   = dir;
+                const amrex::Real covered_value = m_covered_value;
 
                 amrex::BoxList bl;
                 const amrex::BoxArray& slice_ba = slice->boxArray();
@@ -1427,7 +1544,10 @@ struct PlaneSampler
                         if      (l_dir == 0) { si = k_slice; }
                         else if (l_dir == 1) { sj = k_slice; }
                         else                 { sk = k_slice; }
-                        ofab(i,j,k,n) = sfab(si,sj,sk,n);
+                        // A sample interpolated from a covered cell is written as
+                        // erf.sampling_covered_value, except for the volume fraction
+                        ofab(i,j,k,n) = (sfab(si,sj,sk,ncomp) > amrex::Real(0.0) && n != vf_comp)
+                                      ? covered_value : sfab(si,sj,sk,n);
                     });
                 }
 
@@ -1515,5 +1635,6 @@ struct PlaneSampler
     amrex::Vector<std::string> m_name;
 
     amrex::Vector<std::string> m_varnames {"magvel","theta"};
+    amrex::Real m_covered_value{sampling_covered_value()}; // erf.sampling_covered_value
 };
 #endif
