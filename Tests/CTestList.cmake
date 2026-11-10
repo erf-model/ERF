@@ -1778,6 +1778,24 @@ add_test_field_bounds(EB_SquareCylinder_AnelasticAMR "plt00004" x_velocity -0.5 
 # The same with the refined patch 0.46 from the cylinder: on 2 ranks the singular level-1
 # projection stalled when its BiCGStab bottom solve broke down at roundoff, and the run aborted
 add_test_field_bounds(EB_SquareCylinder_AnelasticAMR_NarrowPatch "plt00004" x_velocity -0.5 3.0)
+# An EB level made by regrid (erf-model/ERF#5033): level 1 does not exist at the start, the
+# regrid after step 1 makes it from level 0 and a later regrid changes its grids. The EB
+# factories were built after the new level's state needed them, and the faces between covered
+# cells kept uninitialized velocities. The log must show both regrids, and w must stay of the
+# size of the flow (|w| < 1e-3) while reaching past 1e-5 both ways.
+if(NOT WIN32)
+  set(TEST_NAME EB_RegridNewLevel)
+  setup_test()
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+  set(_w "${FEXTREMA_EXE} -v z_velocity plt00006 | awk '$1 == \"z_velocity\" { n++; if ($2 < -1e-3 || $3 > 1e-3 || $2 > -1e-5 || $3 < 1e-5) bad++ } END { exit (n == 1 && bad == 0) ? 0 : 1 }'")
+  add_test(${TEST_NAME} sh -c
+      "rm -rf plt00006 && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && grep -q 'NEW BA FROM COARSE AT LEVEL 1' ${_log} && grep -q 'REMAKING WITH NEW BA AT LEVEL 1' ${_log} && ${_w}")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  unset(TEST_NAME)
+endif()
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
 
