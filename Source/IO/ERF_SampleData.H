@@ -1452,7 +1452,7 @@ struct PlaneSampler
                 }
 
                 // The volume fraction, 1 without immersed terrain, and 1 where a cell is
-                // covered (0 elsewhere), each with the ghost cells the interpolation reads
+                // covered (0 elsewhere)
                 const amrex::MultiFab* volfrac = ilev < static_cast<int>(volfrac_lev.size())
                     ? volfrac_lev[ilev] : nullptr;
                 int vf_comp = -1;
@@ -1481,6 +1481,30 @@ struct PlaneSampler
                     }
                 } else {
                     mf_cc_data.setVal(0.0, ncomp, 1, 1);
+                }
+
+                // The interpolation reads the cell on the other side of the plane, which may be
+                // a ghost cell.  It is taken from the neighbouring grid, or periodic image, where
+                // there is one; at the domain boundary or the edge of the level it is the cell
+                // itself, so the plane there takes the value of the cell it lies in
+                {
+                    const int fdir = dir;
+                    for (amrex::MFIter mfi(mf_cc_data); mfi.isValid(); ++mfi) {
+                        const amrex::Box& vbx = mfi.validbox();
+                        const int vlo = vbx.smallEnd(fdir);
+                        const int vhi = vbx.bigEnd(fdir);
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        amrex::ParallelFor(amrex::grow(vbx, fdir, 1), ncomp+1,
+                        [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
+                        {
+                            amrex::IntVect iv(i,j,k);
+                            if (iv[fdir] < vlo || iv[fdir] > vhi) {
+                                iv[fdir] = amrex::min(amrex::max(iv[fdir], vlo), vhi);
+                                dfab(i,j,k,n) = dfab(iv,n);
+                            }
+                        });
+                    }
+                    mf_cc_data.FillBoundary(geom[ilev].periodicity());
                 }
 
                 auto slice = get_slice_data(dir, point, mf_cc_data, geom[ilev],

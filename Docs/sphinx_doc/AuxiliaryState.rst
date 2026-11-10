@@ -321,9 +321,43 @@ old-step time across the step, compatible face layouts, and the exact temporal
 weights above. It supports multiple auxiliary components and applies the host
 time weighting to every component.
 
-ERF also provides an anelastic midpoint integrator, but the current auxiliary
-stage adapter deliberately rejects that method because it has not yet been
-qualified for this transport interface.
+Anelastic midpoint advance
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ERF's anelastic midpoint method, its default anelastic integrator, advances
+the first stage over half a timestep and the second over a full timestep, both
+from the old state:
+
+.. math::
+
+   H_a^*
+   =
+   H_a^n
+   -
+   \frac{\Delta t}{2}
+   D_\xi\left(\widetilde{\mathbf F}_0\right),
+
+.. math::
+
+   H_a^{n+1}
+   =
+   H_a^n
+   -
+   \Delta t\,
+   D_\xi\left(\widetilde{\mathbf F}_1\right).
+
+Like the compressible stages, both are anchored at the old state, so the
+low-order limiter trial uses the old state and the stage's own interval, and
+only the second rate enters the completed step:
+
+.. math::
+
+   \mathbf J_a
+   =
+   \Delta t\,\widetilde{\mathbf F}_1.
+
+Neither Heun's half weights nor the sum of both stage increments reproduces
+this ledger; the unit tests check both as negative controls.
 
 Mapped-geometry verification
 ----------------------------
@@ -339,7 +373,7 @@ ERF's native scalar operators. The current unit evidence includes:
   native grid and on a vertically stretched grid;
 * parity with the static-terrain mapped-diffusion transfer, including the
   terrain metric cross terms;
-* preservation of a constant constituent ratio through both supported host
+* preservation of a constant constituent ratio through all three supported host
   recurrences;
 * exact completed-step temporal weights for one and multiple components;
 * rejection of incompatible cell/face layouts, aliased stage targets, and
