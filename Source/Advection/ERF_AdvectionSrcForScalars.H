@@ -54,31 +54,19 @@ BuildScalarAdvectionFluxesWithPolicy (
     {
         amrex::Real interpx(zero);
         interp_h.InterpolateInX(i,j,k,scalar_comp,interpx,upw_x(i,j,k));
-        if constexpr (FaceValue) {
-            flx_arr[0](i,j,k,flux_comp) = interpx;
-        } else {
-            flx_arr[0](i,j,k,flux_comp) = avg_xmom(i,j,k) * interpx;
-        }
+        flx_arr[0](i,j,k,flux_comp) = FaceValue ? interpx : avg_xmom(i,j,k) * interpx;
     });
     amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         amrex::Real interpy(zero);
         interp_h.InterpolateInY(i,j,k,scalar_comp,interpy,upw_y(i,j,k));
-        if constexpr (FaceValue) {
-            flx_arr[1](i,j,k,flux_comp) = interpy;
-        } else {
-            flx_arr[1](i,j,k,flux_comp) = avg_ymom(i,j,k) * interpy;
-        }
+        flx_arr[1](i,j,k,flux_comp) = FaceValue ? interpy : avg_ymom(i,j,k) * interpy;
     });
     amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         amrex::Real interpz(zero);
         interp_v.InterpolateInZ(i,j,k,scalar_comp,interpz,upw_z(i,j,k));
-        if constexpr (FaceValue) {
-            flx_arr[2](i,j,k,flux_comp) = interpz;
-        } else {
-            flx_arr[2](i,j,k,flux_comp) = avg_zmom(i,j,k) * interpz;
-        }
+        flx_arr[2](i,j,k,flux_comp) = FaceValue ? interpz : avg_zmom(i,j,k) * interpz;
     });
 }
 
@@ -115,31 +103,19 @@ BuildScalarAdvectionFluxesCentered2 (
     {
         const amrex::Real scalar_on_face = myhalf *
             (scalar(i,j,k,scalar_comp) + scalar(i-1,j,k,scalar_comp));
-        if constexpr (FaceValue) {
-            flx_arr[0](i,j,k,flux_comp) = scalar_on_face;
-        } else {
-            flx_arr[0](i,j,k,flux_comp) = avg_xmom(i,j,k) * scalar_on_face;
-        }
+        flx_arr[0](i,j,k,flux_comp) = FaceValue ? scalar_on_face : avg_xmom(i,j,k) * scalar_on_face;
     });
     amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const amrex::Real scalar_on_face = myhalf *
             (scalar(i,j,k,scalar_comp) + scalar(i,j-1,k,scalar_comp));
-        if constexpr (FaceValue) {
-            flx_arr[1](i,j,k,flux_comp) = scalar_on_face;
-        } else {
-            flx_arr[1](i,j,k,flux_comp) = avg_ymom(i,j,k) * scalar_on_face;
-        }
+        flx_arr[1](i,j,k,flux_comp) = FaceValue ? scalar_on_face : avg_ymom(i,j,k) * scalar_on_face;
     });
     amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const amrex::Real scalar_on_face = myhalf *
             (scalar(i,j,k,scalar_comp) + scalar(i,j,k-1,scalar_comp));
-        if constexpr (FaceValue) {
-            flx_arr[2](i,j,k,flux_comp) = scalar_on_face;
-        } else {
-            flx_arr[2](i,j,k,flux_comp) = avg_zmom(i,j,k) * scalar_on_face;
-        }
+        flx_arr[2](i,j,k,flux_comp) = FaceValue ? scalar_on_face : avg_zmom(i,j,k) * scalar_on_face;
     });
 }
 
