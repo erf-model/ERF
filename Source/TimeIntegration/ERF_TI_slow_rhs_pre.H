@@ -234,7 +234,7 @@
         // *****************************************************************************
         int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_buoyancy(level, S_data, S_prim, qt, buoyancy, fine_geom, solverChoice, base_to_use,
-                      num_q, get_eb(level), solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible);
+                      num_q, get_eb(level), solverChoice.compressibility_type[level] == CompressibilityType::Anelastic);
 
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources

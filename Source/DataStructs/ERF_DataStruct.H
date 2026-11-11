@@ -92,9 +92,9 @@ AMREX_ENUM(SubsteppingType,
  *
  * FullyCompressible solves the compressible equations with acoustic substepping.
  * Anelastic holds the density at its base-state value and projects the velocity.
- * PseudoIncompressible projects the velocity to satisfy div(rho0 theta0 u) = 0 with a
- * variable-coefficient solve; otherwise it still takes the anelastic path (the density is
- * not yet evolved).
+ * PseudoIncompressible evolves the density and (rho theta) as FullyCompressible does, with the
+ * buoyancy -(rho - rho0) g, and projects the velocity to satisfy div(rho0 theta0 u) = 0 with a
+ * variable-coefficient solve; like Anelastic it never substeps acoustically.
  */
 AMREX_ENUM(CompressibilityType,
     FullyCompressible, Anelastic, PseudoIncompressible
@@ -1178,20 +1178,37 @@ struct SolverChoice {
         read_int_string(max_level, "project_initial_velocity", project_initial_velocity, 0);
 
         // The anelastic equations hold the density at its base-state value, so
-        // fixed_density is forced to 1 at every anelastic level; a user value of 0
-        // there is ignored, and we say so rather than drop it silently.
+        // fixed_density is forced to 1 at every anelastic level.  The pseudo-incompressible
+        // equations evolve the density (continuity equation) with the density-departure
+        // buoyancy -(rho - rho0) g, so fixed_density is forced to 0 and buoyancy_type to 1 there.
+        // A user value that disagrees is ignored, and we say so rather than drop it silently.
         bool any_anelastic = false;
         bool any_compress  = false;
         for (int i = 0; i <= max_level; ++i) {
-            if (compressibility_type[i] != CompressibilityType::FullyCompressible) {
+            if (compressibility_type[i] == CompressibilityType::Anelastic) {
                 if (fixed_density_given && fixed_density[i] == 0) {
                     amrex::Print() << "WARNING: erf.fixed_density = 0 is ignored at level " << i
-                                   << " because erf.compressibility_type is not FullyCompressible there; the anelastic"
-                                   << " and pseudo-incompressible equations always hold the density fixed in time." << std::endl;
+                                   << " because erf.compressibility_type is Anelastic there; the anelastic"
+                                   << " equations always hold the density fixed in time." << std::endl;
                 }
                 project_initial_velocity[i] = 1;
                 fixed_density[i]            = 1; // Always fixed when anelastic
                 buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
+                any_anelastic               = true;
+            } else if (compressibility_type[i] == CompressibilityType::PseudoIncompressible) {
+                if (fixed_density_given && fixed_density[i] == 1) {
+                    amrex::Print() << "WARNING: erf.fixed_density = 1 is ignored at level " << i
+                                   << " because erf.compressibility_type is PseudoIncompressible there; the"
+                                   << " pseudo-incompressible equations evolve the density." << std::endl;
+                }
+                if (buoyancy_type[i] != 1) {
+                    amrex::Print() << "WARNING: erf.buoyancy_type = " << buoyancy_type[i] << " is replaced by 1 at level "
+                                   << i << " because erf.compressibility_type is PseudoIncompressible there; the"
+                                   << " pseudo-incompressible buoyancy is -(rho - rho0) g." << std::endl;
+                }
+                project_initial_velocity[i] = 1;
+                fixed_density[i]            = 0; // The density evolves
+                buoyancy_type[i]            = 1; // -(rho - rho0) g
                 any_anelastic               = true;
             } else {
                 any_compress                = true;
@@ -2586,7 +2603,9 @@ struct SolverChoice {
         for (int lev = 0; lev <= max_level; lev++) {
             amrex::Print() << "At level " << lev << " : " << std::endl;
             if (compressibility_type[lev] != CompressibilityType::FullyCompressible) {
-                amrex::Print() << "   anelastic with no substepping, using the "
+                amrex::Print() << ((compressibility_type[lev] == CompressibilityType::PseudoIncompressible)
+                                   ? "   pseudo-incompressible" : "   anelastic")
+                               << " with no substepping, using the "
                                << ((timestepping_type[lev] == TimesteppingType::MidPoint) ? "MidPoint" : "RK2")
                                << " integrator" << std::endl;
             } else {
@@ -3392,7 +3411,7 @@ struct SolverChoice {
  * @var SolverChoice::timestepping_type
  * @brief Per-level time integrator (RK3_ImplicitSubstep, RK3_NoSubstepping, RK2 or MidPoint).
  * @var SolverChoice::fixed_density
- * @brief Per-level flag selecting fixed-density treatment; always 1 at an anelastic level.
+ * @brief Per-level flag selecting fixed-density treatment; always 1 at an anelastic level and 0 at a pseudo-incompressible level.
  * @var SolverChoice::project_initial_velocity
  * @brief Per-level flag for projecting the initial velocity.
  * @var SolverChoice::buoyancy_type

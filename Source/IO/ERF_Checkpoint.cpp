@@ -1704,6 +1704,9 @@ ERF::ReadCheckpointFile ()
                 check_mesh_type(lev);
             }
 #endif
+        } else {
+            // z_phys_nd keeps the heights init_stuff gave it, but z_sfc_nd is made from it only here
+            update_zsfc_nd(lev);
         }
 
         // Level creation may initially see placeholder metric fields. Rebuild

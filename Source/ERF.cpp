@@ -43,8 +43,7 @@ using namespace amrex;
 double ERF::startCPUTime        = 0.0;
 double ERF::previousCPUTimeUsed = 0.0;
 
-Vector<AMRErrorTag> ERF::ref_tags;
-Vector<std::string> ERF::ref_tag_indicator_names;
+Vector<RefinementCriterion> ERF::ref_criteria;
 
 SolverChoice ERF::solverChoice;
 
@@ -711,9 +710,17 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             } // mfi
 
             // This call refluxes the cell-centered variables from the lev/lev+1 interface onto lev:
-            // all "slow" variables, plus (rho theta) on anelastic levels. Density is never refluxed
-            // (it is fixed on anelastic levels), nor is (rho theta) on compressible levels.
-            int reflux_comp = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ? RhoTheta_comp : RhoTheta_comp + 1;
+            // all "slow" variables, plus (rho theta) on anelastic levels and rho and (rho theta) on
+            // pseudo-incompressible levels.  Density is not refluxed on anelastic levels (it is fixed),
+            // nor are rho and (rho theta) on compressible levels.
+            int reflux_comp;
+            if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                reflux_comp = Rho_comp;
+            } else if (solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic) {
+                reflux_comp = RhoTheta_comp;
+            } else {
+                reflux_comp = RhoTheta_comp + 1;
+            }
             getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], reflux_comp, reflux_comp, ncomp-reflux_comp);
 
             // Here we multiply (rho S) by m^2 after refluxing
@@ -739,12 +746,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             // We need to do this before anything else because refluxing changes the
             // values of coarse cells underneath fine grids with the assumption they'll
             // be over-written by averaging down
-            int src_comp;
-            if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
-                src_comp = 1;
-            } else {
-                src_comp = 0;
-            }
+            // (rho is not averaged down on an anelastic level, where it is rho0)
+            int src_comp = (solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic) ? 1 : 0;
             int num_comp = ncomp - src_comp;
             AverageDownTo(lev,src_comp,num_comp);
 
@@ -874,6 +877,10 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
 
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+      }
+      // Coarsest first, since a level's z_sfc_nd may take values from the one below it
+      for (int lev = 0; lev <= finest_level; ++lev) {
+        update_zsfc_nd(lev);
       }
     }
 
@@ -1497,6 +1504,18 @@ ERF::InitData_post ()
                              ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
         (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
+    }
+
+    //
+    // On a pseudo-incompressible level, start from rho theta = rho0 theta0 (pressure p0), the state
+    //    that the constraint div(rho0 theta0 u) = 0 maintains, whatever the initialization
+    //
+    if (restart_chkfile == "") {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                make_pseudo_incompressible_initial_state(lev);
+            }
+        }
     }
 
     //

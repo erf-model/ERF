@@ -2345,7 +2345,51 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   add_test_v_perturbation(Poiseuille_PertV_Only "nonzero" "")
   add_test_v_perturbation(Poiseuille_PertU_Only "zero" "prob.pert_delta_u=2.0 prob.pert_delta_v=0.0")
 endif()
-add_test_r(Terrain2Lev_STF_interp            ""  "erf_exec" "plt00010")
+
+# Tagging on fields (#5036): Tests/check_tagging_conditions.py recomputes the cells a refinement
+# indicator should tag and requires the level 1 grids of the tagged run, on ERF_TEST_NRANKS ranks,
+# to cover exactly those. The deck sets no error buffer and a grid efficiency of 1, so the grids
+# are the tags. FIELDS_RUN_OPTIONS, when not empty, first runs the deck with them and the fields are
+# read from that run's plt00000; otherwise they are read from the tagged run's PLTFILE.
+# CHECK_ARGS are the checker's --cond, --combine and --box arguments.
+function(add_test_tagging TEST_NAME FIELDS_RUN_OPTIONS TAG_RUN_OPTIONS PLTFILE CHECK_ARGS)
+    set(TEST_FILES_DIR Tagging_Conditions)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_deck "${CURRENT_TEST_BINARY_DIR}/Tagging_Conditions.i")
+    set(_fields "${CURRENT_TEST_BINARY_DIR}/tagged${PLTFILE}")
+    set(_pre "")
+    if(NOT "${FIELDS_RUN_OPTIONS}" STREQUAL "")
+        set(_fields "${CURRENT_TEST_BINARY_DIR}/fields00000")
+        set(_pre "${MPI_COMMANDS} ${TEST_EXE} ${_deck} erf.plot_file_1=fields ${FIELDS_RUN_OPTIONS} > ${CURRENT_TEST_BINARY_DIR}/fields.log 2>&1 && ")
+    endif()
+    add_test(${TEST_NAME} sh -c
+      "${_pre}${MPI_COMMANDS} ${TEST_EXE} ${_deck} erf.plot_file_1=tagged amrex.call_addr2line=0 ${TAG_RUN_OPTIONS} > ${CURRENT_TEST_BINARY_DIR}/tagged.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_tagging_conditions.py ${_fields} ${CURRENT_TEST_BINARY_DIR}/tagged${PLTFILE} ${CHECK_ARGS}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/fields.log;${CURRENT_TEST_BINARY_DIR}/tagged.log")
+endfunction(add_test_tagging)
+
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  # Two conditions on the cold bubble of the density current, theta <= 290 and a density
+  # threshold, restricted to a box that cuts the tagged region: all must hold (combine = and,
+  # 100 cells), or any one (combine = or, 1968 cells). The fields come from a run without
+  # refinement, since the tagged run's level 0 is averaged down from level 1
+  set(_tag_conditions "amr.max_level=1 erf.refinement_indicators=crit 'erf.crit.conditions=cold dense' erf.crit.cold.field_name=theta erf.crit.cold.value_less=290 erf.crit.dense.field_name=density")
+  add_test_tagging(Tagging_Conditions_And "amr.max_level=0"
+      "${_tag_conditions} erf.crit.dense.value_greater=0.95 'erf.crit.in_box_lo=0 0 1000' 'erf.crit.in_box_hi=6000 100 4000'"
+      "00000" "--cond theta le 290 --cond density ge 0.95 --combine and --box 0 6000 0 100 1000 4000")
+  add_test_tagging(Tagging_Conditions_Or "amr.max_level=0"
+      "${_tag_conditions} erf.crit.combine=or erf.crit.dense.value_greater=1.0 'erf.crit.in_box_lo=-4000 0 400' 'erf.crit.in_box_hi=6000 100 4000'"
+      "00000" "--cond theta le 290 --cond density ge 1.0 --combine or --box -4000 6000 0 100 400 4000")
+  # A box that tags everywhere it reaches, moved in two intervals: +400 m/s in x for t in [0, 2]
+  # and -200 m/s for t in [3, 5], so from the regrid at t = 6 on it lies 400 m from where it
+  # started. Before the fix only the first interval was applied, and it lay 800 m away
+  add_test_tagging(Tagging_MovingBox_TwoIntervals ""
+      "max_step=7 erf.regrid_int=1 erf.plot_int_1=7 amr.max_level=1 erf.refinement_indicators=crit erf.crit.field_name=density erf.crit.value_greater=0 'erf.crit.in_box_lo=-2000 0' 'erf.crit.in_box_hi=2000 100' 'erf.crit.move_start_time=0 3' 'erf.crit.move_stop_time=2 5' 'erf.crit.move_speed_x=400 -200' 'erf.crit.move_speed_y=0 0'"
+      "00007" "--cond density ge 0 --box -1600 2400 0 100")
+endif()
+add_test_r(Terrain2Lev_STF_interp           ""  "erf_exec" "plt00010")
 add_test_r(Terrain2Lev_STF_transform         ""  "erf_exec" "plt00010")
 add_test_r(RayleighDamping                   ""  "erf_exec" "plt00100")
 add_test_r(ScalarAdvectionUniformU           ""  "erf_exec" "plt00020")
@@ -3443,6 +3487,10 @@ add_test_conservation(Conservation_MoistDiffusion_ImplicitTerrain MoistDiffusion
 add_test_conservation(Conservation_MoistDiffusion_Explicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
     OPTIONS "${_moist_cons_options} erf.alpha_C=0.4 erf.vert_implicit=false")
 add_test_conservation(Conservation_ScalarDiffusion_Flat      ScalarDiffusion_Reflux "RHO SCALAR")
+# Pseudo-incompressible levels evolve rho and (rho theta), which are refluxed and averaged down:
+# both must be conserved over two levels coupled two-way (a stratified flow over a hill)
+add_test_conservation(Conservation_PseudoIncompressible_Mass     PseudoIncompressible_StratifiedHill "MASS")
+add_test_conservation(Conservation_PseudoIncompressible_RhoTheta PseudoIncompressible_StratifiedHill "RHO THETA")
 add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.terrain_type=StaticFittedMesh")
 add_test_conservation(Conservation_ScalarDiffusion_Hill      ScalarDiffusion_Reflux "RHO SCALAR"
@@ -4486,6 +4534,12 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     add_test_wrfinput_nest(WRFInput_ShallowNest
         "amr.refine_whole_domain_dir=-1 amr.blocking_factor_z=2 amr.n_error_buf=0 erf.refinement_indicators=crop nest2 erf.nest2.max_level=2 erf.nest2.in_box_lo_indices=78 78 2 erf.nest2.in_box_hi_indices=95 95 7"
         "" "--klo 2")
+    # An indicator that tests a field, with a box, covering both nest levels (#5036): its box
+    #    is not registered as a nest, so the levels must still be d02 cropped by crop, and d03
+    #    as its file gives it
+    add_test_wrfinput_nest(WRFInput_FieldIndicatorAtNest
+        "'erf.refinement_indicators=crop warm' erf.warm.field_name=theta erf.warm.value_greater=0 'erf.warm.in_box_lo=0 0 0' 'erf.warm.in_box_hi=20000 20000 800'"
+        "" "")
     add_test_wrfinput_nest(WRFInput_Abort_NestOutsideParent
         "erf.crop.in_box_lo_indices=32 24 0"
         "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
