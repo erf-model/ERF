@@ -527,7 +527,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
                 f.write(contents.replace(marker, "find_package(GTest REQUIRED)"))
 
     def setup_build_environment(self, env):
-        if self.spec.satisfies("+rocm"):
+        if self.spec.satisfies("+rocm") and "llvm-amdgpu" in self.spec:
             # Spack-built rocprim (through rocthrust) puts llvm-amdgpu among the link
             # dependencies, so the compiler wrapper adds its include directory, where gfortran
             # then opens flang's iso_c_binding.mod instead of its own. hipcc finds it itself.
