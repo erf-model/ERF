@@ -427,6 +427,7 @@ if(ERF_DIM STREQUAL "3")
     ${CMAKE_CURRENT_SOURCE_DIR}/AuxiliaryState/ERF_GTestAuxiliaryMappedTransport.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTransport.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMBoundary.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMParticleMixing.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMAMRTransfer.cpp)
 endif()
 if(ERF_ENABLE_NETCDF)

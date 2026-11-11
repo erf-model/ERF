@@ -608,6 +608,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryMappedTransport.cpp
        ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryStage.cpp
        ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryInertTracer.cpp
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryDiffusion.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SpectralGrid.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMLayout.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMConstraintGroups.cpp
@@ -621,6 +622,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRFluxRegister.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRCoupling.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMPhysicalBoundary.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMParticleMixing.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
