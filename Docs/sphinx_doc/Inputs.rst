@@ -4406,6 +4406,15 @@ column would be taken for a building), a uniform vertical grid (no
 |                                   | in, cast every step); false: through the whole ground    |                    |                        |
 |                                   | view, the ground a face sees being sunlit everywhere     |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.two_stream_roofs**    | true: the two-stream column under a building starts on   | Boolean            | false                  |
+|                                   | the building's roof, with the roof face's albedo,        |                    |                        |
+|                                   | emissivity and skin temperature; false: it passes        |                    |                        |
+|                                   | through the building down to the held ground under it.   |                    |                        |
+|                                   | The run stops unless erf.ibseb.enable,                   |                    |                        |
+|                                   | erf.radiation_model = TwoStream and                      |                    |                        |
+|                                   | erf.ibseb.two_stream_buildings are set and no            |                    |                        |
+|                                   | land-surface model is used                               |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.ground_sky_view**     | true: the two-stream ground balance beside the buildings | Boolean            | false                  |
 |                                   | keeps the sky's diffuse light and longwave through the   |                    |                        |
 |                                   | part of the ground's view the walls leave open, and      |                    |                        |
@@ -4848,8 +4857,8 @@ contains the developing Eulerian spectral-bin capability selected with
 ``erf.moisture_model = SBM``.
 
 The current ``SBM`` option transports a liquid-water size distribution by
-resolved advection on one atmospheric grid level or on a periodic two-level
-adaptive mesh. It is not yet a complete warm-cloud microphysics scheme. See
+resolved advection on one atmospheric grid level or on a two-level adaptive
+mesh. It is not yet a complete warm-cloud microphysics scheme. See
 :ref:`sec:SpectralBinMicrophysics` for the spectral representation,
 configuration, and current limitations.
 
@@ -4979,6 +4988,20 @@ execution restrictions.
      - :math:`N_{\mathrm{bins}}` values for 1M or
        :math:`2N_{\mathrm{bins}}` values for 2M
      - All zero
+   * - ``erf.sbm_budget_check``
+     - After every coarse step, check that the composite spectral inventory
+       changed only by that step's accepted transfer through the physical
+       faces; print ``SBM_BUDGET`` lines and abort beyond the roundoff bound.
+       Requires ``erf.moisture_model = SBM``.
+     - Boolean
+     - ``false``
+   * - ``<face>.sbm_inflow_z``
+     - Constant spectrum entering through an ``Inflow`` or ``inflow_outflow``
+       face, one value per component per kilogram of dry air, in the order of
+       ``erf.sbm_fixture_initial_state``. Required on every such face and
+       rejected on any other; ``<face>.density`` must also be given.
+     - One value per spectral component
+     - None
 
 .. note::
 

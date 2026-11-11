@@ -2,6 +2,7 @@
 
 #include "ERF.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_SBMInventory.H"
 #include "ERF_SBMLayout.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
@@ -320,52 +321,9 @@ validate_empty_fine_rank_layout (const BoxArray& fine_ba,
     Print() << "SBM_AMR_QUAL_EMPTY_FINE_RANK empty_ranks=" << empty_ranks << '\n';
 }
 
-struct InventoryRoundoff
-{
-    std::uint64_t leaf_cell_terms{0};
-    std::uint64_t operation_count{0};
-    int reduction_depth{0};
-    Real rounding_factor{0};
-};
-
-// Operation-count bound on the composite leaf inventory, shared by the
-// per-step and regrid conservation checks.
-InventoryRoundoff
-composite_inventory_roundoff (const std::uint64_t coarse_cells,
-                              const std::uint64_t fine_cells,
-                              const IntVect& ratio,
-                              const bool with_prolongation)
-{
-    std::uint64_t refinement_volume = 1U;
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        refinement_volume *= static_cast<std::uint64_t>(ratio[dir]);
-    }
-    AMREX_ALWAYS_ASSERT(refinement_volume > 0U &&
-                        fine_cells % refinement_volume == 0U &&
-                        coarse_cells >= fine_cells / refinement_volume);
-    InventoryRoundoff roundoff;
-    roundoff.leaf_cell_terms = coarse_cells - fine_cells / refinement_volume + fine_cells;
-    for (int ranks = ParallelDescriptor::NProcs(); ranks > 1;
-         ranks = (ranks + 1) / 2) {
-        ++roundoff.reduction_depth;
-    }
-    // Each positive leaf term uses up to three multiplies and one local
-    // accumulation. Bound both initial and final inventories, the final
-    // subtraction, and a pairwise MPI reduction with a conservative
-    // eight operations per leaf plus two reduction-tree levels per depth;
-    // a regrid adds the prolongation of a new fine cell from its parent.
-    roundoff.operation_count =
-        8U * roundoff.leaf_cell_terms +
-        2U * static_cast<std::uint64_t>(roundoff.reduction_depth) + 1U +
-        (with_prolongation ? refinement_volume + 6U : 0U);
-    const Real q = static_cast<Real>(roundoff.operation_count) *
-                   std::numeric_limits<Real>::epsilon();
-    AMREX_ALWAYS_ASSERT(q < Real(1.0));
-    roundoff.rounding_factor = q / (Real(1.0) - q);
-    return roundoff;
-}
-
 } // namespace
+
+using erf_sbm::composite_inventory_roundoff;
 
 namespace erf_sbm::qualification {
 
@@ -663,64 +621,16 @@ ERF::sbm_qualification_apply_initial_profile (int lev)
 std::vector<Real>
 ERF::sbm_qualification_composite_inventory () const
 {
-    AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr && sbm_transport != nullptr);
-    const int ncomp = sbm_state_manager->layout().ncomp();
-    std::vector<Real> inventory(static_cast<std::size_t>(ncomp), Real(0.0));
-    for (int component = 0; component < ncomp; ++component) {
-        Real total = Real(0.0);
-        for (int lev = 0; lev <= finest_level; ++lev) {
-            // The SBM level layouts, not grids[], define the composite: during
-            // a remake grids[lev] already names the new grids.
-            const MultiFab& spectrum = sbm_state_manager->new_state(lev);
-            const BoxArray& level_ba = spectrum.boxArray();
-            const DistributionMapping& level_dm = spectrum.DistributionMap();
-            MultiFab leaf_mask(level_ba, level_dm, 1, 0);
-            leaf_mask.setVal(Real(1.0));
-            if (lev < finest_level) {
-                const MultiFab& fine_spectrum = sbm_state_manager->new_state(lev + 1);
-                MultiFab fine_coverage(fine_spectrum.boxArray(),
-                                       fine_spectrum.DistributionMap(), 1, 0);
-                MultiFab covered(level_ba, level_dm, 1, 0);
-                fine_coverage.setVal(Real(1.0));
-                covered.setVal(Real(0.0));
-                average_down(fine_coverage, covered, 0, 1, ref_ratio[lev]);
-                for (MFIter mfi(leaf_mask, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box bx = mfi.tilebox();
-                    const auto leaf = leaf_mask.array(mfi);
-                    const auto mask = covered.const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        leaf(i, j, k, 0) = Real(1.0) - mask(i, j, k, 0);
-                    });
-                }
-            }
-
-            MultiFab weighted(level_ba, level_dm, 1, 0);
-            const MultiFab& measure = sbm_transport->static_measure(lev);
-            const Real cell_volume = geom[lev].CellSize(0) *
-                                     geom[lev].CellSize(1) *
-                                     geom[lev].CellSize(2);
-            for (MFIter mfi(weighted, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box bx = mfi.tilebox();
-                const auto u = spectrum.const_array(mfi);
-                const auto omega = measure.const_array(mfi);
-                const auto leaf = leaf_mask.const_array(mfi);
-                const auto out = weighted.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    out(i, j, k, 0) = cell_volume * omega(i, j, k, 0) *
-                                      u(i, j, k, component) * leaf(i, j, k, 0);
-                });
-            }
-            total += weighted.sum(0, false);
-        }
-        inventory[static_cast<std::size_t>(component)] = total;
-    }
-    return inventory;
+    return sbm_composite_inventory();
 }
 
 void
 ERF::sbm_qualification_record_initial_inventory ()
 {
     if (!solverChoice.sbm_amr_qualification_test) return;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom[0].isAllPeriodic(),
+        "SBM AMR qualification decks are triply periodic; check nonperiodic "
+        "budgets with erf.sbm_budget_check");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         finest_level == 1 ||
         (finest_level == 0 && solverChoice.sbm_amr_qualification_regrid),

@@ -74,10 +74,20 @@
             sbm_parent_stage_ptr = &sbm_parent_stage;
         }
 
+        // Pseudo-incompressible: the upwind direction erf_slow_rhs_pre advected with in this stage
+        Array<const MultiFab*,AMREX_SPACEDIM> upw_dir{AMREX_D_DECL(nullptr,nullptr,nullptr)};
+        if (solverChoice.compressibility_type[level] == CompressibilityType::PseudoIncompressible &&
+            solverChoice.terrain_type != TerrainType::EB) {
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                upw_dir[idim] = pi_upw_dir_stage[level][idim].get();
+            }
+        }
+
         erf_slow_rhs_post(level, finest_level, nrk,
                           old_step_time, old_stage_time, new_stage_time, slow_dt,
                           micro->Get_Qstate_Moist_Size(),
                           S_rhs, S_old, S_new, S_data, S_prim, avg_xmom[level], avg_ymom[level], avg_zmom[level],
+                          upw_dir,
                           xvel_new, yvel_new, zvel_new, cc_src, terrain_blank,
                           terrain_blank_xface, terrain_blank_yface, terrain_blank_zface,
                           SmnSmn, eddyDiffs,

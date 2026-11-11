@@ -307,7 +307,8 @@ TEST(TwoStreamCanopyForcing, GroundBeamShare)
     const Box bm(IntVect(0, 0, 0), IntVect(0, 0, 1));
     const Box bf(IntVect(0, 0, k0), IntVect(0, 0, k0 + 1));
     const Box b2(IntVect(0, 0, 0), IntVect(0, 0, 0));
-    FArrayBox beam(bm, 1, The_Cpu_Arena()), flux(bf, 4, The_Cpu_Arena()), alb(b2, 1, The_Cpu_Arena());
+    // (The albedo field's second component is the interface the column starts on: the ground here.)
+    FArrayBox beam(bm, 1, The_Cpu_Arena()), flux(bf, 4, The_Cpu_Arena()), alb(b2, 2, The_Cpu_Arena());
     flux.setVal<RunOn::Host>(0.0);
     const auto bA = beam.array(); const auto fA = flux.array(); const auto aA = alb.array();
     const Real tol = rel_tol();
@@ -316,6 +317,7 @@ TEST(TwoStreamCanopyForcing, GroundBeamShare)
     // interface holds other values, which must not be read.
     bA(0, 0, 0) = Real(100.0); bA(0, 0, 1) = Real(170.0);
     aA(0, 0, 0) = Real(0.2);
+    aA(0, 0, 0, 1) = Real(0.0);
     fA(0, 0, k0, 0) = Real(41.0); fA(0, 0, k0 + 1, 0) = Real(55.0);
     EXPECT_NEAR(two_stream_ground_beam_share(0, 0, k0, beam.const_array(), flux.const_array(), alb.const_array()),
                 Real(20.0 / 41.0), tol);

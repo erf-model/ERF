@@ -806,6 +806,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     if (cloud_chamber_budget && sbm_moisture) {
         report_cloud_chamber_budget();
     }
+    if (sbm_state_manager && sbm_moisture) {
+        sbm_check_budget(nstep);
+    }
 
     // The next coarse step sums the pressure afresh
     if (momentum_reflux_enabled()) { momentum_reflux_reset(); }
@@ -1531,6 +1534,25 @@ ERF::InitData_post ()
                 double dummy_dt = 1.0;
                 if (verbose > 0) {
                     amrex::Print() << "Projecting initial velocity field at level " << lev << std::endl;
+                }
+
+                // A pseudo-incompressible projection maps rho0 theta0 / rho onto the faces with the
+                // advection stencil, which reads the density in the ghost cells (two or three deep
+                // with the higher-order schemes); fill them now, from the rescaled state of
+                // make_pseudo_incompressible_initial_state and, at a coarse/fine boundary, from
+                // the coarse level, since the full fill of the levels comes after the projection
+                if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                    auto& lev_new = vars_new[lev];
+                    if (lev == 0) {
+                        FillPatchCrseLevel(lev, t_new[lev],
+                                           {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                                           true);
+                    } else {
+                        FillPatchFineLevel(lev, t_new[lev],
+                                           {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                                           {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                                           false, true);
+                    }
                 }
 
                 project_initial_velocity(lev, t_new[lev], dummy_dt);
@@ -2670,6 +2692,7 @@ ERF::InitData_post ()
 #ifdef ERF_SBM_AMR_QUALIFICATION
     sbm_qualification_record_initial_inventory();
 #endif
+    sbm_record_budget_reference();
 }
 
 //
@@ -4044,6 +4067,22 @@ ERF::ReadParameters ()
                   "Either remove amr.no_box_split_dir = " +
                   std::to_string(no_box_split_dir) + " from the inputs file, or set "
                   "erf.timestepping_type = RK3_NoSubstepping.");
+        }
+    }
+
+    // A moving mesh advances its base state column by column, with a bottom-face flux
+    // extrapolated from the three lowest cells of the box, and erf_substep_MT takes the bottom
+    // of the box as the moving surface; both need every grid to span the full height of the
+    // domain.  A moving mesh has only level 0 (amr.max_level = 0), whose grids cover the
+    // domain, so amr.no_box_split_dir = 2 (the default) gives exactly that.
+    if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
+        if (no_box_split_dir != 2) {
+            Abort("erf.terrain_type = MovingFittedMesh requires amr.no_box_split_dir = 2 (the ERF "
+                  "default), so that every grid spans the full height of the domain; remove "
+                  "amr.no_box_split_dir = " + std::to_string(no_box_split_dir) + " from the inputs file.");
+        }
+        if (geom[0].Domain().length(2) < 3) {
+            Abort("erf.terrain_type = MovingFittedMesh requires at least 3 cells in z (amr.n_cell)");
         }
     }
 
