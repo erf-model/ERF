@@ -1,6 +1,9 @@
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 
 #include <AMReX.H>
 #include <AMReX_BLProfiler.H>
@@ -8,6 +11,7 @@
 
 #include "ERF.H"
 #include "ERF_InputsName.H"
+#include "ERF_InputPreflight.H"
 
 #ifdef ERF_USE_WW3_COUPLING
 #include <mpi.h>
@@ -48,7 +52,7 @@ void add_par () {
    // those solves cannot do is split one contiguous column at a box seam.)  Setting
    // amr.no_box_split_dir = -1 in the inputs file restores the amrex behavior of
    // allowing grids to be chopped in every direction; ERF::ReadParameters rejects
-   // that if any level uses erf.substepping_type = Implicit.
+   // that if any level uses erf.timestepping_type = RK3_ImplicitSubstep.
    int no_box_split_dir = 2;
    pp.queryAdd("no_box_split_dir",no_box_split_dir);
 
@@ -130,8 +134,12 @@ void add_par () {
       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
          derived_prob_hi.size() == erf_prob_hi.size(),
          "erf.prob_hi and erf.prob_extent have inconsistent lengths.");
+      // Allow for rounding in prob_lo + prob_extent, relative to the inputs' magnitude
       for (int i = 0; i < static_cast<int>(erf_prob_hi.size()); ++i) {
-         if (derived_prob_hi[i] != erf_prob_hi[i]) {
+         const amrex::Real lo = (i < static_cast<int>(erf_prob_lo.size()) ? erf_prob_lo[i] : 0.0);
+         const amrex::Real scale = std::max({std::abs(lo), std::abs(erf_prob_extent[i]), std::abs(erf_prob_hi[i])});
+         const amrex::Real tol = amrex::Real(100.0) * std::numeric_limits<amrex::Real>::epsilon() * scale;
+         if (std::abs(derived_prob_hi[i] - erf_prob_hi[i]) > tol) {
             amrex::Abort("erf.prob_hi and erf.prob_extent are both specified but inconsistent.");
          }
       }
@@ -229,15 +237,13 @@ void install_exit_trap ()
 int main (int argc, char* argv[])
 {
 
+// For the early exits below, which all come before amrex::Initialize (and, with
+// WW3 coupling, before amrex::MPMD::Initialize): MPI is ours to finalize.
 auto finalize_mpi_and_return = [](int code) {
 #ifdef AMREX_USE_MPI
-#ifdef ERF_USE_WW3_COUPLING
-    amrex::MPMD::Finalize();
-#else
     MPI_Finalize();
 #endif
-#endif
-return code;
+    return code;
 };
 
 #if defined(AMREX_MPI_THREAD_MULTIPLE)
@@ -253,7 +259,13 @@ return code;
         ERF::print_usage(MPI_COMM_WORLD, std::cout);
         ERF::print_error(
             MPI_COMM_WORLD, "No input file provided. Exiting!!");
-        return 1;
+        return finalize_mpi_and_return(1);
+    }
+
+    for (auto i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "--validate-input") {
+            return finalize_mpi_and_return(erf_preflight::run(argc, argv));
+        }
     }
 
     // Look for "-h" or "--help" flag and print usage
@@ -262,14 +274,27 @@ return code;
         if ((param == "--help") || (param == "-h") || (param == "--usage")) {
             ERF::print_banner(MPI_COMM_WORLD, std::cout);
             ERF::print_usage(MPI_COMM_WORLD, std::cout);
-            return 0;
+            return finalize_mpi_and_return(0);
         }
     }
 
     if (argc >= 2) {
         for (auto i = 1; i < argc; i++) {
-            if (std::string(argv[i]) == "--describe") {
-                ERF::writeBuildInfo(std::cout);
+            const std::string option(argv[i]);
+            if (option == "--describe" || option == "--describe-json" || option == "--describe-yaml") {
+                int rank = 0;
+#ifdef AMREX_USE_MPI
+                MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+#endif
+                if (rank == 0) {
+                    if (option == "--describe-json") {
+                        ERF::writeBuildInfoJSON(std::cout);
+                    } else if (option == "--describe-yaml") {
+                        ERF::writeBuildInfoYAML(std::cout);
+                    } else {
+                        ERF::writeBuildInfo(std::cout);
+                    }
+                }
                 return finalize_mpi_and_return(0);
             }
         }
@@ -285,16 +310,6 @@ return code;
         return finalize_mpi_and_return(1);
     }
 
-  //  print_banner(MPI_COMM_WORLD, std::cout);
-    // Check to see if the command line contains --describe
-    if (argc >= 2) {
-        for (auto i = 1; i < argc; i++) {
-            if (std::string(argv[i]) == "--describe") {
-                ERF::writeBuildInfo(std::cout);
-                return 0;
-            }
-        }
-    }
 #ifdef ERF_USE_WW3_COUPLING
     MPI_Comm comm = amrex::MPMD::Initialize(argc, argv);
     amrex::Initialize(argc,argv,true,comm,add_par);
@@ -362,9 +377,10 @@ return code;
     amrex::Finalize();
 #ifdef AMREX_USE_MPI
 #ifdef ERF_USE_WW3_COUPLING
+    // MPI was initialized above, before amrex::MPMD::Initialize, so MPMD::Finalize
+    // frees its communicator but leaves MPI_Finalize to us.
     amrex::MPMD::Finalize();
-#else
-    MPI_Finalize();
 #endif
+    MPI_Finalize();
 #endif
 }

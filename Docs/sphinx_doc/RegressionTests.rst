@@ -30,11 +30,33 @@ The following problems are currently tested in the CI:
 | AnelasticWallDiffusion_X/Y/Z  | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | rotated stationary linear-theta |
 |                               |          |          |          |            |       | wall-diffusion tests            |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ImmersedLES2LevAverageDown    | 16 8  20 | Periodic | Periodic | NoSlipWall | None  | two-level immersed LES; coarse  |
+| (and _Plain)                  |          |          |          | SlipWall   |       | cells vs fluid-mass fine average|
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ImmersedLES2LevHeatBalance    | 16 8  20 | Periodic | Periodic | NoSlipWall | None  | two-level immersed LES, patch   |
+| (and _Freeze, _LogLaw)        |          |          |          | SlipWall   |       | edges cross the surface; mean   |
+|                               |          |          |          |            |       | theta holds (implicit proj.)    |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ImmersedForm7Equivalence      | 8 8 50   | Periodic | Periodic | MOST       | None  | neutral k-eqn ABL: fraction-    |
+| (and _Legacy)                 | 8 8 52   |          |          | SlipWall   |       | stress law over a face-aligned  |
+|                               |          |          |          |            |       | immersed plane vs flat ground   |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | CouetteFlow_x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous                   |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (u = 2)               |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | CouetteFlow_y                 | 4 32  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous                   |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (v = 2)               |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| CouetteFlow_ImplicitCF        | 4 4 32   | Periodic | Periodic | NoSlipWall | None  | two levels: fine patch over the |
+|                               |          |          |          | NoSlipWall |       | lower half; implicit vertical   |
+|                               |          |          |          |            |       | diffusion closed at the c/f bdy |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| MoistDiffusion_ImplicitCF     | 4 4 32   | Periodic | Periodic | SlipWall   | None  | as CouetteFlow_ImplicitCF, for  |
+|                               |          |          |          | SlipWall   |       | the implicit moisture solve     |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| TwoWay_FourLevels_PartialDepth| 40 28 40 | Periodic | Periodic | SlipWall   | None  | four levels, two-way coupling;  |
+|                               |          |          |          | SlipWall   |       | levels 1 and 2 are made from    |
+|                               |          |          |          |            |       | scratch twice (iterate_grids)   |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity                        |
 |                               |          | Outflow  |          | SlipWall   |       |                                 |
@@ -206,25 +228,7 @@ while the following tests are run nightly:
 | ScalarAdvecDiffDoubleDen      | 32 32 32    | Periodic | Periodic | SlipWall   | None  | Density = 2                     |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarAdvDiffInflowOutflow    | 32 32 32    | Inflow   | Periodic | SlipWall   | None  |                                 |
-|                               |             | Outflow  |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 | ScalarAdvecDiffUniformU       | 32 32 32    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarAdvecUniformU           | 64 64  4    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarAdvecShearedU           | 64  4 64    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarAdvecUniformU           | 64 64  4    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarDiffusion               | 64 64 64    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarDiffusionSine           | 64 64 4     | Periodic | Periodic | SlipWall   | None  |                                 |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 | TaylorGreenAdvecting          | 64 64 64    | Periodic | Periodic | SlipWall   | None  |                                 |
@@ -239,14 +243,23 @@ while the following tests are run nightly:
 | TurbulentInflow_anelastic     | 64 16 32    | Inflow   | Periodic | SurfLay    | None  | LES                             |
 |                               |             | Outflow  |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| WPS_Test_Terrain              | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from                       |
-|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput                        |
+| WPS_Test                      | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| WPS_Test_Terrain-OMP          | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from                       |
-|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput                        |
+| WPS_Test-OMP                  | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| WPS_Test_restart              | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from                       |
-|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput                        |
+| WPS_Test_restart              | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       |                                 |
++-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
+| WPS_Test-RRTMGP+NOAHMP        | 100 100  79 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | uses RRTMGP+NOAHMP              |
++-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
+| WPS_Test-RRTMGP+SLM           | 100 100  79 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | uses RRTMGP+SLM                 |
++-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
+| WPS_Test-ML_Interp            | 100 100  79 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput;             |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | max_level=1                     |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 
 More details about the CI tests are given below.
@@ -500,6 +513,62 @@ Test Location: `Tests/test_files/CouetteFlow_y`_
 
 Problem Location: ``Exec/RegTests/Couette_Poiseuille``
 
+Couette Flow with a coarse/fine boundary in z
+---------------------------------------------
+
+This is Couette flow started from rest, driven by the lid at the high-z boundary
+(:math:`U = (2,0,0)`), with a static refined patch that covers only the lower half of the column
+(:math:`0 \le z \le 8` of 16).  The diffusion front from the lid therefore crosses a coarse/fine
+boundary in z.  The vertical implicit solve is used in all three RK stages
+(``erf.vert_implicit_fac = 1``) with a fine-level diffusion number of about 6, and each fine column
+is closed at the coarse/fine boundary with the coarse data at the stage time.  The test compares
+the plotfile after 50 coarse steps against a gold file.
+
+Test Location: `Tests/test_files/CouetteFlow_ImplicitCF`_
+
+.. _`Tests/test_files/CouetteFlow_ImplicitCF`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_ImplicitCF
+
+Problem Location: ``Exec/RegTests/Couette_Poiseuille``
+
+Moisture diffusion with a coarse/fine boundary in z
+---------------------------------------------------
+
+The companion of the test above for the implicit moisture solve, which is done after the
+acoustic substeps (``ERF_ImplicitPost.H``) rather than before them.  A moist layer
+(:math:`q_v = 10` g/kg above :math:`z = 12` of 16, dry below) at rest diffuses down
+(``erf.alpha_C = 4``) through a static refined patch over the lower half of the column,
+with the vertical implicit solve in all three RK stages and two-way coupling.  Each fine
+column is closed at the coarse/fine boundary with the coarse data at the stage time.  The
+test compares the plotfile after 200 coarse steps against a gold file.
+
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_
+
+.. _`Tests/test_files/MoistDiffusion_ImplicitCF`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MoistDiffusion_ImplicitCF
+
+Four levels made from scratch twice, with two-way coupling
+----------------------------------------------------------
+
+A uniform anelastic flow on four levels (``amr.ref_ratio_vect = 2 2 1`` on each), every refined
+level stopping below the domain top, with two-way coupling.  With ``amr.iterate_grids`` (the
+default) AMReX builds the levels one at a time and then regenerates them all from level 0 once the
+finest level exists; levels 1 and 2 grow by the proper-nesting buffer in that pass and are made
+from scratch a second time, while level 3 sits well inside level 2 and is not.  When level 2 is
+made again it has to rebuild the flux register on its interface with level 3, which was built from
+its first grids, and fill its own ghost cells, which the second tagging pass would otherwise fill
+from a level 1 whose ghost cells are still empty
+(`erf-model/ERF#4988 <https://github.com/erf-model/ERF/issues/4988>`_).  The test requires the run
+log to show that second pass (level 2 made from scratch twice, level 3 once) and the uniform flow to
+stay uniform on every level over three steps (``plt00000`` against ``plt00003``).  A register left
+on the old grids stops the first step with an assertion in ``getAdvFluxReg``; without the ghost
+fill the initial state is several m/s from uniform and the multigrid pressure solve fails in the
+second step.
+
+Test Location: `Tests/test_files/TwoWay_FourLevels_PartialDepth`_
+
+.. _`Tests/test_files/TwoWay_FourLevels_PartialDepth`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TwoWay_FourLevels_PartialDepth
+
+Problem Location: ``Exec/CanonicalTests/ABL``
+
 Poiseuille Flow (x-direction)
 -----------------------------
 
@@ -561,7 +630,14 @@ terrain cases with the Poisson wall distance instead of the terrain height.
 Test names: ``RANS_Neutral_ABL_Flat``, ``RANS_Stable_ABL_Flat``,
 ``RANS_Convective_ABL_Flat``, ``RANS_Neutral_Hill_2D`` (and ``_Poisson``),
 ``RANS_Flat_Fitted_2D`` (and ``_Poisson``), ``RANS_Neutral_Hill_3D`` (and
-``_Poisson``); label ``rans``. The flat cases run with the MLMG projection
+``_Poisson``); label ``rans``. ``RANS_WallDist_RaisedBase`` and
+``RANS_WallDist_RaisedBase_StretchedZSplit`` run the neutral flat case for one
+step with the bottom at 300 m, on a constant-dz mesh and on a stretched mesh
+whose boxes are split in z, and check that the wall distance is the height
+above the bottom wall. ``RANS_Neutral_Hill_2D_Realizability`` runs the
+ridge twice, without and with the realizability cap of the closure
+(``erf.rans_realizability``), and pins the capped viscosity and diffusivity
+to their closed form cell by cell (``check_realizability.py``). The flat cases run with the MLMG projection
 (``erf.use_fft=false``); the terrain-fitted cases need the FFT-preconditioned
 projection and are registered only when the build enables FFT
 (``ERF_ENABLE_FFT``).
@@ -667,6 +743,103 @@ scheme returns, and dropping them leaves the answer bit for bit unchanged.
 Test Location: `Tests/test_files/Closure_BoxParity`_
 
 .. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
+
+Conservation across coarse/fine boundaries
+------------------------------------------
+The ``Conservation_*`` tests (label ``conservation``, no gold file) run a two-level deck with
+two-way coupling in a closed domain: slip walls in z, periodic in x and y. They require the
+composite integral of a scalar to be the same at the start and the end of the run
+(``Tests/RunConservation.cmake``). The integral is the one ERF prints every step with
+``erf.sum_interval = 1`` (``RHO SCALAR SL/ML`` or ``RHO QTOTAL SL/ML``, see
+``erf.sum_interval`` in :ref:`Inputs <examples-of-usage-9>`). It weights each cell by
+:math:`\det J/(m_x m_y)` and masks the covered cells, so it is the quantity the discretization
+conserves on any mesh and with any refinement ratio. The two values must agree to 12
+significant digits in double precision and to 5 in single precision.
+
+That holds only if the reflux at the coarse/fine faces includes the diffusive fluxes, both the
+explicit ones and the implicit part of the vertical ones (erf-model/ERF#4323). Before that fix
+every one of these tests failed: the moisture integral changed by about 1e-3 relative, and the
+scalar integral by 1e-4 to 3e-4 (2e-8 with Smagorinsky diffusion alone).
+
+The four ``Conservation_MoistDiffusion_*`` tests run 100 steps of the ``MoistDiffusion_ImplicitCF``
+deck, whose patch has a coarse/fine face normal to z, and check the total moisture.
+``Implicit``, ``ImplicitStretched`` and ``ImplicitTerrain`` diffuse it with the implicit vertical
+solve in every RK stage, on a flat mesh, a stretched mesh (``erf.initial_dz = 0.4``) and a
+terrain-fitted one (``erf.terrain_type = StaticFittedMesh``). ``Explicit`` diffuses it
+explicitly (``erf.vert_implicit = false``, ``erf.alpha_C = 0.4``).
+
+The ``Conservation_ScalarDiffusion_*`` and ``Conservation_ScalarAdvection_*`` tests run the
+``ScalarDiffusion_Reflux`` deck: a scalar blob diffusing for 50 steps through a patch over the
+middle half of the domain in x and y and the lower half in z, so through faces normal to all
+three directions. ``Flat`` runs it as it stands. ``Terrain`` uses a terrain-fitted mesh over flat
+terrain and ``Hill`` one over a hill (a radial Witch of Agnesi, 0.25 high, half-width 0.15),
+``Stretched`` a stretched mesh (``erf.initial_dz = 0.025``), ``MapFactor`` map factors
+(``erf.test_mapfactor = true``), and ``Ratio221`` 2 x 2 x 1 refinement. ``Anelastic`` uses the
+anelastic MidPoint integrator, which refluxes its second RK stage rather than the third.
+``AnelasticRK2`` uses the anelastic RK2 integrator, whose update averages its two stages, so it
+refluxes half the fluxes of each; ``Conservation_ScalarAdvection_AnelasticRK2`` runs it with the
+scalar advected (``prob.U_0 = 10``, ``prob.V_0 = 5``) and not diffused. Until erf-model/ERF#4331
+was fixed the RK2 integrator refluxed its second stage alone, at full weight, and both RK2 tests
+failed: the scalar integral changed by 2.6e-6 relative with diffusion and 1.4e-5 with advection.
+``Smagorinsky`` advects the scalar with a sheared wind and diffuses it with Smagorinsky diffusion
+alone.
+
+Until erf-model/ERF#4330 was fixed the hill test failed even on one level: the scalar diffused
+through the bottom wall where the terrain slopes (5.9e-5 relative in this run).
+
+A Deardorff or k-equation TKE always dissipates, so the implicit diffusion of TKE is not tested
+here. It goes through the same functions as that of moisture.
+
+EB runs do not reflux diffusive fluxes, and ERF warns when two-way coupling is used with EB and
+diffusion.
+
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/ScalarDiffusion_Reflux`_
+
+.. _`Tests/test_files/ScalarDiffusion_Reflux`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion_Reflux
+
+Terrain Poisson operator at Neumann faces
+-----------------------------------------
+The ``TerrainPoisson_*`` tests (MPI builds, not Windows) check the anelastic projection on a
+terrain-fitted mesh where the terrain slopes at a Neumann face of the region being solved
+(:ref:`subsec:TerrainNeumannFaces`). The deck is a 100 m hill on 32 x 32 x 16 cells with one
+refined level (ratio 2 2 1) whose four coarse/fine faces lie on the hill's flanks; run on one
+level inside slip walls, the hill's slopes reach the walls instead. ERF prints the divergence
+before and after every solve (``erf.mg_v = 1``), and ``Tests/check_terrain_poisson_divergence.py``
+requires each solve on the checked level to leave no more than the constant that a singular
+solve cannot remove, within the solver tolerance. ``TerrainPoisson_TwoLevelHill`` checks the refined level and
+``TerrainPoisson_SlopingWalls`` the walled level: each leaves at most 1e-9, where the operator
+before erf-model/ERF#4279 (no zero-flux faces; development at 905623352) left up to 1.6e-2 and
+7.6e-4.
+``TerrainPoisson_TwoPatches`` refines two separate patches on the flanks, so that level 1 is
+solved as two regions (development stopped there with a segmentation fault).
+``TerrainPoisson_MapFactors`` and ``TerrainPoisson_MapFactors_Walls`` run the two decks with
+``erf.test_mapfactor`` (map factors 0.5 and 0.25), where the projection used to leave 75 % of
+the divergence after every solve.
+``TerrainPoisson_Hill_BoxParity`` (one box on one rank against split boxes) and
+``TerrainPoisson_Hill_Restart`` check the decomposition and a restart;
+``TerrainPoisson_DivergenceChecker_SelfTest`` feeds the checker made-up logs on both sides of
+its limit. These runs need the FFT build; the self-test does not.
+
+The same checks run with ``erf.terrain_poisson_solver = mlmg`` and ``gmres_mlmg``
+(:ref:`subsec:TerrainMLMG`), which need no FFT and so run in every MPI build:
+``TerrainPoisson_TwoLevelHill_{mlmg,gmres_mlmg}``, ``TerrainPoisson_SlopingWalls_{mlmg,gmres_mlmg}``,
+``TerrainPoisson_TwoPatches_mlmg``, ``TerrainPoisson_MapFactors_mlmg``,
+``TerrainPoisson_OutflowFace_{mlmg,gmres_mlmg}`` (an Outflow face, so a non-singular solve),
+``TerrainPoisson_OneCellStrip_{mlmg,gmres_mlmg}`` (one cell wide between a wall and an Outflow
+face over sloping terrain) and ``TerrainPoisson_PeriodicApart_mlmg`` (two patches at the two
+ends of a periodic direction that do not face each other) (at a solver
+tolerance of 1e-10, leaving at most 1.2e-11 on the checked level);
+``TerrainPoisson_Hill_BoxParity_MLMG`` and ``TerrainPoisson_Hill_Restart_MLMG``; and three start-up
+or first-solve aborts (an unknown solver, a refined region that is not a rectangle, refined
+patches meeting across a periodic boundary), and in double precision
+``TerrainPoisson_Abort_MLMGNotConverged`` (MLMG stops with a message naming the inputs to
+change). In FFT builds ``TerrainPoisson_Hill_SolverAgreement``,
+``TerrainPoisson_SlopingWalls_SolverAgreement`` and ``TerrainPoisson_OutflowFace_SolverAgreement``
+compare FFT-GMRES on one box with MLMG on split boxes, to 1e-8.
+
+Test Location: `Tests/test_files/TerrainPoisson_Hill`_
+
+.. _`Tests/test_files/TerrainPoisson_Hill`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TerrainPoisson_Hill
 
 Station time series
 -------------------

@@ -134,3 +134,38 @@ TEST(NoahMPResultPolicy, FluxSelectionUsesHfxGate)
     EXPECT_EQ(nonzero_hfx.tau_ew, tau_ew / density);
     EXPECT_EQ(nonzero_hfx.tau_ns, tau_ns / density);
 }
+
+// Motivation: a processed cell (valid HFX) must not pass on an invalid LH or
+// stress as a valid flux; each is rejected on its own, leaving the others.
+TEST(NoahMPResultPolicy, FluxSelectionChecksEachFlux)
+{
+    constexpr Real density = Real(2.0);
+    constexpr Real hfx = Real(10.0);
+    constexpr Real latent_heat_flux = Real(100.0);
+    constexpr Real tau_ew = Real(-4.0);
+    constexpr Real tau_ns = Real(6.0);
+    const noahmp_result_policy::CellPolicy policy(hfx);
+
+    for (const Real bad : {Real(-9999.0), undefined_value,
+                           std::numeric_limits<Real>::infinity(),
+                           std::numeric_limits<Real>::quiet_NaN()}) {
+        const auto bad_lh = policy.select_fluxes(
+            bad, tau_ew, tau_ns, density, Cp_d, L_v, undefined_value);
+        EXPECT_EQ(bad_lh.temperature, hfx / (density * Cp_d));
+        EXPECT_EQ(bad_lh.mixing_ratio, undefined_value);
+        EXPECT_EQ(bad_lh.tau_ew, tau_ew / density);
+        EXPECT_EQ(bad_lh.tau_ns, tau_ns / density);
+
+        const auto bad_ew = policy.select_fluxes(
+            latent_heat_flux, bad, tau_ns, density, Cp_d, L_v, undefined_value);
+        EXPECT_EQ(bad_ew.mixing_ratio, latent_heat_flux / (density * L_v));
+        EXPECT_EQ(bad_ew.tau_ew, undefined_value);
+        EXPECT_EQ(bad_ew.tau_ns, tau_ns / density);
+
+        const auto bad_ns = policy.select_fluxes(
+            latent_heat_flux, tau_ew, bad, density, Cp_d, L_v, undefined_value);
+        EXPECT_EQ(bad_ns.mixing_ratio, latent_heat_flux / (density * L_v));
+        EXPECT_EQ(bad_ns.tau_ew, tau_ew / density);
+        EXPECT_EQ(bad_ns.tau_ns, undefined_value);
+    }
+}

@@ -1103,3 +1103,34 @@ TEST(TwoStreamColumn, CloudFractionLiquidWaterTermIsAThreshold)
     // RH and qc terms add and saturate at 1
     EXPECT_NEAR(diagnose_cloud_fraction_from_rh_qc(0.9, 5.0e-4, 0.8, 1.0, 1.0e-3), 1.0, 1.0e-12);
 }
+
+// Motivation (erf-model/ERF#4456): the Magnus saturation vapour pressure
+// used T - b with T in kelvin where the Celsius form needs (T - T0) + b,
+// so e_sat was hundreds of times too large above freezing and RH clamped
+// to 1 for any moist cell. A parcel at half saturation must give RH = 0.5.
+// The reference e_sat over liquid water is Murphy and Koop (2005), eq. 10;
+// the Magnus fit agrees with it to better than 0.4 % over -20 to 30 C.
+TEST(TwoStreamColumn, RelativeHumidityOfAHalfSaturatedParcel)
+{
+    const amrex::Real P = 1.0e5;
+    const amrex::Real eps = 0.622;
+    // T [K], Murphy and Koop (2005) e_sat over liquid water [Pa]
+    const amrex::Real table[4][2] = {{253.15, 125.50}, {273.15, 611.21},
+                                     {293.15, 2339.40}, {303.15, 4246.81}};
+    for (const auto& row : table) {
+        const amrex::Real T = row[0];
+        const amrex::Real qsat = eps * row[1] / (P - row[1]);
+        EXPECT_NEAR(compute_relative_humidity(amrex::Real(0.5) * qsat, T, P), 0.5, 0.005)
+            << "T = " << T << " K";
+    }
+}
+
+// Once e_sat exceeds P/2 the saturation mixing ratio is capped at epsilon,
+// as erf_qsatw does. Here (27 C at 30 hPa) e_sat even exceeds P, where the
+// old form went negative and fell back to a tiny value that clamped RH to 1.
+TEST(TwoStreamColumn, RelativeHumidityStaysBoundedWhenSaturationPressureExceedsP)
+{
+    const amrex::Real qv = 0.01;
+    const amrex::Real rh = compute_relative_humidity(qv, 300.0, 3000.0);
+    EXPECT_NEAR(rh, qv / amrex::Real(0.622), 1.0e-5);
+}

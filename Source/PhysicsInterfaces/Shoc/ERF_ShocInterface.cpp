@@ -494,12 +494,11 @@ SHOCInterface::mf_to_kokkos_buffers ()
             pseudo_dens_d(icol,ilay) = r * CONST_GRAV * delz;
             // Enforce the grid spacing
             dz_d(icol,ilay) = delz;
-            // Surface geopotential
+            // Surface geopotential: the height of the ground under the column, the
+            // average of the four surface nodes (not the first cell centre)
             if (k==0) {
-                Real z = (z_arr) ? Real(0.125) * ( (z_arr(i  ,j  ,k+1) + z_arr(i  ,j  ,k))
-                                                 + (z_arr(i+1,j  ,k+1) + z_arr(i+1,j  ,k))
-                                                 + (z_arr(i  ,j+1,k+1) + z_arr(i  ,j+1,k))
-                                                 + (z_arr(i+1,j+1,k+1) + z_arr(i+1,j+1,k)) ) : ProbLoArr[2];
+                Real z = (z_arr) ? Real(0.25) * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
+                                                + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) ) : ProbLoArr[2];
                 phis_d(icol) = CONST_GRAV * z;
             }
 

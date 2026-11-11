@@ -16,6 +16,10 @@ amrex::Real compute_max_reflectivity_dbz (amrex::Real rho_air, amrex::Real tmk,
 {
     using namespace amrex;
 
+    // Negative mixing ratios contribute nothing; the fractional powers below would give NaN
+    qra = std::max(qra, Real(0.0));
+    qsn = std::max(qsn, Real(0.0));
+    qgr = std::max(qgr, Real(0.0));
 
     // ----------------------------------------------------------------
     // Constants

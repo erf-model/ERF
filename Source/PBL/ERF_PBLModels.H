@@ -1,6 +1,11 @@
 #ifndef ERF_PBLMODELS_H_
 #define ERF_PBLMODELS_H_
 
+#include <functional>
+#include <limits>
+#include <memory>
+
+#include <AMReX_MultiFab.H>
 #include <AMReX_Periodicity.H>
 #include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
@@ -194,7 +199,7 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
  * WRF Yonsei University (YSU) PBL scheme.
  *
  * Based on:
- *   Hong, Noh &amp; Dudhia (2006), MWR, https://doi.org/10.1175/MWR3250.1
+ *   Hong, Noh & Dudhia (2006), MWR, https://doi.org/10.1175/MWR3199.1
  *   Hong (2010), QJRMS, https://doi.org/10.1002/qj.665
  *
  * Features: three-pass bulk-Richardson PBLH diagnosis, nonlocal
@@ -276,6 +281,28 @@ struct PBLDerivativeDzInv
  * @param[out] dvdz computed vertical derivative of y-velocity
  * @param[in] moisture_indices moisture variable component indices
  */
+/**
+ * Thermodynamic variable whose vertical gradient the PBL schemes use for
+ * buoyancy, selected by erf.thermal_stratification.
+ *
+ * @param[in] strat stratification variable to return
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+GetPBLStratVar (int i, int j, int k,
+                const StratType strat,
+                const amrex::Array4<const amrex::Real>& cell_data,
+                const MoistureComponentIndices& moisture_indices)
+{
+    if (strat == StratType::theta) {
+        return cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
+    } else if (strat == StratType::thetal) {
+        return GetThetal(i,j,k,cell_data,moisture_indices);
+    }
+    return GetThetav(i,j,k,cell_data,moisture_indices);
+}
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
@@ -295,21 +322,22 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dthetadz,
                                amrex::Real& dudz,
                                amrex::Real& dvdz,
-                               const MoistureComponentIndices& moisture_indices)
+                               const MoistureComponentIndices& moisture_indices,
+                               const StratType strat = StratType::thetav)
 {
     // ext_dir ghost values hold the value at the physical boundary, which is
     // half a ghost-center spacing from the adjacent cell center. Use a
     // two-point, first-order boundary-to-center difference with inverse
     // distance 2/dz.
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = ( GetThetav(i,j,k+1,cell_data,moisture_indices)
-                    -GetThetav(i,j,k  ,cell_data,moisture_indices) )*dz_inv.dirichlet_hi;
+        dthetadz = ( GetPBLStratVar(i,j,k+1,strat,cell_data,moisture_indices)
+                    -GetPBLStratVar(i,j,k  ,strat,cell_data,moisture_indices) )*dz_inv.dirichlet_hi;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
-        dthetadz = ( GetThetav(i,j,k  ,cell_data,moisture_indices)
-                    -GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv.dirichlet_lo;
+        dthetadz = ( GetPBLStratVar(i,j,k  ,strat,cell_data,moisture_indices)
+                    -GetPBLStratVar(i,j,k-1,strat,cell_data,moisture_indices) )*dz_inv.dirichlet_lo;
     } else {
-        dthetadz = ( GetThetav(i,j,k+1,cell_data,moisture_indices)
-                    -GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv.interior;
+        dthetadz = ( GetPBLStratVar(i,j,k+1,strat,cell_data,moisture_indices)
+                    -GetPBLStratVar(i,j,k-1,strat,cell_data,moisture_indices) )*dz_inv.interior;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {
@@ -345,6 +373,7 @@ struct PBLSurfaceLayerGradient
     amrex::Real tstar_v {zero};  ///< virtual temperature scale
     amrex::Real zval    {zero};  ///< height of the cell center above the surface
     amrex::Real zeta    {zero};  ///< stability coordinate z/L
+    similarity_funs sfuns{};     ///< the surface layer's similarity functions (most.stable_functions)
 };
 
 /**
@@ -402,7 +431,7 @@ ApplySurfaceLayerGradientsPBL (const PBLSurfaceLayerGradient& sl,
                                amrex::Real& dudz,
                                amrex::Real& dvdz)
 {
-    const similarity_funs sfuns{};
+    const similarity_funs& sfuns = sl.sfuns;
     const amrex::Real inv_kappa_z = one / (KAPPA * sl.zval);
     dudz     = sl.u_star  * sfuns.calc_phi_m(sl.zeta) * inv_kappa_z;
     dvdz     = zero;
@@ -427,6 +456,7 @@ ApplySurfaceLayerGradientsPBL (const PBLSurfaceLayerGradient& sl,
  * @param[in] hfx_z rho<w'theta'> on z-faces; the surface-layer heat flux at the zlo face
  * @param[in] qfx1_z rho<w'qv'> on z-faces; the surface-layer moisture flux at the zlo face
  * @param[in] surface_layer_on_zlo a SurfaceLayer supplies the fluxes through the zlo face
+ * @param[in] sfuns similarity functions of the surface layer on the zlo face (most.stable_functions)
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -452,7 +482,8 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& tau23,
                        const amrex::Array4<const amrex::Real>& hfx_z,
                        const amrex::Array4<const amrex::Real>& qfx1_z,
-                       bool surface_layer_on_zlo)
+                       bool surface_layer_on_zlo,
+                       const similarity_funs& sfuns)
 {
     amrex::Real source_term = zero;
 
@@ -524,8 +555,7 @@ ComputeQKESourceTerms (int i, int j, int k,
             zeta = z1 / l_obukhov;
         }
 
-        // phi_m, the companion of the psi_m that SurfaceLayer uses
-        const similarity_funs sfuns{};
+        // phi_m, the companion of the psi_m that SurfaceLayer uses (sfuns: most.stable_functions)
         const amrex::Real phi_m = sfuns.calc_phi_m(zeta);
 
         // ---- Production terms, at the cell center ----
@@ -744,6 +774,69 @@ ApplyPBLHSmoothing (amrex::FArrayBox& pblh_fab,
         // the previous pass, which no later pass reads.
         pblh_fab.copy<amrex::RunOn::Device>(pblh_temp, bx, 0, bx, 0, 1);
     }
+}
+
+
+/**
+ * Copy of a field read by the PBLH passes, widened to `ng` horizontal ghost cells.
+ *
+ * With erf.pblh_smoothing_passes = n the PBLH passes read their inputs n columns outside
+ * the tile (see ApplyPBLHSmoothing), but some of those inputs carry fewer ghost cells: the
+ * surface-layer fields have one on the bottom surface. The PBL schemes read such fields
+ * from a copy made here instead.
+ *
+ * The valid cells and the field's own ghost cells are copied unchanged, so a run that
+ * needs no more halo than the field has gives the same answer as reading the field
+ * itself. `fill` then fills the new ghost cells that a box of the level covers, inside
+ * the domain or across a periodic edge, the same way the field's owner fills its own
+ * (for a surface-layer field, SurfaceLayer::fill_planar_boundary). Ghost cells no box
+ * covers -- outside a non-periodic domain edge, or next to a coarser level -- take the
+ * value of the nearest cell of the field's original halo. The smoothing never reads a
+ * column outside a non-periodic edge; next to a coarser level this is a zeroth-order
+ * extrapolation of the surface scales, while the state there is the interpolated one.
+ *
+ * @param[in] src   Field to widen
+ * @param[in] ng    Ghost cells wanted in x and y; z keeps those of src
+ * @param[in] fill  Callable taking the widened MultiFab& and filling its ghost cells
+ *                  from the valid cells of the other boxes of the level
+ *
+ * `fill` is a std::function, not a template parameter: nvcc does not accept the device
+ * lambda below inside a function template instantiated with a lambda local to the caller.
+ */
+inline std::unique_ptr<amrex::MultiFab>
+WidenForPBLH (const amrex::MultiFab& src, const int ng,
+              const std::function<void(amrex::MultiFab&)>& fill)
+{
+    const amrex::IntVect ng_src = src.nGrowVect();
+    const amrex::IntVect ng_dst(ng, ng, ng_src[2]);
+    const int ncomp = src.nComp();
+
+    // A value no field holds, marking the cells nothing below fills
+    constexpr amrex::Real unset = std::numeric_limits<amrex::Real>::max();
+
+    auto dst = std::make_unique<amrex::MultiFab>(src.boxArray(), src.DistributionMap(),
+                                                 ncomp, ng_dst);
+    dst->setVal(unset);
+    amrex::MultiFab::Copy(*dst, src, 0, 0, ncomp, ng_src);
+    fill(*dst);
+
+    for (amrex::MFIter mfi(*dst); mfi.isValid(); ++mfi) {
+        // The cells holding src's own data; never written below, so they can be read
+        const amrex::Box have = amrex::grow(mfi.validbox(), ng_src);
+        const auto lo = amrex::lbound(have);
+        const auto hi = amrex::ubound(have);
+        auto a = dst->array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (have.contains(i, j, k)) { return; }
+            const int ic = amrex::min(amrex::max(i, lo.x), hi.x);
+            const int jc = amrex::min(amrex::max(j, lo.y), hi.y);
+            for (int n = 0; n < ncomp; ++n) {
+                if (a(i, j, k, n) == unset) { a(i, j, k, n) = a(ic, jc, k, n); }
+            }
+        });
+    }
+    return dst;
 }
 
 #endif

@@ -6,6 +6,8 @@
     auto prob_lo = geom.ProbLoArray();
     auto prob_hi = geom.ProbHiArray();
     auto dx = geom.CellSizeArray();
+    // On a mesh other than ConstantDz, take the heights from the levels, not from dx[2]
+    const bool use_z_phys = use_physical_z();
 
     // Define a point (xc,yc,zc) at the center of the domain
     auto xc = myhalf * (prob_lo[0] + prob_hi[0]);
@@ -23,7 +25,7 @@
             {
                 auto x = prob_lo[0] + (i + myhalf) * dx[0];
                 auto y = prob_lo[1] + (j + myhalf) * dx[1];
-                auto z = prob_lo[2] + (k + myhalf) * dx[2];
+                auto z = use_z_phys ? d_zlevels_arr[k] : (k + myhalf) * dx[2];
 
                 //const Real c = two*dx[0];
                 auto c = amrex::Real(1700.0)*amrex::Real(1700.0);

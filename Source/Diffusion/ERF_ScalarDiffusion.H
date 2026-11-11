@@ -9,6 +9,7 @@
 #include "ERF_DiffStruct.H"
 #include "ERF_NumericalConstants.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_TerrainImplicitMetric.H"
 
 /**
  * Coefficients and state-layout mapping at the native ERF adapter boundary.
@@ -1287,7 +1288,8 @@ BuildScalarDiffusionMappedTransfers_T (
   const amrex::Array4<const amrex::Real>& mf_uy,
   const amrex::Array4<const amrex::Real>& mf_my,
   const amrex::Array4<const amrex::Real>& mf_vx,
-  const bool suppress_lower_surface_z_transfer)
+  const bool suppress_lower_surface_z_transfer,
+  const bool suppress_upper_z_transfer = false)
 {
   const amrex::Box xbx = amrex::surroundingNodes(bx, 0);
   const amrex::Box ybx = amrex::surroundingNodes(bx, 1);
@@ -1297,8 +1299,9 @@ BuildScalarDiffusionMappedTransfers_T (
   const amrex::Array4<const amrex::Real> zflux(raw_z);
   amrex::ParallelFor(
     zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      const bool suppress = suppress_lower_surface_z_transfer &&
-                            k == domain.smallEnd(2);
+      const bool suppress =
+        (suppress_lower_surface_z_transfer && k == domain.smallEnd(2)) ||
+        (suppress_upper_z_transfer && k == domain.bigEnd(2) + 1);
       mapped_z(i, j, k, mapped_z_comp) =
         TerrainScalarDiffusionMappedTransferAtKFace(
           i, j, k, domain, xflux, yflux, zflux, raw_flux_comp, z_nd,
@@ -1373,10 +1376,12 @@ ApplyScalarDiffusionMappedDivergence_T (
   const amrex::Array4<const amrex::Real>& mf_uy,
   const amrex::Array4<const amrex::Real>& mf_my,
   const amrex::Array4<const amrex::Real>& mf_vx,
-  const bool suppress_lower_surface_z_flux)
+  const bool suppress_lower_z_flux,
+  const bool suppress_upper_z_flux)
 {
   using namespace amrex;
   const auto dom_lo = lbound(domain);
+  const auto dom_hi = ubound(domain);
   const Real dx_inv = cellSizeInv[0];
   const Real dy_inv = cellSizeInv[1];
   const Real dz_inv = cellSizeInv[2];
@@ -1396,14 +1401,16 @@ ApplyScalarDiffusionMappedDivergence_T (
       yflux(i, j, k, flux_comp), ay(i, j, k), mf_vx(i, j, 0));
     const Real mapped_Fy_hi = TerrainDiffusionMappedTy(
       yflux(i, j + 1, k, flux_comp), ay(i, j + 1, k), mf_vx(i, j + 1, 0));
-    const Real Gz_lo = (suppress_lower_surface_z_flux && k == dom_lo.z)
+    const Real Gz_lo = (suppress_lower_z_flux && k == dom_lo.z)
                          ? Real(0.0)
                          : TerrainScalarDiffusionGzAtKFace(
                              i, j, k, domain, xflux, yflux, zflux, flux_comp,
                              z_nd, cellSizeInv, mf_mx, mf_my);
-    const Real Gz_hi = TerrainScalarDiffusionGzAtKFace(
-      i, j, k + 1, domain, xflux, yflux, zflux, flux_comp, z_nd, cellSizeInv,
-      mf_mx, mf_my);
+    const Real Gz_hi = (suppress_upper_z_flux && k == dom_hi.z)
+                         ? Real(0.0)
+                         : TerrainScalarDiffusionGzAtKFace(
+                             i, j, k + 1, domain, xflux, yflux, zflux, flux_comp,
+                             z_nd, cellSizeInv, mf_mx, mf_my);
     const Real mfsq = mf_mx(i, j, 0) * mf_my(i, j, 0);
     const Real stateContrib = TerrainDiffusionDivergence_T(
       mapped_Fx_hi, mapped_Fx_lo, mapped_Fy_hi, mapped_Fy_lo, Gz_hi, Gz_lo,
@@ -1473,6 +1480,85 @@ ApplyScalarDiffusionFluxDivergence_S (
   });
 }
 
+/**
+ * erf.implicit_terrain_metric: the implicit vertical solve also takes the compact
+ * terrain-metric flux -K_h M_s dphi/dz (ERF_TerrainImplicitMetric.H) on the interior
+ * zeta faces, so add implicit_fac * K_h M_s dphi/dz to the explicit raw F_z there.  K_h
+ * is the horizontal coefficient of the x/y fluxes, averaged to the z face; the bottom and
+ * top faces, which carry the boundary condition, are left alone.
+ */
+template <bool MultiplyMolecularByDensity, bool AddTurbulence>
+inline void
+SubtractTerrainMetricImplicitPart_T_Impl (
+  const amrex::Box& zbx,
+  const amrex::Box& domain,
+  const ScalarDiffusionFieldViews& field,
+  const ScalarDiffusionCoefficients& coefficients,
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Real implicit_fac)
+{
+  using namespace amrex;
+  const int dom_klo = domain.smallEnd(2);
+  const int dom_khi = domain.bigEnd(2);
+  const auto scalar = field.scalar;
+  const auto density = field.density;
+  const auto mu_turb = field.mu_turb;
+  const auto zflux = field.zflux;
+  const int scalar_comp = field.scalar_comp;
+  const int rho_comp = field.rho_comp;
+  const int flux_comp = field.flux_comp;
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    if (!TerrainMetricImplicitFace(k, dom_klo, dom_khi)) { return; }
+    const Real kh = ScalarDiffusionFaceCoefficient<
+      MultiplyMolecularByDensity, AddTurbulence>(
+      density, rho_comp, mu_turb, coefficients, i, j, k, 0, 0, 1,
+      coefficients.eddy_h_comp);
+    const Real h_zeta = Compute_h_zeta_AtKface(i, j, k, cellSizeInv, z_nd);
+    const Real grad_z = (cellSizeInv[2] / h_zeta) *
+      (scalar(i, j, k, scalar_comp) - scalar(i, j, k - 1, scalar_comp));
+    const Real metric = TerrainMetricScalarFactor(
+      Compute_h_xi_AtKface(i, j, k, cellSizeInv, z_nd),
+      Compute_h_eta_AtKface(i, j, k, cellSizeInv, z_nd),
+      mf_mx(i, j, 0), mf_my(i, j, 0));
+    zflux(i, j, k, flux_comp) += implicit_fac * kh * metric * grad_z;
+  });
+}
+
+/** Dispatch SubtractTerrainMetricImplicitPart_T_Impl on the coefficient mode. */
+inline void
+SubtractTerrainMetricImplicitPart_T (
+  const amrex::Box& bx,
+  const amrex::Box& domain,
+  const ScalarDiffusionFieldViews& field,
+  const ScalarDiffusionFluxPolicy& policy,
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Real implicit_fac)
+{
+  const amrex::Box zbx = amrex::surroundingNodes(bx, 2);
+  const auto mode = policy.coefficient_mode;
+  if (mode.molecular_is_kinematic) {
+    if (mode.add_turbulence) {
+      SubtractTerrainMetricImplicitPart_T_Impl<true, true>(
+        zbx, domain, field, policy.coefficients, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
+    } else {
+      SubtractTerrainMetricImplicitPart_T_Impl<true, false>(
+        zbx, domain, field, policy.coefficients, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
+    }
+  } else if (mode.add_turbulence) {
+    SubtractTerrainMetricImplicitPart_T_Impl<false, true>(
+      zbx, domain, field, policy.coefficients, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
+  } else {
+    SubtractTerrainMetricImplicitPart_T_Impl<false, false>(
+      zbx, domain, field, policy.coefficients, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
+  }
+}
+
 /** Scale only raw F_z for the explicit integration fraction. */
 inline void
 ScaleScalarDiffusionVerticalFlux (
@@ -1484,6 +1570,128 @@ ScaleScalarDiffusionVerticalFlux (
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     raw_Fz(i, j, k, flux_comp) *= explicit_fac;
   });
+}
+
+
+/**
+ * Face views into which the diffusive fluxes of each component are accumulated for refluxing,
+ * indexed by state component, in the convention of the advective fluxes the flux registers
+ * hold: a state update of -(m_x m_y / detJ) div F.  Null when nothing is refluxed.
+ */
+using ScalarDiffusionRefluxViews = amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>;
+
+/**
+ * Add the diffusive face fluxes of one component on a flat mesh to the reflux face views.
+ * ApplyScalarDiffusionFluxDivergence_N applies -(m^2 (dFx/dx + dFy/dy) + dFz/dz), so in the
+ * advective convention the fluxes are Fx, Fy and Fz / m^2 (m^2 is per column, so it is the
+ * same on both sides of a z face).
+ */
+inline void
+AddScalarDiffusionRefluxFluxes_N (
+  const amrex::Box& bx,
+  const amrex::Array4<const amrex::Real>& xflux,
+  const amrex::Array4<const amrex::Real>& yflux,
+  const amrex::Array4<const amrex::Real>& zflux,
+  const int flux_comp,
+  const ScalarDiffusionRefluxViews& reflux,
+  const int state_comp,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my)
+{
+  amrex::ParallelFor(amrex::surroundingNodes(bx, 0), amrex::surroundingNodes(bx, 1),
+                     amrex::surroundingNodes(bx, 2),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[0](i, j, k, state_comp) += xflux(i, j, k, flux_comp);
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[1](i, j, k, state_comp) += yflux(i, j, k, flux_comp);
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[2](i, j, k, state_comp) += zflux(i, j, k, flux_comp) / (mf_mx(i, j, 0) * mf_my(i, j, 0));
+    });
+}
+
+/**
+ * As AddScalarDiffusionRefluxFluxes_N, on a vertically stretched mesh: there detJ = dz[k] / dz,
+ * and ApplyScalarDiffusionFluxDivergence_S applies -(m^2 (dFx/dx + dFy/dy) + dFz/dz[k]), so the
+ * fluxes are detJ Fx, detJ Fy and Fz / m^2.
+ */
+inline void
+AddScalarDiffusionRefluxFluxes_S (
+  const amrex::Box& bx,
+  const amrex::Array4<const amrex::Real>& xflux,
+  const amrex::Array4<const amrex::Real>& yflux,
+  const amrex::Array4<const amrex::Real>& zflux,
+  const int flux_comp,
+  const ScalarDiffusionRefluxViews& reflux,
+  const int state_comp,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Real* dz,
+  const amrex::Real dz_inv)
+{
+  amrex::ParallelFor(amrex::surroundingNodes(bx, 0), amrex::surroundingNodes(bx, 1),
+                     amrex::surroundingNodes(bx, 2),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[0](i, j, k, state_comp) += dz[k] * dz_inv * xflux(i, j, k, flux_comp);
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[1](i, j, k, state_comp) += dz[k] * dz_inv * yflux(i, j, k, flux_comp);
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[2](i, j, k, state_comp) += zflux(i, j, k, flux_comp) / (mf_mx(i, j, 0) * mf_my(i, j, 0));
+    });
+}
+
+/**
+ * As AddScalarDiffusionRefluxFluxes_N, on a terrain-following mesh:
+ * ApplyScalarDiffusionMappedDivergence_T applies -(1/detJ)(m^2 (dTx/dx + dTy/dy) + dGz/dzeta)
+ * with the mapped transfers Tx, Ty and the vertical transfer Gz, so the fluxes are Tx, Ty and
+ * Gz / m^2.  suppress_lower_z_flux and suppress_upper_z_flux must be what that divergence was
+ * given.
+ */
+inline void
+AddScalarDiffusionRefluxFluxes_T (
+  const amrex::Box& bx,
+  const amrex::Box& domain,
+  const amrex::Array4<const amrex::Real>& xflux,
+  const amrex::Array4<const amrex::Real>& yflux,
+  const amrex::Array4<const amrex::Real>& zflux,
+  const int flux_comp,
+  const ScalarDiffusionRefluxViews& reflux,
+  const int state_comp,
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const amrex::Array4<const amrex::Real>& ax,
+  const amrex::Array4<const amrex::Real>& ay,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Array4<const amrex::Real>& mf_uy,
+  const amrex::Array4<const amrex::Real>& mf_vx,
+  const bool suppress_lower_z_flux,
+  const bool suppress_upper_z_flux)
+{
+  const int dom_klo = domain.smallEnd(2);
+  const int dom_khi = domain.bigEnd(2);
+  amrex::ParallelFor(amrex::surroundingNodes(bx, 0), amrex::surroundingNodes(bx, 1),
+                     amrex::surroundingNodes(bx, 2),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[0](i, j, k, state_comp) +=
+        TerrainDiffusionMappedTx(xflux(i, j, k, flux_comp), ax(i, j, k), mf_uy(i, j, 0));
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[1](i, j, k, state_comp) +=
+        TerrainDiffusionMappedTy(yflux(i, j, k, flux_comp), ay(i, j, k), mf_vx(i, j, 0));
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      const amrex::Real Gz = ((suppress_lower_z_flux && k == dom_klo) ||
+                              (suppress_upper_z_flux && k == dom_khi + 1))
+                           ? amrex::Real(0.0)
+                           : TerrainScalarDiffusionGzAtKFace(i, j, k, domain, xflux, yflux, zflux,
+                                                             flux_comp, z_nd, cellSizeInv,
+                                                             mf_mx, mf_my);
+      reflux[2](i, j, k, state_comp) += Gz / (mf_mx(i, j, 0) * mf_my(i, j, 0));
+    });
 }
 
 #endif // ERF_SCALAR_DIFFUSION_H_

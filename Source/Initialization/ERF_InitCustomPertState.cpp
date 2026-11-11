@@ -42,6 +42,52 @@ ERF::init_custom (int lev)
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
 
+    //
+    // The height of the ground under every column, for the problems that measure depths
+    //    (e.g. prob.pert_ref_height) from it: z_phys_nd at the nodes of the bottom face, over the
+    //    planar footprint of each box of this level.  A box that does not reach the ground (the
+    //    grids are split in z) takes it from the box below it.  Where no box of this level
+    //    reaches the ground (a refined region aloft) it is the bottom of the domain.  Under EB,
+    //    z_cc is measured from the EB surface, so the ground is at zero there.
+    //
+    const BoxArray& ba = lev_new[Vars::cons].boxArray();
+    const DistributionMapping& dm = lev_new[Vars::cons].DistributionMap();
+    const int klo = geom[lev].Domain().smallEnd(2);
+
+    BoxList bl_sfc(IndexType::TheNodeType());
+    BoxList bl_gnd(IndexType::TheNodeType());
+    Vector<int> pmap_gnd;
+    Vector<int> ib_gnd;
+    for (int ib = 0; ib < ba.size(); ++ib) {
+        Box b = amrex::surroundingNodes(ba[ib]);
+        b.setRange(2, klo);
+        bl_sfc.push_back(b);
+        if (ba[ib].smallEnd(2) == klo) {
+            bl_gnd.push_back(b);
+            pmap_gnd.push_back(dm[ib]);
+            ib_gnd.push_back(ib);
+        }
+    }
+
+    MultiFab z_sfc_loc(BoxArray(std::move(bl_sfc)), dm, 1, 0);
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        z_sfc_loc.setVal(zero);
+    } else {
+        z_sfc_loc.setVal(zlevels_stag[lev][0]);
+        if (!bl_gnd.isEmpty()) {
+            MultiFab z_gnd(BoxArray(std::move(bl_gnd)), DistributionMapping(std::move(pmap_gnd)), 1, 0);
+            for (MFIter mfi(z_gnd); mfi.isValid(); ++mfi) {
+                const Array4<Real const> z_nd = z_phys_nd[lev]->const_array(ib_gnd[mfi.index()]);
+                const Array4<Real      > zg   = z_gnd.array(mfi);
+                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    zg(i,j,k) = z_nd(i,j,k);
+                });
+            }
+            z_sfc_loc.ParallelCopy(z_gnd);
+        }
+    }
+
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -61,6 +107,7 @@ ERF::init_custom (int lev)
         Array4<Real const> cons_arr = lev_new[Vars::cons].const_array(mfi);
         Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
+        Array4<Real const> z_sfc_arr = z_sfc_loc.const_array(mfi.index());
 
         // Here we arbitrarily choose the x-oriented map factor -- this should be generalized
         Array4<Real const> mf_m     = mapfac[lev][MapFacType::m_x]->const_array(mfi);
@@ -71,11 +118,11 @@ ERF::init_custom (int lev)
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
         prob->init_custom_pert(bx, cons_arr, cons_pert_arr,
-                               r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
+                               r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr, z_sfc_arr,
                                geom[lev].data(), mf_m, solverChoice, lev);
         prob->init_custom_pert_vels(xbx, ybx, zbx,
                                     xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
-                                    z_nd_arr, geom[lev].data(), mf_u, mf_v,
+                                    z_nd_arr, z_sfc_arr, geom[lev].data(), mf_u, mf_v,
                                     solverChoice, lev);
 
         // Zero out perturbations in covered cells in EB
@@ -163,5 +210,45 @@ ERF::init_custom (int lev)
         apply_gaussian_smoothing_to_perturbations(lev, mf_cc_pert);
         //WriteSingleLevelPlotfile("plt_pert_correlated_gaussian", mf_cc_pert, varnames, geom[lev], zero, 0);
         create_background_state_for_ensemble(lev, mf_cc_pert, lev_new[Vars::cons], lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::zvel]);
+    }
+}
+
+/**
+ * Make the initial state of a pseudo-incompressible level satisfy rho theta = rho0 theta0,
+ * the state in which the pressure equals the base-state pressure p0 and which the constraint
+ * div(rho0 theta0 u) = 0 maintains: rho is set to rho0 theta0 / theta at each cell, with theta
+ * = (rho theta) / rho, and every other conserved variable is rescaled with rho so that the
+ * mixing ratios (theta, scalars, moisture, ...) are unchanged.  Applied on the valid and ghost
+ * cells, which hold the state and its boundary values pointwise.
+ *
+ * @param lev Level index
+ */
+void
+ERF::make_pseudo_incompressible_initial_state (int lev)
+{
+    BL_PROFILE("ERF::make_pseudo_incompressible_initial_state()");
+    MultiFab& cons = vars_new[lev][Vars::cons];
+    const int ncomp = cons.nComp();
+    const IntVect ng = amrex::min(cons.nGrowVect(), base_state[lev].nGrowVect());
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.growntilebox(ng);
+        const Array4<Real      >& s  = cons.array(mfi);
+        const Array4<Real const>& b0 = base_state[lev].const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rho = s(i,j,k,Rho_comp);
+            if (rho <= zero) { return; }
+            const Real rho_new = b0(i,j,k,BaseState::r0_comp) * b0(i,j,k,BaseState::th0_comp)
+                               * rho / s(i,j,k,RhoTheta_comp);
+            const Real fac = rho_new / rho;
+            for (int n = 0; n < ncomp; ++n) {
+                s(i,j,k,n) *= fac;
+            }
+        });
     }
 }

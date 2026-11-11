@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string>
 
 //
 // Placing a point given by latitude and longitude on the model grid.
@@ -129,6 +130,15 @@ LatLonStatus locate_latlon_on_grid (const amrex::Array4<const amrex::Real>& ll,
                                     amrex::Real req_lat, amrex::Real req_lon,
                                     LatLonLocation& loc);
 
+//
+// The grid orientation at every mass point of one level: cos_alpha and sin_alpha
+// (2D, one component, on the level's ba2d/dmap) from that level's lat and lon,
+// which may be on any layout of the same 2D domain.  Collective.
+//
+void fill_grid_rotation (amrex::MultiFab& cos_alpha, amrex::MultiFab& sin_alpha,
+                         const amrex::MultiFab& lat, const amrex::MultiFab& lon,
+                         const amrex::Geometry& geom);
+
 // Copy lat and lon (2D, one component each) into the two components of latlon,
 // all three on the same BoxArray and DistributionMapping
 void pack_latlon (amrex::MultiFab& latlon, const amrex::MultiFab& lat, const amrex::MultiFab& lon);
@@ -149,6 +159,11 @@ public:
 
     // Place a latitude/longitude on the grid
     LatLonStatus locate (amrex::Real req_lat, amrex::Real req_lon, LatLonLocation& loc) const;
+
+    // Place a latitude/longitude on the grid, and abort, naming it as what, when it cannot
+    // be inverted or is outside the domain.  Collective, like locate.
+    LatLonLocation locate_or_abort (amrex::Real req_lat, amrex::Real req_lon,
+                                    const std::string& what) const;
 
     // Orientation of the grid at domain coordinates (x, y), from the cell that contains it
     void rotation_at (amrex::Real x, amrex::Real y,

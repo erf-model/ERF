@@ -70,17 +70,18 @@ ERF::init_from_metgrid (int lev)
         Print() << "Init with met_em without moisture model." << std::endl;
     }
 
-    // Check for an erfbdy file.
-    if (lev == 0 && !write_erfbdy) {
+    // The boundary data come from an erfbdy file when this run writes one -- it then keeps
+    // only the first two times in memory and reads the others back as they are needed --
+    // or when there is one to read.  Otherwise every time stays in memory from the met_em
+    // files, and no boundary file is read during the run.
+    if (lev == 0) {
         std::string erfbdy_header = erfbdy_file + "/Header";
-        use_erfbdy = FileSystem::Exists(erfbdy_header);
+        use_erfbdy = write_erfbdy || FileSystem::Exists(erfbdy_header);
     }
     // Set nvars_erfbdy based on whether moisture is enabled
-    if (use_erfbdy || write_erfbdy) {
+    if (use_erfbdy) {
         nvars_erfbdy = use_moisture ? MetGridBdyVars::NumTypes : (MetGridBdyVars::NumTypes - 1);
     }
-
-    use_erfbdy = true;
 
     int ntimes = num_files_at_level[lev];
     Print() << ntimes << " met_em.d0" << lev+1 << "*.nc files are listed" << std::endl;
@@ -104,6 +105,11 @@ ERF::init_from_metgrid (int lev)
     // Odd behavior can occur if not using the surface and also omitting some near-surface levels.
     if (metgrid_force_sfc_k > 0)
         AMREX_ALWAYS_ASSERT(metgrid_use_sfc);
+
+    // The surface is used through metgrid_force_sfc_k ERF levels, so it must be one of them
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(metgrid_force_sfc_k >= 0 &&
+                                     metgrid_force_sfc_k <= geom[lev].Domain().length(2),
+        "erf.metgrid_force_sfc_k must be in [0, number of ERF vertical levels]");
 
     // Base state parameters from WRF and the layer interfaces derived from them.
     BaseStateParams bsp;
@@ -368,7 +374,7 @@ ERF::init_from_metgrid (int lev)
             // check and still yield a degenerate or inverted first layer.  Since
             // reconstruction is the default here, check now rather than letting a
             // bad Jacobian propagate.  This mirrors the check that
-            // init_terrain_from_wrfinput does on its reconstructed levels.
+            // init_from_wrfinput makes on the mesh it builds.
             {
                 Print() << "Verifying grid integrity" << std::endl;
 
@@ -751,6 +757,11 @@ ERF::init_from_metgrid (int lev)
         } // lev==0
 
     } // itime
+
+    // SLM's land state, from this level's own met_em file
+    if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+        init_lsm_from_metgrid(lev, nc_init_file[lev][0], NC_dateTime[0]);
+    }
 
     // FillBoundary to populate the internal halo cells
      r_hse.FillBoundary(geom[lev].periodicity());

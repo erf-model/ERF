@@ -32,7 +32,7 @@ private:
    /**
     * \brief Integrator timestep size (Real)
     */
-    double timestep;
+    double timestep = 0.0;
 
    /**
     * \brief The ratio of slow timestep size / fast timestep size (int)
@@ -40,29 +40,30 @@ private:
     int slow_fast_timestep_ratio = 0;
 
    /**
-    * \brief Should we not do acoustic substepping
+    * \brief Should we not do acoustic substepping (-1 until setNoSubstepping is called)
     */
-    int no_substepping;
+    int no_substepping = -1;
 
    /**
-    * \brief Should we use the anelastic integrator
+    * \brief Should we use the anelastic integrator (-1 until setAnelastic is called)
     */
-    int anelastic;
+    int anelastic = -1;
 
     /**
-    * \brief Which two-stage scheme the anelastic integrator uses
+    * \brief Which two-stage scheme the anelastic integrator uses (RK2 or MidPoint)
     */
-    AnelasticType anelastic_type = AnelasticType::RK2;
+    TimesteppingType timestepping_type = TimesteppingType::RK2;
 
    /**
-    * \brief How many components in the cell-centered MultiFab
+    * \brief How many components in the cell-centered MultiFab (-1 until setNcompCons is called)
     */
-    int ncomp_cons;
+    int ncomp_cons = -1;
 
    /**
     * \brief Do we follow the recommendation to only perform a single substep in the first RK stage
+    *        (-1 until setForceFirstStageSingleSubstep is called)
     */
-    int force_stage1_single_substep;
+    int force_stage1_single_substep = -1;
 
    /**
     * \brief The no_substep function is called when we have no acoustic substepping
@@ -71,8 +72,8 @@ private:
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
-    T* S_sum;
-    T* F_slow;
+    T* S_sum = nullptr;
+    T* F_slow = nullptr;
 
     /**
      * @brief Allocate internal storage for integrator variables.
@@ -83,6 +84,9 @@ private:
         // TODO: We can optimize memory by making the cell-centered part of S_sum
         //       have only 2 components, not ncomp_cons components
         const bool include_ghost = true;
+        // CreateLike appends to T_store, so drop any storage from a previous
+        // initialization before S_sum and F_slow are taken from entries 0 and 1
+        T_store.clear();
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         S_sum = T_store[0].get();
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
@@ -147,12 +151,12 @@ public:
     }
 
     /**
-     * @brief Set which two-stage scheme the anelastic integrator uses.
-     * @param[in] _anelastic_type AnelasticType::RK2 or AnelasticType::MidPoint.
+     * @brief Set the level's time integrator; the anelastic integrator uses RK2 or MidPoint.
+     * @param[in] _timestepping_type The level's TimesteppingType.
      */
-    void setAnelasticType (AnelasticType _anelastic_type = AnelasticType::RK2)
+    void setTimesteppingType (TimesteppingType _timestepping_type = TimesteppingType::RK2)
     {
-        anelastic_type = _anelastic_type;
+        timestepping_type = _timestepping_type;
     }
 
     /**
@@ -252,6 +256,13 @@ public:
         // no_substepping:  we don't do any acoustic subcycling so we only make one call per RK
         //                  stage to slow_rhs
         // *******************************************************************************
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(no_substepping >= 0 && anelastic >= 0 &&
+                                         force_stage1_single_substep >= 0 && ncomp_cons > 0,
+            "MRISplitIntegrator::advance: setNoSubstepping, setAnelastic, "
+            "setForceFirstStageSingleSubstep and setNcompCons must be called before advance");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(S_sum != nullptr && F_slow != nullptr,
+            "MRISplitIntegrator::advance: integrator storage must be initialized before advance");
+
         timestep = time_step;
 
         const int substep_ratio = get_slow_fast_timestep_ratio();
@@ -366,8 +377,9 @@ public:
             // Evaluate F_slow(S_stage) only for the slow variables
             // Note that we are using the current stage versions (in S_new) of the slow variables
             //      (because we didn't update the slow variables in the substepping)
-            //       but we are using the "new" versions (in S_sum) of the velocities
-            //      (because we did    update the fast variables in the substepping)
+            //      and the momenta slow_rhs_pre set from the same stage, plus the average of
+            //      the acoustic substep updates when substepping, to advect them
+            //      (the mass fluxes that advance rho over the stage)
             // ****************************************************
             slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
           } // nrk
@@ -377,7 +389,7 @@ public:
             //
             // SSP-RK2 (Heun): both stages advance a full timestep from S^n, and the
             //     second stage averages the slow source with the one from the first,
-            //     which erf_slow_rhs_{pre,post} do when (anelastic_type == RK2 && nrk == 1).
+            //     which erf_slow_rhs_{pre,post} do when (timestepping_type == RK2 && nrk == 1).
             //
             // MidPoint: the first stage advances only a half timestep,
             //     S^*   = S^n + (dt/2) F(S^n)
@@ -385,7 +397,7 @@ public:
             //     and the second stage takes no average. The vertical diffusion
             //     is second order in time with a tridiagonal solve in the first
             //     stage only and none in the second.
-            const bool l_midpoint = (anelastic_type == AnelasticType::MidPoint);
+            const bool l_midpoint = (timestepping_type == TimesteppingType::MidPoint);
 
             for (int nrk = 0; nrk < 2; nrk++)
             {
@@ -404,9 +416,8 @@ public:
                 // ****************************************************
                 // Evaluate F_slow(S_stage) only for the slow variables
                 // Note that we are using the current stage versions (in S_new) of the slow variables
-                //      (because we didn't update the slow variables in the substepping)
-                //       but we are using the "new" versions (in S_sum) of the velocities
-                //      (because we did    update the fast variables in the substepping)
+                //      and the momenta slow_rhs_pre took from the same stage to advect them;
+                //      S_sum holds the projected state at the end of the stage
                 // ****************************************************
                 slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
             } // nrk

@@ -388,6 +388,17 @@ public:
     }
 
     /**
+     * Height of the top of the column above its bottom, on a column of staggered
+     * (face) heights; the high z face's distances are measured from it.
+     *
+     * @param[in] zlevels staggered heights of the column (nz+1 faces)
+     */
+    static amrex::Real column_height (const amrex::Vector<amrex::Real>& zlevels)
+    {
+        return zlevels.back() - zlevels[0];
+    }
+
+    /**
      * Function to compute trilinear interpolation with terrain.
      *
      * @param[in] xp X-position
@@ -520,6 +531,14 @@ public:
     void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
 
     /**
+     * Copy the reference heights of the wall-owning planar boxes onto every planar
+     * box of the level and check that no column is left at the sentinel.
+     *
+     * @param[in] lev Current level
+     */
+    void fill_zref_planar (const int& lev);
+
+    /**
      * Fill the ghost cells of one average that cannot be computed from the field
      * data with a zeroth-order extrapolation of the nearest computed value.
      *
@@ -602,10 +621,13 @@ protected:
 
     // Default values
     //--------------------------------------------
-    const amrex::Real zref_default = amrex::Real(10.0);
+    // There is no stored default reference height.  When most.zref is unset every
+    // mesh uses the centre of the first cell above the wall: a single height on a
+    // flat or EB mesh, and on a terrain-fitted mesh a height that varies by column
+    // and is filled column by column by the lookup routines (erf-model/ERF#4935).
 
-    // Sentinel used to detect whether most.zref was set by the user.  zref_default
-    // is itself a legal user value, so "was it specified" cannot be read off the
+    // Sentinel used to detect whether most.zref was set by the user.  Any positive
+    // value is a legal user value, so "was it specified" cannot be read off the
     // value unless we probe with something unreachable first.  For lateral and
     // z-high faces, most.zref is a wall-relative distance; z-low retains its
     // legacy absolute-coordinate convention. See the parse sites in

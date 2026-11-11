@@ -14,6 +14,7 @@
             const bool l_limit_KE = l_tc.use_tke;
             const bool l_limit_Q  = (solverChoice.moisture_type != MoistureType::None);
             const bool l_sbm      = (solverChoice.moisture_type == MoistureType::SBM);
+            const DiffChoice l_diff_choice = solverChoice.diffChoice;
 
             // The Dirichlet wall value of k (first cell above the wall) is pinned by
             // erf_slow_rhs_post and the implicit solve; leave it untouched here.
@@ -57,6 +58,7 @@
                         ParallelFor(tbx, l_nq, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept
                         {
                             const int n = RhoQ1_comp + nn;
+                            if (!l_diff_choice.host_transports(n)) { return; }
                             cons(i,j,k,n) = amrex::max(cons(i,j,k,n), zero_d);
                         });
                     }

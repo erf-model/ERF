@@ -68,6 +68,52 @@ AMREX_ENUM(TauModel, PerLayer, Mass);
  */
 AMREX_ENUM(SEBTurbulentFluxSource, SurfaceLayer, Defaults);
 
+/** Inputs shared by RRTMGP and the topographic surface correction. */
+struct RRTMGPSolarChoice
+{
+  amrex::Real fixed_mu = -9999.0;
+  amrex::Real latitude = 39.809860;
+  amrex::Real longitude = -98.555183;
+  int radiation_interval = 1;
+
+  void read (const std::string& prefix)
+  {
+    amrex::ParmParse pp(prefix);
+    pp.queryAdd("fixed_solar_zenith_angle", fixed_mu);
+    pp.queryAdd("rad_cons_lat", latitude);
+    pp.queryAdd("rad_cons_lon", longitude);
+    pp.queryAdd("rad_freq_in_steps", radiation_interval);
+    if (!std::isfinite(latitude) || latitude < -90.0 || latitude > 90.0) {
+      amrex::Abort("erf.rad_cons_lat = " + std::to_string(latitude) +
+                   " must lie in [-90, 90] degrees.");
+    }
+    if (!std::isfinite(longitude) || longitude < -180.0 || longitude > 180.0) {
+      amrex::Abort("erf.rad_cons_lon = " + std::to_string(longitude) +
+                   " must lie in [-180, 180] degrees.");
+    }
+    if (fixed_mu > 1.0) {
+      amrex::Abort("erf.fixed_solar_zenith_angle = " + std::to_string(fixed_mu) +
+                   " is the cosine of the solar zenith angle and cannot exceed 1; 60 degrees is 0.5.");
+    }
+  }
+};
+
+/** Inputs for the optional topographic correction of RRTMGP land forcing. */
+struct TopographicShadingChoice
+{
+  bool slope_rad = false;
+  bool topo_shading = false;
+  amrex::Real shadlen = 25000;
+  amrex::Real fixed_mu = 0;
+  amrex::Real fixed_azimuth = -1; // degrees clockwise from geographic north
+  amrex::Real latitude = 0;
+  amrex::Real longitude = 0;
+  int radiation_interval = 0;
+
+  bool active () const { return slope_rad || topo_shading; }
+  void read (const std::string& prefix, const RRTMGPSolarChoice& solar);
+};
+
 /**
  * @brief Container holding radiation-related choices and parameters.
  *
@@ -179,7 +225,7 @@ public:
   /** @brief Mass model, SW: water-vapor gray absorption coefficient [m^2/kg]. */
   amrex::Real sw_kabs_vapor = 4.0e-3;
 
-  /** @brief Mass model, SW: cloud-water extinction coefficient [m^2/kg] (~1.5/r_e with r_e = 10 um). */
+  /** @brief Mass model, SW: cloud-water extinction coefficient [m^2/kg] (~1500/r_e[um]: 150 for r_e = 10 um). */
   amrex::Real sw_kext_cloud = 150.0;
 
   /** @brief Mass model, SW: cloud-water single-scattering albedo. */
@@ -1093,7 +1139,12 @@ public:
       if (cloud_fraction_rh_max < cloud_fraction_rh_min) {
         cloud_fraction_rh_max = cloud_fraction_rh_min;
       }
-      clamp_low("cloud_fraction_qc_scale", cloud_fraction_qc_scale, 0.0);
+      // qc is divided by this scale, and the kernel drops the qc term when it is not
+      // positive; clamping a bad value to zero would switch that term off silently
+      if (!(cloud_fraction_qc_scale > 0.0)) {
+        amrex::Abort("erf.radiation.cloud_fraction_qc_scale = " + std::to_string(cloud_fraction_qc_scale) +
+                     " must be positive [kg/kg].");
+      }
 
       // Prescribed bulk aerosol/turbidity optical depth
       // (all optional; disabled by default)

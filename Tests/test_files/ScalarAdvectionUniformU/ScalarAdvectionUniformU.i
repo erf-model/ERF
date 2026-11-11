@@ -43,8 +43,6 @@ erf.use_gravity = false
 
 erf.dryscal_horiz_adv_type = "Centered_2nd"
 erf.dryscal_vert_adv_type  = "Centered_2nd"
-erf.moistscal_horiz_adv_type = "Centered_2nd"
-erf.moistscal_vert_adv_type  = "Centered_2nd"
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"

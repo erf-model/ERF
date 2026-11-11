@@ -3,6 +3,10 @@
 
 #include <AMReX_ParallelDescriptor.H>
 #include <ERF_MYNNStruct.H>
+#include <ERF_RANSClosure.H>
+
+#include <iomanip>
+#include <sstream>
 
 /**
  * @brief Large-eddy simulation closure type.
@@ -185,6 +189,21 @@ public:
       }
 
       if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+        query_one_or_per_level(
+          pp, "pbl_mynn_Lt_taper_exp", pbl_mynn.Lt_taper_exp, lev, max_level);
+        if (pbl_mynn.Lt_taper_exp < 0) {
+            amrex::Error("erf.pbl_mynn_Lt_taper_exp must be >= 0 "
+                         "(0 disables the taper)");
+        }
+        // NN09 (the default) uses Lt_alpha = 0.23 and a 1/l sum for the master
+        // length scale; Chen2021 uses Lt_alpha = 0.10 and a 1/l^2 sum.
+        query_one_or_per_level_enum_case_insensitive(
+          pp, "pbl_mynn_config", pbl_mynn.config, lev, max_level);
+        // l_T = Lt_alpha*<zq>/<q> follows the config unless set explicitly.
+        pbl_mynn.Lt_alpha = (pbl_mynn.config == MYNNConfigType::Chen2021)
+                              ? amrex::Real(0.1) : amrex::Real(0.23);
+        query_one_or_per_level(
+          pp, "pbl_mynn_Lt_alpha", pbl_mynn.Lt_alpha, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_A1", pbl_mynn.A1, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_A2", pbl_mynn.A2, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_B1", pbl_mynn.B1, lev, max_level);
@@ -233,8 +252,15 @@ public:
           pp, "pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_liquid_theta", enable_ysu_liquid_theta, lev, max_level);
+        // YSU now uses theta_v at WRF's thvx sites and theta_l at its thlix
+        // sites; catch the retired switch between them rather than ignoring it.
+        if (pp.contains("enable_ysu_liquid_theta")) {
+            amrex::Abort("erf.enable_ysu_liquid_theta has been removed. YSU uses "
+                         "theta_v (all condensate loading) for the bulk Richardson "
+                         "number and clear-sky entrainment, and theta_l (cloud "
+                         "liquid and ice) for the cloud-top extension scan and "
+                         "cloudy entrainment, as WRF does with thvx and thlix.");
+        }
         query_one_or_per_level(
           pp, "enable_ysu_countergradient", enable_ysu_countergradient, lev, max_level);
         query_one_or_per_level(
@@ -349,11 +375,7 @@ public:
         if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
           amrex::Error("pblh_smoothing_weight must be in [0, 1]");
         }
-      } else if (pbl_type == PBLType::SHOC) {
-#ifndef ERF_USE_SHOC
-          amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
       }
-#endif
       if (uses_eamxx_shoc()) {
 #ifndef ERF_USE_EAMXX_SHOC
           amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
@@ -403,7 +425,17 @@ public:
     }
 
     // To quantify atmospheric stability for subgrid modeling
+    const bool strat_type_set = (pp.countval("thermal_stratification") > 0);
     query_one_or_per_level(pp, "thermal_stratification", strat_type, lev, max_level);
+    // The PBL schemes have always used theta_v for their buoyancy gradient,
+    // which is the physically right choice there.  Honour an explicit
+    // erf.thermal_stratification everywhere, but when the user has not set it
+    // keep the historical split: theta for the LES closures, theta_v for the
+    // PBL ones.  That way the knob reaches the PBL schemes without silently
+    // changing any existing moist answer.
+    pbl_strat_type = strat_type_set ? strat_type : StratType::thetav;
+    amrex::Print() << "PBL thermal stratification variable: "
+                   << amrex::getEnumNameString(pbl_strat_type) << std::endl;
     if (strat_type == StratType::theta) {
         amrex::Print() << "Thermal stratification based on gradient of potential temperature" << std::endl;
     } else if (strat_type == StratType::thetav) {
@@ -424,21 +456,79 @@ public:
     query_one_or_per_level(pp, "rans_consistent_diffusivities", rans_consistent_diffusivities, lev, max_level);
     query_one_or_per_level(pp, "rans_lscale_from_pblh", rans_lscale_from_pblh, lev, max_level);
     query_one_or_per_level(pp, "rans_lscale_min", rans_lscale_min, lev, max_level);
+    query_one_or_per_level(pp, "rans_realizability", rans_realizability, lev, max_level);
+    if (rans_realizability != zero) {
+        if (!(rans_realizability >= amrex::Real(0.01) && rans_realizability <= amrex::Real(10))) {
+            amrex::Error("erf.rans_realizability must be 0 (off) or in [0.01, 10]; Cmu0^2 = 0.309 is the neutral equilibrium value");
+        }
+        if (rans_type != RANSType::kEqn) {
+            // One value for the whole hierarchy (a single entry, or a list whose entries are all
+            // equal) is meant for the levels that run the k-eqn closure and is reset here; a list
+            // with different entries names this level on purpose and must not switch the cap on
+            // where there is no closure.
+            amrex::Vector<amrex::Real> all_levels;
+            pp.getarr("rans_realizability", all_levels);
+            bool uniform = true;
+            for (auto v : all_levels) { uniform = uniform && (v == all_levels[0]); }
+            if (uniform) {
+                amrex::Print() << "erf.rans_realizability reset to 0 on level " << lev
+                               << " (no k-eqn closure there)" << std::endl;
+                rans_realizability = zero;
+            } else {
+                amrex::Error("erf.rans_realizability needs erf.rans_type = kEqn (it caps the k-eqn eddy viscosity; level "
+                             + std::to_string(lev) + ")");
+            }
+        }
+    }
+    // After the reset above, so a hierarchy with a PBL scheme on an LES level and the cap on
+    // its k-eqn level is accepted
+    if ((rans_realizability != zero) && (pbl_type != PBLType::None)) {
+        amrex::Error("erf.rans_realizability needs erf.pbl_type = None: a PBL scheme overwrites the vertical "
+                     "diffusivities the cap acts on (level " + std::to_string(lev) + ")");
+    }
     if (rans_lscale_from_pblh && !(rans_lscale_min > 0)) {
         amrex::Error("erf.rans_lscale_min must be > 0 with erf.rans_lscale_from_pblh");
     }
+    // Moist TKE buoyancy of the k-eqn closure (the Deardorff LES, which shares the TKE source,
+    // keeps the dry form). One value for the hierarchy is meant for its k-eqn levels and is
+    // reset on the others, as erf.rans_realizability is; a per-level list must not name a level
+    // without the closure.
+    query_one_or_per_level(pp, "rans_moist_buoyancy", rans_moist_buoyancy, lev, max_level);
+    if (rans_moist_buoyancy && rans_type != RANSType::kEqn) {
+        if (pp.countval("rans_moist_buoyancy") == 1) {
+            amrex::Print() << "erf.rans_moist_buoyancy reset to false on level " << lev
+                           << " (no k-eqn closure there)" << std::endl;
+            rans_moist_buoyancy = false;
+        } else {
+            amrex::Error("erf.rans_moist_buoyancy needs erf.rans_type = kEqn (it is the k-eqn TKE buoyancy; level "
+                         + std::to_string(lev) + ")");
+        }
+    }
 
     if (rans_type == RANSType::kEqn) {
-        // The stability functions (AL01 Eqs. 31, 32) have poles near Rt = -3.6;
-        // the Burchard & Petersen smoothing maps Rt < Rt_crit onto
-        // (Rt_min, Rt_crit) and needs Rt_min < Rt_crit <= 0.
+        // The stability functions (AL01 Eqs. 31, 32) have poles at Rt = -3.59869
+        // (cmu) and -3.61011 (cmu'); the Burchard & Petersen smoothing maps
+        // Rt < Rt_crit onto (Rt_min, Rt_crit) and needs Rt_min < Rt_crit <= 0,
+        // with Rt_min above the pole of cmu (AL01::Rt_min_lower_bound) and above
+        // the zero of its numerator (AL01::cmu_numerator_root), so cmu > 0.
         if (!(Cmu0 > 0)) { amrex::Error("erf.Cmu0 must be > 0 for the k-eqn RANS"); }
         if (!(Cb > 0)) { amrex::Error("erf.Cb must be > 0 for the k-eqn RANS"); }
         if (!(l_g_max > 0)) { amrex::Error("erf.max_geom_lscale must be > 0 for the k-eqn RANS"); }
         if (!(Rt_crit <= 0)) { amrex::Error("erf.Rt_crit must be <= 0 for the k-eqn RANS"); }
         if (!(Rt_min < Rt_crit)) { amrex::Error("erf.Rt_min must be < erf.Rt_crit for the k-eqn RANS"); }
-        if (!(Rt_min > amrex::Real(-3.6))) {
-            amrex::Error("erf.Rt_min must be > -3.6 for the k-eqn RANS (stability functions have poles near -3.61)");
+        if (!(Rt_min > AL01::Rt_min_lower_bound)) {
+            std::ostringstream msg;
+            msg << std::setprecision(8) << "erf.Rt_min must be > " << AL01::Rt_min_lower_bound
+                << " for the k-eqn RANS: the momentum stability function cmu has a pole at Rt = -3.5986889850,"
+                << " and just below it cmu and the eddy viscosity are negative (level " << lev << ")";
+            amrex::Error(msg.str());
+        }
+        if (!(Rt_min > AL01::cmu_numerator_root(Cmu0))) {
+            std::ostringstream msg;
+            msg << std::setprecision(8) << "erf.Rt_min must be > -erf.Cmu0/0.108 = " << AL01::cmu_numerator_root(Cmu0)
+                << " for the k-eqn RANS: below it the numerator Cmu0 + 0.108 Rt of cmu is negative;"
+                << " raise erf.Cmu0 or erf.Rt_min (level " << lev << ")";
+            amrex::Error(msg.str());
         }
     }
     if (tke_floor < 0) { amrex::Error("erf.tke_floor must be >= 0"); }
@@ -606,6 +696,8 @@ public:
         amrex::Print() << "Rt_crit                     : " << Rt_crit << std::endl;
         amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
         amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
+        amrex::Print() << "rans_realizability          : " << rans_realizability << std::endl;
+        amrex::Print() << "rans_moist_buoyancy         : " << rans_moist_buoyancy << std::endl;
         amrex::Print() << "dirichlet_k                 : " << dirichlet_k << std::endl;
         amrex::Print() << "tke_floor                   : " << tke_floor << std::endl;
         amrex::Print() << "implicit_tke_dissipation    : " << implicit_tke_dissipation << std::endl;
@@ -630,6 +722,11 @@ public:
     }
 
     if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+      amrex::Print() << "    pbl_mynn_Lt_taper_exp : "
+                     << pbl_mynn.Lt_taper_exp << std::endl;
+      amrex::Print() << "    pbl_mynn_config : "
+                     << amrex::getEnumNameString(pbl_mynn.config) << std::endl;
+      amrex::Print() << "    pbl_mynn_Lt_alpha : " << pbl_mynn.Lt_alpha << std::endl;
       amrex::Print() << "    pbl_mynn_A1 : " << pbl_mynn.A1 << std::endl;
       amrex::Print() << "    pbl_mynn_A2 : " << pbl_mynn.A2 << std::endl;
       amrex::Print() << "    pbl_mynn_B1 : " << pbl_mynn.B1 << std::endl;
@@ -650,8 +747,6 @@ public:
                      << pbl_ysu_land_Ribcr << std::endl;
       amrex::Print() << "    pbl_ysu_unst_Ribcr                 : "
                      << pbl_ysu_unst_Ribcr << std::endl;
-      amrex::Print() << "    enable_ysu_liquid_theta            : "
-                     << enable_ysu_liquid_theta << std::endl;
       amrex::Print() << "    enable_ysu_countergradient         : "
                      << enable_ysu_countergradient << std::endl;
       amrex::Print() << "    enable_ysu_terrain_pblh_floor      : "
@@ -785,6 +880,8 @@ public:
   amrex::Real theta_ref = zero;
   // - how to quantify stratification effects
   StratType strat_type = StratType::theta;
+  // Stratification variable used by the PBL schemes; see init_params.
+  StratType pbl_strat_type = StratType::thetav;
 
   // Anisotropic length scales
   bool mix_isotropic = true;
@@ -816,6 +913,19 @@ public:
   // instead of the fixed max_geom_lscale
   bool rans_lscale_from_pblh = false;
   amrex::Real rans_lscale_min = one;
+
+  // k-eqn RANS: realizability cap nu_t <= C_r k / S on the eddy viscosity
+  // (and every eddy diffusivity through the same ratio), 0 = off.  C_r = Cmu0^2
+  // leaves a neutral equilibrium surface layer untouched and limits the
+  // viscosity in the shear layer that leaves a crest (AL01 Eqs. 11 and 19;
+  // the SST limiter form).
+  amrex::Real rans_realizability = zero;
+
+  // k-eqn RANS: moist TKE buoyancy production (erf.rans_moist_buoyancy),
+  //   B = g / theta_v0 [(1 + epsv qv) <w'theta'> + epsv theta <w'qv'>],
+  // water vapour only (no cloud-water flux, no saturated form); false keeps the
+  // dry production g / theta_0 <w'theta'>
+  bool rans_moist_buoyancy = false;
 
   // PBL model
   PBLType pbl_type = PBLType::None;
@@ -917,8 +1027,6 @@ public:
     fourth; // Critical Bulk Richardson number of Land for stable conditions
   amrex::Real pbl_ysu_unst_Ribcr =
     zero; // Critical Bulk Richardson number for unstable conditions
-  bool enable_ysu_liquid_theta =
-    true; // if true, use liquid-water virtual potential temperature in YSU stability
   bool enable_ysu_countergradient =
     true; // if true, apply YSU-style HGAMT/HGAMQ/HGAMU/HGAMV countergradient correction
   bool enable_ysu_terrain_pblh_floor =
@@ -1062,8 +1170,6 @@ public:
  * @brief Critical bulk Richardson number over land for stable YSU conditions.
  * @var TurbChoice::pbl_ysu_unst_Ribcr
  * @brief Critical bulk Richardson number for unstable YSU conditions.
- * @var TurbChoice::enable_ysu_liquid_theta
- * @brief Whether YSU uses liquid-water virtual potential temperature for stability.
  * @var TurbChoice::enable_ysu_countergradient
  * @brief Whether YSU countergradient corrections are enabled.
  * @var TurbChoice::enable_ysu_terrain_pblh_floor

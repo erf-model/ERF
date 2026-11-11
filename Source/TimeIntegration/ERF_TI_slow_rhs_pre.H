@@ -1,5 +1,9 @@
 #include "ERF_SrcHeaders.H"
 
+#ifdef ERF_USE_FIRE
+#include <ERF_FireCoupler.H>
+#endif
+
 /**
  *  Wrapper for calling the routine that creates the slow RHS
  */
@@ -41,7 +45,9 @@
         if (solverChoice.coupling_type == CouplingType::TwoWay && finest_level > 0) {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
-                fr_as_crse->reset();
+                // Once per step: the anelastic RK2 integrator registers fluxes at both stages
+                // (RefluxStageWeight)
+                if (nrk == 0) { fr_as_crse->reset(); }
             }
             if (level > 0) {
                 fr_as_fine = getAdvFluxReg(level);
@@ -128,7 +134,29 @@
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                      turbPert,
                      r_avg_to_pass, t_avg_to_pass,
-                     true);
+                     forest_drag, &S_old[IntVars::cons],
+                     true, ib_wall_hfx[level].get(), ib_wall_ktarget[level].get(), ib_wall_qfx[level].get());
+
+        // *****************************************************************************
+        // Inject the fire-to-atmosphere heat flux AFTER make_sources, which resets
+        // cc_src at every RK stage. The lagged fire flux (FireCoupler) is constant
+        // across all RK stages and must be added here to survive the integrator.
+        // *****************************************************************************
+#ifdef ERF_USE_FIRE
+        // on the level the fire grid refines; coarser levels get it by average-down.
+        // The heat and vapour with the WRF-Fire profile, then the smoke tracer,
+        // proportional to the fuel burnt (FireCoupler::add_sources).
+        if (m_fire_coupler && level == m_fire_coupler->level()) {
+            bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
+            m_fire_coupler->add_sources(cc_src,
+                                        S_old[IntVars::cons],
+                                        *zpc_to_use,
+                                        zpn_to_use,
+                                        fine_geom,
+                                        has_moisture,
+                                        istep[level]);
+        }
+#endif
 
         // Heat flux from the building faces (immersed-boundary surface energy
         // balance), added to the freshly rebuilt source; no-op unless enabled.
@@ -160,7 +188,7 @@
                                  (solverChoice.moisture_type != MoistureType::Morrison_NoIce &&
                                   solverChoice.moisture_type != MoistureType::SAM_NoIce) );
             add_moist_nudging_terms(S_data[IntVars::cons], cc_src, num_q, slow_dt,
-                                    start_time+old_stage_time,
+                                    old_stage_time, start_time,
                                     start_bdy_time, final_bdy_time, bdy_time_interval,
                                     bdy_factor, real_width, geom[level],
                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
@@ -190,17 +218,28 @@
                         mapfac[level],
                         get_eb(level), gradp[level]);
 
+        // The stage pressure, in the stage whose update the step ends with, for the reflux of
+        // the pressure impulse on the coarse/fine faces (ERF_MomentumReflux.cpp)
+        if (IsRefluxStage(solverChoice, level, finest_level, nrk)) {
+            if (MultiFab* P_reflux = momentum_reflux_pressure(level)) {
+                momentum_reflux_add_slow(level, *P_reflux, S_data[IntVars::cons], p0_to_use, qt,
+                                         solverChoice.moisture_type != MoistureType::None,
+                                         RefluxStageWeight(solverChoice, level, finest_level, nrk) *
+                                         static_cast<Real>(slow_dt));
+            }
+        }
+
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
         // *****************************************************************************
         int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_buoyancy(level, S_data, S_prim, qt, buoyancy, fine_geom, solverChoice, base_to_use,
-                      num_q, get_eb(level), solverChoice.anelastic[level]);
+                      num_q, get_eb(level), solverChoice.compressibility_type[level] == CompressibilityType::Anelastic);
 
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
         // *****************************************************************************
-        make_mom_sources(old_stage_time, slow_dt,
+        make_mom_sources(level, old_stage_time, slow_dt,
                          S_data, zpn_to_use, zpc_to_use, stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
@@ -215,6 +254,27 @@
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
                          sounding_at_level(level), lsf_at_level(level), lsf_data[level],
                          get_eb(level), true);
+
+#ifdef ERF_USE_MOVING_BODIES
+        // The structures' force on the air (erf.structures.model), fixed over the step
+        if (m_structure_model && level == m_structure_model->level(finest_level)) {
+            m_structure_model->add_momentum_sources(level, xmom_src, ymom_src, zmom_src);
+        }
+        // On a coarser level, the model's source restricted onto it (ERF::make_structure_coarse_sources)
+        if (m_structure_model && level < m_structure_model->level(finest_level) &&
+            level < static_cast<int>(m_structure_crse_src.size()) &&
+            m_structure_crse_src[level][0].isDefined()) {
+            MultiFab::Add(xmom_src, m_structure_crse_src[level][0], 0, 0, 1, 0);
+            MultiFab::Add(ymom_src, m_structure_crse_src[level][1], 0, 0, 1, 0);
+            MultiFab::Add(zmom_src, m_structure_crse_src[level][2], 0, 0, 1, 0);
+        }
+#endif
+
+        // The impulse of the last momentum reflux onto this level, spread over its steps in
+        // this coarse step (erf.momentum_reflux, ERF_MomentumReflux.cpp)
+        if (momentum_reflux_enabled()) {
+            momentum_reflux_add_sources(level, xmom_src, ymom_src);
+        }
 
         // Nudging of the velocity towards observations at stations
         if (solverChoice.nudging_from_observations && obs_nudging) {
@@ -241,8 +301,8 @@
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau[level], Tau_corr[level], Tau_EB[level],
-                         SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss, Hfx3_EB,
-                         fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
+                         SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss, mf_surface_fluxes,
+                         Hfx3_EB, fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level),
@@ -252,7 +312,17 @@
                          native_shoc_driver[level].get(),
                          fr_as_crse, fr_as_fine, &base_to_use,
                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
-                         cloud_chamber_budget.get());
+                         cloud_chamber_budget.get(),
+                         ib_wall_face13[level].get(), ib_wall_face23[level].get(),
+                         ib_wall_face33[level].get(), ib_wall_hfx[level].get());
+
+        // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp): a coarse level adds
+        // this stage's mass fluxes to those of its step, a fine level registers the coarse
+        // momenta its coarse/fine faces are filled from in this stage
+        if (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible) {
+            if (level < finest_level) { cf_anelastic_record(level, nrk); }
+            if (level > 0)            { cf_anelastic_stage_registration(level, nrk); }
+        }
 
         if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
             const Real stage_dt = static_cast<Real>(slow_dt);
@@ -277,14 +347,6 @@
             MultiFab scratch_ymom(S_data[IntVars::ymom].boxArray(),
                                   S_data[IntVars::ymom].DistributionMap(), 1,
                                   S_data[IntVars::ymom].nGrowVect());
-#ifdef ERF_IMPLICIT_W
-            /**
-             * @brief Temporary MultiFab for z-momentum updates.
-             */
-            MultiFab scratch_zmom(S_data[IntVars::zmom].boxArray(),
-                                  S_data[IntVars::zmom].DistributionMap(), 1,
-                                  S_data[IntVars::zmom].nGrowVect());
-#endif
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
                 MultiFab::Saxpy(scratch_xmom, stage_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
@@ -293,14 +355,26 @@
                 MultiFab::Copy(scratch_ymom, S_old[IntVars::ymom], 0, 0, 1,  S_data[IntVars::ymom].nGrowVect()); // scratch := S_old
                 MultiFab::Saxpy(scratch_ymom, stage_dt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_ymom.FillBoundary(geom[level].periodicity());
-#ifdef ERF_IMPLICIT_W
-                MultiFab::Copy(scratch_zmom, S_old[IntVars::zmom], 0, 0, 1,  S_data[IntVars::zmom].nGrowVect()); // scratch := S_old
-                MultiFab::Saxpy(scratch_zmom, stage_dt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
-                scratch_zmom.FillBoundary(geom[level].periodicity());
-#endif
+            }
+
+            // The ghost cells of scratch still hold S_old; at a coarse/fine boundary fill them with
+            // the coarse data at the time we are advancing to, since a column that ends there is
+            // closed with the value on the other side
+            if (level > 0) {
+                const bool l_mom = solverChoice.implicit_momentum_diffusion;
+                Vector<MultiFab*> scratch_mom = {l_mom ? &scratch_xmom : nullptr,
+                                                 l_mom ? &scratch_ymom : nullptr,
+                                                 nullptr};
+                FillCoarseFineGhostsForImplicit(level, new_stage_time, scratch, {RhoTheta_comp}, scratch_mom);
             }
 
 #include "ERF_ImplicitPre.H"
+
+            // NOTE: the implicit part of the vertical (rho theta) diffusion is not added to the flux
+            //       registers.  (rho theta) is refluxed only on anelastic levels, and there no stage
+            //       whose fluxes are registered solves implicitly: RK2 turns the solve off, and
+            //       MidPoint solves in stage 0 but registers stage 1 (see SolverChoice and
+            //       StageFluxWeight).
 
             MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
             scratch.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
@@ -314,11 +388,6 @@
                 MultiFab::Saxpy(scratch_ymom, -one_d, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
                 scratch_ymom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
                 MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
-#ifdef ERF_IMPLICIT_W
-                MultiFab::Saxpy(scratch_zmom, -one_d, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                scratch_zmom.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
-                MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt
-#endif
             }
         }
 
@@ -337,6 +406,12 @@
         // *****************************************************************************
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
+            // The column update below works on valid cells, reading only the cells above and below in the
+            // same column, so it needs no ghost-cell fill first.  The ghost planes below and above the
+            // column keep the values the initialization gave them, which are finite (the base-state BCs
+            // leave them alone on a moving mesh, see ERFPhysBCFunct_base): the bottom-face flux is
+            // extrapolated from the three lowest cells, and the top-face flux is zero (z_t = 0 there).
+
             MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
             MultiFab  p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
             MultiFab pi_hse_new (base_state_new[level], make_alias, BaseState::pi0_comp, 1);
@@ -366,7 +441,10 @@
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-           for ( MFIter mfi(*p0,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+           // Tile only in x and y: the second kernel reads r0_tmp and rt0_tmp at k-1 and k+1,
+           //    which the first kernel fills tile by tile, so a tile boundary in z would read
+           //    values another thread may not have written yet
+           for ( MFIter mfi(*p0,TileNoZ()); mfi.isValid(); ++mfi)
            {
                const Array4<Real      > rt0_arr     = rt0.array(mfi);
                const Array4<Real      > rt0_tmp_arr = rt0_new.array(mfi);
@@ -386,7 +464,8 @@
                const Array4<Real const>& dJ_new_arr = detJ_cc_new[level]->const_array(mfi);
                const Array4<Real const>& dJ_src_arr = detJ_cc_src[level]->const_array(mfi);
 
-               Box gbx = mfi.growntilebox({1,1,1});
+               // Valid cells and the planes above and below them, which the fluxes read
+               Box gbx = mfi.tilebox(); gbx.grow(2,1);
                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
                    rt0_arr(i,j,k)     = getRhoThetagivenP(p0_arr(i,j,k));
@@ -394,14 +473,35 @@
                    r0_tmp_arr(i,j,k)  = r0_new_arr(i,j,k);
                });
 
-               Box gbx2 = mfi.growntilebox({1,1,0});
+               const int klo_base = fine_geom.Domain().smallEnd(2);
+               // Valid cells only; the ghost cells are filled from them below.  Every grid spans the
+               // full height of the domain (checked in ERF::ReadParameters), so the three lowest cells
+               // the bottom-face extrapolation reads are in this box
+               Box gbx2 = mfi.tilebox();
                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
                    Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
                    Real zflux_r_hi = -z_t_arr(i,j,k+1) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
+                   if (k == klo_base) {
+                       // The ghost cell below klo is not on the new mesh (the vertical ghost planes of the
+                       // base state are not filled on a moving mesh), so the average above is not a
+                       // bottom-face value; use the quadratic extrapolation to the bottom face from the
+                       // three lowest cells, of equal spacing in the computational coordinate. At the
+                       // top face z_t = 0, so the ghost cell above the column only has to be finite.
+                       zflux_r_lo = -z_t_arr(i,j,k) *
+                           ( Real(1.875)*r0_tmp_arr(i,j,k) - Real(1.25)*r0_tmp_arr(i,j,k+1)
+                            + Real(0.375)*r0_tmp_arr(i,j,k+2) );
+                   }
 
                    Real zflux_rt_lo = zflux_r_lo * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
                    Real zflux_rt_hi = zflux_r_hi * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
+                   if (k == klo_base) {
+                       // theta_0 at the bottom face by the same extrapolation
+                       zflux_rt_lo = zflux_r_lo *
+                           ( Real(1.875)*(rt0_tmp_arr(i,j,k  )/r0_tmp_arr(i,j,k  ))
+                            - Real(1.25)*(rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1))
+                           + Real(0.375)*(rt0_tmp_arr(i,j,k+2)/r0_tmp_arr(i,j,k+2)) );
+                   }
 
                    Real invdetJ = one / dJ_src_arr(i,j,k);
 
@@ -420,9 +520,13 @@
                    th0_new_arr(i,j,k) = rt0_tmp_new / r0_new_arr(i,j,k);
                });
             } // MFIter
-            r0_new->FillBoundary(fine_geom.periodicity());
-            p0_new->FillBoundary(fine_geom.periodicity());
-            th0_new->FillBoundary(fine_geom.periodicity());
+            // Lateral and periodic ghost cells of the updated base state, on the new mesh (the functor
+            // starts with the periodic and interior FillBoundary).  The vertical
+            // ghost planes are again left alone: nothing that uses this base state on a moving mesh
+            // changes the solution through them.  The pressure gradient, buoyancy and cell-centred
+            // sources read only cells inside the domain; the momentum sponge reads the plane below at
+            // the bottom face, where w is set by the boundary condition instead.
+            (*physbcs_base_new[level])(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());
         }
 
 #ifdef ERF_USE_NETCDF
@@ -431,13 +535,12 @@
             const Real bdy_factor = solverChoice.bdy_nudge_factor;
             if (real_width>0) {
                 //
-                // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
-                //           start_bdy_time and final_bdy_time are total time
+                // Note that old_stage_time is elapsed time; start_bdy_time and final_bdy_time
+                //           are total time
                 //
-                double total_time = start_time + old_stage_time;
                 Real l_rdOcp    = solverChoice.rdOcp;
                 Real l_c_p      = solverChoice.c_p;
-                realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
+                realbdy_compute_interior_ghost_rhs(old_stage_time, start_time, slow_dt,
                                                    start_bdy_time, final_bdy_time, bdy_time_interval,
                                                    bdy_factor, real_width, fine_geom,
                                                    S_rhs, S_data,

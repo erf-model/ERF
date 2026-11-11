@@ -14,34 +14,35 @@ bin-resolved distribution. This is also different from the
 :ref:`sec:SuperDroplets` method, where the condensed phase is represented by
 Lagrangian computational particles that move through the Eulerian model grid.
 
-The purpose of spectral-bin microphysics is ultimately to resolve the
-hydrometeor size distribution and its evolution through physical processes
-rather than representing cloud and precipitation only through a few bulk
-categories. The current ERF SBM runtime provides a bounded M3 resolved-
-advection capability together with the state, ownership, projection, restart,
-and mapped auxiliary-transport infrastructure needed for later warm
-microphysics. The generic mapped transport substrate is documented in
-:ref:`AuxiliaryState`; the SBM liquid spectrum now uses that substrate for
-resolved M3 advection.
+A complete spectral-bin microphysics model can explicitly represent the
+particle-size distributions of aerosols and hydrometeors and their evolution
+through physical processes. ERF's currently exposed ``SBM`` option is
+narrower: it predicts a bin-resolved liquid-water distribution and advances
+it by resolved atmospheric advection on a single grid level or on a periodic
+two-level adaptive mesh (see :ref:`sec:SBMMultilevel`).
+Aerosol evolution and cloud microphysical processes are not yet included.
+See :ref:`AuxiliaryState` for the reusable mapped-transport interface.
 
 .. warning::
 
-   The current ``SBM`` option is an M3 transport-qualification capability, not
-   yet a production warm-cloud or warm-rain microphysics scheme.
+   The current ``SBM`` option provides resolved advection of a liquid-water
+   size distribution on one grid level or on two periodic levels. It is not
+   yet a complete warm-cloud or warm-rain microphysics scheme.
 
-   The liquid spectrum is the authoritative condensed-water state and is
-   advected using ERF's host dry-air carrier, native high-order reconstruction,
-   mapped atomic-group FCT acceptance, and fixed projections to conventional
+   The liquid spectrum is the authoritative condensed-water state. It is
+   advected using ERF's dry-air mass carrier, high-order reconstruction,
+   coupled flux-corrected transport, and fixed projections to conventional
    cloud- and rain-water fields.
 
-   M3 does not yet provide particle diffusion or LES mixing,
+   The runtime does not yet provide particle diffusion or turbulent mixing,
    condensation/evaporation, aerosol activation or evolution,
-   collision-coalescence, sedimentation, precipitation, AMR spectral
-   synchronization/reflux, or the full nonperiodic spectral-boundary
-   lifecycle. Moving terrain and embedded boundaries also remain unsupported.
+   collision-coalescence, sedimentation, precipitation, spectral transport on
+   more than two levels or on refined stretched or terrain-following meshes,
+   or the full nonperiodic spectral-boundary lifecycle. Moving
+   terrain and embedded boundaries remain unsupported.
 
-   Unsupported configurations are rejected rather than silently reverting to
-   bulk-water transport.
+   Unsupported configurations are rejected rather than silently reverting
+   to bulk-water transport.
 
 Current spectral state
 ----------------------
@@ -473,16 +474,19 @@ automatically convert a checkpoint to a different representation or remapping
 policy.
 
 The representation, transport, and projection policies are versioned parts of
-the exact restart identity. Older zero-transport schemas are rejected instead
-of being interpreted as M3.
+the exact restart identity. Older zero-transport schemas are rejected rather
+than silently interpreted as the currently supported advection scheme.
+The multilevel lifecycle, restriction, prolongation, reflux,
+synchronization, regrid and boundary policies are also part of the identity,
+so a checkpoint written before they were (schema version 1) is rejected
+rather than restarted under policies it did not record.
 
 Auxiliary prognostic-state transport
 ------------------------------------
 
-The SBM liquid spectrum is the authoritative liquid-water state. In the M3
-capability, that spectrum is advanced in physical space by ERF's generic mapped
-auxiliary-state transport infrastructure using the host dry-air carrier mass
-flux.
+The SBM liquid spectrum is the authoritative liquid-water state. ERF advances
+this spectrum in physical space using the mapped auxiliary-state transport
+infrastructure and the atmospheric dynamical core's dry-air mass flux.
 
 The low-order candidate is conservative donor transport. The high-order
 candidate uses ERF's native WENO-Z3 reconstruction. Two-moment liquid bins are
@@ -494,96 +498,255 @@ Projected ``qc`` and ``qr`` remain fixed diagnostics of the accepted liquid
 spectrum. They are refreshed from the spectrum and do not receive an
 independent liquid advection, diffusion, clipping, or microphysical update.
 
-The current M3 qualification is deliberately bounded. End-to-end ERF evidence
-covers single-level, triply periodic advection on constant and stretched-z
-grids, plus a one-step static Cos4Hill terrain-fitted case whose terrain is flat
-at the periodic boundaries. Direct transport tests also exercise nontrivial
-fluxes with a synthetic static mapped measure. These cases do not establish a
-general nonperiodic terrain-boundary profile. Diffusion and LES particle
-mixing, AMR synchronization and reflux, full nonperiodic lifecycle support,
-condensation/evaporation, activation, collision-coalescence, sedimentation, and
-precipitation remain later milestones. Moving terrain and embedded boundaries
-are not enabled by M3.
+Available end-to-end simulation evidence is deliberately bounded. It covers
+single-level, triply periodic advection on constant- and stretched-z grids,
+plus a one-step static Cos4Hill terrain-fitted case with terrain flat at the
+periodic boundaries, and the periodic two-level hierarchies described in
+:ref:`sec:SBMMultilevel`. Direct transport tests also exercise nontrivial
+fluxes with a synthetic static mapped measure. These tests do not establish a
+nonperiodic terrain-boundary capability. Particle diffusion and turbulent
+mixing, nonperiodic spectral boundaries, condensation/evaporation,
+activation, collision-coalescence, sedimentation, and precipitation are not
+available in the runtime. Moving terrain and embedded boundaries remain
+unsupported.
 
-M3 closeout and M4 entry gate
------------------------------
+Conservative spectral transfer between grid resolutions
+-------------------------------------------------------
 
-M3 closes the single-level, advection-only spectral transport problem inside
-its explicitly qualified execution envelope. In particular, M3 provides
-ERF-native dry-air-carrier advection, mapped conservative state updates,
-endpoint-coordinate high-order reconstruction for two-moment bins, grouped
-FCT acceptance, canonical final-state admission, fixed cloud/rain projection,
-restart for the qualified single-level state, and explicit failure outside the
-supported runtime envelope.
+Atmospheric simulations may use locally refined meshes around clouds,
+convective updrafts, or sharp moisture gradients. For spectral-bin
+microphysics, a change in atmospheric grid resolution must transfer the
+liquid-water and droplet-number inventories represented by each
+**spectral bin**. Transferring only bulk cloud-water and rain-water amounts would not
+preserve the underlying particle-size distribution: many different spectra
+can have the same bulk mixing ratios.
 
-M3 completion does not imply multilevel spectral state management, AMR
-FillPatch, restriction, reflux, remake/regrid, or an operational nonperiodic
-spectral-boundary lifecycle. The face-level physical-boundary policy defined in
-M3 is a contract for that later lifecycle rather than evidence that the
-nonperiodic execution path already exists.
+The following state and transfer operations carry the spectrum across
+atmospheric grid resolutions:
 
-Before M4 implementation begins, the following contracts must be explicit and
-independently testable:
+* **Time-matched spectral states.** The bin-resolved distribution has explicit
+  previous and updated time views that follow ERF's atmospheric time advance.
+  A quantity expressed per unit dry-air mass is formed using dry-air density
+  from the matching time view, not from a different model stage.
 
-#. **Persistent spectral time views.** Each AMR level must expose the
-   authoritative spectral time views and timestamps required by ERF FillPatch
-   and regridding. Whenever an intensive quantity
-   :math:`z_a=U_a/\rho_d` is formed, the spectral state and dry-air density must
-   come from the same temporal view.
+* **Conservative coarse-grid averaging.** For spectral component :math:`a`,
+  let :math:`U_a` be the stored density-weighted amount. Depending on the
+  component, this represents liquid-water mass per unit volume, droplet
+  number per unit volume, or an attached extensive inventory. ERF's mapped
+  conservative amount is
 
-#. **Mapped conservative AMR state.** Restriction and reflux are defined for
-   :math:`H_a=\omega U_a`. Carrier-relative prolongation must use the matching
-   density/geometry time view and must conserve the parent mapped inventory
-   when the fine state is recomposed.
+  .. math::
 
-#. **Accepted spectral completed-step transfer.** Reflux must consume the
-   time-integrated accepted spectral face transfer
+     H_a = \omega U_a, \qquad
+     \omega = \frac{\det J}{m_x m_y},
 
-   .. math::
+  where :math:`\det J` is the terrain-coordinate Jacobian and :math:`m_x`
+  and :math:`m_y` are the horizontal map factors. For a coarse cell :math:`c`
+  completely covered by fine cells :math:`j`, restriction uses
 
-      \mathcal I_a
-      =
-      \int_{t^n}^{t^{n+1}}
-      \widetilde F^{accepted}_a\,dt
+  .. math::
 
-   for every authoritative spectral component. The current two-component
-   projected cloud/rain ledger is not a substitute for the accepted spectral
-   transfer. M4 may retain a complete spectral ledger or stream accepted
-   component chunks into a proven flux-register adapter, but it must not
-   reconstruct this transfer from final cell states, the unrestricted native
-   high-order proposal, or projected ``qc``/``qr``.
+     H_{a,c} = \frac{1}{N_c}\sum_{j\in\mathcal{C}(c)} H_{a,j},
+     \qquad
+     U_{a,c} = \frac{H_{a,c}}{\omega_c},
 
-#. **Flux-register convention proof.** Before using ERF's AMR flux register,
-   M4 must establish its sign, mapped metric/area convention, fine/coarse
-   scaling, and completed-step time weighting against the accepted spectral
-   transfer. Wrong metric factors and wrong stage/substep coefficients are
-   required negative controls.
+  where :math:`\mathcal{C}(c)` contains the :math:`N_c` fine children of
+  cell :math:`c`. This preserves the represented mapped inventory to
+  floating-point accuracy. Coarse cells outside the fine-covered region
+  retain their previous spectral values exactly.
 
-#. **Transactional synchronization.** Restriction, prolongation, and reflux
-   may produce a candidate authoritative spectrum only. The synchronized state
-   must satisfy the declared linear group constraints and the complete
-   canonical persisted-state contract before it is committed. ``qc`` and
-   ``qr`` are regenerated only after the authoritative spectral transaction is
-   accepted.
+* **Carrier-relative fine-grid transfer.** The operator forms the amount of each
+  component per unit mass of dry air,
 
-#. **Lifecycle and physical boundaries.** M4 must define coarse-to-fine level
-   creation, remake/regrid, multilevel restart, impermeable-wall transfer,
-   outward outflow, and prescribed spectral inflow with complete atomic-group
-   composition and accepted-transfer accounting. Unsupported or incomplete
-   lifecycle/boundary state fails before mutating the authoritative spectrum.
+  .. math::
 
-#. **Composite leaf-domain conservation.** AMR budget and conservation
-   diagnostics must evaluate each authoritative spectral and attached-material
-   inventory over the composite leaf domain, excluding coarse cells covered by
-   finer levels. Advance, reflux, restriction, regrid/remake, and restart must
-   preserve those composite inventories to the declared numerical tolerance.
+     z_a = \frac{U_a}{\rho_d},
 
-These items are M4 entry requirements, not current M3 capabilities.
+  where :math:`\rho_d` is dry-air density. The fine-grid value is obtained
+  through piecewise-constant interpolation of :math:`z_a` followed by
+  reconstruction with the **fine-grid density at the same semantic time**:
 
-The high-order M3 transport identity is ``EndpointNumberWENOZ3``; it is not
-currently a user-selectable SBM reconstruction policy. See
-:ref:`AuxiliaryState` for the generic mapped conservation and host-stage
-substrate.
+  .. math::
+
+     U_{a,\mathrm{fine}}
+     = \rho_{d,\mathrm{fine}}\,
+       z_{a,\mathrm{parent\ coarse}}.
+
+  Refining the atmospheric mesh thereby transfers a bin's dry-air-relative
+  abundance without treating the change in spatial resolution as a physical
+  droplet-growth, evaporation, or collision process.
+
+* **Accepted spectral face-transfer foundation.** The mapped transport
+  operator forms accepted spectral face **rates** for every prognostic mass,
+  number and attached-property component after its coupled limiter. An
+  AMR-oriented implementation can accumulate those chunk-local accepted
+  rates directly in an AMReX coarse/fine flux register, using the actual
+  host-stage time coefficient and preserving the component layout:
+
+  .. math::
+
+     \mathcal{I}_{a,f}
+     = \sum_{q}\sum_{k} w_{q,k}
+       \widetilde F^{\mathrm{accepted}}_{a,f,q,k}.
+
+  Here :math:`q` indexes physical substeps and :math:`k` the host stages,
+  with :math:`w_{q,k}` equal to the accepted completed-ledger coefficient:
+  for compressible RK3 it is the physical substep length only at stage 2,
+  for anelastic Heun it is one-half the physical substep length at
+  stages 0 and 1, and for anelastic MidPoint it is the full substep length
+  at stage 1 only.
+  The complete all-component face-integral ledger remains
+  available as a test/reference path; the normal production transport
+  allocation does not require that additional full-spectrum face record.
+
+* **Physical and numerical admissibility.** A transferred candidate spectrum
+  must still satisfy the declared mass, number, attached-property, and
+  spectral-bin ownership constraints. Invalid or numerically
+  unrepresentable candidates are rejected rather than repaired by clipping
+  or silent redistribution.
+
+.. _sec:SBMMultilevel:
+
+Multilevel SBM simulations
+--------------------------
+
+SBM advects the liquid-water spectrum on a two-level adaptive mesh within the
+following qualified configuration, which ERF checks when it reads the inputs:
+
+* at most two levels, ``amr.max_level <= 1``;
+* ``amr.ref_ratio = 2`` in every direction;
+* ``erf.coupling_type = TwoWay``;
+* a ``ConstantDz`` mesh without terrain;
+* the same compressibility and ``erf.timestepping_type`` on both levels:
+  compressible ``RK3_NoSubstepping``, or anelastic ``RK2`` (Heun) or
+  ``MidPoint``;
+* with anelastic levels, a constant base density (``erf.init_type`` =
+  ``Uniform``, ``ConstantDensity``, or ``ConstantDensityLinearTheta``):
+  each anelastic level computes its own hydrostatic density and ERF does not
+  average it down, so a stratified base state would give the coarse and fine
+  levels different dry-air carriers;
+* a double-precision build; and
+* the single-level restrictions of :ref:`sec:SBMRestrictions`, including
+  periodic boundaries in all three directions.
+
+Regridding (``erf.regrid_int``), clearing and recreating the fine level, any
+number of fine steps per coarse step (``erf.dt_ref_ratio``), and multilevel
+checkpoint/restart are supported. Other multilevel configurations are
+rejected.
+
+AMR qualification evidence
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The authoritative spectral state is not the projected ``qc`` or ``qr``
+field on any level.
+
+A separately built internal qualification executable exercises a periodic,
+two-level, 3-D, double-precision AMR hierarchy with two-way coupling and
+fine-level subcycling, on fixed fine grids or with the fine level regridded,
+cleared and recreated, under the compressible RK3 host integrator and the
+anelastic Heun and MidPoint integrators. Its supported test fixtures cover
+one-moment spectral mass and two-moment spectral mass, droplet number and an
+attached number-carried property. Its additional checks only read the state:
+the production and qualification executables give bitwise-identical
+two-level checkpoints for the same regridded run.
+
+At fine-level physical stages, accepted coarse spectral and dry-air density
+endpoints are interpolated at the same requested time. If :math:`U_a` is an
+authoritative density-weighted spectral component and :math:`\rho_d` is the
+dry-air density, the coarse parent donor intensive is
+
+.. math::
+
+   z_a(t) =
+   \frac{(1-\theta)U_a(t_0) + \theta U_a(t_1)}
+        {(1-\theta)\rho_d(t_0) + \theta\rho_d(t_1)},
+   \qquad \theta = \frac{t-t_0}{t_1-t_0}.
+
+For a two-moment bin, the mass and number intensives are converted to
+endpoint-number coordinates **before** WENO-Z3 reconstruction. All spectral
+components, including any attached number-carried quantity, share their
+complete-group flux-corrected acceptance. AMR interface accounting consumes
+the *accepted* spectral face-rate integrals, not the unlimited high-order
+proposal or the projected cloud/rain transfer. Coarse synchronization first
+forms a private mapped-conservative candidate, requires canonical-state
+admission, and only then publishes the spectrum and regenerates ``qc``/``qr``.
+
+The periodic two-level qualification checks composite spectral inventories,
+coarse/fine interface signs, time integration weights, two-layer coarse-only
+ghost completion, and distributed rank ownership. Remote coarse-parent ghost
+values are compared with an independent reconstruction both at the start of
+the coarse step and at the first stage time inside it, which for the MidPoint
+corrector is the half step. Evidence is specific to the
+executed CPU/MPI fixtures and does not establish GPU performance or
+nonperiodic spectral boundary handling.
+
+A uniform dry-air-relative spectrum, :math:`U_a = z_a\rho_d` with constant
+:math:`z_a`, stays uniform only as far as the spectral fluxes and the
+dry-air fluxes agree on every level and across the coarse/fine interface.
+The qualification carries such a spectrum and a uniform host scalar through
+a divergence-free roll with shear. Under the anelastic integrators the
+host scalar stays uniform to roundoff, and so must the spectrum: both
+spreads in :math:`U_a/\rho_d` stay near :math:`10^{-12}`. Under the
+compressible RK3 host without acoustic substeps, ERF does not reflux
+dry-air density across the coarse/fine interface, so at uncovered cells next
+to it the dry-air density and every refluxed conserved quantity, the spectrum
+included, change by different amounts. Both spreads then grow to about
+:math:`10^{-7}` per step in this fixture, with the spectral inventory still
+conserved to roundoff; the spectrum's spread must stay within one percent
+of the host scalar's, the two nonuniform ratios being carried by different
+advection schemes.
+
+A checkpoint is written only after the hierarchy has been synchronized, with
+no interface correction pending, so each level's accepted spectrum at the
+checkpoint time is the complete multilevel spectral state. A restart reads
+and admits that spectrum on every level and requires the saved ``qc`` and
+``qr`` of each level to match its projection. The qualification restarts
+fixed, regridded and coarse-only (cleared) hierarchies and requires the
+restored composite inventory to equal the continuous run's at the checkpoint
+step, and the final checkpoint to be bitwise identical to the continuous
+run's on every level. A checkpoint with a missing or inadmissible fine-level
+spectrum, inconsistent fine-level ``qc``/``qr``, or a schema of the same size
+but a different policy is rejected before any step.
+
+Regridding happens at the start of a coarse step, after the previous step
+has synchronized the hierarchy, so no interface correction is pending and
+every covered coarse cell already holds the mapped average of its fine
+cells. Each coarse parent :math:`P` of the new fine grids is one of three
+kinds:
+
+* **retained** -- its fine cells were also on the old grids, and their
+  accepted spectrum is copied unchanged;
+* **newly refined** -- each child :math:`c` takes the parent's
+  dry-air-relative state,
+  :math:`U_{a,c} = \rho_{d,c}\,U_{a,P}/\rho_{d,P}`, with the child's dry-air
+  density from the host's conservative interpolation;
+* **released** -- the parent is no longer covered, and it already holds the
+  synchronized average of its former children, so nothing is transferred.
+
+With :math:`\omega` the mapped cell measure and :math:`r^3` children per
+parent, the host density satisfies
+:math:`\sum_c \omega_c\rho_{d,c} = r^3\,\omega_P\rho_{d,P}` for every
+parent, so a newly refined parent keeps its mapped inventory
+:math:`\omega_P U_{a,P}` and the composite leaf inventory is unchanged to
+roundoff. The complete candidate must pass the same admission as any other
+spectral state before it replaces the level; otherwise the run aborts before
+any spectral state or ``qc``/``qr`` projection changes. Clearing a fine level
+needs no transfer for the same reason as releasing a parent.
+
+A conservation budget for a refined simulation must count each atmospheric
+region only once, using fine-grid values where refinement is present and
+excluding the underlying coarse-grid cells. Nonperiodic spectral boundaries,
+more than two levels, and refined stretched or terrain-following meshes
+remain to be qualified.
+
+Numerical reconstruction for resolved spectral advection
+--------------------------------------------------------
+
+The current high-order spectral advection method is
+``EndpointNumberWENOZ3``. This numerical-method identity is fixed by the
+implementation and is not a user-selectable SBM option. See
+:ref:`AuxiliaryState` for the mapped conservation and host-stage transport
+conventions.
 
 For the current implementation, ``EndpointNumberWENOZ3`` has a specific
 numerical meaning:
@@ -600,9 +763,9 @@ numerical meaning:
   At this revision its linear weights are :math:`1/3` and :math:`2/3`, with a
   fixed epsilon of ``1.e-12`` in ``AMREX_USE_FLOAT`` builds and ``1.e-40``
   otherwise; and
-* the current M3 end-to-end execution is periodic, so a physical-boundary
-  high-order fallback is not exercised by the runtime capability. The declared
-  spectral boundary policy permits the admissible donor proposal when a later
+* the enabled SBM runtime is triply periodic, so its end-to-end simulations
+  do not exercise a physical-boundary high-order fallback. The declared
+  spectral boundary policy permits an admissible donor proposal when a
   physical-boundary high-order stencil is not qualified.
 
 Changing the reconstruction basis, component normalization, WENO epsilon or
@@ -617,13 +780,13 @@ The following inputs use the ``erf.`` prefix.
 ``erf.moisture_model``
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Select the bounded M3 SBM advection capability with
+Select the current advection-only SBM capability with
 
 ::
 
    erf.moisture_model = SBM
 
-New SBM advection inputs should omit the pre-M3 zero-transport option.
+New SBM input files should omit the obsolete no-transport switch described below.
 
 ``erf.sbm_zero_transport_fixture``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -632,10 +795,10 @@ New SBM advection inputs should omit the pre-M3 zero-transport option.
 
 **Default:** ``false``
 
-This option was the explicit qualification switch used by the pre-M3
-infrastructure-only implementation. M3 no longer uses a zero-transport runtime
-mode. New SBM advection cases should omit this option. An explicitly true
-legacy value is rejected rather than silently changing its meaning.
+This obsolete switch belonged to an earlier infrastructure-only test mode.
+It is not a supported option for current simulations. Omit it from new SBM
+input files. An explicitly true value is rejected rather than silently
+disabling spectral transport.
 
 ``erf.sbm_nbins``
 ~~~~~~~~~~~~~~~~~
@@ -783,22 +946,26 @@ number components have units of :math:`\mathrm{m^{-3}}`.
 All supplied values must be finite and nonnegative. Two-moment states must
 also satisfy the per-bin realizability condition described above.
 
+.. _sec:SBMRestrictions:
+
 Current execution restrictions
 ------------------------------
 
-The current SBM M3 mode is intentionally bounded to the following runtime
-envelope:
+The following runtime restrictions apply. A two-level run must also stay
+within the configuration of :ref:`sec:SBMMultilevel`.
 
 The current configuration requires:
 
 * a three-dimensional ERF build;
-* one AMR level, ``amr.max_level = 0``;
+* at most two AMR levels, ``amr.max_level <= 1``;
 * periodic boundaries in all three directions;
 * static non-EB geometry; end-to-end evidence covers ``ConstantDz``,
   ``StretchedDz``, and the triply periodic static ``Cos4Hill`` fitted-mesh
   smoke profile, with terrain flat at the periodic boundaries;
 * no moving terrain, embedded boundaries, or immersed buildings;
-* ``substepping_type = None``;
+* no acoustic substepping: ``erf.timestepping_type`` is ``RK3_NoSubstepping``
+  at compressible levels and ``RK2`` or ``MidPoint`` at anelastic levels;
+* no ``PseudoIncompressible`` levels;
 * no molecular scalar diffusion;
 * no turbulent scalar diffusion or PBL/SHOC transport acting on moisture;
 * no ERF numerical diffusion;
@@ -809,23 +976,23 @@ The current configuration requires:
 * no sounding nudging;
 * no custom moisture forcing;
 * no real-data lateral boundary forcing; and
-* only the qualified problem setups accepted by the M3 runtime guard: the
-  default/undefined setup, ``SBM M3 periodic advection``, and
-  ``Scalar Advection/Diffusion``; other problem-specific initialization or
-  forcing is rejected.
+* only the supported problem setups: the default/undefined setup,
+  ``Scalar Advection/Diffusion``, and ERF's dedicated periodic SBM test setup;
+  other problem-specific initialization or forcing is rejected.
 
-Anelastic M3 execution is qualified only for the current non-fitted-terrain
-cases, including the existing constant- and stretched-z tests.
+Anelastic SBM advection is supported only for the currently qualified
+non-fitted-terrain cases, including constant- and stretched-z grids, with
+either anelastic integrator: ``RK2`` (Heun) or ``MidPoint``, ERF's default.
 ``StaticFittedMesh`` with ``VariableDz`` is explicitly rejected for anelastic
-M3 because ERF's fitted-terrain anelastic projection requires a nonperiodic
-vertical boundary while the M3 spectral lifecycle remains restricted to
-triply periodic domains. This is a lifecycle/support-envelope restriction, not
-a different spectral carrier convention.
+SBM because ERF's fitted-terrain anelastic projection requires a nonperiodic
+vertical boundary, whereas the current spectral transport capability requires
+a triply periodic domain. This is a support-envelope restriction, not a
+different spectral carrier convention.
 
 The resolved host dry-air carrier may be nonzero. SBM transport uses that
 carrier directly and checks the donor outgoing-demand condition at each host
 stage. For example, the native scalar-advection velocity initializer can be
-used in a periodic M3 case with:
+used in a periodic SBM advection case with:
 
 .. code-block:: text
 
@@ -841,8 +1008,8 @@ silently subcycling the spectrum. The exact stage-time outgoing-demand check
 remains active as a fail-closed guard because the carrier used by a later host
 stage may differ from the pre-step estimate.
 
-M3 implements advection only; it does not yet couple spectral transport to
-cloud microphysical source processes.
+The currently enabled SBM capability implements resolved advection only;
+cloud microphysical source processes are not yet coupled to the spectrum.
 
 One-moment example
 ------------------
@@ -861,7 +1028,7 @@ test:
    erf.sbm_fixture_initial_state = 1.e-6 2.e-6 3.e-6 4.e-6
 
    erf.use_gravity = false
-   erf.substepping_type = None
+   erf.timestepping_type = RK3_NoSubstepping
    erf.molec_diff_type = None
    erf.les_type = None
    erf.pbl_type = None
@@ -927,7 +1094,8 @@ An SBM checkpoint contains:
 * the ordinary ERF atmospheric state;
 * an ``SBM_Schema`` record describing the exact spectral layout and current
   representation contract; and
-* an ``SBMSpectrum`` containing the authoritative bin-resolved liquid state.
+* an ``SBMSpectrum`` containing the authoritative bin-resolved liquid state,
+  for every level in the checkpoint.
 
 The schema comparison is exact. A restart must use the same spectral
 definition, including quantities such as the bin edges, pivots, moment mode,
@@ -946,9 +1114,9 @@ Only after the saved spectrum and the saved bulk projection have both passed
 these checks does ERF regenerate the compact cloud- and rain-water fields from
 the authoritative spectrum.
 
-A missing ``SBM_Schema``, missing ``SBMSpectrum``, incompatible spectral
-schema, inadmissible spectrum, or inconsistent cloud/rain projection causes
-the restart to fail. A corrupted checkpoint is not silently repaired by
+A missing ``SBM_Schema``, a missing ``SBMSpectrum`` on any level, an
+incompatible spectral schema, or an inadmissible spectrum or inconsistent
+cloud/rain projection on any level causes the restart to fail. A corrupted checkpoint is not silently repaired by
 projection.
 
 Output and diagnostics

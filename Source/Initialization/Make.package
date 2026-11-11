@@ -8,6 +8,7 @@ CEXE_sources += ERF_InitRayleigh.cpp
 CEXE_sources += ERF_InitSponge.cpp
 CEXE_sources += ERF_Init1D.cpp
 CEXE_sources += ERF_InitTurbPert.cpp
+CEXE_headers += ERF_PerturbationWind.H
 CEXE_sources += ERF_InitImmersedForcing.cpp
 CEXE_sources += ERF_InitForEnsemble.cpp 
 
@@ -17,7 +18,9 @@ endif
 
 ifeq ($(USE_NETCDF),TRUE)
 CEXE_headers += ERF_MetgridUtils.H
+CEXE_headers += ERF_MetgridLandUtils.H
 CEXE_sources += ERF_InitFromWRFInput.cpp
 CEXE_sources += ERF_InitFromMetgrid.cpp
+CEXE_sources += ERF_InitLandFromMetgrid.cpp
 CEXE_sources += ERF_InitFromNCFile.cpp
 endif

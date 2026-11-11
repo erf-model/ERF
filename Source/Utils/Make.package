@@ -1,4 +1,5 @@
 CEXE_headers += ERF_EOS.H
+CEXE_headers += ERF_HostFabView.H
 CEXE_headers += ERF_HSEUtils.H
 CEXE_headers += ERF_Interpolation_UPW.H
 CEXE_headers += ERF_Interpolation_WENO.H
@@ -11,6 +12,7 @@ CEXE_headers += ERF_TerrainMetrics.H
 CEXE_headers += ERF_TimestepUtils.H
 CEXE_headers += ERF_TileNoZ.H
 CEXE_headers += ERF_Utils.H
+CEXE_headers += ERF_ImmersedWallCell.H
 CEXE_headers += ERF_GridUtils.H
 CEXE_headers += ERF_HashRNG.H
 CEXE_headers += ERF_EpochTime.H
@@ -24,10 +26,13 @@ CEXE_headers += ERF_StormDiagnostics.H
 CEXE_headers += ERF_NodalReconstruction.H
 CEXE_headers += ERF_ColumnBands.H
 CEXE_headers += ERF_LatLonMap.H
+CEXE_headers += ERF_EarthRelativeWind.H
 CEXE_headers += ERF_TerrainSurfaceSlab.H
+CEXE_headers += ERF_TerrainFileChecks.H
 
 CEXE_sources += ERF_AverageDown.cpp
 CEXE_sources += ERF_ChopGrids.cpp
+CEXE_sources += ERF_TerrainFileChecks.cpp
 CEXE_sources += ERF_ColumnBands.cpp
 CEXE_sources += ERF_LatLonMap.cpp
 CEXE_sources += ERF_TerrainSurfaceSlab.cpp

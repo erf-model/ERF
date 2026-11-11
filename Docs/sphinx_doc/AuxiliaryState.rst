@@ -13,11 +13,11 @@ those parts of the dynamical core.
 
    The auxiliary-state layer is an implementation interface, not a
    user-selectable generic tracer package. Its qualification consumer remains
-   a test-only inert tracer. The M3 spectral-bin microphysics transport is now
-   also a live consumer of the same mapped-measure, semantic-stage, host-carrier,
-   mapped-divergence, and completed-step-ledger contracts. SBM supplies its own
-   spectral semantics, grouped acceptance, canonical-state checks, projection,
-   restart, and boundary policy.
+   a test-only inert tracer. Spectral-bin microphysics is also a live user
+   of the same mapped-measure, host-stage, dry-air-carrier, mapped-divergence,
+   and completed-step-transfer contracts. SBM supplies its own particle-bin
+   semantics, coupled transport acceptance, canonical-state checks,
+   cloud/rain projection, restart, and boundary policy.
 
 Why auxiliary state exists
 --------------------------
@@ -321,9 +321,43 @@ old-step time across the step, compatible face layouts, and the exact temporal
 weights above. It supports multiple auxiliary components and applies the host
 time weighting to every component.
 
-ERF also provides an anelastic midpoint integrator, but the current auxiliary
-stage adapter deliberately rejects that method because it has not yet been
-qualified for this transport interface.
+Anelastic midpoint advance
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ERF's anelastic midpoint method, its default anelastic integrator, advances
+the first stage over half a timestep and the second over a full timestep, both
+from the old state:
+
+.. math::
+
+   H_a^*
+   =
+   H_a^n
+   -
+   \frac{\Delta t}{2}
+   D_\xi\left(\widetilde{\mathbf F}_0\right),
+
+.. math::
+
+   H_a^{n+1}
+   =
+   H_a^n
+   -
+   \Delta t\,
+   D_\xi\left(\widetilde{\mathbf F}_1\right).
+
+Like the compressible stages, both are anchored at the old state, so the
+low-order limiter trial uses the old state and the stage's own interval, and
+only the second rate enters the completed step:
+
+.. math::
+
+   \mathbf J_a
+   =
+   \Delta t\,\widetilde{\mathbf F}_1.
+
+Neither Heun's half weights nor the sum of both stage increments reproduces
+this ledger; the unit tests check both as negative controls.
 
 Mapped-geometry verification
 ----------------------------
@@ -339,7 +373,7 @@ ERF's native scalar operators. The current unit evidence includes:
   native grid and on a vertically stretched grid;
 * parity with the static-terrain mapped-diffusion transfer, including the
   terrain metric cross terms;
-* preservation of a constant constituent ratio through both supported host
+* preservation of a constant constituent ratio through all three supported host
   recurrences;
 * exact completed-step temporal weights for one and multiple components;
 * rejection of incompatible cell/face layouts, aliased stage targets, and
@@ -430,18 +464,19 @@ runtime capability.
 Relationship to spectral-bin microphysics
 -----------------------------------------
 
-The SBM spectral state is separately owned outside ERF's core conserved-state
-array. In M3, ``SBMTransport`` uses the generic mapped auxiliary-state contracts
-for its static mapped measure, host-stage timing, dry-air carrier, mapped
-conservative update, and completed-step accounting while retaining ownership of
-spectral coordinates and grouped realizability. The inert tracer remains a
-small proof consumer of the generic coupling, but it is no longer the only live
-consumer.
+The SBM spectral state is owned separately from ERF's core conserved-state
+array. ``SBMTransport`` uses the generic mapped auxiliary-state interfaces
+for the static mapped measure, host-stage timing, dry-air mass carrier,
+conservative transport update, and accepted completed-step accounting. SBM
+retains ownership of spectral-bin coordinates, mass/number admissibility,
+and cloud/rain projection. The inert tracer remains a small proof consumer
+of the shared transport infrastructure.
 
-The generic substrate does not itself provide a complete multilevel lifecycle
-for SBM. The current M3 SBM execution remains single-level and triply periodic;
-spectral FillPatch/prolongation, restriction, reflux, remake/regrid, multilevel
-restart, and the operational nonperiodic boundary lifecycle remain M4 work.
+The SBM-specific operators for conservative mapped restriction,
+dry-air-relative prolongation, explicit old/new spectral time views, and the
+accepted interface transfer connect SBM to ERF's adaptive-grid lifecycle on
+a periodic two-level hierarchy (see :ref:`sec:SBMMultilevel`). Nonperiodic
+spectral boundaries are not yet available.
 
 The auxiliary layer addresses transport between atmospheric grid cells. It
 does not define how an SBM particle distribution is represented or remapped in

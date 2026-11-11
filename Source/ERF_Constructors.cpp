@@ -9,11 +9,19 @@
 #include "ERF.H"
 #include "ERF_Constants.H"
 #include "AMReX_buildInfo.H"
+#include "ERF_NoahMPGitHash.H"
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMFixtureValidation.H"
 #include "ERF_SBMRemapping.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
+#include "ERF_SBMAMRFluxRegister.H"
+#ifdef ERF_SBM_AMR_QUALIFICATION
+#include "ERF_SBMAMRQualification.H"
+#endif
+#ifdef ERF_USE_MOVING_BODIES
+#include "ERF_StructureModelRegistry.H"
+#endif
 
 #include <algorithm>
 #include <string>
@@ -39,6 +47,9 @@ erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
 
     erf_sbm::SBMLayoutSpec spec;
     spec.populations.push_back(std::move(population));
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    erf_sbm::qualification::add_layout_properties(spec, choice);
+#endif
     spec.liquid_projection = {0, choice.sbm_cloud_rain_split};
     const auto validation = erf_sbm::SBMLayout::validate(spec);
     if (!validation.valid) {
@@ -47,15 +58,74 @@ erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
+// The qualified multilevel SBM envelope: two periodic levels, refined by 2,
+// two-way coupled, on a flat ConstantDz mesh, with one host integrator for
+// both levels, in double precision.  Regridding and any fine-level subcycling
+// count are allowed.
+void validate_sbm_amr_capability (const SolverChoice& choice,
+                                  const int max_level,
+                                  const amrex::Vector<amrex::IntVect>& ref_ratio,
+                                  const amrex::Geometry& geom0)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level <= 1,
+        "SBM supports at most two AMR levels (amr.max_level <= 1)");
+    if (max_level == 0) return;
+#ifdef AMREX_USE_FLOAT
+    amrex::Abort("SBM AMR is qualified in double precision only; use amr.max_level = 0 "
+                 "in a single-precision build");
+#endif
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom0.isAllPeriodic(),
+        "SBM AMR requires a triply periodic domain (geometry.is_periodic = 1 1 1)");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !ref_ratio.empty() && ref_ratio[0] == amrex::IntVect(2),
+        "SBM AMR supports amr.ref_ratio = 2 in every direction only");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.coupling_type == CouplingType::TwoWay,
+        "SBM AMR requires erf.coupling_type = TwoWay");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        choice.mesh_type == MeshType::ConstantDz &&
+        choice.terrain_type == TerrainType::None,
+        "SBM AMR requires a ConstantDz mesh without terrain");
+    const auto same_on_every_level = [] (const auto& per_level) {
+        return std::all_of(per_level.begin(), per_level.end(),
+                           [&] (const auto& value) { return value == per_level.front(); });
+    };
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        same_on_every_level(choice.compressibility_type) &&
+        same_on_every_level(choice.timestepping_type),
+        "SBM AMR requires the same compressibility and erf.timestepping_type on every level");
+    // Each anelastic level computes its own base density and does not average
+    // it down, so the coarse and fine dry-air carriers agree only if it is constant.
+    const bool constant_base_density =
+        choice.init_type == InitType::Uniform ||
+        choice.init_type == InitType::ConstantDensity ||
+        choice.init_type == InitType::ConstantDensityLinearTheta;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        choice.compressibility_type.front() == CompressibilityType::FullyCompressible ||
+        constant_base_density,
+        "SBM AMR with anelastic levels requires a constant base density "
+        "(erf.init_type = Uniform, ConstantDensity, or ConstantDensityLinearTheta)");
+}
+
 void validate_sbm_m3_advection (const SolverChoice& choice,
-                                const int max_level)
+                                const int max_level,
+                                const amrex::Vector<amrex::IntVect>& ref_ratio,
+                                const amrex::Geometry& geom0)
 {
     if (choice.moisture_type != MoistureType::SBM) return;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(AMREX_SPACEDIM == 3,
         "SBM M3 mapped advection requires three dimensions");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level == 0,
-        "SBM M3 mapped advection supports one AMR level only");
-    const bool anelastic = !choice.anelastic.empty() && choice.anelastic[0] != 0;
+    validate_sbm_amr_capability(choice, max_level, ref_ratio, geom0);
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    erf_sbm::qualification::validate_configuration(choice, max_level);
+#endif
+    const bool anelastic = !choice.compressibility_type.empty() && choice.compressibility_type[0] != CompressibilityType::FullyCompressible;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        std::none_of(choice.compressibility_type.begin(), choice.compressibility_type.end(),
+                     [] (CompressibilityType type) {
+                         return type == CompressibilityType::PseudoIncompressible;
+                     }),
+        "SBM M3 does not yet support erf.compressibility_type = PseudoIncompressible "
+        "(the density evolves there; SBM has been validated with a fixed density only)");
     // Grid stretching may set StaticFittedMesh as a label while retaining
     // StretchedDz; only VariableDz selects the fitted-terrain projection.
     const bool fitted_terrain_mesh =
@@ -78,17 +148,32 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
         "SBM M3 supports ConstantDz, StretchedDz, or static fitted-mesh geometry");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.buildings_type == BuildingsType::None,
         "SBM M3 requires buildings_type=None");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.substepping_type.size() == 1 &&
-                                     choice.substepping_type[0] == SubsteppingType::None,
-        "SBM M3 requires acoustic substepping_type=None");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.anelastic_type.empty() ||
-                                     choice.anelastic[0] == 0 ||
-                                     choice.anelastic_type[0] == AnelasticType::RK2,
-        "SBM M3 supports the Anelastic RK2 Heun integrator only");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        choice.timestepping_type.size() == max_level + 1 &&
+        std::none_of(choice.timestepping_type.begin(), choice.timestepping_type.end(),
+                     [] (TimesteppingType type) {
+                         return type == TimesteppingType::RK3_ImplicitSubstep;
+                     }),
+        "SBM M3 does not support acoustic substepping (erf.timestepping_type = RK3_ImplicitSubstep)");
+    for (int lev = 0; lev < static_cast<int>(choice.timestepping_type.size()); ++lev) {
+        // A pseudo-incompressible level's mass flux is not divergence free at fixed density.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            choice.compressibility_type[lev] == CompressibilityType::FullyCompressible ||
+            choice.compressibility_type[lev] == CompressibilityType::Anelastic,
+            "SBM supports FullyCompressible and Anelastic levels only (erf.compressibility_type)");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            choice.compressibility_type[lev] == CompressibilityType::FullyCompressible ||
+            choice.timestepping_type[lev] == TimesteppingType::RK2 ||
+            choice.timestepping_type[lev] == TimesteppingType::MidPoint,
+            "SBM M3 supports the anelastic RK2 (Heun) and MidPoint integrators only");
+    }
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
         "SBM M3 does not support scalar or particle diffusion");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.turbChoice[0].use_kturb &&
-                                     choice.turbChoice[0].pbl_type == PBLType::None,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        std::all_of(choice.turbChoice.begin(), choice.turbChoice.end(),
+                    [] (const TurbChoice& turb) {
+                        return !turb.use_kturb && turb.pbl_type == PBLType::None;
+                    }),
         "SBM M3 does not support turbulent particle mixing or SHOC/macrophysics");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.use_num_diff,
         "SBM M3 does not support numerical diffusion");
@@ -116,7 +201,8 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
 }
 
 void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
-                                              const int max_level)
+                                              const int max_level,
+                                              const amrex::Geometry& geom0)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.moisture_type == MoistureType::None,
         "M2 auxiliary inert tracer fixture requires moisture_model=None");
@@ -128,10 +214,15 @@ void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
                                      choice.terrain_type == TerrainType::None &&
                                      choice.buildings_type == BuildingsType::None,
         "M2 auxiliary inert tracer fixture requires static Cartesian ConstantDz geometry");
+    // The tracer has no boundary conditions of its own: FillBoundary fills only periodic and
+    // inter-box ghosts of its intensive field, so a face on a non-periodic domain boundary
+    // would read stale ghost values (erf-model/ERF#4559)
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom0.isAllPeriodic(),
+        "M2 auxiliary inert tracer fixture requires a fully periodic domain (geometry.is_periodic = 1 1 1)");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.use_gravity,
         "M2 auxiliary inert tracer fixture requires gravity disabled");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.substepping_type.size() == 1 &&
-                                     choice.substepping_type[0] == SubsteppingType::None,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.timestepping_type.size() == 1 &&
+                                     choice.timestepping_type[0] != TimesteppingType::RK3_ImplicitSubstep,
         "M2 auxiliary inert tracer fixture does not support acoustic substepping");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
         "M2 auxiliary inert tracer fixture does not support scalar diffusion");
@@ -149,7 +240,7 @@ void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
         choice.advChoice.dryscal_vert_adv_type == AdvType::Centered_2nd,
         "M2 auxiliary inert tracer fixture requires Centered_2nd dry scalar advection");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        !choice.anelastic[0] || choice.anelastic_type[0] == AnelasticType::RK2,
+        (choice.compressibility_type[0] == CompressibilityType::FullyCompressible) || choice.timestepping_type[0] == TimesteppingType::RK2,
         "M2 auxiliary inert tracer fixture does not support Anelastic MidPoint");
 
     std::string problem_name = "Undefined";
@@ -225,6 +316,7 @@ ERF::ERF_shared ()
     if (ParallelDescriptor::IOProcessor()) {
         const char* erf_hash = buildInfoGetGitHash(1);
         const char* amrex_hash = buildInfoGetGitHash(2);
+        const char* noahmp_hash = NoahMPGitHash();
         const char* buildgithash = buildInfoGetBuildGitHash();
         const char* buildgitname = buildInfoGetBuildGitName();
 
@@ -234,6 +326,9 @@ ERF::ERF_shared ()
         }
         if (strlen(amrex_hash) > 0) {
           Print() << "AMReX git hash: " << amrex_hash << "\n";
+        }
+        if (strlen(noahmp_hash) > 0) {
+          Print() << "Noah-MP git hash: " << noahmp_hash << "\n";
         }
         if (strlen(buildgithash) > 0) {
           Print() << buildgitname << " git hash: " << buildgithash << "\n";
@@ -276,12 +371,12 @@ ERF::ERF_shared ()
     m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
 
     ReadParameters();
-    validate_sbm_m3_advection(solverChoice, max_level);
+    validate_sbm_m3_advection(solverChoice, max_level, refRatio(), geom[0]);
     bool auxiliary_inert_tracer_test = false;
     ParmParse pp_auxiliary("erf");
     pp_auxiliary.queryAdd("auxiliary_inert_tracer_test", auxiliary_inert_tracer_test);
     if (auxiliary_inert_tracer_test) {
-        validate_auxiliary_inert_tracer_fixture(solverChoice, max_level);
+        validate_auxiliary_inert_tracer_fixture(solverChoice, max_level, geom[0]);
         auxiliary_inert_tracer = std::make_unique<erf_auxiliary::AuxiliaryInertTracer>(max_level + 1);
     }
     if (solverChoice.moisture_type == MoistureType::SBM) {
@@ -289,6 +384,15 @@ ERF::ERF_shared ()
         std::vector<amrex::Real> candidate(static_cast<std::size_t>(layout.ncomp()),
                                            amrex::Real(0.0));
         if (!solverChoice.sbm_fixture_initial_state.empty()) {
+            // ReadParameters checks the length against sbm_nbins and sbm_moment_mode;
+            // check it against the layout itself before writing into candidate.
+            if (solverChoice.sbm_fixture_initial_state.size() !=
+                static_cast<amrex::Long>(layout.ncomp())) {
+                amrex::Error("sbm_fixture_initial_state has " +
+                    std::to_string(solverChoice.sbm_fixture_initial_state.size()) +
+                    " entries but the SBM layout has " + std::to_string(layout.ncomp()) +
+                    " components");
+            }
             std::copy(solverChoice.sbm_fixture_initial_state.begin(),
                       solverChoice.sbm_fixture_initial_state.end(), candidate.begin());
         }
@@ -321,15 +425,36 @@ ERF::ERF_shared ()
         sbm_state_manager = std::make_unique<erf_sbm::SBMStateManager>(
             std::move(layout), max_level + 1);
         sbm_transport = std::make_unique<erf_sbm::SBMTransport>(
-            sbm_state_manager->layout(), max_level + 1);
+            sbm_state_manager->layout(), max_level + 1,
+            erf_sbm::SBMTransport::default_max_groups_per_chunk, false);
+        sbm_transport->enable_zero_flow_diagnostics(
+            solverChoice.sbm_amr_qualification_expect_zero_flow);
     }
     // Create one invocation identity after inputs are available and before
     // InitData can read restart metadata or write an output on restart.
     execution_provenance = erf_provenance::initialize_execution_provenance();
     initializeMicrophysics(nlevs_max);
+    initializeFire(nlevs_max);
 
 #ifdef ERF_USE_WINDFARM
     initializeWindFarm(nlevs_max);
+#endif
+
+#ifdef ERF_USE_MOVING_BODIES
+    // The structure model erf.structures.model selects; it reads its own inputs here
+    m_structure_model = make_structure_model_from_inputs(max_level);
+    if (m_structure_model) {
+        amrex::Print() << "Structure model: " << m_structure_model->name() << "\n";
+    }
+#else
+    // A build without the structure coupling refuses the key instead of ignoring it
+    {
+        amrex::ParmParse pp_structures("erf.structures");
+        if (pp_structures.contains("model")) {
+            amrex::Abort("erf.structures.model needs ERF built with the structure coupling"
+                         " (ERF_ENABLE_MOVING_BODIES=ON in CMake, USE_MOVING_BODIES=TRUE in GNU make)");
+        }
+    }
 #endif
 
 #ifdef ERF_USE_EAMXX_SHOC
@@ -384,24 +509,25 @@ ERF::ERF_shared ()
                  geom,
                  refRatio(),
                  solverChoice.grid_stretching_ratio,
-                 solverChoice.zsurf,
                  solverChoice.dz0);
 
     if (SolverChoice::mesh_type == MeshType::StretchedDz ||
         SolverChoice::mesh_type == MeshType::VariableDz) {
+        // The vertical levels, not geometry.prob_lo[2] and prob_hi[2], are the physical extent
+        //    of the domain on these meshes; prob_lo[2] and prob_hi[2] only bound the
+        //    computational coordinate.  A mismatch is allowed (the top of a stretched grid is
+        //    not obvious from erf.initial_dz and erf.grid_stretching_ratio), so only warn.
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[0][nz-1]-geom[0].ProbHi(2)) > Real(1.0e-4)) {
-            Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
-                << " does not match highest requested z level " << zlevels_stag[0][nz-1]
-                << std::endl;
+            Print() << "WARNING: geometry.prob_hi[2] = " << geom[0].ProbHi(2)
+                << " does not match the highest z level, " << zlevels_stag[0][nz-1]
+                << "; the domain top is z = " << zlevels_stag[0][nz-1] << std::endl;
         }
         if (std::fabs(zlevels_stag[0][0]-geom[0].ProbLo(2)) > Real(1.0e-4)) {
-            Print() << "Note: prob_lo[2]=" << geom[0].ProbLo(2)
-                << " does not match lowest requested level " << zlevels_stag[0][0]
-                << std::endl;
+            Print() << "WARNING: geometry.prob_lo[2] = " << geom[0].ProbLo(2)
+                << " does not match the lowest z level, " << zlevels_stag[0][0]
+                << "; the domain bottom is z = " << zlevels_stag[0][0] << std::endl;
         }
-
-        // Redefine the problem domain here?
     }
 
     // Get lo/hi indices for massflux calc
@@ -443,7 +569,18 @@ ERF::ERF_shared ()
     extern void erf_probinit_link_anchor_func () noexcept;
     erf_probinit_link_anchor_func();
 #endif
-    prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    {
+        // The problem sees the physical extent of the domain: on a mesh other than ConstantDz
+        //    that is the vertical levels, not geometry.prob_lo[2] and prob_hi[2]
+        RealArray problo{AMREX_D_DECL(geom[0].ProbLo(0), geom[0].ProbLo(1), geom[0].ProbLo(2))};
+        RealArray probhi{AMREX_D_DECL(geom[0].ProbHi(0), geom[0].ProbHi(1), geom[0].ProbHi(2))};
+        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+            problo[2] = zlevels_stag[0].front();
+            probhi[2] = zlevels_stag[0].back();
+        }
+        prob = amrex_probinit(problo.data(), probhi.data());
+    }
+    prob->set_zlevels_stag(zlevels_stag);
 
     ParmParse pp_erf("erf");
     std::string prob_name;
@@ -451,7 +588,7 @@ ERF::ERF_shared ()
     const std::string prob_name_ci = amrex::toLower(prob_name);
     if (prob_name_ci == "cloud chamber" || prob_name_ci == "cloudchamber") {
         cloud_chamber_config = erf_cloud_chamber::parse_config(
-            geom[0].ProbLo(), geom[0].ProbHi());
+            geom[0].ProbLo(), geom[0].ProbHi(), solverChoice.moisture_type);
         const amrex::GpuArray<Real, AMREX_SPACEDIM> cloud_chamber_dx = {
             geom[0].CellSize(0), geom[0].CellSize(1), geom[0].CellSize(2)};
         erf_cloud_chamber::validate_wall_roughness_geometry(
@@ -465,7 +602,7 @@ ERF::ERF_shared ()
                 !cloud_chamber_config.physical_initialization ||
                 (solverChoice.moisture_type != MoistureType::None &&
                  solverChoice.moisture_type != MoistureType::SatAdj)) {
-                Error("Cloud Chamber: cloud_chamber_budget_interval requires physical_temperature_rh with no moisture or SatAdj");
+                Error("Cloud Chamber: cloud_chamber_budget_interval supports only physical_temperature_rh with dry mode or SatAdj; bulk and other active moisture models are unsupported");
             }
             cloud_chamber_budget = std::make_unique<CloudChamberBudget>(budget_interval);
         }
@@ -521,6 +658,7 @@ ERF::ERF_shared ()
     physbcs_v.resize(nlevs_max);
     physbcs_w.resize(nlevs_max);
     physbcs_base.resize(nlevs_max);
+    physbcs_base_new.resize(nlevs_max);
 
     // Planes to hold Dirichlet values at boundaries
     xvel_bc_data.resize(nlevs_max);
@@ -529,6 +667,7 @@ ERF::ERF_shared ()
     th_bc_data.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
+    sbm_amr_flux_regs.resize(nlevs_max);
 
     // Stresses
     Tau.resize(nlevs_max);
@@ -555,6 +694,7 @@ ERF::ERF_shared ()
     // Metric terms
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
+    z_sfc_nd.resize(nlevs_max);
     detJ_cc.resize(nlevs_max);
     ax.resize(nlevs_max);
     ay.resize(nlevs_max);
@@ -562,6 +702,8 @@ ERF::ERF_shared ()
 
     z_phys_nd_new.resize(nlevs_max);
     detJ_cc_new.resize(nlevs_max);
+    z_phys_nd_mid.resize(nlevs_max);
+    detJ_cc_mid.resize(nlevs_max);
 
     z_phys_nd_src.resize(nlevs_max);
     z_phys_cc_src.resize(nlevs_max);
@@ -576,6 +718,13 @@ ERF::ERF_shared ()
     terrain_blanking_xface.resize(nlevs_max);
     terrain_blanking_yface.resize(nlevs_max);
     terrain_blanking_zface.resize(nlevs_max);
+    ib_wall_face13.resize(nlevs_max);
+    ib_wall_face23.resize(nlevs_max);
+    ib_wall_face33.resize(nlevs_max);
+    ib_wall_hfx.resize(nlevs_max);
+    ib_wall_qfx.resize(nlevs_max);
+    ib_wall_ktarget.resize(nlevs_max);
+    ib_wall_height.resize(nlevs_max);
 
     // Wall distance
     walldist.resize(nlevs_max);
@@ -584,6 +733,7 @@ ERF::ERF_shared ()
     ba1d.resize(nlevs_max);
     ba2d.resize(nlevs_max);
     column_kextent.resize(nlevs_max);
+    cf_implicit_mask.resize(nlevs_max);
 
     // MultiFabs needed to convert WRFBdy data
     mf_PSFC.resize(nlevs_max);
@@ -694,6 +844,8 @@ ERF::ERF_shared ()
     surface_state_1.resize(nlevs_max);
     surface_state_2.resize(nlevs_max);
     surface_state_interp.resize(nlevs_max);
+
+    mfvec_surface_fluxes.resize(nlevs_max);
 }
 
 ERF::~ERF () = default;

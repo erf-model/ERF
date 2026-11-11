@@ -747,8 +747,8 @@ define ( [[maybe_unused]] int const& a_level,
                                         + hi_areaHi_y * hi_centHi_y[2] ) / aux_afrac_y(i,j+1,k)
                                       : zero;
               } else if (a_idim == 1) {
-                aux_fcent_y(i,j+1,k,0) = lo_centHi_y[0];      // x
-                aux_fcent_y(i,j+1,k,1) = lo_centHi_y[2];      // z
+                aux_fcent_y(i,j+1,k,0) = hi_centHi_y[0];      // x
+                aux_fcent_y(i,j+1,k,1) = hi_centHi_y[2];      // z
               } else if (a_idim == 2) {
                 aux_fcent_y(i,j+1,k,0) = (aux_afrac_y(i,j+1,k) > zero)   // x
                                       ? ( lo_areaHi_y * lo_centHi_y[0]
@@ -784,8 +784,8 @@ define ( [[maybe_unused]] int const& a_level,
                                         + hi_areaHi_z * (hi_centHi_z[1] + myhalf) ) / aux_afrac_z(i,j,k+1)
                                       : zero;
               } else if (a_idim == 2) {
-                aux_fcent_z(i,j,k+1,0) = lo_centHi_z[0];      // x
-                aux_fcent_z(i,j,k+1,1) = lo_centHi_z[1];      // y
+                aux_fcent_z(i,j,k+1,0) = hi_centHi_z[0];      // x
+                aux_fcent_z(i,j,k+1,1) = hi_centHi_z[1];      // y
               }
             }
 
@@ -1140,6 +1140,21 @@ define ( [[maybe_unused]] int const& a_level,
       amrex::VisMF::Write(*m_areafrac[2],"WAREAZ");
   }
 #endif
+}
+
+void
+eb_aux_::clear ()
+{
+    m_cellflags.reset();
+    m_volfrac.reset();
+    m_volcent.reset();
+    m_bndryarea.reset();
+    m_bndrycent.reset();
+    m_bndrynorm.reset();
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        m_areafrac[idim].reset();
+        m_facecent[idim].reset();
+    }
 }
 
 const FabArray<EBCellFlagFab>&

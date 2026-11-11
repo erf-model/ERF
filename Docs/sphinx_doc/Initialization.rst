@@ -142,6 +142,10 @@ file **Exec/ERF_Prob.cpp** must still be present for the build.
     A file may be supplied for each level -- ``erf.nc_init_file_0``,
     ``erf.nc_init_file_1``, and so on -- but only level 0 is required to have one;
     see :ref:`sec:nested-wrfinput` below.
+    Each MPI rank reads from the wrfinput file only the part of each field that its
+    own grids cover, so no rank ever holds a whole field.  To keep a large job from
+    having every rank open the file at once, at most ``erf.wrfinput_max_readers``
+    ranks (default 256; a value of zero or less removes the limit) read at the same time.
 
 * **erf.init_type = Metgrid**
 
@@ -153,6 +157,8 @@ file **Exec/ERF_Prob.cpp** must still be present for the build.
     System (WPS) listed chronologically starting with the earliest
     timestamp. A minimum of two files are required to derive lateral
     boundary conditions.
+  - With ``erf.land_surface_model = SLM``, SLM's initial land state is also
+    built from each level's first file; see :ref:`sec:slm-metgrid-init`.
 
 * **erf.init_type = NCFile**
 
@@ -286,10 +292,64 @@ Note that all three components must be given.  Supplying only x and y is the doc
 way to ask for the full depth of the domain (see :ref:`subsec:full-depth-refinement`),
 which is the opposite of what is wanted here.
 
+With three or more levels, a nest at level 2 or above is placed relative to the *whole*
+file of its parent level, as WRF places it, not relative to the part of that file ERF refines.
+Cropping level 1 with a refinement indicator therefore does not move level 2. This has
+consequences:
+
+- each ancestor level must be given exactly one ``nc_init_file``, since WRF's metadata does
+  not say which of several files at a level is the parent; ERF aborts otherwise. Successive
+  files in time (for example ``erf.nc_init_file_1 = "wrfinput_d02_t0" "wrfinput_d02_t1"``) are
+  possible only at the finest level;
+- every level-2 or finer region must fit inside its parent's ERF region, with the
+  proper-nesting buffer of ``amr.n_proper`` cells except at the domain boundary. ERF aborts,
+  printing both regions, if it does not; enlarge the parent's region or crop the finer level
+  with a refinement indicator;
+- a restart reads the ``nc_init_file`` of every ancestor level again to place the nests, so
+  those files must still be available.
+
+A WRF nest carries the full column of eta levels of its parent, so its vertical indices are
+those of the domain at every level: a refined region that starts above the bottom of the
+domain takes the file's data for the layers it covers.
+
 If no file is given for the finer level, omit ``erf.nc_init_file_1`` and use a refinement
 indicator alone.  The finer level's terrain and state are then interpolated from its
 parent, and its base state is built as described below.  This works whether or not the
 refined region reaches the domain top.
+
+.. _subsec:wrflow-per-level:
+
+Sea surface and skin temperatures at each level
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When ``erf.nc_low_file`` names a wrflowinp file, level 0 reads its sea surface temperature
+(SST) from it at each of the file's times, and the surface layer interpolates linearly in
+time between the two slices that bracket the current time.  Over water the skin
+temperature (TSK) takes the SST from the file, so it is interpolated in time the same way.
+
+A finer level may be given a wrflowinp file of its own, as WRF does for a nest run with
+``sst_update = 1``::
+
+          erf.nc_low_file   = "wrflowinp_d01"
+          erf.nc_low_file_1 = "wrflowinp_d02"
+
+The level then reads its SST from that file, on the cells its own wrfinput file covers,
+and is interpolated in time exactly as level 0 is.  This requires:
+
+-  ``erf.nc_low_file`` for level 0;
+-  ``erf.init_type = WRFInput`` and a single ``erf.nc_init_file_<lev>`` for the level,
+   whose position and size the wrflowinp file must match;
+-  the same times as level 0's file -- the same start, interval and number of times --
+   since every level is interpolated in time between the same slices.
+
+ERF aborts with a message if any of these does not hold.
+
+A finer level that reads its own wrfinput file but is given no wrflowinp file prints a
+warning, and from the start of the run takes **all** of its SST and TSK time slices,
+including the first, by interpolation from its parent, which follows level 0's wrflowinp
+file.  The SST and TSK the level read from its own wrfinput file are not used; the rest of
+that file is.  A level with no wrfinput file of its own always takes its SST and TSK from
+its parent.
 
 The base state at each level
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

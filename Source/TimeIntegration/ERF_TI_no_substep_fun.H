@@ -317,12 +317,12 @@
         apply_bcs(S_sum, time_for_fp, S_sum[IntVars::cons].nGrow(), S_sum[IntVars::xmom].nGrow(),
                   fast_only=true, vel_and_mom_synced=false);
 
-        if (solverChoice.anelastic[level]) {
-            bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
+        if (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible) {
+            bool have_tb = (thin_xforce[level] || thin_yforce[level] || thin_zforce[level]);
             if (have_tb) {
                 project_velocity_tb(level, slow_dt, S_sum);
             } else {
-                project_momenta(level, time_for_fp, slow_dt, S_sum);
+                project_momenta(level, time_for_fp, slow_dt, S_sum, true);
             }
         }
     };

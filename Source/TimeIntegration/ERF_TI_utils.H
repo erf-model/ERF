@@ -137,9 +137,10 @@
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
 
             //
-            // Make a temporary MF to fill the terrain
+            // Make a temporary MF to fill the terrain -- on this level's domain: one made from
+            // the level 0 domain would cover only part of a fine level
             //
-            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
+            Box terrain_bx(surroundingNodes(fine_geom.Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
             FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
             FArrayBox terrain_fab_src(makeSlab(terrain_bx,2,0),1);
             FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
@@ -157,20 +158,23 @@
                 (*z_phys_nd_new[lev])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
             }
 
-            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
             make_J             (fine_geom, *z_phys_nd[lev], *detJ_cc[lev]);
             make_areas         (fine_geom, *z_phys_nd[lev], *ax[lev], *ay[lev], *az[lev]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  "
                                  << std::setprecision(timeprecision) << old_stage_time << std::endl;
-            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_src[lev], zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_src[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
             make_J             (fine_geom, *z_phys_nd_src[lev], *detJ_cc_src[lev]);
             make_areas         (fine_geom, *z_phys_nd_src[lev], *ax_src[lev], *ay_src[lev], *az_src[lev]);
             make_zcc           (fine_geom, *z_phys_nd_src[lev], *z_phys_cc_src[lev]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: "
                                  << std::setprecision(timeprecision) << new_stage_time << std::endl;
-            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
             make_J             (fine_geom, *z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
             Real inv_dt  = one_d/static_cast<Real>(slow_dt);
@@ -203,7 +207,7 @@
                                       Vector<MultiFab>& S_data, std::unique_ptr<MultiFab>& z_t_pert)
     {
         // Make "old" fast geom -- store in z_phys_nd for convenience
-        Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
+        Box terrain_bx(surroundingNodes(fine_geom.Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
 
         if (verbose) Print() << "Making geometry at start of substep time: "
                              << std::setprecision(timeprecision) << old_substep_time << std::endl;
@@ -224,10 +228,12 @@
             (*z_phys_nd_new[lev])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
         }
 
-        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
         make_J             (fine_geom,*z_phys_nd[lev], *detJ_cc[lev]);
 
-        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
+        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
         make_J             (fine_geom,*z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
         Real inv_dt   = one_d/static_cast<Real>(dtau);

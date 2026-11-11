@@ -196,13 +196,10 @@ void SuperDropletPC::readInputs (const double a_dt)
         }
     }
 
-    {
-        Vector<int> bin_size = {1,1,1};
-        pp.queryarr("coalescence_bin_size", bin_size);
-        for (int i = 0; i < AMREX_SPACEDIM; i++) {
-            m_coalescence_bin_size[i] = bin_size[i];
-        }
-    }
+    // the IntVect overload of queryarr requires exactly AMREX_SPACEDIM values
+    m_coalescence_bin_size = IntVect(1);
+    pp.queryarr("coalescence_bin_size", m_coalescence_bin_size);
+    AMREX_ALWAYS_ASSERT(m_coalescence_bin_size.allGT(0));
 
     const auto dx_h = Geom(0).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
@@ -379,7 +376,9 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, con
         if (a_lev == 0) {
             m_initializations[i]->printParameters(m_species_mat, m_aerosol_mat);
         }
-        addParticles( a_lev, a_ptr, *(m_initializations[i]) );
+        // Initial populations occupy the composite hierarchy once. Injection
+        // instead creates its whole physical source on level 0 before ownership.
+        addParticles( a_lev, a_ptr, *(m_initializations[i]), true );
         Print() << "  Particle container size (level " << a_lev << "): "
                 << NumberOfParticlesAtLevel(a_lev) << "\n";
     }
@@ -398,6 +397,7 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, con
 /*! Inject particles */
 void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, const double a_dt)
 {
+    bool injected = false;
     for (int i = 0; i < m_num_injections; i++) {
         const bool active = (m_injections[i]->m_inj_rate > 0)
                          && (a_t >= m_injections[i]->m_tstart)
@@ -407,8 +407,15 @@ void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, cons
             Print() << "SuperDropletPC(" << m_name << "): "
                     << " injecting particles (" << i << ").\n";
             addParticles( 0, a_ptr, *(m_injections[i]) );
+            injected = true;
             Print() << "    Particle container size: " << NumSuperDroplets() << "\n";
         }
+    }
+    if (injected) {
+        // Phase change and composite deposition require finest-level ownership,
+        // even when particle advection (and its redistribution) is disabled.
+        Redistribute();
+        SplitMergeAtLevelBoundary();
     }
 }
 
@@ -418,17 +425,20 @@ void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, cons
     random amount for each super-droplet. The mass per physical particle is then computed from the
     mass per super-droplet and the multiplicity. The equivalent radius is then computed from the
     particle mass and the density of condensate. */
-void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of condensate */)
+void SuperDropletPC::SetAttributes (MultiFab& a_rhoc, int a_lev)
 {
     BL_PROFILE("SuperDropletPC::SetAttributes");
 
-    const auto plo = Geom(0).ProbLoArray();
-    const auto dx_h = Geom(0).CellSize();
+    const auto plo = Geom(a_lev).ProbLoArray();
+    const auto dx_h = Geom(a_lev).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
-    const auto dxi = Geom(0).InvCellSizeArray();
-    const auto domain = Geom(0).Domain();
+    const auto dxi = Geom(a_lev).InvCellSizeArray();
+    const auto domain = Geom(a_lev).Domain();
 
-    const int num_sd_per_cell = m_num_sd_per_cell;
+    int num_sd_per_cell = 0;
+    for (const auto& init : m_initializations) {
+        num_sd_per_cell += init->numSDPerCell(cell_volume);
+    }
     const int num_sp  = m_num_species;
     const int num_ae = m_num_aerosols;
 
@@ -436,7 +446,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
 
-    forEachParticleTile(0,
+    forEachParticleTile(a_lev,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs, int np)
     {
@@ -477,16 +487,16 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
 }
 
 /*! Scale the multiplicities with density of air */
-void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air */)
+void SuperDropletPC::DensityScaling (const MultiFab& a_rho, int a_lev)
 {
     BL_PROFILE("SuperDropletPC::DensityScaling");
     if (!m_density_scaling) { return; }
 
-    const auto plo = Geom(0).ProbLoArray();
-    const auto dxi = Geom(0).InvCellSizeArray();
-    const auto domain = Geom(0).Domain();
+    const auto plo = Geom(a_lev).ProbLoArray();
+    const auto dxi = Geom(a_lev).InvCellSizeArray();
+    const auto domain = Geom(a_lev).Domain();
 
-    forEachParticleTile(0,
+    forEachParticleTile(a_lev,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs, int np)
     {

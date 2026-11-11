@@ -17,7 +17,7 @@ amr.n_cell = 8 8 8
 geometry.is_periodic = 1 1 1
 
 erf.fixed_dt = 0.0002
-erf.substepping_type = "None"
+erf.timestepping_type = "RK3_NoSubstepping"
 erf.sum_interval = 1
 erf.v = 1
 amr.v = 1

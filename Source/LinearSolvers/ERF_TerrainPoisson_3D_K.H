@@ -275,6 +275,16 @@ T terrpoisson_flux_zlo_dir (int i, int j, int k,
 }
 
 /**
+ * Bits of the face mask taken by terrpoisson_adotx: one per face of the solve region whose
+ * flux is set to zero (TerrainPoisson masks the Neumann faces of its region).
+ */
+enum TerrainPoissonFaceBit : int {
+    tp_face_xlo = 1, tp_face_xhi = 2,
+    tp_face_ylo = 4, tp_face_yhi = 8,
+    tp_face_zlo = 16, tp_face_zhi = 32
+};
+
+/**
  * Apply the terrain Poisson matrix to a cell-centered field.
  *
  * @tparam T Real-valued array and spacing type
@@ -291,6 +301,17 @@ T terrpoisson_flux_zlo_dir (int i, int j, int k,
  * @param dxinv Inverse x grid spacing
  * @param dyinv Inverse y grid spacing
  * @param dzinv Inverse z grid spacing
+ * @param dlo Low corner of the solve region (used with zf)
+ * @param dhi High corner of the solve region (used with zf)
+ * @param zf Faces of the region whose flux is zero (sum of TerrainPoissonFaceBit values;
+ *        0, the default, keeps every face flux)
+ *
+ * A masked face is a Neumann face of the solve region: a face of the region inside the domain
+ * (a coarse/fine face of a refined level) or a Neumann (wall, inflow) face of the domain.  The
+ * even mirror that TerrainPoisson::apply_bcs puts in the ghost cell zeroes the normal-gradient
+ * part of the flux through such a face but not the terrain cross term, so on sloping terrain
+ * the face would let correction through; with the face masked the whole flux through it is
+ * zero, as in AMReX's MLTerrainPoisson.  Faces outside the mask are untouched, bit for bit.
  */
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -301,7 +322,10 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
                         amrex::Array4<T const> const& az,
                         amrex::Array4<T const> const& dJ,
                         amrex::Array4<T const> const& zp,
-                        T dxinv, T dyinv, T dzinv) noexcept
+                        T dxinv, T dyinv, T dzinv,
+                        amrex::Dim3 const& dlo = amrex::Dim3{0,0,0},
+                        amrex::Dim3 const& dhi = amrex::Dim3{0,0,0},
+                        int zf = 0) noexcept
 {
     using amrex::Real;
     Real h_xi, h_eta, h_zeta;
@@ -492,10 +516,18 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     // Adotx
     // *********************************************************
     if (k == 0) pz_lo = zero;
+    if ((zf & tp_face_xlo) && i == dlo.x) px_lo = zero;
+    if ((zf & tp_face_xhi) && i == dhi.x) px_hi = zero;
+    if ((zf & tp_face_ylo) && j == dlo.y) py_lo = zero;
+    if ((zf & tp_face_yhi) && j == dhi.y) py_hi = zero;
+    if ((zf & tp_face_zlo) && k == dlo.z) pz_lo = zero;
+    if ((zf & tp_face_zhi) && k == dhi.z) pz_hi = zero;
 
     y(i,j,k) =  (ax(i+1,j,k)*px_hi - ax(i,j,k)*px_lo) * dxinv
                +(ay(i,j+1,k)*py_hi - ay(i,j,k)*py_lo) * dyinv
                +(az(i,j,k+1)*pz_hi - az(i,j,k)*pz_lo) * dzinv;
     y(i,j,k) /=  dJ(i,j,k);
 }
+
+
 #endif

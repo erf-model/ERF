@@ -2,7 +2,7 @@
 # at all six physical walls while thermal diffusion drives buoyancy.
 erf.prob_name = "Cloud Chamber"
 erf.init_type = ConstantDensity
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_gravity = true
 erf.moisture_model = SatAdj
 erf.vert_implicit = false

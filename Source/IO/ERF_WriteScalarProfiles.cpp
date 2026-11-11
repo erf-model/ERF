@@ -2,10 +2,13 @@
  * \file ERF_WriteScalarProfiles.cpp
  */
 #include <iomanip>
+#include <limits>
 #include "ERF_Constants.H"
 
 #include "ERF.H"
 #include "ERF_Derive.H"
+#include "ERF_MoistUtils.H"
+#include "ERF_MicrophysicsConstants.H"
 
 using namespace amrex;
 
@@ -31,6 +34,10 @@ ERF::sum_integrated_quantities (double time)
     Real rhth_ml = zero;
     Real scal_ml = zero;
     Real mois_ml = zero;
+#ifdef ERF_USE_FIRE
+    Real smoke_sl = zero;
+    Real smoke_ml = zero;
+#endif
 
     bool local = true;
 
@@ -56,6 +63,11 @@ ERF::sum_integrated_quantities (double time)
             mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,dJ0,mfx0,mfy0,false);
         }
     }
+#ifdef ERF_USE_FIRE
+    if (m_fire_coupler) {
+        smoke_sl = volWgtSumMF(0, vars_new[0][Vars::cons], RhoSmoke_comp, dJ0, mfx0, mfy0, false);
+    }
+#endif
 
     for (int lev = 0; lev <= finest_level; lev++) {
         auto& mfx = *mapfac[lev][MapFacType::m_x];
@@ -69,6 +81,11 @@ ERF::sum_integrated_quantities (double time)
                 mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,true);
             }
         }
+#ifdef ERF_USE_FIRE
+        if (m_fire_coupler) {
+            smoke_ml += volWgtSumMF(lev, vars_new[lev][Vars::cons], RhoSmoke_comp, dJ, mfx, mfy, true);
+        }
+#endif
     }
 
     Real h_avg_ustar = zero;
@@ -90,8 +107,34 @@ ERF::sum_integrated_quantities (double time)
         h_avg_olen  /= area_z;
     }
 
+    // On pseudo-incompressible levels, the departure of (rho theta) from (rho0 theta0), which the
+    // constraint div(rho0 theta0 u) = 0 holds at zero without heating or diffusion: max over the
+    // valid cells (with fluid) of all such levels of |rho theta - rho0 theta0| / (rho0 theta0)
+    Real pi_drift = -one;
+    for (int lev = 0; lev <= finest_level; lev++) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::PseudoIncompressible) { continue; }
+        auto const& s_arr  = vars_new[lev][Vars::cons].const_arrays();
+        auto const& b_arr  = base_state[lev].const_arrays();
+        auto const& dJ_arr = detJ_cc[lev]->const_arrays();
+        Real lev_drift = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{},
+                                   vars_new[lev][Vars::cons], IntVect(0),
+        [=] AMREX_GPU_DEVICE (int b, int i, int j, int k) noexcept -> GpuTuple<Real>
+        {
+            if (dJ_arr[b](i,j,k) <= zero) { return { zero }; }
+            const Real rt0 = b_arr[b](i,j,k,BaseState::r0_comp) * b_arr[b](i,j,k,BaseState::th0_comp);
+            return { std::abs(s_arr[b](i,j,k,RhoTheta_comp) - rt0) / rt0 };
+        });
+        pi_drift = std::max(pi_drift, lev_drift);
+    }
+    ParallelDescriptor::ReduceRealMax(pi_drift);
+
+#ifdef ERF_USE_FIRE
+    const int nfoo = 10;
+    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,smoke_sl,mass_ml,rhth_ml,scal_ml,mois_ml,smoke_ml};
+#else
     const int nfoo = 8;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
+#endif
     Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
@@ -105,31 +148,51 @@ ERF::sum_integrated_quantities (double time)
         rhth_sl = foo[i++];
         scal_sl = foo[i++];
         mois_sl = foo[i++];
+#ifdef ERF_USE_FIRE
+        smoke_sl = foo[i++];
+#endif
         mass_ml = foo[i++];
         rhth_ml = foo[i++];
         scal_ml = foo[i++];
         mois_ml = foo[i++];
+#ifdef ERF_USE_FIRE
+        smoke_ml = foo[i++];
+#endif
+
+        // Print the integrals with every digit, so that a run can be checked for conservation
+        // from its output (Tests/RunConservation.cmake)
+        const int sumprecision = std::numeric_limits<Real>::max_digits10;
 
         Print() << '\n';
         Print() << "TIME= " << std::setw(datwidth) << std::setprecision(timeprecision) << std::left << time << '\n';
         if (finest_level ==  0) {
 #if 1
-           Print() << " MASS       = " << mass_sl << '\n';
+           Print() << std::setprecision(sumprecision) << " MASS       = " << mass_sl << '\n';
 #else
-           Print() << " PERT MASS  = " << mass_sl << '\n';
+           Print() << std::setprecision(sumprecision) << " PERT MASS  = " << mass_sl << '\n';
 #endif
-           Print() << " RHO THETA  = " << rhth_sl << '\n';
-           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR = " << scal_sl << '\n'; }
-           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL = " << mois_sl << '\n'; }
+           Print() << std::setprecision(sumprecision) << " RHO THETA  = " << rhth_sl << '\n';
+           if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR = " << scal_sl << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL = " << mois_sl << '\n'; }
+#ifdef ERF_USE_FIRE
+           if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  = " << smoke_sl << '\n'; }
+#endif
         } else {
 #if 1
-           Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << std::setprecision(sumprecision) << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #else
-           Print() << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << std::setprecision(sumprecision) << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #endif
-           Print() << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
-           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
-           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
+           Print() << std::setprecision(sumprecision) << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
+           if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
+#ifdef ERF_USE_FIRE
+           if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  SL/ML = " << smoke_sl << " " << smoke_ml << '\n'; }
+#endif
+        }
+        if (pi_drift >= zero) {
+           Print() << std::setprecision(sumprecision) << " PI DRIFT   = " << pi_drift
+                   << "  (max |rho theta - rho0 theta0| / (rho0 theta0))" << '\n';
         }
 
         // The first data log only holds scalars
@@ -159,19 +222,11 @@ ERF::sum_integrated_quantities (double time)
     });
 #endif
 
-    // This is just an alias for convenience
-    int lev = 0;
-    if (NumSamplePointLogs() > 0 && NumSamplePoints() > 0) {
-        for (int i = 0; i < NumSamplePoints(); ++i)
-        {
-            sample_points(lev, time, SamplePoint(i), vars_new[lev][Vars::cons]);
-        }
+    if (sample_point_sampler) {
+        run_line_sampler(*sample_point_sampler);
     }
-    if (NumSampleLineLogs() > 0 && NumSampleLines() > 0) {
-        for (int i = 0; i < NumSampleLines(); ++i)
-        {
-            sample_lines(lev, time, SampleLine(i), vars_new[lev][Vars::cons]);
-        }
+    if (sample_line_sampler) {
+        run_line_sampler(*sample_line_sampler);
     }
 }
 
@@ -351,7 +406,9 @@ ERF::sum_energy_quantities (double time)
     MultiFab tot_energy(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
 
     auto const& dx = geom[lev].CellSizeArray();
+    auto const  prob_lo = geom[lev].ProbLoArray();
     bool is_moist = (solverChoice.moisture_type != MoistureType::None);
+    const MoistureComponentIndices moist_idx = solverChoice.moisture_indices;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -364,27 +421,36 @@ ERF::sum_energy_quantities (double time)
         const Array4<Real>& tot_mass_arr   = tot_mass.array(mfi);
         const Array4<Real>& tot_energy_arr = tot_energy.array(mfi);
         const Array4<const Real>& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
-        const Array4<const Real>& z_arr    = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) :
+        const Array4<const Real>& z_arr    = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) :
                                                                 Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : zero;
-            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : zero;
-            Real Qt   = Qv + Qc;
+            // Mixing ratios of vapour, of all liquid (cloud and rain) and of all ice (cloud
+            // ice, snow, graupel); the state holds rho_d times each species
+            Real Qv = zero, Ql = zero, Qi = zero;
+            if (is_moist) { GetMoistureVars(i, j, k, cons_arr, Qv, Ql, Qi, moist_idx); }
+            Real Qt   = Qv + Ql + Qi;
             Real Rhod = cons_arr(i,j,k,Rho_comp);
             Real Rhot = Rhod * (one + Qt);
             Real Temp = getTgivenRandRTh(Rhod, cons_arr(i,j,k,RhoTheta_comp), Qv);
             Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
-            Real zval = (z_arr) ? z_arr(i,j,k) : Real(k)*dx[2];
+            // Height of the cell centre
+            Real zval = (z_arr) ? z_arr(i,j,k) : prob_lo[2] + (Real(k) + myhalf)*dx[2];
 
+            // Internal energy with constant heat capacities (Romps 2008, J. Atmos. Sci. 65,
+            // 3779), measured from liquid water at the triple point: vapour carries
+            // E0v = L_v - R_v T_trip, ice -E0s with E0s = L_f. The latent heats this
+            // implies follow Kirchhoff's law, e.g. L_v(T) = L_v + (c_pv - c_l)(T - T_trip).
             Real Cv   = Cp_d - R_d;
             Real Cvv  = Cp_v - R_v;
-            Real Cpv  = Cp_v;
+            Real E0v  = L_v - R_v*h2otrip;
+            Real E0s  = lfus;
 
             tot_mass_arr(i,j,k)   = Rhot;
-            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v*Qc
+            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cp_l*Ql + Cp_i*Qi)*(Temp - h2otrip)
+                                           + Qv*E0v - Qi*E0s
                                            + (one + Qt)*TKE + (one + Qt)*CONST_GRAV*zval );
 
         });
@@ -526,126 +592,61 @@ ERF::cloud_fraction (double /*time*/)
 }
 
 /**
- * Utility function for sampling MultiFab data at a specified cell index.
- *
- * @param lev Level for the associated MultiFab data
- * @param time Current time
- * @param cell IntVect containing the indexes for the cell where we want to sample
- * @param mf MultiFab from which we wish to sample data
+ * The volume fraction of each level, which line and plane sampling write as volfrac and use
+ * to blank the cells covered by immersed terrain (erf.terrain_type = EB or ImmersedForcing);
+ * nullptr otherwise, and on the levels up to max_level that do not exist, whose EB factory
+ * is not built
  */
-void
-ERF::sample_points (int /*lev*/, double time, IntVect cell, MultiFab& mf)
+Vector<const MultiFab*>
+ERF::sampling_volfrac () const
 {
-    int ifile = 0;
-
-    //
-    // Sample the data at a single point in space
-    //
-    int ncomp = mf.nComp();
-    Vector<Real> my_point = get_cell_data(mf, cell);
-
-    if (!my_point.empty()) {
-
-        // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
-
-        std::ostream& sample_log = SamplePointLog(ifile);
-        if (sample_log.good()) {
-          sample_log << std::setw(datwidth) << time;
-          for (int i = 0; i < ncomp; ++i)
-          {
-              sample_log << std::setw(datwidth) << my_point[i];
-          }
-          sample_log << std::endl;
-        } // if good
-    } // only write from processor that holds the cell
+    Vector<const MultiFab*> volfrac_lev(vars_new.size(), nullptr);
+    if (solverChoice.terrain_type == TerrainType::EB ||
+        solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            volfrac_lev[lev] = &EBFactory(lev).getVolFrac();
+        }
+    }
+    return volfrac_lev;
 }
 
 /**
- * Utility function for sampling data along a line along the z-dimension
- * at the (x,y) indices specified and writes it to an output file.
+ * Sample the lines of a LineSampler and write them, passing it the stresses, the SGS heat
+ * flux, whether each level carries a prognostic TKE, the heights of each level and the ground
+ * on level 0.  Used for erf.do_line_sampling, for erf.sample_line, which is a LineSampler
+ * of full-depth columns on level 0, and for erf.sample_point, a LineSampler of single cells.
  *
- * @param lev Current level
- * @param time Current time
- * @param cell IntVect containing the x,y-dimension indices to sample along z
- * @param mf MultiFab from which we sample the data
+ * @param sampler the line sampler
  */
 void
-ERF::sample_lines (int lev, double time, IntVect cell, MultiFab& mf)
+ERF::run_line_sampler (LineSampler& sampler)
 {
-    int ifile = 0;
-
-    const int ncomp = mf.nComp(); // cell-centered state vars
-
-    MultiFab mf_vels(grids[lev], dmap[lev], AMREX_SPACEDIM, 0);
-    average_face_to_cellcenter(mf_vels, 0,
-                               Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
-
-    //
-    // Sample the data at a line (in direction "dir") in space
-    // In this case we sample in the vertical direction so dir = 2
-    // The "k" value of "cell" is ignored
-    //
-    int dir = 2;
-    MultiFab my_line       = get_line_data(mf,              dir, cell);
-    MultiFab my_line_vels  = get_line_data(mf_vels,         dir, cell);
-    MultiFab my_line_tau11 = get_line_data(*Tau[lev][TauType::tau11], dir, cell);
-    MultiFab my_line_tau12 = get_line_data(*Tau[lev][TauType::tau12], dir, cell);
-    MultiFab my_line_tau13 = get_line_data(*Tau[lev][TauType::tau13], dir, cell);
-    MultiFab my_line_tau22 = get_line_data(*Tau[lev][TauType::tau22], dir, cell);
-    MultiFab my_line_tau23 = get_line_data(*Tau[lev][TauType::tau23], dir, cell);
-    MultiFab my_line_tau33 = get_line_data(*Tau[lev][TauType::tau33], dir, cell);
-
-    for (MFIter mfi(my_line, false); mfi.isValid(); ++mfi)
-    {
-        // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
-
-        std::ostream& sample_log = SampleLineLog(ifile);
-        if (sample_log.good()) {
-          sample_log << std::setw(datwidth) << std::setprecision(datprecision) << time;
-          const auto& my_line_arr = my_line[0].const_array();
-          const auto& my_line_vels_arr = my_line_vels[0].const_array();
-          const auto& my_line_tau11_arr = my_line_tau11[0].const_array();
-          const auto& my_line_tau12_arr = my_line_tau12[0].const_array();
-          const auto& my_line_tau13_arr = my_line_tau13[0].const_array();
-          const auto& my_line_tau22_arr = my_line_tau22[0].const_array();
-          const auto& my_line_tau23_arr = my_line_tau23[0].const_array();
-          const auto& my_line_tau33_arr = my_line_tau33[0].const_array();
-          const Box&  my_box = my_line[0].box();
-          const int klo = my_box.smallEnd(2);
-          const int khi = my_box.bigEnd(2);
-          int i = cell[0];
-          int j = cell[1];
-          for (int n = 0; n < ncomp; n++) {
-              for (int k = klo; k <= khi; k++) {
-                  sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_arr(i,j,k,n);
-              }
-          }
-          for (int n = 0; n < AMREX_SPACEDIM; n++) {
-              for (int k = klo; k <= khi; k++) {
-                  sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_vels_arr(i,j,k,n);
-              }
-          }
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau11_arr(i,j,k);
-          }
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau12_arr(i,j,k);
-          }
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau13_arr(i,j,k);
-          }
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau22_arr(i,j,k);
-          }
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau23_arr(i,j,k);
-          }
-          for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau33_arr(i,j,k);
-          }
-          sample_log << std::endl;
-        } // if good
-    } // mfi
+    const int nlev = static_cast<int>(vars_new.size());
+    Vector<Vector<MultiFab*>> tau_lev(nlev);
+    Vector<MultiFab*> hfx3_lev(nlev, nullptr);
+    Vector<int> prognostic_tke_available(nlev, 0);
+    Vector<MultiFab*> z_cc_lev(nlev, nullptr);
+    Vector<MultiFab*> z_nd_lev(nlev, nullptr);
+    for (int lev = 0; lev < nlev; ++lev) {
+        prognostic_tke_available[lev] = solverChoice.turbChoice[lev].use_tke ? 1 : 0;
+        if (lev < static_cast<int>(z_phys_cc.size())) { z_cc_lev[lev] = z_phys_cc[lev].get(); }
+        if (lev < static_cast<int>(z_phys_nd.size())) { z_nd_lev[lev] = z_phys_nd[lev].get(); }
+        if (lev < static_cast<int>(Tau.size())) {
+            for (const auto& tau : Tau[lev]) {
+                tau_lev[lev].push_back(tau.get());
+            }
+        }
+        if (lev < static_cast<int>(SFS_hfx3_lev.size())) {
+            hfx3_lev[lev] = SFS_hfx3_lev[lev].get();
+        }
+    }
+    // With immersed terrain the ground is the terrain surface, not the bottom of the mesh
+    const MultiFab* ground_nd = sampler.needs_ground() ? &station_ground(0) : nullptr;
+    // The line coordinates of a level made or regridded since they were last written
+    sampler.write_coords(z_phys_cc, z_phys_nd, geom, ground_nd);
+    sampler.get_sample_data(geom, vars_new, tau_lev, hfx3_lev, prognostic_tke_available,
+                            z_cc_lev, z_nd_lev, ground_nd, sampling_volfrac());
+    sampler.write_sample_data(t_new, istep, ref_ratio, geom);
 }
 
 /**

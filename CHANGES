@@ -1,3 +1,29 @@
+#26.12
+    -- WRF nests at level 2 and above are placed relative to the whole parent file, not to
+       the parent's ERF region, so a deck with three or more levels that crops level 1 and
+       was tuned to the old placement now refines a different region (#4992). Such a nest
+       must fit inside the cropped parent region (ERF aborts otherwise), and a nest that
+       starts above the bottom of the domain now takes the file's layers at their own
+       heights (#4995)
+
+    -- Two-stream radiation sees the immersed-boundary buildings: no heating in solid
+       cells, the ground under a footprint held, the shaded ground without the direct
+       beam. On by default with erf.ibseb.enable; erf.ibseb.two_stream_buildings = false
+       keeps the previous answers (#5004)
+
+#26.11
+    -- Implicit diffusion for all moist scalars (#4936)
+
+    -- Anelastic interpolate omega/ (m_x * m_y) bug fix (#4922)
+
+    -- Include map factors in CFL estimate (#4880)
+
+    -- Variable beta implicit vertical solve (#4377)
+
+    -- Terrain diffusion rotation bug fix (#4231)
+
+    -- SLM model added (#4095)
+
 #26.09
     -- Surface Layer restart w/ input_sounding fix (#3956)
 

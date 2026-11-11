@@ -1,6 +1,8 @@
 #include <ERF.H>
 #include "ERF_Constants.H"
 #include <ERF_Utils.H>
+#include "Microphysics/SBM/ERF_SBMStateManager.H"
+#include "Microphysics/SBM/ERF_SBMTransport.H"
 
 #ifdef ERF_USE_WINDFARM
 #include <ERF_WindFarm.H>
@@ -25,9 +27,27 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // We must swap the pointers so the previous step's "new" is now this step's "old"
     std::swap(vars_old[lev], vars_new[lev]);
 
-    // Surface energy balance on the building faces, with the state at the start of the step
-    ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
-                  vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    if (sbm_state_manager) {
+        std::string diagnostic;
+        const bool began = lev > 0
+            ? sbm_state_manager->begin_step(lev, time, diagnostic, dt_lev)
+            : sbm_state_manager->begin_step(lev, time, diagnostic);
+        if (!began) {
+            Abort("SBM state lifecycle at ERF::Advance: " + diagnostic);
+        }
+        if (!sbm_transport ||
+            !sbm_transport->begin_physical_step(lev, time, time + dt_lev,
+                                                diagnostic)) {
+            Abort("SBM AMR register step lifecycle at ERF::Advance: " + diagnostic);
+        }
+    }
+
+    // Surface energy balance on the building faces, with the state at the start of the step.
+    // With the two-stream columns as their radiation it runs after advance_radiation below.
+    if (!ibseb_after_radiation()) {
+        ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
+                      vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    }
 
     MultiFab& S_old = vars_old[lev][Vars::cons];
     MultiFab& S_new = vars_new[lev][Vars::cons];
@@ -54,12 +74,63 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         // Set ghost cells to bogus values so they aren't uninitialized
         W_old.setBndry(bogus_large_value);
         FillPatchFineLevel(lev, time, {&S_old, &U_old, &V_old, &W_old},
-                           {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
-                           base_state[lev], base_state[lev]);
+                           {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
+    }
+
+    // Update the inflow perturbation update time and amplitude
+    bool apply_perturbations = true;
+    if (solverChoice.use_perturbation(lev))
+    {
+        if (solverChoice.perturbation_auto) {
+            turbPert_update_automatic(lev, time);
+        }
+        if (turbPert.uniform_refresh_enabled(lev)) {
+            if (!solverChoice.perturbation_auto) { turbPert_update_uniform_wind(lev, time); }
+            apply_perturbations = turbPert.calc_tpi_uniform_update(lev, time);
+        } else {
+            turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
+        }
+    }
+
+    // If PerturbationType::Direct or CPM is selected, directly add the computed perturbation
+    // on the conserved field
+    if (solverChoice.use_direct_perturbation(lev) && apply_perturbations)
+    {
+        if (solverChoice.use_wvel_perturbation(lev)) { // CPM_W
+            auto m_ixtype = W_old.boxArray().ixType();
+            for (MFIter mfi(W_old,TileNoZ()); mfi.isValid(); ++mfi) {
+                Box bx  = mfi.tilebox();
+                const Array4<Real> &cell_data  = W_old.array(mfi);
+                const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
+                turbPert.apply_tpi(lev, bx, -1, m_ixtype, cell_data, pert_cell);
+            }
+            // apply_tpi only modifies valid faces; refresh the ghost faces so they agree (see below)
+            (*physbcs_w[lev])(W_old, U_old, V_old, W_old.nGrowVect(), time, BCVars::zvel_bc, true);
+        } else {
+            auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
+            // The direct perturbation stores a rate, so it adds rate * dt at every step;
+            //    CPM stores the increment itself, which it adds once per refresh
+            const Real pert_scale = (solverChoice.pert_type[lev] == PerturbationType::Direct) ? Real(dt_lev) : one;
+            for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
+                Box bx  = mfi.tilebox();
+                const Array4<Real> &cell_data  = S_old.array(mfi);
+                const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
+                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell, pert_scale);
+            }
+            // apply_tpi only modifies valid cells, but the ghost cells must agree with them:
+            //   the first RK stage reads them across box boundaries, and the next finer
+            //   level's FillPatchTwoLevels copies coarse ghost cells as well as valid ones,
+            //   so a stale ghost overlapping another box's valid cell would make the fine
+            //   ghost data depend on copy order (issue 4304).
+            (*physbcs_cons[lev])(S_old, U_old, V_old, RhoTheta_comp, 1, S_old.nGrowVect(),
+                                 time, BCVars::cons_bc, true);
+        }
     }
 
     //
-    // So we must convert the fillpatched to momenta, including the ghost values
+    // So we must convert the fillpatched to momenta, including the ghost values.
+    // This comes after the inflow perturbation above, since the dycore advances the
+    //    momenta: a CPM_W perturbation of W_old must reach rW_old
     //
     const MultiFab* c_vfrac = nullptr;
     if (solverChoice.terrain_type == TerrainType::EB) {
@@ -72,35 +143,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                        S_old, rU_old[lev], rV_old[lev], rW_old[lev],
                        Geom(lev).Domain(),
                        domain_bcs_type, c_vfrac);
-
-    // Update the inflow perturbation update time and amplitude
-    if (solverChoice.use_perturbation(lev))
-    {
-        turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
-    }
-
-    // If PerturbationType::Direct or CPM is selected, directly add the computed perturbation
-    // on the conserved field
-    if (solverChoice.use_direct_perturbation(lev))
-    {
-        if (solverChoice.use_wvel_perturbation(lev)) { // CPM_W
-            auto m_ixtype = W_old.boxArray().ixType();
-            for (MFIter mfi(W_old,TileNoZ()); mfi.isValid(); ++mfi) {
-                Box bx  = mfi.tilebox();
-                const Array4<Real> &cell_data  = W_old.array(mfi);
-                const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
-                turbPert.apply_tpi(lev, bx, -1, m_ixtype, cell_data, pert_cell);
-            }
-        } else {
-            auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
-            for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
-                Box bx  = mfi.tilebox();
-                const Array4<Real> &cell_data  = S_old.array(mfi);
-                const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
-                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
-            }
-        }
-    }
 
     // configure SurfaceLayer params if needed
     bool updated_prim = false;
@@ -156,10 +198,36 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
 #endif
 
+#ifdef ERF_USE_MOVING_BODIES
+    // **************************************************************************************
+    // Advance the structure model (erf.structures.model) over this step of its level,
+    // from the state at the start of the step; its momentum source then holds over the step
+    // **************************************************************************************
+    if (m_structure_model && lev == m_structure_model->level(finest_level)) {
+        advance_structure_model(lev, time, static_cast<Real>(dt_lev), U_old, V_old, W_old, S_old);
+    }
+
+    // On a coarser level, the model's latest source restricted onto this level, held over the
+    // step, so that the air under the finer level feels the force while this level steps
+    if (m_structure_model && lev < m_structure_model->level(finest_level)) {
+        make_structure_coarse_sources(lev);
+    }
+#endif
+
     // **************************************************************************************
     // Update the radiation sources with the "old" state
     // **************************************************************************************
     advance_radiation(lev, S_old, dt_lev);
+
+    // The building faces on this step's two-stream sweep (erf.ibseb.radiation = two_stream),
+    // with the state at the start of the step that the sweep saw: after any direct inflow
+    // perturbation above, and with the ground surface layer's Obukhov length and boundary-layer
+    // height of this step's update_fluxes (the call at the start of the step sees the previous
+    // step's).
+    if (ibseb_after_radiation()) {
+        ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
+                      vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    }
 
     // **************************************************************************************
     // Update the "old" state using SHOC
@@ -171,7 +239,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
             m_SurfaceLayer[Orientation::zlo()]->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],
                                                                         SFS_hfx1_lev[lev].get() , SFS_hfx2_lev[lev].get() , SFS_hfx3_lev[lev].get(),
                                                                         SFS_q1fx1_lev[lev].get(), SFS_q1fx2_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
-                                                                        z_phys_nd[lev].get());
+                                                                        z_phys_nd[lev].get(), &mfvec_surface_fluxes[lev]);
         }
 
         // Apply SHOC before the dycore so it sees a coherent state.
@@ -207,7 +275,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                 } else {
                     Vector<MultiFab*> mfs_mom = {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]};
                     FillPatchFineLevel(lev, time, mfs_vel, mfs_mom,
-                                       base_state[lev], base_state[lev],
                                        true, false);
                 }
             }
@@ -334,7 +401,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                 FillPatchFineLevel(lev, t_new[lev],
                                    {&S_new, &U_new, &V_new, &W_new},
                                    {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                                   base_state[lev], base_state[lev],
                                    /*fillset=*/true, /*cons_only=*/true);
             }
         }
@@ -406,13 +472,11 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
             // We must fill the ghost cells of these so that the parallel copy works correctly
             state_old[IntVars::xmom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::xmom].FillBoundary(geom[lev].periodicity());
-            FPr_u[lev].RegisterCoarseData({&state_old[IntVars::xmom], &state_new[IntVars::xmom]},
-                                          {time, time+dt_lev});
-
             state_old[IntVars::ymom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::ymom].FillBoundary(geom[lev].periodicity());
-            FPr_v[lev].RegisterCoarseData({&state_old[IntVars::ymom], &state_new[IntVars::ymom]},
-                                          {time, time+dt_lev});
+            RegisterCoarseMomentumCF(lev, state_old[IntVars::xmom], state_new[IntVars::xmom],
+                                     state_old[IntVars::ymom], state_new[IntVars::ymom],
+                                     {time, time+dt_lev});
 
             state_old[IntVars::zmom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::zmom].FillBoundary(geom[lev].periodicity());
@@ -460,6 +524,33 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
+
+    // A periodic face velocity is stored twice, at both ends of the domain; make the two copies equal
+    if (solverChoice.face_sync_int > 0 && (istep[lev] % solverChoice.face_sync_int == 0)
+        && geom[lev].isAnyPeriodic())
+    {
+        U_new.OverrideSync(geom[lev].periodicity());
+        V_new.OverrideSync(geom[lev].periodicity());
+        W_new.OverrideSync(geom[lev].periodicity());
+    }
+
+#ifdef ERF_USE_FIRE
+    // Advance the fire on the level its grid refines (erf.fire.anchor_level).
+    // The coupler hands the engine the wind (before the dycore with passive and
+    // lagged coupling, after it with synchronous), the air temperature and
+    // humidity at k = 0 from the state before the dycore and, when the engine
+    // asks for it, the surface precipitation accumulated through this step's
+    // microphysics; it then holds the engine's fluxes for the next step.
+    if (m_fire_coupler && lev == m_fire_coupler->level()) {
+        const SurfacePrecipAccumulationSources precip_sources =
+            micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                  : SurfacePrecipAccumulationSources{};
+        m_fire_coupler->advance(time, dt_lev, S_old,
+                                vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel],
+                                vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel],
+                                *z_phys_cc[lev], ba2d[lev], Geom(lev), precip_sources);
+    }
+#endif
 
     // ***********************************************************************************************
     // Two-stream radiation, post-dycore call: reports the cached flux

@@ -5,6 +5,14 @@
 #include "AMReX_ParmParse.H"
 #include "AMReX_PlotFileUtil.H"
 #include "AMReX_MultiFabUtil.H"
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <limits>
+#include <sstream>
+#include <string>
+#include <system_error>
 #include "ERF_WriteBndryPlanes.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_Derive.H"
@@ -87,20 +95,23 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
         Box box_this_lev(IntVect(ilo,jlo,0),
                          IntVect(ihi,jhi,domain.bigEnd(2)));
 
-        // Test if the target box at this level fits in the grids at this level
-        Box gbx = box_this_lev; gbx.grow(IntVect(1,1,0));
+        // The boundary register reaches m_out_rad cells outside the box in x and y. Those cells
+        // may lie outside the domain: write_planes reads them from the ghost cells, which
+        // ERF::write_bndry_planes fills first. Only the part inside the domain has to be
+        // covered by the grids at this level.
+        Box gbx = box_this_lev; gbx.grow(IntVect(m_out_rad,m_out_rad,0));
+        gbx &= domain;
 
-        // Ensure that the box is no larger than can fit in the (periodically grown) domain
-        // at level 0
+        // The box itself has to lie inside the domain: past the m_out_rad ghost cells there
+        // is no data to copy from
         if (ilev == 0) {
-            Box per_grown_domain(domain);
-            int growx = (geom[0].isPeriodic(0)) ? 1 : 0;
-            int growy = (geom[0].isPeriodic(1)) ? 1 : 0;
-            per_grown_domain.grow(IntVect(growx,growy,0));
-            /*
-            if (!per_grown_domain.contains(gbx))
-                Error("WriteBndryPlanes: Requested box is too large to fill");
-            */
+            if (!box_this_lev.ok()) {
+                Abort("WriteBndryPlanes: erf.bndry_output_box_lo/hi do not contain any cell centers");
+            }
+            if (!domain.contains(box_this_lev)) {
+                Abort("WriteBndryPlanes: the box given by erf.bndry_output_box_lo/hi must lie"
+                      " inside the domain");
+            }
 
             // Default to level 0
             target_box = box_this_lev;
@@ -127,6 +138,120 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
 }
 
 /**
+ * Number of leading rows of time.dat that a run starting at step start_step keeps.
+ *
+ * A restart replays the steps after its checkpoint, so the rows for those steps -- written by a
+ * run that went on past the checkpoint -- are dropped and written again. Rows also stop being
+ * kept at the first one whose step or time does not increase, or that is later than the restart,
+ * or that is at the restart step but not at the restart time: those were not written by the run
+ * being continued. A fresh start begins a new series.
+ *
+ * @param steps Step column of time.dat, in file order
+ * @param times Time column of time.dat, in file order
+ * @param start_step Step the run starts at
+ * @param start_time Time the run starts at, as written in time.dat
+ * @param restarting Whether the run starts from a checkpoint
+ */
+int WriteBndryPlanes::rows_to_keep (const Vector<int>& steps, const Vector<double>& times,
+                                    const int start_step, const double start_time,
+                                    const bool restarting)
+{
+    if (!restarting) { return 0; }
+    // The times of the run being continued are the restart's own to the last bit (time.dat and
+    // the checkpoint both hold 17 digits); a few units in the last place only allow for a
+    // time.dat written by hand, and stay far below any plane spacing also at a calendar clock
+    const double tol = 16.0 * std::numeric_limits<double>::epsilon() * std::max(1.0, std::abs(start_time));
+    int nkeep = 0;
+    for (int i = 0; i < steps.size(); ++i) {
+        if (steps[i] > start_step || times[i] > start_time + tol) { break; }
+        if (i > 0 && (steps[i] <= steps[i-1] || times[i] <= times[i-1])) { break; }
+        if (steps[i] == start_step && std::abs(times[i] - start_time) > tol) { break; }
+        ++nkeep;
+    }
+    return nkeep;
+}
+
+/**
+ * Decide which rows of time.dat a run starting at step start_step continues from, and say whether
+ * the series already holds the plane at that step. Only the I/O rank reads the file; every rank
+ * gets the answer. The file itself is rewritten by write_planes, just before the run's first row,
+ * so a run that stops before its first plane leaves the series as it found it.
+ *
+ * @param start_step Step the run starts at (the restart step, or 0)
+ * @param start_time Time the run starts at, as written in time.dat
+ * @param restarting Whether the run starts from a checkpoint
+ */
+bool WriteBndryPlanes::start_series (const int start_step, const double start_time,
+                                     const bool restarting)
+{
+    int has_start_plane = 0;
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ifstream in(m_time_file);
+        if (in.good()) {
+            // Every line counts, so that a line that does not parse -- a partial last row left
+            // by a run that stopped while writing it, say -- is dropped with the rows after it
+            Vector<std::string> rows;
+            Vector<int> steps;
+            Vector<double> times;
+            int nlines = 0;
+            std::string line;
+            while (std::getline(in, line)) {
+                ++nlines;
+                std::istringstream row(line);
+                int step;
+                double time;
+                if (static_cast<int>(rows.size()) + 1 < nlines || !(row >> step >> time)) { continue; }
+                rows.push_back(line);
+                steps.push_back(step);
+                times.push_back(time);
+            }
+            in.close();
+
+            const int nkeep = rows_to_keep(steps, times, start_step, start_time, restarting);
+            has_start_plane = (nkeep > 0 && steps[nkeep-1] == start_step) ? 1 : 0;
+
+            // A row whose step or time does not increase, anywhere in the file, or a row at or
+            // before the restart that does not continue the kept rows, cannot come from one run
+            bool broken = false;
+            for (int i = 1; i < rows.size(); ++i) {
+                if (steps[i] <= steps[i-1] || times[i] <= times[i-1]) { broken = true; }
+            }
+            if (restarting && nkeep < rows.size() && steps[nkeep] <= start_step) { broken = true; }
+
+            if (restarting && broken) {
+                Warning("WriteBndryPlanes: " + m_time_file + " does not hold one run's series: a step "
+                        "or time does not increase, or a row at or before the restart step " +
+                        std::to_string(start_step) + " is not at a time of this run. Only its first " +
+                        std::to_string(nkeep) + " rows are kept. A series that an earlier ERF version "
+                        "wrote across a restart has such a row, and its step-0 plane holds the "
+                        "restart state; write that series again.");
+            } else if (nkeep < nlines) {
+                if (restarting) {
+                    Print() << "WriteBndryPlanes: keeping " << nkeep << " of the " << nlines
+                            << " rows of " << m_time_file << " up to the restart step "
+                            << start_step << ", from this run's first plane on" << std::endl;
+                } else {
+                    Print() << "WriteBndryPlanes: a fresh start begins a new series; the "
+                            << nlines << " rows of " << m_time_file
+                            << " are dropped with this run's first plane" << std::endl;
+                }
+            }
+
+            // Rewrite even when every row is kept: a last row without its newline would
+            // otherwise run into the next row written
+            m_kept_rows.clear();
+            for (int i = 0; i < nkeep; ++i) {
+                m_kept_rows.push_back(rows[i]);
+            }
+            m_rewrite_time_file = true;
+        }
+    }
+    ParallelDescriptor::Bcast(&has_start_plane, 1, ParallelDescriptor::IOProcessorNumber(),
+                              ParallelDescriptor::Communicator());
+    return has_start_plane == 1;
+}
+
+/**
  * Function to write the specified grid data to an output file
  *
  * @param t_step Timestep number
@@ -144,6 +269,23 @@ void WriteBndryPlanes::write_planes (const int t_step, const double time_d,
     MultiFab& xvel = vars_new[bndry_lev][Vars::xvel];
     MultiFab& yvel = vars_new[bndry_lev][Vars::yvel];
     MultiFab& zvel = vars_new[bndry_lev][Vars::zvel];
+
+    // A moist temperature plane is computed with qv (erf_dermoisttemp), and the reader needs that
+    // qv to convert it back to theta: without a qv plane it cannot be read correctly
+    if (is_moist) {
+        bool writes_temperature = false;
+        bool writes_qv          = false;
+        for (const auto& name : m_var_names) {
+            if (name == "temperature") { writes_temperature = true; }
+            if (name == "qv")          { writes_qv          = true; }
+        }
+        if (writes_temperature && !writes_qv) {
+            Abort("erf.bndry_output_var_names writes temperature but not qv in a moist run: the"
+                  " temperature includes qv, and the reader needs the qv planes to convert it back"
+                  " to theta.  Add qv to erf.bndry_output_var_names, or write theta instead of"
+                  " temperature");
+        }
+    }
 
     const std::string chkname =
         m_filename + Concatenate("/bndry_output", t_step);
@@ -177,16 +319,17 @@ void WriteBndryPlanes::write_planes (const int t_step, const double time_d,
         BndryRegister bndry        (ba        , dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
         BndryRegister bndry_shifted(ba_shifted, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
 
-        int nghost = 0;
+        // Read the cells around the box from the ghost cells where they lie outside the grids
+        int nghost = m_out_rad;
         if (var_name == "density")
         {
             bndry.copyFrom(S, nghost, Rho_comp, 0, ncomp, m_geom[bndry_lev].periodicity());
 
         } else if (var_name == "temperature") {
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,m_out_rad);
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.tilebox();
+                const Box& bx = mfi.growntilebox(m_out_rad);
                 Real time = static_cast<Real>(time_d);
                 if (is_moist) {
                     // NOTE: we send in S[mfi] where we should send in (*z_phys_cc[lev])[mfi] because we know this routine doesn't use it
@@ -198,35 +341,35 @@ void WriteBndryPlanes::write_planes (const int t_step, const double time_d,
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "theta") {
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,m_out_rad);
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.tilebox();
+                const Box& bx = mfi.growntilebox(m_out_rad);
                 derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoTheta_comp);
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "scalar") {
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,m_out_rad);
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.tilebox();
+                const Box& bx = mfi.growntilebox(m_out_rad);
                 derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoScalar_comp);
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "ke") {
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,m_out_rad);
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box& bx = mfi.tilebox();
+                const Box& bx = mfi.growntilebox(m_out_rad);
                 derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "qv") {
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,m_out_rad);
             if (S.nComp() > RhoQ2_comp) {
                 for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
-                    const Box& bx = mfi.tilebox();
+                    const Box& bx = mfi.growntilebox(m_out_rad);
                     derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ1_comp);
                 }
             } else {
@@ -234,11 +377,11 @@ void WriteBndryPlanes::write_planes (const int t_step, const double time_d,
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "qc") {
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,m_out_rad);
             if (S.nComp() > RhoQ2_comp) {
                 for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
-                    const Box& bx = mfi.tilebox();
+                    const Box& bx = mfi.growntilebox(m_out_rad);
                     derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ2_comp);
                 }
             } else {
@@ -247,7 +390,7 @@ void WriteBndryPlanes::write_planes (const int t_step, const double time_d,
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "velocity") {
             MultiFab Vel(S.boxArray(), S.DistributionMap(), 3, m_out_rad);
-            average_face_to_cellcenter(Vel,0,Array<const MultiFab*,3>{&xvel,&yvel,&zvel});
+            average_face_to_cellcenter(Vel,0,Array<const MultiFab*,3>{&xvel,&yvel,&zvel},m_out_rad);
             bndry.copyFrom(Vel, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else {
             //Print() << "Trying to write planar output for " << var_name << std::endl;
@@ -267,6 +410,26 @@ void WriteBndryPlanes::write_planes (const int t_step, const double time_d,
 
     // Writing time.dat
     if (ParallelDescriptor::IOProcessor()) {
+        // The rows this run continues from replace the file before its first row, through a
+        // temporary file so that a crash leaves either the old file or the new one
+        if (m_rewrite_time_file) {
+            const std::string tmp_file = m_time_file + ".tmp";
+            std::ofstream out(tmp_file, std::ios::out | std::ios::trunc);
+            for (const auto& row : m_kept_rows) {
+                out << row << '\n';
+            }
+            out.close();
+            if (out.fail()) {
+                Abort("WriteBndryPlanes: cannot write " + tmp_file);
+            }
+            std::error_code ec;
+            std::filesystem::rename(tmp_file, m_time_file, ec);
+            if (ec) {
+                Abort("WriteBndryPlanes: cannot replace " + m_time_file + " with " + tmp_file + ": " + ec.message());
+            }
+            m_rewrite_time_file = false;
+            m_kept_rows.clear();
+        }
         std::ofstream oftime(m_time_file, std::ios::out | std::ios::app);
         oftime << std::setprecision(17) << t_step << ' ' << time_d << '\n';
         oftime.close();

@@ -4208,9 +4208,10 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                             const MoistureComponentIndices& moisture_indices)
 {
     auto mynn     = turbChoice.pbl_mynn;
+    const StratType pbl_strat = turbChoice.pbl_strat_type;
     auto level2   = turbChoice.pbl_mynn_level2;
 
-    Real Lt_alpha = (mynn.config == MYNNConfigType::CHEN2021) ? Real(0.1) : Real(0.23);
+    Real Lt_alpha = mynn.Lt_alpha;
 
     // Dirichlet flags to switch derivative stencil
     bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -4300,6 +4301,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         const auto& t_mean_mf = SurfLayer->get_mac_avg(level,5); // theta_v
         const auto& q_mean_mf = SurfLayer->get_mac_avg(level,4); // q_v
         const auto& u_star_mf = SurfLayer->get_u_star(level);
+        const similarity_funs l_sfuns = SurfLayer->similarity_functions();
         const auto& t_star_mf = SurfLayer->get_t_star(level);
         const auto& q_star_mf = SurfLayer->get_q_star(level);
 
@@ -4323,7 +4325,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                                           u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                           v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                           dthetadz, dudz, dvdz,
-                                          moisture_indices);
+                                          moisture_indices, pbl_strat);
 
             // Spatially varying MOST
             Real theta0 = tm_arr(i,j,0);
@@ -4370,6 +4372,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                                                     theta0, qv0, use_moisture);
                 sl.zval    = zval;
                 sl.zeta    = zeta;
+                sl.sfuns   = l_sfuns;
                 ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
             }
 
@@ -4398,7 +4401,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
             // Master length scale
             Real Lm;
-            if (mynn.config == MYNNConfigType::CHEN2021) {
+            if (mynn.config == MYNNConfigType::Chen2021) {
                 Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -myhalf);
             } else {
                 // NN09, Eqn 52
@@ -4448,7 +4451,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             // potential temperature.
 
             // NN09 gives the total water content flux; this assumes that
-            // all the species have the same eddy diffusivity. 
+            // all the species have the same eddy diffusivity.
             K_turb(i,j,k,EddyDiff::Q_v) = rho * Lm * qvel(i,j,k) * SH;
 
             K_turb(i,j,k,EddyDiff::Turb_lengthscale) = Lm;

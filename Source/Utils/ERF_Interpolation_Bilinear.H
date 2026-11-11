@@ -30,6 +30,19 @@ int clamp_interp_index (int idx, int npts)
     return amrex::max(0, amrex::min(idx, npts - 2));
 }
 
+// Lower index of the uniform-spacing interval holding x. A singleton
+// dimension returns 0 before dividing, since its spacing is 0 or NaN.
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+int get_interp_index (amrex::Real x, amrex::Real x0, amrex::Real dx, int npts)
+{
+    if (npts <= 1) {
+        return 0;
+    }
+
+    return clamp_interp_index(static_cast<int>(std::floor((x - x0) / dx)), npts);
+}
+
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 amrex::Real get_interp_weight (amrex::Real x, amrex::Real xlo, amrex::Real xhi)
@@ -47,11 +60,8 @@ void bilinear_interpolation (const amrex::Real* xvec, const amrex::Real* yvec, c
                 amrex::Real& tmp_var)
 {
 
-    if(z < amrex::Real(0)){
-        tmp_var = amrex::Real(0);
-        return;
-    }
-
+    // Points outside the table, including heights below zvec[0], take the value at the
+    // nearest table edge; a negative z inside the table is interpolated like any other
     amrex::Real x_interp = x;
     amrex::Real y_interp = y;
     amrex::Real z_interp = z;
@@ -65,8 +75,8 @@ void bilinear_interpolation (const amrex::Real* xvec, const amrex::Real* yvec, c
     if (z_interp < zvec[0]) z_interp = zvec[0];
     if (z_interp > zvec[nz-1]) z_interp = zvec[nz-1];
 
-    int iloc = clamp_interp_index(static_cast<int>(std::floor((x_interp - xvec[0]) / dxvec)), nx);
-    int jloc = clamp_interp_index(static_cast<int>(std::floor((y_interp - yvec[0]) / dyvec)), ny);
+    int iloc = get_interp_index(x_interp, xvec[0], dxvec, nx);
+    int jloc = get_interp_index(y_interp, yvec[0], dyvec, ny);
 
     int kloc = 0;
     if (nz > 1) {
@@ -174,8 +184,8 @@ void bilinear_interpolation_2d (const amrex::Real* xvec, const amrex::Real* yvec
             y = yvec[ny-1];
         }
 
-        int iloc = clamp_interp_index(static_cast<int>(std::floor((x-xvec[0])/dxvec)), nx);
-        int jloc = clamp_interp_index(static_cast<int>(std::floor((y-yvec[0])/dyvec)), ny);
+        int iloc = get_interp_index(x, xvec[0], dxvec, nx);
+        int jloc = get_interp_index(y, yvec[0], dyvec, ny);
         int ihi = (nx > 1) ? iloc + 1 : iloc;
         int jhi = (ny > 1) ? jloc + 1 : jloc;
 

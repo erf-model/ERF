@@ -28,7 +28,7 @@ python3 check_neutral.py --physics plt08640 surf_hist.dat
 ```
 
 `check_neutral.py` needs only the Python standard library. It reads the
-plotfile with `../erf_plotfile.py`, averages every field over x and y, and
+plotfile with `Exec/Tools/erf_plotfile.py`, averages every field over x and y, and
 prints one row per check with the measured value, the target and the
 tolerance. The exit code is non-zero if any enabled check fails.
 
@@ -40,7 +40,7 @@ Smoke (`--smoke`, the CTest entry, 40 steps):
 | --- | --- | --- |
 | all planar-averaged fields finite | yes | exact |
 | min KE, Kmv, diss | >= 0 | exact |
-| wall distance vs cell-centre height | equal | 1e-8 m |
+| wall distance vs cell-centre height above `geometry.prob_lo[2]` | equal | 1e-8 m |
 | Lturb in the three lowest cells vs the capped kappa (z + z0) | equal | 0.1 % |
 | max Lturb | <= max_geom_lscale (30 m) | 1e-9 m |
 | diss vs Cmu0^3 rho k^1.5 / Lturb (AL01 Eq. 19), interior cells | equal | 5 % |
@@ -55,3 +55,23 @@ Physics (`--physics`, adds to the smoke checks, 12 h run):
 | wind speed in the four lowest cells vs u*/kappa ln((z + z0)/z0) | log law | 10 % |
 | Kmv at the second cell over rho kappa u* (z + z0) | 1 | +/- 0.3 |
 
+
+## Wall distance over a raised bottom
+
+`check_walldist.py` checks one thing: on a flat mesh the wall distance is
+the height above the bottom wall, z_cc - `geometry.prob_lo[2]`, whatever
+the mesh and the box layout. Two CTest entries run the deck for one step
+with the bottom at 300 m and `input_sounding_raised` (the same profile
+moved up by 300 m):
+
+| test | mesh | boxes |
+| --- | --- | --- |
+| `RANS_WallDist_RaisedBase` | constant dz | one box |
+| `RANS_WallDist_RaisedBase_StretchedZSplit` | stretched, `erf.initial_dz = 4` | split in z (`amr.no_box_split_dir = -1`) |
+
+The script stops if `geometry.prob_lo[2]` is 0, where height and wall
+distance are the same number and the check could not fail. Before
+erf-model/ERF#4609 and #4610 were fixed, both entries failed: the
+constant-dz distance included `prob_lo[2]` (300 m too large), and the upper
+box of the split stretched mesh read the surface node at k = 0 outside its
+own data, an undefined value (300 m off in the build where this was measured).

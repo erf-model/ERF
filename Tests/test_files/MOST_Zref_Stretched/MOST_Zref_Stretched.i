@@ -2,13 +2,15 @@
 # Flat periodic column with a stretched vertical grid (dz0 = 10 m, ratio 1.1,
 # 40 levels) and the MOST surface layer with erf.most.zref unset.
 #
-# The default MOST query height (10 m) is exactly the top face of the first
-# cell, and the uniform (prob_hi - prob_lo)/nz spacing is 110.6 m, so this deck
-# exercises both reference-height defects fixed together:
+# The old terrain-fitted default query height (10 m) was exactly the top face
+# of the first cell, and the uniform (prob_hi - prob_lo)/nz spacing is 110.6 m,
+# so this deck exercised two reference-height defects fixed together:
 #   - terrain-fitted lookups rejected a height on a face ("zref not found")
 #   - the no-terrain default took half of the uniform spacing as zref
-# run_most_zref.py runs it in several mesh configurations and checks u* against
-# the log law and against a uniform 10 m column.
+# Since erf-model/ERF#4935 the default on every mesh is the centre of the first
+# cell, column by column with terrain. run_most_zref.py runs the deck in several
+# mesh configurations, flat and under a ridge, and checks u* against the log law
+# and against a uniform 10 m column.
 erf.prob_name = "ABL"
 max_step = 10
 
@@ -36,7 +38,7 @@ zhi.theta_grad = 0.003
 # Compressible on purpose: the anelastic Poisson solve on a stretched or
 # terrain-fitted mesh needs an FFT build, and the CI builds without FFT.
 # The reference-height lookups do not depend on the dycore.
-erf.anelastic          = 0
+erf.compressibility_type = FullyCompressible
 erf.fixed_dt           = 1.0
 erf.fixed_mri_dt_ratio = 8
 

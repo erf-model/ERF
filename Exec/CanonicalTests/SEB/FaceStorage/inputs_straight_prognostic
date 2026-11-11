@@ -1,0 +1,6 @@
+FILE = inputs_roundtrip
+
+# The straight run the restart legs are compared with, face by face.
+max_step = 4
+erf.ibseb.csv_file = "ibseb_straight_prognostic.csv"
+erf.ibseb.dump_faces_file = "faces_straight_prognostic"

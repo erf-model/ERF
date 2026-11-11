@@ -48,7 +48,8 @@ namespace MicVar {
       // derived vars
       rain_accum,
       snow_accum,
-      graup_accum,
+      graupel_accum,
+      precip_accum,  // everything that reached the ground, mm of liquid water
       NumVars
   };
 }
@@ -142,12 +143,15 @@ public:
              const SolverChoice& sc) override
     {
         dt = dt_advance;
+        m_sed.reset(dt_advance);
 
         this->Cloud(sc);
         this->IceFall(sc);
         this->Precip(sc);
         this->PrecipFall(sc);
     }
+
+    const SedimentationFlux* Sed_Flux () const override { return &m_sed; }
 
     amrex::MultiFab*
     Qmoist_Ptr (const int& varIdx) override
@@ -190,6 +194,7 @@ public:
         a_idx.push_back(0); a_names.push_back("RainAccum");
         a_idx.push_back(1); a_names.push_back("SnowAccum");
         a_idx.push_back(2); a_names.push_back("GraupAccum");
+        a_idx.push_back(3); a_names.push_back("PrecipAccum");
     }
 
     SurfacePrecipAccumulationSources
@@ -200,11 +205,13 @@ public:
         }
 
         SurfacePrecipAccumulationSources sources;
+        // No total is offered: the land and fire couplings take the total where a
+        // scheme offers one and the rain otherwise, and SAM has always given them rain
         sources.rain = {mic_fab_vars[MicVar::rain_accum].get(), rhor / amrex::Real(1000.0)};
 
         if (m_moisture_type == MoistureType::SAM) {
             sources.snow    = {mic_fab_vars[MicVar::snow_accum].get(), rhos / amrex::Real(1000.0)};
-            sources.graupel = {mic_fab_vars[MicVar::graup_accum].get(), rhog / amrex::Real(1000.0)};
+            sources.graupel = {mic_fab_vars[MicVar::graupel_accum].get(), rhog / amrex::Real(1000.0)};
         }
 
         return sources;
@@ -338,8 +345,8 @@ public:
     }
 
 private:
-    // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
-    int m_qmoist_size = 3;
+    // Number of qmoist variables (rain_accum, snow_accum, graupel_accum, precip_accum)
+    int m_qmoist_size = 4;
 
     // Number of qstate variables
     int n_qstate_moist_size = 6;
@@ -382,6 +389,10 @@ private:
 
     // independent variables
     amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
+
+    // Sedimentation face fluxes of the most recent Advance: rain, snow and graupel
+    // (PrecipFall, rhoQ4-6) and cloud ice (IceFall, rhoQ3)
+    SedimentationFlux m_sed;
 
     // microphysics parameters/coefficients
     amrex::TableData<amrex::Real, 1> accrrc;

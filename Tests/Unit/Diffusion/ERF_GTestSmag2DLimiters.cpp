@@ -7,7 +7,8 @@
 //    order (cap, then slope);
 //  * the momentum and scalar diffusive rates against hand-computed values, the explicit
 //    fraction of the partly implicit stages (every stage bounded or not), and the neighbourhood bound (NeighbourhoodMax,
-//    NeighbourhoodMinPositive, CellDiffusiveRates) on coefficients that vary between cells;
+//    NeighbourhoodMinPositive, CellDiffusiveRates) on coefficients that vary between cells,
+//    with molecular diffusivities on their own and added to the eddy ones;
 //  * ComputeTurbulentViscosityLES on a tilted terrain-fitted mesh: K_h is limited before the
 //    scalar diffusivities are derived from it, K_v is not touched, and the limiter does nothing
 //    without terrain.
@@ -179,42 +180,36 @@ TEST(Smag2DLimiters, DiffusiveRatesHandValues)
 {
     // rho = 1, dx = dy = 1 km (a = b = 1e-6), slope 0.1 (h^2 = 0.01), dz = 50 m (1/dz^2 = 4e-4).
     // Momentum rows: u = mu_h (2a + b) + e_uv mu_v/dz^2 + mu_v sqrt(a c), v likewise, w =
-    // mu_v (a + b) + 2 e_w mu_v/dz^2 + mu_v (sqrt(a c) + sqrt(b c)), plus the metric term
+    // mu_v (a + b) + 2 mu_v/dz^2 + mu_v (sqrt(a c) + sqrt(b c)) (w's vertical diffusion is always
+    // explicit), plus the metric term
     // 2 max(mu_h, mu_v) h^2/dz^2.
     const Real a = Real(1e-6), b = Real(1e-6), h2 = Real(0.01), dzinv2 = Real(4e-4);
     // The cross derivatives sqrt(a c) = 2e-5 are always counted (mu_v times 2e-5 per direction).
     // mu_h = 100, mu_v = 10, all explicit: u = 3e-4 + 4e-3 + 2e-4, w = 2e-5 + 8e-3 + 4e-4
     // (largest), metric 2 * 100 * 0.01 * 4e-4 = 8e-4 -> 9.22e-3
-    EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(100), Real(10), a, b, h2, dzinv2, Real(1), Real(1)),
+    EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(100), Real(10), a, b, h2, dzinv2, Real(1)),
                 Real(9.22e-3), Real(9.22e-3)*rel_tol());
-    // u, v vertical implicit, w explicit (e_uv = 0, e_w = 1): the w row still sets it
+    // u, v vertical implicit (e_uv = 0): the w row still sets it
     EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(100), Real(10), a, b, h2, dzinv2, Real(0), Real(1)),
                 Real(9.22e-3), Real(9.22e-3)*rel_tol());
-    // w implicit, u explicit (e_uv = 1, e_w = 0): u = 4.5e-3 > w = 2e-5 + 4e-4 -> 5.3e-3
-    EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(100), Real(10), a, b, h2, dzinv2, Real(1), Real(0)),
-                Real(5.3e-3), Real(5.3e-3)*rel_tol());
     // A thick cell with the vertical part explicit (review case: PBL only, dx = 100 m, dz = 500 m):
     // the cross derivative mu_v / (dx dz) = 2e-5 mu_v is five times the vertical term
     // mu_v / dz^2 = 4e-6 mu_v.  u = 10 (4e-6 + 2e-5) = 2.4e-4; w = 10 (2e-4 + 8e-6 + 4e-5) =
     // 2.48e-3 sets the rate (2.08e-3 if the cross derivatives were dropped)
     EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(0), Real(10), Real(1e-4), Real(1e-4), Real(0),
-                                      Real(4e-6), Real(1), Real(1)),
+                                      Real(4e-6), Real(1)),
                 Real(2.48e-3), Real(2.48e-3)*rel_tol());
-    // All vertical implicit: the explicit cross derivatives count, sqrt(a c) = 2e-5:
-    // u = 3e-4 + 10 * 2e-5 = 5e-4, w = 2e-5 + 10 * 4e-5 = 4.2e-4; 5e-4 + metric 8e-4 = 1.3e-3;
+    // u, v vertical implicit: u = 3e-4 + 10 * 2e-5 = 5e-4 (the explicit cross derivative,
+    // sqrt(a c) = 2e-5), w = 2e-5 + 8e-3 + 4e-4 = 8.42e-3; 8.42e-3 + metric 8e-4 = 9.22e-3;
     // rho = 2 halves it
-    EXPECT_NEAR(MomentumDiffusiveRate(Real(2), Real(100), Real(10), a, b, h2, dzinv2, Real(0), Real(0)),
-                Real(6.5e-4), Real(6.5e-4)*rel_tol());
-    // mu_v > mu_h: w's row 40 * 2e-6 + 40 * 4e-5 = 1.68e-3 beats u's 3e-5 + 8e-4, and the metric
-    // term uses the larger viscosity, 2 * 40 * 0.01 * 4e-4 = 3.2e-4 -> 2e-3
-    EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(10), Real(40), a, b, h2, dzinv2, Real(0), Real(0)),
-                Real(2e-3), Real(2e-3)*rel_tol());
-    // A PBL alone (mu_h = 0) on flat ground with w implicit (ERF_IMPLICIT_W): the horizontal
-    // diffusion of w and the cross derivatives are left, 10 * (2e-6 + 4e-5) = 4.2e-4, not zero
-    EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(0), Real(10), a, b, Real(0), dzinv2, Real(0), Real(0)),
-                Real(4.2e-4), Real(4.2e-4)*rel_tol());
+    EXPECT_NEAR(MomentumDiffusiveRate(Real(2), Real(100), Real(10), a, b, h2, dzinv2, Real(0)),
+                Real(4.61e-3), Real(4.61e-3)*rel_tol());
+    // mu_v > mu_h: w's row 40 * 2e-6 + 2 * 40 * 4e-4 + 40 * 4e-5 = 3.368e-2 beats u's 3e-5 + 8e-4,
+    // and the metric term uses the larger viscosity, 2 * 40 * 0.01 * 4e-4 = 3.2e-4 -> 3.4e-2
+    EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(10), Real(40), a, b, h2, dzinv2, Real(0)),
+                Real(3.4e-2), Real(3.4e-2)*rel_tol());
     // Unequal spacings: u's row mu_h (2a + b) with a = 4e-6, b = 1e-6 -> 9e-4
-    EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(100), Real(0), Real(4e-6), Real(1e-6), Real(0), dzinv2, Real(1), Real(1)),
+    EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(100), Real(0), Real(4e-6), Real(1e-6), Real(0), dzinv2, Real(1)),
                 Real(9e-4), Real(9e-4)*rel_tol());
     // Scalar, K_h = 300, K_v = 30: 300 * 2e-6 + 300 * 0.01 * 4e-4 + 30 * 4e-4 = 1.38e-2
     EXPECT_NEAR(ScalarDiffusiveRate(Real(1), Real(300), Real(30), a, b, h2, dzinv2, Real(1)),
@@ -285,7 +280,7 @@ TEST(Smag2DLimiters, CellRatesUseTheNeighbourhood)
     // all vertical parts explicit, so that every diffusivity (K_v too) enters the rate
     DiffusiveRateSettings set;
     set.variable_dz = true; set.has_q = true; set.has_ke = true; set.has_scalar = true;
-    set.e_uv = Real(1); set.e_w = Real(1); set.e_th = Real(1); set.e_q = Real(1); set.e_ke = Real(1);
+    set.e_uv = Real(1); set.e_th = Real(1); set.e_q = Real(1); set.e_ke = Real(1);
     const Real a = Real(1e-6), dz2 = Real(1)/Real(2500);
     auto rates = [&] (Real& rm, Real& rs) {
         CellDiffusiveRates(0, 0, 0, sa, ka, za, Real(1), Real(1), dxinv, set, rm, rs);
@@ -297,13 +292,13 @@ TEST(Smag2DLimiters, CellRatesUseTheNeighbourhood)
     };
     Real rm0, rs0;
     rates(rm0, rs0);
-    EXPECT_NEAR(rm0, MomentumDiffusiveRate(Real(1), Real(1), Real(1), a, a, Real(0), dz2, Real(1), Real(1)),
+    EXPECT_NEAR(rm0, MomentumDiffusiveRate(Real(1), Real(1), Real(1), a, a, Real(0), dz2, Real(1)),
                 rm0*rel_tol());
     // each component's neighbour value must reach the rate
     struct Case { int comp; bool mom; Real expect; };
     const Case cases[] = {
-        {EddyDiff::Mom_h,    true,  MomentumDiffusiveRate(Real(1), Real(1e4), Real(1), a, a, Real(0), dz2, Real(1), Real(1))},
-        {EddyDiff::Mom_v,    true,  MomentumDiffusiveRate(Real(1), Real(1), Real(1e4), a, a, Real(0), dz2, Real(1), Real(1))},
+        {EddyDiff::Mom_h,    true,  MomentumDiffusiveRate(Real(1), Real(1e4), Real(1), a, a, Real(0), dz2, Real(1))},
+        {EddyDiff::Mom_v,    true,  MomentumDiffusiveRate(Real(1), Real(1), Real(1e4), a, a, Real(0), dz2, Real(1))},
         {EddyDiff::Theta_h,  false, ScalarDiffusiveRate(Real(1), Real(1e4), Real(1), a, a, Real(0), dz2, Real(1))},
         {EddyDiff::Theta_v,  false, ScalarDiffusiveRate(Real(1), Real(1), Real(1e4), a, a, Real(0), dz2, Real(1))},
         {EddyDiff::Q_h,      false, ScalarDiffusiveRate(Real(1), Real(1e4), Real(1), a, a, Real(0), dz2, Real(1))},
@@ -349,6 +344,73 @@ TEST(Smag2DLimiters, CellRatesUseTheNeighbourhood)
     rates(rm, rs);
     EXPECT_EQ(rm, Real(0));
     EXPECT_EQ(rs, Real(0));
+}
+
+TEST(Smag2DLimiters, CellRatesAddMolecularDiffusion)
+{
+    // Molecular diffusion enters the rates on its own (no eddy-diffusivity closure, so k_arr is
+    // never read) and added to the eddy diffusivities.  Uniform 1 x 1 x 0.5 cells, as in the
+    // CouetteFlow_ImplicitCF deck (dynamic_viscosity = 4, rho = 1).
+    const int nk = EddyDiff::NumDiffs;
+    std::vector<Real> rho(27, Real(1)), K(27*static_cast<std::size_t>(nk), Real(1));
+    const amrex::Dim3 lo{-1,-1,-1};
+    const amrex::Array4<const Real> sa(rho.data(), lo, amrex::Dim3{2,2,2}, 1);
+    const amrex::Array4<const Real> ka(K.data(),   lo, amrex::Dim3{2,2,2}, nk);
+    const amrex::GpuArray<Real,AMREX_SPACEDIM> dxinv{Real(1), Real(1), Real(2)};
+    const Real a = Real(1), dz2 = Real(4);
+
+    // Couette: u and v implicit in the vertical (e_uv = 0), w explicit, molecular only.
+    // The w row is mu (a + b) + 2 mu / dz^2 + mu (sqrt(a c) + sqrt(b c)) = 8 + 32 + 16 = 56 1/s,
+    // so dt = 0.2 gives the Fourier number 11.2 the check reports for that deck
+    DiffusiveRateSettings set;
+    set.has_eddy = false;
+    set.e_uv = Real(0);
+    set.mol_mom = Real(4);
+    Real rm, rs;
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    EXPECT_NEAR(rm, Real(56), Real(56)*rel_tol());
+    EXPECT_EQ(rs, Real(0));
+
+    // Scalars: theta takes alpha_T; moisture and the advected scalar alpha_C; KE none
+    set.e_th = Real(1); set.e_q = Real(1); set.e_ke = Real(1);
+    set.mol_th = Real(0.3); set.mol_c = Real(0.5);
+    set.has_ke = true;
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    EXPECT_NEAR(rs, ScalarDiffusiveRate(Real(1), Real(0.3), Real(0.3), a, a, Real(0), dz2, Real(1)),
+                rs*rel_tol());
+    set.has_q = true;
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    const Real rs_c = ScalarDiffusiveRate(Real(1), Real(0.5), Real(0.5), a, a, Real(0), dz2, Real(1));
+    EXPECT_NEAR(rs, rs_c, rs_c*rel_tol());
+    set.has_q = false; set.has_scalar = true;
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    EXPECT_NEAR(rs, rs_c, rs_c*rel_tol());
+    set.has_scalar = false;
+
+    // With eddy diffusivities (all 1) the molecular ones add to them, in both directions
+    set.has_eddy = true;
+    CellDiffusiveRates(0, 0, 0, sa, ka, amrex::Array4<const Real>{}, Real(1), Real(1), dxinv, set, rm, rs);
+    const Real rm_sum = MomentumDiffusiveRate(Real(1), Real(5), Real(5), a, a, Real(0), dz2, Real(0));
+    EXPECT_NEAR(rm, rm_sum, rm_sum*rel_tol());
+    const Real rs_sum = ScalarDiffusiveRate(Real(1), Real(1.3), Real(1.3), a, a, Real(0), dz2, Real(1));
+    EXPECT_NEAR(rs, amrex::max(rs_sum, ScalarDiffusiveRate(Real(1), Real(1), Real(1), a, a, Real(0), dz2, Real(1))),
+                rs_sum*rel_tol());
+
+    // ConstantAlpha: kinematic coefficients times the largest density around the cell, the rate
+    // divided by the smallest one
+    set.has_eddy = false; set.has_ke = false;
+    set.mol_times_rho = true;
+    rho[26] = Real(2);
+    rho[0]  = Real(0.5);
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    const Real rm_ca = MomentumDiffusiveRate(Real(0.5), Real(8), Real(8), a, a, Real(0), dz2, Real(0));
+    EXPECT_NEAR(rm, rm_ca, rm_ca*rel_tol());
+    EXPECT_NEAR(rm, Real(4) * Real(56), rm_ca*rel_tol());
 }
 
 namespace {
@@ -409,7 +471,7 @@ Real w_checkerboard_residual (Real mu, Real dx, Real& lambda)
                                amrex::surroundingNodes(amrex::surroundingNodes(bx,0),2),
                                amrex::surroundingNodes(amrex::surroundingNodes(bx,1),2),
                                Real(0), K.const_array(mfi), amrex::Array4<const Real>{},
-                               a11, a22, a33, a12, a13, a23, er.const_array(mfi), none, none, none);
+                               a11, a22, a33, a12, a13, a23, er.const_array(mfi), none, none);
         DiffusionSrcForMom(amrex::surroundingNodes(bx,0), amrex::surroundingNodes(bx,1),
                            amrex::surroundingNodes(bx,2),
                            ru.array(mfi), rv.array(mfi), rw.array(mfi),
@@ -444,9 +506,9 @@ Real w_checkerboard_residual (Real mu, Real dx, Real& lambda)
 
 TEST(Smag2DLimiters, RateBoundsTheHorizontalDiffusionOfW)
 {
-    // A PBL alone (Mom_h = 0) on flat ground, with every vertical part implicit (as with
-    // ERF_IMPLICIT_W): the production operator diffuses w horizontally with Mom_v, and the
-    // check's rate must bound that eigenvalue, 4 * rate >= |lambda|.
+    // A PBL alone (Mom_h = 0) on flat ground, with u and v implicit in the vertical: the
+    // production operator diffuses w horizontally with Mom_v, and the check's rate must bound
+    // that eigenvalue, 4 * rate >= |lambda|.
     const Real mu = Real(20), dx = Real(1000);
     Real lambda = Real(0);
     const Real res = w_checkerboard_residual(mu, dx, lambda);
@@ -454,10 +516,11 @@ TEST(Smag2DLimiters, RateBoundsTheHorizontalDiffusionOfW)
     EXPECT_GT(std::abs(lambda), Real(0));
     // The mode's eigenvalue (-8 mu a, both horizontal directions) does not depend on dz; take
     // dz = 4 dx so that the cross-derivative allowance, mu_v (sqrt(a c) + sqrt(b c)) = mu_v a/2,
-    // cannot cover it alone: the w row mu_v (a + b) must, with both directions counted.
+    // and w's vertical term, 2 mu_v c = mu_v a/8, cannot cover it: 4 * 5/8 mu_v a = 2.5 mu_v a
+    // falls short of 8 mu_v a, so the w row mu_v (a + b) must, with both directions counted.
     const Real a = one / (dx*dx);
     const Real c = a / Real(16);
-    const Real rate = MomentumDiffusiveRate(one, Real(0), mu, a, a, Real(0), c, Real(0), Real(0));
+    const Real rate = MomentumDiffusiveRate(one, Real(0), mu, a, a, Real(0), c, Real(0));
     EXPECT_GE(Real(4) * rate, std::abs(lambda) * (one - Real(10)*rel_tol()));
 }
 

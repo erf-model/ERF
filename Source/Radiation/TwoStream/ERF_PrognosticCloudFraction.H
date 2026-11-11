@@ -25,7 +25,8 @@
  * @brief Compute relative humidity from water vapor mixing ratio.
  *
  * Approximate RH from qv and temperature using saturation mixing ratio.
- * Uses a simple saturation vapor pressure formula (Magnus or similar).
+ * The saturation vapour pressure over liquid water is the Magnus formula
+ * with the WMO (2008) coefficients, applied to the temperature in Celsius.
  *
  * @param[in] qv Water vapor mixing ratio [kg/kg]
  * @param[in] T Temperature [K]
@@ -41,28 +42,28 @@ amrex::Real compute_relative_humidity (amrex::Real qv, amrex::Real T, amrex::Rea
         return 0.0;
     }
 
-    // Simple saturation mixing ratio approximation (Magnus formula variant)
-    // qsat = 0.622 * e_sat / (P - e_sat)
-    // where e_sat = e0 * exp(a * (T - T0) / (T - b))
-    // For simplicity, use approximate saturation vapor pressure
+    // Saturation vapour pressure over liquid water from the Magnus formula,
+    // with the WMO (2008) coefficients for the temperature in Celsius:
+    //   e_sat = e0 * exp(a * tc / (tc + b)),  tc = T - T0
+    // and the saturation mixing ratio qsat = epsilon * e_sat / max(e_sat, P - e_sat).
     const amrex::Real e0 = 611.2;  // Pa (saturation vapor pressure at 0°C)
     const amrex::Real T0 = 273.15; // K
     const amrex::Real a = 17.62;
-    const amrex::Real b = 243.12;  // K
+    const amrex::Real b = 243.12;  // °C
 
-    // Compute saturation vapor pressure (Magnus formula)
-    amrex::Real arg = a * (T - T0) / (T - b);
-    if (!amrex::Math::isfinite(arg) || arg > 100.0) {
-        // Protect against overflow
-        arg = 100.0;
-    }
-    amrex::Real e_sat = e0 * std::exp(arg);
+    // tc + b <= 0 only below about 30 K, where e_sat tends to 0. Otherwise
+    // arg < a, so e_sat stays below e0 * exp(a) and cannot overflow.
+    const amrex::Real tc = T - T0;
+    const amrex::Real arg = (tc + b > amrex::Real(0.0)) ? a * tc / (tc + b) : amrex::Real(-100.0);
+    const amrex::Real e_sat = e0 * std::exp(arg);
 
-    // Saturation mixing ratio: qsat = epsilon * e_sat / (P - e_sat)
+    // Saturation mixing ratio. The denominator is floored at e_sat, as in
+    // erf_qsatw, so qsat stays positive and bounded by epsilon when e_sat
+    // approaches or exceeds P (hot or very low-pressure air).
     const amrex::Real epsilon = 0.622;  // ratio of molecular weights
-    amrex::Real qsat = epsilon * e_sat / (P - e_sat);
-    if (qsat < 0.0 || !amrex::Math::isfinite(qsat)) {
-        qsat = 1.0e-6;  // fallback
+    amrex::Real qsat = epsilon * e_sat / amrex::max(e_sat, P - e_sat);
+    if (qsat <= 0.0) {
+        qsat = 1.0e-6;  // fallback when e_sat underflows (unphysically cold air)
     }
 
     // RH = qv / qsat, clamped to [0, 1]

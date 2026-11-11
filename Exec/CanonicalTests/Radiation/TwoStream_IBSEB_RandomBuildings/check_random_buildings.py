@@ -15,16 +15,19 @@ checks.
      the ids follow the same scan order;
   2. the balance closes on every building and level all morning (residual
      below 1e-3 W/m2);
-  3. the faces see the two-stream sun, east of the meridian all morning
-     (azimuth in (0, 180) degrees, so a mirrored sun fails): the top-of-atmosphere irradiance the
-     faces' direct beam implies (dni / tau^(1/cos z)) equals the two-stream
-     sweep's SW_TOA / cos z, to 1e-5. A CSV row is stamped with the end of its
+  3. the faces see the two-stream sun and the columns' beam, east of the meridian all
+     morning (azimuth in (0, 180) degrees, so a mirrored sun fails): the faces take their
+     column's beam at their own height (erf.ibseb.radiation = two_stream), so on every
+     sunlit, unshadowed roof of level 0 at every face dump the top-of-atmosphere irradiance
+     its direct shortwave implies, SW_direct_in / (cos z exp(-tau (nz - k) / cos z)) with tau
+     the shortwave optical depth per layer of the clear, purely absorbing column and k the
+     roof's interface, equals the two-stream sweep's SW_TOA / cos z, to 1e-5, and the
+     diffuse sky is zero. A dump, like a CSV row, is stamped with the end of its
      step and carries the sun the step used, from its start, so the sweep's
-     row one step (erf.fixed_dt) earlier is the one compared: the same sun
-     one step late already misses by up to 7e-5, and the faces' own prescribed
-     sun (sun_mode = solar, with the equation of time) by 2.4 % at 08:20;
+     row one step (erf.fixed_dt) earlier is the one compared;
   4. the sun climbs: the zenith falls through the run and the buildings'
-     mean shadow fraction ends below where it starts, on both levels;
+     mean shadow fraction ends below where it starts (at the first report after the
+     initial one, which comes before any sweep), on both levels;
   5. the buildings warm: every building's mean skin temperature ends above
      the 300 K it started at, on both levels;
   6. the two levels agree on what both resolve alike: at the last common face
@@ -39,9 +42,14 @@ checks.
      of level 1 ends above 300 K, and so does level 0's outside the refined
      area. The two means are reported, not compared: under the refined area
      level 0 holds level 1's average (the average down), and the open ground
-     outside it differs by the buildings' influence. The two-stream ground
-     balance still covers the footprints; they are left out here and reported
-     separately with their sensible heat flux.
+     outside it differs by the buildings' influence. The footprints and the cell
+     around them are left out here and reported separately with their sensible
+     heat flux;
+  8. the ground under the buildings is held (erf.ibseb.two_stream_buildings):
+     every column whose centre lies in a footprint of buildings.csv (the immersed
+     forcing fills those cells, and on level 0 the ramp beyond them) ends at the
+     skin temperature it started with, on both levels, and gets no shortwave. The shaded share of the open ground and its shortwave
+     against the sunlit ground's are reported, not checked.
 """
 import glob
 import os
@@ -147,18 +155,20 @@ def main():
     nb = len(bld["building"])
     c = read_csv("ibseb_buildings.csv")
     lev = c["level"].astype(int)
-    tau, dt = None, None
+    tau, dt, nz = None, None, None
     with open("inputs") as f:
         for line in f:
-            m = re.match(r"\s*erf\.ibseb\.sw_transmission\s*=\s*(\S+)", line)
+            m = re.match(r"\s*erf\.radiation\.tau_per_layer\s*=\s*(\S+)", line)
             if m:
                 tau = float(m.group(1))
             m = re.match(r"\s*erf\.fixed_dt\s*=\s*(\S+)", line)
             if m:
                 dt = float(m.group(1))
-    tau = 0.7 if tau is None else tau          # IBSEBParams default
-    if dt is None:
-        raise SystemExit("inputs: erf.fixed_dt is not set; check 3 needs the level-0 step")
+            m = re.match(r"\s*amr\.n_cell\s*=\s*\S+\s+\S+\s+(\S+)", line)
+            if m:
+                nz = int(m.group(1))
+    if None in (tau, dt, nz):
+        raise SystemExit("inputs: check 3 needs erf.radiation.tau_per_layer, erf.fixed_dt and amr.n_cell")
 
     # 1. buildings on both levels, numbered alike
     s0, s1 = dump_steps("faces/set"), dump_steps("faces/set.lev1")
@@ -184,22 +194,34 @@ def main():
     r = read_csv("radiation_diag.csv")
     rt = r["time"][r["level"] == 0]; rtoa = r["SW_TOA"][r["level"] == 0]
     first = (lev == 0) & (c["building"] == 1)
-    ct, cz = c["time_s"][first], np.cos(np.radians(c["sun_zenith_deg"][first]))
-    dni = c["dni_Wm2"][first]
-    rel = []
-    for t, z, q in zip(ct, cz, dni):
-        # A CSV row carries the time at the end of its step and the sun the
-        # step used, placed at the step's start: compare there.
-        k = np.nonzero(np.abs(rt - (t - dt)) < 1e-6)[0]
-        if len(k) == 0 or z <= 0.05:
+    dif = c["diffuse_h_Wm2"][first]
+    rel, nroof, heights = [], 0, set()
+    for step in s0:
+        if step == 0:
+            continue                    # the initial report, before any sweep
+        row = np.nonzero(first & (c["step"] == step))[0]
+        if len(row) == 0:
             continue
-        s0_faces = q / tau ** (1.0 / z)
-        s0_cols = rtoa[k[0]] / z
-        rel.append(abs(s0_faces / s0_cols - 1.0))
+        t = c["time_s"][row[0]]
+        z = np.cos(np.radians(c["sun_zenith_deg"][row[0]]))
+        # A dump and a CSV row carry the time at the end of their step and the sun
+        # the step used, placed at the step's start: compare with the sweep there.
+        kk = np.nonzero(np.abs(rt - (t - dt)) < 1e-6)[0]
+        if len(kk) == 0 or z <= 0.05:
+            continue
+        d = read_dump("faces/set", step)
+        roof = (d["dir"] == 2) & (d["shadow"] < 0.5) & (d["SW_direct_in"] > 1.0)
+        s0_cols = rtoa[kk[0]] / z
+        for q, kf in zip(d["SW_direct_in"][roof], d["k"][roof]):
+            rel.append(abs(q / (z * np.exp(-tau * (nz - kf) / z)) / s0_cols - 1.0))
+            heights.add(int(kf))
+        nroof += int(roof.sum())
     rel = np.array(rel)
     az = c["sun_azimuth_deg"][first]
-    check("3. the faces see the two-stream sun", len(rel) > 2 and rel.max() < 1e-5 and np.all((az > 0.0) & (az < 180.0)),
-          f"{len(rel)} common times, largest relative difference {rel.max() if len(rel) else float('nan'):.1e}; "
+    check("3. the faces see the two-stream sun and the columns' beam",
+          len(rel) > 2 and rel.max() < 1e-5 and np.all((az > 0.0) & (az < 180.0)) and np.abs(dif).max() < 1e-6,
+          f"{nroof} sunlit roof faces at {len(heights)} heights over the dumps, largest relative difference "
+          f"{rel.max() if len(rel) else float('nan'):.1e}; diffuse at most {np.abs(dif).max():.1e} W/m2; "
           f"azimuth {az.min():.1f}-{az.max():.1f} deg")
 
     # 4. the sun climbs, the shadows shorten
@@ -209,7 +231,9 @@ def main():
         m = lev == L
         t = c["time_s"][m]
         a = c["area_m2"][m]; sh = c["shadow_frac"][m]
-        t0, t1 = t.min(), t.max()
+        # The first report after the initial one: with erf.ibseb.radiation = two_stream the
+        # initial report comes before any sweep and carries no sun on the faces.
+        t0, t1 = t[t > 0.0].min(), t.max()
         f0 = np.sum((sh * a)[t == t0]) / np.sum(a[t == t0]); f1 = np.sum((sh * a)[t == t1]) / np.sum(a[t == t1])
         ok &= f1 < f0
         det.append(f"level {L} shadow {f0:.3f} -> {f1:.3f}")
@@ -290,6 +314,42 @@ def main():
           g1 > 300.0 and g_out > 300.0,
           f"{plts[-1]}: open ground {g1:.2f} K in the refined area (level 1) and {g_out:.2f} K outside it (level 0); "
           f"the footprints and their surroundings, left out, {under:.2f} K on level 1{flux}")
+
+    # 8. the ground under the buildings
+    first = plts[0]
+    names_0, levels_0, _ = read_plotfile_2d(first)
+    def inside(nx, ny, dx, dy):
+        x = (np.arange(nx) + 0.5) * dx; y = (np.arange(ny) + 0.5) * dy
+        m = np.zeros((nx, ny), dtype=bool)
+        for b in range(nb):
+            m |= np.outer((x > bld["x_lo_m"][b]) & (x < bld["x_hi_m"][b]),
+                          (y > bld["y_lo_m"][b]) & (y < bld["y_hi_m"][b]))
+        return m
+    held, n_in, sw_in = True, 0, 0.0
+    for L, (nxl, nyl) in enumerate(((nx0, ny0), (2 * nx0, 2 * ny0))):
+        t_end = level_field(levels[L], k, (nxl, nyl))
+        t_start = level_field(levels_0[L], names_0.index("seb_t_sfc"), (nxl, nyl))
+        sw_l = level_field(levels[L], names.index("seb_sw_net"), (nxl, nyl))
+        ins = inside(nxl, nyl, dxs[L][0], dxs[L][1]) & ~np.isnan(t_end)
+        n_in += int(ins.sum())
+        held &= bool(np.all(t_end[ins] == t_start[ins]))
+        sw_in = max(sw_in, float(np.abs(sw_l[ins]).max()) if ins.any() else 0.0)
+    sh1 = level_field(levels[1], names.index("ibseb_ground_shadow"), (2 * nx0, 2 * ny0))
+    sw1 = level_field(levels[1], names.index("seb_sw_net"), (2 * nx0, 2 * ny0))
+    # The open ground of level 1: outside the footprints grown by one fine cell (the ramp).
+    x1 = (np.arange(2 * nx0) + 0.5) * dxs[1][0]; y1 = (np.arange(2 * ny0) + 0.5) * dxs[1][1]
+    fp1 = np.zeros((2 * nx0, 2 * ny0), dtype=bool)
+    for b in range(nb):
+        fp1 |= np.outer((x1 > bld["x_lo_m"][b] - dxs[1][0]) & (x1 < bld["x_hi_m"][b] + dxs[1][0]),
+                        (y1 > bld["y_lo_m"][b] - dxs[1][1]) & (y1 < bld["y_hi_m"][b] + dxs[1][1]))
+    open1 = on1 & ~fp1
+    lit1, shd1 = open1 & (sh1 < 0.5), open1 & (sh1 > 0.5)
+    check("8. the ground under the buildings is held",
+          held and n_in > 0 and sw_in == 0.0,
+          f"{plts[-1]}: {n_in} columns under the footprints on both levels keep their starting skin and absorb "
+          f"{sw_in:.3g} W/m2; level 1's open ground: {100.0 * shd1.sum() / max(open1.sum(), 1):.1f} % "
+          f"shaded, absorbing {np.nanmean(sw1[shd1]) if shd1.any() else float('nan'):.0f} W/m2 there against "
+          f"{np.nanmean(sw1[lit1]):.0f} W/m2 in the sun")
 
     # Not a check: each building's parts at the last common dump, on both
     # levels, the numbers the README's reading rests on.

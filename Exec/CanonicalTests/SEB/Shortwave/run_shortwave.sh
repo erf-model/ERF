@@ -3,23 +3,29 @@
 #
 #   ./run_shortwave.sh /path/to/erf_exec        # NP=4 by default
 #
-# Three decks on NP ranks: a fixed sun 30 deg and 70 deg above the western
+# Four decks on NP ranks: a fixed sun 30 deg and 70 deg above the western
 # horizon, checked face by face against the analytic incidence and shadow
-# height, and the solar mode at Boulder's solstice noon checked against the
-# solar formulas. The zen60 deck is also run on one rank and its face dump
-# must agree with the NP-rank one.
+# height, the 70 deg sun again on a ray map whose per-rank patches do not
+# span the domain (inputs_zen20_halo, 2 x 1 view rays), and the solar mode at Boulder's
+# solstice noon checked against the solar formulas. The zen60 deck is also
+# run on one rank and its face dump must agree with the NP-rank one.
 set -u
 EXE=${1:?usage: run_shortwave.sh /path/to/erf_exec}
 NP=${NP:-4}
 rm -f ibseb_*.csv faces_*.csv; rm -rf plt0* chk0*
 status=0
-for v in zen60 zen20 solar; do
+for v in zen60 zen20 zen20_halo solar; do
     echo "== $v ($NP ranks)"
     mpirun -np $NP "$EXE" inputs_$v > run_$v.log 2>&1 || { echo "run failed (see run_$v.log)"; exit 1; }
     grep "\[IBSEB DEBUG\] lev=0 sun:" run_$v.log | tail -1 | cut -c1-150
     case $v in
         zen60) python3 check_shortwave.py faces_zen60 60 270 800 100 0.3 0.2 || status=1 ;;
         zen20) python3 check_shortwave.py faces_zen20 20 270 800 100 0.3 0.2 || status=1 ;;
+        zen20_halo)
+            grep "\[IBSEB DEBUG\] lev=0 ray map:" run_$v.log | tail -1 | cut -c1-150
+            # The patches must not span the domain, or the deck tests nothing new.
+            grep -q "the patches do not span the domain" run_$v.log || { echo "  ray map spans the domain: the halo deck is not exercising the halo  FAIL"; status=1; }
+            python3 check_shortwave.py faces_zen20_halo 20 270 800 100 0.3 0.2 || status=1 ;;
         solar) python3 check_shortwave.py faces_solar solar run_solar.log || status=1 ;;
     esac
 done

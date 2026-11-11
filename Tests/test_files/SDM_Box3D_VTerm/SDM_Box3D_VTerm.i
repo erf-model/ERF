@@ -20,7 +20,7 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.00125
-erf.substepping_type = "None"
+erf.timestepping_type = "RK3_NoSubstepping"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

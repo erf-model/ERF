@@ -1,3 +1,7 @@
+    // On a mesh other than ConstantDz, heights come from z_nd and the vertical levels,
+    //    not from geomdata's prob_lo[2], prob_hi[2] and CellSize(2)
+    const bool use_z_phys = use_physical_z();
+
     ParmParse pp_prob("prob");
 
     Real U_0 = zero; pp_prob.query("U_0", U_0);
@@ -31,11 +35,12 @@
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
         const Real y = prob_lo[1] + (j + myhalf) * dx[1];
-        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z = use_z_phys ? erf_prob_heights::z_xface(i,j,k,z_nd) : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_xface(i,j,z_sfc_nd); // height above the ground
 
         // Set the x-velocity
         x_vel_pert(i, j, k) = U_0;
-        if ((z <= pert_ref_height) && (U_0_Pert_Mag != zero))
+        if ((z_agl <= pert_ref_height) && (U_0_Pert_Mag != zero))
         {
             Real rand_double = amrex::Random(engine); // Between zero and one
             Real x_vel_prime = (rand_double*two - one)*U_0_Pert_Mag;
@@ -44,9 +49,9 @@
         if (pert_deltaU != zero)
         {
             const amrex::Real yl = y - prob_lo[1];
-            const amrex::Real zl = z / pert_ref_height;
+            const amrex::Real zl = z_agl / pert_ref_height;
             const amrex::Real damp = std::exp(-myhalf * zl * zl);
-            x_vel_pert(i, j, k) += ufac * damp * z * std::cos(aval * yl);
+            x_vel_pert(i, j, k) += ufac * damp * z_agl * std::cos(aval * yl);
         }
     });
 
@@ -56,11 +61,12 @@
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
         const Real x = prob_lo[0] + (i + myhalf) * dx[0];
-        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z = use_z_phys ? erf_prob_heights::z_yface(i,j,k,z_nd) : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_yface(i,j,z_sfc_nd); // height above the ground
 
         // Set the y-velocity
         y_vel_pert(i, j, k) = V_0;
-        if ((z <= pert_ref_height) && (V_0_Pert_Mag != zero))
+        if ((z_agl <= pert_ref_height) && (V_0_Pert_Mag != zero))
         {
             Real rand_double = amrex::Random(engine); // Between zero and one
             Real y_vel_prime = (rand_double*two - one)*V_0_Pert_Mag;
@@ -69,9 +75,9 @@
         if (pert_deltaV != zero)
         {
             const amrex::Real xl = x - prob_lo[0];
-            const amrex::Real zl = z / pert_ref_height;
+            const amrex::Real zl = z_agl / pert_ref_height;
             const amrex::Real damp = std::exp(-myhalf * zl * zl);
-            y_vel_pert(i, j, k) += vfac * damp * z * std::cos(bval * xl);
+            y_vel_pert(i, j, k) += vfac * damp * z_agl * std::cos(bval * xl);
         }
     });
 
@@ -86,10 +92,14 @@
         {
             z_vel_pert(i, j, k) = zero;
         }
-        else if (W_0_Pert_Mag != zero)
+        else
         {
-            Real rand_double = amrex::Random(engine); // Between zero and one
-            Real z_vel_prime = (rand_double*two - one)*W_0_Pert_Mag;
-            z_vel_pert(i, j, k) = W_0 + z_vel_prime;
+            z_vel_pert(i, j, k) = W_0;
+            if (W_0_Pert_Mag != zero)
+            {
+                Real rand_double = amrex::Random(engine); // Between zero and one
+                Real z_vel_prime = (rand_double*two - one)*W_0_Pert_Mag;
+                z_vel_pert(i, j, k) += z_vel_prime;
+            }
         }
     });

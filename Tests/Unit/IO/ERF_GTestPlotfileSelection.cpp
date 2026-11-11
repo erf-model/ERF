@@ -33,7 +33,7 @@ moisture_variable_names ()
     static const std::vector<std::string> names{
         "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup",
         "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng", "nn",
-        "rain_accum", "snow_accum", "graup_accum",
+        "rain_accum", "snow_accum", "graupel_accum", "precip_accum",
         "rel_humidity", "condensation_rate", "precipitable"};
     return names;
 }
@@ -126,40 +126,44 @@ TEST(Plotfile3DSelection, QmoistDiagnosticSlotsMatchSchemeMicVarMaps)
 
     struct Expected {
         MoistureType type;
-        int rain_accum; int snow_accum; int graup_accum; int rel_hum; int cond_rate;
+        int rain_accum; int snow_accum; int graupel_accum; int precip_accum;
+        int rel_hum; int cond_rate;
     };
 
     const std::array<Expected, 13> expected{{
-        {MoistureType::None, no, no, no, no, no},
-        {MoistureType::MoistNoCondensation, no, no, no, no, no},
+        {MoistureType::None, no, no, no, no, no, no},
+        {MoistureType::MoistNoCondensation, no, no, no, no, no, no},
         // SatAdj publishes no qmoist arrays, so relative humidity is recovered
         // from the conserved state at output time.
-        {MoistureType::SatAdj, no, no, no, derived, no},
-        {MoistureType::Kessler_NoRain, no, no, no, no, no},
-        {MoistureType::Kessler, 0, no, no, no, no},
-        {MoistureType::SAM_NoPrecip_NoIce, no, no, no, no, no},
-        {MoistureType::SAM_NoIce, 0, no, no, no, no},
-        {MoistureType::SAM, 0, 1, 2, no, no},
-        {MoistureType::Morrison_NoIce, 0, no, no, no, no},
-        {MoistureType::Morrison, 0, 1, 2, no, no},
-        {MoistureType::WSM6, 0, 1, 2, no, no},
-        {MoistureType::WDM6, 0, 1, 2, no, no},
+        {MoistureType::SatAdj, no, no, no, no, derived, no},
+        {MoistureType::Kessler_NoRain, no, no, no, no, no, no},
+        // Rain is all that falls in Kessler, so the total shares its slot.
+        {MoistureType::Kessler, 0, no, no, 0, no, no},
+        {MoistureType::SAM_NoPrecip_NoIce, no, no, no, no, no, no},
+        {MoistureType::SAM_NoIce, 0, no, no, 3, no, no},
+        {MoistureType::SAM, 0, 1, 2, 3, no, no},
+        {MoistureType::Morrison_NoIce, 0, no, no, 3, no, no},
+        {MoistureType::Morrison, 0, 1, 2, 3, no, no},
+        {MoistureType::WSM6, 0, 1, 2, 3, no, no},
+        {MoistureType::WDM6, 0, 1, 2, 3, no, no},
         // SuperDroplets has its own qmoist layout, and never fills the graupel
         // accumulation slot it allocates.
-        {MoistureType::SuperDroplets, 8, 10, no, 7, 3}
+        {MoistureType::SuperDroplets, 8, 10, no, 11, 7, 3}
     }};
 
     for (const auto& item : expected) {
         const auto mi = MoistureComponentIndices::from_moisture_model(item.type);
         EXPECT_EQ(mi.rain_accum, item.rain_accum);
         EXPECT_EQ(mi.snow_accum, item.snow_accum);
-        EXPECT_EQ(mi.graup_accum, item.graup_accum);
+        EXPECT_EQ(mi.graupel_accum, item.graupel_accum);
+        EXPECT_EQ(mi.precip_accum, item.precip_accum);
         EXPECT_EQ(mi.rel_hum, item.rel_hum);
         EXPECT_EQ(mi.cond_rate, item.cond_rate);
 
         EXPECT_EQ(mi.qmoist_index_for_var("rain_accum"), item.rain_accum);
         EXPECT_EQ(mi.qmoist_index_for_var("snow_accum"), item.snow_accum);
-        EXPECT_EQ(mi.qmoist_index_for_var("graup_accum"), item.graup_accum);
+        EXPECT_EQ(mi.qmoist_index_for_var("graupel_accum"), item.graupel_accum);
+        EXPECT_EQ(mi.qmoist_index_for_var("precip_accum"), item.precip_accum);
         EXPECT_EQ(mi.qmoist_index_for_var("rel_humidity"), item.rel_hum);
         EXPECT_EQ(mi.qmoist_index_for_var("condensation_rate"), item.cond_rate);
     }
@@ -289,6 +293,11 @@ TEST(Plotfile3DSelection, RawStateNamesUseTheMoistureMapAboveRhoQ1)
     EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ3"), RhoQ3_comp);
     EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ4"), RhoQ4_comp);
     EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ99"), -1);
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ011"), RhoQ11_comp);
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ0"), -1);
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ3x"), -1);
+    // Overflows int; must return -1 rather than throw
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ99999999999999999999"), -1);
 
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rhoQ1", kessler));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rhoQ3", kessler));
@@ -509,7 +518,7 @@ TEST(Plotfile3DSelection, RadiationHeatingStorageRecognizesEveryModel)
 }
 
 // Motivation: Every diagnostic that reads pressure must participate in the
-// same allocation predicate, including standalone VPD and conditional pp_err.
+// same allocation predicate, including standalone VPD.
 TEST(Plotfile3DSelection, PressureReadersShareAllocationPredicate)
 {
     EXPECT_TRUE(erf_plotfile::plot3d_needs_pressure({"temp", "VPD"}));
@@ -519,9 +528,6 @@ TEST(Plotfile3DSelection, PressureReadersShareAllocationPredicate)
     EXPECT_TRUE(erf_plotfile::plot3d_needs_pressure({"rel_humidity"}));
     EXPECT_TRUE(erf_plotfile::plot3d_needs_pressure({"dpdx"}));
     EXPECT_FALSE(erf_plotfile::plot3d_needs_pressure({"theta"}));
-#ifdef ERF_COMPUTE_ERROR
-    EXPECT_TRUE(erf_plotfile::plot3d_needs_pressure({"pp_err"}));
-#endif
 }
 
 // Motivation: Configured particle containers may be unallocated at output

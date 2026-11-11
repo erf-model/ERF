@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 #include <ctime>
+#include <limits>
 #include <atomic>
 
 #include "ERF_DataStruct.H"
@@ -31,8 +32,10 @@ read_times_from_wrflow (const std::string& nc_low_file,
 
     // *******************************************************************************
 
-    int ntimes;
-    double timeInterval;
+    int ntimes = 0;
+    // With a single record there is no interval; the largest double makes
+    // elapsed_time / interval select that record (index 0) at every time
+    double timeInterval = std::numeric_limits<double>::max();
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor())
@@ -89,14 +92,23 @@ read_times_from_wrflow (const std::string& nc_low_file,
     return timeInterval;
 }
 
+/**
+ * Read time slice itime of the SST in a wrflow file into low_data_zlo[itime], on the 2D box
+ * of cells the file covers: the domain for level 0, or the nest box for a finer level.
+ *
+ * @param[in]    itime        time slice to read
+ * @param[in]    nc_low_file  name of the wrflow file
+ * @param[in]    box          cells the file covers (only its lower z index is used)
+ * @param[inout] low_data_zlo data read, by time slice and variable
+ */
 void
-read_from_wrflow (const int itime, const std::string& nc_low_file, const Box& domain,
+read_from_wrflow (const int itime, const std::string& nc_low_file, const Box& box,
                   Vector<Vector<FArrayBox>>& low_data_zlo)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
                                                            //
-    const auto& lo = domain.loVect();
-    const auto& hi = domain.hiVect();
+    const auto& lo = box.loVect();
+    const auto& hi = box.hiVect();
 
     IntVect plo(lo);
     IntVect phi(hi);
@@ -143,7 +155,14 @@ read_from_wrflow (const int itime, const std::string& nc_low_file, const Box& do
             Array4<Real> fab_arr = low_data_zlo[itime][iv].array();
 
             // dims: (Time, south_north, west_east)
+            int ns1 = tslice[iv].get_vshape()[1];
             int ns2 = tslice[iv].get_vshape()[2];
+            if (ns2 != pbx_zlo.length(0) || ns1 != pbx_zlo.length(1)) {
+                Abort("read_from_wrflow: " + nc_var_names[iv] + " in " + nc_low_file + " is " +
+                      std::to_string(ns2) + " x " + std::to_string(ns1) + " but the cells it must fill (" +
+                      std::to_string(pbx_zlo.length(0)) + " x " + std::to_string(pbx_zlo.length(1)) +
+                      ") do not match");
+            }
 
             long num_pts  = low_data_zlo[itime][iv].box().numPts();
             int ioff      = low_data_zlo[itime][iv].smallEnd()[0];
@@ -170,7 +189,8 @@ read_from_wrflow (const int itime, const std::string& nc_low_file, const Box& do
 }
 
 void
-update_sst_tsk (const int itime,
+update_sst_tsk (const int lev,
+                const int itime,
                 const Geometry& geom,
                 const BoxArray& ba2d_lev,
                 Vector<std::unique_ptr<MultiFab>>& sst_lev,
@@ -183,18 +203,18 @@ update_sst_tsk (const int itime,
                 std::unique_ptr<iMultiFab>& lmask,
                 const bool /*use_moist*/)
 {
-    auto& domain = geom.Domain();
-
     // Temporary MFs for derived quantities
     auto& dm    = cons.DistributionMap();
     IntVect ng  = cons.nGrowVect();
     IntVect ngv = ng; ngv[2] = 0;
 
-    // Bounds limiting
-    int ilo = domain.smallEnd()[0];
-    int ihi = domain.bigEnd()[0];
-    int jlo = domain.smallEnd()[1];
-    int jhi = domain.bigEnd()[1];
+    // Bounds limiting: to the cells the file covers, which are the domain at level 0 and the
+    // nest box at a finer level
+    const Box& src_box = low_data_zlo[itime][0].box();
+    int ilo = src_box.smallEnd(0);
+    int ihi = src_box.bigEnd(0);
+    int jlo = src_box.smallEnd(1);
+    int jhi = src_box.bigEnd(1);
 
     if (itime > 0) {
         sst_lev[itime] = std::make_unique<MultiFab>(ba2d_lev,dm,1,ngv);
@@ -207,8 +227,8 @@ update_sst_tsk (const int itime,
         MultiFab::Copy(*tsk_lev[itime],*tsk_lev[0],0,0,1,tsk_lev[0]->nGrowVect());
 
         if (SurfLayer) {
-            SurfLayer->update_sst_ptr(0, itime, sst_lev[itime].get());
-            SurfLayer->update_tsk_ptr(0, itime, tsk_lev[itime].get());
+            SurfLayer->update_sst_ptr(lev, itime, sst_lev[itime].get());
+            SurfLayer->update_tsk_ptr(lev, itime, tsk_lev[itime].get());
         }
     }
 

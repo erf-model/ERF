@@ -3,6 +3,8 @@
 #include <ERF_ReadFromWRFBdy.H>
 #include <ERF_ReadFromERFBdy.H>
 #include <ERF_LagrangianMicrophysics.H>
+#include "Microphysics/SBM/ERF_SBMAMRFluxRegister.H"
+#include "Microphysics/SBM/ERF_SBMTransport.H"
 
 using namespace amrex;
 
@@ -39,7 +41,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
 
         int ntimes = bdy_data_xlo.size();
-        double time_since_start_bdy = time + start_time - start_bdy_time;
+        double time_since_start_bdy = time + (start_time - start_bdy_time);
         int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval), ntimes-1);
         auto repack_runtime_bdy = [&] (const int itime) {
@@ -87,7 +89,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             // Handle wrfbdy files (NetCDF format).
             } else {
                 if (bdy_data_xlo[itime].size() == 0 && need_itime) {
-                    bool is_anelastic = (solverChoice.anelastic[0] == 1);
+                    bool is_anelastic = (solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible);
                     read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                                  wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                                  vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
@@ -110,7 +112,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
     if (!nc_low_file.empty() && (lev==0))
     {
         int ntimes = low_data_zlo.size();
-        double time_since_start_low = time + start_time - start_low_time;
+        double time_since_start_low = time + (start_time - start_low_time);
         int n_time_old = std::min(static_cast<int>( (time_since_start_low        ) /  low_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_low+dt[lev]) /  low_time_interval), ntimes-1);
 
@@ -137,11 +139,33 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             if (low_data_zlo[itime].size() == 0 && need_itime) {
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
-                update_sst_tsk(itime, geom[lev], ba2d[lev],
+                update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                                S_new, *mf_PSFC[lev],
                                solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+
+                // Give the finer levels this slice too, coarsest first, and point the surface
+                // layer at it: a level with a wrflow file of its own (erf.nc_low_file_<lev>)
+                // reads it from that file, and any other level -- made by refinement, or from
+                // an init file of its own -- takes it from its parent.
+                auto& SurfLayer = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
+                for (int flev = 1; flev <= finest_level; ++flev) {
+                    if (has_own_low_file(flev)) {
+                        read_own_low_slice(flev, itime, SurfLayer);
+                        continue;
+                    }
+                    Interp2DTimeSlice(flev, itime, sst_lev, ba2d[flev], dmap[flev]);
+                    Interp2DTimeSlice(flev, itime, tsk_lev, ba2d[flev], dmap[flev]);
+                    if (SurfLayer) {
+                        if (itime < static_cast<int>(sst_lev[flev].size()) && sst_lev[flev][itime]) {
+                            SurfLayer->update_sst_ptr(flev, itime, sst_lev[flev][itime].get());
+                        }
+                        if (itime < static_cast<int>(tsk_lev[flev].size()) && tsk_lev[flev][itime]) {
+                            SurfLayer->update_tsk_ptr(flev, itime, tsk_lev[flev][itime].get());
+                        }
+                    }
+                }
             }
         } // itime
     } // have nc_low_file && lev == 0
@@ -154,8 +178,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         FillPatchCrseLevel(lev, time, {&S_new, &U_new, &V_new, &W_new});
     } else if (lev < finest_level) {
         FillPatchFineLevel(lev, time, {&S_new, &U_new, &V_new, &W_new},
-                           {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                           base_state[lev], base_state[lev]);
+                           {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]});
     }
 
     if (regrid_int > 0)  // We may need to regrid
@@ -233,6 +256,11 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                     for (int k = old_finest; k >= 1; k--) {
                         pc->MergeParticlesAtDerefinement(k, old_pc_ba[k], refRatio(k-1));
                     }
+                    if (solverChoice.diffChoice.n_qstate_nonmoist > 0) {
+                        for (int k = lev; k <= finest_level; ++k) {
+                            micro->Update_Diagnostic_State_Lev(k, vars_new[k][Vars::cons], *z_phys_nd[k]);
+                        }
+                    }
                 }
 #endif
 
@@ -261,9 +289,11 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         } // lev
     }
 
-    // Update what we call "old" and "new" time
-    t_old[lev] = t_new[lev];
-    t_new[lev] += dt[lev];
+    // Update what we call "old" and "new" time.  These are set from the start time
+    // handed down by the coarser level rather than accumulated with "+=", so that a
+    // finer level's clock cannot drift away from its parent's over many steps.
+    t_old[lev] = time;
+    t_new[lev] = time + dt[lev];
 
     if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev]+1 << "] ";
@@ -282,8 +312,30 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
     //send_to_ww3(lev);
 #endif
 
+    // Start each SBM coarse/fine register interval before the coarse step.
+    // It remains pending until the coarse advance and every fine substep are
+    // accepted below; only then may post_timestep consume it.
+    if (sbm_state_manager && lev < finest_level &&
+        lev + 1 < static_cast<int>(sbm_amr_flux_regs.size()) &&
+        sbm_amr_flux_regs[lev + 1]) {
+        std::string diagnostic;
+        if (!sbm_amr_flux_regs[lev + 1]->begin_interval(
+                time, time + dt[lev], nsubsteps[lev + 1], diagnostic)) {
+            Abort("SBM AMR register interval at ERF::timeStep: " + diagnostic);
+        }
+    }
+
     // Advance a single level for a single time step
     Advance(lev, time, dt[lev], istep[lev], nsubsteps[lev]);
+
+    if (sbm_state_manager) {
+        std::string diagnostic;
+        if (!sbm_transport ||
+            !sbm_transport->accept_physical_step(
+                lev, time, time + dt[lev], diagnostic)) {
+            Abort("SBM AMR register step admission at ERF::timeStep: " + diagnostic);
+        }
+    }
 
     ++istep[lev];
 
@@ -300,6 +352,16 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             double strt_time_for_fine = time + (i-1)*dt[lev+1];
             timeStep(lev+1, strt_time_for_fine, i);
         }
+
+        // The finer level has now reached this level's new time; make the two agree
+        // exactly rather than to within the roundoff of summing its substeps.
+        t_new[lev+1] = t_new[lev];
+#ifdef ERF_USE_FIRE
+        // A fire on a finer level has reached this time too; its fields take the same time
+        if (m_fire_coupler && m_fire_coupler->level() > lev) {
+            m_fire_coupler->set_fields_time(t_new[lev]);
+        }
+#endif
     }
 
     if ( verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {

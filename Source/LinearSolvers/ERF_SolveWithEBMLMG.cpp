@@ -54,6 +54,7 @@ FillZeroAreaFaceFluxes (MultiFab& phi,
  * @param mg_verbose MLMG verbosity level
  * @param reltol Relative solver tolerance
  * @param abstol Absolute solver tolerance
+ * @param beta Face coefficients of div(beta grad phi), or nullptr for beta = 1
  */
 template <typename T>
 void
@@ -65,7 +66,8 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
                     T const& ebfact_w,
                     const Geometry& geom, const Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> domain_bc_type,
-                    int mg_verbose, Real reltol, Real abstol)
+                    int mg_verbose, Real reltol, Real abstol,
+                    const Array<MultiFab,AMREX_SPACEDIM>* beta)
 
 {
     BL_PROFILE("ERF::solve_with_EB_mlmg()");
@@ -112,11 +114,17 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     //
     mleb.setScalars(zero, one);
 
+    // b = -1, or -beta on a pseudo-incompressible level, whose operator is div(beta grad phi)
     Array<MultiFab,AMREX_SPACEDIM> bcoef;
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
         bcoef[idim].define(convert(ba_tmp[0],IntVect::TheDimensionVector(idim)),
                             dm_tmp[0], 1, 0, MFInfo(), ebfact);
-        bcoef[idim].setVal(-1.0);
+        if (beta) {
+            MultiFab::Copy(bcoef[idim], (*beta)[idim], 0, 0, 1, 0);
+            bcoef[idim].mult(-one);
+        } else {
+            bcoef[idim].setVal(-1.0);
+        }
     }
     mleb.setBCoeffs(0, amrex::GetArrOfConstPtrs(bcoef));
 
@@ -127,9 +135,26 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     mlmg.setVerbose(mg_verbose);
     mlmg.setBottomVerbose(0);
 
+    // The bottom solve has only a relative tolerance by default (1e-4 of its initial residual).
+    // On a refined level every boundary is Neumann (walls and the coarse/fine boundary), so the
+    // problem is singular, and once the residual of the bottom level is near roundoff BiCGStab
+    // breaks down on it; what the failed solve hands back can then stall MLMG at a fixed
+    // residual. Whether it does depends on roundoff, so on the number of ranks (#4970;
+    // CTest EB_SquareCylinder_AnelasticAMR_NarrowPatch).
+    // Stop the bottom solve well below the tolerance of the solve itself instead.
+    mlmg.setBottomToleranceAbs(Real(1.e-4) * abstol);
+
     mlmg.solve(GetVecOfPtrs(phi), GetVecOfConstPtrs(rhs), reltol, abstol);
 
     mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
+
+    // The fluxes carry b = -beta: divide it out, so that they are the gradient of phi on every
+    // face as with b = -1 (FillZeroAreaFaceFluxes below fills the gradient itself)
+    if (beta) {
+        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+            MultiFab::Divide(fluxes[0][idim], (*beta)[idim], 0, 0, 1, 0);
+        }
+    }
 
     // Add the flux values (gradient phi) to the face-centered cell with zero area fraction
     // (mlmg.getFluxes does not fill gradient phi at faces with zero area fraction)
@@ -167,7 +192,8 @@ template void solve_with_EB_mlmg (int, Vector<MultiFab>&, Vector<MultiFab>&,
                                  EBFArrayBoxFactory const&,
                                  EBFArrayBoxFactory const&,
                                  const Geometry&, const Vector<amrex::IntVect>&,
-                                 Array<std::string,2*AMREX_SPACEDIM>, int, Real, Real);
+                                 Array<std::string,2*AMREX_SPACEDIM>, int, Real, Real,
+                                 const Array<MultiFab,AMREX_SPACEDIM>*);
 // When USE_FC_FACTORY=0, u/v/w are eb_aux_
 template void solve_with_EB_mlmg (int, Vector<MultiFab>&, Vector<MultiFab>&,
                                  Vector<Array<MultiFab,AMREX_SPACEDIM>>&,
@@ -176,4 +202,5 @@ template void solve_with_EB_mlmg (int, Vector<MultiFab>&, Vector<MultiFab>&,
                                  eb_aux_ const&,
                                  eb_aux_ const&,
                                  const Geometry&, const Vector<amrex::IntVect>&,
-                                 Array<std::string,2*AMREX_SPACEDIM>, int, Real, Real);
+                                 Array<std::string,2*AMREX_SPACEDIM>, int, Real, Real,
+                                 const Array<MultiFab,AMREX_SPACEDIM>*);

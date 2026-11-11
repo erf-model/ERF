@@ -49,7 +49,6 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
-erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file
@@ -85,7 +84,6 @@ erf.pbl_mrf_use_zero_ri_extent = false
 # erf.enable_ysu_cloud_pblh = true
 # erf.enable_ysu_countergradient = true
 # erf.enable_ysu_entrainment = true
-# erf.enable_ysu_liquid_theta = true
 # erf.enable_ysu_sat_limiter = false
 # erf.enable_ysu_terrain_pblh_floor = true
 # erf.enable_ysu_topdown = true

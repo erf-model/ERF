@@ -85,10 +85,14 @@ struct CellPolicy
         if (!processed) {
             return {undefined_value, undefined_value, undefined_value, undefined_value};
         }
+        // HFX only says the cell was processed; LH and the stresses are each
+        // checked in their own right so that a bad value in one of them is not
+        // passed on as a valid flux.
         return {hfx / (density * cp_d),
-                latent_heat_flux / (density * latent_heat),
-                tau_ew_value / density,
-                tau_ns_value / density};
+                result_is_valid(latent_heat_flux) ? latent_heat_flux / (density * latent_heat)
+                                                  : undefined_value,
+                result_is_valid(tau_ew_value) ? tau_ew_value / density : undefined_value,
+                result_is_valid(tau_ns_value) ? tau_ns_value / density : undefined_value};
     }
 };
 

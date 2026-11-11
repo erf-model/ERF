@@ -36,7 +36,7 @@ ComputeDiffusivityMYJ (double dt,
                        MultiFab& cons_in,
                        MultiFab& eddyViscosity,
                        const Geometry& geom,
-                       const TurbChoice& /*turbChoice*/,
+                       const TurbChoice& turbChoice,
                        std::unique_ptr<SurfaceLayer>& SurfLayer,
                        bool use_terrain_fitted_coords,
                        bool use_moisture,
@@ -47,6 +47,7 @@ ComputeDiffusivityMYJ (double dt,
                        const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices)
 {
+    const StratType pbl_strat = turbChoice.pbl_strat_type;
     // Dirichlet flags to switch derivative stencil
     bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
     bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].hi(2) == ERFBCType::ext_dir) );
@@ -170,6 +171,7 @@ ComputeDiffusivityMYJ (double dt,
         const bool surface_layer_on_zlo = (SurfLayer != nullptr);
         const auto u_star_arr = (surface_layer_on_zlo) ?
                                 SurfLayer->get_u_star(level)->const_array(mfi) : Array4<const Real>{};
+        const similarity_funs l_sfuns = (surface_layer_on_zlo) ? SurfLayer->similarity_functions() : similarity_funs{};
         const auto t_star_arr = (surface_layer_on_zlo) ?
                                 SurfLayer->get_t_star(level)->const_array(mfi) : Array4<const Real>{};
         const auto q_star_arr = (surface_layer_on_zlo && use_moisture) ?
@@ -242,7 +244,7 @@ ComputeDiffusivityMYJ (double dt,
                                               u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                               dthetavdz, dudz, dvdz,
-                                              moisture_indices);
+                                              moisture_indices, pbl_strat);
 
                 // Replace the resolved gradients in the first cell with the MOST
                 // profile gradients; see ApplySurfaceLayerGradientsPBL (ERF #4037)
@@ -263,6 +265,7 @@ ComputeDiffusivityMYJ (double dt,
                                                         theta, qv, use_moisture);
                     sl.zval    = zval;
                     sl.zeta    = zval / l_obuk;
+                    sl.sfuns   = l_sfuns;
                     ApplySurfaceLayerGradientsPBL(sl, dthetavdz, dudz, dvdz);
                 }
 

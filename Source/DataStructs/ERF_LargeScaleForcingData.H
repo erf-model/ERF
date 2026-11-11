@@ -262,8 +262,10 @@ public:
                 z_int_lsf[itime][k] = (use_terrain) ? myhalf * (zlevels_stag[k] + zlevels_stag[k+1])
                                                     : zbot + (k + myhalf) * dz;
 
+                // Level 0 is the zero-forcing surface level added when the file is read, so the
+                //    search starts at the bracket [0, 1] for cells below the first given level
                 bool set = false;
-                for (int lk = 2; lk < nz_lsf + 1; lk++)
+                for (int lk = 1; lk < nz_lsf + 1; lk++)
                 {
                     // Determine if grid cell k falls in bracket [lk-1, lk]:
                     //   z-grid mode: cell z <= forcing z (z increases with lk)

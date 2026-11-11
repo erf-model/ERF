@@ -63,10 +63,11 @@
         const Real z = (z_nd) ? fourth*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
                                      + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
                                    : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_xface(i,j,z_sfc_nd); // height above the ground
 
         // Set the x-velocity
         x_vel_pert(i, j, k) = U_0;
-        if ((z <= pert_ref_height) && (U_0_Pert_Mag != zero))
+        if ((z_agl <= pert_ref_height) && (U_0_Pert_Mag != zero))
         {
             Real rand_double;
             if (deterministic_ic_pert) {
@@ -81,9 +82,9 @@
         if (pert_deltaU != zero)
         {
             const amrex::Real yl = y - prob_lo[1];
-            const amrex::Real zl = z / pert_ref_height;
+            const amrex::Real zl = z_agl / pert_ref_height;
             const amrex::Real damp = std::exp(-myhalf * zl * zl);
-            x_vel_pert(i, j, k) += ufac * damp * z * std::cos(aval * yl);
+            x_vel_pert(i, j, k) += ufac * damp * z_agl * std::cos(aval * yl);
         }
     });
 
@@ -96,10 +97,11 @@
         const Real z = (z_nd) ? fourth*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
                                      + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
                                    : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_yface(i,j,z_sfc_nd); // height above the ground
 
         // Set the y-velocity
         y_vel_pert(i, j, k) = V_0;
-        if ((z <= pert_ref_height) && (V_0_Pert_Mag != zero))
+        if ((z_agl <= pert_ref_height) && (V_0_Pert_Mag != zero))
         {
             Real rand_double;
             if (deterministic_ic_pert) {
@@ -114,9 +116,9 @@
         if (pert_deltaV != zero)
         {
             const amrex::Real xl = x - prob_lo[0];
-            const amrex::Real zl = z / pert_ref_height;
+            const amrex::Real zl = z_agl / pert_ref_height;
             const amrex::Real damp = std::exp(-myhalf * zl * zl);
-            y_vel_pert(i, j, k) += vfac * damp * z * std::cos(bval * xl);
+            y_vel_pert(i, j, k) += vfac * damp * z_agl * std::cos(bval * xl);
         }
     });
 

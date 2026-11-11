@@ -69,12 +69,9 @@ erf.plot_int_1      = 10      # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qv
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
 erf.use_coriolis    = false
-erf.coriolis_3d     = false
 
 erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd

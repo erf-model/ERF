@@ -68,13 +68,31 @@ void set_checkerboard_landmask (amrex::iMultiFab& landmask)
 }
 
 /**
- * Returns the largest flux magnitude found at the non-land cells of a mask.
+ * Fills a vegetation and soil type pair with ramps of categories
+ * 1, 4, 7, 10, ... in x (vegetation) and in y (soil).
  */
-amrex::Real max_flux_at_non_land_cells (const amrex::MultiFab& flux_mf,
-                                        const amrex::iMultiFab& landmask)
+void set_category_ramps (amrex::MultiFab& veg, amrex::MultiFab& soil)
 {
-    amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
-    amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+    for (amrex::MFIter mfi(veg); mfi.isValid(); ++mfi) {
+        const amrex::Box box = mfi.validbox();
+        auto veg_arr  = veg.array(mfi);
+        auto soil_arr = soil.array(mfi);
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            veg_arr (i, j, k) = amrex::Real(1 + 3*i);
+            soil_arr(i, j, k) = amrex::Real(1 + 3*j);
+        });
+    }
+}
+
+/**
+ * Returns how many non-land cells of a mask hold a flux other than lsm_undefined,
+ * i.e. how many of them SLM wrote to.
+ */
+int count_written_non_land_cells (const amrex::MultiFab& flux_mf,
+                                  const amrex::iMultiFab& landmask)
+{
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<int> reduce_data(reduce_op);
     using ReduceTuple = typename decltype(reduce_data)::Type;
 
     for (amrex::MFIter mfi(flux_mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -83,13 +101,13 @@ amrex::Real max_flux_at_non_land_cells (const amrex::MultiFab& flux_mf,
         const auto mask = landmask.const_array(mfi);
         reduce_op.eval(bx, reduce_data,
                        [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
-            return (mask(i, j, k) == 0) ? amrex::Math::abs(flux(i, j, k)) : amrex::Real(0.0);
+            return (mask(i, j, k) == 0 && flux(i, j, k) != lsm_undefined) ? 1 : 0;
         });
     }
 
-    amrex::Real max_flux = amrex::get<0>(reduce_data.value());
-    amrex::ParallelDescriptor::ReduceRealMax(max_flux);
-    return max_flux;
+    int count = amrex::get<0>(reduce_data.value());
+    amrex::ParallelDescriptor::ReduceIntSum(count);
+    return count;
 }
 
 struct SLMTestState {
@@ -814,7 +832,9 @@ TEST_F(SLMInterfaceTest, AdvancesMixedLandAndNonLandCells)
     ASSERT_FALSE(q_flux->contains_nan());
     ASSERT_FALSE(olen->contains_nan());
 
-    EXPECT_EQ(max_flux_at_non_land_cells(*t_flux, *landmask[0][0]), amrex::Real(0.0));
+    // SLM fluxes start at lsm_undefined and SLM never writes them at non-land cells,
+    // so the SurfaceLayer falls back to MOST there
+    EXPECT_EQ(count_written_non_land_cells(*t_flux, *landmask[0][0]), 0);
 }
 
 TEST_F(SLMInterfaceTest, AcceptsNonIntegralAndRestartLikeTimes)
@@ -933,6 +953,47 @@ TEST_F(SLMInterfaceTest, TransfersRawInputStateFromLevelZero)
                 amrex::Real(0.4), amrex::Real(1.0e-12));
     EXPECT_NEAR(land_surface.Get_Flux_Ptr(1, LsmFlux_SLM::t_flux)->max(0),
                 amrex::Real(3.0), amrex::Real(1.0e-12));
+}
+
+// Motivation: the vegetation and soil types are categories, and a fine level made from a
+// coarser one must get its coarse cell's category.  A linear interpolation gives values
+// between two categories, which SLM then truncates to a third (17, water, and 5 next to it
+// on a coastline become 12, cropland).
+TEST_F(SLMInterfaceTest, TransfersCategoriesPiecewiseConstant)
+{
+    initialize_multilevel(3, InitType::WRFInput);
+
+    // On level 1 (4 x 4) a ramp of categories 1, 4, 7, 10 in x for the vegetation type and
+    // in y for the soil type, which a limited linear interpolation would not flatten
+    auto* coarse_veg  = get_slm_data(land_surface, 1, "vegtype");
+    auto* coarse_soil = get_slm_data(land_surface, 1, "soiltype");
+    ASSERT_NE(coarse_veg, nullptr);
+    ASSERT_NE(coarse_soil, nullptr);
+    set_category_ramps(*coarse_veg, *coarse_soil);
+
+    land_surface.Initialize_From_Source(2, 1, amrex::IntVect(2),
+                                         LSMTransferMode::RawInput);
+
+    const auto* fine_veg  = get_slm_data(land_surface, 2, "vegtype");
+    const auto* fine_soil = get_slm_data(land_surface, 2, "soiltype");
+    ASSERT_NE(fine_veg, nullptr);
+    ASSERT_NE(fine_soil, nullptr);
+    int n_checked = 0;
+    for (amrex::MFIter mfi(*fine_veg); mfi.isValid(); ++mfi) {
+        const amrex::Box box = mfi.validbox();
+        const auto veg_arr  = fine_veg->const_array(mfi);
+        const auto soil_arr = fine_soil->const_array(mfi);
+        for (int k = box.smallEnd(2); k <= box.bigEnd(2); ++k) {
+        for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
+        for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
+            EXPECT_EQ(veg_arr (i, j, k), amrex::Real(1 + 3*(i/2))) << "at " << i << "," << j;
+            EXPECT_EQ(soil_arr(i, j, k), amrex::Real(1 + 3*(j/2))) << "at " << i << "," << j;
+            ++n_checked;
+        }
+        }
+        }
+    }
+    EXPECT_GT(n_checked, 0);
 }
 
 TEST_F(SLMInterfaceTest, TransfersProcessedStateFromLevelZero)

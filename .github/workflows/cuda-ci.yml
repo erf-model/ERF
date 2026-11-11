@@ -3,25 +3,46 @@ name: ERF CI (cuda)
 on:
   push:
     branches: [development]
-    paths-ignore:
-      - Docs/**
-      - README.rst
-      - license.txt
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/cuda-ci.yml'
+      - '.github/actions/**'
 
   pull_request:
     branches: [development]
     types: [opened, synchronize, reopened]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/cuda-ci.yml'
+      - '.github/actions/**'
   workflow_dispatch:
 
+# Development pushes finish the active run and keep only the newest pending commit.
+# PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-cuda-ci
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-cuda-ci
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   cuda-build:
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     name: CUDA v${{matrix.cuda_ver}} - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
+    env:
+      CCACHE_TRUNK_KEY: ubuntu-22.04-x64-cuda-${{ matrix.cuda_ver }}-sm${{ matrix.cuda_arch }}-openmpi-${{ matrix.mesh_precision }}-particles-on
     strategy:
       fail-fast: false
       matrix:
@@ -32,7 +53,8 @@ jobs:
         # on CPU by ci, gcc and windows-mpi.
         particles: [ON]
         particles_precision: [DOUBLE, SINGLE]
-        mesh_precision: [DOUBLE, SINGLE]
+        # PR tier: DOUBLE only. SINGLE builds on merge to development (which also writes its ccache).
+        mesh_precision: ${{ fromJSON(github.event_name == 'pull_request' && '["DOUBLE"]' || '["DOUBLE", "SINGLE"]') }}
         exclude:
           # Only matching mesh/particle precisions are tested, i.e. DOUBLE mesh
           # with DOUBLE particles and SINGLE mesh with SINGLE particles.
@@ -48,14 +70,26 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: true
+          persist-credentials: false
       - name: Free up disk space
         uses: ./.github/actions/free-space-ubuntu
       - name: Prepare CUDA environment
         run: Submodules/AMReX/.github/workflows/dependencies/dependencies_nvcc.sh ${{matrix.cuda_ver}}
       - name: Install CCache
         run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
-      # ccache per matrix variant, written only from development; see ci.yml for how it works.
+      # GHCR trunk per configuration; the old Actions cache seeds the first restore.
       - name: Restore Cache
+        id: ghcr-cache
+        uses: ./.github/actions/ccache-trunk
+        with:
+          mode: restore
+          key: ${{ env.CCACHE_TRUNK_KEY }}
+          path: ~/.cache/ccache
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore legacy Actions cache
+        if: steps.ghcr-cache.outputs.hit != 'true'
+        continue-on-error: true
         uses: actions/cache/restore@v6
         with:
           path: ~/.cache/ccache
@@ -69,8 +103,8 @@ jobs:
         run: |
           export CCACHE_COMPRESS=1
           export CCACHE_COMPRESSLEVEL=10
-          export CCACHE_MAXSIZE=1100M
           ccache -z
+          build_start=$(date +%s)
 
           export PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
           export LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
@@ -86,34 +120,47 @@ jobs:
             -DERF_ENABLE_MPI:BOOL=ON \
             -DERF_ENABLE_CUDA:BOOL=ON \
             -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
+            -DERF_ENABLE_FIRE:BOOL=ON \
+            -DERF_ENABLE_MOVING_BODIES:BOOL=ON \
             -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
             -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
             -DERF_TEST_NRANKS:STRING=2 \
             -DERF_ENABLE_UNIT_TESTS:BOOL=ON .
           echo "Building with $(nproc) processes"
-          cmake --build build-${{matrix.cuda_pkg}} --parallel $(nproc) \
+          cmake --build build-${{matrix.cuda_pkg}} --parallel "$(nproc)" \
           2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt;
 
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # Keep only what this build used: ccache touches an object on every hit, so
+          # anything older than the build is stale. Without this the cache fills with
+          # objects from superseded commits, hits its cap, and evicts live objects.
+          ccache --evict-older-than "$(( $(date +%s) - build_start + 120 ))s"
           ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           du -hs ~/.cache/ccache
 
       - name: Save Cache
-        if: always() && github.ref_name == github.event.repository.default_branch
-        uses: actions/cache/save@v6
+        if: always() && github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+        uses: ./.github/actions/ccache-trunk
         with:
+          mode: save
+          key: ${{ env.CCACHE_TRUNK_KEY }}
           path: ~/.cache/ccache
-          key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Report
         if: always()
         shell: bash
         run: |
           build_log="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt"
+          if [ ! -f "$build_log" ] || [ ! -r "$build_log" ]; then
+            echo "::error::Missing or unreadable build log: $build_log"
+            exit 1
+          fi
           diagnostics="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-diagnostics.txt"
           grep -Ei "warning:|warning #|error:|error #" "$build_log" \
-            | grep -Ev "Submodules/(amrex|googletest)" \
+            | grep -Ev "Submodules/(amrex|AMReX|googletest)" \
             | grep -Ev "lto-wrapper: warning:" \
             | sort -fu > "$diagnostics" || true
           cat "$diagnostics"

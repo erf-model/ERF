@@ -130,22 +130,26 @@ Smag2DLimitedViscosity (amrex::Real nu, amrex::Real strain, amrex::Real DeltaH,
  * Momentum: the largest of the three component rows,
  *   u: mu_h (2 a + b) + e_uv mu_v / dz^2 + mu_v sqrt(a c)
  *   v: mu_h (a + 2 b) + e_uv mu_v / dz^2 + mu_v sqrt(b c)
- *   w: mu_v (a + b)   + 2 e_w mu_v / dz^2 + mu_v (sqrt(a c) + sqrt(b c)),
- * with c = 1/dz^2, plus 2 mu_p h^2 / dz^2 for the terrain-metric part.  The horizontal
- * diffusion of w uses mu_v: tau31 and tau32 carry the same edge-averaged mu_v as tau13 and
- * tau23.  The sqrt terms are the u-w and v-w cross derivatives (dw/dx in tau13, du/dz in
+ *   w: mu_v (a + b)   + 2 mu_v / dz^2     + mu_v (sqrt(a c) + sqrt(b c)),
+ * with c = 1/dz^2, plus 2 mu_p h^2 / dz^2 for the terrain-metric part.  The vertical
+ * diffusion of w is always explicit; its horizontal diffusion uses mu_v: tau31 and tau32
+ * carry the same edge-averaged mu_v as tau13 and tau23.  The sqrt terms are the u-w and v-w cross derivatives (dw/dx in tau13, du/dz in
  * tau31, ...), which stay explicit whether or not the implicit solve takes the second
  * vertical derivative; they are always counted, since with dz > dx/m they exceed the
  * vertical term (dx = 100 m, dz = 500 m: five times).  (The expansion
  * rate in tau11 also couples u to dw/dz, with mu_h; that is covered by "an estimate when
- * mu_h != mu_v" below.)  The metric term is an upper bound: the
- * projected stresses of the terrain stress (ComputeStressVarVisc_T) carry mu_v today (ERF
- * issue #4214) and would carry mu_h once that is changed, hence mu_p = max(mu_h, mu_v);
- * with mu_v there, the K_h part of that coupling enters only through the mixed xi-zeta
- * terms, so the bound can overstate that coupling by about alpha / 2 on steep slopes.
+ * mu_h != mu_v" below.)  The metric term is an upper bound: the projected horizontal
+ * stresses of the u and v fluxes carry mu_h (ComputeStressVarVisc_T), the w flux mu_v, hence
+ * mu_p = max(w_metric mu_h, mu_v).
  *
- * Scalar: K_h (a + b) + K_h h^2 / dz^2 + e K_v / dz^2; the K_h h^2 part
- * (TerrainDiffusionGz) is explicit.
+ * Scalar: K_h (a + b) + w_metric K_h h^2 / dz^2 + e K_v / dz^2 (the K_h h^2 part is
+ * TerrainDiffusionGz).
+ *
+ * w_metric weights the K_h metric term: 1 when it is explicit, and with
+ * erf.implicit_terrain_metric the component's explicit fraction e, since its compact form
+ * K_h M d2/dz2 is then in the implicit solve (u, v and the scalars; w is not).  The difference
+ * between the averaged and the compact forms stays explicit and is not counted, so with the
+ * option the rate is an estimate.
  *
  * a = (m_x / dx)^2, b = (m_y / dy)^2 and h^2 = (m_x dx_drop / dx)^2 +
  * (m_y dy_drop / dy)^2 is the squared physical slope; on a mesh without
@@ -161,16 +165,17 @@ AMREX_FORCE_INLINE
 amrex::Real
 MomentumDiffusiveRate (amrex::Real rho, amrex::Real mu_h, amrex::Real mu_v,
                        amrex::Real a, amrex::Real b, amrex::Real h2, amrex::Real dzinv2,
-                       amrex::Real e_uv, amrex::Real e_w) noexcept
+                       amrex::Real e_uv, amrex::Real w_metric = one) noexcept
 {
     const amrex::Real xa   = std::sqrt(a * dzinv2);
     const amrex::Real xb   = std::sqrt(b * dzinv2);
     const amrex::Real r_u  = mu_h * (two*a + b) + e_uv * mu_v * dzinv2 + mu_v * xa;
     const amrex::Real r_v  = mu_h * (a + two*b) + e_uv * mu_v * dzinv2 + mu_v * xb;
-    const amrex::Real r_w  = mu_v * (a + b)     + two * e_w * mu_v * dzinv2 + mu_v * (xa + xb);
+    const amrex::Real r_w  = mu_v * (a + b)     + two * mu_v * dzinv2 + mu_v * (xa + xb);
     const amrex::Real r_uv = (r_u > r_v) ? r_u : r_v;
     const amrex::Real row  = (r_uv > r_w) ? r_uv : r_w;
-    const amrex::Real mu_p = (mu_h > mu_v) ? mu_h : mu_v;
+    const amrex::Real mu_hm = w_metric * mu_h;
+    const amrex::Real mu_p  = (mu_hm > mu_v) ? mu_hm : mu_v;
     return ( row + two * mu_p * h2 * dzinv2 ) / rho;
 }
 
@@ -228,9 +233,9 @@ AMREX_FORCE_INLINE
 amrex::Real
 ScalarDiffusiveRate (amrex::Real rho, amrex::Real K_h, amrex::Real K_v,
                      amrex::Real a, amrex::Real b, amrex::Real h2, amrex::Real dzinv2,
-                     amrex::Real e_vert) noexcept
+                     amrex::Real e_vert, amrex::Real w_metric = one) noexcept
 {
-    return ( K_h * (a + b) + K_h * h2 * dzinv2 + e_vert * K_v * dzinv2 ) / rho;
+    return ( K_h * (a + b) + w_metric * K_h * h2 * dzinv2 + e_vert * K_v * dzinv2 ) / rho;
 }
 
 /** Which components carry diffusion, and their explicit vertical fractions, for CellDiffusiveRates. */
@@ -240,17 +245,27 @@ struct DiffusiveRateSettings
     bool has_q       = false;  // moisture carried
     bool has_ke      = false;  // turbulent kinetic energy carried
     bool has_scalar  = false;  // advected scalar carried
-    amrex::Real e_uv = one, e_w = one, e_th = one, e_q = one, e_ke = one;
+    bool implicit_metric = false;  // erf.implicit_terrain_metric: K_h metric term weighted by e
+    amrex::Real e_uv = one, e_th = one, e_q = one, e_ke = one;
+    // Eddy diffusivities are carried (k_arr is read only then)
+    bool has_eddy    = true;
+    // Molecular diffusivities, added to the eddy ones in both directions: momentum (the
+    // dynamic viscosity), theta (alpha_T) and moisture and the advected scalar (alpha_C).
+    // Dynamic values, or with mol_times_rho kinematic ones that are multiplied by the density
+    // (erf.molec_diff_type = ConstantAlpha).  KE has none.
+    amrex::Real mol_mom = zero, mol_th = zero, mol_c = zero;
+    bool mol_times_rho = false;
 };
 
 /**
- * Explicit eddy-diffusion rates of cell (i,j,k), momentum and scalars (1/s), as the
- * diffusive time-step check reduces them: MomentumDiffusiveRate and ScalarDiffusiveRate with
- * the largest diffusivities and the smallest positive density over the cell and its 26
- * neighbours.  Both are zero in a cell without density (covered).
+ * Explicit diffusion rates of cell (i,j,k), momentum and scalars (1/s), as the diffusive
+ * time-step check reduces them: MomentumDiffusiveRate and ScalarDiffusiveRate with the largest
+ * diffusivities -- eddy plus molecular -- and the smallest positive density over the cell and
+ * its 26 neighbours.  Both are zero in a cell without density (covered).
  *
  * @param[in]  s_arr  conserved state (Rho_comp), one ghost cell
- * @param[in]  k_arr  eddy diffusivities (EddyDiff components), one ghost cell
+ * @param[in]  k_arr  eddy diffusivities (EddyDiff components), one ghost cell; read only when
+ *                    set.has_eddy
  * @param[in]  z_nd   nodal heights (read only when set.variable_dz)
  * @param[in]  mf_mx, mf_my map factors of the cell
  * @param[in]  dxinv  inverse cell sizes
@@ -284,25 +299,31 @@ CellDiffusiveRates (int i, int j, int k,
     const amrex::Real a2     = ax*ax;
     const amrex::Real b2     = ay*ay;
     const amrex::Real dzinv2 = dzinv*dzinv;
-    rate_mom = MomentumDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Mom_h,k_arr),
-                                     NeighbourhoodMax(i,j,k,EddyDiff::Mom_v,k_arr),
-                                     a2, b2, h2, dzinv2, set.e_uv, set.e_w);
-    amrex::Real rs = ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Theta_h,k_arr),
-                                         NeighbourhoodMax(i,j,k,EddyDiff::Theta_v,k_arr),
-                                         a2, b2, h2, dzinv2, set.e_th);
+    // Largest eddy diffusivity around the cell, or none without a turbulence model
+    auto K = [&] (int n) -> amrex::Real {
+        return (set.has_eddy) ? NeighbourhoodMax(i,j,k,n,k_arr) : zero;
+    };
+    // Molecular diffusivities, made dynamic with the largest density around the cell for
+    // ConstantAlpha, so that divided by the smallest one they still bound the rate
+    const amrex::Real mol_rho = (set.mol_times_rho) ? NeighbourhoodMax(i,j,k,Rho_comp,s_arr) : one;
+    const amrex::Real m_mom = set.mol_mom * mol_rho;
+    const amrex::Real m_th  = set.mol_th  * mol_rho;
+    const amrex::Real m_c   = set.mol_c   * mol_rho;
+    // with erf.implicit_terrain_metric the K_h metric term counts with the explicit fraction
+    rate_mom = MomentumDiffusiveRate(rdiv, K(EddyDiff::Mom_h) + m_mom, K(EddyDiff::Mom_v) + m_mom,
+                                     a2, b2, h2, dzinv2, set.e_uv, (set.implicit_metric ? set.e_uv : one));
+    amrex::Real rs = ScalarDiffusiveRate(rdiv, K(EddyDiff::Theta_h) + m_th, K(EddyDiff::Theta_v) + m_th,
+                                         a2, b2, h2, dzinv2, set.e_th, (set.implicit_metric ? set.e_th : one));
     if (set.has_q) {
-        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Q_h,k_arr),
-                                                NeighbourhoodMax(i,j,k,EddyDiff::Q_v,k_arr),
-                                                a2, b2, h2, dzinv2, set.e_q));
+        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, K(EddyDiff::Q_h) + m_c, K(EddyDiff::Q_v) + m_c,
+                                                a2, b2, h2, dzinv2, set.e_q, (set.implicit_metric ? set.e_q : one)));
     }
     if (set.has_ke) {
-        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::KE_h,k_arr),
-                                                NeighbourhoodMax(i,j,k,EddyDiff::KE_v,k_arr),
-                                                a2, b2, h2, dzinv2, set.e_ke));
+        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, K(EddyDiff::KE_h), K(EddyDiff::KE_v),
+                                                a2, b2, h2, dzinv2, set.e_ke, (set.implicit_metric ? set.e_ke : one)));
     }
     if (set.has_scalar) {
-        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Scalar_h,k_arr),
-                                                NeighbourhoodMax(i,j,k,EddyDiff::Scalar_v,k_arr),
+        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, K(EddyDiff::Scalar_h) + m_c, K(EddyDiff::Scalar_v) + m_c,
                                                 a2, b2, h2, dzinv2, one));
     }
     rate_scal = rs;

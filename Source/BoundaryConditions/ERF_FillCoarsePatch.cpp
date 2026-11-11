@@ -37,7 +37,6 @@ ERF::FillCoarsePatch (int lev, double time)
                            &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
                           {&vars_new[lev-1][Vars::cons],
                            &rU_new[lev-1], &rV_new[lev-1], &rW_new[lev-1]},
-                           base_state[lev-1], base_state[lev-1],
                            false, cons_only);
     }
 
@@ -97,6 +96,12 @@ ERF::FillCoarsePatch (int lev, double time)
     // ***************************************************************************
     // Physical bc's for cell centered variables at domain boundary
     // ***************************************************************************
+    // Quantities ingested from boundary planes are not imposed by physbcs_cons; the density
+    // among them is also read by MomentumToVelocity below at the ingested faces
+    if (m_r2d && !solverChoice.use_real_bcs) {
+        fill_from_bndryregs(lev, {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
+                                  &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]}, time, true);
+    }
     (*physbcs_cons[lev])(vars_new[lev][Vars::cons],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
                          0,ncomp_cons,ngvect_cons,time,BCVars::cons_bc,true);
 
@@ -132,28 +137,34 @@ ERF::FillCoarsePatch (int lev, double time)
     // After interpolation of momentum, convert back to velocity
     // *********************************************************
     //
-    for (int which_lev = lev-1; which_lev <= lev; which_lev++)
-    {
-        c_vfrac = nullptr;
-        if (solverChoice.terrain_type == TerrainType::EB) {
-            c_vfrac = &((get_eb(which_lev).get_const_factory())->getVolFrac());
-        }
-
-        MomentumToVelocity(vars_new[which_lev][Vars::xvel],
-                           vars_new[which_lev][Vars::yvel],
-                           vars_new[which_lev][Vars::zvel],
-                           vars_new[which_lev][Vars::cons],
-                             rU_new[which_lev],
-                             rV_new[which_lev],
-                             rW_new[which_lev],
-                           Geom(which_lev).Domain(),
-                           domain_bcs_type, c_vfrac);
+    // Only at the new fine level: the coarse velocities are already correct, and converting the
+    //    coarse momenta (made from them above) back does not reproduce them bitwise -- at the
+    //    domain-boundary faces in particular -- so it would change the coarse solution just
+    //    because a finer level was created, even with one-way coupling.
+    c_vfrac = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
     }
+
+    MomentumToVelocity(vars_new[lev][Vars::xvel],
+                       vars_new[lev][Vars::yvel],
+                       vars_new[lev][Vars::zvel],
+                       vars_new[lev][Vars::cons],
+                         rU_new[lev],
+                         rV_new[lev],
+                         rW_new[lev],
+                       Geom(lev).Domain(),
+                       domain_bcs_type, c_vfrac);
 
     // ***************************************************************************
     // Physical bc's at domain boundary
     // ***************************************************************************
     IntVect ngvect_vels = vars_new[lev][Vars::xvel].nGrowVect();
+
+    if (m_r2d && !solverChoice.use_real_bcs) {
+        fill_from_bndryregs(lev, {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
+                                  &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]}, time);
+    }
 
     (*physbcs_u[lev])(vars_new[lev][Vars::xvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
                       ngvect_vels,time,BCVars::xvel_bc,true);
@@ -163,6 +174,6 @@ ERF::FillCoarsePatch (int lev, double time)
                       ngvect_vels,time,BCVars::zvel_bc,true);
 
     // ***************************************************************************
-    // Since lev > 0 here we don't worry about m_r2d or wrfbdy data
+    // Since lev > 0 here we don't worry about wrfbdy data
     // ***************************************************************************
 }

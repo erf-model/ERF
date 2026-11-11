@@ -59,7 +59,8 @@ SAM::PrecipFall (const SolverChoice& sc)
     auto tabs  = mic_fab_vars[MicVar::tabs];
     auto rain_accum = mic_fab_vars[MicVar::rain_accum];
     auto snow_accum = mic_fab_vars[MicVar::snow_accum];
-    auto graup_accum = mic_fab_vars[MicVar::graup_accum];
+    auto graupel_accum = mic_fab_vars[MicVar::graupel_accum];
+    auto precip_accum = mic_fab_vars[MicVar::precip_accum];
 
     auto ba    = tabs->boxArray();
     auto dm    = tabs->DistributionMap();
@@ -67,6 +68,17 @@ SAM::PrecipFall (const SolverChoice& sc)
 
     MultiFab fz;
     fz.define(convert(ba, IntVect(0,0,1)), dm, 3, ngrow);
+
+    // The face states read tabs, rho and the precipitating species at k-1, a ghost cell
+    // whenever a box boundary is interior in z. Cloud and Precip have just updated them in
+    // valid cells only, so refresh the ghosts before the fluxes that size the substeps are
+    // computed; the substep loop below refreshes the species again as they fall. tabs does
+    // not change here, so once is enough for it.
+    tabs->FillBoundary(m_geom.periodicity());
+    rho->FillBoundary(m_geom.periodicity());
+    qpr->FillBoundary(m_geom.periodicity());
+    qps->FillBoundary(m_geom.periodicity());
+    qpg->FillBoundary(m_geom.periodicity());
 
     //  Precompute the vertical component fluxes for the legacy reduced-flux substep rule.
     for (MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -147,7 +159,13 @@ SAM::PrecipFall (const SolverChoice& sc)
 
             auto rain_accum_array = rain_accum->array(mfi);
             auto snow_accum_array = snow_accum->array(mfi);
-            auto graup_accum_array = graup_accum->array(mfi);
+            auto graupel_accum_array = graupel_accum->array(mfi);
+            auto precip_accum_array = precip_accum->array(mfi);
+            auto sed_array = m_sed.down->array(mfi);
+            const auto inflow_array = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
+                                                     : Array4<const Real>{};
+            const int inflow_flag = m_sed.inflow_flag_comp();
+            const Real inv_dt = one / dt;
 
             const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
 
@@ -193,6 +211,18 @@ SAM::PrecipFall (const SolverChoice& sc)
                                                                     detJ_donor,
                                                                     coef);
 
+                // At the top of a fine patch the precipitation coming in is the coarse
+                // level's flux through that face, not one built from interpolated ghost cells
+                if (inflow_array && inflow_array(i,j,k,inflow_flag) > Real(0.5)) {
+                    fz_array(i,j,k,0) = inflow_array(i,j,k,0) * inv_dt;
+                    fz_array(i,j,k,1) = inflow_array(i,j,k,1) * inv_dt;
+                    fz_array(i,j,k,2) = inflow_array(i,j,k,2) * inv_dt;
+                }
+
+                sed_array(i,j,k,0) += fz_array(i,j,k,0) * dtn;
+                sed_array(i,j,k,1) += fz_array(i,j,k,1) * dtn;
+                sed_array(i,j,k,2) += fz_array(i,j,k,2) * dtn;
+
                 if (k == k_lo) {
                     const SAMSurfaceAccumulation surface_accum =
                         sam_surface_accumulation_from_component_fluxes(
@@ -200,7 +230,10 @@ SAM::PrecipFall (const SolverChoice& sc)
                             dtn);
                     rain_accum_array(i,j,k)  = rain_accum_array(i,j,k)  + surface_accum.rain;
                     snow_accum_array(i,j,k)  = snow_accum_array(i,j,k)  + surface_accum.snow;
-                    graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + surface_accum.graupel;
+                    graupel_accum_array(i,j,k) = graupel_accum_array(i,j,k) + surface_accum.graupel;
+                    // The total is in mm of liquid water, whatever the species' own densities
+                    precip_accum_array(i,j,k) += (fz_array(i,j,k,0) + fz_array(i,j,k,1) + fz_array(i,j,k,2))
+                                               * dtn / rhor * Real(1000.0);
                 }
             });
 

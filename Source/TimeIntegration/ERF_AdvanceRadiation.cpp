@@ -58,6 +58,34 @@ void ERF::advance_radiation (int lev,
 {
     BL_PROFILE("ERF::advance_radiation()");
 
+    const auto& topo_choice = solverChoice.topographicChoice;
+    const bool terrain_radiation = topo_choice.active();
+    if (terrain_radiation) {
+        // Initialize lazily, after WRFInput/Metgrid/custom terrain and map factors
+        // are finalized. Regridding invalidates this cache in define_level.
+        for (int l = 0; l <= lev; ++l) {
+            if (!topographic_radiation.geometry_ready(l)) {
+#ifdef ERF_USE_NETCDF
+                const MultiFab* lat = lat_m[l].get();
+                const MultiFab* lon = lon_m[l].get();
+#else
+                const MultiFab* lat = nullptr;
+                const MultiFab* lon = nullptr;
+#endif
+                topographic_radiation.initialize_geometry(l, topo_choice, *z_phys_nd[l],
+                    *mapfac[l][MapFacType::m_x], *mapfac[l][MapFacType::m_y], lat, lon);
+            }
+        }
+    }
+    auto apply_terrain_radiation = [&] () {
+        Vector<MultiFab*> outputs;
+        if (m_SurfaceModel && solverChoice.rad_feeds_lsm()) {
+            outputs = m_SurfaceModel->get_radiation_output_fields(lev);
+        }
+        topographic_radiation.apply(lev, topo_choice, outputs);
+        if (m_SurfaceModel) { m_SurfaceModel->distribute_radiation_outputs(lev); }
+    };
+
     // Fill this level's radiation fields by interpolation from its parent.
     //
     // Two situations need this and need exactly the same work done:
@@ -89,6 +117,20 @@ void ERF::advance_radiation (int lev,
     auto level_needs_interpolation = [&] (int l) -> bool
     {
         return rad_level_needs_interpolation(l);
+    };
+
+    // A level whose two-stream heating rates come from its parent has no sweep of its own
+    // to leave the buildings' solid cells unheated (erf.ibseb.two_stream_buildings), so
+    // they are set to zero after the interpolation, and the halo refilled from them. The
+    // refill covers the ghost cells other boxes of the level and periodic images hold; a
+    // ghost cell outside the level keeps its interpolated value, and no consumer of the
+    // rates reads one (the source term reads valid cells).
+    auto mask_two_stream_building_heating = [&] ()
+    {
+        if (solverChoice.rad_type == RadiationType::TwoStream && two_stream_rad.has_building_cover(lev)) {
+            two_stream_rad.mask_building_heating(lev, *qheating_rates[lev]);
+            qheating_rates[lev]->FillBoundary(geom[lev].periodicity());
+        }
     };
 
     auto interp_rad_from_coarse = [&] ()
@@ -223,7 +265,10 @@ void ERF::advance_radiation (int lev,
             }
         }
 
-        if (m_SurfaceModel && solverChoice.rad_feeds_lsm()) {
+        if (terrain_radiation) {
+            topographic_radiation.interpolate_from_coarse(lev);
+            apply_terrain_radiation();
+        } else if (m_SurfaceModel && solverChoice.rad_feeds_lsm()) {
             const auto fine_outputs = m_SurfaceModel->get_radiation_output_fields(lev);
             const auto coarse_outputs = m_SurfaceModel->get_radiation_output_fields(lev-1);
             const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
@@ -306,6 +351,7 @@ void ERF::advance_radiation (int lev,
         amrex::Print() << "Interpolating radiation heating rates and fluxes from level " << lev-1
                        << " to level " << lev << " on the first step after that level was built\n";
         interp_rad_from_coarse();
+        mask_two_stream_building_heating();
         rad_interp_from_coarse_pending[lev] = 0;
         return;
     }
@@ -334,6 +380,9 @@ void ERF::advance_radiation (int lev,
             }
         }
 
+        if (terrain_radiation) {
+            lsm_output_ptrs = topographic_radiation.raw_fields(lev);
+        }
         // NOTE: this used to force a radiation update whenever the land surface model
         // had updated, via
         //     (lev==0 && max_level>0) ? lsm.Get_LSM_Update_Status(lev) : false
@@ -354,10 +403,21 @@ void ERF::advance_radiation (int lev,
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
-                      false, solar_declin, calday);
+                      terrain_radiation && !topographic_radiation.forcing_ready(lev),
+                      solar_declin, calday);
 
-        if (m_SurfaceModel && rad[lev]->radiation_updated()) {
-            m_SurfaceModel->distribute_radiation_outputs(lev);
+        if (rad[lev]->radiation_updated()) {
+            if (terrain_radiation) {
+                // RRTMGP averages mu0 over the upcoming radiation interval. Use
+                // its midpoint for ray geometry, retaining the solver's mu0 for
+                // Noah-MP. Geometry and forcing are held until the next update.
+                topographic_radiation.set_sun(lev,
+                    double(calday) + 0.5*topo_choice.radiation_interval*dt_advance/86400.0,
+                    double(solar_declin));
+                apply_terrain_radiation();
+            } else if (m_SurfaceModel) {
+                m_SurfaceModel->distribute_radiation_outputs(lev);
+            }
         }
 
         // Fill ghost cells after radiation computes (needed for interpolation to finer levels)
@@ -392,6 +452,7 @@ void ERF::advance_radiation (int lev,
         // in how a level that *does* span the column is solved.
         if (lev > 0 && level_needs_interpolation(lev)) {
             interp_rad_from_coarse();
+            mask_two_stream_building_heating();
             return;
         }
 #ifdef ERF_USE_NETCDF

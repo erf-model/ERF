@@ -52,9 +52,13 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta rh
 # SOLVER CHOICES
 erf.use_gravity = false
 
-erf.abl_driver_type = "GeostrophicWind"
+erf.abl_driver_type = "None"
 
 erf.molec_diff_type = "None"
+
+# The implicit vertical scalar solve does not support Dirichlet (prescribed theta) z walls, so
+# theta diffuses explicitly; momentum and KE keep the vertical implicit solve
+erf.implicit_thermal_diffusion = false
 
 erf.les_type = "Deardorff"
 erf.Ck       = 0.1

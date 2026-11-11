@@ -1,0 +1,309 @@
+{
+ "amr.max_level": {
+  "default": "0",
+  "default_origin": "initializer",
+  "default_source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:8",
+  "layer": "AMReX",
+  "layers": {
+   "AMReX": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:9",
+   "ERF": "Source/ERF_Synthetic.cpp:19"
+  },
+  "required": false,
+  "source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:9",
+  "type": "int"
+ },
+ "amrex.use_gpu_aware_mpi": {
+  "default": "false",
+  "default_origin": "initializer",
+  "default_source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:5",
+  "layer": "AMReX",
+  "layers": {
+   "AMReX": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:6"
+  },
+  "required": false,
+  "source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:6",
+  "type": "bool"
+ },
+ "erf.Cs": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:15"
+  },
+  "per_level": true,
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:15",
+  "type": "real"
+ },
+ "erf.also_typed": {
+  "default": "0",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Removed.cpp:22",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:24"
+  },
+  "required": true,
+  "source": "Source/ERF_Removed.cpp:24",
+  "type": "int"
+ },
+ "erf.box_hi": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:20"
+  },
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:20",
+  "type": "real_list"
+ },
+ "erf.cfl": {
+  "default": "0.8",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.H:7",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:6"
+  },
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:6",
+  "type": "real"
+ },
+ "erf.chv": {
+  "default": "1",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_MoreShapes.cpp:17",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:18"
+  },
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:18",
+  "type": "int"
+ },
+ "erf.eye_latitude": {
+  "default": "-10000000000.0",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.H:9",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:20"
+  },
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:20",
+  "type": "real"
+ },
+ "erf.eye_longitude": {
+  "default": "-10000000000.0",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.H:9",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:21"
+  },
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:21",
+  "type": "real"
+ },
+ "erf.legacy": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:10"
+  },
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:10",
+  "type": "int"
+ },
+ "erf.moisture_model": {
+  "case_insensitive": true,
+  "default": "None",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.cpp:8",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:9"
+  },
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:9",
+  "type": "enum",
+  "values": [
+   "None",
+   "Kessler",
+   "SAM"
+  ]
+ },
+ "erf.moisture_species": {
+  "case_insensitive": false,
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:23"
+  },
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:23",
+  "type": "enum_list",
+  "values": [
+   "None",
+   "Kessler",
+   "SAM"
+  ]
+ },
+ "erf.no_substepping": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:19"
+  },
+  "removed_evidence": "Source/ERF_Removed.cpp:20",
+  "removed_shape": "countval_gt0_error",
+  "required": false,
+  "source": "Source/ERF_Removed.cpp:19",
+  "type": "removed"
+ },
+ "erf.nsteps": {
+  "default": "10",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.H:8",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:7"
+  },
+  "required": true,
+  "source": "Source/ERF_Synthetic.cpp:7",
+  "type": "int"
+ },
+ "erf.old_flag": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:4"
+  },
+  "removed_evidence": "Source/ERF_MoreShapes.cpp:6",
+  "removed_shape": "countval_var_gt0_error",
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:4",
+  "type": "removed"
+ },
+ "erf.old_knob": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:4"
+  },
+  "removed_evidence": "Source/ERF_Removed.cpp:5",
+  "removed_shape": "contains_abort",
+  "required": false,
+  "shadowed_reads": [
+   "Source/ERF_Shadow.cpp:5 int"
+  ],
+  "source": "Source/ERF_Removed.cpp:4",
+  "type": "removed"
+ },
+ "erf.probe_only": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:7"
+  },
+  "required": false,
+  "source": "Source/ERF_Removed.cpp:7",
+  "type": "unknown"
+ },
+ "erf.use_terrain": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:16"
+  },
+  "removed_evidence": "Source/ERF_Removed.cpp:17",
+  "removed_shape": "query_gt0_error",
+  "required": false,
+  "source": "Source/ERF_Removed.cpp:16",
+  "type": "removed"
+ },
+ "erf.widget_on": {
+  "default": "false",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.cpp:11",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:12"
+  },
+  "required": false,
+  "requires": [
+   "ERF_USE_WIDGET"
+  ],
+  "requires_evidence": {
+   "ERF_USE_WIDGET": "Source/ERF_Synthetic.cpp:10"
+  },
+  "source": "Source/ERF_Synthetic.cpp:12",
+  "type": "bool"
+ },
+ "erf.z_levels": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:33"
+  },
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:33",
+  "type": "real_list"
+ },
+ "xlo.k_int": {
+  "default": "1",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Kinds.cpp:11",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Kinds.cpp:12"
+  },
+  "required": false,
+  "source": "Source/ERF_Kinds.cpp:12",
+  "type": "int"
+ },
+ "xlo.k_real": {
+  "default": "0.5",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Kinds.cpp:15",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Kinds.cpp:16"
+  },
+  "required": false,
+  "source": "Source/ERF_Kinds.cpp:16",
+  "type": "real"
+ },
+ "xlo.speed": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Kinds.cpp:9"
+  },
+  "required": false,
+  "source": "Source/ERF_Kinds.cpp:9",
+  "type": "real"
+ },
+ "xlo.velocity": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Kinds.cpp:6"
+  },
+  "required": false,
+  "source": "Source/ERF_Kinds.cpp:6",
+  "type": "real_list"
+ }
+}

@@ -190,6 +190,16 @@ public:
         return m_moist_model[lev]->Get_Surface_Precip_Accumulation_Ptrs(lev);
     }
 
+    const SedimentationFlux* Get_Sed_Flux (const int& lev) const override
+    {
+        return m_moist_model[lev]->Sed_Flux();
+    }
+
+    void Set_Sed_Inflow (const int& lev, const amrex::MultiFab* inflow) override
+    {
+        m_moist_model[lev]->Set_Sed_Inflow(inflow);
+    }
+
 protected:
 
     /*! \brief Create and set the specified moisture model */

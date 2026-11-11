@@ -10,6 +10,8 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
+void ApplyNeumannBCs (const Geometry& geom, MultiFab& mf_cc);
+
 Vector<Real>
 perturb_scale =
 {
@@ -18,9 +20,9 @@ perturb_scale =
     1.0,        // u [m/s]
     1.0,        // v [m/s]
     0.5,        // w [m/s]
-    5.0e-4,     // qv [kg/kg]
-    1.0e-4,      // qc [kg/kg]
-    1.0e-4      // qrain [kg/kg]
+    1.0e-6,     // qv [kg/kg]
+    1.0e-6,      // qc [kg/kg]
+    1.0e-6      // qrain [kg/kg]
 };
 
 /**
@@ -155,12 +157,18 @@ ERF::apply_gaussian_smoothing_to_perturbations (const int lev, MultiFab& mf_cc_p
     Real const* wy = wy_d.data();
     Real const* wz = wz_d.data();
 
-    // Temp MultiFab for separable intermediate states
+    // Temp MultiFab for separable intermediate states.  Each pass reads up to rx, ry or rz
+    // cells past the box; past a non-periodic domain face those cells are extended from the
+    // face (zero gradient), as nothing else fills them.
     IntVect ngrow(AMREX_D_DECL(rx, ry, rz));
     MultiFab mf_tmp(mf_cc_pert.boxArray(), mf_cc_pert.DistributionMap(), ncomp, ngrow);
+    auto fill_tmp = [&] () {
+        MultiFab::Copy(mf_tmp, mf_cc_pert, 0, 0, ncomp, 0);
+        ApplyNeumannBCs(gm, mf_tmp);
+    };
 
     // --- Pass 1: X Direction ---
-    mf_tmp.ParallelCopy(mf_cc_pert, 0, 0, ncomp, IntVect(0), ngrow, gm.periodicity());
+    fill_tmp();
     for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         auto const& in  = mf_tmp.const_array(mfi);
@@ -175,7 +183,7 @@ ERF::apply_gaussian_smoothing_to_perturbations (const int lev, MultiFab& mf_cc_p
     }
 
     // --- Pass 2: Y Direction ---
-    mf_tmp.ParallelCopy(mf_cc_pert, 0, 0, ncomp, IntVect(0), ngrow, gm.periodicity());
+    fill_tmp();
     for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         auto const& in  = mf_tmp.const_array(mfi);
@@ -190,7 +198,7 @@ ERF::apply_gaussian_smoothing_to_perturbations (const int lev, MultiFab& mf_cc_p
     }
 
     // --- Pass 3: Z Direction ---
-    mf_tmp.ParallelCopy(mf_cc_pert, 0, 0, ncomp, IntVect(0), ngrow, gm.periodicity());
+    fill_tmp();
     for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         auto const& in  = mf_tmp.const_array(mfi);

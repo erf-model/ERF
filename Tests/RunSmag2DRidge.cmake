@@ -160,7 +160,7 @@ elseif(MODE STREQUAL "check")
     run_leg("${on_dir}"  ${options} erf.diffusive_dt_check=true erf.diffusive_cfl=${DIFFUSIVE_CFL})
     run_leg("${off_dir}" ${options} erf.diffusive_dt_check=false)
 
-    set(warning "WARNING: explicit eddy diffusion at level 0 has Fourier number")
+    set(warning "WARNING: explicit diffusion at level 0 has Fourier number")
     file(STRINGS "${on_dir}/simulation.log"  on_warn  REGEX "${warning}")
     file(STRINGS "${off_dir}/simulation.log" off_warn REGEX "${warning}")
     if(on_warn STREQUAL "")

@@ -1,4 +1,8 @@
 
+    // On a mesh other than ConstantDz, heights come from z_cc and the vertical levels,
+    //    not from geomdata's prob_lo[2] and CellSize(2)
+    const bool use_z_phys = use_physical_z();
+
     ParmParse pp_prob("prob");
     Real T_0 = amrex::Real(300.0); pp_prob.query("T_0", T_0);
 
@@ -22,7 +26,7 @@
     Real theta_pert  = two; pp_prob.query("theta_pert", theta_pert);
     Real eq_pot_temp = amrex::Real(320.0); pp_prob.query("eq_pot_temp",eq_pot_temp);
     Real qt_init = amrex::Real(0.02); pp_prob.query("qt_init", qt_init);
-    bool use_empirical = false; pp_prob.query("use_empircal_psat",use_empirical);
+    bool use_empirical = false; pp_prob.query("use_empirical_psat",use_empirical);
 
     std::vector<std::string> m_species;
     int m_num_species = 0;
@@ -77,8 +81,13 @@
         Gpu::DeviceVector<Real> d_t(khi+2);
         Gpu::DeviceVector<Real> d_q_v(khi+2);
 
-        HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(), h_p.data(),
-                                                 h_q_v.data(), dz, khi, qt_init, eq_pot_temp, use_empirical);
+        if (use_z_phys) {
+            HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(), h_p.data(),
+                                                     h_q_v.data(), m_zlevels_stag[lev].data(), khi, qt_init, eq_pot_temp, use_empirical);
+        } else {
+            HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(), h_p.data(),
+                                                     h_q_v.data(), dz, geomdata.ProbLo(2), khi, qt_init, eq_pot_temp, use_empirical);
+        }
 
         Gpu::copy(Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
         Gpu::copy(Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
@@ -99,7 +108,7 @@
 
             const auto x = prob_lo[0] + (i + myhalf) * dx[0];
             const auto y = prob_lo[1] + (j + myhalf) * dx[1];
-            const auto z = prob_lo[2] + (k + myhalf) * dx[2];
+            const auto z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
 
             Real rad, delta_theta, theta_total, rho, RH;
 
@@ -134,6 +143,9 @@
             // mean states
             state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
         });
+
+        // The kernel above reads d_r, d_p, d_t and d_q_v; wait for it before they are freed
+        Gpu::streamSynchronize();
     } else {
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -143,7 +155,7 @@
 
             const Real x = prob_lo[0] + (i + myhalf) * dx[0];
             const Real y = prob_lo[1] + (j + myhalf) * dx[1];
-            const Real z = prob_lo[2] + (k + myhalf) * dx[2];
+            const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
 
             // perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k), rdOcp,
             //                   state_pert(i, j, k, Rho_comp),
@@ -217,7 +229,7 @@
 
         const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real y = prob_lo[1] + (j + myhalf) * dx[1];
-        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
 
         amrex::Real L = zero;
         if (x_r > 0) L += amrex::Math::powi<2>((x - x_c)/x_r);
@@ -233,3 +245,6 @@
             }
         }
     });
+
+    // The kernel above reads qv_init_d; wait for it before it is freed
+    Gpu::streamSynchronize();

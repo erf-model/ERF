@@ -256,8 +256,11 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
     const amrex::Vector<std::string> expected{
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
-        "t_surf", "q_surf", "z0", "OLR", "seb_t_sfc", "seb_q_sfc",
-        "seb_hfx", "seb_lh",
+        "t_surf", "q_surf", "z0", "u_10m", "v_10m", "u_east_10m", "v_north_10m",
+        "OLR", "topographic_shadow", "terrain_direct_factor", "terrain_incidence",
+        "unshaded_sw_flux_dn", "terrain_sw_flux_dn", "seb_t_sfc", "seb_q_sfc",
+        "seb_hfx", "seb_lh", "seb_sw_net", "ibseb_ground_shadow",
+        "seb_lw_net", "ibseb_ground_wall_view",
         "sens_flux", "laten_flux",
         "surf_pres",
         "sea_level_pressure",
@@ -265,6 +268,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "precip_graupel_accum", "precip_hail_accum", "precip_frozen_accum",
         "integrated_qv", "integrated_qc", "integrated_qi",
         "integrated_qr", "integrated_qs", "integrated_qg",
+        "cloud_optical_depth_sw", "cloud_albedo_est",
         "surface_diagnostic_source",
         "sensible_heat_flux", "latent_heat_flux",
         "shoc_u_star", "shoc_Olen", "shoc_wthv_sfc",
@@ -273,7 +277,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "sw_flux_dn", "sw_flux_dn_dir_vis", "sw_flux_dn_dir_nir",
         "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir", "lw_flux_dn",
         "grdflx", "fira", "sav", "sag", "albedo", "sfcrunoff",
-        "udrunoff",
+        "udrunoff", "snow", "snowh",
         "noahmp_temperature_2m_vegetated", "noahmp_temperature_2m_bare",
         "noahmp_water_vapor_mixing_ratio_2m_vegetated",
         "noahmp_water_vapor_mixing_ratio_2m_bare",
@@ -388,11 +392,14 @@ TEST(Plotfile2DWaterPath, NoPrecipitationSchemesExcludeAccumulations)
 }
 
 // Motivation: Availability must reflect the compiled/provider path: raw
-// Noah-MP fields are hidden without Noah-MP, while SurfaceLayer-only unified
-// temperature remains selectable and dry-run humidity does not.
-TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
+// Noah-MP (LandSurface) fields are hidden without Noah-MP, while the NearSurface
+// 2 m temperature remains selectable from the surface layer alone and the 2 m
+// humidity is offered only in a moist run.
+TEST(Plotfile2DWaterPath, NearSurfaceAvailabilityIsSchemeAware)
 {
     SolverChoice dry;
+    // This case has no land model, including in a Noah-MP-enabled build.
+    dry.lsm_type = LandSurfaceType::None;
     dry.moisture_type = MoistureType::None;
     const auto surface_layer_names = plotfile2d::available_diagnostic_names(dry, true);
     EXPECT_TRUE(has_name(surface_layer_names, "temperature_2m"));
@@ -403,10 +410,68 @@ TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
 
     SolverChoice moist = dry;
     moist.moisture_type = MoistureType::MoistNoCondensation;
+    const auto moist_surface_layer_names = plotfile2d::available_diagnostic_names(moist, true);
+    EXPECT_TRUE(has_name(moist_surface_layer_names, "temperature_2m"));
+    EXPECT_TRUE(has_name(moist_surface_layer_names, "water_vapor_mixing_ratio_2m"));
+    EXPECT_TRUE(has_name(moist_surface_layer_names, "near_surface_diagnostic_source"));
+    EXPECT_FALSE(has_name(moist_surface_layer_names, "noahmp_vegetation_fraction"));
+
     const auto no_surface_layer_names = plotfile2d::available_diagnostic_names(moist, false);
     EXPECT_FALSE(has_name(no_surface_layer_names, "temperature_2m"));
     EXPECT_FALSE(has_name(no_surface_layer_names, "water_vapor_mixing_ratio_2m"));
     EXPECT_FALSE(has_name(no_surface_layer_names, "near_surface_diagnostic_source"));
+}
+
+// Motivation: The unified 2 m fields come from Noah-MP's native 2 m fields or,
+// without them, from the surface layer, so they must not be labelled as needing
+// a land model, while Noah-MP's own 2 m tiles remain land-surface fields.
+TEST(Plotfile2D, Unified2mFieldsAreNearSurfaceNotLandSurface)
+{
+    for (const char* name : {"temperature_2m", "water_vapor_mixing_ratio_2m",
+                             "near_surface_diagnostic_source"}) {
+        const auto* descriptor = plotfile2d::find_diagnostic(name);
+        ASSERT_NE(descriptor, nullptr) << name;
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::NearSurface) << name;
+    }
+    for (const char* name : {"noahmp_temperature_2m_vegetated", "noahmp_temperature_2m_bare",
+                             "noahmp_water_vapor_mixing_ratio_2m_vegetated",
+                             "noahmp_water_vapor_mixing_ratio_2m_bare",
+                             "noahmp_vegetation_fraction"}) {
+        const auto* descriptor = plotfile2d::find_diagnostic(name);
+        ASSERT_NE(descriptor, nullptr) << name;
+        EXPECT_EQ(descriptor->category, plotfile2d::DiagnosticCategory::LandSurface) << name;
+    }
+}
+
+// Motivation: Terrain radiation fields are offered only when their correction
+// is active; either slope or shadow correction can supply all five diagnostics.
+TEST(Plotfile2DWaterPath, TopographicRadiationAvailabilityFollowsOptions)
+{
+    const amrex::Vector<std::string> terrain_names{
+        "topographic_shadow", "terrain_direct_factor", "terrain_incidence",
+        "unshaded_sw_flux_dn", "terrain_sw_flux_dn"};
+
+    SolverChoice sc;
+    const auto inactive = available_diagnostic_names(sc);
+    for (const auto& name : terrain_names) {
+        EXPECT_FALSE(has_name(inactive, name)) << name;
+    }
+    const auto selection = select_requested_plot_variables(terrain_names, inactive);
+    EXPECT_TRUE(selection.accepted.empty());
+    EXPECT_EQ(selection.unavailable, terrain_names);
+
+    sc.topographicChoice.slope_rad = true;
+    const auto slope_names = available_diagnostic_names(sc);
+    for (const auto& name : terrain_names) {
+        EXPECT_TRUE(has_name(slope_names, name)) << name;
+    }
+
+    sc.topographicChoice.slope_rad = false;
+    sc.topographicChoice.topo_shading = true;
+    const auto shading_names = available_diagnostic_names(sc);
+    for (const auto& name : terrain_names) {
+        EXPECT_TRUE(has_name(shading_names, name)) << name;
+    }
 }
 
 // Motivation: Warm-rain and no-ice schemes should expose only the accumulators
@@ -521,6 +586,7 @@ TEST(Plotfile2D, CatalogDescriptorsHaveRequiredMetadata)
         case plotfile2d::DiagnosticCategory::Precipitation:
         case plotfile2d::DiagnosticCategory::ColumnIntegral:
         case plotfile2d::DiagnosticCategory::LandSurface:
+        case plotfile2d::DiagnosticCategory::NearSurface:
         case plotfile2d::DiagnosticCategory::SampledLevel:
             valid_category = true;
             break;
@@ -634,11 +700,11 @@ TEST(NearSurfaceDiagnostics, MostProfileMatchesActiveSimilarityFunction)
 
     const MostState state{300.0, 0.5, 0.010, 0.001, 0.1, 100.0};
     MostProfile profile{};
-    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 2.0, profile));
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 2.0, profile, similarity_funs{}));
 
     const amrex::Real reference_factor = reference_most_factor(2.0, 0.1, 100.0);
     amrex::Real factor = 0.0;
-    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_factor(state, 2.0, factor));
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_factor(state, 2.0, factor, similarity_funs{}));
     EXPECT_NEAR(factor, reference_factor, diagnostic_test_tolerance(reference_factor));
     const amrex::Real expected_theta = 300.0 + 0.5 / KAPPA * factor;
     const amrex::Real expected_mixing_ratio = 0.010 + 0.001 / KAPPA * factor;
@@ -650,7 +716,7 @@ TEST(NearSurfaceDiagnostics, MostProfileMatchesActiveSimilarityFunction)
     const MostState neutral{300.0, 0.0, 0.010, 0.0, 0.1, 1.0e30};
     MostProfile neutral_profile{};
     ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(neutral, 2.0,
-                                                                 neutral_profile));
+                                                                 neutral_profile, similarity_funs{}));
     EXPECT_NEAR(neutral_profile.potential_temperature, 300.0,
                 diagnostic_test_tolerance(300.0));
     EXPECT_NEAR(neutral_profile.mixing_ratio, 0.010,
@@ -658,8 +724,8 @@ TEST(NearSurfaceDiagnostics, MostProfileMatchesActiveSimilarityFunction)
 
     MostProfile profile_5m{};
     MostProfile profile_20m{};
-    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 5.0, profile_5m));
-    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 20.0, profile_20m));
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 5.0, profile_5m, similarity_funs{}));
+    ASSERT_TRUE(near_surface_diagnostics::evaluate_most_profile(state, 20.0, profile_20m, similarity_funs{}));
     const amrex::Real round_trip_factor =
         reference_most_factor(20.0, state.roughness_height, state.obukhov_length) -
         reference_most_factor(5.0, state.roughness_height, state.obukhov_length);
@@ -681,7 +747,7 @@ TEST(NearSurfaceDiagnostics, MostFactorMatchesIndependentReference)
              MostState{300.0, 0.5, 0.010, 0.001, 0.1, -100.0},
              MostState{300.0, 0.5, 0.010, 0.001, 0.1, 1.0e30}}) {
         amrex::Real factor = 0.0;
-        ASSERT_TRUE(evaluate_most_factor(state, 2.0, factor));
+        ASSERT_TRUE(evaluate_most_factor(state, 2.0, factor, similarity_funs{}));
         const amrex::Real expected = reference_most_factor(
             2.0, state.roughness_height, state.obukhov_length);
         EXPECT_NEAR(factor, expected, diagnostic_test_tolerance(expected));
@@ -689,15 +755,15 @@ TEST(NearSurfaceDiagnostics, MostFactorMatchesIndependentReference)
 
     amrex::Real factor = 0.0;
     EXPECT_FALSE(evaluate_most_factor(
-        MostState{300.0, 0.5, 0.010, 0.001, 0.1, 0.0}, 2.0, factor));
+        MostState{300.0, 0.5, 0.010, 0.001, 0.1, 0.0}, 2.0, factor, similarity_funs{}));
     EXPECT_FALSE(evaluate_most_factor(
-        MostState{300.0, 0.5, 0.010, 0.001, 0.0, 100.0}, 2.0, factor));
+        MostState{300.0, 0.5, 0.010, 0.001, 0.0, 100.0}, 2.0, factor, similarity_funs{}));
     EXPECT_FALSE(evaluate_most_factor(
-        MostState{300.0, 0.5, 0.010, 0.001, 2.0, 100.0}, 2.0, factor));
+        MostState{300.0, 0.5, 0.010, 0.001, 2.0, 100.0}, 2.0, factor, similarity_funs{}));
     EXPECT_FALSE(evaluate_most_factor(
         MostState{300.0, 0.5, 0.010, 0.001,
                   std::numeric_limits<amrex::Real>::infinity(), 100.0},
-        2.0, factor));
+        2.0, factor, similarity_funs{}));
 }
 
 // Motivation: Unified output must use one complete source bundle and publish
@@ -2854,6 +2920,8 @@ TEST(Plotfile2DMetadata, CategoryStringsMatchPublicMetadataSchema)
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SurfaceState), "SurfaceState");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::Precipitation), "Precipitation");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::ColumnIntegral), "ColumnIntegral");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::LandSurface), "LandSurface");
+    EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::NearSurface), "NearSurface");
     EXPECT_STREQ(diagnostic_category_to_string(DiagnosticCategory::SampledLevel), "SampledLevel");
 }
 

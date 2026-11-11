@@ -381,6 +381,15 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | k-eqn RANS       |
 |                             | closure [-]      |
 +-----------------------------+------------------+
+| **cap_ratio**               | Uncapped k-eqn   |
+|                             | eddy viscosity   |
+|                             | over its         |
+|                             | realizability    |
+|                             | cap C_r k / S;   |
+|                             | above 1 the cap  |
+|                             | is active, 0     |
+|                             | when off [-]     |
++-----------------------------+------------------+
 | **walldist**                | Wall distance    |
 |                             | for RANS models  |
 |                             | only [m]         |
@@ -431,23 +440,23 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | ratio [kg/kg]    |
 +-----------------------------+------------------+
 | **rain_accum**              | Accumulated rain |
-|                             | amount with      |
-|                             | precipitating    |
-|                             | moisture models  |
-|                             | [mm]             |
+|                             | at the surface,  |
+|                             | rain alone [mm]  |
 +-----------------------------+------------------+
 | **snow_accum**              | Accumulated snow |
-|                             | amount with SAM  |
-|                             | or Morrison      |
-|                             | microphysics     |
-|                             | [mm]             |
+|                             | at the surface,  |
+|                             | snow alone [mm]  |
 +-----------------------------+------------------+
-| **graup_accum**             | Accumulated      |
-|                             | graupel amount   |
-|                             | with SAM or      |
-|                             | Morrison         |
-|                             | microphysics     |
-|                             | [mm]             |
+| **graupel_accum**           | Accumulated      |
+|                             | graupel at the   |
+|                             | surface, graupel |
+|                             | alone [mm]       |
++-----------------------------+------------------+
+| **precip_accum**            | Accumulated      |
+|                             | precipitation at |
+|                             | the surface, all |
+|                             | species [mm of   |
+|                             | liquid water]    |
 +-----------------------------+------------------+
 | **rel_humidity**            | Relative         |
 |                             | humidity;        |
@@ -870,16 +879,16 @@ arrays:
      - Accumulations
      - Moist diagnostics
    * - ``Kessler``, ``SAM_NoIce``, ``Morrison_NoIce``
-     - ``rain_accum``
+     - ``rain_accum``, ``precip_accum``
      - none
    * - ``SAM``, ``Morrison``, ``WSM6``, ``WDM6``
-     - ``rain_accum``, ``snow_accum``, ``graup_accum``
+     - ``rain_accum``, ``snow_accum``, ``graupel_accum``, ``precip_accum``
      - none
    * - ``SatAdj``
      - none
      - ``rel_humidity``, recovered from the conserved state
    * - ``SuperDroplets``
-     - ``rain_accum``, ``snow_accum``
+     - ``rain_accum``, ``snow_accum``, ``precip_accum``
      - ``rel_humidity``, ``condensation_rate``
    * - ``SBM``
      - none
@@ -892,8 +901,28 @@ The current SBM fixture has no surface-precipitation accumulation or
 microphysical tendency diagnostics because sedimentation and cloud
 microphysical processes are not yet implemented.
 
+Each accumulation is what has reached the ground since the start of the run.
+``rain_accum``, ``snow_accum`` and ``graupel_accum`` each hold that one species
+and nothing else. ``precip_accum`` holds everything that fell out, in mm of
+liquid water: those three, plus any cloud water and cloud ice the scheme lets
+fall -- cloud water and cloud ice in ``Morrison``, cloud ice in ``SAM``,
+``WSM6`` and ``WDM6``. It can therefore be larger than the sum of the other
+three, and adding them up undercounts it. For ``Kessler`` rain is the only
+species that falls, so ``precip_accum`` is ``rain_accum``. ``SAM`` keeps
+``snow_accum`` and ``graupel_accum`` in mm of the species' own density, not of
+liquid water. ``SuperDroplets`` has no rain or snow categories: its
+``rain_accum`` is every liquid particle that reaches the ground and its
+``snow_accum`` every ice particle, in mm of ice.
+
+A restart from a checkpoint written before ``precip_accum`` existed rebuilds it
+with a warning. For ``Morrison``, ``WSM6`` and ``WDM6`` that checkpoint's
+``rain_accum`` was the total, so it becomes ``precip_accum`` and the snow and
+graupel are taken out of ``rain_accum``; what the run accumulated before the
+restart still counts the cloud ice with the snow (and, for ``Morrison``, the
+cloud water with the rain).
+
 ``SuperDroplets`` allocates a graupel accumulation slot that nothing fills, so
-``graup_accum`` is not offered for that scheme. ``SatAdj`` publishes no qmoist
+``graupel_accum`` is not offered for that scheme. ``SatAdj`` publishes no qmoist
 arrays at all: its ``rel_humidity`` is derived from the conserved state when the
 plotfile is written, which the map records with a distinct sentinel so the
 writer takes the right path.
@@ -970,25 +999,24 @@ every AMR level in the plotfile:
   ``tke_resolved = 0.5*(uu_fluct + vv_fluct + ww_fluct)``. These fields are also zero
   before the first sample is accumulated.
 
-  Note that the accumulator for a given level is rebuilt when that level is
-  regridded, so a regrid restarts the averaging window on the regridded level
-  while the other levels continue accumulating. In a multi-level run a
-  plotfile written shortly after a regrid can therefore contain interval
-  fields whose averaging windows differ from level to level, and the plotfile
-  itself carries no record of the per-level window length. The same is true of
-  the ``*_t_avg`` fields above. If a consistent window across levels matters
-  for the analysis, write the interval fields from a run without regridding,
-  or allow enough time after a regrid for the window to refill.
+  A regrid keeps the averaging window, for these fields and for the ``*_t_avg``
+  fields above. A remade level copies its accumulator wherever its old and new
+  grids overlap; cells it newly covers, and a newly created level, take the
+  coarser level's average over the same window, interpolated piecewise
+  constantly. Those cells therefore carry coarse-level detail for the part of
+  the window before they were refined.
 * ``qsrc_sw`` and ``qsrc_lw`` require a non-``None`` radiation choice.
 * ``nut``, ``Kmv``, ``Kmh``, ``Khv``, ``Khh``, and ``Lturb`` require
   ``use_kturb = true`` at every AMR level.
-* ``Rt``, ``cmu``, and ``cmu_prime`` also require ``use_kturb = true`` at every
-  AMR level, because they are stored in the eddy-diffusivity container. They are
-  written only by the one-equation k RANS closure, so they are identically zero
-  unless ``erf.rans_type = kEqn`` is active on the level. ``Rt`` is the smoothed
-  turbulent Richardson number and ``cmu``/``cmu_prime`` are the momentum and
-  scalar stability functions of Axell & Liungman (2001), Eqs. 29-32; all three
-  are dimensionless.
+* ``Rt``, ``cmu``, ``cmu_prime`` and ``cap_ratio`` also require ``use_kturb = true``
+  at every AMR level, because they are stored in the eddy-diffusivity container.
+  They are written only by the one-equation k RANS closure, so they are
+  identically zero unless ``erf.rans_type = kEqn`` is active on the level. ``Rt``
+  is the smoothed turbulent Richardson number, ``cmu``/``cmu_prime`` are the
+  momentum and scalar stability functions of Axell & Liungman (2001), Eqs. 29-32,
+  and ``cap_ratio`` is the uncapped eddy viscosity over its realizability cap
+  :math:`C_r k / S` (``erf.rans_realizability``; above 1 the cap is active, 0
+  when the cap is off); all four are dimensionless.
 * ``diss`` requires molecular diffusion or ``use_kturb`` at every level.
 * ``walldist`` requires a non-``None`` RANS choice at every level.
 
@@ -1117,13 +1145,13 @@ the kinematic momentum diffusivity ``Kmv / density``.
   number-concentration convention. ``nn`` is the CCN / total aerosol number
   carried by ``WDM6``; it shares a conserved component with ``ni``, so the two
   are never selectable at the same time.
-* ``xvel_err``, ``yvel_err``, ``zvel_err``, and ``pp_err`` are error diagnostics
-  available when ``ERF_COMPUTE_ERROR`` is enabled. Their units follow the
-  corresponding velocity or pressure quantity.
 
 The fixed conserved-state inventory is ``density``, ``rhotheta``, ``rhoKE``,
 ``rhoadv_0``, and ``rhoQ1`` through ``rhoQ11``. The ``rhoQ`` components are
 active only to the extent that the selected moisture model provides them.
+Builds with ``ERF_ENABLE_FIRE`` add ``smoke``, the fire coupling's smoke tracer
+as a mass concentration [kg/m^3], between ``rhoadv_0`` and ``rhoQ1``; it is zero
+unless a fire runs with ``erf.fire.smoke_enable``.
 
 Wind-farm-only variables
 ~~~~~~~~~~~~~~~~~~~~~~~~

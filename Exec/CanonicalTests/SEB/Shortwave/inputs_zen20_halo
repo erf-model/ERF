@@ -1,0 +1,21 @@
+FILE = inputs_base
+
+# The zen20 sun on a ray map whose per-rank patches do not span the domain:
+# 2 x 1 hemisphere rays make the shallowest view ray 45 deg up (two wall rays
+# straight up and down the wall's tangent plane, the roof ray 45 deg from the
+# normal) and the sun floor is 60 deg, below the 70 deg sun, so the halo is
+# ceil(140 / tan(45) / 5) + 1 = 29 cells, and a 32-cell box grown by 29 is 90
+# of the 128 columns.
+# The sun stands above the floor, so every shadow must still match the
+# independent ray cast of check_shortwave.py.
+amr.max_grid_size = 32
+erf.ibseb.sun_mode = "fixed"
+erf.ibseb.sun_zenith_deg = 20.0
+erf.ibseb.sun_azimuth_deg = 270.0   # sun in the west
+erf.ibseb.sw_direct_normal = 800.0
+erf.ibseb.sw_diffuse = 100.0
+erf.ibseb.view_n_az = 2
+erf.ibseb.view_n_el = 1
+erf.ibseb.sun_min_elev_deg = 60.0
+erf.ibseb.csv_file = "ibseb_zen20_halo.csv"
+erf.ibseb.dump_faces_file = "faces_zen20_halo"

@@ -9,6 +9,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFabUtil.H>
+#include "ERF_EOS.H"
 #include "ERF_NullMoistLagrangian.H"
 #include "ERF_SuperDropletPC.H"
 
@@ -29,8 +30,9 @@ namespace MicVar_SD {
         rh_w,        /*!< relative humidity (water) */
         rh_i,        /*!< relative humidity (ice) */
         rain_accum,  /*!< rain accumulation (mm) */
-        graup_accum,  /*!< graupel accumulation (mm) */
+        graupel_accum,  /*!< graupel accumulation (mm) */
         snow_accum,  /*!< snow accumulation (mm) */
+        precip_accum,  /*!< precipitation accumulation, liquid and ice (mm of liquid water) */
         NumVars
     };
 }
@@ -51,6 +53,16 @@ namespace MicVar_SD_Aerosols {
         accum = 0,  /*!< Ground accumulation */
         NumVars
     };
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sdm_theta_per_temperature (amrex::Real theta, amrex::Real temperature,
+                                      amrex::Real pressure, amrex::Real rdOcp,
+                                      bool use_base) noexcept
+{
+    // Theta changes between processes, but temperature is lagged within a substep.
+    return use_base ? getThgivenTandP(amrex::Real(1), pressure, rdOcp)
+                    : theta / temperature;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -135,7 +147,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Constructor */
         SuperDropletsMoist ()
         {
-            m_qmoist_size = 11;
+            m_qmoist_size = 12;
             m_qstate_moist_size = 6; // qv, qc, qi, qrain, qsnow, qgraup
             m_qstate_nonmoist_size = -1; // sentinel; readInputs() sets the actual count before construction returns
             m_name = "super_droplets_moisture";
@@ -216,6 +228,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          */
         virtual void Update_Micro_Vars (amrex::MultiFab& a_cons_vars) override;
 
+        void Update_Micro_Vars (amrex::MultiFab& a_cons_vars,
+                               const amrex::MultiFab* base_state) override;
+
         /*! \brief Update state variables from microphysics variables
          * \param[in,out] a_cons_vars Conservative variables multifab to update
          * \param[in] a_z_phys_nd Terrain heights (nodal)
@@ -230,6 +245,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          * \param[in] a_state State multifab to copy from
          */
         virtual void Copy_State_to_Micro (const amrex::MultiFab& a_state) override;
+
+        void Copy_State_to_Micro (const amrex::MultiFab& a_state,
+                                  const amrex::MultiFab* base_state);
 
         /*! \brief Copy moisture model vars to state from member multifabs
          * \param[out] a_state State multifab to copy to
@@ -284,6 +302,16 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             AMREX_ALWAYS_ASSERT(m_qstate_nonmoist_size >= 0);
             return m_qstate_nonmoist_size;
         }
+
+        bool Qstate_Is_Diagnostic (int q) const override
+        {
+            // Water slots participate in the existing total-water handoff.
+            // Appended condensate, unlike appended vapor, is deposited from particles.
+            // This Q-relative pairing matches q_qv_idx/q_qc_idx below.
+            return q >= m_qstate_moist_size && (q - m_qstate_moist_size) % 2 == 1;
+        }
+
+        void Update_Diagnostic_State (amrex::MultiFab&, const amrex::MultiFab&) override;
 
         /*! \brief returns pointer to super-droplets particle container */
         inline virtual ERFPC* getParticleContainer () override
@@ -461,16 +489,27 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
     protected:
 
+        bool uses_anelastic_reference_pressure (int lev) const
+        {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                lev >= 0 && lev < static_cast<int>(m_compressibility_type.size()),
+                "SDM thermodynamics requires a configured AMR level");
+            return m_compressibility_type[lev] != CompressibilityType::FullyCompressible;
+        }
+
         bool m_flag_phase_change;   /*!< Enable/disable phase changes */
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
 
         amrex::Real m_Cp; /*!< specific heat at constant pressure for dry air */
+        amrex::Real m_rdOcp;
+        amrex::Vector<CompressibilityType> m_compressibility_type;
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
         amrex::Real m_rime_ratio; /*!< rime mass ratio to be considered graupel */
 
         /*! let initial superdroplets "relax" to a physically-appropriate size? */
         bool m_init_phase_change;
+        bool m_restarted_particles = false;
         /*! time (in seconds) of initial relaxation */
         amrex::Real m_init_phase_change_time;
 

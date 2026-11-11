@@ -131,8 +131,8 @@ public:
    * @param[in] seb_residual_max  [optional] Max SEB residual [W/m^2]; if non-finite, not written.
    * @param[in] t_s_mean          [optional] Mean surface temperature [K]; if non-finite, written as NaN.
    * @param[in] t_s_max           [optional] Max surface temperature [K]; if non-finite, written as NaN.
-   * @param[in] q_s_mean          [optional] Mean surface moisture [kg/kg]; if non-finite, written as NaN.
-   * @param[in] q_s_max           [optional] Max surface moisture [kg/kg]; if non-finite, written as NaN.
+   * @param[in] q_s_mean          [optional] Mean prognostic soil moisture [m^3/m^3]; if non-finite, written as NaN.
+   * @param[in] q_s_max           [optional] Max prognostic soil moisture [m^3/m^3]; if non-finite, written as NaN.
    */
   void append (int step, amrex::Real time, std::string const& call_site,
             amrex::Real sw_surface, amrex::Real sw_toa, amrex::Real sw_up_toa,

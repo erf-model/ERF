@@ -122,6 +122,8 @@ option(ERF_ENABLE_DOCUMENTATION "Build documentation" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
+option(ERF_ENABLE_SBM_AMR_QUALIFICATION
+  "Build an isolated internal executable for fixed two-level periodic SBM qualification" OFF)
 set(_erf_enable_unit_tests_default OFF)
 if(ERF_ENABLE_TESTS AND NOT ERF_ENABLE_REGRESSION_TESTS_ONLY)
   set(_erf_enable_unit_tests_default ON)
@@ -135,6 +137,8 @@ option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
 option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
+option(ERF_EXCLUDE_PLOTFILE_TOOLS_FROM_ALL
+  "Skip bundled AMReX plotfile tools in the default build (compile-only CI)" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 set(ERF_PARTICLES_PRECISION "${ERF_PRECISION}" CACHE STRING "Particle floating point precision SINGLE or DOUBLE")
 
@@ -191,6 +195,10 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 
 #Other parameterizations
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
+option(ERF_ENABLE_FIRE "Enable the fire coupling (the atmosphere side; fire engines plug into it)" OFF)
+set(ERF_FIRE_ENGINE_DIRS "" CACHE STRING "Fire engine directories (each with ERFFireEngine.cmake) to compile in; needs ERF_ENABLE_FIRE")
+option(ERF_ENABLE_MOVING_BODIES "Enable the actuator core and the structure coupling for bodies in the flow (Source/MovingBodies)" OFF)
+set(ERF_STRUCTURE_MODEL_DIRS "" CACHE STRING "Structure model directories (each with ERFStructureModel.cmake) to compile in; needs ERF_ENABLE_MOVING_BODIES")
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
 option(ERF_ENABLE_WDM6_FORT "Enable WDM6 Fortran bridge calls" OFF)
 
@@ -206,7 +214,7 @@ endif()
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
 
 #Options for C++
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -250,10 +258,22 @@ if (${ERF_USE_INTERNAL_AMREX})
 
     add_subdirectory(${AMREX_SUBMOD_LOCATION})
 
+    # Compile-only CI does not run the regression tests that need these tools.
+    # Keep their targets available for explicit builds, including fcompare.
+    if(AMReX_PLOTFILE_TOOLS AND ERF_EXCLUDE_PLOTFILE_TOOLS_FROM_ALL)
+      set_property(DIRECTORY ${AMREX_SUBMOD_LOCATION}/Tools/Plotfile
+        PROPERTY EXCLUDE_FROM_ALL TRUE)
+    endif()
+
     # Print AMReX properties
     print_target_properties(amrex)
 
-    if(WIN32)
+    # Multi-config generators (Visual Studio) put binaries in a per-config subdirectory
+    # that is not known at configure time, so the path keeps a wildcard for the test
+    # launchers to expand. Single-config generators (Ninja on Windows, everything on
+    # Linux and macOS) have no subdirectory and get a plain path.
+    get_property(_erf_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _erf_multi_config)
       set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fextrema.exe
@@ -261,11 +281,11 @@ if (${ERF_USE_INTERNAL_AMREX})
       set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fextract.exe
         CACHE STRING "Path to fextract executable for regression tests")
     else()
-      set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
+      set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fcompare executable for regression tests")
-      set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextrema
+      set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextrema${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fextrema executable for regression tests")
-      set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextract
+      set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextract${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fextract executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
@@ -359,7 +379,12 @@ else()
       endif()
     endif()
 
-    if(WIN32)
+    # Multi-config generators (Visual Studio) put binaries in a per-config subdirectory
+    # that is not known at configure time, so the path keeps a wildcard for the test
+    # launchers to expand. Single-config generators (Ninja on Windows, everything on
+    # Linux and macOS) have no subdirectory and get a plain path.
+    get_property(_erf_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _erf_multi_config)
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${AMReX_DIR}/../../../*/amrex_fextrema.exe
@@ -367,11 +392,11 @@ else()
       set(FEXTRACT_EXE ${AMReX_DIR}/../../../*/amrex_fextract.exe
         CACHE STRING "Path to fextract executable for regression tests")
     else()
-      set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
+      set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fcompare executable for regression tests")
-      set(FEXTREMA_EXE ${AMReX_DIR}/../../../bin/amrex_fextrema
+      set(FEXTREMA_EXE ${AMReX_DIR}/../../../bin/amrex_fextrema${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fextrema executable for regression tests")
-      set(FEXTRACT_EXE ${AMReX_DIR}/../../../bin/amrex_fextract
+      set(FEXTRACT_EXE ${AMReX_DIR}/../../../bin/amrex_fextract${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fextract executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
@@ -420,11 +445,13 @@ if(ERF_ENABLE_EKAT)
     set(Kokkos_ENABLE_SYCL_LAMBDA ON CACHE BOOL "kokkos enable sycl lambda")
   endif()
 
-  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD 20)
   set(EKAT_ENABLE_MPI ON CACHE BOOL "ekat enable mpi")
   set(EKAT_ENABLE_TESTS OFF CACHE BOOL "ekat enable tests")
   set(EKAT_ENABLE_KOKKOS ON CACHE BOOL "ekat enable kokkos")
   set(EKAT_ENABLE_LOGGING ON CACHE BOOL "ekat enable spdlog")
+  # Kokkos deprecation used inside EKAT or RRTMGP is theirs to fix
+  set(Kokkos_ENABLE_DEPRECATION_WARNINGS OFF CACHE BOOL "kokkos deprecation warnings")
   set(EKAT_BIN ${PROJECT_BINARY_DIR}/Submodules/ekat)
 
   # Force use of internal spdlog from EKAT

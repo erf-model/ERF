@@ -75,7 +75,6 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
-erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file (includes moisture)
@@ -101,7 +100,7 @@ erf.pbl_mrf_use_zero_ri_extent = false
 erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
 erf.use_coriolis = true
 
-erf.abl_driver_type = "GeostrophicWind"
+erf.abl_driver_type = "None"
 erf.moisture_model = "Kessler"    # or repo’s standard moist model
 
 

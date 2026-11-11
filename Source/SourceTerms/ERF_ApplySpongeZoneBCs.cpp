@@ -288,7 +288,8 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
 
         Real x = ProbLoArr[0] + ii * dx[0];
         Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
-        Real z = z_phys_cc(i,j,k);
+        // Height of the x-face
+        Real z = myhalf * (z_phys_cc(i-1,j,k) + z_phys_cc(i,j,k));
 
         Real sponge_density = (use_base) ? myhalf * (r0(i,j,k) + r0(i-1,j,k)) : sponge_density_tmp;
 
@@ -348,7 +349,8 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
 
         Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
         Real y = ProbLoArr[1] + jj * dx[1];
-        Real z = z_phys_cc(i,j,k);
+        // Height of the y-face
+        Real z = myhalf * (z_phys_cc(i,j-1,k) + z_phys_cc(i,j,k));
 
         Real sponge_density = (use_base) ?  myhalf * (r0(i,j,k) + r0(i,j-1,k)) : sponge_density_tmp;
 
@@ -408,7 +410,10 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
 
         Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
         Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
-        Real z = z_phys_nd(i,j,k);
+        // Height of the z-face centre: average of its four corner nodes, taken in pairs
+        // so that equal corner heights (no terrain) give back that height exactly
+        Real z = myhalf * ( myhalf * (z_phys_nd(i,j  ,k) + z_phys_nd(i+1,j  ,k))
+                          + myhalf * (z_phys_nd(i,j+1,k) + z_phys_nd(i+1,j+1,k)) );
 
         Real sponge_density = (use_base) ? myhalf * (r0(i,j,k) + r0(i,j,k-1)) : sponge_density_tmp;
 

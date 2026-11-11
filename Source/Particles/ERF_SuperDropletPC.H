@@ -170,7 +170,8 @@ class SuperDropletPC : public ERFPC
         virtual void InjectParticles (const double, const MFPtr& a_ptr, const double);
 
         /*! \brief add particles for a given set of initialization parameters */
-        void addParticles ( int a_lev, const MFPtr&, const SDInitProperties& );
+        void addParticles ( int a_lev, const MFPtr&, const SDInitProperties&,
+                            bool composite_init = false );
 
         /*! \brief Set initial number of superdroplets per cell as a box with uniform density */
         void setNumSDBoxDistribution ( int a_lev,
@@ -198,12 +199,12 @@ class SuperDropletPC : public ERFPC
         /*! \brief Set super-droplets attributes from a given condensate mass density
          * \param[in] a_mf Multifab containing the initial condensate mass density
          */
-        virtual void SetAttributes (  amrex::MultiFab& a_mf );
+        virtual void SetAttributes ( amrex::MultiFab& a_mf, int a_lev = 0 );
 
         /*! \brief Scale the SDM number density with air density
          * \param[in] a_mf Multifab containing the air density field
          */
-        virtual void DensityScaling ( const amrex::MultiFab& a_mf );
+        virtual void DensityScaling ( const amrex::MultiFab& a_mf, int a_lev = 0 );
 
         /*! \brief Evolve particles for one time step */
         virtual void EvolveParticles ( int,
@@ -289,6 +290,11 @@ class SuperDropletPC : public ERFPC
                                const int a_iter,
                                const double a_dt,
                                const bool a_recycle);
+
+        /*! \brief Set the vertical coordinate of recycled super-droplets on their owning grids
+         * \param[in] a_z_phys_nd Array of terrain heights
+         */
+        void placeRecycledParticles ( const amrex::Vector<MFPtr>& a_z_phys_nd );
 
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */

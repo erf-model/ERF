@@ -13,14 +13,27 @@ set(_run_dir "${TEST_ROOT}/sbm_expected_failure_${_run_id}")
 file(MAKE_DIRECTORY "${_run_dir}")
 set(_command "${ERF_EXECUTABLE}" "${INPUT_FILE}")
 if(DEFINED OVERRIDE AND NOT "${OVERRIDE}" STREQUAL "")
-  list(APPEND _command "${OVERRIDE}")
+  # OVERRIDE may hold several space-separated inputs overrides
+  separate_arguments(_overrides UNIX_COMMAND "${OVERRIDE}")
+  list(APPEND _command ${_overrides})
+endif()
+list(APPEND _command "amrex.call_addr2line=0")
+
+if(NOT DEFINED RUN_TIMEOUT OR "${RUN_TIMEOUT}" STREQUAL "")
+  set(RUN_TIMEOUT 90)
 endif()
 execute_process(
   COMMAND ${_command}
   WORKING_DIRECTORY "${_run_dir}"
   RESULT_VARIABLE _result
   OUTPUT_VARIABLE _stdout
-  ERROR_VARIABLE _stderr)
+  ERROR_VARIABLE _stderr
+  TIMEOUT ${RUN_TIMEOUT})
+string(TOLOWER "${_result}" _result_lower)
+if(_result_lower MATCHES "timeout")
+  message(FATAL_ERROR
+    "Expected-abort child exceeded ${RUN_TIMEOUT} s while expecting '${EXPECTED_DIAGNOSTIC}'.\nstdout:\n${_stdout}\nstderr:\n${_stderr}")
+endif()
 if("${_result}" STREQUAL "0")
   message(FATAL_ERROR "ERF unexpectedly succeeded; expected '${EXPECTED_DIAGNOSTIC}'")
 endif()

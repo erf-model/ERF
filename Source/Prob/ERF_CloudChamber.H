@@ -6,6 +6,7 @@
 #include <AMReX_REAL.H>
 
 #include "ERF_Constants.H"
+#include "ERF_DataStruct.H"
 #include "ERF_EOS.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "BoundaryConditions/ERF_WallThermodynamics.H"
@@ -39,7 +40,7 @@ struct WallSpec {
  */
 struct Config {
     bool active = false;
-    bool cloudy = false;
+    bool has_moisture = false;
     bool physical_initialization = false;
     amrex::Real initial_temperature_bottom = amrex::Real(0.0);
     amrex::Real initial_temperature_top = amrex::Real(0.0);
@@ -116,7 +117,8 @@ enum class InitializationMode : unsigned char {
  */
 struct InitializationContract {
     InitializationMode mode = InitializationMode::PhysicalTemperatureRH;
-    bool cloudy = false;
+    // True for any active moisture model, including noncondensing transport.
+    bool has_moisture = false;
     bool has_initial_relative_humidity = false;
     bool has_legacy_profile_keys = false;
     bool has_physical_profile_keys = false;
@@ -132,12 +134,12 @@ initialization_contract_error (const InitializationContract& contract)
 {
     switch (contract.mode) {
     case InitializationMode::PhysicalTemperatureRH:
-        if (contract.cloudy) {
+        if (contract.has_moisture) {
             if (!contract.has_initial_relative_humidity) {
-                return "Cloud Chamber: physical SatAdj initialization requires prob.initial_relative_humidity";
+                return "Cloud Chamber: physical moist initialization requires prob.initial_relative_humidity";
             }
         } else if (contract.has_initial_relative_humidity) {
-            return "Cloud Chamber: prob.initial_relative_humidity is only used with erf.moisture_model = SatAdj";
+            return "Cloud Chamber: prob.initial_relative_humidity requires an active moisture model";
         }
         if (contract.has_legacy_profile_keys) {
             return "Cloud Chamber: physical_temperature_rh cannot be combined with legacy theta/qv profile keys";
@@ -151,6 +153,37 @@ initialization_contract_error (const InitializationContract& contract)
     }
 
     return {};
+}
+
+/**
+ * @brief Return whether a moisture type is supported by the Cloud Chamber.
+ *
+ * This is intentionally an allowlist.  In particular, particle-based
+ * SuperDroplets and spectral SBM remain outside the chamber's supported
+ * moisture configurations even though they are valid ERF moisture types.
+ */
+inline bool
+supports_moisture_model (const MoistureType moisture_type) noexcept
+{
+    switch (moisture_type) {
+    case MoistureType::None:
+    case MoistureType::SatAdj:
+    case MoistureType::MoistNoCondensation:
+    case MoistureType::Kessler_NoRain:
+    case MoistureType::Kessler:
+    case MoistureType::SAM_NoPrecip_NoIce:
+    case MoistureType::SAM_NoIce:
+    case MoistureType::SAM:
+    case MoistureType::WSM6:
+    case MoistureType::WDM6:
+    case MoistureType::Morrison_NoIce:
+    case MoistureType::Morrison:
+        return true;
+    case MoistureType::SBM:
+    case MoistureType::SuperDroplets:
+        return false;
+    }
+    return false;
 }
 
 /**
@@ -613,6 +646,11 @@ inline void require_no_unsupported_geometry ()
         amrex::toLower(value) != "constantdz") {
         amrex::Error("Cloud Chamber: erf.mesh_type must be ConstantDz");
     }
+    // A stretched or listed vertical grid makes the mesh StretchedDz without erf.mesh_type
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        amrex::Error("Cloud Chamber: the vertical grid must be uniform (no erf.grid_stretching_ratio, "
+                     "erf.initial_dz or erf.terrain_z_levels)");
+    }
 }
 
 inline void reject_unsupported_face_keys (amrex::ParmParse& pp,
@@ -697,7 +735,8 @@ validate_wall_roughness_geometry (
 }
 
 inline Config parse_config (const amrex::Real* problo,
-                            const amrex::Real* probhi)
+                            const amrex::Real* probhi,
+                            const MoistureType selected_moisture_model)
 {
     Config config;
     config.active = true;
@@ -712,9 +751,15 @@ inline Config parse_config (const amrex::Real* problo,
     }
 
     amrex::ParmParse pp_erf("erf");
+    CompressibilityType compressibility_type = CompressibilityType::FullyCompressible;
     int anelastic = 0;
-    if (!pp_erf.query("anelastic", anelastic) || anelastic != 1) {
-        amrex::Error("Cloud Chamber: erf.anelastic = 1 is required");
+    if (pp_erf.query("anelastic", anelastic)) {
+        if (anelastic == 1) { compressibility_type = CompressibilityType::Anelastic; }
+    } else {
+        pp_erf.query_enum_case_insensitive("compressibility_type", compressibility_type);
+    }
+    if (compressibility_type == CompressibilityType::FullyCompressible) {
+        amrex::Error("Cloud Chamber: erf.compressibility_type = Anelastic or PseudoIncompressible is required");
     }
     bool use_gravity = false;
     if (!pp_erf.query("use_gravity", use_gravity) || !use_gravity) {
@@ -740,16 +785,16 @@ inline Config parse_config (const amrex::Real* problo,
         }
     }
 
-    std::string moisture_model;
-    const bool moisture_specified = pp_erf.query("moisture_model", moisture_model);
-    if (moisture_specified) {
-        moisture_model = amrex::toLower(moisture_model);
-        if (moisture_model != "satadj") {
-            amrex::Error("Cloud Chamber: moisture_model must be omitted for dry mode or set to SatAdj");
-        }
-        config.cloudy = true;
-    } else if (pp_prob.contains("qv_bottom") || pp_prob.contains("qv_top")) {
-        amrex::Error("Cloud Chamber: qv_bottom/qv_top require erf.moisture_model = SatAdj");
+    if (!supports_moisture_model(selected_moisture_model)) {
+        amrex::Error("Cloud Chamber: selected moisture model is unsupported; use an Eulerian model from the supported moisture allowlist");
+    }
+    config.has_moisture = selected_moisture_model != MoistureType::None;
+    if (!config.has_moisture && pp_erf.contains("moisture_model")) {
+        amrex::Error("Cloud Chamber: omit erf.moisture_model for dry mode instead of explicitly selecting None");
+    }
+    if (!config.has_moisture &&
+        (pp_prob.contains("qv_bottom") || pp_prob.contains("qv_top"))) {
+        amrex::Error("Cloud Chamber: qv_bottom/qv_top require an active moisture model");
     }
 
     std::string init_mode;
@@ -778,7 +823,7 @@ inline Config parse_config (const amrex::Real* problo,
         auto physical_contract_error = [&](bool has_legacy_profile_keys) {
             const InitializationContract contract {
                 InitializationMode::PhysicalTemperatureRH,
-                config.cloudy,
+                config.has_moisture,
                 has_initial_relative_humidity,
                 has_legacy_profile_keys,
                 false};
@@ -788,7 +833,7 @@ inline Config parse_config (const amrex::Real* problo,
         if (!contract_error.empty()) {
             amrex::Error(contract_error);
         }
-        if (config.cloudy) {
+        if (config.has_moisture) {
             pp_prob.get("initial_relative_humidity", config.initial_relative_humidity);
         }
         pp_prob.query("temperature_perturbation_amplitude",
@@ -810,7 +855,7 @@ inline Config parse_config (const amrex::Real* problo,
             config.initial_temperature_top <= amrex::Real(0.0)) {
             amrex::Error("Cloud Chamber: physical initial temperatures must be positive");
         }
-        if (config.cloudy) {
+        if (config.has_moisture) {
             require_finite("prob.initial_relative_humidity", config.initial_relative_humidity);
             if (config.initial_relative_humidity < amrex::Real(0.0) ||
                 config.initial_relative_humidity > amrex::Real(1.0)) {
@@ -855,7 +900,7 @@ inline Config parse_config (const amrex::Real* problo,
         }
     }
 
-    if (moisture_specified) {
+    if (config.has_moisture) {
         if (!config.physical_initialization) {
             pp_prob.get("qv_bottom", config.qv_bottom);
             pp_prob.get("qv_top", config.qv_top);
@@ -968,8 +1013,8 @@ inline Config parse_config (const amrex::Real* problo,
                 wall.wall.moisture = erf_wall_thermodynamics::MoistureMode::DryImpermeable;
             } else if (moisture == "wet") {
                 wall.wall.moisture = erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
-                if (!config.cloudy) {
-                    amrex::Error("Cloud Chamber: wet walls require SatAdj moisture");
+                if (!config.has_moisture) {
+                    amrex::Error("Cloud Chamber: wet walls require an active moisture model");
                 }
             } else {
                 amrex::Error("Cloud Chamber: " + face + ".moisture must be dry or wet");
@@ -1030,10 +1075,10 @@ inline Config parse_config (const amrex::Real* problo,
                 amrex::Error("Cloud Chamber: missing required " + face + ".theta");
             }
             wall.wall.thermal.mode = erf_wall_thermodynamics::ThermalMode::LegacyNumerical;
-            wall.wall.moisture = config.cloudy ?
+            wall.wall.moisture = config.has_moisture ?
                 erf_wall_thermodynamics::MoistureMode::LegacyNumerical :
                 erf_wall_thermodynamics::MoistureMode::DryImpermeable;
-            if (config.cloudy && !pp_face.contains("qv")) {
+            if (config.has_moisture && !pp_face.contains("qv")) {
                 amrex::Error("Cloud Chamber: legacy cloudy walls require " + face + ".qv");
             }
         }

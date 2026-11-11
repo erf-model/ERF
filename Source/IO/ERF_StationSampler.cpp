@@ -25,6 +25,7 @@
 #include <ERF_Constants.H>
 #include <ERF_EpochTime.H>
 #include <ERF_LatLonMap.H>
+#include <ERF_EarthRelativeWind.H>
 #include <ERF_TerrainSurfaceSlab.H>
 #include <ERF_Utils.H>
 
@@ -233,6 +234,8 @@ StationSampler::StationSampler (const std::string& pp_prefix)
     if (m_buffer_steps < 1) { m_buffer_steps = 1; }
 
     pp.queryAdd("station_output_dir", m_dir);
+
+    pp.queryAdd("station_allow_unavailable", m_allow_unavailable);
 
     for (const auto& name : names)
     {
@@ -469,8 +472,21 @@ StationSampler::writeHeader (const Station& station, std::ostream& os) const
         if (with_height) {
             os << ", height=" << height
                << (station_heights_are_agl ? " m above local terrain" : " m (absolute, model z)");
+            if (height < loc.first_cc_height) {
+                os << " -- below the first cell centre, so sampled there, at height="
+                   << loc.first_cc_height << " m when this file was started";
+            }
         }
         if (var.is_missing) { os << "  [NOT AVAILABLE in this run: constant " << var.missing_value << "]"; }
+        if (var.earth_wind != StationEarthWind::None) {
+            os << " (earth-relative; grid x axis at "
+               << std::atan2(loc.sin_alpha, loc.cos_alpha) * Real(180.0) / PI
+               << " deg counterclockwise from east";
+            if (var.earth_wind == StationEarthWind::WindDir) {
+                os << "; degrees clockwise from north, wind from; " << var.missing_value << " when calm";
+            }
+            os << ")";
+        }
         os << "\n";
     };
 
@@ -488,6 +504,10 @@ StationSampler::writeHeader (const Station& station, std::ostream& os) const
     os << "# Values are bilinearly interpolated in the horizontal and linearly\n";
     os << "# interpolated in the vertical, from the finest level that covers the\n";
     os << "# interpolation stencil.\n";
+    os << "# A requested height below the first cell centre of that level is\n";
+    os << "# reported as the value at the first cell centre; the columns where that\n";
+    os << "# happens say so above.  Their sampled height is the one when this file\n";
+    os << "# was started, and can change if regridding changes the level sampled from.\n";
 }
 
 //
@@ -689,7 +709,9 @@ StationSampler::flush ()
 // Resolve the requested variable names against the variables this run can
 // produce, and the requested lat/lon against the model grid.  Aborts on a name
 // or a location that cannot be honored: a station column that silently vanished
-// or silently moved would be worse than a failed run.
+// or silently moved would be worse than a failed run.  The one exception is
+// opt-in: with erf.station_allow_unavailable a 3D variable this run cannot
+// produce keeps its column, written as -999 and marked in the header.
 //
 void
 ERF::init_stations ()
@@ -714,6 +736,24 @@ ERF::init_stations ()
     {
         for (auto& var : station.vars)
         {
+            // An earth-relative wind: formed from x_velocity and y_velocity,
+            // which every configuration produces
+            var.earth_wind = station_earth_wind_from_name(var.name);
+            if (var.earth_wind != StationEarthWind::None) {
+                var.is_2d = false;
+                if (var.earth_wind == StationEarthWind::WindDir) {
+                    // A calm wind has no direction
+                    var.units = "degrees";
+                    var.missing_value = Real(-999.0);
+                } else {
+                    var.units = "m/s";
+                }
+                for (const char* uv : {"x_velocity", "y_velocity"}) {
+                    if (!containerHasElement(requested_3d, uv)) { requested_3d.push_back(uv); }
+                }
+                continue;
+            }
+
             // Is it a 3D plot variable that this configuration can produce?
             Vector<std::string> probe{var.name};
             canonicalizePlot3DVariables(probe);
@@ -738,6 +778,12 @@ ERF::init_stations ()
                     if (!containerHasElement(requested_2d, var.name)) {
                         requested_2d.push_back(var.name);
                     }
+                    // Its cells may hold the plotfile's -999 where the diagnostic
+                    // could not be formed; the interpolation leaves those out.
+                    if (descriptor->missing_policy == plotfile2d::MissingPolicy::FillMinus999WhenUnavailable) {
+                        var.cells_may_be_missing = true;
+                        var.missing_value = Real(-999.0);
+                    }
                 } else {
                     // Same convention as the 2D plotfile: a diagnostic that this
                     // run does not compute is written as its documented missing
@@ -755,12 +801,28 @@ ERF::init_stations ()
                 containerHasElement(cons_names, var.name)    ||
                 var.name == "x_velocity" || var.name == "y_velocity" || var.name == "z_velocity")
             {
-                Abort("Station '" + station.name + "': '" + var.name +
-                      "' is a 3D plotfile variable but is not available in this configuration");
+                if (!station_sampler->allowUnavailable()) {
+                    Abort("Station '" + station.name + "': '" + var.name +
+                          "' is a 3D plotfile variable but is not available in this configuration "
+                          "(erf.station_allow_unavailable = true writes it as -999 instead)");
+                }
+                // Written as missing, as an inactive 2D diagnostic is, so that one
+                // station list can serve configurations that carry different fields.
+                // The column keeps its place, and the header marks it.
+                if (ParallelDescriptor::IOProcessor()) {
+                    Warning("Station '" + station.name + "': '" + var.name +
+                            "' is a 3D plotfile variable but is not available in this "
+                            "configuration; it is written as -999");
+                }
+                var.is_2d = false;
+                var.is_missing = true;
+                var.missing_value = Real(-999.0);
+                continue;
             }
             Abort("Station '" + station.name + "': '" + var.name +
                   "' is neither a 3D plotfile variable nor a built-in 2D diagnostic, which "
-                  "are the two catalogs a station can draw on.  Note that a 2D plotfile can "
+                  "are the two catalogs a station can draw on (besides the earth-relative "
+                  "winds u_east, v_north, wind_speed and wind_dir).  Note that a 2D plotfile can "
                   "also carry sampled-level fields, named for the field and the level such "
                   "as 'theta_z100m', and those are not among them: ask for the 3D variable "
                   "itself and give the station a height instead.  See erf.plot_vars_1 and "
@@ -779,10 +841,18 @@ ERF::init_stations ()
         for (auto& var : station.vars) {
             if (var.is_missing) { continue; }
             const auto& list = var.is_2d ? station_vars_2d : station_vars_3d;
+            const bool earth = (var.earth_wind != StationEarthWind::None);
+            const std::string name_u = earth ? std::string("x_velocity") : var.name;
             for (int i = 0; i < static_cast<int>(list.size()); ++i) {
-                if (list[i] == var.name) { var.comp = i; break; }
+                if (list[i] == name_u) { var.comp = i; break; }
+            }
+            if (earth) {
+                for (int i = 0; i < static_cast<int>(list.size()); ++i) {
+                    if (list[i] == "y_velocity") { var.comp_v = i; break; }
+                }
             }
             AMREX_ALWAYS_ASSERT(var.comp >= 0);
+            AMREX_ALWAYS_ASSERT(!earth || var.comp_v >= 0);
         }
 
         if (station.has_3d_vars() && station.heights.empty()) {
@@ -846,21 +916,27 @@ ERF::resolve_station_positions ()
     auto& stations = station_sampler->stations();
 
     bool any_latlon = false;
+    bool any_earth_wind = false;
     for (const auto& station : stations) {
         for (const auto& loc : station.locs) { any_latlon = any_latlon || loc.use_latlon; }
+        for (const auto& var : station.vars) {
+            any_earth_wind = any_earth_wind || (var.earth_wind != StationEarthWind::None);
+        }
     }
 
     const auto  problo = geom[0].ProbLoArray();
     const auto  probhi = geom[0].ProbHiArray();
 
-    if (any_latlon)
-    {
-        if (lat_m[0] == nullptr || lon_m[0] == nullptr) {
-            Abort("Station output: .lat/.long need a run with latitude/longitude arrays "
-                  "(a WRF or metgrid initialization, or a restart from one).  Place the "
-                  "stations with .x and .y in domain coordinates instead");
-        }
+    const bool have_latlon = (lat_m[0] != nullptr && lon_m[0] != nullptr);
 
+    if (any_latlon && !have_latlon) {
+        Abort("Station output: .lat/.long need a run with latitude/longitude arrays "
+              "(a WRF or metgrid initialization, or a restart from one).  Place the "
+              "stations with .x and .y in domain coordinates instead");
+    }
+
+    if (have_latlon && (any_latlon || any_earth_wind))
+    {
         // NOTE: every init path fills lat_m / lon_m with mass-point values --
         //       init_from_wrfinput reads WRF's XLAT / XLONG and init_from_metgrid
         //       reads XLAT_M / XLONG_M -- so no averaging is needed here.
@@ -870,7 +946,11 @@ ERF::resolve_station_positions ()
         {
             for (auto& loc : station.locs)
             {
-                if (!loc.use_latlon) { continue; }
+                if (!loc.use_latlon) {
+                    // Collective: every rank asks for every station
+                    latlon_map.rotation_at(loc.x, loc.y, loc.cos_alpha, loc.sin_alpha);
+                    continue;
+                }
 
                 LatLonLocation where;
                 const LatLonStatus status = latlon_map.locate(loc.req_lat, loc.req_lon, where);
@@ -890,6 +970,7 @@ ERF::resolve_station_positions ()
                 }
 
                 loc.x = where.x; loc.y = where.y; loc.got_lat = where.lat; loc.got_lon = where.lon;
+                loc.cos_alpha = where.cos_alpha; loc.sin_alpha = where.sin_alpha;
             }
         }
     }
@@ -1106,6 +1187,7 @@ ERF::resolve_station_stencils ()
     // computed the same stencils above.
     //
     Vector<int> chosen(2*nloc, -1);
+    Vector<Real> first_cc(nloc, Real(0.0));
 
     if (ParallelDescriptor::IOProcessor())
     {
@@ -1185,6 +1267,7 @@ ERF::resolve_station_stencils ()
                 if (usable) {
                     chosen[2*ip] = lev;
                     chosen[2*ip+1] = ktop;
+                    first_cc[ip] = z_of_k(klo) - z_zero;
 
                     // Nothing in the model lives between the terrain and the first
                     // cell centre, so a height there is the first cell centre's
@@ -1197,7 +1280,8 @@ ERF::resolve_station_stencils ()
                                 "reported as the value at that cell centre -- there is no "
                                 "similarity extrapolation to the requested height.  For 2 m or "
                                 "10 m quantities, request the 2D diagnostics (temperature_2m, "
-                                "water_vapor_mixing_ratio_2m, and the surface-layer diagnostics) "
+                                "water_vapor_mixing_ratio_2m, u_10m, v_10m, u_east_10m, "
+                                "v_north_10m, and the other surface-layer diagnostics) "
                                 "instead of a 3D variable at that height");
                     }
                 }
@@ -1206,6 +1290,7 @@ ERF::resolve_station_stencils ()
     }
 
     ParallelDescriptor::Bcast(chosen.data(), chosen.size(), io_rank);
+    ParallelDescriptor::Bcast(first_cc.data(), first_cc.size(), io_rank);
 
     for (int ip = 0; ip < nloc; ++ip)
     {
@@ -1222,6 +1307,7 @@ ERF::resolve_station_stencils ()
         loc.i1 = c.i1; loc.j1 = c.j1;
         loc.wx = c.wx; loc.wy = c.wy;
         loc.ktop = chosen[2*ip+1];
+        loc.first_cc_height = first_cc[ip];
     }
 
     station_sampler->rememberStencilGrids(grids, finest_level);
@@ -1456,7 +1542,16 @@ ERF::sample_stations (Real time)
                 for (const auto& var : station.vars) {
                     if (!var.is_2d) { continue; }
                     const int gcol = station.columns[icol++];
-                    row[gcol] = var.is_missing ? var.missing_value : bilinear(a2, var.comp, 0);
+                    if (var.is_missing) {
+                        row[gcol] = var.missing_value;
+                    } else if (var.cells_may_be_missing) {
+                        row[gcol] = station_bilinear_skip_missing(
+                            a2(i0,j0,0,var.comp), a2(i1,j0,0,var.comp),
+                            a2(i0,j1,0,var.comp), a2(i1,j1,0,var.comp),
+                            wx, wy, var.missing_value);
+                    } else {
+                        row[gcol] = bilinear(a2, var.comp, 0);
+                    }
                 }
 
                 const Real z_zero = station.heights_are_agl ? z_surf : Real(0.0);
@@ -1475,12 +1570,36 @@ ERF::sample_stations (Real time)
                     wz = std::min(std::max(wz, Real(0.0)), Real(1.0));   // clamp below the first
                     const int k1 = std::min(kk+1, loc.ktop);             // cell centre and above the top
 
+                    auto at_height = [&](int comp)
+                    {
+                        return (Real(1.0)-wz)*bilinear(a3, comp, kk) + wz*bilinear(a3, comp, k1);
+                    };
+
                     for (const auto& var : station.vars) {
                         if (var.is_2d) { continue; }
                         const int gcol = station.columns[icol++];
-                        row[gcol] = var.is_missing
-                                  ? var.missing_value
-                                  : (Real(1.0)-wz)*bilinear(a3, var.comp, kk) + wz*bilinear(a3, var.comp, k1);
+                        if (var.is_missing) {
+                            row[gcol] = var.missing_value;
+                        } else if (var.earth_wind != StationEarthWind::None) {
+                            // Rotate the interpolated grid-relative vector
+                            Real u_east, v_north;
+                            erf_earth_wind::grid_to_earth(at_height(var.comp), at_height(var.comp_v),
+                                                          loc.cos_alpha, loc.sin_alpha,
+                                                          u_east, v_north);
+                            switch (var.earth_wind) {
+                            case StationEarthWind::UEast:     row[gcol] = u_east;  break;
+                            case StationEarthWind::VNorth:    row[gcol] = v_north; break;
+                            case StationEarthWind::WindSpeed:
+                                row[gcol] = erf_earth_wind::horizontal_speed(u_east, v_north);
+                                break;
+                            default:
+                                row[gcol] = erf_earth_wind::meteorological_direction(
+                                    u_east, v_north, var.missing_value);
+                                break;
+                            }
+                        } else {
+                            row[gcol] = at_height(var.comp);
+                        }
                     }
                 }
             }

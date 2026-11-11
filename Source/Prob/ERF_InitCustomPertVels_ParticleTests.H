@@ -1,7 +1,7 @@
   ParmParse pp_for_pert_vels("prob");
   Real U_0 = zero; pp_for_pert_vels.query("U_0",U_0);
 
-  const Real ztop = geomdata.ProbHi()[2];
+  const Real ztop = phys_zhi(geomdata, lev);   // physical top of the domain
 
   // Set the x-velocity
   // NOTE: z_nd(i,j,0) is the terrain surface height. This works when the

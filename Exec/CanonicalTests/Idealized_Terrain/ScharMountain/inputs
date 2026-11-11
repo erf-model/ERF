@@ -63,8 +63,8 @@ erf.les_type = "None"
 erf.molec_diff_type = "None"
 
 erf.rayleigh_damp_W   = true
-erf.rayleigh_zdamp    = 10000.0
-erf.rayleigh_dampcoef = 0.005
+erf.rayleigh_zdamp    = 5000.0
+erf.rayleigh_dampcoef = 0.2
 
 erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
@@ -73,11 +73,12 @@ erf.dycore_horiz_adv_type    = Centered_4th
 erf.dycore_vert_adv_type     = Centered_4th
 erf.dryscal_horiz_adv_type   = Centered_4th
 erf.dryscal_vert_adv_type    = Centered_4th
-erf.moistscal_horiz_adv_type = Centered_4th
-erf.moistscal_vert_adv_type  = Centered_4th
     
 # TERRRAIN GRID TYPE
 erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 0
 
 prob.custom_terrain_type = "ScharMountain"
+prob.a      = 5000.0
+prob.hm     = 250.0
+prob.lambda = 4000.0

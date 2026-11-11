@@ -1,8 +1,9 @@
     ParmParse pp_prob("prob");
     Real Ampl = zero;        pp_prob.query("Ampl", Ampl);
-    Real wavelength = one; pp_prob.get("wavelength", wavelength);
+    Real wavelength = Real(100.); pp_prob.queryAdd("wavelength", wavelength); // as the custom terrain
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wavelength > zero, "prob.wavelength must be > 0");
 
-    Real H           = geomdata.ProbHi()[2];
+    Real H           = phys_zhi(geomdata, lev);   // physical top of the domain
     Real kp          = two * PI / wavelength;
     Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);
@@ -27,9 +28,10 @@
     // Set the z-velocity from impenetrable condition
     ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
+        const auto prob_lo    = geomdata.ProbLo();
         const auto dx         = geomdata.CellSize();
 
-        Real x   = (i + myhalf) * dx[0];
+        Real x   = prob_lo[0] + (i + myhalf) * dx[0];
         Real z   = fourth * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k) );
         Real z_base = Ampl * std::sin(kp * x);
 

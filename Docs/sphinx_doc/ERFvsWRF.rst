@@ -25,7 +25,8 @@ cloud water / ice mixing ratio.
 acoustic and gravity wave modes.  Variable time step capability. Vertically implicit acoustic step off-centering.
 
 **Spatial Discretization**: 2nd- to 6th-order advection options in horizontal and vertical.  In addition, several
-different WENO schemes are available for scalar variables other than density and potential temperature.
+different WENO schemes (WENO-JS and WENO-Z of 3rd, 5th and 7th order, and the 3rd-order WENO-MZQ) are available,
+both for the dycore variables (momentum, density and potential temperature) and for scalars.
 
 **Turbulent Mixing**: ERF and WRF have the same sub-grid scale turbulence closures with the Smagorinsky or
 1.5-order TKE (Deardorff) model, in isotropic or anisotropic forms, for large-eddy simulation (LES);

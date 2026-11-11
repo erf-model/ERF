@@ -25,10 +25,8 @@ asserts:
 4. one-way run: the surface layer's t_surf stays at --most-surf-temp;
 5. two-way run, steps 2..N: t_surf(n) = T_s(n-1) (p0 / p_sfc)^(R_d/c_p), the
    skin the balance ended step n-1 with as a potential temperature, where
-   p_sfc is the surface pressure at the start of step n.  The 2D output
-   surf_pres is the pressure at the centre of the lowest cell; p_sfc adds
-   rho g dz/2 with rho from the ideal gas law at T_s, which leaves an error
-   well under --theta-rtol.
+   p_sfc is the surface pressure at the start of step n, the 2D output
+   surf_pres.
 
 With --multilevel the same checks run on every level of every plotfile, column
 by column along a slice in x through the middle row of level 0 in y (on a finer
@@ -50,7 +48,6 @@ import sys
 P0 = 1.0e5          # reference pressure [Pa]
 RD = 287.0          # gas constant of dry air [J/kg/K]
 CP = 1004.5         # specific heat of dry air [J/kg/K]
-GRAV = 9.81         # [m/s^2]
 
 
 class CheckError(Exception):
@@ -139,9 +136,8 @@ def main():
     parser.add_argument('--dt', type=float, required=True, help='fixed time step [s]')
     parser.add_argument('--heat-capacity', type=float, required=True,
                         help='erf.radiation.seb_surface_heat_capacity [J/m^2/K]')
-    parser.add_argument('--dz', type=float, default=50.0, help='height of the lowest cell [m]')
     parser.add_argument('--most-surf-temp', type=float, default=301.5,
-                        help='erf.most.surf_temp of the deck [K]')
+                        help='erf.most.pot_surf_temp of the deck [K]')
     parser.add_argument('--hfx-default', type=float, default=0.0)
     parser.add_argument('--lh-default', type=float, default=0.0)
     parser.add_argument('--min-flux', type=float, default=1.0,
@@ -246,7 +242,7 @@ def main():
                         for v in field(args.surface_layer_dir, step, 't_surf', level))
             if worst > 1.0e-10 * args.most_surf_temp:
                 failures.append(f"one-way step {step} level {level}: t_surf moved off "
-                                f"erf.most.surf_temp = {args.most_surf_temp} (by {worst:.3e} K)")
+                                f"erf.most.pot_surf_temp = {args.most_surf_temp} (by {worst:.3e} K)")
 
     if args.two_way_dir:
         # 1 and 3, two-way
@@ -264,17 +260,15 @@ def main():
                     continue  # created this step: no skin of its own from the step before
                 t_surf = dict(column_field(args.two_way_dir, step, 't_surf', level))
                 t_skin = dict(column_field(args.two_way_dir, step - 1, 'seb_t_sfc', level))
-                p_cc = dict(column_field(args.two_way_dir, step - 1, 'surf_pres', level))
-                paired = [x for x in sorted(t_surf) if x in t_skin and x in p_cc]
+                p_sfc_col = dict(column_field(args.two_way_dir, step - 1, 'surf_pres', level))
+                paired = [x for x in sorted(t_surf) if x in t_skin and x in p_sfc_col]
                 if not paired:
                     failures.append(f"two-way step {step} level {level}: none of its "
                                     f"{len(t_surf)} columns has a skin from step {step - 1} "
                                     f"to compare with")
                 compared[level] = compared.get(level, 0) + len(paired)
                 for x in paired:
-                    rho = p_cc[x] / (RD * t_skin[x])
-                    p_sfc = p_cc[x] + rho * GRAV * 0.5 * args.dz
-                    theta = t_skin[x] * (P0 / p_sfc) ** kappa
+                    theta = t_skin[x] * (P0 / p_sfc_col[x]) ** kappa
                     rel = abs(t_surf[x] - theta) / theta
                     worst_rel = max(worst_rel, rel)
                     if rel > args.theta_rtol:

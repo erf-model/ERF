@@ -166,6 +166,9 @@ struct CalmTerrainColumn {
     {
         SolverChoice sc{};
         sc.if_use_most       = true;
+        // psi_m and psi_h are zero without it (off by default since #4751), and the bounds and
+        // caps under test then have nothing to act on
+        sc.if_stability_correction = true;
         sc.if_z0             = Real(0.1);
         sc.if_Cd_momentum    = Real(50.0);
         sc.if_Cd_scalar      = Real(5.0);

@@ -29,3 +29,4 @@ CEXE_headers += ERF_MOSTStress.H
 
 CEXE_headers += ERF_SurfaceModel.H
 CEXE_sources += ERF_SurfaceModel.cpp
+CEXE_headers += ERF_BndryPlaneIndex.H

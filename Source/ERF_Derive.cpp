@@ -728,12 +728,18 @@ erf_derhelicity ( const Box& bx,
 
     ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
     {
+        // Height of the ground: the bottom face of the column, where z_cc in the ghost cell
+        //    below mirrors the bottom cell
+        const int  klo   = bx.smallEnd(2);
+        const Real z_sfc = myhalf * (z_arr(i,j,klo) + z_arr(i,j,klo-1));
+
         Real int_hel = Real(0.0);
         for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k)
         {
-            Real z = z_arr(i,j,k);
+            // Height above the ground
+            Real z = z_arr(i,j,k) - z_sfc;
 
-            // Helicity is defined as integral from 2km to 5km in vertical
+            // Helicity is defined as integral from 2km to 5km above the ground
             if (z > Real(2000.0) && z < Real(5000.0)) {
 
                 Real z_hi = myhalf * (z_arr(i,j,k) + z_arr(i,j,k+1));

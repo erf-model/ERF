@@ -3,6 +3,7 @@
  */
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_Plotfile2DPrecip.H"
+#include "ERF_Plotfile2DCloudOptics.H"
 #include "ERF_TileNoZ.H"
 
 #include <AMReX.H>
@@ -121,6 +122,8 @@ bool is_land_surface_provider_field (DiagnosticID id) noexcept
     case DiagnosticID::LandSurfaceAlbedo:
     case DiagnosticID::LandSurfaceSfcrunoff:
     case DiagnosticID::LandSurfaceUdrunoff:
+    case DiagnosticID::LandSurfaceSnow:
+    case DiagnosticID::LandSurfaceSnowh:
     case DiagnosticID::NoahmpTemperature2mVegetated:
     case DiagnosticID::NoahmpTemperature2mBare:
     case DiagnosticID::NoahmpWaterVaporMixingRatio2mVegetated:
@@ -137,6 +140,20 @@ bool active_lsm_contains (const amrex::Vector<std::string>& active_lsm_names,
 {
     return std::find(active_lsm_names.begin(), active_lsm_names.end(), name) !=
            active_lsm_names.end();
+}
+
+bool is_topographic_radiation_field (DiagnosticID id) noexcept
+{
+    switch (id) {
+    case DiagnosticID::TopographicShadow:
+    case DiagnosticID::TerrainDirectFactor:
+    case DiagnosticID::TerrainIncidence:
+    case DiagnosticID::UnshadedSwFluxDn:
+    case DiagnosticID::TerrainSwFluxDn:
+        return true;
+    default:
+        return false;
+    }
 }
 
 amrex::Vector<std::string>
@@ -164,22 +181,29 @@ available_diagnostic_names (const SolverChoice& solver_choice,
     const bool has_moisture = solver_choice.moisture_type != MoistureType::None;
 
     for (const auto& descriptor : diagnostic_catalog()) {
+        if (is_topographic_radiation_field(descriptor.id) &&
+            !solver_choice.topographicChoice.active()) {
+            continue;
+        }
         if (is_land_surface_provider_field(descriptor.id) &&
             ((!active_lsm_names.empty() &&
               !active_lsm_contains(active_lsm_names, descriptor.name)) ||
              (active_lsm_names.empty() && !has_noahmp))) {
             continue;
         }
-        if (descriptor.id == DiagnosticID::Temperature2m && !(has_noahmp || has_surface_layer)) {
+        // The NearSurface fields need Noah-MP or a surface layer; the
+        //    mixing ratio also needs a moist run
+        if (descriptor.category == DiagnosticCategory::NearSurface) {
+            if (has_noahmp || has_surface_layer) {
+                if (descriptor.id != DiagnosticID::WaterVaporMixingRatio2m || has_moisture) {
+                    names.push_back(descriptor.name);
+                }
+            }
             continue;
         }
-        if ((descriptor.id == DiagnosticID::WaterVaporMixingRatio2m ||
-             descriptor.id == DiagnosticID::NearSurfaceDiagnosticSource) &&
-            !(has_moisture && (has_noahmp || has_surface_layer))) {
-            if (descriptor.id == DiagnosticID::NearSurfaceDiagnosticSource &&
-                (has_noahmp || has_surface_layer)) {
-                names.push_back(descriptor.name);
-            }
+        if ((descriptor.id == DiagnosticID::CloudOpticalDepthSW ||
+             descriptor.id == DiagnosticID::CloudAlbedoEst) &&
+            !cloud_optics_available(solver_choice.moisture_indices)) {
             continue;
         }
         if (is_condensed_water_path(descriptor.id)) {

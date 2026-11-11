@@ -3,6 +3,7 @@
 
 #include <array>
 #include <fstream>
+#include <limits>
 
 #include "ERF_DataStruct.H"
 
@@ -44,7 +45,7 @@ ReadCustomBinaryIC (const std::string filename,
     };
 
     auto read_float_vector = [&](amrex::Vector<amrex::Real>& dest,
-                                 int count,
+                                 amrex::Long count,
                                  const std::string& field_name)
     {
         if (count < 0) {
@@ -52,7 +53,7 @@ ReadCustomBinaryIC (const std::string filename,
         }
 
         dest.reserve(dest.size() + count);
-        for (int idx = 0; idx < count; ++idx) {
+        for (amrex::Long idx = 0; idx < count; ++idx) {
             read_or_abort(value, field_name);
             dest.emplace_back(value);
         }
@@ -72,8 +73,34 @@ ReadCustomBinaryIC (const std::string filename,
         amrex::Abort("Error: unsupported number of data fields in " + filename);
     }
 
-    read_float_vector(latvec_h, nx*ny, "latitude");
-    read_float_vector(lonvec_h, nx*ny, "longitude");
+    // The dimensions come from the file: form the element counts in 64 bits, refusing any
+    // whose byte count would overflow, and check the file holds that many values before
+    // reserving room for them
+    constexpr amrex::Long max_count = std::numeric_limits<amrex::Long>::max()
+                                    / static_cast<amrex::Long>(sizeof(float));
+    const amrex::Long nxy = static_cast<amrex::Long>(nx) * ny;
+    if (nz > max_count / nxy) {
+        amrex::Abort("Error: custom binary dimensions too large in " + filename);
+    }
+    const amrex::Long nxyz = nxy * nz;
+
+    // 2 nxy + nx + ny + nz + ndata nxyz values, without overflowing
+    amrex::Long nvalues = 2*nxy + nx + ny + nz;
+    if (nvalues > max_count || (ndata > 0 && nxyz > (max_count - nvalues) / ndata)) {
+        amrex::Abort("Error: custom binary dimensions too large in " + filename);
+    }
+    nvalues += ndata * nxyz;
+
+    const auto data_start = infile.tellg();
+    infile.seekg(0, std::ios::end);
+    const auto bytes_left = static_cast<amrex::Long>(infile.tellg() - data_start);
+    infile.seekg(data_start);
+    if (!infile || bytes_left < nvalues * static_cast<amrex::Long>(sizeof(float))) {
+        amrex::Abort("Error: " + filename + " is shorter than its dimensions say");
+    }
+
+    read_float_vector(latvec_h, nxy, "latitude");
+    read_float_vector(lonvec_h, nxy, "longitude");
     read_float_vector(xvec_h, nx, "x coordinates");
     read_float_vector(yvec_h, ny, "y coordinates");
     read_float_vector(zvec_h, nz, "z coordinates");
@@ -84,7 +111,7 @@ ReadCustomBinaryIC (const std::string filename,
 
     // Read the file
     for (int idx = 0; idx < ndata; ++idx) {
-        read_float_vector(*data_fields[idx], nx * ny * nz,
+        read_float_vector(*data_fields[idx], nxyz,
                           "data field " + std::to_string(idx));
     }
 }

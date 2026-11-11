@@ -15,6 +15,9 @@ string(RANDOM LENGTH 12 ALPHABET 0123456789abcdef _run_id)
 set(_run_dir "${TEST_ROOT}/sbm_restart_realizability_${_run_id}")
 file(MAKE_DIRECTORY "${_run_dir}")
 set(_checkpoint "${_run_dir}/sbm_source_chk00001")
+set(_setup_timeout 45)
+set(_helper_timeout 15)
+set(_rejection_timeout 90)
 
 execute_process(
   COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}"
@@ -22,10 +25,11 @@ execute_process(
   WORKING_DIRECTORY "${_run_dir}"
   RESULT_VARIABLE _initial_result
   OUTPUT_VARIABLE _initial_stdout
-  ERROR_VARIABLE _initial_stderr)
+  ERROR_VARIABLE _initial_stderr
+  TIMEOUT ${_setup_timeout})
 if(NOT "${_initial_result}" STREQUAL "0")
   message(FATAL_ERROR
-    "Valid 2M checkpoint setup failed (exit ${_initial_result}).\nstdout:\n${_initial_stdout}\nstderr:\n${_initial_stderr}")
+    "Valid 2M checkpoint setup failed or exceeded ${_setup_timeout} s (exit ${_initial_result}).\nstdout:\n${_initial_stdout}\nstderr:\n${_initial_stderr}")
 endif()
 if(NOT EXISTS "${_checkpoint}/SBM_Schema" OR
    NOT EXISTS "${_checkpoint}/Level_0/SBMSpectrum_H" OR
@@ -38,10 +42,11 @@ execute_process(
   WORKING_DIRECTORY "${_run_dir}"
   RESULT_VARIABLE _corrupt_result
   OUTPUT_VARIABLE _corrupt_stdout
-  ERROR_VARIABLE _corrupt_stderr)
+  ERROR_VARIABLE _corrupt_stderr
+  TIMEOUT ${_helper_timeout})
 if(NOT "${_corrupt_result}" STREQUAL "0")
   message(FATAL_ERROR
-    "Finite number-moment corruption helper failed (exit ${_corrupt_result}).\nstdout:\n${_corrupt_stdout}\nstderr:\n${_corrupt_stderr}")
+    "Finite number-moment corruption helper failed or exceeded ${_helper_timeout} s (exit ${_corrupt_result}).\nstdout:\n${_corrupt_stdout}\nstderr:\n${_corrupt_stderr}")
 endif()
 
 execute_process(
@@ -49,10 +54,17 @@ execute_process(
     "erf.restart=${_checkpoint}"
     "erf.check_file=sbm_rejected_restart_chk"
     "erf.plot_int_1=-1" "max_step=2" "stop_time=2.e-4"
+    "amrex.call_addr2line=0"
   WORKING_DIRECTORY "${_run_dir}"
   RESULT_VARIABLE _restart_result
   OUTPUT_VARIABLE _restart_stdout
-  ERROR_VARIABLE _restart_stderr)
+  ERROR_VARIABLE _restart_stderr
+  TIMEOUT ${_rejection_timeout})
+string(TOLOWER "${_restart_result}" _restart_result_lower)
+if(_restart_result_lower MATCHES "timeout")
+  message(FATAL_ERROR
+    "Expected restart rejection exceeded ${_rejection_timeout} s while expecting '${EXPECTED_DIAGNOSTIC}'.\nstdout:\n${_restart_stdout}\nstderr:\n${_restart_stderr}")
+endif()
 if("${_restart_result}" STREQUAL "0")
   message(FATAL_ERROR "ERF accepted an inadmissible authoritative 2M restart")
 endif()

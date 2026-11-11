@@ -2,9 +2,10 @@
     // Parse params
     ParmParse pp("prob");
     Real Ampl = zero       ; pp.query("Ampl", Ampl);
-    Real wavelength = one; pp.get("wavelength", wavelength);
+    Real wavelength = Real(100.); pp.queryAdd("wavelength", wavelength); // as the custom terrain
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wavelength > zero, "prob.wavelength must be > 0");
 
-    Real H           = geomdata.ProbHi()[2];
+    Real H           = phys_zhi(geomdata, lev);   // physical top of the domain
     Real kp          = two * PI / wavelength;
     Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);
@@ -27,5 +28,5 @@
         state_pert(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total) - getRhoThetagivenP(p_hse(i,j,k));
 
         // Set scalar = 0 everywhere
-        state_pert(i, j, k, RhoScalar_comp) = state_pert(i,j,k,Rho_comp);
+        state_pert(i, j, k, RhoScalar_comp) = zero;
     });

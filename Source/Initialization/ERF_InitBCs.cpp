@@ -27,7 +27,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
 {
     bool anelastic = false;
     for (int lev = 0; lev <= max_level; ++lev) {
-        anelastic = anelastic || (solverChoice.anelastic[lev] != 0);
+        anelastic = anelastic || (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
     }
 
     auto f = [this,&read_prim_theta,anelastic,one_d=one,zero_d=zero] (std::string const& bcid, Orientation ori)
@@ -50,12 +50,9 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
 
         m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = zero_d;
         m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = zero_d;
-        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]     = zero_d;
-        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]     = zero_d;
-        m_bc_neumann_vals[BCVars::RhoQ3_bc_comp][ori]     = zero_d;
-        m_bc_neumann_vals[BCVars::RhoQ4_bc_comp][ori]     = zero_d;
-        m_bc_neumann_vals[BCVars::RhoQ5_bc_comp][ori]     = zero_d;
-        m_bc_neumann_vals[BCVars::RhoQ6_bc_comp][ori]     = zero_d;
+        for (int n = BCVars::RhoQ1_bc_comp; n < BCVars::xvel_bc; n++) {
+            m_bc_neumann_vals[n][ori]                     = zero_d;
+        }
 
         m_bc_neumann_vals[BCVars::xvel_bc][ori] = zero_d;
         m_bc_neumann_vals[BCVars::yvel_bc][ori] = zero_d;
@@ -431,14 +428,14 @@ void ERF::init_bcs ()
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::foextrap);
                     }
-                    if (!solverChoice.anelastic[0]) {
+                    if (solverChoice.compressibility_type[0] == CompressibilityType::FullyCompressible) {
                         domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::neumann_int);
                     }
                 } else {
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::foextrap);
                     }
-                    if (!solverChoice.anelastic[0]) {
+                    if (solverChoice.compressibility_type[0] == CompressibilityType::FullyCompressible) {
                         domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::neumann_int);
                     }
                 }
@@ -554,15 +551,8 @@ void ERF::init_bcs ()
     // *****************************************************************************
     {
         auto wall_scalar_type = [this] (int bc_comp, Orientation ori) {
-            const auto intent = m_wall_scalar_bc_intent[bc_comp][ori];
-            if (intent == erf_wall_scalar_bc::WallScalarBCIntent::DirichletConserved) {
-                return ERFBCType::ext_dir;
-            } else if (intent == erf_wall_scalar_bc::WallScalarBCIntent::DirichletPrimitive) {
-                return ERFBCType::ext_dir_prim;
-            } else if (intent == erf_wall_scalar_bc::WallScalarBCIntent::Neumann) {
-                return ERFBCType::neumann;
-            }
-            return ERFBCType::foextrap;
+            return erf_wall_scalar_bc::logical_boundary_type(
+                m_wall_scalar_bc_intent[bc_comp][ori]);
         };
 
         for (OrientationIter oit; oit; ++oit) {
@@ -751,8 +741,16 @@ void ERF::init_bcs ()
     // Turn off implicit diffusion for a component if its BCs don't match
     // those allowed by the tridiagonal solver.
     const BCRec* bc_ptr = domain_bcs_type.data();
-    Vector<int> cc_comp_map = {BCVars::RhoTheta_bc_comp, BCVars::RhoKE_bc_comp, BCVars::RhoQ1_bc_comp};
-    Vector<std::string> cc_comp_name = {"Theta", "KE", "Qv"};
+    Vector<int> cc_comp_map = {BCVars::RhoTheta_bc_comp, BCVars::RhoKE_bc_comp};
+    Vector<std::string> cc_comp_name = {"Theta", "KE"};
+    const int nq = solverChoice.diffChoice.n_qstate_moist +
+                   solverChoice.diffChoice.n_qstate_nonmoist;
+    for (int q = 0; q < nq; ++q) {
+        if (solverChoice.moisture_type == MoistureType::SBM && q > 0) { continue; }
+        if (!solverChoice.diffChoice.implicit_q(RhoQ1_comp + q)) { continue; }
+        cc_comp_map.push_back(cons_bc_comp(RhoQ1_comp + q));
+        cc_comp_name.push_back("Q" + std::to_string(q + 1));
+    }
     for (int icomp(0); icomp < cc_comp_map.size(); ++icomp) {
         int bc_comp = cc_comp_map[icomp];
         bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
@@ -761,10 +759,14 @@ void ERF::init_bcs ()
         bool neumann_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
         if ( (!foextrap_on_zlo && !neumann_on_zlo && !use_surfacelayer) ||
              (!foextrap_on_zhi && !neumann_on_zhi) ) {
-            Print() << "WARNING: Selected BCs for " << cc_comp_name[icomp] << " are not supported with implicit diffusion. Turning off implicit diffusion for this component." << "\n";
+            Print() << "WARNING: Selected BCs for " << cc_comp_name[icomp]
+                    << " are not supported with implicit diffusion. "
+                    << (bc_comp >= BCVars::RhoQ1_bc_comp
+                        ? "All host-transported moisture species fall back to explicit diffusion."
+                        : "Turning off implicit diffusion for this component.") << "\n";
             if (bc_comp == BCVars::RhoTheta_bc_comp) { solverChoice.implicit_thermal_diffusion  = false; }
             if (bc_comp == BCVars::RhoKE_bc_comp)    { solverChoice.implicit_ke_diffusion       = false; }
-            if (bc_comp == BCVars::RhoQ1_bc_comp)    { solverChoice.implicit_moisture_diffusion = false; }
+            if (bc_comp >= BCVars::RhoQ1_bc_comp)    { solverChoice.implicit_moisture_diffusion = false; }
         }
     }
     Vector<int> vel_comp_map = {BCVars::xvel_bc, BCVars::yvel_bc};
@@ -781,6 +783,73 @@ void ERF::init_bcs ()
              (!foextrap_on_zhi && !ext_dir_on_zhi) ) {
             Print() << "WARNING: Selected BCs for " << vel_comp_name[icomp] << " are not supported with implicit diffusion. Turning off implicit diffusion for this component." << "\n";
             solverChoice.implicit_momentum_diffusion  = false;
+        }
+    }
+
+    // most.stable_functions = qnse must be read by something: the z-low surface layer (its
+    // own checks say which of its kernels use it) or an immersed wall law that evaluates the
+    // stability functions (erf.if_use_most with erf.if_stability_correction, or the
+    // fraction_stress wall form)
+    {
+        ParmParse pp_sf(pp_prefix);
+        std::string stable_functions = "businger_dyer";
+        pp_sf.query("most.stable_functions", stable_functions);
+        if (stable_functions != "businger_dyer" && stable_functions != "qnse") {
+            amrex::Abort(pp_prefix + ".most.stable_functions must be businger_dyer or qnse, not " +
+                         stable_functions);
+        }
+        const bool immersed_wall_law =
+            (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+             solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
+            solverChoice.if_use_most &&
+            (solverChoice.if_stability_correction || solverChoice.if_fraction_stress);
+        // The zlo surface layer reads the unqualified erf.most.* keys when it is the only
+        // surface-layer face, or when legacy unqualified inputs are present with several
+        // faces (the prefix rule of ERF::make_surface_layers); a side face reads erf.<face>.most.*
+        int n_surface_layer_faces = 0;
+        for (OrientationIter oit; oit; ++oit) {
+            if (phys_bc_type[oit()] == ERF_BC::surface_layer) { ++n_surface_layer_faces; }
+        }
+        const bool zlo_reads_unqualified =
+            phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer &&
+            (n_surface_layer_faces == 1 || has_surface_layer_inputs(pp_prefix));
+        // The MRF and YSUNew schemes carry their own QNSE switch and coefficients for the
+        // stable functions of their profile (erf.enable_qnse_stable_functions, erf.qnse_*),
+        // which the surface layer does not read: say so when the two choices disagree
+        for (int lev = 0; lev <= max_level; ++lev) {
+            const auto& tc = solverChoice.turbChoice[lev];
+            if (tc.pbl_type != PBLType::MRF && tc.pbl_type != PBLType::YSUNew) { continue; }
+            const bool sl_qnse = (stable_functions == "qnse");
+            if (tc.enable_qnse_stable_functions != sl_qnse) {
+                amrex::Warning("Level " + std::to_string(lev) + ": erf.enable_qnse_stable_functions = " +
+                               (tc.enable_qnse_stable_functions ? "true" : "false") + " (the " +
+                               std::string(amrex::getEnumNameString(tc.pbl_type)) +
+                               " scheme's stable functions) while " + pp_prefix +
+                               ".most.stable_functions = " + stable_functions +
+                               " (the surface layer's): the PBL profile and the surface fluxes use "
+                               "different stable functions");
+            } else if (sl_qnse) {
+                const char* keys[4] = {"qnse_am", "qnse_bm", "qnse_ah", "qnse_bh"};
+                const Real pbl[4] = {tc.qnse_am, tc.qnse_bm, tc.qnse_ah, tc.qnse_bh};
+                Real sl[4] = {Real(2.5), Real(0.2), Real(2.5), Real(0.2)};
+                for (int n = 0; n < 4; ++n) {
+                    pp_sf.query((std::string("most.") + keys[n]).c_str(), sl[n]);
+                    if (sl[n] != pbl[n]) {
+                        amrex::Warning("Level " + std::to_string(lev) + ": " + pp_prefix + ".most." + keys[n] +
+                                       " = " + std::to_string(sl[n]) + " (surface layer) differs from " +
+                                       pp_prefix + "." + keys[n] + " = " + std::to_string(pbl[n]) + " (" +
+                                       std::string(amrex::getEnumNameString(tc.pbl_type)) + " scheme)");
+                    }
+                }
+            }
+        }
+        if (stable_functions == "qnse" && !zlo_reads_unqualified && !immersed_wall_law) {
+            amrex::Abort(pp_prefix + ".most.stable_functions = qnse is read by nothing in this run: "
+                         "it needs a surface_layer boundary on the low z face that reads the "
+                         "unqualified " + pp_prefix + ".most.* inputs (a side face reads " +
+                         pp_prefix + ".<face>.most.stable_functions), or an immersed wall law with "
+                         "stability functions (erf.if_stability_correction = true, or "
+                         "erf.if_wall_form = fraction_stress)");
         }
     }
 

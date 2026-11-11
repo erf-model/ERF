@@ -25,12 +25,24 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         // Per p2902 of Klemp-Skamarock-Dudhia-2007
         // beta_s = -one : fully explicit
         // beta_s =  one : fully implicit
+        // With erf.use_variable_beta_s, beta_s instead varies on the w-faces with the terrain
+        //    slope (see make_fast_coeffs); the substeps take it from fast_coeffs either way
         Real beta_s;
-        if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
+        bool l_variable_beta_s;
+        if (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep) {
             beta_s = solverChoice.beta_s;
+            l_variable_beta_s = solverChoice.use_variable_beta_s;
         } else { // Fully explicit
             beta_s = -one_d;
+            l_variable_beta_s = false;
         }
+
+        // On a moving fitted mesh the metric terms of the pressure gradient (horizontal and vertical)
+        // are taken at the sub-step midpoint.  The cell volumes stay at the sub-step ends: in the
+        // conservative update, and in the vertical flux divergence of the implicit solve, which divides
+        // by the same volume as the update.  Only RK3_ImplicitSubstep takes acoustic
+        // sub-steps, so this applies to every sub-step on a moving mesh
+        const bool l_mid_metric = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -84,12 +96,13 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                      d_sinesq_at_lev,
                      turbPert,
                      r_avg_to_pass, t_avg_to_pass,
+                     forest_drag, &S_old[IntVars::cons],
                      false);
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
         // *************************************************************************
-        const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
+        const bool l_reflux = IsRefluxStage(solverChoice, level, finest_level, nrk);
 
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;
@@ -109,7 +122,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             base_to_use = MultiFab(base_state[level], make_alias, 0, BaseState::num_comps);
         }
 
-        make_mom_sources(old_substep_time, dtau, Svec_to_use,
+        make_mom_sources(level, old_substep_time, dtau, Svec_to_use,
                          z_phys_nd[level].get(), z_phys_cc[level].get(), stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
@@ -133,17 +146,74 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             update_terrain_substep(level, old_substep_time, new_substep_time, dtau, S_data, z_t_pert);
         }
 
+        // Mesh and Jacobian at the sub-step midpoint for the metric terms of the pressure gradient;
+        // the cell volumes stay at the sub-step ends.  The arrays are allocated with the level
+        // (init_stuff) and only rewritten here
+        if (l_mid_metric) {
+            MultiFab::LinComb(*z_phys_nd_mid[level], Real(0.5), *z_phys_nd[level], 0,
+                                                     Real(0.5), *z_phys_nd_new[level], 0,
+                                                     0, 1, z_phys_nd_mid[level]->nGrowVect());
+            MultiFab::LinComb(*detJ_cc_mid[level], Real(0.5), *detJ_cc[level], 0,
+                                                   Real(0.5), *detJ_cc_new[level], 0,
+                                                   0, 1, 0);
+        }
+
         bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
 
         if ( (fast_step == 0) || (solverChoice.terrain_type == TerrainType::MovingFittedMesh) )
         {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
-                             detJ_cc[level], dtau, beta_s, phys_bc_type);
+                             (l_mid_metric ? detJ_cc_mid[level] : detJ_cc[level]), dtau, beta_s,
+                             (l_mid_metric ? z_phys_nd_mid[level].get() : z_phys_nd[level].get()),
+                             l_variable_beta_s, solverChoice.beta_s_min, solverChoice.beta_s_max,
+                             phys_bc_type,
+                             // The rho and (rho theta) equations divide by the volume of the update,
+                             // and the w equation has J_new/J_old on its diagonal
+                             (l_mid_metric ? detJ_cc_new[level].get() : nullptr),
+                             (l_mid_metric ? detJ_cc[level].get()     : nullptr));
         }
 
-        bool l_rayleigh_implicit = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);
+        bool l_rayleigh_implicit = solverChoice.rayleigh_implicit_w(level);
         Real l_damp_coef         = solverChoice.dampingChoice.rayleigh_dampcoef;
+
+        // The coarse/fine face fluxes of the last RK stage (ERF_CFFluxHistory.cpp): a coarse
+        // level records those of each substep, a fine level takes the coarse ones.  Not done
+        // with moving terrain (cf_flux_history_active).
+        CFFaceFluxes cf_fluxes;
+        Array<MultiFab, AMREX_SPACEDIM> cf_rec;
+        MultiFab cf_rec_om, cf_rec_om_old;
+        const bool cf_terrain = (solverChoice.mesh_type == MeshType::VariableDz);
+        // This is the last RK stage, whose fluxes are the step's, under either coupling
+        // (cf_flux_history_active excludes the anelastic levels)
+        const bool cf_stage   = (StageFluxWeight(solverChoice, level, nrk) > Real(0));
+        const bool cf_record  = cf_stage && cf_flux_history_active(level);
+        const bool cf_impose  = cf_stage && (level > 0) && cf_flux_history_active(level-1);
+        if (cf_record) {
+            const int mom[AMREX_SPACEDIM] = {AMREX_D_DECL(IntVars::xmom, IntVars::ymom, IntVars::zmom)};
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                cf_rec[dir].define(S_data[mom[dir]].boxArray(), S_data[mom[dir]].DistributionMap(), 1, 0);
+                cf_fluxes.rec[dir] = &cf_rec[dir];
+            }
+            // With terrain the z-faces hold Omega, which the substep records itself
+            if (cf_terrain) {
+                cf_rec_om.define(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 0);
+                cf_fluxes.rec_w = &cf_rec_om;
+                if (fast_step == 0) {
+                    cf_rec_om_old.define(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 0);
+                    cf_fluxes.rec_w_old = &cf_rec_om_old;
+                }
+            }
+        }
+        if (cf_impose) {
+            cf_flux_history_targets(level, static_cast<Real>(old_substep_time),
+                                           static_cast<Real>(new_substep_time));
+            CFFluxHistory& H = cf_flux_history(level);
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                cf_fluxes.tgt[dir] = &H.tgt[dir];
+            }
+            cf_fluxes.tgt_w = &H.tgt_w;
+        }
 
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
@@ -154,23 +224,26 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            fine_geom,
                            solverChoice.gravity, solverChoice.use_lagged_delta_rt,
                            z_t_rk[level], z_t_pert.get(),
-                           z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
+                           z_phys_nd[level], z_phys_nd_mid[level].get(),
+                           z_phys_nd_new[level], z_phys_nd_src[level],
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
-                           dtau, beta_s, inv_fac, mapfac[level],
+                           dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
+                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
+                           solverChoice.beta_d);
 
-        } else if (solverChoice.mesh_type == MeshType::VariableDz) {
+        } else if (cf_terrain) {
 
             erf_substep_T(fast_step, nrk, level, finest_level,
                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                           cc_src, xmom_src, ymom_src, zmom_src,
                           fine_geom, solverChoice.gravity,
-                          z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
+                          z_phys_nd[level], detJ_cc[level], dtau, inv_fac,
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                          (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
+                          (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
+                          solverChoice.beta_d, cf_fluxes);
 
         } else {
 
@@ -179,26 +252,56 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity, stretched_dz_d[level],
-                           dtau, beta_s, inv_fac, mapfac[level],
+                           dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
+                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
+                           solverChoice.beta_d, cf_fluxes,
+                           (l_reflux) ? momentum_reflux_pressure(level) : nullptr);
+        }
+
+        // The vertical quantity at the start and end of the substep: Omega, recorded by the
+        // substep, with terrain; (rho w) without it, where Svec_to_use holds (rho w) at the start
+        // of the stage when fast_step is 0, the only substep at which the record reads it
+        if (cf_record) {
+            const MultiFab& w_old = (cf_terrain) ? ((fast_step == 0) ? cf_rec_om_old : cf_rec_om)
+                                                 : Svec_to_use[IntVars::zmom];
+            const MultiFab& w_new = (cf_terrain) ? cf_rec_om : S_data[IntVars::zmom];
+            cf_flux_history_record(level, fast_step, n_sub,
+                                   static_cast<Real>(old_substep_time), static_cast<Real>(new_substep_time),
+                                   cf_rec, w_old, w_new);
         }
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
+        // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
+        //       box over which VelocityToMomentum is computed. V2M requires one more ghost cell be
+        //       filled for rho than velocity. This logical condition ensures we fill enough ghost cells
+        //       when use_num_diff is true.
+        int ng_cons = S_data[IntVars::cons].nGrowVect().max() - 1;
+        int ng_vel  = S_data[IntVars::xmom].nGrowVect().max();
+        if (!solverChoice.use_num_diff) {
+            ng_cons = 1;
+            ng_vel  = 1;
+        }
+
         if ( (solverChoice.vert_implicit_fac[level][nrk] > zero_d) &&
              !solverChoice.implicit_before_substep                 &&
              (fast_step == n_sub-1) )
         {
+            // The solves read the ghost cells of S_data: rho and the momenta at the walls and
+            // above and below a column that ends at a coarse/fine boundary, and rho beside the
+            // faces at a grid edge.  They are filled only at the end of each substep (below),
+            // so here they still hold those of the previous substep -- or nothing at all in a
+            // stage with a single substep.  Fill them at the time this substep reaches; the
+            // fill at the end of the substep then refreshes them after the solves.
+            apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
+
             // The interval actually advanced by this RK stage -- NOT the full MRI timestep
             const Real stage_dt = static_cast<Real>(n_sub * dtau);
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
             MultiFab scratch_xmom(S_data[IntVars::xmom], make_alias, 0, 1);
             MultiFab scratch_ymom(S_data[IntVars::ymom], make_alias, 0, 1);
-#ifdef ERF_IMPLICIT_W
-            MultiFab scratch_zmom(S_data[IntVars::zmom], make_alias, 0, 1);
-#endif
 #include "ERF_ImplicitPre.H"
         }
 
@@ -277,15 +380,5 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             }
         }
 
-        // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
-        //       box over which VelocityToMomentum is computed. V2M requires one more ghost cell be
-        //       filled for rho than velocity. This logical condition ensures we fill enough ghost cells
-        //       when use_num_diff is true.
-        int ng_cons = S_data[IntVars::cons].nGrowVect().max() - 1;
-        int ng_vel  = S_data[IntVars::xmom].nGrowVect().max();
-        if (!solverChoice.use_num_diff) {
-            ng_cons = 1;
-            ng_vel  = 1;
-        }
         apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
 };

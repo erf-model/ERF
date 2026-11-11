@@ -98,14 +98,17 @@
               dz_arr.dataPtr(),         // DZ
               w_arr.dataPtr(),          // W (vertical velocity)
 
-              // 2D arrays for precipitation accounting
-              rain_accum_arr.dataPtr(), // RAINNC
-              rainncv_arr.dataPtr(),    // RAINNCV
-              sr_arr.dataPtr(),         // SR
-              snow_accum_arr.dataPtr(), // SNOWNC
-              snowncv_arr.dataPtr(),    // SNOWNCV
-              graup_accum_arr.dataPtr(),// GRAUPELNC
-              graupelncv_arr.dataPtr(), // GRAUPELNCV
+              // 2D arrays for precipitation accounting.  RAINNC takes the total that
+              // fell, cloud water and cloud ice included; SNOWNC, GRAUPELNC and
+              // RAINONLYNC each take that species alone.
+              precip_accum_arr.dataPtr(),  // RAINNC
+              rainncv_arr.dataPtr(),       // RAINNCV
+              sr_arr.dataPtr(),            // SR
+              snow_accum_arr.dataPtr(),    // SNOWNC
+              snowncv_arr.dataPtr(),       // SNOWNCV
+              graupel_accum_arr.dataPtr(), // GRAUPELNC
+              graupelncv_arr.dataPtr(),    // GRAUPELNCV
+              rain_accum_arr.dataPtr(),    // RAINONLYNC
 
               // Radar reflectivity
               dummy_reflectivity_ptr,  // refl_10cm

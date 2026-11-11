@@ -236,9 +236,28 @@ Wind fields
 Wind fields are cell-centered sampled-level diagnostics. ERF destaggers the
 native face-centered velocity components to scalar cell centers before vertical
 sampling. ``u_east`` and ``v_north`` are earth-relative horizontal winds. When
-map-rotation coefficients are available, ERF rotates grid-relative horizontal
-winds before output. Otherwise, ERF uses identity rotation. ``w`` is the
-cell-centered vertical wind.
+the run has latitude/longitude arrays (a WRF or metgrid initialization, or a
+restart from one), ERF rotates the grid-relative horizontal winds by the
+orientation of the grid at each mass point, measured from those arrays on the
+level being written. Otherwise the grid is taken to be aligned with east and
+north, and ``u_east`` and ``v_north`` equal the cell-centered ``x_velocity`` and
+``y_velocity``. ``w`` is the cell-centered vertical wind.
+
+.. note::
+
+   Until October 2026 (ERF pull request 4700) these fields were not rotated: on
+   a run with latitude/longitude arrays, ``u_east``, ``v_north`` and ``wind_dir``
+   held the grid-relative winds. Output written before then that was rotated in
+   post-processing should not be rotated again.
+
+.. note::
+
+   On a refined level the latitude and longitude are interpolated from the
+   coarser level without wrapping the longitude. A refined patch that straddles
+   the antimeridian (longitude ±180 degrees) therefore gets wrong longitudes in
+   the cells between, and ``u_east``, ``v_north`` and ``wind_dir`` there are
+   rotated by a wrong angle. Level 0 is not affected, and neither are the
+   station time series, which take the angle from level 0.
 
 ``wind_speed`` is the horizontal speed computed from ``u_east`` and
 ``v_north``. ``wind_dir`` is the meteorological wind direction in degrees

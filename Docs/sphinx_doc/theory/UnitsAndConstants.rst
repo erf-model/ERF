@@ -32,19 +32,43 @@ The following units are used in ERF:
 Constants
 ---------
 
-   +-----------------------+-----------------------+--------------------------+
-   | Name                  | Value                 | Description              |
-   +=======================+=======================+==========================+
-   | :math:`R_d`           | 287.0  J/kg/K         | gas constant for dry air |
-   +-----------------------+-----------------------+--------------------------+
-   | :math:`c_p`           | 1004.5 J/kg/K         | specific heat capacity   |
-   +-----------------------+-----------------------+--------------------------+
-   | :math:`p_0`           | 1.0e5  Pa             | reference pressure       |
-   +-----------------------+-----------------------+--------------------------+
-   | :math:`g`             | 9.81   m/s/s          | gravity                  |
-   +-----------------------+-----------------------+--------------------------+
-   | :math:`\gamma`        | 1.4                   | :math:`c_p /(c_p-R_d)`   |
-   +-----------------------+-----------------------+--------------------------+
+The following are ERF's fixed reference values. They should not be
+confused with height-dependent reference-state fields or runtime inputs.
+
+.. list-table:: Selected physical constants
+   :header-rows: 1
+   :widths: 23 27 50
+
+   * - Symbol
+     - Value
+     - Meaning
+   * - :math:`R_d`
+     - 287.0 J/(kg K)
+     - Dry-air gas constant.
+   * - :math:`R_v`
+     - 461.505 J/(kg K)
+     - Water-vapor gas constant.
+   * - :math:`C_{p,d}`
+     - 1004.5 J/(kg K)
+     - Fixed reference dry-air heat capacity.
+   * - :math:`P_{00}`
+     - :math:`10^5` Pa
+     - Fixed reference pressure for potential temperature and the EOS
+       (the C++ constant is named ``p_0``); not the hydrostatic profile
+       :math:`p_0(z)`.
+   * - :math:`g`
+     - 9.81 m/s\ :sup:`2`
+     - Magnitude of gravitational acceleration.
+   * - :math:`\Gamma`
+     - 1.4
+     - Fixed compressible EOS exponent, consistent with
+       :math:`C_{p,d}/(C_{p,d}-R_d)` at the reference constants.
+
+The runtime option ``erf.c_p`` defaults to :math:`C_{p,d}` but does not
+change the fixed EOS exponent :math:`\Gamma`. If ``erf.c_p`` is changed,
+thermodynamic conversions that use :math:`R_d/c_p` can be inconsistent
+with inverse relations using the fixed exponent. See
+:ref:`GoverningEquations` and :ref:`Buoyancy`.
 
 These constants are defined in the file  :cpp:`Source/ERF_Constants.H`, which holds the
 thermodynamic and dynamical constants used throughout ERF.  Two companion headers hold

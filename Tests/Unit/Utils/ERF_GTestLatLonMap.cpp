@@ -1,12 +1,20 @@
+#include <algorithm>
 #include <cmath>
 
 #include <AMReX_Array.H>
 #include <AMReX_Box.H>
+#include <AMReX_BoxArray.H>
+#include <AMReX_DistributionMapping.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_Geometry.H>
+#include <AMReX_Gpu.H>
 #include <AMReX_Math.H>
+#include <AMReX_MultiFab.H>
+#include <AMReX_ParallelDescriptor.H>
 
 #include <gtest/gtest.h>
 
+#include "ERF_EarthRelativeWind.H"
 #include "ERF_LatLonMap.H"
 
 // Placing a latitude/longitude on the grid (ERF_LatLonMap), as the station
@@ -167,4 +175,150 @@ TEST(LatLonMap, LongitudeDifferencesWrapAtTheAntimeridian)
     EXPECT_NEAR(wrap_longitude_difference(Real(359.0)),  Real(-1.0), tol);
     EXPECT_NEAR(wrap_longitude_difference(Real(-359.0)), Real( 1.0), tol);
     EXPECT_NEAR(wrap_longitude_difference(Real(10.0)),   Real(10.0), tol);
+}
+
+// The earth-relative winds of the 2D sampled-level fields and the stations
+// (#4496): a grid-relative wind rotated by the grid orientation, its speed, and
+// the direction it comes from, clockwise from north.
+TEST(EarthRelativeWind, RotatesAndGivesTheMeteorologicalDirection)
+{
+    const Real tol = (sizeof(Real) == 8) ? Real(1.0e-12) : Real(1.0e-5);
+    const Real alpha = amrex::Math::pi<Real>()/Real(6.0);
+
+    // 10 m/s along a grid x axis 30 degrees north of east: (8.66, 5) earth-relative
+    Real u_e = 0, v_n = 0;
+    erf_earth_wind::grid_to_earth(Real(10.0), Real(0.0), std::cos(alpha), std::sin(alpha), u_e, v_n);
+    EXPECT_NEAR(u_e, Real(10.0)*std::cos(alpha), tol*Real(10.0));
+    EXPECT_NEAR(v_n, Real(5.0), tol*Real(10.0));
+    // and along the grid y axis: (-5, 8.66)
+    erf_earth_wind::grid_to_earth(Real(0.0), Real(10.0), std::cos(alpha), std::sin(alpha), u_e, v_n);
+    EXPECT_NEAR(u_e, Real(-5.0), tol*Real(10.0));
+    EXPECT_NEAR(v_n, Real(10.0)*std::cos(alpha), tol*Real(10.0));
+    EXPECT_NEAR(erf_earth_wind::horizontal_speed(u_e, v_n), Real(10.0), tol*Real(10.0));
+
+    // Wind from the west blows east (270), from the south north (180), from the
+    // east west (90), from the north south (0, not 360)
+    const Real missing = Real(-999.0);
+    EXPECT_NEAR(erf_earth_wind::meteorological_direction(Real( 5.0), Real( 0.0), missing), Real(270.0), tol*Real(360.0));
+    EXPECT_NEAR(erf_earth_wind::meteorological_direction(Real( 0.0), Real( 5.0), missing), Real(180.0), tol*Real(360.0));
+    EXPECT_NEAR(erf_earth_wind::meteorological_direction(Real(-5.0), Real( 0.0), missing), Real( 90.0), tol*Real(360.0));
+    EXPECT_NEAR(erf_earth_wind::meteorological_direction(Real( 0.0), Real(-5.0), missing), Real(  0.0), tol*Real(360.0));
+    // From the south-west
+    EXPECT_NEAR(erf_earth_wind::meteorological_direction(Real( 1.0), Real( 1.0), missing), Real(225.0), tol*Real(360.0));
+    // A calm wind has no direction
+    EXPECT_EQ(erf_earth_wind::meteorological_direction(Real(0.0), Real(0.0), missing), missing);
+}
+
+// The rotation the 2D plotfile uses (fill_grid_rotation, one value per mass point on
+// the level's own boxes) must be the rotation the stations and the nudging use
+// (grid_rotation_from_latlon on the whole array), at every point and in particular
+// at the box seams, where the centred difference reads a neighbouring box.
+TEST(LatLonMap, FillsTheGridRotationOnEveryBoxAsAtOnePoint)
+{
+    const amrex::Box dom(amrex::IntVect(0,0,0), amrex::IntVect(39,39,0));
+    const Real alpha = amrex::Math::pi<Real>()/Real(6.0);
+
+    // The reference: the whole array on one FAB
+    amrex::FArrayBox fab(dom, 2, amrex::The_Pinned_Arena());
+    fill_rotated_latlon(fab, alpha);
+
+    // The same lat/lon on 25 boxes of 8 x 8, and unequal ones for the output
+    amrex::BoxArray ba(dom);
+    ba.maxSize(8);
+    const amrex::DistributionMapping dm(ba);
+    // One ghost cell, filled as the WRF reader fills it: from the whole array,
+    // clamped to the domain
+    amrex::MultiFab lat(ba, dm, 1, amrex::IntVect(1,1,0), amrex::MFInfo().SetArena(amrex::The_Pinned_Arena()));
+    amrex::MultiFab lon(ba, dm, 1, amrex::IntVect(1,1,0), amrex::MFInfo().SetArena(amrex::The_Pinned_Arena()));
+    const auto ref = fab.const_array();
+    for (amrex::MFIter mfi(lat); mfi.isValid(); ++mfi) {
+        const auto la = lat.array(mfi);
+        const auto lo = lon.array(mfi);
+        amrex::LoopOnCpu(mfi.fabbox(), [&](int i, int j, int k) {
+            const int ii = std::min(std::max(i, dom.smallEnd(0)), dom.bigEnd(0));
+            const int jj = std::min(std::max(j, dom.smallEnd(1)), dom.bigEnd(1));
+            la(i,j,k) = ref(ii,jj,0,0);
+            lo(i,j,k) = ref(ii,jj,0,1);
+        });
+    }
+
+    amrex::BoxArray ba_out(dom);
+    ba_out.maxSize(amrex::IntVect(13,7,1));
+    const amrex::DistributionMapping dm_out(ba_out);
+    amrex::MultiFab c(ba_out, dm_out, 1, 0, amrex::MFInfo().SetArena(amrex::The_Pinned_Arena()));
+    amrex::MultiFab s(ba_out, dm_out, 1, 0, amrex::MFInfo().SetArena(amrex::The_Pinned_Arena()));
+
+    const amrex::RealBox rb({0.0, 0.0, 0.0}, {4000.0, 4000.0, 100.0});
+    const amrex::Array<int,AMREX_SPACEDIM> periodic{0, 0, 0};
+    const amrex::Geometry geom(amrex::Box(amrex::IntVect(0,0,0), amrex::IntVect(39,39,0)),
+                               rb, amrex::CoordSys::cartesian, periodic);
+    fill_grid_rotation(c, s, lat, lon, geom);
+    amrex::Gpu::streamSynchronize();
+
+    Real worst = 0;
+    for (amrex::MFIter mfi(c); mfi.isValid(); ++mfi) {
+        const auto ca = c.const_array(mfi);
+        const auto sa = s.const_array(mfi);
+        amrex::LoopOnCpu(mfi.validbox(), [&](int i, int j, int) {
+            Real cr = 0, sr = 0;
+            grid_rotation_from_latlon(ref, dom, i, j, cr, sr);
+            worst = std::max(worst, std::max(std::abs(ca(i,j,0) - cr), std::abs(sa(i,j,0) - sr)));
+        });
+    }
+    amrex::ParallelDescriptor::ReduceRealMax(worst);
+    EXPECT_EQ(worst, Real(0.0));
+    EXPECT_NEAR(c.max(0), std::cos(alpha), Real(1.0e-3));
+    EXPECT_NEAR(s.min(0), std::sin(alpha), Real(1.0e-3));
+}
+
+// On a refined level the boxes cover only a patch of the domain. A neighbour across
+// the edge of the patch, inside the domain, is held only in a ghost cell of lat/lon
+// (ERF fills them from the coarser level). The rotation at the patch edge must use
+// it, not stop at the patch: it must equal the rotation from the whole array.
+TEST(LatLonMap, FillsTheGridRotationOnAPatchThatDoesNotCoverTheDomain)
+{
+    const amrex::Box dom(amrex::IntVect(0,0,0), amrex::IntVect(39,39,0));
+    const Real alpha = amrex::Math::pi<Real>()/Real(6.0);
+    amrex::FArrayBox fab(dom, 2, amrex::The_Pinned_Arena());
+    fill_rotated_latlon(fab, alpha);
+    const auto ref = fab.const_array();
+
+    // A patch away from every domain edge, as two boxes, with one ghost cell
+    // holding the values of the cells around it
+    const amrex::Box patch(amrex::IntVect(10,5,0), amrex::IntVect(29,34,0));
+    amrex::BoxArray ba(patch);
+    ba.maxSize(amrex::IntVect(10,30,1));
+    const amrex::DistributionMapping dm(ba);
+    const amrex::MFInfo pinned = amrex::MFInfo().SetArena(amrex::The_Pinned_Arena());
+    amrex::MultiFab lat(ba, dm, 1, amrex::IntVect(1,1,0), pinned);
+    amrex::MultiFab lon(ba, dm, 1, amrex::IntVect(1,1,0), pinned);
+    for (amrex::MFIter mfi(lat); mfi.isValid(); ++mfi) {
+        const auto la = lat.array(mfi);
+        const auto lo = lon.array(mfi);
+        amrex::LoopOnCpu(mfi.fabbox(), [&](int i, int j, int k) {
+            la(i,j,k) = ref(i,j,0,0);
+            lo(i,j,k) = ref(i,j,0,1);
+        });
+    }
+
+    amrex::MultiFab c(ba, dm, 1, 0, pinned);
+    amrex::MultiFab s(ba, dm, 1, 0, pinned);
+    const amrex::RealBox rb({0.0, 0.0, 0.0}, {4000.0, 4000.0, 100.0});
+    const amrex::Array<int,AMREX_SPACEDIM> periodic{0, 0, 0};
+    const amrex::Geometry geom(dom, rb, amrex::CoordSys::cartesian, periodic);
+    fill_grid_rotation(c, s, lat, lon, geom);
+    amrex::Gpu::streamSynchronize();
+
+    Real worst = 0;
+    for (amrex::MFIter mfi(c); mfi.isValid(); ++mfi) {
+        const auto ca = c.const_array(mfi);
+        const auto sa = s.const_array(mfi);
+        amrex::LoopOnCpu(mfi.validbox(), [&](int i, int j, int) {
+            Real cr = 0, sr = 0;
+            grid_rotation_from_latlon(ref, dom, i, j, cr, sr);
+            worst = std::max(worst, std::max(std::abs(ca(i,j,0) - cr), std::abs(sa(i,j,0) - sr)));
+        });
+    }
+    amrex::ParallelDescriptor::ReduceRealMax(worst);
+    EXPECT_EQ(worst, Real(0.0));
 }

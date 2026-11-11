@@ -3,6 +3,12 @@ function(set_erf_compile_flags target)
   if(ERF_ENABLE_ALL_WARNINGS)
     # GCC, Clang, and Intel seem to accept these
     list(APPEND ERF_CXX_FLAGS "-Wall" "-Wextra" "-pedantic")
+    # Report code that can never run (for example a branch guarded by a
+    # compile-time count that is 1 in this build). Clang, Apple Clang and
+    # Intel LLVM act on it; GCC accepts the flag and ignores it. The HIP CI
+    # job already passes it, so every compiler now sees the same warnings
+    # the HIP job would report.
+    list(APPEND ERF_CXX_FLAGS "-Wunreachable-code")
     if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
       # ifort doesn't like -Wall
       list(APPEND ERF_Fortran_FLAGS "-Wall")
@@ -32,9 +38,6 @@ function(set_erf_compile_flags target)
     endif()
     separate_arguments(ERF_CUDA_FLAGS)
     target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${ERF_CUDA_FLAGS}>)
-    if(DEFINED AMReX_CUDA_ARCH)
-      set_cuda_architectures(AMReX_CUDA_ARCH)
-    endif()
     set_target_properties(${target} PROPERTIES
       CUDA_ARCHITECTURES "${AMREX_CUDA_ARCHS}"
       LANGUAGE CUDA

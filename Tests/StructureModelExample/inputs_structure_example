@@ -1,0 +1,49 @@
+# The example structure model (ERF_StructureModelExample.cpp) in a small periodic
+# box of still air with no gravity, friction or Coriolis: one point at the box
+# centre pushes on the air with 50 N along x, spread with the actuator core's
+# Gaussian kernel. It checks the out-of-tree model plumbing: the registry, the
+# advance and momentum-source calls (the impulse they give the air over each step),
+# the model's fields in the
+# ERF plotfile and the checkpoint/restart of the model. With no friction and
+# periodic sides, the air's x-momentum after t seconds is 50 N times t
+# (the CTest checks the volume integral of x_velocity against F t / rho_0).
+
+max_step  = 16
+stop_time = 1.0e9
+
+geometry.prob_lo     = 0.0 0.0 0.0
+geometry.prob_hi     = 400.0 400.0 400.0
+geometry.is_periodic = 1 1 0
+amr.n_cell           = 16 16 16
+amr.max_level        = 0
+amr.max_grid_size    = 8 8 16
+amr.blocking_factor  = 2
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.init_type = "Uniform"   # constant density and temperature, at rest
+prob.rho_0    = 1.0
+prob.T_0      = 300.0
+
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.use_gravity     = false
+erf.use_coriolis    = false
+
+erf.fixed_dt     = 0.25   # acoustic substeps stay below c dtau / dx = 0.3
+erf.v            = 0
+amr.v            = 0
+erf.sum_interval = -1
+
+erf.plot_file_1 = plt
+erf.plot_int_1  = 8
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity structure_example_fx structure_example_fy structure_example_fz
+erf.check_file  = chk
+erf.check_int   = 8
+
+erf.structures.model = example
+
+structure.example.position = 200.0 200.0 200.0
+structure.example.force    = 50.0 0.0 0.0
+structure.example.epsilon  = 50.0

@@ -6,11 +6,17 @@
  * holds the places ERF calls into it:
  *  - init_ibseb() from ERF::InitData_post(), after the immersed forcing has
  *    built the blanking on a fresh start or a restart, with its start-up
- *    checks ibseb_check_refined_levels() and
- *    ibseb_check_sun_matches_two_stream();
+ *    checks ibseb_check_refined_levels(), ibseb_check_sun_matches_two_stream(),
+ *    ibseb_check_two_stream_provider() and ibseb_check_two_stream_buildings();
+ *    with the two-stream radiation it also has the columns see the buildings
+ *    (erf.ibseb.two_stream_buildings, TwoStreamRadiation::set_building_cover());
  *  - ibseb_advance() from ERF::Advance(), per level and step, which with
  *    erf.ibseb.sun_mode = two_stream hands the faces the two-stream sun of
- *    the step first (ibseb_set_two_stream_sun(), as init_ibseb() does);
+ *    the step first (ibseb_set_two_stream_sun(), as init_ibseb() does). It
+ *    runs at the start of the step, or with erf.ibseb.radiation = two_stream
+ *    after the step's radiation (ibseb_after_radiation()), whose column sweep
+ *    the faces then take; either way before the two-stream ground balance's update
+ *    after the dycore, which takes the buildings' shadow on the ground it gives;
  *  - ibseb_write_checkpoint() from ERF::WriteCheckpointFile(), per level;
  *  - ibseb_report() from ERF::post_timestep().
  * The inputs are parsed in ERF::ReadParameters() into ``ERF::ibseb_params``.
@@ -22,6 +28,7 @@
 #include <AMReX_VisMF.H>
 #include <AMReX_MultiFabUtil.H>
 #include <ERF_IBSEBSolar.H>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <sstream>
@@ -36,14 +43,26 @@ using namespace amrex;
  * where both paths (fresh start and restart) have the blanking of every
  * level built and ghost-filled. The face list is always rebuilt from the
  * blanking rather than read back, so the checkpoint carries only the state
- * (``IBSEBState``, see IBFaceSet::state_ncomp()) and a restart on a different
- * number of ranks works. A checkpoint from a run without the balance has no
- * such field; the initial state is kept and a note is printed.
+ * (one record per face in ``Level_N/IBSEBFaces``, see IBFaceSet::write_state())
+ * and a restart on a different number of ranks works. A checkpoint from a run
+ * without the balance has no such file; the initial state is kept and a note
+ * is printed. A checkpoint written before the records, which held the state
+ * as the cell field ``IBSEBState``, is refused with a message.
  */
 void
 ERF::init_ibseb ()
 {
-    if (!ibseb_params.enable) { return; }
+    if (!ibseb_params.enable) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!ibseb_params.ground_sky_view,
+            "erf.ibseb.ground_sky_view = true needs erf.ibseb.enable = true: the walls that send to the ground are the"
+            " immersed-boundary balance's faces");
+        if (ibseb_params.two_stream_buildings_given) {
+            Print() << "WARNING: erf.ibseb.two_stream_buildings is given but erf.ibseb.enable is off, so it is"
+                       " ignored: the two-stream columns see the buildings only through the immersed-boundary"
+                       " balance.\n";
+        }
+        return;
+    }
     if (solverChoice.buildings_type != BuildingsType::ImmersedForcing) {
         Abort("erf.ibseb.enable needs erf.buildings_type = ImmersedForcing");
     }
@@ -75,48 +94,79 @@ ERF::init_ibseb ()
     }
     ibseb_check_refined_levels();
     ibseb_check_sun_matches_two_stream();
+    ibseb_check_two_stream_provider();
+    ibseb_check_two_stream_buildings();
     m_ibseb.resize(finest_level + 1);
     for (int lev = 0; lev <= finest_level; ++lev) {
-        m_ibseb[lev] = std::make_unique<IBFaceSet>(ibseb_params, lev);
+        m_ibseb[lev] = std::make_unique<IBFaceSet>(ibseb_params, lev, solverChoice.moisture_indices.qv);
         const double t_init0 = ParallelDescriptor::second();
         m_ibseb[lev]->build(*terrain_blanking[lev], geom[lev]);
         if (lev > 0) {
-            m_ibseb[lev]->add_outside_occluders(*m_ibseb[lev-1], ref_ratio[lev-1],
-                                                amrex::coarsen(grids[lev], ref_ratio[lev-1]));
+            std::vector<const IBFaceSet*> below;
+            for (int c = 0; c < lev; ++c) { below.push_back(m_ibseb[c].get()); }
+            m_ibseb[lev]->add_outside_occluders(below);
             m_ibseb[lev]->map_buildings_to_level0(*m_ibseb[lev-1], ref_ratio[lev-1]);
             m_ibseb[lev-1]->release_labels();
         }
         // No level above to map: the labels are no longer needed.
         if (lev == finest_level) { m_ibseb[lev]->release_labels(); }
-        std::unique_ptr<MultiFab> restored;
+        // The faces take the two-stream columns at their own heights, so from now on
+        // every sweep of the level also keeps the direct beam up to the highest interface
+        // a face reads. A level without faces needs none. A level with faces must sweep
+        // its own columns: one whose grids do not span the domain in z takes its
+        // radiation from the level below by interpolation, with no sweep of its own.
+        if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces() && rad_level_needs_interpolation(lev)) {
+            Abort("erf.ibseb.radiation = two_stream: the grids of level " + std::to_string(lev) + " do not span the"
+                  " domain in z, so its two-stream radiation comes from level " + std::to_string(lev - 1) + " by"
+                  " interpolation and no column sweep of its own supplies its faces; refine the whole height"
+                  " (amr.refine_whole_domain_dir) or use erf.ibseb.radiation = prescribed");
+        }
+        // A level whose atmosphere is to be filled from the level below
+        // (erf.interp_atmos_from_coarse with a WRF input) skips its first sweep, so its faces
+        // would stop at the first step; say so now. (Today that path needs a terrain-fitted
+        // grid, which the balance refuses above; this check keeps the stop at start-up if
+        // that ever changes.)
+        if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()
+            && lev < static_cast<int>(rad_interp_from_coarse_pending.size()) && rad_interp_from_coarse_pending[lev]) {
+            Abort("erf.ibseb.radiation = two_stream: level " + std::to_string(lev) + " takes its atmosphere from"
+                  " level " + std::to_string(lev - 1) + " (erf.interp_atmos_from_coarse), so it skips its first"
+                  " two-stream sweep and its faces would have no radiation at the first step; turn off"
+                  " erf.interp_atmos_from_coarse or use erf.ibseb.radiation = prescribed");
+        }
+        if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()) {
+            two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface(), ibseb_params.ground_view_shadow);
+        }
+        // The columns see the buildings: their solid cells and footprints from the blanking,
+        // and every step the shadow on the ground (ibseb_advance()). Every level, faces or
+        // not: a refined level without buildings of its own is still shaded by those
+        // outside it (add_outside_occluders() above).
+        if (ibseb_two_stream_buildings()) {
+            two_stream_rad.set_building_cover(lev, *terrain_blanking[lev], geom[lev].Domain(),
+                                              ibseb_params.ground_sky_view);
+            if (ibseb_params.ground_sky_view && !two_stream_rad.takes_ground_walls(lev)) {
+                Print() << "NOTE: erf.ibseb.ground_sky_view: level " << lev << " has no ground balance on its own"
+                           " two-stream sweep (its radiation comes from the level below), so its ground takes"
+                           " nothing from the walls.\n";
+            }
+        }
+        // The face records of the checkpoint (IBFaceSet::read_state() checks
+        // the layer count, the domain and the faces against this level and
+        // stops on a mismatch). Read here for the skin temperature the initial
+        // diagnostics below start from, and again after them.
+        std::string state_file;
         if (!restart_chkfile.empty()) {
-            const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState");
-            if (FileExists(name + "_H")) {
-                // The field's width is n_slots x (2 + n_slab_layers) and its
-                // boxes follow the buildings; a checkpoint written with
-                // another layer count or another building set cannot be
-                // unpacked.
-                const VisMF header(name);
-                const int ncomp_chk = header.nComp();
-                if (ncomp_chk != m_ibseb[lev]->state_ncomp()) {
-                    Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " has " + std::to_string(ncomp_chk)
-                          + " components; the deck sets erf.ibseb.n_slab_layers = " + std::to_string(ibseb_params.n_slab_layers)
-                          + ", which with the " + std::to_string(m_ibseb[lev]->n_slots())
-                          + " face slots per cell of this blanking needs " + std::to_string(m_ibseb[lev]->state_ncomp())
-                          + ". The checkpoint was written with another erf.ibseb.n_slab_layers (restart with the"
-                            " checkpoint's value) or for another building set.");
-                }
-                if (header.boxArray() != m_ibseb[lev]->state_boxarray()) {
-                    Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " was written for a different building layout ("
-                          + std::to_string(header.boxArray().size()) + " boxes against the "
-                          + std::to_string(m_ibseb[lev]->state_boxarray().size()) + " the blanking gives); restart from a checkpoint of the same buildings");
-                }
-                restored = std::make_unique<MultiFab>(m_ibseb[lev]->make_state());
-                VisMF::Read(*restored, name);
-                m_ibseb[lev]->load_state(*restored);
+            const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBFaces");
+            if (FileExists(name)) {
+                state_file = name;
+                m_ibseb[lev]->read_state(state_file);
                 Print() << "[IBSEB] Face state restored from " << restart_chkfile << "\n";
-            } else {
-                Print() << "[IBSEB] Checkpoint has no IBSEBState; keeping the initial face state.\n";
+            } else if (FileExists(MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState") + "_H")) {
+                Abort("erf.ibseb: " + restart_chkfile + " holds the face state as the cell field IBSEBState of an"
+                      " earlier ERF; this ERF reads one record per face (Level_" + std::to_string(lev)
+                      + "/IBSEBFaces) and cannot unpack it. Restart from a checkpoint written by this ERF, or start"
+                      " the run afresh.");
+            } else if (m_ibseb[lev]->has_faces()) {
+                Print() << "[IBSEB] Checkpoint has no face state; keeping the initial face state.\n";
             }
         }
         m_ibseb[lev]->assign_materials();
@@ -125,14 +175,59 @@ ERF::init_ibseb ()
         // Initial diagnostics for the first report. On a restart they
         // overwrite the sensible flux with a diagnostic value, so the
         // checkpointed flux (which the convective velocity scale of the next
-        // step reads as the previous step's) is put back afterwards.
+        // step reads as the previous step's) is put back afterwards. With
+        // radiation = two_stream no sweep has run yet, so the initial report
+        // carries no shortwave on the faces, nor longwave with lw_mode = two_stream.
+        const bool two_stream_faces = (ibseb_params.radiation == "two_stream");
+        if (two_stream_faces && m_ibseb[lev]->has_faces()) {
+            Print() << "[IBSEB] Level " << lev << ": the faces take their radiation from the two-stream columns,"
+                       " each at its own height (up to interface " << m_ibseb[lev]->top_sample_interface() << ")."
+                       " The first sweep runs in the first step, so the initial report shows no "
+                    << (ibseb_params.lw_mode == "two_stream" ? "radiation" : "shortwave") << " on the faces.\n";
+        }
         ibseb_set_two_stream_sun(lev, t_new[lev]);
         m_ibseb[lev]->compute_shortwave(t_new[lev]);
+        // The buildings' shadow on the ground under this sun, for the plotfile written now
+        // (the first step gives it again for its own sun).
+        if (solverChoice.rad_type == RadiationType::TwoStream) {
+            if (MultiFab* shadow = two_stream_rad.ground_shadow_for_step(lev, istep[lev])) {
+                m_ibseb[lev]->compute_ground_shadow(*shadow);
+            }
+        }
         m_ibseb[lev]->compute_longwave(vars_new[lev][Vars::cons]);
+        // What the walls send to the ground, for the plotfile written now.
+        ibseb_give_ground_walls(lev);
         m_ibseb[lev]->compute_sensible(vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
                                        vars_new[lev][Vars::yvel], vars_new[lev][Vars::zvel], solverChoice.c_p);
-        if (restored) { m_ibseb[lev]->load_state(*restored); }
-        m_ibseb[lev]->report(t_new[lev], istep[lev], ibseb_params.csv_int > 0);
+        if (!state_file.empty()) { m_ibseb[lev]->read_state(state_file); }
+        const bool restarting = !restart_chkfile.empty();
+        // A restart writes a 3D plotfile for its first step (plot_file_on_restart). With
+        // two_stream no sweep has run yet, so the face fields that hold radiation are
+        // empty there: the absorbed shortwave and the shadow, and the net longwave with
+        // lw_mode = two_stream (the skin temperature and fluxes come from the
+        // checkpoint, the face counts and view fractions from the geometry). Say so when
+        // that plotfile holds one of them.
+        if (two_stream_faces && restarting && plot_file_on_restart && lev == 0) {
+            const bool lw_two_stream = (ibseb_params.lw_mode == "two_stream");
+            auto has_radiation_fields = [lw_two_stream] (const Vector<std::string>& names) {
+                return std::any_of(names.begin(), names.end(), [lw_two_stream] (const std::string& n) {
+                    return n == "ibseb_sw_abs" || n == "ibseb_shadow" || (lw_two_stream && n == "ibseb_lw_net");
+                });
+            };
+            const bool plot1 = (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.0) && has_radiation_fields(plot3d_var_names_1);
+            const bool plot2 = (m_plot3d_int_2 > 0 || m_plot3d_per_2 > 0.0) && has_radiation_fields(plot3d_var_names_2);
+            if (plot1 || plot2) {
+                Print() << "[IBSEB] Restart: the plotfile written at this step shows no "
+                        << (lw_two_stream ? "radiation" : "shortwave") << " on the faces (no sweep has run yet)."
+                           " If the run before wrote a plotfile at this step, AMReX kept it, renamed with an"
+                           " .old suffix.\n";
+            }
+        }
+        // The step a restart starts from was reported, and its faces dumped, by the run
+        // before. Reporting it again would add a second row for the step (and replace its
+        // dump) with values that differ: the sun here is that of the step's end, not its
+        // start, and with two_stream there is no radiation yet. So a restart prints it only.
+        m_ibseb[lev]->report(t_new[lev], istep[lev], ibseb_params.csv_int > 0 && !restarting);
     }
 }
 
@@ -287,6 +382,149 @@ ERF::ibseb_check_sun_matches_two_stream () const
 }
 
 /**
+ * Abort unless the two-stream columns can supply the faces of every level
+ * (erf.ibseb.radiation = two_stream; a no-op otherwise).
+ *
+ * Called by init_ibseb(). The faces of a level take the canopy forcing its own
+ * column sweep writes in the same step (TwoStreamRadiation::canopy_forcing()),
+ * so the radiation model must be the two-stream one with its shortwave on (off,
+ * the sweep places no sun, and the cosine it writes is not the faces'), and with
+ * its longwave on under lw_mode = two_stream (off, the faces would see a 0 K sky
+ * and ground). Every level with faces must also sweep its own columns; init_ibseb()
+ * checks that once the faces are built (a refined level whose grids do not span
+ * the domain in z takes its radiation from the level below by interpolation,
+ * rad_level_needs_interpolation(), with no sweep of its own). (A level built from
+ * the coarse atmosphere also skips its first sweep; that is
+ * erf.interp_atmos_from_coarse with a WRF input, which needs a terrain-fitted grid
+ * the balance refuses, or a regrid, which it refuses too.)
+ *
+ * It also warns, without stopping, when the faces' light and sky depend on the
+ * number of layers above them: whenever some of the sky's optical depth is set
+ * per layer. That is the clear-sky depth with erf.radiation.tau_model = per_layer
+ * (for the longwave, also without erf.radiation.lw_mass_absorption_enable), and,
+ * with either model, a cloud layer that is used, the moisture terms and the
+ * aerosol. The attenuation above a face then counts the layers, so it changes with
+ * the domain's depth and, on a level refined in z, with the refinement, as the
+ * columns' own heating rates do.
+ */
+void
+ERF::ibseb_check_two_stream_provider () const
+{
+    if (ibseb_params.radiation != "two_stream") { return; }
+    if (solverChoice.rad_type != RadiationType::TwoStream) {
+        Abort("erf.ibseb.radiation = two_stream needs erf.radiation_model = TwoStream; "
+              "use erf.ibseb.radiation = prescribed for the faces' own clear-sky radiation");
+    }
+    const RadChoice& rc = solverChoice.radChoice;
+    if (!rc.sw_enabled) {
+        Abort("erf.ibseb.radiation = two_stream needs the two-stream shortwave (erf.radiation.sw_enabled = true):"
+              " the faces take their direct and diffuse light from it");
+    }
+    if (ibseb_params.lw_mode == "two_stream" && !rc.lw_enabled) {
+        Abort("erf.ibseb.lw_mode = two_stream needs the two-stream longwave (erf.radiation.lw_enabled = true);"
+              " without it the faces would see no sky or ground longwave. Use erf.ibseb.lw_mode = gray or fixed");
+    }
+    // Some of the sky's optical depth is set per layer: the clear-sky depth under
+    // per-layer optics, and with either model a cloud layer that is used (a cloud
+    // fraction above zero), the moisture terms and the aerosol (every profile gives a
+    // depth per layer). A transparent sky is the same whatever the layer count.
+    const bool per_layer   = (rc.tau_model == TauModel::PerLayer);
+    const bool cloud_layer = (rc.tau_profile_type == TauProfileType::CloudLayer)
+                          && (rc.cloud_fraction > 0.0 || rc.cloud_fraction_prog_enable);
+    const bool sw_per_layer = (per_layer && rc.tau_per_layer > 0.0)
+                           || cloud_layer || rc.aerosol_enable || rc.tau_sw_dynamic_enable;
+    const bool lw_per_layer = (ibseb_params.lw_mode == "two_stream")
+                           && ((per_layer && !rc.lw_mass_absorption_enable && rc.tau_lw_per_layer > 0.0)
+                               || cloud_layer || rc.aerosol_enable || rc.tau_lw_dynamic_enable);
+    bool z_refined = false;
+    for (int lev = 1; lev <= finest_level; ++lev) { z_refined = z_refined || ref_ratio[lev-1][2] > 1; }
+    if (sw_per_layer || lw_per_layer) {
+        const std::string bands = (sw_per_layer && lw_per_layer) ? "shortwave and longwave"
+                                : (sw_per_layer ? "shortwave" : "longwave");
+        Print() << "WARNING: erf.ibseb.radiation = two_stream with optical depth set per layer (" << bands << "):"
+                << " the light and sky the faces get depend on the number of layers above them, so on the domain's"
+                << " depth" << (z_refined ? " and on the refinement in z, which differs between the levels here" : "")
+                << ". erf.radiation.tau_model = mass makes the clear-sky depth independent of the layers; a cloud"
+                   " layer, the moisture terms and the aerosol stay per layer.\n";
+    }
+}
+
+/**
+ * Start-up checks of erf.ibseb.two_stream_buildings (called by init_ibseb()).
+ *
+ * The input acts only on the two-stream radiation: given without it, the run stops,
+ * or warns when erf.radiation_model names another model. With it on, two notes:
+ * a land-surface model keeps its own ground, which nothing here masks or shades;
+ * and a ground balance on the fixed erf.radiation.seb_sw_flux_default (without
+ * erf.radiation.seb_use_radiation_fluxes) has no beam to take off the shaded ground,
+ * so only its footprints are held.
+ */
+void
+ERF::ibseb_check_two_stream_buildings () const
+{
+    const IBSEBParams& p = ibseb_params;
+    // erf.ibseb.ground_sky_view changes the two-stream ground balance on the sweep's
+    // fluxes, where the ground takes the buildings' shadow: without one of these it
+    // would do nothing, so the run stops.
+    if (p.ground_sky_view) {
+        const RadChoice& rc = solverChoice.radChoice;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            solverChoice.rad_type == RadiationType::TwoStream && p.two_stream_buildings && p.radiation == "two_stream" &&
+            rc.seb_enable && rc.seb_use_radiation_fluxes && rc.sw_enabled && rc.lw_enabled &&
+            solverChoice.lsm_type == LandSurfaceType::None,
+            "erf.ibseb.ground_sky_view = true needs erf.radiation_model = TwoStream, erf.ibseb.two_stream_buildings = true,"
+            " erf.ibseb.radiation = two_stream, erf.radiation.seb_enable = true, erf.radiation.seb_use_radiation_fluxes = true,"
+            " erf.radiation.sw_enabled = true, erf.radiation.lw_enabled = true and no land-surface model");
+    }
+    if (solverChoice.rad_type != RadiationType::TwoStream) {
+        if (p.two_stream_buildings_given) {
+            ParmParse pp_erf("erf");
+            const std::string what = "erf.ibseb.two_stream_buildings acts only on the two-stream radiation"
+                                     " (erf.radiation_model = TwoStream)";
+            if (pp_erf.contains("radiation_model")) {
+                Print() << "WARNING: " << what << "; the deck names another radiation model (or None), so it is ignored.\n";
+            } else {
+                Abort(what + ", and the deck sets no erf.radiation_model; remove it or set the model");
+            }
+        }
+        return;
+    }
+    if (!p.two_stream_buildings) { return; }
+    const RadChoice& rc = solverChoice.radChoice;
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        Print() << "WARNING: erf.ibseb.two_stream_buildings: the land-surface model keeps its own ground,"
+                   " which the buildings neither cover nor shade.\n";
+    }
+    if (rc.seb_enable && !rc.seb_use_radiation_fluxes) {
+        Print() << "NOTE: erf.ibseb.two_stream_buildings: the two-stream ground balance takes the fixed"
+                   " erf.radiation.seb_sw_flux_default (erf.radiation.seb_use_radiation_fluxes is off), so"
+                   " there is no beam to take off the ground the buildings shade; only the ground under"
+                   " the buildings is held.\n";
+    }
+    if (rc.seb_enable && rc.seb_use_radiation_fluxes && !rc.sw_enabled) {
+        Print() << "NOTE: erf.ibseb.two_stream_buildings: the shortwave is off (erf.radiation.sw_enabled), so"
+                   " there is no beam to take off the ground the buildings shade and no shadow is cast; only"
+                   " the ground under the buildings is held.\n";
+    }
+}
+
+/**
+ * erf.ibseb.ground_sky_view: have the faces of @p lev form what the walls send to the
+ * ground this step and hand it to the two-stream ground balance (a no-op where that
+ * balance takes none). The walls' share of the view depends on the geometry alone and
+ * is formed with the first field only.
+ */
+void
+ERF::ibseb_give_ground_walls (int lev)
+{
+    if (solverChoice.rad_type != RadiationType::TwoStream) { return; }
+    const bool first = (two_stream_rad.ground_walls(lev) == nullptr);
+    if (MultiFab* to_ground = two_stream_rad.ground_walls_for_step(lev, istep[lev])) {
+        m_ibseb[lev]->compute_ground_walls(*to_ground, first);
+    }
+}
+
+/**
  * Hand one level's face set the two-stream sun at a time, for its next
  * shortwave (erf.ibseb.sun_mode = two_stream; a no-op otherwise): the
  * declination, the distance factor and the calendar day from the start date
@@ -313,8 +551,10 @@ ERF::ibseb_set_two_stream_sun (int lev, Real time)
 }
 
 /**
- * Per-step update of one level, called at the start of ERF::Advance() with
- * the state at the start of the step: shortwave, longwave and the wall
+ * Per-step update of one level, called from ERF::Advance() with the state at
+ * the start of the step: at the start of the step, or with
+ * erf.ibseb.radiation = two_stream after advance_radiation(), whose sweep of
+ * this step the faces take (ibseb_after_radiation()). Shortwave, longwave and the wall
  * function on the faces, then either the prognostic balance (which finds
  * the skin temperature at the end of the step and advances the slab with
  * it) or, with ``erf.ibseb.prognostic = false``, the slab alone under the
@@ -344,9 +584,32 @@ ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
 {
     if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
     const double t_wall0 = ParallelDescriptor::second();
+    // With radiation = two_stream the faces take this step's sweep of their level,
+    // which advance_radiation() has just run (ERF::Advance() calls this after it).
+    TwoStreamCanopyView canopy;
+    if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()) {
+        canopy = two_stream_rad.canopy_forcing(lev, istep[lev]);
+        canopy.fluxes = rad_fluxes[lev].get();
+        if (!canopy.valid()) {
+            Abort("erf.ibseb.radiation = two_stream: level " + std::to_string(lev) + " has no two-stream sweep at"
+                  " step " + std::to_string(istep[lev]) + " for its faces; the balance must run after the step's"
+                  " radiation (ERF::Advance()), on a level that sweeps its own columns");
+        }
+        m_ibseb[lev]->check_canopy_layout(cons, canopy);
+    }
     ibseb_set_two_stream_sun(lev, time);
-    m_ibseb[lev]->compute_shortwave(time);
-    m_ibseb[lev]->compute_longwave(cons);
+    m_ibseb[lev]->compute_shortwave(time, canopy);
+    // The buildings' shadow on the ground of this step, under the sun just placed, for the
+    // two-stream ground balance's update after the dycore (erf.ibseb.two_stream_buildings).
+    if (solverChoice.rad_type == RadiationType::TwoStream) {
+        if (MultiFab* shadow = two_stream_rad.ground_shadow_for_step(lev, istep[lev])) {
+            m_ibseb[lev]->compute_ground_shadow(*shadow);
+        }
+    }
+    m_ibseb[lev]->compute_longwave(cons, canopy);
+    // What the walls send to the ground this step, from the shortwave and longwave just
+    // placed and the faces' skin temperature at the start of the step (erf.ibseb.ground_sky_view).
+    ibseb_give_ground_walls(lev);
     // The ground surface layer's fields and the mixed-layer depth
     // for the wall function beyond neutral (all null / zero unless asked).
     const MultiFab* olen2d = nullptr;
@@ -391,26 +654,23 @@ ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
 }
 
 /**
- * Write the face state of one level into the checkpoint as ``IBSEBState``, a
- * field on the blocks around the buildings (IBFaceSet::state_boxarray())
- * clipped to the cells that own faces, so it scales with the shell of the
- * buildings rather than with the level. Called inside the level loop of
+ * Write the face state of one level into the checkpoint as
+ * ``Level_N/IBSEBFaces``: one record per face (IBFaceSet::write_state()), so
+ * the file is the size of the data. Called inside the level loop of
  * ERF::WriteCheckpointFile(); a no-op unless the balance is on and the level
  * has faces.
  *
  * @param[in] checkpointname  Path of the checkpoint directory being written.
  * @param[in] lev             AMR level whose face state is written, as the
- *                            ``IBSEBState`` field of its ``Level_`` group.
+ *                            ``IBSEBFaces`` file of its ``Level_`` group.
  */
 void
 ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
 {
     if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
-    // A level without faces has no field to write (and nothing to restore).
-    if (!m_ibseb[lev]->has_state()) { return; }
-    MultiFab state = m_ibseb[lev]->make_state();
-    m_ibseb[lev]->save_state(state);
-    VisMF::Write(state, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "IBSEBState"));
+    // A level without faces has no records to write (and nothing to restore).
+    if (!m_ibseb[lev]->has_faces()) { return; }
+    m_ibseb[lev]->write_state(MultiFabFileFullPrefix(lev, checkpointname, "Level_", "IBSEBFaces"));
 }
 
 /**

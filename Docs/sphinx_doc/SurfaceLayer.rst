@@ -20,6 +20,14 @@ employs Moeng's formulation for Monin-Obukhov similarity theory (MOST) and ``cus
 specify the fluxes through ``ustar; tstar; qstar``. Currently, the MOST pathway is the primary flux type employed
 in ERF simulations and will be the focus in subsequent sections.
 
+With ``bulk_coeff`` fluxes, and on land cells where a land-surface model supplies the stresses, the roughness
+length is replaced each step by the value diagnosed from the stress by inverting the log law,
+:math:`z_0 = z_{ref} \exp[-(\kappa \overline{u}/u_{\star} + \Psi_m(\zeta))]`, and bounded to
+:math:`10^{-7}\,\mathrm{m} \le z_0 \le \min(1.5\,\mathrm{m}, z_{ref}/2)`. When the stress is zero
+(``erf.most.Cd = 0``, or a land-surface model that returns no momentum flux) :math:`u_{\star}` sits at its
+floor of machine epsilon and the exponent is far beyond the floating-point range; the lower bound is then
+returned without evaluating the exponential, so a run with ``amrex.fpe_trap_overflow = 1`` keeps going.
+
 
 MOST Theory
 ~~~~~~~~~~~~~~~~~~~
@@ -93,6 +101,44 @@ where the constants take the values proposed in `Dyer, Boundary Layer Meteorolog
 
 .. math::
   \sigma_{\theta}=1, \quad \beta = 5, \quad \gamma_{1}=16, \quad \gamma_{2}=16
+
+The stable side can instead take the quasi-normal scale elimination (QNSE) form of
+`Sukoriansky, Galperin and Perov, Boundary-Layer Meteorology, 2005
+<https://doi.org/10.1007/s10546-004-6848-6>`_ with ``erf.most.stable_functions = qnse``:
+
+.. math::
+  \Phi = \frac{1 + a\,\zeta}{1 + b\,\zeta}, \quad \Psi = -\frac{a - b}{b}\,\mathrm{ln}(1 + b\,\zeta),
+
+with separate coefficients for momentum and heat (``erf.most.qnse_am``, ``erf.most.qnse_bm``,
+``erf.most.qnse_ah``, ``erf.most.qnse_bh``). The QNSE theory gives eddy viscosities and
+diffusivities as functions of the Richardson number; the rational form in :math:`\zeta` and the
+default coefficients, 2.5 and 0.2 for both momentum and heat, are those of ERF's MRF and YSUNew
+schemes (``erf.qnse_*`` with ``erf.enable_qnse_stable_functions``), not values quoted from the
+paper. The form changes the whole stable side, not only its tail: near neutral
+:math:`\Phi \approx 1 + (a - b)\,\zeta`, a slope of 2.3 with the defaults against the
+Businger-Dyer 5 (observations give 4.7 to 6), so at :math:`\zeta = 0.1` the correction is about
+half the Businger-Dyer one and :math:`u_\star` already moves by a few percent; far from neutral
+:math:`\Phi` tends to :math:`a/b = 12.5`, so the surface stress and heat flux fall off more slowly
+than with the linear form, which is the limit :math:`b \to 0` at :math:`a = \beta`. A choice such
+as :math:`a = 5.2`, :math:`b = 0.2` keeps the Businger-Dyer slope near neutral with a bounded
+:math:`\Phi` (asymptote 26). With :math:`a_h = a_m` and :math:`b_h = b_m`, as in the defaults,
+:math:`\Phi_h = \Phi_m` and the turbulent Prandtl number is 1 on the stable side, as with
+Businger-Dyer; a stability-dependent Prandtl number, the distinguishing feature of QNSE, needs
+heat coefficients of its own. The surface-layer keys are separate from the PBL schemes' keys, which
+the surface layer does not read; ERF prints a warning at start-up when an MRF or YSUNew run sets
+the two differently. The 2 m and 10 m diagnostics hold :math:`\zeta` at 1 with Businger-Dyer and
+at the kernels' bound of 100 with QNSE, whose fold can lie above 1, so that they evaluate the
+profile at the :math:`\zeta` of the flux.
+The unstable side is Businger-Dyer with either choice. The choice applies to the prescribed-flux
+(Moeng) kernels and to their companions: the surface gradients the PBL schemes take from the MOST
+profile at the first cell, the 2 m and 10 m diagnostics, the surface shear production of the
+MYNN TKE, and the immersed wall laws (the legacy law with ``erf.if_stability_correction`` and the
+``fraction_stress`` law). The prescribed-temperature kernels use the Jimenez (2012) functions on
+both sides and refuse the option, as do the adiabatic kernels and the custom, rico and
+bulk_coeff fluxes, which use no stability function. The IBSEB building faces keep the
+Businger-Dyer functions, and the Cloud Chamber its Jimenez pair. A side-face surface layer
+reads its own ``erf.<face>.most.stable_functions``; the immersed wall laws read the
+unqualified ``erf.most.*`` keys only.
 
 Inverting the equations above, the MOST stability parameter,
 
@@ -190,9 +236,10 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.time_average      = BOOL   #USE TIME AVERAGING?
    erf.most.z0                = FLOAT  #SURFACE ROUGHNESS [m]
    erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH) [m]
-   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE POTENTIAL TEMP [K]
+   erf.most.pot_surf_temp     = FLOAT  #SPECIFIED SURFACE POTENTIAL TEMP [K]
+   erf.most.abs_surf_temp     = FLOAT  #SPECIFIED SURFACE ABSOLUTE TEMP [K]
    erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE TEMP FLUX [K-m/s]
-   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE POTENTIAL TEMP CHANGE [K/h]
+   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE TEMP CHANGE [K/h]
    erf.most.surf_moist        = FLOAT  #SPECIFIED SURFACE MOISTURE [-]
    erf.most.surf_moist_flux   = FLOAT  #SPECIFIED SURFACE MOISTURE FLUX [m/s]
    erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
@@ -203,7 +250,7 @@ On the surface-temperature moisture path, when no positive
 ``most.surf_moist`` is available, the surface moisture used in the
 thermodynamic MOST state falls back to the atmospheric value.
 
-When neither ``erf.most.zref`` nor ``erf.most.k_arr_in`` is given, a mesh with terrain-fitted coordinates queries :math:`z_{ref} = 10` m above the surface, while a mesh without them uses the center of the first cell. On a vertically stretched mesh (``erf.grid_stretching_ratio`` or ``erf.terrain_z_levels``) that center, and the cell holding a specified :math:`z_{ref}`, come from the actual z levels rather than from a uniform spacing. A query height that lies exactly on a cell face belongs to the cell above the face, or is interpolated across it when ``erf.most.use_interpolation`` is true. The height in use is printed at start-up (``MOST reference height at level ...``).
+When neither ``erf.most.zref`` nor ``erf.most.k_arr_in`` is given, every mesh uses the center of the first cell above the surface as :math:`z_{ref}`. On a vertically stretched mesh (``erf.grid_stretching_ratio`` or ``erf.terrain_z_levels``) that center, and the cell holding a specified :math:`z_{ref}`, come from the actual z levels rather than from a uniform spacing. On a mesh with terrain-fitted coordinates (which a stretched mesh without ``erf.terrain_type`` becomes) the first cell's height above the surface varies with the terrain, so the default is set column by column: half of the local first-cell thickness, with the query point at that cell's center (no displacement along the surface normal and nothing to interpolate) whichever of ``erf.most.use_normal_vector`` and ``erf.most.use_interpolation`` is set, and on a refined level that level's own first cell. ``erf.most.radius`` must be 0 with the default. A terrain-fitted mesh used to query 10 m above the surface instead; set ``erf.most.zref = 10`` to keep that query. Every terrain-fitted deck without ``erf.most.zref`` changes: when the first cell is thicker than 10 m the same cell's wind is used, but the log law now takes the cell center height rather than 10 m, and when it is thinner the cell changes too. The YSU scheme requires the reference at 10 m, so on a terrain-fitted mesh it needs ``erf.most.zref = 10`` with ``erf.most.use_interpolation = true``. A specified query height that lies exactly on a cell face belongs to the cell above the face, or is interpolated across it when ``erf.most.use_interpolation`` is true. The height in use, or its range over the columns, is printed at start-up (``MOST reference height at level ...``). It is always the height above the surface; on the low z face of a constant-dz mesh, however, a value given in ``erf.most.zref`` is read as an absolute z, the height plus ``geometry.prob_lo[2]``, and ``erf.most.k_arr_in`` as an absolute cell index.
 
 We now consider two concrete examples. To employ an instantaneous ``planar average`` at a specified vertical height above the bottom surface, one would specify:
 
@@ -268,6 +315,53 @@ boundary layer depth, ``erf.most.include_wstar`` requires ``erf.most.pblh_calc``
 name a PBL height scheme; leaving it at its default of ``none`` is an error, since no
 boundary layer depth would ever be diagnosed.
 
+Limits on the similarity solution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In every flux kernel the log-law brackets :math:`C - \psi_m` and :math:`C - \psi_h`, with
+:math:`C = \ln(z_{ref}/z_0)`, are held at or above :math:`C/2` clamped to
+:math:`[1/2,\,1]`. In strongly unstable, weak-wind air over rough ground :math:`\psi` exceeds
+:math:`C`, and without the floor :math:`u_{\star}` turns negative and, for a prescribed heat
+flux, the diagnosed surface temperature falls below the air under an upward flux. The floor
+is 1 wherever :math:`z_{ref} \geq e^2 z_0`, stays under the neutral value :math:`C` wherever
+:math:`z_{ref} \geq e^{1/2} z_0`, and keeps :math:`u_{\star}` positive and finite where the
+roughness length reaches or exceeds :math:`z_{ref}` (:math:`C \leq 0`, e.g. tall canopies on
+a fine vertical grid). The value of the floor is tied to the 0.5 under-relaxation of the
+:math:`u_{\star}` iteration, which converges on the unstable branch only for brackets above
+about 0.8.
+
+With a prescribed surface temperature, :math:`z_{ref}/L` solves
+:math:`z_{ref}/L = Ri_b\,(C - \psi_m)^2/(C - \psi_h)` by under-relaxed iteration. In stable air
+with :math:`z_0` comparable to or above :math:`z_{ref}` the residual of this equation can come
+within the tolerance of zero without crossing it, and the iteration then creeps instead of
+converging. If it has not converged after the maximum number of passes, the constant-roughness
+kernels (``surface_temp`` and its EB counterpart) solve the same equation by bracketing and
+bisection, starting from where the iteration started, instead of stopping the run.
+
+A prescribed *stable* flux (``erf.most.surf_temp_flux`` < 0) can only be carried down to a
+minimum wind at :math:`z_{ref}`: with the Businger-Dyer functions the wind a friction velocity
+supports, :math:`u_{\star}(C + 5\,z_{ref}/L)/\kappa`, is smallest at :math:`z_{ref}/L = C/10`,
+and below that wind the flux has no similarity solution (Basu et al., "An inconvenient 'truth'
+about using sensible heat flux as a surface boundary condition in models under stably
+stratified regimes", Boundary-Layer Meteorol., 2008). Where the bracket floor binds first
+(:math:`C < 1/3`), the minimum is instead where :math:`C + 5\,z_{ref}/L` reaches the floor.
+With the QNSE functions the supported wind is :math:`u_{\star}(C + c\,\mathrm{ln}(1 + b_m z_{ref}/L))/\kappa`
+with :math:`c = (a_m - b_m)/b_m`; its first minimum, found by a safeguarded Newton iteration on
+the bracket where the supported wind falls, sits at a lower wind
+than Businger-Dyer's (0.53 against 0.70 m/s at :math:`z_{ref}` = 4.43 m, :math:`z_0` = 0.5 m and
+a flux of -0.0025 K m/s), and for :math:`C` above :math:`c\,(2 - \mathrm{ln}\,3)` (10.4 with the
+default coefficients) there is none below the bound :math:`z_{ref}/L = 100` of the kernels, which
+then hold :math:`z_{ref}/L` there and reduce the flux as at a fold.
+Wherever the wind is below the minimum, for example under a forest canopy that slows the
+first-cell wind to about 1 m/s, ERF holds :math:`z_{ref}/L` at the fold and applies only the
+virtual heat flux that the wind carries there, which is weaker than the prescribed one. Only
+the downward prescribed components are reduced: a prescribed evaporation flux that offsets
+part of the cooling is applied in full, and so is an upward sensible flux when a prescribed
+condensation flux makes the net flux stable. Prescribing the surface temperature
+(``erf.most.pot_surf_temp``, optionally with ``erf.most.surf_heating_rate`` to cool it in
+time, as the GABLS1 and Stable_ABL_Flat inputs do) avoids this limit. For weak-wind
+convective runs, ``erf.most.include_wstar`` adds the convective velocity scale to the wind and
+keeps the solution away from the bracket floor.
+
 On a refined level, the ``MYNN25`` diagnostic runs on the level's own columns only when its
 grids run from the ground to the top of the domain in every column. A refined region that
 ends lower (a patch near the ground, say) cannot see the top of a boundary layer deeper than
@@ -311,7 +405,7 @@ For example,
     ylo.type = "surface_layer"
 
     erf.xlo.surface_layer.flux_type = MOENG
-    erf.xlo.most.surf_temp = 289.5
+    erf.xlo.most.pot_surf_temp = 289.5
     erf.xlo.most.surf_moist = 0.00765
     erf.xlo.most.z0 = 0.000035
     erf.xlo.most.zref = 0.03125
@@ -319,7 +413,7 @@ For example,
     erf.xlo.most.radius = 0
 
     erf.ylo.surface_layer.flux_type = MOENG
-    erf.ylo.most.surf_temp = 289.5
+    erf.ylo.most.pot_surf_temp = 289.5
     erf.ylo.most.surf_moist = 0.00765
     erf.ylo.most.z0 = 0.000035
     erf.ylo.most.zref = 0.03125
@@ -343,7 +437,7 @@ an error and aborts, since there is no way to tell which one was meant.
 Note that not all existing options are supported when using MOST on other faces (such as interpolation and time averaging).
 Currently the `MOENG` flux type is supported on all faces; ``bulk_coeff``,
 ``custom`` and ``rico`` abort anywhere else.  Of the surface thermodynamic
-pathways, only the prescribed surface temperature (``most.surf_temp``) carries the
+pathways, only the prescribed surface potential temperature (``most.pot_surf_temp``) carries the
 orientation through to the flux, so a prescribed surface heat flux
 (``most.surf_temp_flux``), the fully adiabatic case, and any variable sea
 roughness (``most.roughness_type_sea`` other than ``constant`` over water cells)
@@ -382,7 +476,12 @@ where ``erf.most.sfc_file`` is the path to a text file with the following exampl
    205.542 295.63  43.55  88.67 0.00
    205.583 298.40 104.08 154.39 0.00
 
-This mode implies ``erf.most.flux_type = custom`` and is not compatible with an active land surface model or EB.
+``H`` and ``LE`` are dynamic fluxes and are applied as :math:`H/c_{p}` and :math:`LE/L_{v}`;
+``TAU`` is the kinematic stress :math:`u_{\star}^{2}` and is multiplied by the local density, so the
+applied surface stress is :math:`\rho \, \mathrm{TAU}`.
+
+This mode implies ``erf.most.flux_type = custom`` and is not compatible with an active land surface model, EB,
+or ``erf.most.rhosurf``.
 The existing text-file forcing restriction with EB remains in effect.
 
 
@@ -405,8 +504,11 @@ or purely time and SST information, such as:
 The SST column in this file is absolute temperature in kelvin. ERF converts
 it to the SurfaceLayer's canonical potential-temperature field using the
 physical surface pressure diagnosed from the lowest atmospheric cell. In
-contrast, ``erf.most.surf_temp`` and ``erf.most.surf_heating_rate`` are already
-specified in the SurfaceLayer potential-temperature convention. SST and
+contrast, ``erf.most.pot_surf_temp`` and ``erf.most.surf_heating_rate`` are already
+specified in the SurfaceLayer potential-temperature convention, while
+``erf.most.abs_surf_temp`` (with ``erf.most.surf_heating_rate`` then a rate of change of
+the absolute temperature) is converted every step with the same diagnosed surface
+pressure. ``erf.most.surf_temp`` is the deprecated spelling of ``erf.most.pot_surf_temp``. SST and
 skin-temperature data from WRFInput, wrflowinp, and Metgrid are normalized to
 that same convention at ingestion; coupled SST is converted when it enters
 the SurfaceLayer, while Noah-MP's absolute ``t_sfc`` remains owned by the

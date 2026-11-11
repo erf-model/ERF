@@ -42,7 +42,8 @@ ComputeTurbulentViscosity (double dt,
                            const eb_& ebfact,
                            bool vert_only = false,
                            const amrex::MultiFab* qheating_rates = nullptr,
-                           const amrex::MultiFab* terrain_blank = nullptr);
+                           const amrex::MultiFab* terrain_blank = nullptr,
+                           const amrex::MultiFab* forest_drag = nullptr);
 
 /** Compute LES turbulent viscosity and dissipation.
  *
@@ -64,6 +65,34 @@ ComputeTurbulentViscosityLES (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& T
                               const MoistureComponentIndices& moisture_indices,
                               const amrex::MultiFab* xvel = nullptr,
                               const amrex::MultiFab* yvel = nullptr);
+
+/**
+ * Compute the RANS eddy viscosity, length scale and dissipation (k-eqn, Axell & Liungman 2001).
+ * ib_blank is the solid fraction of the fraction-stress immersed wall law (else nullptr), and
+ * flat_wall_diss (erf.if_flat_wall_dissipation) makes its partial wall cells dissipate with the
+ * length of flat ground's first cell. Declared here for the unit tests; ComputeTurbulentViscosity
+ * is the caller in the code.
+ */
+void
+ComputeTurbulentViscosityRANS (int level,
+                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                               const amrex::MultiFab& cons_in,
+                               const amrex::MultiFab& wdist,
+                               amrex::MultiFab& eddyViscosity,
+                               amrex::MultiFab& Diss,
+                               const amrex::Geometry& geom,
+                               bool use_terrain_fitted_coords,
+                               const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                               const TurbChoice& turbChoice,
+                               const amrex::Real const_grav,
+                               std::unique_ptr<SurfaceLayer>& SurfLayer,
+                               const amrex::MultiFab* z_0,
+                               const CanopyTurbulence& canopy,
+                               const amrex::MultiFab* forest_drag,
+                               const amrex::MultiFab* ib_blank = nullptr,
+                               bool flat_wall_diss = false,
+                               amrex::Real ib_small_volfrac = amrex::Real(0.005),
+                               amrex::Real ib_z0 = amrex::Real(0.0));
 
 /** Compute LES turbulent viscosity and heat fluxes for embedded-boundary cells. */
 void
@@ -123,6 +152,20 @@ ComputeSmnSmn (int& i, int& j, int& k,
                        + two*s12bar*s12bar + two*s13bar*s13bar + two*s23bar*s23bar;
 
     return SmnSmn;
+}
+
+/** The six strain components ComputeSmnSmn reads, as const arrays of one box. */
+struct StrainArrays {
+    amrex::Array4<amrex::Real const> tau11, tau22, tau33, tau12, tau13, tau23;
+};
+
+/** Strain arrays of the box of mfi from the Tau_lev container (tau11..tau23 of TauType). */
+inline StrainArrays
+strain_arrays (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev, const amrex::MFIter& mfi)
+{
+    return { Tau_lev[TauType::tau11]->const_array(mfi), Tau_lev[TauType::tau22]->const_array(mfi),
+             Tau_lev[TauType::tau33]->const_array(mfi), Tau_lev[TauType::tau12]->const_array(mfi),
+             Tau_lev[TauType::tau13]->const_array(mfi), Tau_lev[TauType::tau23]->const_array(mfi) };
 }
 
 /**

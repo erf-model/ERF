@@ -6,6 +6,7 @@
 
 #include "ERF.H"
 #include "ERF_EOS.H"
+#include "ERF_MoistUtils.H"
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -28,7 +29,7 @@ ERF::write_1D_profiles (double time)
         Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w;
         Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs, h_avg_Kmv, h_avg_Khv;
         Gpu::HostVector<Real> h_avg_qv, h_avg_qc, h_avg_qr, h_avg_wqv, h_avg_wqc, h_avg_wqr, h_avg_qi, h_avg_qs, h_avg_qg;
-        Gpu::HostVector<Real> h_avg_wthv;
+        Gpu::HostVector<Real> h_avg_wthv, h_avg_thv;
         Gpu::HostVector<Real> h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth;
         Gpu::HostVector<Real> h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww;
         Gpu::HostVector<Real> h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw;
@@ -50,7 +51,7 @@ ERF::write_1D_profiles (double time)
                                  h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth,
                                  h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw,
                                  h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw,
-                                 h_avg_wthv);
+                                 h_avg_wthv, h_avg_thv);
         }
 
         if (NumDataLogs() > 3 && time > zero) {
@@ -80,7 +81,7 @@ ERF::write_1D_profiles (double time)
                       if (zlevels_stag[0].size() > 1) {
                           z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + myhalf)* dx[2];
+                          z = geom[0].ProbLo(2) + (k + myhalf)* dx[2];
                       }
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -103,9 +104,9 @@ ERF::write_1D_profiles (double time)
                       if (zlevels_stag[0].size() > 1) {
                           z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + myhalf)* dx[2];
+                          z = geom[0].ProbLo(2) + (k + myhalf)* dx[2];
                       }
-                      Real thv = h_avg_th[k] * (one + epsv*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
+                      Real thv = h_avg_thv[k];
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]  << " "
@@ -158,7 +159,7 @@ ERF::write_1D_profiles (double time)
                       if (zlevels_stag[0].size() > 1) {
                           z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + myhalf)* dx[2];
+                          z = geom[0].ProbLo(2) + (k + myhalf)* dx[2];
                       }
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -180,7 +181,7 @@ ERF::write_1D_profiles (double time)
                         if (zlevels_stag[0].size() > 1) {
                             z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                         } else {
-                            z = (k + myhalf)* dx[2];
+                            z = geom[0].ProbLo(2) + (k + myhalf)* dx[2];
                         }
                         data_log4 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                   << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -236,6 +237,7 @@ ERF::write_1D_profiles (double time)
  * @param h_avg_pv Profile for pressure perturbation * y-velocity on Host
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
  * @param h_avg_wthv Profile for vertical velocity * virtual potential temperature on Host
+ * @param h_avg_thv Profile for virtual potential temperature (GetThetav per cell, then averaged) on Host
  */
 void
 ERF::derive_diag_profiles (double /*time*/,
@@ -252,7 +254,8 @@ ERF::derive_diag_profiles (double /*time*/,
                            Gpu::HostVector<Real>& h_avg_uiuiu, Gpu::HostVector<Real>& h_avg_uiuiv, Gpu::HostVector<Real>& h_avg_uiuiw,
                            Gpu::HostVector<Real>& h_avg_p,
                            Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw,
-                           Gpu::HostVector<Real>& h_avg_wthv)
+                           Gpu::HostVector<Real>& h_avg_wthv,
+                           Gpu::HostVector<Real>& h_avg_thv)
 {
     // We assume that this is always called at level 0
     int lev = 0;
@@ -263,9 +266,9 @@ ERF::derive_diag_profiles (double /*time*/,
     //                  0      1     2    3    4   5   6   7   8   9  10   11   12   13
     //                thth, uiuiu, uiuiv, uiuiw, p, pu, pv, pw, qv, qc, qr, wqv, wqc, wqr,
     //                  14     15     16     17 18  19  20  21  22  23  24   25   26   27
-    //                  qi, qs, qg, wthv
-    //                  28  29  30    31
-    MultiFab mf_out(grids[lev], dmap[lev], 32, 0);
+    //                  qi, qs, qg, wthv, thv
+    //                  28  29  30    31   32
+    MultiFab mf_out(grids[lev], dmap[lev], 33, 0);
 
     MultiFab mf_vels(grids[lev], dmap[lev], AMREX_SPACEDIM, 0);
 
@@ -373,6 +376,7 @@ ERF::derive_diag_profiles (double /*time*/,
             fab_arr(i, j, k,12) = v_cc_arr(i,j,k) * theta; // v*th
             fab_arr(i, j, k,13) = w_cc_arr(i,j,k) * theta; // w*th
             fab_arr(i, j, k,14) = theta * theta;           // th*th
+            fab_arr(i, j, k,32) = theta;                   // thv (overwritten below when moist)
 
             // if the number of fields is changed above, then be sure to update
             // the following def!
@@ -424,6 +428,7 @@ ERF::derive_diag_profiles (double /*time*/,
             int rhoqs_comp = solverChoice.moisture_indices.qs;
             int rhoqg_comp = solverChoice.moisture_indices.qg;
             AMREX_ALWAYS_ASSERT( (rhoqv_comp > -1) && (rhoqc_comp > -1) );
+            const MoistureComponentIndices moisture_indices = solverChoice.moisture_indices;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -450,10 +455,11 @@ ERF::derive_diag_profiles (double /*time*/,
                     cons_arr(i,j,k,rhoqs_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qs
                 fab_arr(i, j, k,30) = (rhoqg_comp > -1) ?
                     cons_arr(i,j,k,rhoqg_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qg
-                Real ql    = qc + qr;
-                Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
-                Real thv   = theta * (one + epsv*qv - ql);
+                // theta_v per cell from the shared helper (all condensate loading), so
+                // that <thv> below is the mean of theta_v, not theta_v of the means
+                Real thv = GetThetav(i, j, k, cons_arr, moisture_indices);
                 fab_arr(i, j, k,31) = w_cc_arr(i,j,k) * thv; // w*thv
+                fab_arr(i, j, k,32) = thv;                   // thv
             });
         } // mfi
     } // use_moisture
@@ -490,6 +496,7 @@ ERF::derive_diag_profiles (double /*time*/,
     h_avg_qs    = sumToLine(mf_out,29,1,domain,zdir);
     h_avg_qg    = sumToLine(mf_out,30,1,domain,zdir);
     h_avg_wthv  = sumToLine(mf_out,31,1,domain,zdir);
+    h_avg_thv   = sumToLine(mf_out,32,1,domain,zdir);
 
     // Divide by the total number of cells we are averaging over
     int h_avg_u_size = static_cast<int>(h_avg_u.size());
@@ -526,6 +533,7 @@ ERF::derive_diag_profiles (double /*time*/,
         h_avg_qs[k]    /= area_z;
         h_avg_qg[k]    /= area_z;
         h_avg_wthv[k]  /= area_z;
+        h_avg_thv[k]   /= area_z;
     }
 
 #if 0

@@ -176,15 +176,15 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
         // Calculate new intermediate body force with updated gradp
         if (thin_xforce[lev]) {
             MultiFab::Copy(   deltaf[0][0], fluxes[0][0], 0, 0, 1, 0);
-            ApplyInvertedMask(deltaf[0][0], *xflux_imask[0]);
+            ApplyInvertedMask(deltaf[0][0], *xflux_imask[lev]);
         }
         if (thin_yforce[lev]) {
             MultiFab::Copy(   deltaf[0][1], fluxes[0][1], 0, 0, 1, 0);
-            ApplyInvertedMask(deltaf[0][1], *yflux_imask[0]);
+            ApplyInvertedMask(deltaf[0][1], *yflux_imask[lev]);
         }
         if (thin_zforce[lev]) {
             MultiFab::Copy(   deltaf[0][2], fluxes[0][2], 0, 0, 1, 0);
-            ApplyInvertedMask(deltaf[0][2], *zflux_imask[0]);
+            ApplyInvertedMask(deltaf[0][2], *zflux_imask[lev]);
         }
 
         // DEBUG
@@ -203,8 +203,15 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
         //            });
         //        }
 
-        // Update pressure variable with phi -- note that phi is change in pressure, not the full pressure
-        MultiFab::Saxpy(pp_inc[lev], one, phi[0],0,0,1,0);
+        // Update pressure variable with phi -- note that phi is dt times the change in pressure,
+        // not the full pressure, so divide by dt as project_momenta does
+        MultiFab::Saxpy(pp_inc[lev], one/l_dt, phi[0],0,0,1,0);
+
+        // Add this pass's change to gradp -- note that fluxes is dt * change in Gp.  Every pass
+        // adds its own increment to pp_inc and to the velocity, so gradp takes every pass too
+        MultiFab::Saxpy(gradp[lev][GpVars::gpx],-one/l_dt,fluxes[0][0],0,0,1,0);
+        MultiFab::Saxpy(gradp[lev][GpVars::gpy],-one/l_dt,fluxes[0][1],0,0,1,0);
+        MultiFab::Saxpy(gradp[lev][GpVars::gpz],-one/l_dt,fluxes[0][2],0,0,1,0);
 
         // Subtract grad(phi) from the velocity components
         Real beta = one;
@@ -212,23 +219,17 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
         MultiFab::Saxpy(vmf[Vars::yvel], beta, fluxes[0][1], 0, 0, 1, 0);
         MultiFab::Saxpy(vmf[Vars::zvel], beta, fluxes[0][2], 0, 0, 1, 0);
         if (thin_xforce[lev]) {
-            ApplyMask(vmf[Vars::xvel], *xflux_imask[0]);
+            ApplyMask(vmf[Vars::xvel], *xflux_imask[lev]);
         }
         if (thin_yforce[lev]) {
-            ApplyMask(vmf[Vars::yvel], *yflux_imask[0]);
+            ApplyMask(vmf[Vars::yvel], *yflux_imask[lev]);
         }
         if (thin_zforce[lev]) {
-            ApplyMask(vmf[Vars::zvel], *zflux_imask[0]);
+            ApplyMask(vmf[Vars::zvel], *zflux_imask[lev]);
         }
     } // itp: pressure-force iterations
 
-    // ****************************************************************************
-    // Define gradp from fluxes -- note that fluxes is dt * change in Gp
-    // ****************************************************************************
-    MultiFab::Saxpy(gradp[lev][GpVars::gpx],-one/l_dt,fluxes[0][0],0,0,1,0);
-    MultiFab::Saxpy(gradp[lev][GpVars::gpy],-one/l_dt,fluxes[0][1],0,0,1,0);
-    MultiFab::Saxpy(gradp[lev][GpVars::gpz],-one/l_dt,fluxes[0][2],0,0,1,0);
-
+    // gradp now holds the change from every corrector pass
     gradp[lev][GpVars::gpx].FillBoundary(geom_tmp[0].periodicity());
     gradp[lev][GpVars::gpy].FillBoundary(geom_tmp[0].periodicity());
     gradp[lev][GpVars::gpz].FillBoundary(geom_tmp[0].periodicity());
