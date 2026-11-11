@@ -472,13 +472,11 @@ retains ownership of spectral-bin coordinates, mass/number admissibility,
 and cloud/rain projection. The inert tracer remains a small proof consumer
 of the shared transport infrastructure.
 
-The code also contains independently tested SBM-specific operators for
-conservative mapped restriction, dry-air-relative prolongation, explicit
-old/new spectral time views, and an all-component accepted-transfer record.
-These methods are not yet connected to the complete adaptive-grid lifecycle.
-Operational SBM simulations remain single-level and triply periodic;
-coarse/fine time interpolation, flux correction, regridding, multilevel
-restart, and nonperiodic spectral boundaries are not yet available.
+The SBM-specific operators for conservative mapped restriction,
+dry-air-relative prolongation, explicit old/new spectral time views, and the
+accepted interface transfer connect SBM to ERF's adaptive-grid lifecycle on
+a periodic two-level hierarchy (see :ref:`sec:SBMMultilevel`). Nonperiodic
+spectral boundaries are not yet available.
 
 The auxiliary layer addresses transport between atmospheric grid cells. It
 does not define how an SBM particle distribution is represented or remapped in

@@ -1939,12 +1939,17 @@ TEST(SBMAMRYA, DirectAcceptedStageRatesMatchCompletedIntegralReference)
     const double fine_dt = (coarse_end - coarse_begin) / fine_substeps;
 
     for (const auto method : {erf_auxiliary::HostIntegrator::CompressibleRK3,
-                              erf_auxiliary::HostIntegrator::AnelasticHeun}) {
-        const int method_id = method ==
-            erf_auxiliary::HostIntegrator::CompressibleRK3 ? 0 : 1;
+                              erf_auxiliary::HostIntegrator::AnelasticHeun,
+                              erf_auxiliary::HostIntegrator::AnelasticMidPoint}) {
+        const int method_id =
+            method == erf_auxiliary::HostIntegrator::CompressibleRK3 ? 0
+            : method == erf_auxiliary::HostIntegrator::AnelasticHeun ? 1 : 2;
         const int stages = method_id == 0 ? 3 : 2;
+        // RK3 and MidPoint restart every stage from the old state, so only
+        // the final stage's rate is the step's flux; Heun averages its two.
         const auto stage_weight = [=] (int stage, double dt) {
             if (method_id == 0) return stage == 2 ? dt : 0.0;
+            if (method_id == 2) return stage == 1 ? dt : 0.0;
             return 0.5 * dt;
         };
 
@@ -1973,6 +1978,11 @@ TEST(SBMAMRYA, DirectAcceptedStageRatesMatchCompletedIntegralReference)
                     coarse_side, method, stage, step_begin, diagnostic))
                     << diagnostic;
                 const double weight = stage_weight(stage, dt);
+                erf_auxiliary::AuxiliaryStageRecipe recipe;
+                ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(
+                    method, stage, dt, recipe, diagnostic)) << diagnostic;
+                EXPECT_EQ(recipe.completed_ledger_time, weight)
+                    << "method=" << method_id << " stage=" << stage;
                 // Reverse chunk order on alternating stages/substeps.  The
                 // global component identity must be independent of traversal.
                 for (int chunk = 1; chunk >= 0; --chunk) {
@@ -3085,6 +3095,445 @@ TEST(SBMAMRYA, ReportsDirectAndReferenceAllocationCensus)
             }
         }
     }
+}
+
+// Gate 4B regrid fixture: the fine level moves one parent to the right.
+// Parents i=1 are released, i=2 retained, and i=3 newly refined.
+constexpr double regrid_time = 0.5;
+
+Box regrid_old_fine_box () { return Box(IntVect(2, 2, 2), IntVect(5, 5, 5)); }
+Box regrid_new_fine_box () { return Box(IntVect(4, 2, 2), IntVect(7, 5, 5)); }
+Box regrid_retained_box () { return Box(IntVect(4, 2, 2), IntVect(5, 5, 5)); }
+Box regrid_prolonged_box () { return Box(IntVect(6, 2, 2), IntVect(7, 5, 5)); }
+
+// Every child's mapped carrier equals its parent's: omega_c rho_c = rho_P.
+void fill_regrid_fine_carriers (MultiFab& density, MultiFab& measure)
+{
+    for (MFIter mfi(density, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto rho = density.array(mfi);
+        const auto omega = measure.array(mfi);
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const int parity = (i % 2 + j % 2 + k % 2) % 2;
+            const Real sign = parity == 0 ? Real(-1.0) : Real(1.0);
+            rho(i, j, k, 0) = prolong_fine_density(i, j, k);
+            omega(i, j, k, 0) = Real(1.0) + Real(0.2) * sign;
+        });
+    }
+}
+
+struct RegridFixture {
+    erf_sbm::SBMLayout layout = make_transfer_layout();
+    Geometry coarse_geom = make_geometry(coarse_domain());
+    Geometry fine_geom = make_geometry(amrex::refine(coarse_domain(), IntVect(2)));
+    MultiFab coarse_rho, coarse_omega, coarse_state, unsynchronized_coarse_state;
+    MultiFab old_rho, old_omega, old_state;
+    MultiFab new_rho, new_omega;
+
+    RegridFixture (const BoxArray& old_ba, const DistributionMapping& old_dm,
+                   const BoxArray& new_ba, const DistributionMapping& new_dm)
+    {
+        const BoxArray coarse_ba(coarse_domain());
+        const DistributionMapping coarse_dm(coarse_ba);
+        const int ncomp = layout.ncomp();
+        coarse_rho.define(coarse_ba, coarse_dm, 1, 0);
+        coarse_omega.define(coarse_ba, coarse_dm, 1, 0);
+        coarse_state.define(coarse_ba, coarse_dm, ncomp, 0);
+        unsynchronized_coarse_state.define(coarse_ba, coarse_dm, ncomp, 0);
+        fill_carriers(coarse_rho, coarse_omega, true);
+        coarse_omega.setVal(Real(1.0));
+        fill_spectrum(unsynchronized_coarse_state, coarse_rho, layout);
+
+        old_rho.define(old_ba, old_dm, 1, 0);
+        old_omega.define(old_ba, old_dm, 1, 0);
+        old_state.define(old_ba, old_dm, ncomp, 0);
+        fill_regrid_fine_carriers(old_rho, old_omega);
+        // Fine values use fine indices, so they differ from any parent prolongation.
+        fill_spectrum(old_state, old_rho, layout);
+
+        new_rho.define(new_ba, new_dm, 1, 0);
+        new_omega.define(new_ba, new_dm, 1, 0);
+        fill_regrid_fine_carriers(new_rho, new_omega);
+
+        // The last synchronization restricted the old fine level onto its parents.
+        std::string diagnostic;
+        if (!erf_sbm::RestrictMappedSpectrum(
+                layout, timed_view(old_state, old_rho, old_omega, regrid_time),
+                timed_view(unsynchronized_coarse_state, coarse_rho, coarse_omega,
+                           regrid_time),
+                IntVect(2), 0, coarse_state, diagnostic)) {
+            ADD_FAILURE() << diagnostic;
+        }
+    }
+
+    [[nodiscard]] erf_sbm::SBMAMRStateView coarse_view () const
+    {
+        return timed_view(coarse_state, coarse_rho, coarse_omega, regrid_time);
+    }
+
+    bool remap (const MultiFab& retained, MultiFab& candidate,
+                std::string& diagnostic, const double fine_time = regrid_time,
+                erf_sbm::SBMTransferAllocationCensus* census = nullptr) const
+    {
+        return erf_sbm::RemapRegriddedSpectrumPrivate(
+            layout, coarse_view(), retained, new_rho, 0, new_omega, 0, fine_time,
+            coarse_geom, fine_geom, IntVect(2), 1, candidate, diagnostic, 16,
+            nullptr, nullptr, census);
+    }
+};
+
+// Copy the valid cells of field inside region into a single-box MultiFab.
+MultiFab restrict_to_box (const MultiFab& field, const Box& region)
+{
+    const BoxArray region_ba(region);
+    MultiFab result(region_ba, DistributionMapping(region_ba), field.nComp(), 0);
+    result.setVal(Real(0.0));
+    result.ParallelCopy(field, 0, 0, field.nComp());
+    return result;
+}
+
+// Composite mapped inventory; a fine child carries 1/8 of a parent volume.
+std::vector<Real> composite_mapped_inventory (const MultiFab& coarse_state,
+                                              const MultiFab& coarse_omega,
+                                              const MultiFab& fine_state,
+                                              const MultiFab& fine_omega)
+{
+    MultiFab fine_ones(fine_state.boxArray(), fine_state.DistributionMap(), 1, 0);
+    MultiFab covered(coarse_state.boxArray(), coarse_state.DistributionMap(), 1, 0);
+    fine_ones.setVal(Real(1.0));
+    covered.setVal(Real(0.0));
+    amrex::average_down(fine_ones, covered, 0, 1, IntVect(2));
+    const int ncomp = coarse_state.nComp();
+    MultiFab coarse_amount(coarse_state.boxArray(), coarse_state.DistributionMap(),
+                           ncomp, 0);
+    MultiFab fine_amount(fine_state.boxArray(), fine_state.DistributionMap(),
+                         ncomp, 0);
+    for (MFIter mfi(coarse_amount, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto u = coarse_state.const_array(mfi);
+        const auto omega = coarse_omega.const_array(mfi);
+        const auto mask = covered.const_array(mfi);
+        const auto h = coarse_amount.array(mfi);
+        amrex::ParallelFor(mfi.tilebox(), ncomp,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                h(i, j, k, n) = (Real(1.0) - mask(i, j, k, 0)) *
+                                omega(i, j, k, 0) * u(i, j, k, n);
+            });
+    }
+    for (MFIter mfi(fine_amount, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto u = fine_state.const_array(mfi);
+        const auto omega = fine_omega.const_array(mfi);
+        const auto h = fine_amount.array(mfi);
+        amrex::ParallelFor(mfi.tilebox(), ncomp,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                h(i, j, k, n) = omega(i, j, k, 0) * u(i, j, k, n) / Real(8.0);
+            });
+    }
+    std::vector<Real> inventory(static_cast<std::size_t>(ncomp));
+    for (int n = 0; n < ncomp; ++n) {
+        inventory[static_cast<std::size_t>(n)] =
+            coarse_amount.sum(n) + fine_amount.sum(n);
+    }
+    return inventory;
+}
+
+// Each new fine cell's expected value from its parent's dry-air-relative
+// state, and the parent amount U copied unchanged (the negative control).
+void fill_regrid_parent_expectations (MultiFab& ratio_expected,
+                                      MultiFab& copied_parent_u,
+                                      const MultiFab& fine_rho,
+                                      const ComponentOffsets& offsets)
+{
+    const int ncomp = ratio_expected.nComp();
+    for (MFIter mfi(ratio_expected, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto rho = fine_rho.const_array(mfi);
+        const auto z_parent = ratio_expected.array(mfi);
+        const auto u_parent = copied_parent_u.array(mfi);
+        amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            for (int n = 0; n < ncomp; ++n) {
+                const Real z = base_component(n, i / 2, j / 2, k / 2, offsets, false);
+                z_parent(i, j, k, n) = rho(i, j, k, 0) * z;
+                u_parent(i, j, k, n) = coarse_density(i / 2, j / 2, k / 2) * z;
+            }
+        });
+    }
+}
+
+TEST(SBMAMRRegrid, CellCountsClassifyRetainedProlongedAndReleasedCells)
+{
+    const BoxArray old_ba(regrid_old_fine_box());
+    const BoxArray new_ba(regrid_new_fine_box());
+    const auto counts = erf_sbm::CountRegridCells(old_ba, new_ba);
+    EXPECT_EQ(counts.cells, 64);
+    EXPECT_EQ(counts.retained, regrid_retained_box().numPts());
+    EXPECT_EQ(counts.prolonged, regrid_prolonged_box().numPts());
+    EXPECT_EQ(counts.released, 32);
+    const auto created = erf_sbm::CountRegridCells(BoxArray(), new_ba);
+    EXPECT_EQ(created.retained, 0);
+    EXPECT_EQ(created.prolonged, 64);
+}
+
+TEST(SBMAMRRegrid, RetainedCellsAreBitwiseAndNewCellsCarryTheParentRatio)
+{
+    const BoxArray old_ba(regrid_old_fine_box());
+    const BoxArray new_ba(regrid_new_fine_box());
+    const RegridFixture f(old_ba, DistributionMapping(old_ba),
+                          new_ba, DistributionMapping(new_ba));
+    const int ncomp = f.layout.ncomp();
+    MultiFab candidate(new_ba, DistributionMapping(new_ba), ncomp, 0);
+    candidate.setVal(Real(77.0));
+    std::string diagnostic;
+    ASSERT_TRUE(f.remap(f.old_state, candidate, diagnostic)) << diagnostic;
+    ASSERT_TRUE(erf_sbm::authoritative_state_admissible(
+        candidate, f.layout, 1, &diagnostic)) << diagnostic;
+
+    // Retained cells keep the accepted fine values bit for bit.
+    expect_same_values(restrict_to_box(candidate, regrid_retained_box()),
+                       restrict_to_box(f.old_state, regrid_retained_box()));
+
+    // New cells carry their never-refined parent's dry-air-relative state.
+    const ComponentOffsets offsets = offsets_for(f.layout);
+    MultiFab expected(new_ba, DistributionMapping(new_ba), ncomp, 0);
+    MultiFab copied_parent_u(new_ba, DistributionMapping(new_ba), ncomp, 0);
+    fill_regrid_parent_expectations(expected, copied_parent_u, f.new_rho, offsets);
+    const MultiFab prolonged = restrict_to_box(candidate, regrid_prolonged_box());
+    const MultiFab ratio_expected = restrict_to_box(expected, regrid_prolonged_box());
+    const MultiFab copy_expected = restrict_to_box(copied_parent_u, regrid_prolonged_box());
+    for (int n = 0; n < ncomp; ++n) {
+        MultiFab error(prolonged.boxArray(), prolonged.DistributionMap(), 1, 0);
+        MultiFab::Copy(error, prolonged, n, 0, 1, 0);
+        MultiFab::Subtract(error, ratio_expected, n, 0, 1, 0);
+        const Real scale = std::max(Real(1.0), ratio_expected.norm0(n));
+        EXPECT_LE(error.norm0(0), Real(64.0) * std::numeric_limits<Real>::epsilon() * scale)
+            << "component=" << n;
+        // Negative control: copying the parent amount U, not its ratio,
+        // misses the children's 20% density variation.
+        MultiFab::Copy(error, prolonged, n, 0, 1, 0);
+        MultiFab::Subtract(error, copy_expected, n, 0, 1, 0);
+        if (ratio_expected.norm0(n) > Real(0.0)) {
+            EXPECT_GT(error.norm0(0), Real(0.1) * ratio_expected.norm0(n))
+                << "component=" << n;
+        }
+    }
+}
+
+TEST(SBMAMRRegrid, CompositeInventoryIsConservedAcrossRetainedNewAndReleasedParents)
+{
+    const BoxArray old_ba(regrid_old_fine_box());
+    const BoxArray new_ba(regrid_new_fine_box());
+    const RegridFixture f(old_ba, DistributionMapping(old_ba),
+                          new_ba, DistributionMapping(new_ba));
+    MultiFab candidate(new_ba, DistributionMapping(new_ba), f.layout.ncomp(), 0);
+    std::string diagnostic;
+    ASSERT_TRUE(f.remap(f.old_state, candidate, diagnostic)) << diagnostic;
+
+    const auto before = composite_mapped_inventory(f.coarse_state, f.coarse_omega,
+                                                   f.old_state, f.old_omega);
+    const auto after = composite_mapped_inventory(f.coarse_state, f.coarse_omega,
+                                                  candidate, f.new_omega);
+    // Negative control: without the synchronization that restricted the
+    // released parents, the same regrid does not conserve the composite.
+    const auto unsynchronized = composite_mapped_inventory(
+        f.unsynchronized_coarse_state, f.coarse_omega, candidate, f.new_omega);
+    for (std::size_t n = 0; n < before.size(); ++n) {
+        const Real scale = std::max(Real(1.0), std::abs(before[n]));
+        EXPECT_NEAR(after[n], before[n],
+                    Real(256.0) * std::numeric_limits<Real>::epsilon() * scale)
+            << "component=" << n;
+        if (std::abs(before[n]) > Real(0.0)) {
+            EXPECT_GT(std::abs(unsynchronized[n] - before[n]),
+                      Real(1.0e-6) * std::abs(before[n]))
+                << "component=" << n;
+        }
+    }
+}
+
+TEST(SBMAMRRegrid, RejectionLeavesEveryInputUnchanged)
+{
+    const BoxArray old_ba(regrid_old_fine_box());
+    const BoxArray new_ba(regrid_new_fine_box());
+    RegridFixture f(old_ba, DistributionMapping(old_ba),
+                    new_ba, DistributionMapping(new_ba));
+    const int ncomp = f.layout.ncomp();
+    const auto snapshot = [] (const MultiFab& field) {
+        MultiFab copy(field.boxArray(), field.DistributionMap(), field.nComp(), 0);
+        MultiFab::Copy(copy, field, 0, 0, field.nComp(), 0);
+        return copy;
+    };
+    const MultiFab coarse_before = snapshot(f.coarse_state);
+    const MultiFab old_before = snapshot(f.old_state);
+    MultiFab candidate(new_ba, DistributionMapping(new_ba), ncomp, 0);
+    std::string diagnostic;
+
+    EXPECT_FALSE(f.remap(f.old_state, candidate, diagnostic, 0.75));
+    EXPECT_NE(diagnostic.find("same-time"), std::string::npos) << diagnostic;
+
+    // A retained cell that is inadmissible must reject the whole candidate.
+    MultiFab corrupt_retained = snapshot(f.old_state);
+    set_cell_value(corrupt_retained, IntVect(4, 2, 2), offsets_for(f.layout).one_mass,
+                   Real(-1.0));
+    EXPECT_FALSE(f.remap(corrupt_retained, candidate, diagnostic));
+    EXPECT_NE(diagnostic.find("inadmissible"), std::string::npos) << diagnostic;
+
+    // A new-grid carrier that breaks the parent identity is rejected.
+    f.new_rho.mult(Real(2.0), 0, 1, 0);
+    EXPECT_FALSE(f.remap(f.old_state, candidate, diagnostic));
+    EXPECT_NE(diagnostic.find("inventory differs"), std::string::npos) << diagnostic;
+    f.new_rho.mult(Real(0.5), 0, 1, 0);
+
+    expect_same_values(f.coarse_state, coarse_before);
+    expect_same_values(f.old_state, old_before);
+}
+
+TEST(SBMAMRRegrid, RetainedCellsDoNotConstrainTheProlongation)
+{
+    const BoxArray old_ba(regrid_old_fine_box());
+    const BoxArray new_ba(regrid_new_fine_box());
+    const Box retained_box = regrid_retained_box();
+    const Box prolonged_box = regrid_prolonged_box();
+    // Breaks its parent's carrier identity and underflows the prolonged ratio.
+    const Real tiny_carrier = std::numeric_limits<Real>::denorm_min();
+    std::string diagnostic;
+
+    RegridFixture retained_fault(old_ba, DistributionMapping(old_ba),
+                                 new_ba, DistributionMapping(new_ba));
+    set_cell_value(retained_fault.new_rho, retained_box.smallEnd(), 0,
+                   tiny_carrier);
+    MultiFab candidate(new_ba, DistributionMapping(new_ba),
+                       retained_fault.layout.ncomp(), 0);
+    candidate.setVal(Real(0.0));
+    ASSERT_TRUE(retained_fault.remap(retained_fault.old_state, candidate, diagnostic))
+        << diagnostic;
+    expect_same_values(restrict_to_box(candidate, retained_box),
+                       restrict_to_box(retained_fault.old_state, retained_box));
+
+    RegridFixture prolonged_fault(old_ba, DistributionMapping(old_ba),
+                                  new_ba, DistributionMapping(new_ba));
+    set_cell_value(prolonged_fault.new_rho, prolonged_box.smallEnd(), 0,
+                   tiny_carrier);
+    EXPECT_FALSE(prolonged_fault.remap(prolonged_fault.old_state, candidate, diagnostic));
+    EXPECT_FALSE(diagnostic.empty());
+}
+
+TEST(SBMAMRRegrid, CandidateIsDecompositionInvariant)
+{
+    const BoxArray old_ba(regrid_old_fine_box());
+    const BoxArray new_ba(regrid_new_fine_box());
+    const RegridFixture whole(old_ba, DistributionMapping(old_ba),
+                              new_ba, DistributionMapping(new_ba));
+    MultiFab reference(new_ba, DistributionMapping(new_ba), whole.layout.ncomp(), 0);
+    std::string diagnostic;
+    ASSERT_TRUE(whole.remap(whole.old_state, reference, diagnostic)) << diagnostic;
+
+    BoxArray split_old(regrid_old_fine_box());
+    split_old.maxSize(2);
+    BoxArray split_new(regrid_new_fine_box());
+    split_new.maxSize(IntVect(2, 4, 2));
+    const RegridFixture split(split_old, DistributionMapping(split_old),
+                              split_new, DistributionMapping(split_new));
+    MultiFab split_candidate(split_new, DistributionMapping(split_new),
+                             split.layout.ncomp(), 0);
+    ASSERT_TRUE(split.remap(split.old_state, split_candidate, diagnostic)) << diagnostic;
+    expect_same_values(restrict_to_box(split_candidate, regrid_new_fine_box()),
+                       restrict_to_box(reference, regrid_new_fine_box()));
+}
+
+TEST(SBMAMRRegrid, ScratchStaysWithinTheChunkedProlongationModel)
+{
+    const BoxArray old_ba(regrid_old_fine_box());
+    const BoxArray new_ba(regrid_new_fine_box());
+    const RegridFixture f(old_ba, DistributionMapping(old_ba),
+                          new_ba, DistributionMapping(new_ba));
+    MultiFab candidate(new_ba, DistributionMapping(new_ba), f.layout.ncomp(), 0);
+    erf_sbm::SBMTransferAllocationCensus census;
+    std::string diagnostic;
+    ASSERT_TRUE(f.remap(f.old_state, candidate, diagnostic, regrid_time, &census))
+        << diagnostic;
+    int max_chunk_components = 0;
+    for (const auto& chunk : erf_sbm::make_constraint_closure_chunks(f.layout, 16)) {
+        max_chunk_components = std::max(max_chunk_components,
+                                        static_cast<int>(chunk.components.size()));
+    }
+    const auto fine_cells = static_cast<std::uint64_t>(new_ba.numPts());
+    const auto coarse_cells = static_cast<std::uint64_t>(coarse_domain().numPts());
+    // Never a second full-spectrum fine buffer: the candidate is the only
+    // one.  The prolonged-cell mask and its parent mask add one fine and one
+    // coarse component.
+    const std::uint64_t bound = (std::max<std::uint64_t>(
+        3ULL * fine_cells + 5ULL * coarse_cells,
+        static_cast<std::uint64_t>(max_chunk_components) *
+            (fine_cells + coarse_cells) + fine_cells + coarse_cells) +
+        fine_cells + coarse_cells) * sizeof(Real);
+    EXPECT_LE(census.peak_extra_bytes(), bound + 64ULL * 1024ULL);
+    EXPECT_FALSE(census.processed_chunk_first_components.empty());
+}
+
+TEST(SBMAMRRegrid, ReplacedLevelInvalidatesOldViewsAndMeasure)
+{
+    const BoxArray old_ba(regrid_old_fine_box());
+    const BoxArray new_ba(regrid_new_fine_box());
+    const DistributionMapping old_dm(old_ba);
+    const DistributionMapping new_dm(new_ba);
+    const RegridFixture f(old_ba, old_dm, new_ba, new_dm);
+    const int ncomp = f.layout.ncomp();
+
+    erf_sbm::SBMStateManager manager(f.layout, 2);
+    manager.define(1, old_ba, old_dm, regrid_time);
+    MultiFab::Copy(manager.new_state_for_initialization(1), f.old_state, 0, 0, ncomp, 0);
+    std::string diagnostic;
+    ASSERT_TRUE(manager.begin_step(1, regrid_time, diagnostic)) << diagnostic;
+    MultiFab candidate(new_ba, new_dm, ncomp, 0);
+    ASSERT_TRUE(f.remap(f.old_state, candidate, diagnostic)) << diagnostic;
+    // A level inside a physical step cannot be replaced.
+    EXPECT_FALSE(manager.can_replace_level(1, candidate, regrid_time, diagnostic));
+    ASSERT_TRUE(manager.accept_stage_target(1, regrid_time, true, diagnostic)) << diagnostic;
+    ASSERT_TRUE(manager.old_valid(1));
+
+    EXPECT_FALSE(manager.can_replace_level(1, candidate, 0.75, diagnostic));
+    MultiFab wrong_components(new_ba, new_dm, ncomp - 1, 0);
+    EXPECT_FALSE(manager.can_replace_level(1, wrong_components, regrid_time, diagnostic));
+    ASSERT_TRUE(manager.can_replace_level(1, candidate, regrid_time, diagnostic))
+        << diagnostic;
+    MultiFab expected(new_ba, new_dm, ncomp, 0);
+    MultiFab::Copy(expected, candidate, 0, 0, ncomp, 0);
+    manager.replace_level(1, std::move(candidate), regrid_time);
+    EXPECT_EQ(manager.new_state(1).boxArray(), new_ba);
+    EXPECT_FALSE(manager.old_valid(1));
+    EXPECT_THROW(static_cast<void>(manager.old_state(1)), std::logic_error);
+    EXPECT_EQ(manager.new_time(1), regrid_time);
+    expect_same_values(manager.new_state(1), expected);
+    ASSERT_TRUE(manager.begin_step(1, regrid_time, diagnostic)) << diagnostic;
+    EXPECT_EQ(manager.old_state(1).boxArray(), new_ba);
+
+    // A recreated transport level has no measure until it is rebuilt on the new grids.
+    erf_sbm::SBMTransport transport(f.layout, 2);
+    const auto planar = [] (const BoxArray& cells) {
+        amrex::BoxList boxes = cells.boxList();
+        for (auto& box : boxes) { box.setRange(2, 0); }
+        return BoxArray(std::move(boxes));
+    };
+    const auto build_measure = [&] (const BoxArray& cells, const DistributionMapping& dm) {
+        MultiFab detj(cells, dm, 1, 0);
+        MultiFab mx(planar(cells), dm, 1, 0);
+        MultiFab my(planar(cells), dm, 1, 0);
+        detj.setVal(Real(1.0));
+        mx.setVal(Real(1.0));
+        my.setVal(Real(1.0));
+        std::string measure_diagnostic;
+        EXPECT_TRUE(transport.rebuild_static_measure(1, detj, mx, my,
+                                                     measure_diagnostic))
+            << measure_diagnostic;
+    };
+    transport.define(1, old_ba, old_dm);
+    build_measure(old_ba, old_dm);
+    ASSERT_TRUE(transport.measure_is_ready(1));
+    transport.destroy(1);
+    EXPECT_FALSE(transport.is_defined(1));
+    transport.define(1, new_ba, new_dm);
+    EXPECT_FALSE(transport.measure_is_ready(1));
+    EXPECT_THROW(static_cast<void>(transport.static_measure(1)), std::logic_error);
+    build_measure(new_ba, new_dm);
+    ASSERT_TRUE(transport.measure_is_ready(1));
+    EXPECT_EQ(transport.static_measure(1).boxArray(), new_ba);
 }
 
 } // namespace

@@ -788,13 +788,22 @@ struct SolverChoice {
                     sbm_amr_qualification_unique_profile);
         pp.queryAdd("sbm_amr_qualification_parent_store_fault",
                     sbm_amr_qualification_parent_store_fault);
+        pp.queryAdd("sbm_amr_qualification_regrid",
+                    sbm_amr_qualification_regrid);
+        pp.queryAdd("sbm_amr_qualification_regrid_reject_fault",
+                    sbm_amr_qualification_regrid_reject_fault);
+        pp.queryAdd("sbm_amr_qualification_uniform_ratio",
+                    sbm_amr_qualification_uniform_ratio);
 #else
         for (const char* name : {"sbm_amr_qualification_test",
                                  "sbm_amr_qualification_expect_zero_flow",
                                  "sbm_amr_qualification_expect_split",
                                  "sbm_amr_qualification_expect_empty_fine_rank",
                                  "sbm_amr_qualification_unique_profile",
-                                 "sbm_amr_qualification_parent_store_fault"}) {
+                                 "sbm_amr_qualification_parent_store_fault",
+                                 "sbm_amr_qualification_regrid",
+                                 "sbm_amr_qualification_regrid_reject_fault",
+                                 "sbm_amr_qualification_uniform_ratio"}) {
             if (pp.contains(name)) {
                 amrex::Error(std::string("erf.") + name + " is available only in "
                              "the isolated ERF_ENABLE_SBM_AMR_QUALIFICATION build");
@@ -3208,6 +3217,9 @@ struct SolverChoice {
     bool sbm_amr_qualification_expect_empty_fine_rank{false};
     bool sbm_amr_qualification_unique_profile{false};
     bool sbm_amr_qualification_parent_store_fault{false};
+    bool sbm_amr_qualification_regrid{false};
+    bool sbm_amr_qualification_regrid_reject_fault{false};
+    bool sbm_amr_qualification_uniform_ratio{false};
     bool sbm_test_native_qc_write_fault{false};
     bool sbm_test_donor_cfl_fault{false};
     amrex::Vector<amrex::Real> sbm_edges;

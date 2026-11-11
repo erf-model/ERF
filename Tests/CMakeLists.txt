@@ -353,6 +353,199 @@ if(ERF_ENABLE_TESTS)
       DEPENDS SBM_AMR_Qualification_2M_Attached_Split_1Rank
       TIMEOUT 300)
 
+    # Gate 4B: a refined box moving one coarse cell per step makes every regrid
+    # retain, prolong, and release fine cells, each conserving the composite.
+    foreach(_sbm_regrid_ranks IN ITEMS 1 2)
+      set(_sbm_regrid_test "SBM_AMR_Qualification_Regrid_MovingBox_1M_${_sbm_regrid_ranks}Rank")
+      set(_sbm_regrid_args
+          -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+          -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m_regrid
+          -DTEST_ROOT=${_sbm_amr_qualification_root}/regrid_moving_box_${_sbm_regrid_ranks}rank
+          -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+          -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+          -DMPI_RANKS=${_sbm_regrid_ranks}
+          -DEXPECTED_COMPONENTS=4
+          -DEXPECTED_STEPS=4
+          -DEXPECTED_REGRIDS=3
+          -DREGRID=ON)
+      if(_sbm_regrid_ranks GREATER 1)
+        list(APPEND _sbm_regrid_args
+             -DPYTHON_EXECUTABLE=${ERF_TEST_PYTHON}
+             -DREFERENCE_LOG=${_sbm_amr_qualification_root}/regrid_moving_box_1rank/qualification.log)
+      endif()
+      add_test(NAME ${_sbm_regrid_test}
+        COMMAND ${CMAKE_COMMAND} ${_sbm_regrid_args} -P ${_sbm_amr_qualification_script})
+      set_tests_properties(${_sbm_regrid_test} PROPERTIES
+        LABELS "integration;sbm;sbm_amr_qualification"
+        RUN_SERIAL TRUE
+        PROCESSORS ${_sbm_regrid_ranks}
+        TIMEOUT 300)
+      if(_sbm_regrid_ranks GREATER 1)
+        set_tests_properties(${_sbm_regrid_test} PROPERTIES
+          LABELS "integration;parallel;sbm;sbm_amr_qualification"
+          DEPENDS SBM_AMR_Qualification_Regrid_MovingBox_1M_1Rank)
+      endif()
+    endforeach()
+
+    # Gate 4B: the fine level is cleared and later recreated elsewhere.
+    add_test(NAME SBM_AMR_Qualification_Regrid_LevelCycle_2M_Attached
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_2m_attached_regrid
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/regrid_level_cycle_2m_attached
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=1
+        -DEXPECTED_COMPONENTS=12
+        -DEXPECTED_STEPS=5
+        -DREGRID=ON
+        -DEXPECT_LEVEL_CYCLE=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_Regrid_LevelCycle_2M_Attached PROPERTIES
+      LABELS "integration;sbm;sbm_amr_qualification"
+      RUN_SERIAL TRUE
+      TIMEOUT 300)
+
+    # Gate 4B: an inadmissible regrid candidate aborts before publication.
+    add_test(NAME SBM_AMR_Qualification_Regrid_RejectFault
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_amr_qualification_1m_regrid
+        -DTEST_ROOT=${_sbm_amr_qualification_root}/regrid_reject_fault
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPI_RANKS=1
+        -DEXPECTED_COMPONENTS=4
+        -DREGRID_REJECT_FAULT=ON
+        -P ${_sbm_amr_qualification_script})
+    set_tests_properties(SBM_AMR_Qualification_Regrid_RejectFault PROPERTIES
+      LABELS "integration;sbm;sbm_amr_qualification;negative"
+      RUN_SERIAL TRUE
+      TIMEOUT 180)
+
+    # Gate 5: a multilevel restart reproduces the continuous run, and a
+    # checkpoint with a missing, inadmissible, or inconsistent fine level, or
+    # an equal-size but different schema, is rejected before any step.  The
+    # host checkpoint helpers are defined in Unit/ under these conditions.
+    if(NOT ERF_ENABLE_CUDA AND NOT ERF_ENABLE_HIP AND NOT ERF_ENABLE_SYCL AND
+       NOT AMReX_HDF5)
+    function(add_sbm_amr_restart_test name input restart_step final_step ncomp mode)
+      add_test(NAME ${name}
+        COMMAND ${CMAKE_COMMAND}
+          -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+          -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/${input}
+          -DTEST_ROOT=${_sbm_amr_qualification_root}/${name}
+          -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+          -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+          -DMPI_RANKS=1
+          -DEXPECTED_COMPONENTS=${ncomp}
+          -DRESTART_STEP=${restart_step}
+          -DFINAL_STEP=${final_step}
+          -DMODE=${mode}
+          ${ARGN}
+          -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunAMRRestart.cmake)
+      set(_labels "integration;sbm;sbm_amr_qualification")
+      if(NOT mode STREQUAL "equivalence")
+        set(_labels "${_labels};negative")
+      endif()
+      set_tests_properties(${name} PROPERTIES
+        LABELS "${_labels}"
+        RUN_SERIAL TRUE
+        TIMEOUT 600)
+    endfunction()
+    set(_sbm_compare -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>)
+    set(_sbm_corrupter -DCORRUPTER=$<TARGET_FILE:erf_sbm_checkpoint_corruptor>)
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_Fixed_1M
+      inputs_amr_qualification_1m 1 2 4 equivalence ${_sbm_compare})
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_AfterRegrid_1M
+      inputs_amr_qualification_1m_regrid 2 4 4 equivalence ${_sbm_compare})
+    # Restarts from a coarse-only checkpoint; the fine level is recreated later.
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_LevelCycle_2M_Attached
+      inputs_amr_qualification_2m_attached_regrid 3 5 12 equivalence ${_sbm_compare})
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_MissingFineSpectrum
+      inputs_amr_qualification_1m 1 2 4 missing_fine_spectrum
+      "-DEXPECTED_DIAGNOSTIC=SBM restart is missing authoritative spectrum for level 1")
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_SchemaMismatch
+      inputs_amr_qualification_1m 1 2 4 schema_mismatch
+      "-DEXPECTED_DIAGNOSTIC=SBM restart schema does not exactly match")
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_InadmissibleFineSpectrum
+      inputs_amr_qualification_1m 1 2 4 corruption ${_sbm_corrupter}
+      -DCORRUPTION=negative-mass -DCORRUPT_LEVEL=1
+      "-DEXPECTED_DIAGNOSTIC=SBM authoritative restart state is inadmissible.*level=1")
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_FineProjectionMismatch
+      inputs_amr_qualification_1m 1 2 4 corruption ${_sbm_corrupter}
+      -DCORRUPTION=compact-qc -DCORRUPT_LEVEL=1
+      "-DEXPECTED_DIAGNOSTIC=SBM restart compact qc/qr do not match the persisted authoritative spectrum")
+    add_sbm_amr_restart_test(SBM_AMR_Qualification_Restart_AnelasticMidPoint_AfterRegrid_1M
+      inputs_amr_qualification_1m_regrid 2 4 4 equivalence ${_sbm_compare}
+      -DANELASTIC=MidPoint)
+    endif()
+
+    # The anelastic host integrators on a two-level hierarchy.  The
+    # uniform-ratio runs carry a uniform spectrum and a uniform host scalar in
+    # a divergence-free roll with shear: the spectrum must stay as uniform,
+    # relative to dry air, as the host's own refluxed scalar.  Under the
+    # compressible host, whose density is not refluxed, that is a
+    # variable-density test.
+    function(add_sbm_amr_envelope_test name input ranks ncomp)
+      add_test(NAME ${name}
+        COMMAND ${CMAKE_COMMAND}
+          -DERF_EXECUTABLE=${SBM_AMR_QUALIFICATION_EXECUTABLE}
+          -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/${input}
+          -DTEST_ROOT=${_sbm_amr_qualification_root}/${name}
+          -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+          -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+          -DMPI_RANKS=${ranks}
+          -DEXPECTED_COMPONENTS=${ncomp}
+          ${ARGN}
+          -P ${_sbm_amr_qualification_script})
+      set(_labels "integration;sbm;sbm_amr_qualification")
+      if(ranks GREATER 1)
+        set(_labels "${_labels};parallel")
+      endif()
+      set_tests_properties(${name} PROPERTIES
+        LABELS "${_labels}"
+        RUN_SERIAL TRUE
+        PROCESSORS ${ranks}
+        TIMEOUT 300)
+    endfunction()
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticHeun_1M
+      inputs_amr_qualification_1m 1 4 -DANELASTIC=RK2)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_1M
+      inputs_amr_qualification_1m 1 4 -DANELASTIC=MidPoint)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_2M_Attached
+      inputs_amr_qualification_2m_attached 1 12 -DANELASTIC=MidPoint)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_1Rank
+      inputs_amr_qualification_1m_split 1 4 -DANELASTIC=MidPoint
+      -DSPATIAL_SPLIT_FIXTURE=ON)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_2Rank
+      inputs_amr_qualification_1m_split 2 4 -DANELASTIC=MidPoint
+      -DSPATIAL_SPLIT_FIXTURE=ON -DEXPECT_SPLIT=ON
+      -DPYTHON_EXECUTABLE=${ERF_TEST_PYTHON}
+      -DREFERENCE_LOG=${_sbm_amr_qualification_root}/SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_1Rank/qualification.log)
+    set_tests_properties(SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_2Rank
+      PROPERTIES DEPENDS SBM_AMR_Qualification_AnelasticMidPoint_1M_Split_1Rank)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_AnelasticMidPoint_Regrid_1M
+      inputs_amr_qualification_1m_regrid 1 4 -DANELASTIC=MidPoint
+      -DREGRID=ON -DEXPECTED_STEPS=4 -DEXPECTED_REGRIDS=3)
+    # One fine step per coarse step, and ERF's default of one per refinement.
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_DtRefRatio1_1M
+      inputs_amr_qualification_1m 1 4
+      -DDT_REF_RATIO=1 -DEXPECTED_FINE_SUBSTEPS=1)
+    add_sbm_amr_envelope_test(SBM_AMR_Qualification_DtRefRatio2_AnelasticMidPoint_2M_Attached
+      inputs_amr_qualification_2m_attached 1 12 -DANELASTIC=MidPoint
+      -DDT_REF_RATIO=2 -DEXPECTED_FINE_SUBSTEPS=2)
+    foreach(_sbm_host IN ITEMS Compressible AnelasticHeun AnelasticMidPoint)
+      set(_sbm_host_args)
+      if(_sbm_host STREQUAL "AnelasticHeun")
+        set(_sbm_host_args -DANELASTIC=RK2)
+      elseif(_sbm_host STREQUAL "AnelasticMidPoint")
+        set(_sbm_host_args -DANELASTIC=MidPoint)
+      endif()
+      add_sbm_amr_envelope_test(SBM_AMR_Qualification_UniformRatio_${_sbm_host}_1M
+        inputs_amr_qualification_1m 1 4 ${_sbm_host_args} -DUNIFORM_RATIO=ON)
+    endforeach()
+
     # Measure the actual coarse-parent halo path at the requested spectral
     # widths and process counts with the nonzero carrier from the profile
     # deck.  This keeps complete fine-step timings representative of transport;
