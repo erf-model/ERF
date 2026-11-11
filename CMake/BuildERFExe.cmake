@@ -620,6 +620,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRTransfer.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRFluxRegister.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRCoupling.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMPhysicalBoundary.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
