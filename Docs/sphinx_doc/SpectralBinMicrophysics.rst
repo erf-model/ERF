@@ -965,6 +965,7 @@ The current configuration requires:
 * no moving terrain, embedded boundaries, or immersed buildings;
 * no acoustic substepping: ``erf.timestepping_type`` is ``RK3_NoSubstepping``
   at compressible levels and ``RK2`` or ``MidPoint`` at anelastic levels;
+* no ``PseudoIncompressible`` levels;
 * no molecular scalar diffusion;
 * no turbulent scalar diffusion or PBL/SHOC transport acting on moisture;
 * no ERF numerical diffusion;

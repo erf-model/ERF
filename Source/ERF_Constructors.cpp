@@ -149,6 +149,11 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
                      }),
         "SBM M3 does not support acoustic substepping (erf.timestepping_type = RK3_ImplicitSubstep)");
     for (int lev = 0; lev < static_cast<int>(choice.timestepping_type.size()); ++lev) {
+        // A pseudo-incompressible level's mass flux is not divergence free at fixed density.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            choice.compressibility_type[lev] == CompressibilityType::FullyCompressible ||
+            choice.compressibility_type[lev] == CompressibilityType::Anelastic,
+            "SBM supports FullyCompressible and Anelastic levels only (erf.compressibility_type)");
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
             choice.compressibility_type[lev] == CompressibilityType::FullyCompressible ||
             choice.timestepping_type[lev] == TimesteppingType::RK2 ||
