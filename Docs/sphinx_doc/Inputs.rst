@@ -4406,6 +4406,15 @@ column would be taken for a building), a uniform vertical grid (no
 |                                   | in, cast every step); false: through the whole ground    |                    |                        |
 |                                   | view, the ground a face sees being sunlit everywhere     |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.two_stream_roofs**    | true: the two-stream column under a building starts on   | Boolean            | false                  |
+|                                   | the building's roof, with the roof face's albedo,        |                    |                        |
+|                                   | emissivity and skin temperature; false: it passes        |                    |                        |
+|                                   | through the building down to the held ground under it.   |                    |                        |
+|                                   | The run stops unless erf.ibseb.enable,                   |                    |                        |
+|                                   | erf.radiation_model = TwoStream and                      |                    |                        |
+|                                   | erf.ibseb.two_stream_buildings are set and no            |                    |                        |
+|                                   | land-surface model is used                               |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.ground_sky_view**     | true: the two-stream ground balance beside the buildings | Boolean            | false                  |
 |                                   | keeps the sky's diffuse light and longwave through the   |                    |                        |
 |                                   | part of the ground's view the walls leave open, and      |                    |                        |

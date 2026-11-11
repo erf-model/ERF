@@ -992,6 +992,7 @@ public:
     void ibseb_check_two_stream_provider () const;
     void ibseb_check_two_stream_buildings () const;
     void ibseb_give_ground_walls (int lev);
+    void ibseb_give_roofs (int lev);
     [[nodiscard]] bool ibseb_two_stream_buildings () const {
         return ibseb_params.enable && ibseb_params.two_stream_buildings && solverChoice.rad_type == RadiationType::TwoStream;
     }

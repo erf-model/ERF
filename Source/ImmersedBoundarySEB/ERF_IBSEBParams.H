@@ -92,6 +92,11 @@ struct IBSEBParams
     /// the part of its view the walls leave open, and takes the walls' reflected light and longwave
     /// through the rest. false: the ground sees the whole sky and nothing of the walls.
     bool        ground_sky_view = false;
+    /// The two-stream columns under the buildings (needs two_stream_buildings): a column under a
+    /// building starts on the building's roof, with the roof face's albedo, emissivity and skin
+    /// temperature, in place of the held ground under the building seen through the building's
+    /// cells. false: the columns pass through the buildings down to that ground.
+    bool        two_stream_roofs = false;
 
     // ---- View fractions and longwave ----------------------------------------
     // Rays per face of the cosine-weighted hemisphere sampled once at
@@ -228,6 +233,7 @@ struct IBSEBParams
         pp.query("emissivity_ground", emissivity_ground);
         pp.query("ground_view_shadow", ground_view_shadow);
         pp.query("ground_sky_view", ground_sky_view);
+        pp.query("two_stream_roofs", two_stream_roofs);
         pp.query("view_n_az",        view_n_az);
         pp.query("view_n_el",        view_n_el);
         pp.query("lw_mode",          lw_mode);

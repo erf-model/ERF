@@ -272,6 +272,7 @@ target_sources(${erf_exe_name}
     # for a building set), and the answer must not depend on where a rank's map ends.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBGroundViewShadow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBGroundWalls.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBRoofs.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed
@@ -282,6 +283,7 @@ target_sources(${erf_exe_name}
     # and reflect (1 - eps) of the downwelling LW at a gray surface.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamRoof.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamRadiationDriver.cpp
     # Motivation: the Simple longwave scheme must stay inside the column when the
     # moist layer reaches the domain top (erf-model/ERF#4484), and give the top

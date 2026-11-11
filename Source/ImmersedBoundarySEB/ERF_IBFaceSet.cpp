@@ -593,6 +593,9 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     fill(d_gnd_far,       nf, 0);
     d_gnd_land.clear();
     d_gnd_rays.clear();
+    d_roof_face.clear();
+    m_roof_fab_start.clear();
+    m_roof_faces_built = false;
     m_landings_built = false;
     fill(d_shadow,        nf, Real(0.0));
     fill(d_SW_direct_in,  nf, Real(0.0));
@@ -1158,6 +1161,9 @@ IBFaceSet::check_canopy_layout (const MultiFab& cons, const TwoStreamCanopyView&
             "erf.ibseb.ground_view_shadow with erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
             "'s two-stream view holds no direct-beam albedo of the ground");
         const auto& alb = *canopy.ground_albedo_dir;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(alb.nComp() >= 2,
+            "erf.ibseb.ground_view_shadow with erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
+            "'s field of the columns' direct-beam albedo holds no second component (the interface each column starts on)");
         bool ok_alb = alb.boxArray().size() == ba.size() && alb.DistributionMap() == dm;
         for (int n = 0; ok_alb && n < static_cast<int>(ba.size()); ++n) {
             const Box& a = alb.boxArray()[n];
@@ -1712,7 +1718,9 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
                 // tolerance below, so at sunrise and sunset the column can have a beam
                 // while the faces' sun has none: no shadow is cast then and the ground
                 // view takes the whole reflection, as without the input.
-                const bool beam_up = ibseb::ground_view_beam_up(sz, beam(pi[f], pj[f], 0));
+                // (The beam at the column's lower boundary: the ground, or the roof it starts on.)
+                const bool beam_up = ibseb::ground_view_beam_up(
+                    sz, beam(pi[f], pj[f], two_stream_column_base(pi[f], pj[f], alb_g)));
                 const Real fgl = beam_up
                                ? ibseb::ground_view_lit(pi[f], pj[f], pgf[f], pgl + pgs[f], pgr + pgs[f],
                                                         pgs[f + 1] - pgs[f], ray_weight, sx, sy, sz, rm)
@@ -1775,6 +1783,82 @@ IBFaceSet::compute_ground_shadow (MultiFab& shadow) const
             // The start of ibseb::ray_blocked_near(), so the faces' sunlit ground view and
             // this shadow are one walk from one point.
             out(i, j, 0) = ibseb::ray_blocked(rm.centre_x(i), rm.centre_y(j), z_ground, sx, sy, sz, rm) ? Real(1.0) : Real(0.0);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * The roof face of each column under a building (see the header). The roof faces are
+ * found once, on the host: the upward faces whose cell is the cell on their column's
+ * roof, listed fab by fab. Each call then runs one kernel per fab over that fab's roof
+ * faces only; a column has at most one upward face on a given cell, so no two faces
+ * write the same column.
+ */
+void
+IBFaceSet::fill_roofs (MultiFab& out, const iMultiFab& roof_cell, bool with_fixed)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(out.nComp() >= 5,
+        "erf.ibseb.two_stream_roofs: the field of the roofs holds fewer than five components");
+    const int nfab = static_cast<int>(m_fab_start.size()) - 1;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(out.local_size() == nfab && roof_cell.local_size() == nfab,
+        "erf.ibseb.two_stream_roofs: the field of the roofs holds another number of boxes than the faces' level");
+    if (!m_roof_faces_built) {
+        std::vector<int> hi(m_nface), hj(m_nface), hk(m_nface), hd(m_nface), hs(m_nface), list;
+        Gpu::copy(Gpu::deviceToHost, d_i.begin(), d_i.end(), hi.begin());
+        Gpu::copy(Gpu::deviceToHost, d_j.begin(), d_j.end(), hj.begin());
+        Gpu::copy(Gpu::deviceToHost, d_k.begin(), d_k.end(), hk.begin());
+        Gpu::copy(Gpu::deviceToHost, d_dir.begin(), d_dir.end(), hd.begin());
+        Gpu::copy(Gpu::deviceToHost, d_side.begin(), d_side.end(), hs.begin());
+        Gpu::streamSynchronize();
+        m_roof_fab_start.assign(static_cast<size_t>(nfab) + 1, 0);
+        for (MFIter mfi(roof_cell); mfi.isValid(); ++mfi) {
+            const int li = mfi.LocalIndex();
+            IArrayBox cell(mfi.validbox(), 1, The_Pinned_Arena());
+            Gpu::dtoh_memcpy(cell.dataPtr(), roof_cell[mfi].dataPtr(), cell.nBytes());
+            const auto rk = cell.const_array();
+            m_roof_fab_start[li] = static_cast<int>(list.size());
+            for (int f = m_fab_start[li]; f < m_fab_start[li + 1]; ++f) {
+                // An upward face (the solid below it) on the cell the column's roof carries.
+                if (hd[f] == 2 && hs[f] < 0 && hk[f] == rk(hi[f], hj[f], 0)) { list.push_back(f); }
+            }
+            m_roof_fab_start[li + 1] = static_cast<int>(list.size());
+        }
+        upload(d_roof_face, list);
+        Gpu::streamSynchronize();
+        m_roof_faces_built = true;
+    }
+    // The first fill of a field: zeros everywhere, then what does not change (that a roof
+    // stands there, its albedo, its emissivity). Every fill: what does change.
+    if (with_fixed) { out.setVal(0.0, 0, 5, 0); }
+    const int* prf = d_roof_face.data();
+    const int* pi = d_i.data();  const int* pj = d_j.data();
+    const Real* palb = d_albedo.data();  const Real* peps = d_emis.data();
+    const Real* pT = d_T_skin.data();
+    // The roof's shadow under the sun the faces hold (that of their last shortwave: this
+    // step's with the faces' own radiation, the previous step's with the two-stream
+    // columns, the start-up sun before the first step and after a restart), cast here so
+    // that it does not depend on what the faces' last shortwave stored.
+    const ibseb::RayMap rm = ray_map();
+    const Real sx = m_sun.sx, sy = m_sun.sy, sz = m_sun.sz;
+    const Real* pxf = d_xf.data();  const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
+    for (MFIter mfi(out); mfi.isValid(); ++mfi) {
+        const int r0 = m_roof_fab_start[mfi.LocalIndex()];
+        const int r1 = m_roof_fab_start[mfi.LocalIndex() + 1];
+        if (r1 == r0) { continue; }
+        const auto o = out.array(mfi);
+        ParallelFor(r1 - r0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = prf[r0 + m];
+            if (with_fixed) {
+                o(pi[f], pj[f], 0, 0) = Real(1.0);
+                o(pi[f], pj[f], 0, 1) = palb[f];
+                o(pi[f], pj[f], 0, 2) = peps[f];
+            }
+            o(pi[f], pj[f], 0, 3) = pT[f];
+            // The share of the beam that reaches the roof: none where a taller building
+            // shades it. With the sun down there is no beam and the share plays no part.
+            const bool shaded = sz > Real(0.0) && ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, rm);
+            o(pi[f], pj[f], 0, 4) = shaded ? Real(0.0) : Real(1.0);
         });
     }
     Gpu::streamSynchronize();

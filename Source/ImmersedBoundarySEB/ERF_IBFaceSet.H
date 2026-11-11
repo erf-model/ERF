@@ -221,6 +221,24 @@ public:
      */
     void build_ground_landings ();
 
+    /**
+     * For erf.ibseb.two_stream_roofs: give each column under a building the roof face that
+     * stands on it. @p roof_cell holds, per column, the cell on the roof of the building
+     * that stands on the ground (TwoStreamRadiation::roof_cell()); the upward face whose
+     * fluid cell is that cell writes 1, its albedo, its emissivity, its skin temperature
+     * and the share of the direct beam that reaches it (0 where a taller building shades
+     * the roof under the sun the faces hold, by the shadow ray of the faces) into the
+     * five components of @p out (TwoStreamRadiation::roofs_for_step()). Every other column
+     * gets zeros: open ground, and a building that fills the column. Both fields are the
+     * level's columns (k = 0), box for box with the faces. The roof faces are found at the
+     * first call.
+     *
+     * @param with_fixed true at the first fill of a field: zero it and write what does not
+     *                   change (the first three components) too; false afterwards, when
+     *                   only the skin temperature and the lit share are written
+     */
+    void fill_roofs (amrex::MultiFab& out, const amrex::iMultiFab& roof_cell, bool with_fixed);
+
     /// Components of the field of compute_ground_walls().
     enum GroundWalls : int { GW_VIEW = 0, GW_SW = 1, GW_LW = 2, GW_NCOMP = 3 };
 
@@ -527,6 +545,9 @@ public:
     /// of its ground rays end on the far field's open ground. Static, like the view fractions.
     amrex::Gpu::DeviceVector<int>          d_gnd_start, d_gnd_far, d_gnd_rays;
     amrex::Gpu::DeviceVector<unsigned int> d_gnd_land;
+    amrex::Gpu::DeviceVector<int> d_roof_face;   ///< fill_roofs(): the roof faces (indices into the face arrays), fab by fab
+    std::vector<int> m_roof_fab_start;           ///< fill_roofs(): fab n owns the entries [n, n+1) of d_roof_face
+    bool m_roof_faces_built = false;             ///< d_roof_face has been built since build()
     amrex::MultiFab m_gnd_patch;     ///< compute_ground_walls(): per rank, the box of the columns its faces' landings reach (k = 0), GW_NCOMP components
     bool m_gnd_patch_built = false;  ///< m_gnd_patch has been sized since the ray map was built
     bool m_landings_built = false;   ///< build_ground_landings() has run since build()
