@@ -675,15 +675,20 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         // for this specific input file.
         int use_alt_density = CheckForDensity(nc_init_file[lev][idx]);
 
-        int ratio_from_file;
-        Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][idx], ratio_from_file);
+        // The file's box as the file gives it, and in the global ERF index space
+        Box subdomain_to_read;
+        const Box global_file_box = wrfinput_file_box(lev, idx, nullptr, &subdomain_to_read);
         Print() << "Box in file " << subdomain_to_read << "\n";
-        const Box global_file_box = wrfinput_file_box(lev, idx);
-        // wrfinput_var_box keeps this horizontal low corner for every variable,
-        // including staggered and one-dimensional fields.
-        IntVect file_shift(0);
-        file_shift[0] = global_file_box.smallEnd(0) - subdomain_to_read.smallEnd(0);
-        file_shift[1] = global_file_box.smallEnd(1) - subdomain_to_read.smallEnd(1);
+        // WRF parent starts are relative to the full parent file, whereas an ERF refinement
+        // patch may cover only part of that file, so each variable is shifted by the file's
+        // global origin rather than aligned with the patch.  wrfinput_var_box keeps this
+        // horizontal low corner for every variable, including staggered and one-dimensional
+        // fields.  A WRF nest carries the full eta column of its parent, so its k indices are
+        // already those of the domain: there is no vertical shift at any level, also when
+        // the refined region does not start at the bottom of the domain.
+        IntVect shift_by(0);
+        shift_by[0] = global_file_box.smallEnd(0) - subdomain_to_read.smallEnd(0);
+        shift_by[1] = global_file_box.smallEnd(1) - subdomain_to_read.smallEnd(1);
 
         Box subdomain_to_fill = boxes_at_level[lev][idx];
         Print() << "Box to fill " << subdomain_to_fill << "\n";
@@ -737,22 +742,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             FArrayBox var_fab_crse;
 
             if (success) {
-                // WRF parent starts are relative to the full parent file, whereas an
-                // ERF refinement patch may cover only part of that file.  Accumulate
-                // the file origins instead of aligning its first cell with the patch.
-                IntVect shift_by(file_shift);
-                if (lev > 1) {
-                    Box shift_by_box(subdomains[lev][0].minimalBox());
-                    shift_by[2] = shift_by_box.smallEnd(2) - file_box.smallEnd(2);
-                    // The fab just read lives on the file's vertical grid, so when this level
-                    // is refined in the vertical the z part of the shift has to be expressed
-                    // there too rather than in this level's index space.
-                    if (rr_z > 1) {
-                        shift_by[2] = amrex::coarsen(shift_by_box.smallEnd(2), rr_z)
-                                    - file_box.smallEnd(2);
-                    }
-                }
-
                 // The box the whole variable covers, in this level's index space
                 Box var_box(file_box);
                 var_box.shift(shift_by);
@@ -3490,13 +3479,21 @@ ERF::read_psfc_from_own_init_file (int lev)
 }
 
 /** Return a WRF file's box in the global ERF index space.  WRF's I/J_PARENT_START
- * are relative to the complete parent file, not to the smaller ERF patch on it. */
+ * are relative to the complete parent file, not to the smaller ERF patch on it.
+ * file_local_box, if given, is set to the box as the file itself gives it. */
 Box
-ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out) const
+ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out, Box* file_local_box) const
 {
     AMREX_ALWAYS_ASSERT(lev >= 0 && file_index >= 0 &&
                         file_index < static_cast<int>(nc_init_file[lev].size()));
-    if (lev == 0) { return geom[0].Domain(); }
+    if (lev == 0) {
+        if (file_local_box != nullptr) {
+            int ratio;
+            *file_local_box = read_subdomain_from_wrfinput(0, nc_init_file[0][file_index], ratio);
+            if (ratio_out != nullptr) { *ratio_out = ratio; }
+        }
+        return geom[0].Domain();
+    }
 
     IntVect parent_origin(0);
     for (int level = 1; level <= lev; ++level) {
@@ -3526,6 +3523,7 @@ ERF::wrfinput_file_box (int lev, int file_index, int* ratio_out) const
                          ", which must both be divisible by PARENT_GRID_RATIO = " +
                          std::to_string(ratio) + ".");
         }
+        if (level == lev && file_local_box != nullptr) { *file_local_box = file_box; }
         for (int d = 0; d < 2; ++d) {
             file_box.shift(d, parent_origin[d] * expected_ratio[d]);
         }

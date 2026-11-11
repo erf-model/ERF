@@ -200,6 +200,13 @@ jobs:
               --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
+    # One step of a deck with buildings, for its EB build in single precision (#5006).
+    - name: Run SINGLE EB Build Tests
+      if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
+      run: |
+        ctest -L eb_build --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
     - name: Run Parallel Tests
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |

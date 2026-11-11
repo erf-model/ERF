@@ -661,6 +661,26 @@ void run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime 
     EXPECT_NE(recipe.limiter_trial_interval, recipe.face_rate_time_coefficient);
 }
 
+void run_auxiliary_mapped_transport_MidPointRecipeAnchorsBothStagesAndKeepsOnlyTheMidpointRate ()
+{
+    constexpr double dt = 0.53;
+    const double interval[] = {0.5 * dt, dt};
+    const double ledger[] = {0.0, dt};
+    AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+    for (int stage = 0; stage < 2; ++stage) {
+        ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint,
+                                             stage, interval[stage], recipe, diagnostic))
+            << diagnostic;
+        EXPECT_EQ(recipe.limiter_trial_base, LimiterTrialBase::Anchor);
+        EXPECT_DOUBLE_EQ(recipe.anchor_weight, 1.0);
+        EXPECT_DOUBLE_EQ(recipe.input_weight, 0.0);
+        EXPECT_DOUBLE_EQ(recipe.limiter_trial_interval, interval[stage]);
+        EXPECT_DOUBLE_EQ(recipe.face_rate_time_coefficient, interval[stage]);
+        EXPECT_DOUBLE_EQ(recipe.completed_ledger_time, ledger[stage]);
+    }
+}
+
 void run_auxiliary_mapped_transport_TimedInputViewsBuildIntensiveStateFromRhoInput ()
 {
     TestGrid g;
@@ -763,12 +783,18 @@ void run_auxiliary_mapped_transport_ConstantConstituentRatioSurvivesVariableDens
         std::string diagnostic;
         const auto inv = g.geom.InvCellSizeArray();
         const int stages = method == HostIntegrator::CompressibleRK3 ? 3 : 2;
+        // Every stage starts from time zero, so each stage's interval is also its target time.
+        const auto stage_interval = [&] (const int stage) {
+            if (method == HostIntegrator::CompressibleRK3) {
+                return stage == 0 ? full_dt / 3.0 : (stage == 1 ? full_dt / 2.0 : full_dt);
+            }
+            return (method == HostIntegrator::AnelasticMidPoint && stage == 0)
+                ? 0.5 * full_dt : full_dt;
+        };
         double input_time = 0.0;
         for (int stage = 0; stage < stages; ++stage) {
-            const double interval = method == HostIntegrator::CompressibleRK3 ?
-                (stage == 0 ? full_dt / 3.0 : (stage == 1 ? full_dt / 2.0 : full_dt)) : full_dt;
-            const double target_time = method == HostIntegrator::CompressibleRK3 ?
-                (stage == 0 ? full_dt / 3.0 : (stage == 1 ? full_dt / 2.0 : full_dt)) : full_dt;
+            const double interval = stage_interval(stage);
+            const double target_time = stage_interval(stage);
             const Real carrier_factor = Real(1.0) - Real(0.13) * stage;
             fill_rate(carrier, g.domain, 0, false, carrier_factor);
             amrex::MultiFab::Copy(avg_x, carrier.dir(0), 0, 0, 1, 0);
@@ -846,6 +872,7 @@ void run_auxiliary_mapped_transport_ConstantConstituentRatioSurvivesVariableDens
     };
     run(HostIntegrator::CompressibleRK3);
     run(HostIntegrator::AnelasticHeun);
+    run(HostIntegrator::AnelasticMidPoint);
 }
 
 void run_auxiliary_mapped_transport_CompletedLedgerUsesExactHostTemporalWeights ()
@@ -900,6 +927,49 @@ void run_auxiliary_mapped_transport_CompletedLedgerUsesExactHostTemporalWeights 
                 Real(32.0) * std::numeric_limits<Real>::epsilon());
     EXPECT_GT(amrex::Math::abs(heun_expected - Real(dt) * Real(9.0)), Real(0.1));
     EXPECT_GT(amrex::Math::abs(heun_expected - Real(dt) * Real(11.0)), Real(0.1));
+
+    CompletedStepFluxLedger midpoint;
+    midpoint.define(g.ba, g.dm);
+    fill_constant_rate(rate, Real(2.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint, 0,
+                                         0.5 * dt, recipe, diagnostic));
+    ASSERT_TRUE(midpoint.accept_stage(HostIntegrator::AnelasticMidPoint, 0,
+                                      0.0, recipe, rate, diagnostic)) << diagnostic;
+    EXPECT_FALSE(midpoint.step_complete());
+    fill_constant_rate(rate, Real(9.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint, 1,
+                                         dt, recipe, diagnostic));
+    ASSERT_TRUE(midpoint.accept_stage(HostIntegrator::AnelasticMidPoint, 1,
+                                      0.0, recipe, rate, diagnostic)) << diagnostic;
+    ASSERT_TRUE(midpoint.step_complete());
+    const Real midpoint_expected = Real(dt) * Real(9.0);
+    EXPECT_NEAR(midpoint.integrated_flux().dir(0).norm0(0), midpoint_expected,
+                Real(32.0) * std::numeric_limits<Real>::epsilon());
+    // Heun weights and an additive sum of both stage increments are both wrong.
+    EXPECT_GT(amrex::Math::abs(midpoint_expected - heun_expected), Real(0.1));
+    EXPECT_GT(amrex::Math::abs(midpoint_expected -
+                               (Real(0.5 * dt) * Real(2.0) + Real(dt) * Real(9.0))),
+              Real(0.1));
+
+    // The zero-weight predictor is never read: 0 * NaN would poison the integral.
+    CompletedStepFluxLedger skipped_predictor;
+    skipped_predictor.define(g.ba, g.dm);
+    fill_constant_rate(rate, std::numeric_limits<Real>::quiet_NaN());
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint, 0,
+                                         0.5 * dt, recipe, diagnostic));
+    ASSERT_TRUE(skipped_predictor.accept_stage(HostIntegrator::AnelasticMidPoint, 0,
+                                               0.0, recipe, rate, diagnostic)) << diagnostic;
+    fill_constant_rate(rate, Real(9.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint, 1,
+                                         dt, recipe, diagnostic));
+    ASSERT_TRUE(skipped_predictor.accept_stage(HostIntegrator::AnelasticMidPoint, 1,
+                                               0.0, recipe, rate, diagnostic)) << diagnostic;
+    ASSERT_TRUE(skipped_predictor.step_complete());
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_TRUE(skipped_predictor.integrated_flux().dir(dir).is_finite(0, 1, 0));
+    }
+    EXPECT_NEAR(skipped_predictor.integrated_flux().dir(0).norm0(0), midpoint_expected,
+                Real(32.0) * std::numeric_limits<Real>::epsilon());
 }
 
 void run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent ()
@@ -1253,8 +1323,19 @@ void run_auxiliary_mapped_transport_StageSequenceFailsClosed ()
                                           std::numeric_limits<double>::infinity(),
                                           recipe, diagnostic));
     EXPECT_STREQ(HostIntegratorName(HostIntegrator::AnelasticMidPoint), "AnelasticMidPoint");
-    EXPECT_FALSE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint, 0, 1.0,
+    EXPECT_FALSE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint, 2, 1.0,
                                           recipe, diagnostic));
+
+    CompletedStepFluxLedger midpoint_method_change;
+    midpoint_method_change.define(g.ba, g.dm);
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticMidPoint, 0,
+                                         0.5, recipe, diagnostic));
+    ASSERT_TRUE(midpoint_method_change.accept_stage(HostIntegrator::AnelasticMidPoint, 0,
+                                                    0.0, recipe, rate, diagnostic));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1,
+                                         1.0, recipe, diagnostic));
+    EXPECT_FALSE(midpoint_method_change.accept_stage(HostIntegrator::AnelasticHeun, 1,
+                                                     0.0, recipe, rate, diagnostic));
 
     CompletedStepFluxLedger before_zero;
     before_zero.define(g.ba, g.dm);
@@ -1341,6 +1422,11 @@ TEST(AuxiliaryMappedTransport, CompressibleRK3RecipeUsesAuditedStageCoefficients
 TEST(AuxiliaryMappedTransport, HeunRecipeSeparatesTrialAndWeightedFaceTime)
 {
     run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime();
+}
+
+TEST(AuxiliaryMappedTransport, MidPointRecipeAnchorsBothStagesAndKeepsOnlyTheMidpointRate)
+{
+    run_auxiliary_mapped_transport_MidPointRecipeAnchorsBothStagesAndKeepsOnlyTheMidpointRate();
 }
 TEST(AuxiliaryMappedTransport, TimedInputViewsBuildIntensiveStateFromRhoInput)
 {

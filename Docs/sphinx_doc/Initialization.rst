@@ -292,6 +292,26 @@ Note that all three components must be given.  Supplying only x and y is the doc
 way to ask for the full depth of the domain (see :ref:`subsec:full-depth-refinement`),
 which is the opposite of what is wanted here.
 
+With three or more levels, a nest at level 2 or above is placed relative to the *whole*
+file of its parent level, as WRF places it, not relative to the part of that file ERF refines.
+Cropping level 1 with a refinement indicator therefore does not move level 2. This has
+consequences:
+
+- each ancestor level must be given exactly one ``nc_init_file``, since WRF's metadata does
+  not say which of several files at a level is the parent; ERF aborts otherwise. Successive
+  files in time (for example ``erf.nc_init_file_1 = "wrfinput_d02_t0" "wrfinput_d02_t1"``) are
+  possible only at the finest level;
+- every level-2 or finer region must fit inside its parent's ERF region, with the
+  proper-nesting buffer of ``amr.n_proper`` cells except at the domain boundary. ERF aborts,
+  printing both regions, if it does not; enlarge the parent's region or crop the finer level
+  with a refinement indicator;
+- a restart reads the ``nc_init_file`` of every ancestor level again to place the nests, so
+  those files must still be available.
+
+A WRF nest carries the full column of eta levels of its parent, so its vertical indices are
+those of the domain at every level: a refined region that starts above the bottom of the
+domain takes the file's data for the layers it covers.
+
 If no file is given for the finer level, omit ``erf.nc_init_file_1`` and use a refinement
 indicator alone.  The finer level's terrain and state are then interpolated from its
 parent, and its base state is built as described below.  This works whether or not the

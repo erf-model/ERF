@@ -66,7 +66,8 @@ void erf_substep_NS (int step, int nrk, int level, int finest_level,
                      const amrex::Real* sinesq_at_lev_d,
                      const amrex::Real l_damp_coef,
                      const amrex::Real beta_d,
-                     const CFFaceFluxes& cf_fluxes);
+                     const CFFaceFluxes& cf_fluxes,
+                     amrex::MultiFab* mom_reflux_p = nullptr);
 
 /**
  * Function for computing the fast RHS with fixed-in-time terrain

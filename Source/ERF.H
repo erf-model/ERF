@@ -424,6 +424,18 @@ public:
     // (ERF_CFFluxHistory.cpp).  Public because it launches device lambdas (CUDA requires it)
     void cf_flux_history_targets (int lev, amrex::Real t_beg, amrex::Real t_end);
 
+    // The reflux of the pressure impulse on the coarse/fine faces normal to the momentum
+    // (ERF_MomentumReflux.cpp, erf.momentum_reflux).  Public because they launch device lambdas
+    // (CUDA requires it)
+    static bool momentum_reflux_enabled ();
+    amrex::MultiFab* momentum_reflux_pressure (int lev);
+    void momentum_reflux_add_slow (int lev, amrex::MultiFab& P, const amrex::MultiFab& cons,
+                                   const amrex::MultiFab& p0, const amrex::MultiFab& qt,
+                                   bool moist, amrex::Real dt_stage);
+    void momentum_reflux (int crse_lev);
+    void momentum_reflux_add_sources (int lev, amrex::MultiFab& xmom_src, amrex::MultiFab& ymom_src);
+    void momentum_reflux_reset ();
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
@@ -439,7 +451,8 @@ public:
     bool has_nonunit_mapfac (int lev) const;
 
     // Does the projection at this level use the terrain Poisson solver?  Always on a
-    //     terrain-fitted mesh, and on a flat mesh whose map factors are not all one (#4903)
+    //     terrain-fitted mesh, on a flat mesh whose map factors are not all one (#4903),
+    //     and at a pseudo-incompressible level (variable-coefficient operator)
     bool projection_uses_terrain_solver (int lev) const;
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
@@ -608,6 +621,12 @@ public:
     void sbm_qualification_check_step (int nstep, amrex::Real correction_linf,
                                        std::uint64_t reflux_calls,
                                        std::uint64_t reflux_syncs);
+    void sbm_qualification_check_regrid (int lev, amrex::Long cells,
+                                         amrex::Long retained,
+                                         amrex::Long prolonged,
+                                         amrex::Long released,
+                                         const std::vector<amrex::Real>& inventory_before,
+                                         const std::vector<std::uint64_t>& phase_bytes);
     [[nodiscard]] std::vector<amrex::Real>
     sbm_qualification_composite_inventory () const;
 
@@ -633,9 +652,11 @@ public:
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
     void FillBdyCCVels (amrex::MultiFab& mf_cc_vel, amrex::Geometry& lev_geom);
 
-    void sample_points (int ifile, int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
     // Sample and write the lines of sampler, with the stresses and heat flux of each level
     void run_line_sampler (LineSampler& sampler);
+    // The volume fraction of each level for line and plane sampling, or nullptr without
+    // immersed terrain
+    amrex::Vector<const amrex::MultiFab*> sampling_volfrac () const;
 
     void derive_diag_profiles (double time,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
@@ -1237,6 +1258,9 @@ private:
     void init_sbm_level_from_coarse (int lev, amrex::Real time,
                                      const amrex::BoxArray& ba,
                                      const amrex::DistributionMapping& dm);
+    void remake_sbm_level (int lev, amrex::Real time,
+                           const amrex::BoxArray& ba,
+                           const amrex::DistributionMapping& dm);
     void sbm_synchronize_levels (int nstep);
 
     void Construct_ERFFillPatchers (int lev);
@@ -1247,6 +1271,9 @@ private:
 
     void init_bcs ();
     void init_phys_bcs (bool& read_prim_theta);
+
+    // The EB factories of a level on the grids (ba, dm), built before init_stuff needs them
+    void make_eb_factories (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
@@ -1413,7 +1440,8 @@ private:
 
     // The full WRF file box in ERF's global index space, including all ancestor nest offsets;
     // optionally return the requested refined file's parent-grid ratio
-    amrex::Box wrfinput_file_box (int lev, int file_index, int* ratio_out = nullptr) const;
+    amrex::Box wrfinput_file_box (int lev, int file_index, int* ratio_out = nullptr,
+                                  amrex::Box* file_local_box = nullptr) const;
 
     // The cells at a level > 0 that its own init file covers
     amrex::Box nest_box_from_own_init_file (int lev);
@@ -1718,6 +1746,15 @@ private:
         amrex::MultiFab tgt_w;
     };
     amrex::Vector<CFFluxHistory> m_cf_flux_hist;
+
+    // Per level, the time integral of the pressure its x- and y-momenta have seen in each cell
+    // since the start of the coarse step of level 0 (ERF_MomentumReflux.cpp); whether it has been
+    // added to since, and whether the level's grids changed while it was
+    amrex::Vector<amrex::MultiFab> m_mom_reflux_p;
+    amrex::Vector<int> m_mom_reflux_used;
+    amrex::Vector<int> m_mom_reflux_stale;
+    // Per coarse level, the momentum impulse on its coarse/fine faces (x and y) still to be given
+    amrex::Vector<std::array<amrex::MultiFab,2>> m_mom_reflux_src;
     static bool cf_flux_history_enabled ();
     bool cf_flux_history_active (int crse_lev) const;
     CFFluxHistory& cf_flux_history (int lev);
@@ -2460,33 +2497,6 @@ private:
     }
 
 
-    AMREX_FORCE_INLINE
-    std::ostream&
-    SamplePointLog (int i)
-    {
-        return *sampleptlog[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSamplePointLogs () noexcept
-    {
-        return static_cast<int>(sampleptlog.size());
-    }
-
-    amrex::IntVect&
-    SamplePoint (int i)
-    {
-        return samplepoint[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSamplePoints () noexcept
-    {
-        return static_cast<int>(samplepoint.size());
-    }
-
     static double startCPUTime;
     static double previousCPUTimeUsed;
 
@@ -2544,23 +2554,6 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordEnergyDataInfo");
     }
 
-    void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename) // NOLINT
-    {
-        amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
-        for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
-        {
-            const amrex::Box& bx = mfi.validbox();
-            if (bx.contains(cell)) {
-                sampleptlog[i] = std::make_unique<std::fstream>();
-                sampleptlog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
-                if (!sampleptlog[i]->good()) {
-                    amrex::FileOpenFailed(filename);
-                }
-            }
-        }
-        amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
-    }
-
     // Data sampler for line and plane output
     int line_sampling_interval = -1;
     int plane_sampling_interval = -1;
@@ -2570,6 +2563,8 @@ private:
     // erf.sample_line / erf.sample_line_real: full-depth columns on level 0, written to logs
     // at the cadence of the other logs (erf.sum_interval / erf.sum_per)
     std::unique_ptr<LineSampler> sample_line_sampler = nullptr;
+    // erf.sample_point / _real / _latlon: single cells, written to logs at the same cadence
+    std::unique_ptr<LineSampler> sample_point_sampler = nullptr;
     std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 
     // Station time-series output
@@ -2594,16 +2589,9 @@ private:
     amrex::Vector<std::string>   der_datalogname;
     amrex::Vector<std::string> tot_e_datalogname;
 
-    amrex::Vector<std::unique_ptr<std::fstream> > sampleptlog;
-    amrex::Vector<std::string> sampleptlogname;
-    amrex::Vector<amrex::IntVect> samplepoint;
-
     //! The filename of the ith datalog file.
     [[nodiscard]] std::string DataLogName (int i) const noexcept { return datalogname[i]; }
     [[nodiscard]] std::string DerDataLogName (int i) const noexcept { return der_datalogname[i]; }
-
-    //! The filename of the ith sampleptlog file.
-    [[nodiscard]] std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
 
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;

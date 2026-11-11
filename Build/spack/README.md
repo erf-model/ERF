@@ -107,6 +107,14 @@ is fixed; it does not follow the AMReX development branch. Before ERF 25.03,
 embedded boundaries are off, matching ERF's CMake settings. ERF 23.10 through
 24.09 use their bundled AMReX.
 
+## Container images
+
+`.github/workflows/spack-containers.yml` publishes runnable images built
+from this recipe: `ghcr.io/erf-model/erf:development` and the latest
+release, each with a dated copy that never moves. They carry MPICH, NetCDF
+and HDF5, Noah-MP, RRTMGP, FFT and particles for `x86_64_v3`; `erf_exec`
+is on `PATH` and the examples are under `share/erf/examples`.
+
 ## License
 
 See [LICENSE.md](../../LICENSE.md) for ERF's license.

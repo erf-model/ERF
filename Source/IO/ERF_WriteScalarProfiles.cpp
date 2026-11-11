@@ -197,13 +197,8 @@ ERF::sum_integrated_quantities (double time)
     });
 #endif
 
-    // This is just an alias for convenience
-    int lev = 0;
-    if (NumSamplePointLogs() > 0 && NumSamplePoints() > 0) {
-        for (int i = 0; i < NumSamplePoints(); ++i)
-        {
-            sample_points(i, lev, time, SamplePoint(i), vars_new[lev][Vars::cons]);
-        }
+    if (sample_point_sampler) {
+        run_line_sampler(*sample_point_sampler);
     }
     if (sample_line_sampler) {
         run_line_sampler(*sample_line_sampler);
@@ -572,44 +567,29 @@ ERF::cloud_fraction (double /*time*/)
 }
 
 /**
- * Utility function for sampling MultiFab data at a specified cell index.
- *
- * @param ifile Index of the sample point and of its log file
- * @param lev Level for the associated MultiFab data
- * @param time Current time
- * @param cell IntVect containing the indexes for the cell where we want to sample
- * @param mf MultiFab from which we wish to sample data
+ * The volume fraction of each level, which line and plane sampling write as volfrac and use
+ * to blank the cells covered by immersed terrain (erf.terrain_type = EB or ImmersedForcing);
+ * nullptr otherwise, and on the levels up to max_level that do not exist, whose EB factory
+ * is not built
  */
-void
-ERF::sample_points (int ifile, int /*lev*/, double time, IntVect cell, MultiFab& mf)
+Vector<const MultiFab*>
+ERF::sampling_volfrac () const
 {
-    //
-    // Sample the data at a single point in space
-    //
-    int ncomp = mf.nComp();
-    Vector<Real> my_point = get_cell_data(mf, cell);
-
-    if (!my_point.empty()) {
-
-        // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
-
-        std::ostream& sample_log = SamplePointLog(ifile);
-        if (sample_log.good()) {
-          sample_log << std::setw(datwidth) << time;
-          for (int i = 0; i < ncomp; ++i)
-          {
-              sample_log << std::setw(datwidth) << my_point[i];
-          }
-          sample_log << std::endl;
-        } // if good
-    } // only write from processor that holds the cell
+    Vector<const MultiFab*> volfrac_lev(vars_new.size(), nullptr);
+    if (solverChoice.terrain_type == TerrainType::EB ||
+        solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            volfrac_lev[lev] = &EBFactory(lev).getVolFrac();
+        }
+    }
+    return volfrac_lev;
 }
 
 /**
  * Sample the lines of a LineSampler and write them, passing it the stresses, the SGS heat
  * flux, whether each level carries a prognostic TKE, the heights of each level and the ground
- * on level 0.  Used for erf.do_line_sampling and
- * for erf.sample_line, which is a LineSampler of full-depth columns on level 0.
+ * on level 0.  Used for erf.do_line_sampling, for erf.sample_line, which is a LineSampler
+ * of full-depth columns on level 0, and for erf.sample_point, a LineSampler of single cells.
  *
  * @param sampler the line sampler
  */
@@ -637,8 +617,10 @@ ERF::run_line_sampler (LineSampler& sampler)
     }
     // With immersed terrain the ground is the terrain surface, not the bottom of the mesh
     const MultiFab* ground_nd = sampler.needs_ground() ? &station_ground(0) : nullptr;
+    // The line coordinates of a level made or regridded since they were last written
+    sampler.write_coords(z_phys_cc, z_phys_nd, geom, ground_nd);
     sampler.get_sample_data(geom, vars_new, tau_lev, hfx3_lev, prognostic_tke_available,
-                            z_cc_lev, z_nd_lev, ground_nd);
+                            z_cc_lev, z_nd_lev, ground_nd, sampling_volfrac());
     sampler.write_sample_data(t_new, istep, ref_ratio, geom);
 }
 

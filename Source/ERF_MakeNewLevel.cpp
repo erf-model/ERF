@@ -64,6 +64,37 @@ fill_time_average_sum (MultiFab& new_sum, const MultiFab* old_sum, double fine_c
 
 } // namespace
 
+/**
+ * Build the EB factories of level lev on the grids (ba, dm), with EB terrain or immersed
+ * forcing; nothing otherwise.  The state of the level is defined with them (init_stuff), so
+ * every path that makes or remakes a level builds them first.
+ *
+ * @param lev the level
+ * @param ba  the grids of the level
+ * @param dm  their distribution
+ */
+void
+ERF::make_eb_factories (int lev, const BoxArray& ba, const DistributionMapping& dm)
+{
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+         solverChoice.buildings_type == BuildingsType::ImmersedForcing)
+    {
+        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
+        const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+            if (use_native_fc_factories()) {
+                eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+            } else {
+                eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+            }
+        }
+    }
+}
+
 // Make a new level from scratch using provided BoxArray and DistributionMapping.
 // This is called both for initialization and for restart
 // (overrides the pure virtual function in AmrCore)
@@ -151,23 +182,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     if (lev == 0) init_bcs();
 
-    if ( solverChoice.terrain_type == TerrainType::EB ||
-         solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-         solverChoice.buildings_type == BuildingsType::ImmersedForcing)
-    {
-        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
-        const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
-        if (solverChoice.terrain_type == TerrainType::EB) {
-            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
-        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-            if (use_native_fc_factories()) {
-                eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
-            } else {
-                eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
-            }
-        }
-    }
+    // The EB factories of the new grids, which init_stuff defines the state with
+    make_eb_factories(lev, ba, dm);
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -593,11 +609,26 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     if (lev == 0) init_bcs();
 
+    // The EB factories of the new grids, which init_stuff defines the state with: built here,
+    // before it, as in MakeNewLevelFromScratch (erf-model/ERF#5033)
+    make_eb_factories(lev, ba, dm);
+
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays, ba2d, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
+
+    // FillCoarsePatch fills the faces of the new level that touch fluid.  A face between two
+    // covered cells it leaves as it is, so start every face at rest, as the initial state of a
+    // level made from scratch is there, rather than at init_stuff's placeholder
+    // (erf-model/ERF#5033)
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        for (int var_idx : {Vars::xvel, Vars::yvel, Vars::zvel}) {
+            vars_new[lev][var_idx].setVal(zero);
+            vars_old[lev][var_idx].setVal(zero);
+        }
+    }
 
     // init_stuff starts the time averages of this new level empty; give them the coarse
     // level's averages and window instead
@@ -625,26 +656,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     t_new[lev] = time;
     t_old[lev] = time - bogus_large_value;
 
-    // ********************************************************************************************
-    // Build the data structures for metric quantities used with terrain-fitted coordinates
-    // ********************************************************************************************
-    if ( solverChoice.terrain_type == TerrainType::EB ||
-         solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-         solverChoice.buildings_type == BuildingsType::ImmersedForcing)
-    {
-        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
-        const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
-        if (solverChoice.terrain_type == TerrainType::EB) {
-            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
-        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-            if (use_native_fc_factories()) {
-                eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
-            } else {
-                eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
-            }
-        }
-    }
     init_zphys(lev, time);
     update_terrain_arrays(lev);
 
@@ -1030,8 +1041,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
         "M2 auxiliary inert tracer fixture does not support regrid/remake");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
-        "SBM M3/M4b does not support regridding until conservative hierarchy remap is qualified");
     //
     // Note that "time" here is elapsed time
     //
@@ -1148,6 +1157,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         old_seb_q_sfc = keep(two_stream_rad.seb_q_sfc(lev));
     }
 
+    // The EB factories of the new grids, which init_stuff defines the state with: built here,
+    // before it (erf-model/ERF#5033).  The old state keeps its own copy of the old factory.
+    make_eb_factories(lev, ba, dm);
+
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays and metrics, and base state.
@@ -1261,26 +1274,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         }
     }
 
-    // ********************************************************************************************
-    // Build the data structures for terrain-related quantities
-    // ********************************************************************************************
-    if ( solverChoice.terrain_type == TerrainType::EB ||
-         solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-         solverChoice.buildings_type == BuildingsType::ImmersedForcing)
-    {
-        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
-        const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
-        if (solverChoice.terrain_type == TerrainType::EB) {
-            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
-        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-            if (use_native_fc_factories()) {
-                eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
-            } else {
-                eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
-            }
-        }
-    }
     remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 
@@ -1748,6 +1741,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         initRayleigh_at_level(lev);
     }
 
+    if (sbm_state_manager) {
+        remake_sbm_level(lev, time, ba, dm);
+    }
+
     // Particle redistribute handled in timeStep() after regrid() completes.
     // Calling it here causes stale-grid crashes.
 }
@@ -1759,6 +1756,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 void
 ERF::ClearLevel (int lev)
 {
+    for (int iface = lev; iface <= lev + 1; ++iface) {
+        if (iface >= 0 && iface < static_cast<int>(sbm_amr_flux_regs.size()) &&
+            sbm_amr_flux_regs[iface] &&
+            sbm_amr_flux_regs[iface]->has_outstanding_amount()) {
+            Abort("SBM interface register was cleared with a pending reflux amount");
+        }
+    }
     if (auxiliary_inert_tracer && auxiliary_inert_tracer->is_defined(lev)) {
         auxiliary_inert_tracer->destroy(lev);
     }
@@ -1861,6 +1865,12 @@ ERF::ClearLevel (int lev)
     // builds the level next is responsible for setting this again.
     if (lev < static_cast<int>(rad_interp_from_coarse_pending.size())) {
         rad_interp_from_coarse_pending[lev] = 0;
+    }
+
+    // Release the EB factories of the level's grids.  Whichever routine builds the level next
+    // builds them again for its new grids; until then nothing may read them.
+    if (lev < static_cast<int>(eb.size()) && eb[lev]) {
+        eb[lev]->clear_factories();
     }
 
     // Drop the level from the surface model too, so its level count (used by its
