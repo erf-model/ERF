@@ -548,7 +548,9 @@ The current updated SLM radiation is limited to snow-free and ice-free land
 surfaces. The source contains NoahMP snow-aging and BATS snow-albedo routines,
 but snow cover, snow depth, snow water equivalent, and snowfall are currently
 set to zero in the radiation driver. Lake and ice radiation paths are likewise
-not active. Complete snow and ice treatment in SLM will be added in a separate
+not active. The canopy must also stay above freezing; a vegetated cell with a
+canopy at or below 273.15 K stops the run (see `9. Canopy energy and water
+balance`_). Complete snow and ice treatment in SLM will be added in a separate
 pull request.
 
 The ground-albedo calculation currently uses a fixed soil-color category from
@@ -685,6 +687,17 @@ To control temperature oscillations when canopy heat capacity is small, this
 balance is subcycled with approximately one-second substeps. The subcycling is
 an SLM/gSAM-SLM numerical treatment rather than a NoahMP time-integration
 scheme. Canopy temperature is limited to 343 K.
+
+.. warning::
+
+   SLM does not treat a frozen canopy. The canopy temperature of every vegetated
+   land cell must stay above freezing (273.15 K). SLM checks it at the start of
+   the run and after every SLM step, and the run stops if any vegetated cell is at
+   or below 273.15 K. The canopy temperature starts at the reference-level air
+   temperature, so a case with vegetated land under sub-freezing air (winter,
+   high latitude or high elevation) stops at the start of the run. A canopy that
+   cools below freezing during a run also stops it. Bare-soil cells are not
+   affected. See erf-model/ERF#4467.
 
 10. Ground-skin energy balance and soil evaporation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
