@@ -340,10 +340,10 @@ TEST(TwoStreamRoof, RoofAtTheGroundAndBuildingToTheTop)
     EXPECT_EQ(none.max_heating, Real(0.0));
     EXPECT_GT(none.sw_down_toa, Real(0.0));   // the sun still shines on the top
     // One layer above the roof: the top layer alone.
-    TwoStreamRoof top;
-    top.k_lower = 7; top.albedo = Real(0.3); top.emissivity = Real(0.9); top.temperature = Real(310.0);
-    const Column one = sweep(roof_choice(), 0, 7, &top, Real(300.0));
-    EXPECT_NE(one.at(one.q_sw, 7), Real(0.0));
-    EXPECT_EQ(one.at(one.q_sw, 6), Real(0.0));
-    EXPECT_GT(one.at(one.lw_up, 8), Real(100.0));
+    TwoStreamRoof under_top;
+    under_top.k_lower = 7; under_top.albedo = Real(0.3); under_top.emissivity = Real(0.9); under_top.temperature = Real(310.0);
+    const Column top_layer = sweep(roof_choice(), 0, 7, &under_top, Real(300.0));
+    EXPECT_NE(top_layer.at(top_layer.q_sw, 7), Real(0.0));
+    EXPECT_EQ(top_layer.at(top_layer.q_sw, 6), Real(0.0));
+    EXPECT_GT(top_layer.at(top_layer.lw_up, 8), Real(100.0));
 }

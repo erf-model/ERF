@@ -246,9 +246,9 @@ TEST(IBSEBGroundWalls, WhatTheFacesSendIsWhatTheGroundGets)
         }
         // A later step: the radiosities change, the share of the view is left as it is.
         {
-            auto alb = host(faces.d_albedo);
-            for (auto& v : alb) { v *= Real(0.5); }
-            to_device(faces.d_albedo, alb);
+            auto halved = host(faces.d_albedo);
+            for (auto& v : halved) { v *= Real(0.5); }
+            to_device(faces.d_albedo, halved);
             out.plus(Real(1.0), IBFaceSet::GW_VIEW, 1, 0);
             faces.compute_ground_walls(out, false);
             const auto view = table(out, IBFaceSet::GW_VIEW, nx, ny), sw = table(out, IBFaceSet::GW_SW, nx, ny);
