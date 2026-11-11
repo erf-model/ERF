@@ -935,21 +935,6 @@ ERF::refinement_criteria_setup ()
                     }
                     crit.real_box = crit.base_box;
 
-                    // The nest files of WRFInput and Metgrid are read into the boxes registered by
-                    //    read_box_for_refinement, which this box is not
-                    if (solverChoice.init_type == InitType::WRFInput ||
-                        solverChoice.init_type == InitType::Metgrid) {
-                        for (int lev = 1; lev <= std::min(crit.max_level, max_level); ++lev) {
-                            if (num_files_at_level[lev] > 0) {
-                                amrex::Abort("Refinement indicator " + crit.name + " tests a field, so its"
-                                             " in_box_lo/in_box_hi box cannot place the level " +
-                                             std::to_string(lev) + " nest read from nc_init_file_" +
-                                             std::to_string(lev) + "; give the nest by its own indicator"
-                                             " without a field test");
-                            }
-                        }
-                    }
-
                     crit.box_z = RefinementCriterion::BoxZ::AboveGround;
                     if (ppr.countval("box_z_coordinate") > 0) {
                         std::string zcoord; ppr.get("box_z_coordinate", zcoord);
@@ -991,5 +976,22 @@ ERF::refinement_criteria_setup ()
                 }
             }
         } // loop over criteria
+
+        // With WRFInput or Metgrid, a level read from nc_init_file_<lev> is the region of its nest,
+        //    given by the file or by a box without a field test, and ErrorEst tags nothing else
+        //    there, so an indicator that tests a field does not refine that level
+        if (solverChoice.init_type == InitType::WRFInput ||
+            solverChoice.init_type == InitType::Metgrid) {
+            for (const auto& crit : ref_criteria) {
+                if (crit.conditions.empty()) { continue; }
+                for (int lev = 1; lev <= std::min(crit.max_level, max_level); ++lev) {
+                    if (num_files_at_level[lev] > 0) {
+                        amrex::Print() << "WARNING: refinement indicator " << crit.name << " tests a field,"
+                                       << " so it does not refine level " << lev << ", which is the nest"
+                                       << " read from nc_init_file_" << lev << std::endl;
+                    }
+                }
+            }
+        }
     } // if max_level > 0
 }

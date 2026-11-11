@@ -471,9 +471,10 @@ values (x and y) in ``in_box_lo`` / ``in_box_hi`` the region is unrestricted in 
 only a restriction, so unlike a box given without a field test it is not itself a refined region,
 and it may move with ``move_speed_x``, ``move_speed_y``, ``move_start_time`` and ``move_stop_time``
 as the boxes of :ref:`subsec:moving-boxes` do.  It must be given in physical coordinates, not by
-indices.  Since it is not a refined region, it cannot place a nest read from
-``erf.nc_init_file_<lev>`` with ``erf.init_type = WRFInput`` or ``Metgrid``; setup aborts if it
-would, and such a nest must be given by an indicator of its own without a field test.
+indices.  Since it is not a refined region, it does not place or crop a nest read from
+``erf.nc_init_file_<lev>`` with ``erf.init_type = WRFInput`` or ``Metgrid``.  Such a level is the
+region of its nest, given by the file or cropped by an indicator without a field test, and no
+indicator that tests a field refines it; setup prints a warning for each such indicator and level.
 
 Combining Several Conditions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
