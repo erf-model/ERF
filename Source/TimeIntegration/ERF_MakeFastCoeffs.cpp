@@ -36,7 +36,8 @@ using namespace amrex;
  * @param[in]  detJ_cc_old   Cell volume at the start of the sub-step, for a moving mesh. The unknown of the
  *                           solve is then the perturbation of the vertical mass flux, Omega_new - Omega_stg,
  *                           and the w equation, conservative in the face volume, has J_new/J_old on the
- *                           diagonal (face values of detJ_cc_vol and detJ_cc_old). nullptr gives 1
+ *                           diagonal and on the buoyancy of the density at the new time (face values of
+ *                           detJ_cc_vol and detJ_cc_old). nullptr gives 1
  */
 
 void make_fast_coeffs (int /*level*/,
@@ -204,15 +205,18 @@ void make_fast_coeffs (int /*level*/,
                 Real D_A = beta_2_km1 * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
                 Real D_B = beta_2_k   * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
                 Real D_C = beta_2_k   * beta_2_kp1 * dzi * static_cast<Real>(dtau * dtau);
-                coeffA_a(i,j,k) = D_A * (one/detV(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D_C * (one/detV(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
-
                 // The w equation is conservative in the face volume, J_new W_new = J_old W_old + ...; with
-                // the flux perturbation as the unknown (moving mesh) its diagonal is J_new/J_old on the face
+                // the flux perturbation as the unknown (moving mesh) its diagonal is J_new/J_old on the face.
+                // The buoyancy of the density at the new time has the face volume of the new mesh, so the
+                // same ratio multiplies g in the three entries
                 Real diag = (has_detJ_old) ? (detV(i,j,k) + detV(i,j,k-1)) / (detO(i,j,k) + detO(i,j,k-1))
                                            : one;
+                Real halfg_new = (has_detJ_old) ? halfg * diag : halfg;
+                coeffA_a(i,j,k) = D_A * (one/detV(i,j,k-1)) * ( halfg_new - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D_C * (one/detV(i,j,k  )) * (-halfg_new + coeff_P * theta_t_hi );
+
                 coeffB_a(i,j,k) = diag + D_B * ( (coeff_Q/detV(i,j,k-1) - coeff_P/detV(i,j,k)) * theta_t_mid
-                                       + halfg * (one/detV(i,j,k) - one/detV(i,j,k-1)) );
+                                       + halfg_new * (one/detV(i,j,k) - one/detV(i,j,k-1)) );
             });
 
         } else {

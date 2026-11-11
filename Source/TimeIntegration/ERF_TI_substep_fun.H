@@ -37,8 +37,11 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             l_variable_beta_s = false;
         }
 
-        // On a moving fitted mesh the metric terms of the pressure gradient (horizontal and vertical)
-        // are taken at the sub-step midpoint.  The cell volumes stay at the sub-step ends: in the
+        // On a moving fitted mesh (erf_substep_MT) the horizontal pressure gradient is explicit and has the
+        // metric terms of the sub-step start, and the change of the metric terms since the stage time acts
+        // on the complete pressure of the stage state.  The face metric of the vertical pressure gradient
+        // (coeff_P and coeff_Q of the implicit solve) is taken at the sub-step midpoint.  The cell volumes
+        // stay at the sub-step ends: in the
         // conservative update, and in the vertical flux divergence of the implicit solve, which divides
         // by the same volume as the update.  Only RK3_ImplicitSubstep takes acoustic
         // sub-steps, so this applies to every sub-step on a moving mesh
@@ -146,9 +149,9 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             update_terrain_substep(level, old_substep_time, new_substep_time, dtau, S_data, z_t_pert);
         }
 
-        // Mesh and Jacobian at the sub-step midpoint for the metric terms of the pressure gradient;
-        // the cell volumes stay at the sub-step ends.  The arrays are allocated with the level
-        // (init_stuff) and only rewritten here
+        // Mesh and Jacobian at the sub-step midpoint for make_fast_coeffs (the face metric of the vertical
+        // pressure gradient and the slope of the variable beta_s); the cell volumes stay at the sub-step
+        // ends.  The arrays are allocated with the level (init_stuff) and only rewritten here
         if (l_mid_metric) {
             MultiFab::LinComb(*z_phys_nd_mid[level], Real(0.5), *z_phys_nd[level], 0,
                                                      Real(0.5), *z_phys_nd_new[level], 0,
@@ -169,7 +172,8 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                              l_variable_beta_s, solverChoice.beta_s_min, solverChoice.beta_s_max,
                              phys_bc_type,
                              // The rho and (rho theta) equations divide by the volume of the update,
-                             // and the w equation has J_new/J_old on its diagonal
+                             // and the w equation has J_new/J_old on its diagonal and on the buoyancy
+                             // of the density at the new time
                              (l_mid_metric ? detJ_cc_new[level].get() : nullptr),
                              (l_mid_metric ? detJ_cc[level].get()     : nullptr));
         }
@@ -218,14 +222,13 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             erf_substep_MT(fast_step, nrk, level, finest_level,
-                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, p_stage, fast_coeffs,
                            S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom,
                            solverChoice.gravity, solverChoice.use_lagged_delta_rt,
                            z_t_rk[level], z_t_pert.get(),
-                           z_phys_nd[level], z_phys_nd_mid[level].get(),
-                           z_phys_nd_new[level], z_phys_nd_src[level],
+                           z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,

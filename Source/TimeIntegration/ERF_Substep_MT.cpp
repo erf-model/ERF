@@ -16,6 +16,7 @@ using namespace amrex;
  * @param[in   ] S_stg_data solution            at previous RK stage
  * @param[in   ] S_stg_prim primitive variables at previous RK stage
  * @param[in   ] pi_stage   Exner function      at previous RK stage
+ * @param[in   ] p_stage    pressure            at previous RK stage
  * @param[in   ] fast_coeffs coefficients for the tridiagonal solve used in the fast integrator,
  *                           and beta_s on the w-faces (component 5)
  * @param[  out] S_data current solution
@@ -32,9 +33,8 @@ using namespace amrex;
  * @param[in   ] use_lagged_delta_rt define lagged_delta_rt for our next step
  * @param[in   ] z_t_rk rate of change of grid height -- only relevant for moving terrain
  * @param[in   ] z_t_pert rate of change of grid height -- interpolated between RK stages
- * @param[in   ] z_phys_nd_old height coordinate at nodes at old time
- * @param[in   ] z_phys_nd_flx height coordinate at nodes at the sub-step midpoint, for the metric terms of
- *               the pressure gradient. The cell volumes are those at the sub-step ends.
+ * @param[in   ] z_phys_nd_old height coordinate at nodes at old time (the sub-step start); the metric terms of
+ *               the horizontal pressure gradient are on this mesh
  * @param[in   ] z_phys_nd_new height coordinate at nodes at new time
  * @param[in   ] z_phys_nd_stg height coordinate at nodes at previous stage
  * @param[in   ] detJ_cc_old Jacobian of the metric transformation at old time
@@ -59,6 +59,7 @@ void erf_substep_MT (int step, int /*nrk*/,
                      const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVars::cons]
                      const MultiFab& qt,                            // Total moisture
                      const MultiFab& pi_stage,                      // Exner function evaluated at last RK stg
+                     const MultiFab& p_stage,                       // Pressure evaluated at last RK stg
                      const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                      Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
                      MultiFab& lagged_delta_rt,
@@ -75,7 +76,6 @@ void erf_substep_MT (int step, int /*nrk*/,
                      std::unique_ptr<MultiFab>& z_t_rk,             // evaluated from previous RK stg to next RK stg
                      const MultiFab* z_t_pert,                      // evaluated from tau to (tau + delta tau) - z_t_rk
                      std::unique_ptr<MultiFab>& z_phys_nd_old,      // at previous substep time (tau)
-                     const MultiFab* z_phys_nd_flx,                 // for the metric terms (sub-step midpoint)
                      std::unique_ptr<MultiFab>& z_phys_nd_new,      // at      new substep time (tau + delta tau)
                      std::unique_ptr<MultiFab>& z_phys_nd_stg,      // at last RK stg
                      std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
@@ -198,8 +198,6 @@ void erf_substep_MT (int step, int /*nrk*/,
         const Array4<Real>& avg_zmom_arr = avg_zmom.array(mfi);
 
         const Array4<const Real>& z_nd_old = z_phys_nd_old->const_array(mfi);
-        // Metric terms of the pressure gradient on z_nd_flx; the cell volumes on z_nd_old and z_nd_new
-        const Array4<const Real>& z_nd_flx = z_phys_nd_flx->const_array(mfi);
         const Array4<const Real>& z_nd_new = z_phys_nd_new->const_array(mfi);
         const Array4<const Real>& z_nd_stg = z_phys_nd_stg->const_array(mfi);
         const Array4<const Real>& detJ_old =   detJ_cc_old->const_array(mfi);
@@ -328,6 +326,22 @@ void erf_substep_MT (int step, int /*nrk*/,
         auto const&     beta_s_a =      beta_s_mf.const_array(mfi);
 
         // *********************************************************************
+        // Horizontal pressure gradient with each state on its own mesh.  The fast term is the gradient of
+        // the pressure of the current state on the mesh of the sub-step start minus the gradient of the
+        // pressure of the stage state on the stage mesh,
+        //    [h_zeta d_xi - h_xi d_zeta]_old (p_stg + p'') - [h_zeta d_xi - h_xi d_zeta]_stg p_stg
+        // This is the gradient of the perturbation p'' with the metric terms of the sub-step start, plus
+        // the change of the metric terms since the stage time applied to the stage pressure.
+        // Without the second part a state at rest in hydrostatic balance does not stay at rest: the height
+        // of each cell changes, so p'' = -rho g (z - z_stg), and the gradient of this p'' along the sloping
+        // coordinate surface is not balanced.
+        // p_stage is the complete pressure of the stage state, made one time for the stage in make_pi_stage.
+        // The slow tendency has the gradient on the stage mesh (make_gradp_pert, by default of the
+        // difference from the base state)
+        // *********************************************************************
+        const Array4<const Real>& pstg_a = p_stage.const_array(mfi);
+
+        // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
         {
@@ -336,15 +350,16 @@ void erf_substep_MT (int step, int /*nrk*/,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real h_xi_flx   = Compute_h_xi_AtIface(i, j, k, dxInv, z_nd_flx);
-                Real h_zeta_flx = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_flx);
+                // Metric terms of the sub-step start; h_zeta_old is also the cell volume at the sub-step start
+                Real h_xi_old   = Compute_h_xi_AtIface(i, j, k, dxInv, z_nd_old);
+                Real h_zeta_old = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_old);
                 Real gp_xi = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k)) * dxi;
                 Real gp_zeta_on_iface = (k == 0) ?
                    myhalf  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
                                    - theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
                    fourth  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
                                    - theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
-                Real gpx = h_zeta_flx * gp_xi - h_xi_flx * gp_zeta_on_iface;
+                Real gpx = h_zeta_old * gp_xi - h_xi_old * gp_zeta_on_iface;
                 gpx *= mf_ux(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i-1,j,k) + qt_arr(i,j,k)) : zero;
@@ -352,8 +367,17 @@ void erf_substep_MT (int step, int /*nrk*/,
                 Real pi_c =  myhalf * (pi_stage_ca(i-1,j,k) + pi_stage_ca(i  ,j,k));
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx / (one + q);
 
-                // Cell volume at the sub-step start
-                Real h_zeta_old = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_old);
+                // Change of the metric terms since the stage time, applied to the stage pressure
+                // (the same differences as for the perturbation above)
+                Real dh_xi   = h_xi_old   - Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd_stg);
+                Real dh_zeta = h_zeta_old - Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_stg);
+                Real ps_xi = (pstg_a(i,j,k) - pstg_a(i-1,j,k)) * dxi;
+                Real ps_zeta_on_iface = (k == 0) ?
+                   myhalf  * dzi * ( pstg_a(i-1,j,k+1) + pstg_a(i,j,k+1)
+                                   - pstg_a(i-1,j,k  ) - pstg_a(i,j,k  ) ) :
+                   fourth  * dzi * ( pstg_a(i-1,j,k+1) + pstg_a(i,j,k+1)
+                                   - pstg_a(i-1,j,k-1) - pstg_a(i,j,k-1) );
+                fast_rhs_rho_u -= (dh_zeta * ps_xi - dh_xi * ps_zeta_on_iface) * mf_ux(i,j,0) / (one + q);
 
                 // We have already scaled the source terms to have the extra factor of dJ
                 cur_xmom(i,j,k) = h_zeta_old * prev_xmom(i,j,k) + dtau * fast_rhs_rho_u
@@ -363,15 +387,16 @@ void erf_substep_MT (int step, int /*nrk*/,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real h_eta_flx  = Compute_h_eta_AtJface(i, j, k, dxInv, z_nd_flx);
-                Real h_zeta_flx = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_flx);
+                // Metric terms of the sub-step start; h_zeta_old is also the cell volume at the sub-step start
+                Real h_eta_old  = Compute_h_eta_AtJface(i, j, k, dxInv, z_nd_old);
+                Real h_zeta_old = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_old);
                 Real gp_eta = (theta_extrap(i,j,k) -theta_extrap(i,j-1,k)) * dyi;
                 Real gp_zeta_on_jface = (k == 0) ?
                     myhalf  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
                                     - theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
                     fourth  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
                                     - theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
-                Real gpy = h_zeta_flx * gp_eta - h_eta_flx  * gp_zeta_on_jface;
+                Real gpy = h_zeta_old * gp_eta - h_eta_old  * gp_zeta_on_jface;
                 gpy *= mf_vy(i,j,0);
 
                 Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j-1,k) + qt_arr(i,j,k)) : zero;
@@ -379,8 +404,16 @@ void erf_substep_MT (int step, int /*nrk*/,
                 Real pi_c =  myhalf * (pi_stage_ca(i,j-1,k) + pi_stage_ca(i,j  ,k));
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy / (one + q);
 
-                // Cell volume at the sub-step start
-                Real h_zeta_old = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_old);
+                // Change of the metric terms since the stage time, applied to the stage pressure
+                Real dh_eta  = h_eta_old  - Compute_h_eta_AtJface (i, j, k, dxInv, z_nd_stg);
+                Real dh_zeta = h_zeta_old - Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_stg);
+                Real ps_eta = (pstg_a(i,j,k) - pstg_a(i,j-1,k)) * dyi;
+                Real ps_zeta_on_jface = (k == 0) ?
+                    myhalf  * dzi * ( pstg_a(i,j,k+1) + pstg_a(i,j-1,k+1)
+                                    - pstg_a(i,j,k  ) - pstg_a(i,j-1,k  ) ) :
+                    fourth  * dzi * ( pstg_a(i,j,k+1) + pstg_a(i,j-1,k+1)
+                                    - pstg_a(i,j,k-1) - pstg_a(i,j-1,k-1) );
+                fast_rhs_rho_v -= (dh_zeta * ps_eta - dh_eta * ps_zeta_on_jface) * mf_vy(i,j,0) / (one + q);
 
                 // We have already scaled the source terms to have the extra factor of dJ
                 cur_ymom(i, j, k) = h_zeta_old * prev_ymom(i,j,k) + dtau * fast_rhs_rho_v
@@ -480,6 +513,15 @@ void erf_substep_MT (int step, int /*nrk*/,
             Real     dJ_new_kface = myhalf * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
             Real     dJ_stg_kface = myhalf * (detJ_stg(i,j,k) + detJ_stg(i,j,k-1));
 
+            // Each state on its own mesh.  The row is the w equation, conservative in the face volume and divided
+            // by the face volume at the sub-step start, so the buoyancy of each state has the face volume of its
+            // own mesh: the stage density has the weight stg_ratio and the density at the new time has new_ratio.
+            // The pressure perturbation is the difference of two cell values of the pressure, a function of
+            // (rho theta), so the stage (rho theta) has the weight one
+            Real stg_ratio = dJ_stg_kface/dJ_old_kface;
+            Real new_ratio = dJ_new_kface/dJ_old_kface;
+            Real halfg_new = halfg * new_ratio;
+
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);
 
@@ -490,25 +532,33 @@ void erf_substep_MT (int step, int /*nrk*/,
             // line 2 last two terms (order dtau)
             Real R0_tmp  = coeff_P * cur_cons(i,j,k  ,RhoTheta_comp)
                          + coeff_Q * cur_cons(i,j,k-1,RhoTheta_comp)
-                         - coeff_P * stg_cons(i,j,k  ,RhoTheta_comp) * (dJ_stg_kface/dJ_old_kface)
-                         - coeff_Q * stg_cons(i,j,k-1,RhoTheta_comp) * (dJ_stg_kface/dJ_old_kface)
+                         - coeff_P * stg_cons(i,j,k  ,RhoTheta_comp)
+                         - coeff_Q * stg_cons(i,j,k-1,RhoTheta_comp)
                        - halfg   * ( cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp) )
-                       + halfg   * ( stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp) ) * (dJ_stg_kface/dJ_old_kface);
+                       + halfg   * ( stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp) ) * stg_ratio;
 
             // line 3 residuals (order dtau^2) one <-> beta_2
             // The slow tendency enters the conservative update with the stage volume:
             // J_new q_new = J_old q_old + dtau (J_stg S_q + ...), as in the final update below
+            // (halfg_new: the buoyancy of the density at the new time has the face volume of the new mesh)
             Real sw_k   = detJ_stg(i,j,k  ) / detJ_new(i,j,k  );
             Real sw_km1 = detJ_stg(i,j,k-1) / detJ_new(i,j,k-1);
-            Real R1_tmp = - halfg * ( sw_k*slow_rhs_cons(i,j,k  ,Rho_comp) + sw_km1*slow_rhs_cons(i,j,k-1,Rho_comp))
+            Real R1_tmp = - halfg_new * ( sw_k*slow_rhs_cons(i,j,k  ,Rho_comp) + sw_km1*slow_rhs_cons(i,j,k-1,Rho_comp))
                           + coeff_P * sw_k*slow_rhs_cons(i,j,k  ,RhoTheta_comp) + coeff_Q * sw_km1*slow_rhs_cons(i,j,k-1,RhoTheta_comp);
+
+            // The buoyancy of the density at the old time in R0_tmp has the weight one, beta_1 + beta_2.  At the
+            // new time the weight is new_ratio:  - halfg [ beta_1 rho_old + beta_2 new_ratio rho_new ]
+            //    = - halfg rho_old - beta_2 halfg (new_ratio - 1) rho_old - beta_2 halfg_new (rho_new - rho_old).
+            // The last part is in the predictor terms of R1_tmp; the middle part is this term
+            R1_tmp += - halfg * ( (dJ_new_kface - dJ_old_kface) / (dJ_old_kface * dtau) )
+                              * ( cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp) );
 
             // Volume-change tendency -q (J_new - J_old)/(J_new dtau) of the conservative update; without it the
             // implicit solve sees the change of the cell volume as a pressure change
             {
                 Real jr_k   = (detJ_new(i,j,k  ) - detJ_old(i,j,k  )) / (detJ_new(i,j,k  ) * dtau);
                 Real jr_km1 = (detJ_new(i,j,k-1) - detJ_old(i,j,k-1)) / (detJ_new(i,j,k-1) * dtau);
-                R1_tmp += - halfg * ( -cur_cons(i,j,k  ,Rho_comp) * jr_k - cur_cons(i,j,k-1,Rho_comp) * jr_km1 )
+                R1_tmp += - halfg_new * ( -cur_cons(i,j,k  ,Rho_comp) * jr_k - cur_cons(i,j,k-1,Rho_comp) * jr_km1 )
                           + coeff_P * ( -cur_cons(i,j,k  ,RhoTheta_comp) * jr_k )
                           + coeff_Q * ( -cur_cons(i,j,k-1,RhoTheta_comp) * jr_km1 );
             }
@@ -527,9 +577,9 @@ void erf_substep_MT (int step, int /*nrk*/,
             Real detJdiff = (dJo_k - dJo_km1) / (dJo_k*dJo_km1);
 
             // consolidate lines 4&5 (order dtau^2)
-            R1_tmp += halfg * ( beta_1 * dzi * (Omega_kp1/dJo_k + detJdiff*Omega_k - Omega_km1/dJo_km1)
-                              + dzi * (dbeta_1_kp1*Omega_kp1/dJo_k - dbeta_1_km1*Omega_km1/dJo_km1)
-                                + temp_rhs_arr(i,j,k,Rho_comp)/dJo_k + temp_rhs_arr(i,j,k-1,Rho_comp)/dJo_km1 );
+            R1_tmp += halfg_new * ( beta_1 * dzi * (Omega_kp1/dJo_k + detJdiff*Omega_k - Omega_km1/dJo_km1)
+                                  + dzi * (dbeta_1_kp1*Omega_kp1/dJo_k - dbeta_1_km1*Omega_km1/dJo_km1)
+                                    + temp_rhs_arr(i,j,k,Rho_comp)/dJo_k + temp_rhs_arr(i,j,k-1,Rho_comp)/dJo_km1 );
 
             // consolidate lines 6&7 (order dtau^2)
             R1_tmp += -(
@@ -556,8 +606,8 @@ void erf_substep_MT (int step, int /*nrk*/,
                 Real Z_kp1 = -rf_kp1 * zp_t_arr(i,j,k+1) - (rf_kp1 - rs_kp1) * z_t_arr(i,j,k+1);
                 Real Z_k   = -rf_k   * zp_t_arr(i,j,k  ) - (rf_k   - rs_k  ) * z_t_arr(i,j,k  );
                 Real Z_km1 = -rf_km1 * zp_t_arr(i,j,k-1) - (rf_km1 - rs_km1) * z_t_arr(i,j,k-1);
-                R1_tmp += halfg * beta_2 * dzi * (Z_kp1/dJo_k + detJdiff*Z_k - Z_km1/dJo_km1);
-                R1_tmp += halfg * dzi * (dbeta_2_kp1*Z_kp1/dJo_k - dbeta_2_km1*Z_km1/dJo_km1);
+                R1_tmp += halfg_new * beta_2 * dzi * (Z_kp1/dJo_k + detJdiff*Z_k - Z_km1/dJo_km1);
+                R1_tmp += halfg_new * dzi * (dbeta_2_kp1*Z_kp1/dJo_k - dbeta_2_km1*Z_km1/dJo_km1);
                 R1_tmp += -( coeff_P/dJo_k   * beta_2 * dzi * (Z_kp1*theta_t_hi  - Z_k  *theta_t_mid)
                            + coeff_Q/dJo_km1 * beta_2 * dzi * (Z_k  *theta_t_mid - Z_km1*theta_t_lo ) );
                 R1_tmp += -( coeff_P/dJo_k   * dzi * dbeta_2_kp1*Z_kp1*theta_t_hi
