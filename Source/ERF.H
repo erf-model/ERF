@@ -45,6 +45,7 @@
 #include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_RefinementCriterion.H>
 #include <ERF_TopographicShading.H>
 #include <ERF_PlotfileSelection.H>
 #include <ERF_BaseStateParams.H>
@@ -274,9 +275,15 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
+    // Fill mf (one component, one ghost cell) at level levc with the refinement field named field
+    void compute_tag_field (int levc, const std::string& field, amrex::Real time,
+                            amrex::MultiFab& mf, amrex::TagBoxArray& tags);
+
     // Tag cells in a given box
     void read_box_for_refinement   (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box);
     void update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box, const double time);
+    void refinement_box_offset     (const std::string& ref_prefix, const double time,
+                                    amrex::Real& offset_x, amrex::Real& offset_y);
 
     // Refinement criteria for hurricanes
     void HurricaneTracker (int lev,
@@ -424,6 +431,18 @@ public:
     // (ERF_CFFluxHistory.cpp).  Public because it launches device lambdas (CUDA requires it)
     void cf_flux_history_targets (int lev, amrex::Real t_beg, amrex::Real t_end);
 
+    // The reflux of the pressure impulse on the coarse/fine faces normal to the momentum
+    // (ERF_MomentumReflux.cpp, erf.momentum_reflux).  Public because they launch device lambdas
+    // (CUDA requires it)
+    static bool momentum_reflux_enabled ();
+    amrex::MultiFab* momentum_reflux_pressure (int lev);
+    void momentum_reflux_add_slow (int lev, amrex::MultiFab& P, const amrex::MultiFab& cons,
+                                   const amrex::MultiFab& p0, const amrex::MultiFab& qt,
+                                   bool moist, amrex::Real dt_stage);
+    void momentum_reflux (int crse_lev);
+    void momentum_reflux_add_sources (int lev, amrex::MultiFab& xmom_src, amrex::MultiFab& ymom_src);
+    void momentum_reflux_reset ();
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
@@ -439,7 +458,8 @@ public:
     bool has_nonunit_mapfac (int lev) const;
 
     // Does the projection at this level use the terrain Poisson solver?  Always on a
-    //     terrain-fitted mesh, and on a flat mesh whose map factors are not all one (#4903)
+    //     terrain-fitted mesh, on a flat mesh whose map factors are not all one (#4903),
+    //     and at a pseudo-incompressible level (variable-coefficient operator)
     bool projection_uses_terrain_solver (int lev) const;
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
@@ -608,6 +628,12 @@ public:
     void sbm_qualification_check_step (int nstep, amrex::Real correction_linf,
                                        std::uint64_t reflux_calls,
                                        std::uint64_t reflux_syncs);
+    void sbm_qualification_check_regrid (int lev, amrex::Long cells,
+                                         amrex::Long retained,
+                                         amrex::Long prolonged,
+                                         amrex::Long released,
+                                         const std::vector<amrex::Real>& inventory_before,
+                                         const std::vector<std::uint64_t>& phase_bytes);
     [[nodiscard]] std::vector<amrex::Real>
     sbm_qualification_composite_inventory () const;
 
@@ -633,9 +659,11 @@ public:
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
     void FillBdyCCVels (amrex::MultiFab& mf_cc_vel, amrex::Geometry& lev_geom);
 
-    void sample_points (int ifile, int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
     // Sample and write the lines of sampler, with the stresses and heat flux of each level
     void run_line_sampler (LineSampler& sampler);
+    // The volume fraction of each level for line and plane sampling, or nullptr without
+    // immersed terrain
+    amrex::Vector<const amrex::MultiFab*> sampling_volfrac () const;
 
     void derive_diag_profiles (double time,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
@@ -963,6 +991,7 @@ public:
     void ibseb_check_sun_matches_two_stream () const;
     void ibseb_check_two_stream_provider () const;
     void ibseb_check_two_stream_buildings () const;
+    void ibseb_give_ground_walls (int lev);
     [[nodiscard]] bool ibseb_two_stream_buildings () const {
         return ibseb_params.enable && ibseb_params.two_stream_buildings && solverChoice.rad_type == RadiationType::TwoStream;
     }
@@ -1025,6 +1054,8 @@ public:
     void GetEnsembleCheckpointName (int da_iter, int ens_no);
 
     void init_custom (int lev);
+    // Set rho = rho0 theta0 / theta on a pseudo-incompressible level, keeping the mixing ratios
+    void make_pseudo_incompressible_initial_state (int lev);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -1181,6 +1212,7 @@ public:
     void init_zphys            (int lev, double elapsed_time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
+    void update_zsfc_nd        (int lev);
     void make_terrain_blanking (int lev);
 
     [[nodiscard]] bool immersed_forcing_active (int lev) const noexcept
@@ -1237,6 +1269,9 @@ private:
     void init_sbm_level_from_coarse (int lev, amrex::Real time,
                                      const amrex::BoxArray& ba,
                                      const amrex::DistributionMapping& dm);
+    void remake_sbm_level (int lev, amrex::Real time,
+                           const amrex::BoxArray& ba,
+                           const amrex::DistributionMapping& dm);
     void sbm_synchronize_levels (int nstep);
 
     void Construct_ERFFillPatchers (int lev);
@@ -1247,6 +1282,9 @@ private:
 
     void init_bcs ();
     void init_phys_bcs (bool& read_prim_theta);
+
+    // The EB factories of a level on the grids (ba, dm), built before init_stuff needs them
+    void make_eb_factories (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
@@ -1413,7 +1451,8 @@ private:
 
     // The full WRF file box in ERF's global index space, including all ancestor nest offsets;
     // optionally return the requested refined file's parent-grid ratio
-    amrex::Box wrfinput_file_box (int lev, int file_index, int* ratio_out = nullptr) const;
+    amrex::Box wrfinput_file_box (int lev, int file_index, int* ratio_out = nullptr,
+                                  amrex::Box* file_local_box = nullptr) const;
 
     // The cells at a level > 0 that its own init file covers
     amrex::Box nest_box_from_own_init_file (int lev);
@@ -1540,6 +1579,8 @@ private:
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base;
+    // The same on the mesh at the end of the stage, z_phys_nd_new (MovingFittedMesh only)
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base_new;
 
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
@@ -1676,6 +1717,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
+    // Height of the bottom of the domain at each node, like z_phys_nd at its bottom: on
+    // ba2d[lev] made nodal in x and y, with no ghost cells; see update_zsfc_nd
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_sfc_nd;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay;
@@ -1716,6 +1761,15 @@ private:
         amrex::MultiFab tgt_w;
     };
     amrex::Vector<CFFluxHistory> m_cf_flux_hist;
+
+    // Per level, the time integral of the pressure its x- and y-momenta have seen in each cell
+    // since the start of the coarse step of level 0 (ERF_MomentumReflux.cpp); whether it has been
+    // added to since, and whether the level's grids changed while it was
+    amrex::Vector<amrex::MultiFab> m_mom_reflux_p;
+    amrex::Vector<int> m_mom_reflux_used;
+    amrex::Vector<int> m_mom_reflux_stale;
+    // Per coarse level, the momentum impulse on its coarse/fine faces (x and y) still to be given
+    amrex::Vector<std::array<amrex::MultiFab,2>> m_mom_reflux_src;
     static bool cf_flux_history_enabled ();
     bool cf_flux_history_active (int crse_lev) const;
     CFFluxHistory& cf_flux_history (int lev);
@@ -1734,6 +1788,9 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
+    // The mesh and Jacobian at the acoustic sub-step midpoint (MovingFittedMesh), rewritten every sub-step
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_mid;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_mid;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
@@ -2324,17 +2381,11 @@ private:
 #endif
 
     //
-    // Holds info for dynamically generated tagging criteria
+    // Tagging criteria read from erf.refinement_indicators. Not every indicator creates one
+    // (e.g. "storm_tracker" does not), so these do not correspond one-to-one with that list;
+    // each carries the name of the indicator that created it.
     //
-    static amrex::Vector<amrex::AMRErrorTag> ref_tags;
-
-    //
-    // Name of the refinement indicator that generated each entry of ref_tags.
-    // Not every indicator generates a ref_tag (e.g. "storm_tracker" does not),
-    // so this must be carried alongside ref_tags rather than re-deriving it
-    // from the positional index into erf.refinement_indicators.
-    //
-    static amrex::Vector<std::string> ref_tag_indicator_names;
+    static amrex::Vector<RefinementCriterion> ref_criteria;
 
     amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
 
@@ -2455,33 +2506,6 @@ private:
     }
 
 
-    AMREX_FORCE_INLINE
-    std::ostream&
-    SamplePointLog (int i)
-    {
-        return *sampleptlog[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSamplePointLogs () noexcept
-    {
-        return static_cast<int>(sampleptlog.size());
-    }
-
-    amrex::IntVect&
-    SamplePoint (int i)
-    {
-        return samplepoint[i];
-    }
-
-    AMREX_FORCE_INLINE
-    int
-    NumSamplePoints () noexcept
-    {
-        return static_cast<int>(samplepoint.size());
-    }
-
     static double startCPUTime;
     static double previousCPUTimeUsed;
 
@@ -2539,23 +2563,6 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordEnergyDataInfo");
     }
 
-    void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename) // NOLINT
-    {
-        amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
-        for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
-        {
-            const amrex::Box& bx = mfi.validbox();
-            if (bx.contains(cell)) {
-                sampleptlog[i] = std::make_unique<std::fstream>();
-                sampleptlog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
-                if (!sampleptlog[i]->good()) {
-                    amrex::FileOpenFailed(filename);
-                }
-            }
-        }
-        amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
-    }
-
     // Data sampler for line and plane output
     int line_sampling_interval = -1;
     int plane_sampling_interval = -1;
@@ -2565,6 +2572,8 @@ private:
     // erf.sample_line / erf.sample_line_real: full-depth columns on level 0, written to logs
     // at the cadence of the other logs (erf.sum_interval / erf.sum_per)
     std::unique_ptr<LineSampler> sample_line_sampler = nullptr;
+    // erf.sample_point / _real / _latlon: single cells, written to logs at the same cadence
+    std::unique_ptr<LineSampler> sample_point_sampler = nullptr;
     std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 
     // Station time-series output
@@ -2589,16 +2598,9 @@ private:
     amrex::Vector<std::string>   der_datalogname;
     amrex::Vector<std::string> tot_e_datalogname;
 
-    amrex::Vector<std::unique_ptr<std::fstream> > sampleptlog;
-    amrex::Vector<std::string> sampleptlogname;
-    amrex::Vector<amrex::IntVect> samplepoint;
-
     //! The filename of the ith datalog file.
     [[nodiscard]] std::string DataLogName (int i) const noexcept { return datalogname[i]; }
     [[nodiscard]] std::string DerDataLogName (int i) const noexcept { return der_datalogname[i]; }
-
-    //! The filename of the ith sampleptlog file.
-    [[nodiscard]] std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
 
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;

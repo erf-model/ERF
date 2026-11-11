@@ -122,7 +122,9 @@ prescribed provider the diffuse light on a face is the sky view fraction
 times the horizontal diffuse plus the ground view fraction times the ground
 albedo times the total horizontal irradiance, with the fractions from the
 hemisphere sampling below (the ``two_stream`` provider's terms are below). The absorbed shortwave is one minus the face
-albedo times the sum.
+albedo times the sum. In that form the ground a face sees is sunlit everywhere;
+:cpp:`erf.ibseb.ground_view_shadow` takes the buildings' shadow on that ground into
+account (`The ground a face sees, sunlit and shaded`_).
 
 View fractions and longwave
 ---------------------------
@@ -163,6 +165,164 @@ from the two-stream columns instead (`Radiation from the two-stream columns`_).
 face against an independent hemisphere sampling, their closure and the
 analytic values on the clean planes, and the longwave formulas on every
 face, on one and four ranks.
+
+The ground a face sees, sunlit and shaded
+-----------------------------------------
+
+A wall receives sunlight that the ground reflects. By default the ground a
+face sees is taken as sunlit everywhere, so the face gets the reflected beam
+through its whole ground view fraction: a wall in a building's shadow is
+then lit by sunlit ground at its own foot, where the ground is in the same
+shadow. With :cpp:`erf.ibseb.ground_view_shadow = true` the reflected beam
+reaches a face through the sunlit part of its ground view only. The input is
+off by default, and a run without it is unchanged.
+
+**What is counted.** Every view ray of a face that ends on the ground lands
+in a column. That column's ground is shaded when the ray from the centre of
+its ground toward the sun meets a building: the test of the shadow on the
+faces, and the one the two-stream ground balance uses for its own shadow
+(`The two-stream columns and the buildings`_). The sunlit ground view
+fraction :math:`f_{lit}` is the share of all the face's rays that end on
+sunlit ground, so :math:`0 \le f_{lit} \le f_{ground}`, and
+:math:`f_{lit} = f_{ground}` for a face that sees no shaded ground. At
+night, and wherever the ground gets no beam, :math:`f_{lit} = 0`.
+
+**What the face then takes.** With the prescribed provider the diffuse light
+on a face becomes
+
+.. math::
+
+   SW_{dif} = f_{sky}\, D + \alpha_g \left( f_{ground}\, D + f_{lit}\, B \right),
+   \qquad B = I_{dn} \cos z ,
+
+in place of :math:`f_{sky} D + f_{ground}\, \alpha_g (B + D)`, with
+
+- :math:`D`: the diffuse sky light on a horizontal surface;
+- :math:`B`: the direct beam on a horizontal surface, from the direct-normal
+  irradiance :math:`I_{dn}` and the zenith angle :math:`z`;
+- :math:`\alpha_g`: the ground albedo, :cpp:`erf.ibseb.albedo_ground`.
+
+The shaded ground still reflects the sky's diffuse light. With the
+``two_stream`` provider (`Radiation from the two-stream columns`_) the
+ground's reflection is the column's shortwave going up at the face's height,
+:math:`F^{\uparrow}_{SW}(z_f)`, which holds the reflected beam and the
+reflected diffuse light together. The face takes
+
+.. math::
+
+   SW_{dif} = f_{sky} \left( F^{\downarrow}_{SW}(z_f) - F_{dir}(z_f) \right)
+            + \left[ f_{ground} - (f_{ground} - f_{lit})\, s \right] F^{\uparrow}_{SW}(z_f),
+   \qquad s = \frac{\alpha_{dir}\, F_{dir}(0)}{F^{\uparrow}_{SW}(0)} ,
+
+with
+
+- :math:`F_{dir}(0)`: the direct beam the column brings to the ground, on a
+  horizontal surface;
+- :math:`\alpha_{dir}`: the direct-beam albedo the two-stream sweep gave the
+  column's ground, and :math:`\alpha_{dif}` its albedo for diffuse light
+  (:cpp:`erf.radiation.surface_albedo_sw_diffuse`, or :math:`\alpha_{dir}`
+  when that is not set);
+- :math:`F^{\downarrow}_{dif}(0)`: the diffuse light arriving at the ground;
+- :math:`s`: the reflected beam's share of the shortwave going up at the
+  ground. There :math:`F^{\uparrow}_{SW}(0) = \alpha_{dir} F_{dir}(0) +
+  \alpha_{dif} F^{\downarrow}_{dif}(0)`, so :math:`s` lies in :math:`[0, 1]`
+  and is one when the sky sends no diffuse light.
+
+**Why the share is taken at the ground.** The sweep does not keep the two
+parts of the upward flux apart above the ground. Where the air between the
+ground and the face only absorbs, both parts are dimmed alike on the way up
+and the share at the face's height is the share at the ground, exactly (a
+sky that only absorbs sends no diffuse light either, so :math:`s = 1`
+there). With scattering air this is an approximation, for two reasons of
+opposite sign: the light the air below the face scatters up from the beam
+is counted as the ground's reflection, more so the higher the face; and the
+reflected beam that the air sends back down and the ground reflects again
+is counted as diffuse light. The reference is the same column solved again
+over a ground the beam does not reach. In the test below (an optical depth
+of 0.02 per 10 m layer, half of it scattering, far more than clear air has)
+the light coming up from fully shaded ground is off by -1.4 to +7.8 W/m²
+over the lowest 40 m, of 123 W/m² coming up at the ground, per unit of
+shaded ground view. On the test's cube, whose faces see little shaded
+ground from higher up, that is at most 0.5 W/m² of the 62 W/m² a wall
+receives from the ground. The error grows with the scattering optical depth
+between the ground and the face and with the ground's albedo.
+
+**When, and what it costs.** The columns in which a face's ground rays land
+do not change, so they are found once, with the view fractions, in one
+pass over the rays, and kept: each distinct column once, with the number of
+rays that land in it (8 bytes per column; on level 1 of
+``Exec/CanonicalTests/Radiation/TwoStream_IBSEB_RandomBuildings`` the 22067
+ground rays of the faces land in 13350 columns, 107 kB). Each step in which the
+ground gets a beam, one ray is cast toward the sun from each of a face's
+columns, whatever the number of rays that land there. In that case the faces'
+balance goes from 0.12 to 0.27 ms per step on a rank with 212 faces, on one
+core of a laptop. The sunlit fractions are not
+part of the checkpoint; a restart finds them again. They are written in the
+face dump only (:cpp:`erf.ibseb.dump_faces_file`), as the column
+``f_ground_lit`` after ``f_bldg`` when the input is on; there is no plotfile
+variable. With the ``two_stream`` provider the dump of the initial state,
+before the first sweep, has ``f_ground_lit`` at zero like the shortwave.
+With the input on, the two-stream sweep also keeps the ground's direct-beam
+albedo of every column of a level whose faces read it (one 2D field); with
+it off nothing is added to the sweep. With the ``two_stream`` provider the
+faces' sun casts the shadows and the column's beam is what the ground
+reflects. The two suns may differ by :math:`10^{-4}` in the cosine of the
+zenith (`Radiation from the two-stream columns`_), so at sunrise and sunset a column can bring a beam to its ground
+while the faces' sun is at or below the horizon. No shadow is cast then and
+the ground view takes the column's whole reflection, as without the input.
+
+**Approximations and limits.**
+
+- *One ray per landing column*, from the centre of its ground, by the walk
+  of the ground's own shadow (:cpp:`erf.ibseb.two_stream_buildings`) from
+  the same point, so within the reach below a column is shaded for the
+  faces when it is shaded in the plotfile's ground shadow. The two are
+  still computed separately; see the reach. The edge of a shadow is resolved to a column, and
+  :math:`f_{lit}` to one ray in :math:`n_{az} n_{el}`. A shadow's edge
+  therefore sits up to half a column from where it should, and
+  :math:`f_{lit}` moves in steps as the sun moves: by up to 0.02 for a wall
+  35 m up beside a 40 m shadow on 10 m columns.
+- *The reach.* The ray toward the sun is followed only within the ray map's
+  reach of the face's own column, in x and in y (the halo of `Shortwave and
+  shadow`_). Ground farther than that from the face counts as sunlit, and a
+  building farther than that from the face casts no shadow in the face's
+  view: for ground that lies a distance :math:`d` from the face, only the
+  buildings within the reach less :math:`d` on the far side shade it. With
+  the default halo this matters only for a sun within a few degrees of the
+  horizon, when the beam on the ground is small. Every rank's map holds that
+  window around its own faces, so the result does not depend on how the
+  level is divided among boxes and ranks. A landing more than 32767 columns
+  from its face is not kept and counts as sunlit ground.
+- *A uniform ground.* The albedo is one value (prescribed provider) or that
+  of the face's own column (``two_stream``) for all the ground the face
+  sees.
+- *Only the reflected beam changes.* The longwave from the ground is still
+  that of the input ground temperature or of the face's own column, whether
+  the ground the face sees is shaded or not.
+- *The input acts on the faces only.* It does not need
+  :cpp:`erf.ibseb.two_stream_buildings` and does not change the two-stream
+  columns or the ground balance: the column's own reflection, and the
+  heating of the air above shaded ground, still include the shaded beam
+  (`The two-stream columns and the buildings`_).
+
+**Tests.** The unit tests ``IBSEBGroundViewShadow.*`` check :math:`f_{lit}`
+behind a long wall against the closed form of the view factor from a point
+on a wall to the ground beyond the wall's shadow,
+:math:`\tfrac{1}{2}\, h / \sqrt{h^2 + L^2}` for a point at height :math:`h`
+and a shadow of length :math:`L`; for a set of buildings in four boxes
+against a count made from the geometry; the reflected light with the input
+on and off; the window of the reach, and that a face gets the same answer
+from a map that ends at its reach as from a map of the whole domain.
+``TwoStreamCanopyForcing.GroundBeamShare`` checks :math:`s`. The CTest
+``IBSEB_GroundViewShadow`` runs the cube of ``IBSEB_TwoStreamProvider`` with
+the input on and off and checks :math:`f_{lit}` of every face against a
+count from the geometry for two suns, the two formulas above under
+transparent, absorbing and scattering skies (the last over a ground with
+different albedos for the beam and for diffuse light), that nothing else on a
+face changes, that one rank and several agree, a restart, and the two-level
+deck of ``IBSEB_TwoStreamProvider`` (a tower outside the refined level
+shading ground that level's faces see). Not covered by a test: a sun that
+moves during the run, and tiling.
 
 Sensible and latent heat
 ------------------------
@@ -647,6 +807,8 @@ name.
   columns and the buildings`_). The columns themselves still pass through the buildings: the
   light the ground reflects and the longwave it sends up are still those of the
   column's own ground, so a wall sees the column's ground as the column has it.
+  :cpp:`erf.ibseb.ground_view_shadow` takes the reflected beam off the shaded part of
+  a face's ground view (`The ground a face sees, sunlit and shaded`_).
 - *Memory and cost.* The kept beam covers every column of the level, up to the
   highest interface a face reads, and is rewritten every step. For
   :math:`1024 \times 1024` columns with 200 m towers on 2 m cells it takes 0.85 GB.
@@ -765,12 +927,15 @@ cast at start-up too.
 - *The columns still pass through the buildings.* The shadow changes only what the
   ground balance absorbs. The sweep runs before the shadow is known, so the light
   the column's ground reflects, which the faces see as the ground's, still includes
-  the shaded beam, and the air above the shaded ground is heated as before. Under a
+  the shaded beam (unless :cpp:`erf.ibseb.ground_view_shadow` is set, `The ground a
+  face sees, sunlit and shaded`_), and the air above the shaded ground is heated as
+  before. Under a
   building, the column's ground is the held one, seen through the building's cells
   as through air; the column has no roof at the building's top.
 - *The ground's sky.* Shaded or not, the ground keeps the column's diffuse sky light
   and longwave from the whole sky. Ground beside a wall sees less sky and gets the
-  walls' longwave and reflected light instead; neither is in the ground balance.
+  walls' longwave and reflected light instead; :cpp:`erf.ibseb.ground_sky_view` puts
+  both in the ground balance (`The ground beside the walls`_).
 - *The surface layer under a building* still exchanges heat and moisture with the
   building's bottom cell, with the held skin temperature.
 - *Refined levels.* Each level has its own footprints and shadow. Where a finer
@@ -816,6 +981,263 @@ land-surface model, the balance off). The
 unit tests ``IBSEBGroundShadow.*`` check the shadow across a periodic edge, on a
 closed domain, under an overhang and at night, and ``TwoStreamBuildingCover.*`` the
 heating mask, the footprint and the beam taken off once per sweep.
+
+The ground beside the walls
+---------------------------
+
+Ground beside a building does not see the whole sky: part of its view is wall.
+Without :cpp:`erf.ibseb.ground_sky_view` the two-stream ground balance gives every
+open column the diffuse light and the longwave of the whole sky and nothing from the
+walls. With it (off by default) the ground of a column keeps the sky's diffuse light
+and longwave through the part of its view the walls leave open and takes, through the
+rest, the light the walls reflect and the longwave they emit and reflect. The direct
+beam is not changed: the shadow of the section above takes it.
+
+**The walls' share of the ground's view.** The share is not found by casting rays
+from the ground. It comes from the rays every wall face already casts for its own view
+fractions, by the reciprocity of view factors. For two surfaces :math:`f` (a face,
+area :math:`A_f`) and :math:`c` (the ground of a column, area :math:`A_c`) the view
+factor is
+
+.. math::
+   :label: ibseb-view-factor
+
+   A_f F_{f \to c} = \int_{A_f} \int_{A_c}
+   \frac{\cos\theta_f \cos\theta_c}{\pi r^2}\, dA_c\, dA_f ,
+
+with :math:`r` the distance between the two elements and :math:`\theta_f`,
+:math:`\theta_c` the angles between the line joining them and the two normals. The
+integrand is the same seen from either side, so
+
+.. math::
+   :label: ibseb-reciprocity
+
+   A_c F_{c \to f} = A_f F_{f \to c} .
+
+A face's cosine-weighted rays sample :math:`F_{f \to c}`: of its
+:math:`N = n_{az} n_{el}` rays, :math:`n_{fc}` end on the ground of column :math:`c`,
+so :math:`F_{f \to c} \approx n_{fc} / N`. The walls' share of the view of the ground
+of column :math:`c` is then
+
+.. math::
+   :label: ibseb-wall-share
+
+   v_c = \sum_f F_{c \to f} = \sum_f \frac{A_f}{A_c} \frac{n_{fc}}{N} ,
+
+and the sky's share is :math:`1 - v_c`. The counts :math:`n_{fc}` are the ground
+landings kept for `The ground a face sees, sunlit and shaded`_ (found once, at
+start-up; this input keeps them too).
+
+**What the walls send.** Each face is taken as a grey, diffuse surface. Its radiosity
+is the shortwave it reflects and the longwave it emits and reflects,
+
+.. math::
+   :label: ibseb-radiosity
+
+   J^{sw}_f = \alpha_f \left( SW^{dir}_f + SW^{dif}_f \right), \qquad
+   J^{lw}_f = \varepsilon_f \sigma T_f^4 + (1 - \varepsilon_f)\, LW^{in}_f ,
+
+with :math:`\alpha_f` and :math:`\varepsilon_f` the face's albedo and emissivity,
+:math:`SW^{dir}_f`, :math:`SW^{dif}_f` and :math:`LW^{in}_f` the direct and diffuse
+shortwave and the longwave arriving on it this step, and :math:`T_f` its skin
+temperature at the start of the step. The ground of column :math:`c` receives, per
+unit of its area,
+
+.. math::
+   :label: ibseb-walls-to-ground
+
+   S_c = \sum_f \frac{A_f}{A_c} \frac{n_{fc}}{N} J^{sw}_f, \qquad
+   L_c = \sum_f \frac{A_f}{A_c} \frac{n_{fc}}{N} J^{lw}_f .
+
+Summed over the columns, :math:`\sum_c A_c L_c = \sum_f A_f J^{lw}_f\, n_f / N` with
+:math:`n_f` the face's kept ground rays: what the faces send toward the ground is
+what the ground gets, whatever the number of rays.
+
+**The ground balance.** At its update after the dycore, the net shortwave and
+longwave of the open ground of column :math:`c` change by
+
+.. math::
+   :label: ibseb-ground-sky-view
+
+   \Delta SW_c = \frac{(1 - \alpha_{dif})\, S_c - v_c \left( SW_c - SW^{beam}_c \right)}{\max(1, v_c)}, \qquad
+   \Delta LW_c = \frac{\varepsilon_g \left( L_c - v_c\, LW^{\downarrow}(0) \right)}{\max(1, v_c)},
+
+with :math:`SW_c` the shortwave the sweep's ground absorbs, :math:`SW^{beam}_c` the
+part of it that is the direct beam (so the bracket is the absorbed diffuse light),
+:math:`\alpha_{dif}` the ground's diffuse albedo, :math:`\varepsilon_g` its
+emissivity and :math:`LW^{\downarrow}(0)` the sky's longwave at the ground. The
+divisor acts only where the count of rays gives a share above 1 (see the limits). Walls
+as bright as the sky change nothing. The ground under a building stays held. The two
+terms are taken together or not at all.
+
+**When, and what it costs.** The faces' shortwave and longwave of the step are known
+after the sweep; the walls' terms are then formed and the ground balance takes them at
+its update after the dycore, once per sweep, with the shadow. The share :math:`v_c`
+is formed once. Each step every face adds its radiosity to the columns its rays land
+in, and the sums are gathered across ranks and periodic edges; a rank sends only the
+box of columns its own faces reach. In ``Exec/CanonicalTests/Radiation/TwoStream_IBSEB_RandomBuildings``
+the faces' balance goes from 0.12 to about 0.19 ms per step on level 1 (212 faces on
+the slowest of four ranks) and from 0.22 to about 0.31 ms on level 0, on a laptop
+(two runs each; they differ by 0.02 to 0.04 ms). Over the
+first two minutes of that case the ground beside the buildings on level 1 absorbs
+11.7 W/m² more shortwave on average (up to 90 W/m² at the foot of a sunlit wall).
+With the
+input off nothing is allocated and nothing is done. Nothing is added to the
+checkpoint; a restart forms the terms again. The plot variable
+``ibseb_ground_wall_view`` is :math:`v_c`, and ``seb_lw_net`` the net longwave the
+balance used; under a building it is the sweep's value, which the held ground does not
+use, and both are -999 in the plotfile a restart writes before its first step.
+
+**Approximations and limits.**
+
+- *The share is a count of rays from the faces' centres.* Summed over the columns it
+  equals what the faces' ground views give; column by column it carries a fixed
+  error, the same every step, that falls with more rays and with thinner cells. For
+  a 40 m wall on 10 m columns and cells, the first four columns from the wall's
+  foot have the exact shares 0.438, 0.326, 0.236 and 0.172; the default
+  :math:`16 \times 8` rays give 0.391, 0.359, 0.234 and 0.219, and
+  :math:`32 \times 16` rays 0.418, 0.328, 0.250 and 0.184. With endless rays the
+  face centres alone leave -0.023, +0.013, +0.004 and +0.002, a quarter of that with
+  5 m cells.
+- *Deep, narrow streets: the share is low.* A face high on a wall sends less than
+  one ray in :math:`N` to the floor of a street one column wide, and so sends none.
+  With the default rays the floor of such a street gets a share of 0.78 whatever
+  the height, where the exact value is 0.877 for walls of 40 m, 0.950 for 100 m and
+  0.975 for 200 m: the floor keeps too much sky, about 15 to 20 W/m² of longwave at
+  100 m.
+
+  **For street canyons, raise the rays**: :cpp:`erf.ibseb.view_n_az = 32` and
+  :cpp:`erf.ibseb.view_n_el = 16`, or 64 and 32 where the walls are more than five
+  times as high as the street is wide. More rays cost start-up time in proportion
+  and little per step (one ray to the sun or one sum per column a face's rays land
+  in, not per ray). They do not remove the whole error: each face
+  sends from its centre, so cells as tall as the street is wide leave the share
+  about 0.05 low however many rays there are. Thinner cells remove that part. The
+  share of the floor of a street 10 m wide, on 10 m columns:
+
+  .. list-table::
+     :header-rows: 1
+     :widths: 22 14 16 16 16 16
+
+     * - Walls, cells
+       - Exact
+       - 16 x 8 (default)
+       - 32 x 16
+       - 64 x 32
+       - 128 x 64
+     * - 40 m, 10 m cells
+       - 0.877
+       - 0.781
+       - 0.836
+       - 0.826
+       - 0.830
+     * - 40 m, 5 m cells
+       - 0.877
+       - 0.844
+       - 0.852
+       - 0.864
+       -
+     * - 40 m, 2.5 m cells
+       - 0.877
+       - 0.883
+       - 0.875
+       - 0.873
+       -
+     * - 100 m, 10 m cells
+       - 0.950
+       - 0.781
+       - 0.867
+       - 0.881
+       - 0.901
+     * - 100 m, 5 m cells
+       - 0.950
+       - 0.844
+       - 0.887
+       - 0.921
+       -
+     * - 100 m, 2.5 m cells
+       - 0.950
+       - 0.883
+       - 0.906
+       - 0.929
+       -
+
+  The values are counts made outside ERF with the faces' own sampling, rays cast
+  against the walls taken as boxes.
+- *Enclosed yards: the share can exceed 1.* In the middle of a yard of 3 by 3
+  columns between 100 m walls the count gives 1.125 where the exact value is 0.974.
+  A ground cannot see more than its whole view, so there the loss of sky and the
+  gain from the walls are both divided by :math:`v_c` (the divisor of
+  :eq:`ibseb-ground-sky-view`): that ground sees no sky and the walls' mean, and the
+  excess of what the walls sent, 11 % in this case, is dropped.
+- *The faces must take their radiation from the same columns*
+  (:cpp:`erf.ibseb.radiation = two_stream`), so that the walls reflect the light of
+  the sky the ground loses. With :cpp:`erf.ibseb.lw_mode` other than ``two_stream``
+  the longwave the walls reflect is still that of the faces' own sky and ground
+  inputs; the part they emit, nine tenths for an emissivity of 0.9, is not affected.
+- *What the ground reflects is not followed.* The share :math:`\alpha_{dif} S_c` of
+  the walls' light and :math:`(1 - \varepsilon_g) L_c` of their longwave leave the
+  ground and are not given to anything. The column's own upward fluxes, the heating
+  of the air above the ground and the walls' ground term still belong to a ground
+  under the whole sky, and the diffuse light on a wall already holds that ground's
+  reflection.
+- *The walls are diffuse*: no mirror reflection from glass.
+- *The time step.* The walls' radiosity is explicit in time, which shortens the
+  ground balance's own explicit limit: for a ground of 100 J/m²/K at 300 K it falls
+  from 34 s to 25 s under a share of 1, and from 6900 s to 5000 s for the default
+  heat capacity. Within the limit the exchange only slows the ground's cooling,
+  as it should.
+- *One reflection.* The ground takes the walls' radiosity of this step; the walls'
+  own ground term is unchanged, so the light the ground reflects back onto the walls
+  is still that of a ground under the whole sky.
+- *The sky's light is taken as the same in every direction.* The ground loses the
+  share :math:`v_c` of the diffuse light and longwave, whatever part of the sky the
+  walls cover.
+- *The far field and refined levels.* A face's rays that reach the ground beyond the
+  ray map's reach, or by leaving the map, are not kept: what the faces send there is
+  not given to any column. On a refined level the faces of the level send to the
+  level's own columns only: what lands on ground outside the level is dropped (the
+  level below has its own faces for that ground), and a building that stands outside
+  the level shades the level's ground but sends it nothing. In the two-level test the
+  refined level's columns get 54 % of what its faces send toward the ground.
+- *The skin temperature is that of the start of the step*, as the faces' balance has
+  not run yet when the terms are formed.
+- *Needs the ground balance on the sweep's fluxes.* The run stops at start-up unless
+  :cpp:`erf.ibseb.enable`, :cpp:`erf.radiation_model = TwoStream`,
+  :cpp:`erf.ibseb.two_stream_buildings`, :cpp:`erf.ibseb.radiation = two_stream`,
+  :cpp:`erf.radiation.seb_enable`, :cpp:`erf.radiation.seb_use_radiation_fluxes`,
+  :cpp:`erf.radiation.sw_enabled` and :cpp:`erf.radiation.lw_enabled` are all set and
+  no land-surface model is used. A level whose radiation comes from its parent has no
+  ground balance and takes nothing; ERF says so at start-up. With a ground balance
+  that is diagnostic only (:cpp:`erf.radiation.seb_prognostic_enable` off) the terms
+  reach its residual and the plot variables, not the ground temperature.
+
+**Tests.** The unit tests ``IBSEBGroundWalls.*`` check :math:`v_c` beside a long wall
+against the closed form of the view factor from a ground strip to a wall of height
+:math:`H`, :math:`\tfrac{1}{2}\left(1 - (\sqrt{x_1^2 + H^2} - \sqrt{x_0^2 + H^2}) /
+(x_1 - x_0)\right)` for the strip from :math:`x_0` to :math:`x_1` (itself checked
+against a numerical integration of :eq:`ibseb-view-factor`); the three fields column
+by column for a building set in four boxes with a different radiosity on every face,
+their totals against what the faces send, and the same fields from one box; and the
+terms of :eq:`ibseb-ground-sky-view`, the divisor included; and that a later step
+leaves the share as it is. ``TwoStreamBuildingCover.GroundTakesWhatTheWallsSend``
+checks the update: once per sweep, the beam untouched, the footprint held, and
+nothing taken with the longwave off.
+``Tests/test_files/IBSEB_TwoStreamBuildings`` with the input (CTest
+``IBSEB_GroundSkyView``) checks, against sums made from the face dumps and from rays
+cast again through the buildings taken as boxes: :math:`v_c` in every column; the
+shortwave and longwave of the ground under a transparent and a scattering sky; that
+the ground's gain equals what the faces send; the ground under the building, the
+shadow and the ground far from the walls; one rank against several; a restart; two
+levels (the refined level's ground changes exactly where its share is above zero; the
+share itself is only bounded there); a block in the periodic corner of a larger domain,
+where the ranks' ray maps reach across the edge without spanning the domain; and, with
+the faces' temperature moving, that the walls' skin is that of the start of the step.
+The checker's rays share the code's sampling, so it checks the walk, the landing
+columns, the periodic edges and the sums over ranks, not the sampling's own error,
+which only the closed form of the unit test sees. Not tested: a cloud fraction above
+zero, a ground of uneven albedo, and the night. ``IBSEB_GroundSkyViewWithoutFluxes``
+and ``IBSEB_GroundSkyViewDisabled`` check the start-up stops.
 
 Canonical case: a building set
 ------------------------------

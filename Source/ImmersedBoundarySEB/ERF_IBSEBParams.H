@@ -78,6 +78,20 @@ struct IBSEBParams
     amrex::Real albedo_ground     = 0.2;    ///< Ground albedo for the reflected diffuse term
     amrex::Real emissivity        = 0.9;    ///< Face longwave emissivity
     amrex::Real emissivity_ground = 0.95;   ///< Ground emissivity for the ground term
+    // The direct beam the ground reflects onto a face. false: the ground a face sees is
+    // sunlit everywhere, so the face takes the reflected beam through its whole ground
+    // view fraction (a wall in a building's shadow still sees sunlit ground at its foot).
+    // true: the face takes it through the sunlit part of its ground view only: each of
+    // its view rays that ends on the ground takes the buildings' shadow at the centre of
+    // the column it lands in, cast toward the step's sun as the shadow on the faces and
+    // on the ground is (ibseb::ground_view_lit()). The diffuse light the ground reflects
+    // is not changed. One ray cast per ground ray of every face each step the sun is up.
+    bool        ground_view_shadow = false;
+    /// The two-stream ground balance beside the buildings (needs two_stream_buildings and a ground
+    /// balance on the sweep's fluxes): the ground keeps the sky's diffuse light and longwave through
+    /// the part of its view the walls leave open, and takes the walls' reflected light and longwave
+    /// through the rest. false: the ground sees the whole sky and nothing of the walls.
+    bool        ground_sky_view = false;
 
     // ---- View fractions and longwave ----------------------------------------
     // Rays per face of the cosine-weighted hemisphere sampled once at
@@ -212,6 +226,8 @@ struct IBSEBParams
         pp.query("albedo_ground",    albedo_ground);
         pp.query("emissivity",       emissivity);
         pp.query("emissivity_ground", emissivity_ground);
+        pp.query("ground_view_shadow", ground_view_shadow);
+        pp.query("ground_sky_view", ground_sky_view);
         pp.query("view_n_az",        view_n_az);
         pp.query("view_n_el",        view_n_el);
         pp.query("lw_mode",          lw_mode);

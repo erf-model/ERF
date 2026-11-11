@@ -97,7 +97,8 @@ make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
                             amrex::Vector<amrex::Real> const& z_levels_h,
                             amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type,
                             FineTerrain fine_terrain = FineTerrain::None,
-                            amrex::MultiFab const* z_phys_interp = nullptr);
+                            amrex::MultiFab const* z_phys_interp = nullptr,
+                            bool moving_mesh = false);
 
 /** Verify that a fitted mesh is horizontally flat and follows z_levels_h. */
 void

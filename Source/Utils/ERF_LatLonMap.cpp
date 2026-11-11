@@ -229,6 +229,26 @@ LatLonMap::locate (Real req_lat, Real req_lon, LatLonLocation& loc) const
     return static_cast<LatLonStatus>(static_cast<int>(std::lround(out[8])));
 }
 
+LatLonLocation
+LatLonMap::locate_or_abort (Real req_lat, Real req_lon, const std::string& what) const
+{
+    LatLonLocation loc;
+    const LatLonStatus status = locate(req_lat, req_lon, loc);
+    const std::string at = what + " at lat=" + std::to_string(req_lat) +
+                           " long=" + std::to_string(req_lon);
+    if (status == LatLonStatus::Degenerate) {
+        Abort(at + ": the latitude/longitude arrays are degenerate near it, so it cannot be inverted");
+    }
+    const Real xhi = m_problo[0] + m_dom.length(0) * m_dx[0];
+    const Real yhi = m_problo[1] + m_dom.length(1) * m_dx[1];
+    if (status == LatLonStatus::TooFar ||
+        loc.x < m_problo[0] || loc.x > xhi || loc.y < m_problo[1] || loc.y > yhi) {
+        Abort(at + " is outside the domain (the nearest grid point is at lat=" +
+              std::to_string(loc.near_lat) + " long=" + std::to_string(loc.near_lon) + ")");
+    }
+    return loc;
+}
+
 void
 LatLonMap::rotation_at (Real x, Real y, Real& cos_alpha, Real& sin_alpha) const
 {

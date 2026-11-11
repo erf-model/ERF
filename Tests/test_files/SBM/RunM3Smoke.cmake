@@ -58,7 +58,7 @@ file(MAKE_DIRECTORY "${_run_dir}")
 
 function(run_erf description)
   execute_process(
-    COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}" ${ARGN}
+    COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}" ${RUN_ARGS} ${ARGN}
     WORKING_DIRECTORY "${_run_dir}"
     RESULT_VARIABLE _result
     OUTPUT_VARIABLE _stdout
@@ -67,6 +67,7 @@ function(run_erf description)
     message(FATAL_ERROR
       "${description} failed (exit ${_result}).\nstdout:\n${_stdout}\nstderr:\n${_stderr}")
   endif()
+  set(_run_stdout "${_stdout}" PARENT_SCOPE)
 endfunction()
 
 function(assert_header_vector header_file expected_csv field_name vector_kind)
@@ -238,6 +239,13 @@ function(assert_checkpoint checkpoint)
 endfunction()
 
 run_erf("Initial SBM M3 run")
+if(DEFINED EXPECTED_STDOUT)
+  string(FIND "${_run_stdout}" "${EXPECTED_STDOUT}" _stdout_found)
+  if(_stdout_found EQUAL -1)
+    message(FATAL_ERROR
+      "Initial SBM M3 run did not print '${EXPECTED_STDOUT}'.\nstdout:\n${_run_stdout}")
+  endif()
+endif()
 assert_checkpoint("sbm_smoke_chk00001")
 
 if(DEFINED EXPECT_SECOND_CHECKPOINT AND EXPECT_SECOND_CHECKPOINT)

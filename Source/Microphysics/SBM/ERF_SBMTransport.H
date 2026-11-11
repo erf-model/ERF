@@ -9,6 +9,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_IntVect.H>
 
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -219,7 +220,10 @@ class SBMTransport
     std::unique_ptr<SBMStateAdmission> m_admission;
     bool m_keep_spectral_ledger_reference{true};
     bool m_zero_flow_diagnostics_enabled{false};
-    bool m_split_ghost_values_checked{false};
+    // Split qualification checks parent ghosts once at the coarse start and
+    // once strictly inside the coarse interval.
+    std::array<bool, 2> m_split_ghost_values_checked{};
+    bool m_host_integrator_reported{false};
     int m_interval_limiter_active_groups{0};
     bool m_interval_limiter_changed_rate{false};
     amrex::Real m_interval_carrier_linf{amrex::Real(0.0)};

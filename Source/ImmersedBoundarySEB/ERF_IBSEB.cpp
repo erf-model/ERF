@@ -53,6 +53,9 @@ void
 ERF::init_ibseb ()
 {
     if (!ibseb_params.enable) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!ibseb_params.ground_sky_view,
+            "erf.ibseb.ground_sky_view = true needs erf.ibseb.enable = true: the walls that send to the ground are the"
+            " immersed-boundary balance's faces");
         if (ibseb_params.two_stream_buildings_given) {
             Print() << "WARNING: erf.ibseb.two_stream_buildings is given but erf.ibseb.enable is off, so it is"
                        " ignored: the two-stream columns see the buildings only through the immersed-boundary"
@@ -131,14 +134,20 @@ ERF::init_ibseb ()
                   " erf.interp_atmos_from_coarse or use erf.ibseb.radiation = prescribed");
         }
         if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()) {
-            two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface());
+            two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface(), ibseb_params.ground_view_shadow);
         }
         // The columns see the buildings: their solid cells and footprints from the blanking,
         // and every step the shadow on the ground (ibseb_advance()). Every level, faces or
         // not: a refined level without buildings of its own is still shaded by those
         // outside it (add_outside_occluders() above).
         if (ibseb_two_stream_buildings()) {
-            two_stream_rad.set_building_cover(lev, *terrain_blanking[lev], geom[lev].Domain());
+            two_stream_rad.set_building_cover(lev, *terrain_blanking[lev], geom[lev].Domain(),
+                                              ibseb_params.ground_sky_view);
+            if (ibseb_params.ground_sky_view && !two_stream_rad.takes_ground_walls(lev)) {
+                Print() << "NOTE: erf.ibseb.ground_sky_view: level " << lev << " has no ground balance on its own"
+                           " two-stream sweep (its radiation comes from the level below), so its ground takes"
+                           " nothing from the walls.\n";
+            }
         }
         // The face records of the checkpoint (IBFaceSet::read_state() checks
         // the layer count, the domain and the faces against this level and
@@ -186,6 +195,8 @@ ERF::init_ibseb ()
             }
         }
         m_ibseb[lev]->compute_longwave(vars_new[lev][Vars::cons]);
+        // What the walls send to the ground, for the plotfile written now.
+        ibseb_give_ground_walls(lev);
         m_ibseb[lev]->compute_sensible(vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
                                        vars_new[lev][Vars::yvel], vars_new[lev][Vars::zvel], solverChoice.c_p);
         if (!state_file.empty()) { m_ibseb[lev]->read_state(state_file); }
@@ -452,6 +463,19 @@ void
 ERF::ibseb_check_two_stream_buildings () const
 {
     const IBSEBParams& p = ibseb_params;
+    // erf.ibseb.ground_sky_view changes the two-stream ground balance on the sweep's
+    // fluxes, where the ground takes the buildings' shadow: without one of these it
+    // would do nothing, so the run stops.
+    if (p.ground_sky_view) {
+        const RadChoice& rc = solverChoice.radChoice;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            solverChoice.rad_type == RadiationType::TwoStream && p.two_stream_buildings && p.radiation == "two_stream" &&
+            rc.seb_enable && rc.seb_use_radiation_fluxes && rc.sw_enabled && rc.lw_enabled &&
+            solverChoice.lsm_type == LandSurfaceType::None,
+            "erf.ibseb.ground_sky_view = true needs erf.radiation_model = TwoStream, erf.ibseb.two_stream_buildings = true,"
+            " erf.ibseb.radiation = two_stream, erf.radiation.seb_enable = true, erf.radiation.seb_use_radiation_fluxes = true,"
+            " erf.radiation.sw_enabled = true, erf.radiation.lw_enabled = true and no land-surface model");
+    }
     if (solverChoice.rad_type != RadiationType::TwoStream) {
         if (p.two_stream_buildings_given) {
             ParmParse pp_erf("erf");
@@ -481,6 +505,22 @@ ERF::ibseb_check_two_stream_buildings () const
         Print() << "NOTE: erf.ibseb.two_stream_buildings: the shortwave is off (erf.radiation.sw_enabled), so"
                    " there is no beam to take off the ground the buildings shade and no shadow is cast; only"
                    " the ground under the buildings is held.\n";
+    }
+}
+
+/**
+ * erf.ibseb.ground_sky_view: have the faces of @p lev form what the walls send to the
+ * ground this step and hand it to the two-stream ground balance (a no-op where that
+ * balance takes none). The walls' share of the view depends on the geometry alone and
+ * is formed with the first field only.
+ */
+void
+ERF::ibseb_give_ground_walls (int lev)
+{
+    if (solverChoice.rad_type != RadiationType::TwoStream) { return; }
+    const bool first = (two_stream_rad.ground_walls(lev) == nullptr);
+    if (MultiFab* to_ground = two_stream_rad.ground_walls_for_step(lev, istep[lev])) {
+        m_ibseb[lev]->compute_ground_walls(*to_ground, first);
     }
 }
 
@@ -567,6 +607,9 @@ ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
         }
     }
     m_ibseb[lev]->compute_longwave(cons, canopy);
+    // What the walls send to the ground this step, from the shortwave and longwave just
+    // placed and the faces' skin temperature at the start of the step (erf.ibseb.ground_sky_view).
+    ibseb_give_ground_walls(lev);
     // The ground surface layer's fields and the mixed-layer depth
     // for the wall function beyond neutral (all null / zero unless asked).
     const MultiFab* olen2d = nullptr;

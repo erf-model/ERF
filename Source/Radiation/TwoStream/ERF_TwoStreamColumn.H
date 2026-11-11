@@ -261,6 +261,18 @@ amrex::Real resolve_surface_albedo_sw (
 }
 
 /**
+ * @brief The ground's albedo for diffuse shortwave: the input @p surface_albedo_sw_diffuse, or the
+ * direct-beam albedo @p alb_dir of the column when that input is negative (not set).
+ * The one expression for the sweep and for what the sweep hands on
+ * (erf.ibseb.ground_sky_view).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real resolve_surface_albedo_sw_diffuse (amrex::Real alb_dir, amrex::Real surface_albedo_sw_diffuse) noexcept
+{
+    return (surface_albedo_sw_diffuse >= 0.0) ? surface_albedo_sw_diffuse : alb_dir;
+}
+
+/**
  * @brief Resolve per-column longwave surface emissivity from hetero field or fallback.
  *
  * Precedence:
@@ -1081,8 +1093,7 @@ void vertical_two_stream_sweep (
     // Direct-beam albedo (per column, LSM field or fallback) and diffuse albedo
     // (surface_albedo_sw_diffuse, or the direct value when negative).
     const amrex::Real alb_dir = resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
-    const amrex::Real alb_dif = (rad_choice.surface_albedo_sw_diffuse >= 0.0)
-                                    ? rad_choice.surface_albedo_sw_diffuse : alb_dir;
+    const amrex::Real alb_dif = resolve_surface_albedo_sw_diffuse(alb_dir, rad_choice.surface_albedo_sw_diffuse);
 
     if (rad_choice.sw_enabled && cos_zenith > 0.0) {
 

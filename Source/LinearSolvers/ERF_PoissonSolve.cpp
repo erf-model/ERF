@@ -46,6 +46,7 @@ solve_with_mlmg    (int lev,
  * @param mg_verbose Verbosity level for the solver.
  * @param reltol Relative tolerance.
  * @param abstol Absolute tolerance.
+ * @param beta Face coefficients of div(beta grad phi), or nullptr for beta = 1.
  */
 template <typename T>
 void
@@ -59,7 +60,8 @@ solve_with_EB_mlmg (int lev,
                     const Geometry& geom,
                     const amrex::Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
-                    int mg_verbose, Real reltol, Real abstol);
+                    int mg_verbose, Real reltol, Real abstol,
+                    const Array<MultiFab,AMREX_SPACEDIM>* beta);
 
 /**
  * Whether any map factor at this level differs from one (valid cells only)
@@ -80,12 +82,15 @@ bool ERF::has_nonunit_mapfac (int lev) const
  * constant-coefficient MLMG solves on a flat mesh (ConstantDz or StretchedDz) leave the map
  * factors out of the operator and the gradient, so with map factors other than one a flat
  * mesh is projected with the terrain Poisson solver too, which carries them (#4903).
+ * A pseudo-incompressible level always uses it: its operator div(beta grad phi) has a
+ * variable coefficient, which the terrain solver takes through its face area factors.
  *
  * @param lev Level index
  */
 bool ERF::projection_uses_terrain_solver (int lev) const
 {
     if (solverChoice.terrain_type == TerrainType::EB) { return false; }
+    if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) { return true; }
     return (solverChoice.mesh_type == MeshType::VariableDz) || has_nonunit_mapfac(lev);
 }
 
@@ -247,9 +252,40 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                            domain_bcs_type, c_vfrac);
     }
 
+    // ****************************************************************************
+    // A pseudo-incompressible level projects m = beta (rho u) with beta = (rho0 theta0) / rho on
+    // each face, so that div(m) = div(rho0 theta0 u); it never assumes rho = rho0.  Since
+    // (rho u) changes by -dt grad(phi), m changes by -dt beta grad(phi), and the constraint is
+    // div(beta grad phi) = div(m*) / dt.  The same face values of beta are the coefficient of
+    // the operator (through the face area factors of the terrain Poisson solver, or the b
+    // coefficient with EB), scale the correction to m, and convert m back to (rho u).
+    // ****************************************************************************
+    const bool l_pi = (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
+    Array<MultiFab,AMREX_SPACEDIM> pi_beta;
+    if (l_pi) {
+        if (solverChoice.if_implicit_projection && apply_if_drag) {
+            amrex::Abort("erf.if_implicit_projection is not yet supported with "
+                         "erf.compressibility_type = PseudoIncompressible");
+        }
+        if (lev > 0 && solverChoice.mesh_type == MeshType::VariableDz &&
+            !cf_zface_layout(lev).slab_box.empty()) {
+            amrex::Abort("erf.compressibility_type = PseudoIncompressible: a refined level that stops "
+                         "inside the domain in z is not yet supported on a terrain-fitted mesh");
+        }
+        const IntVect ng_b = base_state[lev].nGrowVect();
+        MultiFab rho0_theta0(base_state[lev].boxArray(), base_state[lev].DistributionMap(), 1, ng_b);
+        MultiFab::Copy    (rho0_theta0, base_state[lev], BaseState::r0_comp , 0, 1, ng_b);
+        MultiFab::Multiply(rho0_theta0, base_state[lev], BaseState::th0_comp, 0, 1, ng_b);
+        MakeProjectionWeights(mom_mf[Vars::cons], rho0_theta0,
+                              mom_mf[IntVars::xmom], mom_mf[IntVars::ymom], mom_mf[IntVars::zmom],
+                              pi_beta, Geom(lev).Domain(), domain_bcs_type);
+        MultiFab::Multiply(mom_mf[IntVars::xmom], pi_beta[0], 0, 0, 1, 0);
+        MultiFab::Multiply(mom_mf[IntVars::ymom], pi_beta[1], 0, 0, 1, 0);
+        MultiFab::Multiply(mom_mf[IntVars::zmom], pi_beta[2], 0, 0, 1, 0);
+    }
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
-    if (!solverChoice.fixed_density[lev]) {
+    else if (!solverChoice.fixed_density[lev]) {
         ConvertForProjection(mom_mf[Vars::cons], r_hse,
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],
@@ -379,15 +415,17 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
     Array<MultiFab,AMREX_SPACEDIM> rho0_u_sub;
     Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
+    Array<MultiFab,AMREX_SPACEDIM> beta_sub;
     Array<MultiFab,AMREX_SPACEDIM> sigma_sub;
 
-    // A flat mesh whose map factors are not all one is projected with the terrain Poisson solver
+    // A flat mesh whose map factors are not all one, or a pseudo-incompressible level, is
+    // projected with the terrain Poisson solver
     const bool use_terrain_solver = projection_uses_terrain_solver(lev);
-    const bool flat_with_mapfac   = use_terrain_solver && (solverChoice.mesh_type != MeshType::VariableDz);
+    const bool flat_terrain_solve = use_terrain_solver && (solverChoice.mesh_type != MeshType::VariableDz);
     if (l_if_implicit && use_terrain_solver) {
         amrex::Abort("erf.if_implicit_projection needs map factors of one (it does not use the terrain Poisson solver)");
     }
-    if (flat_with_mapfac && lev > 0) {
+    if (flat_terrain_solve && lev > 0 && has_nonunit_mapfac(lev)) {
         amrex::Abort("The projection on a refined level of a mesh without terrain (or with only "
                      "grid stretching) and map factors other than one is not supported");
     }
@@ -531,13 +569,29 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             }
         }
 
+        if (l_pi && use_terrain_solver) {
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                beta_sub[idim].define(convert(ba_sub, IntVect::TheDimensionVector(idim)), DistributionMapping(dm_sub), 1,
+                                      IntVect::TheZeroVector(), MFInfo{}.SetAlloc(false));
+            }
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
+                int orig_index = index_map[mfi.index()];
+                for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                    beta_sub[idim].setFab(mfi, FArrayBox(pi_beta[idim][orig_index], amrex::make_alias, 0, 1));
+                }
+            }
+        }
+
         if (solverChoice.mesh_type != MeshType::ConstantDz || use_terrain_solver) {
+            // On a pseudo-incompressible level the area factors are scaled by beta before the
+            // solve, so they are copies rather than aliases of the level's: multiplying and then
+            // dividing the level's own by beta would not give them back bit for bit
             ax_sub.define(convert(ba_sub,IntVect(1,0,0)), DistributionMapping(dm_sub), 1,
-                          ax[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
+                          ax[lev]->nGrowVect(), MFInfo{}.SetAlloc(l_pi));
             ay_sub.define(convert(ba_sub,IntVect(0,1,0)), DistributionMapping(dm_sub), 1,
-                          ay[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
+                          ay[lev]->nGrowVect(), MFInfo{}.SetAlloc(l_pi));
             az_sub.define(convert(ba_sub,IntVect(0,0,1)), DistributionMapping(dm_sub), 1,
-                          az[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
+                          az[lev]->nGrowVect(), MFInfo{}.SetAlloc(l_pi));
             znd_sub.define(convert(ba_sub,IntVect(1,1,1)), DistributionMapping(dm_sub), 1,
                            z_phys_nd[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
             // The map factors on u and v faces that only the terrain path uses.  Every array a
@@ -550,9 +604,15 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
                 int orig_index = index_map[mfi.index()];
-                ax_sub.setFab(mfi, FArrayBox((*ax[lev])[orig_index], amrex::make_alias, 0, 1));
-                ay_sub.setFab(mfi, FArrayBox((*ay[lev])[orig_index], amrex::make_alias, 0, 1));
-                az_sub.setFab(mfi, FArrayBox((*az[lev])[orig_index], amrex::make_alias, 0, 1));
+                if (l_pi) {
+                    ax_sub[mfi].copy<RunOn::Device>((*ax[lev])[orig_index]);
+                    ay_sub[mfi].copy<RunOn::Device>((*ay[lev])[orig_index]);
+                    az_sub[mfi].copy<RunOn::Device>((*az[lev])[orig_index]);
+                } else {
+                    ax_sub.setFab(mfi, FArrayBox((*ax[lev])[orig_index], amrex::make_alias, 0, 1));
+                    ay_sub.setFab(mfi, FArrayBox((*ay[lev])[orig_index], amrex::make_alias, 0, 1));
+                    az_sub.setFab(mfi, FArrayBox((*az[lev])[orig_index], amrex::make_alias, 0, 1));
+                }
                 znd_sub.setFab(mfi, FArrayBox((*z_phys_nd[lev])[orig_index], amrex::make_alias, 0, 1));
                 dJ_sub.setFab(mfi, FArrayBox((*detJ_cc[lev])[orig_index], amrex::make_alias, 0, 1));
                 mfux_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::u_x])[orig_index], amrex::make_alias, 0, 1));
@@ -771,6 +831,14 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             // We do this here to set the coefficients used in the stencil -- the extra factor
             // of the mapfac comes from the gradient
             //
+            // On a pseudo-incompressible level they also carry beta, the coefficient of
+            // div(beta grad phi), on the valid faces (the solvers read no others)
+            //
+            if (l_pi) {
+                MultiFab::Multiply(ax_sub, beta_sub[0], 0, 0, 1, 0);
+                MultiFab::Multiply(ay_sub, beta_sub[1], 0, 0, 1, 0);
+                MultiFab::Multiply(az_sub, beta_sub[2], 0, 0, 1, 0);
+            }
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
             {
                 Box xbx = mfi.nodaltilebox(0);
@@ -860,7 +928,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
             // erf.terrain_poisson_solver applies to terrain-fitted meshes only; a flat mesh
             // uses MLTerrainPoisson, which needs no FFT
-            if (flat_with_mapfac || solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
+            if (flat_terrain_solve || solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
                 // amrex::MLTerrainPoisson, multigrid alone or under GMRES; no FFT needed
                 if (!boxes_make_rectangle) {
                     amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each "
@@ -888,7 +956,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 }
                 solve_with_terrain_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
                                         ax_sub, ay_sub, az_sub, dJ_sub, znd_sub,
-                                        !flat_with_mapfac &&
+                                        !flat_terrain_solve &&
                                         solverChoice.terrain_poisson_solver == TerrainPoissonSolver::gmres_mlmg);
             } else {
 #ifdef ERF_USE_FFT
@@ -926,9 +994,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             } // mfi
 
             //
-            // Restore ax,ay,ax to their original definitions
+            // Restore ax,ay,ax to their original definitions (on a pseudo-incompressible level
+            // they are copies, which are not used again)
             //
-            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
+            for (MFIter mfi(rhs_sub[0]); !l_pi && mfi.isValid(); ++mfi)
             {
                 Box xbx = mfi.nodaltilebox(0);
                 Box ybx = mfi.nodaltilebox(1);
@@ -982,7 +1051,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                            *(get_eb(lev).get_v_const_factory()),
                            *(get_eb(lev).get_w_const_factory()),
                            geom[lev], ref_ratio, domain_bc_type,
-                           mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
+                           mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol,
+                           l_pi ? &pi_beta : nullptr);
         double end_step_eb = ParallelDescriptor::second();
         if (mg_verbose > 0) {
             amrex::Print() << "Time in solve " << end_step_eb - start_step_eb << std::endl;
@@ -1006,6 +1076,12 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         MultiFab::Multiply(fluxes[0][0], if_sigma[0], 0, 0, 1, 0);
         MultiFab::Multiply(fluxes[0][1], if_sigma[1], 0, 0, 1, 0);
         MultiFab::Multiply(fluxes[0][2], if_sigma[2], 0, 0, 1, 0);
+    }
+    // ... and on a pseudo-incompressible level the correction to m = beta (rho u) is beta dt grad(phi)
+    if (l_pi) {
+        MultiFab::Multiply(fluxes[0][0], pi_beta[0], 0, 0, 1, 0);
+        MultiFab::Multiply(fluxes[0][1], pi_beta[1], 0, 0, 1, 0);
+        MultiFab::Multiply(fluxes[0][2], pi_beta[2], 0, 0, 1, 0);
     }
     MultiFab::Add(mom_mf[IntVars::xmom],fluxes[0][0],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
@@ -1091,9 +1167,21 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         } // mfi
     }
 
+    // Convert m = beta (rho u) back to (rho u) on a pseudo-incompressible level.  The z-ghost
+    // faces of (rho u) and (rho v) that the conversion to Omega filled from neighbouring boxes
+    // are filled again, so that they hold (rho u) and (rho v) as on an anelastic level.
+    if (l_pi) {
+        MultiFab::Divide(mom_mf[IntVars::xmom], pi_beta[0], 0, 0, 1, 0);
+        MultiFab::Divide(mom_mf[IntVars::ymom], pi_beta[1], 0, 0, 1, 0);
+        MultiFab::Divide(mom_mf[IntVars::zmom], pi_beta[2], 0, 0, 1, 0);
+        if (solverChoice.mesh_type == MeshType::VariableDz) {
+            mom_mf[IntVars::xmom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
+            mom_mf[IntVars::ymom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
+        }
+    }
     // If !fixed_density, we must convert (rho0 u) back
     // to (rho0 u) which is what we will pass back out
-    if (!solverChoice.fixed_density[lev]) {
+    else if (!solverChoice.fixed_density[lev]) {
         ConvertForProjection(r_hse, mom_mf[Vars::cons],
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],

@@ -16,6 +16,7 @@
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Print.H>
 
 #include <algorithm>
 #include <array>
@@ -201,7 +202,7 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                            MultiFab& coarse_pack,
                            MultiFab& coarse_stage,
                            const SBMAMRStageGhostProbe* probe = nullptr,
-                           bool* split_values_checked = nullptr)
+                           std::array<bool, 2>* split_values_checked = nullptr)
 {
     using ProfileClock = std::chrono::steady_clock;
     const bool profile_parent_fill = parent.profile_parent_fill;
@@ -661,16 +662,22 @@ fill_coarse_parent_ghosts (MultiFab& destination,
         amrex::Abort(message.str());
     }
 #ifdef ERF_SBM_AMR_QUALIFICATION
-    if (split_values_checked != nullptr && !*split_values_checked &&
-        parent.validate_split_ghost_values &&
-        current_role == 0 && stage == 0 &&
-        semantic_time_matches(requested_time, parent.old_time, dt_min)) {
-        amrex::Gpu::streamSynchronize();
-        qualification::verify_split_ghost_values(
-            destination, fine_source_state, fine_source_conserved,
-            coarse_old_spectrum, coarse_new_spectrum, parent, fine_geometry,
-            theta, stage, requested_time);
-        *split_values_checked = true;
+    if (split_values_checked != nullptr &&
+        parent.validate_split_ghost_values && current_role == 0) {
+        // Once at the coarse start, and once strictly inside the coarse
+        // interval, where both accepted endpoints contribute.
+        const bool at_start = stage == 0 &&
+            semantic_time_matches(requested_time, parent.old_time, dt_min);
+        const bool interior = theta > 0.0 && theta < 1.0;
+        const std::size_t slot = at_start ? 0U : 1U;
+        if ((at_start || interior) && !(*split_values_checked)[slot]) {
+            amrex::Gpu::streamSynchronize();
+            qualification::verify_split_ghost_values(
+                destination, fine_source_state, fine_source_conserved,
+                coarse_old_spectrum, coarse_new_spectrum, parent, fine_geometry,
+                theta, stage, requested_time);
+            (*split_values_checked)[slot] = true;
+        }
     }
 #else
     amrex::ignore_unused(fine_source_state, fine_source_conserved,
@@ -1449,6 +1456,11 @@ SBMTransport::advance_stage_from_host (
     // S_old anchors the step, S_new is the stage predictor, and S_data is the
     // target. In particular, do not substitute S_data for the predictor
     // density used to form the high-order intensive spectrum.
+    if (!m_host_integrator_reported) {
+        amrex::Print() << "SBM transport host integrator: "
+                       << erf_auxiliary::HostIntegratorName(method) << "\n";
+        m_host_integrator_reported = true;
+    }
     advance_stage(level, method, stage, step_old_time, input_time, target_time,
                   host_stage_interval, state_manager, S_old_cons, S_new_cons,
                   S_data_cons, avg_xmom, avg_ymom, avg_zmom, geometry,
@@ -2398,9 +2410,8 @@ SBMTransport::advance_stage (const int level,
     }
     MultiFab::Copy(state_manager.new_target_storage(level), data.target, 0, 0,
                    m_layout.ncomp(), 0);
-    const bool physical_step_complete =
-        (method == erf_auxiliary::HostIntegrator::CompressibleRK3 && stage == 2) ||
-        (method == erf_auxiliary::HostIntegrator::AnelasticHeun && stage == 1);
+    const int stage_count = erf_auxiliary::HostIntegratorStageCount(method);
+    const bool physical_step_complete = stage + 1 == stage_count;
     if (!state_manager.accept_stage_target(level, target_time,
                                           physical_step_complete, diagnostic)) {
         amrex::Abort("SBM M4a accepted-state lifecycle commit: " + diagnostic);
@@ -2416,12 +2427,11 @@ SBMTransport::advance_stage (const int level,
     state_manager.project_to_core(level, conserved_target, qc_component,
                                   qr_component);
     if (profile_parent_fill) {
-        AMREX_ALWAYS_ASSERT(stage >= 0 && stage < 3);
+        AMREX_ALWAYS_ASSERT(stage >= 0 &&
+                            stage < static_cast<int>(data.profile_stage_seconds.size()));
         data.profile_stage_seconds[static_cast<std::size_t>(stage)] =
             std::chrono::duration<double>(ProfileClock::now() -
                                           profile_stage_start).count();
-        const int final_stage =
-            method == erf_auxiliary::HostIntegrator::CompressibleRK3 ? 2 : 1;
         std::cout << std::setprecision(9)
                   << "SBM_AMR_PROFILE_STAGE rank="
                   << amrex::ParallelDescriptor::MyProc()
@@ -2430,10 +2440,11 @@ SBMTransport::advance_stage (const int level,
                   << " stage_wall_s="
                   << data.profile_stage_seconds[static_cast<std::size_t>(stage)]
                   << std::endl;
-        if (stage == final_stage) {
-            const double stage_sum = data.profile_stage_seconds[0] +
-                data.profile_stage_seconds[1] +
-                data.profile_stage_seconds[static_cast<std::size_t>(final_stage)];
+        if (physical_step_complete) {
+            double stage_sum = 0.0;
+            for (int s = 0; s < stage_count; ++s) {
+                stage_sum += data.profile_stage_seconds[static_cast<std::size_t>(s)];
+            }
             std::cout << std::setprecision(9)
                       << "SBM_AMR_PROFILE_FINE_STEP rank="
                       << amrex::ParallelDescriptor::MyProc()

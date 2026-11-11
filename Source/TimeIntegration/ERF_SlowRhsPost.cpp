@@ -15,6 +15,29 @@
 
 using namespace amrex;
 
+namespace {
+
+// Map a level's host integrator onto an auxiliary stage recipe; any anelastic
+// integrator without a recipe aborts instead of borrowing another one's.
+erf_auxiliary::HostIntegrator
+auxiliary_host_integrator (const SolverChoice& solverChoice, const int level)
+{
+    if (solverChoice.compressibility_type[level] == CompressibilityType::FullyCompressible) {
+        return erf_auxiliary::HostIntegrator::CompressibleRK3;
+    }
+    if (solverChoice.timestepping_type[level] == TimesteppingType::RK2) {
+        return erf_auxiliary::HostIntegrator::AnelasticHeun;
+    }
+    if (solverChoice.timestepping_type[level] == TimesteppingType::MidPoint) {
+        return erf_auxiliary::HostIntegrator::AnelasticMidPoint;
+    }
+    amrex::Abort("Auxiliary transport has no stage recipe for the anelastic integrator at level " +
+                 std::to_string(level));
+    return erf_auxiliary::HostIntegrator::AnelasticHeun;
+}
+
+} // namespace
+
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
  *
@@ -276,10 +299,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     // M2 proof consumer: run after the stage carrier is final and before the
     // caller copies S_data over S_new, preserving the predictor density view.
     if (auxiliary_inert_tracer != nullptr) {
-        const auto method = !l_anelastic ? erf_auxiliary::HostIntegrator::CompressibleRK3 :
-            (solverChoice.timestepping_type[level] == TimesteppingType::RK2 ?
-                erf_auxiliary::HostIntegrator::AnelasticHeun :
-                erf_auxiliary::HostIntegrator::AnelasticMidPoint);
+        const auto method = auxiliary_host_integrator(solverChoice, level);
         auxiliary_inert_tracer->advance_stage(
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
             S_old[IntVars::cons], S_new[IntVars::cons], S_data[IntVars::cons],
@@ -296,10 +316,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             // Force an outgoing-demand violation at the production donor CFL gate.
             avg_xmom.setVal(Real(1.0e8));
         }
-        const auto method = !l_anelastic ? erf_auxiliary::HostIntegrator::CompressibleRK3 :
-            (solverChoice.timestepping_type[level] == TimesteppingType::RK2 ?
-                erf_auxiliary::HostIntegrator::AnelasticHeun :
-                erf_auxiliary::HostIntegrator::AnelasticMidPoint);
+        const auto method = auxiliary_host_integrator(solverChoice, level);
         const MultiFab& stage_cons_anchor = S_old[IntVars::cons];
         const MultiFab& stage_cons_input = S_new[IntVars::cons];
         MultiFab& stage_cons_target = S_data[IntVars::cons];

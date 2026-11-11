@@ -53,6 +53,23 @@ is ``true``) goes back to interpolating the coarse momentum linearly in time on 
 not done with moving terrain.  This is done under one-way coupling as well as two-way, so that
 the fine level sees the same fluxes through its coarse-fine faces whichever coupling is used.
 
+The momenta themselves are not refluxed by default, so with two-way coupling the composite momentum
+is not conserved across coarse-fine faces normal to it: the fine interior gives up its momentum flux
+at the first fine cell, while the coarse level updates the coarse-fine face with its own flux at the
+covered coarse cell (issue #5017). With ``erf.momentum_reflux = true`` (the default is ``false``) the
+pressure part of that flux, which is most of it in still air, is refluxed on the coarse-fine faces
+normal to the x- and y-momenta. Each level adds up the pressure its momenta saw over the coarse step
+of level 0, and at the end of that step each such coarse face is given the difference between the
+impulse of the pressure difference from the uncovered coarse cell to the first fine cell, over the
+width of the composite control volume :math:`(\Delta x_c + \Delta x_f)/2`, and the one the coarse level
+gave it. The impulse is given as a momentum source on those faces over the next coarse step, not at
+once: added at once it acts as an explicit acoustic update over a whole coarse step and grows where
+the coarse-fine faces of two directions meet. The momentum at the end of a step is therefore short
+by that step's impulse, which is not written to checkpoints. The advective and diffusive momentum
+fluxes, the momentum sources on these faces, the tangential momenta and :math:`\rho w` on z-faces are
+not refluxed. This is done only for fully compressible levels without terrain or EB, and takes the
+map factors to be one.
+
 When using the anelastic approximation, this ensures that the computation of the updates to the
 fine momentum do not use any values of the perturbational pressure from the coarser level since
 the perturbational pressure is not synchronized between levels.
@@ -355,6 +372,8 @@ All three terrain solvers (``erf.terrain_poisson_solver``) run such a level.  Th
 coarser level.  With one-way coupling this is all the level needs; two-way coupling of such a
 level over terrain has not been tested yet.
 
+.. _subsec:moving-boxes:
+
 Moving Refinement Regions
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -431,6 +450,69 @@ computed by dividing the state variables rhotheta and rhoadv_0, respectively, by
           erf.advdiff.start_time = 0.001
           erf.advdiff.end_time = 0.002
 
+When a field-based indicator is given ``in_box_lo`` / ``in_box_hi``, as ``lo_theta`` is above,
+the box restricts where the indicator may tag: a cell is tagged only if its center lies inside
+the box.  The horizontal position of the center is compared with the box's x and y extent, and its
+height with the box's z extent, where the height is chosen by ``erf.<indicator>.box_z_coordinate``:
+
+-  ``above_ground`` (the default): the height of the cell center above the ground under it, that is
+   the cell-center height ``z_phys_cc`` less the height of the bottom face of its column.  Over
+   terrain the region tagged then follows the terrain, a fixed distance above it.  A column on a
+   refined level whose grid does not reach the surface takes the ground of the coarser column it
+   lies in.  The ground is the bottom of the mesh, so with ``erf.terrain_type = ImmersedForcing``
+   or ``EB``, where the terrain is immersed in a mesh with a flat bottom, it would not follow the
+   terrain; a box with a z extent must then use ``physical``, and setup aborts otherwise.
+
+-  ``physical``: the cell-center height ``z_phys_cc`` itself, which follows any grid stretching but
+   not the terrain, so that the region tagged lies between two fixed heights.
+
+Without terrain, and with ``geometry.prob_lo`` at zero in z, the two are the same.  With only two
+values (x and y) in ``in_box_lo`` / ``in_box_hi`` the region is unrestricted in z.  Such a box is
+only a restriction, so unlike a box given without a field test it is not itself a refined region,
+and it may move with ``move_speed_x``, ``move_speed_y``, ``move_start_time`` and ``move_stop_time``
+as the boxes of :ref:`subsec:moving-boxes` do.  It must be given in physical coordinates, not by
+indices.  Since it is not a refined region, it does not place or crop a nest read from
+``erf.nc_init_file_<lev>`` with ``erf.init_type = WRFInput`` or ``Metgrid``.  Such a level is the
+region of its nest, given by the file or cropped by an indicator without a field test, and no
+indicator that tests a field refines it; setup prints a warning for each such indicator and level.
+
+Combining Several Conditions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An indicator may test several fields at once.  Each condition is named in
+``erf.<indicator>.conditions`` and is given, under ``erf.<indicator>.<condition>``, by a
+``field_name`` and one of ``value_greater``, ``value_less`` or ``adjacent_difference_greater``
+(each again with one value per level if desired).  By default a cell is tagged only where every
+condition holds; ``erf.<indicator>.combine = or`` instead tags it where any one of them does.
+The options that apply to the indicator as a whole -- ``max_level``, ``start_time``, ``end_time``
+and the box -- are given for the indicator itself.
+
+When ``hurricane_tracker`` is among the indicators, a ``velmag`` field tags cells directly through
+the hurricane tracker, so neither the other conditions nor a box would apply to it.  An indicator
+that tests ``velmag`` then, and ``hurricane_tracker`` itself, must give a single ``field_name``
+and ``value_greater``, with no ``conditions`` and no box; setup aborts otherwise.
+
+This example refines, up to level 2, the cloudy updrafts between 500 m and 3 km above the ground in
+part of the domain: the cells there whose cloud water mixing ratio is at least ``1.e-5`` *and* whose
+vertical velocity is at least 2 m/s.
+
+::
+
+          erf.refinement_indicators = cloudy_updraft
+
+          erf.cloudy_updraft.max_level  = 2
+          erf.cloudy_updraft.conditions = cloudy rising
+          erf.cloudy_updraft.combine    = and
+
+          erf.cloudy_updraft.cloudy.field_name    = qc
+          erf.cloudy_updraft.cloudy.value_greater = 1.e-5
+
+          erf.cloudy_updraft.rising.field_name    = w
+          erf.cloudy_updraft.rising.value_greater = 2.0
+
+          erf.cloudy_updraft.in_box_lo = 10000. 10000.  500.
+          erf.cloudy_updraft.in_box_hi = 50000. 50000. 3000.
+
 .. _subsec:dynamic-full-depth:
 
 Full-Depth Refinement with Dynamic Tagging
@@ -439,7 +521,8 @@ Full-Depth Refinement with Dynamic Tagging
 Note that when ``in_box_lo`` / ``in_box_hi`` are combined with a field-based
 criterion, as in ``lo_theta`` above, the box only restricts the region in which
 cells may be tagged; it does not force the resulting fine grids to fill that
-region.  Left to itself, the vertical extent of a dynamically created grid simply
+region, and since the grids are rectangular in index space they may extend
+somewhat beyond its physical heights over terrain.  Left to itself, the vertical extent of a dynamically created grid simply
 follows the cells that satisfy the criterion.
 
 The full depth of the domain can nonetheless be enforced, and the simplest way to

@@ -354,3 +354,112 @@ void enforceInOutSolvability (int /*lev*/,
         // amrex::Print() <<" TOTAL INFLUX / OUTFLOW " << influx_lev << " " << outflux_lev << std::endl;
     }
 }
+
+namespace {
+// den_mlt / den_div on a face; one where there is no density (cells covered by an embedded
+// boundary), whose faces carry no momentum
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real proj_weight (Real num, Real den) noexcept
+{
+    return (den > zero) ? num / den : one;
+}
+}
+
+/**
+ * Face weights beta = den_mlt / den_div with which ConvertForProjection converts (den_div u) to
+ * (den_mlt u), on the valid faces of xmom, ymom and zmom: the same face averages and the same
+ * one-sided values on the ext_dir and ext_dir_upwind faces of the lateral domain boundaries
+ * (the upwind side chosen from the sign of the momentum passed in).  Multiplying the momenta by
+ * beta is then what ConvertForProjection does, and dividing by the same beta undoes it.
+ *
+ * @param[in]  den_div  density divided out, at cell centers (component Rho_comp)
+ * @param[in]  den_mlt  density multiplied in, at cell centers (component Rho_comp)
+ * @param[in]  xmom     x-face momentum (its sign picks the upwind side)
+ * @param[in]  ymom     y-face momentum (its sign picks the upwind side)
+ * @param[in]  zmom     z-face momentum (its layout only)
+ * @param[out] beta     face weights on the valid faces of xmom, ymom and zmom (defined here)
+ * @param[in]  domain   Domain at this level
+ * @param[in]  domain_bcs_type_h   host vector for domain boundary conditions
+ *
+ * A face with no density on either side (covered by an embedded boundary) gets beta = 1.
+ */
+void
+MakeProjectionWeights (const MultiFab& den_div, const MultiFab& den_mlt,
+                       const MultiFab& xmom, const MultiFab& ymom, const MultiFab& zmom,
+                       Array<MultiFab,AMREX_SPACEDIM>& beta,
+                       const Box& domain, const Vector<BCRec>& domain_bcs_type_h)
+{
+    BL_PROFILE("MakeProjectionWeights()");
+
+    beta[0].define(xmom.boxArray(), xmom.DistributionMap(), 1, 0, MFInfo(), xmom.Factory());
+    beta[1].define(ymom.boxArray(), ymom.DistributionMap(), 1, 0, MFInfo(), ymom.Factory());
+    beta[2].define(zmom.boxArray(), zmom.DistributionMap(), 1, 0, MFInfo(), zmom.Factory());
+
+    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
+    const int xlo = bc_ptr_h[BCVars::cons_bc].lo(0);
+    const int xhi = bc_ptr_h[BCVars::cons_bc].hi(0);
+    const int ylo = bc_ptr_h[BCVars::cons_bc].lo(1);
+    const int yhi = bc_ptr_h[BCVars::cons_bc].hi(1);
+    const int dlo_x = domain.smallEnd(0);
+    const int dhi_x = domain.bigEnd(0) + 1;
+    const int dlo_y = domain.smallEnd(1);
+    const int dhi_y = domain.bigEnd(1) + 1;
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(den_div,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Box tbx = mfi.nodaltilebox(0);
+        Box tby = mfi.nodaltilebox(1);
+        Box tbz = mfi.nodaltilebox(2);
+
+        const Array4<const Real>& dd = den_div.const_array(mfi);
+        const Array4<const Real>& dm = den_mlt.const_array(mfi);
+
+        const Array4<const Real>& momx = xmom.const_array(mfi);
+        const Array4<const Real>& momy = ymom.const_array(mfi);
+
+        const Array4<Real>& bx = beta[0].array(mfi);
+        const Array4<Real>& by = beta[1].array(mfi);
+        const Array4<Real>& bz = beta[2].array(mfi);
+
+        ParallelFor(tbx, tby, tbz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            Real b = proj_weight(dm(i,j,k,Rho_comp) + dm(i-1,j,k,Rho_comp),
+                                 dd(i,j,k,Rho_comp) + dd(i-1,j,k,Rho_comp));
+            if (i == dlo_x) {
+                if (xlo == ERFBCType::ext_dir ||
+                   (xlo == ERFBCType::ext_dir_upwind && momx(i,j,k) >= zero)) {
+                    b = proj_weight(dm(i-1,j,k,Rho_comp), dd(i-1,j,k,Rho_comp));
+                }
+            } else if (i == dhi_x) {
+                if (xhi == ERFBCType::ext_dir ||
+                   (xhi == ERFBCType::ext_dir_upwind && momx(i,j,k) <= zero)) {
+                    b = proj_weight(dm(i,j,k,Rho_comp), dd(i,j,k,Rho_comp));
+                }
+            }
+            bx(i,j,k) = b;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            Real b = proj_weight(dm(i,j,k,Rho_comp) + dm(i,j-1,k,Rho_comp),
+                                 dd(i,j,k,Rho_comp) + dd(i,j-1,k,Rho_comp));
+            if (j == dlo_y) {
+                if (ylo == ERFBCType::ext_dir ||
+                   (ylo == ERFBCType::ext_dir_upwind && momy(i,j,k) >= zero)) {
+                    b = proj_weight(dm(i,j-1,k,Rho_comp), dd(i,j-1,k,Rho_comp));
+                }
+            } else if (j == dhi_y) {
+                if (yhi == ERFBCType::ext_dir ||
+                   (yhi == ERFBCType::ext_dir_upwind && momy(i,j,k) <= zero)) {
+                    b = proj_weight(dm(i,j,k,Rho_comp), dd(i,j,k,Rho_comp));
+                }
+            }
+            by(i,j,k) = b;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            bz(i,j,k) = proj_weight(dm(i,j,k,Rho_comp) + dm(i,j,k-1,Rho_comp),
+                                    dd(i,j,k,Rho_comp) + dd(i,j,k-1,Rho_comp));
+        });
+    } // end MFIter
+}

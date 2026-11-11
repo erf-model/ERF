@@ -11,6 +11,7 @@
 
 #include "ERF.H"
 #include "ERF_InputsName.H"
+#include "ERF_InputPreflight.H"
 
 #ifdef ERF_USE_WW3_COUPLING
 #include <mpi.h>
@@ -259,6 +260,12 @@ auto finalize_mpi_and_return = [](int code) {
         ERF::print_error(
             MPI_COMM_WORLD, "No input file provided. Exiting!!");
         return finalize_mpi_and_return(1);
+    }
+
+    for (auto i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "--validate-input") {
+            return finalize_mpi_and_return(erf_preflight::run(argc, argv));
+        }
     }
 
     // Look for "-h" or "--help" flag and print usage

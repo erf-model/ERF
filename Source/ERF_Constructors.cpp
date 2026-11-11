@@ -58,19 +58,74 @@ erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
+// The qualified multilevel SBM envelope: two periodic levels, refined by 2,
+// two-way coupled, on a flat ConstantDz mesh, with one host integrator for
+// both levels, in double precision.  Regridding and any fine-level subcycling
+// count are allowed.
+void validate_sbm_amr_capability (const SolverChoice& choice,
+                                  const int max_level,
+                                  const amrex::Vector<amrex::IntVect>& ref_ratio,
+                                  const amrex::Geometry& geom0)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level <= 1,
+        "SBM supports at most two AMR levels (amr.max_level <= 1)");
+    if (max_level == 0) return;
+#ifdef AMREX_USE_FLOAT
+    amrex::Abort("SBM AMR is qualified in double precision only; use amr.max_level = 0 "
+                 "in a single-precision build");
+#endif
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom0.isAllPeriodic(),
+        "SBM AMR requires a triply periodic domain (geometry.is_periodic = 1 1 1)");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !ref_ratio.empty() && ref_ratio[0] == amrex::IntVect(2),
+        "SBM AMR supports amr.ref_ratio = 2 in every direction only");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.coupling_type == CouplingType::TwoWay,
+        "SBM AMR requires erf.coupling_type = TwoWay");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        choice.mesh_type == MeshType::ConstantDz &&
+        choice.terrain_type == TerrainType::None,
+        "SBM AMR requires a ConstantDz mesh without terrain");
+    const auto same_on_every_level = [] (const auto& per_level) {
+        return std::all_of(per_level.begin(), per_level.end(),
+                           [&] (const auto& value) { return value == per_level.front(); });
+    };
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        same_on_every_level(choice.compressibility_type) &&
+        same_on_every_level(choice.timestepping_type),
+        "SBM AMR requires the same compressibility and erf.timestepping_type on every level");
+    // Each anelastic level computes its own base density and does not average
+    // it down, so the coarse and fine dry-air carriers agree only if it is constant.
+    const bool constant_base_density =
+        choice.init_type == InitType::Uniform ||
+        choice.init_type == InitType::ConstantDensity ||
+        choice.init_type == InitType::ConstantDensityLinearTheta;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        choice.compressibility_type.front() == CompressibilityType::FullyCompressible ||
+        constant_base_density,
+        "SBM AMR with anelastic levels requires a constant base density "
+        "(erf.init_type = Uniform, ConstantDensity, or ConstantDensityLinearTheta)");
+}
+
 void validate_sbm_m3_advection (const SolverChoice& choice,
-                                const int max_level)
+                                const int max_level,
+                                const amrex::Vector<amrex::IntVect>& ref_ratio,
+                                const amrex::Geometry& geom0)
 {
     if (choice.moisture_type != MoistureType::SBM) return;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(AMREX_SPACEDIM == 3,
         "SBM M3 mapped advection requires three dimensions");
+    validate_sbm_amr_capability(choice, max_level, ref_ratio, geom0);
 #ifdef ERF_SBM_AMR_QUALIFICATION
     erf_sbm::qualification::validate_configuration(choice, max_level);
-#else
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level == 0,
-        "SBM M3 mapped advection supports one AMR level only");
 #endif
     const bool anelastic = !choice.compressibility_type.empty() && choice.compressibility_type[0] != CompressibilityType::FullyCompressible;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        std::none_of(choice.compressibility_type.begin(), choice.compressibility_type.end(),
+                     [] (CompressibilityType type) {
+                         return type == CompressibilityType::PseudoIncompressible;
+                     }),
+        "SBM M3 does not yet support erf.compressibility_type = PseudoIncompressible "
+        "(the density evolves there; SBM has been validated with a fixed density only)");
     // Grid stretching may set StaticFittedMesh as a label while retaining
     // StretchedDz; only VariableDz selects the fitted-terrain projection.
     const bool fitted_terrain_mesh =
@@ -93,7 +148,6 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
         "SBM M3 supports ConstantDz, StretchedDz, or static fitted-mesh geometry");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.buildings_type == BuildingsType::None,
         "SBM M3 requires buildings_type=None");
-    // Production SBM has already required max_level == 0 above.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         choice.timestepping_type.size() == max_level + 1 &&
         std::none_of(choice.timestepping_type.begin(), choice.timestepping_type.end(),
@@ -101,14 +155,25 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
                          return type == TimesteppingType::RK3_ImplicitSubstep;
                      }),
         "SBM M3 does not support acoustic substepping (erf.timestepping_type = RK3_ImplicitSubstep)");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.timestepping_type.empty() ||
-                                     choice.compressibility_type[0] == CompressibilityType::FullyCompressible ||
-                                     choice.timestepping_type[0] == TimesteppingType::RK2,
-        "SBM M3 supports the Anelastic RK2 Heun integrator only");
+    for (int lev = 0; lev < static_cast<int>(choice.timestepping_type.size()); ++lev) {
+        // A pseudo-incompressible level's mass flux is not divergence free at fixed density.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            choice.compressibility_type[lev] == CompressibilityType::FullyCompressible ||
+            choice.compressibility_type[lev] == CompressibilityType::Anelastic,
+            "SBM supports FullyCompressible and Anelastic levels only (erf.compressibility_type)");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            choice.compressibility_type[lev] == CompressibilityType::FullyCompressible ||
+            choice.timestepping_type[lev] == TimesteppingType::RK2 ||
+            choice.timestepping_type[lev] == TimesteppingType::MidPoint,
+            "SBM M3 supports the anelastic RK2 (Heun) and MidPoint integrators only");
+    }
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
         "SBM M3 does not support scalar or particle diffusion");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.turbChoice[0].use_kturb &&
-                                     choice.turbChoice[0].pbl_type == PBLType::None,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        std::all_of(choice.turbChoice.begin(), choice.turbChoice.end(),
+                    [] (const TurbChoice& turb) {
+                        return !turb.use_kturb && turb.pbl_type == PBLType::None;
+                    }),
         "SBM M3 does not support turbulent particle mixing or SHOC/macrophysics");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.use_num_diff,
         "SBM M3 does not support numerical diffusion");
@@ -306,7 +371,7 @@ ERF::ERF_shared ()
     m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
 
     ReadParameters();
-    validate_sbm_m3_advection(solverChoice, max_level);
+    validate_sbm_m3_advection(solverChoice, max_level, refRatio(), geom[0]);
     bool auxiliary_inert_tracer_test = false;
     ParmParse pp_auxiliary("erf");
     pp_auxiliary.queryAdd("auxiliary_inert_tracer_test", auxiliary_inert_tracer_test);
@@ -593,6 +658,7 @@ ERF::ERF_shared ()
     physbcs_v.resize(nlevs_max);
     physbcs_w.resize(nlevs_max);
     physbcs_base.resize(nlevs_max);
+    physbcs_base_new.resize(nlevs_max);
 
     // Planes to hold Dirichlet values at boundaries
     xvel_bc_data.resize(nlevs_max);
@@ -628,6 +694,7 @@ ERF::ERF_shared ()
     // Metric terms
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
+    z_sfc_nd.resize(nlevs_max);
     detJ_cc.resize(nlevs_max);
     ax.resize(nlevs_max);
     ay.resize(nlevs_max);
@@ -635,6 +702,8 @@ ERF::ERF_shared ()
 
     z_phys_nd_new.resize(nlevs_max);
     detJ_cc_new.resize(nlevs_max);
+    z_phys_nd_mid.resize(nlevs_max);
+    detJ_cc_mid.resize(nlevs_max);
 
     z_phys_nd_src.resize(nlevs_max);
     z_phys_cc_src.resize(nlevs_max);

@@ -1142,6 +1142,21 @@ define ( [[maybe_unused]] int const& a_level,
 #endif
 }
 
+void
+eb_aux_::clear ()
+{
+    m_cellflags.reset();
+    m_volfrac.reset();
+    m_volcent.reset();
+    m_bndryarea.reset();
+    m_bndrycent.reset();
+    m_bndrynorm.reset();
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        m_areafrac[idim].reset();
+        m_facecent[idim].reset();
+    }
+}
+
 const FabArray<EBCellFlagFab>&
 eb_aux_::getMultiEBCellFlagFab () const
 {

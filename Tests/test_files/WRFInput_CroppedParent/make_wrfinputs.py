@@ -4,6 +4,8 @@
 d02 covers level-1 cells 18..53.  The test inputs crop ERF level 1 to 24..47.
 d03 begins at level-2 cell 78 = 3 * (18 + 8); using the cropped ERF patch
 origin instead would incorrectly place it at 96 = 3 * (24 + 8).
+theta = 300 + 0.01 i + 0.001 j + 0.1 k at global indices, so the level a value
+lands on is checked as well.
 """
 
 from pathlib import Path
@@ -56,9 +58,10 @@ def write_file(path, nx, ny, ratio, parent_start, global_origin, total_ratio, dx
         gi = global_origin + np.arange(nx, dtype=np.float32)[None, :]
         gj = global_origin + np.arange(ny, dtype=np.float32)[:, None]
         # The level-2 theta pattern is checked in the plotfile at global indices.
-        theta_pert = 0.01 * gi + 0.001 * gj
+        gk = np.arange(NZ, dtype=np.float32)[:, None, None]
+        theta_pert = 0.01 * gi[None, :, :] + 0.001 * gj[None, :, :] + 0.1 * gk
         put("ALT", xyz, 1.0)
-        put("THM", xyz, theta_pert[None, None, :, :])
+        put("THM", xyz, theta_pert[None, :, :, :])
         put("U", ("Time", "bottom_top", "south_north", "west_east_stag"), 0.0)
         put("V", ("Time", "bottom_top", "south_north_stag", "west_east"), 0.0)
         put("W", zface, 0.0)

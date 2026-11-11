@@ -7,7 +7,9 @@
 #include "ERF_SBMTransport.H"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -33,6 +35,9 @@ ERF::make_sbm_flux_register (int lev)
 {
     if (static_cast<int>(sbm_amr_flux_regs.size()) <= lev) {
         sbm_amr_flux_regs.resize(lev + 1);
+    }
+    if (sbm_amr_flux_regs[lev] && sbm_amr_flux_regs[lev]->has_outstanding_amount()) {
+        Abort("SBM interface register was rebuilt with a pending reflux amount");
     }
     if (lev > 0) {
         if (solverChoice.coupling_type == CouplingType::TwoWay &&
@@ -83,7 +88,12 @@ ERF::init_sbm_level_from_coarse (int lev, Real time, const BoxArray& ba,
 {
     AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr &&
                         sbm_transport != nullptr && lev > 0);
-    sbm_state_manager->define(lev, ba, dm, static_cast<double>(time));
+    // AmrCore passes the creation time as Real; the parent level's time is exact.
+    const double fine_time = t_new[lev - 1];
+    AMREX_ALWAYS_ASSERT(std::abs(static_cast<double>(time) - fine_time) <=
+                        16.0 * std::numeric_limits<Real>::epsilon() *
+                            std::max(1.0, std::abs(fine_time)));
+    sbm_state_manager->define(lev, ba, dm, fine_time);
     sbm_transport->define(lev, ba, dm);
     bind_sbm_amr_flux_registers(lev);
     bind_sbm_amr_flux_registers(lev - 1);
@@ -98,9 +108,7 @@ ERF::init_sbm_level_from_coarse (int lev, Real time, const BoxArray& ba,
     }
     AMREX_ALWAYS_ASSERT(sbm_transport->measure_is_ready(lev - 1));
     const double coarse_time = sbm_state_manager->new_time(lev - 1);
-    const double fine_time = static_cast<double>(time);
-    if (!erf_sbm::semantic_time_matches(coarse_time, t_new[lev - 1], dt[lev - 1]) ||
-        !erf_sbm::semantic_time_matches(fine_time, t_new[lev - 1], dt[lev - 1])) {
+    if (!erf_sbm::semantic_time_matches(coarse_time, fine_time, dt[lev - 1])) {
         Abort("SBM fine-level initialization: the coarse spectrum and host "
               "state times differ");
     }
@@ -131,6 +139,128 @@ ERF::init_sbm_level_from_coarse (int lev, Real time, const BoxArray& ba,
     sbm_state_manager->project_to_core(
         lev, vars_new[lev][Vars::cons], solverChoice.moisture_indices.qc,
         solverChoice.moisture_indices.qr);
+}
+
+// Remake a level's spectrum on new grids at the synchronized regrid instant,
+// after ERF has finalized the level's host density, geometry, map factors
+// and Jacobian there. Retained cells keep their accepted values; newly
+// covered cells are prolonged from the same-time coarse spectrum. Released
+// cells need nothing: the last synchronization already restricted them onto
+// their parents. The level is replaced only after its whole candidate is
+// admitted; a rejection aborts before any spectrum or projection changes.
+void
+ERF::remake_sbm_level (int lev, Real time, const BoxArray& ba,
+                       const DistributionMapping& dm)
+{
+    AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr && sbm_transport != nullptr);
+    // AmrCore remakes only refined levels; level 0 is re-gridded on restart by reading it.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev > 0,
+        "SBM regrid supports remaking refined levels only");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        sbm_state_manager->is_defined(lev) && sbm_state_manager->new_valid(lev) &&
+        !sbm_state_manager->step_active(lev),
+        "SBM regrid requires a synchronized accepted spectrum on the remade level");
+    AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr &&
+                        mapfac[lev][MapFacType::m_x] != nullptr &&
+                        mapfac[lev][MapFacType::m_y] != nullptr);
+    const auto& layout = sbm_state_manager->layout();
+    const int ncomp = layout.ncomp();
+    // AmrCore passes the regrid time as Real; the level's own time is exact.
+    const double regrid_time = t_new[lev];
+    AMREX_ALWAYS_ASSERT(std::abs(static_cast<double>(time) - regrid_time) <=
+                        16.0 * std::numeric_limits<Real>::epsilon() *
+                            std::max(1.0, std::abs(regrid_time)));
+    if (!erf_sbm::level_time_matches(sbm_state_manager->new_time(lev), regrid_time,
+                                     dt[lev])) {
+        Abort("SBM regrid: the remade level's accepted spectrum is not at the regrid instant");
+    }
+    const double coarse_time = sbm_state_manager->new_time(lev - 1);
+    if (!erf_sbm::level_time_matches(coarse_time, regrid_time, dt[lev - 1]) ||
+        !sbm_transport->measure_is_ready(lev - 1)) {
+        Abort("SBM regrid: the coarse spectrum is not synchronized at the regrid instant");
+    }
+
+    const MultiFab& retained = sbm_state_manager->new_state(lev);
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    const auto inventory_before = sbm_qualification_composite_inventory();
+    const auto counts = erf_sbm::CountRegridCells(retained.boxArray(), ba);
+    std::vector<std::uint64_t> phase_bytes(4, 0);
+    phase_bytes[0] = static_cast<std::uint64_t>(TotalBytesAllocatedInFabs());
+#endif
+    // The transport level holds only scratch and the measure, so it moves to
+    // the new grids first and its measure and admission check the candidate.
+    std::string diagnostic;
+    sbm_transport->destroy(lev);
+    sbm_transport->define(lev, ba, dm);
+    if (!sbm_transport->rebuild_static_measure(
+            lev, *detJ_cc[lev], *mapfac[lev][MapFacType::m_x],
+            *mapfac[lev][MapFacType::m_y], diagnostic)) {
+        Abort("SBM regrid mapped measure: " + diagnostic);
+    }
+    MultiFab candidate(ba, dm, ncomp, retained.nGrowVect());
+    candidate.setVal(Real(0.0));
+    {
+        erf_sbm::SBMTransferAllocationCensus census;
+
+        const MultiFab* retained_source = &retained;
+#ifdef ERF_SBM_AMR_QUALIFICATION
+        MultiFab faulted_retained;
+        if (solverChoice.sbm_amr_qualification_regrid_reject_fault &&
+            counts.retained > 0) {
+            // Make one cell that survives the regrid inadmissible.
+            faulted_retained.define(retained.boxArray(), retained.DistributionMap(),
+                                    ncomp, 0);
+            MultiFab::Copy(faulted_retained, retained, 0, 0, ncomp, 0);
+            for (int box = 0; box < ba.size(); ++box) {
+                const auto overlaps = retained.boxArray().intersections(ba[box]);
+                if (!overlaps.empty()) {
+                    const IntVect cell = overlaps.front().second.smallEnd();
+                    faulted_retained.setVal(Real(-1.0), Box(cell, cell), 0, 1, 0);
+                    break;
+                }
+            }
+            retained_source = &faulted_retained;
+        }
+#endif
+        const erf_sbm::SBMAMRStateView coarse_view{
+            &sbm_state_manager->new_state(lev - 1), regrid_time,
+            &vars_new[lev - 1][Vars::cons], Rho_comp, regrid_time,
+            &sbm_transport->static_measure(lev - 1), 0, regrid_time};
+        if (!erf_sbm::RemapRegriddedSpectrumPrivate(
+                layout, coarse_view, *retained_source,
+                vars_new[lev][Vars::cons], Rho_comp,
+                sbm_transport->static_measure(lev), 0,
+                regrid_time, geom[lev - 1], geom[lev], ref_ratio[lev - 1],
+                lev, candidate, diagnostic,
+                sbm_transport->max_groups_per_chunk(),
+                &sbm_transport->admission(), &sbm_transport->admission(), &census)) {
+            Abort("SBM regrid candidate rejected before publication: " + diagnostic);
+        }
+#ifdef ERF_SBM_AMR_QUALIFICATION
+        phase_bytes[1] = census.peak_bytes;
+#endif
+        if (!sbm_state_manager->can_replace_level(lev, candidate, regrid_time,
+                                                  diagnostic)) {
+            Abort("SBM regrid candidate could not replace the level: " + diagnostic);
+        }
+    }
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    phase_bytes[2] = static_cast<std::uint64_t>(TotalBytesAllocatedInFabs());
+#endif
+
+    sbm_state_manager->replace_level(lev, std::move(candidate), regrid_time);
+    bind_sbm_amr_flux_registers(lev);
+    bind_sbm_amr_flux_registers(lev - 1);
+    if (lev < finest_level) { bind_sbm_amr_flux_registers(lev + 1); }
+    sbm_state_manager->project_to_core(
+        lev, vars_new[lev][Vars::cons], solverChoice.moisture_indices.qc,
+        solverChoice.moisture_indices.qr);
+#ifdef ERF_SBM_AMR_QUALIFICATION
+    phase_bytes[3] = static_cast<std::uint64_t>(TotalBytesAllocatedInFabs());
+    sbm_qualification_check_regrid(lev, counts.cells, counts.retained,
+                                   counts.prolonged, counts.released,
+                                   inventory_before, phase_bytes);
+#endif
 }
 
 // Restrict, reflux and publish each coarse level after its fine level has

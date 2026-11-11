@@ -562,6 +562,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
        ${SRC_DIR}/IO/ERF_BuildDescription.cpp
+       ${SRC_DIR}/IO/ERF_InputPreflight.cpp
        ${SRC_DIR}/IO/ERF_NoahMPGitHash.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
        ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp
@@ -668,6 +669,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPost.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Substep_NS.cpp
        ${SRC_DIR}/TimeIntegration/ERF_CFFluxHistory.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_MomentumReflux.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Substep_T.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Substep_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
@@ -780,6 +782,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/IO>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LinearSolvers>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PBL>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Refinement>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation/TwoStream>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/SourceTerms>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/ImmersedBoundarySEB>)
