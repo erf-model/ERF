@@ -113,12 +113,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 "M2 auxiliary inert tracer fixture requires triply periodic geometry");
         }
     }
-    if (sbm_state_manager) {
-        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom[lev].isPeriodic(dir),
-                "SBM M3 currently requires triply periodic geometry; spectral physical boundary filling is not implemented");
-        }
-    }
     //
     // Note that "time" here is elapsed time
     //

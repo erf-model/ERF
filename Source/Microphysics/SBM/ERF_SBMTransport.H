@@ -4,9 +4,11 @@
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMAdvectionBoundary.H"
+#include "ERF_SBMPhysicalBoundary.H"
 #include "AuxiliaryState/ERF_AuxiliaryStage.H"
 
 #include <AMReX_Geometry.H>
+#include <AMReX_GpuContainers.H>
 #include <AMReX_IntVect.H>
 
 #include <array>
@@ -123,6 +125,13 @@ class SBMTransport
     void set_amr_flux_registers (int level,
                                  SBMAMRFluxRegister* as_coarse,
                                  SBMAMRFluxRegister* as_fine);
+    /** Install validated face kinds and inflow spectra; every stage checks them against its geometry. */
+    void set_physical_boundaries (const SBMPhysicalBoundaryConfig& config);
+    [[nodiscard]] const SBMPhysicalBoundaryConfig& physical_boundaries () const noexcept
+    { return m_boundaries; }
+    [[nodiscard]] const SBMBoundaryLedger& boundary_ledger () const noexcept
+    { return m_boundary_ledger; }
+    void restore_boundary_ledger (const SBMBoundaryLedger& ledger);
     bool begin_physical_step (int level, double step_begin, double step_end,
                               std::string& diagnostic);
     bool accept_physical_step (int level, double step_begin, double step_end,
@@ -218,6 +227,9 @@ class SBMTransport
     std::vector<std::unique_ptr<LevelStorage>> m_levels;
     std::unique_ptr<DeviceMetadata> m_device_metadata;
     std::unique_ptr<SBMStateAdmission> m_admission;
+    SBMPhysicalBoundaryConfig m_boundaries;
+    amrex::Gpu::DeviceVector<amrex::Real> m_inflow_device;
+    SBMBoundaryLedger m_boundary_ledger;
     bool m_keep_spectral_ledger_reference{true};
     bool m_zero_flow_diagnostics_enabled{false};
     // Split qualification checks parent ghosts once at the coarse start and

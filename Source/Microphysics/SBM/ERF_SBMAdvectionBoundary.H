@@ -1,6 +1,7 @@
 #ifndef ERF_SBM_ADVECTION_BOUNDARY_H_
 #define ERF_SBM_ADVECTION_BOUNDARY_H_
 
+#include <AMReX_GpuQualifiers.H>
 #include <AMReX_REAL.H>
 
 namespace erf_sbm {
@@ -41,7 +42,7 @@ struct AdvectionFacePolicy {
     bool use_explicit_spectral_state{false};
     bool use_high_order_candidate{false};
 
-    [[nodiscard]] constexpr bool accepted () const noexcept
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE constexpr bool accepted () const noexcept
     {
         return action != AdvectionFaceAction::RejectInwardOutflow &&
                action != AdvectionFaceAction::RejectMissingInflowState &&
@@ -55,7 +56,7 @@ struct AdvectionFacePolicy {
  * high-order stencil is not qualified, the admissible donor proposal remains
  * available and high-order transport falls back to it.
  */
-[[nodiscard]] constexpr AdvectionFacePolicy
+[[nodiscard]] AMREX_GPU_HOST_DEVICE constexpr AdvectionFacePolicy
 make_advection_face_policy (const AdvectionFacePolicyInput& input) noexcept
 {
     using Action = AdvectionFaceAction;

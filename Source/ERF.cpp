@@ -806,6 +806,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     if (cloud_chamber_budget && sbm_moisture) {
         report_cloud_chamber_budget();
     }
+    if (sbm_state_manager && sbm_moisture) {
+        sbm_check_budget(nstep);
+    }
 
     // The next coarse step sums the pressure afresh
     if (momentum_reflux_enabled()) { momentum_reflux_reset(); }
@@ -2670,6 +2673,9 @@ ERF::InitData_post ()
 #ifdef ERF_SBM_AMR_QUALIFICATION
     sbm_qualification_record_initial_inventory();
 #endif
+    if (sbm_state_manager) {
+        sbm_record_budget_reference();
+    }
 }
 
 //

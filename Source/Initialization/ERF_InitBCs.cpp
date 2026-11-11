@@ -853,6 +853,8 @@ void ERF::init_bcs ()
         }
     }
 
+    configure_sbm_physical_boundaries();
+
     // NOTE: Gpu:copy is a wrapper to htod_memcpy (GPU) or memcpy (CPU) and is a blocking comm
     Gpu::copy(Gpu::hostToDevice, domain_bcs_type.begin(), domain_bcs_type.end(), domain_bcs_type_d.begin());
 }

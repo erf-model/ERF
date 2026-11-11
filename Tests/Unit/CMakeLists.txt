@@ -424,6 +424,7 @@ if(ERF_DIM STREQUAL "3")
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/AuxiliaryState/ERF_GTestAuxiliaryMappedTransport.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTransport.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMBoundary.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMAMRTransfer.cpp)
 endif()
 if(ERF_ENABLE_NETCDF)
@@ -677,10 +678,6 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     inputs_amr_production_2level
     "SBM AMR with anelastic levels requires a constant base density"
     "-DOVERRIDE=erf.init_type=Isentropic erf.compressibility_type=Anelastic erf.timestepping_type=MidPoint")
-  add_sbm_expected_failure_test(SBM_AMR_Reject_Nonperiodic
-    inputs_amr_production_2level
-    "geometry.is_periodic = 1 1 1"
-    "-DOVERRIDE=geometry.is_periodic=1 1 0 zlo.type=SlipWall zhi.type=SlipWall")
   add_test(NAME SBM_M3_Adaptive_Anelastic_Donor_CFL
     COMMAND ${CMAKE_COMMAND}
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
@@ -717,7 +714,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "-DOVERRIDE=erf.fixed_dt=0.2")
   add_sbm_expected_failure_test(SBM_M3_Reject_PseudoIncompressible
     inputs_adaptive_anelastic_donor
-    "SBM supports FullyCompressible and Anelastic levels only"
+    "SBM M3 does not yet support erf.compressibility_type = PseudoIncompressible"
     "-DOVERRIDE=erf.compressibility_type=PseudoIncompressible")
 
   add_test(NAME SBM_M3_Adaptive_Anelastic_Stretched_Donor_CFL
@@ -782,14 +779,106 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_Implicit_Substepping inputs_zero_carrier
     "SBM M3 does not support acoustic substepping"
     "-DOVERRIDE=erf.timestepping_type=RK3_ImplicitSubstep")
-  add_sbm_expected_failure_test(SBM_Nonperiodic_Geometry inputs_nonperiodic
-    "SBM M3 currently requires triply periodic geometry")
   add_sbm_expected_failure_test(SBM_Immersed_Buildings inputs_zero_carrier
     "SBM M3 requires buildings_type=None"
     "-DOVERRIDE=erf.buildings_type=ImmersedForcing")
   add_sbm_expected_failure_test(SBM_M3_Moving_Terrain inputs_zero_carrier
     "SBM M3 requires static non-EB geometry"
     "-DOVERRIDE=erf.terrain_type=MovingFittedMesh")
+
+  # Physical faces: walls carry nothing, outflow loses only what its ledger
+  # records, inflow brings a complete spectrum. Every run checks its leaf
+  # inventory against the boundary ledger after each coarse step.
+  function(add_sbm_boundary_budget_test test_name input_file expect_transfer)
+    add_test(NAME ${test_name}
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/${input_file}
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        -DEXPECT_TRANSFER=${expect_transfer}
+        ${ARGN}
+        -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunBoundaryBudget.cmake)
+    set_tests_properties(${test_name} PROPERTIES
+      LABELS "integration;sbm"
+      RUN_SERIAL TRUE
+      TIMEOUT 300)
+  endfunction()
+  set(_sbm_boundary_2m
+    "erf.sbm_moment_mode=2|erf.sbm_edges=1.0e-18 2.0e-18 4.0e-18 8.0e-18 1.6e-17|erf.sbm_fixture_initial_state=1.5e-6 6.0e-6 1.8e-5 4.8e-5 1.0e12 2.0e12 3.0e12 4.0e12")
+  add_sbm_boundary_budget_test(SBM_Boundary_Walls_SlipCompressible inputs_boundary_walls zero)
+  add_sbm_boundary_budget_test(SBM_Boundary_Walls_NoSlipCompressible inputs_boundary_walls zero
+    "-DRUN_ARGS=zlo.type=NoSlipWall|zhi.type=NoSlipWall")
+  add_sbm_boundary_budget_test(SBM_Boundary_Walls_AnelasticMidPoint inputs_boundary_walls zero
+    "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
+  add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_1M_Compressible
+    inputs_boundary_inflow_outflow nonzero)
+  add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_2M_Compressible
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=${_sbm_boundary_2m}|xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0.8e12 1.0e12 6.0e12 2.0e12")
+  add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_AnelasticHeun
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=RK2")
+  add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_AnelasticMidPoint
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
+  add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_HostTypes
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=xlo.type=inflow_outflow|xhi.type=ho_outflow")
+  add_sbm_boundary_budget_test(SBM_Boundary_OutflowOnly inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=xlo.sbm_inflow_z=0 0 0 0")
+  add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_Stretched
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=erf.grid_stretching_ratio=1.1|erf.initial_dz=0.25")
+  add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_StaticTerrain
+    inputs_boundary_static_terrain nonzero)
+  # The qualification build's executable accepts only its own two-level decks.
+  if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
+    add_sbm_boundary_budget_test(SBM_Boundary_AMR_Outflow_Compressible
+      inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2)
+    add_sbm_boundary_budget_test(SBM_Boundary_AMR_Outflow_AnelasticMidPoint
+      inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2
+      "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
+    add_sbm_boundary_budget_test(SBM_Boundary_AMR_Inflow_Compressible
+      inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2
+      "-DRUN_ARGS=erf.box1.in_box_lo=0.0 0.25 0.0|erf.box1.in_box_hi=0.375 0.75 0.375|erf.box1.move_speed_x=0")
+  endif()
+
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_ReverseOutflow
+    inputs_boundary_inflow_outflow
+    "SBM advective outflow xhi received an inward dry-air carrier"
+    "-DOVERRIDE=prob.U_0=-0.8 xlo.velocity=-0.8 0.6 0.0")
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_MissingInflow
+    inputs_boundary_inflow_outflow
+    "SBM prescribed inflow at xhi requires xhi.sbm_inflow_z"
+    "-DOVERRIDE=xhi.type=Inflow xhi.velocity=0.8 0.6 0.0 xhi.density=1.0 xhi.theta=300.0")
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_CompactInflow
+    inputs_boundary_inflow_outflow
+    "SBM owns compact qc/qr: xlo.qc cannot define or override a spectral inflow"
+    "-DOVERRIDE=xlo.qc=1.e-6")
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_IncompleteInflow
+    inputs_boundary_inflow_outflow
+    "SBM inflow spectrum xlo.sbm_inflow_z is not admissible: it has 2 values"
+    "-DOVERRIDE=xlo.sbm_inflow_z=4.e-6 3.e-6")
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_IncompleteTwoMomentGroup
+    inputs_boundary_inflow_outflow
+    "SBM inflow spectrum xlo.sbm_inflow_z is not admissible: population 0 bin 0 is not canonical"
+    "-DOVERRIDE=erf.sbm_moment_mode=2 erf.sbm_edges=1.0e-18 2.0e-18 4.0e-18 8.0e-18 1.6e-17 erf.sbm_fixture_initial_state=1.5e-6 6.0e-6 1.8e-5 4.8e-5 1.0e12 2.0e12 3.0e12 4.0e12 xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0 1.0e12 6.0e12 2.0e12")
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_InflowOnWall
+    inputs_boundary_inflow_outflow
+    "zlo.sbm_inflow_z is set but zlo is not an inflow boundary"
+    "-DOVERRIDE=zlo.sbm_inflow_z=4.e-6 3.e-6 2.e-6 1.e-6")
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_Open
+    inputs_boundary_inflow_outflow
+    "SBM physical boundary xhi is not supported: open boundaries"
+    "-DOVERRIDE=xhi.type=Open")
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_Symmetry
+    inputs_boundary_inflow_outflow
+    "SBM physical boundary zlo is not supported: ERF does not hold the normal dry-air carrier"
+    "-DOVERRIDE=zlo.type=Symmetry zhi.type=Symmetry")
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_SurfaceLayer
+    inputs_boundary_inflow_outflow
+    "SBM physical boundary zlo is not supported: a surface_layer boundary"
+    "-DOVERRIDE=zlo.type=surface_layer")
 
   add_test(NAME SBM_M3_Stretched_Static_Mesh
     COMMAND ${CMAKE_COMMAND}
@@ -888,6 +977,40 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
           RUN_SERIAL TRUE
           TIMEOUT 300)
       endforeach()
+    endif()
+
+    # A restart carries the boundary ledger and re-reads the inflow it was
+    # fingerprinted with; a changed inflow is a different schema.
+    function(add_sbm_boundary_restart_test test_name input_file mode)
+      add_test(NAME ${test_name}
+        COMMAND ${CMAKE_COMMAND}
+          -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+          -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+          -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/${input_file}
+          -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/sbm_boundary_restart_${test_name}
+          -DPRODUCTION=ON
+          -DMODE=${mode}
+          -DRESTART_STEP=2
+          -DFINAL_STEP=4
+          -DEXPECT_BOUNDARY_LEDGER=ON
+          ${ARGN}
+          -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunAMRRestart.cmake)
+      set_tests_properties(${test_name} PROPERTIES
+        LABELS "integration;sbm"
+        RUN_SERIAL TRUE
+        TIMEOUT 300)
+    endfunction()
+    add_sbm_boundary_restart_test(SBM_Boundary_Restart_Equivalence
+      inputs_boundary_inflow_outflow equivalence -DEXPECTED_FINAL_LEVELS=1)
+    add_sbm_boundary_restart_test(SBM_Boundary_Restart_ChangedInflow
+      inputs_boundary_inflow_outflow changed_restart_inputs
+      "-DRESTART_ARGS=xlo.sbm_inflow_z=4.e-6 3.e-6 2.e-6 2.e-6"
+      "-DEXPECTED_DIAGNOSTIC=SBM restart schema does not exactly match")
+    if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
+      add_sbm_boundary_restart_test(SBM_Boundary_AMR_Restart_Equivalence_Compressible
+        inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2)
+      add_sbm_boundary_restart_test(SBM_Boundary_AMR_Restart_Equivalence_AnelasticMidPoint
+        inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2 -DANELASTIC=MidPoint)
     endif()
   endif()
 
