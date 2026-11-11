@@ -1579,6 +1579,8 @@ private:
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base;
+    // The same on the mesh at the end of the stage, z_phys_nd_new (MovingFittedMesh only)
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base_new;
 
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
@@ -1786,6 +1788,9 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
+    // The mesh and Jacobian at the acoustic sub-step midpoint (MovingFittedMesh), rewritten every sub-step
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_mid;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_mid;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
