@@ -384,9 +384,11 @@ void erf_make_tau_terms (int level, int nrk,
 
                 // First create Omega using velocity (not momentum)
                 Array4<Real> omega_arr = Omega.array();
+                // On a moving surface, OmegaFromW at k = 0 is the surface velocity z_t, not zero
+                const bool l_moving_surface = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
                 ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    omega_arr(i,j,k) = (k == 0) ? zero : OmegaFromW(i,j,k,w(i,j,k),u,v,
+                    omega_arr(i,j,k) = (k == 0 && !l_moving_surface) ? zero : OmegaFromW(i,j,k,w(i,j,k),u,v,
                                                                   mf_ux,mf_vy,z_nd,dxInv);
                 });
 

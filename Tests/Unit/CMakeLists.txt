@@ -719,7 +719,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "-DOVERRIDE=erf.fixed_dt=0.2")
   add_sbm_expected_failure_test(SBM_M3_Reject_PseudoIncompressible
     inputs_adaptive_anelastic_donor
-    "SBM supports FullyCompressible and Anelastic levels only"
+    "SBM M3 does not yet support erf.compressibility_type = PseudoIncompressible"
     "-DOVERRIDE=erf.compressibility_type=PseudoIncompressible")
 
   add_test(NAME SBM_M3_Adaptive_Anelastic_Stretched_Donor_CFL
