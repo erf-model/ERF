@@ -527,7 +527,12 @@ fill_coarse_parent_ghosts (MultiFab& destination,
 
     amrex::Box coarse_domain = fine_geometry.Domain();
     coarse_domain.coarsen(parent.refinement_ratio);
-    const amrex::Periodicity coarse_periodicity(coarse_domain.length());
+    // Wrap only periodic directions: a parent beyond a physical face does not exist.
+    amrex::IntVect coarse_period(0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (fine_geometry.isPeriodic(dir)) coarse_period[dir] = coarse_domain.length(dir);
+    }
+    const amrex::Periodicity coarse_periodicity(coarse_period);
     amrex::Box coarse_region = coarse_domain;
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         if (fine_geometry.isPeriodic(dir)) coarse_region.grow(dir, coarse_ghosts[dir]);
