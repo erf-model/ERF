@@ -105,7 +105,8 @@ void validate_sbm_amr_capability (const SolverChoice& choice,
 
 void validate_sbm_m3_advection (const SolverChoice& choice,
                                 const int max_level,
-                                const amrex::Vector<amrex::IntVect>& ref_ratio)
+                                const amrex::Vector<amrex::IntVect>& ref_ratio,
+                                const bool input_bndry_planes)
 {
     if (choice.moisture_type != MoistureType::SBM) return;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(AMREX_SPACEDIM == 3,
@@ -183,6 +184,11 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
                                      !choice.custom_moisture_forcing &&
                                      !choice.use_real_bcs,
         "SBM M3 does not support large-scale, nudging, custom moisture forcing, or real physical boundary conditions");
+    // Plane files would set an inflow face's density and compact qc, which SBM
+    // derives from <face>.density and <face>.sbm_inflow_z.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!input_bndry_planes,
+        "SBM does not support erf.input_bndry_planes: an SBM inflow face takes its "
+        "density from <face>.density and its spectrum from <face>.sbm_inflow_z");
 
     std::string problem_name = "Undefined";
     amrex::ParmParse pp_erf("erf");
@@ -366,7 +372,7 @@ ERF::ERF_shared ()
     m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
 
     ReadParameters();
-    validate_sbm_m3_advection(solverChoice, max_level, refRatio());
+    validate_sbm_m3_advection(solverChoice, max_level, refRatio(), input_bndry_planes != 0);
     bool auxiliary_inert_tracer_test = false;
     ParmParse pp_auxiliary("erf");
     pp_auxiliary.queryAdd("auxiliary_inert_tracer_test", auxiliary_inert_tracer_test);

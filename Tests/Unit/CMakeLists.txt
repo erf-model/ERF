@@ -879,6 +879,14 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     inputs_boundary_inflow_outflow
     "SBM physical boundary zlo is not supported: a surface_layer boundary"
     "-DOVERRIDE=zlo.type=surface_layer")
+  add_sbm_expected_failure_test(SBM_Boundary_Reject_BoundaryPlanes
+    inputs_boundary_inflow_outflow
+    "SBM does not support erf.input_bndry_planes"
+    "-DOVERRIDE=erf.input_bndry_planes=1")
+  add_sbm_expected_failure_test(SBM_Budget_Reject_WithoutSBM
+    inputs_boundary_walls
+    "erf.sbm_budget_check requires erf.moisture_model = SBM"
+    "-DOVERRIDE=erf.moisture_model=None")
 
   add_test(NAME SBM_M3_Stretched_Static_Mesh
     COMMAND ${CMAKE_COMMAND}

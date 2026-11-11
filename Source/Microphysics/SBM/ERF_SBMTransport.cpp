@@ -167,18 +167,23 @@ void
 clear_outside_physical_domain (MultiFab& mask, const int component,
                                const amrex::Geometry& geometry)
 {
-    amrex::Box region = geometry.Domain();
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        if (geometry.isPeriodic(dir)) region.grow(dir, mask.nGrow(dir));
-    }
+    const amrex::Box& domain = geometry.Domain();
     for (amrex::MFIter mfi(mask, false); mfi.isValid(); ++mfi) {
         const auto values = mask.array(mfi);
-        amrex::ParallelFor(
-            mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                if (!region.contains(amrex::IntVect(AMREX_D_DECL(i, j, k)))) {
-                    values(i, j, k, component) = Real(0.0);
-                }
-            });
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            if (geometry.isPeriodic(dir)) continue;
+            amrex::Box below = mfi.fabbox();
+            below.setBig(dir, domain.smallEnd(dir) - 1);
+            amrex::Box above = mfi.fabbox();
+            above.setSmall(dir, domain.bigEnd(dir) + 1);
+            for (const amrex::Box& ghost : {below, above}) {
+                if (!ghost.ok()) continue;
+                amrex::ParallelFor(
+                    ghost, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        values(i, j, k, component) = Real(0.0);
+                    });
+            }
+        }
     }
 }
 
@@ -289,16 +294,19 @@ check_physical_face_carriers (const std::array<const MultiFab*, AMREX_SPACEDIM>&
     }
 }
 
-// Local sums, per physical face and global component, of the outward
-// accepted transfer rate and its magnitude; coarse faces under a finer level
-// do not count.  The last slot counts the face terms.
+// Per local box, physical face and global component, the outward accepted
+// transfer rate and its magnitude, into partial[box][face][component][2];
+// coarse faces under a finer level do not count.  One thread per component
+// sums its face cells in a fixed order, so no reduction synchronizes.
 void
 accumulate_boundary_rates (const erf_auxiliary::MappedFaceFluxRate& accepted,
-                           const std::vector<int>& components,
+                           const int* components,
+                           const int component_count,
                            const amrex::Geometry& geometry,
                            const MultiFab* covered,
                            const int ncomp,
-                           std::vector<double>& sums)
+                           double* partial,
+                           double& face_terms)
 {
     const amrex::Box& domain = geometry.Domain();
     const auto cell_size = geometry.CellSizeArray();
@@ -318,18 +326,19 @@ accumulate_boundary_rates (const erf_auxiliary::MappedFaceFluxRate& accepted,
                 const amrex::Box slab =
                     physical_face_slab(mfi.validbox(), domain, dir, low);
                 if (!slab.ok()) continue;
-                sums.back() += static_cast<double>(slab.numPts());
+                face_terms += static_cast<double>(slab.numPts());
                 const auto rate = rate_dir.const_array(mfi);
                 const bool masked = covered != nullptr;
                 const auto mask = masked ? covered->const_array(mfi)
                                          : Array4<const Real>{};
-                for (std::size_t local = 0; local < components.size(); ++local) {
-                    const int n = static_cast<int>(local);
-                    amrex::ReduceOps<amrex::ReduceOpSum, amrex::ReduceOpSum> reduce_op;
-                    amrex::ReduceData<Real, Real> reduce_data(reduce_op);
-                    using ReduceTuple = typename decltype(reduce_data)::Type;
-                    reduce_op.eval(slab, reduce_data,
-                        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> ReduceTuple {
+                double* box_face = partial +
+                    static_cast<std::ptrdiff_t>(mfi.LocalIndex() * physical_face_count + face) *
+                    2 * ncomp;
+                amrex::ParallelFor(component_count,
+                    [=] AMREX_GPU_DEVICE(int n) noexcept {
+                        double outward = 0.0;
+                        double gross = 0.0;
+                        amrex::Loop(slab, [&] (int i, int j, int k) noexcept {
                             Real open = Real(1.0);
                             if (masked) {
                                 amrex::IntVect cell(AMREX_D_DECL(i, j, k));
@@ -338,14 +347,12 @@ accumulate_boundary_rates (const erf_auxiliary::MappedFaceFluxRate& accepted,
                             }
                             const Real transfer =
                                 outward_sign * area * rate(i, j, k, n) * open;
-                            return {transfer, amrex::Math::abs(transfer)};
+                            outward += static_cast<double>(transfer);
+                            gross += static_cast<double>(amrex::Math::abs(transfer));
                         });
-                    const auto result = reduce_data.value(reduce_op);
-                    const auto slot = static_cast<std::size_t>(
-                        2 * (face * ncomp + components[local]));
-                    sums[slot] += static_cast<double>(amrex::get<0>(result));
-                    sums[slot + 1] += static_cast<double>(amrex::get<1>(result));
-                }
+                        box_face[2 * components[n]] = outward;
+                        box_face[2 * components[n] + 1] = gross;
+                    });
             }
         }
     }
@@ -1288,6 +1295,9 @@ struct SBMTransport::LevelStorage
     std::vector<double> boundary_stage;
     std::vector<double> boundary_step;
     std::uint64_t boundary_step_terms{0};
+    // Per local box partial sums of boundary_stage, and their box total.
+    amrex::Gpu::DeviceVector<double> boundary_partial;
+    amrex::Gpu::DeviceVector<double> boundary_total;
     bool measure_ready{false};
     std::array<double, 3> profile_stage_seconds{};
     std::chrono::steady_clock::time_point profile_fine_step_start{};
@@ -1303,6 +1313,9 @@ struct SBMTransport::DeviceMetadata
     amrex::Gpu::DeviceVector<Real> edges;
     amrex::Gpu::DeviceVector<Real> pivots;
     amrex::Gpu::DeviceVector<int> property_components;
+    // Global components of every chunk, at chunk_offsets[chunk].
+    amrex::Gpu::DeviceVector<int> chunk_components;
+    std::vector<int> chunk_offsets;
 };
 
 SBMTransport::~SBMTransport () = default;
@@ -1551,6 +1564,17 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, device_views.begin(),
                          device_views.end(), device.populations.begin());
     }
+    std::vector<int> host_chunk_components;
+    for (const auto& chunk : m_chunks) {
+        device.chunk_offsets.push_back(static_cast<int>(host_chunk_components.size()));
+        host_chunk_components.insert(host_chunk_components.end(),
+                                     chunk.components.begin(), chunk.components.end());
+    }
+    device.chunk_components.resize(host_chunk_components.size());
+    if (!host_chunk_components.empty()) {
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, host_chunk_components.begin(),
+                         host_chunk_components.end(), device.chunk_components.begin());
+    }
 }
 
 void
@@ -1589,7 +1613,7 @@ SBMTransport::define (const int level,
     data->low_trial_h.define(cell_ba, dm, max_chunk_components, 0);
     data->cell_ratios.define(cell_ba, dm,
                              std::max(1, max_chunk_ratio_components), 1);
-    data->invalid.define(cell_ba, dm, 1, 2);
+    data->invalid.define(cell_ba, dm, 1, 0);
     data->outgoing_demand.define(cell_ba, dm, 1, 0);
     data->measure.define(cell_ba, dm, 1, 0);
     data->low_rate.define(cell_ba, dm, max_chunk_components, 0);
@@ -1609,6 +1633,8 @@ SBMTransport::define (const int level,
         static_cast<std::size_t>(2 * physical_face_count * ncomp + 1), 0.0);
     data->boundary_step.assign(
         static_cast<std::size_t>(2 * physical_face_count * ncomp), 0.0);
+    data->boundary_total.resize(
+        static_cast<std::size_t>(2 * physical_face_count * ncomp));
     m_levels[static_cast<std::size_t>(level)] = std::move(data);
 }
 
@@ -1980,12 +2006,13 @@ SBMTransport::advance_stage (const int level,
     const int population_count =
         static_cast<int>(m_layout.populations().size());
     // A fine level also transforms the parent-filled coarse-only ghosts that
-    // FillBoundary below does not refill, and any level its physical ghosts.
-    const bool transform_ghosts = level > 0 || physical_faces;
+    // FillBoundary below does not refill.  Level 0 needs valid cells only: its
+    // physical ghosts reach only donor-band faces, whose WENO rate is replaced.
+    const bool transform_ghosts = level > 0;
     MultiFab& transform_invalid =
-        level > 0 ? data.coarse_fill_mask : data.invalid;
+        transform_ghosts ? data.coarse_fill_mask : data.invalid;
     const int transform_ghost_cells = transform_ghosts ? 2 : 0;
-    if (level > 0) {
+    if (transform_ghosts) {
         data.coarse_fill_mask.setVal(Real(0.0), 0, 1, transform_ghost_cells);
     }
     for (amrex::MFIter mfi(data.input_intensive,
@@ -2082,6 +2109,16 @@ SBMTransport::advance_stage (const int level,
     if (stage == 0) {
         std::fill(data.boundary_step.begin(), data.boundary_step.end(), 0.0);
         data.boundary_step_terms = 0;
+    }
+    const bool record_boundary = physical_faces && recipe.completed_ledger_time != 0.0;
+    const int boundary_slots = 2 * physical_face_count * m_layout.ncomp();
+    const int boundary_boxes = data.accepted_rate.dir(0).local_size();
+    if (record_boundary) {
+        data.boundary_partial.resize(
+            static_cast<std::size_t>(boundary_boxes) * static_cast<std::size_t>(boundary_slots));
+        double* partial = data.boundary_partial.data();
+        amrex::ParallelFor(boundary_boxes * boundary_slots,
+            [=] AMREX_GPU_DEVICE(int slot) noexcept { partial[slot] = 0.0; });
     }
     const auto& device = *m_device_metadata;
     for (std::size_t chunk_index = 0; chunk_index < m_chunks.size();
@@ -2673,7 +2710,7 @@ SBMTransport::advance_stage (const int level,
                 recipe.completed_ledger_time, diagnostic)) {
             amrex::Abort("SBM YA fine-side accepted-rate accumulation: " + diagnostic);
         }
-        if (physical_faces && recipe.completed_ledger_time != 0.0) {
+        if (record_boundary) {
             const MultiFab* covered = data.interface_as_coarse
                 ? &data.interface_as_coarse->covered_parent_mask() : nullptr;
             if (covered != nullptr &&
@@ -2682,9 +2719,12 @@ SBMTransport::advance_stage (const int level,
                 amrex::Abort("SBM boundary ledger: the covered-parent mask does not "
                              "share the level layout");
             }
-            accumulate_boundary_rates(data.accepted_rate, chunk.components,
-                                      geometry, covered, m_layout.ncomp(),
-                                      data.boundary_stage);
+            accumulate_boundary_rates(
+                data.accepted_rate,
+                device.chunk_components.data() + device.chunk_offsets[chunk_index],
+                static_cast<int>(chunk.components.size()), geometry, covered,
+                m_layout.ncomp(), data.boundary_partial.data(),
+                data.boundary_stage.back());
         }
 
         // Apply the ERF stage recurrence component by component while using
@@ -2757,7 +2797,20 @@ SBMTransport::advance_stage (const int level,
                                           physical_step_complete, diagnostic)) {
         amrex::Abort("SBM M4a accepted-state lifecycle commit: " + diagnostic);
     }
-    if (physical_faces && recipe.completed_ledger_time != 0.0) {
+    if (record_boundary) {
+        // Sum the boxes in local order, then copy the stage totals once.
+        const double* partial = data.boundary_partial.data();
+        double* total = data.boundary_total.data();
+        amrex::ParallelFor(boundary_slots,
+            [=] AMREX_GPU_DEVICE(int slot) noexcept {
+                double sum = 0.0;
+                for (int box = 0; box < boundary_boxes; ++box) {
+                    sum += partial[box * boundary_slots + slot];
+                }
+                total[slot] = sum;
+            });
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, data.boundary_total.begin(),
+                         data.boundary_total.end(), data.boundary_stage.begin());
         amrex::ParallelAllReduce::Sum(data.boundary_stage.data(),
                                       static_cast<int>(data.boundary_stage.size()),
                                       amrex::ParallelContext::CommunicatorSub());

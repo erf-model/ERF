@@ -2673,9 +2673,7 @@ ERF::InitData_post ()
 #ifdef ERF_SBM_AMR_QUALIFICATION
     sbm_qualification_record_initial_inventory();
 #endif
-    if (sbm_state_manager) {
-        sbm_record_budget_reference();
-    }
+    sbm_record_budget_reference();
 }
 
 //

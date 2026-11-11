@@ -765,7 +765,9 @@ ERF boundary type:
 dry-air carrier at zero, ``surface_layer`` because it acts through the
 diffusion operator, and ``Open`` because it advects with a characteristic
 scheme the spectrum does not share. Real-data lateral boundaries remain
-rejected: their files carry compact moisture, not a spectrum.
+rejected: their files carry compact moisture, not a spectrum. So does
+``erf.input_bndry_planes``, whose files would set the density and compact
+moisture of an inflow face.
 
 The ghost cells outside a wall or outflow face repeat the edge cell, and those
 outside an inflow face hold the inflow spectrum. They are filled at every
@@ -788,18 +790,21 @@ boundary ledger, per face and component, with the completed-step weights of
 the host integrator. A coarse face under the finer level does not count:
 the fine faces there carry the transfer. With ``erf.sbm_budget_check =
 true``, after each coarse step ERF checks that the composite leaf inventory
-changed by exactly the outward transfer,
+changed by exactly the outward transfer of that step,
 
 .. math::
 
-   \left|I_n - I_r + (B_n - B_r)\right| \le
-   \epsilon_{\rm ops}\,\left(|I_r| + |I_n| + G_n - G_r\right),
+   \left|I_n - I_{n-1} + (B_n - B_{n-1})\right| \le
+   \epsilon_{\rm ops}\,\left(|I_{n-1}| + |I_n| + G_n - G_{n-1}\right),
 
-where :math:`I` is the composite inventory of a component, :math:`B` its
-cumulative outward boundary transfer, :math:`G` the cumulative magnitude of
-that transfer, :math:`r` the start or restart of the run, and
-:math:`\epsilon_{\rm ops}` an operation-count roundoff bound. Each check
-prints an ``SBM_BUDGET`` line, and a failure aborts.
+where :math:`I_n` is the composite inventory of a component after step
+:math:`n` (:math:`I_{n-1}` at the start or restart of the run before the
+first check), :math:`B` its cumulative outward boundary transfer, :math:`G`
+the cumulative magnitude of that transfer, and :math:`\epsilon_{\rm ops}` an
+operation-count roundoff bound for one step, which does not grow with the
+length of the run. Each check prints an ``SBM_BUDGET`` line, and a failure
+aborts. A grid so large that the bound reaches one at the working precision
+(possible in single precision) is rejected.
 
 ERF's own dry-air mass is not conserved through periodic z faces when a
 lateral face is not periodic and the flow has a vertical component, and the
@@ -1019,9 +1024,10 @@ also satisfy the per-bin realizability condition described above.
 **Default:** ``false``
 
 After every coarse step, check that the composite spectral inventory changed
-only by the accepted transfer through the physical faces, print one
+only by that step's accepted transfer through the physical faces, print one
 ``SBM_BUDGET`` line per component, and abort if the difference exceeds its
-roundoff bound (see :ref:`sec:SBMBoundaries`).
+roundoff bound (see :ref:`sec:SBMBoundaries`). Requires
+``erf.moisture_model = SBM``.
 
 ``<face>.sbm_inflow_z``
 ~~~~~~~~~~~~~~~~~~~~~~~

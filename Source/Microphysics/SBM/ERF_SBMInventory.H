@@ -56,7 +56,9 @@ composite_inventory_roundoff (const std::uint64_t coarse_cells,
         (with_prolongation ? refinement_volume + 6U : 0U);
     const amrex::Real q = static_cast<amrex::Real>(roundoff.operation_count) *
                           std::numeric_limits<amrex::Real>::epsilon();
-    AMREX_ALWAYS_ASSERT(q < amrex::Real(1.0));
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(q < amrex::Real(1.0),
+        "SBM composite inventory check: operation count times machine epsilon "
+        "reaches one, so this grid cannot be checked at this precision");
     roundoff.rounding_factor = q / (amrex::Real(1.0) - q);
     return roundoff;
 }

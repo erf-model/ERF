@@ -4,8 +4,6 @@
 #include "ERF_SBMFixtureValidation.H"
 
 #include <cmath>
-#include <iomanip>
-#include <limits>
 #include <locale>
 #include <sstream>
 #include <utility>
@@ -13,16 +11,6 @@
 namespace erf_sbm {
 
 namespace {
-
-std::string
-canonical_double (const double value)
-{
-    std::ostringstream out;
-    out.imbue(std::locale::classic());
-    out.setf(std::ios_base::scientific, std::ios_base::floatfield);
-    out << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
-    return out.str();
-}
 
 constexpr std::array<int, physical_face_count> identity_order{0, 3, 1, 4, 2, 5};
 
@@ -202,8 +190,8 @@ SBMBoundaryLedger::serialize () const
         for (int component = 0; component < ncomp; ++component) {
             const auto index = static_cast<std::size_t>(face * ncomp + component);
             text << face_name(face) << ' ' << component << ' '
-                 << canonical_double(outward[index]) << ' '
-                 << canonical_double(gross[index]) << '\n';
+                 << canonical_decimal(outward[index]) << ' '
+                 << canonical_decimal(gross[index]) << '\n';
         }
     }
     return text.str();

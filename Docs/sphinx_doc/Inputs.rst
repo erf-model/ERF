@@ -4981,8 +4981,9 @@ execution restrictions.
      - All zero
    * - ``erf.sbm_budget_check``
      - After every coarse step, check that the composite spectral inventory
-       changed only by the accepted transfer through the physical faces;
-       print ``SBM_BUDGET`` lines and abort beyond the roundoff bound.
+       changed only by that step's accepted transfer through the physical
+       faces; print ``SBM_BUDGET`` lines and abort beyond the roundoff bound.
+       Requires ``erf.moisture_model = SBM``.
      - Boolean
      - ``false``
    * - ``<face>.sbm_inflow_z``

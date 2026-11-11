@@ -111,61 +111,51 @@ ERF::sbm_composite_inventory () const
     AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr && sbm_transport != nullptr);
     const int ncomp = sbm_state_manager->layout().ncomp();
     std::vector<Real> inventory(static_cast<std::size_t>(ncomp), Real(0.0));
-    for (int component = 0; component < ncomp; ++component) {
-        Real total = Real(0.0);
-        for (int lev = 0; lev <= finest_level; ++lev) {
-            // The SBM level layouts, not grids[], define the composite: during
-            // a remake grids[lev] already names the new grids.
-            const MultiFab& spectrum = sbm_state_manager->new_state(lev);
-            const BoxArray& level_ba = spectrum.boxArray();
-            const DistributionMapping& level_dm = spectrum.DistributionMap();
-            MultiFab leaf_mask(level_ba, level_dm, 1, 0);
-            leaf_mask.setVal(Real(1.0));
-            if (lev < finest_level) {
-                const MultiFab& fine_spectrum = sbm_state_manager->new_state(lev + 1);
-                MultiFab fine_coverage(fine_spectrum.boxArray(),
-                                       fine_spectrum.DistributionMap(), 1, 0);
-                MultiFab covered(level_ba, level_dm, 1, 0);
-                fine_coverage.setVal(Real(1.0));
-                covered.setVal(Real(0.0));
-                average_down(fine_coverage, covered, 0, 1, ref_ratio[lev]);
-                for (MFIter mfi(leaf_mask, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box bx = mfi.tilebox();
-                    const auto leaf = leaf_mask.array(mfi);
-                    const auto mask = covered.const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        leaf(i, j, k, 0) = Real(1.0) - mask(i, j, k, 0);
-                    });
-                }
-            }
-
-            MultiFab weighted(level_ba, level_dm, 1, 0);
-            const MultiFab& measure = sbm_transport->static_measure(lev);
-            const Real cell_volume = geom[lev].CellSize(0) *
-                                     geom[lev].CellSize(1) *
-                                     geom[lev].CellSize(2);
-            for (MFIter mfi(weighted, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box bx = mfi.tilebox();
-                const auto u = spectrum.const_array(mfi);
-                const auto omega = measure.const_array(mfi);
-                const auto leaf = leaf_mask.const_array(mfi);
-                const auto out = weighted.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    out(i, j, k, 0) = cell_volume * omega(i, j, k, 0) *
-                                      u(i, j, k, component) * leaf(i, j, k, 0);
-                });
-            }
-            total += weighted.sum(0, false);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        // The SBM level layouts, not grids[], define the composite: during
+        // a remake grids[lev] already names the new grids.
+        const MultiFab& spectrum = sbm_state_manager->new_state(lev);
+        const BoxArray& level_ba = spectrum.boxArray();
+        const DistributionMapping& level_dm = spectrum.DistributionMap();
+        MultiFab covered(level_ba, level_dm, 1, 0);
+        covered.setVal(Real(0.0));
+        if (lev < finest_level) {
+            const MultiFab& fine_spectrum = sbm_state_manager->new_state(lev + 1);
+            MultiFab fine_coverage(fine_spectrum.boxArray(),
+                                   fine_spectrum.DistributionMap(), 1, 0);
+            fine_coverage.setVal(Real(1.0));
+            average_down(fine_coverage, covered, 0, 1, ref_ratio[lev]);
         }
-        inventory[static_cast<std::size_t>(component)] = total;
+
+        MultiFab leaf_volume(level_ba, level_dm, 1, 0);
+        const MultiFab& measure = sbm_transport->static_measure(lev);
+        const Real cell_volume = geom[lev].CellSize(0) *
+                                 geom[lev].CellSize(1) *
+                                 geom[lev].CellSize(2);
+        for (MFIter mfi(leaf_volume, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.tilebox();
+            const auto omega = measure.const_array(mfi);
+            const auto mask = covered.const_array(mfi);
+            const auto out = leaf_volume.array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                out(i, j, k, 0) = cell_volume * omega(i, j, k, 0) *
+                                  (Real(1.0) - mask(i, j, k, 0));
+            });
+        }
+        for (int component = 0; component < ncomp; ++component) {
+            inventory[static_cast<std::size_t>(component)] +=
+                MultiFab::Dot(leaf_volume, 0, spectrum, component, 1, 0, true);
+        }
     }
+    ParallelAllReduce::Sum(inventory.data(), ncomp, ParallelContext::CommunicatorSub());
     return inventory;
 }
 
 void
 ERF::sbm_record_budget_reference ()
 {
-    if (!solverChoice.sbm_budget_check || !sbm_transport) return;
+    if (!solverChoice.sbm_budget_check) return;
+    AMREX_ALWAYS_ASSERT(sbm_transport != nullptr);
     sbm_budget_reference_inventory = sbm_composite_inventory();
     const auto& ledger = sbm_transport->boundary_ledger();
     const int ncomp = ledger.ncomp;
@@ -178,20 +168,19 @@ ERF::sbm_record_budget_reference ()
             ledger.total_gross(component);
     }
     sbm_budget_reference_terms = ledger.face_stage_terms;
-    sbm_budget_steps = 0;
     Print() << "SBM_BUDGET_REFERENCE step=" << istep[0] << " levels=" << finest_level + 1
             << " ncomp=" << ncomp << '\n';
 }
 
-// The leaf inventory changes only by the accepted transfer through the
-// physical faces: I_n - I_ref + (B_n - B_ref) = 0 to an operation-count bound.
+// Over each coarse step the leaf inventory changes only by the accepted
+// transfer through the physical faces: I_n - I_{n-1} + (B_n - B_{n-1}) = 0 to
+// an operation-count bound that does not grow with the run length.
 void
 ERF::sbm_check_budget (int nstep)
 {
     if (!solverChoice.sbm_budget_check || !sbm_transport) return;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_budget_reference_inventory.empty(),
         "SBM budget check has no reference inventory");
-    ++sbm_budget_steps;
     const auto inventory = sbm_composite_inventory();
     const auto& ledger = sbm_transport->boundary_ledger();
     const auto coarse_cells =
@@ -199,16 +188,21 @@ ERF::sbm_check_budget (int nstep)
     const auto fine_cells = finest_level >= 1
         ? static_cast<std::uint64_t>(sbm_state_manager->new_state(1).boxArray().numPts())
         : std::uint64_t(0);
+    // The finest level re-forms its leaves once per substep.
+    const auto leaf_updates = static_cast<std::uint64_t>(
+        finest_level >= 1 ? std::max(1, nsubsteps[1]) : 1);
     const auto roundoff = erf_sbm::composite_inventory_roundoff(
         coarse_cells, fine_cells, finest_level >= 1 ? ref_ratio[0] : IntVect(1),
-        max_level >= 1, static_cast<std::uint64_t>(sbm_budget_steps),
+        max_level >= 1, leaf_updates,
         ledger.face_stage_terms - sbm_budget_reference_terms);
     for (int component = 0; component < ledger.ncomp; ++component) {
         const auto c = static_cast<std::size_t>(component);
         const double reference = sbm_budget_reference_inventory[c];
         const double current = inventory[c];
-        const double outward = ledger.total_outward(component) - sbm_budget_reference_outward[c];
-        const double gross = ledger.total_gross(component) - sbm_budget_reference_gross[c];
+        const double outward_total = ledger.total_outward(component);
+        const double gross_total = ledger.total_gross(component);
+        const double outward = outward_total - sbm_budget_reference_outward[c];
+        const double gross = gross_total - sbm_budget_reference_gross[c];
         const double residual = current - reference + outward;
         const double bound = static_cast<double>(roundoff.rounding_factor) *
             std::max(std::abs(reference) + std::abs(current) + gross,
@@ -223,7 +217,11 @@ ERF::sbm_check_budget (int nstep)
             Abort("SBM composite inventory does not close against the boundary ledger "
                   "(component " + std::to_string(component) + ")");
         }
+        sbm_budget_reference_outward[c] = outward_total;
+        sbm_budget_reference_gross[c] = gross_total;
     }
+    sbm_budget_reference_inventory = inventory;
+    sbm_budget_reference_terms = ledger.face_stage_terms;
 }
 
 void

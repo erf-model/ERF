@@ -1611,12 +1611,11 @@ private:
     amrex::Vector<std::unique_ptr<erf_sbm::SBMAMRFluxRegister>> sbm_amr_flux_regs;
     std::vector<amrex::Real> sbm_qualification_initial_inventory;
     // Leaf inventory, cumulative outward boundary transfer and its gross scale
-    // when erf.sbm_budget_check began counting (start or restart).
+    // at the previous erf.sbm_budget_check (or the start or restart).
     std::vector<amrex::Real> sbm_budget_reference_inventory;
     std::vector<double> sbm_budget_reference_outward;
     std::vector<double> sbm_budget_reference_gross;
     std::uint64_t sbm_budget_reference_terms{0};
-    int sbm_budget_steps{0};
     // Declared after the state manager so its non-owning layout reference is
     // destroyed before the authoritative SBM owner.
     std::unique_ptr<erf_sbm::SBMTransport> sbm_transport;
