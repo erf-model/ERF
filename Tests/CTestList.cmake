@@ -4048,6 +4048,37 @@ function(add_test_ibseb_two_stream_buildings TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/clear/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering/simulation.log;${CURRENT_TEST_BINARY_DIR}/off/simulation.log;${CURRENT_TEST_BINARY_DIR}/night/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/nested/simulation.log;${CURRENT_TEST_BINARY_DIR}/fixed_sw/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_ibseb_two_stream_buildings)
 
+# erf.ibseb.ground_sky_view: the two-stream ground balance beside the buildings. The walls'
+# share of the ground's view and the ground's shortwave and longwave against sums made from
+# the face dumps and the geometry; one rank against several; a restart; two levels.
+function(add_test_ibseb_ground_sky_view TEST_NAME)
+    set(TEST_FILES_DIR IBSEB_TwoStreamBuildings)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/IBSEB_TwoStreamBuildings.i"
+        "-DPROVIDER_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider"
+        "-DTWO_LEVEL_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels"
+        "-DPRECISION=${ERF_PRECISION}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_ground_sky_view.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBGroundSkyView.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/clear_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/clear_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/simulation.log;${CURRENT_TEST_BINARY_DIR}/serial/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/seam/simulation.log;${CURRENT_TEST_BINARY_DIR}/seam_serial/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_ground_sky_view)
+
 # The direct beam the ground reflects onto the building faces through the sunlit part of
 # each face's ground view (erf.ibseb.ground_view_shadow; Tests/RunIBSEBGroundViewShadow.cmake),
 # on the cube of Tests/test_files/IBSEB_TwoStreamProvider: the sunlit part of every face's
@@ -4089,6 +4120,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     add_test_ibseb_two_stream_provider(IBSEB_TwoStreamProvider)
     add_test_ibseb_two_stream_buildings(IBSEB_TwoStreamBuildings)
     add_test_ibseb_ground_view_shadow(IBSEB_GroundViewShadow)
+    add_test_ibseb_ground_sky_view(IBSEB_GroundSkyView)
   endif()
   # erf.ibseb.two_stream_buildings acts only on the two-stream radiation: given without a
   # radiation model the run stops; with another model named it warns and carries on to the
@@ -4100,6 +4132,19 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  IBSEB_Cube.i
                  "erf.ibseb.two_stream_buildings acts only on the two-stream radiation.*sets no erf.radiation_model"
                  "erf.ibseb.two_stream_buildings=false")
+  # erf.ibseb.ground_sky_view changes the two-stream ground balance on the sweep's fluxes:
+  # with the balance on its fixed shortwave the run stops and names what the input needs.
+  add_test_abort(IBSEB_GroundSkyViewWithoutFluxes
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.ground_sky_view = true needs erf.radiation_model = TwoStream.*erf.radiation.seb_use_radiation_fluxes = true"
+                 "erf.ibseb.ground_sky_view=true erf.radiation.seb_use_radiation_fluxes=false")
+  # Without the immersed-boundary balance there are no faces to send anything: the run stops.
+  add_test_abort(IBSEB_GroundSkyViewDisabled
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.ground_sky_view = true needs erf.ibseb.enable = true"
+                 "erf.ibseb.enable=false erf.ibseb.ground_sky_view=true")
   add_test_abort(IBSEB_TwoStreamBuildingsOtherRadiation
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
                  IBSEB_Cube.i
@@ -4725,6 +4770,14 @@ add_test_restart_parity(SLM_TwoLevel_Restart SLM_Restart 7 20
     PLT2DFILE "plt_lsm_2D_00020"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+
+# SLM does not treat a frozen canopy (issue 4467): the canopy starts at the reference-level air
+# temperature, so the same deck under a sounding at 265 K stops at the start of the run.
+add_test_abort(SLM_FrozenCanopyAbort
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/SLM_Restart
+               SLM_Restart.i
+               "SLM does not treat a frozen canopy"
+               "erf.input_sounding_file=input_sounding_frozen")
 
 # The same for terrain carried by an embedded boundary: the mesh is flat there
 # too, so the ground under the station is the surface the EB was built from and

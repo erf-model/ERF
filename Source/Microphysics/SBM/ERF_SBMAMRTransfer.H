@@ -127,6 +127,45 @@ bool ProlongCarrierRelativeSpectrumPrivate (
     const SBMStateAdmission* admission = nullptr,
     SBMTransferAllocationCensus* allocation_census = nullptr);
 
+/** Fine cells of a remade level, classified from grid metadata alone. */
+struct SBMRegridCellCounts {
+    amrex::Long cells{0};      // valid cells on the new grids
+    amrex::Long retained{0};   // covered by both old and new grids
+    amrex::Long prolonged{0};  // newly covered; filled from the parent
+    amrex::Long released{0};   // covered only by the old grids
+};
+
+[[nodiscard]] SBMRegridCellCounts CountRegridCells (
+    const amrex::BoxArray& old_grids, const amrex::BoxArray& new_grids);
+
+/**
+ * Private candidate for a fine level remade on new grids at a synchronized
+ * instant. Cells the retained old-grid spectrum covers keep its values
+ * bitwise; every other cell takes the same-time carrier-relative
+ * prolongation of its parent. The new-grid density and measure, the retained
+ * spectrum, and the coarse tuple must all carry semantic_time. Every parent
+ * of the new grids must satisfy the mapped carrier identity and the complete
+ * candidate must be admissible. Inputs are never modified; the candidate may
+ * be overwritten on failure.
+ */
+bool RemapRegriddedSpectrumPrivate (
+    const SBMLayout& layout,
+    const SBMAMRStateView& coarse,
+    const amrex::MultiFab& retained_spectrum,
+    const amrex::MultiFab& fine_density, int density_component,
+    const amrex::MultiFab& fine_measure, int measure_component,
+    double semantic_time,
+    const amrex::Geometry& coarse_geometry,
+    const amrex::Geometry& fine_geometry,
+    const amrex::IntVect& ratio,
+    int fine_level,
+    amrex::MultiFab& private_candidate,
+    std::string& diagnostic,
+    int max_groups_per_chunk = 16,
+    const SBMStateAdmission* coarse_admission = nullptr,
+    const SBMStateAdmission* fine_admission = nullptr,
+    SBMTransferAllocationCensus* allocation_census = nullptr);
+
 /** Add one bounded YA correction chunk in mapped H coordinates only where
  * the scalar covered-parent mask proves a coarse/fine face interface. The
  * candidate and invalid mask are private scratch; invalid is accumulated

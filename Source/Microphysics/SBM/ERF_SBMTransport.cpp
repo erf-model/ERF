@@ -202,7 +202,7 @@ fill_coarse_parent_ghosts (MultiFab& destination,
                            MultiFab& coarse_pack,
                            MultiFab& coarse_stage,
                            const SBMAMRStageGhostProbe* probe = nullptr,
-                           bool* split_values_checked = nullptr)
+                           std::array<bool, 2>* split_values_checked = nullptr)
 {
     using ProfileClock = std::chrono::steady_clock;
     const bool profile_parent_fill = parent.profile_parent_fill;
@@ -662,16 +662,22 @@ fill_coarse_parent_ghosts (MultiFab& destination,
         amrex::Abort(message.str());
     }
 #ifdef ERF_SBM_AMR_QUALIFICATION
-    if (split_values_checked != nullptr && !*split_values_checked &&
-        parent.validate_split_ghost_values &&
-        current_role == 0 && stage == 0 &&
-        semantic_time_matches(requested_time, parent.old_time, dt_min)) {
-        amrex::Gpu::streamSynchronize();
-        qualification::verify_split_ghost_values(
-            destination, fine_source_state, fine_source_conserved,
-            coarse_old_spectrum, coarse_new_spectrum, parent, fine_geometry,
-            theta, stage, requested_time);
-        *split_values_checked = true;
+    if (split_values_checked != nullptr &&
+        parent.validate_split_ghost_values && current_role == 0) {
+        // Once at the coarse start, and once strictly inside the coarse
+        // interval, where both accepted endpoints contribute.
+        const bool at_start = stage == 0 &&
+            semantic_time_matches(requested_time, parent.old_time, dt_min);
+        const bool interior = theta > 0.0 && theta < 1.0;
+        const std::size_t slot = at_start ? 0U : 1U;
+        if ((at_start || interior) && !(*split_values_checked)[slot]) {
+            amrex::Gpu::streamSynchronize();
+            qualification::verify_split_ghost_values(
+                destination, fine_source_state, fine_source_conserved,
+                coarse_old_spectrum, coarse_new_spectrum, parent, fine_geometry,
+                theta, stage, requested_time);
+            (*split_values_checked)[slot] = true;
+        }
     }
 #else
     amrex::ignore_unused(fine_source_state, fine_source_conserved,

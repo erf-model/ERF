@@ -201,6 +201,16 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``1``
      - ``FillMinus999WhenUnavailable``
      - Shadow of the immersed-boundary buildings on the ground for the two-stream surface energy balance on the sweep's shortwave: 1 shaded, 0 sunlit
+   * - ``seb_lw_net``
+     - ``Radiation``
+     - ``W/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Net longwave absorbed by the two-stream simplified surface energy balance at its last update after the dycore
+   * - ``ibseb_ground_wall_view``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Share of the ground's view of the sky taken by the walls of the immersed-boundary buildings (erf.ibseb.ground_sky_view)
    * - ``sens_flux``
      - ``SurfaceFlux``
      - ``kg K m^-2 s^-1``

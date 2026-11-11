@@ -701,6 +701,8 @@ IBFaceSet::build_ray_map (const std::vector<const IBFaceSet*>& below)
         pmap.push_back(all[n + 6]);
     }
     m_ray_patch.clear();
+    m_gnd_patch.clear();
+    m_gnd_patch_built = false;
     if (bl.isEmpty()) { return; }
     const BoxArray patch_ba(std::move(bl));
     const DistributionMapping patch_dm(pmap);
@@ -915,7 +917,7 @@ IBFaceSet::compute_view_fractions ()
         pfs[f] = n_sky * inv; pfg[f] = n_gnd * inv; pfb[f] = n_bld * inv;
     });
     Gpu::streamSynchronize();
-    if (m_params.ground_view_shadow) { build_ground_landings(); }
+    if (m_params.ground_view_shadow || m_params.ground_sky_view) { build_ground_landings(); }
 
     if (m_params.debug) {
         std::vector<Real> fs(m_nface), fg(m_nface), fb(m_nface);
@@ -1776,6 +1778,103 @@ IBFaceSet::compute_ground_shadow (MultiFab& shadow) const
         });
     }
     Gpu::streamSynchronize();
+}
+
+/**
+ * What the walls send to the ground of each column (see the header). One kernel over
+ * the faces adds each face's share to the columns its ground rays land in, on this
+ * rank's box of those columns (atomic adds: several faces land in one column); the
+ * boxes are then summed onto the level's columns.
+ */
+void
+IBFaceSet::compute_ground_walls (MultiFab& out, bool with_view)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_landings_built,
+        "erf.ibseb.ground_sky_view: the walls' share of the ground's view needs the faces' ground landings; call"
+        " IBFaceSet::compute_view_fractions() first");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(out.nComp() >= GW_NCOMP,
+        "erf.ibseb.ground_sky_view: the field of the walls' share holds fewer than three components");
+    // The share of the view is the geometry's: formed once per field.
+    const int c0 = with_view ? GW_VIEW : GW_SW;
+    const int nc = GW_NCOMP - c0;
+    out.setVal(0.0, c0, nc, 0);
+    const ibseb::RayMap rm = ray_map();
+    if (!m_gnd_patch_built) {
+        // The columns this rank's landings reach, as one box inside its patch of the ray
+        // map (a landing is a column of the patch, wrapped where the patch spans the
+        // domain): found on the host, once. Every rank's box, one each for the ranks that
+        // have landings, makes the layout the sums are sent from.
+        std::vector<int> mine;
+        if (m_nface > 0 && m_patch_box.ok()) {
+            std::vector<int> hi(m_nface), hj(m_nface), start(static_cast<size_t>(m_nface) + 1);
+            std::vector<unsigned int> land(d_gnd_land.size());
+            Gpu::copy(Gpu::deviceToHost, d_i.begin(), d_i.end(), hi.begin());
+            Gpu::copy(Gpu::deviceToHost, d_j.begin(), d_j.end(), hj.begin());
+            Gpu::copy(Gpu::deviceToHost, d_gnd_start.begin(), d_gnd_start.end(), start.begin());
+            Gpu::copy(Gpu::deviceToHost, d_gnd_land.begin(), d_gnd_land.end(), land.begin());
+            Gpu::streamSynchronize();
+            Box reached;
+            for (int f = 0; f < m_nface; ++f) {
+                for (int n = start[f]; n < start[f + 1]; ++n) {
+                    int di = 0, dj = 0;
+                    ibseb::unpack_landing(land[n], di, dj);
+                    int ci = hi[f] + di, cj = hj[f] + dj;
+                    if (!rm.locate(ci, cj)) { continue; }
+                    const Box col(IntVect(ci, cj, 0), IntVect(ci, cj, 0));
+                    if (reached.ok()) { reached.minBox(col); } else { reached = col; }
+                }
+            }
+            if (reached.ok()) {
+                mine = { reached.smallEnd(0), reached.smallEnd(1), reached.bigEnd(0), reached.bigEnd(1),
+                         ParallelDescriptor::MyProc() };
+            }
+        }
+        const std::vector<int> all = all_gather(mine);
+        BoxList bl;
+        Vector<int> pmap;
+        for (size_t n = 0; n + 5 <= all.size(); n += 5) {
+            bl.push_back(Box(IntVect(all[n], all[n + 1], 0), IntVect(all[n + 2], all[n + 3], 0)));
+            pmap.push_back(all[n + 4]);
+        }
+        m_gnd_patch.clear();
+        if (!bl.isEmpty()) { m_gnd_patch.define(BoxArray(std::move(bl)), DistributionMapping(pmap), GW_NCOMP, 0); }
+        m_gnd_patch_built = true;
+    }
+    // No rank's faces send anything to the ground: the field stays at zero.
+    if (m_gnd_patch.boxArray().empty()) { return; }
+    m_gnd_patch.setVal(0.0);
+    if (m_gnd_patch.local_size() > 0) {
+        const auto p = m_gnd_patch.array(m_gnd_patch.IndexArray()[0]);
+        const Real inv_ray = ibseb::hemisphere_ray_weight(m_params.view_n_az, m_params.view_n_el);
+        const Real inv_col = Real(1.0) / (m_dx[0] * m_dx[1]);
+        const Real sigma = ibseb::SIGMA_SB;
+        const int* pi = d_i.data();  const int* pj = d_j.data();
+        const int* pgs = d_gnd_start.data();  const int* pgr = d_gnd_rays.data();
+        const unsigned int* pgl = d_gnd_land.data();
+        const Real* parea = d_area.data();  const Real* palb = d_albedo.data();  const Real* peps = d_emis.data();
+        const Real* pdir = d_SW_direct_in.data();  const Real* pdif = d_SW_diffuse_in.data();
+        const Real* pT = d_T_skin.data();  const Real* plw = d_LW_down_in.data();
+        ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
+            if (pgs[f + 1] == pgs[f]) { return; }
+            // The face's radiosity: the shortwave it reflects and the longwave it emits and reflects.
+            const Real j_sw = palb[f] * (pdir[f] + pdif[f]);
+            const Real j_lw = peps[f] * sigma * pT[f] * pT[f] * pT[f] * pT[f] + (Real(1.0) - peps[f]) * plw[f];
+            const Real per_ray = parea[f] * inv_ray * inv_col;
+            for (int n = pgs[f]; n < pgs[f + 1]; ++n) {
+                int di = 0, dj = 0;
+                ibseb::unpack_landing(pgl[n], di, dj);
+                int ci = pi[f] + di, cj = pj[f] + dj;
+                // A kept landing is a column of the map (wrapped where the patch spans the domain).
+                if (!rm.locate(ci, cj)) { continue; }
+                const Real w = per_ray * static_cast<Real>(pgr[n]);
+                if (with_view) { HostDevice::Atomic::Add(&p(ci, cj, 0, GW_VIEW), w); }
+                HostDevice::Atomic::Add(&p(ci, cj, 0, GW_SW), w * j_sw);
+                HostDevice::Atomic::Add(&p(ci, cj, 0, GW_LW), w * j_lw);
+            }
+        });
+        Gpu::streamSynchronize();
+    }
+    out.ParallelAdd(m_gnd_patch, c0, c0, nc, IntVect(0), IntVect(0), m_geom.periodicity());
 }
 
 /**

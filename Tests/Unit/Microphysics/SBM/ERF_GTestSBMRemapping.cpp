@@ -1292,7 +1292,7 @@ TEST(SBMRemapping, ScientificIdentityAndRestartAreExactAndVersioned)
     EXPECT_NE(one_moment.inspection().find("reconstruction=fixed-pivot-delta-v1"), std::string::npos);
 
     const std::string persisted = erf_sbm::restart_schema(one_moment);
-    EXPECT_NE(persisted.find("ERF-SBM-RESTART-v1"), std::string::npos);
+    EXPECT_NE(persisted.find("ERF-SBM-RESTART-v2"), std::string::npos);
     EXPECT_EQ(persisted.find("M2R"), std::string::npos);
     EXPECT_EQ(persisted.find("m2r"), std::string::npos);
     EXPECT_EQ(persisted.find("M2-R"), std::string::npos);

@@ -35,6 +35,18 @@ namespace erf_sbm {
     return std::isfinite(lhs) && std::isfinite(rhs) && lhs == rhs;
 }
 
+/** Whether a level's accepted state is at the host level time: to roundoff of
+ * the level's step, or exactly before any step has been taken.
+ */
+[[nodiscard]] inline bool level_time_matches (const double state_time,
+                                              const double level_time,
+                                              const double level_dt) noexcept
+{
+    return level_dt > 0.0
+        ? semantic_time_matches(state_time, level_time, level_dt)
+        : semantic_time_matches_exact(state_time, level_time);
+}
+
 } // namespace erf_sbm
 
 #endif

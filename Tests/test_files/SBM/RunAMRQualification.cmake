@@ -20,6 +20,21 @@ if(ZERO_FLOW)
     "prob.U_0=0" "prob.V_0=0" "prob.W_0=0"
     "erf.compressibility_type=Anelastic" "erf.timestepping_type=RK2")
 endif()
+if(DEFINED ANELASTIC)
+  # Nonzero-flow anelastic hierarchy with the named host integrator.
+  list(APPEND _command
+    "erf.compressibility_type=Anelastic" "erf.timestepping_type=${ANELASTIC}")
+endif()
+if(DEFINED DT_REF_RATIO)
+  list(APPEND _command "erf.dt_ref_ratio=${DT_REF_RATIO}")
+endif()
+if(UNIFORM_RATIO)
+  # A uniform spectrum and a uniform host scalar (a ball that covers the
+  # domain) in a divergence-free roll with shear.
+  list(APPEND _command
+    "erf.sbm_amr_qualification_uniform_ratio=true"
+    "prob.test_flow_amp=0.5" "prob.rad_0=10")
+endif()
 if(DEFINED SBM_NBINS)
   math(EXPR _sbm_cloud_rain_split "${SBM_NBINS} / 2")
   list(APPEND _command "erf.sbm_nbins=${SBM_NBINS}"
@@ -54,6 +69,10 @@ if(FAILURE_TEST)
   list(APPEND _command "erf.sbm_amr_qualification_parent_store_fault=true")
   set(_execute_process_timeout TIMEOUT 45)
 endif()
+if(REGRID_REJECT_FAULT)
+  list(APPEND _command "erf.sbm_amr_qualification_regrid_reject_fault=true")
+  set(_execute_process_timeout TIMEOUT 120)
+endif()
 execute_process(
   COMMAND ${_command}
   WORKING_DIRECTORY "${TEST_ROOT}"
@@ -86,6 +105,24 @@ if(FAILURE_TEST)
   return()
 endif()
 
+if(REGRID_REJECT_FAULT)
+  if(_result MATCHES "[Tt]imeout" OR "${_result}" STREQUAL "0")
+    message(FATAL_ERROR
+      "The injected SBM regrid rejection did not abort the run (result=${_result}); see ${_log_file}")
+  endif()
+  if(NOT _log MATCHES "SBM regrid candidate rejected before publication: regridded SBM candidate is inadmissible")
+    message(FATAL_ERROR
+      "The SBM regrid abort did not report the inadmissible candidate; see ${_log_file}\n${_log}")
+  endif()
+  if(_log MATCHES "SBM_AMR_QUAL_REGRID level=")
+    message(FATAL_ERROR
+      "A regrid was committed despite the injected rejection; see ${_log_file}")
+  endif()
+  message(STATUS
+    "SBM regrid rejection aborted before publication: ranks=${MPI_RANKS}; log=${_log_file}")
+  return()
+endif()
+
 if(NOT _result EQUAL 0)
   message(FATAL_ERROR
     "SBM AMR qualification exited with ${_result}; see ${_log_file}\n${_log}")
@@ -109,6 +146,15 @@ if(NOT _step_count EQUAL EXPECTED_STEPS)
     "Expected ${EXPECTED_STEPS} accepted coarse-step qualification records, got ${_step_count}; see ${_log_file}")
 endif()
 foreach(_line IN LISTS _step_lines)
+  if(REGRID AND _line MATCHES "levels=1 ")
+    # A step after the fine level was cleared has no interface to reflux.
+    if(NOT _line MATCHES
+       "levels=1 fine_substeps=0 .*reflux_calls=0 reflux_syncs=0 .*limiter_changed_rate=(true|false) zero_flow=false")
+      message(FATAL_ERROR
+        "Coarse-only regrid step record is malformed: ${_line}\nSee ${_log_file}")
+    endif()
+    continue()
+  endif()
   if(ZERO_FLOW)
     set(_zero_flow_record_regex
        "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=[1-9][0-9]*.*reflux_syncs=[1-9][0-9]*.*nonzero_reflux_linf=[0-9.eE+-]+.*limiter_active_groups=[0-9]+.*limiter_changed_rate=false.*zero_flow=true.*zero_flow_tolerance=[0-9.eE+-]+.*max_carrier=0 max_accepted_rate=0")
@@ -124,6 +170,13 @@ foreach(_line IN LISTS _step_lines)
       message(FATAL_ERROR
         "Zero-flow parser accepted the forced limiter_changed_rate=true mutant: ${_forced_limiter_mutant}")
     endif()
+  elseif(UNIFORM_RATIO)
+    # A uniform ratio leaves the limiter nothing to act on.
+    if(NOT _line MATCHES
+       "fine_substeps=${EXPECTED_FINE_SUBSTEPS}.*reflux_calls=1.*reflux_syncs=1.*zero_flow=false")
+      message(FATAL_ERROR
+        "Uniform-ratio qualification did not run three fine substeps and one reflux: ${_line}\nSee ${_log_file}")
+    endif()
   else()
     if(DEFINED SBM_NBINS)
       set(_nonzero_record_regex
@@ -138,6 +191,44 @@ foreach(_line IN LISTS _step_lines)
     endif()
   endif()
 endforeach()
+
+if(UNIFORM_RATIO)
+  string(REGEX MATCHALL "SBM_AMR_QUAL_UNIFORM_RATIO step=[^\n]*" _ratio_lines "${_log}")
+  list(LENGTH _ratio_lines _ratio_count)
+  math(EXPR _expected_ratio_count "${EXPECTED_STEPS} * ${EXPECTED_COMPONENTS}")
+  if(NOT _ratio_count EQUAL _expected_ratio_count)
+    message(FATAL_ERROR
+      "Expected ${_expected_ratio_count} uniform-ratio records, got ${_ratio_count}; see ${_log_file}")
+  endif()
+  # The host scalar must actually have moved, or the comparison is empty.
+  # It stays uniform to roundoff under the anelastic integrators and does not
+  # under the compressible host, whose dry-air density is not refluxed.
+  set(_host_moved FALSE)
+  set(_host_nonuniform FALSE)
+  foreach(_line IN LISTS _ratio_lines)
+    if(NOT _line MATCHES
+       "relative_spread=[0-9.eE+-]+ host_scalar_relative_spread=([0-9.eE+-]+) host_uniform=(true|false) bound=[0-9.eE+-]+")
+      message(FATAL_ERROR "Malformed uniform-ratio record: ${_line}")
+    endif()
+    if(NOT CMAKE_MATCH_1 STREQUAL "0")
+      set(_host_moved TRUE)
+    endif()
+    if(CMAKE_MATCH_2 STREQUAL "false")
+      set(_host_nonuniform TRUE)
+    endif()
+  endforeach()
+  if(NOT _host_moved)
+    message(FATAL_ERROR
+      "The host scalar stayed exactly uniform, so the carrier comparison is empty; see ${_log_file}")
+  endif()
+  if(DEFINED ANELASTIC AND _host_nonuniform)
+    message(FATAL_ERROR
+      "The anelastic host scalar left roundoff uniformity; see ${_log_file}")
+  elseif(NOT DEFINED ANELASTIC AND NOT _host_nonuniform)
+    message(FATAL_ERROR
+      "The compressible host scalar unexpectedly stayed uniform to roundoff; see ${_log_file}")
+  endif()
+endif()
 
 if(EXPECT_SPLIT AND NOT _log MATCHES
    "SBM_AMR_QUAL_SPLIT_LAYOUT coarse_ranks=[2-9][0-9]* fine_ranks=[2-9][0-9]* remote_parent=true remote_fine=true")
@@ -166,11 +257,77 @@ if(EXPECT_SPLIT)
     message(FATAL_ERROR
       "Split qualification did not complete its remote ghost value checks; see ${_log_file}")
   endif()
+  # A later stage inside the coarse interval weights both coarse endpoints.
+  # Its time is the stage's input time: dt_f/3 for RK3, dt_f/2 for the
+  # MidPoint corrector, and dt_f for Heun's, with dt_f a third of the coarse
+  # step.
+  set(_interior_theta "0.111111111")
+  if(ANELASTIC STREQUAL "MidPoint")
+    set(_interior_theta "0.166666667")
+  elseif(ANELASTIC STREQUAL "RK2")
+    set(_interior_theta "0.333333333")
+  endif()
+  if(NOT _log MATCHES
+     "SBM_AMR_QUAL_GHOST_VALUE_COMPLETE stage=1 requested_time=[^ ]+ theta=${_interior_theta} samples=[1-9][0-9]*")
+    message(FATAL_ERROR
+      "Split qualification did not check remote ghost values at the first interior stage time (theta=${_interior_theta}); see ${_log_file}")
+  endif()
 endif()
 if(EXPECT_EMPTY_FINE_RANK AND NOT _log MATCHES
    "SBM_AMR_QUAL_EMPTY_FINE_RANK empty_ranks=[1-9][0-9]*")
   message(FATAL_ERROR
     "Runtime did not prove a rank with no fine cells; see ${_log_file}")
+endif()
+
+if(DEFINED EXPECTED_REGRIDS)
+  string(REGEX MATCHALL "SBM_AMR_QUAL_REGRID level=[^\n]*" _regrid_lines "${_log}")
+  list(LENGTH _regrid_lines _regrid_count)
+  if(NOT _regrid_count EQUAL EXPECTED_REGRIDS)
+    message(FATAL_ERROR
+      "Expected ${EXPECTED_REGRIDS} committed SBM regrid records, got ${_regrid_count}; see ${_log_file}")
+  endif()
+  foreach(_line IN LISTS _regrid_lines)
+    # Each remake must classify retained, prolonged, and released fine cells
+    # and conserve the composite inventory within its roundoff bound.
+    if(NOT _line MATCHES
+       "retained=[1-9][0-9]* prolonged=[1-9][0-9]* released=[1-9][0-9]* .*max_inventory_error_over_bound=([0-9.eE+-]+)")
+      message(FATAL_ERROR
+        "Regrid record lacks retained, prolonged, or released cells: ${_line}\nSee ${_log_file}")
+    endif()
+  endforeach()
+  string(REGEX MATCHALL "SBM_AMR_QUAL_REGRID_MEMORY rank=[^\n]*" _regrid_memory_lines "${_log}")
+  list(LENGTH _regrid_memory_lines _regrid_memory_count)
+  math(EXPR _expected_regrid_memory "${EXPECTED_REGRIDS} * ${MPI_RANKS}")
+  if(NOT _regrid_memory_count EQUAL _expected_regrid_memory)
+    message(FATAL_ERROR
+      "Expected ${_expected_regrid_memory} per-rank regrid memory records, got ${_regrid_memory_count}; see ${_log_file}")
+  endif()
+  foreach(_line IN LISTS _regrid_memory_lines)
+    if(NOT _line MATCHES
+       "baseline_fab_bytes=[0-9]+ validation_peak_fab_bytes=[0-9]+ before_commit_fab_bytes=[0-9]+ after_commit_fab_bytes=[0-9]+ fab_bytes_high_water=[0-9]+")
+      message(FATAL_ERROR "Incomplete regrid memory record: ${_line}")
+    endif()
+  endforeach()
+endif()
+
+if(EXPECT_LEVEL_CYCLE)
+  # The fine level must be cleared and later recreated within the run.
+  set(_cycle_state 0)
+  foreach(_line IN LISTS _step_lines)
+    string(REGEX MATCH "levels=([12]) " _levels_match "${_line}")
+    set(_levels "${CMAKE_MATCH_1}")
+    if(_cycle_state EQUAL 0 AND _levels STREQUAL "2")
+      set(_cycle_state 1)
+    elseif(_cycle_state EQUAL 1 AND _levels STREQUAL "1")
+      set(_cycle_state 2)
+    elseif(_cycle_state EQUAL 2 AND _levels STREQUAL "2")
+      set(_cycle_state 3)
+    endif()
+  endforeach()
+  if(NOT _cycle_state EQUAL 3)
+    message(FATAL_ERROR
+      "The fine level was not cleared and then recreated; see ${_log_file}")
+  endif()
 endif()
 
 if(DEFINED SBM_NBINS)

@@ -63,6 +63,22 @@ void set_at (amrex::MultiFab& mf, const amrex::IntVect& point, amrex::Real v)
     amrex::Gpu::streamSynchronize();
 }
 
+// What the walls send to the ground of one column: their share of its view, their reflected
+// shortwave and their longwave (the three components of ground_walls_for_step()).
+void give_walls (amrex::MultiFab& walls, const amrex::IntVect& point, amrex::Real view, amrex::Real sw, amrex::Real lw)
+{
+    const amrex::Box point_box(point, point);
+    for (amrex::MFIter mfi(walls); mfi.isValid(); ++mfi) {
+        const amrex::Box overlap = point_box & mfi.validbox();
+        if (overlap.isEmpty()) { continue; }
+        const auto a = walls.array(mfi);
+        amrex::ParallelFor(overlap, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            a(i, j, k, 0) = view; a(i, j, k, 1) = sw; a(i, j, k, 2) = lw;
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+}
+
 RadChoice cover_choice (bool seb)
 {
     RadChoice rad;
@@ -191,6 +207,108 @@ TEST(TwoStreamBuildingCover, ColumnsAndGroundSeeTheBuildings)
     radiation.define_level(0, rad, RdoCp, collapse_z(L.ba), L.dm, L.ba, L.domain);
     EXPECT_FALSE(radiation.has_building_cover(0));
     EXPECT_EQ(radiation.ground_shadow_for_step(0, 2), nullptr);
+}
+
+// erf.ibseb.ground_sky_view: at the update after the dycore the open ground takes what
+// the walls send it (ground_walls_for_step()), once per sweep, with the beam; the
+// footprint stays held. The sky is the same in every column, so the columns differ by
+// the walls' terms alone.
+TEST(TwoStreamBuildingCover, GroundTakesWhatTheWallsSend)
+{
+    using namespace amrex;
+    Level L;
+    RadChoice rad = cover_choice(true);
+    rad.surface_emissivity_lw = Real(0.9);
+    rad.surface_albedo_sw_diffuse = Real(0.3);
+    TwoStreamRadiation radiation;
+    radiation.resize(1);
+    radiation.define_level(0, rad, RdoCp, collapse_z(L.ba), L.dm, L.ba, L.domain);
+    MultiFab blank(L.ba, L.dm, 1, 1);
+    blank.setVal(0.0);
+    set_at(blank, IntVect(0, 0, 0), 1.0);
+    // Without the request there is no field to fill.
+    radiation.set_building_cover(0, blank, L.domain);
+    EXPECT_EQ(radiation.ground_walls_for_step(0, 1), nullptr);
+    radiation.set_building_cover(0, blank, L.domain, true);
+    EXPECT_TRUE(radiation.takes_ground_walls(0));
+    EXPECT_EQ(radiation.ground_walls(0), nullptr);   // none given yet
+
+    MultiFab state(L.ba, L.dm, RhoQ2_comp + 1, 0);
+    state.setVal(Real(0.0));
+    state.setVal(Real(1.0), Rho_comp, 1);
+    state.setVal(getThgivenRandT(Real(1.0), Real(290.0), RdoCp), RhoTheta_comp, 1);
+    MultiFab qheating(L.ba, L.dm, 2, 0);
+    MultiFab rad_fluxes(convert(L.ba, IntVect(0, 0, 1)), L.dm, 4, 0);
+    LandSurface lsm;
+    lsm.ReSize(1);
+    lsm.SetModel<NullSurf>();
+    const Vector<const MultiFab*> radiation_inputs {};
+    radiation.advance(0, 1, Real(0.0), Real(10.0), "pre_dycore", state, nullptr, L.geom, lsm, radiation_inputs,
+                      false, &qheating, &rad_fluxes, nullptr, nullptr, nullptr, nullptr, nullptr, 0.0, false);
+    const Real lw_down = value_at(rad_fluxes, IntVect(1, 2, 0), 3);
+    const Real sw_down = value_at(rad_fluxes, IntVect(1, 2, 0), 1);
+    const Real beam = Real(1000.0) * Real(0.5) * std::exp(Real(-0.05 * 4 / 0.5));
+    ASSERT_GT(lw_down, Real(10.0));
+    ASSERT_GT(sw_down - beam, Real(1.0));
+
+    MultiFab* shadow = radiation.ground_shadow_for_step(0, 1);
+    ASSERT_NE(shadow, nullptr);
+    shadow->setVal(0.0);
+    set_at(*shadow, IntVect(2, 1, 0), 1.0);
+    MultiFab* walls = radiation.ground_walls_for_step(0, 1);
+    ASSERT_NE(walls, nullptr);
+    ASSERT_EQ(walls->nComp(), 3);
+    walls->setVal(0.0);
+    // Column (2,1), shaded: the walls take 0.4 of the view and send 30 W/m2 of reflected
+    // light and 200 W/m2 of longwave. Column (3,2), sunlit: 0.25, 60 and 120. The
+    // footprint (0,0) is given values too, which the balance must not take.
+    give_walls(*walls, IntVect(2, 1, 0), Real(0.4), Real(30.0), Real(200.0));
+    give_walls(*walls, IntVect(3, 2, 0), Real(0.25), Real(60.0), Real(120.0));
+    give_walls(*walls, IntVect(0, 0, 0), Real(0.5), Real(99.0), Real(99.0));
+    radiation.advance(0, 1, Real(10.0), Real(10.0), "post_dycore", state, nullptr, L.geom, lsm, radiation_inputs,
+                      false, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0.0, false);
+
+    const MultiFab& sw = *radiation.seb_sw_net(0);
+    const MultiFab& lw = *radiation.seb_lw_net(0);
+    const Real tol = (sizeof(Real) == 8) ? Real(1.e-11) : Real(2.e-5);
+    const Real sw_open = value_at(sw, IntVect(1, 2, 0), 0), lw_open = value_at(lw, IntVect(1, 2, 0), 0);
+    const Real dif_abs = Real(0.7) * (sw_down - beam);       // the diffuse light the open ground absorbs
+    const Real beam_abs = Real(0.8) * beam;
+    EXPECT_NEAR(sw_open, beam_abs + dif_abs, tol * sw_open);
+    // Shaded, beside walls: no beam, 0.6 of the diffuse light, 0.7 of the walls' 30 W/m2.
+    EXPECT_NEAR(value_at(sw, IntVect(2, 1, 0), 0), Real(0.6) * dif_abs + Real(0.7) * Real(30.0), tol * sw_open);
+    EXPECT_NEAR(value_at(lw, IntVect(2, 1, 0), 0) - lw_open, Real(0.9) * (Real(200.0) - Real(0.4) * lw_down), tol * 400);
+    // Sunlit, beside walls: the beam whole.
+    EXPECT_NEAR(value_at(sw, IntVect(3, 2, 0), 0), beam_abs + Real(0.75) * dif_abs + Real(0.7) * Real(60.0), tol * sw_open);
+    EXPECT_NEAR(value_at(lw, IntVect(3, 2, 0), 0) - lw_open, Real(0.9) * (Real(120.0) - Real(0.25) * lw_down), tol * 400);
+    // The footprint absorbs no shortwave and its longwave is the open ground's of the sweep.
+    EXPECT_EQ(value_at(sw, IntVect(0, 0, 0), 0), Real(0.0));
+    EXPECT_EQ(value_at(lw, IntVect(0, 0, 0), 0), lw_open);
+    EXPECT_NE(radiation.ground_walls(0), nullptr);
+
+    // A second update after the same sweep takes the walls' terms no second time.
+    const Real sw_once = value_at(sw, IntVect(3, 2, 0), 0), lw_once = value_at(lw, IntVect(3, 2, 0), 0);
+    radiation.advance(0, 1, Real(10.0), Real(10.0), "post_dycore", state, nullptr, L.geom, lsm, radiation_inputs,
+                      false, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0.0, false);
+    EXPECT_EQ(value_at(*radiation.seb_sw_net(0), IntVect(3, 2, 0), 0), sw_once);
+    EXPECT_EQ(value_at(*radiation.seb_lw_net(0), IntVect(3, 2, 0), 0), lw_once);
+
+    // A rebuilt level drops the request with the cover.
+    radiation.define_level(0, rad, RdoCp, collapse_z(L.ba), L.dm, L.ba, L.domain);
+    EXPECT_FALSE(radiation.takes_ground_walls(0));
+    EXPECT_EQ(radiation.ground_walls_for_step(0, 2), nullptr);
+
+    // With the longwave off the ground takes nothing from the walls, shortwave or longwave:
+    // their longwave would arrive with no sky longwave and no emission to set against it.
+    RadChoice no_lw = rad;
+    no_lw.lw_enabled = false;
+    TwoStreamRadiation dark;
+    dark.resize(1);
+    dark.define_level(0, no_lw, RdoCp, collapse_z(L.ba), L.dm, L.ba, L.domain);
+    dark.set_building_cover(0, blank, L.domain, true);
+    EXPECT_FALSE(dark.takes_ground_walls(0));
+    EXPECT_EQ(dark.ground_walls_for_step(0, 1), nullptr);
+    EXPECT_NE(dark.ground_shadow_for_step(0, 1), nullptr);   // the shadow is still taken
 }
 
 // Without a ground balance there is no shadow to give; the heating mask still applies.

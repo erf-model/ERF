@@ -67,6 +67,14 @@ public:
     /** Commit a candidate after collective can_accept_synchronized_state succeeds. */
     void publish_synchronized_state (int lev,
                                      const amrex::MultiFab& candidate);
+    /** Collective check that a regrid candidate on new grids may replace a
+     * synchronized level: same component count and ghost width, same time. */
+    bool can_replace_level (int lev, const amrex::MultiFab& candidate,
+                            double semantic_time, std::string& diagnostic) const;
+    /** Adopt an admitted regrid candidate as the level's accepted state on its
+     * new grids. The old view stays invalid until the next begin_step. */
+    void replace_level (int lev, amrex::MultiFab&& candidate,
+                        double semantic_time);
     [[nodiscard]] bool step_active (int lev) const;
 
     /** One-way projection from the spectrum into ERF's compact qc and qr lanes. */
