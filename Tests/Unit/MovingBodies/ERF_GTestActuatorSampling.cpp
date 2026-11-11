@@ -22,6 +22,7 @@
 // - mesh_z_bounds(.., false): the table's cells for a height range hold every cell that reaches into it.
 // - wrap_periodic: a point a few ulps below a non-zero prob_lo lands on prob_lo, not on prob_hi.
 // - terrain_heights: the bilinear k = 0 node surface.
+// - a point held by two boxes of one rank is counted twice and refused by sample_velocity.
 
 #include <limits>
 #include <algorithm>
@@ -559,6 +560,42 @@ TEST(ActuatorSampling, APointOutsideTheDomainIsRefusedNamingIt)
     });
     EXPECT_NE(msg.find("5000"), std::string::npos) << msg;
     EXPECT_NE(msg.find("sampled by 0 boxes"), std::string::npos) << msg;
+}
+
+// Valid boxes never overlap, so a point lies in one box. If a caller passes fields whose boxes do overlap, a point
+// in the overlap is held by two boxes of the same rank: the count must say two, and sample_velocity must stop.
+TEST(ActuatorSampling, APointHeldByTwoBoxesOfOneRankIsRefused)
+{
+    MeshSpec m;
+    const amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(m.nx-1, m.ny-1, m.nz-1));
+    const amrex::RealBox rb({AMREX_D_DECL(0.0, 0.0, 0.0)}, {AMREX_D_DECL(m.Lx, m.Ly, m.H)});
+    const std::array<int,3> periodic{{0, 0, 0}};
+    const amrex::Geometry geom(domain, &rb, 0, periodic.data());
+    // two boxes that share the cells i = 5..6, both on rank 0
+    amrex::BoxList bl;
+    bl.push_back(amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(6, m.ny-1, m.nz-1)));
+    bl.push_back(amrex::Box(amrex::IntVect(5, 0, 0), amrex::IntVect(m.nx-1, m.ny-1, m.nz-1)));
+    const amrex::BoxArray ba(bl);
+    const amrex::DistributionMapping dm(amrex::Vector<int>{0, 0});
+    amrex::MultiFab u(amrex::convert(ba, amrex::IntVect(1,0,0)), dm, 1, 2);
+    amrex::MultiFab v(amrex::convert(ba, amrex::IntVect(0,1,0)), dm, 1, 2);
+    amrex::MultiFab w(amrex::convert(ba, amrex::IntVect(0,0,1)), dm, 1, 2);
+    u.setVal(1.0); v.setVal(2.0); w.setVal(3.0);
+
+    // one point in the shared cells (x = 5.5 dx) and one in the first box only
+    const std::vector<Real> pos{Real(5.5) * m.dx(), Real(500.0), Real(100.0), Real(1.5) * m.dx(), Real(500.0), Real(100.0)};
+    std::vector<Real> vel;
+    std::vector<int> cnt;
+    erf_actuator::sample_velocity_local(u, v, w, nullptr, geom, pos, vel, cnt);
+    amrex::ParallelDescriptor::ReduceIntSum(cnt.data(), static_cast<int>(cnt.size()));
+    ASSERT_EQ(cnt.size(), 2u);
+    EXPECT_EQ(cnt[0], 2);
+    EXPECT_EQ(cnt[1], 1);
+
+    const std::string msg = erf_gtest::abort_message([&] {
+        erf_actuator::sample_velocity(u, v, w, nullptr, geom, pos, vel);
+    });
+    EXPECT_NE(msg.find("sampled by 2 boxes"), std::string::npos) << msg;
 }
 
 // The terrain surface under a point: the k = 0 node plane of z_phys_nd, bilinear between the four

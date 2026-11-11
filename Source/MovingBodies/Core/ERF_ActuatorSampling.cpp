@@ -212,7 +212,9 @@ sample_velocity_local (const MultiFab& U, const MultiFab& V, const MultiFab& W,
             p_vel[3*p]   = sample_component(0, u, x, y, z, plo, dxi, kb, kt,   znd, has_znd, dz);
             p_vel[3*p+1] = sample_component(1, v, x, y, z, plo, dxi, kb, kt,   znd, has_znd, dz);
             p_vel[3*p+2] = sample_component(2, w, x, y, z, plo, dxi, kb, kt+1, znd, has_znd, dz);
-            p_cnt[p] = 1;
+            // a count, not a flag: boxes of one rank may run on different streams, and a point held by two of
+            // them must still be refused by the caller
+            Gpu::Atomic::AddNoRet(&p_cnt[p], 1);
         });
     }
     // the answers back with asynchronous copies and one synchronisation
@@ -361,7 +363,9 @@ sample_cell_scalar (const MultiFab& mf, int comp, const MultiFab* z_phys_nd, con
             const Real f01 = centre_column_value(f, comp, i0,   j0+1, kb, kt, z, znd, has_znd, plo[2], dz);
             const Real f11 = centre_column_value(f, comp, i0+1, j0+1, kb, kt, z, znd, has_znd, plo[2], dz);
             p_val[p] = (Real(1.0) - wy) * ((Real(1.0) - wx) * f00 + wx * f10) + wy * ((Real(1.0) - wx) * f01 + wx * f11);
-            p_cnt[p] = 1;
+            // a count, not a flag: boxes of one rank may run on different streams, and a point held by two of
+            // them must still be refused by the caller
+            Gpu::Atomic::AddNoRet(&p_cnt[p], 1);
         });
     }
     Gpu::streamSynchronize();
@@ -425,7 +429,9 @@ terrain_heights (const MultiFab* z_phys_nd, const Geometry& geom, const std::vec
             const Real z00 = znd(ic,   jc,   klo), z10 = znd(ic+1, jc,   klo);
             const Real z01 = znd(ic,   jc+1, klo), z11 = znd(ic+1, jc+1, klo);
             p_h[p] = (Real(1.0) - wy) * ((Real(1.0) - wx) * z00 + wx * z10) + wy * ((Real(1.0) - wx) * z01 + wx * z11);
-            p_cnt[p] = 1;
+            // a count, not a flag: boxes of one rank may run on different streams, and a point held by two of
+            // them must still be refused by the caller
+            Gpu::Atomic::AddNoRet(&p_cnt[p], 1);
         });
     }
     Gpu::streamSynchronize();

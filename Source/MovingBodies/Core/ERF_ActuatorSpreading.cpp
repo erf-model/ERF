@@ -315,12 +315,12 @@ Bin add_bin (const KernelImages& im, const std::vector<Real>& f_over_s, int dir,
         if (f_over_s[3*im.point[m]+dir] == Real(0.0)) { continue; }
         const Box c = im.reach[m][dir] & fbx;
         if (c.isEmpty()) { continue; }
-        const IntVect tlo = (c.smallEnd() - flo) / tile_size;
-        const IntVect thi = (c.bigEnd() - flo) / tile_size;
-        touched[m] = {{tlo, thi}};
-        for (int tz = tlo[2]; tz <= thi[2]; ++tz) {
-            for (int ty = tlo[1]; ty <= thi[1]; ++ty) {
-                for (int tx = tlo[0]; tx <= thi[0]; ++tx) { ++cnt[1 + tx + nt[0] * (ty + nt[1] * tz)]; }
+        const IntVect t_lo = (c.smallEnd() - flo) / tile_size;
+        const IntVect t_hi = (c.bigEnd() - flo) / tile_size;
+        touched[m] = {{t_lo, t_hi}};
+        for (int tz = t_lo[2]; tz <= t_hi[2]; ++tz) {
+            for (int ty = t_lo[1]; ty <= t_hi[1]; ++ty) {
+                for (int tx = t_lo[0]; tx <= t_hi[0]; ++tx) { ++cnt[1 + tx + nt[0] * (ty + nt[1] * tz)]; }
             }
         }
     }
@@ -345,11 +345,11 @@ Bin add_bin (const KernelImages& im, const std::vector<Real>& f_over_s, int dir,
     bins.push_back(item);
     bins.resize(item, -1);
     for (int m = 0; m < nimg; ++m) {
-        const IntVect& tlo = touched[m][0];
-        const IntVect& thi = touched[m][1];
-        for (int tz = tlo[2]; tz <= thi[2]; ++tz) {
-            for (int ty = tlo[1]; ty <= thi[1]; ++ty) {
-                for (int tx = tlo[0]; tx <= thi[0]; ++tx) { bins[next[tx + nt[0] * (ty + nt[1] * tz)]++] = m; }
+        const IntVect& t_lo = touched[m][0];
+        const IntVect& t_hi = touched[m][1];
+        for (int tz = t_lo[2]; tz <= t_hi[2]; ++tz) {
+            for (int ty = t_lo[1]; ty <= t_hi[1]; ++ty) {
+                for (int tx = t_lo[0]; tx <= t_hi[0]; ++tx) { bins[next[tx + nt[0] * (ty + nt[1] * tz)]++] = m; }
             }
         }
     }

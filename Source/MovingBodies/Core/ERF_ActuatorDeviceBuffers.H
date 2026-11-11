@@ -74,7 +74,10 @@ struct ActuatorDeviceBuffers
     StagedBuffer<int> sample_cnt;            //!< 1 per point: how many of this rank's boxes hold it
 
     long kernel_launches{0};                 //!< kernels launched through these buffers so far (for the tests)
-    bool force_face_major{false};            //!< tests only: the second pass face by face on the host too (as on a device)
+    /** A switch for the unit tests only; a model leaves it false. When true, add_scaled_kernels() runs the
+     * face-by-face pass on the host too, which is the only pass a device has, so a CPU build can compare the
+     * two. Both give the same sources bit for bit; the face-by-face pass is the slower one on a host. */
+    bool force_face_major{false};
 };
 
 } // namespace erf_actuator

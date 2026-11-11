@@ -800,11 +800,14 @@ TEST(ActuatorSpreading, BatchedKernelsMatchThePointByPointReference)
         amrex::ParallelDescriptor::ReduceIntSum(differ);
         amrex::ParallelDescriptor::ReduceRealMax(worst);
         EXPECT_GT(nonzero, 1000);
-#if !defined(AMREX_USE_GPU) && (defined(__x86_64__) || defined(_M_X64))
-        // the same operations in the same order
+#if !defined(AMREX_USE_GPU) && (!defined(__FP_FAST_FMA) || (defined(__clang__) && !defined(__INTEL_LLVM_COMPILER)))
+        // The same operations in the same order: bit for bit on any host build whose compiler keeps a multiply
+        // and an add of two statements apart. That is every target without a fused multiply-add, and clang on
+        // any target (it fuses within one expression only).
         EXPECT_EQ(differ, 0) << "worst relative difference " << worst;
 #else
-        // a device, or a compiler that fuses a multiply and an add across statements, may round otherwise
+        // A device, or a compiler that fuses a multiply and an add across statements where the target has the
+        // instruction (GCC and the Intel compiler by default), may round otherwise.
         EXPECT_LE(worst, rel_tol);
 #endif
     }
