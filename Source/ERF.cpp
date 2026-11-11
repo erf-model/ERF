@@ -2629,7 +2629,8 @@ ERF::InitData_post ()
             line_sampler->resolve_latlon(latlon_map, geom[0]);
         }
         line_sampler->write_coords(z_phys_cc, z_phys_nd, geom,
-                                   line_sampler->needs_ground() ? &station_ground(0) : nullptr);
+                                   line_sampler->needs_ground() ? &station_ground(0) : nullptr,
+                                   sampling_ground(*line_sampler), sampling_volfrac());
     }
     if (do_plane) {
         if (plane_sampling_interval < 0 && plane_sampling_per < 0) {

@@ -611,6 +611,22 @@ ERF::sampling_volfrac () const
 }
 
 /**
+ * The ground of each level that exists, the bottom of its mesh or, with immersed terrain, the
+ * terrain surface (station_ground), for a line sampler that needs the ground; nullptr otherwise
+ */
+Vector<const MultiFab*>
+ERF::sampling_ground (const LineSampler& sampler)
+{
+    Vector<const MultiFab*> ground_lev(vars_new.size(), nullptr);
+    if (sampler.needs_ground()) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            ground_lev[lev] = &station_ground(lev);
+        }
+    }
+    return ground_lev;
+}
+
+/**
  * Sample the lines of a LineSampler and write them, passing it the stresses, the SGS heat
  * flux, whether each level carries a prognostic TKE, the heights of each level and the ground
  * on level 0.  Used for erf.do_line_sampling, for erf.sample_line, which is a LineSampler
@@ -642,10 +658,12 @@ ERF::run_line_sampler (LineSampler& sampler)
     }
     // With immersed terrain the ground is the terrain surface, not the bottom of the mesh
     const MultiFab* ground_nd = sampler.needs_ground() ? &station_ground(0) : nullptr;
+    const Vector<const MultiFab*> ground_lev = sampling_ground(sampler);
+    const Vector<const MultiFab*> volfrac_lev = sampling_volfrac();
     // The line coordinates of a level made or regridded since they were last written
-    sampler.write_coords(z_phys_cc, z_phys_nd, geom, ground_nd);
+    sampler.write_coords(z_phys_cc, z_phys_nd, geom, ground_nd, ground_lev, volfrac_lev);
     sampler.get_sample_data(geom, vars_new, tau_lev, hfx3_lev, prognostic_tke_available,
-                            z_cc_lev, z_nd_lev, ground_nd, sampling_volfrac());
+                            z_cc_lev, z_nd_lev, ground_nd, volfrac_lev, ground_lev);
     sampler.write_sample_data(t_new, istep, ref_ratio, geom);
 }
 
