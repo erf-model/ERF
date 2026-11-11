@@ -45,6 +45,7 @@
 #include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_RefinementCriterion.H>
 #include <ERF_TopographicShading.H>
 #include <ERF_PlotfileSelection.H>
 #include <ERF_BaseStateParams.H>
@@ -274,9 +275,15 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
+    // Fill mf (one component, one ghost cell) at level levc with the refinement field named field
+    void compute_tag_field (int levc, const std::string& field, amrex::Real time,
+                            amrex::MultiFab& mf, amrex::TagBoxArray& tags);
+
     // Tag cells in a given box
     void read_box_for_refinement   (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box);
     void update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box, const double time);
+    void refinement_box_offset     (const std::string& ref_prefix, const double time,
+                                    amrex::Real& offset_x, amrex::Real& offset_y);
 
     // Refinement criteria for hurricanes
     void HurricaneTracker (int lev,
@@ -1205,6 +1212,7 @@ public:
     void init_zphys            (int lev, double elapsed_time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
+    void update_zsfc_nd        (int lev);
     void make_terrain_blanking (int lev);
 
     [[nodiscard]] bool immersed_forcing_active (int lev) const noexcept
@@ -1586,6 +1594,8 @@ private:
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base;
+    // The same on the mesh at the end of the stage, z_phys_nd_new (MovingFittedMesh only)
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base_new;
 
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
@@ -1722,6 +1732,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
+    // Height of the bottom of the domain at each node, like z_phys_nd at its bottom: on
+    // ba2d[lev] made nodal in x and y, with no ghost cells; see update_zsfc_nd
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_sfc_nd;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay;
@@ -1789,6 +1803,9 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
+    // The mesh and Jacobian at the acoustic sub-step midpoint (MovingFittedMesh), rewritten every sub-step
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_mid;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_mid;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
@@ -2379,17 +2396,11 @@ private:
 #endif
 
     //
-    // Holds info for dynamically generated tagging criteria
+    // Tagging criteria read from erf.refinement_indicators. Not every indicator creates one
+    // (e.g. "storm_tracker" does not), so these do not correspond one-to-one with that list;
+    // each carries the name of the indicator that created it.
     //
-    static amrex::Vector<amrex::AMRErrorTag> ref_tags;
-
-    //
-    // Name of the refinement indicator that generated each entry of ref_tags.
-    // Not every indicator generates a ref_tag (e.g. "storm_tracker" does not),
-    // so this must be carried alongside ref_tags rather than re-deriving it
-    // from the positional index into erf.refinement_indicators.
-    //
-    static amrex::Vector<std::string> ref_tag_indicator_names;
+    static amrex::Vector<RefinementCriterion> ref_criteria;
 
     amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
 

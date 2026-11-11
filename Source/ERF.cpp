@@ -43,8 +43,7 @@ using namespace amrex;
 double ERF::startCPUTime        = 0.0;
 double ERF::previousCPUTimeUsed = 0.0;
 
-Vector<AMRErrorTag> ERF::ref_tags;
-Vector<std::string> ERF::ref_tag_indicator_names;
+Vector<RefinementCriterion> ERF::ref_criteria;
 
 SolverChoice ERF::solverChoice;
 
@@ -878,6 +877,10 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
 
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+      }
+      // Coarsest first, since a level's z_sfc_nd may take values from the one below it
+      for (int lev = 0; lev <= finest_level; ++lev) {
+        update_zsfc_nd(lev);
       }
     }
 
@@ -4060,6 +4063,22 @@ ERF::ReadParameters ()
                   "Either remove amr.no_box_split_dir = " +
                   std::to_string(no_box_split_dir) + " from the inputs file, or set "
                   "erf.timestepping_type = RK3_NoSubstepping.");
+        }
+    }
+
+    // A moving mesh advances its base state column by column, with a bottom-face flux
+    // extrapolated from the three lowest cells of the box, and erf_substep_MT takes the bottom
+    // of the box as the moving surface; both need every grid to span the full height of the
+    // domain.  A moving mesh has only level 0 (amr.max_level = 0), whose grids cover the
+    // domain, so amr.no_box_split_dir = 2 (the default) gives exactly that.
+    if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
+        if (no_box_split_dir != 2) {
+            Abort("erf.terrain_type = MovingFittedMesh requires amr.no_box_split_dir = 2 (the ERF "
+                  "default), so that every grid spans the full height of the domain; remove "
+                  "amr.no_box_split_dir = " + std::to_string(no_box_split_dir) + " from the inputs file.");
+        }
+        if (geom[0].Domain().length(2) < 3) {
+            Abort("erf.terrain_type = MovingFittedMesh requires at least 3 cells in z (amr.n_cell)");
         }
     }
 

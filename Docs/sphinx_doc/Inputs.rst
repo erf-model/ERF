@@ -595,6 +595,15 @@ List of Parameters
 | **erf.<indicator>.adjacent_difference_greater**  | tag cells where the difference between adjacent values   | List of Reals      | None                 |
 |                                                  | exceeds this, one value per level                        |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.conditions**                   | names of several conditions the indicator tests          | List of Strings    | None                 |
+|                                                  | together; each is given by **field_name** and one of the |                    |                      |
+|                                                  | three tests above under ``erf.<indicator>.<condition>``, |                    |                      |
+|                                                  | and those keys may then not be given for the indicator   |                    |                      |
+|                                                  | itself                                                   |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.combine**                      | whether a cell is tagged when all of the conditions hold | ``and``, ``or``    | ``and``              |
+|                                                  | (``and``) or when any one of them does (``or``)          |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.max_level**                    | finest level at which the indicator is applied.          | Integer >= 1       | finest level         |
 |                                                  | Optional when the box is given in real coordinates;      |                    |                      |
 |                                                  | **required** when it is given in index space             |                    |                      |
@@ -606,9 +615,19 @@ List of Parameters
 |                                                  | inactive                                                 |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.in_box_lo**                    | low corner, in physical coordinates, of the region the   | 2 or 3 Reals       | None                 |
-|                                                  | indicator tags                                           |                    |                      |
+|                                                  | indicator tags. For an indicator that tests a field it   |                    |                      |
+|                                                  | only restricts where cells may be tagged, and z is the   |                    |                      |
+|                                                  | height chosen by **box_z_coordinate**; two values leave  |                    |                      |
+|                                                  | z unrestricted                                           |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.in_box_hi**                    | high corner, in physical coordinates                     | 2 or 3 Reals       | None                 |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.box_z_coordinate**             | height of the cell center compared with the z extent of  | ``above_ground``,  | ``above_ground``     |
+|                                                  | the box of an indicator that tests a field: above the    | ``physical``       |                      |
+|                                                  | ground under its column, or ``z_phys_cc`` itself.        |                    |                      |
+|                                                  | ``above_ground`` uses the bottom of the mesh, so with    |                    |                      |
+|                                                  | ImmersedForcing or EB terrain a box with a z extent      |                    |                      |
+|                                                  | must use ``physical``                                    |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.in_box_lo_indices**            | low corner in fine-level index space; may not be         | 3 Integers         | None                 |
 |                                                  | combined with the real-coordinate form                   |                    |                      |

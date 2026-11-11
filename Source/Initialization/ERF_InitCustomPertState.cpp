@@ -69,11 +69,11 @@ ERF::init_custom (int lev)
         }
     }
 
-    MultiFab z_sfc_nd(BoxArray(std::move(bl_sfc)), dm, 1, 0);
+    MultiFab z_sfc_loc(BoxArray(std::move(bl_sfc)), dm, 1, 0);
     if (solverChoice.terrain_type == TerrainType::EB) {
-        z_sfc_nd.setVal(zero);
+        z_sfc_loc.setVal(zero);
     } else {
-        z_sfc_nd.setVal(zlevels_stag[lev][0]);
+        z_sfc_loc.setVal(zlevels_stag[lev][0]);
         if (!bl_gnd.isEmpty()) {
             MultiFab z_gnd(BoxArray(std::move(bl_gnd)), DistributionMapping(std::move(pmap_gnd)), 1, 0);
             for (MFIter mfi(z_gnd); mfi.isValid(); ++mfi) {
@@ -84,7 +84,7 @@ ERF::init_custom (int lev)
                     zg(i,j,k) = z_nd(i,j,k);
                 });
             }
-            z_sfc_nd.ParallelCopy(z_gnd);
+            z_sfc_loc.ParallelCopy(z_gnd);
         }
     }
 
@@ -107,7 +107,7 @@ ERF::init_custom (int lev)
         Array4<Real const> cons_arr = lev_new[Vars::cons].const_array(mfi);
         Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
-        Array4<Real const> z_sfc_arr = z_sfc_nd.const_array(mfi.index());
+        Array4<Real const> z_sfc_arr = z_sfc_loc.const_array(mfi.index());
 
         // Here we arbitrarily choose the x-oriented map factor -- this should be generalized
         Array4<Real const> mf_m     = mapfac[lev][MapFacType::m_x]->const_array(mfi);

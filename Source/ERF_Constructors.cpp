@@ -660,6 +660,7 @@ ERF::ERF_shared ()
     physbcs_v.resize(nlevs_max);
     physbcs_w.resize(nlevs_max);
     physbcs_base.resize(nlevs_max);
+    physbcs_base_new.resize(nlevs_max);
 
     // Planes to hold Dirichlet values at boundaries
     xvel_bc_data.resize(nlevs_max);
@@ -695,6 +696,7 @@ ERF::ERF_shared ()
     // Metric terms
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
+    z_sfc_nd.resize(nlevs_max);
     detJ_cc.resize(nlevs_max);
     ax.resize(nlevs_max);
     ay.resize(nlevs_max);
@@ -702,6 +704,8 @@ ERF::ERF_shared ()
 
     z_phys_nd_new.resize(nlevs_max);
     detJ_cc_new.resize(nlevs_max);
+    z_phys_nd_mid.resize(nlevs_max);
+    detJ_cc_mid.resize(nlevs_max);
 
     z_phys_nd_src.resize(nlevs_max);
     z_phys_cc_src.resize(nlevs_max);
