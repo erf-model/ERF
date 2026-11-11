@@ -1104,7 +1104,66 @@ use, and both are -999 in the plotfile a restart writes before its first step.
   With the default rays the floor of such a street gets a share of 0.78 whatever
   the height, where the exact value is 0.877 for walls of 40 m, 0.950 for 100 m and
   0.975 for 200 m: the floor keeps too much sky, about 15 to 20 W/m² of longwave at
-  100 m. More rays help slowly (0.87 with :math:`32 \times 16` at 100 m).
+  100 m.
+
+  **For street canyons, raise the rays**: :cpp:`erf.ibseb.view_n_az = 32` and
+  :cpp:`erf.ibseb.view_n_el = 16`, or 64 and 32 where the walls are more than five
+  times as high as the street is wide. More rays cost start-up time in proportion
+  and little per step (one ray to the sun or one sum per column a face's rays land
+  in, not per ray). They do not remove the whole error: each face
+  sends from its centre, so cells as tall as the street is wide leave the share
+  about 0.05 low however many rays there are. Thinner cells remove that part. The
+  share of the floor of a street 10 m wide, on 10 m columns:
+
+  .. list-table::
+     :header-rows: 1
+     :widths: 22 14 16 16 16 16
+
+     * - Walls, cells
+       - Exact
+       - 16 x 8 (default)
+       - 32 x 16
+       - 64 x 32
+       - 128 x 64
+     * - 40 m, 10 m cells
+       - 0.877
+       - 0.781
+       - 0.836
+       - 0.826
+       - 0.830
+     * - 40 m, 5 m cells
+       - 0.877
+       - 0.844
+       - 0.852
+       - 0.864
+       -
+     * - 40 m, 2.5 m cells
+       - 0.877
+       - 0.883
+       - 0.875
+       - 0.873
+       -
+     * - 100 m, 10 m cells
+       - 0.950
+       - 0.781
+       - 0.867
+       - 0.881
+       - 0.901
+     * - 100 m, 5 m cells
+       - 0.950
+       - 0.844
+       - 0.887
+       - 0.921
+       -
+     * - 100 m, 2.5 m cells
+       - 0.950
+       - 0.883
+       - 0.906
+       - 0.929
+       -
+
+  The values are counts made outside ERF with the faces' own sampling, rays cast
+  against the walls taken as boxes.
 - *Enclosed yards: the share can exceed 1.* In the middle of a yard of 3 by 3
   columns between 100 m walls the count gives 1.125 where the exact value is 0.974.
   A ground cannot see more than its whole view, so there the loss of sky and the
