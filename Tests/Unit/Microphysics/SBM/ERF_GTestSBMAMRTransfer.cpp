@@ -1630,7 +1630,7 @@ run_prolongation_diagnostic_precedence ()
     EXPECT_FALSE(erf_sbm::ProlongCarrierRelativeSpectrum(
         layout, coarse_view, fine_view, cgeom, nonperiodic_fgeom, IntVect(2), 1,
         candidate, diagnostic));
-    EXPECT_NE(diagnostic.find("periodic geometry"), std::string::npos)
+    EXPECT_NE(diagnostic.find("matching coarse and fine periodicity"), std::string::npos)
         << diagnostic;
     expect_same_values(candidate, candidate_before);
 

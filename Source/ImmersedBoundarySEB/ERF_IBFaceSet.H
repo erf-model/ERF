@@ -141,13 +141,13 @@ public:
     void add_outside_occluders (const std::vector<const IBFaceSet*>& below);
 
     /**
-     * Give the sun of the next compute_shortwave() with
+     * Give the sun of the next compute_shortwave() or fill_roofs() with
      * ``erf.ibseb.sun_mode = two_stream``: the two-stream radiation's
      * declination and hour angle at that time, its site latitude and its
      * top-of-atmosphere irradiance (the date's distance factor included).
      * ERF::ibseb_set_two_stream_sun() calls it before every call; the call
-     * uses it up, so a shortwave without a fresh sun stops rather than reusing
-     * an old one.
+     * uses it up, so a shortwave or a roofs' shadow without a fresh sun stops
+     * rather than reusing an old one.
      */
     void set_two_stream_sun (amrex::Real declination, amrex::Real hour_angle,
                              amrex::Real latitude_deg, amrex::Real toa_irradiance)
@@ -220,6 +220,29 @@ public:
      * columns and the counts cannot disagree.
      */
     void build_ground_landings ();
+
+    /**
+     * For erf.ibseb.two_stream_roofs: give each column under a building the roof face that
+     * stands on it. @p roof_cell holds, per column, the cell on the roof of the building
+     * that stands on the ground (TwoStreamRadiation::roof_cell()); the upward face whose
+     * fluid cell is that cell writes 1, its albedo, its emissivity, its skin temperature
+     * and the share of the direct beam that reaches it (0 where a taller building shades
+     * the roof under the sun at @p time, by the shadow ray of the faces) into the
+     * five components of @p out (TwoStreamRadiation::roofs_for_step()). Every other column
+     * gets zeros: open ground, and a building that fills the column. Both fields are the
+     * level's columns (k = 0), box for box with the faces. The roof faces are found at the
+     * first call.
+     *
+     * @param with_fixed true at the first fill of a field: zero it and write what does not
+     *                   change (the first three components) too; false afterwards, when
+     *                   only the skin temperature and the lit share are written
+     * @param time       simulation time [s] of the sweep that takes the roofs: the roofs'
+     *                   shadow is cast under the sun of that time (sun_at()), which does
+     *                   not depend on the faces' last shortwave. With sun_mode = two_stream
+     *                   the two-stream sun of that time must have been given first
+     *                   (set_two_stream_sun()).
+     */
+    void fill_roofs (amrex::MultiFab& out, const amrex::iMultiFab& roof_cell, bool with_fixed, amrex::Real time);
 
     /// Components of the field of compute_ground_walls().
     enum GroundWalls : int { GW_VIEW = 0, GW_SW = 1, GW_LW = 2, GW_NCOMP = 3 };
@@ -527,6 +550,9 @@ public:
     /// of its ground rays end on the far field's open ground. Static, like the view fractions.
     amrex::Gpu::DeviceVector<int>          d_gnd_start, d_gnd_far, d_gnd_rays;
     amrex::Gpu::DeviceVector<unsigned int> d_gnd_land;
+    amrex::Gpu::DeviceVector<int> d_roof_face;   ///< fill_roofs(): the roof faces (indices into the face arrays), fab by fab
+    std::vector<int> m_roof_fab_start;           ///< fill_roofs(): fab n owns the entries [m_roof_fab_start[n], m_roof_fab_start[n+1]) of d_roof_face
+    bool m_roof_faces_built = false;             ///< d_roof_face has been built since build()
     amrex::MultiFab m_gnd_patch;     ///< compute_ground_walls(): per rank, the box of the columns its faces' landings reach (k = 0), GW_NCOMP components
     bool m_gnd_patch_built = false;  ///< m_gnd_patch has been sized since the ray map was built
     bool m_landings_built = false;   ///< build_ground_landings() has run since build()
@@ -576,7 +602,7 @@ public:
     int  m_max_steps = 0;                      ///< Columns a walk is followed for: the halo's reach in x plus y, before the domain cap
     int  m_reach[2] = {0, 0};                  ///< The halo's reach in x and in y before the domain cap [columns]
 
-    /// Sun and irradiances of the last compute_shortwave() call, for reports.
+    /// A sun and its irradiances: sun() holds those of the last compute_shortwave() call, for reports.
     struct SunState {
         amrex::Real zenith = 0.0, azimuth = 0.0;        ///< [rad]
         amrex::Real sx = 0.0, sy = 0.0, sz = 1.0;       ///< Unit vector toward the sun
@@ -584,6 +610,8 @@ public:
         amrex::Real diffuse_h = 0.0;                    ///< Diffuse on a horizontal surface [W/m2]
     };
     const SunState& sun () const { return m_sun; }
+    /// The sun at @p time by erf.ibseb.sun_mode; changes nothing in the set (see the definition).
+    SunState sun_at (amrex::Real time) const;
 
     /**
      * Print the ``[IBSEB DEBUG]`` description of the set: the inputs, every
@@ -662,7 +690,7 @@ private:
     amrex::Real m_col_top_max = 0.0;           ///< Tallest column the ray map holds [m] (the levels below included after add_outside_occluders())
     amrex::Real m_z_ground = 0.0;              ///< Ground height [m] (flat, the domain bottom)
     SunState m_sun;
-    /// The two-stream sun of the next compute_shortwave() (sun_mode = two_stream).
+    /// The two-stream sun of the next compute_shortwave() or fill_roofs() (sun_mode = two_stream).
     struct TwoStreamSun { bool set = false; amrex::Real decl = 0.0, hour_angle = 0.0, lat_deg = 0.0, S0 = 0.0; };
     TwoStreamSun m_ts_sun;
     double m_cost_s = 0.0;        ///< Wall-clock seconds spent in the per-step update on this rank

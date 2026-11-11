@@ -57,7 +57,19 @@ mesh), by the boxes' footprints at any height (``Footprint``, a stretched or
 terrain-following mesh, where the sampler's cell is found by height), or by
 every cell the heights within reach may fall in (``Column``, for the
 spreader), from the mesh's ground and spacing extremes given by
-``mesh_z_bounds``.
+``mesh_z_bounds``. Those extremes are taken over the whole level, so on steep
+terrain a point over high ground is asked for cells that only the columns over
+the lowest ground need. ``column_cell_ranges`` gives, for each point, the cells
+the heights within reach fall in over the point's own columns (``ColumnCells``),
+and ``points_covered_by`` takes them in place of the mesh-wide extremes. A
+caller that tests many sets of points against the same boxes builds the boxes'
+footprints once (``CoverageGrids``) and passes them instead of the ``BoxArray``.
+
+``sample_velocity`` is collective: every rank passes the same points, and the
+answers are summed over the ranks. ``sample_velocity_local`` is the part on one
+rank, with no reduction: it returns the velocity at the points this rank's
+boxes hold and a count of 1 for each, and zeros elsewhere. A body model whose
+ranks hold different points calls it and exchanges the answers itself.
 
 Force spreading and momentum source
 -----------------------------------
@@ -75,8 +87,9 @@ over the faces within three widths of it, and again as its periodic images, so
 a kernel wraps across a periodic boundary and the cost grows with the number
 of points, not with the mesh: on a uniform mesh each point visits the
 ``(6 epsilon / dx)^3`` faces around it; on a stretched or terrain-following
-mesh the search runs over the whole column within the horizontal reach, since
-the faces within ``3 epsilon`` in physical height are not known from the index. Every rank accumulates the faces its boxes own,
+mesh the faces within ``3 epsilon`` in physical height are not known from the
+index, so the search runs, within the horizontal reach, over the cells whose
+node heights anywhere on the level can lie within that height range. Every rank accumulates the faces its boxes own,
 each physical face once however the boxes share their boundary faces, and the
 normalisations are summed across ranks, so the result does not depend on the
 domain decomposition. The sources are set, not added to, on every valid face;
@@ -121,6 +134,19 @@ regression tests of a body model compare with the force it carries.
    kernel over the faces it actually reaches, with their volumes, so the
    integrated source equals the force exactly in every case.
 
+``spread_forces`` works in two passes, which are also available on their own.
+``spread_partial_norms`` returns, for each point, the part of its normalisation
+(the sum of the kernel weight times the face volume) over the faces this rank's
+boxes own, with no reduction. ``add_scaled_kernels`` adds each point's force,
+divided by its whole normalisation, times the kernel weight to the faces of
+this rank's boxes. ``spread_forces`` sums the parts over the ranks between
+the two; a body model whose ranks hold different points sums them over the
+ranks a point reaches. ``add_spread_forces`` is ``spread_forces`` without the
+zeroing of the sources, for several sets of points spread in turn. On a stretched or terrain-following mesh each kernel
+visits only the cells its heights can fall in, from a table of the level's node
+heights (``mesh_z_bounds`` with ``over_all_ranks = false``, which is this
+rank's table and is not a collective call).
+
 Limits
 ------
 
@@ -138,9 +164,10 @@ runs over the faces of one level, so on a refined level whose patch cuts a
 kernel the whole force would land in the covered part. The level that samples
 is the level that spreads.
 
-The normalisation sums are accumulated with atomic adds, so on a GPU the order
-of the additions, and with it the last bits of the source, can change from run
-to run; CPU runs are bitwise reproducible.
+The spreader adds its terms in a fixed order, without atomic adds: the
+normalisation of a point over a rank's boxes in box order, then over the ranks;
+the source at a face point by point. The source therefore does not change from
+run to run on a GPU, as it does not on a CPU.
 
 Bodies on terrain
 -----------------
@@ -200,6 +227,7 @@ Diagnostics files
 -----------------
 
 ``open_log`` opens a diagnostics file (CSV or whitespace-separated) for
-writing, creating its directory.
+writing, creating its directory; the run stops if the directory cannot be
+created or the file cannot be opened.
 A fresh run truncates the file; a restarted run appends to what the run it
 continues wrote, and the header is written only when the file does not exist yet or is empty.
