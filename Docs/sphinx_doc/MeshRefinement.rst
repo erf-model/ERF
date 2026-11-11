@@ -459,7 +459,9 @@ height with the box's z extent, where the height is chosen by ``erf.<indicator>.
    the cell-center height ``z_phys_cc`` less the height of the bottom face of its column.  Over
    terrain the region tagged then follows the terrain, a fixed distance above it.  A column on a
    refined level whose grid does not reach the surface takes the ground of the coarser column it
-   lies in.
+   lies in.  The ground is the bottom of the mesh, so with ``erf.terrain_type = ImmersedForcing``
+   or ``EB``, where the terrain is immersed in a mesh with a flat bottom, it would not follow the
+   terrain; a box with a z extent must then use ``physical``, and setup aborts otherwise.
 
 -  ``physical``: the cell-center height ``z_phys_cc`` itself, which follows any grid stretching but
    not the terrain, so that the region tagged lies between two fixed heights.
@@ -469,7 +471,9 @@ values (x and y) in ``in_box_lo`` / ``in_box_hi`` the region is unrestricted in 
 only a restriction, so unlike a box given without a field test it is not itself a refined region,
 and it may move with ``move_speed_x``, ``move_speed_y``, ``move_start_time`` and ``move_stop_time``
 as the boxes of :ref:`subsec:moving-boxes` do.  It must be given in physical coordinates, not by
-indices.
+indices.  Since it is not a refined region, it cannot place a nest read from
+``erf.nc_init_file_<lev>`` with ``erf.init_type = WRFInput`` or ``Metgrid``; setup aborts if it
+would, and such a nest must be given by an indicator of its own without a field test.
 
 Combining Several Conditions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -481,6 +485,11 @@ An indicator may test several fields at once.  Each condition is named in
 condition holds; ``erf.<indicator>.combine = or`` instead tags it where any one of them does.
 The options that apply to the indicator as a whole -- ``max_level``, ``start_time``, ``end_time``
 and the box -- are given for the indicator itself.
+
+When ``hurricane_tracker`` is among the indicators, a ``velmag`` field tags cells directly through
+the hurricane tracker, so neither the other conditions nor a box would apply to it.  An indicator
+that tests ``velmag`` then, and ``hurricane_tracker`` itself, must give a single ``field_name``
+and ``value_greater``, with no ``conditions`` and no box; setup aborts otherwise.
 
 This example refines, up to level 2, the cloudy updrafts between 500 m and 3 km above the ground in
 part of the domain: the cells there whose cloud water mixing ratio is at least ``1.e-5`` *and* whose

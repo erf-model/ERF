@@ -374,8 +374,10 @@ ERF::refinement_box_offset (const std::string& ref_prefix, const double time, Re
     ParmParse ppr(ref_prefix);
 
     Vector<double> move_start_time, move_stop_time;
-    int ni = ppr.queryarr("move_start_time", move_start_time);
-    int nj = ppr.queryarr("move_stop_time" ,  move_stop_time);
+    ppr.queryarr("move_start_time", move_start_time);
+    ppr.queryarr("move_stop_time" ,  move_stop_time);
+    const int ni = static_cast<int>(move_start_time.size());
+    const int nj = static_cast<int>(move_stop_time.size());
     if (ni != nj) {
         amrex::Print() << "Must be same number of start times as stop times for moving grids" << std::endl;
         amrex::Abort();
@@ -396,8 +398,10 @@ ERF::refinement_box_offset (const std::string& ref_prefix, const double time, Re
     }
 
     Vector<Real> move_speed_x, move_speed_y;
-    int ni2 = ppr.queryarr("move_speed_x", move_speed_x);
-    int nj2 = ppr.queryarr("move_speed_y", move_speed_y);
+    ppr.queryarr("move_speed_x", move_speed_x);
+    ppr.queryarr("move_speed_y", move_speed_y);
+    const int ni2 = static_cast<int>(move_speed_x.size());
+    const int nj2 = static_cast<int>(move_speed_y.size());
     if (ni2 != nj2 ) {
         amrex::Print() << "Must be same number of speeds in x- and y-directions" << std::endl;
         amrex::Abort();

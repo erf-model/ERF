@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include <ERF.H>
 #include <ERF_Derive.H>
 #include <ERF_TerrainMetrics.H>
@@ -742,6 +744,12 @@ ERF::refinement_criteria_setup ()
         Vector<std::string> refinement_indicators;
         pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
 
+        // With hurricane_tracker listed, a velmag field tags through HurricaneTracker directly
+        //    rather than through the conditions, combine mode and box below
+        const bool has_hurricane_tracker =
+            std::find(refinement_indicators.begin(), refinement_indicators.end(), "hurricane_tracker")
+            != refinement_indicators.end();
+
         // Check each field_name here so that an unknown name, or a field the configuration
         //    cannot provide, aborts at setup rather than tagging against a field that stays
         //    zero. Built-in names, listed in lowercase in is_builtin_tag_field, are matched
@@ -875,6 +883,20 @@ ERF::refinement_criteria_setup ()
                 TagCondition cond;
                 if (read_condition(ref_prefix, crit.name, cond)) {
                     crit.conditions.push_back(cond);
+                } else if (ppr.countval("field_name") > 0) {
+                    amrex::Abort("Refinement indicator " + crit.name + " gives field_name but none of"
+                                 " value_greater, value_less or adjacent_difference_greater");
+                }
+            }
+
+            if (has_hurricane_tracker) {
+                const bool velmag = std::any_of(crit.conditions.begin(), crit.conditions.end(),
+                    [] (const TagCondition& c) { return amrex::toLower(c.field) == "velmag"; });
+                if ( (velmag || crit.name == "hurricane_tracker") &&
+                     (ppr.countval("conditions") > 0 || ppr.countval("in_box_lo") > 0) ) {
+                    amrex::Abort("Refinement indicator " + crit.name + ": with hurricane_tracker listed,"
+                                 " an indicator testing velmag (and hurricane_tracker itself) must give a"
+                                 " single field_name and value_greater, with no conditions and no box");
                 }
             }
 
@@ -913,6 +935,21 @@ ERF::refinement_criteria_setup ()
                     }
                     crit.real_box = crit.base_box;
 
+                    // The nest files of WRFInput and Metgrid are read into the boxes registered by
+                    //    read_box_for_refinement, which this box is not
+                    if (solverChoice.init_type == InitType::WRFInput ||
+                        solverChoice.init_type == InitType::Metgrid) {
+                        for (int lev = 1; lev <= std::min(crit.max_level, max_level); ++lev) {
+                            if (num_files_at_level[lev] > 0) {
+                                amrex::Abort("Refinement indicator " + crit.name + " tests a field, so its"
+                                             " in_box_lo/in_box_hi box cannot place the level " +
+                                             std::to_string(lev) + " nest read from nc_init_file_" +
+                                             std::to_string(lev) + "; give the nest by its own indicator"
+                                             " without a field test");
+                            }
+                        }
+                    }
+
                     crit.box_z = RefinementCriterion::BoxZ::AboveGround;
                     if (ppr.countval("box_z_coordinate") > 0) {
                         std::string zcoord; ppr.get("box_z_coordinate", zcoord);
@@ -923,6 +960,15 @@ ERF::refinement_criteria_setup ()
                             amrex::Abort("erf." + crit.name + ".box_z_coordinate must be"
                                          " 'above_ground' or 'physical'");
                         }
+                    }
+
+                    // The ground is taken from the bottom of z_phys_nd, which is the flat bottom of the
+                    //    domain rather than the terrain when the terrain is immersed
+                    if (crit.box_z == RefinementCriterion::BoxZ::AboveGround && num_lo == AMREX_SPACEDIM &&
+                        (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                         solverChoice.terrain_type == TerrainType::EB)) {
+                        amrex::Abort("erf." + crit.name + ".box_z_coordinate = above_ground does not follow"
+                                     " ImmersedForcing or EB terrain; set it to physical");
                     }
                 }
                 ref_criteria.push_back(crit);

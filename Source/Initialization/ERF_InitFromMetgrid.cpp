@@ -424,7 +424,6 @@ ERF::init_from_metgrid (int lev)
 
             // This defines z at w-cell faces.
             make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
-            update_zsfc_nd(lev);
 
         } // itime==0
 

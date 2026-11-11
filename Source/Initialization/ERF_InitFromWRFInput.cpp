@@ -1797,7 +1797,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         make_J    (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc  (geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
-        update_zsfc_nd(lev);
     }
 
     // **************************************************************************

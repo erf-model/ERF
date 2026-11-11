@@ -1295,6 +1295,25 @@ make_zsfc_nd (const Geometry& geom,
         }
     }
 
+    // In the usual case every box reaches the bottom, so each box of z_sfc_nd lies under its
+    //    own box of z_phys_nd and needs neither the coarser level nor any communication
+    if (static_cast<int>(idx_bot.size()) == ba_nd.size()) {
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(z_sfc_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& bx = mfi.tilebox();
+            const Array4<      Real>& zs_arr = z_sfc_nd.array(mfi);
+            const Array4<const Real>& z_nd   = z_phys_nd.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                zs_arr(i,j,0) = z_nd(i,j,klo);
+            });
+        }
+        return;
+    }
+
     z_sfc_nd.setVal(zero);
 
     if (z_sfc_crse != nullptr) {
