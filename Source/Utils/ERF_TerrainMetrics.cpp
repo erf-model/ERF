@@ -327,7 +327,8 @@ make_terrain_fitted_coords (int lev,
                             Vector<Real> const& z_levels_h,
                             GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type,
                             FineTerrain fine_terrain,
-                            MultiFab const* z_phys_interp)
+                            MultiFab const* z_phys_interp,
+                            bool moving_mesh)
 {
     const Box& domain = geom.Domain();
 
@@ -517,6 +518,23 @@ make_terrain_fitted_coords (int lev,
                 z_arr(i,j,k) = z_arr(i,j,domhi_z)
                              + (k-domhi_z) * (z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1));
             });
+        }
+
+        // Moving mesh only: the ghost planes below the bottom by linear extrapolation plane by plane,
+        // recomputed here after the periodic fill, so that the lateral ghost columns of a periodic
+        // domain follow the periodic surface (the planes below the ground exist nowhere as valid
+        // data, so the periodic fill cannot repair them). The mesh is rebuilt every stage and
+        // sub-step on a moving mesh, which reads these planes; static meshes keep upstream's fill.
+        if (moving_mesh && nd_bx.smallEnd(2) <= domlo_z) {
+            Box bx_zlo = mfi.growntilebox(ngrow);
+            bx_zlo.setBig(2,domlo_z-1);
+            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+
+            for (int kk = domlo_z-1; kk >= bx_zlo.smallEnd(2); --kk) {
+                ParallelFor(makeSlab(bx_zlo,2,kk), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    z_arr(i,j,k) = two*z_arr(i,j,k+1) - z_arr(i,j,k+2);
+                });
+            }
         }
     }
 } // make_terrain_fitted_coords
