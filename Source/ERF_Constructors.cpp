@@ -58,14 +58,13 @@ erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
-// The qualified multilevel SBM envelope: two periodic levels, refined by 2,
-// two-way coupled, on a flat ConstantDz mesh, with one host integrator for
-// both levels, in double precision.  Regridding and any fine-level subcycling
+// The qualified multilevel SBM envelope: two levels, refined by 2, two-way
+// coupled, on a flat ConstantDz mesh, with one host integrator for both
+// levels, in double precision.  Regridding and any fine-level subcycling
 // count are allowed.
 void validate_sbm_amr_capability (const SolverChoice& choice,
                                   const int max_level,
-                                  const amrex::Vector<amrex::IntVect>& ref_ratio,
-                                  const amrex::Geometry& geom0)
+                                  const amrex::Vector<amrex::IntVect>& ref_ratio)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level <= 1,
         "SBM supports at most two AMR levels (amr.max_level <= 1)");
@@ -74,8 +73,6 @@ void validate_sbm_amr_capability (const SolverChoice& choice,
     amrex::Abort("SBM AMR is qualified in double precision only; use amr.max_level = 0 "
                  "in a single-precision build");
 #endif
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom0.isAllPeriodic(),
-        "SBM AMR requires a triply periodic domain (geometry.is_periodic = 1 1 1)");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         !ref_ratio.empty() && ref_ratio[0] == amrex::IntVect(2),
         "SBM AMR supports amr.ref_ratio = 2 in every direction only");
@@ -109,12 +106,12 @@ void validate_sbm_amr_capability (const SolverChoice& choice,
 void validate_sbm_m3_advection (const SolverChoice& choice,
                                 const int max_level,
                                 const amrex::Vector<amrex::IntVect>& ref_ratio,
-                                const amrex::Geometry& geom0)
+                                const bool input_bndry_planes)
 {
     if (choice.moisture_type != MoistureType::SBM) return;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(AMREX_SPACEDIM == 3,
         "SBM M3 mapped advection requires three dimensions");
-    validate_sbm_amr_capability(choice, max_level, ref_ratio, geom0);
+    validate_sbm_amr_capability(choice, max_level, ref_ratio);
 #ifdef ERF_SBM_AMR_QUALIFICATION
     erf_sbm::qualification::validate_configuration(choice, max_level);
 #endif
@@ -134,9 +131,8 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         !(anelastic && fitted_terrain_mesh),
         "SBM M3 does not currently support anelastic StaticFittedMesh: the "
-        "fitted-terrain anelastic projection requires a nonperiodic vertical "
-        "boundary while the M3 spectral lifecycle remains restricted to "
-        "periodic domains");
+        "fitted-terrain anelastic projection with spectral transport has not "
+        "been qualified");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.terrain_type == TerrainType::None ||
                                      choice.terrain_type == TerrainType::StaticFittedMesh,
         "SBM M3 requires static non-EB geometry; moving terrain and embedded boundaries are unsupported");
@@ -188,6 +184,11 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
                                      !choice.custom_moisture_forcing &&
                                      !choice.use_real_bcs,
         "SBM M3 does not support large-scale, nudging, custom moisture forcing, or real physical boundary conditions");
+    // Plane files would set an inflow face's density and compact qc, which SBM
+    // derives from <face>.density and <face>.sbm_inflow_z.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!input_bndry_planes,
+        "SBM does not support erf.input_bndry_planes: an SBM inflow face takes its "
+        "density from <face>.density and its spectrum from <face>.sbm_inflow_z");
 
     std::string problem_name = "Undefined";
     amrex::ParmParse pp_erf("erf");
@@ -371,7 +372,7 @@ ERF::ERF_shared ()
     m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
 
     ReadParameters();
-    validate_sbm_m3_advection(solverChoice, max_level, refRatio(), geom[0]);
+    validate_sbm_m3_advection(solverChoice, max_level, refRatio(), input_bndry_planes != 0);
     bool auxiliary_inert_tracer_test = false;
     ParmParse pp_auxiliary("erf");
     pp_auxiliary.queryAdd("auxiliary_inert_tracer_test", auxiliary_inert_tracer_test);
@@ -624,6 +625,8 @@ ERF::ERF_shared ()
 
     // We resize this regardless in order to pass it without error
     pp_inc.resize(nlevs_max);
+    pi_upw_dir.resize(nlevs_max);
+    pi_upw_dir_stage.resize(nlevs_max);
 
     // Used in the fast substepping only
     lagged_delta_rt.resize(nlevs_max);

@@ -2,9 +2,15 @@
 #include "ERF_SBMAMRFluxRegister.H"
 #include "ERF_SBMAMRTime.H"
 #include "ERF_SBMAMRTransfer.H"
+#include "ERF_SBMBulkProjection.H"
+#include "ERF_SBMInventory.H"
+#include "ERF_SBMPhysicalBoundary.H"
 #include "ERF_SBMRestart.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
+
+#include <AMReX_MultiFabUtil.H>
+#include <AMReX_ParmParse.H>
 
 #include <algorithm>
 #include <cmath>
@@ -29,6 +35,194 @@ void discard_sbm_sync_interval (erf_sbm::SBMAMRFluxRegister& flux_register,
 }
 
 } // namespace
+
+// Map every ERF domain face to its spectral category and install the
+// prescribed inflow spectra. The compact qc/qr inflow ghosts follow from the
+// spectrum; a compact value can neither define nor override it.
+void
+ERF::configure_sbm_physical_boundaries ()
+{
+    if (!sbm_transport) return;
+    AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr);
+    const auto& layout = sbm_state_manager->layout();
+    const erf_sbm::SBMBulkProjection projection(layout);
+    erf_sbm::SBMPhysicalBoundaryConfig config;
+    for (OrientationIter oit; oit; ++oit) {
+        const Orientation ori = oit();
+        const int face = ori;
+        const std::string name = erf_sbm::face_name(face);
+        auto& kind = config.kind[static_cast<std::size_t>(face)];
+        std::string reason;
+        if (!erf_sbm::map_erf_boundary(phys_bc_type[ori], kind, reason)) {
+            Abort("SBM physical boundary " + name + " is not supported: " + reason);
+        }
+        ParmParse pp_prefixed(pp_prefix + "." + name);
+        ParmParse pp_plain(name);
+        ParmParse* pp_face = pp_prefixed.contains("sbm_inflow_z") ? &pp_prefixed
+                           : (pp_plain.contains("sbm_inflow_z") ? &pp_plain : nullptr);
+        if (kind != erf_sbm::AdvectionFaceKind::PrescribedInflow) {
+            if (pp_face != nullptr) {
+                Abort("SBM: " + name + ".sbm_inflow_z is set but " + name +
+                      " is not an inflow boundary");
+            }
+            continue;
+        }
+        // init_phys_bcs records an absent qc as the negative sentinel.
+        Real qc_in = Real(-1.0);
+        for (ParmParse* pp : {&pp_prefixed, &pp_plain}) {
+            if (pp->contains("qc")) {
+                Real value = Real(-1.0);
+                pp->get("qc", value);
+                qc_in = std::max(qc_in, value);
+            }
+        }
+        if (qc_in >= Real(0.0)) {
+            Abort("SBM owns compact qc/qr: " + name + ".qc cannot define or override "
+                  "a spectral inflow; give " + name + ".sbm_inflow_z instead");
+        }
+        if (pp_face == nullptr) {
+            Abort("SBM prescribed inflow at " + name + " requires " + name +
+                  ".sbm_inflow_z with " + std::to_string(layout.ncomp()) +
+                  " dry-air-relative values");
+        }
+        std::vector<Real> z;
+        pp_face->getarr("sbm_inflow_z", z);
+        if (!erf_sbm::validate_inflow_state(layout, z, reason)) {
+            Abort("SBM inflow spectrum " + name + ".sbm_inflow_z is not admissible: " + reason);
+        }
+        const Real rho_in = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
+        if (!(rho_in > Real(0.0))) {
+            Abort("SBM prescribed inflow at " + name + " requires " + name +
+                  ".density > 0 to set its compact qc/qr boundary values");
+        }
+        const auto compact = projection.apply(z);
+        m_bc_extdir_vals[cons_bc_comp(solverChoice.moisture_indices.qc)][ori] = rho_in * compact.qc;
+        m_bc_extdir_vals[cons_bc_comp(solverChoice.moisture_indices.qr)][ori] = rho_in * compact.qr;
+        config.inflow_z[static_cast<std::size_t>(face)] = std::move(z);
+    }
+    sbm_transport->set_physical_boundaries(config);
+}
+
+// Leaf-domain inventory of every spectral component: coarse cells covered by
+// the finer level are masked, so no amount is counted twice.
+std::vector<Real>
+ERF::sbm_composite_inventory () const
+{
+    AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr && sbm_transport != nullptr);
+    const int ncomp = sbm_state_manager->layout().ncomp();
+    std::vector<Real> inventory(static_cast<std::size_t>(ncomp), Real(0.0));
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        // The SBM level layouts, not grids[], define the composite: during
+        // a remake grids[lev] already names the new grids.
+        const MultiFab& spectrum = sbm_state_manager->new_state(lev);
+        const BoxArray& level_ba = spectrum.boxArray();
+        const DistributionMapping& level_dm = spectrum.DistributionMap();
+        MultiFab covered(level_ba, level_dm, 1, 0);
+        covered.setVal(Real(0.0));
+        if (lev < finest_level) {
+            const MultiFab& fine_spectrum = sbm_state_manager->new_state(lev + 1);
+            MultiFab fine_coverage(fine_spectrum.boxArray(),
+                                   fine_spectrum.DistributionMap(), 1, 0);
+            fine_coverage.setVal(Real(1.0));
+            average_down(fine_coverage, covered, 0, 1, ref_ratio[lev]);
+        }
+
+        MultiFab leaf_volume(level_ba, level_dm, 1, 0);
+        const MultiFab& measure = sbm_transport->static_measure(lev);
+        const Real cell_volume = geom[lev].CellSize(0) *
+                                 geom[lev].CellSize(1) *
+                                 geom[lev].CellSize(2);
+        for (MFIter mfi(leaf_volume, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.tilebox();
+            const auto omega = measure.const_array(mfi);
+            const auto mask = covered.const_array(mfi);
+            const auto out = leaf_volume.array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                out(i, j, k, 0) = cell_volume * omega(i, j, k, 0) *
+                                  (Real(1.0) - mask(i, j, k, 0));
+            });
+        }
+        for (int component = 0; component < ncomp; ++component) {
+            inventory[static_cast<std::size_t>(component)] +=
+                MultiFab::Dot(leaf_volume, 0, spectrum, component, 1, 0, true);
+        }
+    }
+    ParallelAllReduce::Sum(inventory.data(), ncomp, ParallelContext::CommunicatorSub());
+    return inventory;
+}
+
+void
+ERF::sbm_record_budget_reference ()
+{
+    if (!solverChoice.sbm_budget_check) return;
+    AMREX_ALWAYS_ASSERT(sbm_transport != nullptr);
+    sbm_budget_reference_inventory = sbm_composite_inventory();
+    const auto& ledger = sbm_transport->boundary_ledger();
+    const int ncomp = ledger.ncomp;
+    sbm_budget_reference_outward.assign(static_cast<std::size_t>(ncomp), 0.0);
+    sbm_budget_reference_gross.assign(static_cast<std::size_t>(ncomp), 0.0);
+    for (int component = 0; component < ncomp; ++component) {
+        sbm_budget_reference_outward[static_cast<std::size_t>(component)] =
+            ledger.total_outward(component);
+        sbm_budget_reference_gross[static_cast<std::size_t>(component)] =
+            ledger.total_gross(component);
+    }
+    sbm_budget_reference_terms = ledger.face_stage_terms;
+    Print() << "SBM_BUDGET_REFERENCE step=" << istep[0] << " levels=" << finest_level + 1
+            << " ncomp=" << ncomp << '\n';
+}
+
+// Over each coarse step the leaf inventory changes only by the accepted
+// transfer through the physical faces: I_n - I_{n-1} + (B_n - B_{n-1}) = 0 to
+// an operation-count bound that does not grow with the run length.
+void
+ERF::sbm_check_budget (int nstep)
+{
+    if (!solverChoice.sbm_budget_check || !sbm_transport) return;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_budget_reference_inventory.empty(),
+        "SBM budget check has no reference inventory");
+    const auto inventory = sbm_composite_inventory();
+    const auto& ledger = sbm_transport->boundary_ledger();
+    const auto coarse_cells =
+        static_cast<std::uint64_t>(sbm_state_manager->new_state(0).boxArray().numPts());
+    const auto fine_cells = finest_level >= 1
+        ? static_cast<std::uint64_t>(sbm_state_manager->new_state(1).boxArray().numPts())
+        : std::uint64_t(0);
+    // The finest level re-forms its leaves once per substep.
+    const auto leaf_updates = static_cast<std::uint64_t>(
+        finest_level >= 1 ? std::max(1, nsubsteps[1]) : 1);
+    const auto roundoff = erf_sbm::composite_inventory_roundoff(
+        coarse_cells, fine_cells, finest_level >= 1 ? ref_ratio[0] : IntVect(1),
+        max_level >= 1, leaf_updates,
+        ledger.face_stage_terms - sbm_budget_reference_terms);
+    for (int component = 0; component < ledger.ncomp; ++component) {
+        const auto c = static_cast<std::size_t>(component);
+        const double reference = sbm_budget_reference_inventory[c];
+        const double current = inventory[c];
+        const double outward_total = ledger.total_outward(component);
+        const double gross_total = ledger.total_gross(component);
+        const double outward = outward_total - sbm_budget_reference_outward[c];
+        const double gross = gross_total - sbm_budget_reference_gross[c];
+        const double residual = current - reference + outward;
+        const double bound = static_cast<double>(roundoff.rounding_factor) *
+            std::max(std::abs(reference) + std::abs(current) + gross,
+                     static_cast<double>(std::numeric_limits<Real>::min()));
+        Print().SetPrecision(17)
+            << "SBM_BUDGET step=" << nstep + 1 << " component=" << component
+            << " reference=" << reference << " inventory=" << current
+            << " outward_transfer=" << outward << " gross_transfer=" << gross
+            << " residual=" << residual << " bound=" << bound
+            << " operation_count=" << roundoff.operation_count << '\n';
+        if (!(std::abs(residual) <= bound)) {
+            Abort("SBM composite inventory does not close against the boundary ledger "
+                  "(component " + std::to_string(component) + ")");
+        }
+        sbm_budget_reference_outward[c] = outward_total;
+        sbm_budget_reference_gross[c] = gross_total;
+    }
+    sbm_budget_reference_inventory = inventory;
+    sbm_budget_reference_terms = ledger.face_stage_terms;
+}
 
 void
 ERF::make_sbm_flux_register (int lev)
