@@ -670,7 +670,6 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
         {
             auto* pc = particleData[particles_namelist[i]];
             const std::string& sp_name = particles_namelist[i];
-            const std::string& field   = field;
 
             const std::string count_str = sp_name + "_count";
             const std::string prefix    = sp_name + "_";
