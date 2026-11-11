@@ -316,7 +316,47 @@ public:
      *                 and the longwave is on (takes_ground_walls())
      */
     void set_building_cover (int lev, const amrex::MultiFab& blanking, const amrex::Box& domain,
-                             bool take_ground_walls = false);
+                             bool take_ground_walls = false, bool start_on_roofs = false);
+
+    /// Components of the field of roofs_for_step().
+    enum Roof : int { ROOF_SET = 0, ROOF_ALBEDO = 1, ROOF_EMISSIVITY = 2, ROOF_TEMPERATURE = 3, ROOF_LIT = 4, ROOF_NCOMP = 5 };
+
+    /**
+     * @brief True when the columns of @p lev under a building start on its roof
+     * (erf.ibseb.two_stream_roofs; set_building_cover() with start_on_roofs, on a level
+     * that sweeps its own columns): the one condition for the fields and for the sweep.
+     */
+    [[nodiscard]] bool starts_on_roofs (int lev) const noexcept {
+        return lev >= 0 && lev < static_cast<int>(m_roof.size()) && m_roof[lev] != nullptr;
+    }
+
+    /**
+     * @brief For each column of @p lev, the first cell above the building that stands on
+     * its ground (the cell on the roof), or the bottom cell on open ground (2D: i,j);
+     * nullptr unless starts_on_roofs(). A cell above the level's top means the building
+     * fills the column. Solid cells above an air gap (an overhang) are not a roof here:
+     * under an overhang above open ground the cell is the bottom cell, and under an
+     * overhang above a lower roof it is the cell on that lower roof.
+     */
+    [[nodiscard]] const amrex::iMultiFab* roof_cell (int lev) const noexcept {
+        return starts_on_roofs(lev) ? m_roof_k[lev].get() : nullptr;
+    }
+
+    /**
+     * @brief The field the immersed-boundary balance fills, before the sweep of step
+     * @p nstep, with the roof face of each column under a building (2D: i,j; ROOF_SET 1
+     * where a roof face stands on roof_cell(), then its albedo, emissivity, skin
+     * temperature and the share of the beam that reaches it), or nullptr unless
+     * starts_on_roofs(). Marks the field as that step's:
+     * the sweep stops unless the roofs are of its own step. Where ROOF_SET is 0 the
+     * column keeps the ground as its lower boundary.
+     */
+    [[nodiscard]] amrex::MultiFab* roofs_for_step (int lev, int nstep);
+
+    /** @brief True once roofs_for_step() has been called for @p lev since its building cover was set. */
+    [[nodiscard]] bool roofs_given (int lev) const noexcept {
+        return starts_on_roofs(lev) && m_roof_step[lev] >= 0;
+    }
 
     /** @brief True when the ground balance of @p lev takes what the walls send it (see set_building_cover()): the one condition for the field, what the sweep keeps for it, and the shortwave and longwave terms. */
     [[nodiscard]] bool takes_ground_walls (int lev) const noexcept {
@@ -494,6 +534,11 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_ground_walls;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_ground_keep;
     amrex::Vector<int> m_walls_step;
+    // erf.ibseb.two_stream_roofs: the cell on the roof of each column (roof_cell()) and the
+    // roof faces the balance gave for step m_roof_step (roofs_for_step()).
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_roof_k;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_roof;
+    amrex::Vector<int> m_roof_step;
     amrex::Vector<int> m_shadow_step;
     amrex::Vector<int> m_sweep_step;
     amrex::Vector<int> m_shaded_step;

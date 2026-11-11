@@ -354,6 +354,17 @@ MakeProjectionWeights (const amrex::MultiFab& den_div, const amrex::MultiFab& de
                        const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
+ * Face weights beta = den_mlt/den_div mapped onto faces with the advection scheme's reconstruction
+ */
+void
+MakeAdvectiveProjectionWeights (const amrex::MultiFab& den_div, const amrex::MultiFab& den_mlt,
+                                const amrex::MultiFab& xmom, const amrex::MultiFab& ymom, const amrex::MultiFab& zmom,
+                                amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& beta,
+                                const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                                const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
+                                const amrex::Periodicity& period);
+
+/*
  * Compute lateral boundary mass influx/outflux from base-state-density-weighted
  * boundary normal velocities.
  */
