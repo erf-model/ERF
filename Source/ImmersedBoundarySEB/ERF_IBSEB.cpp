@@ -131,7 +131,7 @@ ERF::init_ibseb ()
                   " erf.interp_atmos_from_coarse or use erf.ibseb.radiation = prescribed");
         }
         if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()) {
-            two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface());
+            two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface(), ibseb_params.ground_view_shadow);
         }
         // The columns see the buildings: their solid cells and footprints from the blanking,
         // and every step the shadow on the ground (ibseb_advance()). Every level, faces or

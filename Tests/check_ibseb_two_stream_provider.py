@@ -145,12 +145,16 @@ def sw_layer(tau, w0, mu0, g=0.0):
     return r_dif, t_dif, r_dir, t_dir
 
 
-def sw_column(nz, tau, w0, mu, toa, alb):
+def sw_column(nz, tau, w0, mu, toa, alb, alb_dif=None, ground_beam=1.0):
     """Beam, total down and up at interfaces 0 .. nz of a uniform column over a ground of
-    albedo alb, by the adding method (ERF_TwoStreamColumn.H)."""
+    albedo alb, by the adding method (ERF_TwoStreamColumn.H). alb_dif is the ground's
+    albedo for diffuse light where it differs from alb, its albedo for the beam;
+    ground_beam scales the beam the ground reflects (0: a ground the beam does not reach,
+    for check_ibseb_ground_view_shadow.py)."""
     fdir = [toa * mu * math.exp(-tau * (nz - m) / mu) for m in range(nz + 1)]
     r_dif, t_dif, r_dir, t_dir = sw_layer(tau, w0, mu)
-    a, src = [alb] + [0.0] * nz, [alb * fdir[0]] + [0.0] * nz
+    alb_dif = alb if alb_dif is None else alb_dif
+    a, src = [alb_dif] + [0.0] * nz, [ground_beam * alb * fdir[0]] + [0.0] * nz
     for m in range(nz):
         den = max(1 - r_dif * a[m], 1e-12)
         a[m + 1] = r_dif + t_dif * t_dif * a[m] / den

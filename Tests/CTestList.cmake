@@ -2890,6 +2890,36 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
     )
 endfunction(add_test_abort)
 
+# One step of a deck, which passes if the run ends normally. It compares nothing with a gold,
+# so it also runs in single precision; label "eb_build".
+function(add_test_eb_build TEST_NAME SOURCE_DIR INPUT_FILE)
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+    else()
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 amrex.call_addr2line=0 > ${test_log} 2>&1")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "eb_build"
+        ATTACHED_FILES_ON_FAIL "${test_log}"
+    )
+endfunction(add_test_eb_build)
+
 if(NOT WIN32)
   # Inputs that used to index past an array or divide by zero (#4620, #4624)
   add_test_abort(AnelasticWallDiffusion_AxisOutOfRange ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticWallDiffusion_X
@@ -3852,6 +3882,13 @@ add_test_abort(MOST_Zref_BelowRoughness
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
 
+# The same deck for one step, for its EB build. The single-precision CI job runs it, since in
+# single precision the face-centred EB factories met a face with more than two cuts
+# (erf-model/ERF#5006).
+add_test_eb_build(IBSEB_Cube_EBBuild
+                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+                  IBSEB_Cube.i)
+
 # The clear-sky sun's diffuse share must lie in [0, 1] and its solar constant be positive:
 # one value past each end of the share, and a zero solar constant, stop at start-up
 # (erf-model/ERF#4655).
@@ -4011,12 +4048,47 @@ function(add_test_ibseb_two_stream_buildings TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/clear/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering/simulation.log;${CURRENT_TEST_BINARY_DIR}/off/simulation.log;${CURRENT_TEST_BINARY_DIR}/night/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/nested/simulation.log;${CURRENT_TEST_BINARY_DIR}/fixed_sw/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_ibseb_two_stream_buildings)
 
+# The direct beam the ground reflects onto the building faces through the sunlit part of
+# each face's ground view (erf.ibseb.ground_view_shadow; Tests/RunIBSEBGroundViewShadow.cmake),
+# on the cube of Tests/test_files/IBSEB_TwoStreamProvider: the sunlit part of every face's
+# ground view against a count from the buildings' geometry, for two suns; the reflected
+# light with the faces' own radiation and with the two-stream columns under transparent,
+# absorbing and scattering skies, with the input on and off; one rank against several; a
+# restart; and two levels, a tower outside the refined level shading the ground its faces see.
+function(add_test_ibseb_ground_view_shadow TEST_NAME)
+    set(TEST_FILES_DIR IBSEB_TwoStreamProvider)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/IBSEB_TwoStreamProvider.i"
+        "-DTWO_LEVEL_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels"
+        "-DPRECISION=${ERF_PRECISION}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_ground_view_shadow.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBGroundViewShadow.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/prescribed_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/prescribed_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/simulation.log;${CURRENT_TEST_BINARY_DIR}/serial/simulation.log;${CURRENT_TEST_BINARY_DIR}/low_sun/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_stream_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_ground_view_shadow)
+
 if(ERF_ENABLE_MPI AND NOT WIN32)
   if(NOT "${ERF_TEST_PYTHON}" STREQUAL "")
     add_test_ibseb_refined_levels(IBSEB_RefinedLevels)
     add_test_ibseb_two_stream_sun(IBSEB_TwoStreamSunRun IBSEB_TwoStreamSun)
     add_test_ibseb_two_stream_provider(IBSEB_TwoStreamProvider)
     add_test_ibseb_two_stream_buildings(IBSEB_TwoStreamBuildings)
+    add_test_ibseb_ground_view_shadow(IBSEB_GroundViewShadow)
   endif()
   # erf.ibseb.two_stream_buildings acts only on the two-stream radiation: given without a
   # radiation model the run stops; with another model named it warns and carries on to the
