@@ -139,7 +139,7 @@ enum class CoverZ { Reach, Footprint, Column };
 
 /**
  * The lowest and highest ground and the smallest and largest spacing of the levels (m) of a mesh,
- * and, over one rank's boxes (mesh_z_bounds with over_all_ranks false), a table of each node level's
+ * and, over one rank's boxes (mesh_z_bounds with over_all_ranks false) or the level's (mesh_z_levels), a table of each node level's
  * lowest and highest height and of the cells those boxes hold, which bounds the cells a height may
  * lie in whether or not the boxes reach the ground (a column split in z, a level aloft).
  */
@@ -200,6 +200,15 @@ struct ZBounds {
  * (ZBounds::has_table). The table is this rank's: points_covered_by takes the global bounds only.
  */
 ZBounds mesh_z_bounds (const amrex::MultiFab& z_phys_nd, const amrex::Geometry& geom, bool over_all_ranks = true);
+
+/**
+ * mesh_z_bounds over every rank's boxes, with the table of the level's node heights over every
+ * rank's boxes too (ZBounds::has_table): each node level's lowest and highest height and the cells
+ * the level holds, the same on every rank (a collective). ZBounds::k_range then gives the cells of
+ * the level a height range may lie in whether or not the boxes reach the ground. For
+ * region_touches_grids; points_covered_by takes the bounds without a table.
+ */
+ZBounds mesh_z_levels (const amrex::MultiFab& z_phys_nd, const amrex::Geometry& geom);
 
 /**
  * The cells of a terrain-following or stretched level that the heights within reach of each of a set of
@@ -265,6 +274,36 @@ struct CoverageGrids
 bool points_covered_by (const CoverageGrids& grids, const amrex::Geometry& geom,
                         const std::vector<amrex::Real>& pos, amrex::Real reach, std::string& first_outside,
                         CoverZ z = CoverZ::Reach, const ZBounds* zb = nullptr, const ColumnCells* cells = nullptr);
+
+/**
+ * Whether a level's boxes may hold a cell of a region (lo and hi in metres, lo <= hi in every
+ * direction, no NaN): the opposite question to points_covered_by, for a caller that must stay clear
+ * of a level. x and y use the cells the region's ends fall in (points_covered_by's own); in a
+ * periodic direction every image of the region counts, however many periods away, and a region a
+ * period or more long takes every cell. z must not be periodic. A region that overlaps a cell of
+ * the level is never missed; one that only meets a cell at a face may not count. In z:
+ *  - on a uniform-dz mesh (zb null) the cells are the region's own, from prob_lo and the spacing;
+ *  - with the level's table of node heights (mesh_z_levels), the cells k of the level some bottom
+ *    node of which is not above the region and some top node not below it (ZBounds::k_range): right
+ *    wherever the level's boxes are, on the ground or aloft, and no cell where the level has none
+ *    at those heights;
+ *  - with the level's bounds alone (mesh_z_bounds over all ranks) and every box on the ground,
+ *    the cells between the ground and spacing extremes allow, which is wider on steep terrain;
+ *  - with the bounds alone and a box that does not stand on the ground (ZBounds::all_ground false:
+ *    a level or a box aloft, or a column split in z between boxes), the whole column: the answer is
+ *    then yes wherever a box lies over or under the region's footprint.
+ * The cell indices are bounded before they become integers, so a region that reaches far outside
+ * the domain (or to infinity) is safe. The answer reads no field data and is the same on every
+ * rank when zb is: pass the table or the bounds over all ranks, not one rank's (which this function
+ * cannot tell apart).
+ *
+ * @param[in] ba the level's boxes (any index type)
+ * @param[in] geom the level's geometry
+ * @param[in] region the region (m)
+ * @param[in] zb the level's table or bounds on a stretched or terrain-following mesh, or nullptr
+ */
+bool region_touches_grids (const amrex::BoxArray& ba, const amrex::Geometry& geom, const amrex::RealBox& region,
+                           const ZBounds* zb = nullptr);
 
 } // namespace erf_actuator
 

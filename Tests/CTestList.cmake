@@ -5348,6 +5348,31 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       add_test_abort(Structures_Abort_FinerLevelCovers ${_smx_src} inputs_structure_example
                      "structure model .example. couples to level 0, but level 1 covers part of its support"
                      "${_smx_finer} erf.box1.in_box_lo_indices=8 8 8 erf.box1.in_box_hi_indices=23 23 23")
+      # erf-model/ERF#5056: a stretched mesh (node levels at 0, 20, 40.4, 61.2, 82.4, ... 171.7, 195.1, ... m)
+      # and a level-1 box aloft, which has no box at the ground. Over coarse cells 4 to 7 in z (82 to 172 m),
+      # inside the kernel's reach (50 to 350 m), the run must stop. It must run with the same box beside the
+      # reach (the point at x = y = 100 m with a 20 m width, reach 40 to 160 m across; the box over 250 to
+      # 400 m), and with a box above the reach (the point at z = 60 m with a 15 m width, reach 15 to 105 m;
+      # the box over coarse cells 8 to 11, 172 to 268 m, in the point's own columns).
+      set(_smx_aloft "${_smx_finer} erf.grid_stretching_ratio=1.02 erf.initial_dz=20.0")
+      add_test_abort(Structures_Abort_FinerLevelAloft ${_smx_src} inputs_structure_example
+                     "structure model .example. couples to level 0, but level 1 covers part of its support"
+                     "${_smx_aloft} erf.box1.in_box_lo_indices=8 8 8 erf.box1.in_box_hi_indices=23 23 15")
+      set(_smx_al_names Structures_ExampleModel_FinerLevelAloftBeside Structures_ExampleModel_FinerLevelAloftAbove)
+      set(_smx_al_args_0 "structure.example.position=100 100 200 structure.example.epsilon=20 erf.box1.in_box_lo_indices=20 20 8 erf.box1.in_box_hi_indices=31 31 15")
+      set(_smx_al_args_1 "structure.example.position=200 200 60 structure.example.epsilon=15 erf.box1.in_box_lo_indices=8 8 16 erf.box1.in_box_hi_indices=23 23 23")
+      foreach(_smx_al RANGE 0 1)
+        list(GET _smx_al_names ${_smx_al} _smx_al_name)
+        set(_smx_al_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${_smx_al_name})
+        file(MAKE_DIRECTORY ${_smx_al_dir})
+        file(COPY ${_smx_src}/inputs_structure_example DESTINATION ${_smx_al_dir})
+        add_test(NAME ${_smx_al_name}
+                 COMMAND sh -c "${_smx_mpi} ${_smx_exe} inputs_structure_example max_step=2 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 ${_smx_aloft} ${_smx_al_args_${_smx_al}} > run.log 2>&1 && grep -q 'structure example: t = 0.5 ' run.log"
+                 WORKING_DIRECTORY ${_smx_al_dir})
+        set_tests_properties(${_smx_al_name} PROPERTIES
+            LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
+            ATTACHED_FILES_ON_FAIL "${_smx_al_dir}/run.log")
+      endforeach()
       add_test_abort(Structures_Abort_UnknownModel ${_smx_src} inputs_structure_example
                      "erf.structures.model = .no_such_model. is not one of the structure models compiled in .*\"example\""
                      "erf.structures.model=no_such_model")
