@@ -216,6 +216,10 @@ emissivity 0.83, a fixed 300 K ground), is the reference here.
   part of the ground each wall sees. Over the first two minutes of this case it lowers the sunlight
   absorbed by the level-1 walls that get no direct sun from 29.1 to 21.9 W/m², and by the walls in
   the sun from 301.2 to 300.0 W/m²; the roofs see no ground and do not change.
+  `erf.ibseb.ground_sky_view = true` (off in this deck) gives the ground beside a wall the wall's
+  reflected light and longwave in place of the part of the sky the wall covers. Over the first two
+  minutes of this case the level-1 ground beside the buildings then absorbs 11.7 W/m² more shortwave
+  on average, up to 90 W/m² at the foot of a sunlit wall.
 - **Mixed-layer depth.** The convective velocity scale (`erf.ibseb.z_i_mode = bulk_ri`) takes the
   mixed-layer depth from level 0's profile on both levels.
 - **Ground temperature output.** The two-stream diagnostics file leaves `T_s_mean` empty (`nan`) with

@@ -260,6 +260,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "OLR", "topographic_shadow", "terrain_direct_factor", "terrain_incidence",
         "unshaded_sw_flux_dn", "terrain_sw_flux_dn", "seb_t_sfc", "seb_q_sfc",
         "seb_hfx", "seb_lh", "seb_sw_net", "ibseb_ground_shadow",
+        "seb_lw_net", "ibseb_ground_wall_view",
         "sens_flux", "laten_flux",
         "surf_pres",
         "sea_level_pressure",

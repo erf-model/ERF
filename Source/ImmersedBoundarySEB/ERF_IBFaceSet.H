@@ -221,6 +221,32 @@ public:
      */
     void build_ground_landings ();
 
+    /// Components of the field of compute_ground_walls().
+    enum GroundWalls : int { GW_VIEW = 0, GW_SW = 1, GW_LW = 2, GW_NCOMP = 3 };
+
+    /**
+     * For erf.ibseb.ground_sky_view: what the walls of this level send to the ground of
+     * each column, from the faces' own ground rays (build_ground_landings()). A face of
+     * area A_f whose n rays of N land in a column of area A_c sends that column
+     * A_f (n / N) J_f of its radiosity J_f, so by the reciprocity of view factors the
+     * walls take ``sum_f A_f n / (N A_c)`` of that ground's view (GW_VIEW), and the
+     * ground receives, per unit of its area, that sum weighted with the faces' reflected
+     * shortwave, ``albedo (SW_direct_in + SW_diffuse_in)`` (GW_SW), and with their
+     * longwave, ``emissivity sigma T_skin^4 + (1 - emissivity) LW_in`` (GW_LW), in W/m2.
+     * Where the level's columns hold every kept landing (a level that covers the domain)
+     * what the faces send through their kept rays is what the ground gets; on a refined
+     * level the landings outside its grids are dropped, and rays to the far field are
+     * never kept. Each rank adds its faces' shares to the part of its ray-map patch its
+     * landings reach (found at the first call) and the parts are summed onto the level's
+     * columns, across ranks and periodic edges. Call after compute_shortwave() and
+     * compute_longwave() of the step.
+     *
+     * @param out       the level's columns (k = 0), GW_NCOMP components, no ghost cells needed
+     * @param with_view also form GW_VIEW, which depends on the geometry alone: true at the
+     *                  first call for a field, false afterwards (GW_VIEW is then left as it is)
+     */
+    void compute_ground_walls (amrex::MultiFab& out, bool with_view);
+
     /**
      * Longwave of the current step. Incoming on a face:
      * ``f_sky LW_sky + f_ground LW_ground + f_bldg sigma T_skin^4``,
@@ -501,6 +527,8 @@ public:
     /// of its ground rays end on the far field's open ground. Static, like the view fractions.
     amrex::Gpu::DeviceVector<int>          d_gnd_start, d_gnd_far, d_gnd_rays;
     amrex::Gpu::DeviceVector<unsigned int> d_gnd_land;
+    amrex::MultiFab m_gnd_patch;     ///< compute_ground_walls(): per rank, the box of the columns its faces' landings reach (k = 0), GW_NCOMP components
+    bool m_gnd_patch_built = false;  ///< m_gnd_patch has been sized since the ray map was built
     bool m_landings_built = false;   ///< build_ground_landings() has run since build()
     // Fluxes of the current step [W/m2]: SW_abs and LW_net positive into the
     // face, H, LE and G positive out of it:

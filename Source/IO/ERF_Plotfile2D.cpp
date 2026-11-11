@@ -596,6 +596,26 @@ ERF::FillPlot2DVars (int lev,
         mf_comp++;
     } // ibseb_ground_shadow
 
+    // The net longwave the balance used at its last update after the dycore (-999 before it).
+    if (containerHasElement(plot_var_names, "seb_lw_net")) {
+        plotfile2d::fill_component_from_klevel_or_value(
+            mf_dst, mf_comp,
+            (solverChoice.rad_type == RadiationType::TwoStream) ? two_stream_rad.seb_lw_net(lev)
+                                                                : nullptr,
+            0, -999);
+        mf_comp++;
+    } // seb_lw_net
+
+    // The walls' share of the ground's view (erf.ibseb.ground_sky_view; -999 otherwise).
+    if (containerHasElement(plot_var_names, "ibseb_ground_wall_view")) {
+        plotfile2d::fill_component_from_klevel_or_value(
+            mf_dst, mf_comp,
+            (solverChoice.rad_type == RadiationType::TwoStream) ? two_stream_rad.ground_walls(lev)
+                                                                : nullptr,
+            0, -999);
+        mf_comp++;
+    } // ibseb_ground_wall_view
+
     if (containerHasElement(plot_var_names, "sens_flux")) {
         plotfile2d::fill_component_from_klevel_or_value(
             mf_dst, mf_comp, sens_flux_source, klo, -999);

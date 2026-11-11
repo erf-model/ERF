@@ -87,6 +87,11 @@ struct IBSEBParams
     // on the ground is (ibseb::ground_view_lit()). The diffuse light the ground reflects
     // is not changed. One ray cast per ground ray of every face each step the sun is up.
     bool        ground_view_shadow = false;
+    /// The two-stream ground balance beside the buildings (needs two_stream_buildings and a ground
+    /// balance on the sweep's fluxes): the ground keeps the sky's diffuse light and longwave through
+    /// the part of its view the walls leave open, and takes the walls' reflected light and longwave
+    /// through the rest. false: the ground sees the whole sky and nothing of the walls.
+    bool        ground_sky_view = false;
 
     // ---- View fractions and longwave ----------------------------------------
     // Rays per face of the cosine-weighted hemisphere sampled once at
@@ -222,6 +227,7 @@ struct IBSEBParams
         pp.query("emissivity",       emissivity);
         pp.query("emissivity_ground", emissivity_ground);
         pp.query("ground_view_shadow", ground_view_shadow);
+        pp.query("ground_sky_view", ground_sky_view);
         pp.query("view_n_az",        view_n_az);
         pp.query("view_n_el",        view_n_el);
         pp.query("lw_mode",          lw_mode);
