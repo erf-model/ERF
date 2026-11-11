@@ -6055,6 +6055,27 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   endfunction(add_test_line_sampling_interp)
   add_test_line_sampling_interp(LineSamplingInterp)
 
+  # The same lines with a full-depth refined level over the hill (level-1 cells 24..39 in x and
+  # y): the three lines over the hill top must be sampled on level 1, with its own ground, and
+  # the two that leave it on level 0
+  function(add_test_line_sampling_interp_two_level TEST_NAME)
+    set(TEST_FILES_DIR LineSamplingInterp)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    set(_amr "amr.max_level=1 amr.ref_ratio_vect=2 2 1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices=24 24 0 erf.box1.in_box_hi_indices=39 39 11")
+    set(_lines "tower@1:33:33:0:280:15 far:0:0:0:280:15 high@1:33:33:600:790:5 one@1:33:33:150:150:1 across:x:16:50")
+    set(_agl "erf.sample_line_z_agl=1 erf.plot_file_1=agl_plt 'erf.sample_line_name=agl_tower agl_far agl_high agl_one agl_across'")
+    set(_check "ERF_TOOLS=${PROJECT_SOURCE_DIR}/Exec/Tools ${ERF_TEST_PYTHON} check_line_interp.py")
+    set(_names "tower far high one across agl_tower agl_far agl_high agl_one agl_across")
+    add_test(${TEST_NAME} sh -c
+        "rm -rf plt0* agl_plt0* plt_line_lev* && for n in ${_names}; do rm -f $n.*; done && ( ${MPI_COMMANDS} ${TEST_EXE} LineSamplingInterp.i ${_amr} > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${_check} plt00001 0 '' -9999 ${_lines} && ( ${MPI_COMMANDS} ${TEST_EXE} LineSamplingInterp.i ${_amr} ${_agl} > ${_log}.agl 2>&1 || ( tail -n 40 ${_log}.agl && false ) ) && ${_check} agl_plt00001 1 agl_ -9999 ${_lines}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_line_sampling_interp_two_level)
+  add_test_line_sampling_interp_two_level(LineSamplingInterp_TwoLevel)
+
   # Line and plane sampling with EB terrain (#4977): covered cells are written as
   # erf.sampling_covered_value, in a column through the top of the hill (the lowest 14 of
   # its 86 cells are covered; as an erf.sample_line log and as do_line_sampling text) and in

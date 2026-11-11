@@ -1803,20 +1803,29 @@ or a lidar, on any mesh:
   stays at a constant height rather than following the mesh; its ``erf.sample_line_npts`` is 0.
 
 The heights are above sea level, or with ``erf.sample_line_z_agl = true`` above the ground under
-each column (the level-0 ground, bilinear at the column's centre), so a horizontal line then
-follows the terrain at a constant height above it. Each variable is interpolated linearly in
-height between the two cell centres of the column that bracket the height, as for stations:
-between the ground and the lowest cell centre it takes that cell's value, and above the top
-cell centre the top cell's. A sample below the ground (for example where a horizontal line
-crosses a hill) is written as ``erf.sampling_covered_value``, with a volume fraction of 0. With
-immersed terrain, cells covered by the terrain are not used, and the lowest cell centre is that
-of the lowest cell with fluid. The variable ``z`` is the height of each sample above sea level;
-in a line plotfile the z coordinate is the requested height. A line is sampled on the finest
-level that holds every cell its samples read. The samples are not interpolated across a line:
-a horizontal line takes the columns of the row of cells through its lo end, and a vertical line
-its column. ``erf.sample_line_interp`` is not supported for lines given by ``sample_line_lo``
-and ``sample_line_hi``, which name cells rather than heights. With text output,
+each column, so a horizontal line then follows the terrain at a constant height above it. The
+ground of a column is that of the level the line is sampled on, the mean of the four nodes under
+the column (the terrain surface with immersed terrain), as for stations; on a level that stops
+above the ground it is the level-0 ground, bilinear at the column's centre. Each variable is
+interpolated linearly in height between the two cell centres of the column that bracket the
+height, as for stations: between the ground and the lowest cell centre it takes that cell's
+value, and between the top cell centre and the top of the domain the top cell's. A sample below
+the ground (for example where a horizontal line crosses a hill) or above the top of the domain is
+written as ``erf.sampling_covered_value``, with a volume fraction of 0. With immersed terrain,
+cells covered by the terrain are not used, and the lowest cell centre is that of the lowest cell
+with fluid.
+
+The variable ``z`` is the height of each sample above sea level. In a line plotfile the z
+coordinate is instead the requested height, so with ``erf.sample_line_z_agl = true`` it is the
+height above the ground while ``z`` is the height above sea level. With text output,
 ``plt_line_levL.zcc`` holds the heights of the samples above sea level.
+
+A line is sampled on the finest level that holds every cell its samples read, so a horizontal
+line that crosses the edge of a refined level is sampled, all of it, on a coarser level that
+holds all of it. The samples are not interpolated across a line: a horizontal line takes the
+columns of the row of cells through its lo end, and a vertical line its column.
+``erf.sample_line_interp`` is not supported for lines given by ``sample_line_lo`` and
+``sample_line_hi``, which name cells rather than heights.
 
 Plane samples are written as true multi-level AMReX plotfiles: every refinement level
 whose grids intersect the plane is written (``Level_0``, ``Level_1``, ...), so a plane
