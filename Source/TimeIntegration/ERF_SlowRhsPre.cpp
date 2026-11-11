@@ -37,6 +37,9 @@ using namespace amrex;
  * @param[inout] avg_zmom
  * @param[in   ] upw_dir upwind direction on the faces set by the latest projection, on a
  *                       pseudo-incompressible level (nullptr otherwise: the mass flux picks it)
+ * @param[out  ] pi_adv_rt advective tendency of (rho theta) in this stage (averaged with the
+ *                         previous stage's where the RHS is averaged), on a pseudo-incompressible
+ *                         level (nullptr otherwise)
  * @param[in   ] xvel x-component of velocity
  * @param[in   ] yvel y-component of velocity
  * @param[in   ] zvel z-component of velocity
@@ -81,6 +84,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab& avg_ymom,
                        MultiFab& avg_zmom,
                        const Array<const MultiFab*,AMREX_SPACEDIM>& upw_dir,
+                       MultiFab* pi_adv_rt,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
@@ -647,6 +651,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 l_horiz_adv_type, l_vert_adv_type,
                                 l_horiz_upw_frac, l_vert_upw_frac,
                                 flx_arr, domain, bc_ptr_h);
+            // Pseudo-incompressible: keep the advective part of the (rho theta) RHS, so that the
+            // rest of it (diffusion and sources) can go into the constraint (see project_momenta).
+            // Where the RHS is averaged with the previous stage's below, so is this.
+            if (pi_adv_rt) {
+                const Array4<Real> adv_arr = pi_adv_rt->array(mfi);
+                const bool l_avg = l_anelastic && l_anelastic_rk2 && (nrk == 1);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    adv_arr(i,j,k) = l_avg ? myhalf * (adv_arr(i,j,k) + cell_rhs(i,j,k,RhoTheta_comp))
+                                           : cell_rhs(i,j,k,RhoTheta_comp);
+                });
+            }
         } else {
             EBAdvectionSrcForRho(bx, cell_rhs,
                                 rho_u, rho_v, omega_arr,

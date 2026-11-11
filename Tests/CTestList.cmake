@@ -3528,6 +3528,10 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
     add_test_pi_drift(PseudoIncompressible_Drift_${_sch} PseudoIncompressible_StratifiedHill -8
         OPTIONS "amr.max_level=0 erf.dycore_horiz_adv_type=${_sch} erf.dycore_vert_adv_type=${_sch}")
   endforeach()
+  # With theta diffusion, the source term of the constraint (the lagged non-advective tendency of
+  # rho theta plus the drift correction) keeps the drift at a few 1e-6 (about 1e-3 without it)
+  add_test_pi_drift(PseudoIncompressible_Drift_Diffusion PseudoIncompressible_StratifiedHill -5
+      OPTIONS "amr.max_level=0 erf.molec_diff_type=ConstantAlpha erf.alpha_T=10.0 erf.dynamic_viscosity=0.0")
 endif()
 add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.terrain_type=StaticFittedMesh")

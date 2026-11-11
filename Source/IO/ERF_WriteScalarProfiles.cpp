@@ -108,25 +108,39 @@ ERF::sum_integrated_quantities (double time)
     }
 
     // On pseudo-incompressible levels, the departure of (rho theta) from (rho0 theta0), which the
-    // constraint div(rho0 theta0 u) = 0 holds at zero without heating or diffusion: max over the
-    // valid cells (with fluid) of all such levels of |rho theta - rho0 theta0| / (rho0 theta0)
+    // constraint div(rho0 theta0 u) = S keeps small: max over the valid cells (with fluid) of all
+    // such levels of |rho theta - rho0 theta0| / (rho0 theta0), leaving out the cells covered by a
+    // finer level, whose data is the average of the finer level's
     Real pi_drift = -one;
     for (int lev = 0; lev <= finest_level; lev++) {
         if (solverChoice.compressibility_type[lev] != CompressibilityType::PseudoIncompressible) { continue; }
+        const bool l_masked = (lev < finest_level);
+        if (l_masked && (!fine_mask[lev+1] ||
+                         fine_mask[lev+1]->boxArray()        != grids[lev] ||
+                         fine_mask[lev+1]->DistributionMap() != dmap[lev]))
+        {
+            fine_mask[lev+1] = std::make_unique<MultiFab>(grids[lev], dmap[lev], 1, 0);
+            build_fine_mask(lev+1, *fine_mask[lev+1]);
+        }
         auto const& s_arr  = vars_new[lev][Vars::cons].const_arrays();
         auto const& b_arr  = base_state[lev].const_arrays();
         auto const& dJ_arr = detJ_cc[lev]->const_arrays();
+        auto const  m_arr  = l_masked ? fine_mask[lev+1]->const_arrays() : MultiArray4<Real const>{};
         Real lev_drift = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{},
                                    vars_new[lev][Vars::cons], IntVect(0),
         [=] AMREX_GPU_DEVICE (int b, int i, int j, int k) noexcept -> GpuTuple<Real>
         {
             if (dJ_arr[b](i,j,k) <= zero) { return { zero }; }
+            if (l_masked && m_arr[b](i,j,k) == zero) { return { zero }; }
             const Real rt0 = b_arr[b](i,j,k,BaseState::r0_comp) * b_arr[b](i,j,k,BaseState::th0_comp);
             return { std::abs(s_arr[b](i,j,k,RhoTheta_comp) - rt0) / rt0 };
         });
+        ParallelDescriptor::ReduceRealMax(lev_drift);
+        if (verbose > 1) {
+            Print() << std::setprecision(std::numeric_limits<Real>::max_digits10) << " PI DRIFT at level " << lev << " = " << lev_drift << '\n';
+        }
         pi_drift = std::max(pi_drift, lev_drift);
     }
-    ParallelDescriptor::ReduceRealMax(pi_drift);
 
 #ifdef ERF_USE_FIRE
     const int nfoo = 10;

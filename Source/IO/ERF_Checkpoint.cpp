@@ -476,6 +476,11 @@ ERF::WriteCheckpointFile () const
                              MultiFabFileFullPrefix(lev, checkpointname, "Level_", names[idim]));
             }
         }
+        // ... and the non-advective tendency of (rho theta) of the latest stage, the Q of the
+        // constraint of the first projection after the restart
+        if (pi_src[lev]) {
+            VisMF::Write(*pi_src[lev], MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PiSrc"));
+        }
 
         // Surface momentum and scalar fluxes handed to an ocean model in
         // flux-passing mode. These are computed inside a timestep's RHS rather
@@ -1626,6 +1631,14 @@ ERF::ReadCheckpointFile ()
                     amrex::Print() << "WARNING: checkpoint has no " << names[idim] << " at level " << lev
                                    << "; the pseudo-incompressible upwind direction starts centered" << std::endl;
                 }
+            }
+            pi_src[lev] = std::make_unique<MultiFab>(grids[lev], dmap[lev], 1, 0);
+            pi_src[lev]->setVal(zero);
+            if (!read_checkpoint_mf_if_present(*pi_src[lev],
+                                               MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PiSrc"),
+                                               lev, 0, 0, 1, IntVect(0), false)) {
+                amrex::Print() << "WARNING: checkpoint has no PiSrc at level " << lev
+                               << "; the first pseudo-incompressible projection takes Q = 0" << std::endl;
             }
         }
 

@@ -1593,6 +1593,14 @@ private:
     //! Define pi_upw_dir[lev] and pi_upw_dir_stage[lev] on the level's faces (zero) if needed
     void define_pi_upw_dir (int lev);
 
+    // Pseudo-incompressible (non-EB) levels: the advective part of the (rho theta) RHS of the
+    // latest stage (pi_adv_rt), and the rest of that RHS (pi_src: diffusion, implicit diffusion
+    // and the sources in cc_src), the non-advective tendency Q of (rho theta).  The projection
+    // at the end of the stage imposes div(rho0 theta0 u) = Q + the drift correction, so that the
+    // next update keeps rho theta = rho0 theta0 (see project_momenta)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_adv_rt;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_src;
+
     // Used only for fast substepping
     amrex::Vector<amrex::MultiFab> lagged_delta_rt;
     amrex::Vector<amrex::MultiFab> avg_xmom;
