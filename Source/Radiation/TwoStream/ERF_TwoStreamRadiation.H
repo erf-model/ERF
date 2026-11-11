@@ -334,7 +334,9 @@ public:
      * @brief For each column of @p lev, the first cell above the building that stands on
      * its ground (the cell on the roof), or the bottom cell on open ground (2D: i,j);
      * nullptr unless starts_on_roofs(). A cell above the level's top means the building
-     * fills the column. Solid cells above an air gap (an overhang) are not a roof here.
+     * fills the column. Solid cells above an air gap (an overhang) are not a roof here:
+     * under an overhang above open ground the cell is the bottom cell, and under an
+     * overhang above a lower roof it is the cell on that lower roof.
      */
     [[nodiscard]] const amrex::iMultiFab* roof_cell (int lev) const noexcept {
         return starts_on_roofs(lev) ? m_roof_k[lev].get() : nullptr;

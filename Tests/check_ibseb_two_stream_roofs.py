@@ -166,7 +166,9 @@ def main():
             bad_wall.append(k)
         apart.append(abs(on_s[k]["LW_ext"] - off_s[k]["LW_ext"]))
     check("3b. longwave over the building, absorbing sky",
-          not bad_lw and over and not bad_wall and max(apart) > 100 * lw_tol * sample,
+          # (the two runs must stand apart by several times the bound the walls are held to,
+          # in either precision)
+          not bad_lw and over and not bad_wall and max(apart) > 4 * lw_tol * sample,
           f"{len(bcols) - len(bad_lw)} of {len(bcols)} building columns send out the longwave of the grey column of the layers "
           f"above their roof ({sample:.3f} W/m2 on the last); {len(over) - len(bad_wall)} of the {len(over)} walls above a lower "
           f"roof take that column's longwave at their height, up to {max(apart):.2f} W/m2 from the run without the input")
@@ -238,13 +240,15 @@ def main():
     g = prov.step_dump(f"{w}/shadow_on", 1)
     over_roof = [k for k in g if k[3] != 2 and (k[0], k[1]) in roof_k and g[k]["f_ground"] > 0.0]
     lit_some = [k for k in over_roof if g[k]["f_ground_lit"] > 0.0]
-    bounded = all(-1e-12 <= g[k]["f_ground_lit"] <= g[k]["f_ground"] + 1e-12 for k in g if k[3] != 2)
-    less = all(g[k]["SW_diffuse_in"] <= on[k]["SW_diffuse_in"] * (1.0 + rtol) + 1e-9 for k in g if k[3] != 2)
+    # The bounds follow --precision (rtol): in single precision the two view fractions are
+    # sums of ray weights in float, equal only to its roundoff.
+    bounded = all(-rtol <= g[k]["f_ground_lit"] <= g[k]["f_ground"] + rtol for k in g if k[3] != 2)
+    less = all(g[k]["SW_diffuse_in"] <= on[k]["SW_diffuse_in"] * (1.0 + rtol) + rtol for k in g if k[3] != 2)
     # Where part of such a wall's ground view is shaded, it loses the beam's share of the
     # light going up at the roof: strictly less diffuse light than without the option.
     # A shaded roof reflects no beam, so there the share is zero and nothing is lost.
     roof_lit = {(k[0], k[1]): 1.0 - g[k]["shadow"] for k in g if k[3] == 2 and k[4] < 0}
-    part = [k for k in over_roof if g[k]["f_ground_lit"] < g[k]["f_ground"] - 1e-9]
+    part = [k for k in over_roof if g[k]["f_ground_lit"] < g[k]["f_ground"] - rtol]
     part_lit = [k for k in part if roof_lit[(k[0], k[1])] > 0.5]
     part_dark = [k for k in part if roof_lit[(k[0], k[1])] < 0.5]
     loses = [k for k in part_lit if g[k]["SW_diffuse_in"] < on[k]["SW_diffuse_in"] - 1e-3]

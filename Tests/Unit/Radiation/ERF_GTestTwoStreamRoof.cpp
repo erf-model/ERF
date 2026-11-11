@@ -12,6 +12,7 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_NumericalConstants.H>
 #include <ERF_RadStruct.H>
 #include <ERF_TwoStreamColumn.H>
 #include <ERF_TwoStreamCanopyForcing.H>
@@ -176,7 +177,7 @@ amrex::Real beam_share_at (int base)
 TEST(TwoStreamRoof, BeamShareAtTheColumnsLowerBoundary)
 {
     using amrex::Real;
-    const Real tol = (sizeof(Real) == 8) ? Real(1.e-12) : Real(1.e-5);
+    const Real tol = Real(256) * real_eps;   // a multiple of the working precision's roundoff
     // At the ground: 0.25 x 100 / 200. On a roof at interface 2: 0.25 x 300 / 400.
     EXPECT_NEAR(beam_share_at(0), Real(0.125), tol);
     EXPECT_NEAR(beam_share_at(2), Real(0.1875), tol);
@@ -236,7 +237,7 @@ TEST(TwoStreamRoof, FluxesAtTheRoofAreTheRoofs)
     TwoStreamRoof roof;
     roof.k_lower = 2; roof.albedo = Real(0.4); roof.emissivity = Real(0.85); roof.temperature = Real(318.0);
     const Column c = sweep(roof_choice(), 0, 7, &roof, Real(300.0));
-    const Real tol = (sizeof(Real) == 8) ? Real(1.e-12) : Real(2.e-5);
+    const Real tol = Real(256) * real_eps;   // a multiple of the working precision's roundoff
     const Real sw_dn = c.at(c.sw_dn, 2), sw_up = c.at(c.sw_up, 2), lw_dn = c.at(c.lw_dn, 2), lw_up = c.at(c.lw_up, 2);
     ASSERT_GT(sw_dn, Real(100.0));
     ASSERT_GT(lw_dn, Real(10.0));

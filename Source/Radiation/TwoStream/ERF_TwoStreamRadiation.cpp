@@ -1341,7 +1341,12 @@ TwoStreamRadiation::advance (int lev,
                     // A column under a building starts on the roof face given for it; one
                     // without such a face (none given, or open ground) starts on the ground.
                     TwoStreamRoof roof_col;
-                    const bool col_on_roof = on_roofs && roof_arr(i, j, 0, ROOF_SET) > amrex::Real(0.5);
+                    // On a roof: a roof face stands on the column and its cell is above the
+                    // box's bottom layer. The sweep takes the roof under the same condition
+                    // (two_stream_starts_on_roof()), so what the faces read of this column
+                    // below is what the sweep used.
+                    const bool col_on_roof = on_roofs && roof_arr(i, j, 0, ROOF_SET) > amrex::Real(0.5)
+                                          && two_stream_starts_on_roof(roof_k_arr(i, j, 0), bx.smallEnd(2));
                     if (col_on_roof) {
                         roof_col.k_lower = roof_k_arr(i, j, 0);
                         roof_col.albedo = roof_arr(i, j, 0, ROOF_ALBEDO);

@@ -1492,6 +1492,54 @@ IBFaceSet::add_heat_flux_to_source (MultiFab& source, const MultiFab& cons,
 }
 
 /**
+ * The sun at @p time by erf.ibseb.sun_mode: its position and unit vector, and the
+ * clear-sky irradiances of the faces' own radiation. It changes nothing in the set, so
+ * the shortwave (compute_shortwave()) and the roofs' shadow (fill_roofs()) each ask for
+ * the sun of their own time. With sun_mode = two_stream the two-stream sun of that time
+ * must have been given (set_two_stream_sun()).
+ */
+IBFaceSet::SunState
+IBFaceSet::sun_at (Real time) const
+{
+    SunState s;
+    if (m_params.sun_mode == "fixed") {
+        s.zenith  = m_params.sun_zenith_deg  * PI / 180.0;
+        s.azimuth = m_params.sun_azimuth_deg * PI / 180.0;
+        const Real cz = std::cos(s.zenith);
+        s.dni       = (cz > 0.0) ? m_params.sw_direct_normal : 0.0;
+        s.diffuse_h = (cz > 0.0) ? m_params.sw_diffuse : 0.0;
+    } else if (m_params.sun_mode == "two_stream") {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ts_sun.set,
+            "erf.ibseb.sun_mode = two_stream: the two-stream sun was not given before the shortwave or the roofs' shadow");
+        const Real decl = m_ts_sun.decl;
+        const Real ha   = m_ts_sun.hour_angle;
+        s.zenith  = ibseb::solar_zenith(m_ts_sun.lat_deg, decl, ha);
+        s.azimuth = ibseb::solar_azimuth(m_ts_sun.lat_deg, decl, ha, s.zenith);
+        const Real cz = std::cos(s.zenith);
+        // The irradiance carries the date's distance factor already.
+        s.dni       = ibseb::clear_sky_dni(cz, m_ts_sun.S0, m_params.sw_transmission, Real(1.0));
+        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_ts_sun.S0, m_params.sw_transmission,
+                                                 Real(1.0), m_params.sw_diffuse_coeff);
+    } else {
+        const Real t_utc = m_params.time_zero_utc_s + time;
+        // The date advances at each 00:00 UTC, so a run of several days follows the season.
+        const Real day   = ibseb::day_of_year_at(m_params.day_of_year, t_utc);
+        const Real decl  = ibseb::solar_declination(day);
+        // Hour angle from UTC and the longitude (a time-zone offset would cancel).
+        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, day);
+        s.zenith  = ibseb::solar_zenith(m_params.latitude_deg, decl, ha);
+        s.azimuth = ibseb::solar_azimuth(m_params.latitude_deg, decl, ha, s.zenith);
+        const Real cz = std::cos(s.zenith);
+        const Real e0 = ibseb::earth_sun_distance_factor(day);
+        s.dni       = ibseb::clear_sky_dni(cz, m_params.solar_constant, m_params.sw_transmission, e0);
+        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_params.solar_constant, m_params.sw_transmission,
+                                                 e0, m_params.sw_diffuse_coeff);
+    }
+    ibseb::sun_vector(s.zenith, s.azimuth, s.sx, s.sy, s.sz);
+    return s;
+}
+
+/**
  * Shortwave of the current step. The sun and the irradiances are scalars
  * computed on the host from the provider inputs; the per-face work is one
  * kernel: incidence cosine, ray cast against the column tops, direct and
@@ -1520,43 +1568,9 @@ void
 IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
 {
     // ---- Sun and irradiances (host scalars) ----
-    SunState s;
-    if (m_params.sun_mode == "fixed") {
-        s.zenith  = m_params.sun_zenith_deg  * PI / 180.0;
-        s.azimuth = m_params.sun_azimuth_deg * PI / 180.0;
-        const Real cz = std::cos(s.zenith);
-        s.dni       = (cz > 0.0) ? m_params.sw_direct_normal : 0.0;
-        s.diffuse_h = (cz > 0.0) ? m_params.sw_diffuse : 0.0;
-    } else if (m_params.sun_mode == "two_stream") {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ts_sun.set,
-            "erf.ibseb.sun_mode = two_stream: the two-stream sun was not given before the shortwave");
-        // Used once: the next shortwave needs the sun of its own time.
-        m_ts_sun.set = false;
-        const Real decl = m_ts_sun.decl;
-        const Real ha   = m_ts_sun.hour_angle;
-        s.zenith  = ibseb::solar_zenith(m_ts_sun.lat_deg, decl, ha);
-        s.azimuth = ibseb::solar_azimuth(m_ts_sun.lat_deg, decl, ha, s.zenith);
-        const Real cz = std::cos(s.zenith);
-        // The irradiance carries the date's distance factor already.
-        s.dni       = ibseb::clear_sky_dni(cz, m_ts_sun.S0, m_params.sw_transmission, Real(1.0));
-        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_ts_sun.S0, m_params.sw_transmission,
-                                                 Real(1.0), m_params.sw_diffuse_coeff);
-    } else {
-        const Real t_utc = m_params.time_zero_utc_s + time;
-        // The date advances at each 00:00 UTC, so a run of several days follows the season.
-        const Real day   = ibseb::day_of_year_at(m_params.day_of_year, t_utc);
-        const Real decl  = ibseb::solar_declination(day);
-        // Hour angle from UTC and the longitude (a time-zone offset would cancel).
-        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, day);
-        s.zenith  = ibseb::solar_zenith(m_params.latitude_deg, decl, ha);
-        s.azimuth = ibseb::solar_azimuth(m_params.latitude_deg, decl, ha, s.zenith);
-        const Real cz = std::cos(s.zenith);
-        const Real e0 = ibseb::earth_sun_distance_factor(day);
-        s.dni       = ibseb::clear_sky_dni(cz, m_params.solar_constant, m_params.sw_transmission, e0);
-        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_params.solar_constant, m_params.sw_transmission,
-                                                 e0, m_params.sw_diffuse_coeff);
-    }
-    ibseb::sun_vector(s.zenith, s.azimuth, s.sx, s.sy, s.sz);
+    SunState s = sun_at(time);
+    // The two-stream sun is used once: the next shortwave needs the sun of its own time.
+    if (m_params.sun_mode == "two_stream") { m_ts_sun.set = false; }
     m_sun = s;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_params.ground_view_shadow || m_landings_built,
         "erf.ibseb.ground_view_shadow: the shortwave needs the faces' ground landings; call"
@@ -1796,7 +1810,7 @@ IBFaceSet::compute_ground_shadow (MultiFab& shadow) const
  * write the same column.
  */
 void
-IBFaceSet::fill_roofs (MultiFab& out, const iMultiFab& roof_cell, bool with_fixed)
+IBFaceSet::fill_roofs (MultiFab& out, const iMultiFab& roof_cell, bool with_fixed, Real time)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(out.nComp() >= 5,
         "erf.ibseb.two_stream_roofs: the field of the roofs holds fewer than five components");
@@ -1835,12 +1849,15 @@ IBFaceSet::fill_roofs (MultiFab& out, const iMultiFab& roof_cell, bool with_fixe
     const int* pi = d_i.data();  const int* pj = d_j.data();
     const Real* palb = d_albedo.data();  const Real* peps = d_emis.data();
     const Real* pT = d_T_skin.data();
-    // The roof's shadow under the sun the faces hold (that of their last shortwave: this
-    // step's with the faces' own radiation, the previous step's with the two-stream
-    // columns, the start-up sun before the first step and after a restart), cast here so
-    // that it does not depend on what the faces' last shortwave stored.
+    // The roof's shadow under the sun of the sweep's own time, not the sun the faces hold
+    // from their last shortwave (m_sun): that one is the previous step's with the two-stream
+    // columns and the start-up sun after a restart, and it is not in the checkpoint, so a
+    // moving sun would give a restarted run another shadow in its first step.
     const ibseb::RayMap rm = ray_map();
-    const Real sx = m_sun.sx, sy = m_sun.sy, sz = m_sun.sz;
+    const SunState sun_now = sun_at(time);
+    // The two-stream sun is used once here too: the faces' next shortwave is given its own.
+    if (m_params.sun_mode == "two_stream") { m_ts_sun.set = false; }
+    const Real sx = sun_now.sx, sy = sun_now.sy, sz = sun_now.sz;
     const Real* pxf = d_xf.data();  const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
     for (MFIter mfi(out); mfi.isValid(); ++mfi) {
         const int r0 = m_roof_fab_start[mfi.LocalIndex()];

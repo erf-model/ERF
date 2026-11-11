@@ -1025,17 +1025,19 @@ roof, one step apart in the skin temperature. The limits below say where it does
 **Which columns.** A column under a building is one whose bottom cell is solid; its roof
 is the top of the solid cells that stand on the ground. The roof face is the upward face
 of the immersed-boundary balance on the first cell above them. Solid cells above an air
-gap (an overhang) are not a roof here: the column under an overhang keeps the ground.
-A building that reaches the top of the domain has no roof face, and its column keeps
-the ground too.
+gap (an overhang) are not a roof here. Under an overhang above open ground the bottom
+cell is air, so the column keeps the ground. Under an overhang above a lower roof the
+column starts on that lower roof, and the sweep takes the overhang's cells above it as
+air (see the limits below). A building that reaches the top of the domain has no roof
+face, and its column keeps the ground.
 
 **When, and what it costs.** The cell on each column's roof, the roof faces, their
 albedo and their emissivity are found once. Before each sweep every roof face writes
 its skin temperature and its lit share for its column: the skin temperature the faces
 hold at that moment (with ``radiation = two_stream`` the one at the start of the step),
-and the shadow under the sun the faces hold (with ``radiation = two_stream`` that of
-the previous step; the start-up sun in the first step and after a restart). That is
-one small kernel over the roof faces; in
+and the shadow under the sun at the time of that sweep, the start of the step. The
+shadow depends on that time and the geometry alone, so a restarted run casts the same
+one. That is one small kernel over the roof faces; in
 ``Exec/CanonicalTests/Radiation/TwoStream_IBSEB_RandomBuildings`` its cost is not
 measurable (two minutes of that case take 101 and 113 s with the input and 102 and
 105 s without, on a laptop under other load). With the input off nothing is allocated
@@ -1082,7 +1084,8 @@ and the sweep is unchanged. Nothing is added to the checkpoint.
 - *Per-layer optical depths* heat the first cell above a hot roof strongly and in
   proportion to the resolution, as they do above hot ground: about 14 K per hour in a
   10 m cell of 300 K air over a 330 K roof for 0.3 per layer.
-  :cpp:`erf.radiation.tau_model = mass` does not.- *One albedo.* A face has one shortwave albedo, used for the beam and for diffuse
+  :cpp:`erf.radiation.tau_model = mass` does not.
+- *One albedo.* A face has one shortwave albedo, used for the beam and for diffuse
   light alike; the ground can have two.
 - *Explicit in time.* The roof's skin temperature in the sweep is the one the faces
   hold before it, one step behind the faces' own balance with
@@ -1091,8 +1094,14 @@ and the sweep is unchanged. Nothing is added to the checkpoint.
   (``SW_surface``, the net longwave) now count the roofs as the surface of their
   columns. ``seb_lw_net`` under a building is the roof's net longwave; the held
   ground does not use it.
-- *Overhangs and buildings to the domain top* keep the ground, as said above, without
-  a message. A level that does not sweep its own columns takes its heating rates and
+- *Overhangs.* A column under an overhang above open ground keeps the ground, without
+  a message. A column under an overhang above a lower roof starts on the lower roof.
+  That roof gets no direct beam at any sun angle, because the shadow takes each column
+  as solid up to its top, but the sweep takes the overhang's cells as air: diffuse light and the sky's longwave reach the
+  lower roof through them, and the overhang's own top and underside are not surfaces
+  of the column. The heating rates in the overhang's cells are set to zero as in every
+  solid cell.
+- *Buildings to the domain top* keep the ground, without a message. A level that does not sweep its own columns takes its heating rates and
   fluxes from the level below, whose columns start on that level's roofs; ERF notes
   it at start-up.
 - *A land-surface model* takes the radiation at the ground of every column, and the
@@ -1112,8 +1121,10 @@ on the ground; a building that fills the column; and the beam's share at a colum
 lower boundary for :cpp:`erf.ibseb.ground_view_shadow`.
 ``IBSEBRoofs.*`` checks that each column gets the roof face that stands on it
 (buildings of three heights in four boxes, one across the periodic edge, one under an
-overhang, which shades it, one to the domain top), and that a later step writes the
-new skin temperatures only. ``TwoStreamBuildingCover.ColumnsStartOnTheRoofsGiven``
+overhang, where the column starts on the lower roof and the overhang shades it, one to
+the domain top), and that a later step writes the new skin temperatures only.
+``IBSEBRoofs.TheShadowIsThatOfTheTimeGiven`` checks, with a sun that moves, that a
+roof's shadow is that of the time given and not that of the faces' last shortwave. ``TwoStreamBuildingCover.ColumnsStartOnTheRoofsGiven``
 checks the cell on each roof, the sweep on the roofs given, lit and shaded, a
 building whose roof is not given, and a cloud over half of every column. ``Tests/test_files/IBSEB_TwoStreamBuildings`` with
 the input (CTest ``IBSEB_TwoStreamRoofs``) checks, against the adding method and the

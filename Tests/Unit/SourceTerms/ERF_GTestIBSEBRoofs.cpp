@@ -114,7 +114,7 @@ TEST(IBSEBRoofs, EachColumnGetsTheRoofThatStandsOnIt)
     faces.build(blank, geom);
     faces.release_labels();
     faces.compute_view_fractions();
-    faces.compute_shortwave(Real(0.0));   // places the sun the roofs' shadow is cast under
+    faces.compute_shortwave(Real(0.0));   // the fixed sun: the same at every time
     const int nf = faces.n_faces();
     const auto fi = host(faces.d_i), fj = host(faces.d_j), fk = host(faces.d_k), fd = host(faces.d_dir), fs = host(faces.d_side);
     std::vector<Real> alb(nf), eps(nf), T(nf);
@@ -128,7 +128,7 @@ TEST(IBSEBRoofs, EachColumnGetsTheRoofThatStandsOnIt)
 
     MultiFab out(ba2d, dm, 5, 0);
     out.setVal(-5.0);   // every column is set, also where there is no roof
-    faces.fill_roofs(out, roof_cell, true);
+    faces.fill_roofs(out, roof_cell, true, Real(0.0));
 
     // What each column should get, from the faces and the geometry.
     std::map<std::pair<int, int>, int> top;      // cell on the roof of the ground-standing building
@@ -183,7 +183,7 @@ TEST(IBSEBRoofs, EachColumnGetsTheRoofThatStandsOnIt)
     for (auto& v : T2) { v += Real(3.5); }
     for (auto& v : alb2) { v *= Real(0.5); }
     to_device(faces.d_T_skin, T2); to_device(faces.d_albedo, alb2);
-    faces.fill_roofs(out, roof_cell, false);
+    faces.fill_roofs(out, roof_cell, false, Real(0.0));
     int n_later = 0;
     for (MFIter mfi(out); mfi.isValid(); ++mfi) {
         FArrayBox h(mfi.validbox(), 5, The_Pinned_Arena());
@@ -199,4 +199,81 @@ TEST(IBSEBRoofs, EachColumnGetsTheRoofThatStandsOnIt)
     }
     ParallelDescriptor::ReduceIntSum(n_later);
     EXPECT_EQ(n_later, 16);
+}
+
+// The roof's shadow is that of the time given, whatever sun the faces' last shortwave
+// left: a restarted run holds the start-up sun there and a continuous run the previous
+// step's, and the two must sweep the same roofs. A low building west of a tall tower on
+// the equator at the equinox: the tower shades the low roof in the morning, not at noon.
+TEST(IBSEBRoofs, TheShadowIsThatOfTheTimeGiven)
+{
+    using namespace amrex;
+    const int nx = 16, ny = 16, nz = 8;
+    const RealBox rb({0.0, 0.0, 0.0}, {160.0, 160.0, 80.0});
+    const Box dom(IntVect(0, 0, 0), IntVect(nx - 1, ny - 1, nz - 1));
+    const Geometry geom(dom, rb, 0, {1, 1, 0});
+    BoxArray ba(dom);
+    ba.maxSize(IntVect(8, 8, 8));
+    const DistributionMapping dm(ba);
+    MultiFab blank(ba, dm, 1, 1);
+    // The low building (two cells) at i = 5..6 and the tower (six cells) at i = 7, east of it.
+    const std::vector<Cells> solid = {{5, 6, 8, 8, 0, 1}, {7, 7, 7, 9, 0, 5}};
+    fill_blanking(blank, geom, solid);
+    BoxList bl = ba.boxList();
+    for (Box& b : bl) { b.setRange(2, 0); }
+    const BoxArray ba2d(std::move(bl));
+    iMultiFab roof_cell(ba2d, dm, 1, 0);
+    fill_roof_cell(roof_cell, blank, nz - 1);
+
+    IBSEBParams params;
+    params.enable = true;
+    params.view_n_az = 8;
+    params.view_n_el = 4;
+    params.sun_mode = "solar";
+    params.latitude_deg = 0.0;
+    params.longitude_deg = 0.0;
+    params.day_of_year = 80.0;
+    params.time_zero_utc_s = 0.0;
+    IBFaceSet faces(params, 0);
+    faces.build(blank, geom);
+    faces.release_labels();
+    faces.compute_view_fractions();
+    const Real morning = Real(9.0 * 3600.0), noon = Real(12.0 * 3600.0);
+
+    // The lit share of the low roof's two columns and of the tower's three.
+    auto lit = [&] (Real t_last_shortwave, Real t_roofs, int& n_low, int& n_tower) {
+        faces.compute_shortwave(t_last_shortwave);
+        MultiFab out(ba2d, dm, 5, 0);
+        faces.fill_roofs(out, roof_cell, true, t_roofs);
+        Real low = 0.0, tower = 0.0;
+        n_low = 0; n_tower = 0;
+        for (MFIter mfi(out); mfi.isValid(); ++mfi) {
+            FArrayBox h(mfi.validbox(), 5, The_Pinned_Arena());
+            Gpu::dtoh_memcpy(h.dataPtr(), out[mfi].dataPtr(), h.nBytes());
+            const auto a = h.const_array();
+            const Box& b = mfi.validbox();
+            for (int j = b.smallEnd(1); j <= b.bigEnd(1); ++j) {
+                for (int i = b.smallEnd(0); i <= b.bigEnd(0); ++i) {
+                    if (a(i, j, 0, 0) < Real(0.5)) { continue; }
+                    if (i == 7) { tower += a(i, j, 0, 4); ++n_tower; } else { low += a(i, j, 0, 4); ++n_low; }
+                }
+            }
+        }
+        ParallelDescriptor::ReduceRealSum(low);  ParallelDescriptor::ReduceRealSum(tower);
+        ParallelDescriptor::ReduceIntSum(n_low); ParallelDescriptor::ReduceIntSum(n_tower);
+        return std::make_pair(low, tower);
+    };
+    int n_low = 0, n_tower = 0;
+    // The faces' last shortwave was the other time's in each pair: it must not show.
+    const auto am = lit(noon, morning, n_low, n_tower);
+    EXPECT_EQ(n_low, 2);
+    EXPECT_EQ(n_tower, 3);
+    EXPECT_EQ(am.first, Real(0.0));    // the tower shades both columns of the low roof
+    EXPECT_EQ(am.second, Real(3.0));   // nothing shades the tower's roof
+    const auto pm = lit(morning, noon, n_low, n_tower);
+    EXPECT_EQ(pm.first, Real(2.0));    // the sun overhead: the low roof is lit
+    EXPECT_EQ(pm.second, Real(3.0));
+    // The same time after another last shortwave: the same roofs.
+    const auto am2 = lit(morning, morning, n_low, n_tower);
+    EXPECT_EQ(am2.first, am.first);
 }

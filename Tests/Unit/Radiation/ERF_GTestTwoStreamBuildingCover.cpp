@@ -10,6 +10,7 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_NumericalConstants.H>
 #include <ERF_LandSurface.H>
 #include <ERF_RadStruct.H>
 #include <ERF_TwoStreamRadiation.H>
@@ -196,7 +197,7 @@ TEST(TwoStreamBuildingCover, ColumnsAndGroundSeeTheBuildings)
     const Real sw_open = value_at(sw, IntVect(1, 2, 0), 0);
     const Real sw_shaded = value_at(sw, IntVect(2, 1, 0), 0);
     const Real beam_abs = Real(0.8) * Real(1000.0) * Real(0.5) * std::exp(Real(-0.05 * 4 / 0.5));
-    const Real tol = (sizeof(Real) == 8) ? Real(1.e-12) : Real(1.e-5);
+    const Real tol = Real(256) * real_eps;   // a multiple of the working precision's roundoff
     EXPECT_NEAR(sw_open - sw_shaded, beam_abs, tol * beam_abs);
     EXPECT_GT(sw_shaded, Real(1.0));                                   // the diffuse light stays
     EXPECT_EQ(value_at(sw, IntVect(0, 0, 0), 0), Real(0.0));           // the footprint
@@ -288,7 +289,7 @@ TEST(TwoStreamBuildingCover, GroundTakesWhatTheWallsSend)
 
     const MultiFab& sw = *radiation.seb_sw_net(0);
     const MultiFab& lw = *radiation.seb_lw_net(0);
-    const Real tol = (sizeof(Real) == 8) ? Real(1.e-11) : Real(2.e-5);
+    const Real tol = Real(256) * real_eps;   // a multiple of the working precision's roundoff
     const Real sw_open = value_at(sw, IntVect(1, 2, 0), 0), lw_open = value_at(lw, IntVect(1, 2, 0), 0);
     const Real dif_abs = Real(0.7) * (sw_down - beam);       // the diffuse light the open ground absorbs
     const Real beam_abs = Real(0.8) * beam;
@@ -401,7 +402,7 @@ TEST(TwoStreamBuildingCover, ColumnsStartOnTheRoofsGiven)
     radiation.advance(0, 1, Real(0.0), Real(10.0), "pre_dycore", state, nullptr, L.geom, lsm, radiation_inputs,
                       false, &q, &f, nullptr, nullptr, nullptr, nullptr, nullptr, 0.0, false);
 
-    const Real tol = (sizeof(Real) == 8) ? Real(1.e-12) : Real(2.e-5);
+    const Real tol = Real(256) * real_eps;   // a multiple of the working precision's roundoff
     const Real sigma = Real(5.670374419e-8);
     // (0,0): the roof at the bottom of cell 2. Nothing below it; at it, the roof's fluxes.
     for (int k = 0; k < 2; ++k) {

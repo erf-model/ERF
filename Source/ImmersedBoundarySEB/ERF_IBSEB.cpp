@@ -528,7 +528,8 @@ ERF::ibseb_check_two_stream_buildings () const
 /**
  * erf.ibseb.two_stream_roofs: before the two-stream sweep of @p lev, hand it the roof
  * face of each column under a building, as the faces hold it now (a no-op where the
- * columns do not start on roofs).
+ * columns do not start on roofs). The roofs' shadow is cast under the sun at the time of
+ * that sweep (the start of the step), so it is the same in a restarted run.
  */
 void
 ERF::ibseb_give_roofs (int lev)
@@ -540,7 +541,9 @@ ERF::ibseb_give_roofs (int lev)
     // What does not change (that a roof stands there, its albedo and emissivity) with the first field only.
     const bool first = !two_stream_rad.roofs_given(lev);
     if (MultiFab* roofs = two_stream_rad.roofs_for_step(lev, istep[lev])) {
-        m_ibseb[lev]->fill_roofs(*roofs, *roof_cell, first);
+        // The sweep that follows is at the start of the step (ERF::advance_radiation()).
+        ibseb_set_two_stream_sun(lev, t_old[lev]);
+        m_ibseb[lev]->fill_roofs(*roofs, *roof_cell, first, t_old[lev]);
     }
 }
 
@@ -562,7 +565,7 @@ ERF::ibseb_give_ground_walls (int lev)
 
 /**
  * Hand one level's face set the two-stream sun at a time, for its next
- * shortwave (erf.ibseb.sun_mode = two_stream; a no-op otherwise): the
+ * shortwave or roofs' shadow (erf.ibseb.sun_mode = two_stream; a no-op otherwise): the
  * declination, the distance factor and the calendar day from the start date
  * through two_stream_sun_date(), the shared routine of the two-stream sweep;
  * the hour angle of the same orbital formula (ibseb::orbital_hour_angle()) at
@@ -571,7 +574,7 @@ ERF::ibseb_give_ground_walls (int lev)
  * factor.
  *
  * @param[in] lev   Level whose face set takes the sun.
- * @param[in] time  Simulation time [s] of the shortwave that follows.
+ * @param[in] time  Simulation time [s] of the shortwave, or of the roofs' shadow, that follows.
  */
 void
 ERF::ibseb_set_two_stream_sun (int lev, Real time)

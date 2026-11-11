@@ -276,6 +276,17 @@ struct TwoStreamRoof
 };
 
 /**
+ * @brief Whether a column starts on a roof: the layer on the roof, @p k_lower, is above the
+ * box's bottom layer @p kbot. The one condition for the sweep and for what the sweep's
+ * caller hands the faces of that column (the albedo and the interface the column starts at).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool two_stream_starts_on_roof (int k_lower, int kbot) noexcept
+{
+    return k_lower > kbot;
+}
+
+/**
  * @brief The longwave a grey surface sends up: what it emits and the part of the
  * longwave coming down that it reflects (Kirchhoff's law). The one expression for the
  * ground and for a roof (TwoStreamRoof), so the two give the same number to the last bit.
@@ -284,7 +295,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real grey_surface_lw_up (amrex::Real emissivity, amrex::Real temperature, amrex::Real lw_down,
                                 amrex::Real sigma) noexcept
 {
-    return emissivity * compute_thermal_intensity(temperature, sigma) + (1.0 - emissivity) * lw_down;
+    return emissivity * compute_thermal_intensity(temperature, sigma) + (amrex::Real(1.0) - emissivity) * lw_down;
 }
 
 /**
@@ -1027,7 +1038,7 @@ void vertical_two_stream_sweep (
     // Grid bounds: kbot is the box's bottom layer, kmin the layer on the column's lower
     // boundary (the ground, or the first layer above a roof), kmax the top layer.
     const int kbot = bx.smallEnd(2);
-    const bool on_roof = (roof != nullptr && roof->k_lower > kbot);
+    const bool on_roof = (roof != nullptr && two_stream_starts_on_roof(roof->k_lower, kbot));
     const int kmin = on_roof ? roof->k_lower : kbot;
     const int kmax = bx.bigEnd(2);
     const int nlev = kmax - kmin + 1;
