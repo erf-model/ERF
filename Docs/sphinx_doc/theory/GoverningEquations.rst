@@ -28,7 +28,8 @@ projection. Buoyancy remains a source in vertical momentum, but its
 pressure-gradient term is not recomputed from the compressible equation
 of state.
 
-In **pseudo-incompressible** mode, ERF enforces
+In **pseudo-incompressible** mode, ERF evolves the density and
+:math:`\rho_d\theta_d` as in compressible mode, and enforces
 :math:`\nabla\cdot(\rho_0\theta_0\mathbf{u})=0` with a
 variable-coefficient pressure projection; see
 :ref:`PseudoIncompressibleEquations`.
@@ -182,23 +183,56 @@ correction to :math:`w` is recovered from the corrected contravariant
 momentum, so it equals :math:`\beta\,\partial\phi/\partial z` only to
 second order in the mesh spacing where :math:`\beta` varies.
 
-**Current status.**  ``erf.compressibility_type = PseudoIncompressible``
-uses the constraint and projection above.  The following are not yet
-implemented, and the level otherwise runs the anelastic equations:
+**Density, potential temperature and buoyancy.**  A
+pseudo-incompressible level evolves the density with the continuity
+equation and :math:`\rho\theta_d` with its own conservative equation,
+both in the flux form of the compressible equations,
 
-- evolution of the density (the level still holds
-  :math:`\rho = \rho_0`, ``fixed_density = 1``),
+.. math::
+   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}),
+
+   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d) +
+                                                      \nabla \cdot (\rho_d \alpha_{\theta}\ \nabla \theta_d) +
+                                                      F_{\theta} + H_{n} + H_{p},
+
+so ``fixed_density = 0`` there.  With AMR, :math:`\rho` and
+:math:`\rho\theta_d` are refluxed and averaged down, so both are conserved
+over the levels.  The buoyancy is the density departure,
+:math:`-(\rho - \rho_0)\,g` (``buoyancy_type = 1``, which is forced at a
+pseudo-incompressible level).  The thermodynamic pressure is the base-state
+pressure :math:`p_0`, as at an anelastic level, so temperature, saturation
+and the microphysics use :math:`p_0`.
+
+A fresh start sets :math:`\rho = \rho_0\theta_0/\theta` in every cell of a
+pseudo-incompressible level, keeping :math:`\theta` and the other mixing
+ratios, so that the initial state satisfies
+:math:`\rho\theta = \rho_0\theta_0`, which the constraint maintains in the
+continuum without heating or diffusion.  Discretely :math:`\rho\theta`
+drifts from :math:`\rho_0\theta_0`, because the projected flux
+:math:`\beta\,(\rho\mathbf{u})` is not the flux with which
+:math:`\rho\theta` is advected (and, on a terrain-fitted mesh, because the
+contravariant vertical flux mixes the faces' :math:`\beta`).  With
+``erf.v = 1`` and ``erf.sum_interval``, ``PI DRIFT`` reports the maximum of
+:math:`|\rho\theta - \rho_0\theta_0| / (\rho_0\theta_0)` over the
+pseudo-incompressible levels.
+
+**Current status.**  The following are not yet implemented:
+
 - a source term in the constraint, :math:`\nabla\cdot(\rho_0\theta_0\mathbf{u}) = S`,
-  representing diabatic heating,
-- pseudo-incompressible buoyancy and equation of state,
+  representing diabatic heating (and the drift above),
 - moist pseudo-incompressible flow (the constraint uses the dry
   :math:`\theta_0`),
+- matching the coarse and fine fluxes :math:`\beta\,(\rho\mathbf{u})`
+  through coarse/fine faces in time (the fine-level solve removes the
+  mismatch as a uniform divergence),
 - the implicit immersed-forcing drag in the projection
   (``erf.if_implicit_projection``),
 - a refined level that stops inside the domain in :math:`z` on a
   terrain-fitted mesh (refinement through the full depth is supported),
 - a refined level of a flat mesh with map factors other than one (as
-  for an anelastic level).
+  for an anelastic level),
+- density boundary conditions on walls, the WRF boundary density, the
+  cloud chamber and spectral-bin microphysics, which assume a fixed density.
 
 (Dry and Moist) Scalars
 -----------------------

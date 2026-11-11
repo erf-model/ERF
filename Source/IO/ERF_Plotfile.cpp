@@ -902,7 +902,7 @@ ERF::FillPlot3DVars (int lev,
 
         b.setVal(0.); // Need to initialize to zero because buoyancy not defined on faces at top and bottom of domain
         make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
-                      get_eb(lev), solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
+                      get_eb(lev), solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic);
         MultiFab::Copy(mf_dst, b, 0, mf_comp, 1, 0);
         mf_comp ++;
     }

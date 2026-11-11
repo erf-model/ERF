@@ -107,6 +107,27 @@ ERF::sum_integrated_quantities (double time)
         h_avg_olen  /= area_z;
     }
 
+    // On pseudo-incompressible levels, the departure of (rho theta) from (rho0 theta0), which the
+    // constraint div(rho0 theta0 u) = 0 holds at zero without heating or diffusion: max over the
+    // valid cells (with fluid) of all such levels of |rho theta - rho0 theta0| / (rho0 theta0)
+    Real pi_drift = -one;
+    for (int lev = 0; lev <= finest_level; lev++) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::PseudoIncompressible) { continue; }
+        auto const& s_arr  = vars_new[lev][Vars::cons].const_arrays();
+        auto const& b_arr  = base_state[lev].const_arrays();
+        auto const& dJ_arr = detJ_cc[lev]->const_arrays();
+        Real lev_drift = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{},
+                                   vars_new[lev][Vars::cons], IntVect(0),
+        [=] AMREX_GPU_DEVICE (int b, int i, int j, int k) noexcept -> GpuTuple<Real>
+        {
+            if (dJ_arr[b](i,j,k) <= zero) { return { zero }; }
+            const Real rt0 = b_arr[b](i,j,k,BaseState::r0_comp) * b_arr[b](i,j,k,BaseState::th0_comp);
+            return { std::abs(s_arr[b](i,j,k,RhoTheta_comp) - rt0) / rt0 };
+        });
+        pi_drift = std::max(pi_drift, lev_drift);
+    }
+    ParallelDescriptor::ReduceRealMax(pi_drift);
+
 #ifdef ERF_USE_FIRE
     const int nfoo = 10;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,smoke_sl,mass_ml,rhth_ml,scal_ml,mois_ml,smoke_ml};
@@ -168,6 +189,10 @@ ERF::sum_integrated_quantities (double time)
 #ifdef ERF_USE_FIRE
            if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  SL/ML = " << smoke_sl << " " << smoke_ml << '\n'; }
 #endif
+        }
+        if (pi_drift >= zero) {
+           Print() << std::setprecision(sumprecision) << " PI DRIFT   = " << pi_drift
+                   << "  (max |rho theta - rho0 theta0| / (rho0 theta0))" << '\n';
         }
 
         // The first data log only holds scalars

@@ -1054,6 +1054,8 @@ public:
     void GetEnsembleCheckpointName (int da_iter, int ens_no);
 
     void init_custom (int lev);
+    // Set rho = rho0 theta0 / theta on a pseudo-incompressible level, keeping the mixing ratios
+    void make_pseudo_incompressible_initial_state (int lev);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver

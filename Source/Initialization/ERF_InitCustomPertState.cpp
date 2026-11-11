@@ -212,3 +212,43 @@ ERF::init_custom (int lev)
         create_background_state_for_ensemble(lev, mf_cc_pert, lev_new[Vars::cons], lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::zvel]);
     }
 }
+
+/**
+ * Make the initial state of a pseudo-incompressible level satisfy rho theta = rho0 theta0,
+ * the state in which the pressure equals the base-state pressure p0 and which the constraint
+ * div(rho0 theta0 u) = 0 maintains: rho is set to rho0 theta0 / theta at each cell, with theta
+ * = (rho theta) / rho, and every other conserved variable is rescaled with rho so that the
+ * mixing ratios (theta, scalars, moisture, ...) are unchanged.  Applied on the valid and ghost
+ * cells, which hold the state and its boundary values pointwise.
+ *
+ * @param lev Level index
+ */
+void
+ERF::make_pseudo_incompressible_initial_state (int lev)
+{
+    BL_PROFILE("ERF::make_pseudo_incompressible_initial_state()");
+    MultiFab& cons = vars_new[lev][Vars::cons];
+    const int ncomp = cons.nComp();
+    const IntVect ng = amrex::min(cons.nGrowVect(), base_state[lev].nGrowVect());
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.growntilebox(ng);
+        const Array4<Real      >& s  = cons.array(mfi);
+        const Array4<Real const>& b0 = base_state[lev].const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rho = s(i,j,k,Rho_comp);
+            if (rho <= zero) { return; }
+            const Real rho_new = b0(i,j,k,BaseState::r0_comp) * b0(i,j,k,BaseState::th0_comp)
+                               * rho / s(i,j,k,RhoTheta_comp);
+            const Real fac = rho_new / rho;
+            for (int n = 0; n < ncomp; ++n) {
+                s(i,j,k,n) *= fac;
+            }
+        });
+    }
+}

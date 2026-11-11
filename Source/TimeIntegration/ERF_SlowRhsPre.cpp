@@ -978,12 +978,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // We add to the flux registers only in the stages whose fluxes the step's update applies,
         // weighted as in that update (RefluxStageWeight)
         // On anelastic levels we reflux (rho theta); the density is fixed so there is no density flux.
+        //       On pseudo-incompressible levels the density evolves, so we reflux rho and (rho theta).
         //       Compressible levels do not reflux either rho or (rho theta) (see ERF::post_timestep).
         // The flux components are indexed by conserved state component, which is why srccomp and
         //       destcomp below are both the state component being refluxed.
         if (l_reflux && l_anelastic) {
-            int strt_comp_reflux = RhoTheta_comp;
-            int  num_comp_reflux = 1;
+            int strt_comp_reflux = l_fixed_rho ? RhoTheta_comp : Rho_comp;
+            int  num_comp_reflux = RhoTheta_comp + 1 - strt_comp_reflux;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
                                     dx, l_reflux_dt, strt_comp_reflux, strt_comp_reflux,
