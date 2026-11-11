@@ -51,8 +51,8 @@ struct AdvectionFacePolicy {
 };
 
 /**
- * Decide the face-level spectral advection semantics without performing ERF's
- * deferred physical-boundary ghost-fill lifecycle. At a physical face whose
+ * Decide the face-level spectral advection semantics; the transport fills the
+ * physical ghosts. At a physical face whose
  * high-order stencil is not qualified, the admissible donor proposal remains
  * available and high-order transport falls back to it.
  */

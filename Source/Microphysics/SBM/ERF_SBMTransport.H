@@ -95,9 +95,8 @@ struct SBMAMRStageParent {
  * qc/qr completed-step face ledger, and (in reference mode) an optional
  * all-component completed spectral face ledger. Production AMR instances add
  * accepted chunk-local stage rates directly to their pending interface YA
- * register and do not retain that full spectral ledger. Operational AMR
- * execution remains disabled by the ERF runtime guard until lifecycle gates
- * are qualified.
+ * register and do not retain that full spectral ledger. It also owns the
+ * physical-face configuration and the cumulative boundary ledger.
  */
 class SBMTransport
 {
