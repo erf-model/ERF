@@ -823,6 +823,35 @@ function(add_test_conservation TEST_NAME TEST_FILES_DIR QUANTITY)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
 endfunction(add_test_conservation)
 
+# Run the pseudo-incompressible deck in test_files/<TEST_FILES_DIR> and require the last
+# "PI DRIFT" it prints, max |rho theta - rho0 theta0| / (rho0 theta0), to be below 10^MAX_EXP
+function(add_test_pi_drift TEST_NAME TEST_FILES_DIR MAX_EXP)
+    set(oneValueArgs "OPTIONS")
+    cmake_parse_arguments(ADD_TEST_PID "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DMAX_EXP=${MAX_EXP}"
+        "-DOPTIONS=${ADD_TEST_PID_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunPIDrift.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
+endfunction(add_test_pi_drift)
+
 # Run the deck in test_files/<TEST_FILES_DIR> twice, once with a diagnostic off and once
 # with it on, and require PLTFILE to be identical bit for bit.  This is the harness for
 # "turning this output on does not change the answer": OFF_OPTIONS and ON_OPTIONS are the
@@ -3491,6 +3520,15 @@ add_test_conservation(Conservation_ScalarDiffusion_Flat      ScalarDiffusion_Ref
 # both must be conserved over two levels coupled two-way (a stratified flow over a hill)
 add_test_conservation(Conservation_PseudoIncompressible_Mass     PseudoIncompressible_StratifiedHill "MASS")
 add_test_conservation(Conservation_PseudoIncompressible_RhoTheta PseudoIncompressible_StratifiedHill "RHO THETA")
+# A single pseudo-incompressible level keeps rho theta = rho0 theta0 to the tolerance of the solve
+# (about 1e-10 here) with upwind dycore schemes: the projection and the advection of (rho theta)
+# use the same upwind direction on each face (fixed by the projection) and the same ghost cells
+if(ERF_PRECISION STREQUAL "DOUBLE")
+  foreach(_sch Upwind_3rd Upwind_5th Centered_4th)
+    add_test_pi_drift(PseudoIncompressible_Drift_${_sch} PseudoIncompressible_StratifiedHill -8
+        OPTIONS "amr.max_level=0 erf.dycore_horiz_adv_type=${_sch} erf.dycore_vert_adv_type=${_sch}")
+  endforeach()
+endif()
 add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.terrain_type=StaticFittedMesh")
 add_test_conservation(Conservation_ScalarDiffusion_Hill      ScalarDiffusion_Reflux "RHO SCALAR"

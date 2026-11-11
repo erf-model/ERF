@@ -1533,6 +1533,25 @@ ERF::InitData_post ()
                     amrex::Print() << "Projecting initial velocity field at level " << lev << std::endl;
                 }
 
+                // A pseudo-incompressible projection maps rho0 theta0 / rho onto the faces with the
+                // advection stencil, which reads the density in the ghost cells (two or three deep
+                // with the higher-order schemes); fill them now, from the rescaled state of
+                // make_pseudo_incompressible_initial_state and, at a coarse/fine boundary, from
+                // the coarse level, since the full fill of the levels comes after the projection
+                if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                    auto& lev_new = vars_new[lev];
+                    if (lev == 0) {
+                        FillPatchCrseLevel(lev, t_new[lev],
+                                           {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                                           true);
+                    } else {
+                        FillPatchFineLevel(lev, t_new[lev],
+                                           {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                                           {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                                           false, true);
+                    }
+                }
+
                 project_initial_velocity(lev, t_new[lev], dummy_dt);
 
                 pp_inc[lev].setVal(0.);

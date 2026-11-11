@@ -159,13 +159,63 @@ space and time; since :math:`\rho\theta \approx \rho_0\theta_0`,
 :math:`\beta \approx \theta`, the coefficient of the Exner-pressure
 gradient in Durran's form of the momentum equation.  ERF never assumes
 :math:`\rho = \rho_0` in the pseudo-incompressible projection: the
-momenta are divided by the face-averaged :math:`\rho` and multiplied by
-the face-averaged :math:`\rho_0\theta_0` before the solve, and converted
-back afterwards.  The same face values of :math:`\beta` are used in the
-conversion, in the Poisson operator and in the momentum correction, so
-the projected momenta are discretely divergence-free.  The stored
-pressure gradient is :math:`\nabla\phi / \Delta t` itself, without
-:math:`\beta`.
+momenta are multiplied by :math:`\beta` on each face before the solve,
+and divided by it afterwards.  The same face values of :math:`\beta` are
+used in the conversion, in the Poisson operator and in the momentum
+correction, so the projected momenta are discretely divergence-free.
+The stored pressure gradient is :math:`\nabla\phi / \Delta t` itself,
+without :math:`\beta`.
+
+**Face values of** :math:`\beta`.  The coefficient is the base-state
+quantity :math:`\rho_0\theta_0/\rho`; how it is put onto the faces is a
+choice of discretization.  ERF maps the cell-centered field
+:math:`\rho_0\theta_0/\rho` onto each face with the reconstruction that
+the dycore advection scheme (``erf.dycore_horiz_adv_type``,
+``erf.dycore_vert_adv_type``) uses to put :math:`\theta` onto that face
+in the advective flux of :math:`\rho\theta`, which is the mass flux
+times the face value of :math:`\theta`.  On a terrain-fitted mesh the
+:math:`w`-face :math:`\beta` multiplies the contravariant mass flux
+:math:`\Omega(\rho\mathbf{u})`, as :math:`\theta` does in the flux.
+Where :math:`\rho\theta = \rho_0\theta_0`, the face value of
+:math:`\rho_0\theta_0/\rho` is then the face value of :math:`\theta`, so
+the projected flux :math:`\beta\,(\rho\mathbf{u})` is the advective
+flux of :math:`\rho\theta`, and the projection keeps
+:math:`\rho\theta = \rho_0\theta_0` without heating or diffusion.  On an
+embedded-boundary mesh :math:`\beta` is instead the ratio of the face
+averages of :math:`\rho_0\theta_0` and :math:`\rho`.
+
+**Upwind direction.**  An upwind or WENO scheme picks its stencil from
+the direction of the flow on each face, and the projection can reverse
+that direction.  On a pseudo-incompressible level the direction on each
+face is therefore fixed by the projection: it is the sign of the
+momentum going into the projection (zero, which selects the centered
+blend, where that momentum is zero).  The projection maps
+:math:`\rho_0\theta_0/\rho` onto the faces with the stencil this
+direction selects, and the advection of every cell-centered scalar
+from the projected state (:math:`\rho\theta` with the dycore scheme,
+the moist and dry scalars with theirs) picks its upwind side from the
+same direction rather than from the sign of the projected mass flux.
+The face value of :math:`\theta` in the advective flux of
+:math:`\rho\theta` is then the face value of :math:`\beta` whatever the
+scheme.  Where the projection reverses the flow on a face, the stencil
+there lies downwind of the projected flow, so the scheme's upwind
+dissipation acts with the opposite sign on that face; such faces have
+small velocities.  The direction is kept between the stage that projects
+and the stage that advects (and in the checkpoint).  The momenta are
+advected as on any other level, with the direction of their own mass
+fluxes.
+
+**Ghost cells.**  Near the edge of a level the stencils of the upwind
+and higher-order schemes read cells two or three deep outside it, where
+the advection reads :math:`\theta = (\rho\theta)/\rho` as the fill of
+the state sets :math:`\rho` and :math:`\rho\theta` there.  The
+projection gives :math:`\rho_0\theta_0` the same ghost cells: outside
+the domain it applies the boundary conditions of :math:`\rho\theta`, and
+at a coarse/fine boundary it interpolates the coarse
+:math:`\rho_0\theta_0` as the fill interpolates the coarse
+:math:`\rho\theta`; it then divides by the ghost-cell :math:`\rho` of the
+state.  With :math:`\rho\theta = \rho_0\theta_0` the ratio is then
+:math:`\theta` in those cells too.
 
 **Solvers.**  Every pseudo-incompressible projection on a mesh without
 embedded boundaries uses the terrain Poisson operator with :math:`\beta`
@@ -206,25 +256,33 @@ and the microphysics use :math:`p_0`.
 A fresh start sets :math:`\rho = \rho_0\theta_0/\theta` in every cell of a
 pseudo-incompressible level, keeping :math:`\theta` and the other mixing
 ratios, so that the initial state satisfies
-:math:`\rho\theta = \rho_0\theta_0`, which the constraint maintains in the
-continuum without heating or diffusion.  Discretely :math:`\rho\theta`
-drifts from :math:`\rho_0\theta_0`, because the projected flux
-:math:`\beta\,(\rho\mathbf{u})` is not the flux with which
-:math:`\rho\theta` is advected (and, on a terrain-fitted mesh, because the
-contravariant vertical flux mixes the faces' :math:`\beta`).  With
-``erf.v = 1`` and ``erf.sum_interval``, ``PI DRIFT`` reports the maximum of
+:math:`\rho\theta = \rho_0\theta_0`, which the constraint, with the face
+values of :math:`\beta` above, maintains to the tolerance of the solve
+without heating or diffusion.  With ``erf.v = 1`` and
+``erf.sum_interval``, ``PI DRIFT`` reports the maximum of
 :math:`|\rho\theta - \rho_0\theta_0| / (\rho_0\theta_0)` over the
 pseudo-incompressible levels.
 
 **Current status.**  The following are not yet implemented:
 
 - a source term in the constraint, :math:`\nabla\cdot(\rho_0\theta_0\mathbf{u}) = S`,
-  representing diabatic heating (and the drift above),
+  representing diabatic heating and diffusion,
+- face values of :math:`\beta` that match the advection of
+  :math:`\rho\theta` on an embedded-boundary mesh (there the scalars
+  are upwinded with the sign of the projected mass flux),
 - moist pseudo-incompressible flow (the constraint uses the dry
   :math:`\theta_0`),
 - matching the coarse and fine fluxes :math:`\beta\,(\rho\mathbf{u})`
   through coarse/fine faces in time (the fine-level solve removes the
-  mismatch as a uniform divergence),
+  mismatch as a uniform divergence) and keeping
+  :math:`\rho\theta = \rho_0\theta_0` when the fine level is refluxed and
+  averaged down: on refined levels :math:`\rho\theta` still drifts from
+  :math:`\rho_0\theta_0`.  In ten steps on the stratified hill of
+  ``Tests/test_files/PseudoIncompressible_StratifiedHill`` the drift is
+  about :math:`10^{-5}` with one-way coupling and :math:`10^{-4}` with
+  two-way coupling, against :math:`10^{-10}` on a single level; the
+  upwind direction at the coarse/fine faces is not yet made consistent
+  between the levels either,
 - the implicit immersed-forcing drag in the projection
   (``erf.if_implicit_projection``),
 - a refined level that stops inside the domain in :math:`z` on a
