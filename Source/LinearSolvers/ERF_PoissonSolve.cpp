@@ -169,6 +169,25 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
  }
 
 /**
+ * Define pi_upw_dir[lev] and pi_upw_dir_stage[lev] on the faces of the level's grids (set to
+ * zero, the centered blend) unless they are already defined there.
+ *
+ * @param lev Level index
+ */
+void ERF::define_pi_upw_dir (int lev)
+{
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        const BoxArray ba = convert(grids[lev], IntVect::TheDimensionVector(idim));
+        for (auto* d : {&pi_upw_dir[lev][idim], &pi_upw_dir_stage[lev][idim]}) {
+            if (!*d || (*d)->boxArray() != ba || (*d)->DistributionMap() != dmap[lev]) {
+                *d = std::make_unique<MultiFab>(ba, dmap[lev], 1, 0);
+                (*d)->setVal(zero);
+            }
+        }
+    }
+}
+
+/**
  * Project the single-level momenta to enforce the anelastic constraint
  * Note that the level may or may not be level zero
  *
@@ -259,6 +278,9 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     // div(beta grad phi) = div(m*) / dt.  The same face values of beta are the coefficient of
     // the operator (through the face area factors of the terrain Poisson solver, or the b
     // coefficient with EB), scale the correction to m, and convert m back to (rho u).
+    // beta is made below, once the vertical momentum holds the vertical mass flux (Omega on a
+    // terrain-fitted mesh), so that the w-face beta multiplies Omega(rho u), as theta does in the
+    // advective flux of (rho theta).
     // ****************************************************************************
     const bool l_pi = (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
     Array<MultiFab,AMREX_SPACEDIM> pi_beta;
@@ -272,16 +294,6 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             amrex::Abort("erf.compressibility_type = PseudoIncompressible: a refined level that stops "
                          "inside the domain in z is not yet supported on a terrain-fitted mesh");
         }
-        const IntVect ng_b = base_state[lev].nGrowVect();
-        MultiFab rho0_theta0(base_state[lev].boxArray(), base_state[lev].DistributionMap(), 1, ng_b);
-        MultiFab::Copy    (rho0_theta0, base_state[lev], BaseState::r0_comp , 0, 1, ng_b);
-        MultiFab::Multiply(rho0_theta0, base_state[lev], BaseState::th0_comp, 0, 1, ng_b);
-        MakeProjectionWeights(mom_mf[Vars::cons], rho0_theta0,
-                              mom_mf[IntVars::xmom], mom_mf[IntVars::ymom], mom_mf[IntVars::zmom],
-                              pi_beta, Geom(lev).Domain(), domain_bcs_type);
-        MultiFab::Multiply(mom_mf[IntVars::xmom], pi_beta[0], 0, 0, 1, 0);
-        MultiFab::Multiply(mom_mf[IntVars::ymom], pi_beta[1], 0, 0, 1, 0);
-        MultiFab::Multiply(mom_mf[IntVars::zmom], pi_beta[2], 0, 0, 1, 0);
     }
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
@@ -356,6 +368,105 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         if (lev > 0) {
             set_cf_zface_omega(lev, mom_mf[IntVars::zmom], cf_omega_t, cf_slab_box);
         }
+    }
+
+    // ****************************************************************************
+    // Pseudo-incompressible: m = beta (rho u) on the x- and y-faces and beta Omega(rho u) on the
+    // z-faces.  beta is rho0 theta0 / rho mapped onto the faces as the advection of (rho theta)
+    // maps theta (its scheme and upwind fraction, upwind side from the momenta here, which is
+    // recorded in pi_upw_dir for that advection), so that
+    // with rho theta = rho0 theta0 the projected m is the advective flux of (rho theta) divided by
+    // the face areas and map factors; with EB, beta is the face average of
+    // ConvertForProjection.
+    // ****************************************************************************
+    if (l_pi) {
+        const IntVect ng_b = base_state[lev].nGrowVect();
+        MultiFab rho0_theta0(base_state[lev].boxArray(), base_state[lev].DistributionMap(), 1, ng_b);
+        MultiFab::Copy    (rho0_theta0, base_state[lev], BaseState::r0_comp , 0, 1, ng_b);
+        MultiFab::Multiply(rho0_theta0, base_state[lev], BaseState::th0_comp, 0, 1, ng_b);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            MakeProjectionWeights(mom_mf[Vars::cons], rho0_theta0,
+                                  mom_mf[IntVars::xmom], mom_mf[IntVars::ymom], mom_mf[IntVars::zmom],
+                                  pi_beta, Geom(lev).Domain(), domain_bcs_type);
+        } else {
+            // The upwind and higher-order stencils of the faces next to the domain boundary read
+            // ghost cells outside the domain, where the advection reads theta = (rho theta) / rho
+            // as the boundary conditions of rho and (rho theta) fill them.  So rho0 theta0 gets its
+            // ghost cells there from the boundary conditions of (rho theta) (applied to a copy of
+            // the state with rho0 theta0 in place of rho theta), and is divided by the ghost-cell
+            // rho, so that with rho theta = rho0 theta0 the ratio is theta in those cells too.
+            const IntVect ng_c = amrex::min(mom_mf[Vars::cons].nGrowVect(), ng_b);
+            // (only rho, which those conditions read, and rho0 theta0: the initial projection
+            // passes the density alone)
+            MultiFab pi_cons(mom_mf[Vars::cons].boxArray(), mom_mf[Vars::cons].DistributionMap(),
+                             RhoTheta_comp+1, ng_c);
+            MultiFab::Copy(pi_cons, mom_mf[Vars::cons], Rho_comp, Rho_comp, 1, ng_c);
+            MultiFab::Copy(pi_cons, rho0_theta0, 0, RhoTheta_comp, 1, ng_c);
+            if (lev > 0) {
+                // At a coarse/fine boundary theta comes from the coarse (rho theta) and rho,
+                // interpolated as the fill of the state interpolates them, so rho0 theta0 gets
+                // its ghost cells there from the coarse rho0 theta0 in the same way
+                const IntVect ng_bc = base_state[lev-1].nGrowVect();
+                MultiFab crse_r0t0(base_state[lev-1].boxArray(), base_state[lev-1].DistributionMap(), 1, ng_bc);
+                MultiFab::Copy    (crse_r0t0, base_state[lev-1], BaseState::r0_comp , 0, 1, ng_bc);
+                MultiFab::Multiply(crse_r0t0, base_state[lev-1], BaseState::th0_comp, 0, 1, ng_bc);
+                MultiFab fine_r0t0(rho0_theta0.boxArray(), rho0_theta0.DistributionMap(), 1, ng_c);
+                Vector<MultiFab*> cmf = {&crse_r0t0};
+                Vector<MultiFab*> fmf = {&rho0_theta0};
+                Vector<Real> ctime = {zero};
+                Vector<Real> ftime = {zero};
+                FillPatchTwoLevels(fine_r0t0, ng_c, IntVect(0,0,0), zero,
+                                   cmf, ctime, fmf, ftime, 0, 0, 1,
+                                   geom[lev-1], geom[lev], refRatio(lev-1), &cell_cons_interp,
+                                   domain_bcs_type, BCVars::cons_bc + RhoTheta_comp);
+                // (FillPatchTwoLevels fills nothing outside the domain, which keeps rho0 theta0
+                // there until the boundary conditions below)
+                const Box& dom = geom[lev].Domain();
+                for (MFIter mfi(pi_cons); mfi.isValid(); ++mfi) {
+                    const Box gbx = mfi.growntilebox(ng_c);
+                    const Array4<      Real>& pc = pi_cons.array(mfi);
+                    const Array4<const Real>& fq = fine_r0t0.const_array(mfi);
+                    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        if (dom.contains(IntVect(AMREX_D_DECL(i,j,k)))) {
+                            pc(i,j,k,RhoTheta_comp) = fq(i,j,k);
+                        }
+                    });
+                }
+            }
+            (*physbcs_cons[lev])(pi_cons, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom],
+                                 Rho_comp, 2, ng_c, l_time, BCVars::cons_bc,
+                                 true, (lev == 0));
+            MultiFab rho0_theta0_bc(pi_cons, amrex::make_alias, RhoTheta_comp, 1);
+
+            const auto& adv = solverChoice.advChoice;
+            MakeAdvectiveProjectionWeights(pi_cons, rho0_theta0_bc,
+                                           mom_mf[IntVars::xmom], mom_mf[IntVars::ymom], mom_mf[IntVars::zmom],
+                                           pi_beta,
+                                           adv.dycore_horiz_adv_type, adv.dycore_vert_adv_type,
+                                           adv.dycore_horiz_upw_frac, adv.dycore_vert_upw_frac,
+                                           geom[lev].periodicity());
+
+            // The upwind side beta was mapped with, for the advection from the projected state
+            define_pi_upw_dir(lev);
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                MultiFab& dir = *pi_upw_dir[lev][idim];
+                const MultiFab& mom = mom_mf[IntVars::xmom + idim];
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for (MFIter mfi(dir,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& nbx = mfi.tilebox();
+                    const Array4<      Real>& d = dir.array(mfi);
+                    const Array4<const Real>& m = mom.const_array(mfi);
+                    ParallelFor(nbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        d(i,j,k) = (m(i,j,k) > zero) ? one : ((m(i,j,k) < zero) ? -one : zero);
+                    });
+                }
+            }
+        }
+        MultiFab::Multiply(mom_mf[IntVars::xmom], pi_beta[0], 0, 0, 1, 0);
+        MultiFab::Multiply(mom_mf[IntVars::ymom], pi_beta[1], 0, 0, 1, 0);
+        MultiFab::Multiply(mom_mf[IntVars::zmom], pi_beta[2], 0, 0, 1, 0);
     }
 
     // ****************************************************************************
@@ -1135,6 +1246,14 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
     } // mg_verbose
 
+    // Convert m back to (rho u), (rho v) and Omega(rho u) on a pseudo-incompressible level, before
+    // (rho w) is recovered from Omega below with the corrected (rho u) and (rho v)
+    if (l_pi) {
+        MultiFab::Divide(mom_mf[IntVars::xmom], pi_beta[0], 0, 0, 1, 0);
+        MultiFab::Divide(mom_mf[IntVars::ymom], pi_beta[1], 0, 0, 1, 0);
+        MultiFab::Divide(mom_mf[IntVars::zmom], pi_beta[2], 0, 0, 1, 0);
+    }
+
     //
     // ****************************************************************************
     // Now convert the rho0w MultiFab back to holding (rho0w) rather than Omega
@@ -1167,21 +1286,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         } // mfi
     }
 
-    // Convert m = beta (rho u) back to (rho u) on a pseudo-incompressible level.  The z-ghost
-    // faces of (rho u) and (rho v) that the conversion to Omega filled from neighbouring boxes
-    // are filled again, so that they hold (rho u) and (rho v) as on an anelastic level.
-    if (l_pi) {
-        MultiFab::Divide(mom_mf[IntVars::xmom], pi_beta[0], 0, 0, 1, 0);
-        MultiFab::Divide(mom_mf[IntVars::ymom], pi_beta[1], 0, 0, 1, 0);
-        MultiFab::Divide(mom_mf[IntVars::zmom], pi_beta[2], 0, 0, 1, 0);
-        if (solverChoice.mesh_type == MeshType::VariableDz) {
-            mom_mf[IntVars::xmom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
-            mom_mf[IntVars::ymom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
-        }
-    }
     // If !fixed_density, we must convert (rho0 u) back
-    // to (rho0 u) which is what we will pass back out
-    else if (!solverChoice.fixed_density[lev]) {
+    // to (rho0 u) which is what we will pass back out (a pseudo-incompressible level was converted
+    // back above)
+    if (!l_pi && !solverChoice.fixed_density[lev]) {
         ConvertForProjection(r_hse, mom_mf[Vars::cons],
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],

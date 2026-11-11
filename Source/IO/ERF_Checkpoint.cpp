@@ -456,6 +456,16 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(gpz, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpz"));
         }
 
+        // Pseudo-incompressible: the upwind direction of the latest projection, with which the
+        // first stage after the restart advects the cell-centered scalars
+        if (pi_upw_dir[lev][0]) {
+            const char* names[AMREX_SPACEDIM] = {"PiUpwDirX", "PiUpwDirY", "PiUpwDirZ"};
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                VisMF::Write(*pi_upw_dir[lev][idim],
+                             MultiFabFileFullPrefix(lev, checkpointname, "Level_", names[idim]));
+            }
+        }
+
         // Surface momentum and scalar fluxes handed to an ocean model in
         // flux-passing mode. These are computed inside a timestep's RHS rather
         // than carried as state, so after a restart they hold zero until the
@@ -1570,6 +1580,23 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(gpz, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpz"));
             gradp[lev][GpVars::gpz].ParallelCopy(gpz,0,0,1,IntVect(0),IntVect(0));
             gradp[lev][GpVars::gpz].FillBoundary(geom[lev].periodicity());
+        }
+
+        // Pseudo-incompressible: the upwind direction of the latest projection (see the write
+        // above).  A checkpoint without it leaves the direction zero, the centered blend, for the
+        // first stage, so (rho theta) can depart from rho0 theta0 by the upwind correction there.
+        if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible &&
+            solverChoice.terrain_type != TerrainType::EB) {
+            define_pi_upw_dir(lev);
+            const char* names[AMREX_SPACEDIM] = {"PiUpwDirX", "PiUpwDirY", "PiUpwDirZ"};
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                if (!read_checkpoint_mf_if_present(*pi_upw_dir[lev][idim],
+                                                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", names[idim]),
+                                                   lev, 0, 0, 1, IntVect(0), false)) {
+                    amrex::Print() << "WARNING: checkpoint has no " << names[idim] << " at level " << lev
+                                   << "; the pseudo-incompressible upwind direction starts centered" << std::endl;
+                }
+            }
         }
 
         // Restore the surface fluxes an ocean model is driven by in flux-passing

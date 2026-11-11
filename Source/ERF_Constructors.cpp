@@ -624,6 +624,8 @@ ERF::ERF_shared ()
 
     // We resize this regardless in order to pass it without error
     pp_inc.resize(nlevs_max);
+    pi_upw_dir.resize(nlevs_max);
+    pi_upw_dir_stage.resize(nlevs_max);
 
     // Used in the fast substepping only
     lagged_delta_rt.resize(nlevs_max);

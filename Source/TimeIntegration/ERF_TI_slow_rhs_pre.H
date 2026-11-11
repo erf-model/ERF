@@ -293,10 +293,25 @@
                               thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
         // *****************************************************************************
+        // Pseudo-incompressible: advect the cell-centered scalars of this stage with the upwind
+        // direction of the projection that made S_data (kept for erf_slow_rhs_post, since the
+        // projection at the end of this stage overwrites pi_upw_dir)
+        // *****************************************************************************
+        Array<const MultiFab*,AMREX_SPACEDIM> upw_dir{AMREX_D_DECL(nullptr,nullptr,nullptr)};
+        if (solverChoice.compressibility_type[level] == CompressibilityType::PseudoIncompressible &&
+            solverChoice.terrain_type != TerrainType::EB) {
+            define_pi_upw_dir(level);
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                MultiFab::Copy(*pi_upw_dir_stage[level][idim], *pi_upw_dir[level][idim], 0, 0, 1, 0);
+                upw_dir[idim] = pi_upw_dir_stage[level][idim].get();
+            }
+        }
+
+        // *****************************************************************************
         // Define RHS for rho, rho_theta and momenta
         // *****************************************************************************
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data,
-                         S_prim, qt, avg_xmom[level], avg_ymom[level], avg_zmom[level],
+                         S_prim, qt, avg_xmom[level], avg_ymom[level], avg_zmom[level], upw_dir,
                          xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
