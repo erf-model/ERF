@@ -271,6 +271,7 @@ target_sources(${erf_exe_name}
     # buildings' geometry (a closed form behind a long wall, a count from the geometry
     # for a building set), and the answer must not depend on where a rank's map ends.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBGroundViewShadow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBGroundWalls.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed

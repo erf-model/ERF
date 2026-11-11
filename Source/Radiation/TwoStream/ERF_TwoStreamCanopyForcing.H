@@ -185,4 +185,47 @@ amrex::Real two_stream_ground_beam_share (int i, int j, int k0,
     return (share < amrex::Real(1.0)) ? share : amrex::Real(1.0);
 }
 
+/// What two_stream_ground_wall_terms() adds to the ground balance's net shortwave and longwave [W/m^2].
+struct GroundWallTerms
+{
+    amrex::Real d_sw = 0.0;
+    amrex::Real d_lw = 0.0;
+};
+
+/**
+ * @brief The change of the open ground's net radiation beside walls
+ * (erf.ibseb.ground_sky_view). The walls take the share @p wall_view of the ground's
+ * view of the sky. Through it the ground loses the sky's diffuse light and longwave and
+ * gains the walls':
+ *   d_sw = c [(1 - alb_dif) sw_walls - wall_view (sw_net - sw_beam)],
+ *   d_lw = c emis (lw_walls - wall_view lw_down).
+ * The share comes from a count of rays and can exceed 1 in a column closed in by walls;
+ * a ground cannot see more than its whole view, so there c = 1 / wall_view scales the
+ * loss and the gain alike (the ground then sees no sky and the walls' mean); c = 1
+ * otherwise. The direct beam is not touched (the shadow takes it).
+ *
+ * @param sw_net     the sweep's absorbed shortwave at the ground, beam and diffuse [W/m^2]
+ * @param sw_beam    its absorbed direct beam [W/m^2]
+ * @param wall_view  the walls' share of the ground's view [1]
+ * @param sw_walls   the walls' reflected shortwave arriving on the ground [W/m^2]
+ * @param lw_walls   the walls' longwave arriving on the ground [W/m^2]
+ * @param lw_down    the sky's longwave down at the ground [W/m^2]
+ * @param absorb_dif the ground's diffuse absorptance, 1 - alb_dif [1]
+ * @param emis       the ground's longwave emissivity [1]
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+GroundWallTerms two_stream_ground_wall_terms (amrex::Real sw_net, amrex::Real sw_beam, amrex::Real wall_view,
+                                              amrex::Real sw_walls, amrex::Real lw_walls, amrex::Real lw_down,
+                                              amrex::Real absorb_dif, amrex::Real emis) noexcept
+{
+    // The divisor is at least 1 whatever the share: an optimiser that forms both sides of
+    // a choice would otherwise divide by a share of zero, which traps where traps are on.
+    const amrex::Real whole = (wall_view > amrex::Real(1.0)) ? wall_view : amrex::Real(1.0);
+    const amrex::Real c = amrex::Real(1.0) / whole;
+    GroundWallTerms t;
+    t.d_sw = c * (absorb_dif * sw_walls - wall_view * (sw_net - sw_beam));
+    t.d_lw = c * emis * (lw_walls - wall_view * lw_down);
+    return t;
+}
+
 #endif // ERF_TWO_STREAM_CANOPY_FORCING_H_

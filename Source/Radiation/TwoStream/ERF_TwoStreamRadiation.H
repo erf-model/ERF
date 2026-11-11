@@ -310,8 +310,18 @@ public:
      * @param blanking the level's cell-centred blanking (ERF::terrain_blanking), on the
      *                 state's grids: 0 in the air, 1 inside a building
      * @param domain   the level's domain Box; its bottom cell is the ground's
+     * @param take_ground_walls also take, at the update after the dycore, what the walls
+     *                 send to the open ground (erf.ibseb.ground_sky_view, the field of
+     *                 ground_walls_for_step()): only where the ground takes the shadow
+     *                 and the longwave is on (takes_ground_walls())
      */
-    void set_building_cover (int lev, const amrex::MultiFab& blanking, const amrex::Box& domain);
+    void set_building_cover (int lev, const amrex::MultiFab& blanking, const amrex::Box& domain,
+                             bool take_ground_walls = false);
+
+    /** @brief True when the ground balance of @p lev takes what the walls send it (see set_building_cover()): the one condition for the field, what the sweep keeps for it, and the shortwave and longwave terms. */
+    [[nodiscard]] bool takes_ground_walls (int lev) const noexcept {
+        return lev >= 0 && lev < static_cast<int>(m_ground_walls.size()) && m_ground_walls[lev] != nullptr;
+    }
 
     /** @brief True when set_building_cover() was called for @p lev since its last define_level(). */
     [[nodiscard]] bool has_building_cover (int lev) const noexcept {
@@ -328,6 +338,36 @@ public:
      * the step its sweep ran in.
      */
     [[nodiscard]] amrex::MultiFab* ground_shadow_for_step (int lev, int nstep);
+
+    /**
+     * @brief The field the immersed-boundary balance fills with what the walls send to
+     * the ground of @p lev for step @p nstep (IBFaceSet::compute_ground_walls(): the
+     * walls' share of the ground's view, their reflected shortwave and their longwave
+     * arriving on the ground, W/m^2), or nullptr when the level's ground balance takes
+     * none (takes_ground_walls()). Marks the
+     * field as that step's. At the update after the dycore the open ground then keeps
+     * its absorbed diffuse shortwave and the sky's longwave through the part of its
+     * view the walls leave open, and takes the walls' through the rest:
+     *   SW += (1 - alb_dif) SW_walls - v (SW - SW_beam),   LW += emis (LW_walls - v LW_down),
+     * with v the walls' share (two_stream_ground_wall_terms()).
+     */
+    [[nodiscard]] amrex::MultiFab* ground_walls_for_step (int lev, int nstep);
+
+    /** @brief What the walls sent to the ground of @p lev last (see ground_walls_for_step()), or nullptr before any or when the level takes none. Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* ground_walls (int lev) const noexcept {
+        return (lev >= 0 && lev < static_cast<int>(m_ground_walls.size()) && m_walls_step[lev] >= 0)
+             ? m_ground_walls[lev].get() : nullptr;
+    }
+
+    /**
+     * @brief The net longwave [W/m^2] the ground balance of @p lev used at its last update
+     * after the dycore (with the walls' longwave of erf.ibseb.ground_sky_view); nullptr as
+     * for seb_sw_net(). Read-only: for output.
+     */
+    [[nodiscard]] const amrex::MultiFab* seb_lw_net (int lev) const {
+        return (active() && m_rad->seb_enable && lev < static_cast<int>(m_lw_flux_sfc.size()) && m_seb_updated[lev] != 0)
+             ? m_lw_flux_sfc[lev].get() : nullptr;
+    }
 
     /** @brief The ground's shadow last given for @p lev (see ground_shadow_for_step()), or nullptr before one is given or when the level takes none. Read-only: for output. */
     [[nodiscard]] const amrex::MultiFab* ground_shadow (int lev) const noexcept {
@@ -447,6 +487,13 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_footprint;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_ground_shadow;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_sw_beam_sfc;
+    // erf.ibseb.ground_sky_view: what the walls send to the ground (ground_walls_for_step(),
+    // three components) of step m_walls_step, and what the sweep keeps for it per column
+    // (2D): the longwave down at the ground, the ground's diffuse absorptance 1 - alb_dif,
+    // and its longwave emissivity.
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_ground_walls;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_ground_keep;
+    amrex::Vector<int> m_walls_step;
     amrex::Vector<int> m_shadow_step;
     amrex::Vector<int> m_sweep_step;
     amrex::Vector<int> m_shaded_step;
