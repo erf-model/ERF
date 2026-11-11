@@ -693,6 +693,7 @@ ERF::ERF_shared ()
     // Metric terms
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
+    z_sfc_nd.resize(nlevs_max);
     detJ_cc.resize(nlevs_max);
     ax.resize(nlevs_max);
     ay.resize(nlevs_max);
