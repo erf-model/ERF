@@ -26,15 +26,16 @@ struct InventoryRoundoff
  * accumulation; bound both inventories, the final subtraction, and a pairwise
  * MPI reduction with eight operations per leaf plus two reduction-tree levels
  * per depth. A regrid adds the prolongation of a new fine cell from its
- * parent, every accepted step re-forms each leaf, and each physical-face term
- * of the boundary ledger takes a product, a mask and two sums.
+ * parent, every leaf update between the two inventories re-forms each leaf,
+ * and each physical-face term of the boundary ledger takes a product, a mask
+ * and two sums.
  */
 inline InventoryRoundoff
 composite_inventory_roundoff (const std::uint64_t coarse_cells,
                               const std::uint64_t fine_cells,
                               const amrex::IntVect& ratio,
                               const bool with_prolongation,
-                              const std::uint64_t steps = 0,
+                              const std::uint64_t leaf_updates = 0,
                               const std::uint64_t boundary_face_terms = 0)
 {
     std::uint64_t refinement_volume = 1U;
@@ -51,7 +52,7 @@ composite_inventory_roundoff (const std::uint64_t coarse_cells,
         ++roundoff.reduction_depth;
     }
     roundoff.operation_count =
-        8U * roundoff.leaf_cell_terms * (1U + steps) + 6U * boundary_face_terms +
+        8U * roundoff.leaf_cell_terms * (1U + leaf_updates) + 6U * boundary_face_terms +
         2U * static_cast<std::uint64_t>(roundoff.reduction_depth) + 1U +
         (with_prolongation ? refinement_volume + 6U : 0U);
     const amrex::Real q = static_cast<amrex::Real>(roundoff.operation_count) *
