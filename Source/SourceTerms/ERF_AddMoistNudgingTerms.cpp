@@ -55,17 +55,42 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     const Box domain = geom.Domain();
     IntVect ng  = S_data.nGrowVect();
 
+    static constexpr int n_q_max = 6;
+    static constexpr int n_off   = n_q_max - NumberDensityTarget::n_n_max;
+
     AMREX_ALWAYS_ASSERT(bdy_moist_nudge_type >= 0 && bdy_moist_nudge_type <= 3);
     AMREX_ALWAYS_ASSERT(RhoQ1_comp + n_qstate <= S_data.nComp());
     AMREX_ALWAYS_ASSERT(bdy_moist_nudge_type != 3 || !m_r2d);
     const bool separate_hydrometeors =
         wrf_bdy_has_separate_hydrometeors(moisture_indices);
-    const GpuArray<int,6> moisture_comps = {
+    const GpuArray<int,n_q_max> moisture_comps = {
         moisture_indices.qv, moisture_indices.qc, moisture_indices.qi,
         moisture_indices.qr, moisture_indices.qs, moisture_indices.qg};
     const bool has_cloud_ice = (moisture_indices.qi >= 0);
     const int n_moisture_targets = separate_hydrometeors
-        ? 6 : (has_cloud_ice ? 3 : 2);
+        ? n_q_max : (has_cloud_ice ? 3 : 2);
+
+    // Under mode 3 the number concentrations are relaxed as well, toward the
+    // number the scheme's assumed size distribution gives the target mass;
+    // otherwise the relaxed masses arrive with the near-zero number advected
+    // in from the ghost cells and the scheme caps their size (issue #4493).
+    // The number targets follow the six mass targets, so they need all six.
+    GpuArray<int,NumberDensityTarget::n_n_max> number_comps = {
+        moisture_indices.nc, moisture_indices.ni,
+        moisture_indices.nr, moisture_indices.ns, moisture_indices.ng};
+    if (!separate_hydrometeors) {
+        for (int n = 0; n < NumberDensityTarget::n_n_max; ++n) { number_comps[n] = -1; }
+    }
+    const int n_tot_targets = separate_hydrometeors
+        ? n_q_max + NumberDensityTarget::n_n_max
+        : n_moisture_targets;
+    GpuArray<int,n_q_max+NumberDensityTarget::n_n_max> relaxed_comps;
+    for (int n = 0; n < n_q_max; ++n) {
+        relaxed_comps[n] = (n < n_moisture_targets) ? moisture_comps[n] : -1;
+    }
+    for (int n = 0; n < NumberDensityTarget::n_n_max; ++n) {
+        relaxed_comps[n_q_max+n] = number_comps[n];
+    }
 
     // Temporary MF so we can nudge qv + qc to the bdy data
     //
@@ -117,8 +142,8 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
     } else if (bdy_moist_nudge_type == 3) {
 
-        for (int n = 0; n < n_moisture_targets; ++n) {
-            const int comp = moisture_comps[n];
+        for (int n = 0; n < n_tot_targets; ++n) {
+            const int comp = relaxed_comps[n];
             if (comp >= 0) {
                 AMREX_ALWAYS_ASSERT(comp < S_data.nComp());
                 MultiFab::Copy(S_tmp, S_data, comp, comp, 1, ng);
@@ -165,7 +190,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
         // We will add to source terms for moist variables and
         //    to source term for (rho theta)
-        const Array4<      Real>& src_arr        = source.array(mfi);
+        const Array4<      Real>& src_arr  = source.array(mfi);
 
         // Get bndry data
         if (m_r2d) {
@@ -191,7 +216,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                 ng_vect, true);
 
         // Temporary FABs for storage (owned/filled on all ranks)
-        const int ntargets = (bdy_moist_nudge_type == 3) ? n_moisture_targets : 1;
+        const int ntargets = (bdy_moist_nudge_type == 3) ? n_tot_targets : 1;
         FArrayBox QV_xlo, QV_xhi, QV_ylo, QV_yhi;
         QV_xlo.resize(bx_xlo,ntargets,The_Async_Arena()); QV_xhi.resize(bx_xhi,ntargets,The_Async_Arena());
         QV_ylo.resize(bx_ylo,ntargets,The_Async_Arena()); QV_yhi.resize(bx_yhi,ntargets,The_Async_Arena());
@@ -216,6 +241,8 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         Array4<const Real> qsdatylo_n, qsdatylo_np1, qsdatyhi_n, qsdatyhi_np1;
         Array4<const Real> qgdatxlo_n, qgdatxlo_np1, qgdatxhi_n, qgdatxhi_np1;
         Array4<const Real> qgdatylo_n, qgdatylo_np1, qgdatyhi_n, qgdatyhi_np1;
+        Array4<const Real> thdatxlo_n, thdatxlo_np1, thdatxhi_n, thdatxhi_np1;
+        Array4<const Real> thdatylo_n, thdatylo_np1, thdatyhi_n, thdatyhi_np1;
         if (bdy_moist_nudge_type == 3) {
             qcdatxlo_n   = bdy_data_xlo[n_time   ][RealBdyVars::QC].const_array();
             qcdatxlo_np1 = bdy_data_xlo[n_time_p1][RealBdyVars::QC].const_array();
@@ -258,6 +285,14 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                 qgdatylo_np1 = bdy_data_ylo[n_time_p1][RealBdyHydrometeorVars::QG].const_array();
                 qgdatyhi_n   = bdy_data_yhi[n_time   ][RealBdyHydrometeorVars::QG].const_array();
                 qgdatyhi_np1 = bdy_data_yhi[n_time_p1][RealBdyHydrometeorVars::QG].const_array();
+                thdatxlo_n   = bdy_data_xlo[n_time   ][RealBdyVars::T].const_array();
+                thdatxlo_np1 = bdy_data_xlo[n_time_p1][RealBdyVars::T].const_array();
+                thdatxhi_n   = bdy_data_xhi[n_time   ][RealBdyVars::T].const_array();
+                thdatxhi_np1 = bdy_data_xhi[n_time_p1][RealBdyVars::T].const_array();
+                thdatylo_n   = bdy_data_ylo[n_time   ][RealBdyVars::T].const_array();
+                thdatylo_np1 = bdy_data_ylo[n_time_p1][RealBdyVars::T].const_array();
+                thdatyhi_n   = bdy_data_yhi[n_time   ][RealBdyVars::T].const_array();
+                thdatyhi_np1 = bdy_data_yhi[n_time_p1][RealBdyVars::T].const_array();
             }
         }
         Array4<const Real> rdatxlo_n, rdatxlo_np1, rdatxhi_n, rdatxhi_np1;
@@ -276,6 +311,9 @@ void add_moist_nudging_terms (const MultiFab& S_data,
         // Get Array4 of interpolated values
         Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
         Array4<Real> arr_ylo = QV_ylo.array();  Array4<Real> arr_yhi = QV_yhi.array();
+
+        // Helper struct for computing number densities
+        NumberDensityTarget ndt;
 
         Box gtbx = grow(tbx,ng_vect);
         Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
@@ -307,6 +345,13 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                     arr_xlo(i,j,k,3) = wrf_moisture_target(rho, qrdatxlo_n(ii,jj,k), qrdatxlo_np1(ii,jj,k), alpha);
                     arr_xlo(i,j,k,4) = wrf_moisture_target(rho, qsdatxlo_n(ii,jj,k), qsdatxlo_np1(ii,jj,k), alpha);
                     arr_xlo(i,j,k,5) = wrf_moisture_target(rho, qgdatxlo_n(ii,jj,k), qgdatxlo_np1(ii,jj,k), alpha);
+                    Real rth  = rho * (oma*thdatxlo_n(ii,jj,k) + alpha*thdatxlo_np1(ii,jj,k));
+                    Real Tabs = getTgivenRandRTh(rho, rth, arr_xlo(i,j,k,0)/rho);
+                    for (int n = 0; n < NumberDensityTarget::n_n_max; ++n) {
+                        if (number_comps[n] >= 0) {
+                            arr_xlo(i,j,k,n_q_max+n) = ndt.get_rn(n,arr_xlo(i,j,k,n+n_off),Tabs);
+                        }
+                    }
                 }
             } else {
                 arr_xlo(i,j,k) = (bdatxlo) ? rho * bdatxlo(ii,jj,k,bdy_comp) :
@@ -335,6 +380,13 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                     arr_xhi(i,j,k,3) = wrf_moisture_target(rho, qrdatxhi_n(ii,jj,k), qrdatxhi_np1(ii,jj,k), alpha);
                     arr_xhi(i,j,k,4) = wrf_moisture_target(rho, qsdatxhi_n(ii,jj,k), qsdatxhi_np1(ii,jj,k), alpha);
                     arr_xhi(i,j,k,5) = wrf_moisture_target(rho, qgdatxhi_n(ii,jj,k), qgdatxhi_np1(ii,jj,k), alpha);
+                    Real rth  = rho * (oma*thdatxhi_n(ii,jj,k) + alpha*thdatxhi_np1(ii,jj,k));
+                    Real Tabs = getTgivenRandRTh(rho, rth, arr_xhi(i,j,k,0)/rho);
+                    for (int n = 0; n < NumberDensityTarget::n_n_max; ++n) {
+                        if (number_comps[n] >= 0) {
+                            arr_xhi(i,j,k,n_q_max+n) = ndt.get_rn(n,arr_xhi(i,j,k,n+n_off),Tabs);
+                        }
+                    }
                 }
             } else {
                 arr_xhi(i,j,k) = (bdatxhi) ? rho * bdatxhi(ii,jj,k,bdy_comp) :
@@ -365,6 +417,13 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                     arr_ylo(i,j,k,3) = wrf_moisture_target(rho, qrdatylo_n(ii,jj,k), qrdatylo_np1(ii,jj,k), alpha);
                     arr_ylo(i,j,k,4) = wrf_moisture_target(rho, qsdatylo_n(ii,jj,k), qsdatylo_np1(ii,jj,k), alpha);
                     arr_ylo(i,j,k,5) = wrf_moisture_target(rho, qgdatylo_n(ii,jj,k), qgdatylo_np1(ii,jj,k), alpha);
+                    Real rth  = rho * (oma*thdatylo_n(ii,jj,k) + alpha*thdatylo_np1(ii,jj,k));
+                    Real Tabs = getTgivenRandRTh(rho, rth, arr_ylo(i,j,k,0)/rho);
+                    for (int n = 0; n < NumberDensityTarget::n_n_max; ++n) {
+                        if (number_comps[n] >= 0) {
+                            arr_ylo(i,j,k,n_q_max+n) = ndt.get_rn(n,arr_ylo(i,j,k,n+n_off),Tabs);
+                        }
+                    }
                 }
             } else {
                 arr_ylo(i,j,k) = (bdatylo) ? rho * bdatylo(ii,jj,k,bdy_comp) :
@@ -394,6 +453,13 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                    arr_yhi(i,j,k,3) = wrf_moisture_target(rho, qrdatyhi_n(ii,jj,k), qrdatyhi_np1(ii,jj,k), alpha);
                    arr_yhi(i,j,k,4) = wrf_moisture_target(rho, qsdatyhi_n(ii,jj,k), qsdatyhi_np1(ii,jj,k), alpha);
                    arr_yhi(i,j,k,5) = wrf_moisture_target(rho, qgdatyhi_n(ii,jj,k), qgdatyhi_np1(ii,jj,k), alpha);
+                   Real rth  = rho * (oma*thdatyhi_n(ii,jj,k) + alpha*thdatyhi_np1(ii,jj,k));
+                   Real Tabs = getTgivenRandRTh(rho, rth, arr_yhi(i,j,k,0)/rho);
+                   for (int n = 0; n < NumberDensityTarget::n_n_max; ++n) {
+                       if (number_comps[n] >= 0) {
+                           arr_yhi(i,j,k,n_q_max+n) = ndt.get_rn(n,arr_yhi(i,j,k,n+n_off),Tabs);
+                       }
+                    }
                }
            } else {
                arr_yhi(i,j,k) = (bdatyhi) ? rho * bdatyhi(ii,jj,k,bdy_comp) :
@@ -412,7 +478,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
        //
        if (bdy_moist_nudge_type == 3) {
            realbdy_compute_moisture_relaxation(
-               moisture_comps, n_moisture_targets, width, dx, ProbLo, ProbHi, F1,
+               relaxed_comps, n_tot_targets, width, dx, ProbLo, ProbHi, F1,
                tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                arr_xlo, arr_xhi, arr_ylo, arr_yhi, cons_arr, src_arr);
        } else {

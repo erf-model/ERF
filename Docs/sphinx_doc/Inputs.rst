@@ -3336,7 +3336,11 @@ For WRF real boundaries, moisture nudging type 0 relaxes only ``qv`` toward
 WRF ``QVAPOR``. Type 2 relaxes ``qv`` toward ``QVAPOR`` and active ``qc``/``qi``
 toward zero with the existing latent-heat terms. Type 3 directly relaxes active
 ``qv``, ``qc``, and ``qi`` toward ``QVAPOR``, ``QCLOUD``, and ``QICE`` without
-an added latent-heat term. Type 3 requires ``erf.use_wrf_bdy_qc_qi = true``.
+an added latent-heat term. When the moisture model carries rain, snow and
+graupel as well, type 3 also relaxes them toward ``QRAIN``, ``QSNOW`` and
+``QGRAUP``, and relaxes any number concentrations the model carries toward
+values diagnosed from those mass targets (see :ref:`sec:LateralBoundaryConditions`).
+Type 3 requires ``erf.use_wrf_bdy_qc_qi = true``.
 
 .. _sec:CustomForcingInputs:
 

@@ -264,6 +264,35 @@ input are unsupported. An existing eight-variable ERFBdy cache remains valid
 when the option is false; enabling it requires regenerating an extended cache
 from ``wrfbdy`` so the appended ``QC`` and ``QI`` fields are present.
 
+When the moisture model carries all six mass species and WRF supplies them
+(``QRAIN``, ``QSNOW`` and ``QGRAUP`` as well), mode 3 also relaxes the
+number concentrations the model carries (for Morrison, ``nc``, ``ni``, ``nr``,
+``ns`` and ``ng``; for WDM6, ``nc`` and ``nr``). WRF provides no numbers, so each
+target is diagnosed from the relaxed mass target :math:`\rho q` and the
+boundary temperature. Without this, relaxed mass enters with the near-zero
+number advected from the ghost cells, and the microphysics then limits the
+particle size. Cloud water uses a fixed droplet number of
+:math:`250\ \mathrm{cm^{-3}}`, and cloud ice uses
+:math:`\rho N_i = 5.38\times10^{7}\,(\rho q_i)^{0.75}` (Hong et al. 2004).
+Rain, snow and graupel assume an exponential size distribution
+:math:`N(D) = N_0 e^{-\lambda D}` with bulk density :math:`\rho_x`, for which
+
+.. math::
+
+   \rho N = \left( \frac{N_0^3\, \rho q}{\pi \rho_x} \right)^{1/4} .
+
+Rain uses the Abel and Boutle (2012) intercept :math:`N_0 = 0.22\,\lambda^{2.2}`,
+bounded below by the Marshall-Palmer value :math:`8\times10^{6}\ \mathrm{m^{-4}}`,
+with :math:`\rho_x = 997\ \mathrm{kg\,m^{-3}}`. Snow uses the Houze et al. (1979)
+intercept :math:`N_0 = 2\times10^{6}\exp[0.12\,\max(T_0 - T, 0)]`, capped at
+:math:`10^{11}\ \mathrm{m^{-4}}`, with :math:`\rho_x = 100\ \mathrm{kg\,m^{-3}}`.
+Graupel uses the Rutledge and Hobbs (1984) intercept
+:math:`N_0 = 4\times10^{6}\ \mathrm{m^{-4}}` with
+:math:`\rho_x = 400\ \mathrm{kg\,m^{-3}}`. Below
+:math:`\rho q = 10^{-10}\ \mathrm{kg\,m^{-3}}` the number target is zero.
+Number relaxation is off when any of the six mass species is missing (for
+example, Morrison_NoIce).
+
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600
 

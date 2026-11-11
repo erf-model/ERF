@@ -61,6 +61,133 @@ wrf_bdy_var_for_moisture_component (const int comp,
     return -1;
 }
 
+/*
+ * Diagnose a number concentration, rho*N [m^-3], from a mass content, rho*q [kg m^-3].
+ * Cloud water and cloud ice use a closure for the number directly.  Rain, snow
+ * and graupel use an exponential distribution (\mu = 0), N(D) = N0 exp(-lambda D):
+ * 1. rho*q = pi rho_x N0 / lambda^4 and rho*N = N0 / lambda
+ * 2. Invert the mass integral for lambda at the given N0
+ * 3. Then rho*N = (N0^3 rho*q / (pi rho_x))^{1/4}
+ * 4. N0 may be a constant or vary
+ */
+struct NumberDensityTarget
+{
+    static constexpr int n_n_max = 5;
+    enum ncomp {cloud, ice, rain, snow, graupel};
+
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real
+    get_rn (int ntype,
+            const amrex::Real rq,
+            const amrex::Real T) const
+    {
+        // Return zero if below threshold
+        if (rq <= small) { return zero; }
+
+        // Select case for computation
+        switch (ntype) {
+        case ncomp::cloud:
+            return get_nc();
+        case ncomp::ice:
+            return get_ni(rq);
+        case ncomp::rain:
+            return compute_rn(get_n0r(rq),r0r,rq);
+        case ncomp::snow:
+            return compute_rn(get_n0s(T),r0s,rq);
+        case ncomp::graupel:
+            return compute_rn(get_n0g(),r0g,rq);
+        default:
+            return zero;
+        }
+    }
+
+    // rq = rho*q [kg m^-3] -> returns rho*n [m^-3], the conserved number ERF transports
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real
+    compute_rn (const amrex::Real n0,
+                const amrex::Real r0,
+                const amrex::Real rq) const
+    {
+        return std::pow(n0*n0*n0*rq/(PI*r0),amrex::Real(0.25));
+    }
+
+    // Constant number with cloud
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real
+    get_nc () const { return nc0; }
+
+    // Rho*q_{i} dependent number with ice
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real
+    get_ni (const amrex::Real rq) const
+    {
+        return i1*std::pow(rq,amrex::Real(0.75));
+    }
+
+    // Slope dependent N0 with rain
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real
+    get_n0r (const amrex::Real rq) const
+    {
+        amrex::Real lambda = std::pow(PI*r0r*r1/rq,one/(four-r2));
+        return amrex::max(r1*std::pow(lambda,r2),n0r);
+    }
+
+    // T dependent N0 with snow
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real
+    get_n0s (const amrex::Real T) const
+    {
+        return amrex::min(s1*std::exp(s2*amrex::max(T0-T,amrex::Real(0.))),slarge);
+    }
+
+    // Constant N0 with graupel
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real
+    get_n0g () const { return n0g; }
+
+    // Small parameter
+    amrex::Real small = amrex::Real(1.0e-10);
+
+    // Convert K to C
+    amrex::Real T0 = amrex::Real(273.15);
+
+    // Cloud constants
+    // Morrison default Nc = 250 cm^{-3}
+    amrex::Real nc0 = amrex::Real(2.5e8); // m^{-3}
+
+    // Ice constants
+    // Hong et al. (2004) https://doi.org/10.1175/1520-0493(2004)132<0103:ARATIM>2.0.CO;2
+    // N_i = 5.38e7 (rho*q_i)^{0.75}, with N_i in m^{-3} and rho*q_i in kg m^{-3}
+    amrex::Real i1  = amrex::Real(5.38e7);
+
+    // Rain constants
+    // Abel & Boutle (2012) https://doi.org/10.1002/qj.1949
+    amrex::Real r1  = amrex::Real(0.22);
+    amrex::Real r2  = amrex::Real(2.20);
+    amrex::Real n0r = amrex::Real(8.0e6); // Marshall-Palmer limiting
+    amrex::Real r0r = amrex::Real(997.0);
+
+    // Snow constants
+    // Houze et al. (1979) https://doi.org/10.1175/1520-0469(1979)036<0156:sdoppi>2.0.co;2
+    amrex::Real s1 = amrex::Real(2.0e6);
+    amrex::Real s2 = amrex::Real(0.12);
+    amrex::Real slarge = amrex::Real(1.0e11);
+    amrex::Real r0s    = amrex::Real(100.0);
+
+    // Graupel constants
+    // Rutledge & Hobbs (1984) https://doi.org/10.1175/1520-0469(1984)041<2949:TMAMSA>2.0.CO;2
+    amrex::Real n0g = amrex::Real(4.0e6);
+    amrex::Real r0g = amrex::Real(400.0);
+};
+
 /**
  * The real-boundary maps of the conserved state, one entry per conserved
  * component up to NVAR_max: whether the component is read from the WRF/metgrid
@@ -761,27 +888,27 @@ realbdy_compute_relaxation (const int& icomp,
  * Apply Davies relaxation to explicitly mapped moisture components.  Target
  * component n corresponds to state component moisture_comps[n].
  */
+template <unsigned int N>
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-realbdy_compute_moisture_relaxation (
-                            const amrex::GpuArray<int,6>& moisture_comps,
-                            const int n_targets,
-                            const int& width,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
-                            const amrex::Real& F1,
-                            const amrex::Box& bx_xlo,
-                            const amrex::Box& bx_xhi,
-                            const amrex::Box& bx_ylo,
-                            const amrex::Box& bx_yhi,
-                            const amrex::Array4<const amrex::Real>& arr_xlo,
-                            const amrex::Array4<const amrex::Real>& arr_xhi,
-                            const amrex::Array4<const amrex::Real>& arr_ylo,
-                            const amrex::Array4<const amrex::Real>& arr_yhi,
-                            const amrex::Array4<const amrex::Real>& data_arr,
-                            const amrex::Array4<amrex::Real>& rhs_arr)
+realbdy_compute_moisture_relaxation (const amrex::GpuArray<int,N>& moisture_comps,
+                                     const int n_targets,
+                                     const int& width,
+                                     const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
+                                     const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
+                                     const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
+                                     const amrex::Real& F1,
+                                     const amrex::Box& bx_xlo,
+                                     const amrex::Box& bx_xhi,
+                                     const amrex::Box& bx_ylo,
+                                     const amrex::Box& bx_yhi,
+                                     const amrex::Array4<const amrex::Real>& arr_xlo,
+                                     const amrex::Array4<const amrex::Real>& arr_xhi,
+                                     const amrex::Array4<const amrex::Real>& arr_ylo,
+                                     const amrex::Array4<const amrex::Real>& arr_yhi,
+                                     const amrex::Array4<const amrex::Real>& data_arr,
+                                     const amrex::Array4<amrex::Real>& rhs_arr)
 {
     const amrex::IntVect iv = bx_xlo.type();
     const amrex::Real ioff = (iv[0] == 1) ? zero : myhalf;
@@ -860,27 +987,26 @@ realbdy_compute_moisture_relaxation (
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-realbdy_compute_moisture_relaxation (
-                            const amrex::GpuArray<int,3>& moisture_comps,
-                            const int& width,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
-                            const amrex::Real& F1,
-                            const amrex::Box& bx_xlo,
-                            const amrex::Box& bx_xhi,
-                            const amrex::Box& bx_ylo,
-                            const amrex::Box& bx_yhi,
-                            const amrex::Array4<const amrex::Real>& arr_xlo,
-                            const amrex::Array4<const amrex::Real>& arr_xhi,
-                            const amrex::Array4<const amrex::Real>& arr_ylo,
-                            const amrex::Array4<const amrex::Real>& arr_yhi,
-                            const amrex::Array4<const amrex::Real>& data_arr,
-                            const amrex::Array4<amrex::Real>& rhs_arr)
+realbdy_compute_moisture_relaxation (const amrex::GpuArray<int,3>& moisture_comps,
+                                     const int& width,
+                                     const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
+                                     const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
+                                     const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
+                                     const amrex::Real& F1,
+                                     const amrex::Box& bx_xlo,
+                                     const amrex::Box& bx_xhi,
+                                     const amrex::Box& bx_ylo,
+                                     const amrex::Box& bx_yhi,
+                                     const amrex::Array4<const amrex::Real>& arr_xlo,
+                                     const amrex::Array4<const amrex::Real>& arr_xhi,
+                                     const amrex::Array4<const amrex::Real>& arr_ylo,
+                                     const amrex::Array4<const amrex::Real>& arr_yhi,
+                                     const amrex::Array4<const amrex::Real>& data_arr,
+                                     const amrex::Array4<amrex::Real>& rhs_arr)
 {
     const amrex::GpuArray<int,6> extended_comps = {
         moisture_comps[0], moisture_comps[1], moisture_comps[2], -1, -1, -1};
-    realbdy_compute_moisture_relaxation(
+    realbdy_compute_moisture_relaxation<6>(
         extended_comps, 3, width, dx, ProbLo, ProbHi, F1,
         bx_xlo, bx_xhi, bx_ylo, bx_yhi,
         arr_xlo, arr_xhi, arr_ylo, arr_yhi, data_arr, rhs_arr);
