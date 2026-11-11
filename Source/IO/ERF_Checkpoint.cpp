@@ -202,13 +202,24 @@ ERF::WriteCheckpointFile () const
                 "SBM checkpoint requires every interface reflux amount to be consumed");
         }
         const std::string schema_file = checkpointname + "/SBM_Schema";
+        const auto& boundaries = sbm_transport->physical_boundaries();
         if (ParallelDescriptor::IOProcessor()) {
             std::ofstream schema(schema_file, std::ofstream::out |
                                               std::ofstream::trunc |
                                               std::ofstream::binary);
             if (!schema.good()) FileOpenFailed(schema_file);
-            schema << erf_sbm::restart_schema(sbm_state_manager->layout());
+            schema << erf_sbm::restart_schema(sbm_state_manager->layout(),
+                                              boundaries.identity());
             if (!schema.good()) FileOpenFailed(schema_file);
+            if (!boundaries.all_periodic()) {
+                const std::string ledger_file = checkpointname + "/SBM_BoundaryLedger";
+                std::ofstream ledger(ledger_file, std::ofstream::out |
+                                                  std::ofstream::trunc |
+                                                  std::ofstream::binary);
+                if (!ledger.good()) FileOpenFailed(ledger_file);
+                ledger << sbm_transport->boundary_ledger().serialize();
+                if (!ledger.good()) FileOpenFailed(ledger_file);
+            }
         }
         ParallelDescriptor::Barrier();
     }
@@ -1053,8 +1064,27 @@ ERF::ReadCheckpointFile ()
         Vector<char> schema_chars;
         ParallelDescriptor::ReadAndBcastFile(schema_file, schema_chars);
         const std::string persisted_schema(schema_chars.dataPtr());
-        if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema)) {
-            Abort("SBM restart schema does not exactly match the active spectral layout and M3 transport identity");
+        const auto& boundaries = sbm_transport->physical_boundaries();
+        if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema,
+                                             boundaries.identity())) {
+            Abort("SBM restart schema does not exactly match the active spectral layout, "
+                  "M3 transport and physical boundary identity");
+        }
+        if (!boundaries.all_periodic()) {
+            const std::string ledger_file = restart_chkfile + "/SBM_BoundaryLedger";
+            if (!FileExists(ledger_file)) {
+                Abort("SBM restart is missing its boundary ledger '" + ledger_file + "'");
+            }
+            Vector<char> ledger_chars;
+            ParallelDescriptor::ReadAndBcastFile(ledger_file, ledger_chars);
+            erf_sbm::SBMBoundaryLedger ledger;
+            std::string reason;
+            if (!erf_sbm::SBMBoundaryLedger::parse(std::string(ledger_chars.dataPtr()),
+                                                   sbm_state_manager->layout().ncomp(),
+                                                   ledger, reason)) {
+                Abort("SBM restart boundary ledger is invalid: " + reason);
+            }
+            sbm_transport->restore_boundary_ledger(ledger);
         }
     }
 

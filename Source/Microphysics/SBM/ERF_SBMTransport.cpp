@@ -15,13 +15,18 @@
 #include <AMReX_GpuContainers.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_ParallelContext.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_ParallelReduce.H>
 #include <AMReX_Print.H>
+#include <AMReX_Reduce.H>
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -110,6 +115,249 @@ build_intensive (MultiFab& intensive,
     }
 }
 
+// Ghosts outside a nonperiodic domain face: walls and outflow repeat the edge
+// cell, inflow faces take their prescribed values.  Directions are filled in
+// order over the whole FAB, so edge and corner ghosts are deterministic.
+void
+fill_physical_ghosts (MultiFab& field,
+                      const amrex::Geometry& geometry,
+                      const SBMPhysicalBoundaryConfig& boundaries,
+                      const Real* inflow_device)
+{
+    const amrex::Box& domain = geometry.Domain();
+    const int ncomp = field.nComp();
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (geometry.isPeriodic(dir)) continue;
+        for (const auto side : {amrex::Orientation::low, amrex::Orientation::high}) {
+            const int face = amrex::Orientation(dir, side);
+            const bool low = side == amrex::Orientation::low;
+            const Real* face_inflow =
+                inflow_device != nullptr &&
+                boundaries.kind[static_cast<std::size_t>(face)] ==
+                    AdvectionFaceKind::PrescribedInflow
+                    ? inflow_device + face * ncomp : nullptr;
+            const int edge = low ? domain.smallEnd(dir) : domain.bigEnd(dir);
+            for (amrex::MFIter mfi(field, false); mfi.isValid(); ++mfi) {
+                amrex::Box ghost = mfi.fabbox();
+                if (low) {
+                    ghost.setBig(dir, edge - 1);
+                } else {
+                    ghost.setSmall(dir, edge + 1);
+                }
+                if (!ghost.ok()) continue;
+                const auto values = field.array(mfi);
+                amrex::ParallelFor(
+                    ghost, ncomp,
+                    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                        if (face_inflow != nullptr) {
+                            values(i, j, k, n) = face_inflow[n];
+                            return;
+                        }
+                        amrex::IntVect source(AMREX_D_DECL(i, j, k));
+                        source[dir] = edge;
+                        values(i, j, k, n) = values(source, n);
+                    });
+            }
+        }
+    }
+}
+
+// Cells outside a nonperiodic domain face are physical ghosts, never parent ghosts.
+void
+clear_outside_physical_domain (MultiFab& mask, const int component,
+                               const amrex::Geometry& geometry)
+{
+    const amrex::Box& domain = geometry.Domain();
+    for (amrex::MFIter mfi(mask, false); mfi.isValid(); ++mfi) {
+        const auto values = mask.array(mfi);
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            if (geometry.isPeriodic(dir)) continue;
+            amrex::Box below = mfi.fabbox();
+            below.setBig(dir, domain.smallEnd(dir) - 1);
+            amrex::Box above = mfi.fabbox();
+            above.setSmall(dir, domain.bigEnd(dir) + 1);
+            for (const amrex::Box& ghost : {below, above}) {
+                if (!ghost.ok()) continue;
+                amrex::ParallelFor(
+                    ghost, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        values(i, j, k, component) = Real(0.0);
+                    });
+            }
+        }
+    }
+}
+
+// The two faces nearest each nonperiodic boundary read a ghost cell in the
+// WENO-Z3 stencil, so their high-order candidate is the donor rate.
+void
+apply_physical_donor_band (erf_auxiliary::MappedFaceFluxRate& high,
+                           const erf_auxiliary::MappedFaceFluxRate& low,
+                           const amrex::Geometry& geometry)
+{
+    const amrex::Box& domain = geometry.Domain();
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (geometry.isPeriodic(dir)) continue;
+        auto& high_dir = high.dir(dir);
+        const auto& low_dir = low.dir(dir);
+        const int ncomp = high_dir.nComp();
+        const std::array<std::pair<int, int>, 2> bands{
+            {{domain.smallEnd(dir), domain.smallEnd(dir) + 1},
+             {domain.bigEnd(dir), domain.bigEnd(dir) + 1}}};
+        for (amrex::MFIter mfi(high_dir, false); mfi.isValid(); ++mfi) {
+            const auto high_values = high_dir.array(mfi);
+            const auto low_values = low_dir.const_array(mfi);
+            for (const auto& band : bands) {
+                amrex::Box faces = mfi.validbox();
+                faces.setSmall(dir, std::max(faces.smallEnd(dir), band.first));
+                faces.setBig(dir, std::min(faces.bigEnd(dir), band.second));
+                if (!faces.ok()) continue;
+                amrex::ParallelFor(
+                    faces, ncomp,
+                    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                        high_values(i, j, k, n) = low_values(i, j, k, n);
+                    });
+            }
+        }
+    }
+}
+
+// The face slab of one physical boundary within a face-centred valid box.
+amrex::Box
+physical_face_slab (const amrex::Box& face_valid, const amrex::Box& domain,
+                    const int dir, const bool low)
+{
+    amrex::Box slab = face_valid;
+    const int face_index = low ? domain.smallEnd(dir) : domain.bigEnd(dir) + 1;
+    slab.setSmall(dir, std::max(slab.smallEnd(dir), face_index));
+    slab.setBig(dir, std::min(slab.bigEnd(dir), face_index));
+    return slab;
+}
+
+// Fail before any state mutation when the host carrier contradicts a face:
+// a wall must carry nothing, an outflow face must not carry inward.
+void
+check_physical_face_carriers (const std::array<const MultiFab*, AMREX_SPACEDIM>& carrier,
+                              const amrex::Geometry& geometry,
+                              const SBMPhysicalBoundaryConfig& boundaries,
+                              const int level,
+                              const int stage)
+{
+    const amrex::Box& domain = geometry.Domain();
+    std::array<int, physical_face_count> violation{};
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (geometry.isPeriodic(dir)) continue;
+        for (const auto side : {amrex::Orientation::low, amrex::Orientation::high}) {
+            const int face = amrex::Orientation(dir, side);
+            const bool low = side == amrex::Orientation::low;
+            const AdvectionFaceKind kind = boundaries.kind[static_cast<std::size_t>(face)];
+            const Real outward_sign = low ? Real(-1.0) : Real(1.0);
+            amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
+            amrex::ReduceData<int> reduce_data(reduce_op);
+            using ReduceTuple = typename decltype(reduce_data)::Type;
+            for (amrex::MFIter mfi(*carrier[static_cast<std::size_t>(dir)], false);
+                 mfi.isValid(); ++mfi) {
+                const amrex::Box slab =
+                    physical_face_slab(mfi.validbox(), domain, dir, low);
+                if (!slab.ok()) continue;
+                const auto flux = carrier[static_cast<std::size_t>(dir)]->const_array(mfi);
+                reduce_op.eval(slab, reduce_data,
+                    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> ReduceTuple {
+                        const Real outward = outward_sign * flux(i, j, k, 0);
+                        if (kind == AdvectionFaceKind::ImpermeableWall) {
+                            return {outward != Real(0.0) ? 1 : 0};
+                        }
+                        AdvectionFacePolicyInput input;
+                        input.kind = kind;
+                        input.outward_carrier = outward;
+                        input.explicit_spectral_state_present = true;
+                        input.explicit_spectral_group_complete = true;
+                        return {make_advection_face_policy(input).accepted() ? 0 : 2};
+                    });
+            }
+            // A rank with no slab on this face reduces to the lowest int.
+            violation[static_cast<std::size_t>(face)] =
+                std::max(0, amrex::get<0>(reduce_data.value(reduce_op)));
+        }
+    }
+    amrex::ParallelAllReduce::Max(violation.data(), physical_face_count,
+                                  amrex::ParallelContext::CommunicatorSub());
+    for (int face = 0; face < physical_face_count; ++face) {
+        const int code = violation[static_cast<std::size_t>(face)];
+        if (code == 0) continue;
+        std::ostringstream message;
+        message << (code == 1 ? "SBM impermeable wall " : "SBM advective outflow ")
+                << face_name(face)
+                << (code == 1 ? " has a nonzero dry-air carrier"
+                              : " received an inward dry-air carrier")
+                << " (level=" << level << ", stage=" << stage << ')';
+        amrex::Abort(message.str());
+    }
+}
+
+// Per local box, physical face and global component, the outward accepted
+// transfer rate and its magnitude, into partial[box][face][component][2];
+// coarse faces under a finer level do not count.  One thread per component
+// sums its face cells in a fixed order, so no reduction synchronizes.
+void
+accumulate_boundary_rates (const erf_auxiliary::MappedFaceFluxRate& accepted,
+                           const int* components,
+                           const int component_count,
+                           const amrex::Geometry& geometry,
+                           const MultiFab* covered,
+                           const int ncomp,
+                           double* partial,
+                           double& face_terms)
+{
+    const amrex::Box& domain = geometry.Domain();
+    const auto cell_size = geometry.CellSizeArray();
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (geometry.isPeriodic(dir)) continue;
+        const auto& rate_dir = accepted.dir(dir);
+        Real area = Real(1.0);
+        for (int other = 0; other < AMREX_SPACEDIM; ++other) {
+            if (other != dir) area *= cell_size[other];
+        }
+        for (const auto side : {amrex::Orientation::low, amrex::Orientation::high}) {
+            const int face = amrex::Orientation(dir, side);
+            const bool low = side == amrex::Orientation::low;
+            const Real outward_sign = low ? Real(-1.0) : Real(1.0);
+            const int cell_index = low ? domain.smallEnd(dir) : domain.bigEnd(dir);
+            for (amrex::MFIter mfi(rate_dir, false); mfi.isValid(); ++mfi) {
+                const amrex::Box slab =
+                    physical_face_slab(mfi.validbox(), domain, dir, low);
+                if (!slab.ok()) continue;
+                face_terms += static_cast<double>(slab.numPts());
+                const auto rate = rate_dir.const_array(mfi);
+                const bool masked = covered != nullptr;
+                const auto mask = masked ? covered->const_array(mfi)
+                                         : Array4<const Real>{};
+                double* box_face = partial +
+                    static_cast<std::ptrdiff_t>(mfi.LocalIndex() * physical_face_count + face) *
+                    2 * ncomp;
+                amrex::ParallelFor(component_count,
+                    [=] AMREX_GPU_DEVICE(int n) noexcept {
+                        double outward = 0.0;
+                        double gross = 0.0;
+                        amrex::Loop(slab, [&] (int i, int j, int k) noexcept {
+                            Real open = Real(1.0);
+                            if (masked) {
+                                amrex::IntVect cell(AMREX_D_DECL(i, j, k));
+                                cell[dir] = cell_index;
+                                open = Real(1.0) - mask(cell, 0);
+                            }
+                            const Real transfer =
+                                outward_sign * area * rate(i, j, k, n) * open;
+                            outward += static_cast<double>(transfer);
+                            gross += static_cast<double>(amrex::Math::abs(transfer));
+                        });
+                        box_face[2 * components[n]] = outward;
+                        box_face[2 * components[n] + 1] = gross;
+                    });
+            }
+        }
+    }
+}
+
 bool
 coarse_stage_theta (const double requested_time,
                     const double coarse_old_time,
@@ -156,14 +404,17 @@ bool
 coarse_stage_endpoints_valid (const MultiFab& coarse_stage,
                               const int component_count,
                               const int new_offset,
-                              const int rho_old_local)
+                              const int rho_old_local,
+                              const amrex::Box& coarse_region)
 {
     amrex::ReduceOps<amrex::ReduceOpMin> reduce_op;
     amrex::ReduceData<int> reduce_data(reduce_op);
     using ReduceTuple = typename decltype(reduce_data)::Type;
     for (amrex::MFIter mfi(coarse_stage, false); mfi.isValid(); ++mfi) {
+        const amrex::Box staged = mfi.fabbox() & coarse_region;
+        if (!staged.ok()) continue;
         const auto values = coarse_stage.const_array(mfi);
-        reduce_op.eval(mfi.fabbox(), reduce_data,
+        reduce_op.eval(staged, reduce_data,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> ReduceTuple {
                 const Real rho_old = values(i, j, k, rho_old_local);
                 const Real rho_new = values(i, j, k, rho_old_local + 1);
@@ -283,7 +534,16 @@ fill_coarse_parent_ghosts (MultiFab& destination,
 
     amrex::Box coarse_domain = fine_geometry.Domain();
     coarse_domain.coarsen(parent.refinement_ratio);
-    const amrex::Periodicity coarse_periodicity(coarse_domain.length());
+    // Wrap only periodic directions: a parent beyond a physical face does not exist.
+    amrex::IntVect coarse_period(0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (fine_geometry.isPeriodic(dir)) coarse_period[dir] = coarse_domain.length(dir);
+    }
+    const amrex::Periodicity coarse_periodicity(coarse_period);
+    amrex::Box coarse_region = coarse_domain;
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (fine_geometry.isPeriodic(dir)) coarse_region.grow(dir, coarse_ghosts[dir]);
+    }
     const int rho_old_local = 2 * max_chunk_components;
     const int rho_new_local = rho_old_local + 1;
     auto timed_parallel_copy = [&] (auto&& operation) {
@@ -308,6 +568,7 @@ fill_coarse_parent_ghosts (MultiFab& destination,
     missing_fine_ghosts.setVal(Real(1.0), 0, 1, 2);
     missing_fine_ghosts.setVal(Real(0.0), 0, 1, 0);
     missing_fine_ghosts.FillBoundary(0, 1, fine_geometry.periodicity());
+    clear_outside_physical_domain(missing_fine_ghosts, 0, fine_geometry);
     amrex::IntVect fault_cell(std::numeric_limits<int>::min());
 #ifdef ERF_SBM_AMR_QUALIFICATION
     if (inject_rank_local_store_fault) {
@@ -454,7 +715,7 @@ fill_coarse_parent_ghosts (MultiFab& destination,
 
         if (!coarse_stage_endpoints_valid(coarse_stage, component_count,
                                           max_chunk_components,
-                                          rho_old_local)) {
+                                          rho_old_local, coarse_region)) {
             std::ostringstream message;
             message.precision(17);
             message << "SBM coarse/fine endpoint data are not finite with "
@@ -1029,6 +1290,14 @@ struct SBMTransport::LevelStorage
     erf_auxiliary::CompletedStepFluxLedger spectral_ledger;
     SBMAMRFluxRegister* interface_as_coarse{nullptr};
     SBMAMRFluxRegister* interface_as_fine{nullptr};
+    // Physical-face (outward, gross) rate sums of the current stage plus a
+    // face-term count, and the completed-step transfer awaiting commit.
+    std::vector<double> boundary_stage;
+    std::vector<double> boundary_step;
+    std::uint64_t boundary_step_terms{0};
+    // Per local box partial sums of boundary_stage, and their box total.
+    amrex::Gpu::DeviceVector<double> boundary_partial;
+    amrex::Gpu::DeviceVector<double> boundary_total;
     bool measure_ready{false};
     std::array<double, 3> profile_stage_seconds{};
     std::chrono::steady_clock::time_point profile_fine_step_start{};
@@ -1044,6 +1313,9 @@ struct SBMTransport::DeviceMetadata
     amrex::Gpu::DeviceVector<Real> edges;
     amrex::Gpu::DeviceVector<Real> pivots;
     amrex::Gpu::DeviceVector<int> property_components;
+    // Global components of every chunk, at chunk_offsets[chunk].
+    amrex::Gpu::DeviceVector<int> chunk_components;
+    std::vector<int> chunk_offsets;
 };
 
 SBMTransport::~SBMTransport () = default;
@@ -1070,6 +1342,7 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
         throw std::invalid_argument(
             "SBM M3 mapped transport currently requires three dimensions");
     }
+    m_boundary_ledger.reset(layout.ncomp());
     // Local slots follow global order, so YA adds each moment family as one run.
     for (auto& chunk : m_chunks) {
         std::sort(chunk.components.begin(), chunk.components.end());
@@ -1291,6 +1564,17 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, device_views.begin(),
                          device_views.end(), device.populations.begin());
     }
+    std::vector<int> host_chunk_components;
+    for (const auto& chunk : m_chunks) {
+        device.chunk_offsets.push_back(static_cast<int>(host_chunk_components.size()));
+        host_chunk_components.insert(host_chunk_components.end(),
+                                     chunk.components.begin(), chunk.components.end());
+    }
+    device.chunk_components.resize(host_chunk_components.size());
+    if (!host_chunk_components.empty()) {
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, host_chunk_components.begin(),
+                         host_chunk_components.end(), device.chunk_components.begin());
+    }
 }
 
 void
@@ -1345,7 +1629,51 @@ SBMTransport::define (const int level,
     data->target.setVal(Real(0.0));
     data->invalid.setVal(Real(0.0));
     data->projected_rate.setVal(Real(0.0));
+    data->boundary_stage.assign(
+        static_cast<std::size_t>(2 * physical_face_count * ncomp + 1), 0.0);
+    data->boundary_step.assign(
+        static_cast<std::size_t>(2 * physical_face_count * ncomp), 0.0);
+    data->boundary_total.resize(
+        static_cast<std::size_t>(2 * physical_face_count * ncomp));
     m_levels[static_cast<std::size_t>(level)] = std::move(data);
+}
+
+void
+SBMTransport::set_physical_boundaries (const SBMPhysicalBoundaryConfig& config)
+{
+    const int ncomp = m_layout.ncomp();
+    std::vector<Real> host_inflow(
+        static_cast<std::size_t>(physical_face_count * ncomp), Real(0.0));
+    for (int face = 0; face < physical_face_count; ++face) {
+        if (config.kind[static_cast<std::size_t>(face)] !=
+            AdvectionFaceKind::PrescribedInflow) {
+            continue;
+        }
+        const auto& z = config.inflow_z[static_cast<std::size_t>(face)];
+        std::string reason;
+        if (!validate_inflow_state(m_layout, z, reason)) {
+            throw std::invalid_argument(std::string("SBM inflow spectrum at ") +
+                                        face_name(face) + " is not admissible: " + reason);
+        }
+        std::copy(z.begin(), z.end(),
+                  host_inflow.begin() + static_cast<std::ptrdiff_t>(face * ncomp));
+    }
+    m_boundaries = config;
+    m_inflow_device.resize(host_inflow.size());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, host_inflow.begin(),
+                     host_inflow.end(), m_inflow_device.begin());
+}
+
+void
+SBMTransport::restore_boundary_ledger (const SBMBoundaryLedger& ledger)
+{
+    if (ledger.ncomp != m_layout.ncomp() ||
+        ledger.outward.size() != m_boundary_ledger.outward.size() ||
+        ledger.gross.size() != m_boundary_ledger.gross.size()) {
+        throw std::invalid_argument(
+            "SBM boundary ledger does not match the active spectral layout");
+    }
+    m_boundary_ledger = ledger;
 }
 
 void
@@ -1502,9 +1830,16 @@ SBMTransport::advance_stage (const int level,
         data.measure_ready,
         "SBM M3 cannot advance before its static mapped measure is built");
     AMREX_ALWAYS_ASSERT(state_manager.is_defined(level));
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        AMREX_ALWAYS_ASSERT(geometry.isPeriodic(dir));
+    for (int face = 0; face < physical_face_count; ++face) {
+        const bool periodic_face =
+            m_boundaries.kind[static_cast<std::size_t>(face)] ==
+            AdvectionFaceKind::Periodic;
+        if (periodic_face != geometry.isPeriodic(face % AMREX_SPACEDIM)) {
+            amrex::Abort(std::string("SBM physical boundary ") + face_name(face) +
+                         " does not match the periodicity of the level geometry");
+        }
     }
+    const bool physical_faces = !geometry.isAllPeriodic();
 
     erf_auxiliary::AuxiliaryStageRecipe recipe;
     std::string diagnostic;
@@ -1653,6 +1988,13 @@ SBMTransport::advance_stage (const int level,
     } else if (parent != nullptr) {
         amrex::Abort("coarse SBM stage unexpectedly received a parent bracket");
     }
+    if (physical_faces) {
+        for (MultiFab* intensive : {&data.input_intensive, &data.base_intensive,
+                                    &data.anchor_intensive}) {
+            fill_physical_ghosts(*intensive, geometry, m_boundaries,
+                                 m_inflow_device.data());
+        }
+    }
     MultiFab::Copy(data.physical_input_intensive, data.input_intensive, 0, 0,
                    m_layout.ncomp(), 2);
 
@@ -1664,7 +2006,8 @@ SBMTransport::advance_stage (const int level,
     const int population_count =
         static_cast<int>(m_layout.populations().size());
     // A fine level also transforms the parent-filled coarse-only ghosts that
-    // FillBoundary below does not refill; a single level needs valid cells only.
+    // FillBoundary below does not refill.  Level 0 needs valid cells only: its
+    // physical ghosts reach only donor-band faces, whose WENO rate is replaced.
     const bool transform_ghosts = level > 0;
     MultiFab& transform_invalid =
         transform_ghosts ? data.coarse_fill_mask : data.invalid;
@@ -1719,6 +2062,10 @@ SBMTransport::advance_stage (const int level,
                      "endpoint-number coordinates");
     }
     data.input_intensive.FillBoundary(geometry.periodicity());
+    if (physical_faces) {
+        check_physical_face_carriers({&avg_xmom, &avg_ymom, &avg_zmom}, geometry,
+                                     m_boundaries, level, stage);
+    }
 
     // Check the donor outgoing-demand condition against the semantic limiter
     // base before constructing any low-order face rates.
@@ -1758,6 +2105,21 @@ SBMTransport::advance_stage (const int level,
     }
 
     data.projected_rate.setVal(Real(0.0));
+    std::fill(data.boundary_stage.begin(), data.boundary_stage.end(), 0.0);
+    if (stage == 0) {
+        std::fill(data.boundary_step.begin(), data.boundary_step.end(), 0.0);
+        data.boundary_step_terms = 0;
+    }
+    const bool record_boundary = physical_faces && recipe.completed_ledger_time != 0.0;
+    const int boundary_slots = 2 * physical_face_count * m_layout.ncomp();
+    const int boundary_boxes = data.accepted_rate.dir(0).local_size();
+    if (record_boundary) {
+        data.boundary_partial.resize(
+            static_cast<std::size_t>(boundary_boxes) * static_cast<std::size_t>(boundary_slots));
+        double* partial = data.boundary_partial.data();
+        amrex::ParallelFor(boundary_boxes * boundary_slots,
+            [=] AMREX_GPU_DEVICE(int slot) noexcept { partial[slot] = 0.0; });
+    }
     const auto& device = *m_device_metadata;
     for (std::size_t chunk_index = 0; chunk_index < m_chunks.size();
          ++chunk_index) {
@@ -1876,6 +2238,9 @@ SBMTransport::advance_stage (const int level,
                     }
                 }
             }
+        }
+        if (physical_faces) {
+            apply_physical_donor_band(data.high_rate, data.low_rate, geometry);
         }
 
         data.invalid.setVal(Real(0.0));
@@ -2345,6 +2710,22 @@ SBMTransport::advance_stage (const int level,
                 recipe.completed_ledger_time, diagnostic)) {
             amrex::Abort("SBM YA fine-side accepted-rate accumulation: " + diagnostic);
         }
+        if (record_boundary) {
+            const MultiFab* covered = data.interface_as_coarse
+                ? &data.interface_as_coarse->covered_parent_mask() : nullptr;
+            if (covered != nullptr &&
+                (!covered->boxArray().CellEqual(data.accepted_rate.dir(0).boxArray()) ||
+                 covered->DistributionMap() != data.accepted_rate.dir(0).DistributionMap())) {
+                amrex::Abort("SBM boundary ledger: the covered-parent mask does not "
+                             "share the level layout");
+            }
+            accumulate_boundary_rates(
+                data.accepted_rate,
+                device.chunk_components.data() + device.chunk_offsets[chunk_index],
+                static_cast<int>(chunk.components.size()), geometry, covered,
+                m_layout.ncomp(), data.boundary_partial.data(),
+                data.boundary_stage.back());
+        }
 
         // Apply the ERF stage recurrence component by component while using
         // this bounded complete-group chunk's accepted face rates.
@@ -2415,6 +2796,39 @@ SBMTransport::advance_stage (const int level,
     if (!state_manager.accept_stage_target(level, target_time,
                                           physical_step_complete, diagnostic)) {
         amrex::Abort("SBM M4a accepted-state lifecycle commit: " + diagnostic);
+    }
+    if (record_boundary) {
+        // Sum the boxes in local order, then copy the stage totals once.
+        const double* partial = data.boundary_partial.data();
+        double* total = data.boundary_total.data();
+        amrex::ParallelFor(boundary_slots,
+            [=] AMREX_GPU_DEVICE(int slot) noexcept {
+                double sum = 0.0;
+                for (int box = 0; box < boundary_boxes; ++box) {
+                    sum += partial[box * boundary_slots + slot];
+                }
+                total[slot] = sum;
+            });
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, data.boundary_total.begin(),
+                         data.boundary_total.end(), data.boundary_stage.begin());
+        amrex::ParallelAllReduce::Sum(data.boundary_stage.data(),
+                                      static_cast<int>(data.boundary_stage.size()),
+                                      amrex::ParallelContext::CommunicatorSub());
+        for (std::size_t slot = 0; slot < data.boundary_step.size(); ++slot) {
+            data.boundary_step[slot] +=
+                recipe.completed_ledger_time * data.boundary_stage[slot];
+        }
+        data.boundary_step_terms +=
+            static_cast<std::uint64_t>(data.boundary_stage.back());
+    }
+    if (physical_faces && physical_step_complete) {
+        for (std::size_t slot = 0; slot < m_boundary_ledger.outward.size(); ++slot) {
+            m_boundary_ledger.outward[slot] += data.boundary_step[2 * slot];
+            m_boundary_ledger.gross[slot] += data.boundary_step[2 * slot + 1];
+        }
+        m_boundary_ledger.face_stage_terms += data.boundary_step_terms;
+        std::fill(data.boundary_step.begin(), data.boundary_step.end(), 0.0);
+        data.boundary_step_terms = 0;
     }
     if (data.interface_as_coarse &&
         !data.interface_as_coarse->finish_stage(true, diagnostic)) {
