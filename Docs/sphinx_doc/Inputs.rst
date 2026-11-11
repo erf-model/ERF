@@ -1790,6 +1790,34 @@ variable ``z``, the height of each sample, is always written with the line, sinc
 coordinates of a line plotfile assume equally spaced levels; it may be requested on any mesh.
 Plane sampling has not been implemented for terrain.
 
+With ``erf.sample_line_interp = true``, lines given by ``sample_line_lo_real`` and
+``sample_line_hi_real`` (or ``sample_line_lo_latlon`` and ``sample_line_hi_latlon``) are sampled
+at the requested heights instead of at the cells that hold them, as for a comparison with a tower
+or a lidar, on any mesh:
+
+- A vertical line is sampled at ``erf.sample_line_npts`` heights evenly spaced from its lo z to
+  its hi z, in the column of cells that holds it; one height, with lo z equal to hi z, gives a
+  single tower height. Without ``erf.sample_line_npts``, every vertical line must have its lo z
+  equal to its hi z and is sampled at that height.
+- A horizontal line is sampled at its z in every column of cells it crosses, so over terrain it
+  stays at a constant height rather than following the mesh; its ``erf.sample_line_npts`` is 0.
+
+The heights are above sea level, or with ``erf.sample_line_z_agl = true`` above the ground under
+each column (the level-0 ground, bilinear at the column's centre), so a horizontal line then
+follows the terrain at a constant height above it. Each variable is interpolated linearly in
+height between the two cell centres of the column that bracket the height, as for stations:
+between the ground and the lowest cell centre it takes that cell's value, and above the top
+cell centre the top cell's. A sample below the ground (for example where a horizontal line
+crosses a hill) is written as ``erf.sampling_covered_value``, with a volume fraction of 0. With
+immersed terrain, cells covered by the terrain are not used, and the lowest cell centre is that
+of the lowest cell with fluid. The variable ``z`` is the height of each sample above sea level;
+in a line plotfile the z coordinate is the requested height. A line is sampled on the finest
+level that holds every cell its samples read. The samples are not interpolated across a line:
+a horizontal line takes the columns of the row of cells through its lo end, and a vertical line
+its column. ``erf.sample_line_interp`` is not supported for lines given by ``sample_line_lo``
+and ``sample_line_hi``, which name cells rather than heights. With text output,
+``plt_line_levL.zcc`` holds the heights of the samples above sea level.
+
 Plane samples are written as true multi-level AMReX plotfiles: every refinement level
 whose grids intersect the plane is written (``Level_0``, ``Level_1``, ...), so a plane
 that cuts through static refinement patches retains the finer in-plane resolution there.
@@ -1876,6 +1904,13 @@ List of Parameters
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_line_z_agl**          | z of the real bounding points of the lines is the height | Boolean            | false            |
 |                                    | above the ground instead of above sea level              |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_interp**         | Sample the real lines at their requested heights,        | Boolean            | false            |
+|                                    | interpolated in height in each column                    |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_npts**           | With erf.sample_line_interp: the number of heights of    | 1 Integer per line | 1 for a vertical |
+|                                    | each vertical line, from lo z to hi z; 0 for a           |                    | line with equal  |
+|                                    | horizontal line                                          |                    | lo and hi z      |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_plane_lo/hi**         | Bounding point on the plane(s)                           | 3 Reals per plane  | None             |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+

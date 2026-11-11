@@ -5952,6 +5952,26 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   endfunction(add_test_line_sampling_terrain)
   add_test_line_sampling_terrain(LineSamplingTerrain)
 
+  # Lines interpolated to requested heights over the same hill (erf.sample_line_interp): four
+  # vertical lines at given heights and a horizontal one at a constant height across the hill,
+  # partly below the ground, by height above sea level and above the ground; each sample must
+  # be the plotfile's rhoadv_0 interpolated in height in its column (check_line_interp.py)
+  function(add_test_line_sampling_interp TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    set(_lines "tower:16:16:0:280:15 far:0:0:0:280:15 high:16:16:600:790:5 one:16:16:150:150:1 across:x:16:50")
+    set(_agl "erf.sample_line_z_agl=1 erf.plot_file_1=agl_plt 'erf.sample_line_name=agl_tower agl_far agl_high agl_one agl_across'")
+    set(_check "ERF_TOOLS=${PROJECT_SOURCE_DIR}/Exec/Tools ${ERF_TEST_PYTHON} check_line_interp.py")
+    set(_names "tower far high one across agl_tower agl_far agl_high agl_one agl_across")
+    add_test(${TEST_NAME} sh -c
+        "rm -rf plt0* agl_plt0* plt_line_lev* && for n in ${_names}; do rm -f $n.*; done && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${_check} plt00001 0 '' -9999 ${_lines} && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i ${_agl} > ${_log}.agl 2>&1 || ( tail -n 40 ${_log}.agl && false ) ) && ${_check} agl_plt00001 1 agl_ -9999 ${_lines}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_line_sampling_interp)
+  add_test_line_sampling_interp(LineSamplingInterp)
+
   # Line and plane sampling with EB terrain (#4977): covered cells are written as
   # erf.sampling_covered_value, in a column through the top of the hill (the lowest 14 of
   # its 86 cells are covered; as an erf.sample_line log and as do_line_sampling text) and in
@@ -5997,6 +6017,14 @@ add_test_abort(LineSampling_Abort_NotAxisAligned ${CMAKE_CURRENT_SOURCE_DIR}/tes
 add_test_abort(LineSampling_Abort_NotAxisAlignedReal ${CMAKE_CURRENT_SOURCE_DIR}/test_files/LineSamplingTerrain LineSamplingTerrain.i
                "Line 1 of erf.sample_line_lo/hi_real is not along erf.sample_line_dir"
                "erf.sample_line_hi_real=40. 40. 300. -1240. -1200. 300. 40. 40. 420. 1240. 40. 150.")
+# erf.sample_line_interp interpolates to heights: not for lines given by cells, and a horizontal
+# line has one sample per column
+add_test_abort(LineSampling_Abort_InterpIndexLines ${CMAKE_CURRENT_SOURCE_DIR}/test_files/SampleLine SampleLine.i
+               "erf.sample_line_interp needs lines given by heights"
+               "erf.sample_line_interp=1")
+add_test_abort(LineSampling_Abort_InterpHorizontalNpts ${CMAKE_CURRENT_SOURCE_DIR}/test_files/LineSamplingInterp LineSamplingInterp.i
+               "Line 4 of erf.sample_line_interp is horizontal"
+               "erf.sample_line_npts=15 15 5 1 3")
 add_test_abort(LineSampling_Abort_MovingTerrain ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MovingTerrain_nosub MovingTerrain_nosub.i
                "is not supported with erf.terrain_type = MovingFittedMesh"
                "erf.do_line_sampling=1 erf.line_sampling_interval=1 erf.sample_line_lo_real=50. 20. 0. erf.sample_line_hi_real=50. 20. 100. erf.sample_line_dir=2")

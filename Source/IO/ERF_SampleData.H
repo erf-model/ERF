@@ -264,6 +264,37 @@ struct LineSampler
             // the ground under it instead of the height above sea level
             pp.queryAdd("sample_line_z_agl",m_z_agl);
 
+            // Interpolate to the requested heights rather than take the cells that hold them:
+            //    a vertical line at erf.sample_line_npts heights from its lo z to its hi z, a
+            //    horizontal line at its z in every column it crosses
+            pp.queryAdd("sample_line_interp",m_interp);
+            if (m_interp) {
+                if (!m_use_real_bx) {
+                    amrex::Abort("erf.sample_line_interp needs lines given by heights, with "
+                                 "erf.sample_line_lo_real/hi_real or erf.sample_line_lo_latlon/hi_latlon; "
+                                 "a line given by erf.sample_line_lo/hi names cells, not heights");
+                }
+                m_npts.assign(nline, 0);
+                const int n_npts = pp.countval("sample_line_npts");
+                if (n_npts > 0) {
+                    if (n_npts != nline) {
+                        amrex::Abort("erf.sample_line_npts must give one value per line (0 for a horizontal line)");
+                    }
+                    pp.getarr("sample_line_npts", m_npts, 0, nline);
+                } else {
+                    // A vertical line whose two ends are at one height is sampled at that height
+                    for (int iline(0); iline<nline; ++iline) {
+                        if (m_dir[iline] == 2) { m_npts[iline] = 1; }
+                    }
+                }
+                // The heights of lines given by latitude and longitude are checked once they are placed
+                if (!m_use_latlon) {
+                    for (int iline(0); iline<nline; ++iline) { check_interp_heights(iline); }
+                }
+            } else if (pp.contains("sample_line_npts")) {
+                amrex::Abort("erf.sample_line_npts is used only with erf.sample_line_interp = true");
+            }
+
             // The cells of a line placed by height are found once, so they do not follow a
             // mesh that moves; lines given by indices do not use heights
             if (m_use_real_bx && use_column_heights() &&
@@ -273,8 +304,9 @@ struct LineSampler
             }
 
             // Where the levels are not equally spaced, the z of the plotfile of a line is not
-            // the height of its samples, so the height is written with them
-            if (SolverChoice::mesh_type != MeshType::ConstantDz &&
+            // the height of its samples, so the height is written with them; an interpolated
+            // line writes the height of each sample above sea level on any mesh
+            if ((SolverChoice::mesh_type != MeshType::ConstantDz || m_interp) &&
                 !containerHasElement(m_varnames, std::string("z"))) {
                 const bool cons_first = !m_varnames.empty() && m_varnames[0] == "conserved";
                 m_varnames.insert(m_varnames.begin() + (cons_first ? 1 : 0), "z");
@@ -498,6 +530,7 @@ struct LineSampler
                 hi[across] = lo[across];
             }
             m_bnd_rbx[iline] = amrex::RealBox(lo, hi);
+            if (m_interp) { check_interp_heights(iline); }
 
             amrex::Print() << line << ": lo end at lat=" << where[0].lat << " long=" << where[0].lon
                            << " (x=" << lo[0] << " y=" << lo[1] << ")";
@@ -510,11 +543,302 @@ struct LineSampler
         }
     }
 
-    //! Whether the sampler needs the ground under its lines (erf.sample_line_z_agl)
+    //! Whether the sampler needs the ground under its lines (erf.sample_line_z_agl, or
+    //! erf.sample_line_interp, which writes the samples below the ground as missing)
     [[nodiscard]] bool
     needs_ground () const
     {
-        return m_use_real_bx && m_z_agl;
+        return m_use_real_bx && (m_z_agl || m_interp);
+    }
+
+    //! Abort unless the number of heights of line iline suits its ends (erf.sample_line_interp)
+    void
+    check_interp_heights (int iline) const
+    {
+        const std::string line = "Line " + std::to_string(iline) + " of erf.sample_line_interp";
+        const int n = m_npts[iline];
+        const amrex::RealBox& rb = m_bnd_rbx[iline];
+        if (m_dir[iline] != 2) {
+            if (n != 0) {
+                amrex::Abort(line + " is horizontal, so it is sampled once in every column it crosses: "
+                             "its erf.sample_line_npts must be 0");
+            }
+        } else if (n < 1) {
+            amrex::Abort(line + " is vertical: give erf.sample_line_npts, the number of heights (at least 1)");
+        } else if (n == 1 && rb.lo(2) != rb.hi(2)) {
+            amrex::Abort(line + " has one height, so its lo z and hi z must be equal; give erf.sample_line_npts "
+                         "of at least 2 for heights from its lo z to its hi z");
+        } else if (n > 1 && !(rb.lo(2) < rb.hi(2))) {
+            amrex::Abort(line + " has " + std::to_string(n) + " heights, so its lo z must be below its hi z");
+        }
+    }
+
+    //! The requested heights of line iline (erf.sample_line_interp): erf.sample_line_npts evenly
+    //! spaced from lo z to hi z for a vertical line, its one z for a horizontal line
+    [[nodiscard]] amrex::Vector<amrex::Real>
+    interp_heights (int iline) const
+    {
+        const amrex::RealBox& rb = m_bnd_rbx[iline];
+        if (m_dir[iline] != 2) { return {rb.lo(2)}; }
+        const int n = m_npts[iline];
+        amrex::Vector<amrex::Real> h(n, rb.lo(2));
+        for (int m(1); m<n; ++m) {
+            h[m] = rb.lo(2) + (rb.hi(2) - rb.lo(2)) * amrex::Real(m) / amrex::Real(n - 1);
+        }
+        return h;
+    }
+
+    //! The samples of line iline, along its direction: its heights (vertical) or its columns (horizontal)
+    [[nodiscard]] amrex::Box
+    interp_sample_box (int iline, const amrex::Box& cols) const
+    {
+        if (m_dir[iline] != 2) { return cols; }
+        amrex::IntVect lo(cols.smallEnd()); lo[2] = 0;
+        amrex::IntVect hi(cols.smallEnd()); hi[2] = m_npts[iline] - 1;
+        return amrex::Box(lo, hi);
+    }
+
+    /**
+     * Components scomp .. scomp+ncomp-1 of src over the cells (or nodes) of bx, in the order of
+     * a FArrayBox on bx, on the I/O rank, and on every rank with to_all.  Collective.
+     */
+    static amrex::Vector<amrex::Real>
+    gather_box (const amrex::MultiFab& src, int scomp, int ncomp, const amrex::Box& bx, bool to_all)
+    {
+        const int io = amrex::ParallelDescriptor::IOProcessorNumber();
+        amrex::MultiFab dst(amrex::BoxArray(bx), amrex::DistributionMapping(amrex::Vector<int>{io}),
+                            ncomp, 0, amrex::MFInfo().SetArena(amrex::The_Pinned_Arena()));
+        dst.setVal(amrex::Real(0.0));
+        dst.ParallelCopy(src, scomp, 0, ncomp);
+        amrex::Gpu::streamSynchronize();
+        amrex::Vector<amrex::Real> v(static_cast<std::size_t>(bx.numPts()) * ncomp, amrex::Real(0.0));
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            const amrex::Real* p = dst[0].dataPtr();
+            std::copy(p, p + v.size(), v.begin());
+        }
+        if (to_all) { amrex::ParallelDescriptor::Bcast(v.data(), v.size(), io); }
+        return v;
+    }
+
+    /**
+     * Where the samples of a line with erf.sample_line_interp come from on one level, with the
+     * grids that was found on
+     */
+    struct InterpPlan
+    {
+        amrex::BoxArray ba;                 //!< the grids of the level
+        bool holds{false};                  //!< the level holds every cell the samples read
+        amrex::Box cols;                    //!< the columns of the line on the level (k = the domain's bottom)
+        amrex::Box cells;                   //!< the cells the samples read (empty if none)
+        amrex::Vector<amrex::Real> zt;      //!< the height of each sample above sea level
+        amrex::Vector<int> col, k0, k1;     //!< per sample: its column along the line, the cells it reads
+        amrex::Vector<amrex::Real> w;       //!< the weight of k1
+        amrex::Vector<char> missing;        //!< the sample is below the ground, or its column has no fluid
+    };
+
+    /**
+     * The samples of line iline on a level (erf.sample_line_interp).  Each sample is in a column of
+     * cells of the level: the one that holds the line (vertical), or each one it crosses
+     * (horizontal).  Its height is the requested one, above sea level or, with
+     * erf.sample_line_z_agl, above the ground under the column, which is the level-0 ground
+     * (ground_nd) bilinear at the column's centre.  Its value is linear in height between the
+     * two cell centres of the column that bracket it; between the ground and the lowest cell
+     * centre with fluid it is that cell's, and above the top cell centre the top cell's.  A
+     * sample below the ground is missing.  The level holds the line if it holds every cell the
+     * samples read; level 0 always does.  Collective: every rank gets the same plan.
+     *
+     * @param[in] volfrac the volume fraction of the level with immersed terrain, or nullptr
+     */
+    InterpPlan
+    make_interp_plan (int iline, int lev, const amrex::Geometry& geom, const amrex::Geometry& geom0,
+                      const amrex::MultiFab& z_cc, const amrex::MultiFab* volfrac,
+                      const amrex::MultiFab* ground_nd) const
+    {
+        InterpPlan plan;
+        plan.ba = z_cc.boxArray();
+        plan.cols = lineIndexBoxXY(m_bnd_rbx[iline], geom);
+        const amrex::Box& dom = geom.Domain();
+        const int kdlo = dom.smallEnd(2);
+        const int nz = dom.length(2);
+        const int ncol = static_cast<int>(plan.cols.numPts());
+        const int dir = m_dir[iline];
+        const int along = (dir == 2) ? 0 : dir;
+        const amrex::IntVect clo = plan.cols.smallEnd();
+
+        // The heights of the cell centres of the columns, which cells the level holds, and their
+        // volume fractions, from the bottom of the domain to its top
+        amrex::Box colbox(plan.cols);
+        colbox.setSmall(2, kdlo);
+        colbox.setBig(2, dom.bigEnd(2));
+        amrex::MultiFab t(z_cc.boxArray(), z_cc.DistributionMap(), 3, 0);
+        amrex::MultiFab::Copy(t, z_cc, 0, 0, 1, 0);
+        t.setVal(amrex::Real(1.0), 1, 1, 0);
+        if (volfrac != nullptr) {
+            amrex::MultiFab::Copy(t, *volfrac, 0, 2, 1, 0);
+        } else {
+            t.setVal(amrex::Real(1.0), 2, 1, 0);
+        }
+        const amrex::Vector<amrex::Real> c = gather_box(t, 0, 3, colbox, true);
+        const auto ccol = static_cast<std::size_t>(colbox.numPts());
+        auto at = [&] (int icol, int k, int n) {
+            return c[static_cast<std::size_t>(icol) + static_cast<std::size_t>(ncol) * k + ccol * n];
+        };
+
+        // The ground under the centre of each column, bilinear between the level-0 nodes around it
+        amrex::Vector<amrex::Real> ground(ncol, geom0.ProbLo(2));
+        if (ground_nd != nullptr) {
+            const amrex::Box& dom0 = geom0.Domain();
+            amrex::Vector<int> i0(ncol), j0(ncol);
+            amrex::Vector<amrex::Real> fx(ncol), fy(ncol);
+            for (int icol(0); icol<ncol; ++icol) {
+                amrex::IntVect cell(clo);
+                cell[along] += icol;
+                int* idx[2] = {&i0[icol], &j0[icol]};
+                amrex::Real* f[2] = {&fx[icol], &fy[icol]};
+                for (int d(0); d<2; ++d) {
+                    const amrex::Real xc = geom.ProbLo(d) + (cell[d] + amrex::Real(0.5)) * geom.CellSize(d);
+                    const amrex::Real s = (xc - geom0.ProbLo(d)) / geom0.CellSize(d);
+                    *idx[d] = std::min(std::max(static_cast<int>(std::floor(s)), dom0.smallEnd(d)), dom0.bigEnd(d));
+                    *f[d] = std::min(std::max(s - *idx[d], amrex::Real(0.0)), amrex::Real(1.0));
+                }
+            }
+            const amrex::IntVect nlo(*std::min_element(i0.begin(), i0.end()), *std::min_element(j0.begin(), j0.end()),
+                                     dom0.smallEnd(2));
+            const amrex::IntVect nhi(*std::max_element(i0.begin(), i0.end()) + 1,
+                                     *std::max_element(j0.begin(), j0.end()) + 1, dom0.smallEnd(2));
+            const amrex::Box nbx(nlo, nhi, amrex::IntVect::TheNodeVector());
+            const amrex::Vector<amrex::Real> g = gather_box(*ground_nd, 0, 1, nbx, true);
+            const int nnx = nbx.length(0);
+            auto node = [&] (int i, int j) { return g[(i - nlo[0]) + nnx * (j - nlo[1])]; };
+            for (int icol(0); icol<ncol; ++icol) {
+                const int i = i0[icol], j = j0[icol];
+                const amrex::Real wx = fx[icol], wy = fy[icol];
+                ground[icol] = (amrex::Real(1.0) - wy) * ((amrex::Real(1.0) - wx) * node(i,j)   + wx * node(i+1,j))
+                             +                    wy  * ((amrex::Real(1.0) - wx) * node(i,j+1) + wx * node(i+1,j+1));
+            }
+        }
+
+        // The samples: the heights of a vertical line in its column, or one height in each column
+        const amrex::Vector<amrex::Real> h = interp_heights(iline);
+        const int nsamp = (dir == 2) ? static_cast<int>(h.size()) : ncol;
+        plan.zt.resize(nsamp);
+        plan.col.resize(nsamp);
+        plan.k0.assign(nsamp, 0);
+        plan.k1.assign(nsamp, 0);
+        plan.w.assign(nsamp, amrex::Real(0.0));
+        plan.missing.assign(nsamp, 0);
+        plan.holds = true;
+        int kmin = nz, kmax = -1;
+        for (int s(0); s<nsamp; ++s) {
+            const int icol = (dir == 2) ? 0 : s;
+            const amrex::Real hs = (dir == 2) ? h[s] : h[0];
+            plan.col[s] = icol;
+            plan.zt[s] = hs + (m_z_agl ? ground[icol] : amrex::Real(0.0));
+            const amrex::Real z = plan.zt[s];
+            if (z < ground[icol]) { plan.missing[s] = 1; continue; }
+
+            auto held  = [&] (int k) { return at(icol, k, 1) > amrex::Real(0.5); };
+            auto fluid = [&] (int k) { return held(k) && at(icol, k, 2) > amrex::Real(0.0); };
+            auto zc    = [&] (int k) { return at(icol, k, 0); };
+            int k0 = -1, k1 = -1;
+            amrex::Real w = amrex::Real(0.0);
+            // between two cell centres with fluid
+            for (int k(0); k<nz-1 && k0 < 0; ++k) {
+                if (fluid(k) && fluid(k+1) && zc(k) <= z && z < zc(k+1)) {
+                    k0 = k; k1 = k+1; w = (z - zc(k)) / (zc(k+1) - zc(k));
+                }
+            }
+            // at or above the top cell centre
+            if (k0 < 0 && fluid(nz-1) && z >= zc(nz-1)) { k0 = k1 = nz-1; }
+            // between the ground and the lowest cell centre with fluid, if the level holds the
+            // column up to it
+            if (k0 < 0) {
+                int kf = 0;
+                while (kf < nz && held(kf) && !fluid(kf)) { ++kf; }
+                if (kf < nz && fluid(kf) && z < zc(kf)) { k0 = k1 = kf; }
+            }
+            if (k0 < 0) {
+                // Level 0 holds every cell, so there no cells with fluid bracket the height (a
+                // column without fluid, or a height under an overhang of immersed terrain); a
+                // finer level does not hold the cells around it
+                if (lev == 0) { plan.missing[s] = 1; continue; }
+                plan.holds = false;
+                return plan;
+            }
+            plan.k0[s] = k0;
+            plan.k1[s] = k1;
+            plan.w[s] = w;
+            kmin = std::min(kmin, k0);
+            kmax = std::max(kmax, k1);
+        }
+        if (kmax >= kmin) {
+            plan.cells = plan.cols;
+            plan.cells.setSmall(2, kdlo + kmin);
+            plan.cells.setBig(2, kdlo + kmax);
+        }
+        return plan;
+    }
+
+    //! make_interp_plan, kept until the grids of the level change
+    const InterpPlan&
+    cachedInterpPlan (int iline, int lev, const amrex::Geometry& geom, const amrex::Geometry& geom0,
+                      const amrex::MultiFab& z_cc, const amrex::MultiFab* volfrac,
+                      const amrex::MultiFab* ground_nd)
+    {
+        if (lev >= static_cast<int>(m_interp_plan.size())) { m_interp_plan.resize(lev+1); }
+        auto& plans = m_interp_plan[lev];
+        const int nline = static_cast<int>(m_bnd_rbx.size());
+        if (static_cast<int>(plans.size()) != nline) { plans.assign(nline, InterpPlan{}); }
+        if (plans[iline].ba.empty() || !(plans[iline].ba == z_cc.boxArray())) {
+            plans[iline] = make_interp_plan(iline, lev, geom, geom0, z_cc, volfrac, ground_nd);
+        }
+        return plans[iline];
+    }
+
+    /**
+     * The samples of an interpolated line from the variables data of its level, as a MultiFab of
+     * one box (interp_sample_box) on the I/O rank.  z is the height of each sample above sea
+     * level; a missing sample has volume fraction 0 and erf.sampling_covered_value elsewhere.
+     * Collective.
+     */
+    amrex::MultiFab
+    interp_line_data (int iline, const InterpPlan& plan, const amrex::MultiFab& data, int z_comp, int vf_comp) const
+    {
+        const int ncomp = data.nComp();
+        const int nsamp = static_cast<int>(plan.zt.size());
+        amrex::Vector<amrex::Real> d;
+        if (plan.cells.ok()) { d = gather_box(data, 0, ncomp, plan.cells, false); }
+
+        const amrex::Box sbx = interp_sample_box(iline, plan.cols);
+        const int io = amrex::ParallelDescriptor::IOProcessorNumber();
+        amrex::MultiFab out(amrex::BoxArray(sbx), amrex::DistributionMapping(amrex::Vector<int>{io}), ncomp, 0);
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            const int ncol = static_cast<int>(plan.cols.numPts());
+            const auto ncell = static_cast<std::size_t>(plan.cells.ok() ? plan.cells.numPts() : 0);
+            const int kc0 = plan.cells.ok() ? plan.cells.smallEnd(2) - plan.cols.smallEnd(2) : 0;
+            auto cell = [&] (int icol, int k, int n) {
+                return d[static_cast<std::size_t>(icol) + static_cast<std::size_t>(ncol) * (k - kc0) + ncell * n];
+            };
+            // in the order of the box's FArrayBox, whose samples run along its one long direction
+            amrex::Vector<amrex::Real> v(static_cast<std::size_t>(nsamp) * ncomp);
+            for (int n(0); n<ncomp; ++n) {
+                for (int s(0); s<nsamp; ++s) {
+                    amrex::Real val;
+                    if (n == z_comp) {
+                        val = plan.zt[s];
+                    } else if (plan.missing[s] != 0) {
+                        val = (n == vf_comp) ? amrex::Real(0.0) : m_covered_value;
+                    } else {
+                        const amrex::Real w = plan.w[s];
+                        val = (amrex::Real(1.0) - w) * cell(plan.col[s], plan.k0[s], n);
+                        if (w > amrex::Real(0.0)) { val += w * cell(plan.col[s], plan.k1[s], n); }
+                    }
+                    v[static_cast<std::size_t>(s) + static_cast<std::size_t>(nsamp) * n] = val;
+                }
+            }
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, v.begin(), v.end(), out[0].dataPtr());
+        }
+        return out;
     }
 
     //! Whether the z of a line given by real coordinates is found from the heights of a
@@ -744,6 +1068,18 @@ struct LineSampler
             int nline = static_cast<int>(m_ls_mf.size());
             for (int iline(0); iline<nline; ++iline) {
                 int dir = m_dir[iline];
+                if (m_interp) {
+                    // The height of each sample above sea level, where the level holds the line
+                    const InterpPlan plan = make_interp_plan(iline, lev, geom[lev], geom[0], *z_phys_cc[lev],
+                                                             nullptr, ground_nd);
+                    if (amrex::ParallelDescriptor::IOProcessor()) {
+                        if (plan.holds) {
+                            for (const auto& zval : plan.zt) { outfile << " " << zval; }
+                        }
+                        outfile << std::endl;
+                    }
+                    continue;
+                }
                 amrex::Box bnd_bx;
                 if (m_use_real_bx && use_column_heights()) {
                     // As in get_sample_data: the cells of the line come from the heights
@@ -817,7 +1153,18 @@ struct LineSampler
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!z_nd_lev.empty() && z_nd_lev[0] != nullptr,
                 "Line sampling by height needs the nodal heights of each level");
         }
+        // An interpolated line is sampled on the finest level that holds every cell it reads
+        auto interp_plan = [&] (int iline, int ilev) -> const InterpPlan& {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ilev < static_cast<int>(z_cc_lev.size()) && z_cc_lev[ilev] != nullptr,
+                "Line sampling with erf.sample_line_interp needs the cell-centre heights of each level");
+            const amrex::MultiFab* vf = ilev < static_cast<int>(volfrac_lev.size()) ? volfrac_lev[ilev] : nullptr;
+            return cachedInterpPlan(iline, ilev, geom[ilev], geom[0], *z_cc_lev[ilev], vf, ground_nd);
+        };
         auto line_box = [&] (int iline, int ilev) -> amrex::Box {
+            if (m_interp) {
+                const InterpPlan& plan = interp_plan(iline, ilev);
+                return plan.holds ? plan.cols : amrex::Box();
+            }
             if (by_height) {
                 if (ilev >= static_cast<int>(z_nd_lev.size()) || z_nd_lev[ilev] == nullptr) { return amrex::Box(); }
                 return cachedLineIndexBox(iline, ilev, geom[ilev], *z_nd_lev[ilev],
@@ -1121,6 +1468,11 @@ struct LineSampler
                 const int iline = lines[n];
                 const amrex::Box& bnd_bx = boxes[n];
                 m_lev[iline] = ilev;
+                if (m_interp) {
+                    m_ls_mf[iline] = interp_line_data(iline, interp_plan(iline, ilev), mf_cc_data, z_comp, vf_comp);
+                    done[iline] = 1;
+                    continue;
+                }
                 m_ls_mf[iline] = get_line_data(mf_cc_data, m_dir[iline], bnd_bx.smallEnd(), bnd_bx);
 
                 // A line is done once a level holds all of it
@@ -1254,6 +1606,16 @@ struct LineSampler
 
                 is_per[d] = geom[lev].isPeriodic(d);
             }
+            // An interpolated line is at its requested heights (above the ground with
+            // erf.sample_line_z_agl): its z cells are centred on them
+            if (m_interp) {
+                const amrex::Vector<amrex::Real> h = interp_heights(iline);
+                const int nh = static_cast<int>(h.size());
+                const amrex::Real dh = (nh > 1) ? (h[nh-1] - h[0]) / amrex::Real(nh - 1) : dx[2];
+                m_rb.setLo(2, h[0] - myhalf * dh);
+                m_rb.setHi(2, h[nh-1] + myhalf * dh);
+                is_per[2] = 0;
+            }
             m_geom[0].define(m_dom, &m_rb, geom[lev].Coord(), is_per.data());
 
             // Create plotfile name
@@ -1284,6 +1646,8 @@ struct LineSampler
     bool m_write_ascii{false};
     bool m_write_log{false};
     bool m_z_agl{false};   // erf.sample_line_z_agl
+    bool m_interp{false};  // erf.sample_line_interp
+    amrex::Vector<int> m_npts;   // erf.sample_line_npts: the heights of each vertical line (0 for a horizontal one)
     amrex::Real m_covered_value{sampling_covered_value()}; // erf.sampling_covered_value
     int  m_max_level{-1};  // finest level to sample; -1 for all
     int  m_ncons{-1};      // components "conserved" expands into; -1 until the first sample
@@ -1299,6 +1663,8 @@ struct LineSampler
     amrex::Vector<amrex::BoxArray> m_box_cache_ba;
     // The grids of each level when its line coordinates were last written (write_coords)
     amrex::Vector<amrex::BoxArray> m_zcc_ba;
+    // The samples of each interpolated line on each level (erf.sample_line_interp)
+    amrex::Vector<amrex::Vector<InterpPlan>> m_interp_plan;
 };
 
 
