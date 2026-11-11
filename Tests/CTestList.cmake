@@ -4127,6 +4127,38 @@ function(add_test_ibseb_ground_sky_view TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/clear_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/clear_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/simulation.log;${CURRENT_TEST_BINARY_DIR}/serial/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/seam/simulation.log;${CURRENT_TEST_BINARY_DIR}/seam_serial/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_ibseb_ground_sky_view)
 
+# erf.ibseb.two_stream_roofs: the two-stream column under a building starts on the building's
+# roof. The roofs' diffuse light and the outgoing longwave over the building against column
+# solvers written again in Python on the shorter column; nothing else changes in the first
+# step; one rank against several; a restart; two levels.
+function(add_test_ibseb_two_stream_roofs TEST_NAME)
+    set(TEST_FILES_DIR IBSEB_TwoStreamBuildings)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/IBSEB_TwoStreamBuildings.i"
+        "-DPROVIDER_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider"
+        "-DTWO_LEVEL_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels"
+        "-DPRECISION=${ERF_PRECISION}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_two_stream_roofs.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBTwoStreamRoofs.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/clear_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/clear_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/simulation.log;${CURRENT_TEST_BINARY_DIR}/shadow_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/serial/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_two_stream_roofs)
+
 # The direct beam the ground reflects onto the building faces through the sunlit part of
 # each face's ground view (erf.ibseb.ground_view_shadow; Tests/RunIBSEBGroundViewShadow.cmake),
 # on the cube of Tests/test_files/IBSEB_TwoStreamProvider: the sunlit part of every face's
@@ -4169,6 +4201,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     add_test_ibseb_two_stream_buildings(IBSEB_TwoStreamBuildings)
     add_test_ibseb_ground_view_shadow(IBSEB_GroundViewShadow)
     add_test_ibseb_ground_sky_view(IBSEB_GroundSkyView)
+    add_test_ibseb_two_stream_roofs(IBSEB_TwoStreamRoofs)
   endif()
   # erf.ibseb.two_stream_buildings acts only on the two-stream radiation: given without a
   # radiation model the run stops; with another model named it warns and carries on to the
@@ -4187,6 +4220,18 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  IBSEB_TwoStreamProvider.i
                  "erf.ibseb.ground_sky_view = true needs erf.radiation_model = TwoStream.*erf.radiation.seb_use_radiation_fluxes = true"
                  "erf.ibseb.ground_sky_view=true erf.radiation.seb_use_radiation_fluxes=false")
+  # erf.ibseb.two_stream_roofs changes the columns under the buildings, which the columns must
+  # see, and takes the roofs from the immersed-boundary balance: without either the run stops.
+  add_test_abort(IBSEB_TwoStreamRoofsWithoutBuildings
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.two_stream_roofs = true needs erf.radiation_model = TwoStream and erf.ibseb.two_stream_buildings = true, and no land-surface model"
+                 "erf.ibseb.two_stream_roofs=true erf.ibseb.two_stream_buildings=false")
+  add_test_abort(IBSEB_TwoStreamRoofsDisabled
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.two_stream_roofs = true needs erf.ibseb.enable = true"
+                 "erf.ibseb.enable=false erf.ibseb.two_stream_roofs=true")
   # Without the immersed-boundary balance there are no faces to send anything: the run stops.
   add_test_abort(IBSEB_GroundSkyViewDisabled
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
