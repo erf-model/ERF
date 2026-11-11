@@ -132,6 +132,7 @@ void erf_substep_MT (int step, int nrk, int level, int finest_level,
                      std::unique_ptr<amrex::MultiFab>& z_t_rk,
                      const amrex::MultiFab* z_t_pert,
                      std::unique_ptr<amrex::MultiFab>& z_phys_nd_old,
+                     const amrex::MultiFab* z_phys_nd_flx,
                      std::unique_ptr<amrex::MultiFab>& z_phys_nd_new,
                      std::unique_ptr<amrex::MultiFab>& z_phys_nd_stg,
                      std::unique_ptr<amrex::MultiFab>& detJ_cc_old,
@@ -168,6 +169,8 @@ void make_fast_coeffs (int level,
                        const bool use_variable_beta_s,
                        const amrex::Real beta_s_min,
                        const amrex::Real beta_s_max,
-                       amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type);
+                       amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type,
+                       const amrex::MultiFab* detJ_cc_vol = nullptr,
+                       const amrex::MultiFab* detJ_cc_old = nullptr);
 
 #endif

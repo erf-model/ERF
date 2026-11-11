@@ -406,6 +406,12 @@
         // *****************************************************************************
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
+            // The column update below works on valid cells, reading only the cells above and below in the
+            // same column, so it needs no ghost-cell fill first.  The ghost planes below and above the
+            // column keep the values the initialization gave them, which are finite (the base-state BCs
+            // leave them alone on a moving mesh, see ERFPhysBCFunct_base): the bottom-face flux is
+            // extrapolated from the three lowest cells, and the top-face flux is zero (z_t = 0 there).
+
             MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
             MultiFab  p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
             MultiFab pi_hse_new (base_state_new[level], make_alias, BaseState::pi0_comp, 1);
@@ -458,7 +464,8 @@
                const Array4<Real const>& dJ_new_arr = detJ_cc_new[level]->const_array(mfi);
                const Array4<Real const>& dJ_src_arr = detJ_cc_src[level]->const_array(mfi);
 
-               Box gbx = mfi.growntilebox({1,1,1});
+               // Valid cells and the planes above and below them, which the fluxes read
+               Box gbx = mfi.tilebox(); gbx.grow(2,1);
                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
                    rt0_arr(i,j,k)     = getRhoThetagivenP(p0_arr(i,j,k));
@@ -466,14 +473,35 @@
                    r0_tmp_arr(i,j,k)  = r0_new_arr(i,j,k);
                });
 
-               Box gbx2 = mfi.growntilebox({1,1,0});
+               const int klo_base = fine_geom.Domain().smallEnd(2);
+               // Valid cells only; the ghost cells are filled from them below.  Every grid spans the
+               // full height of the domain (checked in ERF::ReadParameters), so the three lowest cells
+               // the bottom-face extrapolation reads are in this box
+               Box gbx2 = mfi.tilebox();
                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
                    Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
                    Real zflux_r_hi = -z_t_arr(i,j,k+1) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
+                   if (k == klo_base) {
+                       // The ghost cell below klo is not on the new mesh (the vertical ghost planes of the
+                       // base state are not filled on a moving mesh), so the average above is not a
+                       // bottom-face value; use the quadratic extrapolation to the bottom face from the
+                       // three lowest cells, of equal spacing in the computational coordinate. At the
+                       // top face z_t = 0, so the ghost cell above the column only has to be finite.
+                       zflux_r_lo = -z_t_arr(i,j,k) *
+                           ( Real(1.875)*r0_tmp_arr(i,j,k) - Real(1.25)*r0_tmp_arr(i,j,k+1)
+                            + Real(0.375)*r0_tmp_arr(i,j,k+2) );
+                   }
 
                    Real zflux_rt_lo = zflux_r_lo * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
                    Real zflux_rt_hi = zflux_r_hi * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
+                   if (k == klo_base) {
+                       // theta_0 at the bottom face by the same extrapolation
+                       zflux_rt_lo = zflux_r_lo *
+                           ( Real(1.875)*(rt0_tmp_arr(i,j,k  )/r0_tmp_arr(i,j,k  ))
+                            - Real(1.25)*(rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1))
+                           + Real(0.375)*(rt0_tmp_arr(i,j,k+2)/r0_tmp_arr(i,j,k+2)) );
+                   }
 
                    Real invdetJ = one / dJ_src_arr(i,j,k);
 
@@ -492,9 +520,13 @@
                    th0_new_arr(i,j,k) = rt0_tmp_new / r0_new_arr(i,j,k);
                });
             } // MFIter
-            r0_new->FillBoundary(fine_geom.periodicity());
-            p0_new->FillBoundary(fine_geom.periodicity());
-            th0_new->FillBoundary(fine_geom.periodicity());
+            // Lateral and periodic ghost cells of the updated base state, on the new mesh (the functor
+            // starts with the periodic and interior FillBoundary).  The vertical
+            // ghost planes are again left alone: nothing that uses this base state on a moving mesh
+            // changes the solution through them.  The pressure gradient, buoyancy and cell-centred
+            // sources read only cells inside the domain; the momentum sponge reads the plane below at
+            // the bottom face, where w is set by the boundary condition instead.
+            (*physbcs_base_new[level])(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());
         }
 
 #ifdef ERF_USE_NETCDF

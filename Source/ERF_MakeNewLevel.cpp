@@ -1817,6 +1817,7 @@ ERF::ClearLevel (int lev)
     physbcs_v[lev].reset();
     physbcs_w[lev].reset();
     physbcs_base[lev].reset();
+    physbcs_base_new[lev].reset();
 
     // Frees the flux register (only allocated for TwoWay coupling)
     advflux_reg[lev].reset();
