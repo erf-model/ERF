@@ -4385,15 +4385,32 @@ column would be taken for a building), a uniform vertical grid (no
 |                                   | in, cast every step); false: through the whole ground    |                    |                        |
 |                                   | view, the ground a face sees being sunlit everywhere     |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.ground_sky_view**     | true: the two-stream ground balance beside the buildings | Boolean            | false                  |
+|                                   | keeps the sky's diffuse light and longwave through the   |                    |                        |
+|                                   | part of the ground's view the walls leave open, and      |                    |                        |
+|                                   | takes the walls' reflected light and longwave through    |                    |                        |
+|                                   | the rest; false: the ground sees the whole sky. The run  |                    |                        |
+|                                   | stops unless erf.ibseb.enable, erf.radiation_model =     |                    |                        |
+|                                   | TwoStream, erf.ibseb.two_stream_buildings,               |                    |                        |
+|                                   | erf.ibseb.radiation = two_stream, erf.radiation          |                    |                        |
+|                                   | seb_enable, seb_use_radiation_fluxes, sw_enabled and     |                    |                        |
+|                                   | lw_enabled are all set and no land-surface model is used.|                    |                        |
+|                                   | In street canyons raise erf.ibseb.view_n_az / view_n_el  |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.emissivity**          | longwave emissivity of the faces                         | Real in (0, 1]     | 0.9                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.emissivity_ground**   | ground emissivity for the ground term; not with lw_mode  | Real in (0, 1]     | 0.95                   |
 |                                   | = two_stream                                             |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.view_n_az**           | azimuths of the hemisphere sampling for the view         | Integer >= 1       | 16                     |
-|                                   | fractions                                                |                    |                        |
+|                                   | fractions. With erf.ibseb.ground_sky_view in street      |                    |                        |
+|                                   | canyons, use 32 (and view_n_el = 16), or 64 and 32 for   |                    |                        |
+|                                   | walls more than five times as high as the street is      |                    |                        |
+|                                   | wide: the default counts too little wall from the street |                    |                        |
+|                                   | floor (see the IBSEB theory page)                        |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.view_n_el**           | elevations of the hemisphere sampling                    | Integer >= 1       | 8                      |
+| **erf.ibseb.view_n_el**           | elevations of the hemisphere sampling; see view_n_az for | Integer >= 1       | 8                      |
+|                                   | street canyons with erf.ibseb.ground_sky_view            |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.sun_min_elev_deg**    | lowest sun elevation [deg] at which the shadow test is   | Real in (0, 90)    | 2.0                    |
 |                                   | exact everywhere: each rank's ray map reaches (tallest   |                    |                        |
@@ -5235,7 +5252,10 @@ heat flux it computes responds to the skin. The net shortwave the balance absorb
 update after the dycore is written as ``seb_sw_net``. With immersed-boundary buildings and
 ``erf.ibseb.two_stream_buildings`` (the default) the balance holds the ground under the buildings
 and, with ``seb_use_radiation_fluxes``, takes the direct beam off the ground they shade
-(``ibseb_ground_shadow``); see :ref:`the IBSEB theory page <sec:IBSEB>`.
+(``ibseb_ground_shadow``); see :ref:`the IBSEB theory page <sec:IBSEB>`. The net longwave
+of that update is ``seb_lw_net``. With :cpp:`erf.ibseb.ground_sky_view` the ground beside the
+buildings also takes the walls' reflected light and longwave in place of the part of the sky
+they cover (``ibseb_ground_wall_view``).
 
 
 
