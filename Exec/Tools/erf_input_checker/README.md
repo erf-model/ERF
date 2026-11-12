@@ -9,6 +9,10 @@ what the author meant, and what could be chosen better. Nothing is executed.
 
 ## Purpose
 
+The checker has a companion, `Exec/Tools/erfcreateinput.py`, which writes a commented inputs file and dummy
+auxiliary files for a new case (see `../erf_input_creator/README.md`). The generator starts a case; the checker
+verifies it, and the files it names, before a run.
+
 ParmParse never complains about a key that nobody reads, and several of the
 ERF start-up checks only fire minutes into a real-data run. The checker finds
 those problems from the deck alone:
@@ -29,7 +33,7 @@ those problems from the deck alone:
 | `context.py` | facts shared by the checkers: cell sizes, levels, anelastic or compressible, idealised or real-data, periodicity |
 | `findings.py` | `Finding`, `Severity`, `Report` (text and JSON) |
 | `checker.py` | `Checker` base class, registry, `run_all_checks` |
-| `checks/keys.py` | duplicate keys, retired keys and values, misspelt or wrongly cased keys (ParmParse keys are case-sensitive; compared with the Sphinx docs and the strings read in `Source/`), `FILE =` found only beside the deck |
+| `checks/keys.py` | duplicate keys, a `#` glued to a value word (ParmParse keeps it in the value), retired keys and values, misspelt or wrongly cased keys (ParmParse keys are case-sensitive; compared with the Sphinx docs and the strings read in `Source/`), `FILE =` found only beside the deck |
 | `checks/domain.py` | required keys, cell counts, cell sizes, aspect ratio |
 | `checks/grid.py` | blocking factor and `max_grid_size` rules AMReX enforces, odd and uneven boxes, vertical decomposition, boxes per rank |
 | `checks/refinement.py` | indicators, boxes, ratios, coupling |
@@ -39,7 +43,7 @@ those problems from the deck alone:
 | `checks/physics.py` | turbulence closures, advection schemes, forcing and damping, moisture, terrain and stretching; enum names read from `Source/DataStructs` (`AMREX_ENUM`), exact case where ERF compares strings |
 | `checks/output.py` | plotfiles, checkpoints, restarts |
 | `checks/files.py` | every file the deck names: exists, and when present its contents against the deck (wrfinput, wrfbdy, wrflow, met_em, terrain, soundings, tables) |
-| `selftest.py` | 121 cases, each a deck that must trip a check and a sibling that must not |
+| `selftest.py` | 138 cases, each a deck that must trip a check and a sibling that must not |
 
 ## How to run
 
@@ -84,7 +88,7 @@ only the existence of the file is checked.
 ## Expected results
 
 A clean deck prints INFO lines only and the script exits 0. The self-test
-exits 0 with `self-test: 112 cases passed`; CTest runs it as
+exits 0 with `self-test: 138 cases passed`; CTest runs it as
 `InputsChecker_SelfTest`. Over the repository's decks (`Exec/RegTests`,
 `Tests/test_files`, `Exec/CanonicalTests`, 729 files) the first run on
 2026-10-23 reported 24 decks with errors, most of them external files that the

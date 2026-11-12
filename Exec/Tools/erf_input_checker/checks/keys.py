@@ -108,6 +108,12 @@ def documented_keys(docs_path: Optional[str] = None) -> Set[str]:
     return keys
 
 
+_DOC_PAIR_RE = re.compile(r"\*\*([A-Za-z0-9_.]+\.[A-Za-z0-9_]+)_lo/hi\*\*")
+# keys under a prefix named in the deck: erf.<station>.* and erf.obs_nudging.<station>.*
+_STATION_LEAVES = {"field", "x", "y", "lat", "long", "lon", "height_agl", "height_abs"}
+_OBS_LEAVES = {"file", "x", "y", "lat", "long"}
+
+
 def _documented_keys(path):
     """Keys named in Inputs.rst and every other .rst page beside it."""
     keys: Set[str] = set()
@@ -126,7 +132,27 @@ def _documented_keys(path):
                         keys.add(k)
                 for m in _DOC_CODE_RE.finditer(line):
                     keys.add(m.group(1))
+                # a table row may name a pair as **erf.sample_line_lo/hi**
+                for m in _DOC_PAIR_RE.finditer(line):
+                    keys.add(m.group(1) + "_lo")
+                    keys.add(m.group(1) + "_hi")
     return keys
+
+
+@register
+class GluedComment(Checker):
+    """A '#' inside a word of a value: ParmParse keeps it, and the text after it, in the value."""
+
+    name = "keys.glued_comment"
+
+    def run(self) -> None:
+        for key in sorted(self.deck.glued_keys):
+            words = self.deck.raw(key) or []
+            glued = [w for w in words if "#" in w]
+            if glued:
+                self.warn(key, "the value holds %r: ParmParse starts a comment only after a blank, so the '#' "
+                               "and the words after it are read as part of the value" % glued[0],
+                          "Put a blank before the '#'.")
 
 
 @register
@@ -239,6 +265,8 @@ class UnknownKeys(Checker):
                 "Run ERF from the deck's directory, or give the path relative to the run directory."))
         indicators = [s.lower() for s in self.deck.get_strs("erf.refinement_indicators")]
         faces = ("xlo", "xhi", "ylo", "yhi", "zlo", "zhi")
+        stations = [s.lower() for s in self.deck.get_strs("erf.station_names")]
+        obs_stations = [s.lower() for s in self.deck.get_strs("erf.obs_nudging.stations")]
         for key in self.deck.keys():
             kl = key.lower()
             if key in known:
@@ -264,6 +292,11 @@ class UnknownKeys(Checker):
                 probe = "erf.<indicator>." + ".".join(parts[2:])
                 if probe in known_l:
                     continue
+            if parts[0] == "erf" and len(parts) == 3 and parts[1] in stations and parts[2] in _STATION_LEAVES:
+                continue
+            if parts[:2] == ["erf", "obs_nudging"] and len(parts) == 4 and parts[2] in obs_stations \
+                    and parts[3] in _OBS_LEAVES:
+                continue
             if parts[0] not in ("erf", "amr", "geometry") and parts[0] not in faces:
                 continue
             # per-level suffixes and numbered keys such as plot_int_1 are documented

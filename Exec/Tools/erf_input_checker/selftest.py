@@ -56,6 +56,36 @@ CASES: List[Tuple[str, str, List[Tuple[str, str]], List[Tuple[str, str]]]] = [
     ("check_int and check_per", "amr.check_int = 10\namr.check_per = 1.0", [("WARNING", "amr.check_int")], [("ERROR", "amr.check_int")]),
     ("key case", "erf.Fixed_dt = 2.0", [("WARNING", "erf.Fixed_dt")], []),
     ("wrong prefix", "amr.fixed_dt = 2.0", [("WARNING", "amr.fixed_dt")], [("INFO", "amr.fixed_dt")]),
+    # ParmParse starts a comment only between words: "theta#" stays one word of the value
+    ("comment glued to a word", "erf.plot_int_2 = 5\nerf.plot_vars_2 = density theta# old list",
+     [("WARNING", "erf.plot_vars_2", "keys.glued_comment")], []),
+    ("comment glued to a number", "erf.plot_vars_2 = density\nerf.plot_int_2 = 5#steps",
+     [("WARNING", "erf.plot_int_2", "keys.glued_comment")], []),
+    ("comment after a blank", "erf.plot_int_2 = 5 # steps\nerf.plot_vars_2 = density theta # old list", [],
+     [("WARNING", "erf.plot_vars_2", "keys.glued_comment"), ("WARNING", "erf.plot_int_2", "keys.glued_comment")]),
+    # read by Source/ (countval, queryarr) but described only in prose in the docs, and one letter
+    # from the documented erf.sample_line_log: a documentation gap, not a misspelling
+    ("read key near a documented one", "erf.sample_line_lo = 1 1 0\nerf.sample_line_hi = 1 1 7\nerf.sample_line_dir = 2",
+     [], [("WARNING", "erf.sample_line_lo"), ("WARNING", "erf.sample_line_hi")]),
+    ("plane corners are documented as lo/hi", "erf.sample_plane_lo = 0 0 5\nerf.sample_plane_hi = 9 9 5\nerf.sample_plane_dir = 2",
+     [], [("WARNING", "erf.sample_plane_lo"), ("WARNING", "erf.sample_plane_hi")]),
+    # a name Source/ reads under another prefix is still a misspelling here
+    ("near miss read under another prefix", "erf.datalog = x.log", [("WARNING", "erf.datalog")], []),
+    ("station keys of a named station", "erf.station_names = Surface\nerf.station_sampling_interval = 1\n"
+     "erf.Surface.x = 10\nerf.Surface.y = 10\nerf.Surface.height_agl = 5\nerf.Surface.field = theta",
+     [], [("WARNING", "erf.Surface.x"), ("WARNING", "erf.Surface.y"), ("WARNING", "erf.Surface.field")]),
+    ("station keys without the station", "erf.Surface.x = 10", [("WARNING", "erf.Surface.x")], []),
+    ("obs-nudging keys of a named station", "erf.nudging_from_observations = true\nerf.obs_nudging.tau = 60\n"
+     "erf.obs_nudging.stations = mast\nerf.obs_nudging.mast.file = mast.txt\nerf.obs_nudging.mast.x = 5\n"
+     "erf.obs_nudging.mast.y = 5", [], [("WARNING", "erf.obs_nudging.mast.x"), ("WARNING", "erf.obs_nudging.mast.y")]),
+    # ParmParse keeps a '#' inside a quoted string, and ends a ( ) list at the closing parenthesis
+    ("hash inside a quoted string", 'erf.plot_file_2 = "run#3_plt"\nerf.plot_int_2 = 5\nerf.plot_vars_2 = density',
+     [], [("WARNING", "erf.plot_file_2", "keys.glued_comment")]),
+    ("comment after a closing parenthesis", "erf.plot_int_2 = 5\nerf.plot_vars_2 = (density theta)#x", [],
+     [("WARNING", "erf.plot_vars_2", "keys.glued_comment")]),
+    # MYJ does not need the surface layer (pbl_requires_surface_layer, ERF_TurbStruct.H)
+    ("MYJ without a surface layer", "erf.pbl_type = MYJ", [], [("ERROR", "erf.pbl_type")]),
+    ("MYNN without a surface layer", "erf.pbl_type = MYNN25", [("ERROR", "erf.pbl_type")], []),
     ("molec_diff_type case", "erf.molec_diff_type = constant", [("ERROR", "erf.molec_diff_type")], []),
     ("advection case", "erf.dycore_horiz_adv_type = upwind_5th", [("ERROR", "erf.dycore_horiz_adv_type")], []),
     ("les case", "erf.les_type = smagorinsky", [("ERROR", "erf.les_type")], []),
@@ -100,6 +130,11 @@ CASES: List[Tuple[str, str, List[Tuple[str, str]], List[Tuple[str, str]]]] = [
     ("inflow without velocity", "geometry.is_periodic = 0 1 0\nxlo.type = inflow\nxhi.type = outflow", [("ERROR", "xlo.type")], []),
     ("bad face type", "zhi.type = lid", [("ERROR", "zhi.type")], []),
     ("velocity on outflow", "geometry.is_periodic = 0 1 0\nxlo.type = inflow\nxlo.velocity = 1 0 0\nxhi.type = outflow\nxhi.velocity = 1 0 0", [("WARNING", "xhi.velocity")], []),
+    # with terrain_type = EB the surface layer acts on the embedded boundary, which needs its own type
+    ("EB surface layer without eb_boundary_type", "zlo.type = surface_layer\nerf.les_type = Smagorinsky\nerf.Cs = 0.1\n"
+     "erf.terrain_type = EB", [("ERROR", "erf.eb_boundary_type")], []),
+    ("EB surface layer with eb_boundary_type", "zlo.type = surface_layer\nerf.les_type = Smagorinsky\nerf.Cs = 0.1\n"
+     "erf.terrain_type = EB\nerf.eb_boundary_type = SurfaceLayer", [], [("ERROR", "erf.eb_boundary_type")]),
     ("most keys without surface layer", "erf.most.z0 = 0.1", [("WARNING", "erf.most.z0")], []),
     ("pbl without surface layer", "erf.pbl_type = MYNN25", [("ERROR", "erf.pbl_type")], []),
     ("surface layer no diffusion", "zlo.type = surface_layer", [("WARNING", "zlo.type")], []),
@@ -130,6 +165,10 @@ CASES: List[Tuple[str, str, List[Tuple[str, str]], List[Tuple[str, str]]]] = [
     ("coriolis default latitude", "erf.use_coriolis = true", [("WARNING", "erf.latitude")], []),
     ("rayleigh depth", "erf.rayleigh_damp_W = true\nerf.rayleigh_zdamp = 3000", [("WARNING", "erf.rayleigh_zdamp")], []),
     ("stretching without initial_dz", "erf.grid_stretching_ratio = 1.05", [("ERROR", "erf.initial_dz")], []),
+    # erf.initial_dz on its own asks ERF to solve the ratio (ERF_DataStruct.H); only an explicit ratio of 0 turns
+    # stretching off
+    ("initial_dz alone is stretching", "erf.initial_dz = 10", [], [("WARNING", "erf.initial_dz")]),
+    ("initial_dz with ratio 0 is ignored", "erf.initial_dz = 10\nerf.grid_stretching_ratio = 0", [("WARNING", "erf.initial_dz")], []),
     ("stretched top mismatch", "erf.grid_stretching_ratio = 1.05\nerf.initial_dz = 10", [("WARNING", "erf.initial_dz")], []),
     ("stretched top matches", "erf.grid_stretching_ratio = 1.05\nerf.initial_dz = %.10g" % (2000 * 0.05 / (1.05 ** 32 - 1)), [], [("WARNING", "erf.initial_dz"), ("ADVICE", "erf.initial_dz")]),
     ("z levels count", "erf.terrain_z_levels = 0 100 200", [("ERROR", "erf.terrain_z_levels")], []),

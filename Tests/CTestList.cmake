@@ -1055,6 +1055,16 @@ if(ERF_TEST_PYTHON)
       TIMEOUT 120
       PROCESSORS 1
       LABELS "unit")
+  # The inputs-file generator (Exec/Tools/erfcreateinput.py). Plain Python, no ERF run: it writes
+  # a matrix of cases and checks every key against Source/, each deck with the checker above,
+  # each dummy file against its reader's layout, and that refused combinations are refused.
+  add_test(NAME InputsCreator_SelfTest
+      COMMAND ${ERF_TEST_PYTHON} ${PROJECT_SOURCE_DIR}/Exec/Tools/erfcreateinput.py --self-test)
+  set_tests_properties(InputsCreator_SelfTest
+      PROPERTIES
+      TIMEOUT 120
+      PROCESSORS 1
+      LABELS "unit")
   # The schema generator's unit tests (Exec/Tools/erf_inputs_schema): a synthetic source tree, git-archive mode
   # (needs git on PATH), the checker's --schema path.
   add_test(NAME InputsSchema_UnitTests
