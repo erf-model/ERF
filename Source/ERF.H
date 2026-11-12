@@ -87,6 +87,7 @@
 #endif
 #ifdef ERF_USE_MOVING_BODIES
 #include "ERF_StructureModel.H"
+#include "ERF_ActuatorSampling.H"
 #endif
 #include <ERF_SurfaceModel.H>
 
@@ -1593,6 +1594,14 @@ private:
     //! Define pi_upw_dir[lev] and pi_upw_dir_stage[lev] on the level's faces (zero) if needed
     void define_pi_upw_dir (int lev);
 
+    // Pseudo-incompressible (non-EB) levels: the advective part of the (rho theta) RHS of the
+    // latest stage (pi_adv_rt), and the rest of that RHS (pi_src: diffusion, implicit diffusion
+    // and the sources in cc_src), the non-advective tendency Q of (rho theta).  The projection
+    // at the end of the stage imposes div(rho0 theta0 u) = Q + the drift correction, so that the
+    // next update keeps rho theta = rho0 theta0 (see project_momenta)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_adv_rt;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_src;
+
     // Used only for fast substepping
     amrex::Vector<amrex::MultiFab> lagged_delta_rt;
     amrex::Vector<amrex::MultiFab> avg_xmom;
@@ -1820,9 +1829,6 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
-    // The mesh and Jacobian at the acoustic sub-step midpoint (MovingFittedMesh), rewritten every sub-step
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_mid;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_mid;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
@@ -2410,6 +2416,9 @@ private:
     /// The grids of the model's level at its last advance(): the source add_momentum_sources() returns lives there
     amrex::BoxArray            m_structure_src_ba;
     amrex::DistributionMapping m_structure_src_dm;
+
+    /// The node heights of the level above the model's, for the check of its support(): kept until that level's boxes change
+    erf_actuator::LevelHeights m_structure_fine_heights;
 #endif
 
     //

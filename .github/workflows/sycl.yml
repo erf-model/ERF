@@ -5,7 +5,9 @@ on:
     branches: [development]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -18,7 +20,9 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'

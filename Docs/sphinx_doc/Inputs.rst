@@ -40,7 +40,7 @@ Governing Equations
 |                                 | and never substeps acoustically. The stored              |                    |                  |
 |                                 | ``buoyancy_type=3`` does not select the buoyancy         |                    |                  |
 |                                 | kernel. PseudoIncompressible evolves the density,        |                    |                  |
-|                                 | enforces div(rho_0 theta_0 u) = 0 with a                 |                    |                  |
+|                                 | enforces div(rho_0 theta_0 u) = S with a                 |                    |                  |
 |                                 | variable-coefficient projection, and sets                |                    |                  |
 |                                 | ``project_initial_velocity=1``, ``fixed_density=0``      |                    |                  |
 |                                 | and ``buoyancy_type=1``; see                             |                    |                  |
@@ -1041,6 +1041,13 @@ List of Parameters
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.poisson_reltol**               | relative tolerance for the Poisson solve; raised to      | Real > 0           | 1.e-8             |
 |                                      | 1.e-6 in single precision builds                         |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.pi_drift_factor**              | drift correction c of a PseudoIncompressible level:      | Real >= 0          | 0.5               |
+|                                      | the constraint is div(rho_0 theta_0 u) = Q + c (rho      |                    |                   |
+|                                      | theta - rho_0 theta_0) / dt, with Q the non-advective    |                    |                   |
+|                                      | tendency of rho theta; 0 turns the correction off,       |                    |                   |
+|                                      | and values above about 1 can be unstable; see            |                    |                   |
+|                                      | :ref:`PseudoIncompressibleEquations`                     |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.terrain_poisson_solver**       | solver for the projection on a terrain-fitted mesh       | "gmres_fft",       | "gmres_fft"       |
 |                                      | (anelastic, and the initial projection). ``gmres_fft``:  | "mlmg",            |                   |
@@ -2989,7 +2996,8 @@ The wind farm parameterization is selected with ``erf.windfarm_type``.
 |                                    |                                                          | GeneralAD          |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.windfarm_loc_type**          | coordinate system in which the turbine locations are     | None, lat_lon, x_y | None             |
-|                                    | given                                                    |                    |                  |
+|                                    | given; required (lat_lon or x_y) when                    |                    |                  |
+|                                    | ``windfarm_type`` is not None                            |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.windfarm_loc_table**         | file listing the turbine locations                       | String             | None             |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -6023,9 +6031,11 @@ List of Parameters
 |                                      | solid fraction below which the forcing treats a cell or  |                    | immersed forcing |
 |                                      | face as fluid                                            |                    |                  |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.eb_boundary_type**             | condition imposed on the embedded boundary               | SlipWall,          | NoSlipWall       |
-|                                      |                                                          | NoSlipWall,        |                  |
-|                                      |                                                          | SurfaceLayer       |                  |
+| **erf.eb_boundary_type**             | condition imposed on the embedded boundary.              | SlipWall,          | NoSlipWall       |
+|                                      | ``SurfaceLayer`` and ``zlo.type`` = ``surface_layer``    | NoSlipWall,        |                  |
+|                                      | must be set together (ERF stops at start-up otherwise);  | SurfaceLayer       |                  |
+|                                      | the surface layer is then applied on the embedded        |                    |                  |
+|                                      | boundary, and no other face may be ``surface_layer``     |                    |                  |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.eb_diff_constraint_x**         | apply the tangential-diffusion constraint on x-faces at  | Boolean            | false            |
 |                                      | the embedded boundary; read only when                    |                    |                  |

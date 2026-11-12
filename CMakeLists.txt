@@ -2,6 +2,17 @@
 
 cmake_minimum_required (VERSION 3.20 FATAL_ERROR)
 
+# A parent project that adds ERF with add_subdirectory may set ERF options as normal
+# variables before the call. Under CMP0126 OLD, the first configure lets each
+# set(... CACHE ...) below remove that variable, so the option takes its default
+# until the next configure. NEW keeps the parent's value. This concerns the options set
+# with set(... CACHE ...), such as ERF_STRUCTURE_MODEL_DIRS; option() already keeps a
+# normal variable (CMP0077). CMake 3.20 has no CMP0126, and there a parent passes those
+# options as cache variables; the internal AMReX needs CMake 3.25 in any case.
+if(POLICY CMP0126)
+  cmake_policy(SET CMP0126 NEW)
+endif()
+
 # Set main ERF context
 list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")
 
@@ -131,6 +142,7 @@ endif()
 option(ERF_ENABLE_UNIT_TESTS "Enable gtest-based unit tests" ${_erf_enable_unit_tests_default})
 if(ERF_ENABLE_REGRESSION_TESTS_ONLY)
   set(ERF_ENABLE_UNIT_TESTS OFF CACHE BOOL "Enable gtest-based unit tests" FORCE)
+  set(ERF_ENABLE_UNIT_TESTS OFF)   # also over a normal variable a parent project set (CMP0126 NEW)
 endif()
 option(ERF_USE_INTERNAL_AMREX "Add AMReX as subproject" ON)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
@@ -152,6 +164,7 @@ option(ERF_ENABLE_SHOC "Deprecated alias for ERF_ENABLE_EAMXX_SHOC" OFF)
 if(ERF_ENABLE_SHOC AND NOT ERF_ENABLE_EAMXX_SHOC)
   message(WARNING "ERF_ENABLE_SHOC is deprecated; use ERF_ENABLE_EAMXX_SHOC=ON")
   set(ERF_ENABLE_EAMXX_SHOC ON CACHE BOOL "Build EAMxx SHOC parameterization" FORCE)
+  set(ERF_ENABLE_EAMXX_SHOC ON)   # also over a normal variable a parent project set (CMP0126 NEW)
 endif()
 
 # The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so

@@ -438,7 +438,10 @@ ERF::ERF_shared ()
     initializeFire(nlevs_max);
 
 #ifdef ERF_USE_WINDFARM
-    initializeWindFarm(nlevs_max);
+    // A wind-farm build also runs cases without a wind farm (erf.windfarm_type = None)
+    if (solverChoice.windfarm_type != WindFarmType::None) {
+        initializeWindFarm(nlevs_max);
+    }
 #endif
 
 #ifdef ERF_USE_MOVING_BODIES
@@ -627,6 +630,8 @@ ERF::ERF_shared ()
     pp_inc.resize(nlevs_max);
     pi_upw_dir.resize(nlevs_max);
     pi_upw_dir_stage.resize(nlevs_max);
+    pi_adv_rt.resize(nlevs_max);
+    pi_src.resize(nlevs_max);
 
     // Used in the fast substepping only
     lagged_delta_rt.resize(nlevs_max);
@@ -705,8 +710,6 @@ ERF::ERF_shared ()
 
     z_phys_nd_new.resize(nlevs_max);
     detJ_cc_new.resize(nlevs_max);
-    z_phys_nd_mid.resize(nlevs_max);
-    detJ_cc_mid.resize(nlevs_max);
 
     z_phys_nd_src.resize(nlevs_max);
     z_phys_cc_src.resize(nlevs_max);

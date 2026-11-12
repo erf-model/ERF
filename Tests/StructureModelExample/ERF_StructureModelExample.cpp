@@ -60,6 +60,10 @@ public:
         pp.getarr("force", m_force, 0, 3);
         pp.get("epsilon", m_eps);
         pp.query("level", m_level);
+        pp.query("test_support", m_test_support);
+        if (m_test_support != "reach" && m_test_support != "nan" && m_test_support != "inverted") {
+            Abort("structure.example.test_support must be reach, nan or inverted, got " + m_test_support);
+        }
         for (int d = 0; d < 3; ++d) {
             if (!std::isfinite(m_pos[d]) || !std::isfinite(m_force[d])) {
                 Abort("structure.example.position and structure.example.force must be finite");
@@ -152,6 +156,14 @@ public:
     {
         // The point with its kernel's reach (3 epsilon), as advance() checks the coverage
         const Real r = Real(3.0) * m_eps;
+        // For ERF's tests of its check of these boxes: a box no model should return
+        if (m_test_support == "nan") {
+            const Real nan = std::numeric_limits<Real>::quiet_NaN();
+            return {RealBox(m_pos[0] - r, nan, m_pos[2] - r, m_pos[0] + r, m_pos[1] + r, m_pos[2] + r)};
+        }
+        if (m_test_support == "inverted") {
+            return {RealBox(m_pos[0] + r, m_pos[1] - r, m_pos[2] - r, m_pos[0] - r, m_pos[1] + r, m_pos[2] + r)};
+        }
         return {RealBox(m_pos[0] - r, m_pos[1] - r, m_pos[2] - r, m_pos[0] + r, m_pos[1] + r, m_pos[2] + r)};
     }
 
@@ -207,6 +219,7 @@ private:
     std::vector<Real> m_force;
     Real m_eps = Real(0.0);
     int m_level = -1;
+    std::string m_test_support = "reach";   // what support() returns: the kernel's reach, or a box ERF must refuse
     int m_lev = -1;   // the level of the last advance()
     std::array<Real,3> m_impulse{{Real(0.0), Real(0.0), Real(0.0)}};
     std::vector<Real> m_wind{Real(0.0), Real(0.0), Real(0.0)};

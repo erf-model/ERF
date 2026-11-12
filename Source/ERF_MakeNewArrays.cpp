@@ -110,11 +110,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
         z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
         z_phys_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-
-        // No ghost cells for detJ_cc_mid: those of detJ_cc_new are not filled, and
-        // make_fast_coeffs reads valid cells only
-        z_phys_nd_mid[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
-          detJ_cc_mid[lev] = std::make_unique<MultiFab>(ba,dm,1,0);
     }
     else
     {
@@ -124,9 +119,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         z_phys_nd_src[lev] = nullptr;
         z_phys_cc_src[lev] = nullptr;
           detJ_cc_src[lev] = nullptr;
-
-        z_phys_nd_mid[lev] = nullptr;
-          detJ_cc_mid[lev] = nullptr;
 
                z_t_rk[lev] = nullptr;
     }

@@ -9,6 +9,7 @@
 #include <AMReX_Gpu.H>
 
 #include "ERF_IndexDefines.H"
+#include "ERF_NumericalConstants.H"
 
 /**
  * @brief Molecular diffusion model used for transport coefficients.

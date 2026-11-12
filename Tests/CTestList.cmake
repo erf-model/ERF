@@ -27,10 +27,10 @@ function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
         # expand the wildcard; the ones driven through `cmake -P` call execute_process,
         # which never invokes a shell, and expand it with erf_resolve_executable
         # (Tests/ResolveExecutable.cmake) out of the CONFIG those tests are given.
-        set(${OUT_VAR} "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe" PARENT_SCOPE)
+        set(${OUT_VAR} "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe" PARENT_SCOPE)
     else()
-        set(_exe_in_subdir "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
-        set(_exe_in_root  "${CMAKE_BINARY_DIR}/Exec/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
+        set(_exe_in_subdir "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
+        set(_exe_in_root  "${PROJECT_BINARY_DIR}/Exec/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
         if(EXISTS "${_exe_in_subdir}")
             set(${OUT_VAR} "${_exe_in_subdir}" PARENT_SCOPE)
         elseif(EXISTS "${_exe_in_root}")
@@ -1996,9 +1996,9 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
 
     get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
     if(WIN32 AND _multi_config)
-        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
+        set(TEST_EXE "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
     else()
-        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
+        set(TEST_EXE "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
     endif()
 
     set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")
@@ -3040,6 +3040,14 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                        FIXTURES_REQUIRED BndryPlanesMoist
                        ATTACHED_FILES_ON_FAIL "${_bp_end_bin}/ReadToLastPlane.log")
 endif()
+if(ERF_ENABLE_WINDFARM)
+  # erf-model/ERF#5071: a wind-farm model without erf.windfarm_loc_type reads no turbine table, so it
+  # must stop at start-up and name the input
+  add_test_abort(WindFarm_Fitch_NoLocType ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU
+                 ScalarAdvectionUniformU.i
+                 "erf.windfarm_type = Fitch needs erf.windfarm_loc_type"
+                 "erf.windfarm_type=Fitch")
+endif()
 add_test_abort(BndryPlanes_MoistTemperature_WriteWithoutQv ${_bp_moist_dir}
                BndryPlanes_MoistTemperature_Write.i
                "writes temperature but not qv"
@@ -3507,6 +3515,31 @@ function(add_test_twoway_scratch_regrid TEST_NAME)
 endfunction(add_test_twoway_scratch_regrid)
 add_test_twoway_scratch_regrid(TwoWay_FourLevels_PartialDepth)
 
+# Anelastic projection by multigrid (erf.use_fft = 0) on a constant-dz mesh whose cells are 4 times
+# longer in x (2-D, y hidden), or in x and y (3-D), than in z.  With every direction coarsened
+# together the V-cycle diverged at this aspect ratio and the run stopped in the first step
+# (erf-model/ERF#5064); the anisotropic directions are now coarsened on their own.  The test
+# requires the log to show the multigrid solves (so that a switch to another solver cannot make it
+# vacuous) and the run to finish two steps.
+function(add_test_mlmg_aniso TEST_NAME OPTIONS)
+    set(TEST_FILES_DIR "DensityCurrent_anelastic")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(test_command sh -c "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/DensityCurrent_anelastic.i erf.use_fft=0 erf.mg_v=1 max_step=2 erf.plot_int_1=-1 ${OPTIONS} amrex.call_addr2line=0 > ${test_log} 2>&1 && grep -q 'MLMG: Final Iter' ${test_log} && grep -q 'Coarse STEP 2 ends' ${test_log} ) || ( cat ${test_log} && false )")
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${test_log}"
+    )
+endfunction(add_test_mlmg_aniso)
+add_test_mlmg_aniso(MLMG_Aniso_2D "amr.n_cell='64 1 64'")
+add_test_mlmg_aniso(MLMG_Aniso_3D "amr.n_cell='64 16 64' geometry.prob_hi='25600 6400 6400'")
+
 # Two-way coupling refluxes the diffusive as well as the advective fluxes, so in a closed domain the
 # composite integral of a scalar is conserved across coarse/fine faces whatever transports it.
 # Moisture diffuses through a face normal to z, with the vertical diffusion implicit (the deck as
@@ -3538,6 +3571,10 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
     add_test_pi_drift(PseudoIncompressible_Drift_${_sch} PseudoIncompressible_StratifiedHill -8
         OPTIONS "amr.max_level=0 erf.dycore_horiz_adv_type=${_sch} erf.dycore_vert_adv_type=${_sch}")
   endforeach()
+  # With theta diffusion, the source term of the constraint (the lagged non-advective tendency of
+  # rho theta plus the drift correction) keeps the drift at a few 1e-6 (about 1e-3 without it)
+  add_test_pi_drift(PseudoIncompressible_Drift_Diffusion PseudoIncompressible_StratifiedHill -5
+      OPTIONS "amr.max_level=0 erf.molec_diff_type=ConstantAlpha erf.alpha_T=10.0 erf.dynamic_viscosity=0.0")
 endif()
 add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.terrain_type=StaticFittedMesh")
@@ -3596,8 +3633,8 @@ if(ERF_TEST_ENABLE_EXTRA_LSM_TESTS)
     # The listed plotfiles are compared only if the configured gold directory has them.
     add_test_lsm(SLM_CASS_SAMRadiation            "" "erf_exec"
                                                   LABELS "slm"
-                                                  EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/sounding_cass_interpolated"
-                                                              "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/lsf_cass"
+                                                  EXTRA_FILES "${PROJECT_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/sounding_cass_interpolated"
+                                                              "${PROJECT_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/lsf_cass"
                                                               "${ERF_TEST_EXTRA_FILES_DIRECTORY}/CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
                                                   PLTFILES "plt34500"
                                                            "plt_lsm_34500"
@@ -3606,7 +3643,7 @@ if(ERF_TEST_ENABLE_EXTRA_LSM_TESTS)
     # LBA case using RRTMGP radiation
     add_test_lsm(SLM_LBA_RRTMGP                   "" "erf_exec"
                                                   LABELS "slm" "manual"
-                                                  EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_LBA_RRTMGP/snd_lba"
+                                                  EXTRA_FILES "${PROJECT_SOURCE_DIR}/Tests/test_files/SLM_LBA_RRTMGP/snd_lba"
                                                               "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
                                                               "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
                                                               "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
@@ -5358,9 +5395,45 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       add_test_abort(Structures_Abort_FinerLevelCovers ${_smx_src} inputs_structure_example
                      "structure model .example. couples to level 0, but level 1 covers part of its support"
                      "${_smx_finer} erf.box1.in_box_lo_indices=8 8 8 erf.box1.in_box_hi_indices=23 23 23")
+      # erf-model/ERF#5056: a stretched mesh (node levels at 0, 20, 40.4, 61.2, 82.4, ... 171.7, 195.1, ... m)
+      # and a level-1 box aloft, which has no box at the ground. Over coarse cells 4 to 7 in z (82 to 172 m),
+      # inside the kernel's reach (50 to 350 m), the run must stop. It must run with the same box beside the
+      # reach (the point at x = y = 100 m with a 20 m width, reach 40 to 160 m across; the box over 250 to
+      # 400 m), and with a box above the reach (the point at z = 60 m with a 15 m width, reach 15 to 105 m;
+      # the box over coarse cells 8 to 11, 172 to 268 m, in the point's own columns).
+      set(_smx_aloft "${_smx_finer} erf.grid_stretching_ratio=1.02 erf.initial_dz=20.0")
+      add_test_abort(Structures_Abort_FinerLevelAloft ${_smx_src} inputs_structure_example
+                     "structure model .example. couples to level 0, but level 1 covers part of its support"
+                     "${_smx_aloft} erf.box1.in_box_lo_indices=8 8 8 erf.box1.in_box_hi_indices=23 23 15")
+      set(_smx_al_names Structures_ExampleModel_FinerLevelAloftBeside Structures_ExampleModel_FinerLevelAloftAbove)
+      set(_smx_al_args_0 "structure.example.position=100 100 200 structure.example.epsilon=20 erf.box1.in_box_lo_indices=20 20 8 erf.box1.in_box_hi_indices=31 31 15")
+      set(_smx_al_args_1 "structure.example.position=200 200 60 structure.example.epsilon=15 erf.box1.in_box_lo_indices=8 8 16 erf.box1.in_box_hi_indices=23 23 23")
+      foreach(_smx_al RANGE 0 1)
+        list(GET _smx_al_names ${_smx_al} _smx_al_name)
+        set(_smx_al_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${_smx_al_name})
+        file(MAKE_DIRECTORY ${_smx_al_dir})
+        file(COPY ${_smx_src}/inputs_structure_example DESTINATION ${_smx_al_dir})
+        add_test(NAME ${_smx_al_name}
+                 COMMAND sh -c "${_smx_mpi} ${_smx_exe} inputs_structure_example max_step=2 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 ${_smx_aloft} ${_smx_al_args_${_smx_al}} > run.log 2>&1 && grep -q 'structure example: t = 0.5 ' run.log"
+                 WORKING_DIRECTORY ${_smx_al_dir})
+        set_tests_properties(${_smx_al_name} PROPERTIES
+            LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
+            ATTACHED_FILES_ON_FAIL "${_smx_al_dir}/run.log")
+      endforeach()
       add_test_abort(Structures_Abort_UnknownModel ${_smx_src} inputs_structure_example
                      "erf.structures.model = .no_such_model. is not one of the structure models compiled in .*\"example\""
                      "erf.structures.model=no_such_model")
+      # A support box with a NaN, or with its low end above its high end, stops the run with the model's name
+      # (structure.example.test_support makes the example return one). The check runs with a finer level.
+      add_test_abort(Structures_Abort_SupportNaN ${_smx_src} inputs_structure_example
+                     "structure model .example.: support.. returned a box with a NaN or with its low end above its high end .direction 1: "
+                     "${_smx_finer} erf.box1.in_box_lo_indices=0 0 0 erf.box1.in_box_hi_indices=31 31 3 structure.example.test_support=nan")
+      add_test_abort(Structures_Abort_SupportInverted ${_smx_src} inputs_structure_example
+                     "structure model .example.: support.. returned a box with a NaN or with its low end above its high end .direction 0: "
+                     "${_smx_finer} erf.box1.in_box_lo_indices=0 0 0 erf.box1.in_box_hi_indices=31 31 3 structure.example.test_support=inverted")
+      add_test_abort(Structures_Abort_ExampleTestSupport ${_smx_src} inputs_structure_example
+                     "structure.example.test_support must be reach, nan or inverted, got box"
+                     "structure.example.test_support=box")
       add_test_abort(Structures_Abort_ExampleLevel ${_smx_src} inputs_structure_example
                      "structure.example.level must be -1 .the finest level. or 0 to amr.max_level = 0, got 1"
                      "structure.example.level=1")
