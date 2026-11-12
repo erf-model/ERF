@@ -6,7 +6,9 @@ on:
     branches: [development]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -39,13 +41,9 @@ jobs:
         os: [ubuntu-22.04]
         # The particles-ON leg also builds the actuator core and the structure coupling
         # (ERF_ENABLE_MOVING_BODIES) with the example structure model directory
-        # (Tests/StructureModelExample, from ERF_STRUCTURE_MODEL_DIRS)
-        # and the fire coupling (ERF_ENABLE_FIRE,
-        # which adds the smoke scalar) with the example engine directory
-        # (Tests/FireEngineExample, compiled in from ERF_FIRE_ENGINE_DIRS as an
-        # out-of-tree engine would be) and runs its tests; the OFF leg keeps the
-        # default single-scalar layout. The CUDA build covers the coupling with
-        # no engine.
+        # (Tests/StructureModelExample, from ERF_STRUCTURE_MODEL_DIRS) and runs its
+        # tests. ERF's CI builds neither the fire nor the dust coupling: their tests
+        # live with the engines and models that use them (erf-model/FLARE).
         particles: [OFF, ON]
         include:
         - os: ubuntu-22.04
@@ -113,9 +111,7 @@ jobs:
           -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
           '-DERF_PARALLEL_TEST_NRANKS:STRING=${{env.ERF_PARALLEL_TEST_NRANKS}}' \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
-          -DERF_ENABLE_FIRE:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_MOVING_BODIES:BOOL=${{matrix.particles}} \
-          "-DERF_FIRE_ENGINE_DIRS:STRING=${{ matrix.particles == 'ON' && format('{0}/Tests/FireEngineExample', github.workspace) || '' }}" \
           "-DERF_STRUCTURE_MODEL_DIRS:STRING=${{ matrix.particles == 'ON' && format('{0}/Tests/StructureModelExample', github.workspace) || '' }}" \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
@@ -170,6 +166,11 @@ jobs:
       run: |
         Tests/Unit/erf_unit_tests --gtest_list_tests | tee ${{runner.workspace}}/unit-test-list.txt
         grep -Eq '^[A-Za-z0-9_].*\.$' ${{runner.workspace}}/unit-test-list.txt
+        # The particles-ON leg compiles in Tests/StructureModelExample, whose
+        # erf_structure_model_add_unit_tests hook adds its own GoogleTest file.
+        if [ "${{ matrix.particles }}" = "ON" ]; then
+          grep -q '^StructureModelExample\.$' ${{runner.workspace}}/unit-test-list.txt
+        fi
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Check Parallel Test Registration

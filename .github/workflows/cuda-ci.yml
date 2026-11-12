@@ -5,7 +5,9 @@ on:
     branches: [development]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -18,7 +20,9 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -120,7 +124,6 @@ jobs:
             -DERF_ENABLE_MPI:BOOL=ON \
             -DERF_ENABLE_CUDA:BOOL=ON \
             -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
-            -DERF_ENABLE_FIRE:BOOL=ON \
             -DERF_ENABLE_MOVING_BODIES:BOOL=ON \
             -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
             -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \

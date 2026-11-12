@@ -811,6 +811,55 @@ lateral face is not periodic and the flow has a vertical component, and the
 spectrum, carried by the same mass flux, follows it. Use walls in z with
 nonperiodic lateral faces.
 
+.. _sec:SBMParticleMixing:
+
+Particle mixing (designed, not yet enabled)
+-------------------------------------------
+
+ERF does not yet mix the spectrum by turbulent or molecular diffusion, and
+every configuration that would diffuse moisture is rejected. The coefficient
+policy, low-order operator and timestep bound that the mixing will use are
+implemented and unit tested, ready to be switched on.
+
+A particle mixing policy selects one gradient-mixing coefficient for every
+member of every bin group:
+
+* ``None``: no mixing;
+* ``ConstantReference``: kinematic horizontal and vertical diffusivities,
+  multiplied by the face-averaged dry-air density;
+* ``HostPassiveScalar``: ERF's ``Scalar_h`` and ``Scalar_v`` eddy
+  coefficients on horizontal and vertical faces, used as they are: they are
+  already density weighted and already include the turbulent Schmidt factor.
+  Under ERF's LES closures they equal the ``Q_h`` and ``Q_v`` coefficients
+  that diffuse moisture. The PBL schemes other than SHOC set ``Q_v`` but not
+  ``Scalar_v``, so this policy is for LES closures only, and a PBL scheme
+  will be rejected with it.
+
+Particle molecular (Brownian) diffusion is zero under every policy; a vapor
+or scalar molecular diffusivity is never inherited. A nonfinite or negative
+coefficient in any cell the operator reads is rejected, not clipped.
+
+The low-order operator exchanges the intensive state :math:`z=U/\rho_d`
+between the two cells of each face, :math:`F_f=-T_f\,(z_R-z_L)` with
+:math:`T_f\ge0`. On constant- and stretched-z grids this is ERF's own scalar
+diffusion stencil; physical domain faces carry no diffusive transfer.
+Low-order advection and diffusion evaluated from the same anchor keep every
+cell nonnegative only under their combined bound
+
+.. math::
+
+   \frac{\tau}{C_{d,i}}\left[\sum_{f\in\partial i}\max(\sigma_{if}\dot M_{d,f},0)
+   +\sum_j g_{ij}\right]\le1,
+
+where :math:`C_{d,i}` is the cell's dry-air inventory, :math:`\dot M_{d,f}`
+the dry-air face rate and :math:`g_{ij}` the face exchange coefficient.
+Separate advective and diffusive fractions of 0.6 each pass their own bounds
+but leave :math:`-0.2` of the cell. Because every member of a bin group shares
+one coefficient, the update preserves the group's linear admissibility
+constraints. On terrain-fitted grids ERF's centred cross-diffusion stencil is
+not positive: a single diagonal neighbour gives an empty cell a negative
+tendency. No low-order operator is yet qualified there.
+
 Numerical reconstruction for resolved spectral advection
 --------------------------------------------------------
 

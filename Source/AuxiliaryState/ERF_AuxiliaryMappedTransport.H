@@ -74,6 +74,10 @@ using IntegratedMappedFaceFlux = MappedFaceField<IntegratedMappedFaceFluxTag>;
 /** Exact cell-centered BoxArray and DistributionMapping identity. */
 bool SameCellLayout (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs);
 
+/** A k=0 map-factor field covering the x/y extent of each box of a field. */
+bool SameHorizontalLayout (const amrex::MultiFab& cell_field,
+                           const amrex::MultiFab& map_field);
+
 /** Check directional face staggering and ownership against a cell layout. */
 template <typename Tag>
 bool MappedFaceLayoutMatchesCellLayout (const MappedFaceField<Tag>& faces,

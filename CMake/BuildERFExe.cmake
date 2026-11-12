@@ -399,15 +399,53 @@ function(build_erf_lib erf_lib_name)
         message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS: ${_fire_dir} has no ERFFireEngine.cmake")
       endif()
       set(ERF_FIRE_ENGINE_DIR "${_fire_dir}")
+      # CMake keeps a function once it is defined, so a file that does not define
+      # erf_fire_engine_add would call the one of the directory before it. This
+      # definition, replaced by the file's own, stops the configure instead.
+      function(erf_fire_engine_add target)
+        message(FATAL_ERROR "${ERF_FIRE_ENGINE_DIR}/ERFFireEngine.cmake does not define erf_fire_engine_add(target)")
+      endfunction()
       include("${_fire_dir}/ERFFireEngine.cmake")
-      if(NOT COMMAND erf_fire_engine_add)
-        message(FATAL_ERROR "${_fire_dir}/ERFFireEngine.cmake does not define erf_fire_engine_add(target)")
-      endif()
       erf_fire_engine_add(${erf_lib_name})
       message(STATUS "ERF fire engine directory: ${_fire_dir}")
     endforeach()
   elseif(ERF_FIRE_ENGINE_DIRS)
     message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS is set but ERF_ENABLE_FIRE is OFF")
+  endif()
+
+  if(ERF_ENABLE_DUST)
+    # The dust scalars sit in the conserved state after the base scalar
+    # (ERF_IndexDefines.H), so their number is fixed when ERF is compiled
+    if(NOT ERF_NUM_DUST_SCALARS MATCHES "^[1-9][0-9]*$")
+      message(FATAL_ERROR "ERF_NUM_DUST_SCALARS = '${ERF_NUM_DUST_SCALARS}' must be a positive integer")
+    endif()
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_DUST ERF_NUM_DUST_SCALARS=${ERF_NUM_DUST_SCALARS})
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/DustCoupling/ERF_DustCoupling.cpp
+      ${SRC_DIR}/DustCoupling/ERF_DustModelRegistry.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/DustCoupling>)
+
+    # Dust models live outside ERF, each in a directory that provides
+    # ERFDustModel.cmake defining erf_dust_model_add(target), as fire engines
+    # do; ERF_DUST_MODEL_DIR holds the model's directory during the call.
+    foreach(_dust_dir IN LISTS ERF_DUST_MODEL_DIRS)
+      get_filename_component(_dust_dir "${_dust_dir}" ABSOLUTE)
+      if(NOT EXISTS "${_dust_dir}/ERFDustModel.cmake")
+        message(FATAL_ERROR "ERF_DUST_MODEL_DIRS: ${_dust_dir} has no ERFDustModel.cmake")
+      endif()
+      set(ERF_DUST_MODEL_DIR "${_dust_dir}")
+      # As for the fire engines above: this definition, replaced by the file's own, stops the
+      # configure when the file does not define erf_dust_model_add.
+      function(erf_dust_model_add target)
+        message(FATAL_ERROR "${ERF_DUST_MODEL_DIR}/ERFDustModel.cmake does not define erf_dust_model_add(target)")
+      endfunction()
+      include("${_dust_dir}/ERFDustModel.cmake")
+      erf_dust_model_add(${erf_lib_name})
+      message(STATUS "ERF dust model directory: ${_dust_dir}")
+    endforeach()
+  elseif(ERF_DUST_MODEL_DIRS)
+    message(FATAL_ERROR "ERF_DUST_MODEL_DIRS is set but ERF_ENABLE_DUST is OFF")
   endif()
 
   if(ERF_ENABLE_MOVING_BODIES)
@@ -419,6 +457,7 @@ function(build_erf_lib erf_lib_name)
       ${SRC_DIR}/MovingBodies/Core/ERF_WakeLines.cpp
       ${SRC_DIR}/MovingBodies/Coupling/ERF_StructureModelRegistry.cpp
       ${SRC_DIR}/MovingBodies/Coupling/ERF_StructureCoupling.cpp
+      ${SRC_DIR}/MovingBodies/Coupling/ERF_StructureCoarseSource.cpp
     )
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Core>)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Coupling>)
@@ -433,10 +472,12 @@ function(build_erf_lib erf_lib_name)
         message(FATAL_ERROR "ERF_STRUCTURE_MODEL_DIRS: ${_structure_dir} has no ERFStructureModel.cmake")
       endif()
       set(ERF_STRUCTURE_MODEL_DIR "${_structure_dir}")
+      # As for the fire engines above: this definition, replaced by the file's own, stops the
+      # configure when the file does not define erf_structure_model_add.
+      function(erf_structure_model_add target)
+        message(FATAL_ERROR "${ERF_STRUCTURE_MODEL_DIR}/ERFStructureModel.cmake does not define erf_structure_model_add(target)")
+      endfunction()
       include("${_structure_dir}/ERFStructureModel.cmake")
-      if(NOT COMMAND erf_structure_model_add)
-        message(FATAL_ERROR "${_structure_dir}/ERFStructureModel.cmake does not define erf_structure_model_add(target)")
-      endif()
       erf_structure_model_add(${erf_lib_name})
       message(STATUS "ERF structure model directory: ${_structure_dir}")
     endforeach()
@@ -608,6 +649,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryMappedTransport.cpp
        ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryStage.cpp
        ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryInertTracer.cpp
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryDiffusion.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SpectralGrid.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMLayout.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMConstraintGroups.cpp
@@ -621,6 +663,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRFluxRegister.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMAMRCoupling.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMPhysicalBoundary.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMParticleMixing.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
@@ -791,7 +834,6 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/TimeIntegration>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Utils>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/MaterialProperties>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/Null>)
@@ -844,12 +886,19 @@ function(build_erf_lib erf_lib_name)
 
 endfunction(build_erf_lib)
 
+# Make an executable target an ERF executable: ERF's main.cpp (unless NO_ERF_MAIN), the
+# ERF library, ERF's compile flags and the GPU settings. ERF's own folders are named by
+# ERF_SOURCE_DIR (a cache entry of project(ERF)), so a parent project that adds ERF with
+# add_subdirectory can call it on its own targets, as erf_setup_executable(<target>).
 function(build_erf_exe erf_exe_name)
 
   set(options NO_ERF_MAIN)
   cmake_parse_arguments(BUILD_ERF_EXE "${options}" "" "" ${ARGN})
 
-  set(SRC_DIR ${PROJECT_SOURCE_DIR}/Source)
+  set(SRC_DIR ${ERF_SOURCE_DIR}/Source)
+  if(NOT DEFINED erf_lib_name)
+    set(erf_lib_name erf_srclib)   # the library Exec/CMakeLists.txt builds (ERF::erf)
+  endif()
 
   if(NOT BUILD_ERF_EXE_NO_ERF_MAIN)
     target_sources(${erf_exe_name}
@@ -859,7 +908,7 @@ function(build_erf_exe erf_exe_name)
   endif()
 
   target_link_libraries(${erf_exe_name} PUBLIC ${erf_lib_name})
-  include(${PROJECT_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
+  include(${ERF_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_exe_name})
 
   if(ERF_ENABLE_EKAT)
@@ -927,4 +976,16 @@ function(build_erf_exe erf_exe_name)
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)
 
+endfunction()
+
+# The name a parent project uses, the way ERF uses AMReX: ERF is a library (ERF::erf) and
+# the parent builds its own executables with its own sources and problem file, e.g.
+#
+#   add_subdirectory(Submodules/ERF ERF EXCLUDE_FROM_ALL)
+#   add_executable(my_model my_model.cpp ERF_Prob.cpp)
+#   erf_setup_executable(my_model)
+#
+# NO_ERF_MAIN leaves out ERF's main.cpp (a GoogleTest executable, for example).
+function(erf_setup_executable target)
+  build_erf_exe(${target} ${ARGN})
 endfunction()

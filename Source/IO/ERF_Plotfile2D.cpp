@@ -648,10 +648,12 @@ ERF::FillPlot2DVars (int lev,
             const auto& cons_arr = cons_ground->const_array(mfi);
             const auto& z_arr    = (z_ground) ? z_ground->const_array(mfi)
                                               : Array4<const Real>{};
+            const auto& zsfc_arr = (z_ground) ? z_sfc_nd[lev]->const_array(mfi)
+                                              : Array4<const Real>{};
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 const Real rho = cons_arr(i,j,klo,Rho_comp);
                 const Real qv  = (moist) ? cons_arr(i,j,klo,RhoQ1_comp)/rho : zero;
-                const Real z_cc_agl = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,klo,z_arr)
+                const Real z_cc_agl = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,klo,zsfc_arr,z_arr)
                                               : myhalf*dz;
                 derdat(i, j, k, mf_comp) = erf_surface_temperature::pressure_at_surface(
                     rho, cons_arr(i,j,klo,RhoTheta_comp), qv, z_cc_agl);
@@ -842,6 +844,7 @@ ERF::FillPlot2DVars (int lev,
             (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get();
         near_surface_sources.cons = at_ground(&vars_new[lev][Vars::cons]);
         near_surface_sources.z_phys_nd = at_ground(z_phys_nd[lev].get());
+        near_surface_sources.z_sfc_nd = z_sfc_nd[lev].get();
         near_surface_sources.dz = geom[lev].CellSize(2);
         near_surface_sources.klo = klo;
         near_surface_sources.moist = solverChoice.moisture_type != MoistureType::None;
@@ -904,6 +907,7 @@ ERF::FillPlot2DVars (int lev,
             vars_new[lev][Vars::cons],
             z_phys_cc[lev].get(),
             *z_phys_nd[lev],
+            *z_sfc_nd[lev],
             z_phys_cc[lev] != nullptr,
             solverChoice.moisture_indices,
             klo, khi,

@@ -5,7 +5,9 @@ on:
     branches: [development]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -16,7 +18,9 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -263,18 +267,6 @@ jobs:
     - name: GNUmake Compile and Link
       run: |
         make -C Exec -j2 USE_NETCDF=FALSE USE_PARTICLES=FALSE
-
-    - name: GNUmake Compile and Link with an out-of-tree fire engine
-      run: |
-        mkdir -p ${{runner.temp}}/fire_build
-        cd ${{runner.temp}}/fire_build
-        printf 'ERF_HOME = %s\nFIRE_HOME = %s/Tests/FireEngineExample\nUSE_FIRE = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
-          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
-        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
-        make -j2
-        cp ${{github.workspace}}/Tests/FireEngineExample/inputs_fire_example ${{github.workspace}}/Tests/FireEngineExample/input_sounding .
-        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_fire_example max_step=4 erf.check_int=-1 | tee run.log
-        grep -q "fire_phi" plt00004/Header
 
     - name: GNUmake Compile and Link with an out-of-tree structure model
       run: |

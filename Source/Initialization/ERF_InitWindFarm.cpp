@@ -43,7 +43,8 @@ ERF::init_windfarm (int lev)
         windfarm->fill_SMark_multifab_mesoscale_models(geom[lev],
                                                        SMark[lev],
                                                        Nturb[lev],
-                                                       z_phys_nd[lev]);
+                                                       z_phys_nd[lev],
+                                                       z_sfc_nd[lev]);
     }
 
     if(solverChoice.windfarm_type == WindFarmType::SimpleAD or

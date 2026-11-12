@@ -1391,6 +1391,10 @@ struct SolverChoice {
             amrex::Error("erf.wall_dist_type must be poisson or terrain_height");
         }
         pp.queryAdd("poisson_abstol", poisson_abstol);
+        pp.queryAdd("pi_drift_factor", pi_drift_factor);
+        if (pi_drift_factor < zero) {
+            amrex::Abort("erf.pi_drift_factor must be non-negative");
+        }
         pp.queryAdd("poisson_reltol", poisson_reltol);
         // Solver for the projection on a terrain-fitted mesh: FFT-preconditioned GMRES (default),
         // or amrex::MLTerrainPoisson with multigrid, alone or under GMRES
@@ -2974,6 +2978,10 @@ struct SolverChoice {
     amrex::Real poisson_abstol      = amrex::Real(1e-8);
     amrex::Real poisson_reltol      = amrex::Real(1e-8);
 #endif
+
+    // Pseudo-incompressible: the constraint is div(rho0 theta0 u) = Q + c (rho theta - rho0 theta0) / dt,
+    // with Q the non-advective tendency of (rho theta) and c this factor (0 for no drift correction)
+    amrex::Real pi_drift_factor     = myhalf;
 
     bool        test_mapfactor         = false;
     amrex::Real test_mapfactor_amp     = amrex::Real(0);

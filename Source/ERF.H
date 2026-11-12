@@ -78,6 +78,9 @@
 #ifdef ERF_USE_FIRE
 #include "ERF_FireCoupler.H"
 #endif
+#ifdef ERF_USE_DUST
+#include "ERF_DustModel.H"
+#endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
 #include "ERF_Plotfile2DCloudOptics.H"
@@ -1594,6 +1597,14 @@ private:
     //! Define pi_upw_dir[lev] and pi_upw_dir_stage[lev] on the level's faces (zero) if needed
     void define_pi_upw_dir (int lev);
 
+    // Pseudo-incompressible (non-EB) levels: the advective part of the (rho theta) RHS of the
+    // latest stage (pi_adv_rt), and the rest of that RHS (pi_src: diffusion, implicit diffusion
+    // and the sources in cc_src), the non-advective tendency Q of (rho theta).  The projection
+    // at the end of the stage imposes div(rho0 theta0 u) = Q + the drift correction, so that the
+    // next update keeps rho theta = rho0 theta0 (see project_momenta)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_adv_rt;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_src;
+
     // Used only for fast substepping
     amrex::Vector<amrex::MultiFab> lagged_delta_rt;
     amrex::Vector<amrex::MultiFab> avg_xmom;
@@ -1751,7 +1762,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
     // Height of the bottom of the domain at each node, like z_phys_nd at its bottom: on
-    // ba2d[lev] made nodal in x and y, with no ghost cells; see update_zsfc_nd
+    // ba2d[lev] made nodal in x and y, with z_phys_nd's ghost cells in x and y; see update_zsfc_nd
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_sfc_nd;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
@@ -1821,9 +1832,6 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
-    // The mesh and Jacobian at the acoustic sub-step midpoint (MovingFittedMesh), rewritten every sub-step
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_mid;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_mid;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
@@ -2387,6 +2395,17 @@ private:
     amrex::Real m_fire_plot_per  = -1.0;
 #endif
 
+#ifdef ERF_USE_DUST
+    /// The dust model erf.dust.model selects (ERF_DustModel.H); nullptr unless erf.dust.enable = true
+    std::unique_ptr<DustModel> m_dust_model = nullptr;
+
+    /// Make and set up the dust model, once, in InitData_post; zero the dust scalars on a fresh start
+    void initialize_dust_model ();
+
+    /// Advance the dust model over the step of level 0 just taken (from step, at time, by dt[0])
+    void advance_dust_model (int step, double time);
+#endif
+
 #ifdef ERF_USE_MOVING_BODIES
     /// The structure model erf.structures.model selects (ERF_StructureModel.H); nullptr when the key is not set
     std::unique_ptr<StructureModel> m_structure_model = nullptr;
@@ -2411,6 +2430,15 @@ private:
     /// The grids of the model's level at its last advance(): the source add_momentum_sources() returns lives there
     amrex::BoxArray            m_structure_src_ba;
     amrex::DistributionMapping m_structure_src_dm;
+
+    /// After a restart, until the model's first advance(): its source on its level when the checkpoint was written
+    std::array<amrex::MultiFab,AMREX_SPACEDIM> m_structure_chk_src;
+
+    /// Write the model's current source on its level under checkpointname/StructureCoarseSource (TwoWay, level() > 0)
+    void write_structure_coarse_source_checkpoint (const std::string& checkpointname) const;
+
+    /// Read what write_structure_coarse_source_checkpoint wrote, for the model on level L, into m_structure_chk_src
+    void read_structure_coarse_source_checkpoint (int L);
 
     /// The node heights of the level above the model's, for the check of its support(): kept until that level's boxes change
     erf_actuator::LevelHeights m_structure_fine_heights;

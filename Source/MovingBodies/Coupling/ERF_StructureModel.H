@@ -215,12 +215,18 @@ public:
      * of every coarser level, with lev = level() and zeroed MultiFabs on the grids
      * of level() as of the last advance() (they may have ghost faces, which the
      * model leaves alone). It adds the source of its last advance(), as at a
-     * stage. ERF restricts that source onto the coarser level, keeping its
-     * integral, and holds it over that level's step: the air under the finer
-     * level then feels the force while the coarser level steps, and the coarse/fine
-     * faces, which the finer level takes from the coarser one, get the force once.
+     * stage. ERF restricts that source onto the coarser level, keeping the force
+     * it puts on the air (its integral over the faces' control volumes, with the
+     * mesh Jacobian on a stretched or terrain-following mesh), and holds it over
+     * that level's step: the air under the finer level then feels the force while
+     * the coarser level steps, and the coarse/fine faces, which the finer level
+     * takes from the coarser one, get the force once.
      * Before the first advance() and after a regrid of level(), until the next
-     * advance(), ERF does not call it for the coarser levels.
+     * advance(), ERF does not call it for the coarser levels. ERF writes the
+     * source to its checkpoint, so after a restart, until the first advance(), it
+     * restricts the checkpointed source instead: the model need not hold one.
+     * ERF also calls it when it writes a checkpoint; being const, it leaves the
+     * model as it was.
      */
     virtual void add_momentum_sources (int lev,
                                        amrex::MultiFab& xmom_src,

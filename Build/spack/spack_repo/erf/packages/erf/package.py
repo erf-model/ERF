@@ -2,6 +2,7 @@
 # builtin repository (spack/spack-packages), which must be registered too.
 
 import itertools
+import json
 import os
 
 from spack_repo.builtin.build_systems.cmake import CMakePackage
@@ -143,6 +144,12 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         when="@26.02:",
     )
     variant(
+        "morr_fort",
+        default=False,
+        description="Enable the Morrison Fortran microphysics bridge",
+        when="@25.05:",
+    )
+    variant(
         "wsm6_fort",
         default=False,
         description="Enable the WSM6 Fortran microphysics bridge",
@@ -194,6 +201,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         depends_on("c")
         depends_on("cxx")
         depends_on("fortran", when="+noahmp")
+        depends_on("fortran", when="+morr_fort")
         depends_on("fortran", when="+wsm6_fort")
         depends_on("fortran", when="+wdm6_fort")
         depends_on("fortran", when="+rrtmgp")
@@ -317,6 +325,19 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
     conflicts("+rrtmgp", when="~mpi", msg="RRTMGP (EKAT) requires MPI")
     conflicts("+eamxx_shoc", when="~mpi", msg="SHOC (EKAT) requires MPI")
     conflicts("+eamxx_shoc", when="precision=single", msg="EAMxx SHOC is double precision only")
+    for _ekat in ("+rrtmgp", "+eamxx_shoc"):
+        conflicts(
+            _ekat,
+            when="platform=darwin target=aarch64:",
+            msg="EKAT's floating-point-exception shim is x86-only; "
+            "RRTMGP and SHOC do not build on Apple Silicon",
+        )
+        conflicts(
+            "%oneapi@2026:",
+            when=f"@:26.09{_ekat}+sycl",
+            msg="EKAT's bundled Kokkos 4.5.1 needs SYCL_EXT_INTEL_USM_ADDRESS_SPACES, "
+            "which the oneAPI 2026 compilers removed; use oneAPI 2025 or ERF 26.11+",
+        )
     conflicts("+tools", when="~netcdf", msg="The tools require NetCDF")
     # Backport the CUDA source-language fix to the current release. Older
     # releases still compile the tools as C++, which CUDA AMReX headers reject.
@@ -328,6 +349,11 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         msg="the ML microphysics diagnostics live in the particle (SDM) microphysics",
     )
     patch("ml-diagnostics-single.patch", when="@26.09+ml_uphys_diagnostics precision=single")
+    conflicts(
+        "+morr_fort",
+        when="precision=single",
+        msg="the Morrison Fortran bridge is double precision only",
+    )
     conflicts(
         "+wsm6_fort",
         when="precision=single",
@@ -568,6 +594,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
             self.define_from_variant("ERF_ENABLE_NOAHMP", "noahmp"),
             self.define_from_variant("ERF_ENABLE_WINDFARM", "windfarm"),
             self.define_from_variant("ERF_ENABLE_ML_UPHYS_DIAGNOSTICS", "ml_uphys_diagnostics"),
+            self.define_from_variant("ERF_ENABLE_MORR_FORT", "morr_fort"),
             self.define_from_variant("ERF_ENABLE_WSM6_FORT", "wsm6_fort"),
             self.define_from_variant("ERF_ENABLE_WDM6_FORT", "wdm6_fort"),
             self.define_from_variant("ERF_ENABLE_EAMXX_SHOC", "eamxx_shoc"),
@@ -713,6 +740,56 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         erf_exec = self._erf_exe()
         out = erf_exec("--help", output=str.split, error=str.split)
         assert "usage" in out.lower()
+
+    def test_describe_json(self):
+        """installed build features and precision match the Spack spec"""
+        if not self.spec.satisfies("@26.12:"):
+            raise SkipTest("--describe-json requires ERF 26.12 or newer")
+        description = json.loads(self._erf_exe()("--describe-json", output=str))
+        assert description["application"] == "ERF"
+        assert description["dimension"] == 3
+        bits = {"single": 32, "double": 64}
+        precision = self.spec.variants["precision"].value
+        assert description["real_bits"] == bits[precision]
+        particle_precision = self.spec.variants["particles_precision"].value
+        if particle_precision == "same":
+            particle_precision = precision
+        expected_bits = bits[particle_precision] if self.spec.satisfies("+particles") else None
+        assert description["particle_real_bits"] == expected_bits
+        backend = next(
+            (
+                name
+                for variant, name in (("cuda", "cuda"), ("rocm", "hip"), ("sycl", "sycl"))
+                if self.spec.satisfies(f"+{variant}")
+            ),
+            "none",
+        )
+        assert description["gpu_backend"] == backend
+        for variant in (
+            "mpi",
+            "openmp",
+            "particles",
+            "fft",
+            "netcdf",
+            "hdf5",
+            "noahmp",
+            "rrtmgp",
+            "eamxx_shoc",
+            "windfarm",
+            "fire",
+            "moving_bodies",
+            "multiblock",
+            "ml_uphys_diagnostics",
+            "morr_fort",
+            "wsm6_fort",
+            "wdm6_fort",
+        ):
+            feature = {
+                "morr_fort": "morrison_fortran",
+                "wsm6_fort": "wsm6_fortran",
+                "wdm6_fort": "wdm6_fortran",
+            }.get(variant, variant)
+            assert description["features"][feature] is self.spec.satisfies(f"+{variant}"), feature
 
     def test_scalar_advection(self):
         """run two steps of the uniform-velocity scalar advection case"""

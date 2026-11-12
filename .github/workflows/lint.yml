@@ -10,9 +10,9 @@ name: Lint
 on:
   push:
     branches: [development]
-    paths: ['.github/**']
+    paths: ['.github/**', 'Build/spack/**']
   pull_request:
-    paths: ['.github/**']
+    paths: ['.github/**', 'Build/spack/**']
   workflow_dispatch:
 
 permissions:
@@ -50,6 +50,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Check Spack recipe pins
+        run: python3 Build/spack/check_pins.py
       - name: Test GHCR cache helpers
         run: python3 -m unittest discover -s .github/actions/ccache-trunk -p 'test_*.py' -v
       - name: Install cache check dependencies
