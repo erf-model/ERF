@@ -238,15 +238,15 @@ values. The
 unit tests ``StructureRegistry.*`` check the registry and the selection by
 ``erf.structures.model`` and the plot-name checks.
 
-When the example fire engine (``Tests/FireEngineExample``) is compiled in as
-well, four runs check the fire view. Each runs the engine's deck with the example model
+The fire view is tested in erf-model/FLARE, where the example fire engine
+(``Tests/FireEngineExample``) is compiled in as well: four runs check it. Each runs the engine's deck with the example model
 added: a disk of radius :math:`r(t) = 150 + 50\,t` m releasing
 :math:`q_0 = 5 \times 10^4` W/m\ :sup:`2` inside it, a quarter of it as latent
 heat. At each step the model prints the level and time :math:`t_f` of the
 fire's fields, the heat released :math:`Q` (the sum of ``heat_release``) and
 the burned area :math:`A` (``burned_area()``, which the example engine
 computes from the disk's radius).
-``check_fire_view.awk`` compares them with
+FLARE's ``Tests/StructureModelExample/check_fire_view.awk`` compares them with
 
 .. math::
 
