@@ -2411,7 +2411,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(ABL_MRF_Tiling      ABL_MRF_Tiling "00010" "00010"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(ABL_YSUNew_Tiling   ABL_MRF_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   # Legacy YSU aborts in unstable conditions, so cool the surface. A stronger
   # cooling than -0.02 with the 5 m/s wind passes the stable fold of the
@@ -2445,7 +2445,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
       RUNTIME_OPTIONS "erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(ABL_YSUNew_Tiling_Smooth ABL_MRF_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU erf.enable_pblh_smoothing=true"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   # The immersed-boundary-aware MRF and YSUNew (erf.pbl_ib_aware) build their
   # per-column surface and work arrays on the tile work box; a cube by
@@ -2453,7 +2453,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_MRF_Tiling    PBL_IBAware_Tiling "00010" "00010"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
   # YSUNew with PBL-height smoothing over a neutral ground (erf-model/ERF#4479).
   # The surface heat flux is round-off whose sign follows the decomposition, and

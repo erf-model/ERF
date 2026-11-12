@@ -2712,7 +2712,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                              "init_base_state_from_wrfinput requires boxes that "
                                              "reach the bottom of the region being initialized: "
                                              "each column is seeded there and integrated upward. "
-                                             "Set erf.max_grid_size_z large enough that the grids "
+                                             "Set amr.max_grid_size_z large enough that the grids "
                                              "are not decomposed in z.");
             bx.makeSlab(2,klo);
 
