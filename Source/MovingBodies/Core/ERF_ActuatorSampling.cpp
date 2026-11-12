@@ -449,6 +449,58 @@ terrain_heights (const MultiFab* z_phys_nd, const Geometry& geom, const std::vec
     }
 }
 
+namespace {
+
+// The table of this rank's boxes: each node level's lowest and highest height, and the cells the boxes
+// hold. One kernel entry per node level of a box, which goes over that level's nodes and then makes one
+// atomic min and one atomic max into the level's two values: the kernels of two boxes may run at the same
+// time on GPU (MFIter spreads the boxes over the device's streams), and both may hold the level
+void
+node_level_table (const MultiFab& z_phys_nd, const Geometry& geom, ZBounds& b)
+{
+    const Real big = std::numeric_limits<Real>::max();
+    const Box& dom = geom.Domain();
+    b.k0 = dom.smallEnd(2);
+    const int nnode = dom.length(2) + 1;
+    const Box dom_nodes = amrex::surroundingNodes(dom);
+    Gpu::DeviceVector<Real> lo(nnode, big), hi(nnode, -big);
+    Real* plo = lo.data();
+    Real* phi = hi.data();
+    const int k0 = b.k0;
+    b.has_cell.assign(nnode - 1, 0);
+    for (MFIter mfi(z_phys_nd, false); mfi.isValid(); ++mfi) {
+        const Box nbx = mfi.validbox();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dom_nodes.contains(nbx), "mesh_z_bounds: z_phys_nd's boxes must lie in geom's domain");
+        Array4<Real const> const& znd = z_phys_nd.const_array(mfi);
+        const int ilo = nbx.smallEnd(0), ihi = nbx.bigEnd(0);
+        const int jlo = nbx.smallEnd(1), jhi = nbx.bigEnd(1);
+        const int klo = nbx.smallEnd(2);
+        ParallelFor(nbx.length(2), [=] AMREX_GPU_DEVICE (int n) noexcept
+        {
+            const int k = klo + n;
+            Real mn = big;
+            Real mx = -big;
+            for (int j = jlo; j <= jhi; ++j) {
+                for (int i = ilo; i <= ihi; ++i) {
+                    mn = amrex::min(mn, znd(i,j,k));
+                    mx = amrex::max(mx, znd(i,j,k));
+                }
+            }
+            Gpu::Atomic::Min(plo + (k - k0), mn);
+            Gpu::Atomic::Max(phi + (k - k0), mx);
+        });
+        // the box's cells: between its lowest and highest node levels
+        for (int k = nbx.smallEnd(2); k < nbx.bigEnd(2); ++k) { b.has_cell[k - b.k0] = 1; }
+    }
+    b.node_lo.resize(nnode);
+    b.node_hi.resize(nnode);
+    Gpu::copyAsync(Gpu::deviceToHost, lo.begin(), lo.end(), b.node_lo.begin());
+    Gpu::copyAsync(Gpu::deviceToHost, hi.begin(), hi.end(), b.node_hi.begin());
+    Gpu::streamSynchronize();
+}
+
+} // namespace
+
 ZBounds
 mesh_z_bounds (const MultiFab& z_phys_nd, const Geometry& geom, bool over_all_ranks)
 {
@@ -487,36 +539,38 @@ mesh_z_bounds (const MultiFab& z_phys_nd, const Geometry& geom, bool over_all_ra
     }
     b.all_ground = (all != 0);
     if (!over_all_ranks && !b.all_ground) {
-        // the table of this rank's boxes, where some do not reach the ground: each node level's lowest and
-        // highest height (one pass over the boxes' nodes, a min and a max per level), and the cells they hold
-        const Box& dom = geom.Domain();
-        b.k0 = dom.smallEnd(2);
-        const int nnode = dom.length(2) + 1;
-        const Box dom_nodes = amrex::surroundingNodes(dom);
-        Gpu::DeviceVector<Real> lo(nnode, big), hi(nnode, -big);
-        Real* plo = lo.data();
-        Real* phi = hi.data();
-        const int k0 = b.k0;
-        b.has_cell.assign(nnode - 1, 0);
-        for (MFIter mfi(z_phys_nd, false); mfi.isValid(); ++mfi) {
-            const Box nbx = mfi.validbox();
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dom_nodes.contains(nbx), "mesh_z_bounds: z_phys_nd's boxes must lie in geom's domain");
-            Array4<Real const> const& znd = z_phys_nd.const_array(mfi);
-            ParallelFor(nbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Gpu::Atomic::Min(plo + (k - k0), znd(i,j,k));
-                Gpu::Atomic::Max(phi + (k - k0), znd(i,j,k));
-            });
-            // the box's cells: between its lowest and highest node levels
-            for (int k = nbx.smallEnd(2); k < nbx.bigEnd(2); ++k) { b.has_cell[k - b.k0] = 1; }
-        }
-        b.node_lo.resize(nnode);
-        b.node_hi.resize(nnode);
-        Gpu::copyAsync(Gpu::deviceToHost, lo.begin(), lo.end(), b.node_lo.begin());
-        Gpu::copyAsync(Gpu::deviceToHost, hi.begin(), hi.end(), b.node_hi.begin());
-        Gpu::streamSynchronize();
+        // where some of this rank's boxes do not reach the ground
+        node_level_table(z_phys_nd, geom, b);
     }
     return b;
+}
+
+ZBounds
+mesh_z_levels (const MultiFab& z_phys_nd, const Geometry& geom)
+{
+    BL_PROFILE("erf_actuator::mesh_z_levels()");
+    ZBounds b = mesh_z_bounds(z_phys_nd, geom, true);
+    node_level_table(z_phys_nd, geom, b);
+    // over every rank's boxes: a rank with no box at a node level holds the largest and the lowest Real there
+    const int nnode = static_cast<int>(b.node_lo.size());
+    ParallelDescriptor::ReduceRealMin(b.node_lo.data(), nnode);
+    ParallelDescriptor::ReduceRealMax(b.node_hi.data(), nnode);
+    std::vector<int> has(b.has_cell.begin(), b.has_cell.end());
+    ParallelDescriptor::ReduceIntMax(has.data(), static_cast<int>(has.size()));
+    for (std::size_t n = 0; n < has.size(); ++n) { b.has_cell[n] = static_cast<char>(has[n]); }
+    return b;
+}
+
+const ZBounds&
+LevelHeights::get (const MultiFab& z_phys_nd, const Geometry& geom, bool rebuild)
+{
+    if (rebuild || m_builds == 0 || m_domain != geom.Domain() || m_ba != z_phys_nd.boxArray()) {
+        m_zb = mesh_z_levels(z_phys_nd, geom);
+        m_ba = z_phys_nd.boxArray();
+        m_domain = geom.Domain();
+        ++m_builds;
+    }
+    return m_zb;
 }
 
 namespace {
@@ -778,6 +832,67 @@ points_covered_by (const CoverageGrids& grids, const Geometry& geom, const std::
         }
     }
     return true;
+}
+
+bool
+region_touches_grids (const BoxArray& ba, const Geometry& geom, const RealBox& region, const ZBounds* zb)
+{
+    BL_PROFILE("erf_actuator::region_touches_grids()");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!geom.isPeriodic(2), "region_touches_grids: z must not be periodic");
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        // a NaN first: comparing one may trap (amrex.fpe_trap_invalid) before the message is printed
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!std::isnan(region.lo(d)) && !std::isnan(region.hi(d)) && region.lo(d) <= region.hi(d),
+                                         "region_touches_grids: the region needs lo <= hi in every direction");
+    }
+    const Box& domain = geom.Domain();
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+    IntVect lo, hi;
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        // The region's cells, as points_covered_by finds a point's, kept as doubles until they are bounded: an int
+        // holds no infinity and no index far outside the domain
+        const int dlo = domain.smallEnd(d), dhi = domain.bigEnd(d), n = dhi - dlo + 1;
+        double l = std::floor(static_cast<double>((region.lo(d) - plo[d]) * dxi[d]));
+        double h = std::floor(static_cast<double>((region.hi(d) - plo[d]) * dxi[d]));
+        if (geom.isPeriodic(d)) {
+            // an infinite end is replaced by 0 before any difference is taken: inf - inf is invalid and may
+            // trap (amrex.fpe_trap_invalid), also where a compiler evaluates it ahead of a test that skips it
+            const bool unbounded = std::isinf(l) || std::isinf(h);
+            const double fl = unbounded ? 0.0 : l;
+            const double fh = unbounded ? 0.0 : h;
+            if (unbounded || !(fh - fl + 1 < n)) {
+                // a period or more, or an infinite extent: every cell
+                l = dlo;
+                h = dhi;
+            } else {
+                // by whole periods until lo lies in the domain; hi is then less than a period above it, and the
+                // shifts below bring the part beyond the seam back in
+                const double s = std::floor((fl - dlo) / n);
+                l = fl - s * n;
+                h = fh - s * n;
+            }
+        }
+        // one cell outside the domain stays outside it (and bounds what rounding leaves of a far periodic region)
+        lo[d] = static_cast<int>(std::min<double>(static_cast<double>(dhi) + n, std::max<double>(static_cast<double>(dlo) - 1, l)));
+        hi[d] = static_cast<int>(std::min<double>(static_cast<double>(dhi) + n, std::max<double>(static_cast<double>(dlo) - 1, h)));
+    }
+    if (zb != nullptr) {
+        // every cell a height of the region may lie in, whatever its column. With the table, from the level's own
+        // node heights. With the bounds alone, from the ground and the spacing, which describe a column only where
+        // every box stands on the ground; with a box that does not, the column is taken whole
+        int kb = domain.smallEnd(2), kt = domain.bigEnd(2);
+        if (zb->has_table() || zb->all_ground) { zb->k_range(region.lo(2), region.hi(2), domain.smallEnd(2), domain.bigEnd(2), kb, kt); }
+        lo[2] = kb;
+        hi[2] = kt;
+    }
+    if (lo[2] > hi[2]) { return false; }   // the table holds no cell at these heights
+    const BoxArray cc = amrex::convert(ba, IntVect::TheZeroVector());
+    const Box needed(lo, hi);
+    for (const IntVect& s : geom.periodicity().shiftIntVect()) {
+        const Box b = (needed + s) & domain;
+        if (b.ok() && cc.intersects(b)) { return true; }
+    }
+    return false;
 }
 
 } // namespace erf_actuator
