@@ -74,7 +74,8 @@ bool BuildMappedDiffusionTransmissibility (
 
 /**
  * Low-order diffusive face rates -T_f (z_R - z_L) of the selected intensive
- * components; rate slot n holds component components[n].
+ * components; rate slot n holds component components[n]. Fails, with a
+ * diagnostic, if any rate is nonfinite.
  */
 bool BuildLowOrderDiffusionRate (
     MappedFaceFluxRate& rate,

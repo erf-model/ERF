@@ -1218,6 +1218,12 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestActuatorSpreading.cpp
     )
   endif()
+  if(ERF_DIM STREQUAL "3")
+    # The coefficient check and the rate maximum reduce over the ranks: check them across ranks
+    target_sources(${erf_parallel_exe_name} PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMParticleMixing.cpp
+    )
+  endif()
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)
   target_link_libraries(${erf_parallel_exe_name}
     PRIVATE

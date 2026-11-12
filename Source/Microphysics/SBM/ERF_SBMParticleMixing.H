@@ -18,7 +18,10 @@ namespace erf_sbm {
  * diffusion is zero under every policy.
  *
  * HostPassiveScalar consumes ERF's Scalar_h/Scalar_v eddy channels, which are
- * already density weighted and Schmidt scaled. ConstantReference multiplies
+ * already density weighted and Schmidt scaled. Under ERF's LES closures they
+ * equal the Q channels that diffuse moisture, but the PBL schemes other than
+ * SHOC fill Q_v and not Scalar_v, so this policy is for LES closures only and
+ * enabling it must reject a PBL scheme. ConstantReference multiplies
  * kinematic reference diffusivities by the face-averaged dry-air density.
  */
 enum class ParticleMixingPolicy { None, ConstantReference, HostPassiveScalar };
@@ -53,7 +56,11 @@ struct ParticleMixingConfig
                                          erf_auxiliary::DiffusionMesh& mesh,
                                          std::string& reason);
 
-/** The face transmissibility of a policy; None gives zero on every face. */
+/**
+ * The face transmissibility of a policy; None gives zero on every face.
+ * `density` must be the dry-air density (ERF's Rho_comp), which
+ * ConstantReference multiplies by.
+ */
 [[nodiscard]] bool build_particle_mixing_transmissibility (
     const ParticleMixingConfig& config,
     const amrex::Geometry& geom,

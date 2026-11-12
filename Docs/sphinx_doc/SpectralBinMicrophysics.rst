@@ -830,6 +830,10 @@ member of every bin group:
 * ``HostPassiveScalar``: ERF's ``Scalar_h`` and ``Scalar_v`` eddy
   coefficients on horizontal and vertical faces, used as they are: they are
   already density weighted and already include the turbulent Schmidt factor.
+  Under ERF's LES closures they equal the ``Q_h`` and ``Q_v`` coefficients
+  that diffuse moisture. The PBL schemes other than SHOC set ``Q_v`` but not
+  ``Scalar_v``, so this policy is for LES closures only, and a PBL scheme
+  will be rejected with it.
 
 Particle molecular (Brownian) diffusion is zero under every policy; a vapor
 or scalar molecular diffusivity is never inherited. A nonfinite or negative

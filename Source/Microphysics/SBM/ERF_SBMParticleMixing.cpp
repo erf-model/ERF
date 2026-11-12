@@ -72,7 +72,7 @@ particle_mixing_coefficients (const ParticleMixingConfig& config,
                               erf_auxiliary::MappedDiffusionCoefficients& coefficients,
                               std::string& reason)
 {
-    if (!validate_particle_mixing_config(config, reason)) return false;
+    if (!validate_particle_mixing_config(config, reason)) { return false; }
     coefficients = {};
     switch (config.policy) {
     case ParticleMixingPolicy::None:
@@ -129,7 +129,7 @@ build_particle_mixing_transmissibility (
     erf_auxiliary::MappedFaceTransmissibility& transmissibility,
     std::string& diagnostic)
 {
-    if (!validate_particle_mixing_config(config, diagnostic)) return false;
+    if (!validate_particle_mixing_config(config, diagnostic)) { return false; }
     if (config.policy == ParticleMixingPolicy::None) {
         if (!transmissibility.is_defined() || transmissibility.nComp() != 1) {
             diagnostic = "particle mixing transmissibility requires one face component";
@@ -139,7 +139,7 @@ build_particle_mixing_transmissibility (
         return true;
     }
     erf_auxiliary::MappedDiffusionCoefficients coefficients;
-    if (!particle_mixing_coefficients(config, coefficients, diagnostic)) return false;
+    if (!particle_mixing_coefficients(config, coefficients, diagnostic)) { return false; }
     if (!erf_auxiliary::BuildMappedDiffusionTransmissibility(
             transmissibility, geom, metrics, coefficients, density, density_component,
             eddy_diffusivity, diagnostic)) {

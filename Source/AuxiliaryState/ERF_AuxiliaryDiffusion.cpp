@@ -53,11 +53,11 @@ int count_invalid_coefficient_reads (const amrex::Geometry& geom,
                     int bad = 0;
                     if (use_eddy) {
                         const Real value = mu(i, j, k, eddy_comp);
-                        if (!(amrex::Math::isfinite(value) && value >= Real(0.0))) bad = 1;
+                        if (!(amrex::Math::isfinite(value) && value >= Real(0.0))) { bad = 1; }
                     }
                     if (use_density) {
                         const Real value = rho(i, j, k, rho_comp);
-                        if (!(amrex::Math::isfinite(value) && value > Real(0.0))) bad = 1;
+                        if (!(amrex::Math::isfinite(value) && value > Real(0.0))) { bad = 1; }
                     }
                     return {bad};
                 });
@@ -334,6 +334,14 @@ bool BuildLowOrderDiffusionRate (
             }
         }
     }
+    const int nslots = static_cast<int>(components.size());
+    for (int dir = 0; dir < AMREX_SPACEDIM && nslots > 0; ++dir) {
+        if (!rate.dir(dir).is_finite(0, nslots, 0)) {
+            diagnostic = "low-order diffusion rates are nonfinite; check the intensive field, "
+                         "including the ghost cells read across periodic faces";
+            return false;
+        }
+    }
     return true;
 }
 
@@ -357,7 +365,7 @@ bool ComputeMaxMappedCombinedOutgoingRate (
         diagnostic = "combined donor-rate reduction received incompatible cell or face layouts";
         return false;
     }
-    if (!ValidatePositiveFiniteComponent(measure, 0, diagnostic)) return false;
+    if (!ValidatePositiveFiniteComponent(measure, 0, diagnostic)) { return false; }
     if (!ValidatePositiveFiniteComponent(conserved, density_component, diagnostic)) {
         return false;
     }

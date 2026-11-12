@@ -291,7 +291,7 @@ Real value_at (const MultiFab& mf, const int comp, const IntVect& iv)
     const Box point(iv, iv, mf.ixType());
     for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box bx = mfi.validbox() & point;
-        if (!bx.ok()) continue;
+        if (!bx.ok()) { continue; }
         const auto a = mf.const_array(mfi);
         reduce_op.eval(bx, reduce_data,
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> ReduceTuple {
@@ -492,6 +492,21 @@ void run_physical_faces ()
     MultiFab::Copy(weighted, tendency, 0, 0, 1, 0);
     MultiFab::Multiply(weighted, g->omega, 0, 0, 1, 0);
     EXPECT_LE(std::abs(weighted.sum(0)), Real(64.0) * eps() * weighted.norm1(0));
+
+    // A nonfinite ghost read across the periodic y face fails, on every rank.
+    for (amrex::MFIter mfi(f->z); mfi.isValid(); ++mfi) {
+        const auto z = f->z.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (i == 2 && j == -1 && k == 1) {
+                z(i, j, k, 0) = std::numeric_limits<Real>::quiet_NaN();
+            }
+        });
+    }
+    MappedFaceFluxRate poisoned;
+    poisoned.define(g->ba, g->dm, 1, 0);
+    std::string diagnostic;
+    EXPECT_FALSE(BuildLowOrderDiffusionRate(poisoned, *t, g->geom, f->z, {0}, diagnostic));
+    EXPECT_NE(diagnostic.find("nonfinite"), std::string::npos) << diagnostic;
 }
 
 void run_zero_coefficient_identity ()
@@ -834,9 +849,9 @@ Real manufactured_error (const int n, const bool stretched)
     const Real* dzp = g->dz.data();
     const bool walls = stretched;
     auto height_at_center = [=] AMREX_GPU_DEVICE(int k) noexcept {
-        if (!walls) return (Real(k) + Real(0.5)) * h;
+        if (!walls) { return (Real(k) + Real(0.5)) * h; }
         Real face = Real(0.0);
-        for (int kk = 0; kk < k; ++kk) face += dzp[kk];
+        for (int kk = 0; kk < k; ++kk) { face += dzp[kk]; }
         return face + Real(0.5) * dzp[k];
     };
     fill_cells(f->eddy, EddyDiff::Scalar_h, g->geom, [=] AMREX_GPU_DEVICE(int, int j, int) noexcept {
@@ -1075,7 +1090,7 @@ bool groups_admissible_after_update (const bool shared_coefficient, std::string&
                 for (amrex::MFIter mfi(f->z); mfi.isValid(); ++mfi) {
                     const auto a = f->z.array(mfi);
                     amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        if (i == c) a(i, j, k, component) = v;
+                        if (i == c) { a(i, j, k, component) = v; }
                     });
                 }
             }
@@ -1084,7 +1099,9 @@ bool groups_admissible_after_update (const bool shared_coefficient, std::string&
     f->z.FillBoundary(g->geom.periodicity());
     for (int cell = 0; cell < 2; ++cell) {
         std::vector<Real> state(static_cast<std::size_t>(ncomp));
-        for (int n = 0; n < ncomp; ++n) state[static_cast<std::size_t>(n)] = value_at(f->z, n, IntVect(cell, 0, 0));
+        for (int n = 0; n < ncomp; ++n) {
+            state[static_cast<std::size_t>(n)] = value_at(f->z, n, IntVect(cell, 0, 0));
+        }
         for (const auto& group : groups) {
             EXPECT_TRUE(group.admissible(state)) << "initial state is not admissible";
         }
@@ -1097,12 +1114,12 @@ bool groups_admissible_after_update (const bool shared_coefficient, std::string&
     const Real tau = Real(1.0) / combined_rate(*g, *f, *t, no_carrier);
 
     std::vector<int> all(static_cast<std::size_t>(ncomp));
-    for (int n = 0; n < ncomp; ++n) all[static_cast<std::size_t>(n)] = n;
+    for (int n = 0; n < ncomp; ++n) { all[static_cast<std::size_t>(n)] = n; }
     auto rate = build_rate(*g, *t, f->z, all);
     if (!shared_coefficient) {
         for (int n = 0; n < ncomp; ++n) {
             const bool number = n >= pop.number_offset && n < pop.number_offset + 2;
-            if (number) continue;
+            if (number) { continue; }
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
                 rate->dir(dir).setVal(Real(0.0), n, 1, 0);
             }
@@ -1112,7 +1129,9 @@ bool groups_admissible_after_update (const bool shared_coefficient, std::string&
     explicit_update(*g, *rate, *u, tau);
     for (int cell = 0; cell < 2; ++cell) {
         std::vector<Real> state(static_cast<std::size_t>(ncomp));
-        for (int n = 0; n < ncomp; ++n) state[static_cast<std::size_t>(n)] = value_at(*u, n, IntVect(cell, 0, 0));
+        for (int n = 0; n < ncomp; ++n) {
+            state[static_cast<std::size_t>(n)] = value_at(*u, n, IntVect(cell, 0, 0));
+        }
         for (const auto& group : groups) {
             std::string failed;
             if (!group.admissible(state, nullptr, &failed)) {
@@ -1179,7 +1198,7 @@ oracle (const DiffusionGrid& g, const MultiFab& coefficient, const int hcomp, co
                 const IntVect cell(AMREX_D_DECL(i, j, k));
                 const IntVect left = cell - shift;
                 Real coeff = Real(0.5) * (a(cell, comp) + a(left, comp));
-                if (weighted) coeff *= Real(0.5) * (w(cell, 0) + w(left, 0));
+                if (weighted) { coeff *= Real(0.5) * (w(cell, 0) + w(left, 0)); }
                 const Real geometry = dir < 2 ? spacing * num(i, j, 0) / den(i, j, 0)
                                               : spacing / (mx(i, j, 0) * my(i, j, 0));
                 out(i, j, k, 0) = factor * coeff * geometry;
@@ -1328,7 +1347,7 @@ void run_invalid_coefficients ()
             const auto a = f->eddy.array(mfi);
             const Box point(iv, iv);
             const Box bx = mfi.fabbox() & point;
-            if (!bx.ok()) continue;
+            if (!bx.ok()) { continue; }
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 a(i, j, k, comp) = value;
             });
