@@ -14,6 +14,15 @@ followed by multigrid.  We note that the multigrid solver has the option to "ign
 if the domain is only one cell wide in that direction; this allows for efficient solution of effectively 2D problems.
 Multigrid can also be used when the union of grids at a level is not in itself rectangular (except on terrain-fitted meshes); the FFT solvers do not work in that general case.
 
+When the cells of a level are anisotropic (a cell size at least 1.5 times the smallest one, as on a coarse flat grid,
+with immersed forcing, or on a level refined with ``amr.ref_ratio_vect = 2 2 1``), the multigrid solver on a
+constant-:math:`\Delta z` mesh coarsens each direction on its own: a direction whose cells are already the
+longest is not coarsened until the others catch up, so the coarse multigrid levels have nearly isotropic cells.
+Coarsening all directions together would keep the anisotropy on every multigrid level, and at an aspect ratio of
+4 or more the V-cycle then fails to converge.  Coarsening stops at the level where a direction that cannot be
+coarsened any further (because the domain or the grids are too narrow in it) has become the short one; the
+bottom solver handles the rest.  Levels with isotropic cells are coarsened as before.
+
 For simulations using grid stretching in the vertical but a flat lower boundary, we must use the hybrid FFT solver in which
 we perform 2D transforms only in the lateral directions and couple the solution in the vertical direction with a tridiagonal solve.
 Because the vertical solve is tridiagonal, the z direction must not be periodic: a projection on a stretched mesh that is
