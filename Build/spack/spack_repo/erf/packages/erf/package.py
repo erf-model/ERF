@@ -169,6 +169,12 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         when="@26.10:",
     )
     variant(
+        "moving_bodies",
+        default=False,
+        description="Enable the actuator core and structure coupling for bodies in the flow",
+        when="@26.12:",
+    )
+    variant(
         "unit_tests",
         default=True,
         description="Build the GoogleTest unit tests alongside the regression tests",
@@ -527,7 +533,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
                 f.write(contents.replace(marker, "find_package(GTest REQUIRED)"))
 
     def setup_build_environment(self, env):
-        if self.spec.satisfies("+rocm"):
+        if self.spec.satisfies("+rocm") and "llvm-amdgpu" in self.spec:
             # Spack-built rocprim (through rocthrust) puts llvm-amdgpu among the link
             # dependencies, so the compiler wrapper adds its include directory, where gfortran
             # then opens flang's iso_c_binding.mod instead of its own. hipcc finds it itself.
@@ -566,6 +572,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
             self.define_from_variant("ERF_ENABLE_WDM6_FORT", "wdm6_fort"),
             self.define_from_variant("ERF_ENABLE_EAMXX_SHOC", "eamxx_shoc"),
             self.define_from_variant("ERF_ENABLE_FIRE", "fire"),
+            self.define_from_variant("ERF_ENABLE_MOVING_BODIES", "moving_bodies"),
             self.define("ERF_PRECISION", spec.variants["precision"].value.upper()),
         ]
 
