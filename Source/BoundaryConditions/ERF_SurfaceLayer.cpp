@@ -73,13 +73,16 @@ covers_columns (const Array4<const Real>& a, const Box& b)
  * water moves: a face takes the current where the cells on both sides of it are water
  * (land mask 0), and is at rest elsewhere; without a land mask every face moves.
  *
- * @param[out] current one component of the current, on 2D boxes at k = klo
- * @param[in]  speed   uniform current [m/s]
- * @param[in]  dir     0 for the x-component on x-faces, 1 for the y-component on y-faces
- * @param[in]  lmask   land mask on one 2D box for each box of the current, or null
+ * @param[out] current   one component of the current, on 2D boxes at k = klo
+ * @param[in]  speed     uniform current [m/s]
+ * @param[in]  dir       0 for the x-component on x-faces, 1 for the y-component on y-faces
+ * @param[in]  lmask     land mask on one 2D box for each box of the current, or null
+ * @param[in]  in_domain the cell whose land mask is read for a cell beside a face: the cell
+ *                       itself, or outside a non-periodic domain the nearest one inside it
  */
 void
-fill_face_current (MultiFab& current, Real speed, int dir, const iMultiFab* lmask)
+fill_face_current (MultiFab& current, Real speed, int dir, const iMultiFab* lmask,
+                   const NearestColumn& in_domain)
 {
     const bool has_mask = (lmask != nullptr);
     const int di = (dir == 0) ? 1 : 0;
@@ -93,7 +96,9 @@ fill_face_current (MultiFab& current, Real speed, int dir, const iMultiFab* lmas
         const int km = has_mask ? amrex::lbound(m).z : 0;
         ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            const bool water = !has_mask || (m(i-di,j-dj,km) == 0 && m(i,j,km) == 0);
+            const bool water = !has_mask ||
+                (m(in_domain.i(i-di), in_domain.j(j-dj), km) == 0 &&
+                 m(in_domain.i(i), in_domain.j(j), km) == 0);
             c(i,j,k) = water ? speed : zero;
         });
     }
@@ -148,6 +153,14 @@ SurfaceLayer::define_surface_current (const int& lev, const MultiFab& xvel, cons
     const iMultiFab* lmask = (lev < static_cast<int>(m_lmask_lev.size()) &&
                               !m_lmask_lev[lev].empty()) ? m_lmask_lev[lev][0] : nullptr;
 
+    // Outside a non-periodic domain the mask's ghost cells hold no land data, so a cell
+    // there reads the nearest column inside; the periodic ghost cells hold their images
+    Box columns = m_geom[lev].Domain();
+    for (int d = 0; d < 2; ++d) {
+        if (m_geom[lev].isPeriodic(d)) { columns.grow(d, xvel.nGrowVect()[d] + 1); }
+    }
+    const NearestColumn in_domain(columns);
+
     for (int dir = 0; dir < 2; ++dir) {
         const MultiFab& vel = (dir == 0) ? xvel : yvel;
         auto& current = (dir == 0) ? m_surface_current_x[lev] : m_surface_current_y[lev];
@@ -158,7 +171,7 @@ SurfaceLayer::define_surface_current (const int& lev, const MultiFab& xvel, cons
         for (auto& b : bl) { b.setRange(2, klo); }
         const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
         current = std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(), 1, ng);
-        fill_face_current(*current, m_surface_current_const[dir], dir, lmask);
+        fill_face_current(*current, m_surface_current_const[dir], dir, lmask, in_domain);
     }
 
     define_relative_velocities(lev, xvel, yvel, m_ma.max_k_read(lev));
