@@ -3505,6 +3505,31 @@ function(add_test_twoway_scratch_regrid TEST_NAME)
 endfunction(add_test_twoway_scratch_regrid)
 add_test_twoway_scratch_regrid(TwoWay_FourLevels_PartialDepth)
 
+# Anelastic projection by multigrid (erf.use_fft = 0) on a constant-dz mesh whose cells are 4 times
+# longer in x (2-D, y hidden), or in x and y (3-D), than in z.  With every direction coarsened
+# together the V-cycle diverged at this aspect ratio and the run stopped in the first step
+# (erf-model/ERF#5064); the anisotropic directions are now coarsened on their own.  The test
+# requires the log to show the multigrid solves (so that a switch to another solver cannot make it
+# vacuous) and the run to finish two steps.
+function(add_test_mlmg_aniso TEST_NAME OPTIONS)
+    set(TEST_FILES_DIR "DensityCurrent_anelastic")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(test_command sh -c "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/DensityCurrent_anelastic.i erf.use_fft=0 erf.mg_v=1 max_step=2 erf.plot_int_1=-1 ${OPTIONS} amrex.call_addr2line=0 > ${test_log} 2>&1 && grep -q 'MLMG: Final Iter' ${test_log} && grep -q 'Coarse STEP 2 ends' ${test_log} ) || ( cat ${test_log} && false )")
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${test_log}"
+    )
+endfunction(add_test_mlmg_aniso)
+add_test_mlmg_aniso(MLMG_Aniso_2D "amr.n_cell='64 1 64'")
+add_test_mlmg_aniso(MLMG_Aniso_3D "amr.n_cell='64 16 64' geometry.prob_hi='25600 6400 6400'")
+
 # Two-way coupling refluxes the diffusive as well as the advective fluxes, so in a closed domain the
 # composite integral of a scalar is conserved across coarse/fine faces whatever transports it.
 # Moisture diffuses through a face normal to z, with the vertical diffusion implicit (the deck as
