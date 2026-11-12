@@ -2803,6 +2803,14 @@ List of Parameters
 |                                          | diagnosed with Ribcr = 0, a taller mixing region; false  |                    |                  |
 |                                          | uses the Ribcr = 0.5 corrected height, as WRF does       |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mrf_fire_thermal_excess**      | MRF with the fire coupling only: raise the convective    | Boolean            | false            |
+|                                          | velocity scale w* of burning columns with the lagged     |                    |                  |
+|                                          | fire heat flux; needs erf.fire.coupling_type = lagged    |                    |                  |
+|                                          | or synchronous                                           |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mrf_fire_q_threshold**             | Fire heat flux [W/m2] above which a column counts as     | Real >= 0          | 50               |
+|                                          | burning for that boost                                   |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.advect_tke**                       | advect the turbulent kinetic energy (per-level); read    | Boolean            | true             |
 |                                          | only when the PBL scheme carries TKE                     |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+

@@ -343,6 +343,19 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_mrf_fire_thermal_excess", mrf_fire_thermal_excess, lev, max_level);
+        query_one_or_per_level(
+          pp, "mrf_fire_q_threshold", mrf_fire_q_threshold, lev, max_level);
+        if (mrf_fire_q_threshold < amrex::Real(0)) {
+          amrex::Abort("erf.mrf_fire_q_threshold must be >= 0");
+        }
+#ifndef ERF_USE_FIRE
+        if (mrf_fire_thermal_excess) {
+          amrex::Abort("erf.pbl_mrf_fire_thermal_excess = true needs the fire coupling"
+                       "; rebuild with it (CMake ERF_ENABLE_FIRE=ON, GNU make USE_FIRE=TRUE)");
+        }
+#endif
         // QNSE stable stability functions (Sukoriansky et al. 2005)
         query_one_or_per_level(
           pp, "enable_qnse_stable_functions", enable_qnse_stable_functions, lev, max_level);
@@ -815,6 +828,10 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
                      << std::endl;
+      amrex::Print() << "    pbl_mrf_fire_thermal_excess : " << mrf_fire_thermal_excess
+                     << std::endl;
+      amrex::Print() << "    mrf_fire_q_threshold        : " << mrf_fire_q_threshold
+                     << std::endl;
       amrex::Print() << "    pbl_blend_length   : " << pbl_blend_length
                      << std::endl;
       amrex::Print() << "    pbl_blend_cs       : " << pbl_blend_cs
@@ -1078,6 +1095,8 @@ public:
   amrex::Real pbl_mrf_Sc_t = amrex::Real(0); // MRF: the passive scalars' Schmidt number; Scalar_v = Theta_v * Pr_t / Sc_t, and 0 gives Scalar_v = Theta_v
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
+  bool mrf_fire_thermal_excess = false; // MRF with fire: raise w* in columns where the lagged fire heat flux exceeds mrf_fire_q_threshold
+  amrex::Real mrf_fire_q_threshold = amrex::Real(50.0); // fire heat flux [W/m2] above which a column counts as burning
   // QNSE (Quasi-Normal Scale Elimination) spectral stable stability functions
   // Sukoriansky, S., B. Galperin, and V. Perov, 2005: Application of a New Spectral
   // Theory of Stably Stratified Turbulence to the Atmospheric Boundary Layer over

@@ -3296,6 +3296,38 @@ ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
     // The coupling inputs, with their range checks; with erf.fire.enable the
     // engine must be one compiled into this executable (ERF_REGISTER_FIRE_ENGINE)
     m_fire_params = FireCouplingParams::read();
+
+    // erf.pbl_mrf_fire_thermal_excess adds the lagged fire flux to the MRF
+    // thermal excess; it is inert without an injecting fire or another PBL.
+    // TurbChoice reads it only under erf.pbl_type = MRF, so with any other PBL
+    // the key was silently ignored: check the deck for it directly.
+    {
+        amrex::ParmParse pp_erf("erf");
+        bool any_mrf = false;
+        for (int lev = 0; lev <= max_level; ++lev) {
+            any_mrf = any_mrf || (solverChoice.turbChoice[lev].pbl_type == PBLType::MRF);
+        }
+        if (!any_mrf && pp_erf.contains("pbl_mrf_fire_thermal_excess")) {
+            amrex::Abort("[FIRE] erf.pbl_mrf_fire_thermal_excess is set but no level runs erf.pbl_type = MRF;"
+                         " the key is read only by the MRF scheme");
+        }
+    }
+    for (int lev = 0; lev <= max_level; ++lev) {
+        const auto& tc = solverChoice.turbChoice[lev];
+        if (!tc.mrf_fire_thermal_excess) { continue; }
+        if (!m_fire_params.enable || !m_fire_params.injects_flux()) {
+            amrex::Abort("[FIRE] erf.pbl_mrf_fire_thermal_excess = true on level " + std::to_string(lev)
+                         + " needs erf.fire.enable = true with erf.fire.coupling_type = lagged or synchronous"
+                         " (the fire flux it adds)");
+        }
+        // the lagged flux carries 5 halo columns (FireCoupler::initialize); the
+        // smoothing stencil must fit them
+        if (tc.enable_pblh_smoothing && tc.pblh_smoothing_passes > 5) {
+            amrex::Abort("[FIRE] erf.pbl_mrf_fire_thermal_excess reads the lagged fire flux in a halo of 5 columns;"
+                         " erf.pblh_smoothing_passes = " + std::to_string(tc.pblh_smoothing_passes) + " needs more."
+                         " Use at most 5 passes with the fire thermal excess.");
+        }
+    }
     if (!m_fire_params.enable) { return; }
 
     // Contracts between the fire inputs and the solver inputs, checked here
