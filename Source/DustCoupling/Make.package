@@ -1,0 +1,4 @@
+CEXE_headers += ERF_DustModel.H
+CEXE_headers += ERF_DustModelRegistry.H
+CEXE_sources += ERF_DustModelRegistry.cpp
+CEXE_sources += ERF_DustCoupling.cpp
