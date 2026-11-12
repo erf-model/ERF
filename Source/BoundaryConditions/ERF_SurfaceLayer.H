@@ -549,6 +549,11 @@ public:
               amrex::Print() << "Variable sea roughness (type " << rough_sea_string
                              << ")" << std::endl;
           }
+
+          // The surface current moves only the water, so without water it would do nothing
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_surface_current || lmask_min < 1,
+              "most.surface_current moves only water, and the surface has none: set "
+              "erf.is_land = 0 or supply a land mask with water.");
       }
 
       if (m_eddyDiffs_lev.size() < lev+1) {
@@ -1428,18 +1433,32 @@ public:
   {
       m_ma.update_field_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
       if (m_use_surface_current) {
-          // Average the wind relative to the surface
+          // Average the wind relative to the surface. The averages read a copy of the
+          // velocities taken here, not the velocities themselves, so they must be computed
+          // before the velocities change, as update_fluxes does right after this.
           build_relative_velocities(lev, vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel]);
           m_ma.set_velocity_field_ptrs(lev, m_rel_xvel[lev].get(), m_rel_yvel[lev].get());
       }
   }
 
   /**
-   * Fill the velocities relative to the surface current, allocating them and the current
-   * for this level's layout when it is new or has changed.
+   * Set the surface current for this level's velocity layout, allocating it when the
+   * layout is new or has changed.
    *
    * The current is held on the x- and y-faces of the plane k = klo, one 2D box for each
-   * box of the velocities, with their lateral ghost cells.
+   * box of the velocities, with their lateral ghost cells. Only water moves: a face takes
+   * the current where the cells on both sides of it are water (land mask 0), and is at
+   * rest elsewhere.
+   *
+   * @param[in] lev  level index
+   * @param[in] xvel x-velocity on the level
+   * @param[in] yvel y-velocity on the level
+   */
+  void set_surface_current (int lev, const amrex::MultiFab& xvel, const amrex::MultiFab& yvel);
+
+  /**
+   * Set the surface current (set_surface_current) and fill the velocities relative to it,
+   * allocating them when the layout is new or has changed.
    *
    * @param[in] lev  level index
    * @param[in] xvel x-velocity on the level

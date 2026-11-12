@@ -11,13 +11,15 @@ for every listed field, periodic in i. A field whose position is computed from t
 cell index without geometry.prob_lo, or from prob_lo in a way that is not a shift,
 breaks this.
 
-A field named in --offset-vars is a height that moves with the domain: run B moved it
-by D in z, so the check is instead B(i,j,k) = A(i+S,j,k) + D.
+A field named in --offset-vars is one that run B shifts by D: a height that moves with
+the domain moved by D in z, or a velocity in a frame moving at -D. The check is instead
+B(i,j,k) = A(i+S,j,k) + D.
 
 The check reports max |B(i) - A(i+S)| over the domain for each field, relative to
-max |A|, and fails above --tol. It stops when a field could not tell a shifted state
-from an unshifted one: uniform in x in run A for S != 0, or uniform everywhere for
-S = 0 (the domain moved in z, which a profile in z can show).
+max |A| (and |D|), and fails above --tol. It stops when a field could not tell a shifted
+state from an unshifted one: uniform in x in run A for S != 0, or uniform everywhere for
+S = 0 (the domain moved in z, which a profile in z can show). A field checked against a
+nonzero D can tell, uniform or not.
 Exit status 0 on pass, 1 on a mismatch, 2 on a vacuous field.
 """
 
@@ -49,7 +51,12 @@ def main(argv):
         off = a.offset if name in a.offset_vars else 0.0
         nx, ny, nz = len(fa), len(fa[0]), len(fa[0][0])
         amax = max(abs(fa[i][j][k]) for i in range(nx) for j in range(ny) for k in range(nz))
-        if a.shift != 0:
+        if off != 0.0:
+            # the offset itself tells the two runs apart
+            var = abs(off)
+            amax = max(amax, abs(off))
+            where = ""
+        elif a.shift != 0:
             # an index shift in x is only seen by a field that varies in x
             var = max(abs(fa[i][j][k] - fa[0][j][k]) for i in range(nx) for j in range(ny) for k in range(nz))
             where = "in x"

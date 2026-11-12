@@ -108,32 +108,71 @@ SurfaceLayer::set_immersed_surface_params (const int& lev)
 }
 
 void
-SurfaceLayer::build_relative_velocities (int lev, const MultiFab& xvel, const MultiFab& yvel)
+SurfaceLayer::set_surface_current (int lev, const MultiFab& xvel, const MultiFab& yvel)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
 
-    // One component: its current on the faces of the plane k = klo, and the velocity less it
-    auto build = [klo] (const MultiFab& vel, Real current_const,
-                        std::unique_ptr<MultiFab>& current, std::unique_ptr<MultiFab>& rel)
+    // The land mask, on one 2D box for each 3D box like the current, carries one more
+    // lateral ghost cell than the velocities, so both cells beside every face are in it
+    const iMultiFab* lmask = (lev < static_cast<int>(m_lmask_lev.size()) &&
+                              !m_lmask_lev[lev].empty()) ? m_lmask_lev[lev][0] : nullptr;
+    const bool has_mask = (lmask != nullptr);
+
+    // One component, on the faces normal to dir of the plane k = klo
+    auto set = [&] (const MultiFab& vel, int dir, std::unique_ptr<MultiFab>& current)
+    {
+        BoxList bl = vel.boxArray().boxList();
+        for (auto& b : bl) { b.setRange(2, klo); }
+        BoxArray ba(std::move(bl));
+        const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
+        if (!current || current->boxArray() != ba ||
+            current->DistributionMap() != vel.DistributionMap() || current->nGrowVect() != ng) {
+            current = std::make_unique<MultiFab>(ba, vel.DistributionMap(), 1, ng);
+        }
+        const Real speed = m_surface_current_const[dir];
+        const int di = (dir == 0) ? 1 : 0;
+        const int dj = (dir == 1) ? 1 : 0;
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*current, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto c = current->array(mfi);
+            const auto m = has_mask ? lmask->const_array(mfi) : Array4<const int>{};
+            const int km = has_mask ? amrex::lbound(m).z : 0;
+            ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                const bool water = !has_mask ||
+                                   (m(i-di,j-dj,km) == 0 && m(i,j,km) == 0);
+                c(i,j,k) = water ? speed : zero;
+            });
+        }
+    };
+    set(xvel, 0, m_surface_current_x[lev]);
+    set(yvel, 1, m_surface_current_y[lev]);
+}
+
+void
+SurfaceLayer::build_relative_velocities (int lev, const MultiFab& xvel, const MultiFab& yvel)
+{
+    set_surface_current(lev, xvel, yvel);
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    // One component less its current, on the velocity's own layout and ghost cells
+    auto build = [klo] (const MultiFab& vel, const MultiFab& current,
+                        std::unique_ptr<MultiFab>& rel)
     {
         if (!rel || rel->boxArray() != vel.boxArray() ||
             rel->DistributionMap() != vel.DistributionMap() ||
             rel->nGrowVect() != vel.nGrowVect()) {
             rel = std::make_unique<MultiFab>(vel.boxArray(), vel.DistributionMap(), 1,
                                              vel.nGrowVect());
-            BoxList bl = vel.boxArray().boxList();
-            for (auto& b : bl) { b.setRange(2, klo); }
-            const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
-            current = std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(),
-                                                 1, ng);
-            current->setVal(current_const);
         }
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*rel, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const auto v = vel.const_array(mfi);
-            const auto c = current->const_array(mfi);
+            const auto c = current.const_array(mfi);
             const auto r = rel->array(mfi);
             ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -141,8 +180,8 @@ SurfaceLayer::build_relative_velocities (int lev, const MultiFab& xvel, const Mu
             });
         }
     };
-    build(xvel, m_surface_current_const[0], m_surface_current_x[lev], m_rel_xvel[lev]);
-    build(yvel, m_surface_current_const[1], m_surface_current_y[lev], m_rel_yvel[lev]);
+    build(xvel, *m_surface_current_x[lev], m_rel_xvel[lev]);
+    build(yvel, *m_surface_current_y[lev], m_rel_yvel[lev]);
 }
 
 /**

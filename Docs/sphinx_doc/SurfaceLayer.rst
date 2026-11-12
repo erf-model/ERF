@@ -332,11 +332,17 @@ speed :math:`|\bar{\mathbf{u}}|` and mean components behind :math:`u_*`, the Obu
 and the roughness, in the direction and magnitude of the stresses, and in the wind speed
 of the heat and moisture fluxes. The 10 m wind diagnostics ``u_10m`` and ``v_10m`` are the
 relative wind from the similarity profile plus the current, so they remain winds over the
-ground. Turbulence closures that read the lowest-level wind directly rather than through the
-surface layer, such as the countergradient terms of YSU, still use the absolute wind.
+ground. PBL schemes that take the mean wind speed from the surface layer get the relative
+speed, while the winds they read from the grid themselves stay absolute: YSU, for example,
+forms its surface bulk Richardson number from the relative speed but those of the levels above
+from the absolute wind, and the countergradient momentum terms of the newer YSU use the absolute
+wind at the lowest level.
 
-The current is applied at the z-low face on every level, and is not supported with EB
-terrain.
+Only water moves. A face of the lowest cells takes the current where the cells on both sides
+of it are water (land mask 0), and is at rest over land and buildings. A surface with no water
+is an error, since the current would do nothing; idealized cases are all land unless
+``erf.is_land = 0``. The current is applied at the z-low face on every level, and is not
+supported with EB terrain.
 
 Limits on the similarity solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
