@@ -130,7 +130,9 @@ solving for the pressure that enforces it.  The constraint is
 
 where :math:`\rho_0(z)` and :math:`\theta_0(z)` are the density and dry
 potential temperature of the hydrostatic base state.  The anelastic
-constraint is recovered with :math:`\theta_0` constant.
+constraint is recovered with :math:`\theta_0` constant.  With heating or
+diffusion the right-hand side is a source term :math:`S` (see **Source
+term** below).
 
 **Projection.**  Both the anelastic and pseudo-incompressible
 projections can be written in terms of a face-centered weight
@@ -261,12 +263,45 @@ values of :math:`\beta` above, maintains to the tolerance of the solve
 without heating or diffusion.  With ``erf.v = 1`` and
 ``erf.sum_interval``, ``PI DRIFT`` reports the maximum of
 :math:`|\rho\theta - \rho_0\theta_0| / (\rho_0\theta_0)` over the
-pseudo-incompressible levels.
+pseudo-incompressible levels, leaving out cells covered by a finer level
+(``erf.v = 2`` also prints it for each level).
+
+**Source term.**  With heating or diffusion, :math:`\rho\theta` changes
+by its non-advective tendency :math:`Q` (the diffusion, including any
+implicit vertical diffusion, and the sources of ``cc_src`` such as
+radiation, nudging and sponges), so keeping
+:math:`\rho\theta = \rho_0\theta_0` requires
+
+.. math::
+   \nabla \cdot (\rho_0\theta_0 \mathbf{u}) = S, \qquad
+   S = Q + c\, \frac{\rho\theta - \rho_0\theta_0}{\Delta t},
+
+discretely :math:`\nabla\cdot(\beta\,\mathbf{m}) = S` with the divergence
+of the advective update of :math:`\rho\theta`.  The projection at the end
+of each stage sets the velocity with which the next stage advects
+:math:`\rho\theta`, whose :math:`Q` is not yet known, so it uses the
+:math:`Q` of the stage just taken: the whole :math:`\rho\theta`
+tendency of that stage less its advective part (with the RK2 integrator,
+the average over the two stages where the tendency is averaged).  The
+second term, with :math:`c` = ``erf.pi_drift_factor`` (default 0.5) and
+:math:`\Delta t` the level's time step, pulls back what the lag of
+:math:`Q` leaves, together with any other departure from
+:math:`\rho_0\theta_0`; values of :math:`c` above about 1 can be
+unstable.  The initial projection takes :math:`S = 0`, and :math:`Q` is
+kept in the checkpoint.  On the stratified hill of
+``Tests/test_files/PseudoIncompressible_StratifiedHill`` with
+:math:`\alpha_T = 10\ \mathrm{m^2/s}`, the drift after 10 steps is
+:math:`10^{-3}` with :math:`S = 0`, :math:`2 \times 10^{-5}` with
+:math:`S = Q` (it keeps growing, since the lag of :math:`Q` is first
+order in time) and :math:`5 \times 10^{-6}` with :math:`c = 0.5` (it
+stays at a few :math:`10^{-6}` over 50 steps).  Latent heating from the
+microphysics, which acts after the dynamics, is not in :math:`Q`; only
+the drift correction acts on it.
 
 **Current status.**  The following are not yet implemented:
 
-- a source term in the constraint, :math:`\nabla\cdot(\rho_0\theta_0\mathbf{u}) = S`,
-  representing diabatic heating and diffusion,
+- latent heating in the source term (with moist pseudo-incompressible
+  flow below), and the source term on an embedded-boundary mesh,
 - face values of :math:`\beta` that match the advection of
   :math:`\rho\theta` on an embedded-boundary mesh (there the scalars
   are upwinded with the sign of the projected mass flux),
@@ -279,10 +314,13 @@ pseudo-incompressible levels.
   averaged down: on refined levels :math:`\rho\theta` still drifts from
   :math:`\rho_0\theta_0`.  In ten steps on the stratified hill of
   ``Tests/test_files/PseudoIncompressible_StratifiedHill`` the drift is
-  about :math:`10^{-5}` with one-way coupling and :math:`10^{-4}` with
-  two-way coupling, against :math:`10^{-10}` on a single level; the
-  upwind direction at the coarse/fine faces is not yet made consistent
-  between the levels either,
+  about :math:`3 \times 10^{-6}` with one-way coupling (:math:`10^{-5}`
+  without the drift correction) and :math:`10^{-4}` with two-way
+  coupling, against :math:`10^{-10}` on a single level.  With two-way
+  coupling the drift is in the coarse cells next to the fine level, which
+  the reflux changes every coarse step by about as much as the drift
+  correction removes; the upwind direction at the coarse/fine faces is
+  not yet made consistent between the levels either,
 - the implicit immersed-forcing drag in the projection
   (``erf.if_implicit_projection``),
 - a refined level that stops inside the domain in :math:`z` on a

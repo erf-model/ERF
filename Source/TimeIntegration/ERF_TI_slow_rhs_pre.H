@@ -298,8 +298,17 @@
         // projection at the end of this stage overwrites pi_upw_dir)
         // *****************************************************************************
         Array<const MultiFab*,AMREX_SPACEDIM> upw_dir{AMREX_D_DECL(nullptr,nullptr,nullptr)};
-        if (solverChoice.compressibility_type[level] == CompressibilityType::PseudoIncompressible &&
-            solverChoice.terrain_type != TerrainType::EB) {
+        const bool l_pi_src = (solverChoice.compressibility_type[level] == CompressibilityType::PseudoIncompressible &&
+                               solverChoice.terrain_type != TerrainType::EB);
+        if (l_pi_src) {
+            for (auto* m : {&pi_adv_rt[level], &pi_src[level]}) {
+                if (!*m || (*m)->boxArray() != grids[level] || (*m)->DistributionMap() != dmap[level]) {
+                    *m = std::make_unique<MultiFab>(grids[level], dmap[level], 1, 0);
+                    (*m)->setVal(zero_d);
+                }
+            }
+        }
+        if (l_pi_src) {
             define_pi_upw_dir(level);
             for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
                 MultiFab::Copy(*pi_upw_dir_stage[level][idim], *pi_upw_dir[level][idim], 0, 0, 1, 0);
@@ -312,6 +321,7 @@
         // *****************************************************************************
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data,
                          S_prim, qt, avg_xmom[level], avg_ymom[level], avg_zmom[level], upw_dir,
+                         l_pi_src ? pi_adv_rt[level].get() : nullptr,
                          xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
@@ -414,6 +424,15 @@
         if (solverChoice.turbChoice[level].uses_native_shoc() && native_shoc_driver[level]) {
             // Native SHOC applies its increment directly to state; ERF no
             // longer adds a separate fast RHS contribution.
+        }
+
+        // *****************************************************************************
+        // Pseudo-incompressible: the non-advective tendency of (rho theta) in this stage, the
+        // whole (rho theta) RHS (now including any implicit diffusion) less its advective part
+        // *****************************************************************************
+        if (l_pi_src) {
+            MultiFab::Copy    (*pi_src[level], S_rhs[IntVars::cons], RhoTheta_comp, 0, 1, 0);
+            MultiFab::Subtract(*pi_src[level], *pi_adv_rt[level], 0, 0, 1, 0);
         }
 
         // *****************************************************************************

@@ -470,6 +470,44 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     }
 
     // ****************************************************************************
+    // Pseudo-incompressible source: the next update of (rho theta) adds dt (Q - div(m)), with Q
+    // its non-advective tendency (diffusion and sources).  So that it keeps rho theta =
+    // rho0 theta0, the projection imposes div(m) = S with
+    //     S = Q + c (rho theta - rho0 theta0) / dt,
+    // Q from the latest stage (pi_src) and c = erf.pi_drift_factor, which pulls back a departure
+    // from rho0 theta0 that the lag of Q, processes outside the dynamics (microphysics) or the
+    // coarse/fine coupling leave.  dt is the level's time step.  Not on an EB mesh, and not in
+    // the initial projection, which is given the density alone (S = 0).
+    // ****************************************************************************
+    MultiFab pi_S;
+    if (l_pi && solverChoice.terrain_type != TerrainType::EB &&
+        mom_mf[Vars::cons].nComp() > RhoTheta_comp)
+    {
+        pi_S.define(grids[lev], dmap[lev], 1, 0);
+        const Real c_drift = solverChoice.pi_drift_factor;
+        const Real inv_dt  = (dt[lev] > 0.0) ? static_cast<Real>(1.0 / dt[lev]) : zero;
+        const bool have_Q  = pi_src[lev] && pi_src[lev]->boxArray() == grids[lev] &&
+                             pi_src[lev]->DistributionMap() == dmap[lev];
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(pi_S,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.tilebox();
+            const Array4<      Real>& s_arr  = pi_S.array(mfi);
+            const Array4<const Real>& c_arr  = mom_mf[Vars::cons].const_array(mfi);
+            const Array4<const Real>& b_arr  = base_state[lev].const_array(mfi);
+            const Array4<const Real>& dJ_arr = detJ_cc[lev]->const_array(mfi);
+            const Array4<const Real>  q_arr  = have_Q ? pi_src[lev]->const_array(mfi) : Array4<const Real>{};
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (dJ_arr(i,j,k) <= zero) { s_arr(i,j,k) = zero; return; }
+                const Real rt0 = b_arr(i,j,k,BaseState::r0_comp) * b_arr(i,j,k,BaseState::th0_comp);
+                s_arr(i,j,k) = (have_Q ? q_arr(i,j,k) : zero)
+                             + c_drift * (c_arr(i,j,k,RhoTheta_comp) - rt0) * inv_dt;
+            });
+        }
+    }
+
+    // ****************************************************************************
     // Implicit immersed drag (erf.if_implicit_projection): m = sigma (m* - grad phi) with
     // sigma = 1 / (1 + dt rate) on each face, so the constraint is div(sigma grad phi) = div(sigma m*)
     // ****************************************************************************
@@ -849,6 +887,19 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                             rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
             }
         } // lev 0 && use_real_bcs
+
+        // Pseudo-incompressible: impose div(m) = S (see pi_S above)
+        if (pi_S.ok()) {
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
+                const int orig_index = index_map[mfi.index()];
+                const Box& bx = mfi.validbox();
+                const Array4<      Real>& r_arr = rhs_sub[0].array(mfi);
+                const Array4<const Real>& s_arr = pi_S.const_array(orig_index);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    r_arr(i,j,k) -= s_arr(i,j,k);
+                });
+            }
+        }
 
         // *******************************************************************************************
         // Enforce solvability if the problem is singular (i.e all sides Neumann or periodic)
