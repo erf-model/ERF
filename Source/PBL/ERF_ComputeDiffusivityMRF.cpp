@@ -956,6 +956,9 @@ if (ng_pblh > 1) {
         const amrex::Real l_blend_length = turbChoice.pbl_blend_length;
         const amrex::Real l_blend_cs     = turbChoice.pbl_blend_cs;
         const amrex::Real l_blend_cmax   = turbChoice.pbl_blend_c_max;
+        // The scalars' Schmidt number relative to Pr_t (erf.pbl_mrf_Sc_t; 0: as heat)
+        const amrex::Real scalar_Sc_t = turbChoice.pbl_mrf_Sc_t;
+        const amrex::Real Pr_t_in     = turbChoice.Pr_t;
         //const bool        l_use_smag_ceil= turbChoice.pbl_blend_use_smag;
         // dx: use horizontal spacing at this level (assume dx = dy for regular grids).
         const amrex::Real l_dx = geom.CellSize(0);
@@ -983,6 +986,7 @@ if (ng_pblh > 1) {
                 K_turb(i, j, k, EddyDiff::Mom_v)   = Real(0);
                 K_turb(i, j, k, EddyDiff::Theta_v) = Real(0);
                 K_turb(i, j, k, EddyDiff::Q_v)     = Real(0);
+                K_turb(i, j, k, EddyDiff::Scalar_v) = Real(0);
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = Real(0);
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = Real(0);
                 K_turb(i, j, k, EddyDiff::Turb_lengthscale) = Real(0);
@@ -1088,6 +1092,8 @@ if (ng_pblh > 1) {
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rho * wstar * KAPPA * zval * zfac * zfac;
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
                 K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                // The passive scalars (rhoadv_0, dust, smoke) mix as heat does
+                K_turb(i, j, k, EddyDiff::Scalar_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             } else if (k >= pbli_extent) {
                 // Free atmosphere above the PBL top.  This is the only branch left that
                 // reads resolved vertical gradients, but they are not evaluated anywhere
@@ -1141,6 +1147,7 @@ if (ng_pblh > 1) {
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr_mom;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
                 K_turb(i, j, k, EddyDiff::Q_v)     = K_turb(i, j, k, EddyDiff::Theta_v);
+                K_turb(i, j, k, EddyDiff::Scalar_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             }
 
             // Scale-aware blending for grey-zone resolution (Boutle et al. 2014).
@@ -1163,6 +1170,11 @@ if (ng_pblh > 1) {
 
                 K_turb(i, j, k, EddyDiff::Q_v) = rho * pbl_kh_blend_and_cap(
                     K_turb(i, j, k, EddyDiff::Q_v) * rho_inv,
+                    l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
+                    amrex::Real(-1.0), false);
+
+                K_turb(i, j, k, EddyDiff::Scalar_v) = rho * pbl_kh_blend_and_cap(
+                    K_turb(i, j, k, EddyDiff::Scalar_v) * rho_inv,
                     l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
                     amrex::Real(-1.0), false);
             }
@@ -1189,6 +1201,13 @@ if (ng_pblh > 1) {
                 std::min(K_turb(i, j, k, EddyDiff::Theta_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Q_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
+            K_turb(i, j, k, EddyDiff::Scalar_v) = std::max(
+                std::min(K_turb(i, j, k, EddyDiff::Scalar_v), rhoKmax), rhoKmin);
+            // erf.pbl_mrf_Sc_t: the scalars' turbulent Schmidt number, relative to the
+            // Prandtl number erf.Pr_t; unset (0), they mix as heat does
+            if (scalar_Sc_t > Real(0)) {
+                K_turb(i, j, k, EddyDiff::Scalar_v) *= Pr_t_in / scalar_Sc_t;
+            }
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0) + zib;   // absolute height, as stored
 
             // IMPORTANT — units convention for HGAMT_v / HGAMQ_v:
@@ -1221,12 +1240,14 @@ if (ng_pblh > 1) {
             K_turb(i, j, klo-1, EddyDiff::Mom_v  ) = K_turb(i, j, klo, EddyDiff::Mom_v  );
             K_turb(i, j, klo-1, EddyDiff::Theta_v) = K_turb(i, j, klo, EddyDiff::Theta_v);
             K_turb(i, j, klo-1, EddyDiff::Q_v    ) = K_turb(i, j, klo, EddyDiff::Q_v    );
+            K_turb(i, j, klo-1, EddyDiff::Scalar_v) = K_turb(i, j, klo, EddyDiff::Scalar_v);
             K_turb(i, j, klo-1, EddyDiff::HGAMT_v) = K_turb(i, j, klo, EddyDiff::HGAMT_v);
             K_turb(i, j, klo-1, EddyDiff::HGAMQ_v) = K_turb(i, j, klo, EddyDiff::HGAMQ_v);
             K_turb(i, j, klo-1, EddyDiff::Turb_lengthscale) = K_turb(i, j, klo, EddyDiff::Turb_lengthscale);
             K_turb(i, j, khi+1, EddyDiff::Mom_v  ) = K_turb(i, j, khi, EddyDiff::Mom_v  );
             K_turb(i, j, khi+1, EddyDiff::Theta_v) = K_turb(i, j, khi, EddyDiff::Theta_v);
             K_turb(i, j, khi+1, EddyDiff::Q_v    ) = K_turb(i, j, khi, EddyDiff::Q_v    );
+            K_turb(i, j, khi+1, EddyDiff::Scalar_v) = K_turb(i, j, khi, EddyDiff::Scalar_v);
             K_turb(i, j, khi+1, EddyDiff::HGAMT_v) = K_turb(i, j, khi, EddyDiff::HGAMT_v);
             K_turb(i, j, khi+1, EddyDiff::HGAMQ_v) = K_turb(i, j, khi, EddyDiff::HGAMQ_v);
             K_turb(i, j, khi+1, EddyDiff::Turb_lengthscale) = K_turb(i, j, khi, EddyDiff::Turb_lengthscale);

@@ -1217,6 +1217,19 @@ When enabled, the diffusivity bounds scale with local grid-spacing and density a
 - High-Resolution Bounds:
   :math:`K_{min} = 0.001 \times \Delta z \times \rho, K_{max} = 1000\ \text{m}^2/\text{s}`
 
+Passive Scalars
+^^^^^^^^^^^^^^^
+
+MRF sets the vertical diffusivity of the passive scalars (``rhoadv_0``, and the dust and
+smoke scalars when those couplings are built), ``EddyDiff::Scalar_v``, equal to the heat
+diffusivity, as for moisture: inside and above the PBL, with the same scale-aware blending
+and the same bounds. ``erf.pbl_mrf_Sc_t`` (default 0) sets a turbulent Schmidt number for
+them: with :math:`Sc_t > 0` their diffusivity is the heat one times
+:math:`Pr_t / Sc_t` (:math:`Pr_t` is ``erf.Pr_t``), the same for every passive scalar.
+Whether scalars should have different coefficients is erf-model/ERF#5080. Before this, MRF
+left ``Scalar_v`` at zero, so a run with MRF and no LES model did not mix the passive
+scalars vertically at all, and with an LES model alongside they took its vertical value.
+
 Combined Usage Examples
 ^^^^^^^^^^^^^^^^^^^^^^^
 
