@@ -2,147 +2,13 @@
 include(ProcessorCount)
 ProcessorCount(PROCESSES)
 
-# Shared handling of multi-word MPI launchers (e.g., "flux run").
-include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
-
-# The launcher for the test commands handed to `sh -c`. Each launcher token is quoted,
-# so a path with spaces ("C:/Program Files/Microsoft MPI/Bin/mpiexec.exe") stays one
-# word and a multi-word launcher ("flux run") stays several.
-set(ERF_SH_MPI_LAUNCHER "")
-if(ERF_ENABLE_MPI)
-    erf_mpi_launcher_tokens(_mpi_launcher_tokens "${MPIEXEC_EXECUTABLE}")
-    foreach(_token IN LISTS _mpi_launcher_tokens)
-        string(APPEND ERF_SH_MPI_LAUNCHER "\"${_token}\" ")
-    endforeach()
-endif()
+# The general helpers (resolve_test_exe, setup_test, add_test_r, the abort tests ...), kept
+# in their own file so that a parent project can include them too.
+include("${CMAKE_CURRENT_LIST_DIR}/ERFTestHelpers.cmake")
 
 #=============================================================================
 # Functions for adding tests / Categories of tests
 #=============================================================================
-function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
-    get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
-    if(WIN32 AND _multi_config)
-        # Multi-config generators place binaries in a config subdir, and which config is
-        # built is not known here.  The tests that launch through `sh -c` let the shell
-        # expand the wildcard; the ones driven through `cmake -P` call execute_process,
-        # which never invokes a shell, and expand it with erf_resolve_executable
-        # (Tests/ResolveExecutable.cmake) out of the CONFIG those tests are given.
-        set(${OUT_VAR} "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe" PARENT_SCOPE)
-    else()
-        set(_exe_in_subdir "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
-        set(_exe_in_root  "${PROJECT_BINARY_DIR}/Exec/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
-        if(EXISTS "${_exe_in_subdir}")
-            set(${OUT_VAR} "${_exe_in_subdir}" PARENT_SCOPE)
-        elseif(EXISTS "${_exe_in_root}")
-            set(${OUT_VAR} "${_exe_in_root}" PARENT_SCOPE)
-        else()
-            # Keep the historical path so the error message is still informative.
-            set(${OUT_VAR} "${_exe_in_subdir}" PARENT_SCOPE)
-        endif()
-    endif()
-endfunction()
-
-macro(setup_test)
-    if(DEFINED TEST_FILES_DIR AND NOT "${TEST_FILES_DIR}" STREQUAL "")
-        set(_test_source_dir_name "${TEST_FILES_DIR}")
-    else()
-        set(_test_source_dir_name "${TEST_NAME}")
-    endif()
-    set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${_test_source_dir_name})
-    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
-    set(PLOT_GOLD ${ERF_TEST_GOLD_FILES_DIRECTORY}/${TEST_NAME})
-
-    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
-    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
-    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
-
-    if(ERF_ENABLE_MPI)
-        set(NP ${ERF_TEST_NRANKS})
-        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
-        set(MPI_FCOMP_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
-    else()
-        set(NP 1)
-        unset(MPI_COMMANDS)
-        unset(MPI_FCOMP_COMMANDS)
-    endif()
-endmacro(setup_test)
-
-# Production contract test for native 3D plotfile names and unavailable-name warnings.
-function(add_test_plotfile_header TEST_NAME TEST_DIR TEST_EXE PLTFILE)
-    setup_test()
-
-    resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
-    set(header_checker "${PROJECT_SOURCE_DIR}/Tests/CheckPlotfileHeader.cmake")
-    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    set(header_file "${CURRENT_TEST_BINARY_DIR}/${PLTFILE}/Header")
-    # Regression motivation: this test is launched through `sh -c`, while on
-    # Windows CMAKE_COMMAND normally resides below "C:/Program Files". Keep
-    # checker executable and path-bearing arguments shell-quoted.
-    set(check_command
-        "\"${CMAKE_COMMAND}\""
-        "\"-DHEADER=${header_file}\""
-        "\"-DEXPECTED_NAMES_FILE=${CURRENT_TEST_BINARY_DIR}/expected_names.txt\""
-        "\"-DLOG=${test_log}\""
-        "\"-DEXPECTED_UNAVAILABLE_FILE=${CURRENT_TEST_BINARY_DIR}/expected_unavailable.txt\""
-        "-P"
-        "\"${header_checker}\"")
-    list(JOIN check_command " " check_command_string)
-    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
-    set(test_command sh -c
-        "${MPI_COMMANDS} ${TEST_EXE} \"${test_input}\" > \"${test_log}\" 2>&1 && ${check_command_string}")
-
-    add_test(${TEST_NAME} ${test_command})
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 300
-        PROCESSORS ${NP}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;plotfile"
-        ATTACHED_FILES_ON_FAIL "${test_log};${header_file}"
-    )
-endfunction(add_test_plotfile_header)
-
-# Standard regression test
-function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
-    set(options )
-    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
-    set(multiValueArgs )
-    cmake_parse_arguments(ADD_TEST_R "${options}" "${oneValueArgs}"
-        "${multiValueArgs}" ${ARGN})
-
-    setup_test()
-
-    set(RUNTIME_OPTIONS "${ADD_TEST_R_RUNTIME_OPTIONS}")
-    if(NOT "${ADD_TEST_R_INPUT_SOUNDING}" STREQUAL "")
-      string(APPEND RUNTIME_OPTIONS "erf.input_sounding_file=${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_R_INPUT_SOUNDING}")
-    endif()
-
-    resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
-
-    set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
-    set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
-    if(NOT "${ADD_TEST_R_FCOMPARE_RTOL}" STREQUAL "")
-        set(_fcompare_rtol "${ADD_TEST_R_FCOMPARE_RTOL}")
-    endif()
-    if(NOT "${ADD_TEST_R_FCOMPARE_ATOL}" STREQUAL "")
-        set(_fcompare_atol "${ADD_TEST_R_FCOMPARE_ATOL}")
-    endif()
-
-    set(FCOMPARE_TOLERANCE "-r ${_fcompare_rtol} --abs_tol ${_fcompare_atol}")
-    set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
-
-    add_test(${TEST_NAME} ${test_command})
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 600
-        PROCESSORS ${NP}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
-    )
-endfunction(add_test_r)
-
 # Rotated six-wall anelastic manufactured regression. Each case keeps a
 # linear theta profile stationary and checks the full field inventory.
 function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
@@ -1168,62 +1034,6 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         LABELS "regression;restart-parity"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/straight/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/parity.log;${_checker_log};${_post_checkpoint_log}")
 endfunction(add_test_restart_parity)
-
-# Restart abort: run a deck to a checkpoint, restart from it, and require the restart to stop
-# with EXPECTED_MESSAGE. For guards that only a restart can reach, which add_test_abort cannot
-# test because it runs a single leg and no checkpoint exists yet.  CHK_NRANKS and
-# RESTART_NRANKS are separate so a test can reproduce a restart on more ranks than the
-# checkpoint was written with, which is its own code path.
-function(add_test_restart_abort TEST_NAME TEST_FILES_DIR STEP_CHK EXPECTED_MESSAGE)
-    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "RUN_TIMEOUT")
-    cmake_parse_arguments(ADD_TEST_RA "" "${oneValueArgs}" "" ${ARGN})
-    setup_test()
-    resolve_test_exe("" "erf_exec" TEST_EXE)
-
-    set(_chk_nranks "${NP}")
-    set(_restart_nranks "${NP}")
-    if(NOT "${ADD_TEST_RA_CHK_NRANKS}" STREQUAL "")
-        set(_chk_nranks "${ADD_TEST_RA_CHK_NRANKS}")
-    endif()
-    if(NOT "${ADD_TEST_RA_RESTART_NRANKS}" STREQUAL "")
-        set(_restart_nranks "${ADD_TEST_RA_RESTART_NRANKS}")
-    endif()
-    set(_run_timeout 600)
-    set(_ctest_timeout 600)
-    if(DEFINED ADD_TEST_RA_RUN_TIMEOUT)
-        set(_run_timeout "${ADD_TEST_RA_RUN_TIMEOUT}")
-        math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
-    endif()
-    # The watchdog has to cover both legs, and the processor reservation the wider leg.
-    set(_procs "${_chk_nranks}")
-    if(_restart_nranks GREATER _procs)
-        set(_procs "${_restart_nranks}")
-    endif()
-
-    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
-        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
-        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
-        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
-        "-DCHK_NRANKS=${_chk_nranks}"
-        "-DRESTART_NRANKS=${_restart_nranks}"
-        "-DTEST_EXE=${TEST_EXE}"
-        "-DCONFIG=$<CONFIG>"
-        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
-        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
-        "-DSTEP_CHK=${STEP_CHK}"
-        "-DEXPECTED_MESSAGE=${EXPECTED_MESSAGE}"
-        "-DRUN_TIMEOUT=${_run_timeout}"
-        "-DCOMMON_OPTIONS=${ADD_TEST_RA_COMMON_OPTIONS}"
-        "-DRESTART_OPTIONS=${ADD_TEST_RA_RESTART_OPTIONS}"
-        -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartAbort.cmake)
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT ${_ctest_timeout}
-        PROCESSORS ${_procs}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;restart-parity"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/run/restart.log")
-endfunction(add_test_restart_abort)
 
 # Tiling parity: run one deck with MFIter tiling on and off and require identical
 # 3D and 2D plotfiles (no gold file). Catches kernels that loop over the valid box
@@ -2921,47 +2731,6 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_two_stream_radiation(TwoStream_ColumnHeating_TwoLevel "plt00002"
                                 CHECK_LEVELS 0 1)
 endif()
-
-# Start-up check: copy SOURCE_DIR, run INPUT_FILE on one rank with RUNTIME_OPTIONS
-# that break a start-up requirement, and pass when the run stops with
-# EXPECTED_MESSAGE in its output. The run is meant to abort, so its exit status is
-# dropped by the pipe into tee (a ';' here would split the CMake command list).
-#
-# amrex.call_addr2line = 0 because the abort is the point of the test: AMReX's
-# SIGABRT handler runs addr2line once per stack frame, and on a build with
-# debug info that is about 55 s per test -- far longer than the run itself
-# (measured: the abort message and "See Backtrace.0 file for details" 56 s
-# apart in CI). Backtrace.0 is still written, with raw addresses, for a test
-# that stops somewhere unexpected; `addr2line -Cpfie <exe> <address>` resolves
-# them by hand.
-function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME_OPTIONS)
-    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
-    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
-    file(GLOB TEST_FILES "${SOURCE_DIR}/*")
-    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
-
-    if(ERF_ENABLE_MPI)
-        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
-    else()
-        unset(MPI_COMMANDS)
-    endif()
-
-    resolve_test_exe("" "erf_exec" TEST_EXE)
-
-    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 amrex.call_addr2line=0 ${RUNTIME_OPTIONS} 2>&1 | tee ${test_log}")
-
-    add_test(${TEST_NAME} ${test_command})
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 600
-        PROCESSORS 1
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
-        PASS_REGULAR_EXPRESSION "${EXPECTED_MESSAGE}"
-        ATTACHED_FILES_ON_FAIL "${test_log}"
-    )
-endfunction(add_test_abort)
 
 # One step of a deck, which passes if the run ends normally. It compares nothing with a gold,
 # so it also runs in single precision; label "eb_build".
