@@ -139,7 +139,7 @@ enum class CoverZ { Reach, Footprint, Column };
 
 /**
  * The lowest and highest ground and the smallest and largest spacing of the levels (m) of a mesh,
- * and, over one rank's boxes (mesh_z_bounds with over_all_ranks false), a table of each node level's
+ * and, over one rank's boxes (mesh_z_bounds with over_all_ranks false) or the level's (mesh_z_levels), a table of each node level's
  * lowest and highest height and of the cells those boxes hold, which bounds the cells a height may
  * lie in whether or not the boxes reach the ground (a column split in z, a level aloft).
  */
@@ -152,14 +152,17 @@ struct ZBounds {
 
     /** Whether the level's grids reach the ground (a refined level aloft does not, and has no bounds). */
     bool has_ground () const { return ground_lo <= ground_hi && dz_lo > amrex::Real(0.0); }
-    /** Whether the bounds come with the table of node heights (the bounds of one rank's boxes). */
+    /** Whether the bounds come with the table of node heights: of one rank's boxes (mesh_z_bounds) or of
+     *  every rank's (mesh_z_levels). */
     bool has_table () const { return !has_cell.empty(); }
 
     /**
      * The cells k that heights from zl to zh may lie in, whatever the column: [kb, kt], clamped to
      * [klo - 1, khi + 1] (so a range outside the domain stays outside it); [klo, khi] without bounds.
      * With the table: exactly the boxes' cells k whose lowest bottom node is not above zh and whose
-     * highest top node is not below zl, or kb > kt when there is none.
+     * highest top node is not below zl, or kb > kt when there is none. zl or zh may be infinite (not NaN):
+     * heights from -infinity take every cell up to zh's, and a range at one infinity takes no cell of
+     * the domain.
      */
     void k_range (amrex::Real zl, amrex::Real zh, int klo, int khi, int& kb, int& kt) const
     {
@@ -170,7 +173,12 @@ struct ZBounds {
             kt = klo - 1;
             // a relative 1e-5 more each way: the caller's zl and zh are rounded sums (a point's height and
             // its reach), and a face at a node level's own height h just past them still has weight
-            const amrex::Real slack = amrex::Real(1.0e-5) * std::max(std::abs(zl), std::max(std::abs(zh), zh - zl));
+            // From the finite ends only: an infinite end needs none. An infinite end is replaced by 0 before
+            // the difference is taken, not skipped by a test, so that inf - inf is never computed (a compiler
+            // may evaluate both sides of a test, and the invalid operation would trap)
+            const amrex::Real fl = std::isinf(zl) ? amrex::Real(0.0) : zl;
+            const amrex::Real fh = std::isinf(zh) ? amrex::Real(0.0) : zh;
+            const amrex::Real slack = amrex::Real(1.0e-5) * std::max(std::abs(fl), std::max(std::abs(fh), std::abs(fh - fl)));
             const amrex::Real lo = zl - slack, hi = zh + slack;
             for (std::size_t n = 0; n < has_cell.size(); ++n) {
                 if (has_cell[n] == 0 || node_lo[n] > hi || node_hi[n+1] < lo) { continue; }
@@ -200,6 +208,37 @@ struct ZBounds {
  * (ZBounds::has_table). The table is this rank's: points_covered_by takes the global bounds only.
  */
 ZBounds mesh_z_bounds (const amrex::MultiFab& z_phys_nd, const amrex::Geometry& geom, bool over_all_ranks = true);
+
+/**
+ * mesh_z_bounds over every rank's boxes, with the table of the level's node heights over every
+ * rank's boxes too (ZBounds::has_table): each node level's lowest and highest height and the cells
+ * the level holds, the same on every rank (a collective). ZBounds::k_range then gives the cells of
+ * the level a height range may lie in whether or not the boxes reach the ground. For
+ * region_touches_grids; points_covered_by takes the bounds without a table.
+ */
+ZBounds mesh_z_levels (const amrex::MultiFab& z_phys_nd, const amrex::Geometry& geom);
+
+/**
+ * mesh_z_levels of one level, kept between calls: the heights of a level change only when its boxes do
+ * (a regrid) or when the terrain moves, so a caller that needs the table at every step builds it once.
+ */
+class LevelHeights {
+public:
+    /**
+     * The table of z_phys_nd's level. Built at the first call, and again when z_phys_nd's boxes or geom's
+     * domain differ from those of the last build, or with rebuild true (for heights that change in time on
+     * the same boxes: a moving terrain). A collective when it builds; every rank builds at the same calls,
+     * as the boxes, the domain and rebuild are the same on every rank.
+     */
+    const ZBounds& get (const amrex::MultiFab& z_phys_nd, const amrex::Geometry& geom, bool rebuild = false);
+    /** How many times get() has built the table. */
+    int builds () const { return m_builds; }
+private:
+    ZBounds m_zb;
+    amrex::BoxArray m_ba;   //!< z_phys_nd's boxes at the last build
+    amrex::Box m_domain;    //!< geom's domain at the last build
+    int m_builds{0};
+};
 
 /**
  * The cells of a terrain-following or stretched level that the heights within reach of each of a set of
@@ -265,6 +304,36 @@ struct CoverageGrids
 bool points_covered_by (const CoverageGrids& grids, const amrex::Geometry& geom,
                         const std::vector<amrex::Real>& pos, amrex::Real reach, std::string& first_outside,
                         CoverZ z = CoverZ::Reach, const ZBounds* zb = nullptr, const ColumnCells* cells = nullptr);
+
+/**
+ * Whether a level's boxes may hold a cell of a region (lo and hi in metres, lo <= hi in every
+ * direction, no NaN): the opposite question to points_covered_by, for a caller that must stay clear
+ * of a level. x and y use the cells the region's ends fall in (points_covered_by's own); in a
+ * periodic direction every image of the region counts, however many periods away, and a region a
+ * period or more long takes every cell. z must not be periodic. A region that overlaps a cell of
+ * the level is never missed; one that only meets a cell at a face may not count. In z:
+ *  - on a uniform-dz mesh (zb null) the cells are the region's own, from prob_lo and the spacing;
+ *  - with the level's table of node heights (mesh_z_levels), the cells k of the level some bottom
+ *    node of which is not above the region and some top node not below it (ZBounds::k_range): right
+ *    wherever the level's boxes are, on the ground or aloft, and no cell where the level has none
+ *    at those heights;
+ *  - with the level's bounds alone (mesh_z_bounds over all ranks) and every box on the ground,
+ *    the cells between the ground and spacing extremes allow, which is wider on steep terrain;
+ *  - with the bounds alone and a box that does not stand on the ground (ZBounds::all_ground false:
+ *    a level or a box aloft, or a column split in z between boxes), the whole column: the answer is
+ *    then yes wherever a box lies over or under the region's footprint.
+ * The cell indices are bounded before they become integers, so a region that reaches far outside
+ * the domain (or to infinity) is safe. The answer reads no field data and is the same on every
+ * rank when zb is: pass the table or the bounds over all ranks, not one rank's (which this function
+ * cannot tell apart).
+ *
+ * @param[in] ba the level's boxes (any index type)
+ * @param[in] geom the level's geometry
+ * @param[in] region the region (m)
+ * @param[in] zb the level's table or bounds on a stretched or terrain-following mesh, or nullptr
+ */
+bool region_touches_grids (const amrex::BoxArray& ba, const amrex::Geometry& geom, const amrex::RealBox& region,
+                           const ZBounds* zb = nullptr);
 
 } // namespace erf_actuator
 

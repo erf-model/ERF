@@ -1,6 +1,7 @@
 #ifndef Initialization_1D_H
 #define Initialization_1D_H
 
+#include <AMReX_BLassert.H>
 #include <AMReX_REAL.H>
 #include "ERF_Constants.H"
 
@@ -17,6 +18,9 @@ amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
     // We put this value here so beta_interp is initialized but the logic
     // below is such that it will always be assigned some other value.
     amrex::Real beta_interp = bogus_large_value;
+
+    // An empty table has nothing to interpolate
+    AMREX_ASSERT(alpha_size >= 1);
 
     // A single point gives a constant: there is no second point to interpolate or
     //    extrapolate with

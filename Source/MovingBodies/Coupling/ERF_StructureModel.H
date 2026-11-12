@@ -177,6 +177,8 @@ public:
      * reach, as of the last advance(). The same on every rank. ERF checks them
      * against the next finer level's boxes after each advance() (see level()).
      * The boxes may extend past the domain; a periodic direction wraps.
+     * Every box needs its low end at or below its high end in each direction and no
+     * NaN (an infinite end is allowed); ERF stops the run otherwise, naming the model.
      */
     virtual std::vector<amrex::RealBox> support () const = 0;
 
