@@ -1,0 +1,5 @@
+FILE = inputs_base
+
+# Negative case: a scheme without the correction switched on must abort, not be ignored.
+max_step = 1
+erf.ibseb.stability_scheme = "louis"

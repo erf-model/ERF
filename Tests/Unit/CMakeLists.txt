@@ -225,6 +225,10 @@ target_sources(${erf_exe_name}
     # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
     # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
+    # Motivation: the building wall function's Louis (1979) factors must be 1
+    # at neutral, follow the published closed forms on both sides and weaken
+    # mixing monotonically with the bulk Richardson number.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBLouis.cpp
     # Motivation: the immersed-forcing temperature kernels applied the MOST similarity functions whatever
     # erf.if_stability_correction said, while the momentum kernels gate on it (erf-model/ERF#4931); off,
     # every kernel is the log law.
