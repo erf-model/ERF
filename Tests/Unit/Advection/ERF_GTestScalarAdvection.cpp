@@ -105,6 +105,22 @@ void fill_momentum (FArrayBox& fab, const int dir)
     });
 }
 
+// The reversed mass flux, and the upwind direction of the flow and its reverse (+1 or -1), on mom's faces.
+// A function of its own: the CUDA compiler takes no device lambda inside a test body
+void fill_reversed_and_directions (const FArrayBox& mom, FArrayBox& neg_mom, FArrayBox& same_dir, FArrayBox& rev_dir)
+{
+    auto m  = mom.const_array();
+    auto nm = neg_mom.array();
+    auto sd = same_dir.array();
+    auto rd = rev_dir.array();
+    amrex::ParallelFor(mom.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        nm(i,j,k) = -m(i,j,k);
+        sd(i,j,k) = (m(i,j,k) > Real(0)) ? Real(1) : Real(-1);
+        rd(i,j,k) = -sd(i,j,k);
+    });
+}
+
 void fill_metrics (FArrayBox& detJ, FArrayBox& mf_mx, FArrayBox& mf_my,
                    const bool include_nonpositive_detJ)
 {
@@ -355,16 +371,7 @@ TEST(ScalarAdvectionPrimitives, UpwindDirectionArrayPicksTheStencil)
         f_dir[d].resize(fbx, kNumFluxComponents);
         f_ref[d].resize(fbx, kNumFluxComponents);
         fill_momentum(mom[d], d);
-        auto m  = mom[d].array();
-        auto nm = neg_mom[d].array();
-        auto sd = same_dir[d].array();
-        auto rd = rev_dir[d].array();
-        amrex::ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            nm(i,j,k) = -m(i,j,k);
-            sd(i,j,k) = (m(i,j,k) > Real(0)) ? Real(1) : Real(-1);
-            rd(i,j,k) = -sd(i,j,k);
-        });
+        fill_reversed_and_directions(mom[d], neg_mom[d], same_dir[d], rev_dir[d]);
     }
 
     for (const AdvType type : {AdvType::Upwind_3rd, AdvType::Upwind_5th, AdvType::Weno_5}) {

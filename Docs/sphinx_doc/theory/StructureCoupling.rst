@@ -59,8 +59,17 @@ and its checkpoint data.
        and their kernels' reach. When a level finer than the model's exists and
        its boxes overlap a support box, ERF stops the run and asks for the
        finer level (``structure.example.level`` for the example). On a
-       terrain-following mesh the check uses the finer level's lowest and
-       highest ground and spacing, so it errs on the side of stopping.
+       stretched or terrain-following mesh the check uses the finer level's
+       own node heights: for each node level, the lowest and the highest
+       height over the level's boxes (``erf_actuator::mesh_z_levels``). ERF
+       builds this table when the finer level's boxes change (and at every
+       step with a moving terrain), not at every step. A
+       finer box counts where it lies over a support box's footprint and
+       the level holds cells at the support's heights, so the check errs on
+       the side of stopping where the terrain is steep, and it holds
+       whether or not the finer boxes reach the ground. A support box needs
+       its low end at or below its high end and no NaN; an end may be
+       infinite.
    * - ``add_momentum_sources()``
      - At every Runge-Kutta stage of the model's level: the model adds its force
        on the air [N/m\ :sup:`3`] to the face-centred momentum sources. The source
@@ -171,6 +180,12 @@ on a restart.
    * - ``structure.example.level``
      - Level it couples to; -1 is the finest
      - -1 to ``amr.max_level``; -1
+   * - ``structure.example.test_support``
+     - What ``support()`` returns: ``reach`` (the kernel's reach), or, for
+       ERF's own tests of its check, a box with a NaN (``nan``) or with its
+       low end above its high end (``inverted``). ERF reads the box only when
+       a finer level exists
+     - ``reach``, ``nan`` or ``inverted``; ``reach``
 
 Test
 ----
@@ -197,7 +212,17 @@ the mid-run checkpoint and compares the final plotfiles at zero tolerance.
 Two more runs check the finer-level rule with a refined level 1 and the model on
 level 0: ``Structures_Abort_FinerLevelCovers`` refines the box around the point
 and must stop; ``Structures_ExampleModel_FinerLevelElsewhere`` refines only the
-lowest 50 m, below the kernel's reach, and must run. The
+lowest 50 m, below the kernel's reach, and must run. Three runs repeat the rule
+on a stretched mesh with a level-1 box aloft, which has no box at the ground:
+``Structures_Abort_FinerLevelAloft`` puts the box inside the kernel's reach and
+must stop; ``Structures_ExampleModel_FinerLevelAloftBeside`` puts it beside the
+reach and ``Structures_ExampleModel_FinerLevelAloftAbove`` above it, in the
+point's own columns, and both must run. ``Structures_Abort_SupportNaN`` and
+``Structures_Abort_SupportInverted`` make the example return a support box
+with a NaN and with its low end above its high end
+(``structure.example.test_support``), and the run must stop with the model's
+name; ``Structures_Abort_ExampleTestSupport`` checks that input's allowed
+values. The
 unit tests ``StructureRegistry.*`` check the registry and the selection by
 ``erf.structures.model`` and the plot-name checks.
 

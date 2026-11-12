@@ -22,7 +22,8 @@ using namespace amrex;
  * @param[in]  gravity       Magnitude of gravity
  * @param[in]  c_p           Coefficient at constant pressure
  * @param[in]  detJ_cc       Jacobian of the metric transformation at cell centers: the face metric of
- *                           the vertical pressure gradient, and the cell volume unless detJ_cc_vol is given
+ *                           the vertical pressure gradient and the cell volume dividing the vertical flux
+ *                           divergence. On a moving mesh this is the volume at the end of the sub-step
  * @param[in]  dtau          Fast time step
  * @param[in]  beta_s        Coefficient which determines how implicit vs explicit the solve is
  * @param[in]  z_phys_nd     Height coordinate at nodes (null without terrain)
@@ -31,12 +32,6 @@ using namespace amrex;
  * @param[in]  beta_s_min    Lower bound of the spatially varying beta_s
  * @param[in]  beta_s_max    Upper bound of the spatially varying beta_s
  * @param[in]  phys_bc_type  Physical boundary condition types
- * @param[in]  detJ_cc_vol   Cell volume dividing the vertical flux divergence of rho and (rho theta); it
- *                           must be the volume the conservative update divides by. nullptr selects detJ_cc
- * @param[in]  detJ_cc_old   Cell volume at the start of the sub-step, for a moving mesh. The unknown of the
- *                           solve is then the perturbation of the vertical mass flux, Omega_new - Omega_stg,
- *                           and the w equation, conservative in the face volume, has J_new/J_old on the
- *                           diagonal (face values of detJ_cc_vol and detJ_cc_old). nullptr gives 1
  */
 
 void make_fast_coeffs (int /*level*/,
@@ -54,9 +49,7 @@ void make_fast_coeffs (int /*level*/,
                        const MultiFab* z_phys_nd,
                        bool use_variable_beta_s,
                        Real beta_s_min, Real beta_s_max,
-                       amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type,
-                       const MultiFab* detJ_cc_vol,
-                       const MultiFab* detJ_cc_old)
+                       amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
 
@@ -100,14 +93,6 @@ void make_fast_coeffs (int /*level*/,
 
         const Array4<const Real>& detJ        = (mesh_type != MeshType::ConstantDz) ?
                                                 detJ_cc->const_array(mfi) : Array4<const Real>{};
-        // The cell volume of the rho and (rho theta) equations; detJ above is the face metric of the
-        // vertical pressure gradient (the two differ on a moving mesh)
-        const Array4<const Real> detV = (mesh_type != MeshType::ConstantDz && detJ_cc_vol) ?
-                                        detJ_cc_vol->const_array(mfi) : detJ;
-        // The volume at the start of the sub-step (moving mesh), for the diagonal of the w equation
-        const bool has_detJ_old = (mesh_type != MeshType::ConstantDz && detJ_cc_old);
-        const Array4<const Real> detO = (has_detJ_old) ? detJ_cc_old->const_array(mfi) : detJ;
-
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         FArrayBox gam_fab; gam_fab.resize(surroundingNodes(bx,2),1,The_Async_Arena());
@@ -204,15 +189,13 @@ void make_fast_coeffs (int /*level*/,
                 Real D_A = beta_2_km1 * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
                 Real D_B = beta_2_k   * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
                 Real D_C = beta_2_k   * beta_2_kp1 * dzi * static_cast<Real>(dtau * dtau);
-                coeffA_a(i,j,k) = D_A * (one/detV(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D_C * (one/detV(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
+                coeffA_a(i,j,k) = D_A * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D_C * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
 
-                // The w equation is conservative in the face volume, J_new W_new = J_old W_old + ...; with
-                // the flux perturbation as the unknown (moving mesh) its diagonal is J_new/J_old on the face
-                Real diag = (has_detJ_old) ? (detV(i,j,k) + detV(i,j,k-1)) / (detO(i,j,k) + detO(i,j,k-1))
-                                           : one;
-                coeffB_a(i,j,k) = diag + D_B * ( (coeff_Q/detV(i,j,k-1) - coeff_P/detV(i,j,k)) * theta_t_mid
-                                       + halfg * (one/detV(i,j,k) - one/detV(i,j,k-1)) );
+                // On a moving mesh the w equation, conservative in the face volume, is divided by the
+                // face volume at the end of the sub-step, so the diagonal is one there as well
+                coeffB_a(i,j,k) = one + D_B * ( (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid
+                                      + halfg * (one/detJ(i,j,k) - one/detJ(i,j,k-1)) );
             });
 
         } else {

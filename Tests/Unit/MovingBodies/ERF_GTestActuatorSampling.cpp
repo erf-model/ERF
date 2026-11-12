@@ -22,11 +22,14 @@
 // - mesh_z_bounds(.., false): the table's cells for a height range hold every cell that reaches into it.
 // - wrap_periodic: a point a few ulps below a non-zero prob_lo lands on prob_lo, not on prob_hi.
 // - terrain_heights: the bilinear k = 0 node surface.
+// - region_touches_grids: a region's cells on a level, through periodic images, far outside the domain, over
+//   terrain, and on a level with boxes that do not reach the ground (erf-model/ERF#5056).
 // - a point held by two boxes of one rank is counted twice and refused by sample_velocity.
 
 #include <limits>
 #include <algorithm>
 #include <array>
+#include <cfenv>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -452,6 +455,279 @@ TEST(ActuatorSampling, CoverageWithoutTheZCheckNeedsTheFootprints)
     erf_actuator::ZBounds hilly;
     hilly.ground_lo = 0.0; hilly.ground_hi = 200.0; hilly.dz_lo = 30.0; hilly.dz_hi = 50.0;
     EXPECT_FALSE(erf_actuator::points_covered_by(ba, geom, {750.0, 600.0, 300.0}, 100.0, outside, CoverZ::Column, &hilly));
+}
+
+namespace {
+
+// A terrain-following level z = h(i) + (H - h(i)) k / nz on the boxes of bl (8 x 4 x 10 cells of 100 m across,
+// H = 500 m, periodic in y): its node heights, its bounds over all ranks and its table over all ranks
+struct FittedLevel {
+    amrex::Geometry geom;
+    amrex::BoxArray ba;
+    amrex::MultiFab znd;
+    erf_actuator::ZBounds bounds, table;
+    template <class Ground>
+    FittedLevel (const amrex::BoxList& bl, const Ground& h)
+    {
+        const int nz = 10;
+        const Real H = 500.0;
+        const amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(7, 3, nz - 1));
+        const amrex::RealBox rb({0.0, 0.0, 0.0}, {800.0, 400.0, H});
+        geom = amrex::Geometry(domain, rb, 0, {0, 1, 0});
+        ba = amrex::BoxArray(bl);
+        const amrex::DistributionMapping dm(ba);
+        znd.define(amrex::convert(ba, amrex::IntVect(1, 1, 1)), dm, 1, 0);
+        for (amrex::MFIter mfi(znd, false); mfi.isValid(); ++mfi) {
+            auto z = znd.array(mfi);
+            amrex::LoopOnCpu(mfi.validbox(), [&](int i, int j, int k) { z(i,j,k) = h(i) + (H - h(i)) * Real(k) / Real(nz); });
+        }
+        bounds = erf_actuator::mesh_z_bounds(znd, geom);
+        table = erf_actuator::mesh_z_levels(znd, geom);
+    }
+    bool touches (std::array<Real,2> x, std::array<Real,2> z, const erf_actuator::ZBounds& zb, std::array<Real,2> y = {{100.0, 200.0}}) const
+    {
+        return erf_actuator::region_touches_grids(ba, geom, amrex::RealBox({x[0], y[0], z[0]}, {x[1], y[1], z[1]}), &zb);
+    }
+};
+
+} // namespace
+
+// region_touches_grids on a uniform mesh: the region's own cells, its periodic images however far, and a region
+// that reaches to infinity or lies far outside the domain (its cell indices are bounded before they become
+// integers).
+TEST(ActuatorSampling, ARegionTouchesALevelThroughItsOwnCellsAndItsPeriodicImages)
+{
+    // 3000 x 1200 x 600 m on 50 m cells, periodic in x; the level holds x in [500, 1500), y in [300, 900),
+    // z in [200, 450)
+    const amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(59, 23, 11));
+    const amrex::RealBox prob({0.0, 0.0, 0.0}, {3000.0, 1200.0, 600.0});
+    const amrex::Geometry geom(domain, prob, 0, {1, 0, 0});
+    const amrex::BoxArray ba(amrex::Box(amrex::IntVect(10, 6, 4), amrex::IntVect(29, 17, 8)));
+    auto touches = [&](std::array<Real,3> lo, std::array<Real,3> hi) {
+        return erf_actuator::region_touches_grids(ba, geom, amrex::RealBox(lo.data(), hi.data()));
+    };
+    std::feclearexcept(FE_ALL_EXCEPT);
+    EXPECT_TRUE(touches({700.0, 500.0, 300.0}, {800.0, 600.0, 350.0}));       // inside
+    EXPECT_TRUE(touches({400.0, 500.0, 300.0}, {510.0, 600.0, 350.0}));       // across the x edge
+    EXPECT_FALSE(touches({400.0, 500.0, 300.0}, {499.0, 600.0, 350.0}));      // beside it in x
+    EXPECT_FALSE(touches({700.0, 100.0, 300.0}, {800.0, 299.0, 350.0}));      // beside it in y
+    EXPECT_FALSE(touches({700.0, 500.0, 0.0}, {800.0, 600.0, 199.0}));        // under it
+    EXPECT_TRUE(touches({700.0, 500.0, 0.0}, {800.0, 600.0, 201.0}));         // reaching its lowest cell
+    EXPECT_FALSE(touches({700.0, 500.0, 450.0}, {800.0, 600.0, 600.0}));      // above it
+    // x is periodic: the region's images one and several periods on (3000 m each) lie in the level; an image
+    // beside the level stays beside it, and a region across the seam reaches the level from the other side
+    EXPECT_TRUE(touches({-2300.0, 500.0, 300.0}, {-2200.0, 600.0, 350.0}));
+    EXPECT_TRUE(touches({3700.0, 500.0, 300.0}, {3800.0, 600.0, 350.0}));
+    EXPECT_TRUE(touches({6700.0, 500.0, 300.0}, {6800.0, 600.0, 350.0}));
+    EXPECT_TRUE(touches({-8300.0, 500.0, 300.0}, {-8200.0, 600.0, 350.0}));
+    EXPECT_FALSE(touches({7700.0, 500.0, 300.0}, {7800.0, 600.0, 350.0}));    // x 1700 to 1800: beside
+    EXPECT_FALSE(touches({-7300.0, 500.0, 300.0}, {-7200.0, 600.0, 350.0}));  // x 1700 to 1800: beside
+    EXPECT_TRUE(touches({5900.0, 500.0, 300.0}, {6600.0, 600.0, 350.0}));     // x 2900 to 3600: wraps to 0 to 600
+    EXPECT_FALSE(touches({5900.0, 500.0, 300.0}, {6400.0, 600.0, 350.0}));    // wraps to 0 to 400: beside
+    EXPECT_TRUE(touches({-9000.0, 500.0, 300.0}, {-5500.0, 600.0, 350.0}));   // longer than a period: every cell
+    // y is not periodic: an image there does not count
+    EXPECT_FALSE(touches({700.0, -700.0, 300.0}, {800.0, -600.0, 350.0}));
+    // far outside and infinite extents: an answer, not an out-of-range conversion
+    const Real inf = std::numeric_limits<Real>::infinity();
+    const Real big = std::numeric_limits<Real>::max();
+    EXPECT_TRUE(touches({-inf, -inf, -inf}, {inf, inf, inf}));
+    EXPECT_TRUE(touches({-big, -big, -big}, {big, big, big}));
+    EXPECT_FALSE(touches({700.0, 500.0, Real(1.0e30)}, {800.0, 600.0, inf}));
+    EXPECT_FALSE(touches({700.0, 500.0, -inf}, {800.0, 600.0, Real(-1.0e30)}));
+    EXPECT_FALSE(touches({700.0, Real(1.0e30), 300.0}, {800.0, big, 350.0}));
+    EXPECT_TRUE(touches({Real(1.0e30), 500.0, 300.0}, {inf, 600.0, 350.0}));  // periodic and endless: every cell
+    EXPECT_NO_THROW(touches({Real(1.0e30), 500.0, 300.0}, {Real(1.0e30), 600.0, 350.0}));
+    EXPECT_TRUE(touches({inf, 500.0, 300.0}, {inf, 600.0, 350.0}));           // both ends endless: every cell too
+    EXPECT_TRUE(touches({-inf, 500.0, 300.0}, {-inf, 600.0, 350.0}));
+    // a level with no box touches nothing
+    EXPECT_FALSE(erf_actuator::region_touches_grids(amrex::BoxArray(), geom, amrex::RealBox({0.0, 0.0, 0.0}, {3000.0, 1200.0, 600.0})));
+    // no invalid operation so far, the infinite regions included (it would trap with amrex.fpe_trap_invalid = 1)
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
+    // an inverted or NaN region is refused
+    EXPECT_NE(erf_gtest::abort_message([&] { touches({800.0, 500.0, 300.0}, {700.0, 600.0, 350.0}); }).find("lo <= hi"), std::string::npos);
+    const Real qnan = std::numeric_limits<Real>::quiet_NaN();
+    EXPECT_NE(erf_gtest::abort_message([&] { touches({qnan, 500.0, 300.0}, {700.0, 600.0, 350.0}); }).find("lo <= hi"), std::string::npos);
+}
+
+// A height range with an infinite end, against the level's table (ZBounds::k_range): the cells are those of
+// the finite end alone, a range at one infinity holds no cell, and no invalid operation is raised (the margin
+// must not take inf - inf, which traps with amrex.fpe_trap_invalid = 1). Boxes on cells 0 to 2: ground from 0
+// to 280 m, the top node level between 150 and 346 m.
+TEST(ActuatorSampling, AnInfiniteHeightRangeTakesTheCellsOfItsFiniteEnd)
+{
+    const FittedLevel f(amrex::BoxList(amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(7, 3, 2))),
+                        [](int i) { return Real(40.0) * Real(std::min(i, 7)); });
+    ASSERT_TRUE(f.table.has_table());
+    const Real inf = std::numeric_limits<Real>::infinity();
+    std::feclearexcept(FE_ALL_EXCEPT);
+    EXPECT_FALSE(f.touches({100.0, 200.0}, {inf, inf}, f.table));
+    EXPECT_FALSE(f.touches({100.0, 200.0}, {-inf, -inf}, f.table));
+    EXPECT_TRUE(f.touches({100.0, 200.0}, {-inf, inf}, f.table));
+    EXPECT_FALSE(f.touches({100.0, 200.0}, {-inf, -10.0}, f.table));   // below the lowest ground
+    EXPECT_TRUE(f.touches({100.0, 200.0}, {-inf, 5.0}, f.table));
+    EXPECT_FALSE(f.touches({100.0, 200.0}, {400.0, inf}, f.table));    // above the highest node (346 m)
+    EXPECT_TRUE(f.touches({100.0, 200.0}, {300.0, inf}, f.table));
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
+    int kb = 0, kt = 0;
+    f.table.k_range(-inf, Real(5.0), 0, 9, kb, kt);
+    EXPECT_EQ(kb, 0);
+    EXPECT_EQ(kt, 0);   // 5 m is below node level 1 everywhere (50 m at its lowest)
+    f.table.k_range(Real(330.0), inf, 0, 9, kb, kt);
+    EXPECT_EQ(kb, 2);   // node level 2 reaches 280 + 44 = 324 m, level 3 reaches 346 m: cell 2 only
+    EXPECT_EQ(kt, 2);
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
+}
+
+// LevelHeights keeps the table of mesh_z_levels: built once for a set of boxes, again for other boxes or
+// another domain, and on the same boxes only when asked (heights that change in time).
+TEST(ActuatorSampling, TheLevelsTableIsKeptUntilTheBoxesChange)
+{
+    auto ground = [](int i) { return Real(40.0) * Real(i); };
+    FittedLevel a(amrex::BoxList(amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(7, 3, 2))), ground);
+    FittedLevel b(amrex::BoxList(amrex::Box(amrex::IntVect(4, 0, 5), amrex::IntVect(7, 3, 9))), ground);
+    erf_actuator::LevelHeights h;
+    EXPECT_EQ(h.builds(), 0);
+    EXPECT_EQ(h.get(a.znd, a.geom).node_lo, a.table.node_lo);
+    EXPECT_EQ(h.get(a.znd, a.geom).has_cell, a.table.has_cell);
+    EXPECT_EQ(h.builds(), 1);
+    // other boxes
+    EXPECT_EQ(h.get(b.znd, b.geom).has_cell, b.table.has_cell);
+    EXPECT_EQ(h.get(b.znd, b.geom).node_hi, b.table.node_hi);
+    EXPECT_EQ(h.builds(), 2);
+    // the heights 10 m higher on the same boxes: the kept table, until the caller asks
+    b.znd.plus(Real(10.0), 0, 1, 0);
+    EXPECT_EQ(h.get(b.znd, b.geom).node_lo, b.table.node_lo);
+    EXPECT_EQ(h.builds(), 2);
+    EXPECT_NEAR(h.get(b.znd, b.geom, true).node_lo[5], b.table.node_lo[5] + Real(10.0), 1.0e-3);
+    EXPECT_EQ(h.builds(), 3);
+    // the same boxes in a taller domain
+    const amrex::Box tall(amrex::IntVect(0, 0, 0), amrex::IntVect(7, 3, 11));
+    const amrex::Geometry gtall(tall, amrex::RealBox({0.0, 0.0, 0.0}, {800.0, 400.0, 600.0}), 0, {0, 1, 0});
+    EXPECT_EQ(h.get(b.znd, gtall).node_lo.size(), std::size_t(13));
+    EXPECT_EQ(h.builds(), 4);
+}
+
+// A terrain-following level whose boxes all stand on the ground and hold cells 0 to 2. Ground from 0 (i = 0) to
+// 280 m (i = 7), node levels 22 to 50 m apart. With the bounds alone the heights' cells come from the ground and
+// spacing extremes, in whatever column; with the table from the node heights of the level itself, which is tighter.
+TEST(ActuatorSampling, ARegionOverTerrainTouchesTheCellsItsHeightsMayLieIn)
+{
+    amrex::BoxList bl;
+    bl.push_back(amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(3, 3, 2)));
+    bl.push_back(amrex::Box(amrex::IntVect(4, 0, 0), amrex::IntVect(7, 3, 2)));
+    const FittedLevel f(bl, [](int i) { return Real(40.0) * Real(std::min(i, 7)); });
+    ASSERT_TRUE(f.bounds.all_ground);
+    ASSERT_TRUE(f.bounds.has_ground());
+    ASSERT_FALSE(f.bounds.has_table());
+    ASSERT_TRUE(f.table.has_table());
+    // node level 3, the boxes' top, lies between 150 m (i = 0) and 346 m (i = 7)
+    EXPECT_NEAR(f.table.node_lo[3], 150.0, 1.0e-3);
+    EXPECT_NEAR(f.table.node_hi[3], 346.0, 1.0e-3);
+    for (const erf_actuator::ZBounds* zb : {&f.bounds, &f.table}) {
+        SCOPED_TRACE(zb->has_table() ? "table" : "bounds");
+        // heights 100 to 150 m: bounds, cells floor((100 - 280) / 50) = -4 to floor(150 / 22) = 6; table, cells 0 to 2
+        EXPECT_TRUE(f.touches({100.0, 200.0}, {100.0, 150.0}, *zb));
+        // heights 450 to 480 m, inside the domain: bounds, no cell below floor((450 - 280) / 50) = 3; table, above
+        // the highest node of the boxes (346 m)
+        EXPECT_FALSE(f.touches({100.0, 200.0}, {450.0, 480.0}, *zb));
+        // below every ground height
+        EXPECT_FALSE(f.touches({100.0, 200.0}, {-500.0, -400.0}, *zb));
+        // the footprint decides first
+        EXPECT_TRUE(f.touches({-50.0, 10.0}, {100.0, 150.0}, *zb));
+        EXPECT_FALSE(f.touches({-500.0, -10.0}, {100.0, 150.0}, *zb));
+    }
+    // 350 to 400 m is above the boxes' highest node (346 m), which only the table knows: the bounds allow
+    // cell floor((350 - 280) / 50) = 1
+    EXPECT_TRUE(f.touches({100.0, 200.0}, {350.0, 400.0}, f.bounds));
+    EXPECT_FALSE(f.touches({100.0, 200.0}, {350.0, 400.0}, f.table));
+}
+
+// erf-model/ERF#5056. A refined level aloft (no box at the ground) has no ground heights: its bounds hold the
+// largest and the lowest Real, and (z - ground) / dz is no cell index. The table of its node heights still tells
+// which heights its cells hold: a region in the box touches, one under it or beside it does not. With the bounds
+// alone the whole column is taken, and a region under the box touches too.
+TEST(ActuatorSampling, ALevelAloftTouchesARegionAtItsHeights)
+{
+    // cells 5 to 9 over x in [400, 800) m; flat ground, so the box holds z in [250, 500) m
+    const FittedLevel f(amrex::BoxList(amrex::Box(amrex::IntVect(4, 0, 5), amrex::IntVect(7, 3, 9))), [](int) { return Real(0.0); });
+    ASSERT_FALSE(f.bounds.all_ground);
+    ASSERT_FALSE(f.bounds.has_ground());
+    ASSERT_TRUE(f.table.has_table());
+    for (const erf_actuator::ZBounds* zb : {&f.bounds, &f.table}) {
+        SCOPED_TRACE(zb->has_table() ? "table" : "bounds");
+        EXPECT_TRUE(f.touches({500.0, 600.0}, {300.0, 350.0}, *zb));    // in the box
+        EXPECT_TRUE(f.touches({500.0, 600.0}, {200.0, 260.0}, *zb));    // reaching its lowest cell
+        EXPECT_FALSE(f.touches({100.0, 300.0}, {300.0, 350.0}, *zb));   // beside it
+    }
+    // under the box, in its columns
+    EXPECT_FALSE(f.touches({500.0, 600.0}, {10.0, 60.0}, f.table));
+    EXPECT_FALSE(f.touches({500.0, 600.0}, {10.0, 240.0}, f.table));
+    EXPECT_TRUE(f.touches({500.0, 600.0}, {10.0, 60.0}, f.bounds));
+}
+
+// Boxes on the ground and a box aloft together. The ground heights of the bounds are those of the box on the
+// ground (0 m); the spacings are over all boxes (20 to 50 m). They say nothing of the cells under the box aloft:
+// over its 300 m plateau a height of 425 m is in cell 6, which the box aloft holds (cells 5 to 7), while the
+// bounds give cells floor(420 / 50) = 8 and up. With the bounds alone the whole column must be taken; the table
+// gives the cells themselves.
+TEST(ActuatorSampling, ABoxAloftBesideABoxOnTheGroundIsFoundAtItsOwnHeights)
+{
+    amrex::BoxList bl;
+    bl.push_back(amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(3, 3, 9)));
+    bl.push_back(amrex::Box(amrex::IntVect(4, 0, 5), amrex::IntVect(7, 3, 7)));
+    const FittedLevel f(bl, [](int i) { return (i <= 4) ? Real(0.0) : ((i == 5) ? Real(150.0) : Real(300.0)); });
+    ASSERT_FALSE(f.bounds.all_ground);
+    ASSERT_TRUE(f.bounds.has_ground());
+    EXPECT_NEAR(f.bounds.ground_hi, 0.0, 1.0e-6);
+    EXPECT_NEAR(f.bounds.dz_lo, 20.0, 1.0e-4);
+    EXPECT_NEAR(f.bounds.dz_hi, 50.0, 1.0e-4);
+    // x in [650, 750): columns i = 6 and 7, on the plateau; heights 420 to 430 m are in cell 6 there
+    int kb = 0, kt = 0;
+    f.bounds.k_range(420.0, 430.0, 0, 9, kb, kt);
+    EXPECT_GT(kb, 7) << "the ground and spacing extremes miss the box aloft (cells 5 to 7)";
+    f.table.k_range(420.0, 430.0, 0, 9, kb, kt);
+    EXPECT_LE(kb, 6);
+    EXPECT_GE(kt, 6);
+    for (const erf_actuator::ZBounds* zb : {&f.bounds, &f.table}) {
+        SCOPED_TRACE(zb->has_table() ? "table" : "bounds");
+        EXPECT_TRUE(f.touches({650.0, 750.0}, {420.0, 430.0}, *zb));
+        // one period on in y (y is periodic on this level) the region is the same one
+        EXPECT_TRUE(f.touches({650.0, 750.0}, {420.0, 430.0}, *zb, {{500.0, 600.0}}));
+    }
+    // under the box aloft, over the plateau (300 to 390 m: below its lowest node there, 400 m, but at the heights
+    // of the ground box's cells): the level holds cells at these heights only elsewhere. The table answers for the
+    // level as a whole, so it says yes here; a region below every node of the level's cells over x >= 400 m does
+    // not exist on this mesh, as the ground box holds every height
+    EXPECT_TRUE(f.touches({650.0, 750.0}, {300.0, 390.0}, f.table));
+    // above the box aloft and beside the ground box: cells 8 and 9 are the ground box's, over x < 400 m only
+    EXPECT_FALSE(f.touches({650.0, 750.0}, {470.0, 490.0}, f.table));
+}
+
+// The table over all ranks is that of the boxes whichever rank holds them: the same from every rank, and equal
+// to a one-box table of the same nodes.
+TEST(ActuatorSampling, TheLevelsTableIsTheSameWhateverTheBoxes)
+{
+    auto ground = [](int i) { return Real(40.0) * Real(std::min(i, 7)); };
+    amrex::BoxList split;
+    split.push_back(amrex::Box(amrex::IntVect(0, 0, 2), amrex::IntVect(3, 3, 5)));
+    split.push_back(amrex::Box(amrex::IntVect(4, 0, 2), amrex::IntVect(7, 1, 5)));
+    split.push_back(amrex::Box(amrex::IntVect(4, 2, 2), amrex::IntVect(7, 3, 5)));
+    split.push_back(amrex::Box(amrex::IntVect(0, 0, 6), amrex::IntVect(7, 3, 7)));
+    const FittedLevel a(split, ground);
+    const FittedLevel b(amrex::BoxList(amrex::Box(amrex::IntVect(0, 0, 2), amrex::IntVect(7, 3, 7))), ground);
+    ASSERT_EQ(a.table.node_lo.size(), b.table.node_lo.size());
+    EXPECT_EQ(a.table.k0, b.table.k0);
+    for (std::size_t n = 0; n < a.table.has_cell.size(); ++n) {
+        EXPECT_EQ(a.table.has_cell[n], b.table.has_cell[n]) << "cell " << n;
+        EXPECT_EQ(a.table.has_cell[n] != 0, n >= 2 && n <= 7) << "cell " << n;
+    }
+    for (std::size_t n = 2; n <= 8; ++n) {
+        EXPECT_EQ(a.table.node_lo[n], b.table.node_lo[n]) << "node level " << n;
+        EXPECT_EQ(a.table.node_hi[n], b.table.node_hi[n]) << "node level " << n;
+        // z = h + (500 - h) n / 10 with h from 0 to 280 m (node i = 7; i = 8 has the same h)
+        EXPECT_NEAR(a.table.node_lo[n], Real(50.0) * Real(n), 1.0e-3);
+        EXPECT_NEAR(a.table.node_hi[n], Real(280.0) + Real(22.0) * Real(n), 1.0e-3);
+    }
 }
 
 // mesh_z_bounds: the lowest and highest ground and the smallest and largest level spacing of a
