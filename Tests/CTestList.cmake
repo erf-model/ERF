@@ -2201,6 +2201,7 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   # pert_delta_v alone gives a y-velocity perturbation; pert_delta_u alone does not
   add_test_v_perturbation(Poiseuille_PertV_Only "nonzero" "")
   add_test_v_perturbation(Poiseuille_PertU_Only "zero" "prob.pert_delta_u=2.0 prob.pert_delta_v=0.0")
+  # The surface layer takes the wind relative to erf.most.surface_current
   add_test_surface_current_galilean(ABL_MOST_SurfaceCurrentGalilean ABL_MOST)
 endif()
 

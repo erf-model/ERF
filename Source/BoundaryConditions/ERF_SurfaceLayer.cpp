@@ -68,6 +68,78 @@ covers_columns (const Array4<const Real>& a, const Box& b)
                   a.begin[1] <= b.smallEnd(1) && a.end[1] > b.bigEnd(1));
 }
 
+/**
+ * Storage for one component of the surface current: one 2D box at k = klo for each box of
+ * the velocity, on its faces and with its lateral ghost cells.
+ *
+ * @param[in] vel velocity component the current belongs to
+ * @param[in] klo index of the lowest cell of the domain
+ */
+std::unique_ptr<MultiFab>
+make_face_current (const MultiFab& vel, int klo)
+{
+    BoxList bl = vel.boxArray().boxList();
+    for (auto& b : bl) { b.setRange(2, klo); }
+    const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
+    return std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(), 1, ng);
+}
+
+/**
+ * Set a uniform surface current on the faces normal to dir, ghost cells included. Only
+ * water moves: a face takes the current where the cells on both sides of it are water
+ * (land mask 0), and is at rest elsewhere; without a land mask every face moves.
+ *
+ * @param[out] current one component of the current (make_face_current)
+ * @param[in]  speed   uniform current [m/s]
+ * @param[in]  dir     0 for the x-component on x-faces, 1 for the y-component on y-faces
+ * @param[in]  lmask   land mask on one 2D box for each box of the current, or null
+ */
+void
+fill_face_current (MultiFab& current, Real speed, int dir, const iMultiFab* lmask)
+{
+    const bool has_mask = (lmask != nullptr);
+    const int di = (dir == 0) ? 1 : 0;
+    const int dj = (dir == 1) ? 1 : 0;
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(current, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto c = current.array(mfi);
+        const auto m = has_mask ? lmask->const_array(mfi) : Array4<const int>{};
+        const int km = has_mask ? amrex::lbound(m).z : 0;
+        ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const bool water = !has_mask || (m(i-di,j-dj,km) == 0 && m(i,j,km) == 0);
+            c(i,j,k) = water ? speed : zero;
+        });
+    }
+}
+
+/**
+ * A velocity component less the current of the plane k = klo, ghost cells included.
+ *
+ * @param[in]  vel     velocity component
+ * @param[in]  current the same component of the surface current (make_face_current)
+ * @param[out] rel     velocity relative to the surface, on the layout of vel
+ * @param[in]  klo     index of the lowest cell of the domain
+ */
+void
+subtract_current (const MultiFab& vel, const MultiFab& current, MultiFab& rel, int klo)
+{
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(rel, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto v = vel.const_array(mfi);
+        const auto c = current.const_array(mfi);
+        const auto r = rel.array(mfi);
+        ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            r(i,j,k) = v(i,j,k) - c(i,j,klo);
+        });
+    }
+}
+
 } // namespace
 
 void
@@ -108,7 +180,7 @@ SurfaceLayer::set_immersed_surface_params (const int& lev)
 }
 
 void
-SurfaceLayer::set_surface_current (int lev, const MultiFab& xvel, const MultiFab& yvel)
+SurfaceLayer::define_surface_current (const int& lev, const MultiFab& xvel, const MultiFab& yvel)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
 
@@ -116,72 +188,29 @@ SurfaceLayer::set_surface_current (int lev, const MultiFab& xvel, const MultiFab
     // lateral ghost cell than the velocities, so both cells beside every face are in it
     const iMultiFab* lmask = (lev < static_cast<int>(m_lmask_lev.size()) &&
                               !m_lmask_lev[lev].empty()) ? m_lmask_lev[lev][0] : nullptr;
-    const bool has_mask = (lmask != nullptr);
 
-    // One component, on the faces normal to dir of the plane k = klo
-    auto set = [&] (const MultiFab& vel, int dir, std::unique_ptr<MultiFab>& current)
-    {
-        BoxList bl = vel.boxArray().boxList();
-        for (auto& b : bl) { b.setRange(2, klo); }
-        BoxArray ba(std::move(bl));
-        const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
-        if (!current || current->boxArray() != ba ||
-            current->DistributionMap() != vel.DistributionMap() || current->nGrowVect() != ng) {
-            current = std::make_unique<MultiFab>(ba, vel.DistributionMap(), 1, ng);
-        }
-        const Real speed = m_surface_current_const[dir];
-        const int di = (dir == 0) ? 1 : 0;
-        const int dj = (dir == 1) ? 1 : 0;
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-        for (MFIter mfi(*current, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const auto c = current->array(mfi);
-            const auto m = has_mask ? lmask->const_array(mfi) : Array4<const int>{};
-            const int km = has_mask ? amrex::lbound(m).z : 0;
-            ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                const bool water = !has_mask ||
-                                   (m(i-di,j-dj,km) == 0 && m(i,j,km) == 0);
-                c(i,j,k) = water ? speed : zero;
-            });
-        }
-    };
-    set(xvel, 0, m_surface_current_x[lev]);
-    set(yvel, 1, m_surface_current_y[lev]);
+    m_surface_current_x[lev] = make_face_current(xvel, klo);
+    m_surface_current_y[lev] = make_face_current(yvel, klo);
+    fill_face_current(*m_surface_current_x[lev], m_surface_current_const[0], 0, lmask);
+    fill_face_current(*m_surface_current_y[lev], m_surface_current_const[1], 1, lmask);
+
+    m_rel_xvel[lev] = std::make_unique<MultiFab>(xvel.boxArray(), xvel.DistributionMap(), 1,
+                                                 xvel.nGrowVect());
+    m_rel_yvel[lev] = std::make_unique<MultiFab>(yvel.boxArray(), yvel.DistributionMap(), 1,
+                                                 yvel.nGrowVect());
 }
 
 void
-SurfaceLayer::build_relative_velocities (int lev, const MultiFab& xvel, const MultiFab& yvel)
+SurfaceLayer::build_relative_velocities (const int& lev, const MultiFab& xvel,
+                                         const MultiFab& yvel)
 {
-    set_surface_current(lev, xvel, yvel);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        m_rel_xvel[lev] && m_rel_xvel[lev]->boxArray() == xvel.boxArray() &&
+        m_rel_xvel[lev]->DistributionMap() == xvel.DistributionMap(),
+        "The surface current was defined for another layout of this level's velocities.");
     const int klo = m_geom[lev].Domain().smallEnd(2);
-
-    // One component less its current, on the velocity's own layout and ghost cells
-    auto build = [klo] (const MultiFab& vel, const MultiFab& current,
-                        std::unique_ptr<MultiFab>& rel)
-    {
-        if (!rel || rel->boxArray() != vel.boxArray() ||
-            rel->DistributionMap() != vel.DistributionMap() ||
-            rel->nGrowVect() != vel.nGrowVect()) {
-            rel = std::make_unique<MultiFab>(vel.boxArray(), vel.DistributionMap(), 1,
-                                             vel.nGrowVect());
-        }
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-        for (MFIter mfi(*rel, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const auto v = vel.const_array(mfi);
-            const auto c = current.const_array(mfi);
-            const auto r = rel->array(mfi);
-            ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                r(i,j,k) = v(i,j,k) - c(i,j,klo);
-            });
-        }
-    };
-    build(xvel, *m_surface_current_x[lev], m_rel_xvel[lev]);
-    build(yvel, *m_surface_current_y[lev], m_rel_yvel[lev]);
+    subtract_current(xvel, *m_surface_current_x[lev], *m_rel_xvel[lev], klo);
+    subtract_current(yvel, *m_surface_current_y[lev], *m_rel_yvel[lev], klo);
 }
 
 /**
@@ -1245,10 +1274,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         }
 
         // Get field arrays
-        const auto cons_arr  = mfs[Vars::cons]->array(mfi);
-        Array4<const Real> velx_arr = mfs[Vars::xvel]->const_array(mfi);
-        Array4<const Real> vely_arr = mfs[Vars::yvel]->const_array(mfi);
-        const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
+        const auto cons_arr = mfs[Vars::cons]->array(mfi);
+        auto       velx_arr = mfs[Vars::xvel]->const_array(mfi);
+        auto       vely_arr = mfs[Vars::yvel]->const_array(mfi);
+        const auto velz_arr = mfs[Vars::zvel]->array(mfi);
         FArrayBox rel_xvel, rel_yvel;
         if (use_current) {
             velx_arr = relative_plane(*mfs[Vars::xvel], *current_x, mfi.index(), rel_xvel);

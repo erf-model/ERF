@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that moving geometry.prob_lo in x moves the initial state with it.
+"""Check that run B is run A shifted by S cells in x, optionally offset by D.
 
 Usage: check_shift_invariance.py <plotfile A> <plotfile B> --shift S --vars V [V ...] [--tol T]
                                  [--offset D --offset-vars V [V ...]]
@@ -9,7 +9,8 @@ when the cell index is shifted by S in x (a half wavelength of a sine wave whose
 flips with it, a whole period of a periodic domain, ...). Then B(i,j,k) = A(i+S,j,k)
 for every listed field, periodic in i. A field whose position is computed from the
 cell index without geometry.prob_lo, or from prob_lo in a way that is not a shift,
-breaks this.
+breaks this. With S = 0, run B can instead be run A seen from another frame, as when
+the wind and the surface under it are both slowed by the same amount.
 
 A field named in --offset-vars is one that run B shifts by D: a height that moves with
 the domain moved by D in z, or a velocity in a frame moving at -D. The check is instead

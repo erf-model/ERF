@@ -326,8 +326,8 @@ relative to it (e.g. Bye and Wolff 1999, JPO). With
 
    erf.most.surface_current = 0.5 0.2
 
-the lower surface moves at 0.5 m/s along x and 0.2 m/s along y, and the surface layer
-takes :math:`(u - u_s, v - v_s)` wherever it uses the near-surface wind: in the mean
+the water surface moves at :math:`(u_s, v_s)` = (0.5, 0.2) m/s along x and y, and the
+surface layer takes :math:`(u - u_s, v - v_s)` wherever it uses the near-surface wind: in the mean
 speed :math:`|\bar{\mathbf{u}}|` and mean components behind :math:`u_*`, the Obukhov length
 and the roughness, in the direction and magnitude of the stresses, and in the wind speed
 of the heat and moisture fluxes. The 10 m wind diagnostics ``u_10m`` and ``v_10m`` are the

@@ -416,9 +416,9 @@ public:
       // (wrfinput data may have lower resolution SST data)
       pp.queryAdd("most.ignore_sst", m_ignore_sst);
 
-      // A uniform current of the lower surface [m/s, along grid x and y]. The surface
+      // A uniform current of the water surface [m/s, along grid x and y]. The surface
       // layer then takes the wind relative to the surface, as over an ocean current.
-      if (m_face == amrex::Orientation(amrex::Direction::z, amrex::Orientation::low)) {
+      if (m_face.coordDir() == 2 && m_face.isLow()) {
           amrex::Vector<amrex::Real> current;
           if (pp.queryarr("most.surface_current", current)) {
               AMREX_ALWAYS_ASSERT_WITH_MESSAGE(current.size() == 2,
@@ -606,6 +606,11 @@ public:
       m_lmask_lev[lev].resize(nt_tot_lmask);
       for (int nt(0); nt < nt_tot_lmask; ++nt) {
           m_lmask_lev[lev][nt] = lmask_lev[nt].get();
+      }
+
+      // The surface current over this level's water, and room for the velocities relative to it
+      if (m_use_surface_current) {
+          define_surface_current(lev, *mfv[Vars::xvel], *mfv[Vars::yvel]);
       }
 
       // Get pointers to wave data
@@ -1442,8 +1447,8 @@ public:
   }
 
   /**
-   * Set the surface current for this level's velocity layout, allocating it when the
-   * layout is new or has changed.
+   * Allocate the surface current for this level's velocities and set it over the water,
+   * and allocate the velocities relative to it.
    *
    * The current is held on the x- and y-faces of the plane k = klo, one 2D box for each
    * box of the velocities, with their lateral ghost cells. Only water moves: a face takes
@@ -1454,21 +1459,21 @@ public:
    * @param[in] xvel x-velocity on the level
    * @param[in] yvel y-velocity on the level
    */
-  void set_surface_current (int lev, const amrex::MultiFab& xvel, const amrex::MultiFab& yvel);
+  void define_surface_current (const int& lev, const amrex::MultiFab& xvel,
+                               const amrex::MultiFab& yvel);
 
   /**
-   * Set the surface current (set_surface_current) and fill the velocities relative to it,
-   * allocating them when the layout is new or has changed.
+   * Fill the velocities relative to the surface current.
    *
    * @param[in] lev  level index
    * @param[in] xvel x-velocity on the level
    * @param[in] yvel y-velocity on the level
    */
-  void build_relative_velocities (int lev, const amrex::MultiFab& xvel,
+  void build_relative_velocities (const int& lev, const amrex::MultiFab& xvel,
                                   const amrex::MultiFab& yvel);
 
   /**
-   * Whether the surface layer takes the wind relative to a current of the surface.
+   * Return whether the surface layer takes the wind relative to a current of the surface.
    */
   [[nodiscard]] bool use_surface_current () const { return m_use_surface_current; }
 
@@ -1479,7 +1484,7 @@ public:
    * @param[in] lev  level index
    * @param[in] comp 0 for the x-component on x-faces, 1 for the y-component on y-faces
    */
-  [[nodiscard]] const amrex::MultiFab* get_surface_current (int lev, int comp) const
+  [[nodiscard]] const amrex::MultiFab* get_surface_current (const int& lev, int comp) const
   {
       const auto& current = (comp == 0) ? m_surface_current_x : m_surface_current_y;
       return (m_use_surface_current && lev < static_cast<int>(current.size()))
