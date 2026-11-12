@@ -203,6 +203,18 @@ Set build variables in the ``GNUmakefile``:
         - Structure model directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_MOVING_BODIES=TRUE``; see :ref:`sec:StructureCoupling`)
         - (none)
         - paths
+      * - ``USE_DUST``
+        - Enables the dust coupling (atmosphere side; dust models plug into it, see :ref:`sec:DustCoupling`); adds the dust scalars to the state
+        - FALSE
+        - TRUE/FALSE
+      * - ``NUM_DUST_SCALARS``
+        - Number of dust scalars in the state (needs ``USE_DUST=TRUE``)
+        - 1
+        - positive integer
+      * - ``DUST_HOME``
+        - Dust model directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_DUST=TRUE``; see :ref:`sec:DustCoupling`)
+        - (none)
+        - paths
       * - ``USE_NOAHMP``
         - Enables Noah-MP land surface model (requires ``USE_NETCDF=TRUE``)
         - FALSE
@@ -592,6 +604,18 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Structure model directories to compile in, a CMake list, each with an ``ERFStructureModel.cmake`` (needs ``ERF_ENABLE_MOVING_BODIES=ON``; see :ref:`sec:StructureCoupling`)
      - (none)
      - paths
+   * - ``ERF_ENABLE_DUST``
+     - Enables the dust coupling (atmosphere side; dust models plug into it, see :ref:`sec:DustCoupling`); adds the dust scalars to the state
+     - OFF
+     - ON/OFF
+   * - ``ERF_NUM_DUST_SCALARS``
+     - Number of dust scalars in the state (needs ``ERF_ENABLE_DUST=ON``)
+     - 1
+     - positive integer
+   * - ``ERF_DUST_MODEL_DIRS``
+     - Dust model directories to compile in, a CMake list, each with an ``ERFDustModel.cmake`` (needs ``ERF_ENABLE_DUST=ON``; see :ref:`sec:DustCoupling`)
+     - (none)
+     - paths
    * - ``ERF_PRECISION``
      - Floating-point precision for mesh data
      - DOUBLE
@@ -834,11 +858,12 @@ builds more than ``erf_exec`` or adds its own tests. The parent calls ``add_subd
 - ERF options may be set as normal variables before ``add_subdirectory``, as above, or
   as cache variables (``-D`` on the command line). The options ERF sets with
   ``set(... CACHE ...)``, namely ``ERF_STRUCTURE_MODEL_DIRS``, ``ERF_FIRE_ENGINE_DIRS``,
-  ``ERF_PRECISION``, ``ERF_PARTICLES_PRECISION`` and ``ERF_DIM``, keep a normal variable
+  ``ERF_DUST_MODEL_DIRS``, ``ERF_NUM_DUST_SCALARS``, ``ERF_PRECISION``,
+  ``ERF_PARTICLES_PRECISION`` and ``ERF_DIM``, keep a normal variable
   from the parent only with CMake 3.21 or newer (policy CMP0126). This matters only with
   an external AMReX (``ERF_USE_INTERNAL_AMREX=OFF``), since the internal AMReX needs
   CMake 3.25. ``option()`` keys such as ``ERF_ENABLE_MOVING_BODIES`` work either way.
-- Give ``ERF_FIRE_ENGINE_DIRS`` and ``ERF_STRUCTURE_MODEL_DIRS`` absolute paths.
+- Give ``ERF_FIRE_ENGINE_DIRS``, ``ERF_STRUCTURE_MODEL_DIRS`` and ``ERF_DUST_MODEL_DIRS`` absolute paths.
 - ERF's paths refer to its own source and build folders, so ``erf_exec`` is in
   ``<build>/<ERF binary dir>/Exec`` and ERF's tests (with ``ERF_ENABLE_TESTS=ON``) find it there.
   The parent can refer to the executable as ``$<TARGET_FILE:erf_exec>``.

@@ -420,6 +420,30 @@ function(build_erf_lib erf_lib_name)
       message(FATAL_ERROR "ERF_NUM_DUST_SCALARS = '${ERF_NUM_DUST_SCALARS}' must be a positive integer")
     endif()
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_DUST ERF_NUM_DUST_SCALARS=${ERF_NUM_DUST_SCALARS})
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/DustCoupling/ERF_DustCoupling.cpp
+      ${SRC_DIR}/DustCoupling/ERF_DustModelRegistry.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/DustCoupling>)
+
+    # Dust models live outside ERF, each in a directory that provides
+    # ERFDustModel.cmake defining erf_dust_model_add(target), as fire engines
+    # do; ERF_DUST_MODEL_DIR holds the model's directory during the call.
+    foreach(_dust_dir IN LISTS ERF_DUST_MODEL_DIRS)
+      get_filename_component(_dust_dir "${_dust_dir}" ABSOLUTE)
+      if(NOT EXISTS "${_dust_dir}/ERFDustModel.cmake")
+        message(FATAL_ERROR "ERF_DUST_MODEL_DIRS: ${_dust_dir} has no ERFDustModel.cmake")
+      endif()
+      set(ERF_DUST_MODEL_DIR "${_dust_dir}")
+      # As for the fire engines above: this definition, replaced by the file's own, stops the
+      # configure when the file does not define erf_dust_model_add.
+      function(erf_dust_model_add target)
+        message(FATAL_ERROR "${ERF_DUST_MODEL_DIR}/ERFDustModel.cmake does not define erf_dust_model_add(target)")
+      endfunction()
+      include("${_dust_dir}/ERFDustModel.cmake")
+      erf_dust_model_add(${erf_lib_name})
+      message(STATUS "ERF dust model directory: ${_dust_dir}")
+    endforeach()
   elseif(ERF_DUST_MODEL_DIRS)
     message(FATAL_ERROR "ERF_DUST_MODEL_DIRS is set but ERF_ENABLE_DUST is OFF")
   endif()

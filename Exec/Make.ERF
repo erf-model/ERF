@@ -406,6 +406,12 @@ ifeq ($(USE_DUST), TRUE)
         $(error NUM_DUST_SCALARS = '$(NUM_DUST_SCALARS)' must be a positive integer)
     endif
     DEFINES += -DERF_USE_DUST -DERF_NUM_DUST_SCALARS=$(NUM_DUST_SCALARS)
+    ERF_DUST_COUPLING_DIR = $(ERF_SOURCE_DIR)/DustCoupling
+    include $(ERF_DUST_COUPLING_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_DUST_COUPLING_DIR)
+    INCLUDE_LOCATIONS += $(ERF_DUST_COUPLING_DIR)
+    $(foreach d,$(DUST_HOME),$(if $(wildcard $(d)/Make.package),,$(error DUST_HOME: $(d) has no Make.package)))
+    $(foreach d,$(DUST_HOME),$(eval DUST_MODEL_DIR := $(abspath $(d)))$(eval include $(DUST_MODEL_DIR)/Make.package)$(eval VPATH_LOCATIONS += $(DUST_MODEL_DIR))$(eval INCLUDE_LOCATIONS += $(DUST_MODEL_DIR)))
 else ifneq ($(strip $(DUST_HOME)),)
     $(error DUST_HOME is set but USE_DUST is not TRUE)
 endif

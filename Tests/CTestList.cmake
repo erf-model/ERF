@@ -5097,6 +5097,69 @@ add_test_abort(Fire_Abort_BuiltWithoutFire ${_fire_abort_dir} Terrain_Stress_Rid
 endif()
 endif()
 
+# The dust coupling (ERF_ENABLE_DUST, Source/DustCoupling): erf.dust.enable
+# needs a dust model compiled in (none is in this repository;
+# ERF_DUST_MODEL_DIRS adds them), and a build without the coupling refuses a
+# dust deck instead of running it as plain ERF. The checks run at the end of
+# start-up, so any deck serves.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_dust_abort_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
+if(ERF_ENABLE_DUST)
+if(NOT ERF_DUST_MODEL_DIRS)
+add_test_abort(Dust_Abort_NoModelBuiltIn ${_dust_abort_dir} Terrain_Stress_Ridge.i
+               "erf.dust.enable = true needs erf.dust.model to name one of the dust models compiled in .none"
+               "erf.dust.enable=true")
+endif()
+add_test_abort(Dust_Abort_ModelNotCompiledIn ${_dust_abort_dir} Terrain_Stress_Ridge.i
+               "erf.dust.model = .no_such_model. is not one of the dust models compiled in"
+               "erf.dust.enable=true erf.dust.model=no_such_model")
+# The example model directory (Tests/DustModelExample), when the build compiles
+# it in: a constant flux from the ground into a closed box, so the dust ERF
+# sums (RHO DUST) must be the mass the model emitted at every step; and a
+# restart from the mid-run checkpoint (the model's state and the dust scalar)
+# reproduces the final plotfile and the model's count exactly.
+set(_dex_src ${CMAKE_CURRENT_SOURCE_DIR}/DustModelExample)
+get_filename_component(_dex_src_abs "${_dex_src}" ABSOLUTE)
+set(_dex_in_build FALSE)
+foreach(_d IN LISTS ERF_DUST_MODEL_DIRS)
+  get_filename_component(_d_abs "${_d}" ABSOLUTE)
+  if(_d_abs STREQUAL _dex_src_abs)
+    set(_dex_in_build TRUE)
+  endif()
+endforeach()
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(_dex_in_build AND Python3_FOUND)
+resolve_test_exe("" "erf_exec" _dex_exe)
+set(_dex_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
+set(_dex_mdir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Dust_ExampleModel_Mass)
+file(MAKE_DIRECTORY ${_dex_mdir})
+file(COPY ${_dex_src}/inputs_dust_example ${_dex_src}/input_sounding DESTINATION ${_dex_mdir})
+# 1e-4 kg/m2/s over the 2000 m x 2000 m ground
+add_test(NAME Dust_ExampleModel_Mass
+         COMMAND sh -c "rm -rf plt0* chk0* dust_example.csv && ${_dex_mpi} ${_dex_exe} inputs_dust_example erf.check_int=-1 amrex.call_addr2line=0 > run.log 2>&1 && grep -q rhoadv_dust plt00008/Header && \"${Python3_EXECUTABLE}\" ${_dex_src}/check_dust_example.py run.log dust_example.csv 1.0e-4 4.0e6"
+         WORKING_DIRECTORY ${_dex_mdir})
+set_tests_properties(Dust_ExampleModel_Mass PROPERTIES
+    LABELS "regression;dust" TIMEOUT 600 PROCESSORS 2
+    ATTACHED_FILES_ON_FAIL "${_dex_mdir}/run.log")
+if(ERF_ENABLE_FCOMPARE)
+set(_dex_rdir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Dust_ExampleModel_Restart)
+file(MAKE_DIRECTORY ${_dex_rdir})
+file(COPY ${_dex_src}/inputs_dust_example ${_dex_src}/input_sounding DESTINATION ${_dex_rdir})
+add_test(NAME Dust_ExampleModel_Restart
+         COMMAND sh -c "rm -rf plt0* chk0* rst dust_example.csv && ${_dex_mpi} ${_dex_exe} inputs_dust_example amrex.call_addr2line=0 > straight.log 2>&1 && mkdir rst && cd rst && cp ../input_sounding . && ${_dex_mpi} ${_dex_exe} ../inputs_dust_example erf.restart=../chk00004 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00008 rst/plt00008 && test \"$(tail -n 1 dust_example.csv)\" = \"$(tail -n 1 rst/dust_example.csv)\""
+         WORKING_DIRECTORY ${_dex_rdir})
+set_tests_properties(Dust_ExampleModel_Restart PROPERTIES
+    LABELS "regression;dust" TIMEOUT 600 PROCESSORS 2
+    ATTACHED_FILES_ON_FAIL "${_dex_rdir}/straight.log;${_dex_rdir}/restart.log")
+endif()
+endif()
+else()
+add_test_abort(Dust_Abort_BuiltWithoutDust ${_dust_abort_dir} Terrain_Stress_Ridge.i
+               "erf.dust.enable = true but this executable was built without the dust coupling"
+               "erf.dust.enable=true")
+endif()
+endif()
+
 # The structure coupling (erf.structures.model, Source/MovingBodies/Coupling) with the
 # example model directory (Tests/StructureModelExample) compiled in: one point pushes
 # on still air in a periodic box with 50 N along x. With no friction or gravity, the

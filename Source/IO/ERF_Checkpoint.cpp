@@ -851,6 +851,14 @@ ERF::WriteCheckpointFile () const
     }
 #endif
 
+#ifdef ERF_USE_DUST
+    // The dust model's own state (DustModel::write_checkpoint), which
+    // DustModel::initialize reads back on a restart
+    if (m_dust_model) {
+        m_dust_model->write_checkpoint(checkpointname);
+    }
+#endif
+
 #ifdef ERF_USE_MOVING_BODIES
     // The structure model's own state, under checkpointname/<model name>
     if (m_structure_model) {

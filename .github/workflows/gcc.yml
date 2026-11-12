@@ -292,6 +292,19 @@ jobs:
         mpiexec -n 2 ./ERF3d.gnu*.ex inputs_structure_example max_step=8 erf.check_int=-1 | tee run.log
         grep -q "structure_example_fx" plt00008/Header
 
+    - name: GNUmake Compile and Link with an out-of-tree dust model
+      run: |
+        mkdir -p ${{runner.temp}}/dust_build
+        cd ${{runner.temp}}/dust_build
+        printf 'ERF_HOME = %s\nDUST_HOME = %s/Tests/DustModelExample\nUSE_DUST = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
+          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
+        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
+        make -j2
+        cp ${{github.workspace}}/Tests/DustModelExample/inputs_dust_example ${{github.workspace}}/Tests/DustModelExample/input_sounding .
+        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_dust_example erf.check_int=-1 | tee run.log
+        grep -q "rhoadv_dust" plt00008/Header
+        python3 ${{github.workspace}}/Tests/DustModelExample/check_dust_example.py run.log dust_example.csv 1.0e-4 4.0e6
+
   # Single stable required status check. Branch protection previously pinned the
   # individual matrix job names ("GNU@9.3 C++17 Release - Particles OFF"), which silently
   # stopped matching when the matrix gained its Mesh/precision axes -- leaving every PR

@@ -137,6 +137,16 @@
                      forest_drag, &S_old[IntVars::cons],
                      true, ib_wall_hfx[level].get(), ib_wall_ktarget[level].get(), ib_wall_qfx[level].get());
 
+#ifdef ERF_USE_DUST
+        // *****************************************************************************
+        // The dust model's emission, settling and deposition, added AFTER
+        // make_sources, which resets cc_src at every RK stage
+        // *****************************************************************************
+        if (m_dust_model) {
+            m_dust_model->add_sources(level, cc_src, S_data[IntVars::cons], *dJ_to_use, fine_geom, slow_dt);
+        }
+#endif
+
         // *****************************************************************************
         // Inject the fire-to-atmosphere heat flux AFTER make_sources, which resets
         // cc_src at every RK stage. The lagged fire flux (FireCoupler) is constant
