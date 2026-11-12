@@ -3692,6 +3692,77 @@ if(Python3_Interpreter_FOUND)
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS"
         LABELS "rans;unit")
 endif()
+# Terrain-following inflow profiles on flat ground: one deck run with
+# xlo.dirichlet_file and again with the equivalent xlo.inflow_profile file must
+# give identical plotfiles, since the level-indexed lookup and the
+# height-above-ground lookup coincide when the ground is on the floor.
+function(add_test_inflow_profile_parity TEST_NAME CASE_DIR INPUT_FILE NSTEPS OPTIONS_DIRICHLET OPTIONS_PROFILE)
+    set(_rans_root ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS)
+    set(CURRENT_TEST_SOURCE_DIR ${_rans_root}/${CASE_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(NP ${ERF_TEST_NRANKS})
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_step "0000${NSTEPS}")
+    string(LENGTH "${_step}" _len)
+    math(EXPR _start "${_len} - 5")
+    string(SUBSTRING "${_step}" ${_start} 5 _step)
+
+    set(_dir ${CURRENT_TEST_BINARY_DIR})
+    set(_common "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1")
+    # the plotfiles of an earlier pass are removed first; a failing run or
+    # comparison prints the tail of its log
+    set(test_command sh -c "rm -rf ${_dir}/plt_dirichlet${_step} ${_dir}/plt_profile${_step} && ( ${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} erf.plot_file_1=plt_dirichlet ${OPTIONS_DIRICHLET} > ${_dir}/dirichlet_file.log 2>&1 || ( tail -n 40 ${_dir}/dirichlet_file.log && false ) ) && ( ${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} erf.plot_file_1=plt_profile ${OPTIONS_PROFILE} > ${_dir}/inflow_profile.log 2>&1 || ( tail -n 40 ${_dir}/inflow_profile.log && false ) ) && ( ${FCOMPARE_EXE} --abort_if_not_all_found -r 0.0 --abs_tol 0.0 ${_dir}/plt_dirichlet${_step} ${_dir}/plt_profile${_step} > ${_dir}/fcompare.log 2>&1 || ( cat ${_dir}/fcompare.log && false ) )")
+
+    add_test(NAME ${TEST_NAME} COMMAND ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "rans;regression"
+        ATTACHED_FILES_ON_FAIL "${_dir}/dirichlet_file.log;${_dir}/inflow_profile.log;${_dir}/fcompare.log"
+    )
+endfunction(add_test_inflow_profile_parity)
+
+# erf.input_sounding_theta_above_ground over the incline (compressible, so in
+# every build): theta must start above the local ground as on the inflow face,
+# and the same deck with the flag off must not pass that check
+add_test_rans(InflowProfile_ThetaAboveGround         Terrain_Inflow_Profile inputs_theta 4 check_theta_above_ground.py)
+add_test_rans(InflowProfile_ThetaAboveGround_FlagOff Terrain_Inflow_Profile inputs_theta 4 check_theta_flag_off.py
+              RUNTIME_OPTIONS "erf.input_sounding_theta_above_ground=false")
+
+# xlo.inflow_profile over idealised terrain (Exec/CanonicalTests/Canonical_RANS/Terrain_Inflow_Profile,
+# README.md): after 60 steps the first column follows the log law at the height above the
+# local ground, much better than at absolute height or by level. The terrain-fitted
+# projection is GMRES with the FFT preconditioner, so these need an FFT build.
+if(ERF_ENABLE_FFT)
+    add_test_rans(RANS_InflowProfile_Plateau    Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_plateau.txt")
+    add_test_rans(RANS_InflowProfile_Incline    Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_incline.txt")
+    add_test_rans(RANS_InflowProfile_Decline    Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_decline.txt")
+    add_test_rans(RANS_InflowProfile_CrossRidge Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_crossridge.txt")
+    add_test_rans(RANS_InflowProfile_CrossRidge_File Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_crossridge.txt xlo.inflow_profile=file xlo.inflow_profile_file=inflow_profile_crossridge.txt")
+    add_test_inflow_profile_parity(RANS_InflowProfile_Parity_Flat Terrain_Inflow_Profile inputs_parity 60
+                                   "xlo.dirichlet_file=inflow_levels_flat.txt"
+                                   "xlo.inflow_profile=file xlo.inflow_profile_file=inflow_profile_flat.txt")
+endif()
+
 if(ERF_ENABLE_FFT)
     # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
     # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)

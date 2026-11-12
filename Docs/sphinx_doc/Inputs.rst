@@ -267,13 +267,22 @@ List of Parameters
 |                             | moisture model                                           |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.velocity**         | velocity imposed at an ``inflow`` face.  Required on an  | 3 Reals            | must be set      |
-|                             | inflow face unless ``<face>.dirichlet_file`` is given    |                    |                  |
+|                             | inflow face unless ``<face>.dirichlet_file`` or          |                    |                  |
+|                             | ``<face>.inflow_profile`` is given                       |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.dirichlet_file**   | file of height-varying Dirichlet inflow data, used in    | String             | None             |
 |                             | place of ``<face>.velocity``                             |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.read_prim_theta**  | the ``dirichlet_file`` supplies theta rather than        | Boolean            | true             |
 |                             | (rho*theta); read only when that file is given           |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.inflow_profile**   | terrain-following inflow on an ``inflow`` or             | log_law, file      | None             |
+|                             | ``inflow_outflow`` face: each boundary cell takes the    |                    |                  |
+|                             | profile at its own height above the ground beneath it.   |                    |                  |
+|                             | ``log_law`` uses ``inflow_log_law.*``; ``file`` reads    |                    |                  |
+|                             | ``<face>.inflow_profile_file``.  Replaces                |                    |                  |
+|                             | ``<face>.velocity``; cannot be combined with             |                    |                  |
+|                             | ``dirichlet_file``.  See Boundary Conditions             |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.nonreflecting**    | let upstream-propagating acoustic waves leave through    | Boolean            | false            |
 |                             | the face instead of reflecting off the Dirichlet         |                    |                  |

@@ -134,7 +134,15 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                 // Test for input data file if at xlo face
                 std::string dirichlet_file;
                 auto file_exists = pp.queryAdd("dirichlet_file", dirichlet_file);
-                if (file_exists) {
+                // Terrain-following inflow profile: <face>.inflow_profile = log_law or file
+                std::string inflow_profile;
+                const bool has_profile = pp.queryAdd("inflow_profile", inflow_profile);
+                if (has_profile && file_exists) {
+                    Abort(bcid + ".inflow_profile and " + bcid + ".dirichlet_file cannot both be given");
+                }
+                if (has_profile) {
+                    init_inflow_profile(bcid, ori, inflow_profile, pp);
+                } else if (file_exists) {
                     pp.queryAdd("read_prim_theta", read_prim_theta);
                     const bool file_has_theta = init_Dirichlet_bc_data(dirichlet_file);
                     m_th_file_face[ori] = file_has_theta ? (read_prim_theta ? 2 : 1) : 0;
@@ -760,6 +768,24 @@ void ERF::init_bcs ()
         }
     }
 
+    // Terrain-following inflow profiles prescribe theta and tke where their
+    // tables have them (rho times the tabulated value); density stays
+    // extrapolated from the interior
+    for (OrientationIter oit; oit; ++oit) {
+        const Orientation ori = oit();
+        const auto& prof = m_inflow_profiles[ori];
+        if (!prof.active) { continue; }
+        const int dir = ori.coordDir();
+        const int t = (phys_bc_type[ori] == ERF_BC::inflow_outflow) ? ERFBCType::ext_dir_upwind
+                                                                    : ERFBCType::ext_dir;
+        auto prescribe = [&] (int bcvar) {
+            if (ori.isLow()) { domain_bcs_type[bcvar].setLo(dir, t); }
+            else             { domain_bcs_type[bcvar].setHi(dir, t); }
+        };
+        if (prof.has_theta) { prescribe(BCVars::RhoTheta_bc_comp); }
+        if (prof.has_tke)   { prescribe(BCVars::RhoKE_bc_comp); }
+    }
+
     // Sanity check that implicit diffusion is consistent with the BC types.
     // Turn off implicit diffusion for a component if its BCs don't match
     // those allowed by the tridiagonal solver.
@@ -1031,4 +1057,75 @@ bool ERF::init_Dirichlet_bc_data (const std::string input_file)
         //       class is instantiated in ERF_MakeNewArrays.cpp.
     } // lev
     return th_read;
+}
+
+/**
+ * Build the terrain-following inflow profile of face `ori`.
+ *
+ * <face>.inflow_profile = log_law tabulates the neutral log law of
+ * inflow_log_law.* (speed, height, direction, z0, max_speed, tke_zscale; z0
+ * defaults to erf.most.z0); <face>.inflow_profile = file reads
+ * <face>.inflow_profile_file in the layout of kynema-sgf's TabulatedProfile.
+ * Heights are above the local ground: every boundary cell takes the profile at
+ * its own height above the terrain beneath it.
+ */
+void
+ERF::init_inflow_profile (const std::string& bcid, Orientation ori,
+                          const std::string& kind, ParmParse& pp)
+{
+    if (ori.coordDir() == 2) {
+        Abort(bcid + ".inflow_profile is only allowed on the lateral faces");
+    }
+    if (input_bndry_planes) {
+        Abort(bcid + ".inflow_profile cannot be combined with erf.input_bndry_planes");
+    }
+
+    InflowProfile& prof = m_inflow_profiles[ori];
+    if (kind == "log_law") {
+        InflowLogLaw ll;
+        ParmParse pp_ll("inflow_log_law");
+        pp_ll.get("speed", ll.speed);
+        pp_ll.queryAdd("height", ll.height);
+        pp_ll.queryAdd("direction", ll.direction);
+        ParmParse pp_erf("erf");
+        pp_erf.query("most.z0", ll.z0);
+        pp_ll.queryAdd("z0", ll.z0);
+        pp_ll.queryAdd("max_speed", ll.max_speed);
+        pp_ll.queryAdd("tke_zscale", ll.tke_zscale);
+        ll.Cmu0 = solverChoice.turbChoice[0].Cmu0;
+        const Real ztop = geom[0].ProbHi(2) - geom[0].ProbLo(2);
+        const std::string err = make_log_law_inflow_profile(ll, ztop, prof);
+        if (!err.empty()) {
+            Abort(bcid + ".inflow_profile = log_law: " + err);
+        }
+    } else if (kind == "file") {
+        std::string fname;
+        pp.get("inflow_profile_file", fname);
+        read_inflow_profile_file(fname, prof);
+    } else {
+        Abort(bcid + ".inflow_profile must be log_law or file, not '" + kind + "'");
+    }
+    prof.copy_to_device();
+
+    Print() << bcid << ": terrain-following inflow profile from " << prof.source
+            << " (" << prof.z.size() << " heights, u v"
+            << (prof.has_theta ? " T" : "") << (prof.has_tke ? " tke" : "") << ")" << std::endl;
+
+    // The inflow is applied above the local ground; an input sounding read at
+    // physical heights starts the interior out of step with it over terrain
+    if (restart_chkfile.empty() &&
+        solverChoice.init_type == InitType::Input_Sounding &&
+        SolverChoice::mesh_type == MeshType::VariableDz)
+    {
+        if (!input_sounding_data.wind_above_ground) {
+            Warning(bcid + ".inflow_profile applies the wind above the local ground, but the input sounding "
+                    "starts the interior at physical heights; set erf.input_sounding_wind_above_ground = true "
+                    "to start it the same way");
+        }
+        if (prof.has_theta && !input_sounding_data.theta_above_ground) {
+            Warning(bcid + ".inflow_profile applies T above the local ground, but the input sounding "
+                    "starts theta at physical heights; set erf.input_sounding_theta_above_ground = true "
+                    "to start it the same way");
+        }
+    }
 }
