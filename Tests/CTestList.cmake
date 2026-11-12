@@ -3030,6 +3030,14 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                        FIXTURES_REQUIRED BndryPlanesMoist
                        ATTACHED_FILES_ON_FAIL "${_bp_end_bin}/ReadToLastPlane.log")
 endif()
+if(ERF_ENABLE_WINDFARM)
+  # erf-model/ERF#5071: a wind-farm model without erf.windfarm_loc_type reads no turbine table, so it
+  # must stop at start-up and name the input
+  add_test_abort(WindFarm_Fitch_NoLocType ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU
+                 ScalarAdvectionUniformU.i
+                 "erf.windfarm_type = Fitch needs erf.windfarm_loc_type"
+                 "erf.windfarm_type=Fitch")
+endif()
 add_test_abort(BndryPlanes_MoistTemperature_WriteWithoutQv ${_bp_moist_dir}
                BndryPlanes_MoistTemperature_Write.i
                "writes temperature but not qv"
