@@ -968,7 +968,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp, mf_surface_fluxes);
     } else if (flux_type == FluxCalcType::BULK_COEFF) {
-        bulk_coeff_flux flux_comp(m_Cd, m_Ch, m_Cq);
+        bulk_coeff_flux flux_comp(m_Cd, m_Ch, m_Cq, m_bulk_use_fixed_tflux, m_bulk_fixed_tflux);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
@@ -1586,6 +1586,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         if (flux_type == FluxCalcType::BULK_COEFF) {
             constexpr Real eps  = std::numeric_limits<Real>::epsilon();
             bool l_use_moisture = use_moisture;
+            // With an imposed heat flux (most.surf_temp_flux) the flux stays on in calm
+            // air, where u* -> 0: t*, q* and the Obukhov length then use u* floored at
+            // 0.001 m/s, the floor of the MOST imposed-flux path (ERF_MOSTStress.H
+            // USTARMIN), so they stay finite (t* = -F / 0.001 rather than -F / 2e-16).
+            // The Ch form's flux vanishes with the wind and keeps the plain u*.
+            const Real ustar_min = m_bulk_use_fixed_tflux ? Real(0.001) : eps;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
             {
                 Real rho = cons_arr(i,j,klo,Rho_comp);
@@ -1596,22 +1602,23 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real tau = std::sqrt( t13_arr(i,j,klo)/rho * t13_arr(i,j,klo)/rho
                                     + t23_arr(i,j,klo)/rho * t23_arr(i,j,klo)/rho );
                 u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
+                const Real ustar_d = amrex::max(u_star_arr(i,j,0), ustar_min);
 
                 if (hfx3_arr(i,j,klo)>=zero) {
-                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / (rho * ustar_d),-eps);
                 } else {
-                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),eps);
+                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / (rho * ustar_d),eps);
                 }
                 if (!l_use_moisture) {
                     q_star_arr(i,j,0) = zero;
                 } else if (qfx3_arr(i,j,klo)>=zero) {
-                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / (rho * ustar_d),-eps);
                 } else {
-                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * u_star_arr(i,j,0)),eps);
+                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * ustar_d),eps);
                 }
                 Real tstv = t_star_arr(i,j,0)*(one + epsv*qv) + epsv*Thd*q_star_arr(i,j,0);
                 tstv = (tstv >= zero) ? amrex::max(tstv, eps) : amrex::min(tstv, -eps);
-                olen_arr(i,j,0) = ( u_star_arr(i,j,0)  * u_star_arr(i,j,0) * Thv ) /
+                olen_arr(i,j,0) = ( ustar_d * ustar_d * Thv ) /
                                   ( KAPPA * CONST_GRAV * tstv );
                 z0_arr(i,j,0)  = Compute_roughness(zref_arr(i,j,0),   olen_arr(i,j,0),
                                                     umm_arr(i,j,0), u_star_arr(i,j,0));

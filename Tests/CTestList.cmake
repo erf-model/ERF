@@ -5002,6 +5002,27 @@ add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_S
 endif()
 endif()
 
+# surface_layer.flux_type = bulk_coeff with an imposed heat flux (erf.most.surf_temp_flux):
+# the run says it imposes the flux, and the inputs it contradicts stop it at start-up. The
+# deck's surface layer is switched to bulk_coeff by the options.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_bcf_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
+set(_bcf_opts "erf.surface_layer.flux_type=bulk_coeff erf.most.Cd=0.0015 erf.most.Cq=0.0015 erf.most.pot_surf_temp=300 erf.most.surf_moist=0 erf.most.surf_temp_flux=0.05")
+# add_test_abort passes on the message; this one checks the start-up line of the imposed flux
+add_test_abort(BulkCoeffFlux_Imposed ${_bcf_dir} Terrain_Stress_Ridge.i
+               "with an imposed surface heat flux most.surf_temp_flux = 0.05 K m/s"
+               "${_bcf_opts}")
+add_test_abort(BulkCoeffFlux_SfcSst_abort ${_bcf_dir} Terrain_Stress_Ridge.i
+               "cannot be combined with most.use_sfc_fluxes or most.use_sfc_sst"
+               "${_bcf_opts} erf.most.use_sfc_sst=1")
+add_test_abort(BulkCoeffFlux_NonFinite_abort ${_bcf_dir} Terrain_Stress_Ridge.i
+               "must be a finite number"
+               "${_bcf_opts} erf.most.surf_temp_flux=nan")
+add_test_abort(BulkCoeffFlux_HeatingRate_abort ${_bcf_dir} Terrain_Stress_Ridge.i
+               "may not be combined with erf.most.surf_heating_rate"
+               "${_bcf_opts} erf.most.surf_heating_rate=2")
+endif()
+
 # A build without the fire or the dust coupling refuses a fire or dust deck instead
 # of running it as plain ERF. Their own tests live with the engines and models that
 # use them (erf-model/FLARE); ERF builds neither coupling in its tests.
