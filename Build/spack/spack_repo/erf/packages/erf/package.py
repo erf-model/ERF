@@ -143,6 +143,12 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         when="@26.02:",
     )
     variant(
+        "morr_fort",
+        default=False,
+        description="Enable the Morrison Fortran microphysics bridge",
+        when="@25.05:",
+    )
+    variant(
         "wsm6_fort",
         default=False,
         description="Enable the WSM6 Fortran microphysics bridge",
@@ -194,6 +200,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         depends_on("c")
         depends_on("cxx")
         depends_on("fortran", when="+noahmp")
+        depends_on("fortran", when="+morr_fort")
         depends_on("fortran", when="+wsm6_fort")
         depends_on("fortran", when="+wdm6_fort")
         depends_on("fortran", when="+rrtmgp")
@@ -328,6 +335,11 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         msg="the ML microphysics diagnostics live in the particle (SDM) microphysics",
     )
     patch("ml-diagnostics-single.patch", when="@26.09+ml_uphys_diagnostics precision=single")
+    conflicts(
+        "+morr_fort",
+        when="precision=single",
+        msg="the Morrison Fortran bridge is double precision only",
+    )
     conflicts(
         "+wsm6_fort",
         when="precision=single",
@@ -568,6 +580,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
             self.define_from_variant("ERF_ENABLE_NOAHMP", "noahmp"),
             self.define_from_variant("ERF_ENABLE_WINDFARM", "windfarm"),
             self.define_from_variant("ERF_ENABLE_ML_UPHYS_DIAGNOSTICS", "ml_uphys_diagnostics"),
+            self.define_from_variant("ERF_ENABLE_MORR_FORT", "morr_fort"),
             self.define_from_variant("ERF_ENABLE_WSM6_FORT", "wsm6_fort"),
             self.define_from_variant("ERF_ENABLE_WDM6_FORT", "wdm6_fort"),
             self.define_from_variant("ERF_ENABLE_EAMXX_SHOC", "eamxx_shoc"),
