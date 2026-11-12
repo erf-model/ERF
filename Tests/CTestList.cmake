@@ -5376,6 +5376,17 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       add_test_abort(Structures_Abort_UnknownModel ${_smx_src} inputs_structure_example
                      "erf.structures.model = .no_such_model. is not one of the structure models compiled in .*\"example\""
                      "erf.structures.model=no_such_model")
+      # A support box with a NaN, or with its low end above its high end, stops the run with the model's name
+      # (structure.example.test_support makes the example return one). The check runs with a finer level.
+      add_test_abort(Structures_Abort_SupportNaN ${_smx_src} inputs_structure_example
+                     "structure model .example.: support.. returned a box with a NaN or with its low end above its high end .direction 1: "
+                     "${_smx_finer} erf.box1.in_box_lo_indices=0 0 0 erf.box1.in_box_hi_indices=31 31 3 structure.example.test_support=nan")
+      add_test_abort(Structures_Abort_SupportInverted ${_smx_src} inputs_structure_example
+                     "structure model .example.: support.. returned a box with a NaN or with its low end above its high end .direction 0: "
+                     "${_smx_finer} erf.box1.in_box_lo_indices=0 0 0 erf.box1.in_box_hi_indices=31 31 3 structure.example.test_support=inverted")
+      add_test_abort(Structures_Abort_ExampleTestSupport ${_smx_src} inputs_structure_example
+                     "structure.example.test_support must be reach, nan or inverted, got box"
+                     "structure.example.test_support=box")
       add_test_abort(Structures_Abort_ExampleLevel ${_smx_src} inputs_structure_example
                      "structure.example.level must be -1 .the finest level. or 0 to amr.max_level = 0, got 1"
                      "structure.example.level=1")

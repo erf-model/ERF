@@ -78,7 +78,9 @@ boxes reach the ground. With the ground and spacing extremes of
 ``mesh_z_bounds`` alone the answer is wider, and where a box does not stand on
 the ground it is the whole column. The cell indices are bounded before they
 become integers, so a region far outside the domain, or an infinite one, is
-safe.
+safe; a height range with an infinite end takes the cells of its finite end.
+``LevelHeights`` keeps the table between calls and builds it again when the
+level's boxes or its domain change, or when the caller asks (a moving terrain).
 
 ``sample_velocity`` is collective: every rank passes the same points, and the
 answers are summed over the ranks. ``sample_velocity_local`` is the part on one

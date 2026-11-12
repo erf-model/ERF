@@ -110,9 +110,13 @@ ERF::advance_structure_model (int lev, double time, Real dt_lev,
 
     const Geometry& fg = geom[lev+1];
     // On a stretched or terrain-following mesh a height lies in the cells that level lev+1's own node
-    // heights allow, wherever its boxes are (on the ground or aloft)
-    erf_actuator::ZBounds zb;
-    if (fitted) { zb = erf_actuator::mesh_z_levels(*z_phys_nd[lev+1], fg); }
+    // heights allow, wherever its boxes are (on the ground or aloft). The table of those heights is built
+    // when level lev+1's boxes change, and at every step only where the terrain moves
+    const erf_actuator::ZBounds* zb = nullptr;
+    if (fitted) {
+        zb = &m_structure_fine_heights.get(*z_phys_nd[lev+1], fg,
+                                           solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    }
 
     for (const RealBox& rb : support) {
         for (int d = 0; d < AMREX_SPACEDIM; ++d) {
@@ -123,7 +127,7 @@ ERF::advance_structure_model (int lev, double time, Real dt_lev,
             }
         }
         // the cells of level lev+1 the support may lie in, any periodic image of it included
-        if (erf_actuator::region_touches_grids(grids[lev+1], fg, rb, fitted ? &zb : nullptr)) {
+        if (erf_actuator::region_touches_grids(grids[lev+1], fg, rb, zb)) {
             Abort(std::string("structure model \"") + m_structure_model->name() + "\" couples to level "
                   + std::to_string(lev) + ", but level " + std::to_string(lev+1)
                   + " covers part of its support (x " + std::to_string(rb.lo(0)) + " to " + std::to_string(rb.hi(0))

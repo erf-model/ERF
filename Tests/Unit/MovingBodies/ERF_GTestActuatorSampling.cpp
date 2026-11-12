@@ -29,6 +29,7 @@
 #include <limits>
 #include <algorithm>
 #include <array>
+#include <cfenv>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -505,6 +506,7 @@ TEST(ActuatorSampling, ARegionTouchesALevelThroughItsOwnCellsAndItsPeriodicImage
     auto touches = [&](std::array<Real,3> lo, std::array<Real,3> hi) {
         return erf_actuator::region_touches_grids(ba, geom, amrex::RealBox(lo.data(), hi.data()));
     };
+    std::feclearexcept(FE_ALL_EXCEPT);
     EXPECT_TRUE(touches({700.0, 500.0, 300.0}, {800.0, 600.0, 350.0}));       // inside
     EXPECT_TRUE(touches({400.0, 500.0, 300.0}, {510.0, 600.0, 350.0}));       // across the x edge
     EXPECT_FALSE(touches({400.0, 500.0, 300.0}, {499.0, 600.0, 350.0}));      // beside it in x
@@ -539,10 +541,70 @@ TEST(ActuatorSampling, ARegionTouchesALevelThroughItsOwnCellsAndItsPeriodicImage
     EXPECT_TRUE(touches({-inf, 500.0, 300.0}, {-inf, 600.0, 350.0}));
     // a level with no box touches nothing
     EXPECT_FALSE(erf_actuator::region_touches_grids(amrex::BoxArray(), geom, amrex::RealBox({0.0, 0.0, 0.0}, {3000.0, 1200.0, 600.0})));
+    // no invalid operation so far, the infinite regions included (it would trap with amrex.fpe_trap_invalid = 1)
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
     // an inverted or NaN region is refused
     EXPECT_NE(erf_gtest::abort_message([&] { touches({800.0, 500.0, 300.0}, {700.0, 600.0, 350.0}); }).find("lo <= hi"), std::string::npos);
     const Real qnan = std::numeric_limits<Real>::quiet_NaN();
     EXPECT_NE(erf_gtest::abort_message([&] { touches({qnan, 500.0, 300.0}, {700.0, 600.0, 350.0}); }).find("lo <= hi"), std::string::npos);
+}
+
+// A height range with an infinite end, against the level's table (ZBounds::k_range): the cells are those of
+// the finite end alone, a range at one infinity holds no cell, and no invalid operation is raised (the margin
+// must not take inf - inf, which traps with amrex.fpe_trap_invalid = 1). Boxes on cells 0 to 2: ground from 0
+// to 280 m, the top node level between 150 and 346 m.
+TEST(ActuatorSampling, AnInfiniteHeightRangeTakesTheCellsOfItsFiniteEnd)
+{
+    const FittedLevel f(amrex::BoxList(amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(7, 3, 2))),
+                        [](int i) { return Real(40.0) * Real(std::min(i, 7)); });
+    ASSERT_TRUE(f.table.has_table());
+    const Real inf = std::numeric_limits<Real>::infinity();
+    std::feclearexcept(FE_ALL_EXCEPT);
+    EXPECT_FALSE(f.touches({100.0, 200.0}, {inf, inf}, f.table));
+    EXPECT_FALSE(f.touches({100.0, 200.0}, {-inf, -inf}, f.table));
+    EXPECT_TRUE(f.touches({100.0, 200.0}, {-inf, inf}, f.table));
+    EXPECT_FALSE(f.touches({100.0, 200.0}, {-inf, -10.0}, f.table));   // below the lowest ground
+    EXPECT_TRUE(f.touches({100.0, 200.0}, {-inf, 5.0}, f.table));
+    EXPECT_FALSE(f.touches({100.0, 200.0}, {400.0, inf}, f.table));    // above the highest node (346 m)
+    EXPECT_TRUE(f.touches({100.0, 200.0}, {300.0, inf}, f.table));
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
+    int kb = 0, kt = 0;
+    f.table.k_range(-inf, Real(5.0), 0, 9, kb, kt);
+    EXPECT_EQ(kb, 0);
+    EXPECT_EQ(kt, 0);   // 5 m is below node level 1 everywhere (50 m at its lowest)
+    f.table.k_range(Real(330.0), inf, 0, 9, kb, kt);
+    EXPECT_EQ(kb, 2);   // node level 2 reaches 280 + 44 = 324 m, level 3 reaches 346 m: cell 2 only
+    EXPECT_EQ(kt, 2);
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
+}
+
+// LevelHeights keeps the table of mesh_z_levels: built once for a set of boxes, again for other boxes or
+// another domain, and on the same boxes only when asked (heights that change in time).
+TEST(ActuatorSampling, TheLevelsTableIsKeptUntilTheBoxesChange)
+{
+    auto ground = [](int i) { return Real(40.0) * Real(i); };
+    FittedLevel a(amrex::BoxList(amrex::Box(amrex::IntVect(0, 0, 0), amrex::IntVect(7, 3, 2))), ground);
+    FittedLevel b(amrex::BoxList(amrex::Box(amrex::IntVect(4, 0, 5), amrex::IntVect(7, 3, 9))), ground);
+    erf_actuator::LevelHeights h;
+    EXPECT_EQ(h.builds(), 0);
+    EXPECT_EQ(h.get(a.znd, a.geom).node_lo, a.table.node_lo);
+    EXPECT_EQ(h.get(a.znd, a.geom).has_cell, a.table.has_cell);
+    EXPECT_EQ(h.builds(), 1);
+    // other boxes
+    EXPECT_EQ(h.get(b.znd, b.geom).has_cell, b.table.has_cell);
+    EXPECT_EQ(h.get(b.znd, b.geom).node_hi, b.table.node_hi);
+    EXPECT_EQ(h.builds(), 2);
+    // the heights 10 m higher on the same boxes: the kept table, until the caller asks
+    b.znd.plus(Real(10.0), 0, 1, 0);
+    EXPECT_EQ(h.get(b.znd, b.geom).node_lo, b.table.node_lo);
+    EXPECT_EQ(h.builds(), 2);
+    EXPECT_NEAR(h.get(b.znd, b.geom, true).node_lo[5], b.table.node_lo[5] + Real(10.0), 1.0e-3);
+    EXPECT_EQ(h.builds(), 3);
+    // the same boxes in a taller domain
+    const amrex::Box tall(amrex::IntVect(0, 0, 0), amrex::IntVect(7, 3, 11));
+    const amrex::Geometry gtall(tall, amrex::RealBox({0.0, 0.0, 0.0}, {800.0, 400.0, 600.0}), 0, {0, 1, 0});
+    EXPECT_EQ(h.get(b.znd, gtall).node_lo.size(), std::size_t(13));
+    EXPECT_EQ(h.builds(), 4);
 }
 
 // A terrain-following level whose boxes all stand on the ground and hold cells 0 to 2. Ground from 0 (i = 0) to

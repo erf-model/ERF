@@ -451,8 +451,10 @@ terrain_heights (const MultiFab* z_phys_nd, const Geometry& geom, const std::vec
 
 namespace {
 
-// The table of this rank's boxes: each node level's lowest and highest height (one pass over the boxes'
-// nodes, a min and a max per level), and the cells the boxes hold
+// The table of this rank's boxes: each node level's lowest and highest height, and the cells the boxes
+// hold. One kernel entry per node level of a box, which goes over that level's nodes and then makes one
+// atomic min and one atomic max into the level's two values: the kernels of two boxes may run at the same
+// time on GPU (MFIter spreads the boxes over the device's streams), and both may hold the level
 void
 node_level_table (const MultiFab& z_phys_nd, const Geometry& geom, ZBounds& b)
 {
@@ -470,10 +472,22 @@ node_level_table (const MultiFab& z_phys_nd, const Geometry& geom, ZBounds& b)
         const Box nbx = mfi.validbox();
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dom_nodes.contains(nbx), "mesh_z_bounds: z_phys_nd's boxes must lie in geom's domain");
         Array4<Real const> const& znd = z_phys_nd.const_array(mfi);
-        ParallelFor(nbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        const int ilo = nbx.smallEnd(0), ihi = nbx.bigEnd(0);
+        const int jlo = nbx.smallEnd(1), jhi = nbx.bigEnd(1);
+        const int klo = nbx.smallEnd(2);
+        ParallelFor(nbx.length(2), [=] AMREX_GPU_DEVICE (int n) noexcept
         {
-            Gpu::Atomic::Min(plo + (k - k0), znd(i,j,k));
-            Gpu::Atomic::Max(phi + (k - k0), znd(i,j,k));
+            const int k = klo + n;
+            Real mn = big;
+            Real mx = -big;
+            for (int j = jlo; j <= jhi; ++j) {
+                for (int i = ilo; i <= ihi; ++i) {
+                    mn = amrex::min(mn, znd(i,j,k));
+                    mx = amrex::max(mx, znd(i,j,k));
+                }
+            }
+            Gpu::Atomic::Min(plo + (k - k0), mn);
+            Gpu::Atomic::Max(phi + (k - k0), mx);
         });
         // the box's cells: between its lowest and highest node levels
         for (int k = nbx.smallEnd(2); k < nbx.bigEnd(2); ++k) { b.has_cell[k - b.k0] = 1; }
@@ -545,6 +559,18 @@ mesh_z_levels (const MultiFab& z_phys_nd, const Geometry& geom)
     ParallelDescriptor::ReduceIntMax(has.data(), static_cast<int>(has.size()));
     for (std::size_t n = 0; n < has.size(); ++n) { b.has_cell[n] = static_cast<char>(has[n]); }
     return b;
+}
+
+const ZBounds&
+LevelHeights::get (const MultiFab& z_phys_nd, const Geometry& geom, bool rebuild)
+{
+    if (rebuild || m_builds == 0 || m_domain != geom.Domain() || m_ba != z_phys_nd.boxArray()) {
+        m_zb = mesh_z_levels(z_phys_nd, geom);
+        m_ba = z_phys_nd.boxArray();
+        m_domain = geom.Domain();
+        ++m_builds;
+    }
+    return m_zb;
 }
 
 namespace {
@@ -829,17 +855,21 @@ region_touches_grids (const BoxArray& ba, const Geometry& geom, const RealBox& r
         double l = std::floor(static_cast<double>((region.lo(d) - plo[d]) * dxi[d]));
         double h = std::floor(static_cast<double>((region.hi(d) - plo[d]) * dxi[d]));
         if (geom.isPeriodic(d)) {
-            // an infinite end first: inf - inf is invalid, and may trap (amrex.fpe_trap_invalid)
-            if (std::isinf(l) || std::isinf(h) || !(h - l + 1 < n)) {
+            // an infinite end is replaced by 0 before any difference is taken: inf - inf is invalid and may
+            // trap (amrex.fpe_trap_invalid), also where a compiler evaluates it ahead of a test that skips it
+            const bool unbounded = std::isinf(l) || std::isinf(h);
+            const double fl = unbounded ? 0.0 : l;
+            const double fh = unbounded ? 0.0 : h;
+            if (unbounded || !(fh - fl + 1 < n)) {
                 // a period or more, or an infinite extent: every cell
                 l = dlo;
                 h = dhi;
             } else {
                 // by whole periods until lo lies in the domain; hi is then less than a period above it, and the
                 // shifts below bring the part beyond the seam back in
-                const double s = std::floor((l - dlo) / n);
-                l -= s * n;
-                h -= s * n;
+                const double s = std::floor((fl - dlo) / n);
+                l = fl - s * n;
+                h = fh - s * n;
             }
         }
         // one cell outside the domain stays outside it (and bounds what rounding leaves of a far periodic region)
