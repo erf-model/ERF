@@ -45,15 +45,6 @@ void fill_blanking (amrex::MultiFab& b, const amrex::Geometry& geom, const std::
     b.FillBoundary(geom.periodicity());
 }
 
-// Add v to one component over the valid cells of mf.
-void add_to_component (amrex::MultiFab& mf, int comp, amrex::Real v)
-{
-    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
-        const auto a = mf.array(mfi);
-        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { a(i, j, k, comp) += v; });
-    }
-}
-
 template <class T>
 std::vector<T> host (const amrex::Gpu::DeviceVector<T>& d)
 {
