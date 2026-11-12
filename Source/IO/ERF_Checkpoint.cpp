@@ -863,6 +863,8 @@ ERF::WriteCheckpointFile () const
     // The structure model's own state, under checkpointname/<model name>
     if (m_structure_model) {
         m_structure_model->write_checkpoint(checkpointname);
+        // and its source on its level, which the coarser levels take at their first step after a restart
+        write_structure_coarse_source_checkpoint(checkpointname);
     }
 #endif
 

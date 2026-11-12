@@ -499,6 +499,13 @@ if(ERF_ENABLE_MOVING_BODIES)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestStructureRegistry.cpp
   )
+  # Motivation: a structure model's source restricted onto the coarser levels must put the
+  # same force on the air as on the model's level, over a hill (with the mesh Jacobian),
+  # one and two levels down, with anisotropic ratios and a fine level split into boxes and
+  # across a periodic boundary; without the Jacobian the hill must change the force.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestStructureCoarseSource.cpp
+  )
   # A structure model directory may define erf_structure_model_add_unit_tests(target) in its
   # ERFStructureModel.cmake to build its own GoogleTest files into this executable, with
   # ERF's test main; ERF_STRUCTURE_MODEL_DIR holds the directory during the call. The file
