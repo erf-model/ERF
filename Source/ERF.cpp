@@ -256,6 +256,11 @@ ERF::Evolve ()
 
     WriteAtFinalTime();
 
+#ifdef ERF_USE_MOVING_BODIES
+    // The structure model closes its own files and solvers, after the last plotfile and checkpoint
+    if (m_structure_model) { m_structure_model->finalize(); }
+#endif
+
     flush_stations();
 
     BL_PROFILE_VAR_STOP(evolve);
