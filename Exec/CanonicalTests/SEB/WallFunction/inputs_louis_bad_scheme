@@ -1,0 +1,6 @@
+FILE = inputs_base
+
+# Negative case: an unknown scheme must abort at start-up.
+max_step = 1
+erf.ibseb.stability_correction = true
+erf.ibseb.stability_scheme = "dyer"

@@ -330,9 +330,12 @@ public:
      * wind is ``sqrt(U_tan^2 + (beta w*)^2)`` with w* from the previous
      * step's H (zero when H is into the face) and a depth that is the mixed
      * layer above a roof or the building height for a wall; with
-     * ``stability_correction`` the roofs iterate the similarity functions on
+     * ``stability_correction`` the roofs are corrected for stability:
+     * ``stability_scheme = iterative`` iterates the similarity functions on
      * the face's own Obukhov length, seeded from the ground surface layer's
-     * 2D field at the face's column when given.
+     * 2D field at the face's column when given; ``louis`` applies the Louis
+     * (1979) factors on the bulk Richardson number between the skin and the
+     * cell centre, without iteration.
      *
      * Fills d_H, d_ustar, d_U_tan, d_rho, d_theta_air, d_H_coeff (the
      * coefficient of the skin-to-air potential-temperature difference that

@@ -8,6 +8,7 @@
 #include "ERF_IBSEBSolar.H"
 #include "ERF_IBSEBSlab.H"
 #include "ERF_IBSEBBalance.H"
+#include "ERF_IBSEBWallFunction.H"
 #include <ERF_TwoStreamCanopyForcing.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
@@ -1350,8 +1351,9 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
 {
     const Real z0   = m_params.z0_wall, z0h = m_params.z0h_wall;
     const bool stab = m_params.stability_correction;
+    const bool louis = stab && (m_params.stability_scheme == "louis");
     const bool conv = (m_params.convective_velocity == "deardorff");
-    const bool seed = stab && (olen_ground != nullptr) && (m_params.obukhov_seed == "ground");
+    const bool seed = stab && !louis && (olen_ground != nullptr) && (m_params.obukhov_seed == "ground");
     const bool use_pblh = conv && (pblh_ground != nullptr) && (m_params.z_i_mode == "pblh");
     const Real beta = m_params.beta_conv;
     const Real relax = m_params.obukhov_relax;
@@ -1409,7 +1411,21 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
             Real thstar = KAPPA * (th - th_skin) / lnh;
             Real lnh_eff = lnh;
             Real olen = 1.0e30;
-            if (stab && d == 2) {
+            if (louis && d == 2) {
+                // Roofs, Louis (1979): explicit factors on the bulk Richardson
+                // number between the skin and the cell centre, no iteration.
+                // u*^2 = (kappa U / ln(delta/z0))^2 F_m and u* theta* =
+                // kappa^2 U dtheta F_h / (ln(delta/z0) ln(delta/z0h)), so the
+                // neutral limit is the two log laws above; the heat law's
+                // effective logarithm carries both factors.
+                const Real Rib = CONST_GRAV / th * delta * (th - th_skin) / (Ut_eff * Ut_eff);
+                Real Fm = 1.0, Fh = 1.0;
+                ibseb::louis_factors(Rib, delta / z0, KAPPA * KAPPA / (lnm * lnm), Fm, Fh);
+                ustar   = KAPPA * Ut_eff * std::sqrt(Fm) / lnm;
+                lnh_eff = amrex::max(lnh * std::sqrt(Fm) / Fh, Real(0.1));
+                thstar  = KAPPA * (th - th_skin) / lnh_eff;
+                olen    = ustar * ustar * th / (KAPPA * CONST_GRAV * thstar + 1.0e-20);
+            } else if (stab && d == 2) {
                 // Roofs: the surface layer's similarity functions on the
                 // face's own Obukhov length, a few fixed-point passes, seeded
                 // from the ground's field at this column when available.
