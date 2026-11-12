@@ -2085,6 +2085,9 @@ ERF::InitData_post ()
                                 // https://github.com/NCAR/MYNN-EDMF/blob/90f36c25259ec1960b24325f5b29ac7c5adeac73/module_bl_mynnedmf.F90#L1325-L1333
                                 const Real B1 = solverChoice.turbChoice[lev].pbl_mynn.B1;
                                 qkefac = Real(1.5) * std::pow(B1, two/three);
+                            } else if (solverChoice.turbChoice[lev].init_tke_at_wall_value) {
+                                const Real Cmu0 = solverChoice.turbChoice[lev].Cmu0;
+                                qkefac = one / (Cmu0 * Cmu0);
                             }
                             m_SurfaceLayer[ori]->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], qkefac);
                         }

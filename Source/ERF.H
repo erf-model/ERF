@@ -1502,12 +1502,19 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> th_bc_data;
 
+    // Terrain-following inflow profiles per face (xlo.inflow_profile = log_law or file)
+    amrex::Array<InflowProfile, 2*AMREX_SPACEDIM> m_inflow_profiles;
+
     // Planar averages for immersed forcing (computed on slow step, used in slow and fast steps)
     amrex::Vector<amrex::TableData<amrex::Real, 1>> r_plane_avg;   // density planar average per level
     amrex::Vector<amrex::TableData<amrex::Real, 1>> t_plane_avg;   // RhoTheta planar average per level
 
     // Function to read and populate above vectors (if input file exists)
     bool init_Dirichlet_bc_data (const std::string input_file);
+
+    // Build the terrain-following inflow profile of face ori (xlo.inflow_profile)
+    void init_inflow_profile (const std::string& bcid, amrex::Orientation ori,
+                              const std::string& kind, amrex::ParmParse& pp);
 
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and

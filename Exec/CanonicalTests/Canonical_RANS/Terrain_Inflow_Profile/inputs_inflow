@@ -1,0 +1,72 @@
+# Terrain-following inflow profile (xlo.inflow_profile) over idealised terrain
+# with ground on the inflow face. The CTest cases choose the terrain file and
+# the profile source at run time; README.md describes them. As written, this
+# deck is the raised plateau with the log-law profile.
+
+xlo.type           = "Inflow"
+xlo.inflow_profile = "log_law"
+inflow_log_law.speed     = 10.0    # at 10 m above the local ground
+inflow_log_law.height    = 10.0
+inflow_log_law.direction = 270.0   # a westerly, blowing towards +x
+# the roughness length is erf.most.z0
+
+erf.terrain_file_name = "terrain_plateau.txt"
+erf.use_fft   = false    # not used here: the terrain-fitted projection is GMRES with the FFT preconditioner (needs an FFT build)
+
+stop_time = 3600.0       # CTest overrides max_step
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_lo     =    0.    0.    0.
+geometry.prob_hi     = 1600.  800.  800.
+amr.n_cell           =   32    16    32      # dx = dy = 50 m, dz = 25 m over flat ground
+amr.max_grid_size    = 32
+amr.blocking_factor  = 8
+geometry.is_periodic = 0 1 0
+
+xhi.type = "Outflow"
+
+erf.terrain_type      = StaticFittedMesh
+erf.terrain_smoothing = 0                  # basic terrain following
+erf.wall_dist_type    = terrain_height
+
+zlo.type    = "surface_layer"
+erf.most.z0 = 0.1
+zhi.type    = "SlipWall"
+
+# The interior starts from a uniform 10 m/s westerly, so only the inflow face
+# can turn the first column into a log law
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.sounding_type       = "Ideal"
+
+erf.anelastic = 1
+erf.fixed_dt  = 1.0
+erf.v         = 1
+amr.v         = 0
+amr.max_level = 0
+
+erf.check_file  = chk
+erf.check_int   = -1
+erf.plot_file_1 = plt
+erf.plot_int_1  = 60
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta KE Kmv z_phys
+
+erf.dycore_horiz_adv_type  = "Upwind_5th"
+erf.dycore_vert_adv_type   = "Upwind_3rd"
+erf.dryscal_horiz_adv_type = "Upwind_5th"
+erf.dryscal_vert_adv_type  = "Upwind_3rd"
+
+erf.use_gravity   = true
+erf.use_coriolis  = false
+erf.rayleigh_damp_W   = true
+erf.rayleigh_dampcoef = 0.2
+erf.rayleigh_zdamp    = 200.
+
+erf.molec_diff_type        = "None"
+erf.les_type               = "None"
+erf.rans_type              = "kEqn"
+erf.dirichlet_k            = true
+erf.init_tke_from_ustar    = true
+erf.init_tke_at_wall_value = true      # start tke at the value dirichlet_k holds at the wall
+erf.theta_ref              = 300.0
