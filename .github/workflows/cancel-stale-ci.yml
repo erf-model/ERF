@@ -96,6 +96,7 @@ jobs:
               '.github/workflows/gcc-rrtmgp.yml',
               '.github/workflows/gcc.yml',
               '.github/workflows/hip.yml',
+              '.github/workflows/lint.yml',
               '.github/workflows/macos.yml',
               '.github/workflows/style.yml',
               '.github/workflows/sycl.yml',
