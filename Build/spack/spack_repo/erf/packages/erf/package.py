@@ -311,6 +311,19 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
     conflicts("+rrtmgp", when="~mpi", msg="RRTMGP (EKAT) requires MPI")
     conflicts("+eamxx_shoc", when="~mpi", msg="SHOC (EKAT) requires MPI")
     conflicts("+eamxx_shoc", when="precision=single", msg="EAMxx SHOC is double precision only")
+    for _ekat in ("+rrtmgp", "+eamxx_shoc"):
+        conflicts(
+            _ekat,
+            when="platform=darwin target=aarch64:",
+            msg="EKAT's floating-point-exception shim is x86-only; "
+            "RRTMGP and SHOC do not build on Apple Silicon",
+        )
+        conflicts(
+            "%oneapi@2026:",
+            when=f"@:26.09{_ekat}+sycl",
+            msg="EKAT's bundled Kokkos 4.5.1 needs SYCL_EXT_INTEL_USM_ADDRESS_SPACES, "
+            "which the oneAPI 2026 compilers removed; use oneAPI 2025 or ERF 26.11+",
+        )
     conflicts("+tools", when="~netcdf", msg="The tools require NetCDF")
     # Backport the CUDA source-language fix to the current release. Older
     # releases still compile the tools as C++, which CUDA AMReX headers reject.
