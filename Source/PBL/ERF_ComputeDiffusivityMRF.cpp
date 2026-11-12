@@ -27,6 +27,7 @@ using namespace amrex;
  * @param[in] level Current AMR level.
  * @param[in] bc_ptr Boundary condition records.
  * @param[in] z_phys_nd Nodal physical heights.
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Cell-centered physical heights.
  * @param[in] moisture_indices Indices for moisture variables.
  */
@@ -44,6 +45,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const std::unique_ptr<MultiFab>& z_sfc_nd,
                        const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices,
                        const MultiFab* terrain_blank)
@@ -262,6 +264,7 @@ if (ng_pblh > 1) {
     limit_by(SurfLayer->get_mac_avg(level, 4));
     limit_by(SurfLayer->get_lmask(level));
     limit_by((use_terrain_fitted_coords) ? z_phys_nd.get() : nullptr);
+    limit_by((use_terrain_fitted_coords) ? z_sfc_nd.get() : nullptr);
     if (ng_pblh > ng_avail) {
         amrex::Abort("erf.pblh_smoothing_passes = " + std::to_string(turbChoice.pblh_smoothing_passes)
                    + " needs " + std::to_string(ng_pblh) + " halo columns, but the fields the "
@@ -338,6 +341,8 @@ if (ng_pblh > 1) {
         // Only retrieve z_phys_nd array if terrain-fitted coordinates are in use
         const Array4<Real const> z_nd_arr = use_terrain_fitted_coords ? z_phys_nd->array(mfi)
                                                                       : Array4<Real const>{};
+        const Array4<Real const> z_sfc_arr = use_terrain_fitted_coords ? z_sfc_nd->const_array(mfi)
+                                                                       : Array4<Real const>{};
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         //
@@ -429,7 +434,7 @@ if (ng_pblh > 1) {
 
             {
                 zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_sfc_arr, z_nd_arr)
                      : ((kpbl + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), Real(1.0));
@@ -455,7 +460,7 @@ if (ng_pblh > 1) {
                 kpbl += 1;
 
                 zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_sfc_arr, z_nd_arr)
                      : ((kpbl + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), Real(1.0));
@@ -473,10 +478,10 @@ if (ng_pblh > 1) {
             }
 
             const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                 : myhalf * gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
-                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : ((khi + myhalf) * gdata.CellSize(2) - zib);
             const Real pblh_max = Real(0.9) * z_max;
             const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
@@ -643,7 +648,7 @@ if (ng_pblh > 1) {
             Real zval, Rib;
             {
                 zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_sfc_arr, z_nd_arr)
                      : ((kpbl + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), one_d);
@@ -666,7 +671,7 @@ if (ng_pblh > 1) {
                 kpbl += 1;
 
                 zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_sfc_arr, z_nd_arr)
                      : ((kpbl + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), one_d);
@@ -683,10 +688,10 @@ if (ng_pblh > 1) {
             }
 
             const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                 : myhalf * gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
-                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : ((khi + myhalf) * gdata.CellSize(2) - zib);
             const Real pblh_max = Real(0.9) * z_max;
             const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
@@ -892,7 +897,7 @@ if (ng_pblh > 1) {
             Real zval_zero, Rib_zero;
             {
                 zval_zero = (use_terrain_fitted_coords)
-                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
+                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_sfc_arr, z_nd_arr)
                           : ((kpbl_zero + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), one_d);
@@ -911,7 +916,7 @@ if (ng_pblh > 1) {
             while (!above_critical_zero && ((kpbl_zero + 1) <= khi)) {
                 kpbl_zero += 1;
                 zval_zero = (use_terrain_fitted_coords)
-                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
+                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_sfc_arr, z_nd_arr)
                           : ((kpbl_zero + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), one_d);
@@ -971,7 +976,7 @@ if (ng_pblh > 1) {
             }
 
             const Real zval = (use_terrain_fitted_coords)
-                            ? Compute_Zrel_AtCellCenter(i, j, k, z_nd_arr)
+                            ? Compute_Zrel_AtCellCenter(i, j, k, z_sfc_arr, z_nd_arr)
                             : ((k + myhalf) * gdata.CellSize(2) - zib);
             const Real rho = cell_data(i, j, k, Rho_comp);
             // Guard: skip lateral ghost cells that may have uninitialized density.
@@ -1075,7 +1080,7 @@ if (ng_pblh > 1) {
                 // zl1 is zval evaluated at the column's first fluid cell, so zval - zl1
                 // is exactly zero there in both the terrain and the non-terrain path.
                 const Real zl1 = (use_terrain_fitted_coords)
-                               ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                               ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                : ((ksrf + myhalf) * gdata.CellSize(2) - zib);
                 const Real pblh = pblh_corr_arr(i, j, 0);
                 // The Rib passes floor pblh at max(zl1, 10), so pblh - zl1 is exactly

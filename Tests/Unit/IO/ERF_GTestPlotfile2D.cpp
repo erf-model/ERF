@@ -968,6 +968,7 @@ TEST(NearSurfaceDiagnostics, MostTemperatureFillUsesTerrainRelativeHeight)
     sources.obukhov_length = &olen;
     sources.cons = &cons;
     sources.z_phys_nd = &z_phys_nd;
+    sources.z_sfc_nd = &z_phys_nd;  // its plane k = 0 is the ground
     sources.klo = 0;
     sources.moist = false;
     near_surface_diagnostics::fill(dst, 0, -1, 1, sources);
@@ -1604,10 +1605,10 @@ TEST(Plotfile2DSampledField, DryRunUsesZeroVaporForThermodynamicFields)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, pressure_descriptor,
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              mi, 0, 2);
     plotfile2d::fill_sampled_level_component(dst, 1, temp_descriptor,
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              mi, 0, 2);
     amrex::Gpu::streamSynchronize();
 
@@ -1728,7 +1729,7 @@ TEST(Plotfile2DInterpolator, ModelIndexCopiesExactLevel)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2);
     amrex::Gpu::streamSynchronize();
 
@@ -1780,7 +1781,7 @@ TEST(Plotfile2DInterpolator, HeightMSLInterpolatesSyntheticColumn)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2);
     amrex::Gpu::streamSynchronize();
 
@@ -1833,7 +1834,7 @@ TEST(Plotfile2DInterpolator, HeightAGLUsesLocalSurfaceHeight)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
-                                             cons, nullptr, z_phys_nd, false,
+                                             cons, nullptr, z_phys_nd, z_phys_nd, false,
                                              MoistureComponentIndices(), 0, 2);
     amrex::Gpu::streamSynchronize();
 
@@ -1886,7 +1887,7 @@ TEST(Plotfile2DInterpolator, PressureInterpolatesMonotonicColumn)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
-                                             cons, nullptr, z_phys_nd, false,
+                                             cons, nullptr, z_phys_nd, z_phys_nd, false,
                                              MoistureComponentIndices(), 0, 2);
     amrex::Gpu::streamSynchronize();
 
@@ -1939,7 +1940,7 @@ TEST(Plotfile2DSampledField, AnelasticPressureUsesBaseState)
 
     // Passing the base state pressure selects the anelastic behavior
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2,
                                              plotfile2d::SampledWindSources{}, &p_hse);
     amrex::Gpu::streamSynchronize();
@@ -1950,7 +1951,7 @@ TEST(Plotfile2DSampledField, AnelasticPressureUsesBaseState)
     // Without the base state we must still get the compressible EOS value
     dst.setVal(amrex::Real(-7.0));
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2);
     amrex::Gpu::streamSynchronize();
 
@@ -2009,7 +2010,7 @@ TEST(Plotfile2DInterpolator, AnelasticPressureCoordinateUsesBaseState)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
-                                             cons, nullptr, z_phys_nd, false,
+                                             cons, nullptr, z_phys_nd, z_phys_nd, false,
                                              MoistureComponentIndices(), 0, 2,
                                              plotfile2d::SampledWindSources{}, &p_hse);
     amrex::Gpu::streamSynchronize();
@@ -2062,7 +2063,7 @@ TEST(Plotfile2DInterpolator, OutOfRangeTargetFillsMissingValue)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
-                                             cons, nullptr, z_phys_nd, false,
+                                             cons, nullptr, z_phys_nd, z_phys_nd, false,
                                              MoistureComponentIndices(), 0, 2);
     amrex::Gpu::streamSynchronize();
 
@@ -2110,7 +2111,7 @@ TEST(Plotfile2DInterpolator, MicrophysicsFieldsUseMixingRatio)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, descriptor,
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, -1),
                                              0, 2);
     amrex::Gpu::streamSynchronize();
@@ -2170,19 +2171,19 @@ TEST(Plotfile2DInterpolator, SampledWindsDestaggerWithoutRotation)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, make_descriptor("u_east", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 1, make_descriptor("v_north", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 2, make_descriptor("w", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 3, make_descriptor("wind_speed", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 4, make_descriptor("wind_dir", "degrees"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     amrex::Gpu::streamSynchronize();
 
@@ -2258,16 +2259,16 @@ TEST(Plotfile2DInterpolator, SampledWindsApplyRotation)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, make_descriptor("u_east", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 1, make_descriptor("v_north", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 2, make_descriptor("wind_speed", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 3, make_descriptor("wind_dir", "degrees"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     amrex::Gpu::streamSynchronize();
 
@@ -2339,10 +2340,10 @@ TEST(Plotfile2DInterpolator, WindDirReturnsMissingForCalmWinds)
     dir_descriptor.sampled_level->source_field = "wind_dir";
 
     plotfile2d::fill_sampled_level_component(dst, 0, speed_descriptor,
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 1, dir_descriptor,
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 2, wind_sources);
     amrex::Gpu::streamSynchronize();
 
@@ -2411,19 +2412,19 @@ TEST(Plotfile2DInterpolator, SampledWindsInterpolateVectorComponents)
     };
 
     plotfile2d::fill_sampled_level_component(dst, 0, make_descriptor("u_east", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 1, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 1, make_descriptor("v_north", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 1, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 2, make_descriptor("w", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 1, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 3, make_descriptor("wind_speed", "m/s"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 1, wind_sources);
     plotfile2d::fill_sampled_level_component(dst, 4, make_descriptor("wind_dir", "degrees"),
-                                             cons, &z_phys_cc, z_phys_nd, true,
+                                             cons, &z_phys_cc, z_phys_nd, z_phys_nd, true,
                                              MoistureComponentIndices(), 0, 1, wind_sources);
     amrex::Gpu::streamSynchronize();
 

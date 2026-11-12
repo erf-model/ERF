@@ -247,6 +247,7 @@ struct Sources
     const amrex::iMultiFab* land_mask = nullptr;
     const amrex::MultiFab* cons = nullptr;
     const amrex::MultiFab* z_phys_nd = nullptr;
+    const amrex::MultiFab* z_sfc_nd = nullptr;  ///< ground heights at the nodes; needed with z_phys_nd
     similarity_funs sfuns;                ///< the surface layer's similarity functions (most.stable_functions)
 
     amrex::Real dz = amrex::Real(0.0);

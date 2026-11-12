@@ -254,6 +254,7 @@ Radiation::set_grids (int& level,
                       MultiFab* qheating_rates,
                       MultiFab* rad_fluxes,
                       MultiFab* z_phys,
+                      MultiFab* z_sfc,
                       MultiFab* lat,
                       MultiFab* lon,
                       const bool force_update)
@@ -269,6 +270,7 @@ Radiation::set_grids (int& level,
     m_qheating_rates = qheating_rates;
     m_rad_fluxes     = rad_fluxes;
     m_z_phys         = z_phys;
+    m_z_sfc          = z_sfc;
     m_lat            = lat;
     m_lon            = lon;
 
@@ -735,6 +737,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                 const Array4<const Real>& cons_arr = m_cons_in->const_array(mfi);
                 const Array4<const Real>& z_arr = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                                Array4<const Real>{};
+                const Array4<const Real>& zsfc_arr = (m_z_phys) ? m_z_sfc->const_array(mfi) :
+                                                                  Array4<const Real>{};
                 const Array4<const int>& lmask_arr   = (lmask)   ? lmask->const_array(mfi) :
                                                                    Array4<const int> {};
                 const Array4<const Real>& tsurf_arr  = (t_surf) ? t_surf->const_array(mfi) :
@@ -774,7 +778,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                 cons_arr(i,j,k_surface,RhoTheta_comp),
                                 moist ? std::max(cons_arr(i,j,k_surface,RhoQ1_comp) /
                                                  cons_arr(i,j,k_surface,Rho_comp), Real(0.)) : Real(0.),
-                                z_arr ? Compute_Zrel_AtCellCenter(i,j,k_surface,z_arr) : Real(0.5)*dz),
+                                z_arr ? Compute_Zrel_AtCellCenter(i,j,k_surface,zsfc_arr,z_arr) : Real(0.5)*dz),
                             rdOcp,
                             rrtmgp_default_val,
                             rrtmgp_to_fill(icol));

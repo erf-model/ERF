@@ -26,6 +26,7 @@ using namespace amrex;
  * @param[in] bc_ptr Boundary condition pointers.
  * @param[in] vert_only Flag for vertical-only computation.
  * @param[in] z_phys_nd Node-centered physical height field.
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Cell-centered physical height field.
  * @param[in] moisture_indices Indices for moisture components.
  */
@@ -44,6 +45,7 @@ ComputeDiffusivityMYJ (double dt,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const std::unique_ptr<MultiFab>& z_sfc_nd,
                        const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices)
 {
@@ -160,6 +162,7 @@ ComputeDiffusivityMYJ (double dt,
 
         // Terrain and gradient calcs
         const Array4<Real const> &z_nd_arr = z_phys_nd->array(mfi);
+        const Array4<Real const> &z_sfc_arr = z_sfc_nd->const_array(mfi);
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
         const auto& dxInv = geom.InvCellSizeArray();
         int izmin = geom.Domain().smallEnd(2);
@@ -196,7 +199,7 @@ ComputeDiffusivityMYJ (double dt,
                 // Perform integral over PBL height
                 for (int k(klo); k<=k_arr(i,j,0); ++k) {
                     const Real dz   = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr);
-                    const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
+                    const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr);
                     Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz);
                     Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz);
                 }
@@ -250,7 +253,7 @@ ComputeDiffusivityMYJ (double dt,
                 // profile gradients; see ApplySurfaceLayerGradientsPBL (ERF #4037)
                 if (surface_layer_on_zlo && k == izmin) {
                     const Real zval   = use_terrain_fitted_coords ?
-                                        Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) :
+                                        Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr) :
                                         (k + myhalf)*gdata.CellSize(2);
                     const Real rho    = cell_data(i,j,k,Rho_comp);
                     const Real theta  = cell_data(i,j,k,RhoTheta_comp) / rho;
@@ -301,7 +304,7 @@ ComputeDiffusivityMYJ (double dt,
                 if (k>kpbl) {
                     L = std::min((met_h_zeta/dxInv[2])*ELFC, ELM);
                 } else {
-                    const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                    const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr)
                                                                 : (k + myhalf)*gdata.CellSize(2);
                     L = std::min(l0*d_kappa*zval / (d_kappa*zval + l0), ELM);
                 }

@@ -1333,9 +1333,11 @@ ERF::update_zsfc_nd (int lev)
 {
     BoxArray ba2d_nd(ba2d[lev]);
     ba2d_nd.surroundingNodes(0); ba2d_nd.surroundingNodes(1);
+    // As many ghost cells in x and y as z_phys_nd, since the PBL schemes work on grown boxes
+    const IntVect ng(z_phys_nd[lev]->nGrowVect()[0], z_phys_nd[lev]->nGrowVect()[1], 0);
     if (!z_sfc_nd[lev] || z_sfc_nd[lev]->boxArray() != ba2d_nd ||
-        z_sfc_nd[lev]->DistributionMap() != dmap[lev]) {
-        z_sfc_nd[lev] = std::make_unique<MultiFab>(ba2d_nd, dmap[lev], 1, 0);
+        z_sfc_nd[lev]->DistributionMap() != dmap[lev] || z_sfc_nd[lev]->nGrowVect() != ng) {
+        z_sfc_nd[lev] = std::make_unique<MultiFab>(ba2d_nd, dmap[lev], 1, ng);
     }
     if (lev > 0) {
         make_zsfc_nd(geom[lev], *z_phys_nd[lev], *z_sfc_nd[lev], z_sfc_nd[lev-1].get(), ref_ratio[lev-1]);

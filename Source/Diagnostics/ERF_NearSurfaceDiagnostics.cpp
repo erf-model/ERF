@@ -46,6 +46,8 @@ void fill (MultiFab& dst,
            const Sources& sources,
            Real missing_value)
 {
+    AMREX_ALWAYS_ASSERT(sources.z_phys_nd == nullptr || sources.z_sfc_nd != nullptr);
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -68,6 +70,7 @@ void fill (MultiFab& dst,
         const auto lmask = int_array_or_empty(sources.land_mask, mfi);
         const auto cons = array_or_empty(sources.cons, mfi);
         const auto znd = array_or_empty(sources.z_phys_nd, mfi);
+        const auto zsfc = array_or_empty(sources.z_sfc_nd, mfi);
 
         const bool request_temperature = temperature_comp >= 0;
         const bool request_mixing_ratio = mixing_ratio_comp >= 0;
@@ -157,7 +160,7 @@ void fill (MultiFab& dst,
                         if (valid_real(rho) && rho > zero && valid_real(rhotheta) &&
                             valid_real(q_cell) && q_cell >= zero) {
                             const Real p_cc = getPgivenRTh(rhotheta, q_cell);
-                            const Real z_cc_agl = znd ? Compute_Zrel_AtCellCenter(i,j,klo,znd)
+                            const Real z_cc_agl = znd ? Compute_Zrel_AtCellCenter(i,j,klo,zsfc,znd)
                                                        : Real(0.5) * dz;
                             const Real p_2m = p_cc + rho * CONST_GRAV *
                                               (z_cc_agl - Real(2.0));
