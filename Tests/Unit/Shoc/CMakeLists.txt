@@ -25,11 +25,11 @@ add_executable(erf_shoc_unit_tests
 build_erf_exe(erf_shoc_unit_tests NO_ERF_MAIN)
 
 target_include_directories(erf_shoc_unit_tests PRIVATE
-  ${CMAKE_SOURCE_DIR}/Source
-  ${CMAKE_SOURCE_DIR}/Source/DataStructs
-  ${CMAKE_SOURCE_DIR}/Source/PBL
-  ${CMAKE_SOURCE_DIR}/Source/PBL/Shoc
-  ${CMAKE_SOURCE_DIR}/Source/Utils
+  ${PROJECT_SOURCE_DIR}/Source
+  ${PROJECT_SOURCE_DIR}/Source/DataStructs
+  ${PROJECT_SOURCE_DIR}/Source/PBL
+  ${PROJECT_SOURCE_DIR}/Source/PBL/Shoc
+  ${PROJECT_SOURCE_DIR}/Source/Utils
 )
 
 target_compile_definitions(erf_shoc_unit_tests PRIVATE

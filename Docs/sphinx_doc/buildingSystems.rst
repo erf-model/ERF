@@ -800,6 +800,61 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
 
    Creates isolated build directories for each configuration script. Each script runs in its own subdirectory (``script_<name>/``) at the ERF root.
 
+.. _sec:build:parent_project:
+
+Building ERF from a Parent CMake Project
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A repository that keeps ERF as a git submodule, together with its own fire engine or
+structure model folders, can build ERF in two ways.
+
+The first configures ERF itself and points the hook variables at the outer folders.
+`LSFIRE <https://github.com/erf-model/LSFIRE>`_ does this from its root, with ERF in
+``ERF/`` and its fire engine in ``FireEngine/``:
+
+.. code-block:: bash
+
+   cmake -S ERF -B build -DERF_ENABLE_FIRE=ON -DERF_FIRE_ENGINE_DIRS=$PWD/FireEngine
+   cmake --build build --target erf_exec
+
+The second makes ERF part of the repository's own CMake project, for a repository that
+builds more than ``erf_exec`` or adds its own tests. The parent calls ``add_subdirectory``:
+
+.. code-block:: cmake
+
+   cmake_minimum_required(VERSION 3.25)   # as ERF's internal AMReX
+   project(MyModel CXX C)
+
+   set(ERF_ENABLE_MOVING_BODIES ON)
+   set(ERF_STRUCTURE_MODEL_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/Model")
+
+   enable_testing()                  # in the top-level file, so ctest runs from the top build folder
+   add_subdirectory(Submodules/ERF)  # builds erf_exec with the model compiled in
+
+- ERF options may be set as normal variables before ``add_subdirectory``, as above, or
+  as cache variables (``-D`` on the command line). The options ERF sets with
+  ``set(... CACHE ...)``, namely ``ERF_STRUCTURE_MODEL_DIRS``, ``ERF_FIRE_ENGINE_DIRS``,
+  ``ERF_PRECISION``, ``ERF_PARTICLES_PRECISION`` and ``ERF_DIM``, keep a normal variable
+  from the parent only with CMake 3.21 or newer (policy CMP0126). This matters only with
+  an external AMReX (``ERF_USE_INTERNAL_AMREX=OFF``), since the internal AMReX needs
+  CMake 3.25. ``option()`` keys such as ``ERF_ENABLE_MOVING_BODIES`` work either way.
+- Give ``ERF_FIRE_ENGINE_DIRS`` and ``ERF_STRUCTURE_MODEL_DIRS`` absolute paths.
+- ERF's paths refer to its own source and build folders, so ``erf_exec`` is in
+  ``<build>/<ERF binary dir>/Exec`` and ERF's tests (with ``ERF_ENABLE_TESTS=ON``) find it there.
+  The parent can refer to the executable as ``$<TARGET_FILE:erf_exec>``.
+- Under a parent project ERF adds no ``uninstall`` or ``distclean`` targets and does not
+  export its CMake package; those act on the top-level build and belong to the parent.
+  ``cmake --install`` on the parent still installs ``erf_exec``, ERF's library and AMReX.
+- ERF sets the AMReX options (``AMReX_PRECISION``, ``AMReX_SPACEDIM`` and others) from
+  its own; a parent should set ERF's options, not the ``AMReX_*`` ones.
+- On Cray systems ERF's compiler detection is skipped under a parent, because the
+  parent's ``project()`` has already chosen the compilers.
+
+``Tests/ParentProject`` holds a small parent project that does this with the example
+structure model (``Tests/StructureModelExample``) copied to a folder outside the ERF
+tree. The ``parent-project`` CI workflow builds it and runs its test; its ``README.md``
+gives the commands.
+
 Building Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
