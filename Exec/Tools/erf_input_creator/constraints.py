@@ -222,9 +222,11 @@ RULES: List[Rule] = [
      "--refine field cannot be used with a PBL scheme: the scheme needs boxes over the full column, and tagged boxes "
      "need not reach the ground; use --refine box"),
     # seen at ERF 329b9411c: 3-D anelastic cases with field tagging stopped in the pressure solve or with a negative
-    # theta within 20 steps, with and without a closure; the 2-D density current ran
+    # theta within 20 steps, with and without a closure; the 2-D density current ran. After erf-model/ERF#5075
+    # (7961a9f35) three of six such cases ran and three still stopped (the multigrid solve, an FFT boundary assertion)
     (lambda s: s.amr > 0 and s.refine == "field" and s.dycore == "anelastic" and s.n[1] > 1,
-     "--refine field with --dycore anelastic is covered only for 2-D cases (--ny 1); 3-D cases stopped in test runs. "
+     "--refine field with --dycore anelastic is covered only for 2-D cases (--ny 1); half of the 3-D cases stopped "
+     "in test runs. "
      "Use --dycore compressible or --refine box"),
     # Source/Prob/ERF_InitCustomPert_Bubble.H asserts that every box spans the full depth
     (lambda s: s.amr > 0 and s.refine == "field" and s.setup == "bubble",

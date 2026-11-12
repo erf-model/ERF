@@ -73,7 +73,7 @@ def terrain(deck, s) -> None:
         wall = {"slip": "SlipWall", "noslip": "NoSlipWall", "most": "SurfaceLayer"}[s.surface]
         sec.choice("erf.eb_boundary_type", wall, ["SlipWall", "NoSlipWall", "SurfaceLayer"],
                    describe={"NoSlipWall": "(default)",
-                             "SurfaceLayer": "required with zlo.type = surface_layer; the run crashes without it"})
+                             "SurfaceLayer": "required with zlo.type = surface_layer; ERF stops without it"})
         sec.alt("eb2.small_volfrac", 1.0e-4, "cut cells below this volume fraction are covered")
     if s.method == "immersed" or s.buildings_on:
         _immersed(sec, s)

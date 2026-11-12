@@ -196,7 +196,7 @@ Each rule in `constraints.py` carries the source line or the test run behind it.
 | `--refine field` with a qv, qc, qt, qr, ice or reflectivity field the moisture model does not carry, or terrain_blanking without immersed terrain | ERF stops (`ERF_Tagging.cpp`) |
 | `--refine-z above_ground` with a 3-value `--refine-box` over immersed or EB terrain | ERF stops |
 | `--refine field` with a PBL scheme | the PBL kernels need boxes over the full column, and tagged boxes need not reach the ground; ERF stopped on an assertion in test runs |
-| `--refine field` with `--dycore anelastic` in 3-D | stopped in the pressure solve or with a negative theta within 20 steps in test runs; the 2-D density current ran |
+| `--refine field` with `--dycore anelastic` in 3-D | in test runs half of these cases stopped within 20 steps (the pressure solve, an FFT boundary assertion), also after erf-model/ERF#5075; the 2-D density current ran |
 | `--refine field` with `--setup bubble` | the Bubble problem needs boxes over the full depth |
 | `--refine`, `--refine-on` or `--refine-box` without `--amr`; `--refine-on` or `--refine-box` with `--refine box` | the options belong to field refinement |
 | `--output netcdf` without `plt` | `netcdf` is the file type of the plotfile stream |
@@ -228,14 +228,14 @@ Optional, slower checks:
   `ERF_CREATEINPUT_FILTER=text` runs only the cases whose options hold that text, and
   `ERF_CREATEINPUT_NETCDF=1` includes the NetCDF plotfile case.
 
-Runs made with ERF 329b9411c on 2026-11-12 (Release, MPI, FFT, NetCDF), which includes the field tagging of
-erf-model/ERF#5036:
+Runs made on 2026-11-12 with ERF at development 80427a4c3 (Release, MPI, FFT, NetCDF), which includes the field
+tagging of erf-model/ERF#5036 and the fixes #5070, #5072 and #5075:
 
 | Build | Cases | Result |
 |-------|-------|--------|
 | no wind farm | 145 (all but the NetCDF plotfile case and the cases waiting for supplied files) | all ran |
-| NetCDF and wind farm on | 4 wind-farm cases; a NetCDF plotfile case; a Metgrid case on `Exec/RegTests/MetGrid/met_em.d01.*` | all ran |
-| NetCDF and wind farm on | the WRF-input deck on `Exec/CanonicalTests/EkmanSpiral/wrfinput_ekman_d01`, with periodic sides in place of the boundary file | ran |
+| wind farm on | 4 wind-farm cases, and a case without a wind farm | all ran |
+| NetCDF and wind farm on, at abce396eb | a NetCDF plotfile case; a Metgrid case on `Exec/RegTests/MetGrid/met_em.d01.*`; the WRF-input deck on `Exec/CanonicalTests/EkmanSpiral/wrfinput_ekman_d01`, with periodic sides in place of the boundary file | all ran |
 
 Longer runs of single cases (30 to 100 steps) were made for the anelastic bubble, the sponge and Rayleigh
 rates, the isentropic boundary layer and the EB ridge; the field-refinement cases ran 12 to 20 steps with a regrid
@@ -244,17 +244,17 @@ every 2 steps. The three review passes ran about 430 further cases.
 Not run: a WRF-input case with a wrfbdy file (none is in the repository), RRTMGP and Noah-MP (their builds and
 data were not available). Those decks are checked against the schema and the inputs checker only.
 
-ERF behaviours seen in these runs, which the tool works around and the decks note:
+ERF behaviours found with the generated cases, and where they stand:
 
-* The multigrid Poisson solve of anelastic cases did not converge on cells with aspect ratios of 4:1 and more
-  (erf-model/ERF#5064); the FFT solve did.
-* A build with `ERF_ENABLE_WINDFARM` stopped on every case without a wind farm (erf-model/ERF#5066).
-* `zlo.type = surface_layer` with `erf.terrain_type = EB` ended in a segmentation fault unless
-  `erf.eb_boundary_type = SurfaceLayer` (erf-model/ERF#5068).
-* The profile logs (`erf.profile_int`) ended in a segmentation fault at the first write after step 0 when no
-  turbulence closure was active.
-* EB terrain stopped at start-up when compressible ("Base state is too far out of HSE") on the default hill grid,
-  and diverged within 100 steps over a round hill and for a table ridge in the boundary-layer setup.
+| Behaviour | Issue | Now |
+|---|---|---|
+| anelastic multigrid did not converge on cells with aspect ratios of 4:1 and more | erf-model/ERF#5064 | fixed by erf-model/ERF#5075 (coarsening per direction): the three failing cases ran with multigrid at 80427a4c3; the decks still use the FFT solve |
+| a build with `ERF_ENABLE_WINDFARM` stopped on every case without a wind farm | erf-model/ERF#5066 | fixed by erf-model/ERF#5070 |
+| EB with `zlo.type = surface_layer` ended in a segmentation fault unless `erf.eb_boundary_type = SurfaceLayer` | erf-model/ERF#5068 | ERF stops at start-up with a message since erf-model/ERF#5072; the decks set the type |
+| five SLM keys and the keys read through a name in a variable are missing from the inputs schema | erf-model/ERF#5067 | open; listed as exceptions in the schema check |
+| the profile logs (`erf.profile_int`) ended in a segmentation fault at the first write after step 0 without a turbulence closure | not filed | refused by the tool |
+| EB terrain stopped at start-up when compressible on the default hill grid, and diverged within 100 steps over a round hill and for a table ridge in the boundary-layer setup | not filed | refused by the tool except for an anelastic ridge |
+| field tagging: the PBL kernels assert that every box spans the column; half of the 3-D anelastic cases stopped within 20 steps | not filed | refused by the tool |
 
 ## Adding an option
 

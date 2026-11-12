@@ -101,9 +101,9 @@ class BoundaryChecker(Checker):
             return
         if (self.str_("erf.terrain_type", "None") or "None").lower() == "eb" \
                 and (self.str_("erf.eb_boundary_type", "NoSlipWall") or "") != "SurfaceLayer":
-            # seen at ERF abce396eb: the run stops with a segmentation fault in the EB surface-layer routine
+            # ERF stops at start-up since #5072; before it, the run ended in a segmentation fault (#5068)
             self.error("erf.eb_boundary_type", "zlo.type = surface_layer with erf.terrain_type = EB needs "
-                       "erf.eb_boundary_type = SurfaceLayer (default NoSlipWall); without it the run crashes",
+                       "erf.eb_boundary_type = SurfaceLayer (default NoSlipWall); ERF stops without it",
                        "Set erf.eb_boundary_type = SurfaceLayer (the value is case-sensitive).")
         flux = (self.str_("erf.surface_layer.flux_type", "moeng") or "moeng").lower()
         if flux == "bulk_coeff":

@@ -228,7 +228,8 @@ def dycore(deck, s) -> None:
         # not converge on cells with aspect ratios of 4:1 and more (coarse flat grids, immersed forcing, two
         # refined levels with z unrefined), and erf.terrain_poisson_solver = gmres_mlmg is read on fitted meshes only
         sec.set("erf.use_fft", "true", "FFT Poisson solve; needs an FFT build (ERF_ENABLE_FFT)")
-        sec.alt("erf.use_fft", "false", "multigrid, no FFT build needed; did not converge on cells with aspect ratio 4:1 or more")
+        sec.alt("erf.use_fft", "false", "multigrid, no FFT build needed; before erf-model/ERF#5075 it did not converge on "
+                "cells with aspect ratio 4:1 or more")
         sec.alt("erf.mg_v", 1, "print the Poisson solver's convergence")
         sec.alt("erf.poisson_reltol", 1e-8, "relative tolerance of the Poisson solve")
         sec.alt("erf.poisson_abstol", 1e-8, "absolute tolerance of the Poisson solve")
