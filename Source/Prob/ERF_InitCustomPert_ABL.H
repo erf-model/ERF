@@ -38,6 +38,61 @@
     // would make cos(cval*(x-xc)) identically one, i.e. a uniform warm bias
     // rather than a zero-mean perturbation.
     Real pert_deltaT    = amrex::Real(0); pp_prob.query("pert_deltaT", pert_deltaT);
+
+    // Optional warm bubble, made as WRF's idealized fire initialisation makes it
+    // (module_initialize_fire.F: delt_perturbation, x/y/zrad_perturbation, hght_perturbation):
+    // theta += bubble_dT cos^2(pi r / 2) for r = |((x-x_c)/x_r, (y-y_c)/y_r, (z-z_c)/z_r)| <= 1,
+    // with z the cell-centre height z_cc (the same height the other perturbations here use).
+    // bubble_dT = 0 (the default) adds no bubble.
+    Real bubble_dT  = amrex::Real(0);
+    const bool bubble_dT_given = pp_prob.query("bubble_dT", bubble_dT);
+    Real bubble_x_c = amrex::Real(0); pp_prob.query("bubble_x_c", bubble_x_c);
+    Real bubble_y_c = amrex::Real(0); pp_prob.query("bubble_y_c", bubble_y_c);
+    Real bubble_z_c = amrex::Real(0); pp_prob.query("bubble_z_c", bubble_z_c);
+    Real bubble_x_r = amrex::Real(0); pp_prob.query("bubble_x_r", bubble_x_r);
+    Real bubble_y_r = amrex::Real(0); pp_prob.query("bubble_y_r", bubble_y_r);
+    Real bubble_z_r = amrex::Real(0); pp_prob.query("bubble_z_r", bubble_z_r);
+    const bool add_bubble = (bubble_dT != amrex::Real(0));
+    // Report once per level: the tile holding the level's lowest domain corner prints it.
+    // A refined level whose grids do not cover that corner gets the bubble without the line
+    // (this block sees only its own tile, not the level's BoxArray).
+    const bool bubble_reporter = bx.contains(geomdata.Domain().smallEnd());
+    if (add_bubble) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(bubble_dT) &&
+            std::isfinite(bubble_x_c) && std::isfinite(bubble_y_c) && std::isfinite(bubble_z_c),
+            "prob.bubble_dT and prob.bubble_x_c, bubble_y_c, bubble_z_c must be finite numbers");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bubble_x_r > 0 && bubble_y_r > 0 && bubble_z_r > 0 &&
+            std::isfinite(bubble_x_r) && std::isfinite(bubble_y_r) && std::isfinite(bubble_z_r),
+            "prob.bubble_dT needs positive, finite prob.bubble_x_r, bubble_y_r and bubble_z_r");
+        if (bubble_reporter) {
+            amrex::AllPrint() << "Level " << lev << ": adding a warm bubble prob.bubble_dT = " << bubble_dT
+                              << " K at (" << bubble_x_c << ", " << bubble_y_c << ", " << bubble_z_c
+                              << ") m with radii (" << bubble_x_r << ", " << bubble_y_r << ", "
+                              << bubble_z_r << ") m, "
+                              << (sc.fixed_density[lev] ? "at the fixed density" : "at constant pressure")
+                              << std::endl;
+        }
+    } else {
+        // The bubble keys mean nothing without bubble_dT: stop if it was never set, warn if
+        // it was set to zero (the bubble switched off on purpose).
+        const bool bubble_keys_given =
+            pp_prob.contains("bubble_x_c") || pp_prob.contains("bubble_y_c") ||
+            pp_prob.contains("bubble_z_c") || pp_prob.contains("bubble_x_r") ||
+            pp_prob.contains("bubble_y_r") || pp_prob.contains("bubble_z_r");
+        if (bubble_keys_given) {
+            if (!bubble_dT_given) {
+                amrex::Abort("prob.bubble_x_c/y_c/z_c/x_r/y_r/z_r are set but prob.bubble_dT is not: "
+                             "set prob.bubble_dT (the bubble's theta excess in K) or remove them");
+            } else if (bubble_reporter) {
+                amrex::AllPrint() << "WARNING: prob.bubble_dT = 0, so the prob.bubble_* centre and "
+                                  << "radii are not used" << std::endl;
+            }
+        }
+    }
+    // Under a fixed-in-time density (anelastic) only rho*theta is perturbed, so the bubble
+    // is a theta excess at that density. Otherwise it is made at constant pressure, as WRF
+    // makes it (theta raised, density recomputed from the unchanged pressure).
+    const bool bubble_fixed_density = (sc.fixed_density[lev] != 0);
     Real pert_periods_T = amrex::Real(5.0); pp_prob.query("pert_periods_T", pert_periods_T);
 
     // Capture by value for GPU
@@ -125,6 +180,32 @@
             if (!pert_rhotheta) {
                 // we're perturbing theta, not rho*theta
                 state_pert(i, j, k, RhoTheta_comp) *= r_hse(i,j,k);
+            }
+        }
+
+        // Warm bubble (added to any random perturbation above)
+        if (add_bubble) {
+            const Real rx = (x - bubble_x_c) / bubble_x_r;
+            const Real ry = (y - bubble_y_c) / bubble_y_r;
+            const Real rz = (z - bubble_z_c) / bubble_z_r;
+            const Real rr = std::sqrt(rx*rx + ry*ry + rz*rz);
+            if (rr <= amrex::Real(1)) {
+                const Real cb     = std::cos(myhalf * PI * rr);
+                const Real dtheta = bubble_dT * cb * cb;
+                const Real rho      = state(i,j,k,Rho_comp);
+                const Real rhotheta = state(i,j,k,RhoTheta_comp);
+                if (bubble_fixed_density) {
+                    state_pert(i, j, k, RhoTheta_comp) += rho * dtheta;
+                } else {
+                    // The pressure is a function of rho*theta and qv only, so keeping both
+                    // keeps the pressure: the density drops to rho*theta / (theta + dtheta).
+                    const Real rho_new = rhotheta / (rhotheta / rho + dtheta);
+                    state_pert(i, j, k, Rho_comp) += rho_new - rho;
+                    if (use_moisture) {
+                        // keep qv = RhoQ1/rho, and so the pressure, as the density changes
+                        state_pert(i, j, k, RhoQ1_comp) += (rho_new - rho) * state(i,j,k,RhoQ1_comp) / rho;
+                    }
+                }
             }
         }
 

@@ -160,6 +160,9 @@ target_sources(${erf_exe_name}
     # Motivation: the chamber profile and perturbation must remain analytic,
     # bounded, and independent of MPI decomposition and tile shape.
     ${CMAKE_CURRENT_SOURCE_DIR}/Prob/ERF_GTestCloudChamber.cpp
+    # Motivation: the ABL warm bubble (prob.bubble_*) must follow WRF's cos^2 form on each
+    # cell's own height, and a compressible bubble must be made at constant pressure.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Prob/ERF_GTestABLWarmBubble.cpp
     # Motivation: RICO's moisture source must be continuous at prob.moisture_source_cutoff and
     # default to RICO's 2980 m (erf-model/ERF#4626).
     ${CMAKE_CURRENT_SOURCE_DIR}/Prob/ERF_GTestRICOMoistureSource.cpp
