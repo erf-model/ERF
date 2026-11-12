@@ -2150,18 +2150,20 @@ function(add_test_shift_invariance TEST_NAME TEST_FILES_DIR SHIFT VARS OPTIONS_A
 endfunction(add_test_shift_invariance)
 
 # A moving lower surface (erf.most.surface_current) over water on a horizontally uniform case
-# without gravity or rotation, run twice: with the wind and the surface current both 2 m/s
-# faster in x and y, and with neither. The surface layer sees the same relative wind, so after a
-# few steps the second run's velocities must be the first's less 2 m/s, profile and all, and so
-# must its 10 m winds.  Ignoring the current, or applying it with the wrong sign, changes the
-# surface stress and so the profile; not adding it back changes the 10 m winds.
+# without gravity or rotation, run twice: with the wind and the surface current both faster by
+# (2, 1) m/s, and with neither. The surface layer sees the same relative wind, so after a few
+# steps the second run is the first seen from a frame moving at (2, 1) m/s
+# (Tests/check_frame_change.py): its velocities, profile and all, and its 10 m winds are the
+# first's less (2, 1) m/s.  Ignoring the current, applying it with the wrong sign or to the wrong
+# component changes the surface stress and so the profile; not adding it back changes the 10 m
+# winds.
 function(add_test_surface_current_galilean TEST_NAME TEST_FILES_DIR)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(_run "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i 'amr.n_cell=8 8 64' erf.is_land=0 max_step=5 erf.plot_int_1=5 erf.plot2d_int_1=5 'erf.plot2d_vars_1=u_10m v_10m' erf.check_int=-1")
-    set(_check "${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_shift_invariance.py --shift 0 --tol 1e-12 --offset -2")
+    set(_check "${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_frame_change.py --tol 1e-12")
     add_test(${TEST_NAME} sh -c
-      "${_run} erf.plot_file_1=pltA erf.plot2d_file_1=plt2dA prob.U_0=12 prob.V_0=3 'erf.most.surface_current=2 2' > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} erf.plot_file_1=pltB erf.plot2d_file_1=plt2dB prob.U_0=10 prob.V_0=1 > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${_check} ${CURRENT_TEST_BINARY_DIR}/pltA00005 ${CURRENT_TEST_BINARY_DIR}/pltB00005 --vars x_velocity y_velocity --offset-vars x_velocity y_velocity && ${_check} ${CURRENT_TEST_BINARY_DIR}/plt2dA00005 ${CURRENT_TEST_BINARY_DIR}/plt2dB00005 --vars u_10m v_10m --offset-vars u_10m v_10m")
+      "${_run} erf.plot_file_1=pltA erf.plot2d_file_1=plt2dA prob.U_0=12 prob.V_0=3 'erf.most.surface_current=2 1' > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} erf.plot_file_1=pltB erf.plot2d_file_1=plt2dB prob.U_0=10 prob.V_0=2 > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${_check} ${CURRENT_TEST_BINARY_DIR}/pltA00005 ${CURRENT_TEST_BINARY_DIR}/pltB00005 --field x_velocity=-2 --field y_velocity=-1 && ${_check} ${CURRENT_TEST_BINARY_DIR}/plt2dA00005 ${CURRENT_TEST_BINARY_DIR}/plt2dB00005 --field u_10m=-2 --field v_10m=-1")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/runA.log;${CURRENT_TEST_BINARY_DIR}/runB.log")
