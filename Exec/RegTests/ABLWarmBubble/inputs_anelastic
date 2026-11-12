@@ -1,0 +1,8 @@
+# The same bubble and surface flux with the anelastic integrator, where the density
+# is fixed in time: the bubble is then carried by rho*theta at the base-state
+# density. The projection uses the FFT Poisson solve (an FFT build), as every
+# anelastic test does.
+FILE = inputs
+
+erf.anelastic = 1
+erf.use_fft   = true
