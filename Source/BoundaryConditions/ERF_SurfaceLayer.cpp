@@ -116,6 +116,25 @@ fill_face_current (MultiFab& current, Real speed, int dir, const iMultiFab* lmas
 }
 
 /**
+ * A velocity component less the current of the plane k = klo, over a box.
+ *
+ * @param[in]  bx  cells to fill, within the arrays of all three
+ * @param[in]  v   velocity component
+ * @param[in]  c   the same component of the surface current (make_face_current)
+ * @param[out] r   velocity relative to the surface
+ * @param[in]  klo index of the lowest cell of the domain
+ */
+void
+subtract_current (const Box& bx, const Array4<const Real>& v, const Array4<const Real>& c,
+                  const Array4<Real>& r, int klo)
+{
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        r(i,j,k) = v(i,j,k) - c(i,j,klo);
+    });
+}
+
+/**
  * A velocity component less the current of the plane k = klo, ghost cells included.
  *
  * @param[in]  vel     velocity component
@@ -130,14 +149,29 @@ subtract_current (const MultiFab& vel, const MultiFab& current, MultiFab& rel, i
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(rel, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto v = vel.const_array(mfi);
-        const auto c = current.const_array(mfi);
-        const auto r = rel.array(mfi);
-        ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            r(i,j,k) = v(i,j,k) - c(i,j,klo);
-        });
+        subtract_current(mfi.growntilebox(), vel.const_array(mfi), current.const_array(mfi),
+                         rel.array(mfi), klo);
     }
+}
+
+/**
+ * The plane k = klo of one box of a velocity component, less the current, ghost cells
+ * included: all the surface-layer flux kernels read of it.
+ *
+ * @param[in]  vel     velocity component
+ * @param[in]  current the same component of the surface current (make_face_current)
+ * @param[in]  box     index of the box, which must hold the plane k = klo
+ * @param[in]  klo     index of the lowest cell of the domain
+ * @param[out] rel     the relative plane, sized from the asynchronous arena
+ * @return the relative plane, indexed like vel
+ */
+Array4<const Real>
+relative_plane (const MultiFab& vel, const MultiFab& current, int box, int klo, FArrayBox& rel)
+{
+    const Box plane = makeSlab(vel.fabbox(box), 2, klo);
+    rel.resize(plane, 1, The_Async_Arena());
+    subtract_current(plane, vel.const_array(box), current.const_array(box), rel.array(), klo);
+    return rel.const_array();
 }
 
 } // namespace
@@ -1235,21 +1269,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
     const MultiFab* current_x = use_current ? get_surface_current(lev, 0) : nullptr;
     const MultiFab* current_y = use_current ? get_surface_current(lev, 1) : nullptr;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_current || (current_x && current_y),
-        "The surface current is applied before update_mac_ptrs has set it on this level.");
-    auto relative_plane = [&] (const MultiFab& vel, const MultiFab& current, int box,
-                               FArrayBox& rel) -> Array4<const Real>
-    {
-        const Box plane = makeSlab(vel.fabbox(box), 2, klo);
-        rel.resize(plane, 1, The_Async_Arena());
-        const auto v = vel.const_array(box);
-        const auto c = current.const_array(box);
-        const auto r = rel.array();
-        ParallelFor(plane, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            r(i,j,k) = v(i,j,k) - c(i,j,k);
-        });
-        return rel.const_array();
-    };
+        "The surface current has not been defined on this level.");
 
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
@@ -1280,8 +1300,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto velz_arr = mfs[Vars::zvel]->array(mfi);
         FArrayBox rel_xvel, rel_yvel;
         if (use_current) {
-            velx_arr = relative_plane(*mfs[Vars::xvel], *current_x, mfi.index(), rel_xvel);
-            vely_arr = relative_plane(*mfs[Vars::yvel], *current_y, mfi.index(), rel_yvel);
+            velx_arr = relative_plane(*mfs[Vars::xvel], *current_x, mfi.index(), klo, rel_xvel);
+            vely_arr = relative_plane(*mfs[Vars::yvel], *current_y, mfi.index(), klo, rel_yvel);
         }
 
         // Output stresses:
