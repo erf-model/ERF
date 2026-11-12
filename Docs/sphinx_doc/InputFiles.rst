@@ -63,7 +63,14 @@ file, what was run in ERF, and how to add an option.
 
 The script complements the checker described next: it writes a new case, and
 ``check_erf_inputs.py`` then checks that case and its files, also after the dummy files have
-been replaced with real data.
+been replaced with real data. On a generated case the checker also reports each dummy file
+that still holds its placeholder values, each file to supply that is missing, and the values
+marked ``USER:``.
+
+With ``--amr``, ``--refine field`` tags cells by field tests instead of using static boxes:
+``--refine-on theta:less:299 w:greater:2`` writes one condition per test under
+``erf.<indicator>.conditions``, ``--refine-combine`` chooses ``and`` or ``or``, and
+``--refine-box`` restricts the tests to a region (see :ref:`MeshRefinement`).
 
 Checking an inputs file before running
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

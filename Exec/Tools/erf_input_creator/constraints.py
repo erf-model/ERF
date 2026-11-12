@@ -10,6 +10,7 @@ import os
 from typing import Callable, List, Tuple
 
 from .options import OUTPUTS, PBL, REAL_SETUPS
+from .recipes.models import ICE_MODELS, RAIN_MODELS
 
 Rule = Tuple[Callable, str]
 
@@ -67,6 +68,13 @@ def _ranges(s) -> List[str]:
         bad.append("--name = '%s': the name is used for a generated file or is not a file name" % s.name)
     if not 0 <= s.amr <= 2:
         bad.append("--amr = %d: the number of refined levels must be 0, 1 or 2" % s.amr)
+    bad += s.refine_errors
+    if s.refine_box is not None:
+        box = s.refine_box
+        if len(box) not in (4, 6) or not all(math.isfinite(v) for v in box):
+            bad.append("--refine-box: give XLO YLO XHI YHI or XLO YLO ZLO XHI YHI ZHI, as finite numbers")
+        elif any(box[k] >= box[k + len(box) // 2] for k in range(len(box) // 2)):
+            bad.append("--refine-box: each upper value must exceed the lower one")
     for name in s.outputs:
         if name not in OUTPUTS:
             bad.append("--output: '%s' is not one of %s" % (name, ", ".join(OUTPUTS)))
@@ -203,10 +211,41 @@ RULES: List[Rule] = [
      "--hill cos4 ends at 4 x --hill-width from its centre; that must fit in the domain"),
     (lambda s: s.amr > 0 and s.method in ("eb",),
      "--amr with --terrain-method eb is not covered by this tool"),
-    (lambda s: s.amr > 0 and (s.n[0] % 4 or s.n[1] % 4),
+    (lambda s: s.amr > 0 and s.refine == "box" and (s.n[0] % 4 or s.n[1] % 4),
      "--amr needs --nx and --ny divisible by 4 so the refined box lies on coarse cells"),
     (lambda s: s.damping == "sponge" and s.real,
      "--damping sponge is not covered for real-data cases; use rayleigh"),
+    (lambda s: s.amr == 0 and (s.refine != "box" or s.refine_on is not None or s.refine_box is not None),
+     "--refine, --refine-on and --refine-box need --amr 1 or 2"),
+    # seen at ERF 329b9411c: the PBL kernels assert that every box spans the full column, and tagged boxes need not
+    (lambda s: s.amr > 0 and s.refine == "field" and s.turbulence in PBL,
+     "--refine field cannot be used with a PBL scheme: the scheme needs boxes over the full column, and tagged boxes "
+     "need not reach the ground; use --refine box"),
+    # seen at ERF 329b9411c: 3-D anelastic cases with field tagging stopped in the pressure solve or with a negative
+    # theta within 20 steps, with and without a closure; the 2-D density current ran
+    (lambda s: s.amr > 0 and s.refine == "field" and s.dycore == "anelastic" and s.n[1] > 1,
+     "--refine field with --dycore anelastic is covered only for 2-D cases (--ny 1); 3-D cases stopped in test runs. "
+     "Use --dycore compressible or --refine box"),
+    # Source/Prob/ERF_InitCustomPert_Bubble.H asserts that every box spans the full depth
+    (lambda s: s.amr > 0 and s.refine == "field" and s.setup == "bubble",
+     "--refine field cannot be used with --setup bubble: the Bubble problem needs boxes over the full depth; "
+     "use --refine box"),
+    (lambda s: s.amr > 0 and s.refine == "box" and (s.refine_on is not None or s.refine_box is not None),
+     "--refine-on and --refine-box belong to --refine field"),
+    # Source/Refinement/ERF_Tagging.cpp check_field: a moisture field needs a model that carries it
+    (lambda s: any(f in ("qv", "qc", "qt") for f, _, _ in s.conditions) and not s.moist,
+     "--refine-on: qv, qc and qt need a moisture model (--moisture)"),
+    (lambda s: any(f == "qr" for f, _, _ in s.conditions) and s.moisture not in RAIN_MODELS,
+     "--refine-on: qr needs a moisture model with rain; --moisture {moisture} has none"),
+    (lambda s: any(f in ("qi", "qs", "qg", "max_reflectivity") for f, _, _ in s.conditions)
+     and s.moisture not in ICE_MODELS,
+     "--refine-on: qi, qs, qg and max_reflectivity need a moisture model with ice; --moisture {moisture} has none"),
+    (lambda s: any(f == "terrain_blanking" for f, _, _ in s.conditions) and s.method != "immersed",
+     "--refine-on: terrain_blanking needs --terrain-method immersed"),
+    # ERF_Tagging.cpp:952-956: a box height above ground does not follow immersed or EB terrain
+    (lambda s: s.refine_box is not None and len(s.refine_box) == 6 and s.refine_z == "above_ground"
+     and s.method in ("immersed", "eb"),
+     "--refine-z above_ground does not follow immersed or EB terrain; ERF stops. Use --refine-z physical"),
     # netcdf is the file type of the plotfile stream, not a stream of its own
     (lambda s: "netcdf" in s.outputs and "plt" not in s.outputs,
      "--output netcdf selects the file type of the plotfiles; add plt to --output"),

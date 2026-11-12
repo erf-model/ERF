@@ -11,8 +11,9 @@ RRTMGP_FILES = [("erf.rrtmgp_coeffs_sw", "rrtmgp-data-sw-g224-2018-12-04.nc"),
                 ("erf.rrtmgp_cloud_optics_sw", "rrtmgp-cloud-optics-coeffs-sw.nc"),
                 ("erf.rrtmgp_cloud_optics_lw", "rrtmgp-cloud-optics-coeffs-lw.nc")]
 
-_RAIN = ("kessler", "sam", "sam_noice", "morrison", "morrison_noice", "wsm6", "wdm6")
-_ICE = ("sam", "morrison", "wsm6", "wdm6")
+RAIN_MODELS = ("kessler", "sam", "sam_noice", "morrison", "morrison_noice", "wsm6", "wdm6")
+ICE_MODELS = ("sam", "morrison", "wsm6", "wdm6")
+_RAIN, _ICE = RAIN_MODELS, ICE_MODELS
 
 
 def moist_plot_vars(s):

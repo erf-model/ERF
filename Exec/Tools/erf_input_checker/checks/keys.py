@@ -292,6 +292,10 @@ class UnknownKeys(Checker):
                 probe = "erf.<indicator>." + ".".join(parts[2:])
                 if probe in known_l:
                     continue
+                # a condition of the indicator: erf.<indicator>.<condition>.<key>
+                conds = [s.lower() for s in self.deck.get_strs("erf.%s.conditions" % key.split(".")[1])]
+                if len(parts) == 4 and parts[2] in conds and "erf.<indicator>." + parts[3] in known_l:
+                    continue
             if parts[0] == "erf" and len(parts) == 3 and parts[1] in stations and parts[2] in _STATION_LEAVES:
                 continue
             if parts[:2] == ["erf", "obs_nudging"] and len(parts) == 4 and parts[2] in obs_stations \

@@ -38,6 +38,12 @@ RADIATION = ["none", "twostream", "rrtmgp"]
 LSM = ["none", "slm", "noahmp"]
 CANOPY = ["none", "file"]
 WINDFARM = ["none", "fitch", "ewp", "simplead"]
+# refinement by field tests (ERF_Tagging.cpp): the fields a condition may name, and the tests
+REFINE = ["box", "field"]
+REFINE_FIELDS = ["density", "theta", "scalar", "qv", "qc", "qi", "qr", "qs", "qg", "qt", "vorticity", "helicity",
+                 "max_reflectivity", "u", "v", "w", "omega", "terrain_blanking"]
+REFINE_TESTS = {"greater": "value_greater", "less": "value_less", "gradient": "adjacent_difference_greater"}
+REFINE_Z = ["above_ground", "physical"]
 FORCING = ["none", "pressure_gradient", "geostrophic", "geo_table"]
 DAMPING = ["none", "rayleigh", "sponge"]
 OUTPUTS = ["plt", "plt2d", "netcdf", "chk", "logs", "profiles", "line", "plane", "stations", "subvol"]
@@ -129,7 +135,20 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--canopy", choices=CANOPY, default="none", help="forest canopy drag from a table of tree patches")
     g.add_argument("--windfarm", choices=WINDFARM, default="none",
                    help="wind-farm parameterisation; needs a build with ERF_ENABLE_WINDFARM")
-    g.add_argument("--amr", type=int, default=0, help="number of refined levels (0 to 2), in a box at the domain centre")
+    g.add_argument("--amr", type=int, default=0, help="number of refined levels (0 to 2)")
+    g.add_argument("--refine", choices=REFINE, default="box",
+                   help="with --amr: static nested boxes at the domain centre, or cells tagged by field tests")
+    g.add_argument("--refine-on", nargs="+", default=None, metavar="FIELD:TEST:VALUE",
+                   help="with --refine field: one or more conditions, each a field (%s), a test (%s) and a value, "
+                        "for example theta:less:299 w:greater:2" % (", ".join(REFINE_FIELDS), ", ".join(REFINE_TESTS)))
+    g.add_argument("--refine-combine", choices=["and", "or"], default="and",
+                   help="with several conditions: tag where all hold, or where any holds")
+    g.add_argument("--refine-box", type=float, nargs="+", default=None, metavar="M",
+                   help="with --refine field: restrict the tests to a region, as XLO YLO XHI YHI or "
+                        "XLO YLO ZLO XHI YHI ZHI [m]")
+    g.add_argument("--refine-z", choices=REFINE_Z, default=None,
+                   help="how the z extent of --refine-box is measured; default above_ground on a fitted or flat "
+                        "grid, physical with immersed or EB terrain")
     g.add_argument("--lateral", choices=LATERAL, default=None, help="lateral boundaries")
     g.add_argument("--forcing", choices=FORCING, default=None, help="large-scale driver")
     g.add_argument("--coriolis", action="store_true", help="turn the Coriolis force on")
@@ -264,6 +283,9 @@ def resolve(args: argparse.Namespace) -> argparse.Namespace:
     s.ridge = s.n[1] < RIDGE_BELOW
     s.gravity = s.init != "uniform"
     s.levels = s.amr
+    s.conditions, s.refine_errors = refine_conditions(s)
+    if s.refine_z is None:
+        s.refine_z = "physical" if s.method in ("immersed", "eb") else "above_ground"
     # the vertical grid: first-cell height, and the ratio ERF will solve from erf.initial_dz
     s.stretch = stretch_ratio(s.dz0, lz, s.n[2]) if s.stretched and s.n[2] > 0 and lz > 0 else None
     s.dz_first = s.dz0 if s.stretched else s.dx[2]
@@ -280,6 +302,37 @@ def resolve(args: argparse.Namespace) -> argparse.Namespace:
     s.is_pbl = s.turbulence in PBL
     s.has_tke = s.turbulence in TKE_CLOSURES
     return s
+
+
+def refine_conditions(s):
+    """The conditions of --refine field as (field, test, value) and the messages for those that cannot be read."""
+    if s.amr <= 0 or s.refine != "field":
+        return [], []
+    given = s.refine_on
+    if given is None:
+        # a default that tags something in each setup; the user is asked to review it
+        given = {"density_current": ["theta:less:%r" % (s.theta - 1.0)],
+                 "bubble": ["theta:greater:%r" % (s.theta + 0.5)]}.get(s.setup, ["vorticity:greater:0.05"])
+    conditions, errors = [], []
+    for text in given:
+        parts = str(text).split(":")
+        if len(parts) != 3:
+            errors.append("--refine-on %s: write each condition as FIELD:TEST:VALUE, for example theta:less:299" % text)
+            continue
+        field, test, value = parts
+        try:
+            number = float(value)
+        except ValueError:
+            number = float("nan")
+        if field.lower() not in REFINE_FIELDS:
+            errors.append("--refine-on %s: '%s' is not one of %s" % (text, field, ", ".join(REFINE_FIELDS)))
+        elif test not in REFINE_TESTS:
+            errors.append("--refine-on %s: '%s' is not one of %s" % (text, test, ", ".join(REFINE_TESTS)))
+        elif not math.isfinite(number):
+            errors.append("--refine-on %s: '%s' is not a finite number" % (text, value))
+        else:
+            conditions.append((field.lower(), test, number))
+    return conditions, errors
 
 
 RIDGE_BELOW = 16     # fewer cells than this across y: hills are written as ridges across x
@@ -328,7 +381,9 @@ def list_choices() -> List[str]:
             "--lsm         : " + ", ".join(LSM),
             "--canopy      : " + ", ".join(CANOPY),
             "--windfarm    : " + ", ".join(WINDFARM),
-            "--amr         : 0, 1, 2"]
+            "--amr         : 0, 1, 2",
+            "--refine      : " + ", ".join(REFINE) + "   (--refine-on FIELD:TEST:VALUE ..., tests: "
+            + ", ".join(REFINE_TESTS) + ")"]
     out += ["--terrain     : " + ", ".join(TERRAIN) + "   (--hill " + ", ".join(HILLS) + ")",
             "--terrain-method: " + ", ".join(TERRAIN_METHODS),
             "--buildings   : " + ", ".join(BUILDINGS),

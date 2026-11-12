@@ -3,6 +3,7 @@
 import math
 
 from ..enums import enum_values
+from ..options import REFINE_FIELDS, REFINE_TESTS
 
 SOUND_SPEED = 347.0   # [m/s] at 300 K, for the acoustic substep estimate
 
@@ -36,21 +37,84 @@ def geometry(deck, s) -> None:
     sec.note("amr.no_box_split_dir defaults to 2: boxes are never split in z.")
 
 
+REFINE_NAME = "refine"      # the indicator of --refine field
+
+
 def _refinement(sec, s) -> None:
     lx, ly = s.hi[0] - s.lo[0], s.hi[1] - s.lo[1]
     sec.set("amr.max_level", s.levels, "refined levels above level 0")
-    sec.set("amr.ref_ratio_vect", (2, 2, 1) * s.levels, "refinement ratio x y z of each level; z is not refined")
-    names = ["box%d" % (lev + 1) for lev in range(s.levels)]
-    sec.set("erf.refinement_indicators", names, "one criterion per level; keys erf.<name>.*")
-    for lev, name in enumerate(names):
-        frac = 0.25 + 0.125 * lev          # nested boxes around the domain centre
-        sec.set("erf.%s.max_level" % name, lev + 1, "refine up to this level inside the box")
-        sec.user("erf.%s.in_box_lo" % name, (s.lo[0] + frac * lx, s.lo[1] + frac * ly), "[m] x y of the lower corner")
-        sec.user("erf.%s.in_box_hi" % name, (s.hi[0] - frac * lx, s.hi[1] - frac * ly), "[m] x y of the upper corner")
-    sec.alt("erf.box1.field_name", "theta", "refine by a field instead of a box: with value_greater or value_less")
-    sec.set("erf.regrid_int", -1, "steps between regrids; -1 keeps the initial boxes")
+    # a single cell across y (a 2-D case) is not refined in y
+    ratio = (2, 2 if s.n[1] > 1 else 1, 1)
+    sec.set("amr.ref_ratio_vect", ratio * s.levels, "refinement ratio x y z of each level; z is not refined")
+    if s.refine == "field":
+        _refine_by_field(sec, s)
+    else:
+        names = ["box%d" % (lev + 1) for lev in range(s.levels)]
+        sec.set("erf.refinement_indicators", names, "one criterion per level; keys erf.<name>.*")
+        for lev, name in enumerate(names):
+            frac = 0.25 + 0.125 * lev          # nested boxes around the domain centre
+            sec.set("erf.%s.max_level" % name, lev + 1, "refine up to this level inside the box")
+            sec.user("erf.%s.in_box_lo" % name, (s.lo[0] + frac * lx, s.lo[1] + frac * ly), "[m] x y of the lower corner")
+            sec.user("erf.%s.in_box_hi" % name, (s.hi[0] - frac * lx, s.hi[1] - frac * ly), "[m] x y of the upper corner")
+        sec.note("To tag by a field instead, give an indicator field_name with value_greater, value_less or")
+        sec.note("adjacent_difference_greater; its in_box_lo/in_box_hi then restrict the test (see --refine field).")
+        sec.alt("erf.box1.field_name", "theta", "one of: " + ", ".join(REFINE_FIELDS))
+        sec.alt("erf.box1.value_less", s.theta - 1.0, "tag where the field is below this value")
+        sec.set("erf.regrid_int", -1, "steps between regrids; -1 keeps the initial boxes")
     sec.set("erf.coupling_type", "TwoWay", "fine levels feed back to coarse levels")
     sec.alt("erf.coupling_type", "OneWay", "coarse to fine only")
+
+
+def _refine_by_field(sec, s) -> None:
+    """One indicator that tags cells by field tests, optionally inside a region."""
+    name = REFINE_NAME
+    pre = "erf.%s." % name
+    sec.set("erf.refinement_indicators", name, "the criterion below; keys erf.%s.*" % name)
+    sec.set(pre + "max_level", s.levels, "tag up to this level")
+    sec.note("Fields: " + ", ".join(REFINE_FIELDS) + ".")
+    sec.note("Tests: value_greater, value_less, adjacent_difference_greater (difference between neighbouring cells).")
+    if len(s.conditions) == 1:
+        field, test, value = s.conditions[0]
+        sec.user(pre + "field_name", field, "the field tested")
+        sec.user(pre + REFINE_TESTS[test], value, "tag where the test holds; one value, or one per level")
+        sec.note("Several tests: list them in %sconditions and give each its own field_name and test under" % pre)
+        sec.note("%s<condition>.; the two forms cannot be mixed." % pre)
+        sec.alt(pre + "conditions", ("c1", "c2"), "names of the conditions")
+        sec.alt(pre + "combine", "and", "tag where all conditions hold (default), or 'or' where any holds")
+    else:
+        names = ["c%d" % (k + 1) for k in range(len(s.conditions))]
+        sec.set(pre + "conditions", names, "names of the conditions; keys erf.%s.<condition>.*" % name)
+        sec.choice(pre + "combine", s.refine_combine, ["and", "or"],
+                   describe={"and": "tag where all conditions hold (default)", "or": "tag where any condition holds"})
+        for cname, (field, test, value) in zip(names, s.conditions):
+            sec.user("%s%s.field_name" % (pre, cname), field, "the field tested")
+            sec.user("%s%s.%s" % (pre, cname, REFINE_TESTS[test]), value, "one value, or one per level")
+    if s.refine_box is not None:
+        half = len(s.refine_box) // 2
+        sec.user(pre + "in_box_lo", tuple(s.refine_box[:half]), "[m] lower corner of the region the tests apply in")
+        sec.user(pre + "in_box_hi", tuple(s.refine_box[half:]), "[m] upper corner; with x y only, z is unrestricted")
+        if half == 3:
+            sec.choice(pre + "box_z_coordinate", s.refine_z, ["above_ground", "physical"],
+                       describe={"above_ground": "the z extent is height above the ground (default); not with immersed or EB terrain",
+                                 "physical": "the z extent is the physical height of the cell centre"})
+    else:
+        lx, ly = s.hi[0] - s.lo[0], s.hi[1] - s.lo[1]
+        sec.alt(pre + "in_box_lo", (s.lo[0] + 0.25 * lx, s.lo[1] + 0.25 * ly), "[m] restrict the tests to a region: x y, or x y z")
+        sec.alt(pre + "in_box_hi", (s.hi[0] - 0.25 * lx, s.hi[1] - 0.25 * ly), "[m]")
+        sec.alt(pre + "box_z_coordinate", s.refine_z, "with a z extent: above_ground (default) or physical")
+    sec.alt(pre + "start_time", 0.0, "[s] tag only from this time on")
+    sec.alt(pre + "end_time", s.stop_time, "[s] and until this time")
+    sec.user("erf.regrid_int", 10, "steps between regrids; the refined region follows the field")
+    if s.turbulence != "none":
+        # Source/ERF_MakeNewArrays.cpp:689-709: a refined level whose boxes are stacked in z stops the run when the
+        # thermal or momentum diffusion is implicit, and field tagging can produce such boxes. Anelastic MidPoint
+        # resets vert_implicit_fac to 1 in its first stage, so the two switches are the setting that holds for both.
+        sec.set("erf.implicit_thermal_diffusion", "false",
+                "explicit: ERF stops if tagged boxes are stacked in z with the implicit solve (default true)")
+        sec.set("erf.implicit_momentum_diffusion", "false", "explicit, for the same reason (default true)")
+    sec.note("The refined region follows the tags, so its shape changes from case to case. In short test runs,")
+    sec.note("immersed terrain tagged by terrain_blanking stopped with a negative density; start from a static box")
+    sec.note("(--refine box) if a field-tagged case does not run.")
 
 
 _WALL_NOTE = "wall faces also take theta, theta_grad (not both) and, for compressible runs, density"

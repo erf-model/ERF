@@ -34,7 +34,7 @@ from .auxfiles import dummy_building, dummy_hill
 from .deckwriter import DeckText
 from .enums import source_root
 from .generate import CaseError, build, write
-from .options import (DAMPING, FORCING, LATERAL, MOISTURE, OUTPUTS, SETUPS, SURFACE_HEAT, TERRAIN_METHODS,
+from .options import (REFINE_TESTS, DAMPING, FORCING, LATERAL, MOISTURE, OUTPUTS, SETUPS, SURFACE_HEAT, TERRAIN_METHODS,
                       TURBULENCE, WINDFARM, OptionError, case_options, parse, resolve)
 from .presets import PRESETS
 
@@ -122,6 +122,22 @@ CASES += [["--setup", "abl", "--radiation", "twostream"],
           ["--setup", "metgrid"],
           ["--setup", "metgrid", "--moisture", "none", "--turbulence", "smagorinsky", "--dycore", "anelastic"]]
 
+# refinement by field tests (erf-model/ERF#5036)
+CASES += [["--setup", "abl", "--amr", "1", "--refine", "field"],
+          ["--setup", "density_current", "--amr", "1", "--refine", "field"],
+          ["--setup", "density_current", "--dycore", "anelastic", "--amr", "2", "--refine", "field",
+           "--refine-on", "theta:less:299.5", "w:less:-0.5", "--refine-combine", "or"],
+          ["--setup", "abl", "--amr", "1", "--refine", "field", "--refine-on", "theta:gradient:0.2", "u:less:9.5",
+           "--refine-box", "250", "250", "0", "750", "750", "300"],
+          ["--setup", "abl", "--amr", "1", "--refine", "field", "--refine-on", "w:greater:0.1",
+           "--refine-box", "250", "250", "750", "750", "--turbulence", "none", "--surface", "slip"],
+          ["--setup", "abl", "--amr", "1", "--refine", "field", "--turbulence", "deardorff"],
+          ["--setup", "abl", "--amr", "1", "--refine", "field", "--turbulence", "keqn"],
+          ["--setup", "hill", "--amr", "1", "--refine", "field", "--refine-on", "vorticity:greater:0.05"],
+          ["--setup", "abl", "--terrain", "file", "--amr", "1", "--refine", "field", "--refine-on", "vorticity:greater:0.05",
+           "--refine-box", "250", "250", "0", "750", "750", "200", "--refine-z", "above_ground"],
+          ["--setup", "abl", "--moisture", "kessler", "--amr", "1", "--refine", "field", "--refine-on", "qc:greater:1e-5",
+           "qr:greater:1e-6", "--refine-combine", "or"]]
 CASES += [["--preset", name] for name in sorted(PRESETS)]
 CASES += [["--setup", "abl", "--theta", "290.12345", "--wind", "8", "3", "--z0", "0.03", "--surface-heat", "temp",
            "--latitude", "-33.5", "--coriolis", "--stop-time", "7200", "--name", "inputs_abl", "--heat-flux", "0.25"],
@@ -194,6 +210,24 @@ REFUSED = [
     (["--setup", "wrfinput", "--moisture", "sam"], "--moisture sam"),
     (["--lsm", "slm"], "--lsm slm"),
     (["--amr", "3"], "--amr"),
+    (["--refine", "field"], "--amr"),
+    (["--setup", "bubble", "--amr", "1", "--refine", "field"], "--setup bubble"),
+    (["--amr", "1", "--refine", "field", "--turbulence", "mynn25"], "PBL"),
+    (["--amr", "1", "--refine", "field", "--dycore", "anelastic"], "--dycore anelastic"),
+    (["--refine-on", "theta:less:299"], "--amr"),
+    (["--amr", "1", "--refine-on", "theta:less:299"], "--refine field"),
+    (["--amr", "1", "--refine", "field", "--refine-on", "theta<299"], "FIELD:TEST:VALUE"),
+    (["--amr", "1", "--refine", "field", "--refine-on", "velmag:greater:5"], "velmag"),
+    (["--amr", "1", "--refine", "field", "--refine-on", "theta:above:299"], "above"),
+    (["--amr", "1", "--refine", "field", "--refine-on", "theta:less:cold"], "cold"),
+    (["--amr", "1", "--refine", "field", "--refine-on", "qc:greater:1e-5"], "moisture"),
+    (["--amr", "1", "--refine", "field", "--moisture", "kessler", "--refine-on", "qi:greater:1e-6"], "ice"),
+    (["--amr", "1", "--refine", "field", "--moisture", "kessler_norain", "--refine-on", "qr:greater:1e-6"], "rain"),
+    (["--amr", "1", "--refine", "field", "--refine-on", "terrain_blanking:greater:0.5"], "terrain_blanking"),
+    (["--amr", "1", "--refine", "field", "--refine-box", "0", "0", "100"], "--refine-box"),
+    (["--amr", "1", "--refine", "field", "--refine-box", "500", "0", "100", "100"], "--refine-box"),
+    (["--amr", "1", "--refine", "field", "--terrain", "file", "--terrain-method", "immersed", "--refine-z",
+      "above_ground", "--refine-box", "0", "0", "0", "500", "500", "100"], "--refine-z"),
     (["--amr", "-1"], "--amr"),
     (["--amr", "1", "--nx", "18"], "--amr"),
     (["--setup", "wrfinput", "--damping", "sponge"], "--damping sponge"),
@@ -261,7 +295,7 @@ def _schema_knows(schema: dict, key: str) -> bool:
     return False
 
 
-_NAMED_PREFIX = re.compile(r"^(erf\.(mast\d+|box\d+)|[xyz](lo|hi))\.")
+_NAMED_PREFIX = re.compile(r"^(erf\.(mast\d+|box\d+|refine(\.c\d+)?)|[xyz](lo|hi))\.")
 
 
 def _check_keys(deck, schema: Optional[dict], read_names, documented, failures, label) -> None:
@@ -293,7 +327,11 @@ def _check_keys(deck, schema: Optional[dict], read_names, documented, failures, 
             continue
         if read_names and leaf not in read_names and not composed:
             failures.append("%s: the key %s is not read anywhere under Source/" % (label, key))
-        if schema is not None and not key.startswith("prob.") and not _schema_knows(schema, key):
+        # read with a key name taken from a loop (value_less, adjacent_difference_greater: the tests[] array of
+        # ERF_Tagging.cpp) or under a condition prefix built at run time; the schema scanner follows neither (#5067)
+        loop_read = re.match(r"^erf\.(box\d+|refine)(\.c\d+)?\.(value_less|adjacent_difference_greater)$", key) or \
+            re.match(r"^erf\.refine\.c\d+\.(field_name|value_greater)$", key)
+        if schema is not None and not key.startswith("prob.") and not loop_read and not _schema_knows(schema, key):
             failures.append("%s: the key %s is not in the schema" % (label, key))
 
 
@@ -377,7 +415,7 @@ def _check_aux(s, outdir: str, failures, label) -> None:
             failures.append("%s: geo_wind_table.txt must span the domain with rows z Ug Vg" % label)
 
 
-def _check_deck(s, outdir: str, failures, label, needed=()) -> None:
+def _check_deck(s, outdir: str, failures, label, needed=(), dummies=()) -> None:
     """The checker's verdict, and the deck read back against the options."""
     from erf_input_checker import Report, RunContext, Severity, parse_deck, run_all_checks
     from erf_input_checker.deck import DeckError
@@ -390,8 +428,15 @@ def _check_deck(s, outdir: str, failures, label, needed=()) -> None:
         return
     report = Report(path)
     run_all_checks(deck, RunContext(deck), report)
+    # the checker must recognise the case: every dummy is reported as a placeholder, every file to supply as missing
+    placeholder = set(f.key for f in report.findings if f.checker == "generated" and f.severity == Severity.WARNING)
+    for key in dummies:
+        if key not in placeholder:
+            failures.append("%s: the checker did not report the dummy named by %s as a placeholder" % (label, key))
     for f in report.sorted():
-        # a file the tool cannot generate is reported missing; that is the expected state of a new case
+        # what a new case is expected to hold: dummy files and files still to supply
+        if f.checker == "generated" and f.key in tuple(dummies) + tuple(needed):
+            continue
         if f.key in needed and "not found" in f.message:
             continue
         if f.severity >= Severity.WARNING:
@@ -447,6 +492,28 @@ def _check_deck(s, outdir: str, failures, label, needed=()) -> None:
         rate = deck.get_real(key)
         if rate is not None and rate * s.dt_est > 0.25:
             failures.append("%s: %s x time step is %g, above 0.25" % (label, key, rate * s.dt_est))
+    if s.levels > 0:
+        ratio = deck.get_ints("amr.ref_ratio_vect")
+        if ratio != [2, 2 if s.n[1] > 1 else 1, 1] * s.levels:
+            failures.append("%s: amr.ref_ratio_vect is %s; y must not be refined with one cell in y" % (label, ratio))
+    if s.levels > 0 and s.refine == "field":
+        pre = "erf.refine."
+        names = deck.get_strs(pre + "conditions")
+        got = []
+        for cpre in ([pre + n + "." for n in names] or [pre]):
+            for test, key in sorted(REFINE_TESTS.items()):
+                if deck.has(cpre + key):
+                    got.append((deck.get_str(cpre + "field_name"), test, deck.get_real(cpre + key)))
+        if got != [(f, t, v) for f, t, v in s.conditions] or len(s.conditions) > 1 and \
+                deck.get_str(pre + "combine") != s.refine_combine:
+            failures.append("%s: the refinement conditions in the deck are not those asked for" % label)
+        if s.refine_box is not None and deck.get_reals(pre + "in_box_lo") + deck.get_reals(pre + "in_box_hi") \
+                != list(s.refine_box):
+            failures.append("%s: the refinement region in the deck is not --refine-box" % label)
+        explicit = deck.get_str("erf.implicit_thermal_diffusion") == "false" and \
+            deck.get_str("erf.implicit_momentum_diffusion") == "false"
+        if (s.turbulence != "none") != explicit:
+            failures.append("%s: field tagging with a closure needs explicit thermal and momentum diffusion" % label)
     if deck.get_ints("amr.n_cell") != list(s.n):
         failures.append("%s: amr.n_cell does not hold the requested cells" % label)
     closures = sum(1 for k in ("erf.les_type", "erf.rans_type", "erf.pbl_type")
@@ -528,7 +595,8 @@ def main(schema_path: Optional[str] = None) -> int:
             if build(again)[0].render() != deck.render():
                 failures.append("%s: case.json does not reproduce the deck" % label)
             _check_aux(s, outdir, failures, label)
-            _check_deck(s, outdir, failures, label, needed=[f.key for f in files if not f.generated])
+            _check_deck(s, outdir, failures, label, needed=[f.key for f in files if not f.generated],
+                        dummies=[f.key for f in files if f.generated])
             if sorted(os.listdir(outdir)) != sorted([s.name] + [f.name for f in files if f.generated]
                                                     + (["FILES_TO_REPLACE.txt"] if files else []) + ["case.json"]):
                 failures.append("%s: the files written do not match the files the deck names" % label)

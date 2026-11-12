@@ -24,6 +24,10 @@ not what was meant, including the contents of the files the deck names (sounding
 `wrfinput`, `wrfbdy`, `met_em`). Use them in that order: generate, replace the dummy files, then check. The
 generator's own tests run every deck it writes through the checker.
 
+The checker reads what the generator writes. On a generated case it reports each dummy file that still holds the
+placeholder values (`FILES_TO_REPLACE.txt` carries a sha256 fingerprint of each dummy), each file to supply that is
+missing, and the values marked `USER:`. Once a dummy is replaced, its warning goes.
+
 ## Files
 
 | File | Role |
@@ -89,7 +93,12 @@ its options, so `--case-file my_case/case.json` writes the same deck again.
 | `--lsm` | `none` | `slm`, `noahmp` |
 | `--canopy` | `none` | `file`: forest drag from a table of tree patches |
 | `--windfarm` | `none` | `fitch`, `ewp`, `simplead` |
-| `--amr` | 0 | refined levels, 0 to 2, in nested boxes at the domain centre (x and y refined, ratio 2) |
+| `--amr` | 0 | refined levels, 0 to 2 (x and y refined, ratio 2; y is not refined when `--ny 1`) |
+| `--refine` | `box` | with `--amr`: `box`, nested static boxes at the domain centre; or `field`, cells tagged by field tests (erf-model/ERF#5036) |
+| `--refine-on` | from the setup | with `--refine field`: one or more conditions `FIELD:TEST:VALUE`. Fields: density, theta, scalar, qv, qc, qi, qr, qs, qg, qt, vorticity, helicity, max_reflectivity, u, v, w, omega, terrain_blanking. Tests: `greater`, `less`, `gradient` (`value_greater`, `value_less`, `adjacent_difference_greater`). Several conditions go under `erf.<indicator>.conditions` |
+| `--refine-combine` | `and` | with several conditions: tag where all hold, or `or` where any holds |
+| `--refine-box` | unset | with `--refine field`: restrict the tests to `XLO YLO XHI YHI` or `XLO YLO ZLO XHI YHI ZHI` [m] |
+| `--refine-z` | `above_ground` (`physical` with immersed or EB terrain) | how the z extent of `--refine-box` is measured (`erf.<indicator>.box_z_coordinate`) |
 | `--lateral` | from the setup | `periodic`, `slipwall`, `outflow`, `inflow_outflow`, `open` (the last three act on x; y is periodic); `real` for the real-data setups |
 | `--forcing` | `none` | `pressure_gradient`, `geostrophic`, `geo_table` |
 | `--coriolis`, `--latitude` | off, 45 | Coriolis force (always on for real-data setups); latitude in [-90, 90] degrees |
@@ -116,6 +125,9 @@ Choices the tool makes for the user, each stated in the deck:
   adaptive anelastic deck with damping gets `erf.dt_max`.
 * Setups that start at rest get a fixed time step.
 * An anelastic bubble perturbs theta, not density (`prob.perturb_rho = false`).
+* Field refinement with a turbulence closure sets `erf.implicit_thermal_diffusion` and
+  `erf.implicit_momentum_diffusion` to false: tagged boxes can be stacked in z, and ERF stops when the vertical
+  solve is implicit on such boxes.
 
 ## Dummy files
 
@@ -180,18 +192,25 @@ Each rule in `constraints.py` carries the source line or the test run behind it.
 | `--lateral slipwall` with a wind; `--lateral inflow_outflow` without a positive x wind; `--setup density_current` with a wind | the wind cannot enter, or the problem does not read it |
 | `--hill schar` with fewer than 8 cells per ripple; `--hill cos4` on a ridge grid or wider than the domain | the shape would not be resolved |
 | `--terrain-method immersed` with a PBL scheme, `--roughness file` or `--surface-heat file`; `--terrain-method eb` with `--canopy` or `--amr`; `--damping sponge` with a real-data setup | not covered by this tool |
-| `--amr` with `--nx` or `--ny` not divisible by 4 | the refined box must lie on coarse cells |
+| `--amr` with `--nx` or `--ny` not divisible by 4 (with `--refine box`) | the refined box must lie on coarse cells |
+| `--refine field` with a qv, qc, qt, qr, ice or reflectivity field the moisture model does not carry, or terrain_blanking without immersed terrain | ERF stops (`ERF_Tagging.cpp`) |
+| `--refine-z above_ground` with a 3-value `--refine-box` over immersed or EB terrain | ERF stops |
+| `--refine field` with a PBL scheme | the PBL kernels need boxes over the full column, and tagged boxes need not reach the ground; ERF stopped on an assertion in test runs |
+| `--refine field` with `--dycore anelastic` in 3-D | stopped in the pressure solve or with a negative theta within 20 steps in test runs; the 2-D density current ran |
+| `--refine field` with `--setup bubble` | the Bubble problem needs boxes over the full depth |
+| `--refine`, `--refine-on` or `--refine-box` without `--amr`; `--refine-on` or `--refine-box` with `--refine box` | the options belong to field refinement |
 | `--output netcdf` without `plt` | `netcdf` is the file type of the plotfile stream |
 
 ## Expected results
 
 `python3 Exec/Tools/erfcreateinput.py --self-test` exits 0 with
-`erfcreateinput self-test: 147 cases written, 83 refused, 0 run in ERF, 0 failure(s)`;
+`erfcreateinput self-test: 157 cases written, 100 refused, 0 run in ERF, 0 failure(s)`;
 CTest runs it as `InputsCreator_SelfTest`. The cases include every preset. For each case it checks that
 
 * every key, active or commented, is read under `Source/`, and is not a name the docs list only under another
   prefix;
-* the inputs checker reports no ERROR or WARNING other than the missing files the tool cannot generate;
+* the inputs checker reports each dummy file as a placeholder, and no other ERROR or WARNING than the missing
+  files the tool cannot generate;
 * each dummy file has its reader's layout, with the values of `--theta`, `--wind` and `--z0`;
 * the deck parses back to the options, and `case.json` gives the same deck again.
 
@@ -201,22 +220,26 @@ command-line option replaces a preset's or case file's value.
 Optional, slower checks:
 
 * `--self-test --schema schema.json` also requires every key to be in a schema written by
-  `build_erf_schema.py` (four SLM soil keys are known exceptions: erf-model/ERF#5067).
+  `build_erf_schema.py`. Known exceptions, for the reason given in erf-model/ERF#5067 (keys read through a name
+  held in a variable): four SLM soil keys, `value_less` and `adjacent_difference_greater` of a refinement
+  indicator, and the keys of a refinement condition (`erf.<indicator>.<condition>.*`).
 * With `ERF_CREATEINPUT_EXE=/path/to/erf_exec` each case whose files are all generated is run for three steps
   with every active output written each step; the run must finish and AMReX must list no unused input.
   `ERF_CREATEINPUT_FILTER=text` runs only the cases whose options hold that text, and
   `ERF_CREATEINPUT_NETCDF=1` includes the NetCDF plotfile case.
 
-Runs made with ERF abce396eb on 2026-11-11 (Release, MPI, FFT):
+Runs made with ERF 329b9411c on 2026-11-12 (Release, MPI, FFT, NetCDF), which includes the field tagging of
+erf-model/ERF#5036:
 
 | Build | Cases | Result |
 |-------|-------|--------|
-| default options | 135 (all but the NetCDF plotfile case and the cases waiting for supplied files) | all ran |
+| no wind farm | 145 (all but the NetCDF plotfile case and the cases waiting for supplied files) | all ran |
 | NetCDF and wind farm on | 4 wind-farm cases; a NetCDF plotfile case; a Metgrid case on `Exec/RegTests/MetGrid/met_em.d01.*` | all ran |
 | NetCDF and wind farm on | the WRF-input deck on `Exec/CanonicalTests/EkmanSpiral/wrfinput_ekman_d01`, with periodic sides in place of the boundary file | ran |
 
 Longer runs of single cases (30 to 100 steps) were made for the anelastic bubble, the sponge and Rayleigh
-rates, the isentropic boundary layer and the EB ridge; the three review passes ran about 430 further cases.
+rates, the isentropic boundary layer and the EB ridge; the field-refinement cases ran 12 to 20 steps with a regrid
+every 2 steps. The three review passes ran about 430 further cases.
 
 Not run: a WRF-input case with a wrfbdy file (none is in the repository), RRTMGP and Noah-MP (their builds and
 data were not available). Those decks are checked against the schema and the inputs checker only.

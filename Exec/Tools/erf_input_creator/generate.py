@@ -1,5 +1,6 @@
 """Assemble the deck of one case, write it with its dummy files, and summarise it."""
 
+import hashlib
 import json
 import os
 import shlex
@@ -114,7 +115,11 @@ def write(s, deck: DeckText, files: List[AuxFile], case: dict = None) -> List[st
         lines = []
         for f in files:
             kind = "dummy, replace" if f.generated else "NOT GENERATED, supply"
-            lines += ["%s   (%s; named by %s)" % (f.name, kind, f.key)] + ["    " + d for d in f.describe] + [""]
+            lines += ["%s   (%s; named by %s)" % (f.name, kind, f.key)] + ["    " + d for d in f.describe]
+            if f.generated:
+                # read by check_erf_inputs.py: a file with this fingerprint is still the placeholder
+                lines.append("    sha256: " + hashlib.sha256(f.text.encode("utf-8")).hexdigest())
+            lines.append("")
         targets.append((REPLACE_LIST, "\n".join(lines)))
     if case is not None:
         targets.append((CASE_FILE, json.dumps(case, indent=2, sort_keys=True) + "\n"))
