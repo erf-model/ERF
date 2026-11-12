@@ -92,16 +92,19 @@ perturbational pressure is :math:`p'=p-p_0`, where :math:`p_0(z)` is
 the hydrostatic reference pressure. The momentum equations above show
 the usual perturbational-pressure form.
 
-ERF also offers a choice in the **discrete horizontal pressure gradient**.
-For ``erf.gradp_type = 0``, the default
+In fully compressible runs ERF also offers a choice in the **discrete horizontal
+pressure gradient** (in anelastic and pseudo-incompressible runs it comes from the
+projection instead).
+For ``erf.gradp_type = ChainRule``, the default
 ``erf.use_pert_pres_gradient = true`` evaluates the horizontal
 gradients from :math:`p'`. Setting
 ``erf.use_pert_pres_gradient = false`` instead evaluates them from the
 full EOS pressure :math:`p`, before subtracting :math:`p_0` for the
 vertical pressure gradient. The vertical gradient is evaluated from
-:math:`p'` in both cases. With ``erf.gradp_type = 1``, ERF uses its
-interpolated perturbational-pressure gradient rather than this
-full-pressure option. Because :math:`p_0` depends only on physical
+:math:`p'` in both cases. With ``erf.gradp_type = HydrostaticHybrid``, ERF uses its
+hydrostatic hybrid for :math:`p'` rather than this
+full-pressure option (see :ref:`sec:HorizPGF`). Because
+:math:`p_0` depends only on physical
 height, the continuum horizontal derivatives of :math:`p` and
 :math:`p'` agree at fixed height; the discrete choices can nevertheless
 differ on terrain-following grids. See :ref:`sec:Inputs`.

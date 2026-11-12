@@ -12,12 +12,107 @@
 using namespace amrex;
 
 /**
+ * Vertical derivative of a cell-centered quantity, taken with respect to physical
+ * height.  Centered in the interior of the domain, one-sided at the bottom and top.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] klo lowest k index of the domain
+ * @param[in] khi highest k index of the domain
+ * @param[in] q_arr cell-centered quantity to differentiate
+ * @param[in] z_cc_arr physical height at cell centers
+ * @return dq/dz at (i,j,k)
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+Real
+dqdz_cc (int i, int j, int k,
+         int klo, int khi,
+         const Array4<const Real>& q_arr,
+         const Array4<const Real>& z_cc_arr)
+{
+    int km = (k == klo) ? k : k-1;
+    int kp = (k == khi) ? k : k+1;
+    if (kp == km) { return zero; }
+    return (q_arr(i,j,kp) - q_arr(i,j,km)) / (z_cc_arr(i,j,kp) - z_cc_arr(i,j,km));
+}
+
+/**
+ * Second-order one-sided vertical derivative of a cell-centered quantity at the bottom
+ * (sgn = 1) or top (sgn = -1) cell center, taken with respect to physical height from
+ * the quadratic through cells k, k+sgn and k+2*sgn.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index of the bottom or top cell
+ * @param[in] sgn 1 at the bottom of the domain, -1 at the top
+ * @param[in] q_arr cell-centered quantity to differentiate
+ * @param[in] z_cc_arr physical height at cell centers
+ * @return dq/dz at (i,j,k)
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+Real
+dqdz_cc_onesided (int i, int j, int k, int sgn,
+                  const Array4<const Real>& q_arr,
+                  const Array4<const Real>& z_cc_arr)
+{
+    Real a = z_cc_arr(i,j,k+  sgn) - z_cc_arr(i,j,k);
+    Real b = z_cc_arr(i,j,k+2*sgn) - z_cc_arr(i,j,k);
+    return - (a + b) / (a * b)       * q_arr(i,j,k      )
+           +  b      / (a * (b - a)) * q_arr(i,j,k+  sgn)
+           -  a      / (b * (b - a)) * q_arr(i,j,k+2*sgn);
+}
+
+/**
+ * Non-hydrostatic residual of the vertical pressure gradient, dp'/dz + g rho', brought to
+ * the cell center.  On each w-face this residual is exactly gpz + buoyancy as the dycore
+ * forms them (with buoyancy_rhopert), so it vanishes wherever the w-equation sees no net
+ * vertical force.  In the interior the two face values are combined with the same
+ * Delta z weighting that the centered difference of ChainRule implies; at the bottom
+ * and top the single interior face is used.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] klo lowest k index of the domain
+ * @param[in] khi highest k index of the domain
+ * @param[in] grav magnitude of gravity
+ * @param[in] p_arr perturbational pressure
+ * @param[in] rp_arr perturbational density
+ * @param[in] z_cc_arr physical height at cell centers
+ * @return dp'/dz + g rho' at (i,j,k)
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+Real
+nonhydro_residual_cc (int i, int j, int k,
+                      int klo, int khi,
+                      const Real grav,
+                      const Array4<const Real>& p_arr,
+                      const Array4<const Real>& rp_arr,
+                      const Array4<const Real>& z_cc_arr)
+{
+    int km = (k == klo) ? k : k-1;
+    int kp = (k == khi) ? k : k+1;
+    if (kp == km) { return zero; }
+    Real dz_lo = z_cc_arr(i,j,k ) - z_cc_arr(i,j,km);
+    Real dz_hi = z_cc_arr(i,j,kp) - z_cc_arr(i,j,k );
+    Real wtd_rhopert = dz_hi * (rp_arr(i,j,kp) + rp_arr(i,j,k ))
+                     + dz_lo * (rp_arr(i,j,k ) + rp_arr(i,j,km));
+    return ( (p_arr(i,j,kp) - p_arr(i,j,km)) + myhalf * grav * wtd_rhopert )
+           / (z_cc_arr(i,j,kp) - z_cc_arr(i,j,km));
+}
+
+/**
  * Function for computing the pressure gradient
  *
  * @param[in]  level     level of resolution
  * @param[in]  geom      geometry container at this level
  * @param[in]  S_data    current solution
- * @param[in]  p0        base ststa pressure
+ * @param[in]  base_state base state (r0, p0, pi0, th0, qv0)
+ * @param[in]  qt        total water mixing ratio (zero if there is no moisture)
  * @param[in]  z_phys_nd z on nodes
  * @param[in]  z_phys_cc z on cell centers
  * @param[in]  d_bcrec_ptr Boundary Condition Record
@@ -29,7 +124,8 @@ void make_gradp_pert (int level,
                       const SolverChoice& solverChoice,
                       const Geometry& geom,
                       Vector<MultiFab>& S_data,
-                      const MultiFab& p0,
+                      const MultiFab& base_state,
+                      const MultiFab& qt,
                       const MultiFab& z_phys_nd,
                       const MultiFab& z_phys_cc,
                       Vector<std::unique_ptr<MultiFab>>& mapfac,
@@ -47,13 +143,24 @@ void make_gradp_pert (int level,
     //
     if (solverChoice.compressibility_type[level] == CompressibilityType::FullyCompressible)
     {
-        if (solverChoice.gradp_type == 1) {
-            AMREX_ASSERT_WITH_MESSAGE(solverChoice.terrain_type != TerrainType::EB,
-                "gradp_type==1 not implemented for EB");
+        // HydrostaticHybrid carries the hydrostatic part of p' to the height of the lateral face
+        //    along dp'/dz = -g rho', so it needs rho'.
+        //
+        // NOTE: this must be an always-assert rather than a debug-only one, because with
+        //       EB we grow the boxes by more ghost cells than qt carries.
+        const bool l_need_rhopert = (solverChoice.gradp_type == GradpType::HydrostaticHybrid);
+        if (l_need_rhopert) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.terrain_type != TerrainType::EB,
+                "gradp_type HydrostaticHybrid is not implemented for EB");
         }
 
         const int ngrow = (l_eb_terrain) ? 3 : 1;
         MultiFab p(S_data[Vars::cons].boxArray(), S_data[Vars::cons].DistributionMap(), 1, ngrow);
+
+        MultiFab rhopert;
+        if (l_need_rhopert) {
+            rhopert.define(S_data[Vars::cons].boxArray(), S_data[Vars::cons].DistributionMap(), 1, ngrow);
+        }
 
         // *****************************************************************************
         // Compute pressure
@@ -74,12 +181,17 @@ void make_gradp_pert (int level,
         }
 
         // If we want to use the full pressure in the lateral gradients, call compute_gradp_xy here
-        if (solverChoice.gradp_type == 0 && !l_use_pert_pres) {
+        if (solverChoice.gradp_type == GradpType::ChainRule && !l_use_pert_pres) {
             compute_gradp_xy(p,geom,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
         }
 
         // *****************************************************************************
-        // Compute perturbational pressure
+        // Compute perturbational pressure -- and, if needed, perturbational density
+        //
+        // NOTE: rho' here is the same quantity that buoyancy_rhopert forms, i.e. the
+        //       total (moist) density minus the total base-state density.  Keeping the
+        //       two definitions identical is what makes the hydrostatic reconstruction
+        //       below consistent with the buoyancy term.
         // *****************************************************************************
         for ( MFIter mfi(S_data[Vars::cons]); mfi.isValid(); ++mfi)
         {
@@ -87,24 +199,39 @@ void make_gradp_pert (int level,
             gbx.grow(IntVect(ngrow,ngrow,ngrow));
 
             if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
-            const Array4<const Real>& p0_arr = p0.const_array(mfi);
+            const Array4<const Real>& base_arr = base_state.const_array(mfi);
             const Array4<      Real>& pp_arr = p.array(mfi);
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                pp_arr(i,j,k) -= p0_arr(i,j,k);
+                pp_arr(i,j,k) -= base_arr(i,j,k,BaseState::p0_comp);
             });
+
+            if (l_need_rhopert) {
+                const Array4<const Real>& cell_data = S_data[Vars::cons].const_array(mfi);
+                const Array4<const Real>& qt_arr    = qt.const_array(mfi);
+                const Array4<      Real>& rp_arr    = rhopert.array(mfi);
+                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real qt_loc = (l_use_moisture) ? qt_arr(i,j,k) : zero;
+                    rp_arr(i,j,k) = cell_data(i,j,k,Rho_comp) * (one + qt_loc)
+                                  - base_arr(i,j,k,BaseState::r0_comp)
+                                  * (one + base_arr(i,j,k,BaseState::qv0_comp));
+                });
+            }
         }
 
         // If we want to use the perturbational pressure in the lateral gradients, call compute_gradp_xy here
-        if (solverChoice.gradp_type == 0 && l_use_pert_pres) {
+        if (solverChoice.gradp_type == GradpType::ChainRule && l_use_pert_pres) {
             compute_gradp_xy(p,geom,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
         }
 
-        if (solverChoice.gradp_type == 0) {
-            compute_gradp_z(p,geom,z_phys_nd,ebfact,gradp,solverChoice);
-        } else {
-            compute_gradp_interpz(p,geom,z_phys_nd,z_phys_cc,mapfac,gradp,solverChoice);
+        // HydrostaticHybrid replaces the lateral gradients only; gpz is computed below
+        //    exactly as it is for ChainRule
+        if (l_need_rhopert) {
+            compute_gradp_hse(p,rhopert,geom,z_phys_cc,mapfac,gradp,solverChoice);
         }
+
+        compute_gradp_z(p,geom,z_phys_nd,ebfact,gradp,solverChoice);
 
     } // not anelastic
 }
@@ -159,6 +286,9 @@ compute_gradp_xy (const MultiFab& p,
     const int domain_klo = domain.smallEnd(2);
     const int domain_khi = domain.bigEnd(2);
 
+    // The one-sided difference at the bottom and top needs three cells in the column
+    const bool l_three_point = (domain_khi - domain_klo >= 2);
+
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
     // *****************************************************************************
@@ -193,7 +323,17 @@ compute_gradp_xy (const MultiFab& p,
 
                     Real dz_phys_hi, dz_phys_lo;
                     Real gpz_lo, gpz_hi;
-                    if (k==domain_klo) {
+                    // At the bottom and top a second-order one-sided difference, so that
+                    //    dp/dz is as accurate there as the centered difference is inside
+                    //    (with a two-point difference the error is first order and sits
+                    //    right at the ground)
+                    if (k==domain_klo && l_three_point) {
+                        gpz_hi  = dqdz_cc_onesided(i,j,k, 1,p_arr,z_cc_arr);
+                        gpz_lo  = dqdz_cc_onesided(i-1,j,k, 1,p_arr,z_cc_arr);
+                    } else if (k==domain_khi && l_three_point) {
+                        gpz_hi  = dqdz_cc_onesided(i,j,k,-1,p_arr,z_cc_arr);
+                        gpz_lo  = dqdz_cc_onesided(i-1,j,k,-1,p_arr,z_cc_arr);
+                    } else if (k==domain_klo) {
                         dz_phys_hi = z_cc_arr(i  ,j,k+1) -   z_cc_arr(i  ,j,k  );
                         dz_phys_lo = z_cc_arr(i-1,j,k+1) -   z_cc_arr(i-1,j,k  );
                         gpz_hi  = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  )) / dz_phys_hi;
@@ -227,7 +367,17 @@ compute_gradp_xy (const MultiFab& p,
 
                     Real dz_phys_hi, dz_phys_lo;
                     Real gpz_lo, gpz_hi;
-                    if (k==domain_klo) {
+                    // At the bottom and top a second-order one-sided difference, so that
+                    //    dp/dz is as accurate there as the centered difference is inside
+                    //    (with a two-point difference the error is first order and sits
+                    //    right at the ground)
+                    if (k==domain_klo && l_three_point) {
+                        gpz_hi  = dqdz_cc_onesided(i,j,k, 1,p_arr,z_cc_arr);
+                        gpz_lo  = dqdz_cc_onesided(i,j-1,k, 1,p_arr,z_cc_arr);
+                    } else if (k==domain_khi && l_three_point) {
+                        gpz_hi  = dqdz_cc_onesided(i,j,k,-1,p_arr,z_cc_arr);
+                        gpz_lo  = dqdz_cc_onesided(i,j-1,k,-1,p_arr,z_cc_arr);
+                    } else if (k==domain_klo) {
                         dz_phys_hi = z_cc_arr(i,j  ,k+1) -   z_cc_arr(i,j  ,k  );
                         dz_phys_lo = z_cc_arr(i,j-1,k+1) -   z_cc_arr(i,j-1,k  );
                         gpz_hi  = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  )) / dz_phys_hi;
@@ -532,25 +682,66 @@ compute_gradp_z (const MultiFab& p,
 }
 
 /**
- * @brief Compute the pressure gradient using vertical interpolation.
- * @param[in] p Pressure field.
+ * @brief Compute the horizontal components of the pressure gradient, carrying the
+ *        hydrostatic part of the perturbational pressure to the height of the face
+ *        along dp'/dz = -g rho' and only the non-hydrostatic remainder along a
+ *        difference of p'.
+ *
+ * At an x-face (i,j,k) the two cell centers that straddle the face sit at different
+ * physical heights, so each must be carried a signed distance
+ *
+ *     dz_int = 1/2 ( z_cc(i,j,k) - z_cc(i-1,j,k) )
+ *
+ * to reach the height of the face.  ChainRule does this with a centered difference
+ * of p'.  Over steep terrain in nearly hydrostatic
+ * flow that difference is dominated by its hydrostatic part, dp'/dz ~ -g rho', which is
+ * large compared with the horizontal gradient being sought, so its truncation error
+ * dominates the answer.  Here we split
+ *
+ *     dp'/dz = -g rho' + r,    r = dp'/dz + g rho',
+ *
+ * integrate the first term exactly over the segment and difference only r, so that
+ *
+ *     gpx = [p'(i,j,k) - p'(i-1,j,k)]/dx + met_h_xi * 1/2 * [(g rhot - r)(i,j,k) + (g rhot - r)(i-1,j,k)]
+ *
+ * where met_h_xi = 2*dz_int/dx, rhot is rho' reconstructed linearly and evaluated at the
+ * midpoint of each of the two extrapolation segments, and r is formed in each column by
+ * nonhydro_residual_cc.  Two properties follow:
+ *
+ * - On every w-face r is exactly gpz + buoyancy as the w-equation forms them (with
+ *   buoyancy_type 1), so in a state that the w-equation sees as balanced r vanishes and
+ *   gpx is the pure hydrostatic reconstruction: it vanishes identically whenever rho'
+ *   is linear in z and p' is its hydrostatic integral, whatever the terrain slope.
+ * - Substituting the definition of r shows gpx equals the ChainRule stencil plus
+ *   g * met_h_xi * (rhot - rhohat), with rhohat the Delta z-weighted average of rho' on
+ *   the two adjacent w-faces.  That correction vanishes as the mesh is refined, so
+ *   unlike a purely hydrostatic reconstruction this remains consistent in strongly
+ *   non-hydrostatic flow.
+ *
+ * Note that the stencil needs no branch on the sign of dz_int, since the formula is
+ * symmetric under dz_int -> -dz_int, and that it reaches only to k-1 and k+1.
+ *
+ * @param[in] p Perturbational pressure field.
+ * @param[in] rhopert Perturbational (moist) density field.
  * @param[in] geom Geometry container.
- * @param[in] z_phys_nd Physical height on nodes.
  * @param[in] z_phys_cc Physical height on cell centers.
  * @param[in] mapfac Map factors.
  * @param[out] gradp Pressure gradient components.
  * @param[in] solverChoice Solver options.
  */
 void
-compute_gradp_interpz (const MultiFab& p,
-                       const Geometry& geom,
-                       const MultiFab& z_phys_nd,
-                       const MultiFab& z_phys_cc,
-                       Vector<std::unique_ptr<MultiFab>>& mapfac,
-                       Vector<MultiFab>& gradp,
-                       const SolverChoice& solverChoice)
+compute_gradp_hse (const MultiFab& p,
+                   const MultiFab& rhopert,
+                   const Geometry& geom,
+                   const MultiFab& z_phys_cc,
+                   Vector<std::unique_ptr<MultiFab>>& mapfac,
+                   Vector<MultiFab>& gradp,
+                   const SolverChoice& solverChoice)
 {
     const bool l_use_terrain_fitted_coords = (solverChoice.mesh_type != MeshType::ConstantDz);
+
+    // Note this is the magnitude of gravity, i.e. it is positive
+    const Real l_grav = solverChoice.gravity;
 
     const Box domain = geom.Domain();
     const int domain_klo = domain.smallEnd(2);
@@ -558,152 +749,71 @@ compute_gradp_interpz (const MultiFab& p,
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
-    // *****************************************************************************
-    // Take gradient of relevant quantity (p0, pres, or pert_pres = pres - p0)
-    // *****************************************************************************
     for ( MFIter mfi(p); mfi.isValid(); ++mfi)
     {
         Box tbx = mfi.nodaltilebox(0);
         Box tby = mfi.nodaltilebox(1);
-        Box tbz = mfi.nodaltilebox(2);
-
-        // We don't compute gpz on the bottom or top domain boundary
-        if (tbz.smallEnd(2) == domain_klo) {
-            tbz.growLo(2,-1);
-        }
-        if (tbz.bigEnd(2) == domain_khi+1) {
-            tbz.growHi(2,-1);
-        }
 
         // Terrain metrics
-        const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
         const Array4<const Real>& z_cc_arr = z_phys_cc.const_array(mfi);
 
-        const Array4<const Real>& p_arr = p.const_array(mfi);
+        const Array4<const Real>& p_arr  = p.const_array(mfi);
+        const Array4<const Real>& rp_arr = rhopert.const_array(mfi);
 
         const Array4<      Real>& gpx_arr = gradp[GpVars::gpx].array(mfi);
         const Array4<      Real>& gpy_arr = gradp[GpVars::gpy].array(mfi);
-        const Array4<      Real>& gpz_arr = gradp[GpVars::gpz].array(mfi);
 
         const Array4<const Real>& mf_ux_arr = mapfac[MapFacType::u_x]->const_array(mfi);
         const Array4<const Real>& mf_vy_arr = mapfac[MapFacType::v_y]->const_array(mfi);
 
-        ParallelFor(tbx, tby, tbz,
+        ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            //Note : mx/my == 1, so no map factor needed here
+            Real gpx = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+
             if (l_use_terrain_fitted_coords) {
-                Real p_lo = p_arr(i-1,j,k);
-                Real p_hi = p_arr(i,j,k);
-                Real dz_int = myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k));
-                if (dz_int > 0) {
-                    // Klemp 2011, Eqn. 16: s = 1/2
-                    if (k==domain_klo) {
-                        p_hi = quad_interp_1d(z_cc_arr(i,j,k) - dz_int,
-                                              z_cc_arr(i,j,k  ), p_arr(i,j,k  ),
-                                              z_cc_arr(i,j,k+1), p_arr(i,j,k+1),
-                                              z_cc_arr(i,j,k+2), p_arr(i,j,k+2));
-                    } else {
-                        p_hi -= dz_int * ( (   p_arr(i  ,j,k  ) -    p_arr(i  ,j,k-1))
-                                         / (z_cc_arr(i  ,j,k  ) - z_cc_arr(i  ,j,k-1)) );
-                    }
-                    if (k==domain_khi) {
-                        p_lo = quad_interp_1d(z_cc_arr(i-1,j,k) + dz_int,
-                                              z_cc_arr(i-1,j,k-2), p_arr(i-1,j,k-2),
-                                              z_cc_arr(i-1,j,k-1), p_arr(i-1,j,k-1),
-                                              z_cc_arr(i-1,j,k  ), p_arr(i-1,j,k  ));
-                    } else {
-                        p_lo += dz_int * ( (   p_arr(i-1,j,k+1) -    p_arr(i-1,j,k  ))
-                                         / (z_cc_arr(i-1,j,k+1) - z_cc_arr(i-1,j,k  )) );
-                    }
-                } else if (dz_int < 0) {
-                    // Klemp 2011, Eqn. 16: s = -1/2
-                    if (k==domain_khi) {
-                        p_hi = quad_interp_1d(z_cc_arr(i,j,k) - dz_int,
-                                              z_cc_arr(i,j,k-2), p_arr(i,j,k-2),
-                                              z_cc_arr(i,j,k-1), p_arr(i,j,k-1),
-                                              z_cc_arr(i,j,k  ), p_arr(i,j,k  ));
-                    } else {
-                        p_hi -= dz_int * ( (   p_arr(i  ,j,k+1) -    p_arr(i  ,j,k  ))
-                                         / (z_cc_arr(i  ,j,k+1) - z_cc_arr(i  ,j,k  )) );
-                    }
-                    if (k==domain_klo) {
-                        p_lo = quad_interp_1d(z_cc_arr(i-1,j,k) + dz_int,
-                                              z_cc_arr(i-1,j,k  ), p_arr(i-1,j,k  ),
-                                              z_cc_arr(i-1,j,k+1), p_arr(i-1,j,k+1),
-                                              z_cc_arr(i-1,j,k+2), p_arr(i-1,j,k+2));
-                    } else {
-                        p_lo += dz_int * ( (   p_arr(i-1,j,k  ) -    p_arr(i-1,j,k-1))
-                                         / (z_cc_arr(i-1,j,k  ) - z_cc_arr(i-1,j,k-1)) );
-                    }
-                }
-                gpx_arr(i,j,k) = dxInv[0] * (p_hi - p_lo);
-            } else {
-                gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                Real met_h_xi = (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k)) * dxInv[0];
+                Real dz_int   = myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k));
+
+                // rho' at the midpoint of each of the two extrapolation segments
+                Real rp_hi = rp_arr(i  ,j,k) - myhalf * dz_int * dqdz_cc(i  ,j,k,domain_klo,domain_khi,rp_arr,z_cc_arr);
+                Real rp_lo = rp_arr(i-1,j,k) + myhalf * dz_int * dqdz_cc(i-1,j,k,domain_klo,domain_khi,rp_arr,z_cc_arr);
+
+                // -dp'/dz in each column: the hydrostatic part plus the non-hydrostatic remainder
+                Real force_hi = l_grav * rp_hi - nonhydro_residual_cc(i  ,j,k,domain_klo,domain_khi,l_grav,p_arr,rp_arr,z_cc_arr);
+                Real force_lo = l_grav * rp_lo - nonhydro_residual_cc(i-1,j,k,domain_klo,domain_khi,l_grav,p_arr,rp_arr,z_cc_arr);
+
+                gpx += met_h_xi * myhalf * (force_hi + force_lo);
             }
+            gpx_arr(i,j,k) = gpx;
 
             // NOTE that the gradp array now carries the map factor!
             gpx_arr(i,j,k) *= mf_ux_arr(i,j,0);
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            //Note : mx/my == 1, so no map factor needed here
+            Real gpy = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+
             if (l_use_terrain_fitted_coords) {
-                Real p_lo = p_arr(i,j-1,k);
-                Real p_hi = p_arr(i,j,k);
-                Real dz_int = myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k));
-                if (dz_int > 0) {
-                    // Klemp 2011, Eqn. 16: s = 1/2
-                    if (k==domain_klo) {
-                        p_hi = quad_interp_1d(z_cc_arr(i,j,k) - dz_int,
-                                              z_cc_arr(i,j,k  ), p_arr(i,j,k  ),
-                                              z_cc_arr(i,j,k+1), p_arr(i,j,k+1),
-                                              z_cc_arr(i,j,k+2), p_arr(i,j,k+2));
-                    } else {
-                        p_hi -= dz_int * ( (   p_arr(i,j  ,k  ) -    p_arr(i,j  ,k-1))
-                                         / (z_cc_arr(i,j  ,k  ) - z_cc_arr(i,j  ,k-1)) );
-                    }
-                    if (k==domain_khi) {
-                        p_lo = quad_interp_1d(z_cc_arr(i,j-1,k) + dz_int,
-                                              z_cc_arr(i,j-1,k-2), p_arr(i,j-1,k-2),
-                                              z_cc_arr(i,j-1,k-1), p_arr(i,j-1,k-1),
-                                              z_cc_arr(i,j-1,k  ), p_arr(i,j-1,k  ));
-                    } else {
-                        p_lo += dz_int * ( (   p_arr(i,j-1,k+1) -    p_arr(i,j-1,k  ))
-                                         / (z_cc_arr(i,j-1,k+1) - z_cc_arr(i,j-1,k  )) );
-                    }
-                } else if (dz_int < 0) {
-                    // Klemp 2011, Eqn. 16: s = -1/2
-                    if (k==domain_khi) {
-                        p_hi = quad_interp_1d(z_cc_arr(i,j,k) - dz_int,
-                                              z_cc_arr(i,j,k-2), p_arr(i,j,k-2),
-                                              z_cc_arr(i,j,k-1), p_arr(i,j,k-1),
-                                              z_cc_arr(i,j,k  ), p_arr(i,j,k  ));
-                    } else {
-                        p_hi -= dz_int * ( (   p_arr(i,j  ,k+1) -    p_arr(i,j  ,k  ))
-                                         / (z_cc_arr(i,j  ,k+1) - z_cc_arr(i,j  ,k  )) );
-                    }
-                    if (k==domain_klo) {
-                        p_lo = quad_interp_1d(z_cc_arr(i,j-1,k) + dz_int,
-                                              z_cc_arr(i,j-1,k  ), p_arr(i,j-1,k  ),
-                                              z_cc_arr(i,j-1,k+1), p_arr(i,j-1,k+1),
-                                              z_cc_arr(i,j-1,k+2), p_arr(i,j-1,k+2));
-                    } else {
-                        p_lo += dz_int * ( (   p_arr(i,j-1,k  ) -    p_arr(i,j-1,k-1))
-                                         / (z_cc_arr(i,j-1,k  ) - z_cc_arr(i,j-1,k-1)) );
-                    }
-                }
-                gpy_arr(i,j,k) = dxInv[1] * (p_hi - p_lo);
-            } else {
-                gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                Real met_h_eta = (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k)) * dxInv[1];
+                Real dz_int    = myhalf * (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k));
+
+                // rho' at the midpoint of each of the two extrapolation segments
+                Real rp_hi = rp_arr(i,j  ,k) - myhalf * dz_int * dqdz_cc(i,j  ,k,domain_klo,domain_khi,rp_arr,z_cc_arr);
+                Real rp_lo = rp_arr(i,j-1,k) + myhalf * dz_int * dqdz_cc(i,j-1,k,domain_klo,domain_khi,rp_arr,z_cc_arr);
+
+                // -dp'/dz in each column: the hydrostatic part plus the non-hydrostatic remainder
+                Real force_hi = l_grav * rp_hi - nonhydro_residual_cc(i,j  ,k,domain_klo,domain_khi,l_grav,p_arr,rp_arr,z_cc_arr);
+                Real force_lo = l_grav * rp_lo - nonhydro_residual_cc(i,j-1,k,domain_klo,domain_khi,l_grav,p_arr,rp_arr,z_cc_arr);
+
+                gpy += met_h_eta * myhalf * (force_hi + force_lo);
             }
+            gpy_arr(i,j,k) = gpy;
 
             // NOTE that the gradp array now carries the map factor!
             gpy_arr(i,j,k) *= mf_vy_arr(i,j,0);
-        },
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            // Note: identical to gradp_type == 0
-            Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd_arr) : 1;
-            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) )  / met_h_zeta;
         });
     } // mfi
 }

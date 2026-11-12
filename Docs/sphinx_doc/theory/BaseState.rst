@@ -194,6 +194,164 @@ because it reads a nested wrfinput file.  Each level is individually hydrostatic
 difference between them is set by the difference in surface elevation and is carried up
 the column as an essentially constant offset in pressure.
 
+.. _sec:HorizPGF:
+
+Horizontal pressure gradient over terrain
+----------------------------------------------------------------------------
+
+With terrain-fitted coordinates the two cell centers that straddle a lateral face sit
+at different physical heights, so the horizontal pressure gradient cannot be formed by
+differencing the two cell values directly.  Writing the face-normal gradient at an
+:math:`x`-face :math:`(i,j,k)` in terms of the coordinate metric
+
+.. math::
+   \left(\frac{\partial z}{\partial \xi}\right)_{i,j,k}
+       \equiv \frac{z_{cc}(i,j,k) - z_{cc}(i-1,j,k)}{\Delta x},
+
+both options ERF offers have the same algebraic form,
+
+.. math::
+   \left(\frac{\partial p^\prime}{\partial x}\right)_{i,j,k} =
+       \frac{p^\prime(i,j,k) - p^\prime(i-1,j,k)}{\Delta x}
+     - \left(\frac{\partial z}{\partial \xi}\right)_{i,j,k}
+       \; \frac{1}{2}\left( S_{i} + S_{i-1} \right),
+
+and differ only in the estimate :math:`S` of :math:`\partial p^\prime / \partial z`
+used to carry each cell value the signed distance
+
+.. math::
+   \delta z = \frac{1}{2}\left( z_{cc}(i,j,k) - z_{cc}(i-1,j,k) \right)
+
+to the height of the face.  The choice is made with ``erf.gradp_type``.  It applies only
+to fully compressible runs; in anelastic and pseudo-incompressible runs the pressure
+gradient comes from the projection and ``erf.gradp_type`` is not used.
+
+- ``erf.gradp_type = ChainRule`` (default) takes :math:`S` from a centered difference of
+  :math:`p^\prime` in each column, and at the bottom and top of the domain from a
+  second-order one-sided difference through the three nearest cells.  A two-point
+  one-sided difference there would be only first-order accurate, and since the bottom
+  cell is where the metric term is largest that error would dominate the horizontal
+  force over steep terrain.
+- ``erf.gradp_type = HydrostaticHybrid`` splits :math:`S` into its hydrostatic part, which it integrates
+  exactly over the segment, and a non-hydrostatic remainder, which alone it differences.
+  It is described below.
+
+(These replace the former integer values 0 and 2, which are still accepted with a
+warning.  A former ``erf.gradp_type = 1``, the interpolated-pressure gradient of
+`Klemp (2011)`_, has been removed: in tests over steep terrain it was less accurate than
+both options above and less stable than either.)
+
+Why the hydrostatic part matters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+"Nearly hydrostatic" means that :math:`\partial p / \partial z \approx -\rho g` at all
+times.  Because the base state is itself hydrostatic, that property transfers to the
+deviation: :math:`\partial p^\prime / \partial z \approx -\rho^\prime g`.  The metric
+term above is therefore **not** small compared with the answer -- relative to the true
+horizontal pressure-gradient force it scales as the terrain slope times :math:`L/D`,
+the aspect ratio of the flow feature.  Over steep terrain one is differencing two terms
+that are individually larger than their difference, *even after* the base state has been
+subtracted, and the truncation error in :math:`S` appears directly in the horizontal
+force.  Subtracting a fixed :math:`p_0` removes the balance of :math:`p^\prime` against
+:math:`\rho_0`; it does nothing about the balance of :math:`p^\prime` against
+:math:`\rho^\prime`, which is a property of the instantaneous solution and so cannot be
+removed by any stored base state.
+
+The hydrostatic hybrid
+~~~~~~~~~~~~~~~~~~~~~~
+
+``erf.gradp_type = HydrostaticHybrid`` removes that second balance where and when the gradient is
+taken.  It writes
+
+.. math::
+   \frac{\partial p^\prime}{\partial z} = -g \rho^\prime + r, \qquad
+   r \equiv \frac{\partial p^\prime}{\partial z} + g \rho^\prime,
+
+carries each cell value to the height of the face by integrating the first term exactly
+and differencing only the remainder :math:`r`, so that
+
+.. math::
+   \left(\frac{\partial p^\prime}{\partial x}\right)_{i,j,k} =
+       \frac{p^\prime(i,j,k) - p^\prime(i-1,j,k)}{\Delta x}
+     + \left(\frac{\partial z}{\partial \xi}\right)_{i,j,k}
+       \; \frac{1}{2}\left[ \left( g \tilde\rho^\prime - \hat r \right)_{i}
+                          + \left( g \tilde\rho^\prime - \hat r \right)_{i-1} \right].
+
+Here :math:`\rho^\prime` is the same quantity that enters the buoyancy term when
+``erf.buoyancy_type = 1``, namely :math:`\rho (1 + q_t) - \rho_0 (1 + q_{v,0})`, and
+:math:`\tilde\rho^\prime` is :math:`\rho^\prime` reconstructed linearly and evaluated at
+the midpoint of the extrapolation segment,
+
+.. math::
+   \tilde\rho^\prime_{i}   = \rho^\prime(i,j,k)   - \tfrac{1}{2}\,\delta z \,
+       \left(\frac{\partial \rho^\prime}{\partial z}\right)_{i}, \qquad
+   \tilde\rho^\prime_{i-1} = \rho^\prime(i-1,j,k) + \tfrac{1}{2}\,\delta z \,
+       \left(\frac{\partial \rho^\prime}{\partial z}\right)_{i-1},
+
+with the vertical derivatives taken as centered differences in the interior of the
+domain and one-sided differences at the bottom and top.  On the :math:`w`-face
+:math:`k-\tfrac{1}{2}` the remainder is formed exactly as the :math:`w`-momentum equation
+forms the sum of the vertical pressure gradient and the buoyancy term,
+
+.. math::
+   r_{k-1/2} = \frac{p^\prime_{k} - p^\prime_{k-1}}{z_{cc,k} - z_{cc,k-1}}
+             + \frac{g}{2} \left( \rho^\prime_{k} + \rho^\prime_{k-1} \right),
+
+and :math:`\hat r` brings it to the cell center with the same :math:`\Delta z` weighting
+that the centered difference of ChainRule implies,
+:math:`\hat r_k = (\Delta z^+ r_{k+1/2} + \Delta z^- r_{k-1/2}) / (\Delta z^+ + \Delta z^-)`,
+using the single interior face at the bottom and top of the domain.  Two properties
+follow.
+
+- **It is well balanced.**  If :math:`r_{k-1/2} = 0` on every face -- the state in which
+  the :math:`w`-equation sees no net vertical force -- then :math:`\hat r = 0` and the
+  horizontal gradient is the pure hydrostatic reconstruction.  In particular, if
+  :math:`\rho^\prime` is a linear function of :math:`z` and :math:`p^\prime` is its
+  hydrostatic integral, the same profile in both columns, the computed horizontal
+  gradient vanishes identically, whatever the terrain slope.  This is the
+  finite-difference analogue of the local hydrostatic reconstruction of
+  `Botta, Klein, Langenberg & Lützenkirchen (2004)`_, with :math:`\rho^\prime` playing
+  the role of their locally assumed entropy profile.
+- **It is consistent in non-hydrostatic flow.**  Substituting the definition of
+  :math:`\hat r` shows that HydrostaticHybrid is ChainRule plus
+  :math:`g\,(\partial z/\partial\xi)\,(\tilde\rho^\prime - \hat\rho^\prime)`, where
+  :math:`\hat\rho^\prime` is the :math:`\Delta z`-weighted average of the two face values
+  of :math:`\rho^\prime` (a 1-2-1 filter on a uniform column).  That correction vanishes
+  as the mesh is refined, so HydrostaticHybrid converges to the true horizontal gradient whether
+  or not the flow is hydrostatic, and its truncation error acts only on :math:`r` rather
+  than on the whole of :math:`\partial p^\prime / \partial z`.
+
+The remainder is essential.  A reconstruction that used :math:`-g\rho^\prime` alone in
+place of :math:`S` would discard the non-hydrostatic part of
+:math:`\partial p^\prime / \partial z`, and since the metric factor tends to the terrain
+slope rather than to zero, that error would not shrink with resolution.  In a narrow,
+strongly buoyant plume -- a fire, a convective core -- the non-hydrostatic pressure
+largely cancels the hydrostatic integral of :math:`\rho^\prime`, and the resulting
+spurious force along the slope is of order :math:`g\,(\rho^\prime/\rho)` times the slope.
+Such a reconstruction also proved unstable at the time steps the other options allow,
+since its lateral gradient no longer responds to the vertical pressure perturbations the
+acoustic substep carries.
+
+Two caveats are worth stating.  The exact well-balancing relies on :math:`\rho^\prime`
+being the quantity the buoyancy term uses, i.e. on ``erf.buoyancy_type = 1``; with
+another buoyancy formulation HydrostaticHybrid remains consistent but is no longer exactly
+balanced.  And because the hybrid integrates
+:math:`\partial p^\prime / \partial z = -g \rho^\prime`, it relies on :math:`p_0` being
+the hydrostatic integral of :math:`\rho_0`, which is how ERF constructs it.  At a state
+of rest with :math:`p = p_0` and :math:`\rho = \rho_0` both options give
+identically zero.
+
+Only the lateral gradients are affected.  The vertical component :math:`\partial
+p^\prime / \partial z` used in the :math:`w`-momentum equation is computed identically
+for both options, which is what keeps it an exact algebraic complement of the
+buoyancy term.  HydrostaticHybrid always uses the perturbational pressure, regardless of
+the setting of ``erf.use_pert_pres_gradient``, and is not currently implemented for
+the embedded-boundary terrain representation.
+
+.. _`Klemp (2011)`: https://journals.ametsoc.org/view/journals/mwre/139/7/mwr-d-10-05046.1.xml
+
+.. _`Botta, Klein, Langenberg & Lützenkirchen (2004)`: https://doi.org/10.1016/j.jcp.2003.11.008
+
 .. _subsec:base-state-lateral-ghost:
 
 The base state in the lateral ghost cells
