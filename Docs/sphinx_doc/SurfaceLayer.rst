@@ -447,7 +447,7 @@ it feeds (``most.include_wstar``) are likewise zlo-only.
 Lateral (x/y) surface-layer boundaries currently require every grid on that
 level to span its full vertical extent.  Grids decomposed in z and
 partial-height refined grids are not supported; configure
-``erf.max_grid_size_z`` accordingly.
+``amr.max_grid_size_z`` accordingly.
 Deardorff LES, RANS, and PBL models, including SHOC, support SurfaceLayer
 only at zlo; they cannot be combined with lateral or upper surface-layer
 boundaries.  Smagorinsky LES, including its 2-D variant, uses the generic
