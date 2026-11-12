@@ -915,6 +915,53 @@ the model's GoogleTest added through ``erf_structure_model_add_unit_tests``.
 The ``parent-project`` CI workflow builds it and runs the tests; its ``README.md`` gives
 the commands.
 
+ERF as a library
+^^^^^^^^^^^^^^^^
+
+A third way uses ERF as ERF uses AMReX. ERF is a library, ``ERF::erf``, and the parent
+builds its own executables from its own sources (its engines or models and its own
+``ERF_Prob.cpp``) with ``erf_setup_executable``. The parent hands ERF none of the
+model-directory hooks: its sources are compiled into its own executable, and their
+registrations (``ERF_REGISTER_FIRE_ENGINE``, ``ERF_REGISTER_DUST_MODEL``,
+``ERF_REGISTER_STRUCTURE_MODEL``) run from there.
+
+.. code-block:: cmake
+
+   cmake_minimum_required(VERSION 3.25)
+   project(MyModel CXX C)
+
+   set(ERF_ENABLE_MOVING_BODIES ON)   # the couplings the parent's sources need
+
+   enable_testing()
+   add_subdirectory(Submodules/ERF ERF EXCLUDE_FROM_ALL)   # build only what my_model needs
+
+   add_executable(my_model Model/MyStructureModel.cpp ERF_Prob.cpp)
+   target_include_directories(my_model PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+   erf_setup_executable(my_model)   # ERF's main.cpp, ERF::erf, ERF's compile and GPU flags
+
+- ``erf_setup_executable(<target> [NO_ERF_MAIN])`` adds ERF's ``main.cpp`` (unless
+  ``NO_ERF_MAIN``, for a GoogleTest executable, say), links ``ERF::erf`` and sets ERF's
+  compile flags, and the CUDA settings with ``ERF_ENABLE_CUDA``. ERF's own executables are
+  set up the same way (``build_erf_exe``, the same function under its older name).
+- ``ERF::erf`` carries ERF's compile definitions (``ERF_USE_FIRE``, ``ERF_USE_DUST``,
+  ``ERF_NUM_DUST_SCALARS`` and the others) and include folders to the parent's sources, as
+  ``AMReX::amrex`` carries ``AMREX_SPACEDIM`` to ERF's. Set ERF's options before
+  ``add_subdirectory``, so that both sides see the same state layout.
+- The parent's problem file plays the part of ERF's ``Exec/ERF_Prob.cpp``; a copy of
+  ERF's is a fine start.
+- ERF's test helpers take the parent's executable target: ``add_test_r(MyCase "" my_model
+  plt00010)``, and a normal variable ``ERF_TEST_EXE`` names it for ``add_test_abort`` and
+  ``add_test_restart_abort``.
+- ``ERF_BUILD_LIBRARY_ONLY`` is a different mode, for building ERF together with another
+  AMReX code (REMORA) into one executable; it renames some of ERF's symbols and compiles
+  ERF's own problem file into the library. A parent that builds an ERF executable does not
+  set it.
+
+``Tests/ParentExecutable`` holds a small parent project that does this: its executable is
+built from a copy of the example structure model and of ERF's problem file, kept outside
+the ERF tree. It checks a run against the closed form, and runs ``add_test_abort`` on the
+parent's executable. The ``parent-project`` CI workflow builds and runs it too.
+
 Building Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
