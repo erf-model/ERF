@@ -511,6 +511,23 @@ if(ERF_ENABLE_MOVING_BODIES)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestStructureRegistry.cpp
   )
+  # A structure model directory may define erf_structure_model_add_unit_tests(target) in its
+  # ERFStructureModel.cmake to build its own GoogleTest files into this executable, with
+  # ERF's test main; ERF_STRUCTURE_MODEL_DIR holds the directory during the call. The file
+  # is included again here because CMake keeps only the last definition of a function, and
+  # the empty definition before each include keeps a directory without the hook from
+  # calling the one of the directory before it. Called before build_erf_exe, so that a
+  # CUDA build compiles the added files as CUDA too. A relative directory is resolved
+  # against Exec/, as build_erf_lib resolves it, so both name the same folder. The file
+  # must therefore be safe to include twice: definitions only, no targets or options.
+  foreach(_structure_dir IN LISTS ERF_STRUCTURE_MODEL_DIRS)
+    get_filename_component(_structure_dir "${_structure_dir}" ABSOLUTE BASE_DIR "${ERF_SOURCE_DIR}/Exec")
+    function(erf_structure_model_add_unit_tests target)
+    endfunction()
+    set(ERF_STRUCTURE_MODEL_DIR "${_structure_dir}")
+    include("${_structure_dir}/ERFStructureModel.cmake")
+    erf_structure_model_add_unit_tests(${erf_exe_name})
+  endforeach()
 endif()
 build_erf_exe(${erf_exe_name} NO_ERF_MAIN)
 target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)

@@ -172,6 +172,11 @@ jobs:
       run: |
         Tests/Unit/erf_unit_tests --gtest_list_tests | tee ${{runner.workspace}}/unit-test-list.txt
         grep -Eq '^[A-Za-z0-9_].*\.$' ${{runner.workspace}}/unit-test-list.txt
+        # The particles-ON leg compiles in Tests/StructureModelExample, whose
+        # erf_structure_model_add_unit_tests hook adds its own GoogleTest file.
+        if [ "${{ matrix.particles }}" = "ON" ]; then
+          grep -q '^StructureModelExample\.$' ${{runner.workspace}}/unit-test-list.txt
+        fi
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Check Parallel Test Registration

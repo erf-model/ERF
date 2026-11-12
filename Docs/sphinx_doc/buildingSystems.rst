@@ -850,10 +850,45 @@ builds more than ``erf_exec`` or adds its own tests. The parent calls ``add_subd
 - On Cray systems ERF's compiler detection is skipped under a parent, because the
   parent's ``project()`` has already chosen the compilers.
 
+The parent can register its own regression cases with ERF's general CTest helpers,
+which ``Tests/ERFTestHelpers.cmake`` holds: ``add_test_r`` (run a deck and compare the
+plotfile with a gold plotfile by ``fcompare``), ``add_test_abort`` (pass when a run stops
+with a given message), ``add_test_restart_abort``, ``add_test_plotfile_header``, and the
+``setup_test`` and ``resolve_test_exe`` they use. ERF's own ``Tests/CTestList.cmake``
+includes the same file.
+
+.. code-block:: cmake
+
+   add_subdirectory(Submodules/ERF)
+   set(ERF_TEST_GOLD_FILES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/GoldFiles")
+   include(Submodules/ERF/Tests/ERFTestHelpers.cmake)
+   add_test_r(MyCase "" erf_exec plt00010)   # deck test_files/MyCase/MyCase.i
+
+- Include the file after ``add_subdirectory``, in each directory that calls the helpers.
+- A test's files are read from ``test_files/<test name>`` of the directory that calls the
+  helper, and ``add_test_r`` compares with ``${ERF_TEST_GOLD_FILES_DIRECTORY}/<test name>``.
+  A normal variable ``ERF_TEST_GOLD_FILES_DIRECTORY``, set after ``add_subdirectory`` as
+  above, gives the parent its own gold folder without changing ERF's. Set before
+  ``add_subdirectory``, it would also become the gold folder of ERF's own tests.
+- ``add_test_r`` needs ``FCOMPARE_EXE``, ``ERF_TEST_GOLD_FILES_DIRECTORY``,
+  ``ERF_TEST_FCOMPARE_RTOL`` and ``ERF_TEST_FCOMPARE_ATOL``, and ``ERF_TEST_NRANKS`` with
+  ``ERF_ENABLE_MPI``; it stops the configure, naming the variable, when one is empty.
+  ``ERF_ENABLE_FCOMPARE=ON`` builds ``fcompare``, and ``ERF_ENABLE_TESTS=ON`` sets the
+  tolerances, the rank count and ERF's gold folder as cache entries. Without ERF's tests,
+  the parent sets them itself as normal variables.
+- A caller's normal variable ``TEST_FILES_DIR`` replaces ``<test name>`` in the folder the
+  inputs are read from, as ERF's own list uses it; leave it unset otherwise.
+- The helpers find ``erf_exec`` and ERF's checker scripts through ``ERF_BINARY_DIR`` and
+  ``ERF_SOURCE_DIR``, so they work from any directory of the parent.
+
 ``Tests/ParentProject`` holds a small parent project that does this with the example
 structure model (``Tests/StructureModelExample``) copied to a folder outside the ERF
-tree. The ``parent-project`` CI workflow builds it and runs its test; its ``README.md``
-gives the commands.
+tree. It has a run checked against the closed form; three cases registered with
+``add_test_abort`` and ``add_test_r`` (gold in the parent's own folder), one of which must
+fail, to show that ``fcompare`` compares; and, with ``ERF_ENABLE_UNIT_TESTS=ON``, a run of
+the model's GoogleTest added through ``erf_structure_model_add_unit_tests``.
+The ``parent-project`` CI workflow builds it and runs the tests; its ``README.md`` gives
+the commands.
 
 Building Documentation
 ~~~~~~~~~~~~~~~~~~~~~~

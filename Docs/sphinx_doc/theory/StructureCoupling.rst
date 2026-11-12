@@ -151,6 +151,18 @@ to the checkpoint. To start a new model:
    ``erf_structure_model_add(target)`` and a ``Make.package``, and build with
    ``-DERF_STRUCTURE_MODEL_DIRS=<dir>`` (CMake) or ``STRUCTURE_HOME = <dir>``
    (GNU make). Adding a model changes no file of ERF.
+#. Optionally, define ``erf_structure_model_add_unit_tests(target)`` in the same
+   ``ERFStructureModel.cmake`` to add the model's GoogleTest files to ERF's unit-test
+   executable ``erf_unit_tests``, which has ERF's test main (CMake with
+   ``ERF_ENABLE_UNIT_TESTS=ON``; there is no GNU make equivalent). The model is
+   already compiled into that executable, so a test can create it with
+   ``make_structure_model("my_model", max_level)``.
+   ``Tests/StructureModelExample/ERF_GTestStructureModelExample.cpp`` is an example.
+   With unit tests on, ERF includes ``ERFStructureModel.cmake`` a second time, from
+   ``Tests/Unit``, so the file must only define functions: a top-level ``add_library``,
+   ``add_subdirectory`` or ``option`` must sit behind a guard such as
+   ``if(NOT TARGET ...)``, and ``include_guard`` would skip the second include and with it
+   the model's unit tests.
 #. Test a restart from a mid-run checkpoint against a straight run: the
    plotfiles must agree at zero tolerance.
 
