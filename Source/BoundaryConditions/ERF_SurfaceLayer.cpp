@@ -69,27 +69,11 @@ covers_columns (const Array4<const Real>& a, const Box& b)
 }
 
 /**
- * Storage for one component of the surface current: one 2D box at k = klo for each box of
- * the velocity, on its faces and with its lateral ghost cells.
- *
- * @param[in] vel velocity component the current belongs to
- * @param[in] klo index of the lowest cell of the domain
- */
-std::unique_ptr<MultiFab>
-make_face_current (const MultiFab& vel, int klo)
-{
-    BoxList bl = vel.boxArray().boxList();
-    for (auto& b : bl) { b.setRange(2, klo); }
-    const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
-    return std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(), 1, ng);
-}
-
-/**
  * Set a uniform surface current on the faces normal to dir, ghost cells included. Only
  * water moves: a face takes the current where the cells on both sides of it are water
  * (land mask 0), and is at rest elsewhere; without a land mask every face moves.
  *
- * @param[out] current one component of the current (make_face_current)
+ * @param[out] current one component of the current, on 2D boxes at k = klo
  * @param[in]  speed   uniform current [m/s]
  * @param[in]  dir     0 for the x-component on x-faces, 1 for the y-component on y-faces
  * @param[in]  lmask   land mask on one 2D box for each box of the current, or null
@@ -113,65 +97,6 @@ fill_face_current (MultiFab& current, Real speed, int dir, const iMultiFab* lmas
             c(i,j,k) = water ? speed : zero;
         });
     }
-}
-
-/**
- * A velocity component less the current of the plane k = klo, over a box.
- *
- * @param[in]  bx  cells to fill, within the arrays of all three
- * @param[in]  v   velocity component
- * @param[in]  c   the same component of the surface current (make_face_current)
- * @param[out] r   velocity relative to the surface
- * @param[in]  klo index of the lowest cell of the domain
- */
-void
-subtract_current (const Box& bx, const Array4<const Real>& v, const Array4<const Real>& c,
-                  const Array4<Real>& r, int klo)
-{
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        r(i,j,k) = v(i,j,k) - c(i,j,klo);
-    });
-}
-
-/**
- * A velocity component less the current of the plane k = klo, ghost cells included.
- *
- * @param[in]  vel     velocity component
- * @param[in]  current the same component of the surface current (make_face_current)
- * @param[out] rel     velocity relative to the surface, on the layout of vel
- * @param[in]  klo     index of the lowest cell of the domain
- */
-void
-subtract_current (const MultiFab& vel, const MultiFab& current, MultiFab& rel, int klo)
-{
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    for (MFIter mfi(rel, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        subtract_current(mfi.growntilebox(), vel.const_array(mfi), current.const_array(mfi),
-                         rel.array(mfi), klo);
-    }
-}
-
-/**
- * The plane k = klo of one box of a velocity component, less the current, ghost cells
- * included: all the surface-layer flux kernels read of it.
- *
- * @param[in]  vel     velocity component
- * @param[in]  current the same component of the surface current (make_face_current)
- * @param[in]  box     index of the box, which must hold the plane k = klo
- * @param[in]  klo     index of the lowest cell of the domain
- * @param[out] rel     the relative plane, sized from the asynchronous arena
- * @return the relative plane, indexed like vel
- */
-Array4<const Real>
-relative_plane (const MultiFab& vel, const MultiFab& current, int box, int klo, FArrayBox& rel)
-{
-    const Box plane = makeSlab(vel.fabbox(box), 2, klo);
-    rel.resize(plane, 1, The_Async_Arena());
-    subtract_current(plane, vel.const_array(box), current.const_array(box), rel.array(), klo);
-    return rel.const_array();
 }
 
 } // namespace
@@ -223,15 +148,22 @@ SurfaceLayer::define_surface_current (const int& lev, const MultiFab& xvel, cons
     const iMultiFab* lmask = (lev < static_cast<int>(m_lmask_lev.size()) &&
                               !m_lmask_lev[lev].empty()) ? m_lmask_lev[lev][0] : nullptr;
 
-    m_surface_current_x[lev] = make_face_current(xvel, klo);
-    m_surface_current_y[lev] = make_face_current(yvel, klo);
-    fill_face_current(*m_surface_current_x[lev], m_surface_current_const[0], 0, lmask);
-    fill_face_current(*m_surface_current_y[lev], m_surface_current_const[1], 1, lmask);
+    for (int dir = 0; dir < 2; ++dir) {
+        const MultiFab& vel = (dir == 0) ? xvel : yvel;
+        auto& current = (dir == 0) ? m_surface_current_x[lev] : m_surface_current_y[lev];
+        auto& rel     = (dir == 0) ? m_rel_xvel[lev] : m_rel_yvel[lev];
 
-    m_rel_xvel[lev] = std::make_unique<MultiFab>(xvel.boxArray(), xvel.DistributionMap(), 1,
-                                                 xvel.nGrowVect());
-    m_rel_yvel[lev] = std::make_unique<MultiFab>(yvel.boxArray(), yvel.DistributionMap(), 1,
-                                                 yvel.nGrowVect());
+        // One 2D box at k = klo for each box of the velocity, on its faces and with its
+        // lateral ghost cells
+        BoxList bl = vel.boxArray().boxList();
+        for (auto& b : bl) { b.setRange(2, klo); }
+        const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
+        current = std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(), 1, ng);
+        fill_face_current(*current, m_surface_current_const[dir], dir, lmask);
+
+        rel = std::make_unique<MultiFab>(vel.boxArray(), vel.DistributionMap(), 1,
+                                         vel.nGrowVect());
+    }
 }
 
 void
@@ -243,8 +175,25 @@ SurfaceLayer::build_relative_velocities (const int& lev, const MultiFab& xvel,
         m_rel_xvel[lev]->DistributionMap() == xvel.DistributionMap(),
         "The surface current was defined for another layout of this level's velocities.");
     const int klo = m_geom[lev].Domain().smallEnd(2);
-    subtract_current(xvel, *m_surface_current_x[lev], *m_rel_xvel[lev], klo);
-    subtract_current(yvel, *m_surface_current_y[lev], *m_rel_yvel[lev], klo);
+
+    // Each component less the current of the plane k = klo, ghost cells included
+    for (int dir = 0; dir < 2; ++dir) {
+        const MultiFab& vel     = (dir == 0) ? xvel : yvel;
+        const MultiFab& current = (dir == 0) ? *m_surface_current_x[lev] : *m_surface_current_y[lev];
+        MultiFab&       rel     = (dir == 0) ? *m_rel_xvel[lev] : *m_rel_yvel[lev];
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(rel, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto v = vel.const_array(mfi);
+            const auto c = current.const_array(mfi);
+            const auto r = rel.array(mfi);
+            ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                r(i,j,k) = v(i,j,k) - c(i,j,klo);
+            });
+        }
+    }
 }
 
 /**
@@ -1300,8 +1249,22 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto velz_arr = mfs[Vars::zvel]->array(mfi);
         FArrayBox rel_xvel, rel_yvel;
         if (use_current) {
-            velx_arr = relative_plane(*mfs[Vars::xvel], *current_x, mfi.index(), klo, rel_xvel);
-            vely_arr = relative_plane(*mfs[Vars::yvel], *current_y, mfi.index(), klo, rel_yvel);
+            // The plane k = klo less the current, ghost cells included: all the kernels read
+            for (int vdir = 0; vdir < 2; ++vdir) {
+                const MultiFab& vel = *mfs[(vdir == 0) ? Vars::xvel : Vars::yvel];
+                FArrayBox&      rel = (vdir == 0) ? rel_xvel : rel_yvel;
+                const Box plane = makeSlab(vel.fabbox(mfi.index()), 2, klo);
+                rel.resize(plane, 1, The_Async_Arena());
+                const auto v = vel.const_array(mfi);
+                const auto c = ((vdir == 0) ? current_x : current_y)->const_array(mfi);
+                const auto r = rel.array();
+                ParallelFor(plane, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    r(i,j,k) = v(i,j,k) - c(i,j,k);
+                });
+            }
+            velx_arr = rel_xvel.const_array();
+            vely_arr = rel_yvel.const_array();
         }
 
         // Output stresses:
