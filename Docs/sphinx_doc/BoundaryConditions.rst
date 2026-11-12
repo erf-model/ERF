@@ -235,8 +235,6 @@ from it, and each column is rebalanced hydrostatically with the shifted theta.
 Both flags default to false. On a terrain-fitted mesh started from an input
 sounding, ERF prints a warning at start-up when an inflow profile is set and the
 wind flag is off, or when the profile has a ``T`` column and the theta flag is off.
-With the k-eqn RANS closure ``erf.init_tke_at_wall_value = true`` starts
-``erf.init_tke_from_ustar`` from :math:`u_*^2/C_{\mu 0}^2`.
 ``Exec/CanonicalTests/Canonical_RANS/Terrain_Inflow_Profile`` exercises the
 option over a raised plateau, an inclined and a declining slope, and a ridge
 across the inflow face, and the theta flag with a capping inversion over the

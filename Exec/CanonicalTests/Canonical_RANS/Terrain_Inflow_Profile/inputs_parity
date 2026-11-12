@@ -63,5 +63,4 @@ erf.les_type               = "None"
 erf.rans_type              = "kEqn"
 erf.dirichlet_k            = true
 erf.init_tke_from_ustar    = true
-erf.init_tke_at_wall_value = true      # start tke at the value dirichlet_k holds at the wall
 erf.theta_ref              = 300.0

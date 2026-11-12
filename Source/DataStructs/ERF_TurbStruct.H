@@ -574,10 +574,6 @@ public:
 
     if (use_tke) {
         query_one_or_per_level(pp, "init_tke_from_ustar", init_tke_from_ustar, lev, max_level);
-        query_one_or_per_level(pp, "init_tke_at_wall_value", init_tke_at_wall_value, lev, max_level);
-        if (init_tke_at_wall_value && (rans_type != RANSType::kEqn || !init_tke_from_ustar)) {
-            amrex::Abort("erf.init_tke_at_wall_value needs erf.rans_type = kEqn and erf.init_tke_from_ustar = true");
-        }
     }
 
     // Validate inputs
@@ -1035,10 +1031,6 @@ public:
   // function of the friction velocity calculated by the surface layer scheme
   // (e.g., as done in MYNN-EDMF)
   bool init_tke_from_ustar = false;
-
-  // k-eqn RANS: start the init_tke_from_ustar profile from u*^2/Cmu0^2, the
-  // value erf.dirichlet_k holds in the first cell, instead of u*^2
-  bool init_tke_at_wall_value = false;
 
   // This is the value of tke_min in WRF 4.5
   amrex::Real tke_min = amrex::Real(1.e-6);

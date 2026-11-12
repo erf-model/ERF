@@ -15,8 +15,7 @@ from heights above the domain floor.
 - **Boundaries:** periodic in y, `Inflow` at xlo and `Outflow` at xhi. Surface
   layer with z0 = 0.1 m, slip-wall top with Rayleigh damping of w in the top 200 m.
 - **Solver:** anelastic, fixed dt = 1 s, one-equation k RANS with
-  `erf.dirichlet_k` and `erf.init_tke_from_ustar` plus
-  `erf.init_tke_at_wall_value`. Neutral, theta = 300 K. The terrain-fitted
+  `erf.dirichlet_k` and `erf.init_tke_from_ustar`. Neutral, theta = 300 K. The terrain-fitted
   projection is GMRES with the FFT preconditioner, so these cases need a build
   with FFT; CTest registers them only when `ERF_ENABLE_FFT` is on.
 - **Start:** the interior starts from a uniform 10 m/s westerly, so only the
@@ -69,6 +68,12 @@ anelastic scalar-advection fix (hgopalan/ERF#415). The rows marked
 *dirichlet_file* are negative controls, not CTest cases: the same log law applied
 by level (`inputs_parity` with `xlo.dirichlet_file=inflow_levels_flat.txt` on the
 named terrain).
+
+These results were measured with the interior tke started at u*^2/Cmu0^2 (an option,
+`erf.init_tke_at_wall_value`, that was not brought into ERF). The decks now start it at
+u*^2, the `erf.init_tke_from_ustar` default, so the tke columns and the step-0 maxima
+below will differ; the checks compare the first column with the inflow profile after
+60 steps and were not rerun.
 
 | Case | Median error | 90th pct | Error ratio vs floor | Error ratio vs by-level | tke / profile | Max tke [m2/s2] | Checks failed |
 |---|---|---|---|---|---|---|---|

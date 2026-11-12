@@ -2830,10 +2830,6 @@ List of Parameters
 |                                          | friction velocity (per-level); read only when a          |                    |                  |
 |                                          | TKE-carrying closure is active                           |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.init_tke_at_wall_value**           | k-eqn RANS with ``erf.init_tke_from_ustar``: start the   | Boolean            | false            |
-|                                          | profile from u*^2/Cmu0^2, the value ``erf.dirichlet_k``  |                    |                  |
-|                                          | holds in the first cell, instead of u*^2 (per-level)     |                    |                  |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note that both PBL schemes must be used in conjunction with a MOST boundary condition
 at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
