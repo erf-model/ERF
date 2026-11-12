@@ -101,11 +101,21 @@ public:
                 Abort("structure.example.position lies outside the domain");
             }
         }
-        // What a model that drives a solver of its own needs before the first step
-        Print() << std::setprecision(10) << "structure example: level " << init.lev << " steps with "
-                << init.fixed_dt << " s, the run stops at t = " << init.stop_time << " s or after level-0 step "
-                << init.max_step << ", fully compressible: "
-                << (init.fully_compressible ? "yes" : "no") << "\n";
+        // What a model that drives a solver of its own needs before the first step. Values
+        // that mean "not given" are printed as words, so the CTests do not depend on how a
+        // stream formats the largest double.
+        std::ostringstream os;
+        os << std::setprecision(10) << "structure example: level " << init.lev;
+        if (init.fixed_dt > 0.0) { os << " steps with " << init.fixed_dt << " s"; }
+        else                     { os << " has no fixed step"; }
+        if (init.stop_time < std::numeric_limits<double>::max()) { os << ", the run stops at t = " << init.stop_time << " s"; }
+        else                                                     { os << ", the run has no stop time"; }
+        if (init.max_step < std::numeric_limits<int>::max()) { os << " or after level-0 step " << init.max_step; }
+        else                                                 { os << " and no step limit"; }
+        os << ", fully compressible: " << (init.fully_compressible ? "yes" : "no") << "\n";
+        Print() << os.str();
+        // A run that takes no step (a restart at its last step) ends where it starts
+        m_end_time = init.time;
         if (!init.restart_chkfile.empty()) {
             // The impulse given so far, written by write_checkpoint
             const std::string file = init.restart_chkfile + "/example/impulse";
@@ -236,7 +246,7 @@ private:
     int m_lev = -1;   // the level of the last advance()
     std::array<double,3> m_impulse{{0.0, 0.0, 0.0}};
     int m_steps = 0;            // steps advanced in this run (not checkpointed)
-    double m_end_time = 0.0;    // end of the last step advanced [s]
+    double m_end_time = 0.0;    // end of the last step advanced, or the start time [s]
     std::vector<Real> m_wind{Real(0.0), Real(0.0), Real(0.0)};
     MultiFab m_src_x, m_src_y, m_src_z;
 };
