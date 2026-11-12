@@ -2786,6 +2786,12 @@ List of Parameters
 | **erf.pbl_mrf_highres_bounds**           | Enable alternative high-resolution grid-dependent        | Boolean            | false            |
 |                                          | diffusivity bounds                                       |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mrf_Sc_t**                     | MRF only: turbulent Schmidt number of the passive        | Real >= 0          | 0                |
+|                                          | scalars. Their vertical diffusivity is the heat one      |                    |                  |
+|                                          | times erf.Pr_t / Sc_t; 0 leaves it equal to the heat     |                    |                  |
+|                                          | one. The same for every passive scalar (base, dust,      |                    |                  |
+|                                          | smoke); see erf-model/ERF#5080                           |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.enable_mrf_unbounded_vpert**       | Enable physically superior unbounded VPERT in MRF PBL    | Boolean            | false            |
 |                                          | scheme                                                   |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
