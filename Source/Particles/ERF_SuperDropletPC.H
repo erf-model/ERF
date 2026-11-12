@@ -186,7 +186,8 @@ class SuperDropletPC : public ERFPC
                              amrex::iMultiFab&,
                              const int,
                              const amrex::RealBox&,
-                             const unsigned int );
+                             const unsigned int,
+                             const MFPtr& );
 
         /*! \brief Set initial number of superdroplets per cell as a bubble with uniform density */
         void setNumSDBubbleDistribution ( int a_lev,
@@ -198,8 +199,9 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Set super-droplets attributes from a given condensate mass density
          * \param[in] a_mf Multifab containing the initial condensate mass density
+         * \param[in] a_z_phys_nd Terrain heights (nodal)
          */
-        virtual void SetAttributes ( amrex::MultiFab& a_mf, int a_lev = 0 );
+        virtual void SetAttributes ( amrex::MultiFab& a_mf, const amrex::MultiFab& a_z_phys_nd, int a_lev = 0 );
 
         /*! \brief Scale the SDM number density with air density
          * \param[in] a_mf Multifab containing the air density field
@@ -296,6 +298,19 @@ class SuperDropletPC : public ERFPC
          */
         void placeRecycledParticles ( const amrex::Vector<MFPtr>& a_z_phys_nd );
 
+        /*! \brief Set the multiplicity of super-droplets that entered through an open lateral
+         *  boundary from the cell they entered, once they are on their owning grids
+         * \param[in] a_z_phys_nd Array of terrain heights
+         */
+        void setInflowMultiplicity ( const amrex::Vector<MFPtr>& a_z_phys_nd );
+
+        /*! \brief Cells differ in physical thickness (stretched or terrain-fitted mesh) */
+        void setVariableDz ( const bool a_variable_dz )
+        {
+            m_variable_dz = a_variable_dz;
+            for (auto& inj : m_injections) { inj->m_variable_dz = a_variable_dz; }
+        }
+
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */
         [[nodiscard]] inline virtual amrex::Long NumSuperDroplets ()
@@ -310,17 +325,33 @@ class SuperDropletPC : public ERFPC
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
         /*! \brief Compute and print diagnostics */
-        virtual void Diagnostics (int, int, double, bool);
+        virtual void Diagnostics (int, int, double, bool, const amrex::MultiFab& a_z_phys_nd);
         /*! \brief Compute mass density distribution */
         virtual void ComputeDistributions (  int, int,
                                              amrex::ParticleReal,
-                                             amrex::ParticleReal );
+                                             amrex::ParticleReal,
+                                             const amrex::MultiFab& a_z_phys_nd );
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         /*! \brief Compute binned size distributions */
-        virtual void ComputeBinnedDistributions ( int, int );
+        virtual void ComputeBinnedDistributions ( int, int, const amrex::MultiFab& a_z_phys_nd );
         /*! \brief Compute cell-wise binned size distributions */
-        virtual void ComputeBinnedDistributionsCell ( int, int, amrex::Real );
+        virtual void ComputeBinnedDistributionsCell ( int, int, amrex::Real, const amrex::MultiFab& a_z_phys_nd );
 #endif
+
+        /*! \brief Mean physical volume of the cells of level a_lev */
+        [[nodiscard]] amrex::Real meanCellVolume ( int a_lev, const amrex::MultiFab& a_z_phys_nd ) const;
+
+        /*! \brief Per-cell counts of every initialization, on the device */
+        [[nodiscard]] amrex::Gpu::DeviceVector<SDCellCounts> initCellCounts () const
+        {
+            amrex::Vector<SDCellCounts> counts_h(m_initializations.size());
+            for (size_t i = 0; i < m_initializations.size(); i++) {
+                counts_h[i] = m_initializations[i]->cellCounts();
+            }
+            amrex::Gpu::DeviceVector<SDCellCounts> counts_d(counts_h.size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, counts_h.begin(), counts_h.end(), counts_d.begin());
+            return counts_d;
+        }
 
         /*! \brief Compute the SD number density on a mesh */
         virtual void SDNumberDensity ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
@@ -378,8 +409,10 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the particle effective radius on a mesh */
         virtual void effectiveRadius ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
 
-        /*! \brief Applies boundary treatment to the particle container */
-        virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
+        /*! \brief Applies boundary treatment to the particle container; returns the number
+         *  of super-droplets that entered through an open boundary and still need their
+         *  multiplicity (stretched or terrain-fitted mesh) */
+        virtual amrex::Long applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
 
         /*! \brief Split coarse-level particles in newly-refined cells after AMR
          *  regrid to restore per-cell SD count.  Cascades correctly across
@@ -420,6 +453,7 @@ class SuperDropletPC : public ERFPC
         bool m_prescribed_advection; /*!< move particles with prescribed vertical velocity */
         amrex::Real m_prescribed_w = 0.0; /*!< constant prescribed updraft [m/s]; 0 -> sinusoidal pulse */
         bool m_split_merge_amr = false; /*!< split/merge particles across AMR level boundaries */
+        bool m_variable_dz = false; /*!< cells differ in physical thickness (stretched or terrain-fitted mesh) */
 
         int m_num_species; /*!< Number of vapour/condensate species */
         std::vector<std::unique_ptr<MaterialProperties>> m_species_mat; /*!< Vapour/condensate material */

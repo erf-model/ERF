@@ -443,6 +443,7 @@ target_sources(${erf_exe_name} PRIVATE
 if(ERF_ENABLE_PARTICLES)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestAnelasticThermodynamics.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestCellVolume.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestSpeciesProjection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityKernel.cpp

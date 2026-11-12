@@ -215,8 +215,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         Gpu::synchronize();
     }); // end forEachParticleTile
 
-    applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes, a_recycle);
+    const Long num_inflow = applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes, a_recycle);
     Redistribute();
+    if (num_inflow > 0) { setInflowMultiplicity(a_z_phys_nd); }
 }
 
 #endif

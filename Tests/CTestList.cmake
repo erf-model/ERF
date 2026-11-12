@@ -3501,6 +3501,21 @@ if(ERF_ENABLE_PARTICLES)
     add_test_sdm(SDM_RICO3D                      "" "erf_exec"  "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding" RUNTIME_OPTIONS "erf.vert_implicit=false ")
     # multispecies setup with dummy water species
     add_test_sdm(SDM_MultiSpecies_Bubble2D       "" "erf_exec"  "plt00001" 5e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
+    # Golovin coalescence on a stretched mesh: initial number density and decay rate of each
+    # layer from the particle data, against the physical layer volumes (statistical, no gold file)
+    if(NOT WIN32 AND ERF_TEST_PYTHON)
+        function(add_test_sdm_stretched TEST_NAME)
+            setup_test()
+            resolve_test_exe("" "erf_exec" TEST_EXE)
+            set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+            add_test(${TEST_NAME} sh -c
+                "rm -rf plt0* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_stretched_coalescence.py ${TEST_NAME}.i plt00000 plt00300")
+            set_tests_properties(${TEST_NAME} PROPERTIES
+                TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+                LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+        endfunction(add_test_sdm_stretched)
+        add_test_sdm_stretched(SDM_StretchedCoalescence)
+    endif()
 endif()
 
 #=============================================================================

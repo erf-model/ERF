@@ -108,7 +108,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         const auto proc_ctx = buildProcessContext(a_lev);
         const auto dx_h = Geom(a_lev).CellSize();
-        const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
+        // recycled super-droplets land uniformly in physical space: one multiplicity, from the mean cell volume
+        const Real cell_volume = m_variable_dz ? meanCellVolume(a_lev, *a_z_phys_nd[a_lev])
+                                               : dx_h[0]*dx_h[1]*dx_h[2];
 
         const Box& dom = Geom(a_lev).Domain();
         const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
@@ -116,6 +118,12 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         // number of super-droplets per cell
         int num_sd_per_cell = m_num_sd_per_cell;
+        if (m_variable_dz) {
+            num_sd_per_cell = 0;
+            for (int i = 0; i < m_num_initializations; i++) {
+                num_sd_per_cell += m_initializations[i]->numSDPerCell(cell_volume);
+            }
+        }
         // number of physical particles per cell
         Real num_par_per_cell = zero;
         for (int i = 0; i < m_num_initializations; i++) {
