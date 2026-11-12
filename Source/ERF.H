@@ -2417,6 +2417,15 @@ private:
     amrex::BoxArray            m_structure_src_ba;
     amrex::DistributionMapping m_structure_src_dm;
 
+    /// After a restart, until the model's first advance(): its source on its level when the checkpoint was written
+    std::array<amrex::MultiFab,AMREX_SPACEDIM> m_structure_chk_src;
+
+    /// Write the model's current source on its level under checkpointname/StructureCoarseSource (TwoWay, level() > 0)
+    void write_structure_coarse_source_checkpoint (const std::string& checkpointname) const;
+
+    /// Read what write_structure_coarse_source_checkpoint wrote, for the model on level L, into m_structure_chk_src
+    void read_structure_coarse_source_checkpoint (int L);
+
     /// The node heights of the level above the model's, for the check of its support(): kept until that level's boxes change
     erf_actuator::LevelHeights m_structure_fine_heights;
 #endif

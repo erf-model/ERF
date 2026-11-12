@@ -422,6 +422,7 @@ function(build_erf_lib erf_lib_name)
       ${SRC_DIR}/MovingBodies/Core/ERF_WakeLines.cpp
       ${SRC_DIR}/MovingBodies/Coupling/ERF_StructureModelRegistry.cpp
       ${SRC_DIR}/MovingBodies/Coupling/ERF_StructureCoupling.cpp
+      ${SRC_DIR}/MovingBodies/Coupling/ERF_StructureCoarseSource.cpp
     )
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Core>)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Coupling>)

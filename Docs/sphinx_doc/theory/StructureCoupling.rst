@@ -36,9 +36,11 @@ and its checkpoint data.
        ``add_momentum_sources()`` on that level only. It must be the finest
        level that covers the model's support. On a refined level the model's
        points and kernels must stay inside the level's boxes, also after a
-       regrid. Coarser levels see the force only through averaging down. A finer
-       level would never see it: averaging down would overwrite the forced cells
-       with that level's unforced data.
+       regrid. With ``erf.coupling_type = TwoWay``, coarser levels step with the
+       model's source restricted onto them (:ref:`sec:StructureCoarseSource`),
+       and averaging down then replaces the covered cells. A finer level would
+       never see it: averaging down would overwrite the forced cells with that
+       level's unforced data.
    * - ``initialize()``
      - Once, after the initial data (or the checkpoint) exist and before the
        step-0 plotfile, and not again after a regrid (the model reads the mesh
@@ -84,6 +86,66 @@ and its checkpoint data.
        ERF plotfile on every level. The names carry the model's prefix; an
        empty name, a name listed twice or a name ERF or another model already
        uses stops the run.
+
+.. _sec:StructureCoarseSource:
+
+The force on the coarser levels
+-------------------------------
+
+ERF steps the coarser levels first. With ``erf.coupling_type = TwoWay``, at the
+start of each step of a level :math:`\ell` below the model's level :math:`L`,
+ERF asks the model for the source of its last ``advance()`` on level :math:`L`,
+restricts it onto level :math:`\ell` and adds it to that level's momentum
+sources over the step (the restriction is by Ann Almgren, erf-model/ERF#5022;
+``ERF_StructureCoarseSource.cpp``). The restriction keeps the force the source
+puts on the air. The force on a face is
+
+.. math::
+
+   F_f = s_f \, J_f \, \Delta x \, \Delta y \, \Delta z ,
+   \qquad
+   J_f = \tfrac12 \left( J_{\mathrm{lo}} + J_{\mathrm{hi}} \right),
+
+where :math:`s_f` is the source on the face [N/m\ :sup:`3`], :math:`\Delta x,
+\Delta y, \Delta z` the level's cell sizes in index space, and
+:math:`J_{\mathrm{lo}}, J_{\mathrm{hi}}` the mesh Jacobian ``detJ_cc`` of the two
+cells beside the face (the one cell inside the domain on a non-periodic domain
+face; :math:`J = 1` on a uniform-dz mesh). One level at a time, with refinement
+ratio :math:`r` along the face normal, coarse face :math:`I` takes the force of
+every fine face :math:`r I + m`, :math:`|m| < r`, along the normal with the
+weight :math:`(r - |m|)/r`, and of every fine face across it. Each fine face
+gives its force out with weights that add up to 1, so
+
+.. math::
+
+   \sum_{\mathrm{coarse}} F_f = \sum_{\mathrm{fine}} F_f
+
+exactly, also when the fine level is split into boxes or crosses a periodic
+boundary. On a non-periodic domain face (the ground, the top, an inflow or
+outflow side) the boundary condition sets the momentum and a source there does
+nothing, so a fine face inside the domain gives its whole force to the first
+coarse face inside instead of a share :math:`(r - |m|)/r` to the domain face;
+the force on the faces inside the domain is then kept too, for a kernel that
+reaches the ground, such as a tower's. The coarse source is the coarse force divided by the coarse face's
+:math:`J_f \, \Delta x \, \Delta y \, \Delta z`. On a uniform-dz mesh no Jacobian
+is applied. On a terrain-following mesh :math:`J` varies from column to column,
+and the restriction of :math:`s_f` alone, without :math:`J_f`, changes the
+force: by :math:`2.6 \times 10^{-3}` of itself for the example model over a
+60 m high Schar ridge with a 2-to-1 refined level and a vertical stretching of
+1.08, and by :math:`2.9 \times 10^{-3}` with a stretching of 1.15.
+The Jacobian is the one at the coarse step's start; with moving terrain it may
+differ from the one of the model's last ``advance()`` by one coarse step.
+
+Before the model's first ``advance()`` and after a regrid of its level, until
+its next ``advance()``, the coarser levels step without the source. ERF writes
+the model's level-:math:`L` source to the checkpoint
+(``<chk>/StructureCoarseSource``: the level, then one MultiFab per face
+direction). After a restart, until the model's first ``advance()``, ERF
+restricts that source instead, so a restarted run steps the coarser levels as
+the straight run does, on any number of ranks. A regrid of the model's level
+before that ``advance()`` drops it, as a regrid does in the straight run. A checkpoint without it (or
+written for another level) restarts with the coarser levels stepping without
+the source until the first ``advance()``.
 
 Reading the fire
 ----------------
@@ -234,9 +296,28 @@ point's own columns, and both must run. ``Structures_Abort_SupportNaN`` and
 with a NaN and with its low end above its high end
 (``structure.example.test_support``), and the run must stop with the model's
 name; ``Structures_Abort_ExampleTestSupport`` checks that input's allowed
-values. The
+values. ``Structures_ExampleModel_CoarseSourceRestart`` puts the model on a
+level-1 box around the point, so level 0 steps with the restricted source, and
+restarts from the mid-run checkpoint on three ranks instead of two: the final
+plotfiles must agree at zero tolerance on both levels.
+``Structures_ExampleModel_CoarseSourceRestartTerrain`` repeats it over a
+ridge, to a relative :math:`10^{-12}`: on a fitted mesh the example's restart
+differs by round-off also with one level. Without the checkpointed source the
+velocities differ by :math:`10^{-4}` or more. Both run with ``erf.v = 1``, with
+which ERF prints the force of the restricted source and of the model's source
+(``structure coarse source:``); ``check_coarse_force.awk`` checks that they agree
+to a relative :math:`10^{-12}`. The
 unit tests ``StructureRegistry.*`` check the registry and the selection by
-``erf.structures.model`` and the plot-name checks.
+``erf.structures.model`` and the plot-name checks. The unit tests
+``StructureCoarseSource.*`` check that the restriction keeps the force on every
+component over a hill, one and two levels down, with refinement ratios
+(2, 2, 1) and (2, 2, 2), boxes split and across a periodic boundary, and on a
+uniform mesh, also on the faces inside the domain alone; that without the
+Jacobian the hill changes the force (by :math:`3.8 \times 10^{-5}`,
+:math:`1.6 \times 10^{-3}` and :math:`3.4 \times 10^{-3}` in x, y and z); that
+the face Jacobian is that of the one cell inside the domain on the ground and
+top faces and the mean of the two cells beside any other face; and
+that the printed force matches one computed from the hill.
 
 When the example fire engine (``Tests/FireEngineExample``) is compiled in as
 well, four runs check the fire view. Each runs the engine's deck with the example model
