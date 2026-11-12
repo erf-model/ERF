@@ -65,6 +65,23 @@ and ``points_covered_by`` takes them in place of the mesh-wide extremes. A
 caller that tests many sets of points against the same boxes builds the boxes'
 footprints once (``CoverageGrids``) and passes them instead of the ``BoxArray``.
 
+``region_touches_grids`` answers the opposite question for a caller that must
+stay clear of a level: whether the level's boxes may hold a cell of a region
+given in metres. In a periodic direction every image of the region counts. A
+region that overlaps a cell of the level is never missed; one that only meets a
+cell at a face may not count. On a stretched or terrain-following mesh it takes
+the level's table of node heights from ``mesh_z_levels``: for each node level,
+the lowest and the highest height over every rank's boxes, and the cells the
+level holds. The cells of a height range are then those with some bottom node
+not above it and some top node not below it, which holds whether or not the
+boxes reach the ground. With the ground and spacing extremes of
+``mesh_z_bounds`` alone the answer is wider, and where a box does not stand on
+the ground it is the whole column. The cell indices are bounded before they
+become integers, so a region far outside the domain, or an infinite one, is
+safe; a height range with an infinite end takes the cells of its finite end.
+``LevelHeights`` keeps the table between calls and builds it again when the
+level's boxes or its domain change, or when the caller asks (a moving terrain).
+
 ``sample_velocity`` is collective: every rank passes the same points, and the
 answers are summed over the ranks. ``sample_velocity_local`` is the part on one
 rank, with no reduction: it returns the velocity at the points this rank's
