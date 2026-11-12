@@ -294,6 +294,15 @@ SurfaceLayer::update_fluxes (const int& lev,
     // Fill interior ghost cells
     fill_planar_boundary(lev, *t_surf[lev]);
 
+    // Over a moving surface the averages must read the velocities relative to it, which
+    // update_mac_ptrs points them at; anything that points them back at the level's own
+    // velocities in between would silently average the absolute wind
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_surface_current ||
+        (m_ma.get_field_ptr(lev, 0) == m_rel_xvel[lev].get() &&
+         m_ma.get_field_ptr(lev, 1) == m_rel_yvel[lev].get()),
+        "The surface-layer averages do not read the wind relative to the surface current: "
+        "call update_mac_ptrs before update_fluxes.");
+
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
