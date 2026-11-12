@@ -438,7 +438,10 @@ ERF::ERF_shared ()
     initializeFire(nlevs_max);
 
 #ifdef ERF_USE_WINDFARM
-    initializeWindFarm(nlevs_max);
+    // A wind-farm build also runs cases without a wind farm (erf.windfarm_type = None)
+    if (solverChoice.windfarm_type != WindFarmType::None) {
+        initializeWindFarm(nlevs_max);
+    }
 #endif
 
 #ifdef ERF_USE_MOVING_BODIES
