@@ -2411,7 +2411,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(ABL_MRF_Tiling      ABL_MRF_Tiling "00010" "00010"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(ABL_YSUNew_Tiling   ABL_MRF_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   # Legacy YSU aborts in unstable conditions, so cool the surface. A stronger
   # cooling than -0.02 with the 5 m/s wind passes the stable fold of the
@@ -2445,7 +2445,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
       RUNTIME_OPTIONS "erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(ABL_YSUNew_Tiling_Smooth ABL_MRF_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU erf.enable_pblh_smoothing=true"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   # The immersed-boundary-aware MRF and YSUNew (erf.pbl_ib_aware) build their
   # per-column surface and work arrays on the tile work box; a cube by
@@ -2453,7 +2453,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_MRF_Tiling    PBL_IBAware_Tiling "00010" "00010"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
   # YSUNew with PBL-height smoothing over a neutral ground (erf-model/ERF#4479).
   # The surface heat flux is round-off whose sign follows the decomposition, and
@@ -5117,8 +5117,17 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       set(_smx_cr_names Structures_ExampleModel_CoarseSourceRestart Structures_ExampleModel_CoarseSourceRestartTerrain)
       set(_smx_cr_args_0 "")
       set(_smx_cr_args_1 "erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=ScharMountain prob.a=80.0 prob.hm=60.0 prob.lambda=1.0e9 erf.grid_stretching_ratio=1.08 erf.initial_dz=12.0")
-      set(_smx_cr_rtol_0 "0")
-      set(_smx_cr_rtol_1 "1e-12")
+      # In single precision the restart on 3 ranks differs from the straight run by round-off of
+      # up to 6e-7 relative, and the two forces by 8e-8: these checks then use 1e-5, still a factor
+      # of 10 below the 1e-4 to 1e-3 that a dropped source or a missing Jacobian gives.
+      if(ERF_PRECISION STREQUAL "SINGLE")
+        set(_smx_cr_tol "1e-5")
+        set(_smx_cr_rtol_0 "1e-5")
+      else()
+        set(_smx_cr_tol "1e-12")
+        set(_smx_cr_rtol_0 "0")
+      endif()
+      set(_smx_cr_rtol_1 "${_smx_cr_tol}")
       set(_smx_cr_common "amr.max_level=1 structure.example.level=1 structure.example.epsilon=12.5 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices=8 8 0 erf.box1.in_box_hi_indices=23 23 31 erf.v=1 amrex.call_addr2line=0")
       set(_smx_mpi3 "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}")
       foreach(_smx_cr RANGE 0 1)
@@ -5127,7 +5136,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
         file(MAKE_DIRECTORY ${_smx_cr_dir})
         file(COPY ${_smx_src}/inputs_structure_example DESTINATION ${_smx_cr_dir})
         add_test(NAME ${_smx_cr_name}
-                 COMMAND sh -c "rm -rf plt0* chk0* rst rst4 && ${_smx_mpi} ${_smx_exe} inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} > straight.log 2>&1 && awk -v tol=1e-12 -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk straight.log && grep -q '^1$' chk00008/StructureCoarseSource/Level && mkdir rst && cd rst && ${_smx_mpi3} ${_smx_exe} ../inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} erf.restart=../chk00008 erf.check_int=-1 > ../restart.log 2>&1 && cd .. && awk -v tol=1e-12 -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk restart.log && ${FCOMPARE_EXE} --abs_tol 0 --rel_tol ${_smx_cr_rtol_${_smx_cr}} plt00016 rst/plt00016 && mkdir rst4 && cd rst4 && ${_smx_mpi3} ${_smx_exe} ../inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} erf.restart=../chk00008 erf.check_int=-1 erf.regrid_int=1 amr.max_grid_size=4 > ../restart4.log 2>&1 && cd .. && awk -v tol=1e-12 -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk restart4.log && ${FCOMPARE_EXE} --allow_diff_grids --abs_tol 0 --rel_tol 1e-12 plt00016 rst4/plt00016"
+                 COMMAND sh -c "rm -rf plt0* chk0* rst rst4 && ${_smx_mpi} ${_smx_exe} inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} > straight.log 2>&1 && awk -v tol=${_smx_cr_tol} -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk straight.log && grep -q '^1$' chk00008/StructureCoarseSource/Level && mkdir rst && cd rst && ${_smx_mpi3} ${_smx_exe} ../inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} erf.restart=../chk00008 erf.check_int=-1 > ../restart.log 2>&1 && cd .. && awk -v tol=${_smx_cr_tol} -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk restart.log && ${FCOMPARE_EXE} --abs_tol 0 --rel_tol ${_smx_cr_rtol_${_smx_cr}} plt00016 rst/plt00016 && mkdir rst4 && cd rst4 && ${_smx_mpi3} ${_smx_exe} ../inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} erf.restart=../chk00008 erf.check_int=-1 erf.regrid_int=1 amr.max_grid_size=4 > ../restart4.log 2>&1 && cd .. && awk -v tol=${_smx_cr_tol} -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk restart4.log && ${FCOMPARE_EXE} --allow_diff_grids --abs_tol 0 --rel_tol ${_smx_cr_tol} plt00016 rst4/plt00016"
                  WORKING_DIRECTORY ${_smx_cr_dir})
         set_tests_properties(${_smx_cr_name} PROPERTIES
             LABELS "regression;structures" TIMEOUT 600 PROCESSORS 3

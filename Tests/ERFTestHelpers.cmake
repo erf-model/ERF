@@ -8,6 +8,11 @@
 #   include(Submodules/ERF/Tests/ERFTestHelpers.cmake)
 #   add_test_r(MyCase "" erf_exec plt00010)
 #
+# A parent that builds its own executable against ERF (erf_setup_executable) names that
+# target instead of erf_exec: add_test_r(MyCase "" my_exec plt00010). add_test_abort and
+# add_test_restart_abort take no executable argument; they run ${ERF_TEST_EXE} when the
+# caller sets that normal variable, erf_exec otherwise.
+#
 # Each test reads its files from ${CMAKE_CURRENT_SOURCE_DIR}/test_files/<test name> of the
 # directory that calls the helper (or test_files/${TEST_FILES_DIR} when the caller sets
 # TEST_FILES_DIR), and add_test_r compares against ${ERF_TEST_GOLD_FILES_DIRECTORY}/<test
@@ -45,6 +50,17 @@ endif()
 # Functions for adding tests
 #=============================================================================
 function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
+    # An executable target a parent project defined (erf_setup_executable) is built in the
+    # parent's binary folders, outside ERF's: name it by its target file. Every caller hands
+    # the result to add_test, which evaluates the generator expression.
+    if(TARGET "${TEST_EXE}")
+        get_target_property(_exe_binary_dir "${TEST_EXE}" BINARY_DIR)
+        file(RELATIVE_PATH _exe_rel "${ERF_BINARY_DIR}" "${_exe_binary_dir}")
+        if(_exe_rel MATCHES "^\\.\\./" OR IS_ABSOLUTE "${_exe_rel}")
+            set(${OUT_VAR} "$<TARGET_FILE:${TEST_EXE}>" PARENT_SCOPE)
+            return()
+        endif()
+    endif()
     get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
     if(WIN32 AND _multi_config)
         # Multi-config generators place binaries in a config subdir, and which config is
@@ -116,7 +132,7 @@ function(add_test_plotfile_header TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(test_command sh -c
         "${MPI_COMMANDS} ${TEST_EXE} \"${test_input}\" > \"${test_log}\" 2>&1 && ${check_command_string}")
 
-    add_test(${TEST_NAME} ${test_command})
+    add_test(NAME ${TEST_NAME} COMMAND ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
         TIMEOUT 300
@@ -175,7 +191,7 @@ function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 
-    add_test(${TEST_NAME} ${test_command})
+    add_test(NAME ${TEST_NAME} COMMAND ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
         TIMEOUT 600
@@ -195,7 +211,11 @@ function(add_test_restart_abort TEST_NAME TEST_FILES_DIR STEP_CHK EXPECTED_MESSA
     set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "RUN_TIMEOUT")
     cmake_parse_arguments(ADD_TEST_RA "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
-    resolve_test_exe("" "erf_exec" TEST_EXE)
+    if(DEFINED ERF_TEST_EXE AND NOT "${ERF_TEST_EXE}" STREQUAL "")
+        resolve_test_exe("" "${ERF_TEST_EXE}" TEST_EXE)
+    else()
+        resolve_test_exe("" "erf_exec" TEST_EXE)
+    endif()
 
     set(_chk_nranks "${NP}")
     set(_restart_nranks "${NP}")
@@ -266,12 +286,16 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
         unset(MPI_COMMANDS)
     endif()
 
-    resolve_test_exe("" "erf_exec" TEST_EXE)
+    if(DEFINED ERF_TEST_EXE AND NOT "${ERF_TEST_EXE}" STREQUAL "")
+        resolve_test_exe("" "${ERF_TEST_EXE}" TEST_EXE)
+    else()
+        resolve_test_exe("" "erf_exec" TEST_EXE)
+    endif()
 
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 amrex.call_addr2line=0 ${RUNTIME_OPTIONS} 2>&1 | tee ${test_log}")
 
-    add_test(${TEST_NAME} ${test_command})
+    add_test(NAME ${TEST_NAME} COMMAND ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
         TIMEOUT 600

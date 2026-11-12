@@ -1566,7 +1566,7 @@ init_base_state_from_metgrid (const bool use_moisture,
 
         // Each column is seeded from the analytic profile at klo and integrated
         // upward from there, which is only correct if klo is the bottom of the
-        // domain. Boxes that do not span the domain in z (erf.max_grid_size_z
+        // domain. Boxes that do not span the domain in z (amr.max_grid_size_z
         // less than n_cell in z) would each re-seed and integrate independently.
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == lbound(domain).z) && (khi == ubound(domain).z),
                                          "init_base_state_from_metgrid requires boxes that span "
