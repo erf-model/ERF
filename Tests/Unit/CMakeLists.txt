@@ -408,17 +408,6 @@ target_sources(${erf_exe_name}
     # from water (erf-model/ERF#4390), keeping each coarse mean and cell_cons_interp elsewhere.
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/ERF_GTestTypedInterp.cpp
 )
-# The fire coupling's headers are only on the include path, and its sources
-# only in the library, when the fire coupling is built.
-if(ERF_ENABLE_FIRE)
-  target_sources(${erf_exe_name} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireAnchorLevel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireAtmInjection.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireCoupler.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFirePrecip.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireRegistry.cpp
-  )
-endif()
 if(ERF_DIM STREQUAL "3")
   # Motivation: the auxiliary mapped state must reproduce ERF's computational
   # divergence, exact host stage recipes, canonical metric transfers, and ledger.
@@ -537,18 +526,6 @@ erf_register_gtest_suite(${erf_exe_name}
   EXECUTION_TIMEOUT 600
 )
 
-# The fire coupling kernels under the floating-point traps a fire run arms.
-# clang at -O2/-O3 evaluates the unselected arm of `c ? a/b : x`, so a guarded
-# 0/0 or log(0) raises FE_INVALID/FE_DIVBYZERO and kills the run; the plain
-# unit run never arms the traps and cannot see it.
-if(ERF_ENABLE_FIRE)
-  add_test(NAME FireCouplingGTests_FpeTraps
-    COMMAND ${erf_exe_name}
-      --gtest_filter=FireAnchorLevel.*:FireCoupler.*:FirePrecip.*:FireRegistry.*:ExnerTendency.*:HeatInjection.*:SmokeInjection.*
-      amrex.fpe_trap_invalid=1 amrex.fpe_trap_zero=1 amrex.fpe_trap_overflow=1)
-  set_tests_properties(FireCouplingGTests_FpeTraps PROPERTIES LABELS "unit;fire" TIMEOUT 600)
-endif()
-
 add_test(NAME erf_unit_tests_shuffle_repeat
   COMMAND ${erf_exe_name}
     --gtest_shuffle
@@ -616,12 +593,16 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp)
   build_erf_exe(erf_sbm_checkpoint_corruptor NO_ERF_MAIN)
 
-  # The fire coupling's smoke scalar adds a component ahead of the moisture
-  # ones in the checkpoint (NSCALARS in ERF_IndexDefines.H); every RunM3Smoke
-  # test passes the count so the runner can insert it in the expected values.
+  # The dust coupling's dust scalars and the fire coupling's smoke scalar add
+  # components ahead of the moisture ones in the checkpoint (NSCALARS in
+  # ERF_IndexDefines.H); every RunM3Smoke test passes the count so the runner
+  # can insert them in the expected values.
   set(_sbm_extra_scalars 0)
   if(ERF_ENABLE_FIRE)
     math(EXPR _sbm_extra_scalars "${_sbm_extra_scalars} + 1")
+  endif()
+  if(ERF_ENABLE_DUST)
+    math(EXPR _sbm_extra_scalars "${_sbm_extra_scalars} + ${ERF_NUM_DUST_SCALARS}")
   endif()
 
   add_test(NAME SBM_M3_ZeroCarrier_ERF_Smoke

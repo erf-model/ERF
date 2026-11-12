@@ -5002,98 +5002,20 @@ add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_S
 endif()
 endif()
 
-# The fire coupling (ERF_ENABLE_FIRE): erf.fire.enable needs a fire engine
-# compiled in (none is in this repository; ERF_FIRE_ENGINE_DIRS adds them), the
-# coupling inputs stop the run naming the key, and a build without the coupling
-# refuses a fire deck instead of running it as plain ERF. The checks run in the
-# constructor, so any deck serves.
+# A build without the fire or the dust coupling refuses a fire or dust deck instead
+# of running it as plain ERF. Their own tests live with the engines and models that
+# use them (erf-model/FLARE); ERF builds neither coupling in its tests.
 if(ERF_ENABLE_MPI AND NOT WIN32)
-set(_fire_abort_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
-if(ERF_ENABLE_FIRE)
-if(NOT ERF_FIRE_ENGINE_DIRS)
-add_test_abort(Fire_Abort_NoEngineBuiltIn ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.enable = true, but no fire engine is compiled into this executable"
-               "erf.fire.enable=true")
-add_test_abort(Fire_Abort_EngineWithoutEngines ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.engine is set, but no fire engine is compiled into this executable"
-               "erf.fire.engine=native")
-else()
-add_test_abort(Fire_Abort_EngineNotCompiledIn ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.engine = .no_such_engine. is not one of"
-               "erf.fire.enable=true erf.fire.engine=no_such_engine")
-endif()
-add_test_abort(Fire_Abort_OldPlotKey ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire_plot_int is now erf.fire.plot_int"
-               "erf.fire_plot_int=10")
-# The example engine directory (Tests/FireEngineExample), when the build
-# compiles it in: a coupled run writes the engine's fields into the ERF
-# plotfile, and a restart from its mid-run checkpoint (engine state and the
-# coupler's lagged fluxes) reproduces the final plotfile exactly.
-set(_fex_src ${CMAKE_CURRENT_SOURCE_DIR}/FireEngineExample)
-get_filename_component(_fex_src_abs "${_fex_src}" ABSOLUTE)
-set(_fex_in_build FALSE)
-foreach(_d IN LISTS ERF_FIRE_ENGINE_DIRS)
-  get_filename_component(_d_abs "${_d}" ABSOLUTE)
-  if(_d_abs STREQUAL _fex_src_abs)
-    set(_fex_in_build TRUE)
-  endif()
-endforeach()
-if(_fex_in_build AND ERF_ENABLE_FCOMPARE)
-set(_fex_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Fire_ExampleEngine_Restart)
-file(MAKE_DIRECTORY ${_fex_dir})
-file(COPY ${_fex_src}/inputs_fire_example ${_fex_src}/input_sounding DESTINATION ${_fex_dir})
-resolve_test_exe("" "erf_exec" _fex_exe)
-set(_fex_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
-add_test(NAME Fire_ExampleEngine_Restart
-         COMMAND sh -c "rm -rf plt0* chk0* rst && ${_fex_mpi} ${_fex_exe} inputs_fire_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q fire_phi plt00008/Header && mkdir rst && cd rst && cp ../input_sounding . && ${_fex_mpi} ${_fex_exe} ../inputs_fire_example erf.restart=../chk00004 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00008 rst/plt00008"
-         WORKING_DIRECTORY ${_fex_dir})
-set_tests_properties(Fire_ExampleEngine_Restart PROPERTIES
-    LABELS "regression;fire" TIMEOUT 600 PROCESSORS 2
-    ATTACHED_FILES_ON_FAIL "${_fex_dir}/straight.log;${_fex_dir}/restart.log")
-endif()
-add_test_abort(Fire_Abort_CouplingType ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.coupling_type = .tight. is not one of .passive., .lagged., .synchronous."
-               "erf.fire.coupling_type=tight")
-add_test_abort(Fire_Abort_AnchorLevel ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.anchor_level must be -1 .the finest level. or a level >= 0, got -2"
-               "erf.fire.anchor_level=-2")
-add_test_abort(Fire_Abort_HeatFluxAlfg ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.heat_flux_alfg must be > 0"
-               "erf.fire.heat_flux_alfg=0")
-add_test_abort(Fire_Abort_SourceMode ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.source_mode = .replace. is not one of .overwrite., .add."
-               "erf.fire.source_mode=replace")
-add_test_abort(Fire_Abort_GridRatio ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.grid_ratio must be >= 1, got 0"
-               "erf.fire.grid_ratio=0")
-add_test_abort(Fire_Abort_SmokeKeyWithoutSmoke ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.smoke_emission_factor needs erf.fire.smoke_enable = true"
-               "erf.fire.smoke_emission_factor=0.05")
-# ... but with the fire switched off explicitly the key only warns, and the run goes on
-add_test_abort(Fire_Warn_SmokeKeyFireOff ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.smoke_emission_factor is ignored with erf.fire.enable = false"
-               "erf.fire.enable=false erf.fire.smoke_emission_factor=0.05")
-# A checkpoint that records no scalar layout predates the smoke scalar (one
-# passive scalar); a build with the fire coupling (two) must refuse it rather
-# than read every component after the scalars one slot off. The test writes a
-# checkpoint, removes its ScalarLayout file and restarts from it.
-set(_fl_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Fire_Abort_CheckpointWithoutLayout)
-file(MAKE_DIRECTORY ${_fl_dir})
-file(GLOB _fl_files "${_fire_abort_dir}/*")
-file(COPY ${_fl_files} DESTINATION ${_fl_dir})
-resolve_test_exe("" "erf_exec" _fl_exe)
-set(_fl_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
-add_test(NAME Fire_Abort_CheckpointWithoutLayout
-         COMMAND sh -c "rm -rf chk_fl* && ${_fl_mpi} ${_fl_exe} Terrain_Stress_Ridge.i max_step=1 erf.plot_int_1=-1 erf.check_int=1 erf.check_file=chk_fl amrex.call_addr2line=0 > write.log 2>&1 && test -f chk_fl00001/ScalarLayout && rm chk_fl00001/ScalarLayout && ${_fl_mpi} ${_fl_exe} Terrain_Stress_Ridge.i max_step=2 erf.plot_int_1=-1 erf.check_int=-1 erf.restart=chk_fl00001 amrex.call_addr2line=0 2>&1 | tee Fire_Abort_CheckpointWithoutLayout.log"
-         WORKING_DIRECTORY ${_fl_dir})
-set_tests_properties(Fire_Abort_CheckpointWithoutLayout PROPERTIES
-    LABELS "regression" TIMEOUT 600 PROCESSORS 1
-    PASS_REGULAR_EXPRESSION "it records no scalar layout, so it predates the fire coupling's smoke scalar"
-    ATTACHED_FILES_ON_FAIL "${_fl_dir}/write.log;${_fl_dir}/Fire_Abort_CheckpointWithoutLayout.log")
-else()
-add_test_abort(Fire_Abort_BuiltWithoutFire ${_fire_abort_dir} Terrain_Stress_Ridge.i
+set(_coupling_abort_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
+if(NOT ERF_ENABLE_FIRE)
+add_test_abort(Fire_Abort_BuiltWithoutFire ${_coupling_abort_dir} Terrain_Stress_Ridge.i
                "erf.fire.enable = true but this executable was built without the fire coupling"
                "erf.fire.enable=true")
+endif()
+if(NOT ERF_ENABLE_DUST)
+add_test_abort(Dust_Abort_BuiltWithoutDust ${_coupling_abort_dir} Terrain_Stress_Ridge.i
+               "erf.dust.enable = true but this executable was built without the dust coupling"
+               "erf.dust.enable=true")
 endif()
 endif()
 
@@ -5196,62 +5118,6 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       add_test_abort(Structures_Abort_ExampleLevel ${_smx_src} inputs_structure_example
                      "structure.example.level must be -1 .the finest level. or 0 to amr.max_level = 0, got 1"
                      "structure.example.level=1")
-      # The fire view (StructureStep::fire), with the example fire engine compiled in too.
-      # Each run is the fire deck of Tests/FireEngineExample with the example model added.
-      # The engine burns a disk of radius 150 + 50 t m that releases 5e4 W/m2; a quarter of
-      # it is latent heat, which heat_release still counts. Each step the model prints the
-      # level and time of the fire's fields, the heat released and the area burned.
-      # check_fire_view.awk compares them with the disk to 3 %: fire cells of 10 m (5 m on
-      # level 1) resolve it to 1.4 % or better, and fields one fire step late or early miss
-      # by 11 % or more. Three layouts:
-      # - both on level 0: the fields belong to the fire step that ended at the model's step
-      #   time; a restart from the mid-run checkpoint must give the restart's time and the
-      #   heat of the step before it, which the example engine restores;
-      # - the fire on a level-1 patch, the model on level 0: as above;
-      # - the fire on level 0, the model on a level-1 patch: the fire is already at the end
-      #   of the coarse step;
-      # - the fire on a level-1 patch with three substeps of 0.1/3 s, the model on level 0:
-      #   the fire's time must equal the model's step time exactly, although three
-      #   substeps add up to 0.3 s where the coarse level has 0.30000000000000004 s.
-      if(ERF_ENABLE_FIRE AND _fex_in_build)
-        set(_smf_common "erf.structures.model=example structure.example.force=50 0 0 structure.example.epsilon=50 fire.example.r0=150 fire.example.ros=50 fire.example.heat_flux=5.0e4 fire.example.nsub=1 fire.example.latent_fraction=0.25 erf.fire.grid_ratio=10 amr.max_grid_size=10 10 60 max_step=4 erf.check_int=-1 erf.plot_int_1=-1 amrex.call_addr2line=0")
-        set(_smf_two "amr.max_level=1 erf.dt_ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1")
-        set(_smf_awk "awk -v r0=150 -v ros=50 -v q0=5.0e4 -v tol=0.03")
-        set(_smf_names Structures_ExampleModel_FireView Structures_ExampleModel_FireViewFinerFire Structures_ExampleModel_FireViewFinerModel Structures_ExampleModel_FireViewExactTime)
-        set(_smf_args_0 "structure.example.position=300 300 300")
-        set(_smf_args_1 "${_smf_two} erf.box1.in_box_lo_indices_crse=5 5 0 erf.box1.in_box_hi_indices_crse=14 14 29 erf.fire.anchor_level=1 structure.example.level=0 structure.example.position=200 200 300")
-        set(_smf_args_2 "${_smf_two} erf.box1.in_box_lo_indices_crse=0 0 0 erf.box1.in_box_hi_indices_crse=9 9 29 erf.fire.anchor_level=0 structure.example.level=1 structure.example.position=300 300 300")
-        set(_smf_args_3 "amr.max_level=1 erf.dt_ref_ratio=3 erf.fixed_dt=0.1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices_crse=5 5 0 erf.box1.in_box_hi_indices_crse=14 14 29 erf.fire.anchor_level=1 structure.example.level=0 structure.example.position=200 200 300")
-        set(_smf_check_0 "-v lev=0 -v dtf=0.5 -v lead=0")
-        set(_smf_check_1 "-v lev=1 -v dtf=0.25 -v lead=0")
-        set(_smf_check_2 "-v lev=0 -v dtf=0.5 -v lead=0.5")
-        set(_smf_check_3 "-v lev=1 -v dtf=0.0333333333333333 -v lead=0")
-        set(_smf_nlines_0 4)
-        set(_smf_nlines_1 4)
-        set(_smf_nlines_2 8)
-        set(_smf_nlines_3 4)
-        # The restart leg of the first run: checkpoint at step 2 (t = 1 s), restart, two steps
-        set(_smf_more_0 "erf.check_int=2")
-        set(_smf_rst_0 " && rm -rf rst && mkdir rst && cd rst && cp ../input_sounding . && ${_smx_mpi} ${_smx_exe} ../inputs_fire_example ${_smf_common} ${_smf_args_0} erf.restart=../chk00002 > ../restart.log 2>&1 && cd .. && ${_smf_awk} ${_smf_check_0} -v nlines=2 -f ${_smx_src_abs}/check_fire_view.awk restart.log && grep -q 'structure example fire: t = 1 fire_lev = 0 fire_t = 1 ' restart.log")
-        set(_smf_more_1 "")
-        set(_smf_more_2 "")
-        set(_smf_rst_1 "")
-        set(_smf_rst_2 "")
-        set(_smf_more_3 "")
-        set(_smf_rst_3 "")
-        foreach(_i RANGE 3)
-          list(GET _smf_names ${_i} _smf_name)
-          set(_smf_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${_smf_name})
-          file(MAKE_DIRECTORY ${_smf_dir})
-          file(COPY ${_fex_src}/inputs_fire_example ${_fex_src}/input_sounding DESTINATION ${_smf_dir})
-          add_test(NAME ${_smf_name}
-                   COMMAND sh -c "rm -rf chk0* && ${_smx_mpi} ${_smx_exe} inputs_fire_example ${_smf_common} ${_smf_args_${_i}} ${_smf_more_${_i}} > run.log 2>&1 && ${_smf_awk} ${_smf_check_${_i}} -v nlines=${_smf_nlines_${_i}} -f ${_smx_src_abs}/check_fire_view.awk run.log${_smf_rst_${_i}}"
-                   WORKING_DIRECTORY ${_smf_dir})
-          set_tests_properties(${_smf_name} PROPERTIES
-              LABELS "regression;structures;fire" TIMEOUT 600 PROCESSORS 2
-              ATTACHED_FILES_ON_FAIL "${_smf_dir}/run.log;${_smf_dir}/restart.log")
-        endforeach()
-      endif()
     elseif(NOT ERF_STRUCTURE_MODEL_DIRS)
       add_test_abort(Structures_Abort_NoModelBuiltIn ${_smx_src} inputs_structure_example
                      "erf.structures.model = .example. is not one of the structure models compiled in .none"

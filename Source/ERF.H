@@ -78,6 +78,9 @@
 #ifdef ERF_USE_FIRE
 #include "ERF_FireCoupler.H"
 #endif
+#ifdef ERF_USE_DUST
+#include "ERF_DustModel.H"
+#endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
 #include "ERF_Plotfile2DCloudOptics.H"
@@ -1759,7 +1762,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
     // Height of the bottom of the domain at each node, like z_phys_nd at its bottom: on
-    // ba2d[lev] made nodal in x and y, with no ghost cells; see update_zsfc_nd
+    // ba2d[lev] made nodal in x and y, with z_phys_nd's ghost cells in x and y; see update_zsfc_nd
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_sfc_nd;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
@@ -2390,6 +2393,17 @@ private:
     std::string m_fire_plot_file {"plt_fire_"};
     int         m_fire_plot_int  = -1;
     amrex::Real m_fire_plot_per  = -1.0;
+#endif
+
+#ifdef ERF_USE_DUST
+    /// The dust model erf.dust.model selects (ERF_DustModel.H); nullptr unless erf.dust.enable = true
+    std::unique_ptr<DustModel> m_dust_model = nullptr;
+
+    /// Make and set up the dust model, once, in InitData_post; zero the dust scalars on a fresh start
+    void initialize_dust_model ();
+
+    /// Advance the dust model over the step of level 0 just taken (from step, at time, by dt[0])
+    void advance_dust_model (int step, double time);
 #endif
 
 #ifdef ERF_USE_MOVING_BODIES

@@ -22,8 +22,16 @@
 #define NSCALARS_SMOKE 0
 #endif
 
+// Dust: the passive scalars a dust model fills [kg/m^3], ERF_NUM_DUST_SCALARS of them
+// (CMake ERF_NUM_DUST_SCALARS, GNU make NUM_DUST_SCALARS; 0 by default)
+#ifdef ERF_NUM_DUST_SCALARS
+#define NSCALARS_DUST ERF_NUM_DUST_SCALARS
+#else
+#define NSCALARS_DUST 0
+#endif
+
 // This defines the ACTUAL number of non-moisture scalar vars
-#define NSCALARS   (1 + NSCALARS_SMOKE)
+#define NSCALARS   (1 + NSCALARS_DUST + NSCALARS_SMOKE)
 
 // This defines the MAXIMUM number of moisture vars (six q's plus five n's)
 #define NMOIST_max 11
@@ -42,8 +50,8 @@
 #define NBCVAR_max ((NDRY + 1 + NMOIST_max + 1) + 2*5) // allow up to 5 non-moist species
 
 // Number of primitive components: one per conserved component after Rho_comp,
-// counting every passive scalar (the base scalar and, with the fire coupling, smoke)
-// and the moist quantities.
+// counting every passive scalar (the base scalar, the dust scalars and, with the fire
+// coupling, smoke) and the moist quantities.
 // The trailing 2*5 mirrors NVAR_max: a microphysics model may append up to 5 non-moist
 // species (two components each) after the water species, and the diffusion coefficient
 // tables are indexed by primitive component over that full range as well.
@@ -58,10 +66,14 @@
 
 // Scalar slots (consecutive, starting at RhoScalar_comp = NDRY):
 //   [RhoScalar_comp]     always present (base passive scalar)
+//   [RhoDust_comp ...]   NSCALARS_DUST dust scalars, only with ERF_NUM_DUST_SCALARS > 0
 //   [RhoSmoke_comp]      smoke, only with ERF_USE_FIRE
 //   [RhoQ1_comp ...]     moisture variables
+#if (NSCALARS_DUST > 0)
+#define RhoDust_comp   (RhoScalar_comp+1)
+#endif
 #ifdef ERF_USE_FIRE
-#define RhoSmoke_comp  (RhoScalar_comp+1)
+#define RhoSmoke_comp  (RhoScalar_comp+1+NSCALARS_DUST)
 #endif
 #define RhoQ1_comp     (RhoScalar_comp+NSCALARS)
 #define RhoQ2_comp     (RhoQ1_comp+1)
