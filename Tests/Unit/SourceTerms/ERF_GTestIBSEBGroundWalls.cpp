@@ -45,6 +45,15 @@ void fill_blanking (amrex::MultiFab& b, const amrex::Geometry& geom, const std::
     b.FillBoundary(geom.periodicity());
 }
 
+// Add v to one component over the valid cells of mf.
+void add_to_component (amrex::MultiFab& mf, int comp, amrex::Real v)
+{
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const auto a = mf.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { a(i, j, k, comp) += v; });
+    }
+}
+
 template <class T>
 std::vector<T> host (const amrex::Gpu::DeviceVector<T>& d)
 {
@@ -249,10 +258,7 @@ TEST(IBSEBGroundWalls, WhatTheFacesSendIsWhatTheGroundGets)
             auto alb = host(faces.d_albedo);
             for (auto& v : alb) { v *= Real(0.5); }
             to_device(faces.d_albedo, alb);
-            for (MFIter mfi(out); mfi.isValid(); ++mfi) {
-                const auto a = out.array(mfi);
-                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { a(i, j, k, IBFaceSet::GW_VIEW) += Real(1.0); });
-            }
+            add_to_component(out, IBFaceSet::GW_VIEW, Real(1.0));
             faces.compute_ground_walls(out, false);
             const auto view = table(out, IBFaceSet::GW_VIEW, nx, ny), sw = table(out, IBFaceSet::GW_SW, nx, ny);
             const auto lwv = table(out, IBFaceSet::GW_LW, nx, ny);
