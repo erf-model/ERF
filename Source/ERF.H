@@ -2414,7 +2414,7 @@ private:
     void initialize_structure_model ();
 
     /// Advance the structure model over this step of level lev, then check its support() against level lev+1
-    void advance_structure_model (int lev, double time, amrex::Real dt_lev,
+    void advance_structure_model (int lev, double time, double dt_lev,
                                   const amrex::MultiFab& U_old, const amrex::MultiFab& V_old,
                                   const amrex::MultiFab& W_old, const amrex::MultiFab& S_old);
 
