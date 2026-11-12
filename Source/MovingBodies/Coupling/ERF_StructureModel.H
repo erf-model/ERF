@@ -225,6 +225,8 @@ public:
      * advance(), ERF does not call it for the coarser levels. ERF writes the
      * source to its checkpoint, so after a restart, until the first advance(), it
      * restricts the checkpointed source instead: the model need not hold one.
+     * ERF also calls it when it writes a checkpoint; being const, it leaves the
+     * model as it was.
      */
     virtual void add_momentum_sources (int lev,
                                        amrex::MultiFab& xmom_src,

@@ -160,6 +160,22 @@ coarse_source_dir (const std::string& checkpointname)
 
 constexpr const char* coarse_source_face[3] = {"x_faces", "y_faces", "z_faces"};
 
+// The cell Jacobian the coarse-source restriction and its diagnostic weigh a face with:
+// detJ_cc on a stretched or terrain-following mesh, none (J = 1) on a uniform-dz mesh, where
+// detJ_cc may hold the EB volume fraction instead
+const MultiFab*
+coarse_source_jacobian (const Vector<std::unique_ptr<MultiFab>>& detJ_cc, int lev)
+{
+    return (SolverChoice::mesh_type != MeshType::ConstantDz) ? detJ_cc[lev].get() : nullptr;
+}
+
+// Whether two BoxArrays of the same index type cover the same region, however they are chunked
+bool
+covers_same_region (const BoxArray& a, const BoxArray& b)
+{
+    return a.ixType() == b.ixType() && a.contains(b) && b.contains(a);
+}
+
 } // namespace
 
 void
@@ -178,13 +194,18 @@ ERF::make_structure_coarse_sources (int lev)
 
     // The model holds a source on its level's grids only after an advance() on those grids.
     // After a restart, until that advance(), ERF has the source the model held when the
-    // checkpoint was written. Before the model's first step since the start, and after a
-    // regrid of its level until its next step, level lev takes this step without it. A regrid
-    // of level L after a restart, before the model's first step, drops the checkpointed
-    // source too, as the straight run, which regridded there as well, has none
+    // checkpoint was written, and copies it onto the level's grids below, however they are
+    // chunked. Before the model's first step since the start, and after a regrid of its level
+    // until its next step, level lev takes this step without it. A regrid of level L after a
+    // restart, before the model's first step, that changes the region the level covers drops
+    // the checkpointed source too: the source would be missing where the level grew
     if (m_structure_chk_src[0].isDefined() &&
-        m_structure_chk_src[0].boxArray() != convert(grids[L], IntVect::TheDimensionVector(0))) {
+        !covers_same_region(m_structure_chk_src[0].boxArray(),
+                            convert(grids[L], IntVect::TheDimensionVector(0)))) {
         for (MultiFab& mf : m_structure_chk_src) { mf.clear(); }
+        Print() << "Structure coupling: level " << L << " was regridded to another region before"
+                << " the model's first step after the restart; level " << lev
+                << " takes this step without the checkpointed source" << std::endl;
     }
     const bool from_model = (m_structure_src_ba == grids[L] && m_structure_src_dm == dmap[L]);
     if (!from_model && !m_structure_chk_src[0].isDefined()) { return; }
@@ -203,19 +224,16 @@ ERF::make_structure_coarse_sources (int lev)
     }
 
     // Down to level lev, keeping the force on terrain-following and stretched meshes too
-    const bool fitted = (SolverChoice::mesh_type != MeshType::ConstantDz);
     Vector<const MultiFab*> detJ(L + 1, nullptr);
     Vector<IntVect> rr(L);
     for (int l = 0; l <= L; ++l) {
-        if (fitted) { detJ[l] = detJ_cc[l].get(); }
+        detJ[l] = coarse_source_jacobian(detJ_cc, l);
         if (l < L) { rr[l] = refRatio(l); }
     }
-    // With erf.v > 0, the force on level lev and on level L, which must agree: the diagnostic
-    // takes the Jacobian on its own, not from the restriction's choice above
-    const MultiFab* detJ_L   = (SolverChoice::mesh_type != MeshType::ConstantDz) ? detJ_cc[L].get()   : nullptr;
-    const MultiFab* detJ_lev = (SolverChoice::mesh_type != MeshType::ConstantDz) ? detJ_cc[lev].get() : nullptr;
+    // With erf.v > 0, the force on level lev and on level L, which must agree
     std::array<Real,AMREX_SPACEDIM> force_L{};
-    if (verbose > 0) { force_L = erf_structure::face_source_force(src, geom[L], detJ_L); }
+    if (verbose > 0) { force_L = erf_structure::face_source_force(src, geom[L], detJ[L]); }
+    const MultiFab* detJ_lev = detJ[lev];
 
     erf_structure::restrict_face_sources(src, L, lev, grids, dmap, geom, rr, detJ);
 
@@ -250,10 +268,13 @@ ERF::write_structure_coarse_source_checkpoint (const std::string& checkpointname
             src[d].define(convert(grids[L], IntVect::TheDimensionVector(d)), dmap[L], 1, 0);
             src[d].setVal(Real(0.0));
         }
+        // add_momentum_sources() is const in StructureModel: asking for the source does not
+        // change the model, so writing a checkpoint leaves the run as it was
         m_structure_model->add_momentum_sources(L, src[0], src[1], src[2]);
         to_write = &src;
     } else if (!m_structure_chk_src[0].isDefined() ||
-               m_structure_chk_src[0].boxArray() != convert(grids[L], IntVect::TheDimensionVector(0))) {
+               !covers_same_region(m_structure_chk_src[0].boxArray(),
+                                   convert(grids[L], IntVect::TheDimensionVector(0)))) {
         return;
     }
 

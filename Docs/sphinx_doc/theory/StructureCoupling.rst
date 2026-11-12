@@ -143,7 +143,9 @@ the model's level-:math:`L` source to the checkpoint
 direction). After a restart, until the model's first ``advance()``, ERF
 restricts that source instead, so a restarted run steps the coarser levels as
 the straight run does, on any number of ranks. A regrid of the model's level
-before that ``advance()`` drops it, as a regrid does in the straight run. A checkpoint without it (or
+before that ``advance()`` keeps it when the level covers the same region, also
+in other boxes, and drops it, with a message, when the region changes: the
+source would be missing where the level grew. A checkpoint without it (or
 written for another level) restarts with the coarser levels stepping without
 the source until the first ``advance()``.
 
@@ -299,14 +301,19 @@ name; ``Structures_Abort_ExampleTestSupport`` checks that input's allowed
 values. ``Structures_ExampleModel_CoarseSourceRestart`` puts the model on a
 level-1 box around the point, so level 0 steps with the restricted source, and
 restarts from the mid-run checkpoint on three ranks instead of two: the final
-plotfiles must agree at zero tolerance on both levels.
+plotfiles must agree at zero tolerance on both levels. A second restart
+regrids level 1 into boxes of :math:`4^3` cells before the model's first step
+(``erf.regrid_int = 1``, ``amr.max_grid_size = 4``), the same region in other
+boxes: it must keep the source and agree to a relative :math:`10^{-12}`
+(dropping the source misses by :math:`7 \times 10^{-4}`).
 ``Structures_ExampleModel_CoarseSourceRestartTerrain`` repeats it over a
 ridge, to a relative :math:`10^{-12}`: on a fitted mesh the example's restart
 differs by round-off also with one level. Without the checkpointed source the
 velocities differ by :math:`10^{-4}` or more. Both run with ``erf.v = 1``, with
 which ERF prints the force of the restricted source and of the model's source
 (``structure coarse source:``); ``check_coarse_force.awk`` checks that they agree
-to a relative :math:`10^{-12}`. The
+to a relative :math:`10^{-12}`, and that the model's force is the 50 N it
+applies, which also catches a Jacobian missing on both levels alike. The
 unit tests ``StructureRegistry.*`` check the registry and the selection by
 ``erf.structures.model`` and the plot-name checks. The unit tests
 ``StructureCoarseSource.*`` check that the restriction keeps the force on every
