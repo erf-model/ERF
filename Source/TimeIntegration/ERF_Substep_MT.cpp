@@ -609,7 +609,7 @@ void erf_substep_MT (int step, int /*nrk*/,
 
             // line 2 (the slow w tendency carries the stage face volume; the row is divided by dJ_new_kface)
             RHS_a(i,j,k) = dtau * slow_rhs_rho_w(i,j,k) / dJ_new_kface
-                         + dtau * zmom_src_arr(i,j,k);
+                         + dtau * zmom_src_arr(i,j,k) * a_kface;
 
             RHS_a(i,j,k) += dtau * R0_tmp;
 
