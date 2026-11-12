@@ -617,12 +617,16 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp)
   build_erf_exe(erf_sbm_checkpoint_corruptor NO_ERF_MAIN)
 
-  # The fire coupling's smoke scalar adds a component ahead of the moisture
-  # ones in the checkpoint (NSCALARS in ERF_IndexDefines.H); every RunM3Smoke
-  # test passes the count so the runner can insert it in the expected values.
+  # The dust coupling's dust scalars and the fire coupling's smoke scalar add
+  # components ahead of the moisture ones in the checkpoint (NSCALARS in
+  # ERF_IndexDefines.H); every RunM3Smoke test passes the count so the runner
+  # can insert them in the expected values.
   set(_sbm_extra_scalars 0)
   if(ERF_ENABLE_FIRE)
     math(EXPR _sbm_extra_scalars "${_sbm_extra_scalars} + 1")
+  endif()
+  if(ERF_ENABLE_DUST)
+    math(EXPR _sbm_extra_scalars "${_sbm_extra_scalars} + ${ERF_NUM_DUST_SCALARS}")
   endif()
 
   add_test(NAME SBM_M3_ZeroCarrier_ERF_Smoke

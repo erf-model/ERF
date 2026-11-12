@@ -413,6 +413,17 @@ function(build_erf_lib erf_lib_name)
     message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS is set but ERF_ENABLE_FIRE is OFF")
   endif()
 
+  if(ERF_ENABLE_DUST)
+    # The dust scalars sit in the conserved state after the base scalar
+    # (ERF_IndexDefines.H), so their number is fixed when ERF is compiled
+    if(NOT ERF_NUM_DUST_SCALARS MATCHES "^[1-9][0-9]*$")
+      message(FATAL_ERROR "ERF_NUM_DUST_SCALARS = '${ERF_NUM_DUST_SCALARS}' must be a positive integer")
+    endif()
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_DUST ERF_NUM_DUST_SCALARS=${ERF_NUM_DUST_SCALARS})
+  elseif(ERF_DUST_MODEL_DIRS)
+    message(FATAL_ERROR "ERF_DUST_MODEL_DIRS is set but ERF_ENABLE_DUST is OFF")
+  endif()
+
   if(ERF_ENABLE_MOVING_BODIES)
     # The actuator core: velocity sampling at points, Gaussian force spreading onto the
     # momentum sources, wake sampling lines and running statistics, for bodies in the flow.

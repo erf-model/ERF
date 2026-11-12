@@ -259,7 +259,8 @@ ERF::WriteCheckpointFile () const
        HeaderFile << ncomp_cons << "\n";
 
        // The passive-scalar block is compile-time (NSCALARS: the base scalar,
-       // plus smoke with ERF_USE_FIRE), so record it next to the header: a
+       // plus the dust scalars with ERF_ENABLE_DUST, plus smoke with
+       // ERF_USE_FIRE), so record it next to the header: a
        // reader built differently would otherwise shift every component after
        // it (and with a difference of one take the QKE backward-compatibility
        // path below).
@@ -1472,7 +1473,8 @@ ERF::ReadCheckpointFile ()
 
     // The passive-scalar block of the writer (ScalarLayout): a different
     // NSCALARS means a build with or without the fire coupling's smoke scalar,
-    // whose components would be read shifted. Read on the IO rank and
+    // or with another number of dust scalars, whose components would be read
+    // shifted. Read on the IO rank and
     // broadcast, so every rank takes the same decision. A checkpoint without
     // the file was written before it was recorded, so with one passive scalar.
     {
@@ -1489,14 +1491,14 @@ ERF::ReadCheckpointFile ()
             ("Checkpoint " + restart_chkfile + " was written with " + std::to_string(nsc)
              + " passive scalar(s)" + (recorded ? "" : " (it records no scalar layout, so it predates the"
              " fire coupling's smoke scalar)") + " but this build has " + std::to_string(NSCALARS)
-             + " (ERF_USE_FIRE adds the smoke scalar); restart with a build configured like the one"
-             " that wrote it").c_str());
+             + " (ERF_USE_FIRE adds the smoke scalar, ERF_ENABLE_DUST adds ERF_NUM_DUST_SCALARS dust scalars);"
+             " restart with a build configured like the one that wrote it").c_str());
     }
 
     // NOTE: QKE was removed so this is for backward compatibility
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE((chk_ncomp_cons==ncomp_cons) || ((chk_ncomp_cons-1)==ncomp_cons),
         ("Checkpoint has " + std::to_string(chk_ncomp_cons) + " conserved components, this build "
-         + std::to_string(ncomp_cons) + ": was it written by a build with other modules (fire, moisture)?").c_str());
+         + std::to_string(ncomp_cons) + ": was it written by a build with other modules (fire, dust, moisture)?").c_str());
     //
     // See if we have a written separate file that tells how many components and how many ghost cells
     // we have of the base state
