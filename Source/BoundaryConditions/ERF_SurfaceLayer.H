@@ -176,6 +176,8 @@ public:
           pblh_type = PBLHeightCalcType::YSU;
       } else if (pblh_string == "mrf") {
           pblh_type = PBLHeightCalcType::MRF;
+      } else if (pblh_string == "ysunew") {
+          pblh_type = PBLHeightCalcType::YSUNew;
       } else {
           amrex::Abort("Undefined PBLH calc type!");
       }
@@ -781,7 +783,7 @@ public:
                   ba[ibox].smallEnd(2) == dom_lo_z && ba[ibox].bigEnd(2) == dom_hi_z,
                   "Surface layer boundaries on x/y faces require Cartesian grids that "
                   "span the full level z domain; partial-height refined grids and grids "
-                  "decomposed in z are not supported. Set erf.max_grid_size_z accordingly.");
+                  "decomposed in z are not supported. Set amr.max_grid_size_z accordingly.");
           }
       }
 
