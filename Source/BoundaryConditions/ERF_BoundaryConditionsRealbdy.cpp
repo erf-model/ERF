@@ -42,14 +42,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     Real oma   = one - alpha;
 
     // Flags for read vars and index mapping, built from the component layout
-    // (real_bdy_cons_maps) for any number of passive scalars, preserving the
-    // upstream hydrometeor read flags
-    const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
-        wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
-    const RealBdyConsMaps cons_maps = real_bdy_cons_maps(solverChoice.use_wrf_bdy_density,
-                                                         solverChoice.moisture_indices,
-                                                         solverChoice.use_wrf_bdy_qc_qi,
-                                                         separate_hydrometeors);
+    // (real_bdy_cons_maps) for any number of passive scalars
+    const RealBdyConsMaps cons_maps = real_bdy_cons_maps(solverChoice.use_wrf_bdy_density);
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_maps.read );
     is_read.push_back( {1} ); // xvel
@@ -121,8 +115,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
             {
                 int ivar    = ind_map[var_idx][comp_idx];
                 int bnd_var = bnd_ind_map[var_idx][comp_idx];
-                const bool clamp_wrf_moisture = solverChoice.use_wrf_bdy_qc_qi &&
-                    (comp_idx == solverChoice.moisture_indices.qv || ivar >= RealBdyVars::QC);
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
@@ -166,9 +158,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                                 dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                          + alpha * bdatxlo_np1(ii,jj,k,0);
                         }
-                        if (clamp_wrf_moisture) {
-                            dest_arr(i,j,k,comp_idx) = amrex::max(dest_arr(i,j,k,comp_idx), Real(0.0));
-                        }
                         if (var_idx == Vars::cons && comp_idx != Rho_comp) {
                             dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                         }
@@ -185,9 +174,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                                 jj = std::min(jj, dom_hi.y);
                                 dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
                                                          + alpha * bdatxhi_np1(ii,jj,k,0);
-                        }
-                        if (clamp_wrf_moisture) {
-                            dest_arr(i,j,k,comp_idx) = amrex::max(dest_arr(i,j,k,comp_idx), Real(0.0));
                         }
                         if (var_idx == Vars::cons && comp_idx != Rho_comp) {
                             dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
@@ -207,9 +193,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             dest_arr(i,j,k,comp_idx) = oma   * bdatylo_n  (i,jj,k,0)
                                                      + alpha * bdatylo_np1(i,jj,k,0);
                         }
-                        if (clamp_wrf_moisture) {
-                            dest_arr(i,j,k,comp_idx) = amrex::max(dest_arr(i,j,k,comp_idx), Real(0.0));
-                        }
                         if (var_idx == Vars::cons && comp_idx != Rho_comp) {
                             dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                         }
@@ -224,9 +207,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             int jj = std::min(j , dom_hi.y);
                             dest_arr(i,j,k,comp_idx) = oma   * bdatyhi_n  (i,jj,k,0)
                                                      + alpha * bdatyhi_np1(i,jj,k,0);
-                        }
-                        if (clamp_wrf_moisture) {
-                            dest_arr(i,j,k,comp_idx) = amrex::max(dest_arr(i,j,k,comp_idx), Real(0.0));
                         }
                         if (var_idx == Vars::cons && comp_idx != Rho_comp) {
                             dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
