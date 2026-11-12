@@ -8,6 +8,7 @@
 */
 
 #include <memory>
+#include <sstream>
 #include "ERF_Constants.H"
 
 #include "AMReX_buildInfo.H"
@@ -22,6 +23,47 @@
 using namespace amrex;
 
 namespace {
+
+//
+// The column PBL schemes (TurbChoice::pbl_requires_full_column) search and integrate each
+// column from the bottom to the top of the level inside one box, and assert that the box
+// spans the vertical domain the first time they run.  Check the grids whenever a level is
+// made or remade, so a decomposition that splits boxes in z stops here, naming the input
+// to change, instead of at that assert in the first step.
+//
+void
+check_pbl_full_column_boxes (int lev, const BoxArray& ba, const Geometry& geom,
+                             const TurbChoice& turbChoice)
+{
+    if (!turbChoice.pbl_requires_full_column()) { return; }
+
+    const Box& domain = geom.Domain();
+    const int klo = domain.smallEnd(2);
+    const int khi = domain.bigEnd(2);
+    const int nz  = domain.length(2);
+
+    for (int i = 0; i < ba.size(); ++i) {
+        const Box& b = ba[i];
+        if (b.smallEnd(2) == klo && b.bigEnd(2) == khi) { continue; }
+
+        std::ostringstream msg;
+        msg << "erf.pbl_type = " << getEnumNameString(turbChoice.pbl_type)
+            << " works on whole columns, so every box on level " << lev
+            << " must span the vertical domain, k = " << klo << " to " << khi
+            << " (" << nz << " cells), but box " << b << " spans k = "
+            << b.smallEnd(2) << " to " << b.bigEnd(2) << ". ";
+        if (lev == 0) {
+            msg << "Set amr.max_grid_size_z = " << nz << " (or larger).";
+        } else {
+            msg << "Refine whole columns on this level, with amr.max_grid_size_z of at least "
+                << nz << " here.";
+        }
+        msg << " amr.max_grid_size_z takes one value per level (amr.max_grid_size = a b c is"
+            << " also one size per level, not x, y and z), and amr.blocking_factor_z does not"
+            << " prevent a split in z.";
+        Abort(msg.str());
+    }
+}
 
 //
 // Fill the running sum of a time average on a level whose grids were just built.
@@ -163,6 +205,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         amrex::Print() <<            "BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
         // amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
     }
+
+    check_pbl_full_column_boxes(lev, ba, Geom(lev), solverChoice.turbChoice[lev]);
 
     // Grow only: the second MakeNewGrids pass makes this level again while the finer levels exist,
     // and resizing to lev+1 would drop their subdomains (erf-model/ERF#4988)
@@ -580,6 +624,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     if (verbose) {
         amrex::Print() <<" NEW BA FROM COARSE AT LEVEL " << lev << " " << ba << std::endl;
     }
+
+    check_pbl_full_column_boxes(lev, ba, Geom(lev), solverChoice.turbChoice[lev]);
 
     //
     // Grow the subdomains vector and build the subdomains vector at this level
@@ -1065,6 +1111,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     if (verbose) {
         amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
     }
+
+    check_pbl_full_column_boxes(lev, ba, Geom(lev), solverChoice.turbChoice[lev]);
 
     //
     // Re-define subdomain at this level within the domain such that

@@ -785,9 +785,11 @@ Avoiding Decomposition in the Vertical Direction
 
 Many ERF workflows want each box to span the full vertical extent of the domain
 or of the refined region -- for example because a physics package operates on
-entire columns.  (Native SHOC requires this and will abort if any box is split
-in z.)  ERF is set up so that this is the default behavior, in both places where
-grids are created.
+entire columns.  (Native SHOC and the column PBL schemes MYJ, MYNN25, MYNNEDMF,
+YSU, YSUNew and MRF require this: they stop when a level on which they are active
+is made with a box that does not span the vertical domain, which includes a
+refined level that covers only part of the domain's height.)  ERF is set up so
+that this is the default behavior, in both places where grids are created.
 
 The simplest and strongest control is **amr.no_box_split_dir**, which names a
 single direction in which the grid generator is never allowed to split a box.

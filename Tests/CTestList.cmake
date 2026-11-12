@@ -5002,6 +5002,15 @@ add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_S
 endif()
 endif()
 
+# A column PBL scheme (MRF here) on a level whose boxes do not span the vertical domain stops
+# when the level is made, naming the input, instead of at the scheme's assert in the first
+# step: the refined box of level 1 covers only the lower half of the domain.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_abort(PBL_Abort_FullColumn ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ABL_MRF_Tiling ABL_MRF_Tiling.i
+               "erf.pbl_type = MRF works on whole columns, so every box on level 1 must span the vertical domain"
+               "amr.max_level=1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices=8 8 0 erf.box1.in_box_hi_indices=23 23 15")
+endif()
+
 # A build without the fire or the dust coupling refuses a fire or dust deck instead
 # of running it as plain ERF. Their own tests live with the engines and models that
 # use them (erf-model/FLARE); ERF builds neither coupling in its tests.

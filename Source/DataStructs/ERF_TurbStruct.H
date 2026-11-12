@@ -990,6 +990,21 @@ public:
   }
 
   /**
+   * @brief Query whether the selected PBL scheme needs every box to span the vertical domain.
+   * @return True for the column schemes, which search and integrate each column from the
+   *         bottom to the top of the level inside one box. (Native SHOC checks this itself.)
+   */
+  bool pbl_requires_full_column () const noexcept
+  {
+      return (pbl_type == PBLType::MYJ)      ||
+             (pbl_type == PBLType::MYNN25)   ||
+             (pbl_type == PBLType::MYNNEDMF) ||
+             (pbl_type == PBLType::YSU)      ||
+             (pbl_type == PBLType::YSUNew)   ||
+             (pbl_type == PBLType::MRF);
+  }
+
+  /**
    * @brief Query whether the selected PBL scheme suppresses microphysics condensation.
    * @return True when the PBL scheme owns condensation handling.
    */
