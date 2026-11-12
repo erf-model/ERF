@@ -71,7 +71,7 @@ public:
      * Takes the fire grid and allocates the lagged flux buffers (zero) on the
      * k = 0 slabs of ba_atm, with 5 ghost columns. Public so that a test can
      * drive the coupling with an engine of its own without an ERF object
-     * (Tests/Unit/Fire/ERF_GTestFireCoupler.cpp).
+     * (erf-model/FLARE: Tests/Unit/Fire/ERF_GTestFireCoupler.cpp).
      *
      * @param[in] lev       The level the fire grid refines
      * @param[in] fg        The fire grid (create_fire_grid)
