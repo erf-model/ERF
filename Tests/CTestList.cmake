@@ -5101,6 +5101,38 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
             LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
             ATTACHED_FILES_ON_FAIL "${_smx_al_dir}/run.log")
       endforeach()
+      # The model on level 1 (a box over 100 to 300 m in x and y around the point, the kernel's reach
+      # 150 to 250 m, at all heights), so level 0 steps with the model's source restricted onto it
+      # (ERF::make_structure_coarse_sources). With erf.v = 1 ERF prints the force of the restricted source
+      # and of the model's source, which must agree to 1e-12 and equal the model's 50 N along x (check_coarse_force.awk,
+      # which also catches a Jacobian missing on both levels alike). The checkpoint holds
+      # the model's level-1 source (chk/StructureCoarseSource), so a restart from step 8 on 3 ranks instead
+      # of 2 must reproduce the final plotfile: without it level 0 would step 9 without the force, and the
+      # velocities differ by 1e-4 or more. On a uniform mesh at zero tolerance, and over a ridge
+      # (the restriction with the mesh Jacobian; without it the force differs by about 1e-3) to 1e-12
+      # relative: on a fitted mesh the example model's restart differs by round-off (1e-16) also with one
+      # level and before this check existed. A second restart regrids level 1 into 4^3-cell boxes before
+      # the model's first step (erf.regrid_int = 1, amr.max_grid_size = 4): the same region, chunked
+      # differently, so the checkpointed source must be kept (to 1e-12; dropping it misses by 7e-4).
+      set(_smx_cr_names Structures_ExampleModel_CoarseSourceRestart Structures_ExampleModel_CoarseSourceRestartTerrain)
+      set(_smx_cr_args_0 "")
+      set(_smx_cr_args_1 "erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=ScharMountain prob.a=80.0 prob.hm=60.0 prob.lambda=1.0e9 erf.grid_stretching_ratio=1.08 erf.initial_dz=12.0")
+      set(_smx_cr_rtol_0 "0")
+      set(_smx_cr_rtol_1 "1e-12")
+      set(_smx_cr_common "amr.max_level=1 structure.example.level=1 structure.example.epsilon=12.5 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices=8 8 0 erf.box1.in_box_hi_indices=23 23 31 erf.v=1 amrex.call_addr2line=0")
+      set(_smx_mpi3 "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}")
+      foreach(_smx_cr RANGE 0 1)
+        list(GET _smx_cr_names ${_smx_cr} _smx_cr_name)
+        set(_smx_cr_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${_smx_cr_name})
+        file(MAKE_DIRECTORY ${_smx_cr_dir})
+        file(COPY ${_smx_src}/inputs_structure_example DESTINATION ${_smx_cr_dir})
+        add_test(NAME ${_smx_cr_name}
+                 COMMAND sh -c "rm -rf plt0* chk0* rst rst4 && ${_smx_mpi} ${_smx_exe} inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} > straight.log 2>&1 && awk -v tol=1e-12 -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk straight.log && grep -q '^1$' chk00008/StructureCoarseSource/Level && mkdir rst && cd rst && ${_smx_mpi3} ${_smx_exe} ../inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} erf.restart=../chk00008 erf.check_int=-1 > ../restart.log 2>&1 && cd .. && awk -v tol=1e-12 -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk restart.log && ${FCOMPARE_EXE} --abs_tol 0 --rel_tol ${_smx_cr_rtol_${_smx_cr}} plt00016 rst/plt00016 && mkdir rst4 && cd rst4 && ${_smx_mpi3} ${_smx_exe} ../inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} erf.restart=../chk00008 erf.check_int=-1 erf.regrid_int=1 amr.max_grid_size=4 > ../restart4.log 2>&1 && cd .. && awk -v tol=1e-12 -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk restart4.log && ${FCOMPARE_EXE} --allow_diff_grids --abs_tol 0 --rel_tol 1e-12 plt00016 rst4/plt00016"
+                 WORKING_DIRECTORY ${_smx_cr_dir})
+        set_tests_properties(${_smx_cr_name} PROPERTIES
+            LABELS "regression;structures" TIMEOUT 600 PROCESSORS 3
+            ATTACHED_FILES_ON_FAIL "${_smx_cr_dir}/straight.log;${_smx_cr_dir}/restart.log;${_smx_cr_dir}/restart4.log")
+      endforeach()
       add_test_abort(Structures_Abort_UnknownModel ${_smx_src} inputs_structure_example
                      "erf.structures.model = .no_such_model. is not one of the structure models compiled in .*\"example\""
                      "erf.structures.model=no_such_model")
