@@ -2,6 +2,7 @@
 # builtin repository (spack/spack-packages), which must be registered too.
 
 import itertools
+import json
 import os
 
 from spack_repo.builtin.build_systems.cmake import CMakePackage
@@ -739,6 +740,56 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         erf_exec = self._erf_exe()
         out = erf_exec("--help", output=str.split, error=str.split)
         assert "usage" in out.lower()
+
+    def test_describe_json(self):
+        """installed build features and precision match the Spack spec"""
+        if not self.spec.satisfies("@26.12:"):
+            raise SkipTest("--describe-json requires ERF 26.12 or newer")
+        description = json.loads(self._erf_exe()("--describe-json", output=str))
+        assert description["application"] == "ERF"
+        assert description["dimension"] == 3
+        bits = {"single": 32, "double": 64}
+        precision = self.spec.variants["precision"].value
+        assert description["real_bits"] == bits[precision]
+        particle_precision = self.spec.variants["particles_precision"].value
+        if particle_precision == "same":
+            particle_precision = precision
+        expected_bits = bits[particle_precision] if self.spec.satisfies("+particles") else None
+        assert description["particle_real_bits"] == expected_bits
+        backend = next(
+            (
+                name
+                for variant, name in (("cuda", "cuda"), ("rocm", "hip"), ("sycl", "sycl"))
+                if self.spec.satisfies(f"+{variant}")
+            ),
+            "none",
+        )
+        assert description["gpu_backend"] == backend
+        for variant in (
+            "mpi",
+            "openmp",
+            "particles",
+            "fft",
+            "netcdf",
+            "hdf5",
+            "noahmp",
+            "rrtmgp",
+            "eamxx_shoc",
+            "windfarm",
+            "fire",
+            "moving_bodies",
+            "multiblock",
+            "ml_uphys_diagnostics",
+            "morr_fort",
+            "wsm6_fort",
+            "wdm6_fort",
+        ):
+            feature = {
+                "morr_fort": "morrison_fortran",
+                "wsm6_fort": "wsm6_fortran",
+                "wdm6_fort": "wdm6_fortran",
+            }.get(variant, variant)
+            assert description["features"][feature] is self.spec.satisfies(f"+{variant}"), feature
 
     def test_scalar_advection(self):
         """run two steps of the uniform-velocity scalar advection case"""
