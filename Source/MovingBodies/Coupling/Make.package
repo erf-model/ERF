@@ -1,4 +1,6 @@
 CEXE_headers += ERF_StructureModel.H
 CEXE_headers += ERF_StructureModelRegistry.H
+CEXE_headers += ERF_StructureCoarseSource.H
 CEXE_sources += ERF_StructureModelRegistry.cpp
 CEXE_sources += ERF_StructureCoupling.cpp
+CEXE_sources += ERF_StructureCoarseSource.cpp

@@ -260,9 +260,9 @@ Test configuration options
    * - ``ERF_ENABLE_PARTICLES``
      - Enables particle code and tests that depend on it.
    * - ``ERF_ENABLE_FIRE``
-     - Enables the fire coupling and its tests (``FireCoupler``, ``FireAnchorLevel``,
-       ``FirePrecip``, ``ExnerTendency``, ``HeatInjection``, ``SmokeInjection``, and
-       ``FireCouplingGTests_FpeTraps``, which reruns them with floating-point traps armed).
+     - Enables the fire coupling. ERF registers no fire tests: the coupling's unit tests
+       (``FireCoupler``, ``FireAnchorLevel``, ``FirePrecip`` and others) live in
+       erf-model/FLARE, with the engines that use the coupling.
    * - ``ERF_ENABLE_MOVING_BODIES``
      - Enables the actuator core, the structure coupling and their tests (``ActuatorSampling``,
        ``ActuatorSpreading``, ``WakeLines``, ``RunningStats``, ``StructureRegistry``; the first

@@ -133,12 +133,16 @@ struct IBSEBParams
     // cell: u* from the tangential wind at half a cell from the wall with the
     // roughness length z0_wall, theta* from the skin-to-air difference with
     // z0h_wall; H = rho c_p u* theta* (positive out of the face). Neutral on
-    // every face unless stability_correction is set, which applies the
-    // surface layer's similarity functions on roofs. couple_heat = false
+    // every face unless stability_correction is set, which corrects the
+    // roofs for stability with stability_scheme: "iterative" (the surface
+    // layer's similarity functions on the face's own Obukhov length) or
+    // "louis" (Louis 1979 explicit factors on the bulk Richardson number).
+    // couple_heat = false
     // diagnoses H without adding it to the temperature equation.
     amrex::Real z0_wall           = 0.01;   ///< Momentum roughness of the faces [m]
     amrex::Real z0h_wall          = 0.001;  ///< Heat roughness of the faces [m]
     bool        stability_correction = false;
+    std::string stability_scheme  = "iterative";  ///< "iterative" or "louis" (with stability_correction)
     bool        couple_heat       = true;   ///< Add the face flux to the temperature equation
 
     // ---- Ground heat flux and materials -------------------------------------
@@ -245,6 +249,7 @@ struct IBSEBParams
         pp.query("z0_wall",          z0_wall);
         pp.query("z0h_wall",         z0h_wall);
         pp.query("stability_correction", stability_correction);
+        pp.query("stability_scheme", stability_scheme);
         pp.query("couple_heat",      couple_heat);
         pp.query("material_file",    material_file);
         pp.query("material_default", material_default);
@@ -364,6 +369,15 @@ struct IBSEBParams
             }
             if (beta_conv <= 0.0 || z_i <= 0.0 || ri_crit <= 0.0) { amrex::Abort("erf.ibseb.beta_conv, z_i and ri_crit must be positive"); }
             if (obukhov_relax <= 0.0 || obukhov_relax > 1.0) { amrex::Abort("erf.ibseb.obukhov_relax must be in (0, 1]"); }
+            if (stability_scheme != "iterative" && stability_scheme != "louis") {
+                amrex::Abort("erf.ibseb.stability_scheme must be \"iterative\" or \"louis\"");
+            }
+            if (pp.contains("stability_scheme") && !stability_correction) {
+                amrex::Abort("erf.ibseb.stability_scheme selects the roofs' stability correction; set erf.ibseb.stability_correction = true or remove it");
+            }
+            if (stability_scheme == "louis" && (pp.contains("obukhov_seed") || pp.contains("obukhov_relax"))) {
+                amrex::Abort("erf.ibseb.obukhov_seed and obukhov_relax belong to stability_scheme = \"iterative\"; remove them with \"louis\"");
+            }
         }
     }
 };

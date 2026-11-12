@@ -658,7 +658,9 @@ ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
     // here is the ground beneath the buildings, so take zlo; a surface layer on a
     // lateral or upper wall says nothing about the stability of this column.
     const auto& ground_sl = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
-    if (ground_sl && ibseb_params.stability_correction) { olen2d = ground_sl->get_olen(lev); }
+    if (ground_sl && ibseb_params.stability_correction && ibseb_params.stability_scheme == "iterative") {
+        olen2d = ground_sl->get_olen(lev);   // seed of the iteration; the Louis factors need none
+    }
     if (ibseb_params.convective_velocity == "deardorff") {
         if (ground_sl && ground_sl->computes_pblh() && ibseb_params.z_i_mode == "pblh") {
             pblh2d = ground_sl->get_pblh(lev);
