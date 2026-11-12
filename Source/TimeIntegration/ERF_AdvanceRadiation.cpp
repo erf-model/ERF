@@ -402,7 +402,7 @@ void ERF::advance_radiation (int lev,
                       lmask_lev[lev][0].get(), t_surf,
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
-                      z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
+                      z_phys_nd[lev].get()     , z_sfc_nd[lev].get(), lat_ptr, lon_ptr,
                       terrain_radiation && !topographic_radiation.forcing_ready(lev),
                       solar_declin, calday);
 
