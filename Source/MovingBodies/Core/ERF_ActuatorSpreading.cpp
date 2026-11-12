@@ -154,18 +154,11 @@ struct KernelFaces
         if (!zb.all_ground && !zb.has_table()) { zb = ZBounds{}; }
     }
 
-    // The index box of the faces of grid dir within reach of a point at (px,py,pz); with z_phys_nd
-    // (terrain-following or stretched) a face's height is not its index times dz, so the box takes
+    // The index boxes of the faces of the three face grids within reach of a point at (px,py,pz); with
+    // z_phys_nd (terrain-following or stretched) a face's height is not its index times dz, so a box takes
     // every k a height within reach may lie in, from the mesh's bounds (with the table of the rank's node
     // heights where its boxes do not all reach the ground), and kernel_weight's cut-off at 3 eps, measured
-    // in physical heights, picks the faces
-    Box reach_box (int dir, Real px, Real py, Real pz, Real eps) const
-    {
-        int kb = dlo[2], kt = dhi[2];
-        if (has_znd) { zb.k_range(pz - Real(3.0) * eps, pz + Real(3.0) * eps, dlo[2], dhi[2], kb, kt); }
-        return reach_box_k(dir, px, py, pz, eps, kb, kt);
-    }
-    // The same for the three face grids, the cells in z found once
+    // in physical heights, picks the faces. The cells in z are found once for the three grids
     std::array<Box,3> reach_boxes (Real px, Real py, Real pz, Real eps) const
     {
         int kb = dlo[2], kt = dhi[2];
@@ -173,7 +166,7 @@ struct KernelFaces
         return {{reach_box_k(0, px, py, pz, eps, kb, kt), reach_box_k(1, px, py, pz, eps, kb, kt),
                  reach_box_k(2, px, py, pz, eps, kb, kt)}};
     }
-    // reach_box with the cells [kb, kt] a height within reach may lie in (used with z_phys_nd only)
+    // The box of grid dir, with the cells [kb, kt] a height within reach may lie in (used with z_phys_nd only)
     Box reach_box_k (int dir, Real px, Real py, Real pz, Real eps, int kb, int kt) const
     {
         const Real pc[3] = {px, py, pz};
@@ -221,7 +214,7 @@ constexpr int tile_size = 8;
 // The periodic images of every point, made once per call (not per box and face grid) and sent to the
 // device in one copy each, in point order and, for a point, in point_images' order, which is the order
 // in which the passes add their terms: the image's position, its point, and the faces of each grid
-// within its reach (reach_box). Also each point's 1 / eps^2 and squared cut-off radius.
+// within its reach (reach_boxes). Also each point's 1 / eps^2 and squared cut-off radius.
 struct KernelImages
 {
     std::vector<std::array<Real,3>> pos;
