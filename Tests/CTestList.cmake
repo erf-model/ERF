@@ -2149,6 +2149,22 @@ function(add_test_shift_invariance TEST_NAME TEST_FILES_DIR SHIFT VARS OPTIONS_A
         LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/runA.log;${CURRENT_TEST_BINARY_DIR}/runB.log")
 endfunction(add_test_shift_invariance)
 
+# A moving lower surface (erf.most.surface_current) on a horizontally uniform case without
+# gravity or rotation, run twice: with the wind and the surface current both 2 m/s faster in x
+# and y, and with neither. The surface layer sees the same relative wind, so after a few steps
+# the second run's velocities must be the first's less 2 m/s, profile and all.  Ignoring the
+# current, or applying it with the wrong sign, changes the surface stress and so the profile.
+function(add_test_surface_current_galilean TEST_NAME TEST_FILES_DIR)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_run "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i 'amr.n_cell=8 8 64' max_step=5 erf.plot_int_1=5 erf.check_int=-1")
+    add_test(${TEST_NAME} sh -c
+      "${_run} erf.plot_file_1=pltA prob.U_0=12 prob.V_0=3 'erf.most.surface_current=2 2' > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} erf.plot_file_1=pltB prob.U_0=10 prob.V_0=1 > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_shift_invariance.py ${CURRENT_TEST_BINARY_DIR}/pltA00005 ${CURRENT_TEST_BINARY_DIR}/pltB00005 --shift 0 --vars x_velocity y_velocity --tol 1e-12 --offset -2 --offset-vars x_velocity y_velocity")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/runA.log;${CURRENT_TEST_BINARY_DIR}/runB.log")
+endfunction(add_test_surface_current_galilean)
+
 function(add_test_v_perturbation TEST_NAME EXPECT OPTIONS)
     set(TEST_FILES_DIR Poiseuille_PertV)
     setup_test()
@@ -2183,6 +2199,7 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   # pert_delta_v alone gives a y-velocity perturbation; pert_delta_u alone does not
   add_test_v_perturbation(Poiseuille_PertV_Only "nonzero" "")
   add_test_v_perturbation(Poiseuille_PertU_Only "zero" "prob.pert_delta_u=2.0 prob.pert_delta_v=0.0")
+  add_test_surface_current_galilean(ABL_MOST_SurfaceCurrentGalilean ABL_MOST)
 endif()
 
 # Tagging on fields (#5036): Tests/check_tagging_conditions.py recomputes the cells a refinement

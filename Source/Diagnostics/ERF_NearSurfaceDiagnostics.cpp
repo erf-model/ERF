@@ -236,6 +236,7 @@ void fill_wind_10m (MultiFab& dst,
     const bool have_surface_layer = sources.u_star && sources.roughness_height &&
                                     sources.obukhov_length && sources.xvel && sources.yvel;
     const bool have_rotation = sources.cos_alpha && sources.sin_alpha;
+    const bool have_current = sources.current_x && sources.current_y;
     const int klo = sources.klo;
 
 #ifdef _OPENMP
@@ -250,6 +251,8 @@ void fill_wind_10m (MultiFab& dst,
         const auto olen = array_or_empty(sources.obukhov_length, mfi);
         const auto u = array_or_empty(sources.xvel, mfi);
         const auto v = array_or_empty(sources.yvel, mfi);
+        const auto cu = array_or_empty(sources.current_x, mfi);
+        const auto cv = array_or_empty(sources.current_y, mfi);
         const auto cosa = array_or_empty(sources.cos_alpha, mfi);
         const auto sina = array_or_empty(sources.sin_alpha, mfi);
         const similarity_funs sfuns = sources.sfuns;
@@ -262,13 +265,22 @@ void fill_wind_10m (MultiFab& dst,
                 valid_real(ustar(i,j,0)) && ustar(i,j,0) >= zero &&
                 evaluate_most_momentum_factor(z0(i,j,0), olen(i,j,0), wind_height, factor, sfuns)) {
                 const Real speed = ustar(i,j,0) / KAPPA * factor;
-                // The direction of the wind at the centre of the first cell
-                const Real u_cc = myhalf * (u(i,j,klo) + u(i+1,j,klo));
-                const Real v_cc = myhalf * (v(i,j,klo) + v(i,j+1,klo));
+                // The direction of the wind at the centre of the first cell, relative to
+                // the surface, and the current that is added back
+                Real u_cc, v_cc, current_u = zero, current_v = zero;
+                if (have_current) {
+                    u_cc = myhalf * ((u(i,j,klo) - cu(i,j,klo)) + (u(i+1,j,klo) - cu(i+1,j,klo)));
+                    v_cc = myhalf * ((v(i,j,klo) - cv(i,j,klo)) + (v(i,j+1,klo) - cv(i,j+1,klo)));
+                    current_u = myhalf * (cu(i,j,klo) + cu(i+1,j,klo));
+                    current_v = myhalf * (cv(i,j,klo) + cv(i,j+1,klo));
+                } else {
+                    u_cc = myhalf * (u(i,j,klo) + u(i+1,j,klo));
+                    v_cc = myhalf * (v(i,j,klo) + v(i,j+1,klo));
+                }
                 const Real speed_cc = std::sqrt(u_cc*u_cc + v_cc*v_cc);
                 if (valid_real(speed) && speed >= zero && valid_real(speed_cc)) {
-                    u10 = (speed_cc > zero) ? speed * u_cc / speed_cc : zero;
-                    v10 = (speed_cc > zero) ? speed * v_cc / speed_cc : zero;
+                    u10 = current_u + ((speed_cc > zero) ? speed * u_cc / speed_cc : zero);
+                    v10 = current_v + ((speed_cc > zero) ? speed * v_cc / speed_cc : zero);
                 }
             }
 

@@ -103,6 +103,20 @@ public:
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim);
 
     /**
+     * Average these horizontal velocities instead of the level's own, until the next
+     * update_field_ptrs. They must have the layout and ghost cells of the level's.
+     *
+     * @param[in] lev  level index
+     * @param[in] xvel x-velocity to average
+     * @param[in] yvel y-velocity to average
+     */
+    void set_velocity_field_ptrs (const int& lev, amrex::MultiFab* xvel, amrex::MultiFab* yvel)
+    {
+        m_fields[lev][0] = xvel;
+        m_fields[lev][1] = yvel;
+    }
+
+    /**
      * Update the rotated fields.
      *
      * @param[in] lev level index

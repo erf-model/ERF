@@ -416,6 +416,21 @@ public:
       // (wrfinput data may have lower resolution SST data)
       pp.queryAdd("most.ignore_sst", m_ignore_sst);
 
+      // A uniform current of the lower surface [m/s, along grid x and y]. The surface
+      // layer then takes the wind relative to the surface, as over an ocean current.
+      if (m_face == amrex::Orientation(amrex::Direction::z, amrex::Orientation::low)) {
+          amrex::Vector<amrex::Real> current;
+          if (pp.queryarr("most.surface_current", current)) {
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(current.size() == 2,
+                  "most.surface_current takes two components, along x and y.");
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_terrain_type != TerrainType::EB,
+                  "most.surface_current is not supported with EB terrain.");
+              m_use_surface_current = true;
+              m_surface_current_const[0] = current[0];
+              m_surface_current_const[1] = current[1];
+          }
+      }
+
       // If we're using the RANS k model, then we need to update the dirichlet
       // wall value of k (written into the first cell above the wall and held
       // there through the step) based on the instantaneous u* and θ*; the turbulence modeling
@@ -550,6 +565,11 @@ public:
 
           m_coupled_sst_lev.resize(nlevs, nullptr);
           m_coupled_sst_valid_lev.resize(nlevs, nullptr);
+
+          m_surface_current_x.resize(nlevs);
+          m_surface_current_y.resize(nlevs);
+          m_rel_xvel.resize(nlevs);
+          m_rel_yvel.resize(nlevs);
 
           // Size the MOST params for all levels
           z_0.resize(nlevs);
@@ -1407,6 +1427,44 @@ public:
                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim)
   {
       m_ma.update_field_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
+      if (m_use_surface_current) {
+          // Average the wind relative to the surface
+          build_relative_velocities(lev, vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel]);
+          m_ma.set_velocity_field_ptrs(lev, m_rel_xvel[lev].get(), m_rel_yvel[lev].get());
+      }
+  }
+
+  /**
+   * Fill the velocities relative to the surface current, allocating them and the current
+   * for this level's layout when it is new or has changed.
+   *
+   * The current is held on the x- and y-faces of the plane k = klo, one 2D box for each
+   * box of the velocities, with their lateral ghost cells.
+   *
+   * @param[in] lev  level index
+   * @param[in] xvel x-velocity on the level
+   * @param[in] yvel y-velocity on the level
+   */
+  void build_relative_velocities (int lev, const amrex::MultiFab& xvel,
+                                  const amrex::MultiFab& yvel);
+
+  /**
+   * Whether the surface layer takes the wind relative to a current of the surface.
+   */
+  [[nodiscard]] bool use_surface_current () const { return m_use_surface_current; }
+
+  /**
+   * Return a component of the surface current on its faces of the plane k = klo, or
+   * null when there is none on this level.
+   *
+   * @param[in] lev  level index
+   * @param[in] comp 0 for the x-component on x-faces, 1 for the y-component on y-faces
+   */
+  [[nodiscard]] const amrex::MultiFab* get_surface_current (int lev, int comp) const
+  {
+      const auto& current = (comp == 0) ? m_surface_current_x : m_surface_current_y;
+      return (m_use_surface_current && lev < static_cast<int>(current.size()))
+             ? current[lev].get() : nullptr;
   }
 
   /**
@@ -2014,6 +2072,17 @@ private:
   // lower-boundary SST/TSK value filled earlier in update_fluxes stands.
   amrex::Vector<amrex::MultiFab*>  m_coupled_sst_lev;
   amrex::Vector<amrex::iMultiFab*> m_coupled_sst_valid_lev;
+
+  // Current of the lower surface (most.surface_current): the uniform value read from the
+  // inputs, and per level its x-component on the x-faces and y-component on the y-faces of
+  // the plane k = klo. The surface layer averages and applies the wind relative to it, held
+  // in m_rel_xvel and m_rel_yvel on the velocities' layout.
+  bool m_use_surface_current = false;
+  amrex::Real m_surface_current_const[2] = {zero, zero};
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_x;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_y;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_xvel;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_yvel;
   // External absolute skin temperature per level (set_skin_temperature), owned
   // by the caller; nullptr where none is supplied.
   amrex::Vector<const amrex::MultiFab*> m_skin_tsurf_lev;

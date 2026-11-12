@@ -315,6 +315,29 @@ boundary layer depth, ``erf.most.include_wstar`` requires ``erf.most.pblh_calc``
 name a PBL height scheme; leaving it at its default of ``none`` is an error, since no
 boundary layer depth would ever be diagnosed.
 
+.. _sec:MovingSurface:
+
+Moving surface
+~~~~~~~~~~~~~~
+Over an ocean the surface moves with the current, and the stress depends on the wind
+relative to it (e.g. Bye and Wolff 1999, JPO). With
+
+::
+
+   erf.most.surface_current = 0.5 0.2
+
+the lower surface moves at 0.5 m/s along x and 0.2 m/s along y, and the surface layer
+takes :math:`(u - u_s, v - v_s)` wherever it uses the near-surface wind: in the mean
+speed :math:`|\bar{\mathbf{u}}|` and mean components behind :math:`u_*`, the Obukhov length
+and the roughness, in the direction and magnitude of the stresses, and in the wind speed
+of the heat and moisture fluxes. The 10 m wind diagnostics ``u_10m`` and ``v_10m`` are the
+relative wind from the similarity profile plus the current, so they remain winds over the
+ground. Turbulence closures that read the lowest-level wind directly rather than through the
+surface layer, such as the countergradient terms of YSU, still use the absolute wind.
+
+The current is applied at the z-low face on every level, and is not supported with EB
+terrain.
+
 Limits on the similarity solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 In every flux kernel the log-law brackets :math:`C - \psi_m` and :math:`C - \psi_h`, with
