@@ -137,6 +137,16 @@
                      forest_drag, &S_old[IntVars::cons],
                      true, ib_wall_hfx[level].get(), ib_wall_ktarget[level].get(), ib_wall_qfx[level].get());
 
+#ifdef ERF_USE_DUST
+        // *****************************************************************************
+        // The dust model's emission, settling and deposition, added AFTER
+        // make_sources, which resets cc_src at every RK stage
+        // *****************************************************************************
+        if (m_dust_model) {
+            m_dust_model->add_sources(level, cc_src, S_data[IntVars::cons], *dJ_to_use, fine_geom, slow_dt);
+        }
+#endif
+
         // *****************************************************************************
         // Inject the fire-to-atmosphere heat flux AFTER make_sources, which resets
         // cc_src at every RK stage. The lagged fire flux (FireCoupler) is constant
@@ -234,7 +244,7 @@
         // *****************************************************************************
         int num_q = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
         make_buoyancy(level, S_data, S_prim, qt, buoyancy, fine_geom, solverChoice, base_to_use,
-                      num_q, get_eb(level), solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible);
+                      num_q, get_eb(level), solverChoice.compressibility_type[level] == CompressibilityType::Anelastic);
 
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
@@ -293,10 +303,35 @@
                               thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
         // *****************************************************************************
+        // Pseudo-incompressible: advect the cell-centered scalars of this stage with the upwind
+        // direction of the projection that made S_data (kept for erf_slow_rhs_post, since the
+        // projection at the end of this stage overwrites pi_upw_dir)
+        // *****************************************************************************
+        Array<const MultiFab*,AMREX_SPACEDIM> upw_dir{AMREX_D_DECL(nullptr,nullptr,nullptr)};
+        const bool l_pi_src = (solverChoice.compressibility_type[level] == CompressibilityType::PseudoIncompressible &&
+                               solverChoice.terrain_type != TerrainType::EB);
+        if (l_pi_src) {
+            for (auto* m : {&pi_adv_rt[level], &pi_src[level]}) {
+                if (!*m || (*m)->boxArray() != grids[level] || (*m)->DistributionMap() != dmap[level]) {
+                    *m = std::make_unique<MultiFab>(grids[level], dmap[level], 1, 0);
+                    (*m)->setVal(zero_d);
+                }
+            }
+        }
+        if (l_pi_src) {
+            define_pi_upw_dir(level);
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                MultiFab::Copy(*pi_upw_dir_stage[level][idim], *pi_upw_dir[level][idim], 0, 0, 1, 0);
+                upw_dir[idim] = pi_upw_dir_stage[level][idim].get();
+            }
+        }
+
+        // *****************************************************************************
         // Define RHS for rho, rho_theta and momenta
         // *****************************************************************************
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data,
-                         S_prim, qt, avg_xmom[level], avg_ymom[level], avg_zmom[level],
+                         S_prim, qt, avg_xmom[level], avg_ymom[level], avg_zmom[level], upw_dir,
+                         l_pi_src ? pi_adv_rt[level].get() : nullptr,
                          xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
@@ -402,10 +437,25 @@
         }
 
         // *****************************************************************************
+        // Pseudo-incompressible: the non-advective tendency of (rho theta) in this stage, the
+        // whole (rho theta) RHS (now including any implicit diffusion) less its advective part
+        // *****************************************************************************
+        if (l_pi_src) {
+            MultiFab::Copy    (*pi_src[level], S_rhs[IntVars::cons], RhoTheta_comp, 0, 1, 0);
+            MultiFab::Subtract(*pi_src[level], *pi_adv_rt[level], 0, 0, 1, 0);
+        }
+
+        // *****************************************************************************
         // Update for moving terrain
         // *****************************************************************************
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
+            // The column update below works on valid cells, reading only the cells above and below in the
+            // same column, so it needs no ghost-cell fill first.  The ghost planes below and above the
+            // column keep the values the initialization gave them, which are finite (the base-state BCs
+            // leave them alone on a moving mesh, see ERFPhysBCFunct_base): the bottom-face flux is
+            // extrapolated from the three lowest cells, and the top-face flux is zero (z_t = 0 there).
+
             MultiFab  r_hse_new (base_state_new[level], make_alias, BaseState::r0_comp, 1);
             MultiFab  p_hse_new (base_state_new[level], make_alias, BaseState::p0_comp, 1);
             MultiFab pi_hse_new (base_state_new[level], make_alias, BaseState::pi0_comp, 1);
@@ -458,7 +508,8 @@
                const Array4<Real const>& dJ_new_arr = detJ_cc_new[level]->const_array(mfi);
                const Array4<Real const>& dJ_src_arr = detJ_cc_src[level]->const_array(mfi);
 
-               Box gbx = mfi.growntilebox({1,1,1});
+               // Valid cells and the planes above and below them, which the fluxes read
+               Box gbx = mfi.tilebox(); gbx.grow(2,1);
                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
                    rt0_arr(i,j,k)     = getRhoThetagivenP(p0_arr(i,j,k));
@@ -466,14 +517,35 @@
                    r0_tmp_arr(i,j,k)  = r0_new_arr(i,j,k);
                });
 
-               Box gbx2 = mfi.growntilebox({1,1,0});
+               const int klo_base = fine_geom.Domain().smallEnd(2);
+               // Valid cells only; the ghost cells are filled from them below.  Every grid spans the
+               // full height of the domain (checked in ERF::ReadParameters), so the three lowest cells
+               // the bottom-face extrapolation reads are in this box
+               Box gbx2 = mfi.tilebox();
                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                {
                    Real zflux_r_lo = -z_t_arr(i,j,k  ) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
                    Real zflux_r_hi = -z_t_arr(i,j,k+1) * myhalf * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
+                   if (k == klo_base) {
+                       // The ghost cell below klo is not on the new mesh (the vertical ghost planes of the
+                       // base state are not filled on a moving mesh), so the average above is not a
+                       // bottom-face value; use the quadratic extrapolation to the bottom face from the
+                       // three lowest cells, of equal spacing in the computational coordinate. At the
+                       // top face z_t = 0, so the ghost cell above the column only has to be finite.
+                       zflux_r_lo = -z_t_arr(i,j,k) *
+                           ( Real(1.875)*r0_tmp_arr(i,j,k) - Real(1.25)*r0_tmp_arr(i,j,k+1)
+                            + Real(0.375)*r0_tmp_arr(i,j,k+2) );
+                   }
 
                    Real zflux_rt_lo = zflux_r_lo * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
                    Real zflux_rt_hi = zflux_r_hi * myhalf * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
+                   if (k == klo_base) {
+                       // theta_0 at the bottom face by the same extrapolation
+                       zflux_rt_lo = zflux_r_lo *
+                           ( Real(1.875)*(rt0_tmp_arr(i,j,k  )/r0_tmp_arr(i,j,k  ))
+                            - Real(1.25)*(rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1))
+                           + Real(0.375)*(rt0_tmp_arr(i,j,k+2)/r0_tmp_arr(i,j,k+2)) );
+                   }
 
                    Real invdetJ = one / dJ_src_arr(i,j,k);
 
@@ -492,9 +564,13 @@
                    th0_new_arr(i,j,k) = rt0_tmp_new / r0_new_arr(i,j,k);
                });
             } // MFIter
-            r0_new->FillBoundary(fine_geom.periodicity());
-            p0_new->FillBoundary(fine_geom.periodicity());
-            th0_new->FillBoundary(fine_geom.periodicity());
+            // Lateral and periodic ghost cells of the updated base state, on the new mesh (the functor
+            // starts with the periodic and interior FillBoundary).  The vertical
+            // ghost planes are again left alone: nothing that uses this base state on a moving mesh
+            // changes the solution through them.  The pressure gradient, buoyancy and cell-centred
+            // sources read only cells inside the domain; the momentum sponge reads the plane below at
+            // the bottom face, where w is set by the boundary condition instead.
+            (*physbcs_base_new[level])(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());
         }
 
 #ifdef ERF_USE_NETCDF

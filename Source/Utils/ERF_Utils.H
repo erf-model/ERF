@@ -293,6 +293,17 @@ void make_zcc (const amrex::Geometry& geom,
                amrex::MultiFab& z_phys_cc);
 
 /*
+ * Height of the bottom of the domain at each node of the 2D projection of z_phys_nd's
+ * grids; a box that does not reach the bottom interpolates it from z_sfc_crse, the
+ * coarser level's, which must then be given
+ */
+void make_zsfc_nd (const amrex::Geometry& geom,
+                   const amrex::MultiFab& z_phys_nd,
+                   amrex::MultiFab& z_sfc_nd,
+                   const amrex::MultiFab* z_sfc_crse = nullptr,
+                   const amrex::IntVect& ref_ratio = amrex::IntVect(1));
+
+/*
  * Convert momentum to velocity by dividing by density averaged onto faces
  */
 void MomentumToVelocity (amrex::MultiFab& xvel_out,
@@ -341,6 +352,17 @@ MakeProjectionWeights (const amrex::MultiFab& den_div, const amrex::MultiFab& de
                        const amrex::MultiFab& xmom, const amrex::MultiFab& ymom, const amrex::MultiFab& zmom,
                        amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& beta,
                        const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+
+/*
+ * Face weights beta = den_mlt/den_div mapped onto faces with the advection scheme's reconstruction
+ */
+void
+MakeAdvectiveProjectionWeights (const amrex::MultiFab& den_div, const amrex::MultiFab& den_mlt,
+                                const amrex::MultiFab& xmom, const amrex::MultiFab& ymom, const amrex::MultiFab& zmom,
+                                amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& beta,
+                                const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                                const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
+                                const amrex::Periodicity& period);
 
 /*
  * Compute lateral boundary mass influx/outflux from base-state-density-weighted

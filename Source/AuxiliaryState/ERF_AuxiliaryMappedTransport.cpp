@@ -8,9 +8,8 @@
 #include <limits>
 
 namespace erf_auxiliary {
-namespace {
 
-bool same_horizontal_layout (const amrex::MultiFab& cell_field,
+bool SameHorizontalLayout (const amrex::MultiFab& cell_field,
                            const amrex::MultiFab& map_field)
 {
     if (cell_field.DistributionMap() != map_field.DistributionMap() ||
@@ -31,8 +30,6 @@ bool same_horizontal_layout (const amrex::MultiFab& cell_field,
     return true;
 }
 
-} // namespace
-
 bool SameCellLayout (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
 {
     return lhs.boxArray() == rhs.boxArray() &&
@@ -47,8 +44,8 @@ bool BuildMappedCellMeasure (amrex::MultiFab& omega,
 {
     diagnostic.clear();
     if (omega.nComp() != 1 || detJ.nComp() < 1 || mx.nComp() < 1 || my.nComp() < 1 ||
-        !SameCellLayout(omega, detJ) || !same_horizontal_layout(omega, mx) ||
-        !same_horizontal_layout(omega, my) ||
+        !SameCellLayout(omega, detJ) || !SameHorizontalLayout(omega, mx) ||
+        !SameHorizontalLayout(omega, my) ||
         mx.boxArray() != my.boxArray() || mx.DistributionMap() != my.DistributionMap()) {
         diagnostic = "mapped measure requires a cell-centered Jacobian, matching horizontal map-factor layouts, and one output component";
         return false;
@@ -118,12 +115,12 @@ bool BuildMappedDryAirCarrierFluxRate (
         omega.DistributionMap() != rate.dir(2).DistributionMap() ||
         az.boxArray() != rate.dir(2).boxArray() ||
         az.DistributionMap() != rate.dir(2).DistributionMap() ||
-        !same_horizontal_layout(rate.dir(0), mf_uy) ||
-        !same_horizontal_layout(rate.dir(1), mf_vx) ||
+        !SameHorizontalLayout(rate.dir(0), mf_uy) ||
+        !SameHorizontalLayout(rate.dir(1), mf_vx) ||
         mx.boxArray() != my.boxArray() ||
         mx.DistributionMap() != my.DistributionMap() ||
-        !same_horizontal_layout(rate.dir(2), mx) ||
-        !same_horizontal_layout(rate.dir(2), my)) {
+        !SameHorizontalLayout(rate.dir(2), mx) ||
+        !SameHorizontalLayout(rate.dir(2), my)) {
         diagnostic = "mapped dry-air carrier rates require matching staggered momentum, area, map-factor, and output layouts";
         return false;
     }

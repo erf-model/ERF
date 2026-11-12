@@ -43,8 +43,7 @@ using namespace amrex;
 double ERF::startCPUTime        = 0.0;
 double ERF::previousCPUTimeUsed = 0.0;
 
-Vector<AMRErrorTag> ERF::ref_tags;
-Vector<std::string> ERF::ref_tag_indicator_names;
+Vector<RefinementCriterion> ERF::ref_criteria;
 
 SolverChoice ERF::solverChoice;
 
@@ -214,6 +213,11 @@ ERF::Evolve ()
         int iteration = 1;
         timeStep(0, cur_time, iteration);
 
+#ifdef ERF_USE_DUST
+        // The dust model's own state, over the level-0 step just taken
+        advance_dust_model(step, cur_time);
+#endif
+
         cur_time += static_cast<double>(dt[0]);
         t_new[0] = cur_time;
 
@@ -316,6 +320,12 @@ ERF::WriteAtIntermediateTime (int step, double cur_time)
         }
     }
 
+#ifdef ERF_USE_DUST
+    // Dust output before the checkpoint, so a checkpoint of this step records
+    // the step's dust output as written and a restart from it does not repeat it
+    if (m_dust_model) { m_dust_model->write_output(step+1, cur_time, false); }
+#endif
+
     if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
         last_check_file_step = step+1;
         WriteCheckpointFile();
@@ -364,6 +374,11 @@ ERF::WriteAtFinalTime ()
             if (m_subvol_per[i] > zero) {last_subvol_time[i] += m_subvol_per[i];}
         }
     }
+
+#ifdef ERF_USE_DUST
+    // Dust output before the checkpoint, as in WriteAtIntermediateTime
+    if (m_dust_model) { m_dust_model->write_output(istep[0], t_new[0], true); }
+#endif
 
     if ( (m_check_int > 0 || m_check_per > zero) && istep[0] > last_check_file_step) {
         WriteCheckpointFile();
@@ -711,9 +726,17 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             } // mfi
 
             // This call refluxes the cell-centered variables from the lev/lev+1 interface onto lev:
-            // all "slow" variables, plus (rho theta) on anelastic levels. Density is never refluxed
-            // (it is fixed on anelastic levels), nor is (rho theta) on compressible levels.
-            int reflux_comp = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ? RhoTheta_comp : RhoTheta_comp + 1;
+            // all "slow" variables, plus (rho theta) on anelastic levels and rho and (rho theta) on
+            // pseudo-incompressible levels.  Density is not refluxed on anelastic levels (it is fixed),
+            // nor are rho and (rho theta) on compressible levels.
+            int reflux_comp;
+            if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                reflux_comp = Rho_comp;
+            } else if (solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic) {
+                reflux_comp = RhoTheta_comp;
+            } else {
+                reflux_comp = RhoTheta_comp + 1;
+            }
             getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], reflux_comp, reflux_comp, ncomp-reflux_comp);
 
             // Here we multiply (rho S) by m^2 after refluxing
@@ -739,12 +762,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             // We need to do this before anything else because refluxing changes the
             // values of coarse cells underneath fine grids with the assumption they'll
             // be over-written by averaging down
-            int src_comp;
-            if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
-                src_comp = 1;
-            } else {
-                src_comp = 0;
-            }
+            // (rho is not averaged down on an anelastic level, where it is rho0)
+            int src_comp = (solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic) ? 1 : 0;
             int num_comp = ncomp - src_comp;
             AverageDownTo(lev,src_comp,num_comp);
 
@@ -802,6 +821,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
     if (cloud_chamber_budget && sbm_moisture) {
         report_cloud_chamber_budget();
+    }
+    if (sbm_state_manager && sbm_moisture) {
+        sbm_check_budget(nstep);
     }
 
     // The next coarse step sums the pressure afresh
@@ -874,6 +896,10 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,BaseState::num_comps,base_state[lev].nGrowVect());
 
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+      }
+      // Coarsest first, since a level's z_sfc_nd may take values from the one below it
+      for (int lev = 0; lev <= finest_level; ++lev) {
+        update_zsfc_nd(lev);
       }
     }
 
@@ -1500,6 +1526,18 @@ ERF::InitData_post ()
     }
 
     //
+    // On a pseudo-incompressible level, start from rho theta = rho0 theta0 (pressure p0), the state
+    //    that the constraint div(rho0 theta0 u) = 0 maintains, whatever the initialization
+    //
+    if (restart_chkfile == "") {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                make_pseudo_incompressible_initial_state(lev);
+            }
+        }
+    }
+
+    //
     // If we are starting from scratch, we have the option to project the initial velocity field
     //    regardless of how we initialized.  Note that project_initial_velocity operates on vars_new.
     // pp_inc is used as scratch space here; we zero it out after the projection
@@ -1512,6 +1550,25 @@ ERF::InitData_post ()
                 double dummy_dt = 1.0;
                 if (verbose > 0) {
                     amrex::Print() << "Projecting initial velocity field at level " << lev << std::endl;
+                }
+
+                // A pseudo-incompressible projection maps rho0 theta0 / rho onto the faces with the
+                // advection stencil, which reads the density in the ghost cells (two or three deep
+                // with the higher-order schemes); fill them now, from the rescaled state of
+                // make_pseudo_incompressible_initial_state and, at a coarse/fine boundary, from
+                // the coarse level, since the full fill of the levels comes after the projection
+                if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                    auto& lev_new = vars_new[lev];
+                    if (lev == 0) {
+                        FillPatchCrseLevel(lev, t_new[lev],
+                                           {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                                           true);
+                    } else {
+                        FillPatchFineLevel(lev, t_new[lev],
+                                           {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                                           {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                                           false, true);
+                    }
                 }
 
                 project_initial_velocity(lev, t_new[lev], dummy_dt);
@@ -2111,6 +2168,19 @@ ERF::InitData_post ()
     }
 #endif
 
+#ifdef ERF_USE_DUST
+    // The dust model starts after the fire, which it may read; on a restart it
+    // restores its own state, and on a fresh start the dust scalars start at zero
+    initialize_dust_model();
+#else
+    {   // a dust deck on a build without the coupling would run as plain ERF, silently
+        amrex::ParmParse pp("erf.dust"); bool want = false; pp.query("enable", want);
+        if (want) { amrex::Abort("erf.dust.enable = true but this executable was built without the dust coupling"
+                                 "; rebuild with it (CMake ERF_ENABLE_DUST=ON, GNU make USE_DUST=TRUE)"
+                                 " and a dust model directory (CMake ERF_DUST_MODEL_DIRS, GNU make DUST_HOME)"); }
+    }
+#endif
+
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
         const bool lagrangian =
@@ -2252,6 +2322,12 @@ ERF::InitData_post ()
     // The structure model starts once the mesh and the initial (or restart) state
     // exist, before the step-0 outputs
     if (m_structure_model) { initialize_structure_model(); }
+#endif
+
+#ifdef ERF_USE_DUST
+    // Dust output of step 0 before the plotfiles and the initial checkpoint
+    // (written below), as in WriteAtIntermediateTime
+    if (m_dust_model) { m_dust_model->write_output(istep[0], t_new[0], false); }
 #endif
 
     if ( (restart_chkfile.empty()) ||
@@ -2588,7 +2664,8 @@ ERF::InitData_post ()
             line_sampler->resolve_latlon(latlon_map, geom[0]);
         }
         line_sampler->write_coords(z_phys_cc, z_phys_nd, geom,
-                                   line_sampler->needs_ground() ? &station_ground(0) : nullptr);
+                                   line_sampler->needs_ground() ? &station_ground(0) : nullptr,
+                                   sampling_ground(*line_sampler), sampling_volfrac());
     }
     if (do_plane) {
         if (plane_sampling_interval < 0 && plane_sampling_per < 0) {
@@ -2651,6 +2728,7 @@ ERF::InitData_post ()
 #ifdef ERF_SBM_AMR_QUALIFICATION
     sbm_qualification_record_initial_inventory();
 #endif
+    sbm_record_budget_reference();
 }
 
 //
@@ -4025,6 +4103,22 @@ ERF::ReadParameters ()
                   "Either remove amr.no_box_split_dir = " +
                   std::to_string(no_box_split_dir) + " from the inputs file, or set "
                   "erf.timestepping_type = RK3_NoSubstepping.");
+        }
+    }
+
+    // A moving mesh advances its base state column by column, with a bottom-face flux
+    // extrapolated from the three lowest cells of the box, and erf_substep_MT takes the bottom
+    // of the box as the moving surface; both need every grid to span the full height of the
+    // domain.  A moving mesh has only level 0 (amr.max_level = 0), whose grids cover the
+    // domain, so amr.no_box_split_dir = 2 (the default) gives exactly that.
+    if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
+        if (no_box_split_dir != 2) {
+            Abort("erf.terrain_type = MovingFittedMesh requires amr.no_box_split_dir = 2 (the ERF "
+                  "default), so that every grid spans the full height of the domain; remove "
+                  "amr.no_box_split_dir = " + std::to_string(no_box_split_dir) + " from the inputs file.");
+        }
+        if (geom[0].Domain().length(2) < 3) {
+            Abort("erf.terrain_type = MovingFittedMesh requires at least 3 cells in z (amr.n_cell)");
         }
     }
 

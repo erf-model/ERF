@@ -28,7 +28,8 @@ projection. Buoyancy remains a source in vertical momentum, but its
 pressure-gradient term is not recomputed from the compressible equation
 of state.
 
-In **pseudo-incompressible** mode, ERF enforces
+In **pseudo-incompressible** mode, ERF evolves the density and
+:math:`\rho_d\theta_d` as in compressible mode, and enforces
 :math:`\nabla\cdot(\rho_0\theta_0\mathbf{u})=0` with a
 variable-coefficient pressure projection; see
 :ref:`PseudoIncompressibleEquations`.
@@ -129,7 +130,9 @@ solving for the pressure that enforces it.  The constraint is
 
 where :math:`\rho_0(z)` and :math:`\theta_0(z)` are the density and dry
 potential temperature of the hydrostatic base state.  The anelastic
-constraint is recovered with :math:`\theta_0` constant.
+constraint is recovered with :math:`\theta_0` constant.  With heating or
+diffusion the right-hand side is a source term :math:`S` (see **Source
+term** below).
 
 **Projection.**  Both the anelastic and pseudo-incompressible
 projections can be written in terms of a face-centered weight
@@ -158,13 +161,63 @@ space and time; since :math:`\rho\theta \approx \rho_0\theta_0`,
 :math:`\beta \approx \theta`, the coefficient of the Exner-pressure
 gradient in Durran's form of the momentum equation.  ERF never assumes
 :math:`\rho = \rho_0` in the pseudo-incompressible projection: the
-momenta are divided by the face-averaged :math:`\rho` and multiplied by
-the face-averaged :math:`\rho_0\theta_0` before the solve, and converted
-back afterwards.  The same face values of :math:`\beta` are used in the
-conversion, in the Poisson operator and in the momentum correction, so
-the projected momenta are discretely divergence-free.  The stored
-pressure gradient is :math:`\nabla\phi / \Delta t` itself, without
-:math:`\beta`.
+momenta are multiplied by :math:`\beta` on each face before the solve,
+and divided by it afterwards.  The same face values of :math:`\beta` are
+used in the conversion, in the Poisson operator and in the momentum
+correction, so the projected momenta are discretely divergence-free.
+The stored pressure gradient is :math:`\nabla\phi / \Delta t` itself,
+without :math:`\beta`.
+
+**Face values of** :math:`\beta`.  The coefficient is the base-state
+quantity :math:`\rho_0\theta_0/\rho`; how it is put onto the faces is a
+choice of discretization.  ERF maps the cell-centered field
+:math:`\rho_0\theta_0/\rho` onto each face with the reconstruction that
+the dycore advection scheme (``erf.dycore_horiz_adv_type``,
+``erf.dycore_vert_adv_type``) uses to put :math:`\theta` onto that face
+in the advective flux of :math:`\rho\theta`, which is the mass flux
+times the face value of :math:`\theta`.  On a terrain-fitted mesh the
+:math:`w`-face :math:`\beta` multiplies the contravariant mass flux
+:math:`\Omega(\rho\mathbf{u})`, as :math:`\theta` does in the flux.
+Where :math:`\rho\theta = \rho_0\theta_0`, the face value of
+:math:`\rho_0\theta_0/\rho` is then the face value of :math:`\theta`, so
+the projected flux :math:`\beta\,(\rho\mathbf{u})` is the advective
+flux of :math:`\rho\theta`, and the projection keeps
+:math:`\rho\theta = \rho_0\theta_0` without heating or diffusion.  On an
+embedded-boundary mesh :math:`\beta` is instead the ratio of the face
+averages of :math:`\rho_0\theta_0` and :math:`\rho`.
+
+**Upwind direction.**  An upwind or WENO scheme picks its stencil from
+the direction of the flow on each face, and the projection can reverse
+that direction.  On a pseudo-incompressible level the direction on each
+face is therefore fixed by the projection: it is the sign of the
+momentum going into the projection (zero, which selects the centered
+blend, where that momentum is zero).  The projection maps
+:math:`\rho_0\theta_0/\rho` onto the faces with the stencil this
+direction selects, and the advection of every cell-centered scalar
+from the projected state (:math:`\rho\theta` with the dycore scheme,
+the moist and dry scalars with theirs) picks its upwind side from the
+same direction rather than from the sign of the projected mass flux.
+The face value of :math:`\theta` in the advective flux of
+:math:`\rho\theta` is then the face value of :math:`\beta` whatever the
+scheme.  Where the projection reverses the flow on a face, the stencil
+there lies downwind of the projected flow, so the scheme's upwind
+dissipation acts with the opposite sign on that face; such faces have
+small velocities.  The direction is kept between the stage that projects
+and the stage that advects (and in the checkpoint).  The momenta are
+advected as on any other level, with the direction of their own mass
+fluxes.
+
+**Ghost cells.**  Near the edge of a level the stencils of the upwind
+and higher-order schemes read cells two or three deep outside it, where
+the advection reads :math:`\theta = (\rho\theta)/\rho` as the fill of
+the state sets :math:`\rho` and :math:`\rho\theta` there.  The
+projection gives :math:`\rho_0\theta_0` the same ghost cells: outside
+the domain it applies the boundary conditions of :math:`\rho\theta`, and
+at a coarse/fine boundary it interpolates the coarse
+:math:`\rho_0\theta_0` as the fill interpolates the coarse
+:math:`\rho\theta`; it then divides by the ghost-cell :math:`\rho` of the
+state.  With :math:`\rho\theta = \rho_0\theta_0` the ratio is then
+:math:`\theta` in those cells too.
 
 **Solvers.**  Every pseudo-incompressible projection on a mesh without
 embedded boundaries uses the terrain Poisson operator with :math:`\beta`
@@ -182,23 +235,100 @@ correction to :math:`w` is recovered from the corrected contravariant
 momentum, so it equals :math:`\beta\,\partial\phi/\partial z` only to
 second order in the mesh spacing where :math:`\beta` varies.
 
-**Current status.**  ``erf.compressibility_type = PseudoIncompressible``
-uses the constraint and projection above.  The following are not yet
-implemented, and the level otherwise runs the anelastic equations:
+**Density, potential temperature and buoyancy.**  A
+pseudo-incompressible level evolves the density with the continuity
+equation and :math:`\rho\theta_d` with its own conservative equation,
+both in the flux form of the compressible equations,
 
-- evolution of the density (the level still holds
-  :math:`\rho = \rho_0`, ``fixed_density = 1``),
-- a source term in the constraint, :math:`\nabla\cdot(\rho_0\theta_0\mathbf{u}) = S`,
-  representing diabatic heating,
-- pseudo-incompressible buoyancy and equation of state,
+.. math::
+   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}),
+
+   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d) +
+                                                      \nabla \cdot (\rho_d \alpha_{\theta}\ \nabla \theta_d) +
+                                                      F_{\theta} + H_{n} + H_{p},
+
+so ``fixed_density = 0`` there.  With AMR, :math:`\rho` and
+:math:`\rho\theta_d` are refluxed and averaged down, so both are conserved
+over the levels.  The buoyancy is the density departure,
+:math:`-(\rho - \rho_0)\,g` (``buoyancy_type = 1``, which is forced at a
+pseudo-incompressible level).  The thermodynamic pressure is the base-state
+pressure :math:`p_0`, as at an anelastic level, so temperature, saturation
+and the microphysics use :math:`p_0`.
+
+A fresh start sets :math:`\rho = \rho_0\theta_0/\theta` in every cell of a
+pseudo-incompressible level, keeping :math:`\theta` and the other mixing
+ratios, so that the initial state satisfies
+:math:`\rho\theta = \rho_0\theta_0`, which the constraint, with the face
+values of :math:`\beta` above, maintains to the tolerance of the solve
+without heating or diffusion.  With ``erf.v = 1`` and
+``erf.sum_interval``, ``PI DRIFT`` reports the maximum of
+:math:`|\rho\theta - \rho_0\theta_0| / (\rho_0\theta_0)` over the
+pseudo-incompressible levels, leaving out cells covered by a finer level
+(``erf.v = 2`` also prints it for each level).
+
+**Source term.**  With heating or diffusion, :math:`\rho\theta` changes
+by its non-advective tendency :math:`Q` (the diffusion, including any
+implicit vertical diffusion, and the sources of ``cc_src`` such as
+radiation, nudging and sponges), so keeping
+:math:`\rho\theta = \rho_0\theta_0` requires
+
+.. math::
+   \nabla \cdot (\rho_0\theta_0 \mathbf{u}) = S, \qquad
+   S = Q + c\, \frac{\rho\theta - \rho_0\theta_0}{\Delta t},
+
+discretely :math:`\nabla\cdot(\beta\,\mathbf{m}) = S` with the divergence
+of the advective update of :math:`\rho\theta`.  The projection at the end
+of each stage sets the velocity with which the next stage advects
+:math:`\rho\theta`, whose :math:`Q` is not yet known, so it uses the
+:math:`Q` of the stage just taken: the whole :math:`\rho\theta`
+tendency of that stage less its advective part (with the RK2 integrator,
+the average over the two stages where the tendency is averaged).  The
+second term, with :math:`c` = ``erf.pi_drift_factor`` (default 0.5) and
+:math:`\Delta t` the level's time step, pulls back what the lag of
+:math:`Q` leaves, together with any other departure from
+:math:`\rho_0\theta_0`; values of :math:`c` above about 1 can be
+unstable.  The initial projection takes :math:`S = 0`, and :math:`Q` is
+kept in the checkpoint.  On the stratified hill of
+``Tests/test_files/PseudoIncompressible_StratifiedHill`` with
+:math:`\alpha_T = 10\ \mathrm{m^2/s}`, the drift after 10 steps is
+:math:`10^{-3}` with :math:`S = 0`, :math:`2 \times 10^{-5}` with
+:math:`S = Q` (it keeps growing, since the lag of :math:`Q` is first
+order in time) and :math:`5 \times 10^{-6}` with :math:`c = 0.5` (it
+stays at a few :math:`10^{-6}` over 50 steps).  Latent heating from the
+microphysics, which acts after the dynamics, is not in :math:`Q`; only
+the drift correction acts on it.
+
+**Current status.**  The following are not yet implemented:
+
+- latent heating in the source term (with moist pseudo-incompressible
+  flow below), and the source term on an embedded-boundary mesh,
+- face values of :math:`\beta` that match the advection of
+  :math:`\rho\theta` on an embedded-boundary mesh (there the scalars
+  are upwinded with the sign of the projected mass flux),
 - moist pseudo-incompressible flow (the constraint uses the dry
   :math:`\theta_0`),
+- matching the coarse and fine fluxes :math:`\beta\,(\rho\mathbf{u})`
+  through coarse/fine faces in time (the fine-level solve removes the
+  mismatch as a uniform divergence) and keeping
+  :math:`\rho\theta = \rho_0\theta_0` when the fine level is refluxed and
+  averaged down: on refined levels :math:`\rho\theta` still drifts from
+  :math:`\rho_0\theta_0`.  In ten steps on the stratified hill of
+  ``Tests/test_files/PseudoIncompressible_StratifiedHill`` the drift is
+  about :math:`3 \times 10^{-6}` with one-way coupling (:math:`10^{-5}`
+  without the drift correction) and :math:`10^{-4}` with two-way
+  coupling, against :math:`10^{-10}` on a single level.  With two-way
+  coupling the drift is in the coarse cells next to the fine level, which
+  the reflux changes every coarse step by about as much as the drift
+  correction removes; the upwind direction at the coarse/fine faces is
+  not yet made consistent between the levels either,
 - the implicit immersed-forcing drag in the projection
   (``erf.if_implicit_projection``),
 - a refined level that stops inside the domain in :math:`z` on a
   terrain-fitted mesh (refinement through the full depth is supported),
 - a refined level of a flat mesh with map factors other than one (as
-  for an anelastic level).
+  for an anelastic level),
+- density boundary conditions on walls, the WRF boundary density, the
+  cloud chamber and spectral-bin microphysics, which assume a fixed density.
 
 (Dry and Moist) Scalars
 -----------------------

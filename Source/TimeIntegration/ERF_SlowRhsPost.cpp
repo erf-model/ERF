@@ -53,6 +53,8 @@ auxiliary_host_integrator (const SolverChoice& solverChoice, const int level)
  * @param[in   ] avg_xmom
  * @param[in   ] avg_ymom
  * @param[in   ] avg_zmom
+ * @param[in   ] upw_dir upwind direction used by erf_slow_rhs_pre in this stage, on a
+ *                       pseudo-incompressible level (nullptr otherwise: the mass flux picks it)
  * @param[in   ] xvel x-component of velocity
  * @param[in   ] yvel y-component of velocity
  * @param[in   ] zvel z-component of velocity
@@ -94,6 +96,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                               MultiFab& avg_xmom,
                               MultiFab& avg_ymom,
                               MultiFab& avg_zmom,
+                        const Array<const MultiFab*,AMREX_SPACEDIM>& upw_dir,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
                         const MultiFab& zvel,
@@ -403,6 +406,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> avg_xmom_arr = avg_xmom.array(mfi);
         Array4<Real> avg_ymom_arr = avg_ymom.array(mfi);
         Array4<Real> avg_zmom_arr = avg_zmom.array(mfi);
+        // Pseudo-incompressible: the upwind side is the one the projection picked
+        const Array4<const Real> upw_x_arr = upw_dir[0] ? upw_dir[0]->const_array(mfi) : avg_xmom.const_array(mfi);
+        const Array4<const Real> upw_y_arr = upw_dir[1] ? upw_dir[1]->const_array(mfi) : avg_ymom.const_array(mfi);
+        const Array4<const Real> upw_z_arr = upw_dir[2] ? upw_dir[2]->const_array(mfi) : avg_zmom.const_array(mfi);
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
@@ -607,6 +614,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                             }
                             AdvectionSrcForScalars(tbx, start_comp, num_comp,
                                                    avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                                   upw_x_arr, upw_y_arr, upw_z_arr,
                                                    cur_prim, cell_rhs,
                                                    detJ_arr, dxInv, mf_mx, mf_my,
                                                    horiz_adv_type, vert_adv_type,

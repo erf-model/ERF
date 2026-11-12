@@ -24,6 +24,7 @@ using namespace amrex;
  * @param[in] level Level index.
  * @param[in] bc_ptr Boundary condition record pointers.
  * @param[in] z_phys_nd Nodal physical height.
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Cell-centered physical height.
  * @param[in] moisture_indices Moisture component indices.
  */
@@ -41,6 +42,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<MultiFab>& z_phys_nd,
+                          const std::unique_ptr<MultiFab>& z_sfc_nd,
                           const std::unique_ptr<MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices)
 {
@@ -98,6 +100,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         // vertical integrals to compute lengthscale
         if (use_terrain_fitted_coords) {
             const Array4<Real const> &z_nd_arr = z_phys_nd->array(mfi);
+            const Array4<Real const> &z_sfc_arr = z_sfc_nd->const_array(mfi);
             const auto invCellSize = geom.InvCellSizeArray();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -105,7 +108,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 qvel(i,j,k) = std::sqrt(two * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qvel(i,j,k) > zero, "KE must have a positive value");
 
-                const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
+                const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr);
                 const Real dz   = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz);
                 Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz);
@@ -150,6 +153,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                                               : Array4<const Real>{};
 
         const Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
+        const Array4<Real const> z_sfc_arr = z_sfc_nd->const_array(mfi);
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -187,7 +191,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Surface-layer length scale (NN09, Eqn. 53)
             AMREX_ASSERT(l_obukhov != 0);
-            const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) :
+            const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr) :
                                                           (k + myhalf)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;

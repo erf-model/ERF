@@ -113,12 +113,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 "M2 auxiliary inert tracer fixture requires triply periodic geometry");
         }
     }
-    if (sbm_state_manager) {
-        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom[lev].isPeriodic(dir),
-                "SBM M3 currently requires triply periodic geometry; spectral physical boundary filling is not implemented");
-        }
-    }
     //
     // Note that "time" here is elapsed time
     //
@@ -427,7 +421,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // write out the vtk files for wind turbine location and/or
     // actuator disks
     #ifdef ERF_USE_WINDFARM
+    if (solverChoice.windfarm_type != WindFarmType::None) {
         init_windfarm(lev);
+    }
     #endif
 
     // ********************************************************************************************
@@ -1823,6 +1819,7 @@ ERF::ClearLevel (int lev)
     physbcs_v[lev].reset();
     physbcs_w[lev].reset();
     physbcs_base[lev].reset();
+    physbcs_base_new[lev].reset();
 
     // Frees the flux register (only allocated for TwoWay coupling)
     advflux_reg[lev].reset();

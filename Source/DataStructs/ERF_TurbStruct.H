@@ -335,6 +335,10 @@ public:
           pp, "enable_mrf_cloud_adjustment", enable_mrf_cloud_adjustment, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_highres_bounds", pbl_mrf_highres_bounds, lev, max_level);
+        query_one_or_per_level(pp, "pbl_mrf_Sc_t", pbl_mrf_Sc_t, lev, max_level);
+        if (pbl_mrf_Sc_t < amrex::Real(0)) {
+          amrex::Abort("erf.pbl_mrf_Sc_t must be >= 0 (0: the passive scalars mix as heat does)");
+        }
         query_one_or_per_level(
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
@@ -805,6 +809,8 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_highres_bounds     : " << pbl_mrf_highres_bounds
                      << std::endl;
+      amrex::Print() << "    pbl_mrf_Sc_t               : " << pbl_mrf_Sc_t
+                     << std::endl;
       amrex::Print() << "    enable_mrf_unbounded_vpert : " << enable_mrf_unbounded_vpert
                      << std::endl;
       amrex::Print() << "    pbl_mrf_use_zero_ri_extent : " << pbl_mrf_use_zero_ri_extent
@@ -1069,6 +1075,7 @@ public:
   amrex::Real pbl_ib_z0    = amrex::Real(0.01);  // roughness [m] of the neutral log law at the top of an immersed column
   bool enable_mrf_cloud_adjustment = false; // if true, apply cloud-aware stability function adjustments in MRF scheme
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
+  amrex::Real pbl_mrf_Sc_t = amrex::Real(0); // MRF: the passive scalars' Schmidt number; Scalar_v = Theta_v * Pr_t / Sc_t, and 0 gives Scalar_v = Theta_v
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
   // QNSE (Quasi-Normal Scale Elimination) spectral stable stability functions
@@ -1227,6 +1234,10 @@ public:
  * @brief Whether MRF cloud-aware stability adjustments are enabled.
  * @var TurbChoice::pbl_mrf_highres_bounds
  * @brief Whether MRF applies high-resolution grid-dependent diffusivity bounds.
+ * @var TurbChoice::pbl_mrf_Sc_t
+ * @brief MRF turbulent Schmidt number of the passive scalars (erf.pbl_mrf_Sc_t): their
+ *        vertical diffusivity is the heat one times erf.Pr_t / Sc_t; 0 (the default)
+ *        leaves it equal to the heat one.
  * @var TurbChoice::enable_mrf_unbounded_vpert
  * @brief Whether MRF leaves VPERT unlimited by GAMCRT.
  * @var TurbChoice::pbl_mrf_use_zero_ri_extent

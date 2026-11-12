@@ -36,6 +36,7 @@ using namespace amrex;
  * @param[in] bc_ptr Boundary condition records.
  * @param[in] vert_only Reserved flag for vertical-only computation.
  * @param[in] z_phys_nd Nodal physical height field.
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Cell-centered physical height field.
  * @param[in] moisture_indices Indices for moisture variables in the state vector.
  * @param[in] qheating_rates Optional heating rates for cloud-top mixing.
@@ -54,6 +55,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                           const BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<MultiFab>& z_phys_nd,
+                          const std::unique_ptr<MultiFab>& z_sfc_nd,
                           const std::unique_ptr<MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices,
                           const MultiFab* qheating_rates,
@@ -198,6 +200,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         limit_by(z0_src);
         limit_by(SurfLayer->get_lmask(level));
         limit_by(z_phys_nd.get());
+        limit_by(z_sfc_nd.get());
         limit_by(qheat_src);
         if (ng_pblh > ng_avail) {
             amrex::Abort("erf.pblh_smoothing_passes = " + std::to_string(turbChoice.pblh_smoothing_passes)
@@ -384,6 +387,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             });
         }
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
+        const Array4<Real const> z_sfc_arr = z_sfc_nd->const_array(mfi);
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
         // Get qheating_rates if provided (for LW radiation coupling to top-down mixing)
         const Array4<Real const> qheat_arr = (qheat_src != nullptr)
@@ -416,9 +420,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
           // On first call, vpert_arr is initialized to zero
           const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
           const amrex::Real z_sfc     = (use_terrain_fitted_coords)
-                                      ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_nd_arr) : zib;
+                                      ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_sfc_arr,z_nd_arr) : zib;
           const amrex::Real zval      = (use_terrain_fitted_coords)
-                                      ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                                      ? Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr)
                                       : (k + myhalf) * dz;
           const amrex::Real zrel      = amrex::max(zval - z_sfc, amrex::Real(1.0e-4));
           const amrex::Real theta_v   = GetThetav(i,j,k,cell_data,moisture_indices);
@@ -515,7 +519,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
             }
             const Real zl1 = (use_terrain_fitted_coords)
-                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                            : (ksrf + myhalf) * dz;
             Real zol1 = zl1 / obuk_val;
             zol1 = amrex::max(zol1, amrex::Real(-100.0));
@@ -689,18 +693,18 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             */
 
             const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
-                                         ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                                         ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                          : zib;
 
             // Compute bounds for pblh clamping
             const Real z_sfc = (use_terrain_fitted_coords)
-                              ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                              ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                               : zib;
             const Real dz_terrain = (use_terrain_fitted_coords)
-                                   ? (Compute_Zrel_AtCellCenter(i, j, ksrf + 1, z_nd_arr) - z_sfc)
+                                   ? (Compute_Zrel_AtCellCenter(i, j, ksrf + 1, z_sfc_arr, z_nd_arr) - z_sfc)
                                    : dz;
             const Real z_max = (use_terrain_fitted_coords)
-                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : (khi + myhalf) * dz;
             const Real pblh_max = Real(0.9) * z_max;
 
@@ -719,7 +723,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // pblh_min; no crossing up to khi gives the top of the scan, capped by pblh_max.
             auto rib_at = [=] (int kk) { return rib_enhan_arr(i,j,kk); };
             auto z_at   = [=] (int kk) {
-                return (use_terrain_fitted_coords) ? Compute_Zrel_AtCellCenter(i,j,kk,z_nd_arr)
+                return (use_terrain_fitted_coords) ? Compute_Zrel_AtCellCenter(i,j,kk,z_sfc_arr,z_nd_arr)
                                                    : (kk + myhalf) * dz;
             };
             const RibCrossing pbl = find_rib_crossing(ksrf, khi, Ribcr, rib_at, z_at, pblh_min, pblh_max);
@@ -1001,7 +1005,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     // Compute height limiter: min(zl1/(sfcfrac*pblh), 1.0)
                     // This reduces VPERT contribution when the first cell is coarse relative to thin PBLs
                     const Real zl1_col = (use_terrain_fitted_coords)
-                                       ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                                       ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                        : (ksrf + myhalf) * dz;
                     constexpr Real sfcfrac_h = amrex::Real(0.1);  // WRF SFCFRAC
                     const Real height_lim = amrex::min(zl1_col / (sfcfrac_h * pblh), one_d);
@@ -1041,9 +1045,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
           // Now vpert_arr contains the computed thermal perturbation from the corrector pass
           const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
           const amrex::Real z_sfc     = (use_terrain_fitted_coords)
-                                      ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_nd_arr) : zib;
+                                      ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_sfc_arr,z_nd_arr) : zib;
           const amrex::Real zval      = (use_terrain_fitted_coords)
-                                      ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                                      ? Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr)
                                       : (k + myhalf) * dz;
           const amrex::Real zrel      = amrex::max(zval - z_sfc, amrex::Real(1.0e-4));
           const amrex::Real theta_v   = GetThetav(i,j,k,cell_data,moisture_indices);
@@ -1086,13 +1090,13 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
             // Compute bounds
             const Real z_sfc = (use_terrain_fitted_coords)
-                              ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                              ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                               : zib;
             const Real dz_terrain = (use_terrain_fitted_coords)
-                                   ? (Compute_Zrel_AtCellCenter(i, j, ksrf + 1, z_nd_arr) - z_sfc)
+                                   ? (Compute_Zrel_AtCellCenter(i, j, ksrf + 1, z_sfc_arr, z_nd_arr) - z_sfc)
                                    : dz;
             const Real z_max = (use_terrain_fitted_coords)
-                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : (khi + myhalf) * dz;
             const Real pblh_max = Real(0.9) * z_max;
 
@@ -1101,7 +1105,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const amrex::Real met_h_klo = Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv, z_nd_arr);
                 const amrex::Real dz0 = met_h_klo / dz_inv;
                 const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
-                                             ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                                             ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                              : zib;
                 pblh_min = amrex::max(z_sfc_col + Real(0.5)*dz0, Real(10.0));
             } else {
@@ -1114,7 +1118,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // so that no entrainment flux is put at its top cell below.
             auto rib_at = [=] (int kk) { return rib_enhan_arr(i,j,kk); };
             auto z_at   = [=] (int kk) {
-                return (use_terrain_fitted_coords) ? Compute_Zrel_AtCellCenter(i,j,kk,z_nd_arr)
+                return (use_terrain_fitted_coords) ? Compute_Zrel_AtCellCenter(i,j,kk,z_sfc_arr,z_nd_arr)
                                                    : (kk + myhalf) * dz;
             };
             const RibCrossing pbl = find_rib_crossing(ksrf, khi, Ribcr, rib_at, z_at, pblh_min, pblh_max);
@@ -1185,10 +1189,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                     // Elevation at level kk
                     const Real z_sfc = (use_terrain_fitted_coords)
-                                     ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                                     ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                      : zib;
                     const Real zval_kk = (use_terrain_fitted_coords)
-                                       ? Compute_Zrel_AtCellCenter(i, j, kk, z_nd_arr)
+                                       ? Compute_Zrel_AtCellCenter(i, j, kk, z_sfc_arr, z_nd_arr)
                                        : (kk + myhalf) * dz;
                     const Real zrel_kk = amrex::max(zval_kk - z_sfc, amrex::Real(1.0e-4));
 
@@ -1421,10 +1425,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const amrex::Real rho   = cell_data(i,j,k,Rho_comp);
                 const amrex::Real pblh  = pblh_corr_arr(i,j,0);
                 const amrex::Real zval  = (use_terrain_fitted_coords)
-                                        ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                                        ? Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr)
                                         : (k + myhalf) * dz;
                 const amrex::Real z_sfc = (use_terrain_fitted_coords)
-                                        ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_nd_arr) : zib;
+                                        ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_sfc_arr,z_nd_arr) : zib;
                 const amrex::Real zrel  = zval - z_sfc;
                 const amrex::Real pblh_rel = amrex::max(pblh - z_sfc, amrex::Real(1.0e-4));
 
@@ -1481,7 +1485,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
 
             const Real zval = (use_terrain_fitted_coords)
-                            ? Compute_Zrel_AtCellCenter(i, j, k, z_nd_arr)
+                            ? Compute_Zrel_AtCellCenter(i, j, k, z_sfc_arr, z_nd_arr)
                             : (k + myhalf) * dz;
             const Real rho = cell_data(i, j, k, Rho_comp);
             if (k < ksrf) {   // inside an immersed solid: no diffusivity
@@ -1701,11 +1705,11 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     // Step 2: Get surface height and first-level height (zl1)
                     /*
                     const Real z_sfc = (use_terrain_fitted_coords)
-                                     ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                                     ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                      : zib;
                     */
                     const Real zl1 = (use_terrain_fitted_coords)
-                                   ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                                   ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                    : (ksrf + myhalf) * dz;
 
                     // Step 3: Compute zfac using zq_kp1 and zl1 (WRF bl_ysu.F90 line 943)
@@ -1756,7 +1760,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                     // Step 2: Get first-level height (zl1)
                     const Real zl1_stable = (use_terrain_fitted_coords)
-                                          ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                                          ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                           : (ksrf + myhalf) * dz;
 
                     // Step 3: Compute zfac for stable PBL

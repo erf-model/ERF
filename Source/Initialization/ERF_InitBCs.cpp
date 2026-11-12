@@ -352,6 +352,29 @@ void ERF::init_bcs ()
         }
     }
 
+    // With EB terrain the surface layer is applied on the EB surface, not on a
+    // domain face: erf_slow_rhs_pre calls only the zlo SurfaceLayer's
+    // impose_SurfaceLayer_bcs_EB, which writes Tau_EB, and Tau_EB is allocated
+    // only when erf.eb_boundary_type = SurfaceLayer. The two inputs must agree.
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        const bool zlo_surface_layer =
+            (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer);
+        const bool eb_surface_layer =
+            (solverChoice.ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer);
+        if (has_non_zlo_surface_layer) {
+            Abort("erf.terrain_type = EB supports a surface layer only at zlo "
+                  "(applied on the EB surface): remove the non-zlo surface_layer boundaries");
+        }
+        if (zlo_surface_layer && !eb_surface_layer) {
+            Abort("erf.terrain_type = EB with zlo.type = surface_layer requires "
+                  "erf.eb_boundary_type = SurfaceLayer (the default is NoSlipWall)");
+        }
+        if (eb_surface_layer && !zlo_surface_layer) {
+            Abort("erf.eb_boundary_type = SurfaceLayer requires zlo.type = surface_layer, "
+                  "which builds the surface layer model and reads erf.most.*");
+        }
+    }
+
     bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
                      solverChoice.turbChoice[max_level].dirichlet_k == true);
     if (keqn_dir) {
@@ -852,6 +875,8 @@ void ERF::init_bcs ()
                          "erf.if_wall_form = fraction_stress)");
         }
     }
+
+    configure_sbm_physical_boundaries();
 
     // NOTE: Gpu:copy is a wrapper to htod_memcpy (GPU) or memcpy (CPU) and is a blocking comm
     Gpu::copy(Gpu::hostToDevice, domain_bcs_type.begin(), domain_bcs_type.end(), domain_bcs_type_d.begin());

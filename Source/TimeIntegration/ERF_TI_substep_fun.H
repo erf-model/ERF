@@ -37,6 +37,13 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             l_variable_beta_s = false;
         }
 
+        // On a moving fitted mesh the w equation is divided by the face volume at the end of the
+        // sub-step, so the face metric of the vertical pressure gradient and the volume dividing the
+        // vertical flux divergence in the implicit solve are both those of the new mesh.  The lateral
+        // pressure gradients take their metrics from the mesh at the start of the sub-step, and the
+        // change of the metric terms since the stage time acts on the complete stage pressure
+        const bool l_moving_mesh = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
         // Canopy data for mom sources
@@ -145,7 +152,8 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
-                             detJ_cc[level], dtau, beta_s, z_phys_nd[level].get(),
+                             (l_moving_mesh ? detJ_cc_new[level] : detJ_cc[level]), dtau, beta_s,
+                             z_phys_nd[level].get(),
                              l_variable_beta_s, solverChoice.beta_s_min, solverChoice.beta_s_max,
                              phys_bc_type);
         }
@@ -194,7 +202,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             erf_substep_MT(fast_step, nrk, level, finest_level,
-                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, p_stage, fast_coeffs,
                            S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom,

@@ -109,36 +109,32 @@ ERF::advance_structure_model (int lev, double time, Real dt_lev,
     if (support.empty()) { return; }
 
     const Geometry& fg = geom[lev+1];
-    const Box& domain = fg.Domain();
-    const auto plo = fg.ProbLoArray();
-    const auto dxi = fg.InvCellSizeArray();
-    // On a stretched or terrain-following mesh a height lies in a cell between these bounds
-    erf_actuator::ZBounds zb;
-    if (fitted) { zb = erf_actuator::mesh_z_bounds(*z_phys_nd[lev+1], fg); }
-    const std::vector<IntVect> shifts = fg.periodicity().shiftIntVect();
+    // On a stretched or terrain-following mesh a height lies in the cells that level lev+1's own node
+    // heights allow, wherever its boxes are (on the ground or aloft). The table of those heights is built
+    // when level lev+1's boxes change, and at every step only where the terrain moves
+    const erf_actuator::ZBounds* zb = nullptr;
+    if (fitted) {
+        zb = &m_structure_fine_heights.get(*z_phys_nd[lev+1], fg,
+                                           solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    }
 
     for (const RealBox& rb : support) {
-        IntVect lo, hi;
         for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-            lo[d] = static_cast<int>(std::floor((rb.lo(d) - plo[d]) * dxi[d]));
-            hi[d] = static_cast<int>(std::floor((rb.hi(d) - plo[d]) * dxi[d]));
-        }
-        if (fitted) {
-            lo[2] = static_cast<int>(std::floor((rb.lo(2) - zb.ground_hi) / zb.dz_hi));
-            hi[2] = static_cast<int>(std::floor((rb.hi(2) - zb.ground_lo) / zb.dz_lo));
-        }
-        const Box needed(lo, hi);
-        for (const IntVect& s : shifts) {
-            const Box b = (needed + s) & domain;
-            if (b.ok() && grids[lev+1].intersects(b)) {
-                Abort(std::string("structure model \"") + m_structure_model->name() + "\" couples to level "
-                      + std::to_string(lev) + ", but level " + std::to_string(lev+1)
-                      + " covers part of its support (x " + std::to_string(rb.lo(0)) + " to " + std::to_string(rb.hi(0))
-                      + ", y " + std::to_string(rb.lo(1)) + " to " + std::to_string(rb.hi(1))
-                      + ", z " + std::to_string(rb.lo(2)) + " to " + std::to_string(rb.hi(2)) + " m)."
-                      + " Its force would be lost there when level " + std::to_string(lev+1)
-                      + " is averaged down; couple the model to the finest level that covers its points");
+            if (std::isnan(rb.lo(d)) || std::isnan(rb.hi(d)) || rb.lo(d) > rb.hi(d)) {
+                Abort(std::string("structure model \"") + m_structure_model->name() + "\": support() returned a box with a NaN"
+                      " or with its low end above its high end (direction " + std::to_string(d) + ": "
+                      + std::to_string(rb.lo(d)) + " to " + std::to_string(rb.hi(d)) + " m)");
             }
+        }
+        // the cells of level lev+1 the support may lie in, any periodic image of it included
+        if (erf_actuator::region_touches_grids(grids[lev+1], fg, rb, zb)) {
+            Abort(std::string("structure model \"") + m_structure_model->name() + "\" couples to level "
+                  + std::to_string(lev) + ", but level " + std::to_string(lev+1)
+                  + " covers part of its support (x " + std::to_string(rb.lo(0)) + " to " + std::to_string(rb.hi(0))
+                  + ", y " + std::to_string(rb.lo(1)) + " to " + std::to_string(rb.hi(1))
+                  + ", z " + std::to_string(rb.lo(2)) + " to " + std::to_string(rb.hi(2)) + " m)."
+                  + " Its force would be lost there when level " + std::to_string(lev+1)
+                  + " is averaged down; couple the model to the finest level that covers its points");
         }
     }
 }

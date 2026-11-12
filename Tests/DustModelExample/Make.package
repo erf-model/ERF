@@ -1,0 +1,4 @@
+# GNU make: the dust model directory's sources. Exec/Make.ERF includes this
+# file for each directory listed in DUST_HOME, with DUST_MODEL_DIR set to it
+# and the directory already on VPATH and the include path.
+CEXE_sources += ERF_DustModelExample.cpp

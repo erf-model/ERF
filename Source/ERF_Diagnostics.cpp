@@ -356,7 +356,7 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
     buoyancy.setVal(0.);
 
     make_buoyancy(lev, lev_new, S_prim, qt, buoyancy, geom[lev], solverChoice, base_state[lev],
-                  n_qstate_into_total, get_eb(lev), solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
+                  n_qstate_into_total, get_eb(lev), solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic);
 
     // *******************************************************************************
     // Now form the combined term that appears in the z-momentum equation:

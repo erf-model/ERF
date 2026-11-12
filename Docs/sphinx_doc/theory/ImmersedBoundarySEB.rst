@@ -931,7 +931,8 @@ cast at start-up too.
   face sees, sunlit and shaded`_), and the air above the shaded ground is heated as
   before. Under a
   building, the column's ground is the held one, seen through the building's cells
-  as through air; the column has no roof at the building's top.
+  as through air; the column has no roof at the building's top unless
+  :cpp:`erf.ibseb.two_stream_roofs` is set (`The roof under a column`_).
 - *The ground's sky.* Shaded or not, the ground keeps the column's diffuse sky light
   and longwave from the whole sky. Ground beside a wall sees less sky and gets the
   walls' longwave and reflected light instead; :cpp:`erf.ibseb.ground_sky_view` puts
@@ -981,6 +982,168 @@ land-surface model, the balance off). The
 unit tests ``IBSEBGroundShadow.*`` check the shadow across a periodic edge, on a
 closed domain, under an overhang and at night, and ``TwoStreamBuildingCover.*`` the
 heating mask, the footprint and the beam taken off once per sweep.
+
+The roof under a column
+-----------------------
+
+Without :cpp:`erf.ibseb.two_stream_roofs` the two-stream column under a building
+passes through the building's cells as through air, down to the held ground under the
+building. The air above the roof then sees that ground: its albedo, its emissivity and
+its held temperature, through the optical depth of the building's cells. The roof face
+has its own albedo, emissivity and skin temperature in the faces' balance, so the
+longwave the roof emits there is never given to the air above it, and the light it
+reflects is the ground's.
+
+With the input (off by default) the column under a building starts on the building's
+roof. For a column whose first cell above the building is :math:`k_r`, the sweep runs
+over the layers :math:`k_r` to the top, and its lower boundary is the roof face on that
+cell, a grey, diffuse surface:
+
+.. math::
+   :label: ibseb-roof-boundary
+
+   F^{\uparrow}_{sw}(k_r) = \alpha_r \left( \ell_r F_{dir}(k_r) + F^{\downarrow}_{dif}(k_r) \right), \qquad
+   F^{\uparrow}_{lw}(k_r) = \varepsilon_r \sigma T_r^4 + (1 - \varepsilon_r)\, F^{\downarrow}_{lw}(k_r),
+
+with :math:`\alpha_r`, :math:`\varepsilon_r` and :math:`T_r` the roof face's albedo,
+emissivity and skin temperature, :math:`F_{dir}` the direct beam on a horizontal
+surface, :math:`F^{\downarrow}_{dif}` the diffuse light coming down and
+:math:`F^{\downarrow}_{lw}` the longwave coming down, all at the roof, and
+:math:`\ell_r` the share of the beam that reaches the roof: 1 in the sun, 0 where a
+taller building shades it (the faces' shadow ray, from the roof face toward the sun).
+These are the conditions the sweep applies at the ground, with the roof's values in
+place of the ground's and one albedo for the beam and the diffuse light. Below the roof
+the column has no flux and no heating. Heights (a cloud band, the aerosol profile) are
+still measured from the ground.
+
+For a roof that sees the whole sky, with the faces on the two-stream columns for their
+shortwave and longwave (``radiation = two_stream``, ``lw_mode = two_stream``), this
+closes the exchange between the roof and the air above it: what the roof face absorbs,
+reflects and emits in its own balance is what the column gives and receives at the
+roof, one step apart in the skin temperature. The limits below say where it does not.
+
+**Which columns.** A column under a building is one whose bottom cell is solid; its roof
+is the top of the solid cells that stand on the ground. The roof face is the upward face
+of the immersed-boundary balance on the first cell above them. Solid cells above an air
+gap (an overhang) are not a roof here. Under an overhang above open ground the bottom
+cell is air, so the column keeps the ground. Under an overhang above a lower roof the
+column starts on that lower roof, and the sweep takes the overhang's cells above it as
+air (see the limits below). A building that reaches the top of the domain has no roof
+face, and its column keeps the ground.
+
+**When, and what it costs.** The cell on each column's roof, the roof faces, their
+albedo and their emissivity are found once. Before each sweep every roof face writes
+its skin temperature and its lit share for its column: the skin temperature the faces
+hold at that moment (with ``radiation = two_stream`` the one at the start of the step),
+and the shadow under the sun at the time of that sweep, the start of the step. The
+shadow depends on that time and the geometry alone, so a restarted run casts the same
+one. That is one small kernel over the roof faces; in
+``Exec/CanonicalTests/Radiation/TwoStream_IBSEB_RandomBuildings`` its cost is not
+measurable (two minutes of that case take 101 and 113 s with the input and 102 and
+105 s without, on a laptop under other load). With the input off nothing is allocated
+and the sweep is unchanged. Nothing is added to the checkpoint.
+
+**What changes.**
+
+- The air above a roof: its heating follows the roof's reflection and emission.
+  Over the 40 m test cube under a scattering sky the shortwave heating of the air
+  above the roofs changes by up to 20 % and the longwave by up to 6 %.
+- The roofs: the diffuse light a roof takes includes the sky's back-scatter of the
+  light its own column reflects, now with the roof's albedo: 57.4 instead of
+  52.9 W/m² on the cube's top (roof albedo 0.3, ground 0.2), and 46.1 W/m² on a roof
+  in a shadow, whose column reflects no beam.
+- Walls that rise above a lower roof read that roof's column, so their
+  "ground" light and longwave become the lower roof's. With
+  :cpp:`erf.ibseb.ground_view_shadow` they take the beam's share at the roof.
+- The outgoing longwave over a building is the roof's (through the air above it).
+- The interface fluxes are zero inside a building.
+- The open columns do not change in the step itself, nor do the walls beside open
+  ground.
+
+**Approximations and limits.**
+
+- *One roof per column, flat and diffuse.* The roof is the lower interface of a cell,
+  with no parapet or slope; the column above it is one-dimensional, as everywhere in
+  the two-stream model.
+- *A roof beside a taller part of the building.* The column treats the roof as seeing
+  its whole column, while the roof face exchanges only its sky view
+  :math:`f_{sky}` with the sky and the rest with the wall. The column then receives
+  :math:`\varepsilon_r (1 - f_{sky}) (\sigma T_r^4 - F^{\downarrow}_{lw})` more
+  longwave than the face loses, 25 to 145 W/m² for roofs at 300 to 330 K under
+  350 W/m² with :math:`f_{sky}` of 0.75 to 0.5, and absorbs
+  :math:`(1 - \alpha_r)(1 - f_{sky}) F^{\downarrow}_{dif}` more diffuse light than
+  the face, 10 to 35 W/m².
+- *Walls above a lower roof* take that roof's column as the ground of their ground
+  view, though the rays of that view end on real ground beyond the roof; the roof
+  itself is in their building view.
+- *The faces' own radiation.* With ``radiation = prescribed``, or ``lw_mode`` other
+  than ``two_stream``, the roof face takes its own clear-sky light and sky longwave,
+  not the column's, so the two sides of the roof do not match: by 30 to 130 W/m² of
+  longwave for the default skies. The faces' balance then runs before the sweep, which
+  sees the skin temperature of the end of the step.
+- *Per-layer optical depths* heat the first cell above a hot roof strongly and in
+  proportion to the resolution, as they do above hot ground: about 14 K per hour in a
+  10 m cell of 300 K air over a 330 K roof for 0.3 per layer.
+  :cpp:`erf.radiation.tau_model = mass` does not.
+- *One albedo.* A face has one shortwave albedo, used for the beam and for diffuse
+  light alike; the ground can have two.
+- *Explicit in time.* The roof's skin temperature in the sweep is the one the faces
+  hold before it, one step behind the faces' own balance with
+  ``radiation = two_stream``.
+- *The diagnostics.* The sweep's domain means in the radiation diagnostics
+  (``SW_surface``, the net longwave) now count the roofs as the surface of their
+  columns. ``seb_lw_net`` under a building is the roof's net longwave; the held
+  ground does not use it.
+- *Overhangs.* A column under an overhang above open ground keeps the ground, without
+  a message. A column under an overhang above a lower roof starts on the lower roof.
+  That roof gets no direct beam at any sun angle, because the shadow takes each column
+  as solid up to its top, but the sweep takes the overhang's cells as air: diffuse light and the sky's longwave reach the
+  lower roof through them, and the overhang's own top and underside are not surfaces
+  of the column. The heating rates in the overhang's cells are set to zero as in every
+  solid cell.
+- *Buildings to the domain top* keep the ground, without a message. A level that does not sweep its own columns takes its heating rates and
+  fluxes from the level below, whose columns start on that level's roofs; ERF notes
+  it at start-up.
+- *A land-surface model* takes the radiation at the ground of every column, and the
+  ground under a roof gets none, so the run stops.
+
+The run stops at start-up unless :cpp:`erf.ibseb.enable`,
+:cpp:`erf.radiation_model = TwoStream` and :cpp:`erf.ibseb.two_stream_buildings` are
+set and no land-surface model is used.
+
+**Tests.** The unit tests ``TwoStreamRoof.*`` check that a column of eight layers on a
+roof at the bottom of layer 3 is, above the roof, the column of the five layers above
+it on a ground with the roof's albedo, emissivity and temperature, to the last bit
+(every flux, heating rate and scalar), with nothing below the roof; the fluxes at the
+roof against :eq:`ibseb-roof-boundary`, lit and shaded, over a ground with another
+albedo for diffuse light; that a cloud band at a given height keeps its layers; a roof
+on the ground; a building that fills the column; and the beam's share at a column's
+lower boundary for :cpp:`erf.ibseb.ground_view_shadow`.
+``IBSEBRoofs.*`` checks that each column gets the roof face that stands on it
+(buildings of three heights in four boxes, one across the periodic edge, one under an
+overhang, where the column starts on the lower roof and the overhang shades it, one to
+the domain top), and that a later step writes the new skin temperatures only.
+``IBSEBRoofs.TheShadowIsThatOfTheTimeGiven`` checks, with a sun that moves, that a
+roof's shadow is that of the time given and not that of the faces' last shortwave. ``TwoStreamBuildingCover.ColumnsStartOnTheRoofsGiven``
+checks the cell on each roof, the sweep on the roofs given, lit and shaded, a
+building whose roof is not given, and a cloud over half of every column. ``Tests/test_files/IBSEB_TwoStreamBuildings`` with
+the input (CTest ``IBSEB_TwoStreamRoofs``) checks, against the adding method and the
+grey longwave written again in Python and run on the column above each roof: the
+diffuse light on every roof of the cube, in the sun and in the shadow of its taller
+part; the outgoing longwave over every building column, and the longwave the walls
+above a lower roof take from that roof's column; that the open columns and the walls
+beside open ground do not change in the first step, to the last bit; the heating above
+the roofs and inside the building; the held ground; one rank against several; a
+restart; two levels; and the walls above a lower roof with
+:cpp:`erf.ibseb.ground_view_shadow` (in the cube's geometry the walls whose ground view
+is partly shaded stand above shaded roofs, which reflect no beam, so they lose nothing;
+the share above a sunlit roof is checked by the unit test only). The Python solvers follow the same schemes, so
+they check which column, interface, albedo and layers are used, not the schemes
+themselves. Not tested: a cloud fraction above zero in a full run, a terrain-following
+grid, the night and the faces' own radiation in the regression test (both run without
+a trap), and uneven surface fields.
+``IBSEB_TwoStreamRoofsWithoutBuildings`` and ``IBSEB_TwoStreamRoofsDisabled`` check the
+start-up stops.
 
 The ground beside the walls
 ---------------------------

@@ -1,5 +1,5 @@
 /**
- *  Define the Exner pressure at this RK stage
+ *  Define the Exner pressure at this RK stage, and the pressure for the acoustic sub-step on a moving mesh
  */
     auto make_pi_stage = [&](const MultiFab& cons_state)
     {
@@ -25,6 +25,18 @@
               auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : zero;
               pi_stage_arr(i,j,k) = getExnergivenRTh(cons_arr(i,j,k,RhoTheta_comp), rdOcp, qv_for_p);
           });
+
+          // The complete pressure of the stage state, from the function that make_gradp_pert uses for the
+          // slow tendency.  The stage state does not change during the sub-steps, so erf_substep_MT takes
+          // it from here
+          if (l_need_p_stage) {
+              const Array4<Real>& p_stage_arr = p_stage.array(mfi);
+              amrex::ParallelFor(gbx1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+              {
+                  auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : zero;
+                  p_stage_arr(i,j,k) = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp), qv_for_p);
+              });
+          }
       } // mfi
     };
 
@@ -158,20 +170,23 @@
                 (*z_phys_nd_new[lev])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
             }
 
-            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
             make_J             (fine_geom, *z_phys_nd[lev], *detJ_cc[lev]);
             make_areas         (fine_geom, *z_phys_nd[lev], *ax[lev], *ay[lev], *az[lev]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  "
                                  << std::setprecision(timeprecision) << old_stage_time << std::endl;
-            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_src[lev], zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_src[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
             make_J             (fine_geom, *z_phys_nd_src[lev], *detJ_cc_src[lev]);
             make_areas         (fine_geom, *z_phys_nd_src[lev], *ax_src[lev], *ay_src[lev], *az_src[lev]);
             make_zcc           (fine_geom, *z_phys_nd_src[lev], *z_phys_cc_src[lev]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: "
                                  << std::setprecision(timeprecision) << new_stage_time << std::endl;
-            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
             make_J             (fine_geom, *z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
             Real inv_dt  = one_d/static_cast<Real>(slow_dt);
@@ -225,10 +240,12 @@
             (*z_phys_nd_new[lev])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
         }
 
-        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
         make_J             (fine_geom,*z_phys_nd[lev], *detJ_cc[lev]);
 
-        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
+        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type,
+                                       FineTerrain::None, nullptr, /*moving_mesh=*/true);
         make_J             (fine_geom,*z_phys_nd_new[lev], *detJ_cc_new[lev]);
 
         Real inv_dt   = one_d/static_cast<Real>(dtau);

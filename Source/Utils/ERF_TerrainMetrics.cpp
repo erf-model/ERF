@@ -327,7 +327,8 @@ make_terrain_fitted_coords (int lev,
                             Vector<Real> const& z_levels_h,
                             GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type,
                             FineTerrain fine_terrain,
-                            MultiFab const* z_phys_interp)
+                            MultiFab const* z_phys_interp,
+                            bool moving_mesh)
 {
     const Box& domain = geom.Domain();
 
@@ -517,6 +518,23 @@ make_terrain_fitted_coords (int lev,
                 z_arr(i,j,k) = z_arr(i,j,domhi_z)
                              + (k-domhi_z) * (z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1));
             });
+        }
+
+        // Moving mesh only: the ghost planes below the bottom by linear extrapolation plane by plane,
+        // recomputed here after the periodic fill, so that the lateral ghost columns of a periodic
+        // domain follow the periodic surface (the planes below the ground exist nowhere as valid
+        // data, so the periodic fill cannot repair them). The mesh is rebuilt every stage and
+        // sub-step on a moving mesh, which reads these planes; static meshes keep upstream's fill.
+        if (moving_mesh && nd_bx.smallEnd(2) <= domlo_z) {
+            Box bx_zlo = mfi.growntilebox(ngrow);
+            bx_zlo.setBig(2,domlo_z-1);
+            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+
+            for (int kk = domlo_z-1; kk >= bx_zlo.smallEnd(2); --kk) {
+                ParallelFor(makeSlab(bx_zlo,2,kk), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    z_arr(i,j,k) = two*z_arr(i,j,k+1) - z_arr(i,j,k+2);
+                });
+            }
         }
     }
 } // make_terrain_fitted_coords
@@ -1252,6 +1270,135 @@ make_zcc (const Geometry& geom,
        });
     }
     z_phys_cc.FillBoundary(geom.periodicity());
+}
+
+/**
+ * Computation of the height of the bottom of the domain at each node, z_sfc_nd
+ *
+ * A node of a box that reaches the bottom of the domain takes the height of its own
+ * z_phys_nd there. The nodes of any other box, which can occur only on a refined level,
+ * are interpolated bilinearly from z_sfc_crse, the coarser level's, which is what the
+ * fine z_phys_nd interpolated from the coarse level has at the bottom of the domain.
+ *
+ * @param[in ] geom       geometry of this level
+ * @param[in ] z_phys_nd  nodal heights of this level
+ * @param[out] z_sfc_nd   defined on the 2D projection of z_phys_nd's grids (nodal in x and
+ *                        y, z index 0), with the same DistributionMapping; its ghost cells,
+ *                        at most as many as z_phys_nd's in x and y, are filled too
+ * @param[in ] z_sfc_crse z_sfc_nd of the next coarser level; may be null only if every column
+ *                        of this level has a box reaching the bottom of the domain
+ * @param[in ] ref_ratio  refinement ratio between the coarser level and this one
+ */
+void
+make_zsfc_nd (const Geometry& geom,
+              const MultiFab& z_phys_nd,
+              MultiFab& z_sfc_nd,
+              const MultiFab* z_sfc_crse,
+              const IntVect& ref_ratio)
+{
+    AMREX_ALWAYS_ASSERT(z_sfc_nd.size() == z_phys_nd.size() &&
+                        z_sfc_nd.DistributionMap() == z_phys_nd.DistributionMap());
+
+    // The ghost cells are taken from z_phys_nd's, so it must have at least as many
+    const IntVect ng(z_sfc_nd.nGrowVect()[0], z_sfc_nd.nGrowVect()[1], 0);
+    AMREX_ALWAYS_ASSERT(ng[0] <= z_phys_nd.nGrowVect()[0] && ng[1] <= z_phys_nd.nGrowVect()[1]);
+
+    const int klo = geom.Domain().smallEnd(2);
+    const BoxArray& ba_nd = z_phys_nd.boxArray();
+
+    // The boxes that reach the bottom of the domain, gathered on their own so that their
+    //    values also reach any box stacked above them in the same columns
+    BoxList bl_bot(z_sfc_nd.ixType());
+    Vector<int> pmap_bot, idx_bot;
+    for (int i = 0; i < ba_nd.size(); ++i) {
+        if (ba_nd[i].smallEnd(2) == klo) {
+            bl_bot.push_back(z_sfc_nd.boxArray()[i]);
+            pmap_bot.push_back(z_phys_nd.DistributionMap()[i]);
+            idx_bot.push_back(i);
+        }
+    }
+
+    // In the usual case every box reaches the bottom, so each box of z_sfc_nd lies under its
+    //    own box of z_phys_nd and needs neither the coarser level nor any communication
+    if (static_cast<int>(idx_bot.size()) == ba_nd.size()) {
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(z_sfc_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& bx = mfi.growntilebox(ng);
+            const Array4<      Real>& zs_arr = z_sfc_nd.array(mfi);
+            const Array4<const Real>& z_nd   = z_phys_nd.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                zs_arr(i,j,0) = z_nd(i,j,klo);
+            });
+        }
+        return;
+    }
+
+    z_sfc_nd.setVal(zero);
+
+    if (z_sfc_crse != nullptr) {
+        // The coarse nodes surrounding the coarse cells under this level's columns
+        const IntVect rr(ref_ratio[0], ref_ratio[1], 1);
+        BoxArray ba_crse(z_sfc_nd.boxArray());
+        ba_crse.grow(ng);
+        ba_crse.enclosedCells(0); ba_crse.enclosedCells(1);
+        ba_crse.coarsen(rr);
+        ba_crse.surroundingNodes(0); ba_crse.surroundingNodes(1);
+        MultiFab tmp(ba_crse, z_sfc_nd.DistributionMap(), 1, 0);
+        tmp.ParallelCopy(*z_sfc_crse, 0, 0, 1, z_sfc_crse->nGrowVect(), IntVect(0));
+
+        const Real rx_inv = one / Real(rr[0]);
+        const Real ry_inv = one / Real(rr[1]);
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(z_sfc_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& bx = mfi.growntilebox(ng);
+            const Array4<      Real>& zs_arr  = z_sfc_nd.array(mfi);
+            const Array4<const Real>& zsc_arr = tmp.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                const int ic = amrex::coarsen(i,rr[0]);
+                const int jc = amrex::coarsen(j,rr[1]);
+                const Real fx = Real(i - ic*rr[0]) * rx_inv;
+                const Real fy = Real(j - jc*rr[1]) * ry_inv;
+                // Coarse nodes not needed (weight zero) may lie outside tmp, so skip them
+                Real z = (one-fx)*(one-fy) * zsc_arr(ic,jc,0);
+                if (fx > zero)              { z += fx       *(one-fy) * zsc_arr(ic+1,jc  ,0); }
+                if (fy > zero)              { z += (one-fx) *fy       * zsc_arr(ic  ,jc+1,0); }
+                if (fx > zero && fy > zero) { z += fx       *fy       * zsc_arr(ic+1,jc+1,0); }
+                zs_arr(i,j,0) = z;
+            });
+        }
+    } else {
+        // Without a coarser level every column must be covered by a box reaching the bottom
+        BoxArray ba_bot(bl_bot);
+        for (int i = 0; i < z_sfc_nd.boxArray().size(); ++i) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ba_bot.contains(z_sfc_nd.boxArray()[i]),
+                "make_zsfc_nd: a column whose box does not reach the bottom needs the coarser level's z_sfc_nd");
+        }
+    }
+
+    if (bl_bot.isEmpty()) { return; }
+
+    MultiFab z_sfc_bot(BoxArray(std::move(bl_bot)), DistributionMapping(std::move(pmap_bot)), 1, ng);
+    for (MFIter mfi(z_sfc_bot); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.fabbox();
+        const Array4<      Real>& zs_arr = z_sfc_bot.array(mfi);
+        const Array4<const Real>& z_nd   = z_phys_nd.const_array(idx_bot[mfi.index()]);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            zs_arr(i,j,0) = z_nd(i,j,klo);
+        });
+    }
+    // The ghost cells of the boxes reaching the bottom reach ghost cells of the others too
+    z_sfc_nd.ParallelCopy(z_sfc_bot, 0, 0, 1, ng, ng);
 }
 
 

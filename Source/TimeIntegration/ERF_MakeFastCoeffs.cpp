@@ -21,7 +21,9 @@ using namespace amrex;
  * @param[in]  mesh_type     Do we have constant dz?
  * @param[in]  gravity       Magnitude of gravity
  * @param[in]  c_p           Coefficient at constant pressure
- * @param[in]  detJ_cc       Jacobian of the metric transformation at cell centers
+ * @param[in]  detJ_cc       Jacobian of the metric transformation at cell centers: the face metric of
+ *                           the vertical pressure gradient and the cell volume dividing the vertical flux
+ *                           divergence. On a moving mesh this is the volume at the end of the sub-step
  * @param[in]  dtau          Fast time step
  * @param[in]  beta_s        Coefficient which determines how implicit vs explicit the solve is
  * @param[in]  z_phys_nd     Height coordinate at nodes (null without terrain)
@@ -91,7 +93,6 @@ void make_fast_coeffs (int /*level*/,
 
         const Array4<const Real>& detJ        = (mesh_type != MeshType::ConstantDz) ?
                                                 detJ_cc->const_array(mfi) : Array4<const Real>{};
-
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         FArrayBox gam_fab; gam_fab.resize(surroundingNodes(bx,2),1,The_Async_Arena());
@@ -191,6 +192,8 @@ void make_fast_coeffs (int /*level*/,
                 coeffA_a(i,j,k) = D_A * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
                 coeffC_a(i,j,k) = D_C * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
 
+                // On a moving mesh the w equation, conservative in the face volume, is divided by the
+                // face volume at the end of the sub-step, so the diagonal is one there as well
                 coeffB_a(i,j,k) = one + D_B * ( (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid
                                       + halfg * (one/detJ(i,j,k) - one/detJ(i,j,k-1)) );
             });

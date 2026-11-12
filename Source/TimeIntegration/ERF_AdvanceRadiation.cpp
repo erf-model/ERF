@@ -402,7 +402,7 @@ void ERF::advance_radiation (int lev,
                       lmask_lev[lev][0].get(), t_surf,
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
-                      z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
+                      z_phys_nd[lev].get()     , z_sfc_nd[lev].get(), lat_ptr, lon_ptr,
                       terrain_radiation && !topographic_radiation.forcing_ready(lev),
                       solar_declin, calday);
 
@@ -473,6 +473,8 @@ void ERF::advance_radiation (int lev,
         if (m_SurfaceModel) {
             radiation_inputs = m_SurfaceModel->get_radiation_fields(lev);
         }
+        // The roofs the columns under buildings start on (erf.ibseb.two_stream_roofs).
+        ibseb_give_roofs(lev);
         two_stream_rad.advance(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
                                lsm, radiation_inputs, noahmp_active,

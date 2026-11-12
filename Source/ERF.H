@@ -45,6 +45,7 @@
 #include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_RefinementCriterion.H>
 #include <ERF_TopographicShading.H>
 #include <ERF_PlotfileSelection.H>
 #include <ERF_BaseStateParams.H>
@@ -77,6 +78,9 @@
 #ifdef ERF_USE_FIRE
 #include "ERF_FireCoupler.H"
 #endif
+#ifdef ERF_USE_DUST
+#include "ERF_DustModel.H"
+#endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
 #include "ERF_Plotfile2DCloudOptics.H"
@@ -86,6 +90,7 @@
 #endif
 #ifdef ERF_USE_MOVING_BODIES
 #include "ERF_StructureModel.H"
+#include "ERF_ActuatorSampling.H"
 #endif
 #include <ERF_SurfaceModel.H>
 
@@ -274,9 +279,15 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
+    // Fill mf (one component, one ghost cell) at level levc with the refinement field named field
+    void compute_tag_field (int levc, const std::string& field, amrex::Real time,
+                            amrex::MultiFab& mf, amrex::TagBoxArray& tags);
+
     // Tag cells in a given box
     void read_box_for_refinement   (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box);
     void update_box_for_refinement (std::string& ref_prefix, int& lev_for_box, amrex::RealBox& real_box, const double time);
+    void refinement_box_offset     (const std::string& ref_prefix, const double time,
+                                    amrex::Real& offset_x, amrex::Real& offset_y);
 
     // Refinement criteria for hurricanes
     void HurricaneTracker (int lev,
@@ -630,6 +641,12 @@ public:
     [[nodiscard]] std::vector<amrex::Real>
     sbm_qualification_composite_inventory () const;
 
+    // SBM leaf-domain inventory and its boundary budget
+    // (Microphysics/SBM/ERF_SBMAMRCoupling.cpp); public because they launch device lambdas.
+    [[nodiscard]] std::vector<amrex::Real> sbm_composite_inventory () const;
+    void sbm_record_budget_reference ();
+    void sbm_check_budget (int nstep);
+
     // Do whatever writing needs to be done at intermediate times
     void WriteAtIntermediateTime (int nstep, double time);
 
@@ -657,6 +674,9 @@ public:
     // The volume fraction of each level for line and plane sampling, or nullptr without
     // immersed terrain
     amrex::Vector<const amrex::MultiFab*> sampling_volfrac () const;
+    // The ground of each level for line sampling (station_ground), or nullptr where the
+    // sampler does not need it
+    amrex::Vector<const amrex::MultiFab*> sampling_ground (const LineSampler& sampler);
 
     void derive_diag_profiles (double time,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
@@ -985,6 +1005,7 @@ public:
     void ibseb_check_two_stream_provider () const;
     void ibseb_check_two_stream_buildings () const;
     void ibseb_give_ground_walls (int lev);
+    void ibseb_give_roofs (int lev);
     [[nodiscard]] bool ibseb_two_stream_buildings () const {
         return ibseb_params.enable && ibseb_params.two_stream_buildings && solverChoice.rad_type == RadiationType::TwoStream;
     }
@@ -1047,6 +1068,8 @@ public:
     void GetEnsembleCheckpointName (int da_iter, int ens_no);
 
     void init_custom (int lev);
+    // Set rho = rho0 theta0 / theta on a pseudo-incompressible level, keeping the mixing ratios
+    void make_pseudo_incompressible_initial_state (int lev);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -1203,6 +1226,7 @@ public:
     void init_zphys            (int lev, double elapsed_time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
+    void update_zsfc_nd        (int lev);
     void make_terrain_blanking (int lev);
 
     [[nodiscard]] bool immersed_forcing_active (int lev) const noexcept
@@ -1263,6 +1287,7 @@ private:
                            const amrex::BoxArray& ba,
                            const amrex::DistributionMapping& dm);
     void sbm_synchronize_levels (int nstep);
+    void configure_sbm_physical_boundaries ();
 
     void Construct_ERFFillPatchers (int lev);
 
@@ -1557,6 +1582,29 @@ private:
     // Used for anelastic or when we impose an initial projection
     amrex::Vector<amrex::MultiFab> pp_inc;
 
+    // Pseudo-incompressible (non-EB) levels: the upwind direction on each face (+1, -1, or 0 for
+    // a zero momentum, which selects the centered blend), the sign of the momentum the latest
+    // projection on the level started from.  The projection maps rho0 theta0 / rho onto the
+    // faces with it, and the advection of the cell-centered scalars from the projected state
+    // picks its upwind side from it rather than from the sign of the projected mass flux, so
+    // that with rho theta = rho0 theta0 the advective flux of (rho theta) is the flux the
+    // projection made divergence-free, even where the projection reverses the flow.
+    // pi_upw_dir_stage is the copy an RK stage advects with: the stage's projection overwrites
+    // pi_upw_dir before erf_slow_rhs_post advects the remaining scalars.
+    amrex::Vector<amrex::Array<std::unique_ptr<amrex::MultiFab>,AMREX_SPACEDIM>> pi_upw_dir;
+    amrex::Vector<amrex::Array<std::unique_ptr<amrex::MultiFab>,AMREX_SPACEDIM>> pi_upw_dir_stage;
+
+    //! Define pi_upw_dir[lev] and pi_upw_dir_stage[lev] on the level's faces (zero) if needed
+    void define_pi_upw_dir (int lev);
+
+    // Pseudo-incompressible (non-EB) levels: the advective part of the (rho theta) RHS of the
+    // latest stage (pi_adv_rt), and the rest of that RHS (pi_src: diffusion, implicit diffusion
+    // and the sources in cc_src), the non-advective tendency Q of (rho theta).  The projection
+    // at the end of the stage imposes div(rho0 theta0 u) = Q + the drift correction, so that the
+    // next update keeps rho theta = rho0 theta0 (see project_momenta)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_adv_rt;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_src;
+
     // Used only for fast substepping
     amrex::Vector<amrex::MultiFab> lagged_delta_rt;
     amrex::Vector<amrex::MultiFab> avg_xmom;
@@ -1569,6 +1617,8 @@ private:
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base;
+    // The same on the mesh at the end of the stage, z_phys_nd_new (MovingFittedMesh only)
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_base>> physbcs_base_new;
 
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
@@ -1593,6 +1643,12 @@ private:
     // transport are destroyed before these register owners.
     amrex::Vector<std::unique_ptr<erf_sbm::SBMAMRFluxRegister>> sbm_amr_flux_regs;
     std::vector<amrex::Real> sbm_qualification_initial_inventory;
+    // Leaf inventory, cumulative outward boundary transfer and its gross scale
+    // at the previous erf.sbm_budget_check (or the start or restart).
+    std::vector<amrex::Real> sbm_budget_reference_inventory;
+    std::vector<double> sbm_budget_reference_outward;
+    std::vector<double> sbm_budget_reference_gross;
+    std::uint64_t sbm_budget_reference_terms{0};
     // Declared after the state manager so its non-owning layout reference is
     // destroyed before the authoritative SBM owner.
     std::unique_ptr<erf_sbm::SBMTransport> sbm_transport;
@@ -1704,6 +1760,10 @@ private:
     // Data structures for terrain-fitted coordinates
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
+
+    // Height of the bottom of the domain at each node, like z_phys_nd at its bottom: on
+    // ba2d[lev] made nodal in x and y, with z_phys_nd's ghost cells in x and y; see update_zsfc_nd
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_sfc_nd;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax;
@@ -2335,6 +2395,17 @@ private:
     amrex::Real m_fire_plot_per  = -1.0;
 #endif
 
+#ifdef ERF_USE_DUST
+    /// The dust model erf.dust.model selects (ERF_DustModel.H); nullptr unless erf.dust.enable = true
+    std::unique_ptr<DustModel> m_dust_model = nullptr;
+
+    /// Make and set up the dust model, once, in InitData_post; zero the dust scalars on a fresh start
+    void initialize_dust_model ();
+
+    /// Advance the dust model over the step of level 0 just taken (from step, at time, by dt[0])
+    void advance_dust_model (int step, double time);
+#endif
+
 #ifdef ERF_USE_MOVING_BODIES
     /// The structure model erf.structures.model selects (ERF_StructureModel.H); nullptr when the key is not set
     std::unique_ptr<StructureModel> m_structure_model = nullptr;
@@ -2359,20 +2430,17 @@ private:
     /// The grids of the model's level at its last advance(): the source add_momentum_sources() returns lives there
     amrex::BoxArray            m_structure_src_ba;
     amrex::DistributionMapping m_structure_src_dm;
+
+    /// The node heights of the level above the model's, for the check of its support(): kept until that level's boxes change
+    erf_actuator::LevelHeights m_structure_fine_heights;
 #endif
 
     //
-    // Holds info for dynamically generated tagging criteria
+    // Tagging criteria read from erf.refinement_indicators. Not every indicator creates one
+    // (e.g. "storm_tracker" does not), so these do not correspond one-to-one with that list;
+    // each carries the name of the indicator that created it.
     //
-    static amrex::Vector<amrex::AMRErrorTag> ref_tags;
-
-    //
-    // Name of the refinement indicator that generated each entry of ref_tags.
-    // Not every indicator generates a ref_tag (e.g. "storm_tracker" does not),
-    // so this must be carried alongside ref_tags rather than re-deriving it
-    // from the positional index into erf.refinement_indicators.
-    //
-    static amrex::Vector<std::string> ref_tag_indicator_names;
+    static amrex::Vector<RefinementCriterion> ref_criteria;
 
     amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
 

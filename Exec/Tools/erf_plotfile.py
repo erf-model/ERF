@@ -4,8 +4,9 @@ Standard library only, so the regression check scripts run on a bare CI
 runner. Returns planar (x-y) averages of cell-centred fields as a function
 of the vertical index, plus the cell-centre heights of a flat mesh.
 
-Limitations: one AMR level. Single/double precision and byte order are read
-from the FAB headers.
+Limitations: one AMR level, except read_fields, which reads any one level of
+a multi-level plotfile. Single/double precision and byte order are read from
+the FAB headers.
 """
 
 import array
@@ -27,14 +28,14 @@ def _read_header(plotfile):
     prob_lo = [float(v) for v in next(it).split()]
     prob_hi = [float(v) for v in next(it).split()]
     next(it)                          # ref ratios (an empty line when finest == 0)
-    dom = next(it)                    # "((0,0,0) (nx-1,ny-1,nz-1) (0,0,0))"
-    lo, hi = re.findall(r"\(([-\d,]+)\)", dom)[:2]
-    lo = [int(v) for v in lo.split(",")]
-    hi = [int(v) for v in hi.split(",")]
+    dom = next(it)                    # "((0,0,0) (nx-1,ny-1,nz-1) (0,0,0))", one per level
+    corners = [[int(v) for v in c.split(",")] for c in re.findall(r"\(([-\d,]+)\)", dom)]
+    domains = [(corners[3 * n], corners[3 * n + 1]) for n in range(len(corners) // 3)]
+    lo, hi = domains[0]
     next(it)                          # step numbers
     dx = [float(v) for v in next(it).split()]
     return dict(names=names, ndim=ndim, time=time, finest=finest,
-                prob_lo=prob_lo, prob_hi=prob_hi, lo=lo, hi=hi, dx=dx)
+                prob_lo=prob_lo, prob_hi=prob_hi, lo=lo, hi=hi, dx=dx, domains=domains)
 
 
 def _read_cell_h(level_dir):
@@ -142,11 +143,12 @@ def read_surf_hist(path):
     return dict(zip(header, last))
 
 
-def read_fields(plotfile, fields):
-    """Full 3D cell data of the named fields on a single-level plotfile.
+def read_fields(plotfile, fields, level=0):
+    """Full 3D cell data of the named fields on one level of a plotfile.
 
     Returns (hdr, data) where data[field][i][j][k] is a nested list over the
-    whole domain (0-based from the domain's low corner). Meant for the small
+    whole domain of the level (0-based from the domain's low corner); on a
+    refined level the cells outside its grids are 0. Meant for the small
     canonical grids; it is pure Python.
     """
     hdr = _read_header(plotfile)
@@ -155,10 +157,10 @@ def read_fields(plotfile, fields):
         if f not in names:
             raise KeyError("field %s not in plotfile (have: %s)" % (f, ", ".join(names)))
     comps = [names.index(f) for f in fields]
-    lo, hi = hdr["lo"], hdr["hi"]
+    lo, hi = hdr["domains"][level]
     nx, ny, nz = [hi[d] - lo[d] + 1 for d in range(3)]
     out = {f: [[[0.0] * nz for _ in range(ny)] for _ in range(nx)] for f in fields}
-    level_dir = os.path.join(plotfile, "Level_0")
+    level_dir = os.path.join(plotfile, "Level_%d" % level)
     ncomp, ng, boxes, fabs = _read_cell_h(level_dir)
     for (blo, bhi), (fname, off) in zip(boxes, fabs):
         flo, fhi, data = _read_fab(os.path.join(level_dir, fname), off, ncomp)

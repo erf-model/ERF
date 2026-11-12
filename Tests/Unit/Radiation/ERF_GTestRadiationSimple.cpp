@@ -73,7 +73,7 @@ struct SimpleColumn
         const amrex::Vector<const amrex::MultiFab*> lsm_in{};
         const amrex::Vector<amrex::MultiFab*> lsm_out{};
         rad.Run(level, step, time, dt, ba, geom, &cons, nullptr, nullptr, lsm_in, lsm_out,
-                &qheating, nullptr, nullptr, nullptr, nullptr, false, declin, calday);
+                &qheating, nullptr, nullptr, nullptr, nullptr, nullptr, false, declin, calday);
         amrex::Gpu::streamSynchronize();
     }
 

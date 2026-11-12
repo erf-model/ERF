@@ -473,6 +473,9 @@ void ERF::set_cf_zghost_projection (int lev, double time_d, MultiFab& xmom, Mult
 {
     BL_PROFILE("ERF::set_cf_zghost_projection()");
     MultiFab rhou_g, rhov_g;
+    // The scaling is (rho u) with a fixed density and (rho0 u) otherwise; neither is the
+    // beta (rho u) of a pseudo-incompressible projection, which therefore stops before here
+    // on a level with coarse/fine faces in z (project_momenta)
     if (!cf_zface_coarse_data(lev, time_d, solverChoice.fixed_density[lev],
                               omega_t, rhou_g, rhov_g, slab_box)) {
         return;
