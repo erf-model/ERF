@@ -72,8 +72,7 @@ When the deck names a file that is present, its contents are compared with the
 deck. wrfinput: staggered dimensions against `amr.n_cell`, `DX * n` against the
 domain extent, `bottom_top` against `n_cell` z, `SIMULATION_START_DATE` against
 `start_datetime`. wrfbdy: `bdy_width` above `erf.real_width`, evenly spaced
-time stamps, data span against `stop_time`, the cloud fields that
-`erf.use_wrf_bdy_qc_qi` needs. wrflow: SST present, grid against `n_cell`.
+time stamps, data span against `stop_time`. wrflow: SST present, grid against `n_cell`.
 Terrain text, USGS and NetCDF files: shape, increasing coordinates, coverage of
 the domain (ERF stops when the table ends more than one spacing inside the
 domain). Soundings: columns, increasing heights, top against the domain top,

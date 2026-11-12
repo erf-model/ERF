@@ -5101,7 +5101,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
         string(REPLACE "fcompare" "fvolumesum" _smx_fvs_name "${_smx_fcmp_name}")
         set(_smx_fvs "${_smx_tools}/${_smx_fvs_name}")
         add_test(NAME Structures_ExampleModel
-                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && ! grep -q 'structure example fire' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
+                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && grep -q 'structure example: finished at t = 4 after 16 steps of this run' straight.log && ! grep -q 'structure example fire' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && grep -q 'structure example: level 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 16, fully compressible: yes' restart.log && grep -q 'structure example: finished at t = 4 after 8 steps of this run' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
                  WORKING_DIRECTORY ${_smx_dir})
         set_tests_properties(Structures_ExampleModel PROPERTIES
             LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
@@ -5116,6 +5116,59 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       set_tests_properties(Structures_ExampleModel_FinerLevelElsewhere PROPERTIES
           LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
           ATTACHED_FILES_ON_FAIL "${_smx_fe_dir}/run.log")
+      # What the model is told at initialize() and that finalize() runs once (StructureInit, finalize()).
+      # Runs of 2 level-0 steps of 0.25 s: one level; level 1 everywhere with dt_ref_ratio 2 and the
+      # model on level 1 (0.125 s, 4 steps); stop_datetime 1 s after start_datetime, where stop_time and
+      # start_time are seconds since 1970, so the model must see 1 s, with max_step = -1 (no limit, the
+      # largest int); Anelastic (not fully compressible); Anelastic on level 0 with FullyCompressible on
+      # level 1 (fully compressible on a finer level); FullyCompressible with RK3_NoSubstepping (still
+      # fully compressible: the field names the solver); and a deck without stop_time and erf.fixed_dt
+      # (no fixed step: not positive; no stop time: the largest double). The last two take 0 steps.
+      # The one-level run writes chk00002; a restart from it at max_step = 2 takes no step and must
+      # report the checkpoint's time at finalize().
+      set(_smx_ri_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Structures_ExampleModel_RunInfo)
+      file(MAKE_DIRECTORY ${_smx_ri_dir})
+      file(COPY ${_smx_src}/inputs_structure_example ${_smx_src}/inputs_structure_example_dates
+                ${_smx_src}/inputs_structure_example_defaults DESTINATION ${_smx_ri_dir})
+      set(_smx_ri_run "${_smx_mpi} ${_smx_exe}")
+      set(_smx_ri_opt "erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0")
+      set(_smx_ri_two "amr.max_level=1 erf.dt_ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices=0 0 0")
+      set(_smx_ri_init "structure example: level")
+      set(_smx_ri_cmd
+          "rm -rf chk0*"
+          "${_smx_ri_run} inputs_structure_example max_step=2 erf.plot_int_1=-1 erf.check_int=2 amrex.call_addr2line=0 > one.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: yes' one.log"
+          "grep -q 'structure example: finished at t = 0.5 after 2 steps of this run' one.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 erf.restart=chk00002 ${_smx_ri_opt} > nostep.log 2>&1"
+          "grep -q 'structure example: finished at t = 0.5 after 0 steps of this run' nostep.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 ${_smx_ri_opt} ${_smx_ri_two} erf.box1.in_box_hi_indices=31 31 31 structure.example.level=1 > two.log 2>&1"
+          "grep -q '${_smx_ri_init} 1 steps with 0.125 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: yes' two.log"
+          "grep -q 'structure example: finished at t = 0.5 after 4 steps of this run' two.log"
+          "${_smx_ri_run} inputs_structure_example_dates max_step=-1 ${_smx_ri_opt} > dates.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1 s and no step limit, fully compressible: yes' dates.log"
+          "grep -q 'structure example: finished at t = 1 after 4 steps of this run' dates.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 ${_smx_ri_opt} erf.compressibility_type=Anelastic > anelastic.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: no' anelastic.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 ${_smx_ri_opt} ${_smx_ri_two} erf.box1.in_box_hi_indices=31 31 3 structure.example.level=0 erf.compressibility_type=Anelastic FullyCompressible > mixed.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: yes' mixed.log"
+          "${_smx_ri_run} inputs_structure_example max_step=0 ${_smx_ri_opt} erf.timestepping_type=RK3_NoSubstepping > nosubstep.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 0, fully compressible: yes' nosubstep.log"
+          "${_smx_ri_run} inputs_structure_example_defaults max_step=0 ${_smx_ri_opt} > defaults.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 has no fixed step, the run has no stop time or after level-0 step 0, fully compressible: yes' defaults.log"
+          "grep -q 'structure example: finished at t = 0 after 0 steps of this run' defaults.log")
+      set(_smx_ri_logs one nostep two dates anelastic mixed nosubstep defaults)
+      set(_smx_ri_attach "")
+      foreach(_log IN LISTS _smx_ri_logs)
+        list(APPEND _smx_ri_cmd "test `grep -c 'structure example: finished' ${_log}.log` -eq 1")
+        list(APPEND _smx_ri_attach "${_smx_ri_dir}/${_log}.log")
+      endforeach()
+      list(JOIN _smx_ri_cmd " && " _smx_ri_cmd)
+      add_test(NAME Structures_ExampleModel_RunInfo
+               COMMAND sh -c "${_smx_ri_cmd}"
+               WORKING_DIRECTORY ${_smx_ri_dir})
+      set_tests_properties(Structures_ExampleModel_RunInfo PROPERTIES
+          LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
+          ATTACHED_FILES_ON_FAIL "${_smx_ri_attach}")
       add_test_abort(Structures_Abort_FinerLevelCovers ${_smx_src} inputs_structure_example
                      "structure model .example. couples to level 0, but level 1 covers part of its support"
                      "${_smx_finer} erf.box1.in_box_lo_indices=8 8 8 erf.box1.in_box_hi_indices=23 23 23")

@@ -47,12 +47,25 @@ and its checkpoint data.
        from ``StructureStep`` each step). ``StructureInit`` holds the level's
        geometry, the x-velocity, the mesh heights and Jacobians on a stretched or
        terrain-following mesh, whether every map factor is 1 (the actuator core
-       assumes so), the turbulence closure, the checkpoint name on a restart and,
-       on request, the immersed terrain surface.
+       assumes so), the turbulence closure, the checkpoint name on a restart,
+       on request the immersed terrain surface, and what a model that drives a
+       solver of its own needs before the first step: the level's nominal step
+       (``fixed_dt``, not positive without ``erf.fixed_dt``), the time at which
+       the run stops (``stop_time`` on the clock of ``time``: the input
+       ``stop_time``, or ``stop_datetime`` less ``start_datetime``), ``max_step``,
+       and whether any level of the run is ``FullyCompressible``
+       (``fully_compressible``, the solver type; a ``RK3_NoSubstepping`` level
+       counts). The step taken is ``StructureStep::dt``: it differs from
+       ``fixed_dt`` on the first steps with ``erf.init_shrink`` below 1 or after
+       a restart, and on a last step that ERF fits to the stop time. With
+       ``start_datetime`` the stop time can differ from the input by about
+       :math:`10^{-7}` s, so a model compares it with a tolerance.
    * - ``advance()``
      - Once per step of the model's level, with the state at the start of the
        step (``StructureStep``), before the step's Runge-Kutta stages. The model
        samples the wind, advances its structures and sets the momentum source.
+       The step ``StructureStep::dt`` is a ``double``, as ERF keeps it, also in
+       a single-precision build.
        ``StructureStep`` also says whether every map factor of the level is 1
        now, so a level a regrid made is checked as well, and holds the fire view
        (``StructureStep::fire``, below) when the run has a fire.
@@ -81,6 +94,11 @@ and its checkpoint data.
      - Each time ERF writes a checkpoint, under ``<checkpoint>/<model name>``.
        A model that restores its state in ``initialize()`` returns true from
        ``supports_restart()``; otherwise a restart stops the run.
+   * - ``finalize()``
+     - Once, on every rank, when the run ends normally, after the last
+       plotfile and checkpoint: the model flushes and closes its own files or
+       shuts down a solver it drives. Not called when the run aborts. The
+       default does nothing.
    * - ``plot_var_names()``, ``fill_plot_var()``
      - The model's fields that ``erf.plot_vars_*`` may list, filled into the
        ERF plotfile on every level. The names carry the model's prefix; an

@@ -17,6 +17,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <optional>
 
 using namespace amrex;
@@ -60,9 +61,17 @@ ERF::initialize_structure_model ()
     }
 
     const TurbChoice& tc = solverChoice.turbChoice[lev];
+    // The run's stop time on the clock of t_new, which starts at zero at start_time
+    const double stop = (stop_time < std::numeric_limits<double>::max()) ? stop_time - start_time
+                                                                         : std::numeric_limits<double>::max();
+    bool fully_compressible = false;
+    for (int l = 0; l <= max_level; ++l) {
+        fully_compressible = fully_compressible ||
+                             (solverChoice.compressibility_type[l] == CompressibilityType::FullyCompressible);
+    }
     const StructureInit init{lev, t_new[lev], geom[lev], vars_new[lev][Vars::xvel], zp, detJ,
                              surface_ptr, structure_unit_map_factors(lev), tc.rans_type == RANSType::kEqn, tc.Cmu0,
-                             restart_chkfile};
+                             restart_chkfile, fixed_dt[lev], stop, max_step, fully_compressible};
     m_structure_model->initialize(init);
 
     if (!restart_chkfile.empty()) { read_structure_coarse_source_checkpoint(lev); }
@@ -81,7 +90,7 @@ ERF::structure_unit_map_factors (int lev) const
 }
 
 void
-ERF::advance_structure_model (int lev, double time, Real dt_lev,
+ERF::advance_structure_model (int lev, double time, double dt_lev,
                               const MultiFab& U_old, const MultiFab& V_old,
                               const MultiFab& W_old, const MultiFab& S_old)
 {
