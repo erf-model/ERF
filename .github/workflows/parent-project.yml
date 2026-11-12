@@ -1,0 +1,101 @@
+name: ParentProject
+
+# Builds ERF from a parent CMake project with add_subdirectory, with the example
+# structure model in a folder outside the ERF tree (Tests/ParentProject), and runs
+# its one test. Runs when the CMake files, the example model or this file change.
+on:
+  push:
+    branches: [development]
+    paths:
+      - 'CMakeLists.txt'
+      - '**/CMakeLists.txt'
+      - '**.cmake'
+      - 'CMake/**'
+      - 'Tests/ParentProject/**'
+      - 'Tests/StructureModelExample/**'
+      - 'Source/MovingBodies/**'
+      - 'Submodules/AMReX'
+      - '.github/workflows/parent-project.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'CMakeLists.txt'
+      - '**/CMakeLists.txt'
+      - '**.cmake'
+      - 'CMake/**'
+      - 'Tests/ParentProject/**'
+      - 'Tests/StructureModelExample/**'
+      - 'Source/MovingBodies/**'
+      - 'Submodules/AMReX'
+      - '.github/workflows/parent-project.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-parent-project
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
+
+jobs:
+  parent-project:
+    name: ERF under a parent CMake project
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
+
+    # Only AMReX is needed: no unit tests (googletest) and no EKAT, RRTMGP or WW3.
+    - name: Check out AMReX
+      run: git submodule update --init --depth 1 Submodules/AMReX
+
+    - name: Install CCache
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+
+    - name: Cache
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        restore-keys: |
+             ccache-${{ github.workflow }}-${{ github.job }}-git-
+
+    # The build directory is outside the checkout, so the model copy the parent makes
+    # there (<build>/OutsideModel) is outside the ERF tree.
+    - name: Configure the parent project
+      shell: bash   # -eo pipefail, so a configure error is not hidden by tee
+      run: |
+        cmake \
+          -S Tests/ParentProject \
+          -B ${{ runner.temp }}/parent-build \
+          -DCMAKE_BUILD_TYPE:STRING=Release \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
+          2>&1 | tee ${{ runner.temp }}/configure-output.txt
+        # The model was compiled in on the first configure (a normal variable set by the parent).
+        grep -q "ERF structure model directory: ${{ runner.temp }}/parent-build/OutsideModel" \
+          ${{ runner.temp }}/configure-output.txt
+
+    # ERF's own tests under the parent: configure only, and check that they run the
+    # erf_exec in ERF's binary folder (<build>/ERF/Exec), not <build>/Exec.
+    - name: Configure the parent project with ERF's tests
+      shell: bash
+      run: |
+        B=${{ runner.temp }}/parent-build-tests
+        cmake -S Tests/ParentProject -B $B -DCMAKE_BUILD_TYPE:STRING=Release \
+          -DERF_ENABLE_TESTS:BOOL=ON -DERF_ENABLE_UNIT_TESTS:BOOL=OFF
+        grep -rq "$B/ERF/Exec/erf_exec" --include=CTestTestfile.cmake $B
+        ! grep -rq "$B/Exec/" --include=CTestTestfile.cmake $B
+        ctest --test-dir $B -N | tail -1
+
+    - name: Build erf_exec and fvolumesum
+      run: |
+        export CCACHE_COMPRESS=1
+        export CCACHE_COMPRESSLEVEL=10
+        ccache -z
+        cmake --build ${{ runner.temp }}/parent-build --target erf_exec fvolumesum --parallel 4
+        ccache -s
+
+    - name: Run the parent project test
+      run: ctest --test-dir ${{ runner.temp }}/parent-build -R ParentProject --output-on-failure

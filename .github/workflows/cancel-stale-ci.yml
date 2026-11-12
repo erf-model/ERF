@@ -98,6 +98,7 @@ jobs:
               '.github/workflows/hip.yml',
               '.github/workflows/lint.yml',
               '.github/workflows/macos.yml',
+              '.github/workflows/parent-project.yml',
               '.github/workflows/style.yml',
               '.github/workflows/sycl.yml',
               '.github/workflows/windows.yml',

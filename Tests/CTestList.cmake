@@ -27,10 +27,10 @@ function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
         # expand the wildcard; the ones driven through `cmake -P` call execute_process,
         # which never invokes a shell, and expand it with erf_resolve_executable
         # (Tests/ResolveExecutable.cmake) out of the CONFIG those tests are given.
-        set(${OUT_VAR} "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe" PARENT_SCOPE)
+        set(${OUT_VAR} "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe" PARENT_SCOPE)
     else()
-        set(_exe_in_subdir "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
-        set(_exe_in_root  "${CMAKE_BINARY_DIR}/Exec/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
+        set(_exe_in_subdir "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
+        set(_exe_in_root  "${PROJECT_BINARY_DIR}/Exec/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
         if(EXISTS "${_exe_in_subdir}")
             set(${OUT_VAR} "${_exe_in_subdir}" PARENT_SCOPE)
         elseif(EXISTS "${_exe_in_root}")
@@ -1986,9 +1986,9 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
 
     get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
     if(WIN32 AND _multi_config)
-        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
+        set(TEST_EXE "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
     else()
-        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
+        set(TEST_EXE "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
     endif()
 
     set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")
@@ -3619,8 +3619,8 @@ if(ERF_TEST_ENABLE_EXTRA_LSM_TESTS)
     # The listed plotfiles are compared only if the configured gold directory has them.
     add_test_lsm(SLM_CASS_SAMRadiation            "" "erf_exec"
                                                   LABELS "slm"
-                                                  EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/sounding_cass_interpolated"
-                                                              "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/lsf_cass"
+                                                  EXTRA_FILES "${PROJECT_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/sounding_cass_interpolated"
+                                                              "${PROJECT_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/lsf_cass"
                                                               "${ERF_TEST_EXTRA_FILES_DIRECTORY}/CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
                                                   PLTFILES "plt34500"
                                                            "plt_lsm_34500"
@@ -3629,7 +3629,7 @@ if(ERF_TEST_ENABLE_EXTRA_LSM_TESTS)
     # LBA case using RRTMGP radiation
     add_test_lsm(SLM_LBA_RRTMGP                   "" "erf_exec"
                                                   LABELS "slm" "manual"
-                                                  EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_LBA_RRTMGP/snd_lba"
+                                                  EXTRA_FILES "${PROJECT_SOURCE_DIR}/Tests/test_files/SLM_LBA_RRTMGP/snd_lba"
                                                               "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
                                                               "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
                                                               "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
