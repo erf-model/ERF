@@ -1218,6 +1218,10 @@ public:
     // checkpoint that predates precip_accum. Public because it launches a GPU lambda.
     void convert_legacy_precip_accumulations (int lev);
 
+    // Convert the SST and TSK of a level read from a checkpoint that holds them as
+    // potential temperature to absolute temperature. Public because it launches a GPU lambda.
+    void convert_legacy_surface_temperature (int lev);
+
     // Automatic inflow perturbation update on a nested level.
     // Public because it launches a GPU lambda.
     void turbPert_update_automatic (int lev, double time);
@@ -1461,7 +1465,7 @@ private:
     // Check that this level's wrflowinp file has the same times as level 0's
     void check_own_low_file_times (int lev);
 
-    // Re-read the surface pressure of a level > 0 from its own init file (it is not checkpointed)
+    // Re-read the surface pressure of a level from its own init file (it is not checkpointed)
     void read_psfc_from_own_init_file (int lev);
 
     // The full WRF file box in ERF's global index space, including all ancestor nest offsets;

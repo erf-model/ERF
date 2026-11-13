@@ -6,12 +6,26 @@
 #include <ostream>
 #include <string>
 
+#include <AMReX_Box.H>
+#include <AMReX_MultiFab.H>
+#include <AMReX_Periodicity.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Utility.H>
 
+#include "ERF_EOS.H"
+
 namespace erf_checkpoint_surface_temperature {
 
-constexpr int contract_version = 1;
+/**
+ * Version of the surface_temperature_contract marker written with a checkpoint, which says
+ * what its SST_0 and TSK_0 arrays hold:
+ *
+ *   1: potential temperature, referenced to the surface pressure of the input they were
+ *      read from
+ *   2: absolute temperature [K], which the surface layer converts at the current surface
+ *      pressure
+ */
+constexpr int contract_version = 2;
 
 inline void
 write_contract_version (std::ostream& output)
@@ -53,10 +67,13 @@ enum class LegacyInitType {
     Unknown
 };
 
-enum class LegacySurfaceTemperatureCompatibility {
-    Compatible,
-    UnsafeMetgrid,
-    UnknownProvenance
+/**
+ * What the SST_0 and TSK_0 arrays of a checkpoint hold
+ */
+enum class StoredSurfaceTemperature {
+    Absolute,          ///< absolute temperature [K], restored as it is
+    Potential,         ///< potential temperature, converted to absolute temperature on restart
+    UnknownProvenance  ///< no marker, and the init type that wrote them is not known
 };
 
 inline LegacyInitType
@@ -75,7 +92,8 @@ parse_legacy_init_type_value (std::string value)
 }
 
 /**
- * Parse the integer surface-temperature contract marker from a checkpoint.
+ * Parse the integer surface-temperature contract marker from a checkpoint.  Every version
+ * up to contract_version is understood.
  */
 inline ContractReadStatus
 read_contract_version (std::istream& input, int& version)
@@ -89,15 +107,15 @@ read_contract_version (std::istream& input, int& version)
         return ContractReadStatus::Malformed;
     }
 
-    return (version == contract_version) ? ContractReadStatus::Valid
-                                         : ContractReadStatus::UnknownVersion;
+    return (version >= 1 && version <= contract_version) ? ContractReadStatus::Valid
+                                                          : ContractReadStatus::UnknownVersion;
 }
 
 /**
- * Legacy Metgrid SST/TSK arrays are absolute temperature, whereas current
- * Metgrid initialization stores the SurfaceLayer representation (theta).
- * Without the marker there is no pressure in a checkpoint with which to
- * reinterpret those legacy arrays safely.
+ * Read the init type a checkpoint without a contract marker was written by, from the last
+ * erf.init_type assignment in its job_info.  Before the marker, WRFInput stored SST and TSK
+ * as potential temperature and Metgrid as absolute temperature, so this tells which of the
+ * two the checkpoint holds.
  */
 inline LegacyInitType
 parse_legacy_init_type_from_job_info (std::istream& input)
@@ -170,22 +188,59 @@ parse_legacy_init_type_from_job_info (std::istream& input)
     return result;
 }
 
-inline LegacySurfaceTemperatureCompatibility
-classify_legacy_surface_temperature_checkpoint (
-    const bool marker_present,
-    const bool has_surface_arrays,
-    const LegacyInitType legacy_init_type)
+/**
+ * Classify the SST_0 and TSK_0 arrays of a checkpoint.  marker_version is the version of its
+ * contract marker, or 0 if it has none; a checkpoint without one is classified by the init
+ * type that wrote it (see parse_legacy_init_type_from_job_info).
+ */
+inline StoredSurfaceTemperature
+classify_stored_surface_temperature (const int marker_version,
+                                     const bool has_surface_arrays,
+                                     const LegacyInitType legacy_init_type)
 {
-    if (marker_present || !has_surface_arrays) {
-        return LegacySurfaceTemperatureCompatibility::Compatible;
+    if (!has_surface_arrays || marker_version >= 2) {
+        return StoredSurfaceTemperature::Absolute;
     }
-    if (legacy_init_type == LegacyInitType::WRFInput) {
-        return LegacySurfaceTemperatureCompatibility::Compatible;
+    if (marker_version == 1 || legacy_init_type == LegacyInitType::WRFInput) {
+        return StoredSurfaceTemperature::Potential;
     }
     if (legacy_init_type == LegacyInitType::Metgrid) {
-        return LegacySurfaceTemperatureCompatibility::UnsafeMetgrid;
+        return StoredSurfaceTemperature::Absolute;
     }
-    return LegacySurfaceTemperatureCompatibility::UnknownProvenance;
+    return StoredSurfaceTemperature::UnknownProvenance;
+}
+
+/**
+ * Convert a surface field (SST or TSK) from potential to absolute temperature with the
+ * surface pressure it was converted with, T = theta (p/p0)^(R_d/c_p).  A ghost cell takes the
+ * pressure of the nearest valid cell of its box; the ghost cells are then filled from the
+ * neighboring boxes where there are any.
+ *
+ * @param[in,out] field    potential temperature in, absolute temperature [K] out
+ * @param[in]     pressure surface pressure [Pa] on the valid cells of the same 2D layout
+ * @param[in]     rdOcp    R_d/c_p
+ * @param[in]     period   periodicity of the level
+ */
+inline void
+potential_to_absolute_temperature (amrex::MultiFab& field,
+                                   const amrex::MultiFab& pressure,
+                                   const amrex::Real rdOcp,
+                                   const amrex::Periodicity& period)
+{
+    for (amrex::MFIter mfi(field); mfi.isValid(); ++mfi) {
+        const amrex::Box& vbx = mfi.validbox();
+        const amrex::IntVect lo = vbx.smallEnd();
+        const amrex::IntVect hi = vbx.bigEnd();
+        const amrex::Array4<amrex::Real> f = field.array(mfi);
+        const amrex::Array4<const amrex::Real> p = pressure.const_array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const int li = amrex::min(amrex::max(i, lo[0]), hi[0]);
+            const int lj = amrex::min(amrex::max(j, lo[1]), hi[1]);
+            f(i,j,k) = getTgivenPandTh(p(li,lj,lo[2]), f(i,j,k), rdOcp);
+        });
+    }
+    field.FillBoundary(period);
 }
 
 } // namespace erf_checkpoint_surface_temperature

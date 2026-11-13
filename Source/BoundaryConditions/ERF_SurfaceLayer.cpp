@@ -250,7 +250,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     // actually supplied a value, so the lower-boundary data is the base layer
     // rather than an alternative to it.
     if (zlo && !m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
-        fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
+        fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low, cons_in, z_phys_nd);
     }
     if (zlo && m_use_sfc_sst) {
         // Set tsurf to time varying SST from sfc file
@@ -2200,12 +2200,22 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
 /**
  * Fill surface temperature from SST/TSK lower-boundary data.
  *
- * @param[in] lev Current level
+ * The SST and TSK slices hold absolute temperature [K].  They are interpolated in time
+ * and then converted to the potential temperature t_surf holds at the surface pressure
+ * of the current state, the pressure the consumers of t_surf (q_sat, the radiation)
+ * convert it back with.  A land cell without TSK takes the prescribed land temperature,
+ * which is a potential temperature already.
+ *
+ * @param[in] lev       Current level
  * @param[in] elapsed_time_since_start_low Time since the start of the lower-boundary data
+ * @param[in] cons_in   Conserved state (surface pressure from the lowest cell)
+ * @param[in] z_phys_nd Nodal heights, or nullptr on a flat mesh
  */
 void
 SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
-                                           const double& elapsed_time_since_start_low)
+                                           const double& elapsed_time_since_start_low,
+                                           const MultiFab& cons_in,
+                                           const std::unique_ptr<MultiFab>& z_phys_nd)
 {
     int n_times_in_sst = static_cast<int>(m_sst_lev[lev].size());
 
@@ -2239,61 +2249,136 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
 
     Real oma   = one - alpha;
 
-    // Define a default land surface temperature if we don't read in tsk
+    // Define a default land surface temperature if we don't read in tsk.  It is the
+    // prescribed potential temperature (most.pot_surf_temp), so it is not converted.
     Real lst = default_land_surf_temp;
 
-    bool use_tsk = (m_tsk_lev[lev][0]);
+    bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
     bool ignore_sst = m_ignore_sst;
 
     const int klo = m_geom[lev].Domain().smallEnd(2);
+    const Real dz = m_geom[lev].CellSize(2);
+    const bool moist = use_moisture;
+    // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapour
+    // component aborts below rather than reading past the components.
+    const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
+    const Real rdOcp = m_rdOcp;
+    amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+        d_fail(erf_surface_temperature::ConversionFailure{});
+    auto* fail = d_fail.dataPtr();
 
     // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
 
-        if (gtbx.smallEnd(2) != klo) { continue; }
+        // Only the surface copy of a z-split planar field may read the lowest cell of
+        // the state; fill_planar_boundary below copies its values to the other copies.
+        if (gtbx.smallEnd(2) != klo ||
+            !m_planar_bndry[lev].is_surface_copy(mfi.index())) {
+            continue;
+        }
+
+        // The halo takes the surface pressure of the nearest valid column.  Its SST and
+        // TSK are its own: they are filled on the grown box, as the valid cells are.
+        const Box source_box = cons_in.boxArray()[mfi.index()];
+        const int i_lo = source_box.smallEnd(0); const int i_hi = source_box.bigEnd(0);
+        const int j_lo = source_box.smallEnd(1); const int j_hi = source_box.bigEnd(1);
+        gtbx &= t_surf[lev]->fabbox(mfi.index());
+        if (gtbx.isEmpty()) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
 
         const auto sst_lo_arr = m_sst_lev[lev][n_time_lo]->const_array(mfi);
         const auto sst_hi_arr = m_sst_lev[lev][n_time_hi]->const_array(mfi);
 
+        // TSK carries the SST from the low file over water (update_sst_tsk), so it is
+        // interpolated in time between the same two slices as the SST.
+        const auto tsk_lo_arr = (use_tsk) ? m_tsk_lev[lev][n_time_lo]->const_array(mfi) :
+                                            Array4<const Real> {};
+        const auto tsk_hi_arr = (use_tsk && m_tsk_lev[lev][n_time_hi]) ?
+                                m_tsk_lev[lev][n_time_hi]->const_array(mfi) : tsk_lo_arr;
+
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
 
-        if (use_tsk) {
-            // TSK carries the SST from the low file over water (update_sst_tsk), so it is
-            // interpolated in time between the same two slices as the SST.  Written as
-            // lo + alpha * (hi - lo) so that a cell whose TSK is the same in both slices,
-            // as it is over land, keeps exactly that value.
-            const auto tsk_lo_arr = m_tsk_lev[lev][n_time_lo]->const_array(mfi);
-            const auto tsk_hi_arr = (m_tsk_lev[lev][n_time_hi]) ? m_tsk_lev[lev][n_time_hi]->const_array(mfi)
-                                                                : tsk_lo_arr;
-            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
-                if (!is_land && !ignore_sst) {
-                    t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
-                                      + alpha * sst_hi_arr(i,j,k);
-                } else {
-                    t_surf_arr(i,j,k) = tsk_lo_arr(i,j,k)
-                                      + alpha * (tsk_hi_arr(i,j,k) - tsk_lo_arr(i,j,k));
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+
+            // The absolute surface temperature now.  TSK is written as
+            // lo + alpha * (hi - lo) so that a cell whose TSK is the same in both
+            // slices, as it is over land, keeps exactly that value.
+            Real t_abs;
+            if (use_tsk && (is_land || ignore_sst)) {
+                t_abs = tsk_lo_arr(i,j,k) + alpha * (tsk_hi_arr(i,j,k) - tsk_lo_arr(i,j,k));
+            } else if (!is_land) {
+                t_abs = oma * sst_lo_arr(i,j,k) + alpha * sst_hi_arr(i,j,k);
+            } else {
+                t_surf_arr(i,j,k) = lst;
+                return;
+            }
+
+            const int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            const int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            // A halo cell reads the state of a valid one, so only its own SST or TSK can
+            // fail where the valid cells do not: report it, but do not abort for it.
+            const bool authoritative = (i == li) && (j == lj);
+
+            // The state is checked before it is divided by, so that a bad state reaches
+            // the diagnostic rather than a floating-point trap.
+            const Real rho = cons_arr(li,lj,klo,Rho_comp);
+            const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
+            if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
+                !amrex::Math::isfinite(rho_theta)) {
+                erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_density,
+                    li, lj, klo, rho, rho_theta);
+                return;
+            }
+            Real rho_qv = Real(0.0);
+            Real qv = Real(0.0);
+            if (moist) {
+                if (!have_rho_qv) {
+                    erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::no_moisture_comp,
+                        li, lj, klo);
+                    return;
                 }
-            });
-        } else {
-            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
-                if (!is_land) {
-                    t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
-                                      + alpha * sst_hi_arr(i,j,k);
-                } else {
-                    t_surf_arr(i,j,k) = lst;
+                rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
+                if (!amrex::Math::isfinite(rho_qv)) {
+                    erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_rho_qv,
+                        li, lj, klo, rho, rho_theta, rho_qv);
+                    return;
                 }
-            });
-        }
+                qv = rho_qv / rho;
+                if (!amrex::Math::isfinite(qv)) {
+                    erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_qv,
+                        li, lj, klo, rho, rho_theta, rho_qv);
+                    return;
+                }
+            }
+            const Real delta_z = z_arr
+                ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
+                  Compute_Z_AtWFace(li,lj,klo,z_arr)
+                : myhalf*dz;
+            const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
+                rho, rho_theta, qv, delta_z);
+            Real theta = t_surf_arr(i,j,k);
+            if (erf_surface_temperature::temperature_to_theta(
+                    t_abs, pressure, rdOcp, theta)) {
+                t_surf_arr(i,j,k) = theta;
+            } else {
+                erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
+                    li, lj, klo, rho, rho_theta, rho_qv, t_abs, pressure, delta_z);
+            }
+        });
     }
+    amrex::Gpu::streamSynchronize();
+    erf_surface_temperature::abort_on_conversion_failure(
+        "SurfaceLayer fill_tsurf_with_sst_and_tsk", lev, d_fail.dataValue());
+
     fill_planar_boundary(lev, *t_surf[lev]);
 }
 

@@ -17,6 +17,14 @@
        models that pass it where a Real is expected (e.g. std::min(Real, step.dt)) need
        a static_cast<amrex::Real>, and plug-ins must be rebuilt (#5085)
 
+    -- The surface layer converts the SST and skin temperature from WRFInput, wrflowinp and
+       Metgrid data to potential temperature with the current surface pressure, not with
+       the PSFC of the input fixed when the data were read, so real-data runs change
+       answers as the surface pressure drifts (about 0.09 K in the surface potential
+       temperature per hPa of drift). Checkpoints hold SST and TSK in K
+       (surface_temperature_contract 2); older ones are converted on restart, and
+       markerless Metgrid checkpoints are accepted again
+
 #26.11
     -- Implicit diffusion for all moist scalars (#4936)
 

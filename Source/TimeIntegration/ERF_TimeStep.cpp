@@ -124,8 +124,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                 update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
-                               S_new, *mf_PSFC[lev],
-                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+                               S_new, lmask_lev[lev][0], use_moist);
 
                 // Give the finer levels this slice too, coarsest first, and point the surface
                 // layer at it: a level with a wrflow file of its own (erf.nc_low_file_<lev>)

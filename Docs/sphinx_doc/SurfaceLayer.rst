@@ -538,8 +538,9 @@ specified in the SurfaceLayer potential-temperature convention, while
 ``erf.most.abs_surf_temp`` (with ``erf.most.surf_heating_rate`` then a rate of change of
 the absolute temperature) is converted every step with the same diagnosed surface
 pressure. ``erf.most.surf_temp`` is the deprecated spelling of ``erf.most.pot_surf_temp``. SST and
-skin-temperature data from WRFInput, wrflowinp, and Metgrid are normalized to
-that same convention at ingestion; coupled SST is converted when it enters
+skin-temperature data from WRFInput, wrflowinp, and Metgrid are kept as absolute
+temperature and converted the same way, with the current diagnosed surface pressure,
+each time the SurfaceLayer uses them; coupled SST is converted when it enters
 the SurfaceLayer, while Noah-MP's absolute ``t_sfc`` remains owned by the
 radiation path and is not adopted as the SurfaceLayer field.
 

@@ -316,9 +316,13 @@ struct SurfaceLayerFields
     std::unique_ptr<MultiFab> lsm_tsurf;
     std::unique_ptr<MultiFab> coupled_sst;
     std::unique_ptr<iMultiFab> coupled_valid;
-    // Lower-boundary SST by time, passed to make_SurfaceLayer_at_level; empty unless a
-    // test fills it
+    // Lower-boundary SST and TSK by time, passed to make_SurfaceLayer_at_level; empty
+    // unless a test fills them
     Vector<std::unique_ptr<MultiFab>> sst_data;
+    Vector<std::unique_ptr<MultiFab>> tsk_data;
+    // Time of the last lower-boundary slice and the interval between slices [s]
+    double final_low_time = 0.0;
+    double low_time_interval = 0.0;
     // LSM fluxes by name (t_flux, q_flux, tau13, tau23), passed to
     // make_SurfaceLayer_at_level; empty unless a test fills them
     Vector<std::unique_ptr<MultiFab>> lsm_flux_data;
@@ -462,7 +466,8 @@ struct SurfaceLayerFields
             face, geoms, rotate, prefix, qv_prim, z_phys_nd,
             Vector<Vector<Real>>{},
             MeshType::ConstantDz, TerrainType::None, TurbChoice{}, rdOcp,
-            0.0, 0.0, 0.0, Vector<const eb_*>{}, nullptr, has_immersed_buildings);
+            0.0, final_low_time, low_time_interval, Vector<const eb_*>{}, nullptr,
+            has_immersed_buildings);
         layer->set_surface_layer_faces(active_faces);
         if (coupled_active) {
             layer->set_coupled_sst_active(true);
@@ -489,11 +494,10 @@ struct SurfaceLayerFields
         }
         Vector<MultiFab*> lsm_flux;
         for (auto& mf : lsm_flux_data) { lsm_flux.push_back(mf.get()); }
-        Vector<std::unique_ptr<MultiFab>> tsk;
         layer->make_SurfaceLayer_at_level(
             0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
             nullptr, nullptr, nullptr, lsm_data, lsm_names,
-            lsm_flux, lsm_flux_names, sst_data, tsk, lmask);
+            lsm_flux, lsm_flux_names, sst_data, tsk_data, lmask);
         if (coupled_active) {
             layer->update_coupled_sst_ptr(0, coupled_sst.get(), coupled_valid.get());
         }
@@ -742,6 +746,17 @@ void set_linear_node_heights (MultiFab& z_phys_nd)
             z(i,j,k) = Real(k);
         });
     }
+}
+
+// One time slice of lower-boundary SST or TSK [K], laid out as ERF reads it: on the
+// planar boxes of the state, with its lateral ghost cells
+std::unique_ptr<MultiFab>
+make_surface_slice (const BoxArray& ba, const DistributionMapping& dm, const Real value)
+{
+    auto slice = std::make_unique<MultiFab>(
+        collapse_z(ba), dm, 1, IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0)));
+    slice->setVal(value);
+    return slice;
 }
 
 } // namespace
@@ -1756,6 +1771,140 @@ TEST(SurfaceLayer, DryTextSstDoesNotReadMoistureComponent)
 
     pp.remove("most.use_sfc_sst");
     pp.remove("most.sfc_file");
+}
+
+// Motivation: the SST and TSK of wrfinput, wrflowinp and Metgrid are absolute
+// temperature.  They used to be turned into potential temperature once, with the
+// surface pressure of the input, so the surface potential temperature stayed put while
+// the surface pressure of the run moved away from it.  It must follow the current
+// pressure: the same SST under a lower surface pressure is a higher potential
+// temperature.
+TEST(SurfaceLayer, LowerBoundarySstFollowsCurrentSurfacePressure)
+{
+    const std::string prefix = "unit_surface_layer_lowbdy_sst_pressure";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    fields.sst_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(290.0)));
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+
+    const Real gdz = test_rho * CONST_GRAV * myhalf * geom.CellSize(2);
+    const IntVect point = face_point(fields.domain, face);
+    for (const Real pressure : {p_0, Real(0.95) * p_0, Real(0.9) * p_0}) {
+        SCOPED_TRACE(pressure);
+        fields.set_surface_cell_pressure(pressure - gdz);
+        layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                             fields.no_walldist, 20);
+        const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+        EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                    Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+    }
+}
+
+// Motivation: the slices are interpolated in time as absolute temperature and the
+// result is converted.  TSK, when present, is used for every cell; otherwise water
+// takes the SST, and land keeps the prescribed most.pot_surf_temp, a potential
+// temperature already, which must not be converted.
+TEST(SurfaceLayer, LowerBoundarySurfaceTemperatureIsInterpolatedThenConverted)
+{
+    const std::string prefix = "unit_surface_layer_lowbdy_interp";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    const Real pressure = Real(0.9) * p_0;
+    const Real factor = std::pow(p_0 / pressure, RdoCp);
+    const Real tol = Real(64.0) * std::numeric_limits<Real>::epsilon() *
+                     test_surface_temperature * factor;
+    const IntVect water(0, 0, 0);
+    const IntVect land = face_point(geom.Domain(), face);
+
+    for (const bool with_tsk : {false, true}) {
+        SCOPED_TRACE(with_tsk ? "with TSK" : "without TSK");
+        SurfaceLayerFields fields(geom);
+        fields.lmask[0]->setVal(0);
+        fields.lmask[0]->setVal(1, Box(land, land), 0, 1);
+        fields.final_low_time = 3600.0;
+        fields.low_time_interval = 3600.0;
+        fields.sst_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(290.0)));
+        fields.sst_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(294.0)));
+        if (with_tsk) {
+            fields.tsk_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(280.0)));
+            fields.tsk_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(284.0)));
+        }
+        fields.set_surface_cell_pressure(
+            pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix,
+                                          false, false);
+
+        // A quarter of the way from the first slice to the second
+        layer->update_fluxes(0, 900.0, 900.0, fields.cons, nullptr,
+                             fields.no_walldist, 20);
+
+        const MultiFab& t_surf = *layer->get_t_surf(0);
+        if (with_tsk) {
+            EXPECT_NEAR(mf_value(t_surf, water), Real(281.0) * factor, tol);
+            EXPECT_NEAR(mf_value(t_surf, land), Real(281.0) * factor, tol);
+        } else {
+            EXPECT_NEAR(mf_value(t_surf, water), Real(291.0) * factor, tol);
+            EXPECT_EQ(mf_value(t_surf, land), test_surface_temperature);
+        }
+    }
+}
+
+// Motivation: over water q_surf is the saturation mixing ratio at the SST.  It is
+// computed from t_surf with the current surface pressure, so the SST must have been
+// converted with that same pressure for q_surf to come out at the SST.
+TEST(SurfaceLayer, LowerBoundarySstGivesSaturationAtTheSst)
+{
+    const std::string prefix = "unit_surface_layer_lowbdy_sst_qsat";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    fields.sst_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(290.0)));
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2), test_qv);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true);
+
+    Real expected = Real(0.0);
+    erf_qsatw(Real(290.0), pressure * Real(0.01), expected);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_q_surf(0), point), expected,
+                qsat_tolerance(expected));
+}
+
+// Motivation: an SST that cannot be converted -- missing data read as zero, or a NaN --
+// must stop the run with the conversion report rather than reach MOST.
+TEST(SurfaceLayer, LowerBoundarySstReportsUnusableTemperature)
+{
+    const std::string prefix = "unit_surface_layer_lowbdy_sst_bad";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    for (const Real bad_sst : {Real(0.0), Real(-1.0),
+                               std::numeric_limits<Real>::quiet_NaN()}) {
+        SCOPED_TRACE(bad_sst);
+        SurfaceLayerFields fields(make_qsurf_geometry());
+        fields.lmask[0]->setVal(0);
+        fields.sst_data.push_back(make_surface_slice(fields.ba, fields.dm, bad_sst));
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix,
+                                          false, false);
+
+        testing::internal::CaptureStdout();
+        {
+            ScopedThrowOnAbort throw_on_abort;
+            EXPECT_THROW(layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                                              fields.no_walldist, 20),
+                         amrex::RuntimeError);
+        }
+        const std::string report = testing::internal::GetCapturedStdout();
+        EXPECT_NE(report.find("fill_tsurf_with_sst_and_tsk"), std::string::npos) << report;
+        EXPECT_NE(report.find("could not be converted to potential temperature"),
+                  std::string::npos) << report;
+    }
 }
 
 // Motivation: coupled SST is an absolute-temperature producer with partial

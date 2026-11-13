@@ -1262,11 +1262,21 @@ public:
   /**
    * Fill surface temperature from available SST and TSK data.
    *
-   * @param[in] lev  level index
-   * @param[in] time interpolation time
+   * The SST and TSK slices hold absolute temperature [K].  They are interpolated in
+   * time and converted to potential temperature with the surface pressure diagnosed
+   * from the lowest cell of the current state, so the effective surface temperature
+   * does not drift as the surface pressure evolves.  Land cells without TSK take the
+   * prescribed land surface potential temperature unchanged.
+   *
+   * @param[in] lev       level index
+   * @param[in] time      interpolation time
+   * @param[in] cons_in   conserved state (surface pressure from the lowest cell)
+   * @param[in] z_phys_nd nodal heights, or nullptr on a flat mesh
    */
   void fill_tsurf_with_sst_and_tsk (const int& lev,
-                                    const double& time);
+                                    const double& time,
+                                    const amrex::MultiFab& cons_in,
+                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
    * Fill surface temperature interpolated from time varying SST file
@@ -2148,6 +2158,7 @@ private:
   // back into flux calculations, boundary conditions, or model state.
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> surface_diagnostic_source;
 
+  // Lower-boundary SST and TSK time slices, absolute temperature [K]
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_sst_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_tsk_lev;
   amrex::Vector<amrex::Vector<amrex::iMultiFab*>> m_lmask_lev;

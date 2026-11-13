@@ -15,18 +15,26 @@ Each native checkpoint contains a provenance block in ``job_info``. The block
 records the checkpoint artifact, the ERF execution that wrote it, and the
 known restart ancestry. See :ref:`sec:Provenance`.
 New native checkpoints also contain a small ``surface_temperature_contract``
-marker with value ``1``. This records that Metgrid SST and skin temperature
-arrays already use the current SurfaceLayer potential-temperature convention
-and can be restored directly. For a markerless checkpoint containing ``SST_0``
-or ``TSK_0``, ERF uses that checkpoint's own ``job_info``
-``erf.init_type`` provenance: legacy WRFInput arrays remain compatible, while
-legacy Metgrid arrays are rejected because they contain absolute temperature.
+marker with value ``2``. This records that the SST and skin temperature arrays
+(``SST_0``, ``TSK_0``) hold absolute temperature [K], which the SurfaceLayer
+converts to potential temperature at the current surface pressure each time it
+uses them, so they are restored directly. Checkpoints with marker value ``1``
+hold them as potential temperature, referenced to the surface pressure of the
+input they were read from, and are converted to absolute temperature on
+restart: a WRFInput run re-reads the surface pressure ``PSFC`` of the wrfinput
+files (interpolated from the parent on a level without a file of its own), and
+any other run uses the surface pressure of the restarted state, which leaves
+the change in surface pressure since the data were read in the converted
+values. For a markerless checkpoint containing ``SST_0`` or ``TSK_0``, ERF uses
+that checkpoint's own ``job_info`` ``erf.init_type`` provenance: legacy
+WRFInput arrays are potential temperature and are converted as above, while
+legacy Metgrid arrays are absolute temperature and are restored directly.
 Markerless SST/TSK arrays with missing or unrecognized provenance are rejected
 rather than guessed. The restart deck's current ``erf.init_type`` does not
-override this compatibility check, and a conflicting explicit assertion cannot
-override known checkpoint provenance. For very old markerless checkpoints that
-predate usable ``job_info`` provenance, the original source can be asserted
-explicitly with ``erf.legacy_surface_temperature_init_type = WRFInput``.
+override this check, and a conflicting explicit assertion cannot override known
+checkpoint provenance. For very old markerless checkpoints that predate usable
+``job_info`` provenance, the original source can be asserted explicitly with
+``erf.legacy_surface_temperature_init_type``.
 Markerless checkpoints without SST/TSK arrays remain compatible.
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):
@@ -78,7 +86,7 @@ Restarting
      - String
      - Not used if unset
    * - ``erf.legacy_surface_temperature_init_type``
-     - Explicit provenance assertion used only for markerless checkpoints with ``SST_0``/``TSK_0`` when checkpoint ``job_info`` cannot establish the original initialization source. ``WRFInput`` permits the known-safe legacy theta representation; ``Metgrid`` remains rejected because its arrays are absolute temperature and the checkpoint lacks the pressure needed to convert them safely. This setting must identify the actual old source and is not a general override of checkpoint metadata.
+     - Explicit provenance assertion used only for markerless checkpoints with ``SST_0``/``TSK_0`` when checkpoint ``job_info`` cannot establish the original initialization source. ``WRFInput`` means the arrays are potential temperature and are converted on restart; ``Metgrid`` means they are absolute temperature and are restored directly. This setting must identify the actual old source and is not a general override of checkpoint metadata.
      - ``WRFInput`` or ``Metgrid`` (case-insensitive)
      - Unset
 
