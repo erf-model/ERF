@@ -212,6 +212,9 @@ option(ERF_ENABLE_FIRE "Enable the fire coupling (the atmosphere side; fire engi
 set(ERF_FIRE_ENGINE_DIRS "" CACHE STRING "Fire engine directories (each with ERFFireEngine.cmake) to compile in; needs ERF_ENABLE_FIRE")
 option(ERF_ENABLE_MOVING_BODIES "Enable the actuator core and the structure coupling for bodies in the flow (Source/MovingBodies)" OFF)
 set(ERF_STRUCTURE_MODEL_DIRS "" CACHE STRING "Structure model directories (each with ERFStructureModel.cmake) to compile in; needs ERF_ENABLE_MOVING_BODIES")
+option(ERF_ENABLE_DUST "Enable the dust coupling (the atmosphere side; dust models plug into it)" OFF)
+set(ERF_NUM_DUST_SCALARS "1" CACHE STRING "Number of passive scalars the dust coupling adds to the state; needs ERF_ENABLE_DUST")
+set(ERF_DUST_MODEL_DIRS "" CACHE STRING "Dust model directories (each with ERFDustModel.cmake) to compile in; needs ERF_ENABLE_DUST")
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
 option(ERF_ENABLE_WDM6_FORT "Enable WDM6 Fortran bridge calls" OFF)
 

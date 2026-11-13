@@ -31,6 +31,7 @@
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
  */
 void
@@ -48,6 +49,7 @@ ComputeDiffusivityMYJ (double dt,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices);
 
@@ -67,6 +69,7 @@ ComputeDiffusivityMYJ (double dt,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
  */
 void
@@ -83,6 +86,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
                           const amrex::BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                          const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices);
 
@@ -102,6 +106,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
  */
 void
@@ -118,6 +123,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
                             const amrex::BCRec* bc_ptr,
                             bool /*vert_only*/,
                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                            const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                             const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                             const MoistureComponentIndices& moisture_indices);
 
@@ -137,6 +143,7 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
  */
 void
@@ -153,6 +160,7 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices);
 /**
@@ -174,7 +182,10 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
+ * @param[in] terrain_blank Immersed solid fraction, or null
+ * @param[in] Q_fire_atm Lagged fire heat flux [W/m2] for the w* boost (erf.pbl_mrf_fire_thermal_excess), or null
  */
 void
 ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
@@ -190,9 +201,11 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices,
-                       const amrex::MultiFab* terrain_blank = nullptr);
+                       const amrex::MultiFab* terrain_blank = nullptr,
+                       const amrex::MultiFab* Q_fire_atm = nullptr);
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
@@ -219,6 +232,7 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
  * @param[in]  bc_ptr  boundary condition array
  * @param[in]  vert_only  compute vertical diffusivity only
  * @param[in]  z_phys_nd  physical node heights (terrain)
+ * @param[in]  z_sfc_nd   Nodal heights of the bottom of the domain
  * @param[in]  z_phys_cc  physical cell-center heights
  * @param[in]  moisture_indices  component index mapping for moisture variables
  * @param[in]  qheating_rates  radiation heating rates (SW, LW components); optional
@@ -237,6 +251,7 @@ ComputeDiffusivityYSUNew (const amrex::MultiFab& xvel,
                           const amrex::BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                          const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices,
                           const amrex::MultiFab* qheating_rates = nullptr,

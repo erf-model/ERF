@@ -24,6 +24,7 @@ using namespace amrex;
  * @param[in] level AMR level
  * @param[in] bc_ptr Boundary condition records
  * @param[in] z_phys_nd Nodal physical heights
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Cell-centered physical heights
  * @param[in] moisture_indices Indices for moisture components
  */
@@ -41,6 +42,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const std::unique_ptr<MultiFab>& z_sfc_nd,
                        const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices)
 {
@@ -99,6 +101,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         const auto& over_land_arr = (SurfLayer->get_lmask(level)) ? SurfLayer->get_lmask(level)->const_array(mfi) :
                                                                   Array4<int> {};
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
+        const Array4<Real const> z_sfc_arr = z_sfc_nd->const_array(mfi);
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         // create flattened boxes to store PBL height
@@ -157,7 +160,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             while (!above_critical and bx.contains(i,j,kpbl+1)) {
                 kpbl += 1;
                 const Real zval = use_terrain_fitted_coords
-                                ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr)
+                                ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_sfc_arr,z_nd_arr)
                                 : (kpbl + myhalf)*gdata.CellSize(2);
                 const Real ws2_level = fourth*( (uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))*(uvel(i,j,kpbl)+uvel(i+1,j  ,kpbl))
                                               + (vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl))*(vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl)) );
@@ -177,18 +180,18 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             }
 
             const Real zval_up = use_terrain_fitted_coords
-                               ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr)
+                               ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_sfc_arr,z_nd_arr)
                                : (kpbl + myhalf)*gdata.CellSize(2);
             const Real zval_dn = use_terrain_fitted_coords
-                               ? Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr)
+                               ? Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_sfc_arr,z_nd_arr)
                                : (kpbl-1 + myhalf)*gdata.CellSize(2);
             pblh_arr(i,j,0) = zval_dn + interp_fact*(zval_up-zval_dn);
 
             const Real zval_0 = use_terrain_fitted_coords
-                              ? Compute_Zrel_AtCellCenter(i,j,0,z_nd_arr)
+                              ? Compute_Zrel_AtCellCenter(i,j,0,z_sfc_arr,z_nd_arr)
                               : (myhalf)*gdata.CellSize(2);
             const Real zval_1 = use_terrain_fitted_coords
-                              ? Compute_Zrel_AtCellCenter(i,j,1,z_nd_arr)
+                              ? Compute_Zrel_AtCellCenter(i,j,1,z_sfc_arr,z_nd_arr)
                               : (Real(1.5))*gdata.CellSize(2);
             if (pblh_arr(i,j,0) < myhalf*(zval_0+zval_1) ) {
                 kpbl = 0;
@@ -228,7 +231,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const Real zval = use_terrain_fitted_coords
-                            ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                            ? Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr)
                             : (k + myhalf)*gdata.CellSize(2);
             const Real rho = cell_data(i,j,k,Rho_comp);
             const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one;

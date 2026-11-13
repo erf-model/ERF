@@ -1333,9 +1333,11 @@ ERF::update_zsfc_nd (int lev)
 {
     BoxArray ba2d_nd(ba2d[lev]);
     ba2d_nd.surroundingNodes(0); ba2d_nd.surroundingNodes(1);
+    // As many ghost cells in x and y as z_phys_nd, since the PBL schemes work on grown boxes
+    const IntVect ng(z_phys_nd[lev]->nGrowVect()[0], z_phys_nd[lev]->nGrowVect()[1], 0);
     if (!z_sfc_nd[lev] || z_sfc_nd[lev]->boxArray() != ba2d_nd ||
-        z_sfc_nd[lev]->DistributionMap() != dmap[lev]) {
-        z_sfc_nd[lev] = std::make_unique<MultiFab>(ba2d_nd, dmap[lev], 1, 0);
+        z_sfc_nd[lev]->DistributionMap() != dmap[lev] || z_sfc_nd[lev]->nGrowVect() != ng) {
+        z_sfc_nd[lev] = std::make_unique<MultiFab>(ba2d_nd, dmap[lev], 1, ng);
     }
     if (lev > 0) {
         make_zsfc_nd(geom[lev], *z_phys_nd[lev], *z_sfc_nd[lev], z_sfc_nd[lev-1].get(), ref_ratio[lev-1]);
@@ -1397,6 +1399,10 @@ ERF::make_physbcs (int lev)
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             l_use_real_bcs, zvel_bc_data[lev].data());
+    // the terrain-following inflow profiles of the lateral faces (xlo.inflow_profile)
+    physbcs_cons[lev]->set_inflow_profiles(&m_inflow_profiles);
+    physbcs_u[lev]->set_inflow_profiles(&m_inflow_profiles);
+    physbcs_v[lev]->set_inflow_profiles(&m_inflow_profiles);
     const bool moving_mesh = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     auto make_base_bcs = [&] (std::unique_ptr<MultiFab>& z_nd) {
         return std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_nd,

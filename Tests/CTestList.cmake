@@ -2,147 +2,13 @@
 include(ProcessorCount)
 ProcessorCount(PROCESSES)
 
-# Shared handling of multi-word MPI launchers (e.g., "flux run").
-include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
-
-# The launcher for the test commands handed to `sh -c`. Each launcher token is quoted,
-# so a path with spaces ("C:/Program Files/Microsoft MPI/Bin/mpiexec.exe") stays one
-# word and a multi-word launcher ("flux run") stays several.
-set(ERF_SH_MPI_LAUNCHER "")
-if(ERF_ENABLE_MPI)
-    erf_mpi_launcher_tokens(_mpi_launcher_tokens "${MPIEXEC_EXECUTABLE}")
-    foreach(_token IN LISTS _mpi_launcher_tokens)
-        string(APPEND ERF_SH_MPI_LAUNCHER "\"${_token}\" ")
-    endforeach()
-endif()
+# The general helpers (resolve_test_exe, setup_test, add_test_r, the abort tests ...), kept
+# in their own file so that a parent project can include them too.
+include("${CMAKE_CURRENT_LIST_DIR}/ERFTestHelpers.cmake")
 
 #=============================================================================
 # Functions for adding tests / Categories of tests
 #=============================================================================
-function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
-    get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
-    if(WIN32 AND _multi_config)
-        # Multi-config generators place binaries in a config subdir, and which config is
-        # built is not known here.  The tests that launch through `sh -c` let the shell
-        # expand the wildcard; the ones driven through `cmake -P` call execute_process,
-        # which never invokes a shell, and expand it with erf_resolve_executable
-        # (Tests/ResolveExecutable.cmake) out of the CONFIG those tests are given.
-        set(${OUT_VAR} "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe" PARENT_SCOPE)
-    else()
-        set(_exe_in_subdir "${PROJECT_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
-        set(_exe_in_root  "${PROJECT_BINARY_DIR}/Exec/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
-        if(EXISTS "${_exe_in_subdir}")
-            set(${OUT_VAR} "${_exe_in_subdir}" PARENT_SCOPE)
-        elseif(EXISTS "${_exe_in_root}")
-            set(${OUT_VAR} "${_exe_in_root}" PARENT_SCOPE)
-        else()
-            # Keep the historical path so the error message is still informative.
-            set(${OUT_VAR} "${_exe_in_subdir}" PARENT_SCOPE)
-        endif()
-    endif()
-endfunction()
-
-macro(setup_test)
-    if(DEFINED TEST_FILES_DIR AND NOT "${TEST_FILES_DIR}" STREQUAL "")
-        set(_test_source_dir_name "${TEST_FILES_DIR}")
-    else()
-        set(_test_source_dir_name "${TEST_NAME}")
-    endif()
-    set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${_test_source_dir_name})
-    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
-    set(PLOT_GOLD ${ERF_TEST_GOLD_FILES_DIRECTORY}/${TEST_NAME})
-
-    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
-    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
-    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
-
-    if(ERF_ENABLE_MPI)
-        set(NP ${ERF_TEST_NRANKS})
-        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
-        set(MPI_FCOMP_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
-    else()
-        set(NP 1)
-        unset(MPI_COMMANDS)
-        unset(MPI_FCOMP_COMMANDS)
-    endif()
-endmacro(setup_test)
-
-# Production contract test for native 3D plotfile names and unavailable-name warnings.
-function(add_test_plotfile_header TEST_NAME TEST_DIR TEST_EXE PLTFILE)
-    setup_test()
-
-    resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
-    set(header_checker "${PROJECT_SOURCE_DIR}/Tests/CheckPlotfileHeader.cmake")
-    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    set(header_file "${CURRENT_TEST_BINARY_DIR}/${PLTFILE}/Header")
-    # Regression motivation: this test is launched through `sh -c`, while on
-    # Windows CMAKE_COMMAND normally resides below "C:/Program Files". Keep
-    # checker executable and path-bearing arguments shell-quoted.
-    set(check_command
-        "\"${CMAKE_COMMAND}\""
-        "\"-DHEADER=${header_file}\""
-        "\"-DEXPECTED_NAMES_FILE=${CURRENT_TEST_BINARY_DIR}/expected_names.txt\""
-        "\"-DLOG=${test_log}\""
-        "\"-DEXPECTED_UNAVAILABLE_FILE=${CURRENT_TEST_BINARY_DIR}/expected_unavailable.txt\""
-        "-P"
-        "\"${header_checker}\"")
-    list(JOIN check_command " " check_command_string)
-    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
-    set(test_command sh -c
-        "${MPI_COMMANDS} ${TEST_EXE} \"${test_input}\" > \"${test_log}\" 2>&1 && ${check_command_string}")
-
-    add_test(${TEST_NAME} ${test_command})
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 300
-        PROCESSORS ${NP}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;plotfile"
-        ATTACHED_FILES_ON_FAIL "${test_log};${header_file}"
-    )
-endfunction(add_test_plotfile_header)
-
-# Standard regression test
-function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
-    set(options )
-    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
-    set(multiValueArgs )
-    cmake_parse_arguments(ADD_TEST_R "${options}" "${oneValueArgs}"
-        "${multiValueArgs}" ${ARGN})
-
-    setup_test()
-
-    set(RUNTIME_OPTIONS "${ADD_TEST_R_RUNTIME_OPTIONS}")
-    if(NOT "${ADD_TEST_R_INPUT_SOUNDING}" STREQUAL "")
-      string(APPEND RUNTIME_OPTIONS "erf.input_sounding_file=${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_R_INPUT_SOUNDING}")
-    endif()
-
-    resolve_test_exe("${TEST_DIR}" "${TEST_EXE}" TEST_EXE)
-
-    set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
-    set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
-    if(NOT "${ADD_TEST_R_FCOMPARE_RTOL}" STREQUAL "")
-        set(_fcompare_rtol "${ADD_TEST_R_FCOMPARE_RTOL}")
-    endif()
-    if(NOT "${ADD_TEST_R_FCOMPARE_ATOL}" STREQUAL "")
-        set(_fcompare_atol "${ADD_TEST_R_FCOMPARE_ATOL}")
-    endif()
-
-    set(FCOMPARE_TOLERANCE "-r ${_fcompare_rtol} --abs_tol ${_fcompare_atol}")
-    set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
-
-    add_test(${TEST_NAME} ${test_command})
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 600
-        PROCESSORS ${NP}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
-    )
-endfunction(add_test_r)
-
 # Rotated six-wall anelastic manufactured regression. Each case keeps a
 # linear theta profile stationary and checks the full field inventory.
 function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
@@ -1178,62 +1044,6 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         LABELS "regression;restart-parity"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/straight/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/parity.log;${_checker_log};${_post_checkpoint_log}")
 endfunction(add_test_restart_parity)
-
-# Restart abort: run a deck to a checkpoint, restart from it, and require the restart to stop
-# with EXPECTED_MESSAGE. For guards that only a restart can reach, which add_test_abort cannot
-# test because it runs a single leg and no checkpoint exists yet.  CHK_NRANKS and
-# RESTART_NRANKS are separate so a test can reproduce a restart on more ranks than the
-# checkpoint was written with, which is its own code path.
-function(add_test_restart_abort TEST_NAME TEST_FILES_DIR STEP_CHK EXPECTED_MESSAGE)
-    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "RUN_TIMEOUT")
-    cmake_parse_arguments(ADD_TEST_RA "" "${oneValueArgs}" "" ${ARGN})
-    setup_test()
-    resolve_test_exe("" "erf_exec" TEST_EXE)
-
-    set(_chk_nranks "${NP}")
-    set(_restart_nranks "${NP}")
-    if(NOT "${ADD_TEST_RA_CHK_NRANKS}" STREQUAL "")
-        set(_chk_nranks "${ADD_TEST_RA_CHK_NRANKS}")
-    endif()
-    if(NOT "${ADD_TEST_RA_RESTART_NRANKS}" STREQUAL "")
-        set(_restart_nranks "${ADD_TEST_RA_RESTART_NRANKS}")
-    endif()
-    set(_run_timeout 600)
-    set(_ctest_timeout 600)
-    if(DEFINED ADD_TEST_RA_RUN_TIMEOUT)
-        set(_run_timeout "${ADD_TEST_RA_RUN_TIMEOUT}")
-        math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
-    endif()
-    # The watchdog has to cover both legs, and the processor reservation the wider leg.
-    set(_procs "${_chk_nranks}")
-    if(_restart_nranks GREATER _procs)
-        set(_procs "${_restart_nranks}")
-    endif()
-
-    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
-        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
-        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
-        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
-        "-DCHK_NRANKS=${_chk_nranks}"
-        "-DRESTART_NRANKS=${_restart_nranks}"
-        "-DTEST_EXE=${TEST_EXE}"
-        "-DCONFIG=$<CONFIG>"
-        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
-        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
-        "-DSTEP_CHK=${STEP_CHK}"
-        "-DEXPECTED_MESSAGE=${EXPECTED_MESSAGE}"
-        "-DRUN_TIMEOUT=${_run_timeout}"
-        "-DCOMMON_OPTIONS=${ADD_TEST_RA_COMMON_OPTIONS}"
-        "-DRESTART_OPTIONS=${ADD_TEST_RA_RESTART_OPTIONS}"
-        -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartAbort.cmake)
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT ${_ctest_timeout}
-        PROCESSORS ${_procs}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;restart-parity"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/run/restart.log")
-endfunction(add_test_restart_abort)
 
 # Tiling parity: run one deck with MFIter tiling on and off and require identical
 # 3D and 2D plotfiles (no gold file). Catches kernels that loop over the valid box
@@ -2611,7 +2421,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(ABL_MRF_Tiling      ABL_MRF_Tiling "00010" "00010"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(ABL_YSUNew_Tiling   ABL_MRF_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   # Legacy YSU aborts in unstable conditions, so cool the surface. A stronger
   # cooling than -0.02 with the 5 m/s wind passes the stable fold of the
@@ -2645,7 +2455,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
       RUNTIME_OPTIONS "erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(ABL_YSUNew_Tiling_Smooth ABL_MRF_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU erf.enable_pblh_smoothing=true"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   # The immersed-boundary-aware MRF and YSUNew (erf.pbl_ib_aware) build their
   # per-column surface and work arrays on the tile work box; a cube by
@@ -2653,7 +2463,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_MRF_Tiling    PBL_IBAware_Tiling "00010" "00010"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
   # YSUNew with PBL-height smoothing over a neutral ground (erf-model/ERF#4479).
   # The surface heat flux is round-off whose sign follows the decomposition, and
@@ -2931,47 +2741,6 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_two_stream_radiation(TwoStream_ColumnHeating_TwoLevel "plt00002"
                                 CHECK_LEVELS 0 1)
 endif()
-
-# Start-up check: copy SOURCE_DIR, run INPUT_FILE on one rank with RUNTIME_OPTIONS
-# that break a start-up requirement, and pass when the run stops with
-# EXPECTED_MESSAGE in its output. The run is meant to abort, so its exit status is
-# dropped by the pipe into tee (a ';' here would split the CMake command list).
-#
-# amrex.call_addr2line = 0 because the abort is the point of the test: AMReX's
-# SIGABRT handler runs addr2line once per stack frame, and on a build with
-# debug info that is about 55 s per test -- far longer than the run itself
-# (measured: the abort message and "See Backtrace.0 file for details" 56 s
-# apart in CI). Backtrace.0 is still written, with raw addresses, for a test
-# that stops somewhere unexpected; `addr2line -Cpfie <exe> <address>` resolves
-# them by hand.
-function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME_OPTIONS)
-    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
-    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
-    file(GLOB TEST_FILES "${SOURCE_DIR}/*")
-    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
-
-    if(ERF_ENABLE_MPI)
-        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
-    else()
-        unset(MPI_COMMANDS)
-    endif()
-
-    resolve_test_exe("" "erf_exec" TEST_EXE)
-
-    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 amrex.call_addr2line=0 ${RUNTIME_OPTIONS} 2>&1 | tee ${test_log}")
-
-    add_test(${TEST_NAME} ${test_command})
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 600
-        PROCESSORS 1
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
-        PASS_REGULAR_EXPRESSION "${EXPECTED_MESSAGE}"
-        ATTACHED_FILES_ON_FAIL "${test_log}"
-    )
-endfunction(add_test_abort)
 
 # One step of a deck, which passes if the run ends normally. It compares nothing with a gold,
 # so it also runs in single precision; label "eb_build".
@@ -3933,6 +3702,77 @@ if(Python3_Interpreter_FOUND)
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS"
         LABELS "rans;unit")
 endif()
+# Terrain-following inflow profiles on flat ground: one deck run with
+# xlo.dirichlet_file and again with the equivalent xlo.inflow_profile file must
+# give identical plotfiles, since the level-indexed lookup and the
+# height-above-ground lookup coincide when the ground is on the floor.
+function(add_test_inflow_profile_parity TEST_NAME CASE_DIR INPUT_FILE NSTEPS OPTIONS_DIRICHLET OPTIONS_PROFILE)
+    set(_rans_root ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS)
+    set(CURRENT_TEST_SOURCE_DIR ${_rans_root}/${CASE_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(NP ${ERF_TEST_NRANKS})
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_step "0000${NSTEPS}")
+    string(LENGTH "${_step}" _len)
+    math(EXPR _start "${_len} - 5")
+    string(SUBSTRING "${_step}" ${_start} 5 _step)
+
+    set(_dir ${CURRENT_TEST_BINARY_DIR})
+    set(_common "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1")
+    # the plotfiles of an earlier pass are removed first; a failing run or
+    # comparison prints the tail of its log
+    set(test_command sh -c "rm -rf ${_dir}/plt_dirichlet${_step} ${_dir}/plt_profile${_step} && ( ${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} erf.plot_file_1=plt_dirichlet ${OPTIONS_DIRICHLET} > ${_dir}/dirichlet_file.log 2>&1 || ( tail -n 40 ${_dir}/dirichlet_file.log && false ) ) && ( ${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} erf.plot_file_1=plt_profile ${OPTIONS_PROFILE} > ${_dir}/inflow_profile.log 2>&1 || ( tail -n 40 ${_dir}/inflow_profile.log && false ) ) && ( ${FCOMPARE_EXE} --abort_if_not_all_found -r 0.0 --abs_tol 0.0 ${_dir}/plt_dirichlet${_step} ${_dir}/plt_profile${_step} > ${_dir}/fcompare.log 2>&1 || ( cat ${_dir}/fcompare.log && false ) )")
+
+    add_test(NAME ${TEST_NAME} COMMAND ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "rans;regression"
+        ATTACHED_FILES_ON_FAIL "${_dir}/dirichlet_file.log;${_dir}/inflow_profile.log;${_dir}/fcompare.log"
+    )
+endfunction(add_test_inflow_profile_parity)
+
+# erf.input_sounding_theta_above_ground over the incline (compressible, so in
+# every build): theta must start above the local ground as on the inflow face,
+# and the same deck with the flag off must not pass that check
+add_test_rans(InflowProfile_ThetaAboveGround         Terrain_Inflow_Profile inputs_theta 4 check_theta_above_ground.py)
+add_test_rans(InflowProfile_ThetaAboveGround_FlagOff Terrain_Inflow_Profile inputs_theta 4 check_theta_flag_off.py
+              RUNTIME_OPTIONS "erf.input_sounding_theta_above_ground=false")
+
+# xlo.inflow_profile over idealised terrain (Exec/CanonicalTests/Canonical_RANS/Terrain_Inflow_Profile,
+# README.md): after 60 steps the first column follows the log law at the height above the
+# local ground, much better than at absolute height or by level. The terrain-fitted
+# projection is GMRES with the FFT preconditioner, so these need an FFT build.
+if(ERF_ENABLE_FFT)
+    add_test_rans(RANS_InflowProfile_Plateau    Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_plateau.txt")
+    add_test_rans(RANS_InflowProfile_Incline    Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_incline.txt")
+    add_test_rans(RANS_InflowProfile_Decline    Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_decline.txt")
+    add_test_rans(RANS_InflowProfile_CrossRidge Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_crossridge.txt")
+    add_test_rans(RANS_InflowProfile_CrossRidge_File Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_crossridge.txt xlo.inflow_profile=file xlo.inflow_profile_file=inflow_profile_crossridge.txt")
+    add_test_inflow_profile_parity(RANS_InflowProfile_Parity_Flat Terrain_Inflow_Profile inputs_parity 60
+                                   "xlo.dirichlet_file=inflow_levels_flat.txt"
+                                   "xlo.inflow_profile=file xlo.inflow_profile_file=inflow_profile_flat.txt")
+endif()
+
 if(ERF_ENABLE_FFT)
     # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
     # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)
@@ -5243,98 +5083,133 @@ add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_S
 endif()
 endif()
 
-# The fire coupling (ERF_ENABLE_FIRE): erf.fire.enable needs a fire engine
-# compiled in (none is in this repository; ERF_FIRE_ENGINE_DIRS adds them), the
-# coupling inputs stop the run naming the key, and a build without the coupling
-# refuses a fire deck instead of running it as plain ERF. The checks run in the
-# constructor, so any deck serves.
+#=============================================================================
+# Script-checked regression cases
+#
+# A deck in Exec/RegTests/<CASE_DIR> runs and its Python check script, whose
+# exit code is the verdict, reads the plotfile. With REFERENCE_INPUT a second
+# deck runs first (plotfile prefix ref_plt) and the check script gets both
+# plotfiles, the tested one first. The check table is echoed into the ctest
+# output, and the tail of the run log when a run itself fails.
+#=============================================================================
+function(add_test_checked TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
+    set(options )
+    set(oneValueArgs "REFERENCE_INPUT")
+    set(multiValueArgs )
+    cmake_parse_arguments(ADD_TEST_CHECKED "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    set(CURRENT_TEST_SOURCE_DIR ${PROJECT_SOURCE_DIR}/Exec/RegTests/${CASE_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    file(COPY ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(NP ${ERF_TEST_NRANKS})
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    # plotfile names carry the step number padded to five digits
+    set(_step "0000${NSTEPS}")
+    string(LENGTH "${_step}" _len)
+    math(EXPR _start "${_len} - 5")
+    string(SUBSTRING "${_step}" ${_start} 5 _step)
+
+    set(RUNTIME_OPTIONS "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(check_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.check.log")
+    set(run_test "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} ${RUNTIME_OPTIONS} erf.plot_file_1=plt > ${test_log} 2>&1 || ( tail -n 60 ${test_log} && false ) )")
+    set(check_args "${CURRENT_TEST_BINARY_DIR}/plt${_step}")
+    if(NOT "${ADD_TEST_CHECKED_REFERENCE_INPUT}" STREQUAL "")
+        set(ref_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.reference.log")
+        set(run_ref "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_CHECKED_REFERENCE_INPUT} ${RUNTIME_OPTIONS} erf.plot_file_1=ref_plt > ${ref_log} 2>&1 || ( tail -n 60 ${ref_log} && false ) )")
+        set(run_test "${run_ref} && ${run_test}")
+        set(check_args "${check_args} ${CURRENT_TEST_BINARY_DIR}/ref_plt${_step}")
+    endif()
+    # remove the plotfiles of an earlier pass first, so a run that ends before
+    # NSTEPS cannot be checked against them
+    set(test_command sh -c "rm -rf ${check_args} && ${run_test} && rm -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED && ( ${ERF_RANS_PYTHON} ${CURRENT_TEST_BINARY_DIR}/${CHECK_SCRIPT} ${check_args} > ${check_log} 2>&1 || touch ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED ) && cat ${check_log} && test ! -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED")
+
+    add_test(NAME ${TEST_NAME} COMMAND ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;anelastic"
+        ATTACHED_FILES_ON_FAIL "${test_log};${check_log}"
+    )
+endfunction(add_test_checked)
+
+# ABL warm bubble (prob.bubble_*) and the bulk_coeff surface layer with an imposed
+# heat flux (erf.most.surf_temp_flux), checked against closed forms on a stretched
+# mesh (Exec/RegTests/ABLWarmBubble). The anelastic deck uses the FFT solve.
 if(ERF_ENABLE_MPI AND NOT WIN32)
-set(_fire_abort_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
-if(ERF_ENABLE_FIRE)
-if(NOT ERF_FIRE_ENGINE_DIRS)
-add_test_abort(Fire_Abort_NoEngineBuiltIn ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.enable = true, but no fire engine is compiled into this executable"
-               "erf.fire.enable=true")
-add_test_abort(Fire_Abort_EngineWithoutEngines ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.engine is set, but no fire engine is compiled into this executable"
-               "erf.fire.engine=native")
-else()
-add_test_abort(Fire_Abort_EngineNotCompiledIn ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.engine = .no_such_engine. is not one of"
-               "erf.fire.enable=true erf.fire.engine=no_such_engine")
+    add_test_checked(ABLWarmBubble ABLWarmBubble inputs 10 check_warm_bubble.py)
+    set_tests_properties(ABLWarmBubble PROPERTIES LABELS "regression")
+    if(ERF_ENABLE_FFT)
+        add_test_checked(ABLWarmBubble_Anelastic ABLWarmBubble inputs_anelastic 10 check_warm_bubble.py)
+    endif()
 endif()
-add_test_abort(Fire_Abort_OldPlotKey ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire_plot_int is now erf.fire.plot_int"
-               "erf.fire_plot_int=10")
-# The example engine directory (Tests/FireEngineExample), when the build
-# compiles it in: a coupled run writes the engine's fields into the ERF
-# plotfile, and a restart from its mid-run checkpoint (engine state and the
-# coupler's lagged fluxes) reproduces the final plotfile exactly.
-set(_fex_src ${CMAKE_CURRENT_SOURCE_DIR}/FireEngineExample)
-get_filename_component(_fex_src_abs "${_fex_src}" ABSOLUTE)
-set(_fex_in_build FALSE)
-foreach(_d IN LISTS ERF_FIRE_ENGINE_DIRS)
-  get_filename_component(_d_abs "${_d}" ABSOLUTE)
-  if(_d_abs STREQUAL _fex_src_abs)
-    set(_fex_in_build TRUE)
-  endif()
-endforeach()
-if(_fex_in_build AND ERF_ENABLE_FCOMPARE)
-set(_fex_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Fire_ExampleEngine_Restart)
-file(MAKE_DIRECTORY ${_fex_dir})
-file(COPY ${_fex_src}/inputs_fire_example ${_fex_src}/input_sounding DESTINATION ${_fex_dir})
-resolve_test_exe("" "erf_exec" _fex_exe)
-set(_fex_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
-add_test(NAME Fire_ExampleEngine_Restart
-         COMMAND sh -c "rm -rf plt0* chk0* rst && ${_fex_mpi} ${_fex_exe} inputs_fire_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q fire_phi plt00008/Header && mkdir rst && cd rst && cp ../input_sounding . && ${_fex_mpi} ${_fex_exe} ../inputs_fire_example erf.restart=../chk00004 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00008 rst/plt00008"
-         WORKING_DIRECTORY ${_fex_dir})
-set_tests_properties(Fire_ExampleEngine_Restart PROPERTIES
-    LABELS "regression;fire" TIMEOUT 600 PROCESSORS 2
-    ATTACHED_FILES_ON_FAIL "${_fex_dir}/straight.log;${_fex_dir}/restart.log")
+# the checker's own pass/fail logic on synthetic fields: it must fail the
+# fixed-density bubble, the uniform-height bubble and the ignored flux. Pure Python.
+add_test(ABLWarmBubble_checker_SelfTest ${ERF_RANS_PYTHON}
+    ${PROJECT_SOURCE_DIR}/Exec/RegTests/ABLWarmBubble/check_warm_bubble.py --self-test)
+set_tests_properties(ABLWarmBubble_checker_SelfTest
+    PROPERTIES
+    TIMEOUT 60
+    PROCESSORS 1
+    LABELS "unit")
+# start-up checks of the bubble keys (add_test_abort runs through `sh -c ... | tee`)
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_abort(ABLWarmBubble_BadRadius_abort ${PROJECT_SOURCE_DIR}/Exec/RegTests/ABLWarmBubble inputs
+    "needs positive, finite prob.bubble_x_r" "prob.bubble_z_r=0")
+add_test_abort(ABLWarmBubble_KeysWithoutDT_abort ${PROJECT_SOURCE_DIR}/Exec/RegTests/ABLWarmBubble inputs_keys_without_dT
+    "are set but prob.bubble_dT is not" "")
 endif()
-add_test_abort(Fire_Abort_CouplingType ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.coupling_type = .tight. is not one of .passive., .lagged., .synchronous."
-               "erf.fire.coupling_type=tight")
-add_test_abort(Fire_Abort_AnchorLevel ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.anchor_level must be -1 .the finest level. or a level >= 0, got -2"
-               "erf.fire.anchor_level=-2")
-add_test_abort(Fire_Abort_HeatFluxAlfg ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.heat_flux_alfg must be > 0"
-               "erf.fire.heat_flux_alfg=0")
-add_test_abort(Fire_Abort_SourceMode ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.source_mode = .replace. is not one of .overwrite., .add."
-               "erf.fire.source_mode=replace")
-add_test_abort(Fire_Abort_GridRatio ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.grid_ratio must be >= 1, got 0"
-               "erf.fire.grid_ratio=0")
-add_test_abort(Fire_Abort_SmokeKeyWithoutSmoke ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.smoke_emission_factor needs erf.fire.smoke_enable = true"
-               "erf.fire.smoke_emission_factor=0.05")
-# ... but with the fire switched off explicitly the key only warns, and the run goes on
-add_test_abort(Fire_Warn_SmokeKeyFireOff ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.smoke_emission_factor is ignored with erf.fire.enable = false"
-               "erf.fire.enable=false erf.fire.smoke_emission_factor=0.05")
-# A checkpoint that records no scalar layout predates the smoke scalar (one
-# passive scalar); a build with the fire coupling (two) must refuse it rather
-# than read every component after the scalars one slot off. The test writes a
-# checkpoint, removes its ScalarLayout file and restarts from it.
-set(_fl_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Fire_Abort_CheckpointWithoutLayout)
-file(MAKE_DIRECTORY ${_fl_dir})
-file(GLOB _fl_files "${_fire_abort_dir}/*")
-file(COPY ${_fl_files} DESTINATION ${_fl_dir})
-resolve_test_exe("" "erf_exec" _fl_exe)
-set(_fl_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
-add_test(NAME Fire_Abort_CheckpointWithoutLayout
-         COMMAND sh -c "rm -rf chk_fl* && ${_fl_mpi} ${_fl_exe} Terrain_Stress_Ridge.i max_step=1 erf.plot_int_1=-1 erf.check_int=1 erf.check_file=chk_fl amrex.call_addr2line=0 > write.log 2>&1 && test -f chk_fl00001/ScalarLayout && rm chk_fl00001/ScalarLayout && ${_fl_mpi} ${_fl_exe} Terrain_Stress_Ridge.i max_step=2 erf.plot_int_1=-1 erf.check_int=-1 erf.restart=chk_fl00001 amrex.call_addr2line=0 2>&1 | tee Fire_Abort_CheckpointWithoutLayout.log"
-         WORKING_DIRECTORY ${_fl_dir})
-set_tests_properties(Fire_Abort_CheckpointWithoutLayout PROPERTIES
-    LABELS "regression" TIMEOUT 600 PROCESSORS 1
-    PASS_REGULAR_EXPRESSION "it records no scalar layout, so it predates the fire coupling's smoke scalar"
-    ATTACHED_FILES_ON_FAIL "${_fl_dir}/write.log;${_fl_dir}/Fire_Abort_CheckpointWithoutLayout.log")
-else()
-add_test_abort(Fire_Abort_BuiltWithoutFire ${_fire_abort_dir} Terrain_Stress_Ridge.i
+
+# surface_layer.flux_type = bulk_coeff with an imposed heat flux (erf.most.surf_temp_flux):
+# the run says it imposes the flux, and the inputs it contradicts stop it at start-up. The
+# deck's surface layer is switched to bulk_coeff by the options.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_bcf_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
+set(_bcf_opts "erf.surface_layer.flux_type=bulk_coeff erf.most.Cd=0.0015 erf.most.Cq=0.0015 erf.most.pot_surf_temp=300 erf.most.surf_moist=0 erf.most.surf_temp_flux=0.05")
+# add_test_abort passes on the message; this one checks the start-up line of the imposed flux
+add_test_abort(BulkCoeffFlux_Imposed ${_bcf_dir} Terrain_Stress_Ridge.i
+               "with an imposed surface heat flux most.surf_temp_flux = 0.05 K m/s"
+               "${_bcf_opts}")
+add_test_abort(BulkCoeffFlux_SfcSst_abort ${_bcf_dir} Terrain_Stress_Ridge.i
+               "cannot be combined with most.use_sfc_fluxes or most.use_sfc_sst"
+               "${_bcf_opts} erf.most.use_sfc_sst=1")
+add_test_abort(BulkCoeffFlux_NonFinite_abort ${_bcf_dir} Terrain_Stress_Ridge.i
+               "must be a finite number"
+               "${_bcf_opts} erf.most.surf_temp_flux=nan")
+add_test_abort(BulkCoeffFlux_HeatingRate_abort ${_bcf_dir} Terrain_Stress_Ridge.i
+               "may not be combined with erf.most.surf_heating_rate"
+               "${_bcf_opts} erf.most.surf_heating_rate=2")
+endif()
+
+# A build without the fire or the dust coupling refuses a fire or dust deck instead
+# of running it as plain ERF. Their own tests live with the engines and models that
+# use them (erf-model/FLARE); ERF builds neither coupling in its tests.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_coupling_abort_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
+if(NOT ERF_ENABLE_FIRE)
+add_test_abort(Fire_Abort_BuiltWithoutFire ${_coupling_abort_dir} Terrain_Stress_Ridge.i
                "erf.fire.enable = true but this executable was built without the fire coupling"
                "erf.fire.enable=true")
+endif()
+if(NOT ERF_ENABLE_DUST)
+add_test_abort(Dust_Abort_BuiltWithoutDust ${_coupling_abort_dir} Terrain_Stress_Ridge.i
+               "erf.dust.enable = true but this executable was built without the dust coupling"
+               "erf.dust.enable=true")
 endif()
 endif()
 
@@ -5377,7 +5252,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
         string(REPLACE "fcompare" "fvolumesum" _smx_fvs_name "${_smx_fcmp_name}")
         set(_smx_fvs "${_smx_tools}/${_smx_fvs_name}")
         add_test(NAME Structures_ExampleModel
-                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && ! grep -q 'structure example fire' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
+                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && grep -q 'structure example: finished at t = 4 after 16 steps of this run' straight.log && ! grep -q 'structure example fire' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && grep -q 'structure example: level 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 16, fully compressible: yes' restart.log && grep -q 'structure example: finished at t = 4 after 8 steps of this run' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
                  WORKING_DIRECTORY ${_smx_dir})
         set_tests_properties(Structures_ExampleModel PROPERTIES
             LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
@@ -5392,6 +5267,59 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       set_tests_properties(Structures_ExampleModel_FinerLevelElsewhere PROPERTIES
           LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
           ATTACHED_FILES_ON_FAIL "${_smx_fe_dir}/run.log")
+      # What the model is told at initialize() and that finalize() runs once (StructureInit, finalize()).
+      # Runs of 2 level-0 steps of 0.25 s: one level; level 1 everywhere with dt_ref_ratio 2 and the
+      # model on level 1 (0.125 s, 4 steps); stop_datetime 1 s after start_datetime, where stop_time and
+      # start_time are seconds since 1970, so the model must see 1 s, with max_step = -1 (no limit, the
+      # largest int); Anelastic (not fully compressible); Anelastic on level 0 with FullyCompressible on
+      # level 1 (fully compressible on a finer level); FullyCompressible with RK3_NoSubstepping (still
+      # fully compressible: the field names the solver); and a deck without stop_time and erf.fixed_dt
+      # (no fixed step: not positive; no stop time: the largest double). The last two take 0 steps.
+      # The one-level run writes chk00002; a restart from it at max_step = 2 takes no step and must
+      # report the checkpoint's time at finalize().
+      set(_smx_ri_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Structures_ExampleModel_RunInfo)
+      file(MAKE_DIRECTORY ${_smx_ri_dir})
+      file(COPY ${_smx_src}/inputs_structure_example ${_smx_src}/inputs_structure_example_dates
+                ${_smx_src}/inputs_structure_example_defaults DESTINATION ${_smx_ri_dir})
+      set(_smx_ri_run "${_smx_mpi} ${_smx_exe}")
+      set(_smx_ri_opt "erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0")
+      set(_smx_ri_two "amr.max_level=1 erf.dt_ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices=0 0 0")
+      set(_smx_ri_init "structure example: level")
+      set(_smx_ri_cmd
+          "rm -rf chk0*"
+          "${_smx_ri_run} inputs_structure_example max_step=2 erf.plot_int_1=-1 erf.check_int=2 amrex.call_addr2line=0 > one.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: yes' one.log"
+          "grep -q 'structure example: finished at t = 0.5 after 2 steps of this run' one.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 erf.restart=chk00002 ${_smx_ri_opt} > nostep.log 2>&1"
+          "grep -q 'structure example: finished at t = 0.5 after 0 steps of this run' nostep.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 ${_smx_ri_opt} ${_smx_ri_two} erf.box1.in_box_hi_indices=31 31 31 structure.example.level=1 > two.log 2>&1"
+          "grep -q '${_smx_ri_init} 1 steps with 0.125 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: yes' two.log"
+          "grep -q 'structure example: finished at t = 0.5 after 4 steps of this run' two.log"
+          "${_smx_ri_run} inputs_structure_example_dates max_step=-1 ${_smx_ri_opt} > dates.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1 s and no step limit, fully compressible: yes' dates.log"
+          "grep -q 'structure example: finished at t = 1 after 4 steps of this run' dates.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 ${_smx_ri_opt} erf.compressibility_type=Anelastic > anelastic.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: no' anelastic.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 ${_smx_ri_opt} ${_smx_ri_two} erf.box1.in_box_hi_indices=31 31 3 structure.example.level=0 erf.compressibility_type=Anelastic FullyCompressible > mixed.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: yes' mixed.log"
+          "${_smx_ri_run} inputs_structure_example max_step=0 ${_smx_ri_opt} erf.timestepping_type=RK3_NoSubstepping > nosubstep.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 0, fully compressible: yes' nosubstep.log"
+          "${_smx_ri_run} inputs_structure_example_defaults max_step=0 ${_smx_ri_opt} > defaults.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 has no fixed step, the run has no stop time or after level-0 step 0, fully compressible: yes' defaults.log"
+          "grep -q 'structure example: finished at t = 0 after 0 steps of this run' defaults.log")
+      set(_smx_ri_logs one nostep two dates anelastic mixed nosubstep defaults)
+      set(_smx_ri_attach "")
+      foreach(_log IN LISTS _smx_ri_logs)
+        list(APPEND _smx_ri_cmd "test `grep -c 'structure example: finished' ${_log}.log` -eq 1")
+        list(APPEND _smx_ri_attach "${_smx_ri_dir}/${_log}.log")
+      endforeach()
+      list(JOIN _smx_ri_cmd " && " _smx_ri_cmd)
+      add_test(NAME Structures_ExampleModel_RunInfo
+               COMMAND sh -c "${_smx_ri_cmd}"
+               WORKING_DIRECTORY ${_smx_ri_dir})
+      set_tests_properties(Structures_ExampleModel_RunInfo PROPERTIES
+          LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
+          ATTACHED_FILES_ON_FAIL "${_smx_ri_attach}")
       add_test_abort(Structures_Abort_FinerLevelCovers ${_smx_src} inputs_structure_example
                      "structure model .example. couples to level 0, but level 1 covers part of its support"
                      "${_smx_finer} erf.box1.in_box_lo_indices=8 8 8 erf.box1.in_box_hi_indices=23 23 23")
@@ -5420,6 +5348,47 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
             LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
             ATTACHED_FILES_ON_FAIL "${_smx_al_dir}/run.log")
       endforeach()
+      # The model on level 1 (a box over 100 to 300 m in x and y around the point, the kernel's reach
+      # 150 to 250 m, at all heights), so level 0 steps with the model's source restricted onto it
+      # (ERF::make_structure_coarse_sources). With erf.v = 1 ERF prints the force of the restricted source
+      # and of the model's source, which must agree to 1e-12 and equal the model's 50 N along x (check_coarse_force.awk,
+      # which also catches a Jacobian missing on both levels alike). The checkpoint holds
+      # the model's level-1 source (chk/StructureCoarseSource), so a restart from step 8 on 3 ranks instead
+      # of 2 must reproduce the final plotfile: without it level 0 would step 9 without the force, and the
+      # velocities differ by 1e-4 or more. On a uniform mesh at zero tolerance, and over a ridge
+      # (the restriction with the mesh Jacobian; without it the force differs by about 1e-3) to 1e-12
+      # relative: on a fitted mesh the example model's restart differs by round-off (1e-16) also with one
+      # level and before this check existed. A second restart regrids level 1 into 4^3-cell boxes before
+      # the model's first step (erf.regrid_int = 1, amr.max_grid_size = 4): the same region, chunked
+      # differently, so the checkpointed source must be kept (to 1e-12; dropping it misses by 7e-4).
+      set(_smx_cr_names Structures_ExampleModel_CoarseSourceRestart Structures_ExampleModel_CoarseSourceRestartTerrain)
+      set(_smx_cr_args_0 "")
+      set(_smx_cr_args_1 "erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=ScharMountain prob.a=80.0 prob.hm=60.0 prob.lambda=1.0e9 erf.grid_stretching_ratio=1.08 erf.initial_dz=12.0")
+      # In single precision the restart on 3 ranks differs from the straight run by round-off of
+      # up to 6e-7 relative, and the two forces by 8e-8: these checks then use 1e-5, still a factor
+      # of 10 below the 1e-4 to 1e-3 that a dropped source or a missing Jacobian gives.
+      if(ERF_PRECISION STREQUAL "SINGLE")
+        set(_smx_cr_tol "1e-5")
+        set(_smx_cr_rtol_0 "1e-5")
+      else()
+        set(_smx_cr_tol "1e-12")
+        set(_smx_cr_rtol_0 "0")
+      endif()
+      set(_smx_cr_rtol_1 "${_smx_cr_tol}")
+      set(_smx_cr_common "amr.max_level=1 structure.example.level=1 structure.example.epsilon=12.5 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices=8 8 0 erf.box1.in_box_hi_indices=23 23 31 erf.v=1 amrex.call_addr2line=0")
+      set(_smx_mpi3 "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}")
+      foreach(_smx_cr RANGE 0 1)
+        list(GET _smx_cr_names ${_smx_cr} _smx_cr_name)
+        set(_smx_cr_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${_smx_cr_name})
+        file(MAKE_DIRECTORY ${_smx_cr_dir})
+        file(COPY ${_smx_src}/inputs_structure_example DESTINATION ${_smx_cr_dir})
+        add_test(NAME ${_smx_cr_name}
+                 COMMAND sh -c "rm -rf plt0* chk0* rst rst4 && ${_smx_mpi} ${_smx_exe} inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} > straight.log 2>&1 && awk -v tol=${_smx_cr_tol} -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk straight.log && grep -q '^1$' chk00008/StructureCoarseSource/Level && mkdir rst && cd rst && ${_smx_mpi3} ${_smx_exe} ../inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} erf.restart=../chk00008 erf.check_int=-1 > ../restart.log 2>&1 && cd .. && awk -v tol=${_smx_cr_tol} -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk restart.log && ${FCOMPARE_EXE} --abs_tol 0 --rel_tol ${_smx_cr_rtol_${_smx_cr}} plt00016 rst/plt00016 && mkdir rst4 && cd rst4 && ${_smx_mpi3} ${_smx_exe} ../inputs_structure_example ${_smx_cr_common} ${_smx_cr_args_${_smx_cr}} erf.restart=../chk00008 erf.check_int=-1 erf.regrid_int=1 amr.max_grid_size=4 > ../restart4.log 2>&1 && cd .. && awk -v tol=${_smx_cr_tol} -v force=\"50 0 0\" -f ${_smx_src_abs}/check_coarse_force.awk restart4.log && ${FCOMPARE_EXE} --allow_diff_grids --abs_tol 0 --rel_tol ${_smx_cr_tol} plt00016 rst4/plt00016"
+                 WORKING_DIRECTORY ${_smx_cr_dir})
+        set_tests_properties(${_smx_cr_name} PROPERTIES
+            LABELS "regression;structures" TIMEOUT 600 PROCESSORS 3
+            ATTACHED_FILES_ON_FAIL "${_smx_cr_dir}/straight.log;${_smx_cr_dir}/restart.log;${_smx_cr_dir}/restart4.log")
+      endforeach()
       add_test_abort(Structures_Abort_UnknownModel ${_smx_src} inputs_structure_example
                      "erf.structures.model = .no_such_model. is not one of the structure models compiled in .*\"example\""
                      "erf.structures.model=no_such_model")
@@ -5437,62 +5406,6 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       add_test_abort(Structures_Abort_ExampleLevel ${_smx_src} inputs_structure_example
                      "structure.example.level must be -1 .the finest level. or 0 to amr.max_level = 0, got 1"
                      "structure.example.level=1")
-      # The fire view (StructureStep::fire), with the example fire engine compiled in too.
-      # Each run is the fire deck of Tests/FireEngineExample with the example model added.
-      # The engine burns a disk of radius 150 + 50 t m that releases 5e4 W/m2; a quarter of
-      # it is latent heat, which heat_release still counts. Each step the model prints the
-      # level and time of the fire's fields, the heat released and the area burned.
-      # check_fire_view.awk compares them with the disk to 3 %: fire cells of 10 m (5 m on
-      # level 1) resolve it to 1.4 % or better, and fields one fire step late or early miss
-      # by 11 % or more. Three layouts:
-      # - both on level 0: the fields belong to the fire step that ended at the model's step
-      #   time; a restart from the mid-run checkpoint must give the restart's time and the
-      #   heat of the step before it, which the example engine restores;
-      # - the fire on a level-1 patch, the model on level 0: as above;
-      # - the fire on level 0, the model on a level-1 patch: the fire is already at the end
-      #   of the coarse step;
-      # - the fire on a level-1 patch with three substeps of 0.1/3 s, the model on level 0:
-      #   the fire's time must equal the model's step time exactly, although three
-      #   substeps add up to 0.3 s where the coarse level has 0.30000000000000004 s.
-      if(ERF_ENABLE_FIRE AND _fex_in_build)
-        set(_smf_common "erf.structures.model=example structure.example.force=50 0 0 structure.example.epsilon=50 fire.example.r0=150 fire.example.ros=50 fire.example.heat_flux=5.0e4 fire.example.nsub=1 fire.example.latent_fraction=0.25 erf.fire.grid_ratio=10 amr.max_grid_size=10 10 60 max_step=4 erf.check_int=-1 erf.plot_int_1=-1 amrex.call_addr2line=0")
-        set(_smf_two "amr.max_level=1 erf.dt_ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1")
-        set(_smf_awk "awk -v r0=150 -v ros=50 -v q0=5.0e4 -v tol=0.03")
-        set(_smf_names Structures_ExampleModel_FireView Structures_ExampleModel_FireViewFinerFire Structures_ExampleModel_FireViewFinerModel Structures_ExampleModel_FireViewExactTime)
-        set(_smf_args_0 "structure.example.position=300 300 300")
-        set(_smf_args_1 "${_smf_two} erf.box1.in_box_lo_indices_crse=5 5 0 erf.box1.in_box_hi_indices_crse=14 14 29 erf.fire.anchor_level=1 structure.example.level=0 structure.example.position=200 200 300")
-        set(_smf_args_2 "${_smf_two} erf.box1.in_box_lo_indices_crse=0 0 0 erf.box1.in_box_hi_indices_crse=9 9 29 erf.fire.anchor_level=0 structure.example.level=1 structure.example.position=300 300 300")
-        set(_smf_args_3 "amr.max_level=1 erf.dt_ref_ratio=3 erf.fixed_dt=0.1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices_crse=5 5 0 erf.box1.in_box_hi_indices_crse=14 14 29 erf.fire.anchor_level=1 structure.example.level=0 structure.example.position=200 200 300")
-        set(_smf_check_0 "-v lev=0 -v dtf=0.5 -v lead=0")
-        set(_smf_check_1 "-v lev=1 -v dtf=0.25 -v lead=0")
-        set(_smf_check_2 "-v lev=0 -v dtf=0.5 -v lead=0.5")
-        set(_smf_check_3 "-v lev=1 -v dtf=0.0333333333333333 -v lead=0")
-        set(_smf_nlines_0 4)
-        set(_smf_nlines_1 4)
-        set(_smf_nlines_2 8)
-        set(_smf_nlines_3 4)
-        # The restart leg of the first run: checkpoint at step 2 (t = 1 s), restart, two steps
-        set(_smf_more_0 "erf.check_int=2")
-        set(_smf_rst_0 " && rm -rf rst && mkdir rst && cd rst && cp ../input_sounding . && ${_smx_mpi} ${_smx_exe} ../inputs_fire_example ${_smf_common} ${_smf_args_0} erf.restart=../chk00002 > ../restart.log 2>&1 && cd .. && ${_smf_awk} ${_smf_check_0} -v nlines=2 -f ${_smx_src_abs}/check_fire_view.awk restart.log && grep -q 'structure example fire: t = 1 fire_lev = 0 fire_t = 1 ' restart.log")
-        set(_smf_more_1 "")
-        set(_smf_more_2 "")
-        set(_smf_rst_1 "")
-        set(_smf_rst_2 "")
-        set(_smf_more_3 "")
-        set(_smf_rst_3 "")
-        foreach(_i RANGE 3)
-          list(GET _smf_names ${_i} _smf_name)
-          set(_smf_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${_smf_name})
-          file(MAKE_DIRECTORY ${_smf_dir})
-          file(COPY ${_fex_src}/inputs_fire_example ${_fex_src}/input_sounding DESTINATION ${_smf_dir})
-          add_test(NAME ${_smf_name}
-                   COMMAND sh -c "rm -rf chk0* && ${_smx_mpi} ${_smx_exe} inputs_fire_example ${_smf_common} ${_smf_args_${_i}} ${_smf_more_${_i}} > run.log 2>&1 && ${_smf_awk} ${_smf_check_${_i}} -v nlines=${_smf_nlines_${_i}} -f ${_smx_src_abs}/check_fire_view.awk run.log${_smf_rst_${_i}}"
-                   WORKING_DIRECTORY ${_smf_dir})
-          set_tests_properties(${_smf_name} PROPERTIES
-              LABELS "regression;structures;fire" TIMEOUT 600 PROCESSORS 2
-              ATTACHED_FILES_ON_FAIL "${_smf_dir}/run.log;${_smf_dir}/restart.log")
-        endforeach()
-      endif()
     elseif(NOT ERF_STRUCTURE_MODEL_DIRS)
       add_test_abort(Structures_Abort_NoModelBuiltIn ${_smx_src} inputs_structure_example
                      "erf.structures.model = .example. is not one of the structure models compiled in .none"

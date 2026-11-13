@@ -67,8 +67,9 @@ With CMake:
 
 Several engines can be compiled into one executable; :cpp:`erf.fire.engine`
 then picks one at run time (with a single engine it is the default).
-``Tests/FireEngineExample`` is a complete engine directory, a prescribed
-growing disk of heat that ERF's CI builds both ways.
+A complete example engine directory, a prescribed growing disk of heat, is in
+erf-model/FLARE (``Tests/FireEngineExample``), which also holds the coupling's
+tests; ERF itself builds no fire engine and runs no fire tests.
 
 Coupling layer and fire engines
 -------------------------------
@@ -131,7 +132,7 @@ it declares; the optional methods are kept in it by hand.
 
 To add an engine:
 
-#. Copy ``Tests/FireEngineExample`` (or the template) into the new model's
+#. Copy FLARE's ``Tests/FireEngineExample`` (or the template) into the new model's
    engine directory, outside ERF, rename the class, and write the method
    bodies there. Delete the optional methods the engine does not provide;
    their defaults then apply.
@@ -146,7 +147,7 @@ To add an engine:
    references; an engine shipping a prebuilt library keeps its registering
    wrapper as source. List the sources in the directory's ``Make.package``
    and ``ERFFireEngine.cmake``.
-#. Run the ``FireCoupler`` unit tests (``Tests/Unit/Fire/ERF_GTestFireCoupler.cpp``,
+#. Run the ``FireCoupler`` unit tests (FLARE's ``Tests/Unit/Fire/ERF_GTestFireCoupler.cpp``,
    whose stand-in engine is the smallest engine that works) with the new
    engine, and a restart of a coupled run against an uninterrupted one: the
    atmosphere and fire plotfiles must agree at zero tolerance.

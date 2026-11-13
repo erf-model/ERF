@@ -1,6 +1,7 @@
 #ifndef ERF_SURFACELAYER_H
 #define ERF_SURFACELAYER_H
 
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -176,6 +177,8 @@ public:
           pblh_type = PBLHeightCalcType::YSU;
       } else if (pblh_string == "mrf") {
           pblh_type = PBLHeightCalcType::MRF;
+      } else if (pblh_string == "ysunew") {
+          pblh_type = PBLHeightCalcType::YSUNew;
       } else {
           amrex::Abort("Undefined PBLH calc type!");
       }
@@ -281,16 +284,45 @@ public:
 
       // Bulk transfer coefficient (must specify coeffs and surface values)
       } else if (flux_type == FluxCalcType::BULK_COEFF) {
+          // Optional imposed kinematic heat flux <theta'w'> [K m/s], positive upward (the
+          // sign of most.surf_temp_flux for the other flux types). It replaces Ch * |U| *
+          // (theta_surf - theta): a constant drag with a fixed heat flux, as WRF's
+          // isfflx = 0 with tke_drag_coefficient and tke_heat_flux.
+          m_bulk_use_fixed_tflux = (pp.query("most.surf_temp_flux", m_bulk_fixed_tflux) != 0);
           pp.get("most.Cd", m_Cd);
-          pp.get("most.Ch", m_Ch);
+          if (m_bulk_use_fixed_tflux) {
+              if (!std::isfinite(m_bulk_fixed_tflux)) {
+                  amrex::Abort("erf.most.surf_temp_flux must be a finite number");
+              }
+              // the bulk_coeff branch never reads a surface heating rate: stop rather than
+              // run with it silently unused (the doc row of surf_temp_flux forbids the pair)
+              if (pp.contains("most.surf_heating_rate")) {
+                  amrex::Abort("erf.most.surf_temp_flux with surface_layer.flux_type = bulk_coeff "
+                               "imposes the surface heat flux; it may not be combined with "
+                               "erf.most.surf_heating_rate");
+              }
+              // Ch is optional here: the heat flux does not use it
+              if (pp.query("most.Ch", m_Ch)) {
+                  amrex::Print() << "WARNING: erf.most.Ch is not used: erf.most.surf_temp_flux "
+                                 << "imposes the bulk_coeff heat flux" << std::endl;
+              }
+          } else {
+              pp.get("most.Ch", m_Ch);
+          }
           pp.get("most.Cq", m_Cq);
           AMREX_ALWAYS_ASSERT_WITH_MESSAGE(erf_st,
               "bulk_coeff fluxes need most.pot_surf_temp");
           default_land_surf_temp = surf_temp;
           pp.get("most.surf_moist", default_land_surf_moist);
-          amrex::Print() << "Using specified Cd, Ch, Cq for MOST = "
-                         << m_Cd << " " << m_Ch << " "
-                         << m_Cq << std::endl;
+          if (m_bulk_use_fixed_tflux) {
+              amrex::Print() << "Using specified Cd, Cq for MOST = " << m_Cd << " " << m_Cq
+                             << " with an imposed surface heat flux most.surf_temp_flux = "
+                             << m_bulk_fixed_tflux << " K m/s" << std::endl;
+          } else {
+              amrex::Print() << "Using specified Cd, Ch, Cq for MOST = "
+                             << m_Cd << " " << m_Ch << " "
+                             << m_Cq << std::endl;
+          }
 
       // Specify surface temperature/moisture or surface flux
       } else {
@@ -596,6 +628,11 @@ public:
       if (m_use_sfc_fluxes && m_use_sfc_sst) {
           amrex::Abort("Only one of most.use_sfc_fluxes and most.use_sfc_sst may be enabled");
       }
+      if (m_bulk_use_fixed_tflux && (m_use_sfc_fluxes || m_use_sfc_sst)) {
+          amrex::Abort("erf.most.surf_temp_flux with surface_layer.flux_type = bulk_coeff "
+                       "imposes the surface heat flux; it cannot be combined with "
+                       "most.use_sfc_fluxes or most.use_sfc_sst");
+      }
       if (m_use_sfc_fluxes || m_use_sfc_sst) {
           if (m_use_sfc_fluxes) {
               AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_surface_model, "Cannot use surface flux forcing with LSM/Urban model!");
@@ -715,6 +752,16 @@ public:
       const bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
       const bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
 
+      // An imposed bulk_coeff heat flux and a surface temperature or flux supplied from
+      // elsewhere contradict each other: one of the two would be dropped without a word.
+      if (m_bulk_use_fixed_tflux &&
+          (use_sst || use_tsk || m_has_lsm_tsurf || m_has_lsm_fluxes ||
+           m_use_coupled_sst || use_surface_model)) {
+          amrex::Abort("erf.most.surf_temp_flux with surface_layer.flux_type = bulk_coeff "
+                       "imposes the surface heat flux; it cannot be combined with SST/TSK data, "
+                       "a land-surface or surface model, or a coupled ocean");
+      }
+
       // Check if there is a user-specified roughness file to be read
       std::string fname;
       bool read_z0 = false;
@@ -781,7 +828,7 @@ public:
                   ba[ibox].smallEnd(2) == dom_lo_z && ba[ibox].bigEnd(2) == dom_hi_z,
                   "Surface layer boundaries on x/y faces require Cartesian grids that "
                   "span the full level z domain; partial-height refined grids and grids "
-                  "decomposed in z are not supported. Set erf.max_grid_size_z accordingly.");
+                  "decomposed in z are not supported. Set amr.max_grid_size_z accordingly.");
           }
       }
 
@@ -1949,6 +1996,9 @@ private:
   amrex::Real m_Cd = zero;
   amrex::Real m_Ch = zero;
   amrex::Real m_Cq = zero;
+  // bulk_coeff only: most.surf_temp_flux given, imposed kinematic heat flux [K m/s]
+  bool m_bulk_use_fixed_tflux = false;
+  amrex::Real m_bulk_fixed_tflux = zero;
   bool m_ignore_sst = false;
 
   amrex::Vector<const eb_*> m_eb_vec;

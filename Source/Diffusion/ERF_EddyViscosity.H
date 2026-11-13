@@ -31,6 +31,7 @@ ComputeTurbulentViscosity (double dt,
                            const amrex::Geometry& geom,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                           const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                            const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                            const SolverChoice& solverChoice,
                            std::unique_ptr<SurfaceLayer>& SurfLayer,
@@ -43,7 +44,8 @@ ComputeTurbulentViscosity (double dt,
                            bool vert_only = false,
                            const amrex::MultiFab* qheating_rates = nullptr,
                            const amrex::MultiFab* terrain_blank = nullptr,
-                           const amrex::MultiFab* forest_drag = nullptr);
+                           const amrex::MultiFab* forest_drag = nullptr,
+                           const amrex::MultiFab* Q_fire_atm = nullptr);
 
 /** Compute LES turbulent viscosity and dissipation.
  *

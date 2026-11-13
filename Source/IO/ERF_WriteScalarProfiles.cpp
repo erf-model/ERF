@@ -34,6 +34,10 @@ ERF::sum_integrated_quantities (double time)
     Real rhth_ml = zero;
     Real scal_ml = zero;
     Real mois_ml = zero;
+#ifdef ERF_USE_DUST
+    Real dust_sl = zero;   // every dust scalar the dust model fills
+    Real dust_ml = zero;
+#endif
 #ifdef ERF_USE_FIRE
     Real smoke_sl = zero;
     Real smoke_ml = zero;
@@ -63,6 +67,13 @@ ERF::sum_integrated_quantities (double time)
             mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,dJ0,mfx0,mfy0,false);
         }
     }
+#ifdef ERF_USE_DUST
+    if (m_dust_model) {
+        for (int n = 0; n < m_dust_model->num_scalars(); ++n) {
+            dust_sl += volWgtSumMF(0, vars_new[0][Vars::cons], RhoDust_comp + n, dJ0, mfx0, mfy0, false);
+        }
+    }
+#endif
 #ifdef ERF_USE_FIRE
     if (m_fire_coupler) {
         smoke_sl = volWgtSumMF(0, vars_new[0][Vars::cons], RhoSmoke_comp, dJ0, mfx0, mfy0, false);
@@ -81,6 +92,13 @@ ERF::sum_integrated_quantities (double time)
                 mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,true);
             }
         }
+#ifdef ERF_USE_DUST
+        if (m_dust_model) {
+            for (int n = 0; n < m_dust_model->num_scalars(); ++n) {
+                dust_ml += volWgtSumMF(lev, vars_new[lev][Vars::cons], RhoDust_comp + n, dJ, mfx, mfy, true);
+            }
+        }
+#endif
 #ifdef ERF_USE_FIRE
         if (m_fire_coupler) {
             smoke_ml += volWgtSumMF(lev, vars_new[lev][Vars::cons], RhoSmoke_comp, dJ, mfx, mfy, true);
@@ -142,35 +160,51 @@ ERF::sum_integrated_quantities (double time)
         pi_drift = std::max(pi_drift, lev_drift);
     }
 
-#ifdef ERF_USE_FIRE
-    const int nfoo = 10;
-    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,smoke_sl,mass_ml,rhth_ml,scal_ml,mois_ml,smoke_ml};
-#else
-    const int nfoo = 8;
-    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
+    // The sums in a fixed order: single level, then multilevel, each with the
+    // optional dust and smoke sums after the moisture
+    Vector<Real> foo_v = {mass_sl,rhth_sl,scal_sl,mois_sl};
+#ifdef ERF_USE_DUST
+    foo_v.push_back(dust_sl);
 #endif
+#ifdef ERF_USE_FIRE
+    foo_v.push_back(smoke_sl);
+#endif
+    foo_v.insert(foo_v.end(), {mass_ml,rhth_ml,scal_ml,mois_ml});
+#ifdef ERF_USE_DUST
+    foo_v.push_back(dust_ml);
+#endif
+#ifdef ERF_USE_FIRE
+    foo_v.push_back(smoke_ml);
+#endif
+    const int nfoo = static_cast<int>(foo_v.size());
     Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
     ParallelDescriptor::ReduceRealSum(
-        foo, nfoo, ParallelDescriptor::IOProcessorNumber());
+        foo_v.data(), nfoo, ParallelDescriptor::IOProcessorNumber());
 
       if (ParallelDescriptor::IOProcessor()) {
         int i = 0;
-        mass_sl = foo[i++];
-        rhth_sl = foo[i++];
-        scal_sl = foo[i++];
-        mois_sl = foo[i++];
-#ifdef ERF_USE_FIRE
-        smoke_sl = foo[i++];
+        mass_sl = foo_v[i++];
+        rhth_sl = foo_v[i++];
+        scal_sl = foo_v[i++];
+        mois_sl = foo_v[i++];
+#ifdef ERF_USE_DUST
+        dust_sl = foo_v[i++];
 #endif
-        mass_ml = foo[i++];
-        rhth_ml = foo[i++];
-        scal_ml = foo[i++];
-        mois_ml = foo[i++];
 #ifdef ERF_USE_FIRE
-        smoke_ml = foo[i++];
+        smoke_sl = foo_v[i++];
+#endif
+        mass_ml = foo_v[i++];
+        rhth_ml = foo_v[i++];
+        scal_ml = foo_v[i++];
+        mois_ml = foo_v[i++];
+#ifdef ERF_USE_DUST
+        dust_ml = foo_v[i++];
+#endif
+#ifdef ERF_USE_FIRE
+        smoke_ml = foo_v[i++];
 #endif
 
         // Print the integrals with every digit, so that a run can be checked for conservation
@@ -188,6 +222,9 @@ ERF::sum_integrated_quantities (double time)
            Print() << std::setprecision(sumprecision) << " RHO THETA  = " << rhth_sl << '\n';
            if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR = " << scal_sl << '\n'; }
            if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL = " << mois_sl << '\n'; }
+#ifdef ERF_USE_DUST
+           if (m_dust_model) { Print() << std::setprecision(sumprecision) << " RHO DUST   = " << dust_sl << '\n'; }
+#endif
 #ifdef ERF_USE_FIRE
            if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  = " << smoke_sl << '\n'; }
 #endif
@@ -200,6 +237,9 @@ ERF::sum_integrated_quantities (double time)
            Print() << std::setprecision(sumprecision) << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
            if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
            if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
+#ifdef ERF_USE_DUST
+           if (m_dust_model) { Print() << std::setprecision(sumprecision) << " RHO DUST   SL/ML = " << dust_sl << " " << dust_ml << '\n'; }
+#endif
 #ifdef ERF_USE_FIRE
            if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  SL/ML = " << smoke_sl << " " << smoke_ml << '\n'; }
 #endif

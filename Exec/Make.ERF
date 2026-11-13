@@ -395,6 +395,27 @@ else ifneq ($(strip $(FIRE_HOME)),)
     $(error FIRE_HOME is set but USE_FIRE is not TRUE)
 endif
 
+# The dust coupling (atmosphere side); dust models plug into it. Its
+# NUM_DUST_SCALARS passive scalars (1 by default) sit in the conserved state
+# after the base scalar. Each directory in DUST_HOME (one or more, space
+# separated) is a dust model directory with its own Make.package, compiled in
+# as the fire engines of FIRE_HOME are.
+ifeq ($(USE_DUST), TRUE)
+    NUM_DUST_SCALARS ?= 1
+    ifeq ($(shell echo '$(NUM_DUST_SCALARS)' | grep -E '^[1-9][0-9]*$$'),)
+        $(error NUM_DUST_SCALARS = '$(NUM_DUST_SCALARS)' must be a positive integer)
+    endif
+    DEFINES += -DERF_USE_DUST -DERF_NUM_DUST_SCALARS=$(NUM_DUST_SCALARS)
+    ERF_DUST_COUPLING_DIR = $(ERF_SOURCE_DIR)/DustCoupling
+    include $(ERF_DUST_COUPLING_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_DUST_COUPLING_DIR)
+    INCLUDE_LOCATIONS += $(ERF_DUST_COUPLING_DIR)
+    $(foreach d,$(DUST_HOME),$(if $(wildcard $(d)/Make.package),,$(error DUST_HOME: $(d) has no Make.package)))
+    $(foreach d,$(DUST_HOME),$(eval DUST_MODEL_DIR := $(abspath $(d)))$(eval include $(DUST_MODEL_DIR)/Make.package)$(eval VPATH_LOCATIONS += $(DUST_MODEL_DIR))$(eval INCLUDE_LOCATIONS += $(DUST_MODEL_DIR)))
+else ifneq ($(strip $(DUST_HOME)),)
+    $(error DUST_HOME is set but USE_DUST is not TRUE)
+endif
+
 # The actuator core and the structure coupling for bodies in the flow
 # (Source/MovingBodies/Core, Source/MovingBodies/Coupling). Each directory in
 # STRUCTURE_HOME (one or more, space separated) is a structure model with its

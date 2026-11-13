@@ -18,6 +18,7 @@ using namespace amrex;
  * @param[out] state Array4 specifying the state data we are to initialize
  * @param[in] geomdata GeometryData object specifying the domain geometry
  * @param[in] z_cc_arr Array4 specifying cell-centered terrain heights, if present
+ * @param[in] z_nd_arr Array4 specifying node-centered terrain heights, if present
  * @param[in] l_moist Whether moisture variables should be initialized
  * @param[in] inputSoundingData InputSoundingData object we are to initialize from
  */
@@ -26,6 +27,7 @@ init_state_from_input_sounding (const Box &bx,
                                      Array4<Real> const &state,
                                      GeometryData const &geomdata,
                                      Array4<const Real> const &z_cc_arr,
+                                     Array4<const Real> const &z_nd_arr,
                                      const bool& l_moist,
                                      InputSoundingData const &inputSoundingData);
 /**
@@ -41,6 +43,7 @@ init_state_from_input_sounding (const Box &bx,
  * @param[out] qv_hse_arr Array4 specifying the base state water vapor mixing ratio we are to initialize
  * @param[in] geomdata GeometryData object specifying the domain geometry
  * @param[in] z_cc_arr Array4 specifying cell-centered terrain heights, if present
+ * @param[in] z_nd_arr Array4 specifying node-centered terrain heights, if present
  * @param[in] l_gravity Gravity constant (retained for interface compatibility).
  * @param[in] l_rdOcp Real number specifying the Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
  * @param[in] l_moist Whether moisture variables should be initialized
@@ -58,6 +61,7 @@ init_state_from_input_sounding_hse (const Box &bx,
                                     Array4<Real> const &qv_hse_arr,
                                     GeometryData const &geomdata,
                                     Array4<const Real> const &z_cc_arr,
+                                    Array4<const Real> const &z_nd_arr,
                                     const Real& l_gravity,
                                     const Real& l_rdOcp,
                                     const bool& l_moist,
@@ -234,11 +238,12 @@ ERF::init_from_input_sounding (int lev)
         Array4<Real> qv_hse_arr = qv_hse.array(mfi);
 
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
+        Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
 
         if (constant_density_sounding) {
             // This assumes rho_0 = one
             // HSE will be calculated later with call to initHSE
-            init_state_from_input_sounding(bx, cons_arr, geom[lev].data(), z_cc_arr,
+            init_state_from_input_sounding(bx, cons_arr, geom[lev].data(), z_cc_arr, z_nd_arr,
                                            l_moist, sounding);
         }
         else
@@ -247,7 +252,7 @@ ERF::init_from_input_sounding (int lev)
             // calculated by calc_rho_p or calc_rho_p_isentropic
             init_state_from_input_sounding_hse(bx, cons_arr,
                 r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,
-                geom[lev].data(), z_cc_arr,
+                geom[lev].data(), z_cc_arr, z_nd_arr,
                 l_gravity, l_rdOcp, l_moist, sounding,
                 l_isentropic, ngz);
         }
@@ -314,6 +319,7 @@ ERF::init_from_input_sounding (int lev)
  * @param state Array4 specifying the state data we are to initialize
  * @param geomdata GeometryData object specifying the domain geometry
  * @param z_cc_arr Array4 specifying cell-centered terrain heights, if present
+ * @param z_nd_arr Array4 specifying node-centered terrain heights, if present
  * @param l_moist Whether moisture variables should be initialized
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
@@ -322,6 +328,7 @@ init_state_from_input_sounding (const Box &bx,
                                 Array4<Real> const &state,
                                 GeometryData const &geomdata,
                                 Array4<const Real> const &z_cc_arr,
+                                Array4<const Real> const &z_nd_arr,
                                 const bool& l_moist,
                                 InputSoundingData const &inputSoundingData)
 {
@@ -340,8 +347,15 @@ init_state_from_input_sounding (const Box &bx,
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
+    // erf.input_sounding_theta_above_ground: theta measured from the column's own ground
+    const bool theta_above_ground = inputSoundingData.theta_above_ground && static_cast<bool>(z_nd_arr);
+    const int  klo = geomdata.Domain().smallEnd(2);
+
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k) : z_lo + (k + myhalf) * dz;
+        const Real z_th = (theta_above_ground)
+                        ? z - fourth * (z_nd_arr(i,j,klo) + z_nd_arr(i+1,j,klo) + z_nd_arr(i,j+1,klo) + z_nd_arr(i+1,j+1,klo))
+                        : z;
 
         Real rho_0 = one;
 
@@ -349,7 +363,7 @@ init_state_from_input_sounding (const Box &bx,
         state(i, j, k, Rho_comp) = rho_0;
 
         // Initial Rho0*Theta0
-        state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+        state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z_th, inp_sound_size);
 
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there is no cloud water or cloud ice
         if (l_moist) {
@@ -372,6 +386,7 @@ init_state_from_input_sounding (const Box &bx,
  * @param geomdata GeometryData object specifying the domain geometry
  * The unused gravity argument is retained for interface compatibility.
  * @param z_cc_arr Array4 specifying cell-centered terrain heights, if present
+ * @param z_nd_arr Array4 specifying node-centered terrain heights, if present
  * @param l_rdOcp Real number specifying the Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
  * @param l_moist Whether moisture variables should be initialized
  * @param inputSoundingData InputSoundingData object we are to initialize from
@@ -388,6 +403,7 @@ init_state_from_input_sounding_hse (const Box &bx,
                                     Array4<Real> const &qv_hse_arr,
                                     GeometryData const &geomdata,
                                     Array4<const Real> const &z_cc_arr,
+                                    Array4<const Real> const &z_nd_arr,
                                     const Real& /*l_gravity*/,
                                     const Real& l_rdOcp,
                                     const bool& l_moist,
@@ -415,12 +431,22 @@ init_state_from_input_sounding_hse (const Box &bx,
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
+    // erf.input_sounding_theta_above_ground: theta measured from the column's own
+    // ground. rho*theta, and so the pressure, keeps the sounding's value at the
+    // physical height and rho follows from it; rebalance_columns then puts each
+    // column in hydrostatic balance with that theta.
+    const bool theta_above_ground = inputSoundingData.theta_above_ground && static_cast<bool>(z_nd_arr);
+
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
                                   : z_lo + (k + myhalf) * dz;
 
         Real rho_k   = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
         Real rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+        if (theta_above_ground) {
+            const Real z_ground = fourth * (z_nd_arr(i,j,kbot) + z_nd_arr(i+1,j,kbot) + z_nd_arr(i,j+1,kbot) + z_nd_arr(i+1,j+1,kbot));
+            rho_k = rhoTh_k / interpolate_1d(z_inp_sound, theta_inp_sound, z - z_ground, inp_sound_size);
+        }
 
         Real rho_k_base = rho_k;
         if (l_isentropic) {
@@ -540,26 +566,34 @@ init_velocities_from_input_sounding (const Box &bx,
     // Construct a box that is on z-faces
     const Box& zbx = surroundingNodes(gbx,2);
 
+    // erf.input_sounding_wind_above_ground: a terrain-fitted column starts with
+    // the sounding's wind profile measured from its own ground, as the Inflow
+    // faces apply a dirichlet_file profile by level
+    const bool above_ground = inputSoundingData.wind_above_ground && static_cast<bool>(z_nd_arr);
+    const int  klo = geomdata.Domain().smallEnd(2);
+
     // Set the x,y,z-velocities
     ParallelFor(xbx, ybx, zbx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of x-faces
-        const Real z = (z_nd_arr) ? fourth*( z_nd_arr(i,j  ,k  )
-                                         + z_nd_arr(i,j+1,k  )
-                                         + z_nd_arr(i,j  ,k+1)
-                                         + z_nd_arr(i,j+1,k+1))
-                                  : z_lo + (k + myhalf) * dz;
+        Real z = (z_nd_arr) ? fourth*( z_nd_arr(i,j  ,k  )
+                                   + z_nd_arr(i,j+1,k  )
+                                   + z_nd_arr(i,j  ,k+1)
+                                   + z_nd_arr(i,j+1,k+1))
+                            : z_lo + (k + myhalf) * dz;
+        if (above_ground) { z -= myhalf * (z_nd_arr(i,j,klo) + z_nd_arr(i,j+1,klo)); }
 
         // Set the x-velocity
         x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of y-faces
-        const Real z = (z_nd_arr) ? fourth*( z_nd_arr(i  ,j,k  )
-                                         + z_nd_arr(i+1,j,k  )
-                                         + z_nd_arr(i  ,j,k+1)
-                                         + z_nd_arr(i+1,j,k+1))
-                                  : z_lo + (k + myhalf) * dz;
+        Real z = (z_nd_arr) ? fourth*( z_nd_arr(i  ,j,k  )
+                                   + z_nd_arr(i+1,j,k  )
+                                   + z_nd_arr(i  ,j,k+1)
+                                   + z_nd_arr(i+1,j,k+1))
+                            : z_lo + (k + myhalf) * dz;
+        if (above_ground) { z -= myhalf * (z_nd_arr(i,j,klo) + z_nd_arr(i+1,j,klo)); }
 
         // Set the y-velocity
         y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);

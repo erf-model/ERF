@@ -213,6 +213,11 @@ ERF::Evolve ()
         int iteration = 1;
         timeStep(0, cur_time, iteration);
 
+#ifdef ERF_USE_DUST
+        // The dust model's own state, over the level-0 step just taken
+        advance_dust_model(step, cur_time);
+#endif
+
         cur_time += static_cast<double>(dt[0]);
         t_new[0] = cur_time;
 
@@ -250,6 +255,11 @@ ERF::Evolve ()
     }
 
     WriteAtFinalTime();
+
+#ifdef ERF_USE_MOVING_BODIES
+    // The structure model closes its own files and solvers, after the last plotfile and checkpoint
+    if (m_structure_model) { m_structure_model->finalize(); }
+#endif
 
     flush_stations();
 
@@ -315,6 +325,12 @@ ERF::WriteAtIntermediateTime (int step, double cur_time)
         }
     }
 
+#ifdef ERF_USE_DUST
+    // Dust output before the checkpoint, so a checkpoint of this step records
+    // the step's dust output as written and a restart from it does not repeat it
+    if (m_dust_model) { m_dust_model->write_output(step+1, cur_time, false); }
+#endif
+
     if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
         last_check_file_step = step+1;
         WriteCheckpointFile();
@@ -363,6 +379,11 @@ ERF::WriteAtFinalTime ()
             if (m_subvol_per[i] > zero) {last_subvol_time[i] += m_subvol_per[i];}
         }
     }
+
+#ifdef ERF_USE_DUST
+    // Dust output before the checkpoint, as in WriteAtIntermediateTime
+    if (m_dust_model) { m_dust_model->write_output(istep[0], t_new[0], true); }
+#endif
 
     if ( (m_check_int > 0 || m_check_per > zero) && istep[0] > last_check_file_step) {
         WriteCheckpointFile();
@@ -1183,14 +1204,6 @@ ERF::InitData_post ()
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
             MultiFab r_hse(base_state[0], make_alias, BaseState::r0_comp, 1);
             Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[0].get(), ay[0].get(), az[0].get()};
-            auto repack_runtime_bdy = [&] (const int itime) {
-                const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
-                    wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
-                repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-                repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-                repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-                repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-            };
 
             // Need itime=0 for vertical interpolation
             if (n_time_old > 0) {
@@ -1200,14 +1213,8 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist,
-                                             solverChoice.use_wrf_bdy_qc_qi,
-                                             solverChoice.moisture_indices.qi >= 0,
-                                             solverChoice.use_wrf_bdy_qc_qi &&
-                                             wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
-                                             solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
-                repack_runtime_bdy(itime);
             }
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
@@ -1219,17 +1226,8 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist,
-                                             solverChoice.use_wrf_bdy_qc_qi,
-                                             solverChoice.moisture_indices.qi >= 0,
-                                             solverChoice.use_wrf_bdy_qc_qi &&
-                                             wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
-                                             solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
-                if (itime == static_cast<int>(bdy_data_xlo.size())-1 && itime > 0) {
-                    repack_runtime_bdy(itime-1);
-                }
-                repack_runtime_bdy(itime);
             } // itime
         } // use_real_bcs
 
@@ -2152,6 +2150,19 @@ ERF::InitData_post ()
     }
 #endif
 
+#ifdef ERF_USE_DUST
+    // The dust model starts after the fire, which it may read; on a restart it
+    // restores its own state, and on a fresh start the dust scalars start at zero
+    initialize_dust_model();
+#else
+    {   // a dust deck on a build without the coupling would run as plain ERF, silently
+        amrex::ParmParse pp("erf.dust"); bool want = false; pp.query("enable", want);
+        if (want) { amrex::Abort("erf.dust.enable = true but this executable was built without the dust coupling"
+                                 "; rebuild with it (CMake ERF_ENABLE_DUST=ON, GNU make USE_DUST=TRUE)"
+                                 " and a dust model directory (CMake ERF_DUST_MODEL_DIRS, GNU make DUST_HOME)"); }
+    }
+#endif
+
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
         const bool lagrangian =
@@ -2293,6 +2304,12 @@ ERF::InitData_post ()
     // The structure model starts once the mesh and the initial (or restart) state
     // exist, before the step-0 outputs
     if (m_structure_model) { initialize_structure_model(); }
+#endif
+
+#ifdef ERF_USE_DUST
+    // Dust output of step 0 before the plotfiles and the initial checkpoint
+    // (written below), as in WriteAtIntermediateTime
+    if (m_dust_model) { m_dust_model->write_output(istep[0], t_new[0], false); }
 #endif
 
     if ( (restart_chkfile.empty()) ||
@@ -3279,6 +3296,38 @@ ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
     // The coupling inputs, with their range checks; with erf.fire.enable the
     // engine must be one compiled into this executable (ERF_REGISTER_FIRE_ENGINE)
     m_fire_params = FireCouplingParams::read();
+
+    // erf.pbl_mrf_fire_thermal_excess adds the lagged fire flux to the MRF
+    // thermal excess; it is inert without an injecting fire or another PBL.
+    // TurbChoice reads it only under erf.pbl_type = MRF, so with any other PBL
+    // the key was silently ignored: check the deck for it directly.
+    {
+        amrex::ParmParse pp_erf("erf");
+        bool any_mrf = false;
+        for (int lev = 0; lev <= max_level; ++lev) {
+            any_mrf = any_mrf || (solverChoice.turbChoice[lev].pbl_type == PBLType::MRF);
+        }
+        if (!any_mrf && pp_erf.contains("pbl_mrf_fire_thermal_excess")) {
+            amrex::Abort("[FIRE] erf.pbl_mrf_fire_thermal_excess is set but no level runs erf.pbl_type = MRF;"
+                         " the key is read only by the MRF scheme");
+        }
+    }
+    for (int lev = 0; lev <= max_level; ++lev) {
+        const auto& tc = solverChoice.turbChoice[lev];
+        if (!tc.mrf_fire_thermal_excess) { continue; }
+        if (!m_fire_params.enable || !m_fire_params.injects_flux()) {
+            amrex::Abort("[FIRE] erf.pbl_mrf_fire_thermal_excess = true on level " + std::to_string(lev)
+                         + " needs erf.fire.enable = true with erf.fire.coupling_type = lagged or synchronous"
+                         " (the fire flux it adds)");
+        }
+        // the lagged flux carries 5 halo columns (FireCoupler::initialize); the
+        // smoothing stencil must fit them
+        if (tc.enable_pblh_smoothing && tc.pblh_smoothing_passes > 5) {
+            amrex::Abort("[FIRE] erf.pbl_mrf_fire_thermal_excess reads the lagged fire flux in a halo of 5 columns;"
+                         " erf.pblh_smoothing_passes = " + std::to_string(tc.pblh_smoothing_passes) + " needs more."
+                         " Use at most 5 passes with the fire thermal excess.");
+        }
+    }
     if (!m_fire_params.enable) { return; }
 
     // Contracts between the fire inputs and the solver inputs, checked here
@@ -4468,21 +4517,6 @@ ERF::ParameterSanityChecks ()
                 << "WRF boundary density nudge factor: " << rho_factor << std::endl;
     } else {
         Print() << "WRF lateral boundary density forcing: disabled" << std::endl;
-    }
-
-    if (solverChoice.use_wrf_bdy_qc_qi) {
-        if (!solverChoice.use_real_bcs || solverChoice.init_type != InitType::WRFInput) {
-            Abort("erf.use_wrf_bdy_qc_qi requires standard WRFInput real boundary conditions");
-        }
-        if (nc_bdy_file.empty()) {
-            Abort("erf.use_wrf_bdy_qc_qi requires erf.nc_bdy_file");
-        }
-        if (input_bndry_planes) {
-            Abort("erf.use_wrf_bdy_qc_qi is not supported with generic boundary-plane input");
-        }
-        Print() << "WRF lateral boundary cloud-water/cloud-ice forcing: enabled" << std::endl;
-    } else {
-        Print() << "WRF lateral boundary cloud-water/cloud-ice forcing: disabled" << std::endl;
     }
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);

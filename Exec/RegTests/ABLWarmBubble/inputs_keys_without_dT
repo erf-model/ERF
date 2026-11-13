@@ -1,0 +1,3 @@
+# Start-up check: the bubble centre and radii are set but prob.bubble_dT is not,
+# so the run must stop and say so.
+FILE = inputs_base

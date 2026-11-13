@@ -72,6 +72,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/FireCoupling.rst
    theory/ActuatorCore.rst
    theory/StructureCoupling.rst
+   theory/DustCoupling.rst
    theory/Radiation.rst
    Particles.rst
    SuperDroplets.rst
