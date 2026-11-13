@@ -156,12 +156,7 @@ void ERFPC::ERFPCParticleToMesh (amrex::MultiFab& a_mf,
 
             // Per-corner node-averaged cell thickness for volume normalization.
             auto dz_cell = [=] AMREX_GPU_DEVICE (int ic, int jc, int kc) -> Real {
-                const Real dz = Real(0.25) * (
-                      zheight(ic  , jc  , kc+1) - zheight(ic  , jc  , kc)
-                    + zheight(ic+1, jc  , kc+1) - zheight(ic+1, jc  , kc)
-                    + zheight(ic  , jc+1, kc+1) - zheight(ic  , jc+1, kc)
-                    + zheight(ic+1, jc+1, kc+1) - zheight(ic+1, jc+1, kc) );
-                return dz;
+                return ERFParticleGeometry::cell_thickness(zheight, ic, jc, kc);
             };
 
             const Real inv_dxdy = Real(1.0) / (dx * dy);

@@ -5029,7 +5029,7 @@ SBM inputs
 ----------
 
 The inputs below are read only when ``erf.moisture_model = SBM``. They
-configure the current liquid-spectrum advection capability;
+configure the current liquid-spectrum advection and mixing capability;
 see :ref:`sec:SpectralBinMicrophysics` for its scientific representation and
 execution restrictions.
 
@@ -5084,6 +5084,23 @@ execution restrictions.
      - :math:`N_{\mathrm{bins}}` values for 1M or
        :math:`2N_{\mathrm{bins}}` values for 2M
      - All zero
+   * - ``erf.sbm_fixture_initial_state_xhi``
+     - A second test state, as ``erf.sbm_fixture_initial_state``, for the
+       cells in the upper half of the domain in x.
+     - As ``erf.sbm_fixture_initial_state``
+     - None
+   * - ``erf.sbm_particle_mixing``
+     - Particle mixing policy. ``HostPassiveScalar`` mixes the spectrum with
+       ERF's Smagorinsky or Deardorff LES scalar eddy diffusivity;
+       ``ConstantReference`` with constant kinematic diffusivities. Single
+       level, constant- or stretched-z mesh, periodic and wall faces only.
+     - ``None``, ``ConstantReference``, ``HostPassiveScalar``
+     - ``None``
+   * - ``erf.sbm_particle_mixing_kh``, ``erf.sbm_particle_mixing_kv``
+     - Horizontal and vertical kinematic diffusivities [m^2 s^-1] of
+       ``ConstantReference``; any other policy rejects a nonzero value.
+     - Real :math:`\ge 0`
+     - ``0``
    * - ``erf.sbm_budget_check``
      - After every coarse step, check that the composite spectral inventory
        changed only by that step's accepted transfer through the physical
@@ -5601,8 +5618,8 @@ atmospheric cell), ``start_datetime`` and the
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_soil_moisture_fc**             | Field capacity [m³/m³]: at or above it the soil-water      | Real, wilt < fc <= | 0.329 (Noah-MP   |
 |                                                    | factor is 1 (potential evaporation without seb_soil_type). | 1                  | loam)            |
-|                                                    | Used only with seb_surface_layer_uses_moisture; giving it  |                    |                  |
-|                                                    | otherwise stops at start-up                                |                    |                  |
+|                                                    | Used only with seb_surface_layer_uses_moisture or          |                    |                  |
+|                                                    | seb_drainage_enable; giving it otherwise stops at start-up |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_soil_type**                    | Noah-MP soil category (STAS, as in NoahmpTable.TBL;        | Integer 1-19, 0 =  | 0                |
 |                                                    | ERF_NoahMPSoilTable.H). Sets the wilting point and field   | unset              |                  |
@@ -5611,9 +5628,10 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | soil's heat capacity and conductivity at seb_q_sfc_default |                    |                  |
 |                                                    | unless that is given, with seb_surface_layer_uses_moisture |                    |                  |
 |                                                    | the bare-soil resistance and pore-air humidity (vegetation |                    |                  |
-|                                                    | or not), and with seb_surface_layer_uses_skin the surface  |                    |                  |
+|                                                    | or not), with seb_surface_layer_uses_skin the surface      |                    |                  |
 |                                                    | layer's land roughness, f_veg Z0MVT + (1 - f_veg) Z0SOIL,  |                    |                  |
-|                                                    | unless erf.most.z0 is given. Not 14 (water)                |                    |                  |
+|                                                    | unless erf.most.z0 is given, and with the hydrology        |                    |                  |
+|                                                    | seb_soil_porosity (MAXSMC). Not 14 (water)                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_vegetation_type**              | Noah-MP land-use category (modified IGBP MODIS;            | Integer 1-20 but   | 0                |
 |                                                    | ERF_NoahMPVegetationTable.H). The vegetated fraction       | not 15-17, 0 =     |                  |
@@ -5661,20 +5679,25 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | soil water content [m³/m³] of the top                      |                    |                  |
 |                                                    | seb_moisture_layer_depth_m                                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_t_deep_default**               | Fallback SEB deep soil temperature [K]                     | Real               | 300.0            |
+| **erf.radiation.seb_t_deep_default**               | SEB deep soil temperature [K]: fixed, or with              | Real               | 300.0            |
+|                                                    | seb_deep_prognostic_enable its initial value               |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_q_deep_default**               | Deep soil moisture q_s restores to, in q_s's units. With   | Real [0,1]         | 0.0              |
 |                                                    | seb_surface_layer_uses_moisture a NOTE at start-up flags a |                    |                  |
 |                                                    | value below the wilting point (the default 0 dries the     |                    |                  |
-|                                                    | soil over seb_moisture_restore_timescale_s)                |                    |                  |
+|                                                    | soil over seb_moisture_restore_timescale_s). With          |                    |                  |
+|                                                    | seb_deep_prognostic_enable the initial column water        |                    |                  |
+|                                                    | content, at or below seb_soil_porosity                     |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_surface_heat_capacity**        | Effective surface heat capacity [J/(m²·K)]. With           | Real > 0; stops at | 2.0e4            |
 |                                                    | seb_soil_type and not given: sqrt(lambda c tau / pi) / 2   | start-up if not    |                  |
 |                                                    | of the soil's conductivity and heat capacity at            |                    |                  |
 |                                                    | seb_q_sfc_default over seb_restore_timescale_s (Deardorff) |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_restore_timescale_s**          | Force-restore timescale for surface temperature [s]        | Real > 0; stops at | 86400.0 (1 day)  |
-|                                                    |                                                            | start-up if not    |                  |
+| **erf.radiation.seb_restore_timescale_s**          | Force-restore timescale for surface temperature [s]. With  | Real > 0; stops at | 86400.0 (1 day)  |
+|                                                    | seb_deep_prognostic_enable also the relaxation time of     | start-up if not    |                  |
+|                                                    | seb_t_deep (Noilhan and Planton 1989, Eq. 6). The drainage |                    |                  |
+|                                                    | does not use it                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_moisture_layer_depth_m**       | Effective surface moisture layer depth [m]                 | Real > 0; stops at | 0.1              |
 |                                                    |                                                            | start-up if not    |                  |
@@ -5691,6 +5714,53 @@ atmospheric cell), ``start_datetime`` and the
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_q_max**             | Maximum clamping bound for prognostic surface moisture q_s | Real [0,1]         | 1.0              |
 |                                                    | (m³/m³ with seb_prognostic_enable)                         |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_precipitation_source**         | Rain into the force-restore surface layer (Noilhan and     | none |             | none             |
+|                                                    | Planton 1989, Eq. 11, with C1 = 1 as the balance's         | microphysics       |                  |
+|                                                    | evaporation uses): none, or microphysics (the change over  |                    |                  |
+|                                                    | each step of the scheme's surface precipitation            |                    |                  |
+|                                                    | accumulation, as liquid water). Water above                |                    |                  |
+|                                                    | seb_soil_porosity runs off. Needs seb_prognostic_enable, a |                    |                  |
+|                                                    | porosity, and a microphysics scheme with surface           |                    |                  |
+|                                                    | precipitation; stops at start-up otherwise, and with       |                    |                  |
+|                                                    | erf.land_surface_model = SLM or NOAHMP                     |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_soil_porosity**                | Porosity w_sat [m³/m³]; water above it runs off. Needed    | Real in (0, 1]; >  | none             |
+|                                                    | with seb_precipitation_source or                           | fc with drainage;  |                  |
+|                                                    | seb_deep_prognostic_enable unless seb_soil_type gives it   | stops at start-up  |                  |
+|                                                    | (Noah-MP MAXSMC; giving both stops at start-up). Must be   | if not             |                  |
+|                                                    | at or above seb_q_sfc_default and, with the deep           |                    |                  |
+|                                                    | reservoir, seb_q_deep_default. With rain, must be at or    |                    |                  |
+|                                                    | below seb_prognostic_q_max, so the q_s cap does not remove |                    |                  |
+|                                                    | rain uncounted                                             |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_deep_prognostic_enable**       | seb_q_deep becomes the mean water content of a soil column | Boolean            | false            |
+|                                                    | seb_deep_layer_depth_m deep, gaining rain and losing       |                    |                  |
+|                                                    | evaporation (Noilhan and Planton 1989, Eq. 12), and        |                    |                  |
+|                                                    | seb_t_deep relaxes toward T_s over seb_restore_timescale_s |                    |                  |
+|                                                    | (their Eq. 6). Both are checkpointed. Needs                |                    |                  |
+|                                                    | seb_prognostic_enable and a porosity; stops at start-up    |                    |                  |
+|                                                    | with erf.land_surface_model = SLM or NOAHMP. false keeps   |                    |                  |
+|                                                    | both at their defaults                                     |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_deep_layer_depth_m**           | Depth d_2 [m] of the soil column, which contains the       | Real > seb_moistur | 1.0              |
+|                                                    | surface layer. Giving it without                           | e_layer_depth_m;   |                  |
+|                                                    | seb_deep_prognostic_enable stops at start-up               | stops at start-up  |                  |
+|                                                    |                                                            | if not             |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_drainage_enable**              | Gravitational drainage of the column toward field capacity | Boolean            | false            |
+|                                                    | (Mahfouf and Noilhan 1996, Eq. 4) at the rate C_3 / (1     |                    |                  |
+|                                                    | day), the period of their Table 1, integrated exactly over |                    |                  |
+|                                                    | the step. Needs seb_deep_prognostic_enable,                |                    |                  |
+|                                                    | seb_drainage_c3_m and a field capacity                     |                    |                  |
+|                                                    | (seb_soil_moisture_fc or seb_soil_type); stops at start-up |                    |                  |
+|                                                    | otherwise                                                  |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_drainage_c3_m**                | C_3 d_2 [m] (Mahfouf and Noilhan 1996, Eq. 16; their Table | Real > 0; stops at | none             |
+|                                                    | 1 lists C_3 at d_2 = 1 m, from 0.098 to 1.705 by soil      | start-up if not    |                  |
+|                                                    | texture). The step uses C_3 = seb_drainage_c3_m /          |                    |                  |
+|                                                    | seb_deep_layer_depth_m. Required with seb_drainage_enable; |                    |                  |
+|                                                    | giving it otherwise stops at start-up                      |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Diagnostics Control Parameters**                 |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

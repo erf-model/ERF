@@ -425,20 +425,20 @@ void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, cons
     random amount for each super-droplet. The mass per physical particle is then computed from the
     mass per super-droplet and the multiplicity. The equivalent radius is then computed from the
     particle mass and the density of condensate. */
-void SuperDropletPC::SetAttributes (MultiFab& a_rhoc, int a_lev)
+void SuperDropletPC::SetAttributes (MultiFab& a_rhoc, const MultiFab& a_z_phys_nd, int a_lev)
 {
     BL_PROFILE("SuperDropletPC::SetAttributes");
 
     const auto plo = Geom(a_lev).ProbLoArray();
-    const auto dx_h = Geom(a_lev).CellSize();
-    const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
+    const auto dx = Geom(a_lev).CellSizeArray();
     const auto dxi = Geom(a_lev).InvCellSizeArray();
     const auto domain = Geom(a_lev).Domain();
+    const bool variable_dz = m_variable_dz;
 
-    int num_sd_per_cell = 0;
-    for (const auto& init : m_initializations) {
-        num_sd_per_cell += init->numSDPerCell(cell_volume);
-    }
+    // super-droplets per cell, from each cell's volume
+    const auto init_counts_d = initCellCounts();
+    const SDCellCounts* init_counts = init_counts_d.data();
+    const int num_init = static_cast<int>(init_counts_d.size());
     const int num_sp  = m_num_species;
     const int num_ae = m_num_aerosols;
 
@@ -451,12 +451,21 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc, int a_lev)
             const SDProcess::ParticlePointers& ptrs, int np)
     {
         auto condensate_mass_density = a_rhoc[grid].array();
+        SDCellVolume cell_vol{dx, Array4<Real const>{}, variable_dz};
+        if (variable_dz) { cell_vol.z_nd = a_z_phys_nd[grid].const_array(); }
 
         ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
             auto iv = getParticleCell(p, plo, dxi, domain);
+
+            const Real cell_volume = cell_vol(iv[0],iv[1],iv[2]);
+            int num_sd_per_cell = 0;
+            for (int n = 0; n < num_init; n++) {
+                num_sd_per_cell += variable_dz ? init_counts[n].numSDCell(cell_volume)
+                                               : init_counts[n].numSD(cell_volume);
+            }
 
             const Real mass_condensate_cell = condensate_mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
             const Real mass_condensate_sd = mass_condensate_cell / num_sd_per_cell;

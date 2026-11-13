@@ -1,5 +1,6 @@
 #include <random>
 #include "ERF_SuperDropletPC.H"
+#include "ERF_TerrainConversion.H"
 #include <AMReX_MultiFabUtil.H>
 
 #ifdef ERF_USE_PARTICLES
@@ -98,13 +99,15 @@ void SuperDropletPC::setNumSDBoxDistribution (int a_lev,
 /*! Scatters a box-level count of super-droplets over the injection box for
  *  per-box high-multiplicity injection. The positions are drawn on the host with
  *  a deterministic seed (identical on every rank) so the global scatter is
- *  independent of the rank count, then binned to their cells. The z-binning is
- *  index-based, i.e. per-box injection assumes a non-terrain (uniform-dz) mesh. */
+ *  independent of the rank count, then binned to their cells. On a stretched or
+ *  terrain-fitted mesh the z-binning uses the physical heights of the cells, and
+ *  positions below the terrain are dropped. */
 void SuperDropletPC::setNumSDPerBox (int a_lev,
                                      iMultiFab& a_num_sd,
                                      const int a_n_total,
                                      const RealBox& a_box,
-                                     const unsigned int a_seed)
+                                     const unsigned int a_seed,
+                                     const MFPtr& a_height_ptr)
 {
     BL_PROFILE("SuperDropletPC::setNumSDPerBox()");
     a_num_sd.setVal(0);
@@ -112,6 +115,47 @@ void SuperDropletPC::setNumSDPerBox (int a_lev,
 
     const auto dxi = Geom(a_lev).InvCellSizeArray();
     const auto plo = Geom(a_lev).ProbLoArray();
+
+    if (m_variable_dz) {
+        Gpu::DeviceVector<GpuArray<Real,AMREX_SPACEDIM>> pos_d(a_n_total);
+        {
+            Vector<GpuArray<Real,AMREX_SPACEDIM>> pos_h(a_n_total);
+            std::mt19937 gen(a_seed);
+            std::uniform_real_distribution<Real> u(Real(0.0), Real(1.0));
+            for (int n = 0; n < a_n_total; ++n) {
+                const Real x = a_box.lo(0) + u(gen)*(a_box.hi(0) - a_box.lo(0));
+                const Real y = a_box.lo(1) + u(gen)*(a_box.hi(1) - a_box.lo(1));
+                const Real z = a_box.lo(2) + u(gen)*(a_box.hi(2) - a_box.lo(2));
+                pos_h[n] = {AMREX_D_DECL(x, y, z)};
+            }
+            Gpu::copy(Gpu::hostToDevice, pos_h.begin(), pos_h.end(), pos_d.begin());
+        }
+        const auto* pos_ptr = pos_d.data();
+        const int n_total = a_n_total;
+        const Box& dom = Geom(a_lev).Domain();
+        const int k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
+
+        for (MFIter mfi = MakeMFIter(a_lev); mfi.isValid(); ++mfi) {
+            const Box& tile_box = mfi.tilebox();
+            auto num_superdroplets_arr = a_num_sd[mfi].array();
+            const auto z_nd = (*a_height_ptr)[mfi].const_array();
+            ParallelFor(n_total, [=] AMREX_GPU_DEVICE (int n) noexcept
+            {
+                const auto& x = pos_ptr[n];
+                const int i = static_cast<int>(amrex::Math::floor((x[0]-plo[0])*dxi[0]));
+                const int j = static_cast<int>(amrex::Math::floor((x[1]-plo[1])*dxi[1]));
+                if (i < tile_box.smallEnd(0) || i > tile_box.bigEnd(0)) { return; }
+                if (j < tile_box.smallEnd(1) || j > tile_box.bigEnd(1)) { return; }
+                // the column (i,j) is in this tile, so its heights are in z_nd
+                const Real zeta = ERF::ParticlePos::zeta_from_z(x[0], x[1], x[2], plo, dxi, z_nd, k_max);
+                const int k = static_cast<int>(amrex::Math::floor((zeta-plo[2])*dxi[2]));
+                if (tile_box.contains(IntVect(AMREX_D_DECL(i,j,k)))) {
+                    Gpu::Atomic::AddNoRet(&num_superdroplets_arr(i,j,k), 1);
+                }
+            });
+        }
+        return;
+    }
 
     Gpu::DeviceVector<IntVect> cells_d(a_n_total);
     {
@@ -253,15 +297,23 @@ void SuperDropletPC::addParticles ( int a_lev,
     const auto dx_h = Geom(a_lev).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
     const auto dx = Geom(a_lev).CellSizeArray();
+    const auto dxi = Geom(a_lev).InvCellSizeArray();
     const auto plo = Geom(a_lev).ProbLoArray();
     const auto init_volume = a_init.volume();
     const bool subgrid = (init_volume < cell_volume);
     const auto itype = a_init.m_type;
+    const Box& dom = Geom(a_lev).Domain();
+    const int k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
+    const bool variable_dz = m_variable_dz;
+    AMREX_ALWAYS_ASSERT(!variable_dz || a_height_ptr);
 
     // Per-box high-multiplicity injection scatters a box-level count of
     // super-droplets at a fixed multiplicity; the legacy path injects a fixed
     // count per cell.
     const bool perbox = a_init.perBoxInjection();
+    // On a stretched or terrain-fitted mesh each cell's counts follow its physical volume
+    const bool per_cell_counts = variable_dz && !perbox;
+    const SDCellCounts cell_counts = a_init.cellCounts();
     int num_sd_per_cell;
     Real num_par_per_cell;
     Real inject_mult = one;
@@ -274,6 +326,10 @@ void SuperDropletPC::addParticles ( int a_lev,
         num_par_per_cell = inject_mult;  // unused in per-box mode
         Print() << "    Per-box injection: " << inject_count
                 << " super-droplets at multiplicity " << inject_mult << "\n";
+    } else if (per_cell_counts) {
+        num_sd_per_cell  = 1;            // flags the cells, counted from their volumes below
+        num_par_per_cell = one;          // set per cell below
+        Print() << "    Numbers of physical particles and super droplets per cell follow the physical cell volume\n";
     } else {
         num_sd_per_cell  = a_init.numSDPerCell(cell_volume);
         num_par_per_cell = a_init.numParticlesPerCell(cell_volume);
@@ -301,7 +357,8 @@ void SuperDropletPC::addParticles ( int a_lev,
             setNumSDPerBox( a_lev, num_superdroplets,
                             inject_count,
                             a_init.m_particle_domain,
-                            a_init.injectSeed() );
+                            a_init.injectSeed(),
+                            a_height_ptr );
         } else {
             Print() << "    Adding particles in box with volume " << a_init.volume() << ".\n";
             setNumSDBoxDistribution( a_lev, num_superdroplets,
@@ -339,6 +396,18 @@ void SuperDropletPC::addParticles ( int a_lev,
                 if (!mask(i,j,k)) { count(i,j,k) = 0; }
             });
         }
+    }
+
+    if (per_cell_counts) {
+        for (MFIter mfi(num_superdroplets); mfi.isValid(); ++mfi) {
+            const auto count = num_superdroplets.array(mfi);
+            const SDCellVolume cell_vol{dx, (*a_height_ptr)[mfi].const_array(), true};
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (count(i,j,k) > 0) { count(i,j,k) = cell_counts.numSDCell(cell_vol(i,j,k)); }
+            });
+        }
+        // no cell receives a super-droplet (e.g. an injection step that adds no whole particle)
+        if (num_superdroplets.sum(0) == 0) { return; }
     }
 
     iMultiFab offsets( ParticleBoxArray(a_lev),
@@ -472,18 +541,28 @@ void SuperDropletPC::addParticles ( int a_lev,
 
         auto pdomain = a_init.m_particle_domain;
 
+        SDCellVolume cell_vol{dx, Array4<Real const>{}, variable_dz};
+        if (variable_dz) { cell_vol.z_nd = (*a_height_ptr)[mfi].const_array(); }
+        const auto z_nd = cell_vol.z_nd;
+
         ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k, const RandomEngine& rnd_engine) noexcept
         {
             int num_sd_this_cell = num_superdroplets_arr(i,j,k);
-            Real num_to_add = num_par_per_cell;
-            Real n_par_per_supdrop = std::ceil(num_par_per_cell/num_sd_per_cell);
+            const bool count_cell = per_cell_counts && (num_sd_this_cell > 0);
+            const Real par_this_cell = count_cell ? cell_counts.numParticles(cell_vol(i,j,k)) : num_par_per_cell;
+            const int  sd_this_cell  = count_cell ? num_sd_this_cell : num_sd_per_cell;
+            Real num_to_add = par_this_cell;
+            // per-cell counts are split evenly, so every super-droplet gets a whole particle
+            const Real n_par_per_supdrop = count_cell ? std::floor(par_this_cell/sd_this_cell)
+                                                      : std::ceil(par_this_cell/sd_this_cell);
+            const Real n_par_extra = count_cell ? par_this_cell - n_par_per_supdrop*sd_this_cell : zero;
 
             Real mult_scale = one;
             if (sampled_multiplicity) {
                 Real mult_sum = zero;
                 int start = offset_arr(i,j,k);
                 for (int n = start; n < start+num_sd_this_cell; n++) { mult_sum += mult_arr[n]; }
-                mult_scale = num_par_per_cell / mult_sum;
+                mult_scale = par_this_cell / mult_sum;
             }
 
             int start = offset_arr(i,j,k);
@@ -526,6 +605,11 @@ void SuperDropletPC::addParticles ( int a_lev,
                             p.pos(2) = pdomain.lo(2);
                         }
                     }
+                    if (variable_dz) {
+                        // the domain is given in physical height; pos(2) is zeta
+                        p.pos(2) = static_cast<ParticleReal>(ERF::ParticlePos::zeta_from_z(
+                            p.pos(0), p.pos(1), p.pos(2), plo, dxi, z_nd, k_max));
+                    }
                 } else {
                     if (random_place) {
                         p.pos(0) = plo[0] + (i + Random(rnd_engine))*dx[0];
@@ -549,7 +633,7 @@ void SuperDropletPC::addParticles ( int a_lev,
                     if (sampled_multiplicity) {
                         mult_this_sd = std::ceil(mult_arr[n] * mult_scale);
                     } else {
-                        mult_this_sd = n_par_per_supdrop;
+                        mult_this_sd = n_par_per_supdrop + ((n - start < n_par_extra) ? one : zero);
                     }
                     if (mult_this_sd < num_to_add) {
                         mult_ptr[n] = mult_this_sd;
@@ -628,6 +712,18 @@ void SuperDropletPC::addParticles ( int a_lev,
                 a_ptr[i] = c_ptr[i] = std::cbrt(mass/(four_thirds_pi*rho_i));
                 mrime_ptr[i] = 0.0;
                 nmono_ptr[i] = (mass > 0 ? 1.0 : 0.0);
+            });
+            Gpu::synchronize();
+        } else {
+            // Without ice these attributes are unused, but coalescence still merges T_fz
+            auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data() + size_old;
+            auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data() + size_old;
+            auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data() + size_old;
+            auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data() + size_old;
+            auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data() + size_old;
+            ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) noexcept
+            {
+                Tfz_ptr[i] = a_ptr[i] = c_ptr[i] = mrime_ptr[i] = nmono_ptr[i] = ParticleReal(0);
             });
             Gpu::synchronize();
         }
