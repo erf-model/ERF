@@ -731,8 +731,13 @@ value, so heavy rain runs off sooner.
 Water above the porosity :math:`w_{\text{sat}}` (``seb_soil_porosity``) runs off (NP89 Sec. 4a).
 The surface layer's runoff is at most the step's rain: water above :math:`w_{\text{sat}}` that
 :math:`q_s` held before the rain (a restore overshoot, or a restart from a run without the
-hydrology) is clamped off :math:`q_s` and stays in the column. When the balance skips a step (the
-first step of a level built from a coarser one), that step's rain is carried into the next.
+hydrology) is clamped off :math:`q_s` and stays in the column. The surface runoff is taken
+before the drainage, so water that never entered the soil does not drain. With rain,
+``seb_prognostic_q_max`` must be at or above :math:`w_{\text{sat}}`; a lower cap would remove
+rain that the runoff does not count. When the balance skips a step (the first step of a level
+built from a coarser one), that step's rain is carried into the next: the next step's rain rate
+is the mean over both steps, and the step takes the rain of both. A level whose boxes do not span
+the domain in :math:`z` never runs the balance and takes no rain.
 
 **Deep reservoir** (``seb_deep_prognostic_enable``). :math:`q_{\text{deep}}` becomes
 :math:`w_2`, the mean water content of a soil column :math:`d_2` deep
@@ -774,14 +779,16 @@ balance.
 
 where :math:`D` is the drainage, :math:`R` the runoff, and :math:`S` the deficit: the water an
 evaporation took that the column did not hold, recorded when :math:`q_{\text{deep}}` would go
-below zero. The running totals of rain, runoff, drainage and deficit [kg m\ :sup:`-2`] are
+below zero. The latent heat flux is not limited by :math:`q_{\text{deep}}`, so a non-zero
+deficit is water the coupled system did not conserve: the atmosphere received vapour the soil did
+not hold. The running totals of rain, runoff, drainage and deficit [kg m\ :sup:`-2`] are
 checkpointed and written to the 2D plotfile (``seb_rain_total`` and the others), with
-``seb_rain_rate``, ``seb_q_deep`` and ``seb_t_deep``. With ``erf.radiation.v >= 1`` each step
+``seb_rain_rate``, ``seb_q_deep`` and ``seb_t_deep``. With ``erf.radiation.v >= 2`` each step
 logs the domain sums and the largest column residual.
 
 The dust model reads this soil through a read-only accessor (``ForceRestoreSoil``: :math:`q_s`,
 :math:`q_{\text{deep}}`, :math:`T_s`, the rain rate, the depths, porosity, field capacity and
-wilting point). The dust emission does not use it yet.
+wilting point), for level 0 only. The dust emission does not use it yet.
 
 References: Deardorff, J. W., 1978, J. Geophys. Res., 83, 1889-1903; Noilhan, J. and S. Planton,
 1989, Mon. Wea. Rev., 117, 536-549; Mahfouf, J.-F. and J. Noilhan, 1996, J. Appl. Meteor., 35,

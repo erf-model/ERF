@@ -5713,7 +5713,9 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | seb_deep_prognostic_enable unless seb_soil_type gives it   | stops at start-up  |                  |
 |                                                    | (Noah-MP MAXSMC; giving both stops at start-up). Must be   | if not             |                  |
 |                                                    | at or above seb_q_sfc_default and, with the deep           |                    |                  |
-|                                                    | reservoir, seb_q_deep_default                              |                    |                  |
+|                                                    | reservoir, seb_q_deep_default. With rain, must be at or    |                    |                  |
+|                                                    | below seb_prognostic_q_max, so the q_s cap does not remove |                    |                  |
+|                                                    | rain uncounted                                             |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_deep_prognostic_enable**       | seb_q_deep becomes the mean water content of a soil column | Boolean            | false            |
 |                                                    | seb_deep_layer_depth_m deep, gaining rain and losing       |                    |                  |

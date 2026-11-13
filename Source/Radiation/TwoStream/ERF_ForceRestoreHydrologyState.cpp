@@ -42,6 +42,7 @@ ForceRestoreHydrology::resize (int nlevs_max)
     m_totals.resize(nlevs_max);
     m_started.resize(nlevs_max, 0);
     m_unused.resize(nlevs_max, 0);
+    m_elapsed.resize(nlevs_max, 0.0);
 }
 
 void
@@ -57,6 +58,7 @@ ForceRestoreHydrology::define_level (int lev, const RadChoice& rc, const BoxArra
     m_totals[lev]->setVal(0.0);
     m_started[lev] = 0;
     m_unused[lev] = 0;
+    m_elapsed[lev] = 0.0;
 }
 
 void
@@ -75,6 +77,9 @@ ForceRestoreHydrology::end_step (int lev, const SurfacePrecipAccumulationSources
     if (m_started[lev] == 0) { m_rain_rate[lev]->setVal(0.0); return; }
     MultiFab accum_end(m_accum_start[lev]->boxArray(), m_accum_start[lev]->DistributionMap(), 1, 0);
     surface_precip_accum_k0(accum_end, sources, klo);
+    // The time since the stored start: this step, plus any step whose rain step() did not use.
+    m_elapsed[lev] += dt;
+    const Real elapsed = m_elapsed[lev];
     for (MFIter mfi(*m_rain_rate[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         Array4<Real> r = m_rain_rate[lev]->array(mfi);
@@ -82,7 +87,7 @@ ForceRestoreHydrology::end_step (int lev, const SurfacePrecipAccumulationSources
         Array4<const Real> a1 = accum_end.const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            r(i, j, k) = force_restore_rain_rate(a1(i, j, k), a0(i, j, k), dt);
+            r(i, j, k) = force_restore_rain_rate(a1(i, j, k), a0(i, j, k), elapsed);
         });
     }
     m_started[lev] = 0;
@@ -97,6 +102,10 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
 {
     StepSums sums;
     if (!defined(lev)) { return sums; }
+
+    // The rain rate is a mean over m_elapsed, which exceeds dt when an earlier step's rain was
+    // carried: the step takes the whole of it, P m_elapsed, in its P dt.
+    const Real rain_scale = (prm.rain && m_elapsed[lev] > Real(0.0)) ? m_elapsed[lev] / dt : Real(1.0);
 
     ReduceOps<ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpMax,
               ReduceOpSum> reduce_op;
@@ -122,7 +131,7 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
             if (has_foot && foot(i, j, k) > Real(0.5)) {
                 return {Real(0.), Real(0.), Real(0.), Real(0.), Real(0.), Real(0.), Long(0)};
             }
-            Real p = prm.rain ? pr(i, j, k) : Real(0.0);
+            Real p = prm.rain ? pr(i, j, k) * rain_scale : Real(0.0);
             if (!amrex::Math::isfinite(p)) { p = Real(0.0); }
             Real e = le(i, j, k) / L_v;
             if (!amrex::Math::isfinite(e)) { e = Real(0.0); }
@@ -150,6 +159,7 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
     }
 
     m_unused[lev] = 0;
+    m_elapsed[lev] = 0.0;
 
     ReduceTuple h = reduce_data.value(reduce_op);
     Real s[5] = {amrex::get<0>(h), amrex::get<1>(h), amrex::get<2>(h), amrex::get<3>(h),

@@ -30,6 +30,11 @@ two_level (the rain leg with a second level made half-way through, regridded eve
 no subcycling): checks 4-6 on every column of the finest data at the last step, and the last
 plotfile has level 1. Earlier plotfiles are read on the last one's cells (a fine cell takes the
 coarse cell that contains it before level 1 exists).
+
+two_level_subcycled (the two_level run with level 1 taking two steps per coarse step, so the
+coarse totals and accumulation are averaged down from level 1 between coarse steps): checks 4
+and 6 on the finest data. Check 5 is not made: the plotfile holds only the last substep's latent
+heat flux, so the evaporation of level 1 cannot be summed from it.
 """
 
 import argparse
@@ -134,7 +139,7 @@ def finest_level(plotfile):
     return int(lines[2 + nvars + 2])  # after the names: dimension, time, finest level
 
 
-def check_rain(args, run_dir=None, label='rain'):
+def check_rain(args, run_dir=None, label='rain', budget=True):
     run_dir = run_dir or args.rain_dir
     files = plotfiles(run_dir, args.rain_steps)
     tmp = os.path.join(run_dir, 'fextract.tmp')
@@ -164,21 +169,23 @@ def check_rain(args, run_dir=None, label='rain'):
         raise CheckError(f"{label}: no rain reached the ground in {args.rain_steps} steps")
     for c in range(len(rain)):
         close(rain[c], acc[c] - acc0[c], 1e-10, 1e-14, f"{label}: seb_rain_total, cell {c}")
-        lhs = RHO_W * args.d2 * (qd[c] - qd0[c])
-        rhs = rain[c] - evap[c] - drain[c] - runoff[c] + deficit[c]
-        close(lhs, rhs, 1e-9, 1e-12, f"{label}: column budget, cell {c}")
+        if budget:
+            lhs = RHO_W * args.d2 * (qd[c] - qd0[c])
+            rhs = rain[c] - evap[c] - drain[c] - runoff[c] + deficit[c]
+            close(lhs, rhs, 1e-9, 1e-12, f"{label}: column budget, cell {c}")
         if qs[c] > args.porosity * (1.0 + 1e-14):
             raise CheckError(f"{label}: q_s {qs[c]} above the porosity {args.porosity}, cell {c}")
     if not max(runoff) > 0.0:
         raise CheckError(f"{label}: no runoff, although rain fell on a saturated soil")
     extra = ''
-    if label == 'two_level':
+    if label.startswith('two_level'):
         if finest_level(last) != 1:
             raise CheckError(f"{label}: {last} has no level 1")
         extra = f', {len(rain)} cells on the finest data'
     print(f"PASS {label}: {args.rain_steps} steps, mean rain {mean(rain):.6e}, runoff "
-          f"{mean(runoff):.6e}, drainage {mean(drain):.6e} kg/m^2; the budget closes per "
-          f"cell{extra}")
+          f"{mean(runoff):.6e}, drainage {mean(drain):.6e} kg/m^2"
+          + ("; the budget closes per cell" if budget else "; rain matches the accumulation per cell")
+          + extra)
 
 
 def main():
@@ -190,6 +197,7 @@ def main():
     parser.add_argument('--rain-dir', required=True)
     parser.add_argument('--rain-steps', type=int, required=True)
     parser.add_argument('--two-level-dir', required=True)
+    parser.add_argument('--subcycled-dir', required=True)
     parser.add_argument('--dt', type=float, required=True)
     parser.add_argument('--tau', type=float, required=True, help='seb_restore_timescale_s')
     parser.add_argument('--d2', type=float, required=True, help='seb_deep_layer_depth_m')
@@ -200,7 +208,8 @@ def main():
     args = parser.parse_args()
     failed = False
     checks = (check_deep, check_rain,
-              lambda a: check_rain(a, a.two_level_dir, 'two_level'))
+              lambda a: check_rain(a, a.two_level_dir, 'two_level'),
+              lambda a: check_rain(a, a.subcycled_dir, 'two_level_subcycled', budget=False))
     for check in checks:
         try:
             check(args)

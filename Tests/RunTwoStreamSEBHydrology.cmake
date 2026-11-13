@@ -10,7 +10,9 @@
 #         rain leg's (the deep state and the running totals are checkpointed);
 #   two_level  the rain leg on two levels, the second made over part of the domain half-way
 #         through (filled from the coarse level, regridded every step, averaged down): the
-#         rain and budget checks hold on every column of the finest data. (The rain carried
+#         rain and budget checks hold on every column of the finest data;
+#   two_level_subcycled  the same with level 1 taking two steps per coarse step: the rain the
+#         soil took in matches the accumulation on every column of the finest data. (The rain carried
 #         over a step a new level's balance skips is checked by the unit test
 #         RainOfASkippedStepIsCarriedIntoTheNext: that skip needs erf.interp_atmos_from_coarse.)
 # -DX= defines X as empty, so test for a value, not for DEFINED
@@ -152,11 +154,21 @@ run_leg(two_level "${rain_sounding}" ${RAIN_STEPS} ${rain_inputs}
         "erf.patch.in_box_lo=200.0 0.0" "erf.patch.in_box_hi=600.0 400.0"
         erf.patch.start_time=${level_start}.5 erf.regrid_int=1 erf.dt_ref_ratio=1)
 
+# The same with subcycling: level 1 takes two steps per coarse step, and the coarse data under
+# it are averaged down from level 1 between coarse steps.
+run_leg(two_level_subcycled "${rain_sounding}" ${RAIN_STEPS} ${rain_inputs}
+        "geometry.prob_extent=800 400 800" "amr.n_cell=8 4 16"
+        amr.max_level=1 "amr.ref_ratio_vect=2 2 1" amr.n_error_buf=0 amr.blocking_factor=2
+        amr.refine_whole_domain_dir=2 erf.refinement_indicators=patch erf.patch.max_level=1
+        "erf.patch.in_box_lo=200.0 0.0" "erf.patch.in_box_hi=600.0 400.0"
+        erf.patch.start_time=${level_start}.5 erf.regrid_int=1 erf.dt_ref_ratio=2)
+
 execute_process(
     COMMAND "${PYTHON_EXE}" "${CHECKER}" --fextract "${FEXTRACT}"
             --deep-dir "${WORKING_DIRECTORY}/deep" --deep-steps ${DEEP_STEPS}
             --rain-dir "${WORKING_DIRECTORY}/rain" --rain-steps ${RAIN_STEPS}
             --two-level-dir "${WORKING_DIRECTORY}/two_level"
+            --subcycled-dir "${WORKING_DIRECTORY}/two_level_subcycled"
             --dt ${DT} --tau ${TAU} --d2 ${D2} --c3-m ${C3_M} --fc ${FC}
             --porosity ${POROSITY} --q-deep0 ${Q_DEEP0}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"

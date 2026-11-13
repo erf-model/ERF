@@ -119,10 +119,11 @@ amrex::Real force_restore_rain_rate (amrex::Real accum_end, amrex::Real accum_st
  * @brief One step of the force-restore hydrology for one column, after the balance has
  *        updated T_s and q_s (prognostic_dTs_dt, prognostic_dqs_dt).
  *
- * In order: rain into the surface layer; the column's water budget and drainage; the deep
- * temperature toward the updated T_s; runoff above the porosity, first from the surface
- * layer (water that never infiltrates, so it leaves the column too) and then from the column;
- * the bounds of q_s and q_deep.
+ * In order: rain into the surface layer and the surface runoff above the porosity (at most
+ * the step's rain: water that never infiltrates); the infiltrated rain minus the evaporation
+ * into the column, then its drainage; the deep temperature toward the updated T_s; runoff of
+ * the column above the porosity; the bounds of q_s and q_deep. The surface runoff is taken
+ * before the drainage, so water that never entered the soil does not drain.
  *
  * With the deep reservoir, the column then satisfies exactly
  *   rho_w d_2 (q_deep_new - q_deep_old) = (P - E) dt - drainage - runoff + deficit.
@@ -152,11 +153,23 @@ force_restore_hydrology_step (amrex::Real& q_s, amrex::Real& q_deep, amrex::Real
 
     // Rain into the surface layer: NP89 Eq. (11), first term, with C1 = 1 and d_1 = d_s.
     // (The balance already removed E from q_s in prognostic_dqs_dt.)
-    if (prm.rain) { q_s += dt * p / (rhor * prm.d_s); }
+    // Runoff above saturation (NP89 Sec. 4a) from the surface layer: at most this step's rain
+    // runs off there, since that water never infiltrated. Water above w_sat that q_s held
+    // before the rain is clamped off q_s and stays in the column.
+    amrex::Real surface_runoff = zero;
+    if (prm.rain) {
+        q_s += dt * p / (rhor * prm.d_s);
+        if (q_s > prm.w_sat) {
+            surface_runoff = amrex::min(rhor * prm.d_s * (q_s - prm.w_sat), p * dt);
+            q_s = prm.w_sat;
+            out.runoff += surface_runoff;
+        }
+    }
 
     if (prm.deep) {
-        // The column's water: NP89 Eq. (12), MN96 Eq. (4), first term.
-        q_deep += dt * (p - e) / (rhor * prm.d_2);
+        // The column's water: NP89 Eq. (12), MN96 Eq. (4), first term, with the rain that
+        // infiltrated.
+        q_deep += (dt * (p - e) - surface_runoff) / (rhor * prm.d_2);
 
         // Gravitational drainage toward field capacity: MN96 Eq. (4), second term, exact
         // over the step for the linear relaxation.
@@ -169,23 +182,17 @@ force_restore_hydrology_step (amrex::Real& q_s, amrex::Real& q_deep, amrex::Real
 
         // Deep temperature: NP89 Eq. (6), exact over the step.
         t_deep += (t_s - t_deep) * (one - std::exp(-dt / prm.tau));
+
+        // Runoff of the column above saturation.
+        if (q_deep > prm.w_sat) {
+            out.runoff += rhor * prm.d_2 * (q_deep - prm.w_sat);
+            q_deep = prm.w_sat;
+        }
     }
 
-    // Runoff above saturation (NP89 Sec. 4a), surface layer first. At most this step's rain
-    // runs off there: that water never infiltrated, so the column gives it back too. Water
-    // above w_sat that q_s held before the rain is clamped off q_s and stays in the column.
-    if (prm.rain && q_s > prm.w_sat) {
-        const amrex::Real r = amrex::min(rhor * prm.d_s * (q_s - prm.w_sat), p * dt);
-        q_s = prm.w_sat;
-        out.runoff += r;
-        if (prm.deep) { q_deep -= r / (rhor * prm.d_2); }
-    }
-    if (prm.deep && q_deep > prm.w_sat) {
-        out.runoff += rhor * prm.d_2 * (q_deep - prm.w_sat);
-        q_deep = prm.w_sat;
-    }
-
-    // NP89 Eq. (12): 0 < w_2. An evaporation the column cannot supply is recorded, not hidden.
+    // NP89 Eq. (12): 0 < w_2. An evaporation the column cannot supply is recorded, not hidden:
+    // the latent heat flux has already taken it, so a deficit is water the coupled system did
+    // not conserve (LE is not limited by q_deep).
     if (prm.deep && q_deep < zero) {
         out.deficit = -rhor * prm.d_2 * q_deep;
         q_deep = zero;

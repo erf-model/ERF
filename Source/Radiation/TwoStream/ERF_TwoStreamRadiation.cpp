@@ -1956,7 +1956,7 @@ TwoStreamRadiation::advance (int lev,
                                      "after the force-restore hydrology at level " + std::to_string(lev) +
                                      ", step " + std::to_string(nstep));
                     }
-                    if (rad_choice.verbosity >= 1 && hs.columns > 0) {
+                    if (rad_choice.verbosity >= 2 && hs.columns > 0) {
                         const amrex::Real inv_n = amrex::Real(1.0) / static_cast<amrex::Real>(hs.columns);
                         amrex::Print() << "Force-restore hydrology at level " << lev << ", step " << nstep
                                        << " (column means, kg/m^2 this step): rain = " << hs.rain * inv_n

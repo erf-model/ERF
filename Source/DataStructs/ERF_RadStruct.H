@@ -686,8 +686,9 @@ public:
   /**
    * @brief Porosity w_sat [m^3/m^3] of the force-restore soil: above it, water runs off.
    * Needed with seb_precipitation_source = microphysics or seb_deep_prognostic_enable;
-   * with seb_soil_type it is Noah-MP's MAXSMC and giving it stops at start-up. In (0, 1],
-   * above field capacity, and at or above seb_q_sfc_default and seb_q_deep_default.
+   * with seb_soil_type it is Noah-MP's MAXSMC and giving it stops at start-up. In (0, 1];
+   * with seb_drainage_enable also above field capacity; at or above seb_q_sfc_default (and
+   * seb_q_deep_default with the deep reservoir); with rain, at or below seb_prognostic_q_max.
    * -1 = not given.
    */
   amrex::Real seb_soil_porosity = -1.0;
@@ -932,7 +933,7 @@ public:
    * - erf.radiation.seb_prognostic_q_min (real, optional, default 0.0, clamped to [0, 1])
    * - erf.radiation.seb_prognostic_q_max (real, optional, default 1.0, clamped to [0, 1])
    * - erf.radiation.seb_precipitation_source (string "none"|"microphysics", optional, default "none")
-   * - erf.radiation.seb_soil_porosity (real, needed with rain or the deep reservoir unless seb_soil_type, in (fc, 1])
+   * - erf.radiation.seb_soil_porosity (real, needed with rain or the deep reservoir unless seb_soil_type, in (0, 1]; above fc with drainage; at most seb_prognostic_q_max with rain)
    * - erf.radiation.seb_deep_prognostic_enable (bool, optional, default false)
    * - erf.radiation.seb_deep_layer_depth_m (real, optional, default 1.0, > seb_moisture_layer_depth_m)
    * - erf.radiation.seb_drainage_enable (bool, optional, default false)
@@ -1690,6 +1691,15 @@ public:
                        std::to_string(seb_q_deep_default) + ") must not exceed "
                        "erf.radiation.seb_soil_porosity (" + std::to_string(seb_soil_porosity) +
                        "): water above it runs off");
+      }
+      // The balance clamps q_s to seb_prognostic_q_max after its own update. Below the
+      // porosity, that clamp would remove rain the runoff never records.
+      if (seb_precipitation_source == SEBPrecipitationSource::Microphysics &&
+          seb_prognostic_q_max < seb_soil_porosity) {
+          amrex::Abort("erf.radiation.seb_prognostic_q_max (" + std::to_string(seb_prognostic_q_max) +
+                       ") must be at or above erf.radiation.seb_soil_porosity (" +
+                       std::to_string(seb_soil_porosity) + ") with seb_precipitation_source = "
+                       "microphysics: a lower cap would remove rain without counting it as runoff");
       }
   }
 

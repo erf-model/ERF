@@ -83,20 +83,23 @@ public:
     /**
      * @brief Store the accumulation [kg/m^2] at the start of the level's step. When step()
      * did not use the rain of the previous step (the balance skips a new level's first step),
-     * the earlier start is kept, so that rain is carried into the next step's P dt.
+     * the earlier start is kept, so that rain is carried into the next step.
      */
     void begin_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo);
 
     /**
-     * @brief The rain rate [kg/m^2/s] of the step just taken, from the accumulation now
-     * and the one begin_step stored. Zero when begin_step has not run for this step.
+     * @brief The rain rate [kg/m^2/s]: the accumulation now minus the one begin_step stored,
+     * over the time since that start (the step just taken, plus any step whose rain was
+     * carried). Zero when begin_step has not run for this step.
      */
     void end_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo,
                    amrex::Real dt);
 
     /**
      * @brief One hydrology step on every open column of @p lev, after the balance has
-     * updated T_s and q_s. A footprint cell (footprint > 0.5) keeps its state.
+     * updated T_s and q_s. A footprint cell (footprint > 0.5) keeps its state. The rain it
+     * takes is the rain rate times the time since the stored start, so a carried step's rain
+     * is counted once, in full.
      *
      * @param t_s       surface temperature after the update [K]
      * @param q_s       surface water content [m^3/m^3], updated
@@ -133,6 +136,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_totals;       ///< Total components
     amrex::Vector<int> m_started;                                   ///< begin_step ran this step
     amrex::Vector<int> m_unused;                                    ///< end_step's rain not yet used by step()
+    amrex::Vector<amrex::Real> m_elapsed;                           ///< time since m_accum_start [s]
 };
 
 #endif // ERF_FORCE_RESTORE_HYDROLOGY_STATE_H_

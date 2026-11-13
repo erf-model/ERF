@@ -55,7 +55,8 @@ ERF::advance_dust_model (int step, double time)
     }
 #endif
 
-    // The force-restore soil of level 0, when the two-stream balance evolves it.
+    // The force-restore soil of level 0 only, when the two-stream balance evolves it: the dust
+    // step reads the level-0 surface, so finer levels do not reach the dust emission.
     const ForceRestoreSoil soil = (solverChoice.rad_type == RadiationType::TwoStream)
                                 ? two_stream_rad.force_restore_soil(0) : ForceRestoreSoil{};
     DustStep ds{step, time, dt[0], geom[0],

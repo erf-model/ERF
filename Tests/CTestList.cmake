@@ -576,12 +576,13 @@ function(add_test_two_stream_seb_moisture TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/wet/simulation.log;${CURRENT_TEST_BINARY_DIR}/mid/simulation.log;${CURRENT_TEST_BINARY_DIR}/veg/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare_f0/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare_dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/tables/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_moisture)
 
-# The force-restore hydrology on the deck of TwoStream_SEBSurfaceLayerFluxes in four legs: the
+# The force-restore hydrology on the deck of TwoStream_SEBSurfaceLayerFluxes in five legs: the
 # deep reservoir draining exactly toward field capacity with the deep temperature relaxing
 # toward the skin; Kessler rain into a soil at porosity, which must take in the scheme's own
 # accumulation, run off and close each column's water budget; that rain leg restarted
 # half-way, which must match it (fcompare); and that rain leg with a second level made
-# half-way, where the same checks hold on the finest data
+# half-way, where the same checks hold on the finest data; and that two-level leg subcycled,
+# where the rain the soil took in must match the accumulation on the finest data
 # (Tests/RunTwoStreamSEBHydrology.cmake, Tests/check_two_stream_seb_hydrology.py).
 function(add_test_two_stream_seb_hydrology TEST_NAME)
     set(TEST_FILES_DIR "TwoStream_SEBSurfaceLayerFluxes")
@@ -610,7 +611,7 @@ function(add_test_two_stream_seb_hydrology TEST_NAME)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;radiation"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/deep/simulation.log;${CURRENT_TEST_BINARY_DIR}/rain/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/restart/fcompare.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/deep/simulation.log;${CURRENT_TEST_BINARY_DIR}/rain/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/restart/fcompare.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_subcycled/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_hydrology)
 
 function(add_test_cloud_chamber_parity TEST_NAME)
@@ -3344,6 +3345,11 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  TwoStream_SEBSurfaceLayerFluxes.i
                  "turn them off with a land-surface model"
                  "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_porosity=0.4 erf.land_surface_model=SLM slm.nsoil=2 \"slm.soil_dz=0.1 0.4\" slm.sw0=0.6 slm.st0=300 slm.clay0=13 slm.sand0=17")
+  add_test_abort(TwoStream_SEBHydrologyAbortQMaxBelowPorosity
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "must be at or above erf.radiation.seb_soil_porosity"
+                 "erf.radiation.seb_precipitation_source=microphysics erf.radiation.seb_soil_porosity=0.4 erf.radiation.seb_prognostic_q_max=0.3")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 

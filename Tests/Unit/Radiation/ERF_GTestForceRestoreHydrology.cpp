@@ -187,6 +187,36 @@ TEST(ForceRestoreHydrology, SurfaceRunoffIsAtMostTheStepsRain)
     EXPECT_EQ(f.deficit, Real(0.0));
 }
 
+TEST(ForceRestoreHydrology, OnlyInfiltratedRainDrains)
+{
+    // q_s = 0.40, w_sat = 0.45, d_s = 0.1 m: the layer holds 5 kg/m^2 more. 10 kg/m^2 of rain
+    // falls, so 5 kg/m^2 runs off and 5 kg/m^2 enters the column (q_deep 0.300 -> 0.305) before
+    // it drains toward w_fc = 0.3 with C3 = 0.5 over tau_1d. The runoff never drains.
+    ForceRestoreHydrologyParams prm = base();
+    prm.rain = true;
+    prm.deep = true;
+    prm.drain = true;
+    const Real p = Real(0.01), dt = Real(1000.0);
+    Real qs = Real(0.40), qd = Real(0.30), td = Real(290.0);
+    const auto f = force_restore_hydrology_step(qs, qd, td, Real(290.0), p, Real(0.0), dt, prm);
+    const Real decay = std::exp(-Real(0.5) * dt / Real(86400.0));
+    const Real qd_expected = Real(0.30) + Real(0.005) * decay;
+    EXPECT_NEAR(f.runoff, Real(5.0), Real(1.0e3) * tol);
+    EXPECT_NEAR(qs, prm.w_sat, tol);
+    EXPECT_NEAR(qd, qd_expected, tol);
+    EXPECT_NEAR(f.drainage, Real(5.0) * (Real(1.0) - decay), Real(1.0e3) * tol);
+    EXPECT_EQ(f.deficit, Real(0.0));
+
+    // A saturated surface layer over a column at field capacity: all rain runs off, nothing
+    // enters, nothing drains, and no deficit is recorded.
+    Real qs2 = Real(0.45), qd2 = Real(0.30), td2 = Real(290.0);
+    const auto f2 = force_restore_hydrology_step(qs2, qd2, td2, Real(290.0), p, Real(0.0), dt, prm);
+    EXPECT_NEAR(f2.runoff, p * dt, Real(1.0e3) * tol);
+    EXPECT_NEAR(qd2, Real(0.30), tol);
+    EXPECT_EQ(f2.drainage, Real(0.0));
+    EXPECT_EQ(f2.deficit, Real(0.0));
+}
+
 TEST(ForceRestoreHydrology, EvaporationTheColumnCannotSupplyIsADeficit)
 {
     ForceRestoreHydrologyParams prm = base();
@@ -232,7 +262,8 @@ TEST(ForceRestoreHydrology, RainOfASkippedStepIsCarriedIntoTheNext)
 {
     // A level whose balance skips a step (a new level's first step without its radiation
     // sweep) calls begin_step and end_step but not step(). The rain of that step must reach
-    // the soil with the next step: begin_step keeps the earlier start of the accumulation.
+    // the soil with the next step: begin_step keeps the earlier start of the accumulation,
+    // and the rate is the mean over the time since that start, not over the last step alone.
     using namespace amrex;
     RadChoice rc;
     rc.seb_precipitation_source = SEBPrecipitationSource::Microphysics;
@@ -264,15 +295,31 @@ TEST(ForceRestoreHydrology, RainOfASkippedStepIsCarriedIntoTheNext)
     hydro.begin_step(0, src, klo);
     accum.setVal(4.0);
     hydro.end_step(0, src, klo, Real(2.0));
-    EXPECT_NEAR(hydro.rain_rate(0)->min(0), Real(1.5), tol);
+    // 3 kg/m^2 over 1 + 2 s.
+    EXPECT_NEAR(hydro.rain_rate(0)->min(0), Real(1.0), tol);
+    EXPECT_NEAR(hydro.rain_rate(0)->max(0), Real(1.0), tol);
     const auto sums = hydro.step(0, t_s, q_s, q_deep, t_deep, lh, nullptr, Real(2.0), prm);
     EXPECT_EQ(sums.columns, Long(16));
     EXPECT_NEAR(hydro.totals(0)->min(ForceRestoreHydrology::Rain), Real(3.0), tol);
     EXPECT_NEAR(hydro.totals(0)->max(ForceRestoreHydrology::Rain), Real(3.0), tol);
+    // All 3 kg/m^2 entered the 0.1 m surface layer: q_s 0.1 -> 0.13.
+    EXPECT_NEAR(q_s.min(0), Real(0.13), tol);
+    EXPECT_NEAR(q_s.max(0), Real(0.13), tol);
 
     // Step 3 (dt = 1 s), with step() run: only its own rain, 0.5 kg/m^2.
     hydro.begin_step(0, src, klo);
     accum.setVal(4.5);
     hydro.end_step(0, src, klo, Real(1.0));
     EXPECT_NEAR(hydro.rain_rate(0)->max(0), Real(0.5), tol);
+    hydro.step(0, t_s, q_s, q_deep, t_deep, lh, nullptr, Real(1.0), prm);
+    EXPECT_NEAR(hydro.totals(0)->max(ForceRestoreHydrology::Rain), Real(3.5), tol);
+
+    // A level whose step() never runs: the rate stays the mean since the kept start, bounded
+    // by the rain rate, instead of growing with each step.
+    for (int n = 0; n < 4; ++n) {
+        hydro.begin_step(0, src, klo);
+        accum.setVal(Real(5.5) + Real(n));   // 1 kg/m^2 per 1 s step
+        hydro.end_step(0, src, klo, Real(1.0));
+    }
+    EXPECT_NEAR(hydro.rain_rate(0)->max(0), Real(1.0), tol);
 }
