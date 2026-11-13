@@ -13,6 +13,23 @@
 #include "ERFPC.H"
 #include "ERF_SDInitialization.H"
 
+/*! \brief Volume of cell (i,j,k): dx dy times its physical thickness, the mean length of
+ *  its four vertical edges, when the cells differ in thickness (stretched or
+ *  terrain-fitted mesh), else dx dy dz */
+struct SDCellVolume
+{
+    amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dx;
+    amrex::Array4<amrex::Real const> z_nd;
+    bool variable_dz = false;
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real operator() (int i, int j, int k) const noexcept
+    {
+        if (!variable_dz) { return dx[0]*dx[1]*dx[2]; }
+        return dx[0]*dx[1]*ERFParticleGeometry::cell_thickness(z_nd, i, j, k);
+    }
+};
+
 namespace SDPCDefn {
     using SDSpeciesMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_species_max>;
     using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;

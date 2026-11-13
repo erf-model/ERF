@@ -84,12 +84,11 @@ map_erf_boundary (const ERF_BC bc, AdvectionFaceKind& kind, std::string& reason)
         return true;
     case ERF_BC::slip_wall:
     case ERF_BC::no_slip_wall:
+    // A surface layer holds the normal carrier at zero, and particles cross it
+    // by no diffusive or depositional transfer.
+    case ERF_BC::surface_layer:
         kind = AdvectionFaceKind::ImpermeableWall;
         return true;
-    case ERF_BC::surface_layer:
-        reason = "a surface_layer boundary acts through the diffusion operator, "
-                 "and SBM does not yet support diffusion";
-        return false;
     case ERF_BC::symmetry:
         reason = "ERF does not hold the normal dry-air carrier of a symmetry face "
                  "at zero, so it is not an impermeable spectral wall";

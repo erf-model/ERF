@@ -269,6 +269,7 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_seb_updated.resize(nlevs_max, 0);
     m_flux_diag.resize(nlevs_max);
     m_diag.resize(nlevs_max);
+    m_hydro.resize(nlevs_max);
 }
 
 void
@@ -346,6 +347,8 @@ TwoStreamRadiation::define_level (int lev,
         } else {
             m_moisture[lev].reset();
         }
+        // The hydrology's rain rate and running totals (a no-op when it is off).
+        m_hydro.define_level(lev, rad_choice, ba2d, dm, ng_sfc);
     }
 
     // The land-model forcing (see the members). It holds the lsm_undefined sentinel until a
@@ -710,6 +713,14 @@ TwoStreamRadiation::write_checkpoint (int lev, const std::string& checkpointname
         VisMF::Write(*m_q_sfc[lev],
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QSfc"));
     }
+    // The deep state evolves only with erf.radiation.seb_deep_prognostic_enable.
+    if (m_rad->seb_deep_prognostic_enable && m_t_deep[lev] && m_q_deep[lev]) {
+        VisMF::Write(*m_t_deep[lev],
+                     MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_TDeep"));
+        VisMF::Write(*m_q_deep[lev],
+                     MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QDeep"));
+    }
+    m_hydro.write_checkpoint(lev, checkpointname);
 }
 
 void
@@ -738,6 +749,79 @@ TwoStreamRadiation::read_checkpoint (int lev, const std::string& restart_chkfile
         erf_checkpoint::read_checkpoint_multifab(*m_q_sfc[lev], qsfc_name, 0, 0, 1,
                                                  m_q_sfc[lev]->nGrowVect(), true, period);
     }
+    // A checkpoint written without the deep reservoir has no deep state: the defaults stand.
+    if (m_rad->seb_deep_prognostic_enable) {
+        MultiFab* deep[] = {m_t_deep[lev].get(), m_q_deep[lev].get()};
+        const char* deep_names[] = {"TwoStream_TDeep", "TwoStream_QDeep"};
+        for (int n = 0; n < 2; ++n) {
+            const std::string name =
+                MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", deep_names[n]);
+            if (deep[n] && amrex::FileExists(name + "_H")) {
+                erf_checkpoint::read_checkpoint_multifab(*deep[n], name, 0, 0, 1,
+                                                         deep[n]->nGrowVect(), true, period);
+            } else if (deep[n] && lev == 0) {
+                amrex::Print() << "NOTE: the checkpoint has no " << deep_names[n]
+                               << "; erf.radiation.seb_t_deep_default and seb_q_deep_default "
+                                  "start the deep reservoir\n";
+            }
+        }
+    }
+    m_hydro.read_checkpoint(lev, restart_chkfile, period);
+}
+
+Vector<MultiFab*>
+TwoStreamRadiation::seb_prognostic_fields (int lev)
+{
+    Vector<MultiFab*> out;
+    if (!seb_prognostic_active() || lev >= static_cast<int>(m_t_sfc.size())) { return out; }
+    out.push_back(m_t_sfc[lev].get());
+    out.push_back(m_q_sfc[lev].get());
+    if (m_rad->seb_deep_prognostic_enable) {
+        out.push_back(m_t_deep[lev].get());
+        out.push_back(m_q_deep[lev].get());
+    }
+    if (m_hydro.totals(lev)) { out.push_back(m_hydro.totals(lev)); }
+    return out;
+}
+
+void
+TwoStreamRadiation::hydrology_begin_step (int lev, const SurfacePrecipAccumulationSources& sources,
+                                          int klo)
+{
+    if (!active() || m_rad->seb_precipitation_source == SEBPrecipitationSource::None) { return; }
+    m_hydro.begin_step(lev, sources, klo);
+}
+
+void
+TwoStreamRadiation::hydrology_end_step (int lev, const SurfacePrecipAccumulationSources& sources,
+                                        int klo, Real dt)
+{
+    if (!active() || m_rad->seb_precipitation_source == SEBPrecipitationSource::None) { return; }
+    m_hydro.end_step(lev, sources, klo, dt);
+}
+
+ForceRestoreSoil
+TwoStreamRadiation::force_restore_soil (int lev) const
+{
+    ForceRestoreSoil v;
+    if (!seb_prognostic_active() || lev < 0 || lev >= static_cast<int>(m_t_sfc.size()) ||
+        !m_q_sfc[lev]) {
+        return v;
+    }
+    const RadChoice& rc = *m_rad;
+    v.q_sfc  = m_q_sfc[lev].get();
+    v.q_deep = m_q_deep[lev].get();
+    v.t_sfc  = m_t_sfc[lev].get();
+    v.rain_rate = (rc.seb_precipitation_source != SEBPrecipitationSource::None)
+                ? m_hydro.rain_rate(lev) : nullptr;
+    v.d_s  = rc.seb_moisture_layer_depth_m;
+    v.deep = rc.seb_deep_prognostic_enable;
+    v.d_2  = v.deep ? rc.seb_deep_layer_depth_m : Real(0.0);
+    v.porosity = (rc.seb_soil_porosity > 0.0) ? rc.seb_soil_porosity
+               : (rc.seb_soil_type != 0 ? noahmp_soil_params(rc.seb_soil_type)->smc_max : Real(-1.0));
+    v.fc   = rc.seb_soil_moisture_fc;
+    v.wilt = rc.seb_soil_moisture_wilt;
+    return v;
 }
 
 void
@@ -1037,9 +1121,12 @@ TwoStreamRadiation::advance (int lev,
             // No LSM exposes a deep-soil temperature or moisture in kg/kg by
             // name (Noah-MP's smstav / smstot are soil-moisture availability
             // and total column water), so the reservoir values are the
-            // scalar defaults.
-            m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
-            m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
+            // scalar defaults. With erf.radiation.seb_deep_prognostic_enable they evolve
+            // (ERF_ForceRestoreHydrology.H) and are left alone here.
+            if (!rad_choice.seb_deep_prognostic_enable) {
+                m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
+                m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
+            }
         }
 
         // The column sweep integrates the whole atmospheric column in one
@@ -1854,6 +1941,34 @@ TwoStreamRadiation::advance (int lev,
                                  ", step " + std::to_string(nstep));
                 }
 
+                // The force-restore hydrology (ERF_ForceRestoreHydrology.H): rain, runoff,
+                // the deep reservoir, drainage and the deep temperature, after the balance
+                // and on the same columns. A second pass so that with it off the balance's
+                // kernel and its answers are unchanged.
+                if (rad_choice.seb_hydrology_enabled()) {
+                    const ForceRestoreHydrology::StepSums hs = m_hydro.step(
+                        lev, *m_t_sfc[lev], *m_q_sfc[lev], *m_q_deep[lev], *m_t_deep[lev],
+                        *m_lh_sfc[lev], cover_seb ? m_footprint[lev].get() : nullptr,
+                        dt_step, ForceRestoreHydrology::params(rad_choice));
+                    if (m_q_sfc[lev]->contains_nan(0, 1, 0) || m_q_deep[lev]->contains_nan(0, 1, 0) ||
+                        m_t_deep[lev]->contains_nan(0, 1, 0)) {
+                        amrex::Abort("TwoStreamRadiation: non-finite soil water or deep temperature "
+                                     "after the force-restore hydrology at level " + std::to_string(lev) +
+                                     ", step " + std::to_string(nstep));
+                    }
+                    if (rad_choice.verbosity >= 2 && hs.columns > 0) {
+                        const amrex::Real inv_n = amrex::Real(1.0) / static_cast<amrex::Real>(hs.columns);
+                        amrex::Print() << "Force-restore hydrology at level " << lev << ", step " << nstep
+                                       << " (column means, kg/m^2 this step): rain = " << hs.rain * inv_n
+                                       << ", evaporation = " << hs.evaporation * inv_n
+                                       << ", runoff = " << hs.runoff * inv_n
+                                       << ", drainage = " << hs.drainage * inv_n
+                                       << ", deficit = " << hs.deficit * inv_n
+                                       << "; max column budget residual = " << hs.max_residual
+                                       << " kg/m^2\n";
+                    }
+                }
+
                 {
                     amrex::Real sums[2] = {t_s_sum, q_s_sum};
                     ParallelDescriptor::ReduceRealSum(sums, 2);
@@ -1876,6 +1991,14 @@ TwoStreamRadiation::advance (int lev,
                     q_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
                 }
             } else {
+                // The hydrology acts on TwoStream's own state, which an external provider
+                // leaves unused: stop rather than silently drop the rain.
+                if (rad_choice.seb_hydrology_enabled()) {
+                    amrex::Abort("erf.radiation.seb_precipitation_source and "
+                                 "seb_deep_prognostic_enable act on the two-stream force-restore "
+                                 "state, but a land-surface model supplies the surface temperature "
+                                 "here; turn them off with a land-surface model");
+                }
                 // An external provider owns the boundary; leave the unused
                 // TwoStream state untouched and do not report it as active.
                 t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();

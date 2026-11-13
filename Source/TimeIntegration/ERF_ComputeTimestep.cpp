@@ -742,17 +742,52 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         }
         const MultiFab& measure = sbm_transport->static_measure(level);
 
+        // Particle mixing adds its low-order exchange to the donor demand.  ERF
+        // prepares the eddy diffusivity inside the step, so the estimate uses
+        // the last step's coefficients and the stage check the actual ones.
+        const bool sbm_mixing = sbm_transport->mixes_particles();
         Real max_sbm_outgoing_rate = Real(0.0);
-        const bool rate_ok = erf_auxiliary::ComputeMaxMappedOutgoingRate(
-            mapped_carrier, measure, S_new, Rho_comp, dxinv,
-            max_sbm_outgoing_rate, sbm_diagnostic);
+        bool rate_ok = false;
+        if (sbm_mixing) {
+            const auto inputs = erf_sbm::make_stage_mixing_inputs(
+                *sbm_transport, eddyDiffs_lev[level].get(), mapfac[level],
+                ax[level].get(), ay[level].get(), stretched_dz_d[level].data());
+            MultiFab density(cell_ba, cell_dm, 1, 1);
+            MultiFab::Copy(density, S_new, Rho_comp, 0, 1, 0);
+            density.FillBoundary(geom[level].periodicity());
+            erf_auxiliary::MappedFaceTransmissibility transmissibility;
+            transmissibility.define(cell_ba, cell_dm, 1, 0);
+            if (!erf_sbm::build_particle_mixing_transmissibility(
+                    sbm_transport->particle_mixing(), geom[level], inputs.metrics,
+                    density, 0, inputs.eddy_diffusivity, transmissibility, sbm_diagnostic)) {
+                Abort("SBM particle mixing timestep estimate: " + sbm_diagnostic);
+            }
+            rate_ok = erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
+                mapped_carrier, transmissibility, measure, S_new, Rho_comp, dxinv,
+                max_sbm_outgoing_rate, sbm_diagnostic);
+        } else {
+            rate_ok = erf_auxiliary::ComputeMaxMappedOutgoingRate(
+                mapped_carrier, measure, S_new, Rho_comp, dxinv,
+                max_sbm_outgoing_rate, sbm_diagnostic);
+        }
         if (!rate_ok) {
-            Abort("SBM M3 current donor-rate estimate: " + sbm_diagnostic);
+            Abort(std::string(sbm_mixing ? "SBM combined advection-diffusion rate estimate: "
+                                         : "SBM M3 current donor-rate estimate: ") +
+                  sbm_diagnostic);
         }
         if (max_sbm_outgoing_rate > Real(0.0)) {
-            const double adaptive_sbm_dt =
+            double adaptive_sbm_dt =
                 static_cast<double>(amrex::min(cfl, Real(1.0)) /
                                     max_sbm_outgoing_rate);
+            // The eddy diffusivity is not checkpointed: on the first step after a
+            // restart do not let dt grow past the checkpointed step.
+            const bool lagged_coefficients =
+                sbm_mixing && sbm_transport->particle_mixing().policy ==
+                                  erf_sbm::ParticleMixingPolicy::HostPassiveScalar;
+            if (lagged_coefficients && diffusive_first_call && !restart_chkfile.empty() &&
+                istep[level] > 0) {
+                adaptive_sbm_dt = std::min(adaptive_sbm_dt, dt[level]);
+            }
             estdt_comp_T = std::min(estdt_comp_T, adaptive_sbm_dt);
             estdt_comp_N = std::min(estdt_comp_N, adaptive_sbm_dt);
             estdt_lowM_T = std::min(estdt_lowM_T, adaptive_sbm_dt);
@@ -764,8 +799,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                     max_sbm_outgoing_rate, hard_sbm_dt)) {
                 std::ostringstream message;
                 message.precision(17);
-                message << "SBM M3 fixed timestep exceeds donor positivity "
-                           "limit: fixed_dt=" << fixed_dt[level]
+                message << (sbm_mixing
+                                ? "SBM fixed timestep exceeds the combined advection-diffusion "
+                                  "positivity limit: fixed_dt="
+                                : "SBM M3 fixed timestep exceeds donor positivity "
+                                  "limit: fixed_dt=")
+                        << fixed_dt[level]
                         << " hard_limit=" << hard_sbm_dt
                         << " max_outgoing_rate=" << max_sbm_outgoing_rate;
                 Abort(message.str());

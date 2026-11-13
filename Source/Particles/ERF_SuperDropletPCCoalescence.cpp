@@ -471,6 +471,9 @@ void SuperDropletPC::Coalescence ( int   a_lev,
                  * static_cast<ParticleReal>(bin_size[1])
                  * static_cast<ParticleReal>(bin_size[2]) );
     const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
+    // On a stretched or terrain-fitted mesh, each bin's physical volume is the sum of its cells' volumes
+    const bool variable_dz = m_variable_dz;
+    const auto dx = geom.CellSizeArray();
 
     Real num_collisions = 0;
     const auto& gvec = a_temperature.nGrowVect();
@@ -579,17 +582,19 @@ void SuperDropletPC::Coalescence ( int   a_lev,
 
         // initialize coalescence quantities
         Gpu::DeviceVector<int> coll_partner_idx, flag_prey, num_particles_bin;
-        Gpu::DeviceVector<ParticleReal> coll_rate, coll_rmndr;
+        Gpu::DeviceVector<ParticleReal> coll_rate, coll_rmndr, inv_bin_vol;
         num_particles_bin.resize(np);
         coll_partner_idx.resize(np);
         flag_prey.resize(np);
         coll_rate.resize(np);
         coll_rmndr.resize(np);
+        if (variable_dz) { inv_bin_vol.resize(np); }
         auto np_bin_ptr = num_particles_bin.data();
         auto partner_idx_ptr = coll_partner_idx.data();
         auto flag_prey_ptr = flag_prey.data();
         auto coll_rate_ptr = coll_rate.data();
         auto coll_rmndr_ptr = coll_rmndr.data();
+        auto inv_bin_vol_ptr = inv_bin_vol.data();
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i) noexcept
         {
             np_bin_ptr[i] = 0;
@@ -597,7 +602,9 @@ void SuperDropletPC::Coalescence ( int   a_lev,
             flag_prey_ptr[i] = -1;
             coll_rate_ptr[i] = ParticleReal(zero);
             coll_rmndr_ptr[i] = ParticleReal(zero);
+            if (variable_dz) { inv_bin_vol_ptr[i] = inv_bin_volume; }
         });
+        const SDCellVolume cell_vol{dx, zheight, variable_dz};
         Gpu::synchronize();
 
         BL_PROFILE_VAR("SuperDropletPC::Coalescence::MCPairing", mcpairing);
@@ -610,6 +617,24 @@ void SuperDropletPC::Coalescence ( int   a_lev,
             auto np_bin = bin_stop - bin_start;
             if (np_bin <= 1) { return; }
 
+            ParticleReal inv_vol = inv_bin_volume;
+            if (variable_dz) {
+                Box tbx;
+                const IntVect iv = getParticleCell(pstruct_ptr[inds[bin_start]], plo, dxi, domain);
+                getTileIndex(iv, box, true, bin_size, tbx);
+                Real bin_vol = zero;
+                const auto lo = lbound(tbx);
+                const auto hi = ubound(tbx);
+                for (int k = lo.z; k <= hi.z; ++k) {
+                    for (int j = lo.y; j <= hi.y; ++j) {
+                        for (int ii = lo.x; ii <= hi.x; ++ii) {
+                            bin_vol += cell_vol(ii, j, k);
+                        }
+                    }
+                }
+                inv_vol = static_cast<ParticleReal>(one/bin_vol);
+            }
+
             for (int p = 0; p < np_bin/2; p++) {
                 auto pi = inds[bin_start+p];
                 auto pj = inds[bin_stop-1-p];
@@ -621,6 +646,7 @@ void SuperDropletPC::Coalescence ( int   a_lev,
                 if (ptrs.mult_ptr[pj] == 0) { continue; }
 
                 np_bin_ptr[pi] = np_bin_ptr[pj] = np_bin;
+                if (variable_dz) { inv_bin_vol_ptr[pi] = inv_bin_vol_ptr[pj] = inv_vol; }
                 partner_idx_ptr[pi] = pj;
                 partner_idx_ptr[pj] = pi;
 
@@ -889,7 +915,7 @@ void SuperDropletPC::Coalescence ( int   a_lev,
             }
 
 
-            auto prob_ij = k_val*inv_bin_volume;
+            auto prob_ij = k_val*(variable_dz ? inv_bin_vol_ptr[i] : inv_bin_volume);
             auto prob_sd_ij = std::max(ptrs.mult_ptr[pi],ptrs.mult_ptr[pj])*prob_ij;
 
             auto ns = static_cast<ParticleReal>(np_bin_ptr[i]);

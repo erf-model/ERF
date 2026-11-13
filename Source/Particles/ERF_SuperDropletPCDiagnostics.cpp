@@ -76,7 +76,8 @@ Vector<std::string> SuperDropletPC::meshPlotVarNames () const
 void SuperDropletPC::Diagnostics ( const int a_iter,
                                   const int a_lev,
                                   const double a_time,
-                                  const bool a_flag )
+                                  const bool a_flag,
+                                  const MultiFab& a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::Diagnostics()");
 
@@ -585,10 +586,10 @@ void SuperDropletPC::Diagnostics ( const int a_iter,
             auto r_eff_min_aero = std::cbrt( min_mass_aerosols[ia] / (four_thirds_pi*rho) );
             if ((r_eff_min_aero < r_eff_min) && (r_eff_min_aero > Real(1.0e-10))) { r_eff_min = r_eff_min_aero; }
         }
-        ComputeDistributions( a_iter, a_lev, r_eff_min, r_eff_max );
+        ComputeDistributions( a_iter, a_lev, r_eff_min, r_eff_max, a_z_phys_nd );
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-        ComputeBinnedDistributions( a_iter, a_lev);
-        ComputeBinnedDistributionsCell( a_iter, a_lev, a_time);
+        ComputeBinnedDistributions( a_iter, a_lev, a_z_phys_nd );
+        ComputeBinnedDistributionsCell( a_iter, a_lev, a_time, a_z_phys_nd );
 #else
         amrex::ignore_unused(a_time);
 #endif
@@ -601,7 +602,8 @@ void SuperDropletPC::Diagnostics ( const int a_iter,
 void SuperDropletPC::ComputeDistributions ( const int a_iter,
                                            const int a_lev,
                                            const ParticleReal a_r_min,
-                                           const ParticleReal a_r_max )
+                                           const ParticleReal a_r_max,
+                                           const MultiFab& a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::ComputeDistributions()");
     int Nr = m_distribution_grid_size;
@@ -609,7 +611,9 @@ void SuperDropletPC::ComputeDistributions ( const int a_iter,
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto dxi = geom.InvCellSizeArray();
 
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_cell_volume = m_variable_dz
+                                       ? static_cast<ParticleReal>(one / meanCellVolume(a_lev, a_z_phys_nd))
+                                       : dxi[0]*dxi[1]*dxi[2];
     const ParticleReal inv_bin_size
         = one / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
                  * static_cast<ParticleReal>(m_coalescence_bin_size[1])
@@ -719,7 +723,8 @@ void SuperDropletPC::ComputeDistributions ( const int a_iter,
 /*! Compute and write the distributions (as a function of the log of
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
-void SuperDropletPC::ComputeBinnedDistributions ( const int a_iter, const int a_lev)
+void SuperDropletPC::ComputeBinnedDistributions ( const int a_iter, const int a_lev,
+                                                  const MultiFab& a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::ComputeBinnedDistributions()");
     int Nbin = m_distribution_grid_size;
@@ -728,7 +733,10 @@ void SuperDropletPC::ComputeBinnedDistributions ( const int a_iter, const int a_
 
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto dxi = geom.InvCellSizeArray();
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2]; // divide by cell volume
+    // divide by cell volume
+    const ParticleReal inv_cell_volume = m_variable_dz
+                                       ? static_cast<ParticleReal>(one / meanCellVolume(a_lev, a_z_phys_nd))
+                                       : dxi[0]*dxi[1]*dxi[2];
 
     Vector<Real> ln_R, g_num_ln_R, g_mass_ln_R;
     ln_R.resize(Nbin+1); // one extra: denotes left and right bounds of each DSD bin
@@ -807,7 +815,8 @@ void SuperDropletPC::ComputeBinnedDistributions ( const int a_iter, const int a_
     R, g_mass(ln R), g_n(ln R) */
 void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
                                                      const int a_lev,
-                                                     const amrex::Real a_time )
+                                                     const amrex::Real a_time,
+                                                     const MultiFab& a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::ComputeBinnedDistributionsCell()");
     AMREX_ASSERT(OK());
@@ -821,7 +830,8 @@ void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2]; // divide by cell volume
+    // divide by cell volume; on a stretched or terrain-fitted mesh, by each cell's volume after the deposit
+    const ParticleReal inv_cell_volume = m_variable_dz ? ParticleReal(one) : dxi[0]*dxi[1]*dxi[2];
 
     // Set ln R grid
     Vector<Real> ln_R;
@@ -879,6 +889,24 @@ void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
 
     }
 
+    if (m_variable_dz) {
+        // the node heights on the grids of the distributions, which keep the grids they were defined on
+        MultiFab z_nd(amrex::convert(m_num_ln_R_mf.boxArray(), IntVect(1)), m_num_ln_R_mf.DistributionMap(), 1, 0);
+        z_nd.ParallelCopy(a_z_phys_nd, 0, 0, 1);
+        const auto dx = geom.CellSizeArray();
+        for (MFIter mfi(m_num_ln_R_mf); mfi.isValid(); ++mfi) {
+            const SDCellVolume cell_vol{dx, z_nd.const_array(mfi), true};
+            const auto mass_arr = m_mass_ln_R_mf.array(mfi);
+            const auto num_arr = m_num_ln_R_mf.array(mfi);
+            ParallelFor(mfi.validbox(), Nbin, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                const Real vol = cell_vol(i,j,k);
+                mass_arr(i,j,k,n) /= vol;
+                num_arr(i,j,k,n) /= vol;
+            });
+        }
+    }
+
 
     // Write to file
     {
@@ -909,5 +937,25 @@ void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
     }
 }
 #endif
+
+Real SuperDropletPC::meanCellVolume ( const int a_lev, const MultiFab& a_z_phys_nd ) const
+{
+    BL_PROFILE("SuperDropletPC::meanCellVolume()");
+    const auto dx = Geom(a_lev).CellSizeArray();
+    ReduceOps<ReduceOpSum> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    for (MFIter mfi(a_z_phys_nd); mfi.isValid(); ++mfi) {
+        const Box cbx = amrex::enclosedCells(mfi.validbox());
+        const SDCellVolume cell_vol{dx, a_z_phys_nd.const_array(mfi), true};
+        reduce_op.eval(cbx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real>
+        {
+            return { cell_vol(i,j,k) };
+        });
+    }
+    Real volume = amrex::get<0>(reduce_data.value(reduce_op));
+    ParallelDescriptor::ReduceRealSum(volume);
+    const auto num_cells = amrex::convert(a_z_phys_nd.boxArray(), IndexType::TheCellType()).numPts();
+    return volume / static_cast<Real>(num_cells);
+}
 
 #endif

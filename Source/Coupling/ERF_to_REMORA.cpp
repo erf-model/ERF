@@ -3,6 +3,7 @@
 #include <ERF_IndexDefines.H>
 #include <ERF_MicrophysicsUtils.H>
 #include <Diagnostics/ERF_SurfaceFluxDiagnostics.H>
+#include <ERF_SurfacePrecipitation.H>
 
 #include <AMReX_Box.H>
 #include <AMReX_MFIter.H>
@@ -227,6 +228,17 @@ ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
         return 0.0;
     }
 
+    // The accumulation the first rain rate is differenced against: the
+    // accumulators' state at the start of this run (zero on a cold start, the
+    // checkpointed totals on a restart).
+    if (m_a2o_precip_accum == nullptr && HasA2OPrecipSource()) {
+        m_a2o_precip_accum = std::make_unique<amrex::MultiFab>(ba2d[0], dmap[0], 1, 0);
+        m_a2o_precip_rate  = std::make_unique<amrex::MultiFab>(ba2d[0], dmap[0], 1, 0);
+        SampleA2OPrecipAccumulation(*m_a2o_precip_accum);
+        m_a2o_precip_rate->setVal(amrex::Real(0.0));
+        m_a2o_precip_time = t_new[0];
+    }
+
     ComputeDt(step);
 
     int iteration = 1;
@@ -296,6 +308,59 @@ ERF::GetLandMask (const amrex::iMultiFab*& lmask) const
     lmask = lmask_lev[0][0].get();
 }
 
+bool
+ERF::HasA2OPrecipSource () const
+{
+    return micro != nullptr &&
+           surface_precip_has_any_source(micro->Get_Surface_Precip_Accumulation_Ptrs(0));
+}
+
+void
+ERF::SampleA2OPrecipAccumulation (amrex::MultiFab& accum_2d) const
+{
+    // Rain, snow, graupel and hail together, as liquid water: all of it reaches
+    // the ocean as fresh water. A scheme's total is taken when it has one, else
+    // the sum of its species, so nothing is counted twice (the rule of the 2D
+    // plotfile precipitation fields). The accumulators live in the k = klo plane
+    // of the level's 3D boxes; box n of accum_2d is box n of them.
+    using namespace amrex;
+    const SurfacePrecipAccumulationSources src = micro->Get_Surface_Precip_Accumulation_Ptrs(0);
+    const bool has_total   = surface_precip_has_source(src.total);
+    const bool has_rain    = surface_precip_has_source(src.rain);
+    const bool has_snow    = surface_precip_has_source(src.snow);
+    const bool has_graupel = surface_precip_has_source(src.graupel);
+    const bool has_hail    = surface_precip_has_source(src.hail);
+    const Real f_total   = src.total.native_to_kg_m2;
+    const Real f_rain    = src.rain.native_to_kg_m2;
+    const Real f_snow    = src.snow.native_to_kg_m2;
+    const Real f_graupel = src.graupel.native_to_kg_m2;
+    const Real f_hail    = src.hail.native_to_kg_m2;
+    const int klo = geom[0].Domain().smallEnd(2);
+
+    for (MFIter mfi(accum_2d, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        auto a = accum_2d.array(mfi);
+        const auto total   = has_total   ? src.total.accum->const_array(mfi)   : Array4<const Real>{};
+        const auto rain    = has_rain    ? src.rain.accum->const_array(mfi)    : Array4<const Real>{};
+        const auto snow    = has_snow    ? src.snow.accum->const_array(mfi)    : Array4<const Real>{};
+        const auto graupel = has_graupel ? src.graupel.accum->const_array(mfi) : Array4<const Real>{};
+        const auto hail    = has_hail    ? src.hail.accum->const_array(mfi)    : Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real v = Real(0.0);
+            if (has_total) {
+                v = total(i,j,klo) * f_total;
+            } else {
+                if (has_rain)    { v += rain(i,j,klo)    * f_rain; }
+                if (has_snow)    { v += snow(i,j,klo)    * f_snow; }
+                if (has_graupel) { v += graupel(i,j,klo) * f_graupel; }
+                if (has_hail)    { v += hail(i,j,klo)    * f_hail; }
+            }
+            a(i,j,k) = v;
+        });
+    }
+}
+
 void
 ERF::GetFillableAtmosToOceanLanes (bool state_contract,
                                    amrex::Vector<int>& can_fill) const
@@ -313,6 +378,7 @@ ERF::GetFillableAtmosToOceanLanes (bool state_contract,
     const bool has_radiation = HasRadiation();
     const bool has_sfs_heat  = (!SFS_hfx3_lev.empty()  && SFS_hfx3_lev[lev]  != nullptr);
     const bool has_sfs_moist = (!SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr);
+    const bool has_precip    = HasA2OPrecipSource();
 
     if (state_contract) {
         can_fill.resize(nStateLanes, 0);
@@ -320,10 +386,9 @@ ERF::GetFillableAtmosToOceanLanes (bool state_contract,
         can_fill[iVwind] = 1;                       // always packed from Vars::yvel
         can_fill[iPatm]  = 1;                       // always packed via getPgivenRTh
         can_fill[iTair]  = 1;                       // always packed via getTgivenRandRTh
-        // #if 0 below, pending Qair (RH vs specific humidity) and rain-rate
-        // semantics.
+        // #if 0 below, pending Qair (RH vs specific humidity) semantics.
         can_fill[iRH]    = 0;
-        can_fill[iRain]  = 0;
+        can_fill[iRain]  = has_precip ? 1 : 0;
         can_fill[iCloud] = (has_moisture &&
                             (solverChoice.moisture_indices.qc != -1 ||
                              solverChoice.moisture_indices.qi != -1)) ? 1 : 0;
@@ -338,7 +403,7 @@ ERF::GetFillableAtmosToOceanLanes (bool state_contract,
         can_fill[iLHflux]    = has_sfs_moist ? 1 : 0;
         can_fill[iFluxSWrad] = has_radiation ? 1 : 0;
         can_fill[iFluxLWrad] = has_radiation ? 1 : 0;
-        can_fill[iFluxRain]  = 0;                   // pack block is #if 0
+        can_fill[iFluxRain]  = has_precip ? 1 : 0;
         can_fill[iFluxEvap]  = has_sfs_moist ? 1 : 0;
     }
 }
@@ -432,6 +497,33 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const auto& xba2d_lev = amrex::convert(ba2d_lev, IntVect(1,0,0));
     const auto& yba2d_lev = amrex::convert(ba2d_lev, IntVect(0,1,0));
     const int klo = ba.minimalBox().smallEnd(2);
+
+    // Rain [kg m^-2 s^-1]: the accumulation gained since the previous pack,
+    // divided by ERF time elapsed since then, then the snapshot moves here. So a
+    // driver that packs once per exchange gets that exchange's mean rate exactly,
+    // and one that packs after every step gets each step's. A pack at the time of
+    // the previous one (nothing elapsed) repeats that pack's rate. Negative
+    // differences are clamped: REMORA reads negative rain as snow.
+    const MultiFab* precip_rate = m_a2o_precip_rate.get();
+    if (precip_rate != nullptr && t_new[lev] > m_a2o_precip_time) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_a2o_precip_accum->boxArray() == ba2d_lev &&
+                                         m_a2o_precip_accum->DistributionMap() == dm,
+            "PackAtmosphericStates: the level-0 layout changed under the precipitation snapshot.");
+        MultiFab accum_now(ba2d_lev, dm, 1, 0);
+        SampleA2OPrecipAccumulation(accum_now);
+        const Real inv_elapsed = Real(1.0) / (t_new[lev] - m_a2o_precip_time);
+        for (MFIter mfi(accum_now, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            Box bx = mfi.tilebox();
+            auto const& now  = accum_now.const_array(mfi);
+            auto        prev = m_a2o_precip_accum->array(mfi);
+            auto        rate = m_a2o_precip_rate->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rate(i,j,k) = amrex::max(Real(0.0), now(i,j,k) - prev(i,j,k)) * inv_elapsed;
+                prev(i,j,k) = now(i,j,k);
+            });
+        }
+        m_a2o_precip_time = t_new[lev];
+    }
 
     const bool flux_mode = (states.size() == nFluxLanes);
     if (flux_mode) {
@@ -646,27 +738,10 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
             if (verbose) { PrintFluxLaneStats("evap_lane", *states[iFluxEvap]); }
         }
 
-#if 0
-        // Extract Rain Flux using surface qr and a proxy terminal velocity
-        if (has_moisture && iFluxRain < static_cast<int>(states.size()) && states[iFluxRain] != nullptr) {
-            int qr_idx = solverChoice.moisture_indices.qr;
-            if (qr_idx != -1) {
-                MultiFab tmp(ba2d_lev, dm, 1, 0);
-                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    Box bx = mfi.tilebox();
-                    auto const& c = cons.const_array(mfi);
-                    auto t = tmp.array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        // Rain flux proxy: (rho * qr) * V_terminal (approx 5.0 m/s for rain) -> kg m^-2 s^-1
-                        t(i,j,k) = c(i,j,klo,qr_idx) * Real(5.0);
-                    });
-                }
-                ApplyConservativeRemap(tmp, *states[iFluxRain], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
-                if (verbose) { PrintFluxLaneStats("rain_lane", *states[iFluxRain]); }
-            }
+        if (precip_rate != nullptr && states[iFluxRain] != nullptr) {
+            ApplyConservativeRemap(*precip_rate, *states[iFluxRain], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            if (verbose) { PrintFluxLaneStats("rain_lane", *states[iFluxRain]); }
         }
-#endif
-        amrex::ignore_unused(iFluxRain);
         return;
     }
 
@@ -795,30 +870,14 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 ApplyConservativeRemap(tmp, *states[iCloud], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
             }
         }
-#if 0
-        if (iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
-            int qr_idx = solverChoice.moisture_indices.qr;
-            if (qr_idx != -1) {
-                MultiFab tmp(ba2d_lev, dm, 1, 0);
-                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    Box bx = mfi.tilebox();
-                    auto const& c = cons.const_array(mfi);
-                    auto         t = tmp.array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        t(i,j,k) = c(i,j,k,qr_idx) / c(i,j,k,Rho_comp);
-                    });
-                }
-                IntVect ratio = ba2d_lev.minimalBox().length() / states[iRain]->boxArray().minimalBox().length();
-                amrex::average_down(tmp, *states[iRain], 0, 1, ratio);
-            }
-        }
-#else
-        amrex::ignore_unused(iRain);
-        // Avoiding unexercised moist assumptions: retain the driver-prefilled
-        // rain lane until live ERF->REMORA rain semantics are made explicit.
-#endif
     }
-    // No moisture: leave RH/Cloud/Rain slabs at their driver-pre-filled values.
+    // No moisture: leave the RH and Cloud slabs at their driver-pre-filled values.
+
+    // --- Rain ---
+    // Without a precipitating microphysics scheme the slab keeps its prefill.
+    if (precip_rate != nullptr && iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
+        ApplyConservativeRemap(*precip_rate, *states[iRain], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+    }
 
     // --- Radiation ---
     if (has_radiation) {
