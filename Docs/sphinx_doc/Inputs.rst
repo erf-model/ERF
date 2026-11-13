@@ -5762,6 +5762,36 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | seb_deep_layer_depth_m. Required with seb_drainage_enable; |                    |                  |
 |                                                    | giving it otherwise stops at start-up                      |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_enable**                  | One bulk snow layer on the force-restore surface: the ISBA | Boolean            | false            |
+|                                                    | snow routine as in Douville et al. (1995), Sec. 2.1, for   |                    |                  |
+|                                                    | bare ground. Frozen surface precipitation (snow, graupel,  |                    |                  |
+|                                                    | hail) builds a snow water equivalent, and the hydrology    |                    |                  |
+|                                                    | then takes the rain only. Snow raises the surface albedo   |                    |                  |
+|                                                    | (their Eq. 8), sublimates, and melts where the balance     |                    |                  |
+|                                                    | takes T_s above 273.16 K (their Eq. 12), which holds T_s   |                    |                  |
+|                                                    | at 273.16 K while snow remains; the melt water enters the  |                    |                  |
+|                                                    | soil as rain. Checkpointed. Needs seb_prognostic_enable,   |                    |                  |
+|                                                    | seb_use_radiation_fluxes and seb_precipitation_source =    |                    |                  |
+|                                                    | microphysics, no surface_albedo_sw_diffuse, no             |                    |                  |
+|                                                    | seb_vegetation_type, no land-surface model, and            |                    |                  |
+|                                                    | seb_prognostic_t_min_k at or below 273.16; stops           |                    |                  |
+|                                                    | otherwise. With a scheme that has no snow, graupel or hail |                    |                  |
+|                                                    | accumulation (Kessler) no snow falls, and the run prints a |                    |                  |
+|                                                    | note. false: no snow, results unchanged                    |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_initial_swe_kg_m2**       | Snow water equivalent at the start [kg/m^2], every column  | Real >= 0; stops   | 0.0              |
+|                                                    | and level; a restart takes the snow from the checkpoint.   | at start-up if not |                  |
+|                                                    | Giving it without seb_snow_enable stops at start-up        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_albedo**                  | Snow albedo (Douville et al. 1995, Eq. 8: 0.70, constant). | Real in [0, 1];    | 0.70             |
+|                                                    | Giving it without seb_snow_enable stops at start-up        | stops at start-up  |                  |
+|                                                    |                                                            | if not             |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_critical_swe_kg_m2**      | Critical snow water equivalent W_crn [kg/m^2] of the snow  | Real > 0; stops at | 10.0             |
+|                                                    | cover fraction W_n / (W_n + W_crn) (Douville et al. 1995,  | start-up if not    |                  |
+|                                                    | Eq. 7: 10 mm). Giving it without seb_snow_enable stops at  |                    |                  |
+|                                                    | start-up                                                   |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Diagnostics Control Parameters**                 |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.v**                                | Verbosity level for radiation debug output (0=off)         | Integer            | 0                |
