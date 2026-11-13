@@ -211,6 +211,41 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``1``
      - ``FillMinus999WhenUnavailable``
      - Share of the ground's view of the sky taken by the walls of the immersed-boundary buildings (erf.ibseb.ground_sky_view)
+   * - ``seb_t_deep``
+     - ``Radiation``
+     - ``K``
+     - ``FillMinus999WhenUnavailable``
+     - Deep soil temperature of the two-stream force-restore balance (evolves with erf.radiation.seb_deep_prognostic_enable)
+   * - ``seb_q_deep``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Mean water content of the soil column of the two-stream force-restore balance (evolves with erf.radiation.seb_deep_prognostic_enable)
+   * - ``seb_rain_rate``
+     - ``Radiation``
+     - ``kg/m^2/s``
+     - ``FillMinus999WhenUnavailable``
+     - Rain rate at the two-stream force-restore soil over the last step (erf.radiation.seb_precipitation_source; not checkpointed, so zero at a restart step)
+   * - ``seb_rain_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Rain the two-stream force-restore hydrology has taken in since the start
+   * - ``seb_runoff_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Water above the porosity that has run off the two-stream force-restore soil since the start
+   * - ``seb_drainage_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Gravitational drainage out of the bottom of the two-stream force-restore soil column since the start (erf.radiation.seb_drainage_enable)
+   * - ``seb_deficit_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Evaporation the two-stream force-restore soil column could not supply since the start
    * - ``sens_flux``
      - ``SurfaceFlux``
      - ``kg K m^-2 s^-1``

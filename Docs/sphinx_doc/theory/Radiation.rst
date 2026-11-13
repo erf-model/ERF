@@ -702,6 +702,98 @@ In discretized form:
 
 After the update, :math:`q_s` is clamped to [``seb_prognostic_q_min``, ``seb_prognostic_q_max``].
 
+.. _sec:TwoStreamForceRestoreHydrology:
+
+Force-Restore Hydrology
+-----------------------
+
+The balance above has no rain, no runoff, and fixed deep values :math:`q_{\text{deep}}` and
+:math:`T_{\text{deep}}`. Three opt-in inputs add the remaining terms of Noilhan and Planton (1989,
+NP89) and Mahfouf and Noilhan (1996, MN96). With all three off the results are unchanged
+(``ERF_ForceRestoreHydrology.H``). The step runs after the balance's own update, on every
+column outside a building footprint.
+
+**Rain** (``seb_precipitation_source = microphysics``). The rain rate :math:`P`
+[kg m\ :sup:`-2` s\ :sup:`-1`] is the change of the microphysics scheme's surface
+precipitation accumulation over the step, divided by the step. It enters the surface layer as in
+NP89 Eq. (11), with :math:`d_1 = d_s`:
+
+.. math::
+
+   q_s \leftarrow q_s + \frac{P \, \Delta t}{\rho_w d_s}.
+
+NP89 Eq. (11) multiplies :math:`P - E` by one coefficient :math:`C_1`. The balance removes
+:math:`E` with :math:`C_1 = 1`, so rain uses :math:`C_1 = 1` too. NP89 (Eq. 19, Table 2) gives
+:math:`C_1` = 0.08 to 0.34 at saturation, rising as the soil dries; Deardorff (1978, Eq. 13) gives
+0.5 to 14. With :math:`C_1 = 1` the surface layer fills faster near saturation than with NP89's
+value, so heavy rain runs off sooner.
+
+Water above the porosity :math:`w_{\text{sat}}` (``seb_soil_porosity``) runs off (NP89 Sec. 4a).
+The surface layer's runoff is at most the step's rain: water above :math:`w_{\text{sat}}` that
+:math:`q_s` held before the rain (a restore overshoot, or a restart from a run without the
+hydrology) is clamped off :math:`q_s` and stays in the column. The surface runoff is taken
+before the drainage, so water that never entered the soil does not drain. With rain,
+``seb_prognostic_q_max`` must be at or above :math:`w_{\text{sat}}`; a lower cap would remove
+rain that the runoff does not count. When the balance skips a step (the first step of a level
+built from a coarser one), that step's rain is carried into the next: the next step's rain rate
+is the mean over both steps, and the step takes the rain of both. A level whose boxes do not span
+the domain in :math:`z` never runs the balance and takes no rain.
+
+**Deep reservoir** (``seb_deep_prognostic_enable``). :math:`q_{\text{deep}}` becomes
+:math:`w_2`, the mean water content of a soil column :math:`d_2` deep
+(``seb_deep_layer_depth_m``) that contains the surface layer (NP89 Eq. 12, MN96 Eq. 4):
+
+.. math::
+
+   \frac{dq_{\text{deep}}}{dt} = \frac{P - E}{\rho_w d_2}
+   - \frac{C_3}{\tau_{1d}} \max\left(0, q_{\text{deep}} - w_{fc}\right),
+   \qquad E = \frac{\text{LE}}{L_v}.
+
+Since :math:`w_2` is the column mean, the restore term of :math:`q_s` moves water within the
+column and does not appear here. The deep temperature relaxes toward the surface (NP89 Eq. 6):
+
+.. math::
+
+   \frac{dT_{\text{deep}}}{dt} = \frac{T_s - T_{\text{deep}}}{\tau},
+
+with :math:`\tau` = ``seb_restore_timescale_s``, the period NP89 Eqs. (5) and (6) share.
+
+**Drainage** (``seb_drainage_enable``). The second term above removes water above field capacity
+:math:`w_{fc}` (``seb_soil_moisture_fc``) through the bottom of the column. MN96 Eq. (16) scales
+:math:`C_3` as :math:`1/d_2`; their Table 1 gives :math:`C_3` at :math:`d_2 = 1` m, so the input
+is the product ``seb_drainage_c3_m`` :math:`= C_3 d_2` [m]. MN96 Eq. (15) makes :math:`C_3`
+proportional to the restore period, and Table 1 uses one day, so the drainage uses
+:math:`\tau_{1d} = 86400` s whatever ``seb_restore_timescale_s`` is.
+
+**Why exact relaxation:** the drainage and deep-temperature terms are linear in the state, so each
+is integrated exactly, :math:`x^{n+1} - x_{eq} = (x^n - x_{eq}) e^{-k \Delta t}`. The update cannot
+pass field capacity or :math:`T_s` for any step. Rain and evaporation are forward Euler, as in the
+balance.
+
+**What is conserved:** with the deep reservoir, each column satisfies, to round-off,
+
+.. math::
+
+   \rho_w d_2 \left(q_{\text{deep}}^{n+1} - q_{\text{deep}}^n\right)
+   = (P - E)\,\Delta t - D - R + S,
+
+where :math:`D` is the drainage, :math:`R` the runoff, and :math:`S` the deficit: the water an
+evaporation took that the column did not hold, recorded when :math:`q_{\text{deep}}` would go
+below zero. The latent heat flux is not limited by :math:`q_{\text{deep}}`, so a non-zero
+deficit is water the coupled system did not conserve: the atmosphere received vapour the soil did
+not hold. The running totals of rain, runoff, drainage and deficit [kg m\ :sup:`-2`] are
+checkpointed and written to the 2D plotfile (``seb_rain_total`` and the others), with
+``seb_rain_rate``, ``seb_q_deep`` and ``seb_t_deep``. With ``erf.radiation.v >= 2`` each step
+logs the domain sums and the largest column residual.
+
+The dust model reads this soil through a read-only accessor (``ForceRestoreSoil``: :math:`q_s`,
+:math:`q_{\text{deep}}`, :math:`T_s`, the rain rate, the depths, porosity, field capacity and
+wilting point), for level 0 only. The dust emission does not use it yet.
+
+References: Deardorff, J. W., 1978, J. Geophys. Res., 83, 1889-1903; Noilhan, J. and S. Planton,
+1989, Mon. Wea. Rev., 117, 536-549; Mahfouf, J.-F. and J. Noilhan, 1996, J. Appl. Meteor., 35,
+987-992.
+
 External Surface-Temperature Provider Ownership
 -------------------------------------------------
 

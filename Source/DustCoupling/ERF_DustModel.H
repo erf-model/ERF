@@ -9,6 +9,7 @@
 
 class ERF;
 class SurfaceLayer;
+struct ForceRestoreSoil;
 #ifdef ERF_USE_FIRE
 class FireEngine;
 struct FireGrid;
@@ -101,6 +102,10 @@ struct DustStep
 #ifdef ERF_USE_FIRE
     const DustFire*        fire;             ///< The fire, when the run has one; nullptr otherwise
 #endif
+    /// The two-stream force-restore soil of level 0 (ERF_ForceRestoreHydrologyState.H),
+    /// read-only; nullptr when that state is not evolved (erf.radiation.seb_prognostic_enable).
+    /// Last, with a default, so that an initializer that predates it still compiles.
+    const ForceRestoreSoil* soil = nullptr;
 };
 
 /**

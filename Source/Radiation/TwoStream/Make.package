@@ -1,6 +1,7 @@
 CEXE_sources += ERF_RadiationDiagnostics.cpp
 CEXE_sources += ERF_TwoStreamRadiation.cpp
 CEXE_sources += ERF_SEBTurbulentFlux.cpp
+CEXE_sources += ERF_ForceRestoreHydrologyState.cpp
 
 CEXE_headers += ERF_TwoStreamRadiation.H
 CEXE_headers += ERF_TwoStreamSW.H
@@ -12,5 +13,7 @@ CEXE_headers += ERF_PrognosticCloudFraction.H
 CEXE_headers += ERF_AerosolOpticalDepth.H
 CEXE_headers += ERF_SimplifiedSEB.H
 CEXE_headers += ERF_SEBTurbulentFlux.H
+CEXE_headers += ERF_ForceRestoreHydrology.H
+CEXE_headers += ERF_ForceRestoreHydrologyState.H
 CEXE_headers += ERF_NoahMPSoilTable.H
 CEXE_headers += ERF_NoahMPVegetationTable.H

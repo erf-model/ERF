@@ -261,6 +261,8 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "unshaded_sw_flux_dn", "terrain_sw_flux_dn", "seb_t_sfc", "seb_q_sfc",
         "seb_hfx", "seb_lh", "seb_sw_net", "ibseb_ground_shadow",
         "seb_lw_net", "ibseb_ground_wall_view",
+        "seb_t_deep", "seb_q_deep", "seb_rain_rate", "seb_rain_total",
+        "seb_runoff_total", "seb_drainage_total", "seb_deficit_total",
         "sens_flux", "laten_flux",
         "surf_pres",
         "sea_level_pressure",

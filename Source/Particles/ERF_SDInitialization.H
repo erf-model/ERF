@@ -218,6 +218,68 @@ amrex::Real SD_sample_mass_gpu (const SDDistributionParams& params,
     return mass;
 }
 
+/*! \brief Numbers of super-droplets and of physical particles that an initialization,
+ *  or one per-cell injection step, places in a cell of volume a_dv */
+struct SDCellCounts
+{
+    bool inject = false;              /*!< injection step (else initialization) */
+    amrex::Real sd_density = -1;      /*!< super-droplets per m^3; injection: per m^3 this step */
+    int ppc = 1;                      /*!< super-droplets per cell when sd_density is not set */
+    amrex::Real par_density = -1;     /*!< initialization: physical particles per m^3 */
+    double par_total = 0;             /*!< injection: physical particles per m^3 up to this step */
+    double par_total_old = 0;         /*!< injection: physical particles per m^3 before this step */
+    amrex::Real frac_tol = 0;         /*!< injection: tolerance below 1 at which an accumulated particle is injected */
+
+    /*! Number of super-droplets in the cell (0 when it receives no particles) */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int numSD (const amrex::Real a_dv) const noexcept
+    {
+        if (!inject) {
+            if (numParticles(a_dv) <= 0) { return 0; }
+            return (sd_density >= 0) ? static_cast<int>(std::ceil(sd_density*a_dv)) : ppc;
+        }
+        const amrex::Real num_par = numParticles(a_dv);
+        const int num_sd = (sd_density > 0) ? amrex::max(static_cast<int>(std::round(sd_density*a_dv)), 1)
+                                            : amrex::max(ppc, 1);
+        return static_cast<int>(amrex::min(amrex::Real(num_sd), num_par));
+    }
+
+    /*! Number of physical particles in the cell. An injection step adds the whole
+     *  particles that the injected number per cell volume has accumulated in this step,
+     *  so the cell receives its rate times its volume over any sequence of steps. */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real numParticles (const amrex::Real a_dv) const noexcept
+    {
+        if (!inject) {
+            return (par_density >= 0) ? std::ceil(par_density*a_dv) : amrex::Real(1);
+        }
+        // in double: the cumulative counts outgrow single precision long before their increments do
+        return static_cast<amrex::Real>(std::floor(par_total     * double(a_dv) + double(frac_tol))
+                                      - std::floor(par_total_old * double(a_dv) + double(frac_tol)));
+    }
+
+    /*! Number of super-droplets in the cell when its counts follow its physical volume:
+     *  at most one per physical particle, so that none has a zero multiplicity */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int numSDCell (const amrex::Real a_dv) const noexcept
+    {
+        return static_cast<int>(amrex::min(amrex::Real(numSD(a_dv)), numParticles(a_dv)));
+    }
+};
+
+/*! \brief Mean multiplicity that a set of initializations gives in a cell of volume a_dv */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real SD_init_multiplicity (const SDCellCounts* a_counts, const int a_num, const amrex::Real a_dv) noexcept
+{
+    int num_sd = 0;
+    amrex::Real num_par = 0;
+    for (int n = 0; n < a_num; n++) {
+        num_sd  += a_counts[n].numSDCell(a_dv);
+        num_par += a_counts[n].numParticles(a_dv);
+    }
+    return (num_sd > 0) ? num_par / num_sd : amrex::Real(0);
+}
+
 /*! \brief Super-droplets initial properties */
 class SDInitProperties
 {
@@ -613,6 +675,10 @@ class SDInitProperties
         virtual int numSDPerCell (const amrex::Real) const = 0;
         virtual amrex::Real numParticlesPerCell (const amrex::Real) const = 0;
 
+        /*! \brief Per-cell counts as a function of the cell volume, for meshes whose
+         *  cells differ in physical volume */
+        [[nodiscard]] virtual SDCellCounts cellCounts () const = 0;
+
         /*! \brief Per-box high-multiplicity injection (false for initialization
          *  and legacy per-cell injection). */
         [[nodiscard]] virtual bool perBoxInjection () const { return false; }
@@ -686,6 +752,14 @@ class SDInjection : public SDInitProperties
         unsigned int m_inject_seed = 0;
         /*!< Input prefix (e.g. injection.0) for diagnostic messages */
         std::string m_prefix;
+        /*!< Cells differ in physical volume (stretched or terrain-fitted mesh): the
+             per-cell path counts each cell from its own volume */
+        bool m_variable_dz = false;
+        /*!< Time step of the current injection step */
+        amrex::Real m_dt = zero;
+        /*!< Physical-particle number density [m^-3] injected up to and before this step */
+        double m_numdens_total = 0;
+        double m_numdens_total_old = 0;
 
         /*! \brief Update time-dependent quantities for particle injection
          *
@@ -730,6 +804,12 @@ class SDInjection : public SDInitProperties
                     m_inject_num_sd = 0;
                     m_inject_mult   = zero;
                 }
+            } else if (m_variable_dz) {
+                // Each cell counts its particles from its own volume (cellCounts); keep the
+                // injected number per volume so that fractions accumulate per cell.
+                m_dt = static_cast<Real>(a_dt);
+                m_numdens_total_old = m_numdens_total;
+                if (a_active) { m_numdens_total += double(m_inj_rate) * a_dt; }
             } else {
 
             // Specified number of super-droplets per cell (m_ppc) or from the SD rate.
@@ -833,6 +913,19 @@ class SDInjection : public SDInitProperties
             return amrex::Real(m_inject_num_sd) * m_inject_mult;
         }
 
+        /*! \brief Per-cell counts of this step's legacy per-cell injection */
+        [[nodiscard]] inline SDCellCounts cellCounts () const override
+        {
+            SDCellCounts counts;
+            counts.inject        = true;
+            counts.sd_density    = m_sd_inj_rate * m_dt;
+            counts.ppc           = this->m_ppc;
+            counts.par_total     = m_numdens_total;
+            counts.par_total_old = m_numdens_total_old;
+            counts.frac_tol      = m_frac_tol;
+            return counts;
+        }
+
         [[nodiscard]] inline bool perBoxInjection () const override { return m_perbox; }
         [[nodiscard]] inline int injectBoxCount () const override { return m_inject_num_sd; }
         [[nodiscard]] inline amrex::Real injectMultiplicity () const override { return m_inject_mult; }
@@ -881,25 +974,23 @@ class SDInitialization : public SDInitProperties
         /*! Compute number of super-droplets per grid cell */
         [[nodiscard]] inline int numSDPerCell (const amrex::Real a_dv) const override
         {
-            int num_sd_per_cell = 0;
-            if (m_numdens_sd_init >= 0) {
-                num_sd_per_cell = static_cast<int>(std::ceil(m_numdens_sd_init*a_dv));
-            } else {
-                num_sd_per_cell = this->m_ppc;
-            }
-            return num_sd_per_cell;
+            return cellCounts().numSD(a_dv);
         }
 
         /*! Compute number of physical particles per grid cell */
         [[nodiscard]] inline amrex::Real numParticlesPerCell (const amrex::Real a_dv) const override
         {
-            amrex::Real num_par_per_cell = zero;
-            if (this->m_numdens >= 0) {
-                num_par_per_cell = std::ceil(this->m_numdens*a_dv);
-            } else {
-                num_par_per_cell = 1;
-            }
-            return num_par_per_cell;
+            return cellCounts().numParticles(a_dv);
+        }
+
+        /*! \brief Per-cell counts of this initialization */
+        [[nodiscard]] inline SDCellCounts cellCounts () const override
+        {
+            SDCellCounts counts;
+            counts.sd_density  = m_numdens_sd_init;
+            counts.ppc         = this->m_ppc;
+            counts.par_density = this->m_numdens;
+            return counts;
         }
 
 };

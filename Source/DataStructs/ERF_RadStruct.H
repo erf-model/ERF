@@ -68,6 +68,16 @@ AMREX_ENUM(TauModel, PerLayer, Mass);
  */
 AMREX_ENUM(SEBTurbulentFluxSource, SurfaceLayer, Defaults);
 
+/**
+ * @brief Where the force-restore surface takes its rain from (ERF_ForceRestoreHydrology.H).
+ *
+ * - None: no rain reaches the soil (the balance as before).
+ * - Microphysics: the change over each step of the microphysics scheme's surface
+ *   precipitation accumulation, as liquid water (snow, graupel and hail count with their
+ *   liquid-water equivalent).
+ */
+AMREX_ENUM(SEBPrecipitationSource, None, Microphysics);
+
 /** Inputs shared by RRTMGP and the topographic surface correction. */
 struct RRTMGPSolarChoice
 {
@@ -611,6 +621,8 @@ public:
    * Relaxation time constant toward T_deep in prognostic T_s equation.
    * Default 86400.0 s (1 day) provides weak damping on diurnal timescales.
    * Only used when seb_prognostic_enable=true. Must be > 0: init_params() stops otherwise.
+   * With seb_deep_prognostic_enable it is also the relaxation time of T_deep toward T_s
+   * (Noilhan and Planton 1989, Eq. 6). The drainage does not use it (seb_drainage_enable).
    */
   amrex::Real seb_restore_timescale_s = 86400.0;
 
@@ -662,6 +674,64 @@ public:
    * Only used when seb_prognostic_enable=true.
    */
   amrex::Real seb_prognostic_q_max = 1.0;
+
+  /**
+   * @brief Rain into the force-restore surface (ERF_ForceRestoreHydrology.H). Default none:
+   * the balance as before. microphysics needs seb_prognostic_enable, a microphysics scheme
+   * with surface precipitation, and a porosity (seb_soil_porosity or seb_soil_type): water
+   * above it runs off.
+   */
+  SEBPrecipitationSource seb_precipitation_source = SEBPrecipitationSource::None;
+
+  /**
+   * @brief Porosity w_sat [m^3/m^3] of the force-restore soil: above it, water runs off.
+   * Needed with seb_precipitation_source = microphysics or seb_deep_prognostic_enable;
+   * with seb_soil_type it is Noah-MP's MAXSMC and giving it stops at start-up. In (0, 1];
+   * with seb_drainage_enable also above field capacity; at or above seb_q_sfc_default (and
+   * seb_q_deep_default with the deep reservoir); with rain, at or below seb_prognostic_q_max.
+   * -1 = not given.
+   */
+  amrex::Real seb_soil_porosity = -1.0;
+
+  /**
+   * @brief Make seb_q_deep and seb_t_deep prognostic (ERF_ForceRestoreHydrology.H): q_deep
+   * becomes the mean water content of a soil column seb_deep_layer_depth_m deep, which gains
+   * rain and loses evaporation, and the deep temperature relaxes toward T_s over
+   * seb_restore_timescale_s. Needs seb_prognostic_enable and a porosity. Default false: both
+   * stay at seb_q_deep_default and seb_t_deep_default.
+   */
+  bool seb_deep_prognostic_enable = false;
+
+  /**
+   * @brief Depth d_2 [m] of the soil column of seb_deep_prognostic_enable. Default 1 m.
+   * Must be finite and deeper than seb_moisture_layer_depth_m; giving it without
+   * seb_deep_prognostic_enable stops at start-up.
+   */
+  amrex::Real seb_deep_layer_depth_m = 1.0;
+
+  /**
+   * @brief Gravitational drainage of the soil column toward field capacity (Mahfouf and
+   * Noilhan 1996, Eq. 4) at the rate C_3 / (1 day): their Table 1 gives C_3 for a 1-day
+   * restore period, so seb_restore_timescale_s does not enter. Needs
+   * seb_deep_prognostic_enable, seb_drainage_c3_m and a field capacity (seb_soil_moisture_fc
+   * or seb_soil_type); init_params() stops otherwise. Default false.
+   */
+  bool seb_drainage_enable = false;
+
+  /**
+   * @brief Drainage coefficient times column depth, C_3 d_2 [m] (Mahfouf and Noilhan 1996,
+   * Eq. 16; their Table 1 lists C_3 for d_2 = 1 m, from 0.098 to 1.705). The step uses
+   * C_3 = seb_drainage_c3_m / seb_deep_layer_depth_m. Required with seb_drainage_enable and
+   * must be > 0; giving it otherwise stops at start-up. -1 = not given.
+   */
+  amrex::Real seb_drainage_c3_m = -1.0;
+
+  /// True when any of the force-restore hydrology inputs is on.
+  [[nodiscard]] bool seb_hydrology_enabled () const noexcept
+  {
+      return seb_precipitation_source != SEBPrecipitationSource::None ||
+             seb_deep_prognostic_enable;
+  }
 
 
   /**
@@ -862,6 +932,12 @@ public:
    * - erf.radiation.seb_prognostic_t_max_k (real, optional, default 340.0)
    * - erf.radiation.seb_prognostic_q_min (real, optional, default 0.0, clamped to [0, 1])
    * - erf.radiation.seb_prognostic_q_max (real, optional, default 1.0, clamped to [0, 1])
+   * - erf.radiation.seb_precipitation_source (string "none"|"microphysics", optional, default "none")
+   * - erf.radiation.seb_soil_porosity (real, needed with rain or the deep reservoir unless seb_soil_type, in (0, 1]; above fc with drainage; at most seb_prognostic_q_max with rain)
+   * - erf.radiation.seb_deep_prognostic_enable (bool, optional, default false)
+   * - erf.radiation.seb_deep_layer_depth_m (real, optional, default 1.0, > seb_moisture_layer_depth_m)
+   * - erf.radiation.seb_drainage_enable (bool, optional, default false)
+   * - erf.radiation.seb_drainage_c3_m (real, required with seb_drainage_enable, > 0)
    *
    * Sub-option queries are only performed when the two-stream model is selected.
    */
@@ -1306,6 +1382,21 @@ public:
       pp.query("radiation.seb_prognostic_t_max_k", seb_prognostic_t_max_k);
       pp.query("radiation.seb_prognostic_q_min", seb_prognostic_q_min);
       pp.query("radiation.seb_prognostic_q_max", seb_prognostic_q_max);
+      // The force-restore hydrology (ERF_ForceRestoreHydrology.H); checked at the end.
+      try {
+          pp.query_enum_sloppy("radiation.seb_precipitation_source",
+                               seb_precipitation_source, "_");
+      } catch (...) {
+          std::string value;
+          pp.query("radiation.seb_precipitation_source", value);
+          amrex::Abort("erf.radiation.seb_precipitation_source must be none or microphysics, "
+                       "not '" + value + "'");
+      }
+      pp.query("radiation.seb_soil_porosity", seb_soil_porosity);
+      pp.query("radiation.seb_deep_prognostic_enable", seb_deep_prognostic_enable);
+      pp.query("radiation.seb_deep_layer_depth_m", seb_deep_layer_depth_m);
+      pp.query("radiation.seb_drainage_enable", seb_drainage_enable);
+      pp.query("radiation.seb_drainage_c3_m", seb_drainage_c3_m);
 
       // The prognostic update needs the SEB fields and the residual, so
       // requesting it turns on the infrastructure it depends on. Report that,
@@ -1355,9 +1446,11 @@ public:
 
       // Moisture coupling: the surface mixing ratio is q_sat at the skin temperature, so
       // it needs the skin coupling; and beta needs a wilting point below field capacity.
-      // The wilting point and field capacity: checked whenever they are given or used.
-      if (seb_surface_layer_uses_moisture || pp.contains("radiation.seb_soil_moisture_wilt") ||
-          pp.contains("radiation.seb_soil_moisture_fc")) {
+      // The wilting point and field capacity: checked whenever they are given or used. The
+      // drainage alone uses the field capacity and not the wilting point, so it checks fc only.
+      if (seb_surface_layer_uses_moisture ||
+          pp.contains("radiation.seb_soil_moisture_wilt") ||
+          (pp.contains("radiation.seb_soil_moisture_fc") && !seb_drainage_enable)) {
           if (!(std::isfinite(seb_soil_moisture_wilt) && std::isfinite(seb_soil_moisture_fc) &&
                 seb_soil_moisture_wilt >= 0.0 && seb_soil_moisture_wilt < seb_soil_moisture_fc &&
                 seb_soil_moisture_fc <= 1.0)) {
@@ -1366,14 +1459,26 @@ public:
                            std::to_string(seb_soil_moisture_wilt) + ", fc = " +
                            std::to_string(seb_soil_moisture_fc));
           }
+      } else if (seb_drainage_enable) {
+          if (!(std::isfinite(seb_soil_moisture_fc) && seb_soil_moisture_fc > 0.0 &&
+                seb_soil_moisture_fc <= 1.0)) {
+              amrex::Abort("erf.radiation.seb_soil_moisture_fc must be in (0, 1] with "
+                           "seb_drainage_enable (a volumetric water content); got " +
+                           std::to_string(seb_soil_moisture_fc));
+          }
       }
-      // Inputs that only the moisture coupling or a vegetation type use: say so rather than
-      // ignore them.
+      // Inputs that only the moisture coupling, the drainage or a vegetation type use: say so
+      // rather than ignore them.
       if (!seb_surface_layer_uses_moisture &&
-          (pp.contains("radiation.seb_soil_moisture_wilt") ||
-           pp.contains("radiation.seb_soil_moisture_fc"))) {
-          amrex::Abort("erf.radiation.seb_soil_moisture_wilt and seb_soil_moisture_fc are used "
-                       "only with erf.radiation.seb_surface_layer_uses_moisture = true");
+          pp.contains("radiation.seb_soil_moisture_wilt")) {
+          amrex::Abort("erf.radiation.seb_soil_moisture_wilt is used only with "
+                       "erf.radiation.seb_surface_layer_uses_moisture = true");
+      }
+      if (!seb_surface_layer_uses_moisture && !seb_drainage_enable &&
+          pp.contains("radiation.seb_soil_moisture_fc")) {
+          amrex::Abort("erf.radiation.seb_soil_moisture_fc is used only with "
+                       "erf.radiation.seb_surface_layer_uses_moisture = true or "
+                       "erf.radiation.seb_drainage_enable = true");
       }
       if (seb_vegetation_type == 0 &&
           (pp.contains("radiation.seb_vegetation_fraction") ||
@@ -1497,9 +1602,106 @@ public:
           seb_prognostic_q_max = tmp;
       }
 
+      check_seb_hydrology(pp);
   }
 
 }
+
+  /**
+   * @brief Checks of the force-restore hydrology inputs (ERF_ForceRestoreHydrology.H): each
+   * stops the run naming the input, never clamps. Called at the end of init_params, after
+   * the soil type has set the field capacity.
+   */
+  void check_seb_hydrology (amrex::ParmParse& pp)
+  {
+      const bool rain = seb_precipitation_source != SEBPrecipitationSource::None;
+      const bool hydrology = rain || seb_deep_prognostic_enable;
+      if ((hydrology || seb_drainage_enable) && !seb_prognostic_enable) {
+          amrex::Abort("erf.radiation.seb_precipitation_source, seb_deep_prognostic_enable and "
+                       "seb_drainage_enable need erf.radiation.seb_prognostic_enable = true: "
+                       "they act on the force-restore state");
+      }
+      if (seb_drainage_enable && !seb_deep_prognostic_enable) {
+          amrex::Abort("erf.radiation.seb_drainage_enable needs "
+                       "erf.radiation.seb_deep_prognostic_enable = true: the drainage leaves "
+                       "the bottom of the deep soil column (Mahfouf and Noilhan 1996, Eq. 4)");
+      }
+      if (pp.contains("radiation.seb_deep_layer_depth_m") && !seb_deep_prognostic_enable) {
+          amrex::Abort("erf.radiation.seb_deep_layer_depth_m is used only with "
+                       "erf.radiation.seb_deep_prognostic_enable = true");
+      }
+      if (pp.contains("radiation.seb_drainage_c3_m") && !seb_drainage_enable) {
+          amrex::Abort("erf.radiation.seb_drainage_c3_m is used only with "
+                       "erf.radiation.seb_drainage_enable = true");
+      }
+      if (pp.contains("radiation.seb_soil_porosity") && !hydrology) {
+          amrex::Abort("erf.radiation.seb_soil_porosity is used only with "
+                       "erf.radiation.seb_precipitation_source = microphysics or "
+                       "erf.radiation.seb_deep_prognostic_enable = true");
+      }
+      if (!hydrology) { return; }
+
+      if (seb_deep_prognostic_enable &&
+          !(std::isfinite(seb_deep_layer_depth_m) &&
+            seb_deep_layer_depth_m > seb_moisture_layer_depth_m)) {
+          amrex::Abort("erf.radiation.seb_deep_layer_depth_m must be deeper than "
+                       "seb_moisture_layer_depth_m (" + std::to_string(seb_moisture_layer_depth_m) +
+                       " m): the column contains the surface layer; got " +
+                       std::to_string(seb_deep_layer_depth_m));
+      }
+      if (seb_drainage_enable && seb_soil_type == 0 &&
+          !pp.contains("radiation.seb_soil_moisture_fc")) {
+          amrex::Abort("erf.radiation.seb_drainage_enable needs a field capacity: give "
+                       "erf.radiation.seb_soil_moisture_fc or erf.radiation.seb_soil_type");
+      }
+      if (seb_drainage_enable &&
+          !(std::isfinite(seb_drainage_c3_m) && seb_drainage_c3_m > 0.0)) {
+          amrex::Abort("erf.radiation.seb_drainage_c3_m must be given and > 0 with "
+                       "seb_drainage_enable (Mahfouf and Noilhan 1996, Table 1: 0.098 m for "
+                       "silty clay loam to 1.705 m for sand); got " +
+                       std::to_string(seb_drainage_c3_m));
+      }
+
+      // The porosity: from the soil type, or given, never both.
+      if (seb_soil_type != 0) {
+          if (pp.contains("radiation.seb_soil_porosity")) {
+              amrex::Abort("erf.radiation.seb_soil_type sets the porosity (Noah-MP's MAXSMC); "
+                           "do not also give erf.radiation.seb_soil_porosity");
+          }
+          seb_soil_porosity = noahmp_soil_params(seb_soil_type)->smc_max;
+      } else if (!pp.contains("radiation.seb_soil_porosity")) {
+          amrex::Abort("erf.radiation.seb_precipitation_source = microphysics and "
+                       "seb_deep_prognostic_enable need a porosity: give "
+                       "erf.radiation.seb_soil_porosity or erf.radiation.seb_soil_type");
+      }
+      if (!(std::isfinite(seb_soil_porosity) && seb_soil_porosity > 0.0 &&
+            seb_soil_porosity <= 1.0)) {
+          amrex::Abort("erf.radiation.seb_soil_porosity must be in (0, 1]; got " +
+                       std::to_string(seb_soil_porosity));
+      }
+      if (seb_drainage_enable && !(seb_soil_moisture_fc < seb_soil_porosity)) {
+          amrex::Abort("erf.radiation.seb_soil_moisture_fc (" + std::to_string(seb_soil_moisture_fc) +
+                       ") must be below erf.radiation.seb_soil_porosity (" +
+                       std::to_string(seb_soil_porosity) + ")");
+      }
+      if (seb_q_sfc_default > seb_soil_porosity ||
+          (seb_deep_prognostic_enable && seb_q_deep_default > seb_soil_porosity)) {
+          amrex::Abort("erf.radiation.seb_q_sfc_default (" + std::to_string(seb_q_sfc_default) +
+                       ") and, with seb_deep_prognostic_enable, seb_q_deep_default (" +
+                       std::to_string(seb_q_deep_default) + ") must not exceed "
+                       "erf.radiation.seb_soil_porosity (" + std::to_string(seb_soil_porosity) +
+                       "): water above it runs off");
+      }
+      // The balance clamps q_s to seb_prognostic_q_max after its own update. Below the
+      // porosity, that clamp would remove rain the runoff never records.
+      if (seb_precipitation_source == SEBPrecipitationSource::Microphysics &&
+          seb_prognostic_q_max < seb_soil_porosity) {
+          amrex::Abort("erf.radiation.seb_prognostic_q_max (" + std::to_string(seb_prognostic_q_max) +
+                       ") must be at or above erf.radiation.seb_soil_porosity (" +
+                       std::to_string(seb_soil_porosity) + ") with seb_precipitation_source = "
+                       "microphysics: a lower cap would remove rain without counting it as runoff");
+      }
+  }
 
   /**
    * @brief Check if two-stream radiation is active.

@@ -16,6 +16,8 @@
 #include <ERF_LandSurface.H>
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamCanopyForcing.H>
+#include <ERF_ForceRestoreHydrologyState.H>
+#include <ERF_SurfacePrecipitation.H>
 
 /**
  * @brief The two-stream radiation model (erf.radiation_model = TwoStream).
@@ -44,7 +46,10 @@
  *    immersed-boundary balance (erf.ibseb.two_stream_buildings), and
  *    ground_shadow_for_step(...) every step, for the balance to fill with the
  *    buildings' shadow on the ground;
- *  - write_checkpoint / read_checkpoint for the prognostic surface state.
+ *  - write_checkpoint / read_checkpoint for the prognostic surface state;
+ *  - with the force-restore hydrology (RadChoice::seb_hydrology_enabled()),
+ *    hydrology_begin_step(...) at the start of each step of a level and
+ *    hydrology_end_step(...) before its post-dycore call, which give the rain of the step.
  *
  * The heating-rate MultiFab itself stays in ERF, since RRTMGP writes the
  * same 2-component (SW, LW) array and the RhoTheta source term and the
@@ -208,6 +213,53 @@ public:
      * on the valid cells; the halo is not filled.
      */
     [[nodiscard]] const amrex::MultiFab* seb_surface_moisture (int lev);
+
+    /**
+     * @brief Every field of the force-restore state of @p lev that evolves and so must
+     * survive a regrid, be filled from the coarse level on a new level and be averaged
+     * down: t_sfc and q_sfc; with erf.radiation.seb_deep_prognostic_enable, t_deep and
+     * q_deep; with the hydrology, its running totals (several components). Empty when the
+     * state is not evolved. Each is a 2D field (k = 0) on the level's horizontal grids.
+     */
+    [[nodiscard]] amrex::Vector<amrex::MultiFab*> seb_prognostic_fields (int lev);
+
+    /**
+     * @brief Store the surface precipitation accumulation of @p lev at the start of its
+     * step (ERF::Advance, before the dycore and microphysics). A no-op without
+     * erf.radiation.seb_precipitation_source = microphysics.
+     */
+    void hydrology_begin_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo);
+
+    /**
+     * @brief The rain rate of the step of @p lev just taken, from the accumulation now and
+     * the one hydrology_begin_step stored; called before the post-dycore advance. A no-op
+     * without erf.radiation.seb_precipitation_source = microphysics.
+     */
+    void hydrology_end_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo,
+                             amrex::Real dt);
+
+    /**
+     * @brief The force-restore soil of @p lev, read-only (see ForceRestoreSoil), or an empty
+     * view (every pointer nullptr) when the force-restore state is not evolved there.
+     */
+    [[nodiscard]] ForceRestoreSoil force_restore_soil (int lev) const;
+
+    /** @brief The deep temperature [K] and column water content of @p lev, or nullptr. Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* seb_t_deep (int lev) const {
+        return (active() && m_rad->seb_enable && lev < static_cast<int>(m_t_deep.size())) ? m_t_deep[lev].get() : nullptr;
+    }
+    [[nodiscard]] const amrex::MultiFab* seb_q_deep (int lev) const {
+        return (active() && m_rad->seb_enable && lev < static_cast<int>(m_q_deep.size())) ? m_q_deep[lev].get() : nullptr;
+    }
+
+    /** @brief The hydrology's rain rate of the last step [kg/m^2/s] (nullptr without seb_precipitation_source) and running totals [kg/m^2] (nullptr without the hydrology). Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* hydrology_rain_rate (int lev) const {
+        return (m_rad && m_rad->seb_precipitation_source != SEBPrecipitationSource::None)
+             ? m_hydro.rain_rate(lev) : nullptr;
+    }
+    [[nodiscard]] const amrex::MultiFab* hydrology_totals (int lev) {
+        return m_hydro.totals(lev);
+    }
 
     /** @brief True when the force-restore state is being evolved and so needs transferring. */
     [[nodiscard]] bool seb_prognostic_active () const {
@@ -496,6 +548,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_sfc;       // surface moisture, prognostic (see RadChoice::seb_q_sfc_default)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_t_deep;      // deep-soil temperature [K]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture q_s restores to
+    // (both constant at their defaults unless erf.radiation.seb_deep_prognostic_enable)
+    ForceRestoreHydrology m_hydro;                                  // rain, runoff, drainage (ERF_ForceRestoreHydrologyState.H)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_moisture;    // seb_surface_moisture (seb_surface_layer_uses_moisture)
 
     // What the sweep hands to a land-surface model (2D: i,j), allocated when
