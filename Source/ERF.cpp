@@ -2121,6 +2121,18 @@ ERF::InitData_post ()
                       "surface layer, which reads it as " + zlo_key + ".");
             }
         }
+
+        // The coupled current has the same reader, and arrives only once coupling starts
+        if (solverChoice.use_coupled_currents) {
+            if (!zlo_layer) {
+                Abort("erf.use_coupled_currents is read only by a surface_layer boundary at "
+                      "zlo, and zlo is not one: set zlo.type = \"surface_layer\".");
+            }
+            if (max_level > 0) {
+                Print() << "WARNING: the coupled surface current is applied on level 0 only; "
+                        << "the surface of the refined levels is at rest." << std::endl;
+            }
+        }
     }
 
     // A land-surface model hands its fluxes to the atmosphere only through the surface

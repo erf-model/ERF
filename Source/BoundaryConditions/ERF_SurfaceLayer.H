@@ -584,8 +584,9 @@ public:
 
           // The surface current moves only the water, so without water it would do nothing
           AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_surface_current || lmask_min < 1,
-              "most.surface_current moves only water, and the surface has none: set "
-              "erf.is_land = 0 or supply a land mask with water.");
+              "The surface current (most.surface_current or erf.use_coupled_currents) moves "
+              "only water, and the surface has none: set erf.is_land = 0 or supply a land "
+              "mask with water.");
       }
 
       if (m_eddyDiffs_lev.size() < lev+1) {
@@ -607,6 +608,11 @@ public:
           m_surface_current_y.resize(nlevs);
           m_rel_xvel.resize(nlevs);
           m_rel_yvel.resize(nlevs);
+          m_coupled_current_east_lev.resize(nlevs, nullptr);
+          m_coupled_current_north_lev.resize(nlevs, nullptr);
+          m_coupled_current_covered_lev.resize(nlevs, nullptr);
+          m_coupled_current_cos_lev.resize(nlevs, nullptr);
+          m_coupled_current_sin_lev.resize(nlevs, nullptr);
           m_rel_k_top.resize(nlevs, 0);
           m_rel_src_ba.resize(nlevs);
 
@@ -1512,6 +1518,15 @@ public:
                                const amrex::MultiFab& yvel);
 
   /**
+   * Set the surface current on this level's faces: the uniform most.surface_current, or the
+   * coupler's last current (update_coupled_surface_current), with water on both sides of a
+   * face and, with a coupler, the ocean covering both cells; at rest elsewhere.
+   *
+   * @param[in] lev level index
+   */
+  void fill_surface_current (const int& lev);
+
+  /**
    * Allocate the velocities relative to the surface current, over the planes the
    * averages read: each box of the velocities from its lower end to k_top.
    *
@@ -1980,6 +1995,10 @@ public:
    * by the ocean, and is at rest elsewhere. Outside a non-periodic domain, the cells beside
    * a face are those of the nearest column inside it.
    *
+   * The fields are borrowed, like the coupled SST's: the surface layer keeps them and sets
+   * the current from them again whenever the level is remade, so they must outlive it or
+   * be replaced by a later call.
+   *
    * @param[in] lev       level index
    * @param[in] east      eastward current [m/s], cell-centred on the 2D surface layout
    * @param[in] north     northward current [m/s], on the layout of east
@@ -2217,6 +2236,13 @@ private:
   amrex::Real m_surface_current_const[2] = {zero, zero};
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_x;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_y;
+  // The coupler's last current per level (update_coupled_surface_current), borrowed; null
+  // until it first calls
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_current_east_lev;
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_current_north_lev;
+  amrex::Vector<const amrex::iMultiFab*> m_coupled_current_covered_lev;
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_current_cos_lev;
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_current_sin_lev;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_xvel;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_yvel;
   amrex::Vector<int> m_rel_k_top;

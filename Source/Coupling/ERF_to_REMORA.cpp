@@ -868,7 +868,25 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
                                    *lat_m[0], *lon_m[0], geom[0]);
             }
         }
-        surface_layer->update_coupled_surface_current(0, *state[1], *state[2], erf_coverage,
+        // ERF's own copies, which the surface layer keeps to set the current again on a regrid
+        if (m_coupled_current_east == nullptr) {
+            amrex::BoxArray ba;
+            amrex::DistributionMapping dm;
+            GetOceanToAtmosSurfaceLayout(ba, dm);
+            m_coupled_current_east  = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
+            m_coupled_current_north = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
+            m_coupled_current_valid = std::make_unique<amrex::iMultiFab>(ba, dm, 1, 0);
+        }
+        m_coupled_current_east->ParallelCopy(*state[1], 0, 0, 1);
+        m_coupled_current_north->ParallelCopy(*state[2], 0, 0, 1);
+        // No coverage means no cell is covered, as for the SST
+        m_coupled_current_valid->setVal(0);
+        if (erf_coverage != nullptr) {
+            m_coupled_current_valid->ParallelCopy(*erf_coverage, 0, 0, 1);
+        }
+        surface_layer->update_coupled_surface_current(0, *m_coupled_current_east,
+                                                      *m_coupled_current_north,
+                                                      m_coupled_current_valid.get(),
                                                       m_coupled_current_cos_alpha.get(),
                                                       m_coupled_current_sin_alpha.get());
     }
