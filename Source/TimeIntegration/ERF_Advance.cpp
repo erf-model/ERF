@@ -204,7 +204,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // from the state at the start of the step; its momentum source then holds over the step
     // **************************************************************************************
     if (m_structure_model && lev == m_structure_model->level(finest_level)) {
-        advance_structure_model(lev, time, static_cast<Real>(dt_lev), U_old, V_old, W_old, S_old);
+        advance_structure_model(lev, time, dt_lev, U_old, V_old, W_old, S_old);
     }
 
     // On a coarser level, the model's latest source restricted onto this level, held over the

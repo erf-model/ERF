@@ -116,6 +116,7 @@ target_sources(${erf_exe_name}
     # direction must take the plane at the periodic image, not the near side of the seam.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestBndryPlaneIndex.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMultiScalarSlots.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestInflowProfile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayerStress.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayer.cpp
     # Motivation: the roughness inverted from surface fluxes must stay inside its bounds.
@@ -136,7 +137,6 @@ target_sources(${erf_exe_name}
     # refined region that does not reach the top was read outside its data.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestReduceToMaxPerHeight.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryDensity.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryMoisture.cpp
     # Motivation: the wrfbdy time-interpolation weight must follow the elapsed time to roundoff,
     # not to the ~2.4e-7 s spacing of doubles at epoch times.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestBdyTimeWeights.cpp
@@ -161,6 +161,9 @@ target_sources(${erf_exe_name}
     # Motivation: the chamber profile and perturbation must remain analytic,
     # bounded, and independent of MPI decomposition and tile shape.
     ${CMAKE_CURRENT_SOURCE_DIR}/Prob/ERF_GTestCloudChamber.cpp
+    # Motivation: the ABL warm bubble (prob.bubble_*) must follow WRF's cos^2 form on each
+    # cell's own height, and a compressible bubble must be made at constant pressure.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Prob/ERF_GTestABLWarmBubble.cpp
     # Motivation: RICO's moisture source must be continuous at prob.moisture_source_cutoff and
     # default to RICO's 2980 m (erf-model/ERF#4626).
     ${CMAKE_CURRENT_SOURCE_DIR}/Prob/ERF_GTestRICOMoistureSource.cpp
@@ -225,6 +228,10 @@ target_sources(${erf_exe_name}
     # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
     # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
+    # Motivation: the building wall function's Louis (1979) factors must be 1
+    # at neutral, follow the published closed forms on both sides and weaken
+    # mixing monotonically with the bulk Richardson number.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBLouis.cpp
     # Motivation: the immersed-forcing temperature kernels applied the MOST similarity functions whatever
     # erf.if_stability_correction said, while the momentum kernels gate on it (erf-model/ERF#4931); off,
     # every kernel is the log law.

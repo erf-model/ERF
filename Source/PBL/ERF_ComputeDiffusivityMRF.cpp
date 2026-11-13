@@ -48,7 +48,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                        const std::unique_ptr<MultiFab>& z_sfc_nd,
                        const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices,
-                       const MultiFab* terrain_blank)
+                       const MultiFab* terrain_blank,
+                       const MultiFab* Q_fire_atm)
 {
     const StratType pbl_strat = turbChoice.pbl_strat_type;
     /*
@@ -97,6 +98,19 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     4. Free Atmosphere Mixing via Richardson Number
        - Uses YSU stability functions (Hong et al. 2006)
        - Ri-dependent diffusivity above the PBL top only (module_bl_mrf.F L988 on)
+
+    FIRE COUPLING (ERF_USE_FIRE):
+    -----------------------------
+    Fire heat flux augments the convective velocity scale w* used in the
+    K-profile amplitude: K = rho * w*_eff * kappa * z * (1 - z/h)^2.
+    The PBLH itself (corrector) is NOT modified by fire, only w* is boosted.
+
+    w*_fire = (g/theta * kbfs_total * h_corr)^(1/3),  w*_eff = max(w*_fire, w*)
+
+    where kbfs_total = kbfs_MOST + Q_fire/(rho*Cp), w* is the Pass 4 velocity
+    scale and h_corr the final corrected PBLH. The boost is applied only in
+    columns where Q_fire exceeds mrf_fire_q_threshold
+    (erf.pbl_mrf_fire_thermal_excess = true); HGAMT/HGAMQ keep the unboosted w*.
 
     ENHANCEMENTS IN ERF IMPLEMENTATION:
     -----------------------------------
@@ -272,9 +286,28 @@ if (ng_pblh > 1) {
                    + "; reduce erf.pblh_smoothing_passes to at most " + std::to_string(ng_avail));
     }
 }
+// The fire heat flux (erf.pbl_mrf_fire_thermal_excess) is read in every column the
+// passes cover, the halo included, so it has to carry that many ghost columns.
+if (Q_fire_atm != nullptr && turbChoice.mrf_fire_thermal_excess) {
+    const int ng_fire = std::min(Q_fire_atm->nGrowVect()[0], Q_fire_atm->nGrowVect()[1]);
+    if (ng_fire < ng_pblh) {
+        amrex::Abort("erf.pbl_mrf_fire_thermal_excess reads the fire heat flux in "
+                   + std::to_string(ng_pblh) + " halo columns, but the flux carries only "
+                   + std::to_string(ng_fire) + "; reduce erf.pblh_smoothing_passes to at most "
+                   + std::to_string(ng_fire));
+    }
+}
+
+// Maxima over the level of the fire w* boost, printed once below
+const bool use_fire_correction = (Q_fire_atm != nullptr) && turbChoice.mrf_fire_thermal_excess;
+Real fire_pblh_max_pred = Real(0);
+Real fire_pblh_max_corr = Real(0);
+Real fire_wstar_max     = Real(0);
+Real fire_kbfs_max      = Real(0);
 
 #ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion()) \
+    reduction(max:fire_pblh_max_pred,fire_pblh_max_corr,fire_wstar_max,fire_kbfs_max)
 #endif
 
     for (MFIter mfi(eddyViscosity, TileNoZ()); mfi.isValid(); ++mfi) {
@@ -313,6 +346,7 @@ if (ng_pblh > 1) {
         FArrayBox hgamq_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
         FArrayBox wstar_fab(xybx_work, 1, The_Async_Arena());  // Convective velocity scale
         FArrayBox vpert_fab(xybx_work, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT
+        FArrayBox kbfs_fire_fab(xybx_work, 1, The_Async_Arena());  // Fire kinematic buoyancy flux [K m/s] per column
         FArrayBox pblh_floor_fab(xybx_work, 1, The_Async_Arena());  // Floor of the corrected height per column, reapplied after the smoothing
         const auto& pblh_pred_arr   = pbl_height_predictor.array();  // predictor (base t_layer_v)
         const auto& pblh_corr_arr   = pbl_height_corrector.array();  // corrector (VPERT-enhanced)
@@ -323,6 +357,7 @@ if (ng_pblh > 1) {
         const auto& hgamq_arr       = hgamq_fab.array();
         const auto& wstar_arr       = wstar_fab.array();
         const auto& vpert_arr       = vpert_fab.array();
+        const auto& kbfs_fire_arr   = kbfs_fire_fab.array();  // Fire kinematic buoyancy flux
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -344,6 +379,12 @@ if (ng_pblh > 1) {
         const Array4<Real const> z_sfc_arr = use_terrain_fitted_coords ? z_sfc_nd->const_array(mfi)
                                                                        : Array4<Real const>{};
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
+
+        // Fire heat flux array and flags
+        const Array4<Real const> Q_fire_arr = use_fire_correction
+                                            ? Q_fire_atm->const_array(mfi)
+                                            : Array4<Real const>{};
+        const Real mrf_fire_q_thresh = turbChoice.mrf_fire_q_threshold;
 
         //
         // PASS 1 (PREDICTOR): Compute PBL height using base surface virtual temperature.
@@ -573,6 +614,21 @@ if (ng_pblh > 1) {
 
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
+
+            // Fire kinematic buoyancy flux [K m/s] for the w* boost in Pass 4,
+            // kbfs_fire = Q_fire / (rho_sfc * Cp_d). Fire does not enter the PBLH.
+            // (FLARE's value of Cp_d, kept so its fire runs do not change; ERF_Constants has 1004.5)
+            constexpr Real Cp_d_fire = Real(1004.64);
+            Real kbfs_fire = zero_d;
+            if (use_fire_correction && Q_fire_arr) {
+                const Real rho_sfc = cell_data(i, j, ksrf, Rho_comp);
+                const Real q_fire  = Q_fire_arr(i, j, 0);
+                if (q_fire > mrf_fire_q_thresh && rho_sfc > zero_d) {
+                    // max() keeps the division valid if it is evaluated speculatively
+                    kbfs_fire = q_fire / (amrex::max(rho_sfc, Real(1.0e-10)) * Cp_d_fire);
+                }
+            }
+            kbfs_fire_arr(i, j, 0) = kbfs_fire;
 
             bool SFCFLG = (obuk_val <= zero_d);
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
@@ -819,7 +875,19 @@ if (ng_pblh > 1) {
             //Real wstar = us_eff_arr(i, j, 0) / phiM_safe;
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
-            wstar_arr(i, j, 0) = wstar;
+
+            // Fire boost (Deardorff 1970): where Pass 2 found a fire flux, use the
+            // convective scale of the surface plus fire buoyancy flux over the
+            // corrected PBLH if it is larger. Fire only increases w*; HGAMT/HGAMQ
+            // below keep the unboosted w*. An immersed column (erf.pbl_ib_aware) takes
+            // its own surface scales, as the rest of the pass. Every input is valid for every column,
+            // so nothing traps if the arm is evaluated speculatively.
+            const Real kbfs_fire  = kbfs_fire_arr(i, j, 0);
+            const Real kbfs_total = amrex::max(-us_eff_arr(i, j, 0) * ts_eff_arr(i, j, 0) + kbfs_fire,
+                                               Real(0));
+            const Real wstar_fire = std::cbrt(CONST_GRAV / amrex::max(t10_eff_arr(i, j, 0), Real(1.0))
+                                              * kbfs_total * pblh_corr_arr(i, j, 0));
+            wstar_arr(i, j, 0) = (kbfs_fire > Real(0)) ? amrex::max(wstar_fire, wstar) : wstar;
             bool SFCFLG = (obuk_val <= Real(0));
             // WRF caps the heat countergradient at GAMCRT and then floors it at zero:
             //   HGAMT(I)=MIN(GAMFAC*HFX(I)/CPM(I),GAMCRT)   (module_bl_mrf.F L874)
@@ -940,6 +1008,14 @@ if (ng_pblh > 1) {
                 pbli_zero_arr(i, j, 0) = kpbl_zero;
             }
         });
+
+        // Fire diagnostics, after the final corrector and the w* boost
+        if (use_fire_correction) {
+            fire_pblh_max_pred = amrex::max(fire_pblh_max_pred, pbl_height_predictor.max<RunOn::Device>(0));
+            fire_pblh_max_corr = amrex::max(fire_pblh_max_corr, pbl_height_corrector.max<RunOn::Device>(0));
+            fire_wstar_max     = amrex::max(fire_wstar_max,     wstar_fab.max<RunOn::Device>(0));
+            fire_kbfs_max      = amrex::max(fire_kbfs_max,      kbfs_fire_fab.max<RunOn::Device>(0));
+        }
 
         // -- Compute diffusion coefficients --
 
@@ -1258,6 +1334,17 @@ if (ng_pblh > 1) {
             K_turb(i, j, khi+1, EddyDiff::Turb_lengthscale) = K_turb(i, j, khi, EddyDiff::Turb_lengthscale);
         });
     }// mfi
+
+    if (use_fire_correction) {
+        ParallelDescriptor::ReduceRealMax({fire_pblh_max_pred, fire_pblh_max_corr,
+                                           fire_wstar_max, fire_kbfs_max});
+        amrex::Print() << "[MRF FIRE] level " << level << " fire w* boost"
+                       << "  pblh_predictor_max=" << fire_pblh_max_pred << " m"
+                       << "  pblh_corrector_max=" << fire_pblh_max_corr << " m"
+                       << "  wstar_max=" << fire_wstar_max << " m/s"
+                       << "  kbfs_fire_max=" << fire_kbfs_max << " K m/s\n";
+    }
+
     // Write MRF-computed PBLH back into SurfaceLayer so Beljaars correction
     // and diagnostics can use it, and update_pblh no longer aborts for MRF type.
     SurfLayer->set_pblh(level, pblh_mf);

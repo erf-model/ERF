@@ -980,6 +980,29 @@ Two ABL tests in ``Exec/CanonicalTests/ABL/MRF_Enhancements/`` verify the implem
 - Hong, S.-Y., and H.-L. Pan, 1996: Nonlocal boundary layer vertical diffusion in a medium-range forecast model. *Monthly Weather Review*, 124, 2322–2339.
   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
 
+7. Fire Coupling of the Velocity Scale
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In a build with the fire coupling (``ERF_ENABLE_FIRE``), ``erf.pbl_mrf_fire_thermal_excess = true``
+(default ``false``) lets the fire raise w\* in the K-profile amplitude of burning columns. It needs
+``erf.fire.enable = true`` with ``erf.fire.coupling_type = lagged`` or ``synchronous``, and acts on the
+fire grid's level only. The PBL height is left alone:
+
+.. math::
+
+   w_{*,fire} = \left( \frac{g}{\theta} \, (kbfs_{MOST} + kbfs_{fire}) \, h \right)^{1/3}, \qquad
+   w_{*,eff} = \max(w_{*,fire}, w_*) \quad \text{where } kbfs_{fire} > 0,
+
+with :math:`kbfs_{fire} = Q_{fire} / (\rho_{sfc} c_{p,d})` from the lagged fire heat flux,
+:math:`kbfs_{MOST} = -u_* \theta_*`, :math:`h` the corrected PBL height and :math:`w_*` the scale
+of the final pass. A column counts as burning when its fire heat flux exceeds
+``erf.mrf_fire_q_threshold`` (default 50 W/m\ :sup:`2`). Columns without fire keep :math:`w_*`, and
+HGAMT/HGAMQ always use the unboosted :math:`w_*`. The fire flux is kept out of the PBL-height
+corrector because a fire thermal excess would make the Richardson number negative through a neutral
+or shear-driven ABL and collapse the PBL height to its floor.
+
+The flux carries 5 ghost columns, so with the fire boost ``erf.pblh_smoothing_passes`` is at most 5.
+
 Older MRF Enhancements (Deprecated/Documented for Historical Completeness)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

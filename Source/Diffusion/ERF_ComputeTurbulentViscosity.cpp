@@ -934,6 +934,7 @@ void ComputeTurbulentViscosityRANS (int level,
  * @param[in]  qheating_rates radiation heating rates (SW, LW components)
  * @param[in]  terrain_blank immersed forcing mask, or null
  * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
+ * @param[in]  Q_fire_atm lagged fire heat flux [W/m2] for the MRF w* boost, or null without it
  */
 void ComputeTurbulentViscosity (double dt,
                                 const MultiFab& xvel, const MultiFab& yvel,
@@ -958,7 +959,8 @@ void ComputeTurbulentViscosity (double dt,
                                 bool vert_only,
                                 const MultiFab* qheating_rates,
                                 const MultiFab* terrain_blank,
-                                const MultiFab* forest_drag)
+                                const MultiFab* forest_drag,
+                                const MultiFab* Q_fire_atm)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
@@ -1046,7 +1048,7 @@ void ComputeTurbulentViscosity (double dt,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
-                              solverChoice.moisture_indices, terrain_blank);
+                              solverChoice.moisture_indices, terrain_blank, Q_fire_atm);
     } else if (turbChoice.pbl_type == PBLType::YSUNew) {
         ComputeDiffusivityYSUNew(xvel, yvel, cons_in, eddyViscosity,
                                  geom, turbChoice, SurfLayer,
