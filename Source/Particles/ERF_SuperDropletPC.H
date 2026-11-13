@@ -304,6 +304,11 @@ class SuperDropletPC : public ERFPC
          */
         void setInflowMultiplicity ( const amrex::Vector<MFPtr>& a_z_phys_nd );
 
+        /*! \brief Deactivate, reflect or wrap the super-droplets that crossed a domain boundary;
+         *  returns the number that entered through an open boundary and still need their
+         *  multiplicity (stretched or terrain-fitted mesh); public for CUDA extended lambdas */
+        amrex::Long treatBoundaryCrossings ( int, const BCTypeArr&, const bool );
+
         /*! \brief Cells differ in physical thickness (stretched or terrain-fitted mesh) */
         void setVariableDz ( const bool a_variable_dz )
         {
@@ -443,11 +448,6 @@ class SuperDropletPC : public ERFPC
         bool splitMergeAMR () const { return m_split_merge_amr; }
 
     protected:
-
-        /*! \brief Deactivate, reflect or wrap the super-droplets that crossed a domain boundary;
-         *  returns the number that entered through an open boundary and still need their
-         *  multiplicity (stretched or terrain-fitted mesh) */
-        amrex::Long treatBoundaryCrossings ( int, const BCTypeArr&, const bool );
 
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         amrex::Real m_ice_agg_eff; /*!< Ice-ice aggregation (collection) efficiency */
