@@ -556,6 +556,90 @@ void run_limited_correction (const Real carrier)
     run_limited_correction_with(options);
 }
 
+// U = density * 0.01 (n + 1) * v[i]: columns uniform in y and z.
+void fill_columns (MultiFab& u, const amrex::GpuArray<Real, nx>& v, const Real density)
+{
+    for (amrex::MFIter mfi(u); mfi.isValid(); ++mfi) {
+        const auto a = u.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), u.nComp(),
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                a(i, j, k, n) = density * Real(0.01) * Real(n + 1) * v[i];
+            });
+    }
+}
+
+// Where the limiter binds, the accepted rates fall back to the low-order
+// exchange of the trial base. On x columns the anchor holds an empty cell h
+// between neighbours p and q in a field of ones, and the stage input, at twice
+// the density, a spike B in h with the same neighbours. With D the low-order
+// exchange weight (anchor density) and Dh = 2 D the high-order one (input
+// density), the limiter drains h exactly with r = D (p + q) / (Dh (2B - p - q)
+// + D (p + q)), and the neighbours receive closed-form amounts that change if
+// the exchange were left out or taken at the input density.
+void run_limited_cells_keep_low_order_exchange ()
+{
+    Options options;
+    options.policy = ParticleMixingPolicy::ConstantReference;
+    options.kh = Real(0.01);
+    options.kv = Real(0.01);
+    auto run = make_run(options);
+    constexpr int h = 3;
+    const Real p = Real(1.0);
+    const Real q = Real(0.25);
+    const Real B = Real(50.0);
+    const Real rho_input = Real(2.0);
+    const Real dt = Real(0.08);
+    amrex::GpuArray<Real, nx> v;
+    for (int i = 0; i < nx; ++i) { v[i] = Real(1.0); }
+    v[h - 1] = q;
+    v[h] = Real(0.0);
+    v[h + 1] = p;
+    fill_columns(run->state->new_state_for_initialization(0), v, Real(1.0));
+    const Real scale = run->spectrum().max(0);
+
+    // D = tau t_x from the oracle: a unit column at h gives t_x to each neighbour.
+    amrex::GpuArray<Real, nx> unit;
+    for (int i = 0; i < nx; ++i) { unit[i] = i == h ? Real(1.0) : Real(0.0); }
+    MultiFab delta(run->ba, run->dm, run->spectrum().nComp(), 0);
+    fill_columns(delta, unit, Real(1.0));
+    MultiFab tendency(run->ba, run->dm, delta.nComp(), 0);
+    two_point_tendency(*run, delta, tendency);
+    const Real D = (dt / Real(2.0)) * tendency.max(0) / Real(0.01);
+    const Real Dh = rho_input * D;
+    const Real r = D * (p + q) / (Dh * (Real(2.0) * B - p - q) + D * (p + q));
+    const Real right = p - D * p + r * (Dh * (B - p) + D * p);
+    const Real left = q - D * q + r * (Dh * (B - q) + D * q) + Dh * (Real(1.0) - q);
+    const Real far = Real(1.0) - Dh * (Real(1.0) - q);
+    // The answers of a limiter falling back to advection alone (r = 0) or to
+    // an exchange at the input density must be clearly different.
+    const Real r_input = (p + q) / (Real(2.0) * B);
+    const Real right_input = p - Dh * p + r_input * (Dh * (B - p) + Dh * p);
+    ASSERT_GT(std::abs(right - p), Real(1.0e-3));
+    ASSERT_GT(std::abs(right - right_input), Real(1.0e-3));
+
+    begin_step(*run, 0.0);
+    stage(*run, HostIntegrator::CompressibleRK3, 0, 0.0, 0.0, dt / 3.0, dt / 3.0);
+    MultiFab input_density(run->ba, run->dm, run->rho.nComp(), run->rho.nGrow());
+    MultiFab::Copy(input_density, run->rho, 0, 0, run->rho.nComp(), run->rho.nGrow());
+    input_density.setVal(rho_input, Rho_comp, 1, input_density.nGrow());
+    amrex::GpuArray<Real, nx> spike = v;
+    spike[h] = B;
+    fill_columns(run->state->new_target_storage(0), spike, rho_input);
+    run->transport->advance_stage_from_host(
+        0, HostIntegrator::CompressibleRK3, 1, 0.0, dt / 3.0, dt / 2.0, dt / 2.0, *run->state,
+        run->rho, input_density, run->target, run->xmom, run->ymom, run->zmom, run->geom, 1, 2,
+        nullptr, run->mixing());
+
+    amrex::GpuArray<Real, nx> accepted = v;
+    accepted[h - 2] = far;
+    accepted[h - 1] = left;
+    accepted[h] = Real(0.0);
+    accepted[h + 1] = right;
+    MultiFab expected(run->ba, run->dm, delta.nComp(), 0);
+    fill_columns(expected, accepted, Real(1.0));
+    EXPECT_LE(difference(run->spectrum(), expected), Real(1.0e-10) * scale);
+}
+
 // Forked death tests hang under MPI, so amrex::Abort throws for the check.
 template <typename Action>
 void expect_amrex_abort (Action&& action, const std::string& expected)
@@ -716,6 +800,10 @@ TEST(SBMMixingTransport, DrainedCellStaysAdmissibleWithoutMixing)
     run_limited_correction_with(options);
 }
 TEST(SBMMixingTransport, CombinedBoundRejectsSeparatelyAdmissibleTerms) { run_combined_bound(); }
+TEST(SBMMixingTransport, LimitedCellsKeepTheTrialBaseExchange)
+{
+    run_limited_cells_keep_low_order_exchange();
+}
 TEST(SBMMixingTransport, ZeroCoefficientIsBitwiseAdvection) { run_zero_coefficient(); }
 TEST(SBMMixingTransport, ConstantRatioSurvivesVaryingDensityAndCoefficients)
 {
