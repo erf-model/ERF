@@ -157,7 +157,7 @@ struct ThermoFixture {
                 });
             }
             update(0, sc.compressibility_type[0] != CompressibilityType::FullyCompressible ? &base : nullptr);
-            model.FinishInit(0, cons, z);
+            model.FinishInit(0, cons, z, 0, Real(0));
         }
     }
 
@@ -519,7 +519,7 @@ TEST(SDMAnelasticThermodynamics, RestartFinishInitPreservesCheckpointedCondensat
     MultiFab::Copy(expected, f.cons, 0, 0, f.cons.nComp(), 0);
     f.model.restored_particles();
     f.update(0, &f.base);
-    f.model.FinishInit(0, f.cons, f.z);
+    f.model.FinishInit(0, f.cons, f.z, 0, Real(0));
     MultiFab::Subtract(expected, f.cons, 0, 0, f.cons.nComp(), 0);
     EXPECT_EQ(expected.norm0(0, f.cons.nComp(), IntVect(0)), Real(0));
 }

@@ -70,10 +70,12 @@ public:
     /*! \brief finish initializations steps that require flow variables */
     void FinishInit (const int& lev, /*!< AMR level */
                      amrex::MultiFab& cons_in, /*!< Conserved state variable */
-                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd /*!< terrain */) override
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd, /*!< terrain */
+                     const int& step, /*!< step of the initial state */
+                     const amrex::Real& time /*!< time of the initial state */) override
     {
         m_moist_model->SetCurrentLevel(lev);
-        m_moist_model->FinishInit( lev, cons_in, z_phys_nd );
+        m_moist_model->FinishInit( lev, cons_in, z_phys_nd, step, time );
     }
 
     /*! \brief Advance the moisture model for one time step */

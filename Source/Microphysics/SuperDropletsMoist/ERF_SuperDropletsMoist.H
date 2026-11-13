@@ -180,7 +180,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief finish initializations */
         virtual void FinishInit (const int&,
                                  amrex::MultiFab&,
-                                 const amrex::Vector<MFPtr>&) override;
+                                 const amrex::Vector<MFPtr>&,
+                                 const int&,
+                                 const amrex::Real&) override;
 
         void Advance ( const amrex::Real&, const SolverChoice& ) override
         {

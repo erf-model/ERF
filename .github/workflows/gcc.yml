@@ -96,6 +96,7 @@ jobs:
         restore-keys: |
              ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-${{ matrix.particles }}-git-
 
+    # The SINGLE leg also builds the SDM ML-uphys diagnostics; it runs no gold-file tests.
     - name: Configure Project and Generate Build System
       run: |
         cmake \
@@ -112,6 +113,7 @@ jobs:
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
           -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
+          -DERF_ENABLE_ML_UPHYS_DIAGNOSTICS:BOOL=${{ matrix.mesh_precision == 'SINGLE' && 'ON' || 'OFF' }} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \

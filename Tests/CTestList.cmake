@@ -1996,6 +1996,22 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
             WORKING_DIRECTORY "${_anelastic_dir}" TIMEOUT 600
             PROCESSORS ${_species_ranks} LABELS "regression;anelastic;particles")
     endforeach()
+    # Motivation: Diagnostics files must carry the step and time of the state they
+    # hold, also at the start of a restarted run.
+    set(_diag_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/SDM_DiagnosticsRestart")
+    file(MAKE_DIRECTORY "${_diag_dir}")
+    add_test(NAME SDM_DiagnosticsRestart
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/test_files/SDM_DiagnosticsRestart/check_diagnostics_restart.py"
+            "--exe=$<TARGET_FILE:erf_exec>"
+            "--input=${_species_input}/SDM_SpeciesDiffusion.i"
+            "--mpi-exec=${_species_mpi_exec}"
+            "--mpi-numproc-flag=${MPIEXEC_NUMPROC_FLAG}"
+            "--mpi-preflags=${_species_mpi_preflags}" "--ranks=${_species_ranks}")
+    set_tests_properties(SDM_DiagnosticsRestart PROPERTIES
+        WORKING_DIRECTORY "${_diag_dir}" TIMEOUT 600
+        PROCESSORS ${_species_ranks} LABELS "regression;restart;particles"
+        ATTACHED_FILES_ON_FAIL "${_diag_dir}/straight/simulation.log;${_diag_dir}/restart/simulation.log")
     set(_anelastic_options "erf.input_sounding_file=${_species_input}/input_sounding erf.c_p=1200 erf.Cs=2 super_droplets_moisture.include_phase_change=true super_droplets_moisture.num_substeps_phase_change=2 super_droplets_moisture.initial_phase_change_relaxation=true super_droplets_moisture.initial_phase_change_relaxation_time=0.02")
     # Motivation: Restart reconstruction must preserve the active phase-change
     # trajectory with base pressure and a nondefault heat capacity.

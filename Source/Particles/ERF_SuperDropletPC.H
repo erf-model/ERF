@@ -329,7 +329,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Return the number of deactivated super-droplets */
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
-        /*! \brief Compute and print diagnostics */
+        /*! \brief Compute and print diagnostics of the state at a step and time (step, level, time, write files, node heights) */
         virtual void Diagnostics (int, int, double, bool, const amrex::MultiFab& a_z_phys_nd);
         /*! \brief Compute mass density distribution */
         virtual void ComputeDistributions (  int, int,
