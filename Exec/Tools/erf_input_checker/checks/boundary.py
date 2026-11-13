@@ -5,7 +5,8 @@ from ..checker import Checker, register
 FACE_TYPES = {"inflow", "outflow", "inflow_outflow", "open", "ho_outflow", "slipwall",
               "noslipwall", "symmetry", "surface_layer", "most"}
 FACES = ("xlo", "xhi", "ylo", "yhi", "zlo", "zhi")
-COLUMN_PBL = {"mynn25", "mynnedmf", "myj", "ysu", "ysunew", "mrf", "native_shoc", "eamxx_shoc", "shoc"}
+# the schemes of pbl_requires_surface_layer (ERF_TurbStruct.H); MYJ is not one of them
+COLUMN_PBL = {"mynn25", "mynnedmf", "ysu", "ysunew", "mrf", "native_shoc", "eamxx_shoc", "shoc"}
 
 
 @register
@@ -98,6 +99,12 @@ class BoundaryChecker(Checker):
             if any(p in COLUMN_PBL for p in pbl):
                 self.error("erf.pbl_type", "the PBL scheme needs zlo.type = surface_layer; ERF stops")
             return
+        if (self.str_("erf.terrain_type", "None") or "None").lower() == "eb" \
+                and (self.str_("erf.eb_boundary_type", "NoSlipWall") or "") != "SurfaceLayer":
+            # ERF stops at start-up since #5072; before it, the run ended in a segmentation fault (#5068)
+            self.error("erf.eb_boundary_type", "zlo.type = surface_layer with erf.terrain_type = EB needs "
+                       "erf.eb_boundary_type = SurfaceLayer (default NoSlipWall); ERF stops without it",
+                       "Set erf.eb_boundary_type = SurfaceLayer (the value is case-sensitive).")
         flux = (self.str_("erf.surface_layer.flux_type", "moeng") or "moeng").lower()
         if flux == "bulk_coeff":
             for k in ("erf.most.Cd",):

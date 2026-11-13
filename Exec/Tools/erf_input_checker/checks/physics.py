@@ -261,8 +261,9 @@ class TerrainChecker(Checker):
             self.error("erf.grid_stretching_ratio", "must be 0 or >= 1")
         if gs and gs >= 1 and not d.has("erf.initial_dz"):
             self.error("erf.initial_dz", "needed with erf.grid_stretching_ratio")
-        if d.has("erf.initial_dz") and not (gs and gs >= 1):
-            self.warn("erf.initial_dz", "ignored without erf.grid_stretching_ratio")
+        if d.has("erf.initial_dz") and d.has("erf.grid_stretching_ratio") and not (gs and gs >= 1):
+            self.warn("erf.initial_dz", "ignored: erf.grid_stretching_ratio = 0 turns the stretching off",
+                      "Remove erf.grid_stretching_ratio to let ERF solve the ratio from erf.initial_dz.")
         if gs and gs > 1.2:
             self.advise("erf.grid_stretching_ratio", "stretching by %g per cell is steep; the vertical truncation error grows with (ratio - 1)" % gs,
                         "Ratios of 1.02-1.1 are usual.")

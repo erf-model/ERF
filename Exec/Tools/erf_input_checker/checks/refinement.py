@@ -41,6 +41,7 @@ class RefinementChecker(Checker):
                            "Give erf.%s.in_box_lo / in_box_hi, or field_name with value_greater / value_less / adjacent_difference_greater." % ind)
                 continue
             self._check_box(ind)
+            self._check_conditions(ind)
         regrid = self.int_("amr.regrid_int", -1)
         if regrid is not None and regrid > 0 and indicators and all(d.has("erf.%s.in_box_lo" % i) for i in indicators) \
                 and not any(d.has("erf.%s.move_speed_x" % i) or d.has("erf.%s.move_speed_y" % i) for i in indicators):
@@ -54,6 +55,30 @@ class RefinementChecker(Checker):
             self.error("erf.cf_set_width", "must be 0; ERF stops")
         if c.is_anelastic and coupling == "twoway" and c.max_level > 0:
             self.info("erf.coupling_type", "anelastic levels are one-way coupled whatever erf.coupling_type says")
+
+    _TESTS = ("value_greater", "value_less", "adjacent_difference_greater")
+
+    def _check_conditions(self, ind: str) -> None:
+        """Several conditions per indicator (ERF_Tagging.cpp): each needs a field and a test."""
+        d = self.deck
+        pre = "erf.%s." % ind
+        names = d.get_strs(pre + "conditions")
+        combine = d.get_str(pre + "combine")
+        if combine is not None and combine not in ("and", "or"):
+            self.error(pre + "combine", "must be 'and' or 'or'; ERF stops")
+        if not names:
+            return
+        if d.has(pre + "field_name") or any(d.has(pre + t) for t in self._TESTS):
+            self.error(pre + "conditions", "the indicator gives conditions, so its own field_name and tests must "
+                       "not be set; ERF stops", "Move the field and test under erf.%s.<condition>." % ind)
+        for name in names:
+            cpre = "%s%s." % (pre, name)
+            has_test = any(d.has(cpre + t) for t in self._TESTS)
+            if not d.has(cpre + "field_name"):
+                self.error(cpre + "field_name", "condition %r of indicator %r names no field; ERF stops" % (name, ind))
+            elif not has_test:
+                self.error(cpre + "field_name", "condition %r gives a field but none of value_greater, value_less, "
+                           "adjacent_difference_greater; ERF stops" % name)
 
     def _check_box(self, ind: str) -> None:
         c = self.ctx

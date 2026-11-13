@@ -22,6 +22,56 @@ See :ref:`sec:Inputs` for details on run-time options that can be specified. If 
 errors like ``SIGILL Invalid, privileged, or ill-formed instruction``, see the note on that page about
 runtime error-checking options.
 
+Creating an inputs file for a new case
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``Exec/Tools/erfcreateinput.py`` writes a complete, commented inputs file from a few
+choices. The chosen option of each group (equation set, turbulence closure, lower
+boundary, forcing, outputs) is active with its sub-keys; the other options of the group
+are commented lines beside it, so a choice is changed by moving one ``#``. Values the
+tool cannot know are marked ``USER:``.
+
+::
+
+    python3 Exec/Tools/erfcreateinput.py --list
+    python3 Exec/Tools/erfcreateinput.py --preset abl_convective_les --outdir my_cbl
+    python3 Exec/Tools/erfcreateinput.py --setup abl --turbulence deardorff --surface most \
+        --roughness file --coriolis --forcing geostrophic --output plt,chk,profiles --outdir my_abl
+
+A case is described by a preset (``--preset``, listed by ``--list``), by single options, or by a
+case file (``--case-file``); options on the command line replace the values of the other two.
+Each case directory also holds ``case.json``, the options that reproduce it.
+
+Files the deck names are written as dummies where a text layout exists: the input sounding,
+the roughness table, the surface time table, the geostrophic wind table, the terrain and
+building tables, the forest patch file and the wind-farm tables. Each dummy is valid in
+format and sized to the grid, so the run starts, with placeholder values. Files that cannot
+be generated (``wrfinput`` and ``wrfbdy``, ``met_em``, the RRTMGP coefficients, the Noah-MP
+namelist and table) are listed as files to supply. The script prints, and saves in
+``FILES_TO_REPLACE.txt``, the layout of each file and what must replace it.
+
+A combination that ERF refuses at start-up is refused by the script, with a message that
+names the options (for example a PBL scheme without ``--surface most``, or
+``--forcing geostrophic`` without ``--coriolis``). The options cover idealised cases
+(``--setup abl``, ``hill``, ``bubble``, ``density_current``) and real-data cases
+(``wrfinput``, ``metgrid``); terrain from an analytic hill or a table on a fitted mesh, by
+immersed forcing or as an embedded boundary; buildings; vertical stretching; the turbulence
+closures; moisture, radiation and land-surface models; forest canopy; wind farms; mesh
+refinement; and the output and sampling keys.
+``Exec/Tools/erf_input_creator/README.md`` lists every option, the layout of each dummy
+file, what was run in ERF, and how to add an option.
+
+The script complements the checker described next: it writes a new case, and
+``check_erf_inputs.py`` then checks that case and its files, also after the dummy files have
+been replaced with real data. On a generated case the checker also reports each dummy file
+that still holds its placeholder values, each file to supply that is missing, and the values
+marked ``USER:``.
+
+With ``--amr``, ``--refine field`` tags cells by field tests instead of using static boxes:
+``--refine-on theta:less:299 w:greater:2`` writes one condition per test under
+``erf.<indicator>.conditions``, ``--refine-combine`` chooses ``and`` or ``or``, and
+``--refine-box`` restricts the tests to a region (see :ref:`MeshRefinement`).
+
 Checking an inputs file before running
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
