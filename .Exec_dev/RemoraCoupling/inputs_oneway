@@ -132,12 +132,6 @@ erf.pbl_mynn_C5 = 0.0
 #    Nakanishi-Niino value of 0.23.
 erf.pbl_mynn_Lt_alpha = 0.10
 
-# 3. A boundary-layer-depth taper, l_T -> l_T (1 - z/h)^n.  Without it the
-#    master length scale saturates and stays flat to the inversion, giving a
-#    flat-topped eddy viscosity; P07's falls steeply above ~150 m.  n = 1.35
-#    was calibrated against their Fig. 8a and is not independently derived.
-erf.pbl_mynn_Lt_taper_exp = 1.35
-
 erf.use_coriolis = true
 erf.coriolis_3d = false
 erf.abl_driver_type = "GeostrophicWind"
