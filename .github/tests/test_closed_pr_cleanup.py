@@ -43,7 +43,7 @@ def pr_record(**changes):
         "state": "closed",
         "merged": True,
         "base": {"repo": {"full_name": "erf-model/ERF"}},
-        "head": {"repo": {"id": 42}, "ref": "feature"},
+        "head": {"repo": {"id": 42}, "ref": "feature", "sha": "a" * 40},
         **changes,
     }
 
@@ -114,6 +114,32 @@ class CleanupTests(unittest.TestCase):
                 self.open_prs = [pr_record(number=number, state="open")]
                 self.perform()
                 self.assertEqual(self.writes, [])
+
+    def test_open_pr_skip_identifies_pr_and_current_or_different_commit(self):
+        for sha, message in (
+            ("a" * 40, "matches its current commit"),
+            ("b" * 40, "is from a different commit"),
+        ):
+            with self.subTest(sha=sha):
+                self.prs[10] = pr_record(state="open")
+                self.prs[10]["head"]["sha"] = sha
+                self.perform(dry_run=True)
+                self.assertIn(
+                    "Skipping run 1: PR #10 is open; run " + message, self.output.getvalue()
+                )
+                self.assertEqual(self.writes, [])
+
+    def test_missing_commit_association_can_identify_open_pr_but_not_authorize_cancel(self):
+        self.listed = [run_record(pull_requests=[])]
+        self.current[1] = run_record(pull_requests=[])
+        self.open_prs = [pr_record(number=11, state="open")]
+        self.perform()
+        self.assertIn("PR #11 is open; run matches its current commit", self.output.getvalue())
+        self.assertEqual(self.writes, [])
+        self.open_prs = []
+        self.perform()
+        self.assertIn("no closed PR association", self.output.getvalue())
+        self.assertEqual(self.writes, [])
 
     def test_other_fork_same_branch_is_not_mistaken_for_source_pr(self):
         self.open_prs = [pr_record(state="open", head={"repo": {"id": 99}, "ref": "feature"})]

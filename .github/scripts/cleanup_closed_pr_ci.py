@@ -87,7 +87,18 @@ def same_source(pr, run):
     ) == run["head_branch"]
 
 
-def closed_prs_only(repo, run):
+def open_pr_reason(pr, run):
+    head_sha = (pr.get("head") or {}).get("sha")
+    if head_sha == run["head_sha"]:
+        commit = "run matches its current commit"
+    elif head_sha:
+        commit = "run is from a different commit"
+    else:
+        commit = "commit comparison unavailable"
+    return f"PR #{pr['number']} is open; {commit}"
+
+
+def pr_skip_reason(repo, run):
     base = f"repos/{repo}"
     associations = run.get("pull_requests") or []
     if not associations:
@@ -101,16 +112,23 @@ def closed_prs_only(repo, run):
             continue
         if not same_source(pr, run):
             continue
+        if pr.get("state") == "open":
+            return open_pr_reason(pr, run)
         if pr.get("state") != "closed":
-            return False
+            return f"PR #{number} is not confirmed closed"
         matched = True
-    if not matched:
-        return False
-    # A closed PR's branch may have been reused for a different open PR.
+    # Also identify open PRs when the commit association is missing. A branch
+    # match can explain a skip, but must never authorize cancellation.
     owner = run["head_repository"]["owner"]["login"]
     query = urlencode({"state": "open", "head": f"{owner}:{run['head_branch']}", "per_page": 100})
     pages = api("GET", f"{base}/pulls?{query}", paginate=True)
-    return not any(same_source(pr, run) for page in pages for pr in page)
+    for page in pages:
+        for pr in page:
+            if same_source(pr, run):
+                return open_pr_reason(pr, run)
+    if not matched:
+        return "no closed PR association matches this source repository and branch"
+    return None
 
 
 def cancel_if_closed(repo, original, cutoff, force=False, dry_run=False):
@@ -122,8 +140,9 @@ def cancel_if_closed(repo, original, cutoff, force=False, dry_run=False):
     ):
         print(f"Skipping run {original['id']}: finished, changed, or restarted")
         return False
-    if not closed_prs_only(repo, run):
-        print(f"Skipping run {run['id']}: closed source PR not confirmed")
+    reason = pr_skip_reason(repo, run)
+    if reason is not None:
+        print(f"Skipping run {run['id']}: {reason}")
         return False
     operation = "force-cancel" if force else "cancel"
     if dry_run:
