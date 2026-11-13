@@ -1,0 +1,65 @@
+# erf.input_sounding_theta_above_ground over the incline: a capping inversion
+# 300 m above the ground in the sounding and in the inflow profile must sit
+# 300 m above the local ground everywhere in the interior at the start, as on
+# the inflow face. Compressible, so the case runs in builds without FFT.
+# check_theta_above_ground.py reads the plotfile after a few steps;
+# check_theta_flag_off.py checks that the same deck with the flag off does not
+# pass (the interior then carries the inversion at physical heights).
+
+xlo.type                = "Inflow"
+xlo.inflow_profile      = "file"
+xlo.inflow_profile_file = "inflow_profile_inversion.txt"
+
+erf.terrain_file_name = "terrain_incline.txt"
+
+stop_time = 3600.0       # CTest overrides max_step
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_lo     =    0.    0.    0.
+geometry.prob_hi     = 1600.  800. 1200.
+amr.n_cell           =   32    16    48      # dx = dy = 50 m, dz = 25 m over flat ground
+amr.max_grid_size    = 32
+amr.max_grid_size_z  = 48     # whole columns: the vertical solves reject boxes stacked in z
+amr.blocking_factor  = 8
+geometry.is_periodic = 0 1 0
+
+xhi.type = "Outflow"
+
+erf.terrain_type      = StaticFittedMesh
+erf.terrain_smoothing = 0                  # basic terrain following
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding_inversion"
+erf.sounding_type       = "Ideal"
+erf.input_sounding_wind_above_ground  = true
+erf.input_sounding_theta_above_ground = true
+
+erf.fixed_dt = 0.5
+erf.v        = 1
+amr.v        = 0
+amr.max_level = 0
+
+erf.check_file  = chk
+erf.check_int   = -1
+erf.plot_file_1 = plt
+erf.plot_int_1  = 4
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta pressure z_phys
+
+erf.dycore_horiz_adv_type  = "Upwind_3rd"
+erf.dycore_vert_adv_type   = "Upwind_3rd"
+erf.dryscal_horiz_adv_type = "Upwind_3rd"
+erf.dryscal_vert_adv_type  = "Upwind_3rd"
+
+erf.use_gravity   = true
+erf.use_coriolis  = false
+erf.rayleigh_damp_W   = true
+erf.rayleigh_dampcoef = 0.2
+erf.rayleigh_zdamp    = 200.
+
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.theta_ref       = 300.0

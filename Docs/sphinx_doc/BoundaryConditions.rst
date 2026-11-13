@@ -150,6 +150,96 @@ faces use their own ``theta``.
     xlo.theta               =   300.
     xlo.scalar              =   2.
 
+.. _sec:inflow-profiles:
+
+Terrain-following inflow profiles
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+On a terrain-fitted mesh the ground along an inflow face need not be level.
+``<face>.inflow_profile`` imposes a vertical profile of the wind, and of theta
+and tke where given, as a function of the height above the local ground: every
+boundary cell takes the profile at its own height above the terrain beneath it.
+The inflow therefore follows the terrain along the face and the terrain stays on
+the boundary, as WindNinja's inlets do; ``dirichlet_file`` instead holds one
+value per grid level along the whole face. The option applies to ``inflow`` and
+``inflow_outflow`` faces; on an ``inflow_outflow`` face only the cells where the
+flow enters take the profile. Density is extrapolated from the interior and the
+vertical velocity keeps its boundary value.
+
+``<face>.inflow_profile = log_law`` tabulates the neutral log law
+
+.. math::
+
+   u(z) = \frac{u_*}{\kappa} \ln\frac{z + z_0}{z_0}, \qquad
+   u_* = \frac{\kappa\, U}{\ln\left((z_{ref} + z_0)/z_0\right)},
+
+with :math:`z` the height above the ground, and prescribes tke
+:math:`= u_*^2/C_{\mu 0}^2` at the ground (the value ``erf.dirichlet_k`` holds in
+the first cell), tapering linearly to zero at ``tke_zscale`` :math:`u_*` with the
+floor used by ``erf.init_tke_from_ustar``. All inflow faces with ``log_law``
+share these parameters:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Parameter
+     - Description
+     - Default
+   * - ``inflow_log_law.speed``
+     - wind speed :math:`U` at ``height`` [m/s]
+     - required
+   * - ``inflow_log_law.height``
+     - reference height :math:`z_{ref}` above the ground [m]
+     - 10
+   * - ``inflow_log_law.direction``
+     - direction the wind blows from [degrees, meteorological]
+     - 270
+   * - ``inflow_log_law.z0``
+     - roughness length [m]
+     - ``erf.most.z0``, else 0.1
+   * - ``inflow_log_law.max_speed``
+     - cap on the speed [m/s]; zero or negative means none
+     - none
+   * - ``inflow_log_law.tke_zscale``
+     - depth of the tke taper in units of :math:`u_*` [s]
+     - 700
+
+``<face>.inflow_profile = file`` reads ``<face>.inflow_profile_file``, a table
+in the layout of kynema-sgf's ``TabulatedProfile``: one row per height above the
+ground, heights strictly increasing. A comment line whose first word is ``z``
+names the columns (``z u v w T tke`` in any order; ``theta`` and ``k`` are
+accepted for ``T`` and ``tke``); other comment lines are ignored. Without such a
+header, four columns are ``z u v T`` and five are ``z u v T tke``. A ``w``
+column is read and not used. Theta and tke are prescribed only when their
+columns are present; otherwise they are extrapolated from the interior.
+
+::
+
+    xlo.type                 = "Inflow"
+    xlo.inflow_profile       = "log_law"
+    inflow_log_law.speed     = 20.0     # m/s at 10 m above the ground
+    inflow_log_law.direction = 285.0    # the wind blows from 285 degrees
+    inflow_log_law.max_speed = 35.0
+
+    yhi.type                 = "Inflow"
+    yhi.inflow_profile       = "file"
+    yhi.inflow_profile_file  = "profile.txt"
+
+To start the interior consistently, ``erf.input_sounding_wind_above_ground = true``
+interpolates the input sounding's winds at the height above the local ground, and
+``erf.input_sounding_theta_above_ground = true`` does the same for theta, which a
+profile file with a ``T`` column also applies above the ground: a capping inversion
+then follows the terrain in the interior as it does on the inflow faces. The
+pressure keeps the sounding's value at the physical height, the density follows
+from it, and each column is rebalanced hydrostatically with the shifted theta.
+Both flags default to false. On a terrain-fitted mesh started from an input
+sounding, ERF prints a warning at start-up when an inflow profile is set and the
+wind flag is off, or when the profile has a ``T`` column and the theta flag is off.
+``Exec/CanonicalTests/Canonical_RANS/Terrain_Inflow_Profile`` exercises the
+option over a raised plateau, an inclined and a declining slope, and a ridge
+across the inflow face, and the theta flag with a capping inversion over the
+incline.
+
 Scalar values at solid walls
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

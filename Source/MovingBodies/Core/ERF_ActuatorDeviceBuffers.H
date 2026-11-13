@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <AMReX_GpuContainers.H>
+#include <AMReX_INT.H>
 #include <AMReX_REAL.H>
 
 namespace erf_actuator {
@@ -73,7 +74,7 @@ struct ActuatorDeviceBuffers
     StagedBuffer<amrex::Real> sample_vel;    //!< 3 per point (m/s)
     StagedBuffer<int> sample_cnt;            //!< 1 per point: how many of this rank's boxes hold it
 
-    long kernel_launches{0};                 //!< kernels launched through these buffers so far (for the tests)
+    amrex::Long kernel_launches{0};          //!< kernels launched through these buffers so far (for the tests)
     /** A switch for the unit tests only; a model leaves it false. When true, add_scaled_kernels() runs the
      * face-by-face pass on the host too, which is the only pass a device has, so a CPU build can compare the
      * two. Both give the same sources bit for bit; the face-by-face pass is the slower one on a host. */
