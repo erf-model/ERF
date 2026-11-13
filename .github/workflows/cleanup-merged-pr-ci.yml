@@ -29,4 +29,4 @@ jobs:
       - name: Cancel obsolete PR CI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 .github/scripts/cleanup_closed_pr_ci.py --apply
+        run: python3 .github/scripts/cleanup_closed_pr_ci.py

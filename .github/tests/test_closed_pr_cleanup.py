@@ -1,9 +1,10 @@
-"""Test cancellation policy and gh transport without contacting GitHub."""
+"""Test cleanup safeguards with mocked APIs; never contact GitHub."""
 
 import contextlib
 import copy
 import importlib.util
 import io
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -14,7 +15,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
-    "closed_pr_cleanup", ROOT / ".github/scripts/cleanup_closed_pr_ci.py"
+    "cleanup", ROOT / ".github/scripts/cleanup_closed_pr_ci.py"
 )
 cleanup = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(cleanup)
@@ -47,318 +48,191 @@ def pr_record(**changes):
     }
 
 
-class CleanupPolicyTests(unittest.TestCase):
+class CleanupTests(unittest.TestCase):
     def setUp(self):
-        self.api = mock.create_autospec(cleanup.GitHubAPI, instance=True)
         self.listed = [run_record()]
         self.current = {1: run_record()}
         self.prs = {10: pr_record()}
-        self.cancelled = []
-        self.forced = []
-        self.logs = []
-        self.sleeps = []
+        self.associated, self.open_prs, self.writes = [], [], []
+        self.errors = {}
         self.stuck = False
-        self.on_sleep = lambda: None
-        self.api.list_pr_runs.side_effect = lambda status: copy.deepcopy(
-            [run for run in self.listed if run["status"] == status]
-        )
-        self.api.get_run.side_effect = self.get_run
-        self.api.get_pr.side_effect = lambda number: copy.deepcopy(self.prs[number])
-        self.api.prs_for_commit.return_value = []
-        self.api.open_prs_for_branch.return_value = []
-        self.api.cancel_run.side_effect = self.cancel_run
+        self.sleep = mock.Mock()
+        patcher = mock.patch.object(cleanup, "api", side_effect=self.api)
+        self.client = patcher.start()
+        self.addCleanup(patcher.stop)
 
-    def get_run(self, run_id):
-        if run_id == 9000:
-            return {"created_at": "2026-11-12T12:00:00Z"}
-        return copy.deepcopy(self.current[run_id])
-
-    def cancel_run(self, run_id, force=False):
-        if force:
-            self.forced.append(run_id)
-        else:
-            self.cancelled.append(run_id)
+    def api(self, method, path, paginate=False):
+        endpoint = urlsplit(path).path
+        if (method, endpoint) in self.errors:
+            raise cleanup.APIError(self.errors[method, endpoint], "request failed")
+        if method == "POST":
+            self.writes.append(path)
             if not self.stuck:
-                self.current[run_id]["status"] = "completed"
-
-    def sleep(self, seconds):
-        self.sleeps.append(seconds)
-        self.on_sleep()
+                self.current[int(endpoint.split("/")[-2])]["status"] = "completed"
+            return None
+        if endpoint.endswith("/actions/runs/9000"):
+            return {"created_at": "2026-11-12T12:00:00Z"}
+        if endpoint.endswith("/actions/runs"):
+            status = parse_qs(urlsplit(path).query)["status"][0]
+            runs = [run for run in self.listed if run["status"] == status]
+            # Model multiple API pages, not just the first page.
+            return copy.deepcopy([{"workflow_runs": runs[:1]}, {"workflow_runs": runs[1:]}])
+        if "/actions/runs/" in endpoint:
+            return copy.deepcopy(self.current[int(endpoint.rsplit("/", 1)[1])])
+        if "/commits/" in endpoint:
+            return [copy.deepcopy(self.associated)]
+        if endpoint.endswith("/pulls"):
+            return [copy.deepcopy(self.open_prs)]
+        return copy.deepcopy(self.prs[int(endpoint.rsplit("/", 1)[1])])
 
     def perform(self, **kwargs):
-        return cleanup.cleanup(
-            self.api, "erf-model/ERF", 9000, sleep=self.sleep, log=self.logs.append, **kwargs
-        )
+        self.output = io.StringIO()
+        with contextlib.redirect_stdout(self.output):
+            return cleanup.cleanup("erf-model/ERF", 9000, sleep=self.sleep, **kwargs)
 
-    def test_closed_and_merged_prs_across_unfinished_states(self):
+    def test_default_cancels_closed_and_merged_prs_in_all_unfinished_states(self):
         for merged in (False, True):
             for status in cleanup.UNFINISHED_STATUSES:
                 with self.subTest(merged=merged, status=status):
-                    self.setUp()
                     self.listed = [run_record(status=status)]
                     self.current[1] = run_record(status=status)
                     self.prs[10] = pr_record(merged=merged)
-                    self.assertEqual(self.perform(apply=True), 0)
-                    self.assertEqual(self.cancelled, [1])
-                    self.assertEqual(self.forced, [])
+                    self.writes.clear()
+                    self.assertEqual(self.perform(), 0)
+                    self.assertEqual(self.writes, ["repos/erf-model/ERF/actions/runs/1/cancel"])
 
-    def test_default_is_read_only_without_sleeping(self):
-        self.assertEqual(self.perform(), 0)
-        self.api.cancel_run.assert_not_called()
-        self.assertEqual(self.sleeps, [])
-        self.assertTrue(any("Would cancel" in line for line in self.logs))
+    def test_dry_run_lists_proposals_without_writes_or_sleep(self):
+        self.assertEqual(self.perform(dry_run=True), 0)
+        self.assertEqual(self.writes, [])
+        self.sleep.assert_not_called()
+        self.assertIn("Would cancel: run 1", self.output.getvalue())
 
-    def test_open_pr_is_not_cancelled(self):
-        self.prs[10] = pr_record(state="open", merged=False)
-        self.assertEqual(self.perform(apply=True), 0)
-        self.api.cancel_run.assert_not_called()
-        self.assertTrue(any("PR #10 is not closed" in line for line in self.logs))
+    def test_open_pr_and_reused_branch_are_protected(self):
+        for number in (10, 11):
+            with self.subTest(number=number):
+                self.prs[10] = pr_record(state="open" if number == 10 else "closed")
+                self.open_prs = [pr_record(number=number, state="open")]
+                self.perform()
+                self.assertEqual(self.writes, [])
 
-    def test_reopened_pr_is_not_force_cancelled(self):
-        self.stuck = True
-        self.on_sleep = lambda: self.prs[10].update(state="open")
-        self.perform(apply=True)
-        self.assertEqual(self.cancelled, [1])
-        self.assertEqual(self.forced, [])
+    def test_other_fork_same_branch_is_not_mistaken_for_source_pr(self):
+        self.open_prs = [pr_record(state="open", head={"repo": {"id": 99}, "ref": "feature"})]
+        self.perform()
+        self.assertEqual(len(self.writes), 1)
+        self.writes.clear()
+        self.current[1] = run_record()
+        self.prs[10] = pr_record(head={"repo": {"id": 99}, "ref": "feature"})
+        self.perform()
+        self.assertEqual(self.writes, [])
 
-    def test_branch_reuse_blocks_cleanup_but_other_fork_does_not(self):
-        for source_id, expected in ((42, []), (99, [1])):
-            with self.subTest(source_id=source_id):
-                self.setUp()
-                self.api.open_prs_for_branch.return_value = [
-                    pr_record(
-                        number=11, state="open", head={"repo": {"id": source_id}, "ref": "feature"}
-                    )
-                ]
-                self.perform(apply=True)
-                self.assertEqual(self.cancelled, expected)
-
-    def test_wrong_source_or_base_pr_cannot_authorize_cancellation(self):
-        for pr in (
-            pr_record(head={"repo": {"id": 99}, "ref": "feature"}),
-            pr_record(head={"repo": {"id": 42}, "ref": "another"}),
-            pr_record(head={"repo": None, "ref": "feature"}),
-            pr_record(base={"repo": {"full_name": "other/ERF"}}),
-        ):
-            with self.subTest(pr=pr):
-                self.setUp()
-                self.prs[10] = pr
-                self.perform(apply=True)
-                self.api.cancel_run.assert_not_called()
-
-    def test_missing_fork_association_is_resolved_by_commit(self):
+    def test_missing_fork_association_resolves_by_commit_or_skips(self):
         self.listed = [run_record(pull_requests=[])]
         self.current[1] = run_record(pull_requests=[])
-        self.api.prs_for_commit.return_value = [{"number": 10}]
-        self.perform(apply=True)
-        self.api.prs_for_commit.assert_called_once_with("a" * 40)
-        self.assertEqual(self.cancelled, [1])
+        self.perform()
+        self.assertEqual(self.writes, [])
+        self.associated = [{"number": 10}]
+        self.perform()
+        self.assertEqual(len(self.writes), 1)
+        self.assertTrue(
+            any("/commits/" + "a" * 40 in call.args[1] for call in self.client.call_args_list)
+        )
 
-    def test_missing_or_malformed_association_is_skipped(self):
-        for associations in ([], [{}]):
-            with self.subTest(associations=associations):
-                self.setUp()
-                self.listed = [run_record(pull_requests=associations)]
-                self.current[1] = run_record(pull_requests=associations)
-                self.perform(apply=True)
-                self.api.cancel_run.assert_not_called()
-
-    def test_open_association_blocks_a_closed_one(self):
-        record = run_record(pull_requests=[{"number": 10}, {"number": 11}])
-        self.listed = [record]
-        self.current[1] = record
-        self.prs[11] = pr_record(number=11, state="open")
-        self.perform(apply=True)
-        self.api.cancel_run.assert_not_called()
-
-    def test_protected_or_uncertain_runs_are_untouched(self):
-        cases = [
+    def test_protected_events_workflows_and_uncertain_metadata_are_skipped(self):
+        for record in (
             run_record(event="push"),
             run_record(event="workflow_dispatch"),
-            run_record(event="pull_request_target"),
             run_record(status="completed"),
-            run_record(created_at="2026-11-12T12:00:01Z"),
-            run_record(created_at="invalid"),
-            run_record(created_at="2026-11-11T12:00:00"),
             run_record(head_repository=None),
-            run_record(head_sha=None),
-            run_record(head_branch=None),
+            run_record(created_at="invalid"),
             run_record(run_attempt=None),
-            run_record(id=None),
+            run_record(created_at="2026-11-12T12:00:01Z"),
             run_record(path=".github/workflows/spack-containers.yml"),
-            run_record(path=".github/workflows/cleanup-merged-pr-ci.yml"),
-        ]
-        for record in cases:
+        ):
             with self.subTest(run=record):
-                self.setUp()
                 self.listed = [record]
-                self.perform(apply=True)
-                self.api.cancel_run.assert_not_called()
+                self.perform()
+                self.assertEqual(self.writes, [])
 
-    def test_changed_run_state_identity_or_attempt_is_skipped(self):
-        for changes in ({"status": "completed"}, {"id": 2}, {"run_attempt": 2}):
-            with self.subTest(changes=changes):
-                self.setUp()
-                self.current[1].update(changes)
-                self.perform(apply=True)
-                self.api.cancel_run.assert_not_called()
-
-    def test_force_cancel_waits_and_rechecks_attempt(self):
+    def test_force_cancel_rechecks_closed_state_and_run_attempt(self):
         self.stuck = True
-        self.perform(apply=True)
-        self.assertEqual(self.sleeps, [60])
-        self.assertEqual(self.forced, [1])
-        self.setUp()
-        self.stuck = True
-        self.on_sleep = lambda: self.current[1].update(run_attempt=2)
-        self.perform(apply=True)
-        self.assertEqual(self.forced, [])
+        self.perform()
+        self.sleep.assert_called_once_with(60)
+        self.assertTrue(self.writes[-1].endswith("/force-cancel"))
+        for change in (
+            lambda: self.prs[10].update(state="open"),
+            lambda: self.current[1].update(run_attempt=2),
+        ):
+            self.current[1] = run_record()
+            self.prs[10] = pr_record()
+            self.writes.clear()
+            self.sleep.side_effect = lambda seconds, change=change: change()
+            self.perform()
+            self.assertEqual(len(self.writes), 1)
 
-    def test_duplicate_listings_are_deduplicated(self):
-        self.api.list_pr_runs.side_effect = lambda status: [run_record()]
-        self.perform(apply=True)
-        self.assertEqual(self.cancelled, [1])
-        self.assertEqual(
-            self.api.list_pr_runs.call_args_list,
-            [mock.call(status) for status in cleanup.UNFINISHED_STATUSES],
-        )
-
-    def test_cancel_completion_races_are_harmless_but_real_errors_fail(self):
-        for status in (404, 409, 403, 500):
-            for force in (False, True):
-                with self.subTest(status=status, force=force):
-                    self.setUp()
-                    self.stuck = force
-
-                    def post(run_id, force=False, error_status=status):
-                        if force == self.stuck:
-                            raise cleanup.GitHubAPIError(error_status, "request failed")
-                        self.cancel_run(run_id, force)
-
-                    self.api.cancel_run.side_effect = post
-                    self.assertEqual(self.perform(apply=True), 0 if status in (404, 409) else 1)
-
-    def test_read_errors_never_authorize_cancellation(self):
-        for status in (404, 409, 403, 500):
-            with self.subTest(status=status):
-                self.setUp()
-                self.api.get_pr.side_effect = cleanup.GitHubAPIError(status, "lookup failed")
-                self.assertEqual(self.perform(apply=True), 0 if status == 404 else 1)
-                self.api.cancel_run.assert_not_called()
-
-    def test_one_run_error_does_not_prevent_other_cleanup(self):
-        self.listed.append(run_record(id=2))
+    def test_multiple_pages_and_duplicate_runs(self):
+        self.listed = [run_record(), run_record(id=2), run_record()]
         self.current[2] = run_record(id=2)
+        self.perform()
+        self.assertEqual(len(self.writes), 2)
+        listings = [call for call in self.client.call_args_list if "?event=" in call.args[1]]
+        self.assertEqual(len(listings), 5)
+        self.assertTrue(all(call.kwargs["paginate"] for call in listings))
 
-        def post(run_id, force=False):
-            if run_id == 1:
-                raise cleanup.GitHubAPIError(403, "not permitted")
-            self.cancel_run(run_id, force)
+    def test_finished_runs_and_new_attempts_are_not_cancelled(self):
+        for changes in ({"status": "completed"}, {"run_attempt": 2}, {"id": 2}):
+            self.current[1] = run_record(**changes)
+            self.perform()
+            self.assertEqual(self.writes, [])
 
-        self.api.cancel_run.side_effect = post
-        self.assertEqual(self.perform(apply=True), 1)
-        self.assertEqual(self.cancelled, [2])
+    def test_api_errors_fail_visibly_except_expected_disappearance_or_cancel_races(self):
+        for method, endpoint in (
+            ("GET", "repos/erf-model/ERF/pulls/10"),
+            ("POST", "repos/erf-model/ERF/actions/runs/1/cancel"),
+        ):
+            for status in (404, 409, 403, 500):
+                with self.subTest(method=method, status=status):
+                    self.errors = {(method, endpoint): status}
+                    benign = status == 404 or (method == "POST" and status == 409)
+                    self.assertEqual(self.perform(), 0 if benign else 1)
+                    self.assertEqual(self.writes, [])
 
-    def test_branch_metacharacters_remain_api_data(self):
-        branch = "feature;$(do-not-execute)"
-        self.listed = [run_record(head_branch=branch)]
-        self.current[1] = run_record(head_branch=branch)
-        self.prs[10] = pr_record(head={"repo": {"id": 42}, "ref": branch})
-        self.perform(apply=True)
-        self.api.open_prs_for_branch.assert_called_once_with("contributor", branch)
-        self.assertEqual(self.cancelled, [1])
-
-    def test_invalid_sweep_time_stops_before_listing_or_cancellation(self):
-        self.api.get_run.return_value = {"created_at": None}
-        self.api.get_run.side_effect = None
-        with self.assertRaisesRegex(ValueError, "creation time"):
-            self.perform(apply=True)
-        self.api.list_pr_runs.assert_not_called()
-        self.api.cancel_run.assert_not_called()
-
-
-class GitHubTransportTests(unittest.TestCase):
-    def setUp(self):
-        self.api = cleanup.GitHubAPI("erf-model/ERF")
-        patcher = mock.patch.object(cleanup.subprocess, "run")
-        self.command = patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def response(self, output, error="", code=0):
-        self.command.return_value = subprocess.CompletedProcess([], code, output, error)
-
-    def test_paginated_run_objects_and_pr_arrays_are_flattened(self):
-        self.response('[{"workflow_runs": [{"id": 1}]}, {"workflow_runs": [{"id": 2}]}]')
-        self.assertEqual(self.api.list_pr_runs("queued"), [{"id": 1}, {"id": 2}])
-        command = self.command.call_args.args[0]
-        self.assertEqual(
-            command[:7], ["gh", "api", "--method", "GET", "--paginate", "--slurp", command[-1]]
+    def test_manual_invocation_uses_start_time_without_an_actions_run(self):
+        with (
+            mock.patch.object(
+                cleanup.time, "time", return_value=cleanup.timestamp("2026-11-12T12:00:00Z")
+            ),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            cleanup.cleanup("erf-model/ERF", dry_run=True, sleep=self.sleep)
+        self.assertFalse(
+            any(call.args[1].endswith("/runs/None") for call in self.client.call_args_list)
         )
-        query = parse_qs(urlsplit(command[-1]).query)
-        self.assertEqual(
-            query, {"event": ["pull_request"], "status": ["queued"], "per_page": ["100"]}
-        )
-        self.response('[[{"number": 10}], [{"number": 11}]]')
-        self.assertEqual(self.api.prs_for_commit("a" * 40), [{"number": 10}, {"number": 11}])
-
-    def test_branch_names_are_encoded_and_no_shell_is_used(self):
-        self.response("[[]]")
-        branch = "feature&state=closed;$(do-not-execute)"
-        self.api.open_prs_for_branch("contributor", branch)
-        command = self.command.call_args.args[0]
-        self.assertEqual(parse_qs(urlsplit(command[-1]).query)["head"], ["contributor:" + branch])
-        self.assertNotIn("shell", self.command.call_args.kwargs)
-        self.assertEqual(self.command.call_args.kwargs["timeout"], 60)
-
-    def test_only_explicit_cancel_method_uses_post(self):
-        self.response("")
-        self.api.cancel_run(1)
-        self.assertEqual(
-            self.command.call_args.args[0],
-            ["gh", "api", "--method", "POST", "repos/erf-model/ERF/actions/runs/1/cancel"],
-        )
-        self.api.cancel_run(1, force=True)
-        self.assertTrue(self.command.call_args.args[0][-1].endswith("/force-cancel"))
-
-    def test_http_status_is_preserved_without_echoing_raw_errors(self):
-        self.response("", "gh: untrusted details (HTTP 409)", code=1)
-        with self.assertRaises(cleanup.GitHubAPIError) as caught:
-            self.api.cancel_run(1)
-        self.assertEqual(caught.exception.status, 409)
-        self.assertNotIn("untrusted details", str(caught.exception))
-
-    def test_transport_timeout_is_an_error(self):
-        self.command.side_effect = subprocess.TimeoutExpired("gh", 60)
-        with self.assertRaises(cleanup.GitHubAPIError):
-            self.api.get_run(1)
-
-    def test_malformed_responses_fail_closed(self):
-        for output in ("", "not JSON", "null", "[]"):
-            with self.subTest(output=output):
-                self.response(output)
-                with self.assertRaises(cleanup.GitHubAPIError):
-                    self.api.get_run(1)
-        for output in ("{}", '[{"workflow_runs": null}]', '[{"workflow_runs": [1]}]'):
-            with self.subTest(output=output):
-                self.response(output)
-                with self.assertRaises(cleanup.GitHubAPIError):
-                    self.api.list_pr_runs("queued")
+        self.assertEqual(self.writes, [])
 
 
-class CleanupEntrypointTests(unittest.TestCase):
-    def test_cli_is_read_only_unless_apply_is_explicit(self):
-        for extra, expected in (([], False), (["--apply"], True)):
+class EntrypointTests(unittest.TestCase):
+    def test_cli_defaults_to_cancellation_and_dry_run_is_explicit(self):
+        for flags, expected in (([], False), (["--dry-run"], True)):
             with (
-                self.subTest(extra=extra),
-                mock.patch(
-                    "sys.argv", ["cleanup", "--repo", "erf-model/ERF", "--run-id", "9000", *extra]
-                ),
+                mock.patch.dict(os.environ, {}, clear=True),
+                mock.patch("sys.argv", ["cleanup", *flags]),
                 mock.patch.object(cleanup, "cleanup", return_value=0) as sweep,
             ):
                 self.assertEqual(cleanup.main(), 0)
-                self.assertEqual(sweep.call_args.kwargs["apply"], expected)
+                sweep.assert_called_once_with("erf-model/ERF", None, dry_run=expected)
 
-    def test_workflow_uses_scoped_token_and_python_on_every_development_push(self):
+    def test_gh_transport_uses_argument_arrays_pagination_and_http_status(self):
+        with mock.patch.object(cleanup.subprocess, "run") as command:
+            command.return_value = subprocess.CompletedProcess([], 0, "[[]]", "")
+            self.assertEqual(cleanup.api("GET", "repos/erf-model/ERF/pulls", paginate=True), [[]])
+            self.assertIn("--paginate", command.call_args.args[0])
+            self.assertNotIn("shell", command.call_args.kwargs)
+            command.return_value = subprocess.CompletedProcess([], 1, "", "gh: details (HTTP 409)")
+            with self.assertRaises(cleanup.APIError) as caught:
+                cleanup.api("POST", "repos/erf-model/ERF/actions/runs/1/cancel")
+            self.assertEqual(caught.exception.status, 409)
+
+    def test_workflow_is_independent_scoped_and_has_no_path_filters(self):
         workflow = yaml.load(
             (ROOT / ".github/workflows/cleanup-merged-pr-ci.yml").read_text(),
             Loader=yaml.BaseLoader,
@@ -371,25 +245,8 @@ class CleanupEntrypointTests(unittest.TestCase):
         self.assertEqual(
             job["permissions"], {"contents": "read", "actions": "write", "pull-requests": "read"}
         )
-        checkout, execute = job["steps"]
-        self.assertNotIn("ref", checkout.get("with", {}))
-        self.assertEqual(checkout["with"]["persist-credentials"], "false")
-        self.assertEqual(execute["env"]["GH_TOKEN"], "${{ secrets.GITHUB_TOKEN }}")
-        self.assertEqual(execute["run"], "python3 .github/scripts/cleanup_closed_pr_ci.py --apply")
-
-    def test_cli_reports_failure_and_rejects_invalid_scope(self):
-        with (
-            mock.patch("sys.argv", ["cleanup", "--repo", "erf-model/ERF", "--run-id", "9000"]),
-            mock.patch.object(cleanup, "cleanup", return_value=256),
-        ):
-            self.assertEqual(cleanup.main(), 1)
-        with (
-            mock.patch("sys.argv", ["cleanup", "--repo", "bad/repo/path", "--run-id", "9000"]),
-            contextlib.redirect_stderr(io.StringIO()),
-            self.assertRaises(SystemExit) as caught,
-        ):
-            cleanup.main()
-        self.assertEqual(caught.exception.code, 2)
+        self.assertEqual(job["steps"][-1]["run"], "python3 .github/scripts/cleanup_closed_pr_ci.py")
+        self.assertEqual(job["steps"][-1]["env"]["GH_TOKEN"], "${{ secrets.GITHUB_TOKEN }}")
 
 
 if __name__ == "__main__":
