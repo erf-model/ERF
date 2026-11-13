@@ -201,18 +201,51 @@ This may be controlled with the ``erf.beta_s`` parameter.
 
 Over steep terrain more off-centering may be needed.  With ``erf.use_variable_beta_s = true``,
 :math:`\beta_s` is instead defined on each :math:`w`-face from the slopes of the coordinate
-surface there,
+surface and the vertical acoustic Courant number there.  With
 
 .. math::
 
-   \beta_s = \max\left(\beta_{s,min}, \min\left(\beta_{s,max}, h_\xi^2 + h_\eta^2\right)\right),
+   \sigma^2 = \max\left(h_\xi^2 + h_\eta^2, \, 2 \times 10^{-6}\right), \qquad
+   b = \frac{\sigma^2}{2 + \sigma^2}, \qquad
+   Z = \frac{2 c_s \delta \tau}{\Delta z}, \qquad
+   Z_{crit} = \frac{2 \sqrt{1 + \sigma^2}}{\sigma^2 \, (1 + b) / 2},
 
-with :math:`\beta_{s,min}` and :math:`\beta_{s,max}` set by ``erf.beta_s_min`` (default 0.1)
-and ``erf.beta_s_max`` (default 0.8).  The vertical flux on a face is then weighted by
+where :math:`c_s = \sqrt{\gamma p / \rho}` is the sound speed (evaluated with the dry
+:math:`\gamma`, also with moisture) and :math:`\Delta z` the vertical grid spacing at the face,
+we take
+
+.. math::
+
+   \beta_s = b + w(s) \left[ \min\left(\sigma^2, 1\right) - b \right], \qquad
+   w(s) = s^2 (3 - 2 s), \qquad
+   s = \min\left(\max\left(\frac{Z - \alpha Z_{crit}}{(1 - \alpha) Z_{crit}}, \, 0\right), \, 1\right),
+
+with :math:`\alpha = 0.5`.
+
+The low-:math:`Z` value :math:`b` follows the low-dissipation branch of the maximum
+amplification factor, i.e. the stability limit of the weak, propagating instability at small
+:math:`Z`, and the high-:math:`Z` value :math:`\min(\sigma^2, 1)` the high-dissipation branch,
+which controls the strong, non-propagating instability at large :math:`Z`.  :math:`Z_{crit}` is
+where the low-dissipation branch ceases to apply; it is evaluated with :math:`\beta_2` taken from
+the low-:math:`Z` value :math:`b`.  Rather than switching between the two branches at
+:math:`Z_{crit}`, which would make :math:`\beta_s` jump by about a factor of two between faces,
+stages or substeps, the smoothstep weight :math:`w` blends them over
+:math:`Z \in [\alpha Z_{crit}, Z_{crit}]`: :math:`\beta_s = b` for :math:`Z \le \alpha Z_{crit}`
+and :math:`\beta_s = \min(\sigma^2, 1)` for :math:`Z \ge Z_{crit}`.
+
+Note that no upper cap is applied to :math:`\beta_s`: on faces with :math:`\sigma^2 \ge 1` and
+:math:`Z \ge Z_{crit}` (e.g. :math:`Z_{crit} \approx 4.2` for :math:`\sigma^2 = 1`), we get
+:math:`\beta_s = 1`, i.e. a fully implicit, first-order and strongly damping, vertical acoustic
+update on those faces.
+
+The vertical flux on a face is then weighted by
 :math:`\beta_1` and :math:`\beta_2` of that face, and the :math:`W^{\prime \prime}` equation on a
 face by :math:`\beta_2` of that face, so that the entries of the tridiagonal system for the face
 :math:`k` carry :math:`\beta_2` of face :math:`k` times :math:`\beta_2` of face :math:`k-1`,
-:math:`k` or :math:`k+1`.  Without terrain, :math:`\beta_s = \beta_{s,min}` everywhere.
+:math:`k` or :math:`k+1`.  Without terrain, :math:`\sigma^2` takes its floor value, so that
+:math:`Z_{crit} \approx 2 \times 10^6` and :math:`\beta_s \approx 10^{-6}`, i.e. essentially no
+off-centering, everywhere.  Over flat terrain, turning on ``erf.use_variable_beta_s`` therefore
+gives less acoustic damping than the default constant :math:`\beta_s = 0.1`.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.

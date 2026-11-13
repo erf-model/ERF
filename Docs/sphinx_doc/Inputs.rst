@@ -3673,12 +3673,9 @@ List of Parameters
 |                             | the new time                                             |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_variable_beta_s** | with implicit substepping, use a beta_s that varies      | Boolean            | false            |
-|                             | on the w-faces, max(beta_s_min, min(beta_s_max,          |                    |                  |
-|                             | h_xi^2 + h_eta^2)), in place of ``erf.beta_s``           |                    |                  |
-+-----------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.beta_s_min**          | lower bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.1              |
-+-----------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.beta_s_max**          | upper bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.8              |
+|                             | on the w-faces with the terrain slope and the vertical   |                    |                  |
+|                             | acoustic Courant number, in place of ``erf.beta_s``      |                    |                  |
+|                             | (see :ref:`TimeAdvance`)                                 |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.beta_d**              | divergence damping coefficient used in the acoustic      | Real in [0, 1]     | 0.1              |
 |                             | substepping; how far (rho theta) is projected forward    |                    |                  |
