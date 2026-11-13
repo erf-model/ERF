@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cancel obsolete ERF PR CI. Use --dry-run to preview without cancelling."""
+"""Cancel closed or superseded ERF PR CI. Use --dry-run to preview."""
 
 import argparse
 import json
@@ -131,47 +131,133 @@ def pr_skip_reason(repo, run):
     return None
 
 
-def cancel_if_closed(repo, original, cutoff, force=False, dry_run=False):
+def is_replacement(newer, run):
+    """A different fork, workflow, or known PR is not a replacement."""
+    old_prs = {pr["number"] for pr in run.get("pull_requests") or []}
+    new_prs = {pr["number"] for pr in newer.get("pull_requests") or []}
+    status = newer.get("status")
+    useful = status in UNFINISHED_STATUSES or (
+        status == "completed" and newer.get("conclusion") in {"success", "failure", "timed_out"}
+    )
+    return bool(
+        useful
+        and newer.get("event") == "pull_request"
+        and newer.get("workflow_id") == run["workflow_id"]
+        and newer.get("path") == run["path"]
+        and (newer.get("head_repository") or {}).get("id") == run["head_repository"]["id"]
+        and newer.get("head_branch") == run["head_branch"]
+        and newer.get("run_number", 0) > run["run_number"]
+        and newer.get("id") != run["id"]
+        and (not old_prs or not new_prs or bool(old_prs & new_prs))
+    )
+
+
+def newer_replacement(repo, run):
+    if not run.get("workflow_id") or not run.get("run_number"):
+        return None
+    # Include completed replacements, not just the unfinished sweep candidates.
+    query = urlencode(
+        {
+            "event": "pull_request",
+            "branch": run["head_branch"],
+            "created": f">={run['created_at']}",
+            "per_page": 100,
+        }
+    )
+    pages = api(
+        "GET", f"repos/{repo}/actions/workflows/{run['workflow_id']}/runs?{query}", paginate=True
+    )
+    replacements = [
+        newer for page in pages for newer in page["workflow_runs"] if is_replacement(newer, run)
+    ]
+    if not replacements:
+        return None
+    newest = max(replacements, key=lambda newer: newer["run_number"])
+    fresh = api("GET", f"repos/{repo}/actions/runs/{newest['id']}")
+    return fresh if fresh["id"] == newest["id"] and is_replacement(fresh, run) else None
+
+
+def unchanged_unfinished(run, original, cutoff):
+    return (
+        eligible(run, cutoff)
+        and run["id"] == original["id"]
+        and run["run_attempt"] == original["run_attempt"]
+    )
+
+
+def cancel_if_obsolete(repo, original, cutoff, force=False, dry_run=False):
     run = api("GET", f"repos/{repo}/actions/runs/{original['id']}")
-    if (
-        not eligible(run, cutoff)
-        or run["id"] != original["id"]
-        or run["run_attempt"] != original["run_attempt"]
-    ):
+    if not unchanged_unfinished(run, original, cutoff):
         print(f"Skipping run {original['id']}: finished, changed, or restarted")
-        return False
-    reason = pr_skip_reason(repo, run)
-    if reason is not None:
-        print(f"Skipping run {run['id']}: {reason}")
-        return False
+        return None
+    replacement = newer_replacement(repo, run)
+    if replacement:
+        reason = f"superseded by run {replacement['id']}"
+    else:
+        skip = pr_skip_reason(repo, run)
+        if skip is not None:
+            print(f"Skipping run {run['id']}: {skip}")
+            return None
+        reason = "source PR is closed or merged"
     operation = "force-cancel" if force else "cancel"
     if dry_run:
-        print(f"Would {operation}: run {run['id']} ({run['path']})")
-        return False
+        print(f"Would {operation}: run {run['id']} ({run['path']}): {reason}")
+        return None
     try:
         api("POST", f"repos/{repo}/actions/runs/{run['id']}/{operation}")
     except APIError as exc:
-        if exc.status == 409:  # A race on cancellation, not on arbitrary API reads.
-            print(f"Run {run['id']} is no longer cancellable")
-            return False
-        raise
-    print(f"Requested {operation}: run {run['id']} ({run['path']})")
-    return True
+        if exc.status != 409:
+            raise
+        fresh = api("GET", f"repos/{repo}/actions/runs/{run['id']}")
+        if not unchanged_unfinished(fresh, original, cutoff):
+            print(f"Skipping run {run['id']}: finished, changed, or restarted after HTTP 409")
+            return None
+        if force:
+            print(
+                f"Unresolved run {run['id']}: force-cancel returned HTTP 409; still {fresh['status']}"
+            )
+            return "unresolved"
+        print(f"Run {run['id']}: cancel returned HTTP 409; will recheck before force-cancel")
+        return "conflict"
+    print(f"Requested {operation}: run {run['id']} ({run['path']}): {reason}")
+    return "requested"
 
 
 def cancel_batch(repo, runs, cutoff, force=False, dry_run=False):
-    requested, failures = [], 0
+    requested, follow_up, failures = [], [], 0
     for run in runs:
         try:
-            if cancel_if_closed(repo, run, cutoff, force=force, dry_run=dry_run):
+            result = cancel_if_obsolete(repo, run, cutoff, force=force, dry_run=dry_run)
+            if result == "requested":
                 requested.append(run)
+            if not force and result in ("requested", "conflict"):
+                follow_up.append(run)
+            if result == "unresolved":
+                failures += 1
         except APIError as exc:
             if exc.status == 404:
                 print(f"Skipping run {run['id']}: run or PR became unavailable")
             else:
                 print(f"Could not inspect/cancel run {run['id']}: {exc}")
                 failures += 1
-    return requested, failures
+    return requested, follow_up, failures
+
+
+def verify_cancellations(repo, runs, cutoff):
+    failures = 0
+    for original in runs:
+        try:
+            run = api("GET", f"repos/{repo}/actions/runs/{original['id']}")
+            if unchanged_unfinished(run, original, cutoff):
+                print(
+                    f"Unresolved run {run['id']}: cancellation not confirmed; still {run['status']}"
+                )
+                failures += 1
+        except APIError as exc:
+            if exc.status != 404:
+                print(f"Could not verify run {original['id']}: {exc}")
+                failures += 1
+    return failures
 
 
 def cleanup(repo, sweep_run_id=None, dry_run=False, sleep=time.sleep):
@@ -189,12 +275,17 @@ def cleanup(repo, sweep_run_id=None, dry_run=False, sleep=time.sleep):
             for run in page["workflow_runs"]:
                 if eligible(run, cutoff):
                     runs[run["id"]] = run  # Deduplicate state changes between API pages.
-    requested, failures = cancel_batch(repo, runs.values(), cutoff, dry_run=dry_run)
-    if requested:
-        # Normal cancellation can leave deeply queued runs stuck. Recheck before forcing.
+    requested, follow_up, failures = cancel_batch(repo, runs.values(), cutoff, dry_run=dry_run)
+    if follow_up:
+        # An accepted request or HTTP 409 is not proof of completion. Recheck
+        # eligibility, attempt, and obsolescence before the single force fallback.
         sleep(60)
-        _, force_failures = cancel_batch(repo, requested, cutoff, force=True)
+        forced, _, force_failures = cancel_batch(repo, follow_up, cutoff, force=True)
         failures += force_failures
+        requested.extend(forced)
+        if forced:
+            sleep(5)
+            failures += verify_cancellations(repo, forced, cutoff)
     mode = "Dry run" if dry_run else "Cleanup"
     print(
         f"{mode}: examined {len(runs)} candidates; cancellation requests: {len(requested)}; errors: {failures}"

@@ -1,4 +1,4 @@
-name: Clean up closed PR CI
+name: Clean up obsolete PR CI
 
 # No path filters: every merge can leave obsolete PR jobs behind.
 on:
