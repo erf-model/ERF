@@ -1340,6 +1340,15 @@ struct SolverChoice {
             amrex::Error("The no_substepping flag is deprecated -- set erf.timestepping_type instead");
         }
 
+        nvals_old = pp.countval("beta_s_min");
+        if (nvals_old > 0) {
+            amrex::Error("The beta_s_min flag is deprecated -- remove it from the inputs file");
+        }
+        nvals_old = pp.countval("beta_s_max");
+        if (nvals_old > 0) {
+            amrex::Error("The beta_s_max flag is deprecated -- remove it from the inputs file");
+        }
+
         pp.queryAdd("ncorr", ncorr);
         // Wall distance on a terrain-fitted mesh (RANS): "poisson" (Tucker 2003
         // differential-equation distance) or "terrain_height" (height above the

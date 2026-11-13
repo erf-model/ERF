@@ -121,7 +121,9 @@ void make_fast_coeffs (int /*level*/,
                 const Real h_eta  = (has_z_nd) ? Compute_h_eta_AtKface(i, j, k, dxInv, z_nd) : zero;
                 const Real sigma2 = amrex::max(h_xi*h_xi + h_eta*h_eta, Real(2.0e-6));
 
-                // Small Z scaling regime for beta is used to close zcrit
+                // Small Z scaling regime
+                // NOTE: The stability limit for beta, in the small Z regime, is utilized
+                //       to compute beta_2 when evaluating z_crit
                 const Real b_tmp  = sigma2 / (two + sigma2);
                 const Real zcrit  = two * std::sqrt(one + sigma2)
                                   / (sigma2 * myhalf * (one + b_tmp));
@@ -135,16 +137,17 @@ void make_fast_coeffs (int /*level*/,
                                                                 + stage_cons(i, j, k-1, RhoQ1_comp) ) / r_kf
                                                    : zero;
                 const Real p      = getPgivenRTh(rth_kf, qv_kf);
-                const Real cs     = std::sqrt(Gamma * p / r_kf);
+                const Real cs     = std::sqrt(Gamma * p / r_kf); // Approximate with dry Gamma
                 const Real dz_kf  = z_cc(i,j,k) - z_cc(i,j,k-1);
                 const Real zval   = two * cs * static_cast<Real>(dtau) / dz_kf;
 
-                // Select regime
-                if (zval < zcrit) {
-                    beta_s_a(i,j,k) = b_tmp;
-                } else {
-                    beta_s_a(i,j,k) = amrex::min(sigma2, Real(1.));
-                }
+                // Blend the two regimes
+                const Real beta_lo = b_tmp;
+                const Real beta_hi = amrex::min(sigma2, one);
+                const Real alpha   = myhalf;   // start of ramp as a fraction of zcrit
+                const Real s       = amrex::Clamp((zval - alpha*zcrit) / ((one - alpha)*zcrit), zero, one);
+                const Real w       = s*s*(three - two*s);
+                beta_s_a(i,j,k)    = beta_lo + w*(beta_hi - beta_lo);
             } else {
                 beta_s_a(i,j,k) = beta_s;
             }
