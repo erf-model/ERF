@@ -49,6 +49,18 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                       vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
     }
 
+    // The force-restore hydrology's rain (erf.radiation.seb_precipitation_source =
+    // microphysics): the surface precipitation accumulation at the start of the step, before
+    // the dycore and microphysics change it; its change over the step is the rain the
+    // post-dycore update takes (hydrology_end_step below). A no-op otherwise. A level whose
+    // boxes do not span z never runs the balance (the two-stream solver returns early there),
+    // so it takes no rain rate either.
+    if (solverChoice.rad_type == RadiationType::TwoStream && !rad_level_needs_interpolation(lev)) {
+        two_stream_rad.hydrology_begin_step(lev, micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                                                       : SurfacePrecipAccumulationSources{},
+                                            geom[lev].Domain().smallEnd(2));
+    }
+
     MultiFab& S_old = vars_old[lev][Vars::cons];
     MultiFab& S_new = vars_new[lev][Vars::cons];
 
@@ -577,6 +589,11 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         const bool noahmp_active = solverChoice.lsm_type == LandSurfaceType::NOAHMP;
         if (m_SurfaceModel) {
             radiation_inputs = m_SurfaceModel->get_radiation_fields(lev);
+        }
+        if (!rad_level_needs_interpolation(lev)) {
+            two_stream_rad.hydrology_end_step(lev, micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                                                         : SurfacePrecipAccumulationSources{},
+                                              geom[lev].Domain().smallEnd(2), dt_lev);
         }
         two_stream_rad.advance(lev, iteration, time + dt_lev, dt_lev, "post_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],

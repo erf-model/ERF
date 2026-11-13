@@ -1138,19 +1138,20 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // path only became reachable when the single-level restriction on the prognostic SEB
     // was lifted -- before that a level carrying this state could never be regridded.)
     //
-    std::unique_ptr<MultiFab> old_seb_t_sfc, old_seb_q_sfc;
+    // t_sfc, q_sfc and, with the force-restore hydrology, its deep state and running totals
+    // (TwoStreamRadiation::seb_prognostic_fields).
+    Vector<std::unique_ptr<MultiFab>> old_seb;
     if (solverChoice.rad_type == RadiationType::TwoStream &&
         two_stream_rad.seb_prognostic_active())
     {
         auto keep = [] (MultiFab* src) -> std::unique_ptr<MultiFab> {
             if (!src) { return nullptr; }
             auto dst = std::make_unique<MultiFab>(src->boxArray(), src->DistributionMap(),
-                                                  1, src->nGrowVect());
-            MultiFab::Copy(*dst, *src, 0, 0, 1, src->nGrowVect());
+                                                  src->nComp(), src->nGrowVect());
+            MultiFab::Copy(*dst, *src, 0, 0, src->nComp(), src->nGrowVect());
             return dst;
         };
-        old_seb_t_sfc = keep(two_stream_rad.seb_t_sfc(lev));
-        old_seb_q_sfc = keep(two_stream_rad.seb_q_sfc(lev));
+        for (MultiFab* f : two_stream_rad.seb_prognostic_fields(lev)) { old_seb.push_back(keep(f)); }
     }
 
     // The EB factories of the new grids, which init_stuff defines the state with: built here,
@@ -1246,9 +1247,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     {
         if (lev > 0) { fill_seb_from_coarse(lev); }
 
-        MultiFab* new_seb[] = {two_stream_rad.seb_t_sfc(lev), two_stream_rad.seb_q_sfc(lev)};
-        MultiFab* old_seb[] = {old_seb_t_sfc.get(), old_seb_q_sfc.get()};
-        for (int i = 0; i < 2; i++) {
+        const Vector<MultiFab*> new_seb = two_stream_rad.seb_prognostic_fields(lev);
+        AMREX_ALWAYS_ASSERT(new_seb.size() == old_seb.size());
+        for (int i = 0; i < new_seb.size(); i++) {
             if (!new_seb[i] || !old_seb[i]) { continue; }
             IntVect ngv = new_seb[i]->nGrowVect(); ngv[2] = 0;
             //
@@ -1264,7 +1265,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             // (This is where the mapfac/PSFC idiom does not carry over: those halos are
             // consistent with their valid data, and these are not.)
             //
-            new_seb[i]->ParallelCopy(*old_seb[i], 0, 0, 1, IntVect(0), ngv,
+            new_seb[i]->ParallelCopy(*old_seb[i], 0, 0, new_seb[i]->nComp(), IntVect(0), ngv,
                                      geom[lev].periodicity());
             new_seb[i]->FillBoundary(geom[lev].periodicity());
         }
