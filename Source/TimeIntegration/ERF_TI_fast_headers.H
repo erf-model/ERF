@@ -165,10 +165,9 @@ void make_fast_coeffs (int level,
                        std::unique_ptr<amrex::MultiFab>& detJ_cc,
                        const double dtau,
                        const amrex::Real beta_s,
+                       const amrex::MultiFab* z_phys_cc,
                        const amrex::MultiFab* z_phys_nd,
                        const bool use_variable_beta_s,
-                       const amrex::Real beta_s_min,
-                       const amrex::Real beta_s_max,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type);
 
 #endif

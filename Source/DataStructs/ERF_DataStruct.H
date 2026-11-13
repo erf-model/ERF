@@ -1328,17 +1328,9 @@ struct SolverChoice {
         // velocity (0 = never)
         pp.query("face_sync_int", face_sync_int);
 
-        // Spatially varying beta_s on the w-faces (implicit substepping only):
-        //    beta_s = max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
+        // Spatially varying beta_s on the w-faces (implicit substepping only), set from the
+        //    terrain slope and the vertical acoustic Courant number (see make_fast_coeffs)
         pp.queryAdd("use_variable_beta_s", use_variable_beta_s);
-        pp.queryAdd("beta_s_min", beta_s_min);
-        pp.queryAdd("beta_s_max", beta_s_max);
-        if (use_variable_beta_s) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(beta_s_min <= beta_s_max,
-                "erf.beta_s_min must be less than or equal to erf.beta_s_max");
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(beta_s_min >= -one && beta_s_max <= one,
-                "erf.beta_s_min and erf.beta_s_max must lie in [-1, 1]");
-        }
 
         // *******************************************************************************
         // Error check on deprecated input
@@ -2881,11 +2873,9 @@ struct SolverChoice {
     amrex::Real beta_s = amrex::Real(0.1);
     int face_sync_int = 1;
 
-    // if true, beta_s varies on the w-faces as max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
+    // if true, beta_s varies on the w-faces
     // and beta_s itself is not used (implicit substepping only)
     bool use_variable_beta_s = false;
-    amrex::Real beta_s_min = amrex::Real(0.1);
-    amrex::Real beta_s_max = amrex::Real(0.8);
 
     // divergence damping coefficient: how far (rho theta) is projected forward
     // in the horizontal momentum equations of the acoustic substepping
@@ -3414,11 +3404,7 @@ struct SolverChoice {
  * @var SolverChoice::beta_s
  * @brief Time off-centering coefficient for forward weighting.
  * @var SolverChoice::use_variable_beta_s
- * @brief Whether beta_s varies on the w-faces with the terrain slope.
- * @var SolverChoice::beta_s_min
- * @brief Lower bound of the spatially varying beta_s.
- * @var SolverChoice::beta_s_max
- * @brief Upper bound of the spatially varying beta_s.
+ * @brief Whether beta_s varies on the w-faces with the terrain slope and acoustic Courant number.
  * @var SolverChoice::beta_d
  * @brief Divergence damping coefficient used in the acoustic substepping.
  * @var SolverChoice::vert_implicit_fac

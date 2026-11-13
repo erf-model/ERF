@@ -26,11 +26,10 @@ using namespace amrex;
  *                           divergence. On a moving mesh this is the volume at the end of the sub-step
  * @param[in]  dtau          Fast time step
  * @param[in]  beta_s        Coefficient which determines how implicit vs explicit the solve is
+ * @param[in]  z_phys_cc     Height coordinate at cell centers (null without terrain)
  * @param[in]  z_phys_nd     Height coordinate at nodes (null without terrain)
- * @param[in]  use_variable_beta_s If true, beta_s = max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
- *                                 on each w-face in place of beta_s
- * @param[in]  beta_s_min    Lower bound of the spatially varying beta_s
- * @param[in]  beta_s_max    Upper bound of the spatially varying beta_s
+ * @param[in]  use_variable_beta_s If true, beta_s on each w-face is set from the terrain slope and
+ *                                 the vertical acoustic Courant number there in place of beta_s
  * @param[in]  phys_bc_type  Physical boundary condition types
  */
 
@@ -46,9 +45,9 @@ void make_fast_coeffs (int /*level*/,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const double dtau,
                        Real beta_s,
+                       const MultiFab* z_phys_cc,
                        const MultiFab* z_phys_nd,
                        bool use_variable_beta_s,
-                       Real beta_s_min, Real beta_s_max,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
@@ -105,7 +104,10 @@ void make_fast_coeffs (int /*level*/,
         auto const&    gam_a  = gam_fab.array();
         auto const& beta_s_a  = beta_s_mf.array(mfi);
 
-        const Array4<const Real>& z_nd = (has_z_nd) ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& z_nd = (has_z_nd) ? z_phys_nd->const_array(mfi)
+                                                    : Array4<const Real>{};
+        const Array4<const Real>& z_cc = (has_z_nd) ? z_phys_cc->const_array(mfi)
+                                                    : Array4<const Real>{};
 
         // *********************************************************************
         // beta_s on the w-faces, which erf_substep_* uses for the time-weighting of the
@@ -114,9 +116,35 @@ void make_fast_coeffs (int /*level*/,
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             if (use_variable_beta_s) {
-                Real h_xi  = (has_z_nd) ? Compute_h_xi_AtKface (i, j, k, dxInv, z_nd) : zero;
-                Real h_eta = (has_z_nd) ? Compute_h_eta_AtKface(i, j, k, dxInv, z_nd) : zero;
-                beta_s_a(i,j,k) = amrex::max(beta_s_min, amrex::min(beta_s_max, h_xi*h_xi + h_eta*h_eta));
+                // Terrain slopes
+                const Real h_xi   = (has_z_nd) ? Compute_h_xi_AtKface (i, j, k, dxInv, z_nd) : zero;
+                const Real h_eta  = (has_z_nd) ? Compute_h_eta_AtKface(i, j, k, dxInv, z_nd) : zero;
+                const Real sigma2 = amrex::max(h_xi*h_xi + h_eta*h_eta, Real(2.0e-6));
+
+                // Small Z scaling regime for beta is used to close zcrit
+                const Real b_tmp  = sigma2 / (two + sigma2);
+                const Real zcrit  = two * std::sqrt(one + sigma2)
+                                  / (sigma2 * myhalf * (one + b_tmp));
+
+                // Compute actual Z value
+                const Real r_kf   = myhalf * ( stage_cons(i, j, k  , Rho_comp     )
+                                             + stage_cons(i, j, k-1, Rho_comp     ) );
+                const Real rth_kf = myhalf * ( stage_cons(i, j, k  , RhoTheta_comp)
+                                             + stage_cons(i, j, k-1, RhoTheta_comp) );
+                const Real qv_kf  = (l_use_moisture) ? myhalf * ( stage_cons(i, j, k  , RhoQ1_comp)
+                                                                + stage_cons(i, j, k-1, RhoQ1_comp) ) / r_kf
+                                                   : zero;
+                const Real p      = getPgivenRTh(rth_kf, qv_kf);
+                const Real cs     = std::sqrt(Gamma * p / r_kf);
+                const Real dz_kf  = z_cc(i,j,k) - z_cc(i,j,k-1);
+                const Real zval   = two * cs * static_cast<Real>(dtau) / dz_kf;
+
+                // Select regime
+                if (zval < zcrit) {
+                    beta_s_a(i,j,k) = b_tmp;
+                } else {
+                    beta_s_a(i,j,k) = amrex::min(sigma2, Real(1.));
+                }
             } else {
                 beta_s_a(i,j,k) = beta_s;
             }

@@ -201,18 +201,34 @@ This may be controlled with the ``erf.beta_s`` parameter.
 
 Over steep terrain more off-centering may be needed.  With ``erf.use_variable_beta_s = true``,
 :math:`\beta_s` is instead defined on each :math:`w`-face from the slopes of the coordinate
-surface there,
+surface and the vertical acoustic Courant number there.  With
 
 .. math::
 
-   \beta_s = \max\left(\beta_{s,min}, \min\left(\beta_{s,max}, h_\xi^2 + h_\eta^2\right)\right),
+   \sigma^2 = \max\left(h_\xi^2 + h_\eta^2, \, 2 \times 10^{-6}\right), \qquad
+   b = \frac{\sigma^2}{2 + \sigma^2}, \qquad
+   Z = \frac{2 c_s \delta \tau}{\Delta z}, \qquad
+   Z_{crit} = \frac{2 \sqrt{1 + \sigma^2}}{\sigma^2 \, (1 + b) / 2},
 
-with :math:`\beta_{s,min}` and :math:`\beta_{s,max}` set by ``erf.beta_s_min`` (default 0.1)
-and ``erf.beta_s_max`` (default 0.8).  The vertical flux on a face is then weighted by
+where :math:`c_s = \sqrt{\gamma p / \rho}` is the sound speed and :math:`\Delta z` the vertical
+grid spacing at the face, we take
+
+.. math::
+
+   \beta_s = \begin{cases} b & Z < Z_{crit} \\ \min\left(\sigma^2, 1\right) & Z \ge Z_{crit} \end{cases}
+
+The low-:math:`Z` value :math:`b` follows the low-dissipation branch of the maximum
+amplification factor and the high-:math:`Z` value :math:`\sigma^2` the high-dissipation branch;
+:math:`Z_{crit}` is where the low-dissipation branch ceases to apply.  The two branches are not
+blended, so :math:`\beta_s` jumps at :math:`Z = Z_{crit}`.
+
+The vertical flux on a face is then weighted by
 :math:`\beta_1` and :math:`\beta_2` of that face, and the :math:`W^{\prime \prime}` equation on a
 face by :math:`\beta_2` of that face, so that the entries of the tridiagonal system for the face
 :math:`k` carry :math:`\beta_2` of face :math:`k` times :math:`\beta_2` of face :math:`k-1`,
-:math:`k` or :math:`k+1`.  Without terrain, :math:`\beta_s = \beta_{s,min}` everywhere.
+:math:`k` or :math:`k+1`.  Without terrain, :math:`\sigma^2` takes its floor value, so that
+:math:`Z_{crit} \approx 2 \times 10^6` and :math:`\beta_s \approx 10^{-6}`, i.e. essentially no
+off-centering, everywhere.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
