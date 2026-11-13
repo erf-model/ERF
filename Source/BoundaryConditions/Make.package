@@ -1,3 +1,5 @@
+CEXE_sources += ERF_BoundaryConditionsInflowProfile.cpp
+CEXE_sources += ERF_InflowProfile.cpp
 CEXE_sources += ERF_BoundaryConditionsXvel.cpp
 CEXE_sources += ERF_BoundaryConditionsYvel.cpp
 CEXE_sources += ERF_BoundaryConditionsZvel.cpp
@@ -17,6 +19,7 @@ CEXE_sources += ERF_FillPatcher.cpp
 
 CEXE_sources += ERF_PhysBCFunct.cpp
 CEXE_headers += ERF_PhysBCFunct.H
+CEXE_headers += ERF_InflowProfile.H
 CEXE_headers += ERF_FillPatcher.H
 
 CEXE_headers += ERF_TimeInterpolatedData.H

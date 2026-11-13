@@ -48,6 +48,7 @@
  *   level, into zeroed MultiFabs on the grids of level(), which ERF restricts
  *   onto that level (see add_momentum_sources());
  * - write_checkpoint() each time ERF writes a checkpoint;
+ * - finalize() once, when the run ends normally, after the last plotfile and checkpoint;
  * - plot_var_names() each time ERF builds its plotfile variable list, and
  *   fill_plot_var() for each listed name on every level of each plotfile.
  *
@@ -78,6 +79,24 @@ struct StructureInit
     bool                   keqn_rans;         ///< Level lev runs the k-equation RANS closure, so cons holds rho k
     amrex::Real            Cmu0;              ///< The closure's C_mu^0 on level lev
     std::string            restart_chkfile;   ///< The checkpoint ERF restarts from; empty on a fresh start
+    /// The nominal step of level lev [s]: erf.fixed_dt divided by the sub-cycling ratios down to lev.
+    /// Not positive when the run has no fixed step (ERF then chooses each step from erf.cfl).
+    /// StructureStep::dt is the step taken: it differs on the first steps with erf.init_shrink
+    /// below 1 or after a restart (growth limited by erf.change_max), and on a last step that
+    /// ERF fits to the stop time
+    double                 fixed_dt;
+    /// The time [s], on the clock of time, at which the run stops: the input stop_time, or
+    /// stop_datetime less start_datetime; the largest double when neither is given. It is ERF's
+    /// own stop, which can differ from the input by about 1e-7 s when start_datetime is given,
+    /// so compare with a tolerance. max_step may end the run earlier
+    double                 stop_time;
+    /// The run stops after this many level-0 steps, counted from the start of the first run (a
+    /// restart continues the count); the largest int when max_step is not given or negative
+    int                    max_step;
+    /// A level of the run, not only lev, is FullyCompressible (erf.compressibility_type); false
+    /// when every level is Anelastic or PseudoIncompressible. It names the solver, not the time
+    /// scheme: a FullyCompressible level with erf.timestepping_type = RK3_NoSubstepping counts
+    bool                   fully_compressible;
 };
 
 /**
@@ -125,7 +144,7 @@ struct StructureStep
     int                    lev;        ///< The level the model couples to
     int                    finest_level; ///< ERF's finest level now
     double                 time;       ///< Start of the step [s]
-    amrex::Real            dt;         ///< Step of level lev [s]
+    double                 dt;         ///< Step of level lev [s], in double as ERF keeps it, also in a single-precision build
     const amrex::Geometry& geom;       ///< Geometry of level lev
     const amrex::MultiFab& xvel;       ///< x-velocity on x-faces [m/s]
     const amrex::MultiFab& yvel;       ///< y-velocity on y-faces [m/s]
@@ -215,12 +234,18 @@ public:
      * of every coarser level, with lev = level() and zeroed MultiFabs on the grids
      * of level() as of the last advance() (they may have ghost faces, which the
      * model leaves alone). It adds the source of its last advance(), as at a
-     * stage. ERF restricts that source onto the coarser level, keeping its
-     * integral, and holds it over that level's step: the air under the finer
-     * level then feels the force while the coarser level steps, and the coarse/fine
-     * faces, which the finer level takes from the coarser one, get the force once.
+     * stage. ERF restricts that source onto the coarser level, keeping the force
+     * it puts on the air (its integral over the faces' control volumes, with the
+     * mesh Jacobian on a stretched or terrain-following mesh), and holds it over
+     * that level's step: the air under the finer level then feels the force while
+     * the coarser level steps, and the coarse/fine faces, which the finer level
+     * takes from the coarser one, get the force once.
      * Before the first advance() and after a regrid of level(), until the next
-     * advance(), ERF does not call it for the coarser levels.
+     * advance(), ERF does not call it for the coarser levels. ERF writes the
+     * source to its checkpoint, so after a restart, until the first advance(), it
+     * restricts the checkpointed source instead: the model need not hold one.
+     * ERF also calls it when it writes a checkpoint; being const, it leaves the
+     * model as it was.
      */
     virtual void add_momentum_sources (int lev,
                                        amrex::MultiFab& xmom_src,
@@ -246,6 +271,15 @@ public:
      * continue from its initial state.
      */
     virtual bool supports_restart () const { return false; }
+
+    /**
+     * @brief The run has ended normally
+     *
+     * Called once, on every rank, after the last step, plotfile and checkpoint: the place to
+     * flush and close the model's own files or to shut down a solver it drives. Not called
+     * when the run aborts. The default does nothing.
+     */
+    virtual void finalize () {}
 
     /**
      * @brief Fields the ERF plotfile can carry, by name

@@ -652,6 +652,18 @@ void ERF::advance_dycore (int level,
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
         bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
         const BCRec* bc_ptr_h = domain_bcs_type.data();
+
+        // Prepare fire heat flux for PBL if needed; the flux lives on the atmospheric
+        // columns of the fire grid's level only
+        const MultiFab* Q_fire_for_pbl = nullptr;
+#ifdef ERF_USE_FIRE
+        if (m_fire_coupler && level == m_fire_coupler->level() &&
+            m_fire_coupler->params().injects_flux() &&
+            tc.mrf_fire_thermal_excess) {
+            Q_fire_for_pbl = m_fire_coupler->get_Q_atm_prev();
+        }
+#endif
+
         ComputeTurbulentViscosity(dt_advance, xvel_old, yvel_old,Tau[level],
                                   state_old[IntVars::cons],
                                   *walldist[level].get(),
@@ -668,7 +680,8 @@ void ERF::advance_dycore (int level,
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
                                       terrain_blanking[level].get() : nullptr,
                                   (solverChoice.do_forest_drag) ?
-                                      m_forest_drag[level]->get_drag_field() : nullptr);
+                                      m_forest_drag[level]->get_drag_field() : nullptr,
+                                  Q_fire_for_pbl);
 
         // Zero turbulent mixing in fully immersed cells
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||

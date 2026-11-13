@@ -457,6 +457,7 @@ function(build_erf_lib erf_lib_name)
       ${SRC_DIR}/MovingBodies/Core/ERF_WakeLines.cpp
       ${SRC_DIR}/MovingBodies/Coupling/ERF_StructureModelRegistry.cpp
       ${SRC_DIR}/MovingBodies/Coupling/ERF_StructureCoupling.cpp
+      ${SRC_DIR}/MovingBodies/Coupling/ERF_StructureCoarseSource.cpp
     )
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Core>)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${SRC_DIR}/MovingBodies/Coupling>)
@@ -539,6 +540,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_FillBdyCCVels.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsInflowProfile.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_InflowProfile.cpp
        ${SRC_DIR}/Coupling/ERF_ReadWaves.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_EB.cpp
@@ -885,12 +888,19 @@ function(build_erf_lib erf_lib_name)
 
 endfunction(build_erf_lib)
 
+# Make an executable target an ERF executable: ERF's main.cpp (unless NO_ERF_MAIN), the
+# ERF library, ERF's compile flags and the GPU settings. ERF's own folders are named by
+# ERF_SOURCE_DIR (a cache entry of project(ERF)), so a parent project that adds ERF with
+# add_subdirectory can call it on its own targets, as erf_setup_executable(<target>).
 function(build_erf_exe erf_exe_name)
 
   set(options NO_ERF_MAIN)
   cmake_parse_arguments(BUILD_ERF_EXE "${options}" "" "" ${ARGN})
 
-  set(SRC_DIR ${PROJECT_SOURCE_DIR}/Source)
+  set(SRC_DIR ${ERF_SOURCE_DIR}/Source)
+  if(NOT DEFINED erf_lib_name)
+    set(erf_lib_name erf_srclib)   # the library Exec/CMakeLists.txt builds (ERF::erf)
+  endif()
 
   if(NOT BUILD_ERF_EXE_NO_ERF_MAIN)
     target_sources(${erf_exe_name}
@@ -900,7 +910,7 @@ function(build_erf_exe erf_exe_name)
   endif()
 
   target_link_libraries(${erf_exe_name} PUBLIC ${erf_lib_name})
-  include(${PROJECT_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
+  include(${ERF_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_exe_name})
 
   if(ERF_ENABLE_EKAT)
@@ -968,4 +978,16 @@ function(build_erf_exe erf_exe_name)
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)
 
+endfunction()
+
+# The name a parent project uses, the way ERF uses AMReX: ERF is a library (ERF::erf) and
+# the parent builds its own executables with its own sources and problem file, e.g.
+#
+#   add_subdirectory(Submodules/ERF ERF EXCLUDE_FROM_ALL)
+#   add_executable(my_model my_model.cpp ERF_Prob.cpp)
+#   erf_setup_executable(my_model)
+#
+# NO_ERF_MAIN leaves out ERF's main.cpp (a GoogleTest executable, for example).
+function(erf_setup_executable target)
+  build_erf_exe(${target} ${ARGN})
 endfunction()

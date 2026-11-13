@@ -1502,12 +1502,19 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> th_bc_data;
 
+    // Terrain-following inflow profiles per face (xlo.inflow_profile = log_law or file)
+    amrex::Array<InflowProfile, 2*AMREX_SPACEDIM> m_inflow_profiles;
+
     // Planar averages for immersed forcing (computed on slow step, used in slow and fast steps)
     amrex::Vector<amrex::TableData<amrex::Real, 1>> r_plane_avg;   // density planar average per level
     amrex::Vector<amrex::TableData<amrex::Real, 1>> t_plane_avg;   // RhoTheta planar average per level
 
     // Function to read and populate above vectors (if input file exists)
     bool init_Dirichlet_bc_data (const std::string input_file);
+
+    // Build the terrain-following inflow profile of face ori (xlo.inflow_profile)
+    void init_inflow_profile (const std::string& bcid, amrex::Orientation ori,
+                              const std::string& kind, amrex::ParmParse& pp);
 
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and
@@ -2414,7 +2421,7 @@ private:
     void initialize_structure_model ();
 
     /// Advance the structure model over this step of level lev, then check its support() against level lev+1
-    void advance_structure_model (int lev, double time, amrex::Real dt_lev,
+    void advance_structure_model (int lev, double time, double dt_lev,
                                   const amrex::MultiFab& U_old, const amrex::MultiFab& V_old,
                                   const amrex::MultiFab& W_old, const amrex::MultiFab& S_old);
 
@@ -2430,6 +2437,15 @@ private:
     /// The grids of the model's level at its last advance(): the source add_momentum_sources() returns lives there
     amrex::BoxArray            m_structure_src_ba;
     amrex::DistributionMapping m_structure_src_dm;
+
+    /// After a restart, until the model's first advance(): its source on its level when the checkpoint was written
+    std::array<amrex::MultiFab,AMREX_SPACEDIM> m_structure_chk_src;
+
+    /// Write the model's current source on its level under checkpointname/StructureCoarseSource (TwoWay, level() > 0)
+    void write_structure_coarse_source_checkpoint (const std::string& checkpointname) const;
+
+    /// Read what write_structure_coarse_source_checkpoint wrote, for the model on level L, into m_structure_chk_src
+    void read_structure_coarse_source_checkpoint (int L);
 
     /// The node heights of the level above the model's, for the check of its support(): kept until that level's boxes change
     erf_actuator::LevelHeights m_structure_fine_heights;

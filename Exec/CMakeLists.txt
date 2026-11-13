@@ -8,6 +8,8 @@ endif()
 include(${PROJECT_SOURCE_DIR}/CMake/BuildERFExe.cmake)
 
 build_erf_lib(${erf_lib_name})
+# The ERF library under the name a parent project links, as ERF links AMReX::amrex
+add_library(ERF::erf ALIAS ${erf_lib_name})
 
 # This compile-time capability exists only in a separately configured
 # qualification build.  The normal executable retains the max_level == 0

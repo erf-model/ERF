@@ -1,7 +1,8 @@
 /**
  * @file ERF_StructureCoupling.cpp
  * @brief ERF's side of the structure coupling: the start-up and advance calls of the
- *        structure model, and the check of its support against the finer level
+ *        structure model, the check of its support against the finer level, and its
+ *        source on the coarser levels with the checkpoint of that source
  *
  * The other calls (momentum sources, checkpoint, plotfile) sit where ERF does that
  * work; see the call order in ERF_StructureModel.H.
@@ -9,8 +10,14 @@
 #include "ERF.H"
 #include "ERF_StructureModel.H"
 #include "ERF_ActuatorSampling.H"
+#include "ERF_StructureCoarseSource.H"
+
+#include <AMReX_VisMF.H>
 
 #include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <limits>
 #include <optional>
 
 using namespace amrex;
@@ -54,10 +61,20 @@ ERF::initialize_structure_model ()
     }
 
     const TurbChoice& tc = solverChoice.turbChoice[lev];
+    // The run's stop time on the clock of t_new, which starts at zero at start_time
+    const double stop = (stop_time < std::numeric_limits<double>::max()) ? stop_time - start_time
+                                                                         : std::numeric_limits<double>::max();
+    bool fully_compressible = false;
+    for (int l = 0; l <= max_level; ++l) {
+        fully_compressible = fully_compressible ||
+                             (solverChoice.compressibility_type[l] == CompressibilityType::FullyCompressible);
+    }
     const StructureInit init{lev, t_new[lev], geom[lev], vars_new[lev][Vars::xvel], zp, detJ,
                              surface_ptr, structure_unit_map_factors(lev), tc.rans_type == RANSType::kEqn, tc.Cmu0,
-                             restart_chkfile};
+                             restart_chkfile, fixed_dt[lev], stop, max_step, fully_compressible};
     m_structure_model->initialize(init);
+
+    if (!restart_chkfile.empty()) { read_structure_coarse_source_checkpoint(lev); }
 }
 
 bool
@@ -73,7 +90,7 @@ ERF::structure_unit_map_factors (int lev) const
 }
 
 void
-ERF::advance_structure_model (int lev, double time, Real dt_lev,
+ERF::advance_structure_model (int lev, double time, double dt_lev,
                               const MultiFab& U_old, const MultiFab& V_old,
                               const MultiFab& W_old, const MultiFab& S_old)
 {
@@ -100,6 +117,8 @@ ERF::advance_structure_model (int lev, double time, Real dt_lev,
     m_structure_model->advance(step);
     m_structure_src_ba = grids[lev];
     m_structure_src_dm = dmap[lev];
+    // The model's own source now takes over from the one read from the checkpoint
+    for (MultiFab& mf : m_structure_chk_src) { mf.clear(); }
 
     // The force goes into level lev only. Where level lev+1 covers it, averaging down would
     // overwrite the forced cells with unforced fine data, so the run stops instead. Level
@@ -141,53 +160,29 @@ ERF::advance_structure_model (int lev, double time, Real dt_lev,
 
 namespace {
 
-/**
- * Restrict a face source from a level onto the faces normal to dir of the next coarser level,
- * keeping its integral: coarse face I takes the fine faces r I + m, |m| < r, along dir with the
- * weights (r - |m|) / r^2 (the share of each fine face's control volume inside the coarse
- * face's), averaged over the fine faces across it. On a uniform mesh the coarse source then
- * gives the air the same impulse as the fine one. fine must have r - 1 ghost faces along dir,
- * filled where another box of its level holds them and zero outside the level.
- */
-void
-restrict_face_source (const MultiFab& fine, MultiFab& crse, int dir, const IntVect& rr, const Geometry& cgeom)
+// Where the checkpoint keeps the model's source on its level, for the coarser levels' first steps
+std::string
+coarse_source_dir (const std::string& checkpointname)
 {
-    BoxArray cba = fine.boxArray();
-    cba.coarsen(rr);
-    MultiFab crse_on_fine(cba, fine.DistributionMap(), 1, 0);
+    return checkpointname + "/StructureCoarseSource";
+}
 
-    const int rn = rr[dir];
-    const int t1 = (dir + 1) % AMREX_SPACEDIM;
-    const int t2 = (dir + 2) % AMREX_SPACEDIM;
-    const int r1 = rr[t1];
-    const int r2 = rr[t2];
-    const Real inv_w = Real(1.0) / Real(rn * rn * r1 * r2);
+constexpr const char* coarse_source_face[3] = {"x_faces", "y_faces", "z_faces"};
 
-    for (MFIter mfi(crse_on_fine, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        const auto f = fine.const_array(mfi);
-        const auto c = crse_on_fine.array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const IntVect base = IntVect(AMREX_D_DECL(i, j, k)) * rr;
-            Real s = Real(0.0);
-            for (int m = 1 - rn; m < rn; ++m) {
-                const Real w = Real(rn - amrex::Math::abs(m));
-                for (int a = 0; a < r1; ++a) {
-                    for (int b = 0; b < r2; ++b) {
-                        IntVect iv = base;
-                        iv[dir] += m;
-                        iv[t1]  += a;
-                        iv[t2]  += b;
-                        s += w * f(iv);
-                    }
-                }
-            }
-            c(i, j, k) = s * inv_w;
-        });
-    }
+// The cell Jacobian the coarse-source restriction and its diagnostic weigh a face with:
+// detJ_cc on a stretched or terrain-following mesh, none (J = 1) on a uniform-dz mesh, where
+// detJ_cc may hold the EB volume fraction instead
+const MultiFab*
+coarse_source_jacobian (const Vector<std::unique_ptr<MultiFab>>& detJ_cc, int lev)
+{
+    return (SolverChoice::mesh_type != MeshType::ConstantDz) ? detJ_cc[lev].get() : nullptr;
+}
 
-    crse.setVal(Real(0.0));
-    crse.ParallelCopy(crse_on_fine, 0, 0, 1, IntVect(0), IntVect(0), cgeom.periodicity());
+// Whether two BoxArrays of the same index type cover the same region, however they are chunked
+bool
+covers_same_region (const BoxArray& a, const BoxArray& b)
+{
+    return a.ixType() == b.ixType() && a.contains(b) && b.contains(a);
 }
 
 } // namespace
@@ -206,34 +201,131 @@ ERF::make_structure_coarse_sources (int lev)
     const int L = m_structure_model->level(finest_level);
     if (lev >= L) { return; }
 
-    // The model holds a source on its level's grids only after an advance() on those grids:
-    // before its first step since the start or a restart, and after a regrid of its level,
-    // level lev takes this step without it
-    if (m_structure_src_ba != grids[L] || m_structure_src_dm != dmap[L]) { return; }
+    // The model holds a source on its level's grids only after an advance() on those grids.
+    // After a restart, until that advance(), ERF has the source the model held when the
+    // checkpoint was written, and copies it onto the level's grids below, however they are
+    // chunked. Before the model's first step since the start, and after a regrid of its level
+    // until its next step, level lev takes this step without it. A regrid of level L after a
+    // restart, before the model's first step, that changes the region the level covers drops
+    // the checkpointed source too: the source would be missing where the level grew
+    if (m_structure_chk_src[0].isDefined() &&
+        !covers_same_region(m_structure_chk_src[0].boxArray(),
+                            convert(grids[L], IntVect::TheDimensionVector(0)))) {
+        for (MultiFab& mf : m_structure_chk_src) { mf.clear(); }
+        Print() << "Structure coupling: level " << L << " was regridded to another region before"
+                << " the model's first step after the restart; level " << lev
+                << " takes this step without the checkpointed source" << std::endl;
+    }
+    const bool from_model = (m_structure_src_ba == grids[L] && m_structure_src_dm == dmap[L]);
+    if (!from_model && !m_structure_chk_src[0].isDefined()) { return; }
 
-    // The source of the model's last step, on its own level, with the ghost faces the
-    // restriction onto level L-1 reads
+    // The source of the model's last step, on its own level
     std::array<MultiFab,AMREX_SPACEDIM> src;
     for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-        IntVect ng(0);
-        ng[d] = refRatio(L-1)[d] - 1;
-        src[d].define(convert(grids[L], IntVect::TheDimensionVector(d)), dmap[L], 1, ng);
+        src[d].define(convert(grids[L], IntVect::TheDimensionVector(d)), dmap[L], 1, 0);
         src[d].setVal(Real(0.0));
-    }
-    m_structure_model->add_momentum_sources(L, src[0], src[1], src[2]);
-
-    // Down one level at a time to level lev
-    for (int l = L - 1; l >= lev; --l) {
-        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-            src[d].FillBoundary(geom[l+1].periodicity());
-            IntVect ng(0);
-            if (l > lev) { ng[d] = refRatio(l-1)[d] - 1; }
-            MultiFab crse(convert(grids[l], IntVect::TheDimensionVector(d)), dmap[l], 1, ng);
-            restrict_face_source(src[d], crse, d, refRatio(l), geom[l]);
-            src[d] = std::move(crse);
+        if (!from_model) {
+            src[d].ParallelCopy(m_structure_chk_src[d], 0, 0, 1);
         }
     }
+    if (from_model) {
+        m_structure_model->add_momentum_sources(L, src[0], src[1], src[2]);
+    }
+
+    // Down to level lev, keeping the force on terrain-following and stretched meshes too
+    Vector<const MultiFab*> detJ(L + 1, nullptr);
+    Vector<IntVect> rr(L);
+    for (int l = 0; l <= L; ++l) {
+        detJ[l] = coarse_source_jacobian(detJ_cc, l);
+        if (l < L) { rr[l] = refRatio(l); }
+    }
+    // With erf.v > 0, the force on level lev and on level L, which must agree
+    std::array<Real,AMREX_SPACEDIM> force_L{};
+    if (verbose > 0) { force_L = erf_structure::face_source_force(src, geom[L], detJ[L]); }
+    const MultiFab* detJ_lev = detJ[lev];
+
+    erf_structure::restrict_face_sources(src, L, lev, grids, dmap, geom, rr, detJ);
+
+    if (verbose > 0) {
+        const auto force_lev = erf_structure::face_source_force(src, geom[lev], detJ_lev);
+        Print() << std::setprecision(17) << "structure coarse source: level " << lev
+                << " force = " << force_lev[0] << " " << force_lev[1] << " " << force_lev[2]
+                << " level " << L
+                << " force = " << force_L[0] << " " << force_L[1] << " " << force_L[2] << "\n";
+    }
+
     for (int d = 0; d < AMREX_SPACEDIM; ++d) {
         m_structure_crse_src[lev][d] = std::move(src[d]);
+    }
+}
+
+void
+ERF::write_structure_coarse_source_checkpoint (const std::string& checkpointname) const
+{
+    if (!m_structure_model || solverChoice.coupling_type != CouplingType::TwoWay) { return; }
+    const int L = m_structure_model->level(finest_level);
+    if (L <= 0) { return; }
+
+    // The source the coarser levels would take at their next step: the model's, or, before
+    // its first step after a restart, the one read from the checkpoint. Neither exists before
+    // the model's first step since the start or after a regrid of its level, and the
+    // checkpoint then holds none, as the coarser levels' next step takes none
+    std::array<MultiFab,AMREX_SPACEDIM> src;
+    const std::array<MultiFab,AMREX_SPACEDIM>* to_write = &m_structure_chk_src;
+    if (m_structure_src_ba == grids[L] && m_structure_src_dm == dmap[L]) {
+        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+            src[d].define(convert(grids[L], IntVect::TheDimensionVector(d)), dmap[L], 1, 0);
+            src[d].setVal(Real(0.0));
+        }
+        // add_momentum_sources() is const in StructureModel: asking for the source does not
+        // change the model, so writing a checkpoint leaves the run as it was
+        m_structure_model->add_momentum_sources(L, src[0], src[1], src[2]);
+        to_write = &src;
+    } else if (!m_structure_chk_src[0].isDefined() ||
+               !covers_same_region(m_structure_chk_src[0].boxArray(),
+                                   convert(grids[L], IntVect::TheDimensionVector(0)))) {
+        return;
+    }
+
+    const std::string dir = coarse_source_dir(checkpointname);
+    if (ParallelDescriptor::IOProcessor()) {
+        if (!UtilCreateDirectory(dir, 0755)) { CreateDirectoryFailed(dir); }
+        std::ofstream level_file(dir + "/Level");
+        level_file << L << "\n";
+        if (!level_file) { Abort("Could not write " + dir + "/Level"); }
+    }
+    ParallelDescriptor::Barrier();
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        VisMF::Write((*to_write)[d], dir + "/" + coarse_source_face[d]);
+    }
+}
+
+void
+ERF::read_structure_coarse_source_checkpoint (int L)
+{
+    for (MultiFab& mf : m_structure_chk_src) { mf.clear(); }
+    if (solverChoice.coupling_type != CouplingType::TwoWay || L <= 0) { return; }
+
+    // A checkpoint written before the model's first step, or by a version of ERF that did not
+    // write it, has none: the coarser levels then take their first step after the restart
+    // without the source, as before
+    const std::string dir = coarse_source_dir(restart_chkfile);
+    int L_chk = -1;
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ifstream level_file(dir + "/Level");
+        if (level_file) { level_file >> L_chk; }
+    }
+    ParallelDescriptor::Bcast(&L_chk, 1, ParallelDescriptor::IOProcessorNumber());
+    if (L_chk < 0) { return; }
+    if (L_chk != L) {
+        Print() << "Structure coupling: " << dir << " holds the source on level " << L_chk
+                << ", but the model now couples to level " << L
+                << "; the coarser levels take their first step without it" << std::endl;
+        return;
+    }
+    // On the grids the checkpoint was written with; make_structure_coarse_sources copies it
+    // onto the level's grids of the run
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        VisMF::Read(m_structure_chk_src[d], dir + "/" + coarse_source_face[d]);
     }
 }

@@ -30,8 +30,8 @@ restart from it.
 A model's directory is compiled in with ``ERF_DUST_MODEL_DIRS`` (CMake, a list
 of directories, each with an ``ERFDustModel.cmake`` that defines
 ``erf_dust_model_add(target)``) or ``DUST_HOME`` (GNU make, each directory with
-a ``Make.package``). ``Tests/DustModelExample`` is a minimal model that shows
-both files.
+a ``Make.package``). A minimal model that shows both files is in
+erf-model/FLARE (``Tests/DustModelExample``).
 
 Inputs
 ------
@@ -98,10 +98,11 @@ them) and the fire grid.
 Tests
 -----
 
-With ``Tests/DustModelExample`` compiled in, ``Dust_ExampleModel_Mass`` emits
-a constant flux from the ground into a closed box and checks that the dust ERF
-sums equals the mass the model emitted at every step, and
-``Dust_ExampleModel_Restart`` checks that a restart from the mid-run checkpoint
-reproduces the final plotfile and the model's own count exactly. The
-``Dust_Abort_*`` tests check the messages for a model that is not compiled in
-and for a dust deck on a build without the coupling.
+ERF builds no dust model and runs no dust tests; they live in erf-model/FLARE
+with its dust layer. There, ``Tests/DustModelExample`` emits a constant flux
+from the ground into a closed box: ``Dust_ExampleModel_Mass`` checks that the
+dust ERF sums (``RHO DUST``) equals the mass the model emitted at every step,
+and ``Dust_ExampleModel_Restart`` that a restart from the mid-run checkpoint
+reproduces the final plotfile and the model's own count exactly. In ERF,
+``Dust_Abort_BuiltWithoutDust`` checks that a build without the coupling
+refuses a dust deck.
