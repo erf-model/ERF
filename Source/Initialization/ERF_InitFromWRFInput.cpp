@@ -3392,16 +3392,18 @@ ERF::check_own_low_file_times (int lev)
 
 /**
  * Re-read the surface pressure of a level from its own init file, on the box init_from_wrfinput
- * reads it on (the domain at level 0, the nest box above).  The surface pressure is not
- * checkpointed; a restart from a checkpoint that holds the SST and TSK as potential
- * temperature converts them back with it (see convert_legacy_surface_temperature).
+ * reads it on (the domain at level 0, the nest box above).  Level 0 reads its first init file
+ * only, as init_from_wrfinput does however many erf.nc_init_file_0 lists.  The surface
+ * pressure is not checkpointed; a restart from a WRFInput checkpoint that holds the SST and TSK
+ * as potential temperature converts them back with it (see convert_legacy_surface_temperature).
  *
- * @param[in] lev level with a single init file of its own
+ * @param[in] lev level 0, or a finer level with a single init file of its own
  */
 void
 ERF::read_psfc_from_own_init_file (int lev)
 {
-    AMREX_ALWAYS_ASSERT(nc_init_file[lev].size() == 1);
+    AMREX_ALWAYS_ASSERT(!nc_init_file[lev].empty() &&
+                        (lev == 0 || nc_init_file[lev].size() == 1));
 
     int ratio;
     Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][0], ratio);

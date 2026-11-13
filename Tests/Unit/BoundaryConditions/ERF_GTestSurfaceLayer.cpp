@@ -313,6 +313,8 @@ struct SurfaceLayerFields
     MultiFab yvel;
     MultiFab zvel;
     std::unique_ptr<MultiFab> theta;
+    // The primitive qv of a moist layer, which keeps a pointer to it
+    Vector<std::unique_ptr<MultiFab>> qv_prim = Vector<std::unique_ptr<MultiFab>>(1);
     std::unique_ptr<MultiFab> lsm_tsurf;
     std::unique_ptr<MultiFab> coupled_sst;
     std::unique_ptr<iMultiFab> coupled_valid;
@@ -453,7 +455,7 @@ struct SurfaceLayerFields
     {
         bool rotate = false;
         Vector<Geometry> geoms{geom};
-        Vector<std::unique_ptr<MultiFab>> qv_prim(1);
+        Vector<std::unique_ptr<MultiFab>> no_qv(1);
         Vector<std::unique_ptr<MultiFab>> z_phys_nd(1);
         if (with_moisture) {
             qv_prim[0] = std::make_unique<MultiFab>(
@@ -462,8 +464,9 @@ struct SurfaceLayerFields
                                      test_primitive_z_ng)));
             qv_prim[0]->setVal(test_qv);
         }
+        auto& qv = with_moisture ? qv_prim : no_qv;
         auto layer = std::make_unique<SurfaceLayer>(
-            face, geoms, rotate, prefix, qv_prim, z_phys_nd,
+            face, geoms, rotate, prefix, qv, z_phys_nd,
             Vector<Vector<Real>>{},
             MeshType::ConstantDz, TerrainType::None, TurbChoice{}, rdOcp,
             0.0, final_low_time, low_time_interval, Vector<const eb_*>{}, nullptr,
@@ -495,7 +498,7 @@ struct SurfaceLayerFields
         Vector<MultiFab*> lsm_flux;
         for (auto& mf : lsm_flux_data) { lsm_flux.push_back(mf.get()); }
         layer->make_SurfaceLayer_at_level(
-            0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
+            0, 1, state, theta, qv[0], qr_prim, z_phys_nd[0],
             nullptr, nullptr, nullptr, lsm_data, lsm_names,
             lsm_flux, lsm_flux_names, sst_data, tsk_data, lmask);
         if (coupled_active) {
@@ -1875,6 +1878,56 @@ TEST(SurfaceLayer, LowerBoundarySstGivesSaturationAtTheSst)
     const IntVect point = face_point(fields.domain, face);
     EXPECT_NEAR(mf_value(*layer->get_q_surf(0), point), expected,
                 qsat_tolerance(expected));
+}
+
+// Motivation: through a run the SST follows the lower-boundary slices while the surface
+// pressure follows the flow, each on its own.  At every update the surface potential
+// temperature must be the SST of that time at the surface pressure of that time,
+// theta_s(t) = T_s(t) (p0/p_s(t))^(R_d/c_p), and q_surf over water q_sat(T_s(t), p_s(t)).
+// Converting the SST once, or with the pressure of another time, fails this.
+TEST(SurfaceLayer, LowerBoundarySstAndSurfacePressureVaryIndependently)
+{
+    const std::string prefix = "unit_surface_layer_lowbdy_sst_pressure_time";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    fields.final_low_time = 7200.0;
+    fields.low_time_interval = 3600.0;
+    for (const Real sst : {Real(288.0), Real(292.0), Real(290.0)}) {
+        fields.sst_data.push_back(make_surface_slice(fields.ba, fields.dm, sst));
+    }
+    const Real gdz = test_rho * CONST_GRAV * myhalf * geom.CellSize(2);
+    fields.set_surface_cell_pressure(p_0 - gdz, test_qv);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true, false);
+
+    struct Sample {
+        double time;  // [s]
+        Real sst;     // SST interpolated to the time [K]
+        Real pressure;
+    };
+    const IntVect point = face_point(fields.domain, face);
+    // The SST rises, then falls; the pressure falls, rises, falls, then rises above p0
+    for (const Sample& sample : {Sample{0.0, Real(288.0), p_0},
+                                 Sample{900.0, Real(289.0), Real(0.93) * p_0},
+                                 Sample{3600.0, Real(292.0), Real(0.97) * p_0},
+                                 Sample{5400.0, Real(291.0), Real(0.90) * p_0},
+                                 Sample{7200.0, Real(290.0), Real(1.02) * p_0}}) {
+        SCOPED_TRACE("t = " + std::to_string(sample.time) + " s");
+        fields.set_surface_cell_pressure(sample.pressure - gdz, test_qv);
+        layer->get_q_surf(0)->setVal(tau_sentinel);
+        layer->update_fluxes(0, sample.time, sample.time, fields.cons, nullptr,
+                             fields.no_walldist, 20);
+
+        const Real expected_theta = sample.sst * std::pow(p_0 / sample.pressure, RdoCp);
+        EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                    Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+        Real expected_q = Real(0.0);
+        erf_qsatw(sample.sst, sample.pressure * Real(0.01), expected_q);
+        EXPECT_NEAR(mf_value(*layer->get_q_surf(0), point), expected_q,
+                    qsat_tolerance(expected_q));
+    }
 }
 
 // Motivation: an SST that cannot be converted -- missing data read as zero, or a NaN --

@@ -2905,7 +2905,9 @@ ERF::interp_psfc_from_coarse (int lev)
     // init_from_wrfinput fills by clamping into the valid region, PSFC is copied out of
     // the file over the intersection with the domain, so the coarse level has nothing
     // there for us to interpolate.  Nothing reads those cells -- the conversion of the SST
-    // and TSK clamps its PSFC index into the valid box.
+    // and TSK clamps its PSFC index into the valid box.  The interpolation does read the
+    // coarse ghost cells next to the domain boundary, though: on restart,
+    // convert_legacy_surface_temperature fills those of the coarse level first.
     //
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
                           *mf_PSFC[lev-1], 0, 0, 1,

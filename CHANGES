@@ -23,7 +23,13 @@
        answers as the surface pressure drifts (about 0.09 K in the surface potential
        temperature per hPa of drift). Checkpoints hold SST and TSK in K
        (surface_temperature_contract 2); older ones are converted on restart, and
-       markerless Metgrid checkpoints are accepted again
+       markerless Metgrid checkpoints are accepted again. The conversion pressure
+       follows the init type that wrote the checkpoint (its job_info, or
+       erf.legacy_surface_temperature_init_type), not the restart's: WRFInput arrays
+       are recovered exactly from the wrfinput PSFC, also with several level-0 init
+       files, and need a WRFInput restart; version-1 Metgrid arrays are migrated
+       approximately with the restarted state's surface pressure, keeping the old
+       pressure-related bias, with a warning; arrays of unknown origin abort
 
 #26.11
     -- Implicit diffusion for all moist scalars (#4936)
