@@ -55,6 +55,9 @@ ERF::advance_dust_model (int step, double time)
     }
 #endif
 
+    // The force-restore soil of level 0, when the two-stream balance evolves it.
+    const ForceRestoreSoil soil = (solverChoice.rad_type == RadiationType::TwoStream)
+                                ? two_stream_rad.force_restore_soil(0) : ForceRestoreSoil{};
     DustStep ds{step, time, dt[0], geom[0],
                 vars_new[0][Vars::cons], vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::zvel],
                 (z_phys_cc.size() > 0) ? z_phys_cc[0].get() : nullptr,
@@ -63,6 +66,7 @@ ERF::advance_dust_model (int step, double time)
 #ifdef ERF_USE_FIRE
                 , fire ? &*fire : nullptr
 #endif
+                , soil.q_sfc ? &soil : nullptr
                };
     m_dust_model->advance(ds);
 }
