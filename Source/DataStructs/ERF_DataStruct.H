@@ -931,6 +931,11 @@ struct SolverChoice {
         // ApplyOceanSurfaceState call.
         pp.queryAdd("use_coupled_sst", use_coupled_sst);
 
+        // Will an external ocean coupler supply the surface current? The surface layer
+        // allocates the current with each level, before the first ApplyOceanSurfaceState
+        // call, and takes the wind relative to it.
+        pp.queryAdd("use_coupled_currents", use_coupled_currents);
+
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
             if (is_land[lev] == 1) {
@@ -3281,6 +3286,8 @@ struct SolverChoice {
 
     // Does an external ocean coupler supply SST? See the query in init_params.
     bool use_coupled_sst = false;
+    // Does an external ocean coupler supply the surface current? See the query in init_params.
+    bool use_coupled_currents = false;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;

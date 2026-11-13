@@ -4908,6 +4908,11 @@ List of Parameters
 |                          | set at problem definition time because the surface layer |                    |                  |
 |                          | uses it to select its temperature boundary treatment     |                    |                  |
 +--------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_coupled_       | an external ocean coupler supplies the surface current,  | Boolean            | false            |
+| currents**               | and the surface layer takes the wind relative to it (see |                    |                  |
+|                          | :ref:`sec:MovingSurface`); may not be combined with      |                    |                  |
+|                          | ``erf.most.surface_current``                             |                    |                  |
++--------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. note::
 

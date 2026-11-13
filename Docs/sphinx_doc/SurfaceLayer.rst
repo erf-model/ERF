@@ -328,8 +328,9 @@ relative to it (e.g. Bye and Wolff 1999, JPO). With
 
 the water surface moves at :math:`(u_s, v_s)` = (0.5, 0.2) m/s along the grid's x and y
 axes, not east and north: on a rotated or projected grid an earth-relative current must first
-be turned into the grid's directions. The surface layer takes :math:`(u - u_s, v - v_s)` wherever it uses the near-surface wind: in the mean
-speed :math:`|\bar{\mathbf{u}}|` and mean components behind :math:`u_*`, the Obukhov length
+be turned into the grid's directions. The surface layer takes :math:`(u - u_s, v - v_s)`
+wherever it uses the near-surface wind: in the mean speed :math:`|\bar{\mathbf{u}}|` and mean
+components behind :math:`u_*`, the Obukhov length
 and the roughness, in the direction and magnitude of the stresses, and in the wind speed
 of the heat and moisture fluxes. The 10 m wind diagnostics ``u_10m`` and ``v_10m`` are the
 relative wind from the similarity profile plus the current, so they remain winds over the
@@ -349,11 +350,20 @@ Only water moves. A face of the lowest cells takes the current where the cells o
 of it are water (land mask 0), and is at rest over land and buildings. A water cell on the
 coast therefore has one face at rest across the coastline, and where the surface layer works at
 cell centres, averaging the two faces of the cell, it sees half the current along that
-direction. The current is uniform and takes no account of where the water is: lakes and
-rivers in the land mask move with it as well as the sea, so it is meant for idealized domains
-and domains whose only water is the ocean. A surface with no water is an error, since the
+direction. A current set with ``erf.most.surface_current`` is uniform and takes no account of
+where the water is: lakes and rivers in the land mask move with it as well as the sea, so it is
+meant for idealized domains and domains whose only water is the ocean. A surface with no water is an error, since the
 current would do nothing; idealized cases are all land unless ``erf.is_land = 0``. The current
 is applied at the z-low face on every level, and is not supported with EB terrain.
+
+With ``erf.use_coupled_currents`` an ocean coupler supplies the current instead, as eastward
+and northward components at the cell centres of the level-0 surface, through
+``ERF::ApplyOceanSurfaceState``. They are turned to the grid axes with the grid orientation
+from the latitude and longitude (a grid without them is taken to be aligned with east) and
+averaged to the faces. A face takes the current where the cells on both sides of it are water
+and covered by the ocean, and is at rest elsewhere, including before the coupler's first call;
+lakes the ocean model does not reach stay at rest.
+Like the coupled SST, it is applied on level 0 only; refined levels are at rest.
 
 Limits on the similarity solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

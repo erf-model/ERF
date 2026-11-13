@@ -2,6 +2,7 @@
 #include <AMReX_Math.H>
 #include <AMReX_MultiFabUtil.H>
 #include "ERF_Constants.H"
+#include "ERF_EarthRelativeWind.H"
 #include "ERF_SurfaceLayerStress.H"
 #include "ERF_SurfaceTemperature.H"
 #include "ERF_SurfaceMoisture.H"
@@ -229,6 +230,95 @@ SurfaceLayer::build_relative_velocities (const int& lev, const MultiFab& xvel,
             ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 r(i,j,k) = v(i,j,k) - c(i,j,klo);
+            });
+        }
+    }
+}
+
+void
+SurfaceLayer::update_coupled_surface_current (const int& lev,
+                                              const MultiFab& east,
+                                              const MultiFab& north,
+                                              const iMultiFab* covered,
+                                              const MultiFab* cos_alpha,
+                                              const MultiFab* sin_alpha)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        m_use_surface_current && lev < static_cast<int>(m_surface_current_x.size()) &&
+        m_surface_current_x[lev],
+        "The coupled surface current was set on a level made before set_coupled_current_active.");
+
+    // The cells of the surface, one 2D box for each box of the current at k = 0 like the
+    // other surface fields, with one more lateral ghost cell than the current, so both cells
+    // beside every face it holds are there. Ghost cells inside the domain or its periodic
+    // images take the coupler's values.
+    MultiFab& current_x = *m_surface_current_x[lev];
+    MultiFab& current_y = *m_surface_current_y[lev];
+    BoxList bl = convert(current_x.boxArray(), IntVect(0)).boxList();
+    for (auto& b : bl) { b.setRange(2, 0); }
+    const BoxArray ba(std::move(bl));
+    const DistributionMapping& dm = current_x.DistributionMap();
+    const IntVect ng = current_x.nGrowVect() + IntVect(1, 1, 0);
+    const Periodicity period = m_geom[lev].periodicity();
+
+    // East and north components, the grid rotation, and the ocean's coverage
+    MultiFab en(ba, dm, 2, ng);
+    en.setVal(zero);
+    en.ParallelCopy(east,  0, 0, 1, IntVect(0), ng, period);
+    en.ParallelCopy(north, 0, 1, 1, IntVect(0), ng, period);
+    MultiFab rotation(ba, dm, 2, ng);
+    rotation.setVal(one, 0, 1, ng);
+    rotation.setVal(zero, 1, 1, ng);
+    if (cos_alpha && sin_alpha) {
+        rotation.ParallelCopy(*cos_alpha, 0, 0, 1, IntVect(0), ng, period);
+        rotation.ParallelCopy(*sin_alpha, 0, 1, 1, IntVect(0), ng, period);
+    }
+    iMultiFab cover(ba, dm, 1, ng);
+    cover.setVal(0);
+    if (covered) { cover.ParallelCopy(*covered, 0, 0, 1, IntVect(0), ng, period); }
+
+    const iMultiFab* lmask = (lev < static_cast<int>(m_lmask_lev.size()) &&
+                              !m_lmask_lev[lev].empty()) ? m_lmask_lev[lev][0] : nullptr;
+    const bool has_mask = (lmask != nullptr);
+
+    // Outside a non-periodic domain, the cells beside a face are those of the nearest column
+    // inside it; the periodic ghost cells hold their images
+    Box columns = m_geom[lev].Domain();
+    for (int d = 0; d < 2; ++d) {
+        if (m_geom[lev].isPeriodic(d)) { columns.grow(d, ng[d]); }
+    }
+    const NearestColumn in_domain(columns);
+
+    for (int dir = 0; dir < 2; ++dir) {
+        MultiFab& current = (dir == 0) ? current_x : current_y;
+        const int di = (dir == 0) ? 1 : 0;
+        const int dj = (dir == 1) ? 1 : 0;
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(current, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto c = current.array(mfi);
+            const auto en_arr = en.const_array(mfi);
+            const auto rot = rotation.const_array(mfi);
+            const auto cov = cover.const_array(mfi);
+            const auto m = has_mask ? lmask->const_array(mfi) : Array4<const int>{};
+            const int km = has_mask ? amrex::lbound(m).z : 0;
+            ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real sum = zero;
+                bool moves = true;
+                for (int side = 0; side < 2; ++side) {
+                    const int ii = in_domain.i(i - di * (1 - side));
+                    const int jj = in_domain.j(j - dj * (1 - side));
+                    moves = moves && cov(ii,jj,0) != 0 && (!has_mask || m(ii,jj,km) == 0);
+                    // East and north to the grid axes: the grid-to-earth rotation by -alpha
+                    Real u_grid, v_grid;
+                    erf_earth_wind::grid_to_earth(en_arr(ii,jj,0,0), en_arr(ii,jj,0,1),
+                                                  rot(ii,jj,0,0), -rot(ii,jj,0,1),
+                                                  u_grid, v_grid);
+                    sum += (dir == 0) ? u_grid : v_grid;
+                }
+                c(i,j,k) = moves ? myhalf * sum : zero;
             });
         }
     }

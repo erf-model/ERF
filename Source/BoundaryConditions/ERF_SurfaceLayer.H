@@ -1951,6 +1951,52 @@ public:
   void set_coupled_sst_active (const bool active) { m_use_coupled_sst = active; }
 
   /**
+   * Declare that an ocean coupler will supply the surface current for this run.
+   *
+   * Must be called before make_SurfaceLayer_at_level, which allocates the current. The
+   * surface is at rest until update_coupled_surface_current first sets it.
+   *
+   * @param[in] active whether a coupled surface current is configured
+   */
+  void set_coupled_current_active (const bool active)
+  {
+      if (!active) { return; }
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_surface_current,
+          "most.surface_current cannot be combined with a coupled surface current "
+          "(erf.use_coupled_currents).");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_face.coordDir() == 2 && m_face.isLow(),
+          "A coupled surface current is supported only on the z-low face.");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_terrain_type != TerrainType::EB,
+          "A coupled surface current is not supported with EB terrain.");
+      m_use_surface_current = true;
+  }
+
+  /**
+   * Set the surface current on this level from an ocean coupler's current at the cell
+   * centres of the surface.
+   *
+   * The current is rotated from east and north to the grid axes and averaged to the faces.
+   * A face takes it where the cells on both sides of it are water (land mask 0) and covered
+   * by the ocean, and is at rest elsewhere. Outside a non-periodic domain, the cells beside
+   * a face are those of the nearest column inside it.
+   *
+   * @param[in] lev       level index
+   * @param[in] east      eastward current [m/s], cell-centred on the 2D surface layout
+   * @param[in] north     northward current [m/s], on the layout of east
+   * @param[in] covered   nonzero where the ocean covers the cell, on the layout of east;
+   *                      null when it covers none, as for the coupled SST
+   * @param[in] cos_alpha cosine of the angle of the grid x axis from east, cell-centred on
+   *                      the 2D surface layout; null when the grid is aligned with east
+   * @param[in] sin_alpha sine of that angle, on the layout of cos_alpha
+   */
+  void update_coupled_surface_current (const int& lev,
+                                       const amrex::MultiFab& east,
+                                       const amrex::MultiFab& north,
+                                       const amrex::iMultiFab* covered,
+                                       const amrex::MultiFab* cos_alpha,
+                                       const amrex::MultiFab* sin_alpha);
+
+  /**
    * Set the domain faces that use the surface-layer boundary condition.
    *
    * The face set is used to suppress transpose stress writes at shared edges;
@@ -2161,11 +2207,12 @@ private:
   amrex::Vector<amrex::MultiFab*>  m_coupled_sst_lev;
   amrex::Vector<amrex::iMultiFab*> m_coupled_sst_valid_lev;
 
-  // Current of the lower surface (most.surface_current): the uniform value read from the
-  // inputs, and per level its x-component on the x-faces and y-component on the y-faces of
-  // the plane k = klo. The surface layer averages and applies the wind relative to it, held
-  // in m_rel_xvel and m_rel_yvel on the velocities' boxes cut at m_rel_k_top, the highest
-  // plane the averages read; m_rel_src_ba is the x-velocity layout they were made for.
+  // Current of the lower surface (most.surface_current, or from an ocean coupler): the
+  // uniform value read from the inputs (zero with a coupler), and per level its x-component
+  // on the x-faces and y-component on the y-faces of the plane k = klo. The surface layer
+  // averages and applies the wind relative to it, held in m_rel_xvel and m_rel_yvel on the
+  // velocities' boxes cut at m_rel_k_top, the highest plane the averages read; m_rel_src_ba
+  // is the x-velocity layout they were made for.
   bool m_use_surface_current = false;
   amrex::Real m_surface_current_const[2] = {zero, zero};
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_x;

@@ -259,12 +259,14 @@ public:
                                 const amrex::MultiFab* dst_mskr = nullptr,
                                 const amrex::MultiFab* dst_msku = nullptr,
                                 const amrex::MultiFab* dst_mskv = nullptr);
-    // Apply ocean-model sea-surface temperature to the ERF lower boundary.
+    // Apply ocean-model sea-surface temperature, and with erf.use_coupled_currents the
+    // surface current, to the ERF lower boundary.
     //
-    // state[0] carries SST in Kelvin on the layout reported by
+    // state[0] carries SST in Kelvin, and state[1] and state[2] the eastward and
+    // northward surface current in m/s, on the layout reported by
     // GetOceanToAtmosSurfaceLayout. erf_coverage is the per-cell coverage flag on
     // that same layout: nonzero where the driver's remap found at least one
-    // ocean donor for that ERF cell.
+    // ocean donor for that ERF cell. A cell without one is at rest.
     //
     // Coverage is a contract, not a hint. Where erf_coverage is zero the ocean
     // supplied nothing and state[0] holds the remap's zero fill, which is
@@ -1246,6 +1248,14 @@ public:
     // only: the coupler exchanges on the base grid.
     std::unique_ptr<amrex::MultiFab>  m_coupled_sst;
     std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
+
+    // The orientation of the level-0 grid (cosine and sine of the angle of its x axis
+    // from east) for turning the coupled surface current to the grid axes, from lat_m
+    // and lon_m on the first ApplyOceanSurfaceState call; null without lat/lon, where
+    // the grid is taken to be aligned with east.
+    std::unique_ptr<amrex::MultiFab> m_coupled_current_cos_alpha;
+    std::unique_ptr<amrex::MultiFab> m_coupled_current_sin_alpha;
+    bool m_coupled_current_rotation_set = false;
 
     // One-shot latch so a misconfigured deck says so once rather than every step.
     bool m_warned_coupled_sst_declined = false;
