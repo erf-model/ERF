@@ -27,8 +27,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Cancel obsolete PR CI
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const cleanup = require('./.github/scripts/cleanup-closed-pr-ci.cjs');
-            await cleanup({ github, context, core });
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/cleanup_closed_pr_ci.py --apply
