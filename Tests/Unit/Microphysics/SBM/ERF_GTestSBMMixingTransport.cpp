@@ -360,9 +360,10 @@ copy_of (const MultiFab& source)
 
 Real difference (const MultiFab& a, const MultiFab& b)
 {
+    // Separate runs build their own distribution maps, which need not agree.
     MultiFab d(a.boxArray(), a.DistributionMap(), a.nComp(), 0);
-    MultiFab::Copy(d, a, 0, 0, a.nComp(), 0);
-    d.minus(b, 0, a.nComp(), 0);
+    d.ParallelCopy(b, 0, 0, a.nComp());
+    d.minus(a, 0, a.nComp(), 0);
     return d.norm0(0, a.nComp(), IntVect(0));
 }
 
@@ -689,7 +690,11 @@ void run_missing_inputs ()
 TEST(SBMMixingTransport, InactiveLimiterRecoversHostDiffusion) { run_recovery(); }
 TEST(SBMMixingTransport, DiffusionKeepsRK3Order)
 {
+#ifdef AMREX_USE_FLOAT
+    GTEST_SKIP() << "the finest third-order error is at single-precision roundoff";
+#else
     run_temporal_order(HostIntegrator::CompressibleRK3, Real(2.7));
+#endif
 }
 TEST(SBMMixingTransport, DiffusionKeepsHeunAndMidPointOrder)
 {

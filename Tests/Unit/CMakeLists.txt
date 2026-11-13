@@ -947,9 +947,12 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_Mixing_Reject_StaticTerrain inputs_periodic_static_terrain
     "SBM particle mixing has no qualified monotone low-order operator on a terrain-fitted"
     "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
-  add_sbm_expected_failure_test(SBM_Mixing_Reject_AMR inputs_amr_production_2level
-    "SBM particle mixing HostPassiveScalar is not yet qualified with AMR"
-    "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
+  # The qualification build's executable accepts only its own two-level decks.
+  if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
+    add_sbm_expected_failure_test(SBM_Mixing_Reject_AMR inputs_amr_production_2level
+      "SBM particle mixing HostPassiveScalar is not yet qualified with AMR"
+      "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
+  endif()
   add_sbm_expected_failure_test(SBM_Mixing_Reject_InflowOutflow inputs_boundary_inflow_outflow
     "SBM particle mixing HostPassiveScalar is qualified with periodic and wall faces only, not the"
     "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
@@ -1326,6 +1329,8 @@ if(ERF_ENABLE_MPI)
     # The coefficient check and the rate maximum reduce over the ranks: check them across ranks
     target_sources(${erf_parallel_exe_name} PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMParticleMixing.cpp
+      # Mixing reads neighbours across box and rank boundaries in every stage
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMMixingTransport.cpp
     )
   endif()
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)
