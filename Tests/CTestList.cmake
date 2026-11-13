@@ -1546,7 +1546,7 @@ add_test_cloud_chamber_bulk_legacy(CloudChamber_BulkSmoke_Legacy_Kessler_NoRain 
 # These runs exercise initialization rejection through global solver guards or
 # the Cloud Chamber typed allowlist. Direct parser failures have separate tests.
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SBM SBM 0
-    "SBM M3 does not support scalar or particle diffusion")
+    "SBM does not support molecular diffusion")
 # Motivation: Anelastic SDM is valid in ERF, but Cloud Chamber still rejects
 # particle models before time stepping or output. Without particle support,
 # the earlier global build-capability guard must reject the same input.

@@ -308,12 +308,12 @@ TEST(SBMBoundary, MapsEveryErfBoundaryType)
     maps_to(ERF_BC::periodic, AdvectionFaceKind::Periodic);
     maps_to(ERF_BC::slip_wall, AdvectionFaceKind::ImpermeableWall);
     maps_to(ERF_BC::no_slip_wall, AdvectionFaceKind::ImpermeableWall);
+    maps_to(ERF_BC::surface_layer, AdvectionFaceKind::ImpermeableWall);
     maps_to(ERF_BC::outflow, AdvectionFaceKind::AdvectiveOutflow);
     maps_to(ERF_BC::ho_outflow, AdvectionFaceKind::AdvectiveOutflow);
     maps_to(ERF_BC::inflow, AdvectionFaceKind::PrescribedInflow);
     maps_to(ERF_BC::inflow_outflow, AdvectionFaceKind::PrescribedInflow);
-    for (const ERF_BC rejected : {ERF_BC::symmetry, ERF_BC::surface_layer,
-                                  ERF_BC::open, ERF_BC::undefined}) {
+    for (const ERF_BC rejected : {ERF_BC::symmetry, ERF_BC::open, ERF_BC::undefined}) {
         EXPECT_FALSE(erf_sbm::map_erf_boundary(rejected, kind, reason));
         EXPECT_FALSE(reason.empty());
     }
@@ -381,6 +381,35 @@ TEST(SBMBoundary, RestartIdentityKeepsThePeriodicSchemaAndFingerprintsInflow)
     changed.inflow_z[xlo][1] = std::nextafter(changed.inflow_z[xlo][1], Real(1.0));
     EXPECT_NE(changed.identity(), identity);
     EXPECT_FALSE(erf_sbm::restart_schema_matches(layout, schema, changed.identity()));
+}
+
+TEST(SBMBoundary, ParticleMixingExtendsTheRestartSchemaOnlyWhenActive)
+{
+    const auto layout = make_layout(erf_sbm::MomentMode::OneMoment);
+    const std::string periodic = erf_sbm::SBMPhysicalBoundaryConfig{}.identity();
+    erf_sbm::ParticleMixingConfig mixing;
+    EXPECT_EQ(erf_sbm::particle_mixing_schema(mixing), "");
+    EXPECT_EQ(erf_sbm::restart_schema(layout, periodic, erf_sbm::particle_mixing_schema(mixing)),
+              erf_sbm::restart_schema(layout));
+
+    mixing.policy = erf_sbm::ParticleMixingPolicy::HostPassiveScalar;
+    const std::string host_lines = erf_sbm::particle_mixing_schema(mixing);
+    const std::string host = erf_sbm::restart_schema(layout, periodic, host_lines);
+    EXPECT_EQ(host, erf_sbm::restart_schema(layout) +
+                    "particle-mixing=host-passive-scalar-v1[Scalar_h,Scalar_v]\n"
+                    "diffusion=two-point-low-host-high-group-fct-v1\n");
+    EXPECT_TRUE(erf_sbm::restart_schema_matches(layout, host, periodic, host_lines));
+    EXPECT_FALSE(erf_sbm::restart_schema_matches(layout, host, periodic));
+    EXPECT_FALSE(erf_sbm::restart_schema_matches(layout, erf_sbm::restart_schema(layout),
+                                                 periodic, host_lines));
+
+    mixing.policy = erf_sbm::ParticleMixingPolicy::ConstantReference;
+    mixing.reference_kh = Real(0.25);
+    const std::string reference_lines = erf_sbm::particle_mixing_schema(mixing);
+    mixing.reference_kv = std::nextafter(Real(0.0), Real(1.0));
+    EXPECT_FALSE(erf_sbm::restart_schema_matches(
+        layout, erf_sbm::restart_schema(layout, periodic, reference_lines), periodic,
+        erf_sbm::particle_mixing_schema(mixing)));
 }
 
 TEST(SBMBoundary, LedgerSerializationRoundTripsExactly)

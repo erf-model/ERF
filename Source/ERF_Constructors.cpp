@@ -12,6 +12,7 @@
 #include "ERF_NoahMPGitHash.H"
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMFixtureValidation.H"
+#include "ERF_SBMParticleMixing.H"
 #include "ERF_SBMRemapping.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
@@ -56,6 +57,63 @@ erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
         amrex::Error("Invalid SBM configuration: " + validation.message);
     }
     return erf_sbm::SBMLayout(std::move(spec));
+}
+
+erf_sbm::ParticleMixingConfig sbm_particle_mixing (const SolverChoice& choice)
+{
+    erf_sbm::ParticleMixingConfig mixing;
+    std::string reason;
+    if (!erf_sbm::make_particle_mixing_config(choice.sbm_particle_mixing,
+                                              choice.sbm_particle_mixing_kh,
+                                              choice.sbm_particle_mixing_kv,
+                                              mixing, reason)) {
+        amrex::Abort(reason);
+    }
+    return mixing;
+}
+
+void validate_sbm_fixture_state (const erf_sbm::SBMLayout& layout,
+                                 const amrex::Vector<amrex::Real>& values,
+                                 const std::string& name)
+{
+    std::vector<amrex::Real> candidate(static_cast<std::size_t>(layout.ncomp()),
+                                       amrex::Real(0.0));
+    if (!values.empty()) {
+        // ReadParameters checks the length against sbm_nbins and sbm_moment_mode;
+        // check it against the layout itself before writing into candidate.
+        if (values.size() != static_cast<amrex::Long>(layout.ncomp())) {
+            amrex::Error(name + " has " + std::to_string(values.size()) +
+                " entries but the SBM layout has " + std::to_string(layout.ncomp()) +
+                " components");
+        }
+        std::copy(values.begin(), values.end(), candidate.begin());
+    }
+    const auto fixture_canonicality =
+        erf_sbm::validate_fixture_initial_state_canonicality(layout, candidate);
+    if (!fixture_canonicality.canonical) {
+        const char* representation =
+            fixture_canonicality.moment_mode == erf_sbm::MomentMode::OneMoment ?
+            "one-moment" : "two-moment";
+        amrex::Error("SBM fixture initial state is not canonical for selected spectral "
+                     "representation: population=" +
+            std::to_string(fixture_canonicality.population_id) + " representation=" +
+            representation + " bin=" + std::to_string(fixture_canonicality.bin));
+    }
+    for (const auto& group : erf_sbm::make_constraint_groups(layout)) {
+        amrex::Real margin = amrex::Real(0.0);
+        std::string failed_constraint;
+        if (!group.admissible(candidate, &margin, &failed_constraint)) {
+            std::string members;
+            for (const int component : group.members) {
+                members += (members.empty() ? "" : ",") + std::to_string(component) + "=" +
+                           std::to_string(candidate[static_cast<std::size_t>(component)]);
+            }
+            amrex::Error("SBM fixture initial state is unrealizable: population=" +
+                std::to_string(group.population_id) + " bin=" + std::to_string(group.bin) +
+                " semantic=" + group.semantic_id + " failed_constraint=" + failed_constraint +
+                " margin=" + std::to_string(margin) + " members={" + members + "}");
+        }
+    }
 }
 
 // The qualified multilevel SBM envelope: two levels, refined by 2, two-way
@@ -163,14 +221,15 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
             choice.timestepping_type[lev] == TimesteppingType::MidPoint,
             "SBM M3 supports the anelastic RK2 (Heun) and MidPoint integrators only");
     }
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
-        "SBM M3 does not support scalar or particle diffusion");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        std::all_of(choice.turbChoice.begin(), choice.turbChoice.end(),
-                    [] (const TurbChoice& turb) {
-                        return !turb.use_kturb && turb.pbl_type == PBLType::None;
-                    }),
-        "SBM M3 does not support turbulent particle mixing or SHOC/macrophysics");
+    {
+        const auto mixing = sbm_particle_mixing(choice);
+        std::string reason;
+        if (!erf_sbm::validate_particle_mixing_host(mixing, choice.turbChoice,
+                                                    choice.diffChoice.molec_diff_type,
+                                                    choice.mesh_type, max_level, reason)) {
+            amrex::Abort(reason);
+        }
+    }
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.use_num_diff,
         "SBM M3 does not support numerical diffusion");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.spongeChoice.sponge_type == SpongeType::None,
@@ -382,52 +441,30 @@ ERF::ERF_shared ()
     }
     if (solverChoice.moisture_type == MoistureType::SBM) {
         auto layout = make_sbm_layout(solverChoice);
-        std::vector<amrex::Real> candidate(static_cast<std::size_t>(layout.ncomp()),
-                                           amrex::Real(0.0));
-        if (!solverChoice.sbm_fixture_initial_state.empty()) {
-            // ReadParameters checks the length against sbm_nbins and sbm_moment_mode;
-            // check it against the layout itself before writing into candidate.
-            if (solverChoice.sbm_fixture_initial_state.size() !=
-                static_cast<amrex::Long>(layout.ncomp())) {
-                amrex::Error("sbm_fixture_initial_state has " +
-                    std::to_string(solverChoice.sbm_fixture_initial_state.size()) +
-                    " entries but the SBM layout has " + std::to_string(layout.ncomp()) +
-                    " components");
-            }
-            std::copy(solverChoice.sbm_fixture_initial_state.begin(),
-                      solverChoice.sbm_fixture_initial_state.end(), candidate.begin());
-        }
-        const auto fixture_canonicality =
-            erf_sbm::validate_fixture_initial_state_canonicality(layout, candidate);
-        if (!fixture_canonicality.canonical) {
-            const char* representation =
-                fixture_canonicality.moment_mode == erf_sbm::MomentMode::OneMoment ?
-                "one-moment" : "two-moment";
-            amrex::Error("SBM fixture initial state is not canonical for selected spectral "
-                         "representation: population=" +
-                std::to_string(fixture_canonicality.population_id) + " representation=" +
-                representation + " bin=" + std::to_string(fixture_canonicality.bin));
-        }
-        for (const auto& group : erf_sbm::make_constraint_groups(layout)) {
-            amrex::Real margin = amrex::Real(0.0);
-            std::string failed_constraint;
-            if (!group.admissible(candidate, &margin, &failed_constraint)) {
-                std::string values;
-                for (const int component : group.members) {
-                    values += (values.empty() ? "" : ",") + std::to_string(component) + "=" +
-                              std::to_string(candidate[static_cast<std::size_t>(component)]);
-                }
-                amrex::Error("SBM fixture initial state is unrealizable: population=" +
-                    std::to_string(group.population_id) + " bin=" + std::to_string(group.bin) +
-                    " semantic=" + group.semantic_id + " failed_constraint=" + failed_constraint +
-                    " margin=" + std::to_string(margin) + " members={" + values + "}");
-            }
+        validate_sbm_fixture_state(layout, solverChoice.sbm_fixture_initial_state,
+                                   "sbm_fixture_initial_state");
+        if (!solverChoice.sbm_fixture_initial_state_xhi.empty()) {
+            validate_sbm_fixture_state(layout, solverChoice.sbm_fixture_initial_state_xhi,
+                                       "sbm_fixture_initial_state_xhi");
         }
         sbm_state_manager = std::make_unique<erf_sbm::SBMStateManager>(
             std::move(layout), max_level + 1);
         sbm_transport = std::make_unique<erf_sbm::SBMTransport>(
             sbm_state_manager->layout(), max_level + 1,
             erf_sbm::SBMTransport::default_max_groups_per_chunk, false);
+        {
+            const auto mixing = sbm_particle_mixing(solverChoice);
+            erf_auxiliary::DiffusionMesh mixing_mesh = erf_auxiliary::DiffusionMesh::ConstantDz;
+            std::string reason;
+            if (mixing.policy != erf_sbm::ParticleMixingPolicy::None &&
+                !erf_sbm::particle_mixing_mesh(solverChoice.mesh_type, mixing_mesh, reason)) {
+                amrex::Abort(reason);
+            }
+            sbm_transport->set_particle_mixing(mixing, mixing_mesh);
+            if (mixing.policy != erf_sbm::ParticleMixingPolicy::None) {
+                amrex::Print() << "SBM particle mixing: " << mixing.identity() << "\n";
+            }
+        }
         sbm_transport->enable_zero_flow_diagnostics(
             solverChoice.sbm_amr_qualification_expect_zero_flow);
     }
