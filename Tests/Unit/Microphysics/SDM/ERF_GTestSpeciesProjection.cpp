@@ -139,7 +139,7 @@ void composite_initialization_test ()
         }
         MultiFab condensate(ba[lev], dm[lev], 1, 0);
         condensate.setVal(Real(1.e-4));
-        pc.SetAttributes(condensate, lev);
+        pc.SetAttributes(condensate, *height, lev);
         for (SuperDropletPC::ParIterType pti(pc, lev); pti.isValid(); ++pti) {
             const auto& soa = pti.GetStructOfArrays();
             const auto& xi = soa.GetRealData(static_cast<int>(SDPCDefn::SuperDropletsRealIdx::ncomps) +
