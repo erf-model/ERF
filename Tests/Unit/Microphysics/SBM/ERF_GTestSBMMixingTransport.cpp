@@ -611,11 +611,14 @@ void run_limited_cells_keep_low_order_exchange ()
     const Real left = q - D * q + r * (Dh * (B - q) + D * q) + Dh * (Real(1.0) - q);
     const Real far = Real(1.0) - Dh * (Real(1.0) - q);
     // The answers of a limiter falling back to advection alone (r = 0) or to
-    // an exchange at the input density must be clearly different.
+    // an exchange at the input density must be far outside the tolerance, which
+    // allows for the limiter's roundoff margin (128 eps of the drained cell's
+    // gross budget, about 1e3 eps of the result here).
+    const Real tolerance = std::max(Real(1.0e-10), Real(2048.0) * eps()) * scale;
     const Real r_input = (p + q) / (Real(2.0) * B);
     const Real right_input = p - Dh * p + r_input * (Dh * (B - p) + Dh * p);
-    ASSERT_GT(std::abs(right - p), Real(1.0e-3));
-    ASSERT_GT(std::abs(right - right_input), Real(1.0e-3));
+    ASSERT_GT(Real(0.01) * std::abs(right - p), Real(10.0) * tolerance);
+    ASSERT_GT(Real(0.01) * std::abs(right - right_input), Real(10.0) * tolerance);
 
     begin_step(*run, 0.0);
     stage(*run, HostIntegrator::CompressibleRK3, 0, 0.0, 0.0, dt / 3.0, dt / 3.0);
@@ -637,7 +640,7 @@ void run_limited_cells_keep_low_order_exchange ()
     accepted[h + 1] = right;
     MultiFab expected(run->ba, run->dm, delta.nComp(), 0);
     fill_columns(expected, accepted, Real(1.0));
-    EXPECT_LE(difference(run->spectrum(), expected), Real(1.0e-10) * scale);
+    EXPECT_LE(difference(run->spectrum(), expected), tolerance);
 }
 
 // Forked death tests hang under MPI, so amrex::Abort throws for the check.
