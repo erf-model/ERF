@@ -2214,7 +2214,8 @@ ERF::InitData_post ()
                 const amrex::MultiFab* base = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible ? &base_state[lev] : nullptr;
                 micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             }
-            micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
+            micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd,
+                              istep[lev], static_cast<Real>(t_new[lev]));
         }
 
         // Lagrangian microphysics with AMR (TwoWay): the per-level init above

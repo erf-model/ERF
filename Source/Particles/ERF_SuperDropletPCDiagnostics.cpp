@@ -73,7 +73,7 @@ Vector<std::string> SuperDropletPC::meshPlotVarNames () const
 }
 
 /*! Compute diagnostics (max, min, avg radius, mass, etc) */
-void SuperDropletPC::Diagnostics ( const int a_iter,
+void SuperDropletPC::Diagnostics ( const int a_step,
                                   const int a_lev,
                                   const double a_time,
                                   const bool a_flag,
@@ -586,10 +586,10 @@ void SuperDropletPC::Diagnostics ( const int a_iter,
             auto r_eff_min_aero = std::cbrt( min_mass_aerosols[ia] / (four_thirds_pi*rho) );
             if ((r_eff_min_aero < r_eff_min) && (r_eff_min_aero > Real(1.0e-10))) { r_eff_min = r_eff_min_aero; }
         }
-        ComputeDistributions( a_iter, a_lev, r_eff_min, r_eff_max, a_z_phys_nd );
+        ComputeDistributions( a_step, a_lev, r_eff_min, r_eff_max, a_z_phys_nd );
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-        ComputeBinnedDistributions( a_iter, a_lev, a_z_phys_nd );
-        ComputeBinnedDistributionsCell( a_iter, a_lev, a_time, a_z_phys_nd );
+        ComputeBinnedDistributions( a_step, a_lev, a_z_phys_nd );
+        ComputeBinnedDistributionsCell( a_step, a_lev, a_time, a_z_phys_nd );
 #else
         amrex::ignore_unused(a_time);
 #endif
@@ -599,7 +599,7 @@ void SuperDropletPC::Diagnostics ( const int a_iter,
 /*! Compute and write the distributions (as a function of the log of
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
-void SuperDropletPC::ComputeDistributions ( const int a_iter,
+void SuperDropletPC::ComputeDistributions ( const int a_step,
                                            const int a_lev,
                                            const ParticleReal a_r_min,
                                            const ParticleReal a_r_max,
@@ -694,7 +694,7 @@ void SuperDropletPC::ComputeDistributions ( const int a_iter,
     }
 
     // Write to file
-    char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
+    char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_step);
     std::string output_filename =   m_name
                                     + "_g_lnR_"
                                     + std::string(iter_str) + ".txt";
@@ -723,7 +723,7 @@ void SuperDropletPC::ComputeDistributions ( const int a_iter,
 /*! Compute and write the distributions (as a function of the log of
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
-void SuperDropletPC::ComputeBinnedDistributions ( const int a_iter, const int a_lev,
+void SuperDropletPC::ComputeBinnedDistributions ( const int a_step, const int a_lev,
                                                   const MultiFab& a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::ComputeBinnedDistributions()");
@@ -786,7 +786,7 @@ void SuperDropletPC::ComputeBinnedDistributions ( const int a_iter, const int a_
     ParallelDescriptor::ReduceRealSum(g_num_ln_R.dataPtr(), Nbin);
 
     // Write to file
-    char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
+    char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_step);
     std::string output_filename =   m_name
                                     + "_binned_dsd_"
                                     + std::string(iter_str) + ".txt";
@@ -813,7 +813,7 @@ void SuperDropletPC::ComputeBinnedDistributions ( const int a_iter, const int a_
 /*! Compute and write the cell-wise distributions (as a function of the log of
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
-void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
+void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_step,
                                                      const int a_lev,
                                                      const amrex::Real a_time,
                                                      const MultiFab& a_z_phys_nd )
@@ -910,7 +910,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
 
     // Write to file
     {
-        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
+        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_step);
         std::string op_fname =   m_name
                                + "_binned_dsd_mass_"
                                + std::string(iter_str);
@@ -920,10 +920,10 @@ void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
                                    varnames,
                                    geom,
                                    a_time,
-                                   a_iter );
+                                   a_step );
     }
     {
-        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
+        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_step);
         std::string op_fname =   m_name
                                + "_binned_dsd_number_"
                                + std::string(iter_str);
@@ -933,7 +933,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
                                    varnames,
                                    geom,
                                    a_time,
-                                   a_iter );
+                                   a_step );
     }
 }
 #endif

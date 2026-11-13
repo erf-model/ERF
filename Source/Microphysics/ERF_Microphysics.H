@@ -37,10 +37,12 @@ public:
                        std::unique_ptr<amrex::MultiFab>&,
                        std::unique_ptr<amrex::MultiFab>&) = 0;
 
-    /*! \brief finish initializations steps that require flow variables */
+    /*! \brief finish initializations steps that require flow variables (level, state, terrain, step, time) */
     virtual void FinishInit (const int&,
                              amrex::MultiFab&,
-                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) = 0;
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,
+                             const int&,
+                             const amrex::Real&) = 0;
 
     /*! \brief advance microphysics for one time step */
     virtual void Advance (const int&,
