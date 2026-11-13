@@ -323,12 +323,20 @@ void erf_slow_rhs_post (int level, int finest_level,
         const MultiFab& stage_cons_anchor = S_old[IntVars::cons];
         const MultiFab& stage_cons_input = S_new[IntVars::cons];
         MultiFab& stage_cons_target = S_data[IntVars::cons];
+        erf_sbm::SBMStageMixingInputs sbm_mixing_inputs;
+        const erf_sbm::SBMStageMixingInputs* sbm_mixing = nullptr;
+        if (sbm_transport->mixes_particles()) {
+            sbm_mixing_inputs = erf_sbm::make_stage_mixing_inputs(
+                *sbm_transport, eddyDiffs, mapfac, ax.get(), ay.get(),
+                stretched_dz_d.data());
+            sbm_mixing = &sbm_mixing_inputs;
+        }
         sbm_transport->advance_stage_from_host(
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
             *sbm_state_manager, stage_cons_anchor, stage_cons_input,
             stage_cons_target, avg_xmom, avg_ymom, avg_zmom, geom,
             solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr,
-            sbm_parent_stage);
+            sbm_parent_stage, sbm_mixing);
     }
 
     // *************************************************************************

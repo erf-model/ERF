@@ -5029,7 +5029,7 @@ SBM inputs
 ----------
 
 The inputs below are read only when ``erf.moisture_model = SBM``. They
-configure the current liquid-spectrum advection capability;
+configure the current liquid-spectrum advection and mixing capability;
 see :ref:`sec:SpectralBinMicrophysics` for its scientific representation and
 execution restrictions.
 
@@ -5084,6 +5084,23 @@ execution restrictions.
      - :math:`N_{\mathrm{bins}}` values for 1M or
        :math:`2N_{\mathrm{bins}}` values for 2M
      - All zero
+   * - ``erf.sbm_fixture_initial_state_xhi``
+     - A second test state, as ``erf.sbm_fixture_initial_state``, for the
+       cells in the upper half of the domain in x.
+     - As ``erf.sbm_fixture_initial_state``
+     - None
+   * - ``erf.sbm_particle_mixing``
+     - Particle mixing policy. ``HostPassiveScalar`` mixes the spectrum with
+       ERF's Smagorinsky or Deardorff LES scalar eddy diffusivity;
+       ``ConstantReference`` with constant kinematic diffusivities. Single
+       level, constant- or stretched-z mesh, periodic and wall faces only.
+     - ``None``, ``ConstantReference``, ``HostPassiveScalar``
+     - ``None``
+   * - ``erf.sbm_particle_mixing_kh``, ``erf.sbm_particle_mixing_kv``
+     - Horizontal and vertical kinematic diffusivities [m^2 s^-1] of
+       ``ConstantReference``; any other policy rejects a nonzero value.
+     - Real :math:`\ge 0`
+     - ``0``
    * - ``erf.sbm_budget_check``
      - After every coarse step, check that the composite spectral inventory
        changed only by that step's accepted transfer through the physical

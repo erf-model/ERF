@@ -219,6 +219,23 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             sbm_state_manager->new_state_for_initialization(lev).setVal(
                 solverChoice.sbm_fixture_initial_state[static_cast<std::size_t>(comp)], comp, 1, 0);
         }
+        if (!solverChoice.sbm_fixture_initial_state_xhi.empty()) {
+            const auto& upper_state = solverChoice.sbm_fixture_initial_state_xhi;
+            Gpu::DeviceVector<Real> upper(upper_state.size());
+            Gpu::copy(Gpu::hostToDevice, upper_state.begin(), upper_state.end(), upper.begin());
+            const Real* upper_values = upper.data();
+            const int x_lo = geom[lev].Domain().smallEnd(0);
+            const int nx = geom[lev].Domain().length(0);
+            auto& spectrum = sbm_state_manager->new_state_for_initialization(lev);
+            for (MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
+                const auto values = spectrum.array(mfi);
+                ParallelFor(mfi.validbox(), spectrum.nComp(),
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                        if (2 * (i - x_lo) + 1 > nx) { values(i, j, k, n) = upper_values[n]; }
+                    });
+            }
+            Gpu::streamSynchronize();
+        }
 #ifdef ERF_SBM_AMR_QUALIFICATION
         sbm_qualification_apply_initial_profile(lev);
 #endif
