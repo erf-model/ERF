@@ -151,7 +151,6 @@ SurfaceLayer::define_surface_current (const int& lev, const MultiFab& xvel, cons
     for (int dir = 0; dir < 2; ++dir) {
         const MultiFab& vel = (dir == 0) ? xvel : yvel;
         auto& current = (dir == 0) ? m_surface_current_x[lev] : m_surface_current_y[lev];
-        auto& rel     = (dir == 0) ? m_rel_xvel[lev] : m_rel_yvel[lev];
 
         // One 2D box at k = klo for each box of the velocity, on its faces and with its
         // lateral ghost cells
@@ -160,10 +159,28 @@ SurfaceLayer::define_surface_current (const int& lev, const MultiFab& xvel, cons
         const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
         current = std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(), 1, ng);
         fill_face_current(*current, m_surface_current_const[dir], dir, lmask);
+    }
 
-        rel = std::make_unique<MultiFab>(vel.boxArray(), vel.DistributionMap(), 1,
+    define_relative_velocities(lev, xvel, yvel, m_ma.max_k_read(lev));
+}
+
+void
+SurfaceLayer::define_relative_velocities (const int& lev, const MultiFab& xvel,
+                                          const MultiFab& yvel, int k_top)
+{
+    // The averages read the velocities only up to k_top (MOSTAverage::max_k_read), so
+    // each box of the velocities is held from its lower end to k_top, with its ghost
+    // cells; a box wholly above k_top keeps a single plane, which is never read
+    m_rel_k_top[lev] = k_top;
+    for (int dir = 0; dir < 2; ++dir) {
+        const MultiFab& vel = (dir == 0) ? xvel : yvel;
+        auto& rel = (dir == 0) ? m_rel_xvel[lev] : m_rel_yvel[lev];
+        BoxList bl = vel.boxArray().boxList();
+        for (auto& b : bl) { b.setBig(2, amrex::max(b.smallEnd(2), amrex::min(b.bigEnd(2), k_top))); }
+        rel = std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(), 1,
                                          vel.nGrowVect());
     }
+    m_rel_src_ba[lev] = xvel.boxArray();
 }
 
 void
@@ -171,12 +188,20 @@ SurfaceLayer::build_relative_velocities (const int& lev, const MultiFab& xvel,
                                          const MultiFab& yvel)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        m_rel_xvel[lev] && m_rel_xvel[lev]->boxArray() == xvel.boxArray() &&
+        m_rel_xvel[lev] && m_rel_src_ba[lev] == xvel.boxArray() &&
         m_rel_xvel[lev]->DistributionMap() == xvel.DistributionMap(),
         "The surface current was defined for another layout of this level's velocities.");
+
+    // On a moving mesh the planes the averages read can rise
+    if (m_ma.max_k_read_can_change()) {
+        const int k_top = m_ma.max_k_read(lev);
+        if (k_top > m_rel_k_top[lev]) { define_relative_velocities(lev, xvel, yvel, k_top); }
+    }
+
     const int klo = m_geom[lev].Domain().smallEnd(2);
 
-    // Each component less the current of the plane k = klo, ghost cells included
+    // Each component less the current of the plane k = klo, over the planes held,
+    // ghost cells included
     for (int dir = 0; dir < 2; ++dir) {
         const MultiFab& vel     = (dir == 0) ? xvel : yvel;
         const MultiFab& current = (dir == 0) ? *m_surface_current_x[lev] : *m_surface_current_y[lev];

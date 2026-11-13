@@ -607,6 +607,8 @@ public:
           m_surface_current_y.resize(nlevs);
           m_rel_xvel.resize(nlevs);
           m_rel_yvel.resize(nlevs);
+          m_rel_k_top.resize(nlevs, 0);
+          m_rel_src_ba.resize(nlevs);
 
           // Size the MOST params for all levels
           z_0.resize(nlevs);
@@ -1495,7 +1497,7 @@ public:
 
   /**
    * Allocate the surface current for this level's velocities and set it over the water,
-   * and allocate the velocities relative to it.
+   * and allocate the velocities relative to it over the planes the averages read.
    *
    * The current is held on the x- and y-faces of the plane k = klo, one 2D box for each
    * box of the velocities, with their lateral ghost cells. Only water moves: a face takes
@@ -1508,6 +1510,18 @@ public:
    */
   void define_surface_current (const int& lev, const amrex::MultiFab& xvel,
                                const amrex::MultiFab& yvel);
+
+  /**
+   * Allocate the velocities relative to the surface current, over the planes the
+   * averages read: each box of the velocities from its lower end to k_top.
+   *
+   * @param[in] lev   level index
+   * @param[in] xvel  x-velocity on the level
+   * @param[in] yvel  y-velocity on the level
+   * @param[in] k_top highest k the averages read (MOSTAverage::max_k_read)
+   */
+  void define_relative_velocities (const int& lev, const amrex::MultiFab& xvel,
+                                   const amrex::MultiFab& yvel, int k_top);
 
   /**
    * Fill the velocities relative to the surface current.
@@ -2150,13 +2164,16 @@ private:
   // Current of the lower surface (most.surface_current): the uniform value read from the
   // inputs, and per level its x-component on the x-faces and y-component on the y-faces of
   // the plane k = klo. The surface layer averages and applies the wind relative to it, held
-  // in m_rel_xvel and m_rel_yvel on the velocities' layout.
+  // in m_rel_xvel and m_rel_yvel on the velocities' boxes cut at m_rel_k_top, the highest
+  // plane the averages read; m_rel_src_ba is the x-velocity layout they were made for.
   bool m_use_surface_current = false;
   amrex::Real m_surface_current_const[2] = {zero, zero};
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_x;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_y;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_xvel;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_yvel;
+  amrex::Vector<int> m_rel_k_top;
+  amrex::Vector<amrex::BoxArray> m_rel_src_ba;
   // External absolute skin temperature per level (set_skin_temperature), owned
   // by the caller; nullptr where none is supplied.
   amrex::Vector<const amrex::MultiFab*> m_skin_tsurf_lev;
