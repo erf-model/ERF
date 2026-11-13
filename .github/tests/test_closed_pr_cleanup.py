@@ -240,6 +240,18 @@ class CleanupTests(unittest.TestCase):
                 self.perform()
                 self.assertEqual(self.writes, [])
 
+    def test_missing_or_null_replacement_number_keeps_current_checks(self):
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.add_replacement()
+                for record in (self.history[0], self.current[2]):
+                    if missing:
+                        record.pop("run_number")
+                    else:
+                        record["run_number"] = None
+                self.assertEqual(self.perform(), 0)
+                self.assertEqual(self.writes, [])
+
     def test_replacement_is_refetched_and_cancelled_replacement_cannot_authorize_cancel(self):
         self.add_replacement()
         self.current[2].update(status="completed", conclusion="cancelled")
