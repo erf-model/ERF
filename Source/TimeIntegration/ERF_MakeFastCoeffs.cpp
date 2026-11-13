@@ -143,9 +143,9 @@ void make_fast_coeffs (int /*level*/,
 
                 // Blend the two regimes
                 const Real beta_lo = b_tmp;
-                const Real beta_hi = amrex::min(sigma2, one);
+                const Real beta_hi = amrex::min(sigma2, Real(1.0));
                 const Real alpha   = myhalf;   // start of ramp as a fraction of zcrit
-                const Real s       = amrex::Clamp((zval - alpha*zcrit) / ((one - alpha)*zcrit), zero, one);
+                const Real s       = amrex::Clamp((zval - alpha*zcrit) / ((one - alpha)*zcrit), zero, Real(1.0));
                 const Real w       = s*s*(three - two*s);
                 beta_s_a(i,j,k)    = beta_lo + w*(beta_hi - beta_lo);
             } else {
