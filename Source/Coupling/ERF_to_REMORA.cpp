@@ -506,7 +506,8 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     // differences are clamped: REMORA reads negative rain as snow.
     const MultiFab* precip_rate = m_a2o_precip_rate.get();
     if (precip_rate != nullptr && t_new[lev] > m_a2o_precip_time) {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_a2o_precip_accum->boxArray() == ba2d_lev,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_a2o_precip_accum->boxArray() == ba2d_lev &&
+                                         m_a2o_precip_accum->DistributionMap() == dm,
             "PackAtmosphericStates: the level-0 layout changed under the precipitation snapshot.");
         MultiFab accum_now(ba2d_lev, dm, 1, 0);
         SampleA2OPrecipAccumulation(accum_now);
