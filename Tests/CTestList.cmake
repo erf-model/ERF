@@ -3707,6 +3707,77 @@ if(Python3_Interpreter_FOUND)
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS"
         LABELS "rans;unit")
 endif()
+# Terrain-following inflow profiles on flat ground: one deck run with
+# xlo.dirichlet_file and again with the equivalent xlo.inflow_profile file must
+# give identical plotfiles, since the level-indexed lookup and the
+# height-above-ground lookup coincide when the ground is on the floor.
+function(add_test_inflow_profile_parity TEST_NAME CASE_DIR INPUT_FILE NSTEPS OPTIONS_DIRICHLET OPTIONS_PROFILE)
+    set(_rans_root ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS)
+    set(CURRENT_TEST_SOURCE_DIR ${_rans_root}/${CASE_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(NP ${ERF_TEST_NRANKS})
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_step "0000${NSTEPS}")
+    string(LENGTH "${_step}" _len)
+    math(EXPR _start "${_len} - 5")
+    string(SUBSTRING "${_step}" ${_start} 5 _step)
+
+    set(_dir ${CURRENT_TEST_BINARY_DIR})
+    set(_common "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1")
+    # the plotfiles of an earlier pass are removed first; a failing run or
+    # comparison prints the tail of its log
+    set(test_command sh -c "rm -rf ${_dir}/plt_dirichlet${_step} ${_dir}/plt_profile${_step} && ( ${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} erf.plot_file_1=plt_dirichlet ${OPTIONS_DIRICHLET} > ${_dir}/dirichlet_file.log 2>&1 || ( tail -n 40 ${_dir}/dirichlet_file.log && false ) ) && ( ${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} erf.plot_file_1=plt_profile ${OPTIONS_PROFILE} > ${_dir}/inflow_profile.log 2>&1 || ( tail -n 40 ${_dir}/inflow_profile.log && false ) ) && ( ${FCOMPARE_EXE} --abort_if_not_all_found -r 0.0 --abs_tol 0.0 ${_dir}/plt_dirichlet${_step} ${_dir}/plt_profile${_step} > ${_dir}/fcompare.log 2>&1 || ( cat ${_dir}/fcompare.log && false ) )")
+
+    add_test(NAME ${TEST_NAME} COMMAND ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "rans;regression"
+        ATTACHED_FILES_ON_FAIL "${_dir}/dirichlet_file.log;${_dir}/inflow_profile.log;${_dir}/fcompare.log"
+    )
+endfunction(add_test_inflow_profile_parity)
+
+# erf.input_sounding_theta_above_ground over the incline (compressible, so in
+# every build): theta must start above the local ground as on the inflow face,
+# and the same deck with the flag off must not pass that check
+add_test_rans(InflowProfile_ThetaAboveGround         Terrain_Inflow_Profile inputs_theta 4 check_theta_above_ground.py)
+add_test_rans(InflowProfile_ThetaAboveGround_FlagOff Terrain_Inflow_Profile inputs_theta 4 check_theta_flag_off.py
+              RUNTIME_OPTIONS "erf.input_sounding_theta_above_ground=false")
+
+# xlo.inflow_profile over idealised terrain (Exec/CanonicalTests/Canonical_RANS/Terrain_Inflow_Profile,
+# README.md): after 60 steps the first column follows the log law at the height above the
+# local ground, much better than at absolute height or by level. The terrain-fitted
+# projection is GMRES with the FFT preconditioner, so these need an FFT build.
+if(ERF_ENABLE_FFT)
+    add_test_rans(RANS_InflowProfile_Plateau    Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_plateau.txt")
+    add_test_rans(RANS_InflowProfile_Incline    Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_incline.txt")
+    add_test_rans(RANS_InflowProfile_Decline    Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_decline.txt")
+    add_test_rans(RANS_InflowProfile_CrossRidge Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_crossridge.txt")
+    add_test_rans(RANS_InflowProfile_CrossRidge_File Terrain_Inflow_Profile inputs_inflow 60 check_inflow_profile.py
+                  RUNTIME_OPTIONS "erf.terrain_file_name=terrain_crossridge.txt xlo.inflow_profile=file xlo.inflow_profile_file=inflow_profile_crossridge.txt")
+    add_test_inflow_profile_parity(RANS_InflowProfile_Parity_Flat Terrain_Inflow_Profile inputs_parity 60
+                                   "xlo.dirichlet_file=inflow_levels_flat.txt"
+                                   "xlo.inflow_profile=file xlo.inflow_profile_file=inflow_profile_flat.txt")
+endif()
+
 if(ERF_ENABLE_FFT)
     # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
     # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)
@@ -5017,6 +5088,119 @@ add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_S
 endif()
 endif()
 
+#=============================================================================
+# Script-checked regression cases
+#
+# A deck in Exec/RegTests/<CASE_DIR> runs and its Python check script, whose
+# exit code is the verdict, reads the plotfile. With REFERENCE_INPUT a second
+# deck runs first (plotfile prefix ref_plt) and the check script gets both
+# plotfiles, the tested one first. The check table is echoed into the ctest
+# output, and the tail of the run log when a run itself fails.
+#=============================================================================
+function(add_test_checked TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
+    set(options )
+    set(oneValueArgs "REFERENCE_INPUT")
+    set(multiValueArgs )
+    cmake_parse_arguments(ADD_TEST_CHECKED "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    set(CURRENT_TEST_SOURCE_DIR ${PROJECT_SOURCE_DIR}/Exec/RegTests/${CASE_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    file(COPY ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(NP ${ERF_TEST_NRANKS})
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    # plotfile names carry the step number padded to five digits
+    set(_step "0000${NSTEPS}")
+    string(LENGTH "${_step}" _len)
+    math(EXPR _start "${_len} - 5")
+    string(SUBSTRING "${_step}" ${_start} 5 _step)
+
+    set(RUNTIME_OPTIONS "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(check_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.check.log")
+    set(run_test "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} ${RUNTIME_OPTIONS} erf.plot_file_1=plt > ${test_log} 2>&1 || ( tail -n 60 ${test_log} && false ) )")
+    set(check_args "${CURRENT_TEST_BINARY_DIR}/plt${_step}")
+    if(NOT "${ADD_TEST_CHECKED_REFERENCE_INPUT}" STREQUAL "")
+        set(ref_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.reference.log")
+        set(run_ref "( ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_CHECKED_REFERENCE_INPUT} ${RUNTIME_OPTIONS} erf.plot_file_1=ref_plt > ${ref_log} 2>&1 || ( tail -n 60 ${ref_log} && false ) )")
+        set(run_test "${run_ref} && ${run_test}")
+        set(check_args "${check_args} ${CURRENT_TEST_BINARY_DIR}/ref_plt${_step}")
+    endif()
+    # remove the plotfiles of an earlier pass first, so a run that ends before
+    # NSTEPS cannot be checked against them
+    set(test_command sh -c "rm -rf ${check_args} && ${run_test} && rm -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED && ( ${ERF_RANS_PYTHON} ${CURRENT_TEST_BINARY_DIR}/${CHECK_SCRIPT} ${check_args} > ${check_log} 2>&1 || touch ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED ) && cat ${check_log} && test ! -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED")
+
+    add_test(NAME ${TEST_NAME} COMMAND ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;anelastic"
+        ATTACHED_FILES_ON_FAIL "${test_log};${check_log}"
+    )
+endfunction(add_test_checked)
+
+# ABL warm bubble (prob.bubble_*) and the bulk_coeff surface layer with an imposed
+# heat flux (erf.most.surf_temp_flux), checked against closed forms on a stretched
+# mesh (Exec/RegTests/ABLWarmBubble). The anelastic deck uses the FFT solve.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+    add_test_checked(ABLWarmBubble ABLWarmBubble inputs 10 check_warm_bubble.py)
+    set_tests_properties(ABLWarmBubble PROPERTIES LABELS "regression")
+    if(ERF_ENABLE_FFT)
+        add_test_checked(ABLWarmBubble_Anelastic ABLWarmBubble inputs_anelastic 10 check_warm_bubble.py)
+    endif()
+endif()
+# the checker's own pass/fail logic on synthetic fields: it must fail the
+# fixed-density bubble, the uniform-height bubble and the ignored flux. Pure Python.
+add_test(ABLWarmBubble_checker_SelfTest ${ERF_RANS_PYTHON}
+    ${PROJECT_SOURCE_DIR}/Exec/RegTests/ABLWarmBubble/check_warm_bubble.py --self-test)
+set_tests_properties(ABLWarmBubble_checker_SelfTest
+    PROPERTIES
+    TIMEOUT 60
+    PROCESSORS 1
+    LABELS "unit")
+# start-up checks of the bubble keys (add_test_abort runs through `sh -c ... | tee`)
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_abort(ABLWarmBubble_BadRadius_abort ${PROJECT_SOURCE_DIR}/Exec/RegTests/ABLWarmBubble inputs
+    "needs positive, finite prob.bubble_x_r" "prob.bubble_z_r=0")
+add_test_abort(ABLWarmBubble_KeysWithoutDT_abort ${PROJECT_SOURCE_DIR}/Exec/RegTests/ABLWarmBubble inputs_keys_without_dT
+    "are set but prob.bubble_dT is not" "")
+endif()
+
+# surface_layer.flux_type = bulk_coeff with an imposed heat flux (erf.most.surf_temp_flux):
+# the run says it imposes the flux, and the inputs it contradicts stop it at start-up. The
+# deck's surface layer is switched to bulk_coeff by the options.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_bcf_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
+set(_bcf_opts "erf.surface_layer.flux_type=bulk_coeff erf.most.Cd=0.0015 erf.most.Cq=0.0015 erf.most.pot_surf_temp=300 erf.most.surf_moist=0 erf.most.surf_temp_flux=0.05")
+# add_test_abort passes on the message; this one checks the start-up line of the imposed flux
+add_test_abort(BulkCoeffFlux_Imposed ${_bcf_dir} Terrain_Stress_Ridge.i
+               "with an imposed surface heat flux most.surf_temp_flux = 0.05 K m/s"
+               "${_bcf_opts}")
+add_test_abort(BulkCoeffFlux_SfcSst_abort ${_bcf_dir} Terrain_Stress_Ridge.i
+               "cannot be combined with most.use_sfc_fluxes or most.use_sfc_sst"
+               "${_bcf_opts} erf.most.use_sfc_sst=1")
+add_test_abort(BulkCoeffFlux_NonFinite_abort ${_bcf_dir} Terrain_Stress_Ridge.i
+               "must be a finite number"
+               "${_bcf_opts} erf.most.surf_temp_flux=nan")
+add_test_abort(BulkCoeffFlux_HeatingRate_abort ${_bcf_dir} Terrain_Stress_Ridge.i
+               "may not be combined with erf.most.surf_heating_rate"
+               "${_bcf_opts} erf.most.surf_heating_rate=2")
+endif()
+
 # A build without the fire or the dust coupling refuses a fire or dust deck instead
 # of running it as plain ERF. Their own tests live with the engines and models that
 # use them (erf-model/FLARE); ERF builds neither coupling in its tests.
@@ -5073,7 +5257,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
         string(REPLACE "fcompare" "fvolumesum" _smx_fvs_name "${_smx_fcmp_name}")
         set(_smx_fvs "${_smx_tools}/${_smx_fvs_name}")
         add_test(NAME Structures_ExampleModel
-                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && ! grep -q 'structure example fire' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
+                 COMMAND sh -c "rm -rf plt0* chk0* rst && ${_smx_mpi} ${_smx_exe} inputs_structure_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q structure_example_fx plt00016/Header && ${_smx_fvs} -v x_velocity plt00016 > momentum.txt && awk 'BEGIN { ok = 0 } /integral of x_velocity/ { v = $NF; d = v - 200.0; if (d < 0) d = -d; print \"integral of x_velocity = \" v \", expected 200\"; ok = (d < 1.0e-5 * 200.0) } END { exit !ok }' momentum.txt && grep -q 't = 4 impulse_x = 200 ' straight.log && grep -q 'structure example: finished at t = 4 after 16 steps of this run' straight.log && ! grep -q 'structure example fire' straight.log && mkdir rst && cd rst && ${_smx_mpi} ${_smx_exe} ../inputs_structure_example erf.restart=../chk00008 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && grep -q 't = 4 impulse_x = 200 ' restart.log && grep -q 'structure example: level 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 16, fully compressible: yes' restart.log && grep -q 'structure example: finished at t = 4 after 8 steps of this run' restart.log && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00016 rst/plt00016"
                  WORKING_DIRECTORY ${_smx_dir})
         set_tests_properties(Structures_ExampleModel PROPERTIES
             LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
@@ -5088,6 +5272,59 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
       set_tests_properties(Structures_ExampleModel_FinerLevelElsewhere PROPERTIES
           LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
           ATTACHED_FILES_ON_FAIL "${_smx_fe_dir}/run.log")
+      # What the model is told at initialize() and that finalize() runs once (StructureInit, finalize()).
+      # Runs of 2 level-0 steps of 0.25 s: one level; level 1 everywhere with dt_ref_ratio 2 and the
+      # model on level 1 (0.125 s, 4 steps); stop_datetime 1 s after start_datetime, where stop_time and
+      # start_time are seconds since 1970, so the model must see 1 s, with max_step = -1 (no limit, the
+      # largest int); Anelastic (not fully compressible); Anelastic on level 0 with FullyCompressible on
+      # level 1 (fully compressible on a finer level); FullyCompressible with RK3_NoSubstepping (still
+      # fully compressible: the field names the solver); and a deck without stop_time and erf.fixed_dt
+      # (no fixed step: not positive; no stop time: the largest double). The last two take 0 steps.
+      # The one-level run writes chk00002; a restart from it at max_step = 2 takes no step and must
+      # report the checkpoint's time at finalize().
+      set(_smx_ri_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Structures_ExampleModel_RunInfo)
+      file(MAKE_DIRECTORY ${_smx_ri_dir})
+      file(COPY ${_smx_src}/inputs_structure_example ${_smx_src}/inputs_structure_example_dates
+                ${_smx_src}/inputs_structure_example_defaults DESTINATION ${_smx_ri_dir})
+      set(_smx_ri_run "${_smx_mpi} ${_smx_exe}")
+      set(_smx_ri_opt "erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0")
+      set(_smx_ri_two "amr.max_level=1 erf.dt_ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo_indices=0 0 0")
+      set(_smx_ri_init "structure example: level")
+      set(_smx_ri_cmd
+          "rm -rf chk0*"
+          "${_smx_ri_run} inputs_structure_example max_step=2 erf.plot_int_1=-1 erf.check_int=2 amrex.call_addr2line=0 > one.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: yes' one.log"
+          "grep -q 'structure example: finished at t = 0.5 after 2 steps of this run' one.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 erf.restart=chk00002 ${_smx_ri_opt} > nostep.log 2>&1"
+          "grep -q 'structure example: finished at t = 0.5 after 0 steps of this run' nostep.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 ${_smx_ri_opt} ${_smx_ri_two} erf.box1.in_box_hi_indices=31 31 31 structure.example.level=1 > two.log 2>&1"
+          "grep -q '${_smx_ri_init} 1 steps with 0.125 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: yes' two.log"
+          "grep -q 'structure example: finished at t = 0.5 after 4 steps of this run' two.log"
+          "${_smx_ri_run} inputs_structure_example_dates max_step=-1 ${_smx_ri_opt} > dates.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1 s and no step limit, fully compressible: yes' dates.log"
+          "grep -q 'structure example: finished at t = 1 after 4 steps of this run' dates.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 ${_smx_ri_opt} erf.compressibility_type=Anelastic > anelastic.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: no' anelastic.log"
+          "${_smx_ri_run} inputs_structure_example max_step=2 ${_smx_ri_opt} ${_smx_ri_two} erf.box1.in_box_hi_indices=31 31 3 structure.example.level=0 erf.compressibility_type=Anelastic FullyCompressible > mixed.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 2, fully compressible: yes' mixed.log"
+          "${_smx_ri_run} inputs_structure_example max_step=0 ${_smx_ri_opt} erf.timestepping_type=RK3_NoSubstepping > nosubstep.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 steps with 0.25 s, the run stops at t = 1000000000 s or after level-0 step 0, fully compressible: yes' nosubstep.log"
+          "${_smx_ri_run} inputs_structure_example_defaults max_step=0 ${_smx_ri_opt} > defaults.log 2>&1"
+          "grep -q '${_smx_ri_init} 0 has no fixed step, the run has no stop time or after level-0 step 0, fully compressible: yes' defaults.log"
+          "grep -q 'structure example: finished at t = 0 after 0 steps of this run' defaults.log")
+      set(_smx_ri_logs one nostep two dates anelastic mixed nosubstep defaults)
+      set(_smx_ri_attach "")
+      foreach(_log IN LISTS _smx_ri_logs)
+        list(APPEND _smx_ri_cmd "test `grep -c 'structure example: finished' ${_log}.log` -eq 1")
+        list(APPEND _smx_ri_attach "${_smx_ri_dir}/${_log}.log")
+      endforeach()
+      list(JOIN _smx_ri_cmd " && " _smx_ri_cmd)
+      add_test(NAME Structures_ExampleModel_RunInfo
+               COMMAND sh -c "${_smx_ri_cmd}"
+               WORKING_DIRECTORY ${_smx_ri_dir})
+      set_tests_properties(Structures_ExampleModel_RunInfo PROPERTIES
+          LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
+          ATTACHED_FILES_ON_FAIL "${_smx_ri_attach}")
       add_test_abort(Structures_Abort_FinerLevelCovers ${_smx_src} inputs_structure_example
                      "structure model .example. couples to level 0, but level 1 covers part of its support"
                      "${_smx_finer} erf.box1.in_box_lo_indices=8 8 8 erf.box1.in_box_hi_indices=23 23 23")

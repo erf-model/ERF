@@ -1399,6 +1399,10 @@ ERF::make_physbcs (int lev)
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             l_use_real_bcs, zvel_bc_data[lev].data());
+    // the terrain-following inflow profiles of the lateral faces (xlo.inflow_profile)
+    physbcs_cons[lev]->set_inflow_profiles(&m_inflow_profiles);
+    physbcs_u[lev]->set_inflow_profiles(&m_inflow_profiles);
+    physbcs_v[lev]->set_inflow_profiles(&m_inflow_profiles);
     const bool moving_mesh = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     auto make_base_bcs = [&] (std::unique_ptr<MultiFab>& z_nd) {
         return std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_nd,

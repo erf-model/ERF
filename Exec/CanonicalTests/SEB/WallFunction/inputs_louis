@@ -1,0 +1,10 @@
+FILE = inputs_base
+
+# The Louis (1979) factors on the roofs instead of the iterated functions, plus the scale.
+erf.ibseb.stability_correction = true
+erf.ibseb.stability_scheme = "louis"
+erf.ibseb.convective_velocity = "deardorff"
+erf.ibseb.z_i_mode = "fixed"
+erf.ibseb.z_i = 1000.0
+erf.ibseb.csv_file = "ibseb_louis.csv"
+erf.ibseb.dump_faces_file = "faces_louis"

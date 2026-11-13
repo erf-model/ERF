@@ -184,6 +184,8 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
  * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
+ * @param[in] terrain_blank Immersed solid fraction, or null
+ * @param[in] Q_fire_atm Lagged fire heat flux [W/m2] for the w* boost (erf.pbl_mrf_fire_thermal_excess), or null
  */
 void
 ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
@@ -202,7 +204,8 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices,
-                       const amrex::MultiFab* terrain_blank = nullptr);
+                       const amrex::MultiFab* terrain_blank = nullptr,
+                       const amrex::MultiFab* Q_fire_atm = nullptr);
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
