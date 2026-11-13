@@ -588,7 +588,7 @@ void SuperDropletPC::Coalescence ( int   a_lev,
         flag_prey.resize(np);
         coll_rate.resize(np);
         coll_rmndr.resize(np);
-        inv_bin_vol.resize(np);
+        if (variable_dz) { inv_bin_vol.resize(np); }
         auto np_bin_ptr = num_particles_bin.data();
         auto partner_idx_ptr = coll_partner_idx.data();
         auto flag_prey_ptr = flag_prey.data();
@@ -602,7 +602,7 @@ void SuperDropletPC::Coalescence ( int   a_lev,
             flag_prey_ptr[i] = -1;
             coll_rate_ptr[i] = ParticleReal(zero);
             coll_rmndr_ptr[i] = ParticleReal(zero);
-            inv_bin_vol_ptr[i] = inv_bin_volume;
+            if (variable_dz) { inv_bin_vol_ptr[i] = inv_bin_volume; }
         });
         const SDCellVolume cell_vol{dx, zheight, variable_dz};
         Gpu::synchronize();
@@ -646,7 +646,7 @@ void SuperDropletPC::Coalescence ( int   a_lev,
                 if (ptrs.mult_ptr[pj] == 0) { continue; }
 
                 np_bin_ptr[pi] = np_bin_ptr[pj] = np_bin;
-                inv_bin_vol_ptr[pi] = inv_bin_vol_ptr[pj] = inv_vol;
+                if (variable_dz) { inv_bin_vol_ptr[pi] = inv_bin_vol_ptr[pj] = inv_vol; }
                 partner_idx_ptr[pi] = pj;
                 partner_idx_ptr[pj] = pi;
 
@@ -915,7 +915,7 @@ void SuperDropletPC::Coalescence ( int   a_lev,
             }
 
 
-            auto prob_ij = k_val*inv_bin_vol_ptr[i];
+            auto prob_ij = k_val*(variable_dz ? inv_bin_vol_ptr[i] : inv_bin_volume);
             auto prob_sd_ij = std::max(ptrs.mult_ptr[pi],ptrs.mult_ptr[pj])*prob_ij;
 
             auto ns = static_cast<ParticleReal>(np_bin_ptr[i]);

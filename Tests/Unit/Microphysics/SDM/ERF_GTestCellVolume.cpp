@@ -177,6 +177,71 @@ void sdm_cv_zero_density_test ()
     EXPECT_EQ(pc.TotalNumberOfParticles(), Real(0));
 }
 
+void sdm_cv_created_counts_test ()
+{
+    const Geometry geom = sdm_cv_geom();
+    const BoxArray ba(sdm_cv_domain);
+    const DistributionMapping dm(ba);
+    auto z_nd = sdm_cv_heights(ba, dm);
+
+    // a second initialization without particles creates no super-droplets, so the
+    // condensate of a cell is split over those of the first one only
+    {
+        const std::string name = "sdm_cell_volume_two_inits";
+        ParmParse pp(name);
+        pp.add("num_initializations", 2);
+        pp.add("num_injections", 0);
+        pp.add("initial_number_density", Real(100));
+        pp.add("initial_particles_per_cell", 4);
+        pp.add("multiplicity_type", "constant");
+        pp.add("initial_species_mean_mass_H2O", Real(1.e-12));
+        pp.add("initial_aerosol_mean_mass_NaCl", Real(1.e-19));
+        pp.add("place_randomly_in_cells", false);
+        ParmParse pp1(name + ".1");
+        pp1.add("initial_number_density", Real(0));
+        pp1.add("initial_particles_per_cell", 2);
+        SuperDropletPC pc(geom, dm, ba, {Species::Name::H2O}, {Species::Name::NaCl}, 1.0, name);
+        pc.setVariableDz(true);
+        pc.InitializeParticles(0, 0, z_nd[0]);
+
+        MultiFab condensate(ba, dm, 1, 0);
+        condensate.setVal(Real(1.e-3));
+        pc.SetAttributes(condensate, *z_nd[0], 0);
+        const auto totals = sdm_cv_totals(pc, ParticleReal(1.e-19));
+        ASSERT_EQ(static_cast<int>(totals.size()), 16);
+        for (const auto& [cell, t] : totals) {
+            const Real expected = Real(1.e-3) * sdm_cv_dz(cell/4);
+            EXPECT_EQ(t.count, 4);
+            EXPECT_NEAR(t.condensate, expected,
+                        Real(64)*Real(std::numeric_limits<ParticleReal>::epsilon())*expected);
+        }
+    }
+
+    // fewer particles than super-droplets per cell: one super-droplet per particle
+    {
+        const std::string name = "sdm_cell_volume_sparse";
+        ParmParse pp(name);
+        pp.add("num_initializations", 1);
+        pp.add("num_injections", 0);
+        pp.add("initial_number_density", Real(4));
+        pp.add("initial_particles_per_cell", 4);
+        pp.add("multiplicity_type", "constant");
+        pp.add("initial_species_mean_mass_H2O", Real(1.e-12));
+        pp.add("initial_aerosol_mean_mass_NaCl", Real(1.e-19));
+        pp.add("place_randomly_in_cells", false);
+        SuperDropletPC pc(geom, dm, ba, {Species::Name::H2O}, {Species::Name::NaCl}, 1.0, name);
+        pc.setVariableDz(true);
+        pc.InitializeParticles(0, 0, z_nd[0]);
+        const auto totals = sdm_cv_totals(pc);
+        ASSERT_EQ(static_cast<int>(totals.size()), 16);
+        for (const auto& [cell, t] : totals) {
+            const int num_par = static_cast<int>(std::ceil(Real(4)*sdm_cv_dz(cell/4)));  // 2 or 6
+            EXPECT_EQ(t.count, std::min(num_par, 4));
+            EXPECT_EQ(t.mult, ParticleReal(num_par));
+        }
+    }
+}
+
 void sdm_cv_recycle_test ()
 {
     // columns of 3 m (mean cell volume 0.75 m^3) under a computational spacing of 1 m
@@ -298,6 +363,14 @@ TEST(SDMCellVolume, InitializationFollowsPhysicalCellVolume)
 TEST(SDMCellVolume, ZeroDensityAddsNothing)
 {
     sdm_cv_zero_density_test();
+}
+
+// Motivation: A cell's condensate must be split over the super-droplets that exist in it,
+// not over those of an initialization without particles, and no super-droplet may get a
+// zero multiplicity where a cell has fewer particles than super-droplets.
+TEST(SDMCellVolume, CountsFollowCreatedSuperDroplets)
+{
+    sdm_cv_created_counts_test();
 }
 
 // Motivation: Recycled super-droplets are placed uniformly in physical space, so they must

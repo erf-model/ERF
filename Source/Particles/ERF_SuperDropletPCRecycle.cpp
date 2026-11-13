@@ -116,21 +116,21 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
         const MFPtr& z_height = a_z_phys_nd[a_lev];
 
-        // number of super-droplets per cell
-        int num_sd_per_cell = m_num_sd_per_cell;
-        if (m_variable_dz) {
-            num_sd_per_cell = 0;
-            for (int i = 0; i < m_num_initializations; i++) {
-                num_sd_per_cell += m_initializations[i]->numSDPerCell(cell_volume);
-            }
-        }
-        // number of physical particles per cell
-        Real num_par_per_cell = zero;
-        for (int i = 0; i < m_num_initializations; i++) {
-            num_par_per_cell += m_initializations[i]->numParticlesPerCell(cell_volume);
-        }
         // average multiplicity
-        auto mult_avg = num_par_per_cell / num_sd_per_cell;
+        Real mult_avg = zero;
+        if (m_variable_dz) {
+            const auto init_counts = initCellCountsHost();
+            mult_avg = SD_init_multiplicity(init_counts.data(), static_cast<int>(init_counts.size()), cell_volume);
+        } else {
+            // number of super-droplets per cell
+            const int num_sd_per_cell = m_num_sd_per_cell;
+            // number of physical particles per cell
+            Real num_par_per_cell = zero;
+            for (int i = 0; i < m_num_initializations; i++) {
+                num_par_per_cell += m_initializations[i]->numParticlesPerCell(cell_volume);
+            }
+            mult_avg = num_par_per_cell / num_sd_per_cell;
+        }
 
         Long np_recycle_total = 0;
 

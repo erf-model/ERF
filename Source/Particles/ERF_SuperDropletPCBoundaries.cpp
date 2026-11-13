@@ -9,29 +9,45 @@ using namespace amrex;
 using namespace SDPCDefn;
 
 
-/*! Handle the boundaries for the particles */
-Long SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
+/*! Handle the boundaries for the particles, then redistribute them */
+void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                               const Vector<MFPtr>&  a_z_phys_nd,
                                               const BCTypeArr&      a_bctypes,
                                               const bool            a_recycle )
 {
     BL_PROFILE("SuperDropletPC::applyBoundaryTreatment()");
-    amrex::ignore_unused(a_z_phys_nd);
+    const Long num_inflow = treatBoundaryCrossings(a_lev, a_bctypes, a_recycle);
+    Redistribute();
+    // super-droplets that entered through an open boundary, now on the grid of the cell they entered
+    if (num_inflow > 0) { setInflowMultiplicity(a_z_phys_nd); }
+}
+
+/*! Deactivate, reflect or wrap the particles that crossed a domain boundary; returns the
+ *  number that entered through an open boundary with their multiplicity still to be set
+ *  (stretched or terrain-fitted mesh) */
+Long SuperDropletPC::treatBoundaryCrossings ( int              a_lev,
+                                              const BCTypeArr& a_bctypes,
+                                              const bool       a_recycle )
+{
+    BL_PROFILE("SuperDropletPC::treatBoundaryCrossings()");
 
     const auto proc_ctx = buildProcessContext(a_lev);
     const auto save_inac = m_save_inactive;
+    const bool variable_dz = m_variable_dz;
 
-    // number of super-droplets per cell
-    int num_sd_per_cell = m_num_sd_per_cell;
-    // number of physical particles per cell
-    Real num_par_per_cell = zero;
-    for (int i = 0; i < m_num_initializations; i++) {
-        num_par_per_cell += m_initializations[i]->numParticlesPerCell(proc_ctx.cell_volume);
-    }
-    auto multiplicity = (num_sd_per_cell > 0 ? num_par_per_cell / num_sd_per_cell : zero);
     // On a stretched or terrain-fitted mesh the multiplicity follows the volume of the
     // cell entered; a negative value marks it for setInflowMultiplicity after Redistribute
-    if (m_variable_dz) { multiplicity = -one; }
+    Real multiplicity = -one;
+    if (!variable_dz) {
+        // number of super-droplets per cell
+        int num_sd_per_cell = m_num_sd_per_cell;
+        // number of physical particles per cell
+        Real num_par_per_cell = zero;
+        for (int i = 0; i < m_num_initializations; i++) {
+            num_par_per_cell += m_initializations[i]->numParticlesPerCell(proc_ctx.cell_volume);
+        }
+        multiplicity = (num_sd_per_cell > 0 ? num_par_per_cell / num_sd_per_cell : zero);
+    }
 
     Long num_deactivated_particles = 0;
     Long num_inflow_particles = 0;
@@ -44,7 +60,7 @@ Long SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
         Gpu::Buffer<Long> deactivated_particles({0});
         auto* deactivated_particles_ptr = deactivated_particles.data();
         Gpu::Buffer<Long> inflow_particles({0});
-        auto* inflow_particles_ptr = inflow_particles.data();
+        auto* inflow_particles_ptr = variable_dz ? inflow_particles.data() : nullptr;
 
         ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -110,7 +126,7 @@ Long SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                             }
 
                             ptrs.mult_ptr[i]  = multiplicity;
-                            Gpu::Atomic::Add(inflow_particles_ptr, Long(1));
+                            if (inflow_particles_ptr) { Gpu::Atomic::Add(inflow_particles_ptr, Long(1)); }
                             ptrs.a_ptr[i]     = zero;
                             ptrs.c_ptr[i]     = zero;
                             ptrs.mrime_ptr[i] = zero;
@@ -146,7 +162,7 @@ Long SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                             }
 
                             ptrs.mult_ptr[i]  = multiplicity;
-                            Gpu::Atomic::Add(inflow_particles_ptr, Long(1));
+                            if (inflow_particles_ptr) { Gpu::Atomic::Add(inflow_particles_ptr, Long(1)); }
                             ptrs.a_ptr[i]     = zero;
                             ptrs.c_ptr[i]     = zero;
                             ptrs.mrime_ptr[i] = zero;
@@ -169,17 +185,19 @@ Long SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 #pragma omp atomic
 #endif
         num_deactivated_particles += *(deactivated_particles.copyToHost());
+        if (variable_dz) {
 #ifdef AMREX_USE_OMP
 #pragma omp atomic
 #endif
-        num_inflow_particles += *(inflow_particles.copyToHost());
+            num_inflow_particles += *(inflow_particles.copyToHost());
+        }
     }); // end forEachParticleTile
 
     ParallelDescriptor::ReduceLongSum( &num_deactivated_particles, 1 );
-    ParallelDescriptor::ReduceLongSum( &num_inflow_particles, 1 );
+    if (variable_dz) { ParallelDescriptor::ReduceLongSum( &num_inflow_particles, 1 ); }
     Print() << "SuperDropletPC(" << m_name << "): "
             << "deactivated " << num_deactivated_particles << " super-droplets at boundaries.\n";
-    return m_variable_dz ? num_inflow_particles : 0;
+    return num_inflow_particles;
 }
 
 /*! Set the multiplicity of super-droplets that entered through an open lateral boundary

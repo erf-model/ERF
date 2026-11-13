@@ -341,13 +341,20 @@ class SuperDropletPC : public ERFPC
         /*! \brief Mean physical volume of the cells of level a_lev */
         [[nodiscard]] amrex::Real meanCellVolume ( int a_lev, const amrex::MultiFab& a_z_phys_nd ) const;
 
-        /*! \brief Per-cell counts of every initialization, on the device */
-        [[nodiscard]] amrex::Gpu::DeviceVector<SDCellCounts> initCellCounts () const
+        /*! \brief Per-cell counts of every initialization, on the host */
+        [[nodiscard]] amrex::Vector<SDCellCounts> initCellCountsHost () const
         {
             amrex::Vector<SDCellCounts> counts_h(m_initializations.size());
             for (size_t i = 0; i < m_initializations.size(); i++) {
                 counts_h[i] = m_initializations[i]->cellCounts();
             }
+            return counts_h;
+        }
+
+        /*! \brief Per-cell counts of every initialization, on the device */
+        [[nodiscard]] amrex::Gpu::DeviceVector<SDCellCounts> initCellCounts () const
+        {
+            const auto counts_h = initCellCountsHost();
             amrex::Gpu::DeviceVector<SDCellCounts> counts_d(counts_h.size());
             amrex::Gpu::copy(amrex::Gpu::hostToDevice, counts_h.begin(), counts_h.end(), counts_d.begin());
             return counts_d;
@@ -409,10 +416,8 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the particle effective radius on a mesh */
         virtual void effectiveRadius ( amrex::MultiFab&, const amrex::MultiFab& a_z_phys_nd, int a_lev, const int a_comp=0 ) const;
 
-        /*! \brief Applies boundary treatment to the particle container; returns the number
-         *  of super-droplets that entered through an open boundary and still need their
-         *  multiplicity (stretched or terrain-fitted mesh) */
-        virtual amrex::Long applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
+        /*! \brief Applies boundary treatment to the particle container and redistributes it */
+        virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
 
         /*! \brief Split coarse-level particles in newly-refined cells after AMR
          *  regrid to restore per-cell SD count.  Cascades correctly across
@@ -438,6 +443,11 @@ class SuperDropletPC : public ERFPC
         bool splitMergeAMR () const { return m_split_merge_amr; }
 
     protected:
+
+        /*! \brief Deactivate, reflect or wrap the super-droplets that crossed a domain boundary;
+         *  returns the number that entered through an open boundary and still need their
+         *  multiplicity (stretched or terrain-fitted mesh) */
+        amrex::Long treatBoundaryCrossings ( int, const BCTypeArr&, const bool );
 
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         amrex::Real m_ice_agg_eff; /*!< Ice-ice aggregation (collection) efficiency */

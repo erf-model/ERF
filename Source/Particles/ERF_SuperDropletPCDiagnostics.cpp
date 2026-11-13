@@ -890,10 +890,12 @@ void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
     }
 
     if (m_variable_dz) {
-        AMREX_ALWAYS_ASSERT(a_z_phys_nd.DistributionMap() == m_num_ln_R_mf.DistributionMap());
+        // the node heights on the grids of the distributions, which keep the grids they were defined on
+        MultiFab z_nd(amrex::convert(m_num_ln_R_mf.boxArray(), IntVect(1)), m_num_ln_R_mf.DistributionMap(), 1, 0);
+        z_nd.ParallelCopy(a_z_phys_nd, 0, 0, 1);
         const auto dx = geom.CellSizeArray();
         for (MFIter mfi(m_num_ln_R_mf); mfi.isValid(); ++mfi) {
-            const SDCellVolume cell_vol{dx, a_z_phys_nd.const_array(mfi), true};
+            const SDCellVolume cell_vol{dx, z_nd.const_array(mfi), true};
             const auto mass_arr = m_mass_ln_R_mf.array(mfi);
             const auto num_arr = m_num_ln_R_mf.array(mfi);
             ParallelFor(mfi.validbox(), Nbin, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept

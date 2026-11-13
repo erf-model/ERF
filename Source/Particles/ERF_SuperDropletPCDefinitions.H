@@ -26,11 +26,7 @@ struct SDCellVolume
     amrex::Real operator() (int i, int j, int k) const noexcept
     {
         if (!variable_dz) { return dx[0]*dx[1]*dx[2]; }
-        const amrex::Real dz = amrex::Real(0.25) * (  z_nd(i  , j  , k+1) - z_nd(i  , j  , k)
-                                                    + z_nd(i+1, j  , k+1) - z_nd(i+1, j  , k)
-                                                    + z_nd(i  , j+1, k+1) - z_nd(i  , j+1, k)
-                                                    + z_nd(i+1, j+1, k+1) - z_nd(i+1, j+1, k) );
-        return dx[0]*dx[1]*dz;
+        return dx[0]*dx[1]*ERFParticleGeometry::cell_thickness(z_nd, i, j, k);
     }
 };
 

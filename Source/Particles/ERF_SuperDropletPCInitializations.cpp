@@ -462,7 +462,10 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc, const MultiFab& a_z_phys_n
 
             const Real cell_volume = cell_vol(iv[0],iv[1],iv[2]);
             int num_sd_per_cell = 0;
-            for (int n = 0; n < num_init; n++) { num_sd_per_cell += init_counts[n].numSD(cell_volume); }
+            for (int n = 0; n < num_init; n++) {
+                num_sd_per_cell += variable_dz ? init_counts[n].numSDCell(cell_volume)
+                                               : init_counts[n].numSD(cell_volume);
+            }
 
             const Real mass_condensate_cell = condensate_mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
             const Real mass_condensate_sd = mass_condensate_cell / num_sd_per_cell;

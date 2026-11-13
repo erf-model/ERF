@@ -403,12 +403,11 @@ void SuperDropletPC::addParticles ( int a_lev,
             const auto count = num_superdroplets.array(mfi);
             const SDCellVolume cell_vol{dx, (*a_height_ptr)[mfi].const_array(), true};
             ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (count(i,j,k) > 0) {
-                    const Real vol = cell_vol(i,j,k);
-                    count(i,j,k) = (cell_counts.numParticles(vol) > zero) ? cell_counts.numSD(vol) : 0;
-                }
+                if (count(i,j,k) > 0) { count(i,j,k) = cell_counts.numSDCell(cell_vol(i,j,k)); }
             });
         }
+        // no cell receives a super-droplet (e.g. an injection step that adds no whole particle)
+        if (num_superdroplets.sum(0) == 0) { return; }
     }
 
     iMultiFab offsets( ParticleBoxArray(a_lev),

@@ -230,11 +230,12 @@ struct SDCellCounts
     double par_total_old = 0;         /*!< injection: physical particles per m^3 before this step */
     amrex::Real frac_tol = 0;         /*!< injection: tolerance below 1 at which an accumulated particle is injected */
 
-    /*! Number of super-droplets in the cell (0 when an injection step adds none there) */
+    /*! Number of super-droplets in the cell (0 when it receives no particles) */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int numSD (const amrex::Real a_dv) const noexcept
     {
         if (!inject) {
+            if (numParticles(a_dv) <= 0) { return 0; }
             return (sd_density >= 0) ? static_cast<int>(std::ceil(sd_density*a_dv)) : ppc;
         }
         const amrex::Real num_par = numParticles(a_dv);
@@ -256,6 +257,14 @@ struct SDCellCounts
         return static_cast<amrex::Real>(std::floor(par_total     * double(a_dv) + double(frac_tol))
                                       - std::floor(par_total_old * double(a_dv) + double(frac_tol)));
     }
+
+    /*! Number of super-droplets in the cell when its counts follow its physical volume:
+     *  at most one per physical particle, so that none has a zero multiplicity */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int numSDCell (const amrex::Real a_dv) const noexcept
+    {
+        return static_cast<int>(amrex::min(amrex::Real(numSD(a_dv)), numParticles(a_dv)));
+    }
 };
 
 /*! \brief Mean multiplicity that a set of initializations gives in a cell of volume a_dv */
@@ -265,7 +274,7 @@ amrex::Real SD_init_multiplicity (const SDCellCounts* a_counts, const int a_num,
     int num_sd = 0;
     amrex::Real num_par = 0;
     for (int n = 0; n < a_num; n++) {
-        num_sd  += a_counts[n].numSD(a_dv);
+        num_sd  += a_counts[n].numSDCell(a_dv);
         num_par += a_counts[n].numParticles(a_dv);
     }
     return (num_sd > 0) ? num_par / num_sd : amrex::Real(0);
