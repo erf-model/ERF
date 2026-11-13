@@ -885,6 +885,28 @@ TEST(CloudChamberConfig, NonDefaultCpPropagatesToSolverChoiceRdOcp)
     pp.add("init_type", "ConstantDensity");
     pp.add("c_p", configured_cp);
 
+    // init_params writes the static members of SolverChoice (init_type, and
+    // mesh_type = VariableDz under a fitted terrain_type); restore them so the
+    // tests that follow in a shuffled order see the defaults this test found
+    struct ScopedSolverChoiceStatics {
+        InitType      init_type      = SolverChoice::init_type;
+        SoundingType  sounding_type  = SolverChoice::sounding_type;
+        TerrainType   terrain_type   = SolverChoice::terrain_type;
+        bool          flat_terrain   = SolverChoice::flat_terrain;
+        BuildingsType buildings_type = SolverChoice::buildings_type;
+        bool          use_real_bcs   = SolverChoice::use_real_bcs;
+        MeshType      mesh_type      = SolverChoice::mesh_type;
+        ~ScopedSolverChoiceStatics () {
+            SolverChoice::init_type      = init_type;
+            SolverChoice::sounding_type  = sounding_type;
+            SolverChoice::terrain_type   = terrain_type;
+            SolverChoice::flat_terrain   = flat_terrain;
+            SolverChoice::buildings_type = buildings_type;
+            SolverChoice::use_real_bcs   = use_real_bcs;
+            SolverChoice::mesh_type      = mesh_type;
+        }
+    } restore_statics;
+
     SolverChoice solver_choice;
     solver_choice.init_params(0, prefix);
 
