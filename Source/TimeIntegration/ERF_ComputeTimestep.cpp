@@ -771,7 +771,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                 max_sbm_outgoing_rate, sbm_diagnostic);
         }
         if (!rate_ok) {
-            Abort("SBM M3 current donor-rate estimate: " + sbm_diagnostic);
+            Abort(std::string(sbm_mixing ? "SBM combined advection-diffusion rate estimate: "
+                                         : "SBM M3 current donor-rate estimate: ") +
+                  sbm_diagnostic);
         }
         if (max_sbm_outgoing_rate > Real(0.0)) {
             double adaptive_sbm_dt =
@@ -779,7 +781,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                     max_sbm_outgoing_rate);
             // The eddy diffusivity is not checkpointed: on the first step after a
             // restart do not let dt grow past the checkpointed step.
-            if (sbm_mixing && diffusive_first_call && !restart_chkfile.empty() &&
+            const bool lagged_coefficients =
+                sbm_mixing && sbm_transport->particle_mixing().policy ==
+                                  erf_sbm::ParticleMixingPolicy::HostPassiveScalar;
+            if (lagged_coefficients && diffusive_first_call && !restart_chkfile.empty() &&
                 istep[level] > 0) {
                 adaptive_sbm_dt = std::min(adaptive_sbm_dt, dt[level]);
             }

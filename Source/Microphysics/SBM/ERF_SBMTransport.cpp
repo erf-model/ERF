@@ -2416,6 +2416,10 @@ SBMTransport::advance_stage (const int level,
                         : "SBM M3 donor outgoing-demand condition failed: max=")
                 << max_outgoing << " tau=" << tau
                 << " (no SBM subcycling is performed)";
+        if (mixing_active && m_mixing.policy == ParticleMixingPolicy::HostPassiveScalar) {
+            message << "; the timestep estimate uses the previous step's eddy diffusivity "
+                       "(none on the first step), so lower erf.cfl or set erf.init_shrink";
+        }
         amrex::Abort(message.str());
     }
 

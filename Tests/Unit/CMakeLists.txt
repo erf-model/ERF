@@ -847,6 +847,11 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "-DRUN_ARGS=erf.grid_stretching_ratio=1.1|erf.initial_dz=0.25")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_StaticTerrain
     inputs_boundary_static_terrain nonzero)
+  # A front entering an empty domain binds the limiter, which drains cells to
+  # zero; without its roundoff margin a drained cell rounds below zero.
+  add_sbm_boundary_budget_test(SBM_Boundary_InflowFront_LimiterBinds
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=erf.sbm_fixture_initial_state=0 0 0 0|max_step=8")
   # The qualification build's executable accepts only its own two-level decks.
   if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
     add_sbm_boundary_budget_test(SBM_Boundary_AMR_Outflow_Compressible
@@ -922,6 +927,17 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_boundary_budget_test(SBM_Mixing_Walls_2M inputs_mixing_walls zero
     ${_sbm_mixing_host}
     "-DRUN_ARGS=${_sbm_boundary_2m}|erf.sbm_fixture_initial_state_xhi=3.0e-6 1.2e-5 9.0e-6 2.4e-5 2.0e12 4.0e12 1.5e12 2.0e12")
+  # An empty half carried by the flow binds the limiter with mixing active.
+  add_sbm_boundary_budget_test(SBM_Mixing_EmptyHalf_LimiterBinds inputs_mixing_walls zero
+    ${_sbm_mixing_host} "-DRUN_ARGS=erf.sbm_fixture_initial_state_xhi=0 0 0 0|prob.U_0=0.5|max_step=8")
+  # Adaptive steps: the lagged eddy estimate, and a reference diffusivity whose
+  # combined limit (6.9e-5 s) is below the acoustic one (1.2e-4 s).
+  add_sbm_boundary_budget_test(SBM_Mixing_Adaptive_Smagorinsky inputs_mixing_walls zero
+    ${_sbm_mixing_host} "-DRUN_ARGS=erf.fixed_dt=-1|erf.cfl=0.8|max_step=6")
+  set(_sbm_mixing_constant_adaptive
+    "erf.fixed_dt=-1|erf.cfl=0.8|erf.les_type=None|erf.sbm_particle_mixing=ConstantReference|erf.sbm_particle_mixing_kh=40|erf.sbm_particle_mixing_kv=40")
+  add_sbm_boundary_budget_test(SBM_Mixing_Adaptive_ConstantReference_DiffusionBound
+    inputs_mixing_walls zero "-DRUN_ARGS=${_sbm_mixing_constant_adaptive}|max_step=6")
 
   add_sbm_expected_failure_test(SBM_Mixing_Reject_PBL inputs_mixing_walls
     "SBM does not support a PBL closure .erf.pbl_type = MYNN25 .level 0.."
@@ -1130,6 +1146,10 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       "-DREFERENCE_ARGS=erf.sbm_particle_mixing=None|erf.sbm_particle_mixing_kh=0|erf.sbm_particle_mixing_kv=0"
       -DRESTART_STEP=2
       "-DMISMATCH_ARGS=erf.sbm_particle_mixing_kh=3.e-2")
+    # Reference coefficients need no restart cap, so an adaptive restart is bitwise.
+    add_sbm_particle_mixing_test(SBM_Mixing_ConstantReference_Adaptive_Restart
+      "-DRUN_ARGS=${_sbm_mixing_constant_adaptive}"
+      -DRESTART_STEP=2)
   endif()
 
   foreach(_mode IN ITEMS 1m 2m)

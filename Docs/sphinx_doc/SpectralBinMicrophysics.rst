@@ -893,14 +893,21 @@ but leave :math:`-0.2` of the cell. Because every member of a bin group shares
 one coefficient, the update preserves the group's linear admissibility
 constraints. Each stage checks the combined bound and aborts if it fails.
 Adaptive timesteps respect it and a fixed timestep that exceeds it is
-rejected, but ERF prepares the eddy coefficients inside the step, so this
+rejected. ``ConstantReference`` coefficients are known in advance, but ERF
+prepares the ``HostPassiveScalar`` eddy coefficients inside the step, so their
 estimate uses the previous step's coefficients. The first step of a run sees
 none, and the first step after a restart, whose eddy coefficients are not
-checkpointed, keeps the checkpointed timestep; the stage check guards both.
+checkpointed, keeps the checkpointed timestep; the stage check guards both,
+and aborts rather than shrinking the step. Where the eddy diffusivity can
+approach the advective limit, for example an LES started from a strong
+perturbation, leave margin with a smaller ``erf.cfl`` or shrink the first step
+with ``erf.init_shrink``.
 
 The limiter keeps a roundoff margin of :math:`128\,\epsilon` times each
 cell's gross budget, so a cell it drains exactly to a bound cannot round
-below it. The margin applies with or without mixing.
+below it. The margin applies with or without mixing. A nearly empty cell whose
+margin to a bound is within that roundoff of the material passing through it
+takes the low-order update on its faces.
 
 On terrain-fitted grids ERF's centred cross-diffusion stencil is
 not positive: a single diagonal neighbour gives an empty cell a negative
