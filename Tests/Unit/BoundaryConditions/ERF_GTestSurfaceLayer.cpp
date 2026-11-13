@@ -2255,3 +2255,54 @@ TEST(SurfaceLayer, ComputeRoughnessNoOverflowWithoutDrag)
         EXPECT_EQ(z[0], z[1]) << "zref " << c[0] << " L " << c[1] << " U " << c[2] << " u* " << c[3];
     }
 }
+
+namespace {
+
+// Land everywhere in the fixture's mask, ghost cells included, except the surface cells
+// inside the domain off the column i = land_i, which are water. A face on the domain edge
+// then reads land beyond it unless it takes the nearest column inside.
+void
+set_water_except_column (SurfaceLayerFields& fields, const int land_i)
+{
+    const Box domain = fields.domain;
+    for (MFIter mfi(*fields.lmask[0]); mfi.isValid(); ++mfi) {
+        const auto m = fields.lmask[0]->array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const bool inside = i >= domain.smallEnd(0) && i <= domain.bigEnd(0) &&
+                                j >= domain.smallEnd(1) && j <= domain.bigEnd(1);
+            m(i,j,k) = (inside && i != land_i) ? 0 : 1;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+} // namespace
+
+// Only water moves: a face of the lowest cells takes most.surface_current where the cells on
+// both sides of it are water, and outside the domain the nearest column inside counts.
+TEST(SurfaceLayer, ConstantSurfaceCurrentMovesOnlyWater)
+{
+    const std::string prefix = "unit_surface_layer_constant_current";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.addarr("most.surface_current", std::vector<Real>{Real(2.0), Real(1.0)});
+    SurfaceLayerFields fields;
+    const Box& d = fields.domain;   // cells 2..4 in each direction
+    set_water_except_column(fields, d.bigEnd(0));
+    const Orientation face(Direction::z, Orientation::low);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+    pp.remove("most.surface_current");
+
+    const MultiFab& cx = *layer->get_surface_current(0, 0);
+    const MultiFab& cy = *layer->get_surface_current(0, 1);
+    const int k = d.smallEnd(2);
+    const int j = d.smallEnd(1) + 1;
+    EXPECT_EQ(mf_value(cx, IntVect(2, j, k)), Real(2.0));   // edge face beside water
+    EXPECT_EQ(mf_value(cx, IntVect(3, j, k)), Real(2.0));   // water on both sides
+    EXPECT_EQ(mf_value(cx, IntVect(4, j, k)), Real(0.0));   // land on one side
+    EXPECT_EQ(mf_value(cx, IntVect(5, j, k)), Real(0.0));   // edge face beside land
+    EXPECT_EQ(mf_value(cy, IntVect(3, 2, k)), Real(1.0));   // edge face over water
+    EXPECT_EQ(mf_value(cy, IntVect(3, 5, k)), Real(1.0));
+    EXPECT_EQ(mf_value(cy, IntVect(4, 3, k)), Real(0.0));   // over land
+}
