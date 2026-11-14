@@ -445,7 +445,8 @@ struct SurfaceLayerFields
                    const Real lsm_value = Real(0.0),
                    const bool coupled_active = false,
                    const Real rdOcp = RdoCp,
-                   const bool has_immersed_buildings = false)
+                   const bool has_immersed_buildings = false,
+                   const bool coupled_current = false)
     {
         bool rotate = false;
         Vector<Geometry> geoms{geom};
@@ -464,6 +465,7 @@ struct SurfaceLayerFields
             MeshType::ConstantDz, TerrainType::None, TurbChoice{}, rdOcp,
             0.0, 0.0, 0.0, Vector<const eb_*>{}, nullptr, has_immersed_buildings);
         layer->set_surface_layer_faces(active_faces);
+        layer->set_coupled_current_active(coupled_current);
         if (coupled_active) {
             layer->set_coupled_sst_active(true);
             coupled_sst = std::make_unique<MultiFab>(
@@ -2254,4 +2256,134 @@ TEST(SurfaceLayer, ComputeRoughnessNoOverflowWithoutDrag)
         const auto z = roughness_new_and_old(c[0], c[1], c[2], c[3]);
         EXPECT_EQ(z[0], z[1]) << "zref " << c[0] << " L " << c[1] << " U " << c[2] << " u* " << c[3];
     }
+}
+
+namespace {
+
+// Land everywhere in the fixture's mask, ghost cells included, except the surface cells
+// inside the domain off the column i = land_i, which are water. A face on the domain edge
+// then reads land beyond it unless it takes the nearest column inside.
+void
+set_water_except_column (SurfaceLayerFields& fields, const int land_i)
+{
+    const Box domain = fields.domain;
+    for (MFIter mfi(*fields.lmask[0]); mfi.isValid(); ++mfi) {
+        const auto m = fields.lmask[0]->array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const bool inside = i >= domain.smallEnd(0) && i <= domain.bigEnd(0) &&
+                                j >= domain.smallEnd(1) && j <= domain.bigEnd(1);
+            m(i,j,k) = (inside && i != land_i) ? 0 : 1;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+// Coverage flag set everywhere except on the row j = uncovered_j. A free function rather
+// than inline in the test, because nvcc rejects a device lambda in a TEST body (private).
+void
+set_covered_except_row (iMultiFab& covered, const int uncovered_j)
+{
+    for (MFIter mfi(covered); mfi.isValid(); ++mfi) {
+        const auto c = covered.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            c(i,j,k) = (j == uncovered_j) ? 0 : 1;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+} // namespace
+
+// Only water moves: a face of the lowest cells takes most.surface_current where the cells on
+// both sides of it are water, and outside the domain the nearest column inside counts.
+TEST(SurfaceLayer, ConstantSurfaceCurrentMovesOnlyWater)
+{
+    const std::string prefix = "unit_surface_layer_constant_current";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.addarr("most.surface_current", std::vector<Real>{Real(2.0), Real(1.0)});
+    SurfaceLayerFields fields;
+    const Box& d = fields.domain;   // cells 2..4 in each direction
+    set_water_except_column(fields, d.bigEnd(0));
+    const Orientation face(Direction::z, Orientation::low);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+    pp.remove("most.surface_current");
+
+    const MultiFab& cx = *layer->get_surface_current(0, 0);
+    const MultiFab& cy = *layer->get_surface_current(0, 1);
+    const int k = d.smallEnd(2);
+    const int j = d.smallEnd(1) + 1;
+    EXPECT_EQ(mf_value(cx, IntVect(2, j, k)), Real(2.0));   // edge face beside water
+    EXPECT_EQ(mf_value(cx, IntVect(3, j, k)), Real(2.0));   // water on both sides
+    EXPECT_EQ(mf_value(cx, IntVect(4, j, k)), Real(0.0));   // land on one side
+    EXPECT_EQ(mf_value(cx, IntVect(5, j, k)), Real(0.0));   // edge face beside land
+    EXPECT_EQ(mf_value(cy, IntVect(3, 2, k)), Real(1.0));   // edge face over water
+    EXPECT_EQ(mf_value(cy, IntVect(3, 5, k)), Real(1.0));
+    EXPECT_EQ(mf_value(cy, IntVect(4, 3, k)), Real(0.0));   // over land
+}
+
+// A coupled current arrives as east and north components at the cell centres; the faces take
+// it on the grid axes where the cells on both sides are water and covered by the ocean.
+TEST(SurfaceLayer, CoupledSurfaceCurrentIsTurnedToTheGridOverCoveredWater)
+{
+    const std::string prefix = "unit_surface_layer_coupled_current";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    SurfaceLayerFields fields;
+    const Box& d = fields.domain;   // cells 2..4 in each direction
+    set_water_except_column(fields, d.bigEnd(0));
+    const Orientation face(Direction::z, Orientation::low);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false, "",
+                                      Real(0.0), false, RdoCp, false, true);
+    const MultiFab& cx = *layer->get_surface_current(0, 0);
+    const MultiFab& cy = *layer->get_surface_current(0, 1);
+    const int k = d.smallEnd(2);
+    EXPECT_EQ(mf_value(cx, IntVect(3, 3, k)), Real(0.0));   // at rest until the coupler calls
+
+    // Uniform east and north components, on the 2D layout a coupler hands over; the row
+    // j = 2 has no ocean donor
+    const BoxArray ba2d = collapse_z(fields.ba);
+    MultiFab east(ba2d, fields.dm, 1, 0), north(ba2d, fields.dm, 1, 0);
+    MultiFab cos_alpha(ba2d, fields.dm, 1, 0), sin_alpha(ba2d, fields.dm, 1, 0);
+    iMultiFab covered(ba2d, fields.dm, 1, 0);
+    const Real e = Real(3.0), n = Real(1.0), alpha = Real(0.5);
+    east.setVal(e);
+    north.setVal(n);
+    cos_alpha.setVal(std::cos(alpha));
+    sin_alpha.setVal(std::sin(alpha));
+    set_covered_except_row(covered, d.smallEnd(1));
+    layer->update_coupled_surface_current(0, east, north, &covered, &cos_alpha, &sin_alpha);
+
+    // The grid axes are turned by alpha from east and north
+    const Real u = e * std::cos(alpha) + n * std::sin(alpha);
+    const Real v = -e * std::sin(alpha) + n * std::cos(alpha);
+    const Real tol = Real(1.0e-14);
+    EXPECT_NEAR(mf_value(cx, IntVect(3, 3, k)), u, tol);       // covered water on both sides
+    EXPECT_NEAR(mf_value(cx, IntVect(2, 3, k)), u, tol);       // edge face beside water
+    EXPECT_EQ(mf_value(cx, IntVect(3, 2, k)), Real(0.0));      // row without an ocean donor
+    EXPECT_EQ(mf_value(cx, IntVect(4, 3, k)), Real(0.0));      // land on one side
+    EXPECT_NEAR(mf_value(cy, IntVect(3, 4, k)), v, tol);       // covered water on both sides
+    EXPECT_NEAR(mf_value(cy, IntVect(3, 5, k)), v, tol);       // edge face over water
+    EXPECT_EQ(mf_value(cy, IntVect(3, 3, k)), Real(0.0));      // beside the row without a donor
+
+    // No coverage means no cell is covered, as for the coupled SST
+    layer->update_coupled_surface_current(0, east, north, nullptr, &cos_alpha, &sin_alpha);
+    EXPECT_EQ(mf_value(cx, IntVect(3, 3, k)), Real(0.0));
+}
+
+TEST(SurfaceLayer, ConstantAndCoupledSurfaceCurrentsAreRejectedTogether)
+{
+    const std::string prefix = "unit_surface_layer_both_currents";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.addarr("most.surface_current", std::vector<Real>{Real(2.0), Real(1.0)});
+    SurfaceLayerFields fields;
+    set_water_except_column(fields, fields.domain.bigEnd(0));
+    const Orientation face(Direction::z, Orientation::low);
+    expect_abort_mentioning([&] {
+        fields.prepare_layer(face, active_faces({face}), prefix, false, false, "",
+                             Real(0.0), false, RdoCp, false, true);
+    }, "cannot be combined");
+    pp.remove("most.surface_current");
 }

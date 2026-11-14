@@ -1,6 +1,7 @@
 #include <ERF.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_LatLonMap.H>
 #include <ERF_MicrophysicsUtils.H>
 #include <Diagnostics/ERF_SurfaceFluxDiagnostics.H>
 #include <ERF_SurfacePrecipitation.H>
@@ -908,6 +909,47 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
                              double time,
                              const amrex::iMultiFab* erf_coverage)
 {
+    // The surface current (state[1], state[2]), on every call: the coupler hands over the
+    // current of its last exchange, and turning it to the grid faces is cheap
+    if (solverChoice.use_coupled_currents) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            state.size() > 2 && state[1] != nullptr && state[2] != nullptr,
+            "erf.use_coupled_currents is set, but the coupler supplied no surface current.");
+        SurfaceLayer* surface_layer = m_SurfaceLayer[amrex::Orientation::zlo()].get();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(surface_layer && surface_layer->use_surface_current(),
+            "erf.use_coupled_currents needs a surface layer at the z-low face.");
+        if (!m_coupled_current_rotation_set) {
+            m_coupled_current_rotation_set = true;
+            if (!lat_m.empty() && lat_m[0] != nullptr && lon_m[0] != nullptr) {
+                m_coupled_current_cos_alpha = std::make_unique<amrex::MultiFab>(ba2d[0], dmap[0], 1, 0);
+                m_coupled_current_sin_alpha = std::make_unique<amrex::MultiFab>(ba2d[0], dmap[0], 1, 0);
+                fill_grid_rotation(*m_coupled_current_cos_alpha, *m_coupled_current_sin_alpha,
+                                   *lat_m[0], *lon_m[0], geom[0]);
+            }
+        }
+        // ERF's own copies, which the surface layer keeps to set the current again on a regrid
+        if (m_coupled_current_east == nullptr) {
+            amrex::BoxArray ba;
+            amrex::DistributionMapping dm;
+            GetOceanToAtmosSurfaceLayout(ba, dm);
+            m_coupled_current_east  = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
+            m_coupled_current_north = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
+            m_coupled_current_valid = std::make_unique<amrex::iMultiFab>(ba, dm, 1, 0);
+        }
+        m_coupled_current_east->ParallelCopy(*state[1], 0, 0, 1);
+        m_coupled_current_north->ParallelCopy(*state[2], 0, 0, 1);
+        // No coverage means no cell is covered, as for the SST
+        m_coupled_current_valid->setVal(0);
+        if (erf_coverage != nullptr) {
+            m_coupled_current_valid->ParallelCopy(*erf_coverage, 0, 0, 1);
+        }
+        surface_layer->update_coupled_surface_current(0, *m_coupled_current_east,
+                                                      *m_coupled_current_north,
+                                                      m_coupled_current_valid.get(),
+                                                      m_coupled_current_cos_alpha.get(),
+                                                      m_coupled_current_sin_alpha.get());
+    }
+
     // The gate is "is coupled SST configured"
     if (!solverChoice.use_coupled_sst) {
         if (!m_warned_coupled_sst_declined) {
