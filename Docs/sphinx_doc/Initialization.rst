@@ -326,6 +326,9 @@ When ``erf.nc_low_file`` names a wrflowinp file, level 0 reads its sea surface t
 (SST) from it at each of the file's times, and the surface layer interpolates linearly in
 time between the two slices that bracket the current time.  Over water the skin
 temperature (TSK) takes the SST from the file, so it is interpolated in time the same way.
+Both are kept as absolute temperature; the surface layer converts them to potential
+temperature with the surface pressure of the current state each time it uses them, so
+the surface potential temperature follows the pressure as it changes during the run.
 
 A finer level may be given a wrflowinp file of its own, as WRF does for a nest run with
 ``sst_update = 1``::

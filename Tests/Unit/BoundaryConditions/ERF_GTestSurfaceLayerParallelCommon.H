@@ -169,6 +169,9 @@ struct SurfaceLayerFields
     std::unique_ptr<MultiFab> theta;
     std::unique_ptr<MultiFab> coupled_sst;
     std::unique_ptr<iMultiFab> coupled_valid;
+    // Lower-boundary SST by time, passed to make_SurfaceLayer_at_level; empty unless a
+    // test fills it
+    Vector<std::unique_ptr<MultiFab>> sst_data;
     Vector<std::unique_ptr<MultiFab>> qv_prim;
     Vector<std::unique_ptr<iMultiFab>> lmask;
     std::unique_ptr<MultiFab> no_walldist;
@@ -349,12 +352,11 @@ struct SurfaceLayerFields
         std::unique_ptr<MultiFab> qr_prim;
         Vector<MultiFab*> empty_mfs;
         Vector<std::string> empty_names;
-        Vector<std::unique_ptr<MultiFab>> sst;
         Vector<std::unique_ptr<MultiFab>> tsk;
         layer->make_SurfaceLayer_at_level(
             0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
             nullptr, nullptr, nullptr, empty_mfs, empty_names,
-            empty_mfs, empty_names, sst, tsk, lmask);
+            empty_mfs, empty_names, sst_data, tsk, lmask);
         if (coupled_active) {
             layer->update_coupled_sst_ptr(0, coupled_sst.get(), coupled_valid.get());
         }

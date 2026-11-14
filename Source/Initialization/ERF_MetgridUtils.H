@@ -70,33 +70,6 @@ metgrid_surface_pressure (const bool debug_psfc,
 }
 
 /**
- * Convert an absolute Metgrid surface temperature to the canonical
- * SurfaceLayer potential-temperature representation using the selected
- * physical surface pressure.
- */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool
-metgrid_surface_theta (const amrex::Real temperature,
-                        const bool debug_psfc,
-                        const int flag_psfc,
-                        const amrex::Real file_psfc,
-                        const amrex::Real z_sfc,
-                        const amrex::Real P00,
-                        const amrex::Real T00,
-                        const amrex::Real TLP,
-                        const amrex::Real rdOcp,
-                        amrex::Real& theta)
-{
-    amrex::Real surface_pressure;
-    if (!metgrid_surface_pressure(debug_psfc, flag_psfc, file_psfc, z_sfc,
-                                  P00, T00, TLP, surface_pressure)) {
-        return false;
-    }
-    return erf_surface_temperature::temperature_to_theta(
-        temperature, surface_pressure, rdOcp, theta);
-}
-
-/**
  * Read metgrid NetCDF data and populate ERF initialization FABs.
  */
 void

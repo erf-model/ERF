@@ -444,10 +444,11 @@ TEST(TerrainNetCDF, ReadsGenuineWpsGeoEmMassField)
     }
 }
 
-// Motivation: Metgrid SST/SKINTEMP is normalized with the pressure in the
-// same forcing file. Reading PSFC only for itime 0 silently reused stale
+// Motivation: Metgrid builds the state at each forcing time with the PSFC of
+// that time's file. Reading PSFC only for itime 0 silently reused stale
 // pressure at later forcing times, so two complete files with the same SST
-// and different PSFC must produce different potential temperatures.
+// and different PSFC must give different PSFC, and the SST of both is the
+// absolute temperature in the file whatever the PSFC.
 TEST(MetgridNetCDF, ReadsSurfacePressureForEveryForcingTime)
 {
     scratch_files();  // collective: before any I/O-rank-only writer
@@ -507,17 +508,10 @@ TEST(MetgridNetCDF, ReadsSurfacePressureForEveryForcingTime)
     const amrex::Real psfc_1 = psfc_host_1.const_array()(0, 0, 0);
     const amrex::Real sst_1 = sst_host_1.const_array()(0, 0, 0);
 
-    // Independent oracle: theta = T / (p/p0)^(Rd/cp), not the conversion
-    // routine used by init_state_from_metgrid.
-    const amrex::Real expected_theta_0 = 290.0 *
-        std::pow(psfc_0 / p_0, -RdoCp);
-    const amrex::Real expected_theta_1 = 290.0 *
-        std::pow(psfc_1 / p_0, -RdoCp);
-    EXPECT_EQ(sst_0, sst_1);
-    EXPECT_NE(psfc_0, psfc_1);
-    EXPECT_NE(expected_theta_0, expected_theta_1);
-    EXPECT_NEAR(expected_theta_0, 290.0 * std::pow(100000.0 / p_0, -RdoCp), 1.0e-10);
-    EXPECT_NEAR(expected_theta_1, 290.0 * std::pow(90000.0 / p_0, -RdoCp), 1.0e-10);
+    EXPECT_EQ(sst_0, amrex::Real(290.0));
+    EXPECT_EQ(sst_1, amrex::Real(290.0));
+    EXPECT_EQ(psfc_0, amrex::Real(100000.0));
+    EXPECT_EQ(psfc_1, amrex::Real(90000.0));
 
     amrex::ParallelDescriptor::Barrier();
     if (amrex::ParallelDescriptor::IOProcessor()) {
@@ -663,62 +657,6 @@ TEST(MetgridSurfacePressure, InvalidFilePressureFailsDeterministicallyOnDevice)
 
     EXPECT_EQ(status, 0);
     EXPECT_TRUE(std::isnan(pressure));
-}
-
-// Motivation: the pressure-selection policy is only useful if the production
-// Metgrid normalization applies it to the actual temperature field. Exercise
-// the GPU-safe conversion primitive with file, analytic, and debug pressures
-// so the theta contract cannot regress to an unconverted absolute temperature.
-TEST(MetgridNetCDF, SurfaceTemperatureNormalizationUsesPressurePolicy)
-{
-    const amrex::Real temperature = amrex::Real(290.0);
-    const amrex::Real P00 = p_0;
-    const amrex::Real T00 = amrex::Real(290.0);
-    const amrex::Real TLP = amrex::Real(50.0);
-    const amrex::Real z_sfc = amrex::Real(100.0);
-    const amrex::Real tolerance = amrex::Real(64.0) *
-        std::numeric_limits<amrex::Real>::epsilon() * temperature;
-
-    // Independent oracle: theta = T * (p0/p_s)^(Rd/cp), evaluated at the
-    // pressure values the production policy is expected to select.
-    const amrex::Real expected_at_100k = temperature *
-        std::pow(P00 / amrex::Real(100000.0), RdoCp);
-    const amrex::Real expected_at_90k = temperature *
-        std::pow(P00 / amrex::Real(90000.0), RdoCp);
-    amrex::Real theta = 0.0;
-    ASSERT_TRUE(metgrid_surface_theta(
-        temperature, false, 1, amrex::Real(100000.0), z_sfc,
-        P00, T00, TLP, RdoCp, theta));
-    EXPECT_NEAR(theta, expected_at_100k, tolerance);
-    ASSERT_TRUE(metgrid_surface_theta(
-        temperature, false, 1, amrex::Real(90000.0), z_sfc,
-        P00, T00, TLP, RdoCp, theta));
-    EXPECT_NEAR(theta, expected_at_90k, tolerance);
-    EXPECT_NE(expected_at_100k, expected_at_90k);
-
-    const amrex::Real toa = T00 / TLP;
-    const amrex::Real expected_missing_pressure = P00 * std::exp(
-        -toa + std::sqrt(toa*toa - amrex::Real(2.0) * CONST_GRAV * z_sfc /
-                         (TLP * R_d)));
-    const amrex::Real expected_missing = temperature *
-        std::pow(P00 / expected_missing_pressure, RdoCp);
-    ASSERT_TRUE(metgrid_surface_theta(
-        temperature, false, 0, amrex::Real(0.0), z_sfc,
-        P00, T00, TLP, RdoCp, theta));
-    EXPECT_NEAR(theta, expected_missing, tolerance);
-
-    // Debug pressure deliberately wins over the file value.
-    ASSERT_TRUE(metgrid_surface_theta(
-        temperature, true, 1, amrex::Real(90000.0), z_sfc,
-        P00, T00, TLP, RdoCp, theta));
-    EXPECT_NEAR(theta, expected_at_100k, tolerance);
-
-    EXPECT_FALSE(metgrid_surface_theta(
-        std::numeric_limits<amrex::Real>::quiet_NaN(), false, 1,
-        amrex::Real(90000.0), z_sfc, P00, T00, TLP, RdoCp, theta));
-    EXPECT_FALSE(metgrid_surface_theta(
-        temperature, false, 1, amrex::Real(90000.0), z_sfc,
-        P00, T00, TLP, amrex::Real(0.0), theta));
 }
 
 // Motivation: the old Metgrid reader rejected an SST-only forcing file before

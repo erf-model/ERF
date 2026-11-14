@@ -4684,8 +4684,35 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     add_test_wrfinput_nest(WRFInput_Abort_NestOutsideParent
         "erf.crop.in_box_lo_indices=32 24 0"
         "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
+
+    # Restart from the checkpoints older versions wrote, holding the SST and TSK as
+    # potential temperature: the pressure they are converted back with follows from the
+    # init type that wrote them (job_info, or erf.legacy_surface_temperature_init_type),
+    # not the restart's; a WRFInput one is recovered exactly with the PSFC of its first
+    # level-0 init file, also when erf.nc_init_file_0 lists several, a Metgrid one is
+    # migrated approximately with the pressure of the restarted state, and one of
+    # unknown origin, or that the restart cannot recover, aborts.  Over land the SST is a
+    # placeholder the surface layer never takes, which is kept as it is; an invalid value
+    # where the surface layer takes the field, or a surface pressure that cannot convert a
+    # stored temperature, aborts.  So does a level with several init files of its own,
+    # as the checkpoint does not record which file each grid took them from; restarted
+    # once with the one file it read, it is recovered exactly.
+    set(TEST_NAME WRFInput_LegacySurfaceTemperature)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND "${CMAKE_COMMAND}"
+      "-DPYTHON=${ERF_TEST_PYTHON}"
+      "-DTEST_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DRUN_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DERF_EXECUTABLE=${TEST_EXE}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/RunWRFInputLegacySurfaceTemperature.cmake")
+    set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 600 PROCESSORS 1
+      WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
+      LABELS "regression;wrfinput"
+      ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run.log;${CURRENT_TEST_BINARY_DIR}/run.err")
+    unset(TEST_NAME)
   else()
-    message(STATUS "Skipping WRFInput_CroppedParent: Python netCDF4 and numpy are required")
+    message(STATUS "Skipping WRFInput_CroppedParent and WRFInput_LegacySurfaceTemperature: Python netCDF4 and numpy are required")
   endif()
 endif()
 

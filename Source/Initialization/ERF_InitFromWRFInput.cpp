@@ -622,8 +622,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
     bool compute_terrain_here = true;
 
-    const Real l_rdOcp = solverChoice.rdOcp;
-
     // **************************************************************************
     // Each rank reads from the file only the part of each field that its own grids
     // need, so that no rank (not even the I/O rank) ever holds a whole field.  The
@@ -1212,37 +1210,37 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               }
           }
 
-          // Initialize SST
+          // Initialize SST.  Kept as the absolute temperature [K] of the file: the
+          // surface layer converts it to potential temperature with the current
+          // surface pressure each time it fills t_surf.
           if ( var_name == "SST" ) {
               sst_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(sst_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = sst_lev[lev][0]->array(mfi);
                   const Array4<const Real>& src_arr = var_fab.const_array();
-                  const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
                   ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      dst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
                   });
               }
               (sst_lev[lev][0])->FillBoundary(geom[lev].periodicity());
           }
 
-          // Initialize TSK
+          // Initialize TSK, as the SST above: absolute temperature [K]
           if ( var_name == "TSK" ) {
               tsk_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(tsk_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = tsk_lev[lev][0]->array(mfi);
                   const Array4<const Real>& src_arr = var_fab.const_array();
-                  const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
                   ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      dst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
                   });
               }
               (tsk_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
@@ -2460,8 +2458,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                            sst_lev[lev], tsk_lev[lev],
                            m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
-                           lev_new[Vars::cons], *mf_PSFC[lev],
-                           l_rdOcp, lmask_lev[lev][0], use_moist);
+                           lev_new[Vars::cons], lmask_lev[lev][0], use_moist);
         }
     } // lev == 0 && nc_low_file exists
 
@@ -3366,8 +3363,7 @@ ERF::read_own_low_slice (int lev, int itime, std::unique_ptr<SurfaceLayer>& Surf
     const bool use_moist = (solverChoice.moisture_type != MoistureType::None);
     update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                    sst_lev[lev], tsk_lev[lev], SurfLayer, low_data,
-                   vars_new[lev][Vars::cons], *mf_PSFC[lev],
-                   solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+                   vars_new[lev][Vars::cons], lmask_lev[lev][0], use_moist);
 }
 
 /**
@@ -3395,16 +3391,19 @@ ERF::check_own_low_file_times (int lev)
 }
 
 /**
- * Re-read the surface pressure of a level > 0 from its own init file, on its nest box as
- * init_from_wrfinput reads it.  The surface pressure is not checkpointed, and update_sst_tsk
- * needs it to convert the sea surface temperature.
+ * Re-read the surface pressure of a level from its own init file, on the box init_from_wrfinput
+ * reads it on (the domain at level 0, the nest box above).  Level 0 reads its first init file
+ * only, as init_from_wrfinput does however many erf.nc_init_file_0 lists, and so does a finer
+ * level with several, which a run reads alone until another starts (see ErrorEst).  The surface
+ * pressure is not checkpointed; a restart from a WRFInput checkpoint that holds the SST and TSK
+ * as potential temperature converts them back with it (see convert_legacy_surface_temperature).
  *
- * @param[in] lev level (> 0) with a single init file of its own
+ * @param[in] lev level with an init file of its own
  */
 void
 ERF::read_psfc_from_own_init_file (int lev)
 {
-    AMREX_ALWAYS_ASSERT(lev > 0 && nc_init_file[lev].size() == 1);
+    AMREX_ALWAYS_ASSERT(!nc_init_file[lev].empty());
 
     int ratio;
     Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][0], ratio);
@@ -3415,8 +3414,9 @@ ERF::read_psfc_from_own_init_file (int lev)
                        geom[lev], use_theta_m, success);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(success, "read_psfc_from_own_init_file: no PSFC in the init file");
 
-    // Put it on the nest box, as init_from_wrfinput does
-    const Box box2d = nest_box_from_own_init_file(lev);
+    // Put it on the box init_from_wrfinput puts it on
+    Box box2d = wrfinput_file_box(lev, 0);
+    box2d.setRange(2, 0);
     AMREX_ALWAYS_ASSERT(fab_from_file.box().length(0) == box2d.length(0) &&
                         fab_from_file.box().length(1) == box2d.length(1));
     fab_from_file.shift(box2d.smallEnd() - fab_from_file.box().smallEnd());

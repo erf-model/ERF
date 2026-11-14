@@ -1258,7 +1258,7 @@ ERF::InitData_post ()
             {
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
-                // Need to read PSFC
+                // Re-read the surface pressure, which is not checkpointed
                 FArrayBox NC_fab_var_file;
                 for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
                     int success, use_theta_m;
@@ -1280,8 +1280,7 @@ ERF::InitData_post ()
                 update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
-                               vars_new[lev][Vars::cons], *mf_PSFC[lev],
-                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+                               vars_new[lev][Vars::cons], lmask_lev[lev][0], use_moist);
             } // itime
 
             // The finer levels that read their own init files, coarsest first
@@ -2878,9 +2877,8 @@ ERF::interp_mapfac_from_coarse (int lev)
 // leaves it uninitialized; only init_from_wrfinput -- which requires an init file at
 // *this* level -- ever fills it.  A level created by tagging therefore never had a
 // surface pressure at all, and a level that did read a file lost it at the next regrid.
-// update_sst_tsk uses it to convert the sea surface temperature from the wrflowinp file
-// into a potential temperature for the surface layer, and the active land-surface model
-// consumes it as well.
+// A restart from a checkpoint that holds the SST and TSK as potential temperature
+// converts them back with it (convert_legacy_surface_temperature).
 //
 void
 ERF::interp_psfc_from_coarse (int lev)
@@ -2906,8 +2904,10 @@ ERF::interp_psfc_from_coarse (int lev)
     // Do NOT fill the ghost cells outside the domain: unlike the fields that
     // init_from_wrfinput fills by clamping into the valid region, PSFC is copied out of
     // the file over the intersection with the domain, so the coarse level has nothing
-    // there for us to interpolate.  Nothing reads those cells -- update_sst_tsk clamps
-    // its PSFC index into the domain.
+    // there for us to interpolate.  Nothing reads those cells -- the conversion of the SST
+    // and TSK clamps its PSFC index into the valid box.  The interpolation does read the
+    // coarse ghost cells next to the domain boundary, though: on restart,
+    // convert_legacy_surface_temperature fills those of the coarse level first.
     //
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
                           *mf_PSFC[lev-1], 0, 0, 1,

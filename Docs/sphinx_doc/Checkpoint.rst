@@ -15,19 +15,78 @@ Each native checkpoint contains a provenance block in ``job_info``. The block
 records the checkpoint artifact, the ERF execution that wrote it, and the
 known restart ancestry. See :ref:`sec:Provenance`.
 New native checkpoints also contain a small ``surface_temperature_contract``
-marker with value ``1``. This records that Metgrid SST and skin temperature
-arrays already use the current SurfaceLayer potential-temperature convention
-and can be restored directly. For a markerless checkpoint containing ``SST_0``
-or ``TSK_0``, ERF uses that checkpoint's own ``job_info``
-``erf.init_type`` provenance: legacy WRFInput arrays remain compatible, while
-legacy Metgrid arrays are rejected because they contain absolute temperature.
-Markerless SST/TSK arrays with missing or unrecognized provenance are rejected
-rather than guessed. The restart deck's current ``erf.init_type`` does not
-override this compatibility check, and a conflicting explicit assertion cannot
-override known checkpoint provenance. For very old markerless checkpoints that
-predate usable ``job_info`` provenance, the original source can be asserted
-explicitly with ``erf.legacy_surface_temperature_init_type = WRFInput``.
-Markerless checkpoints without SST/TSK arrays remain compatible.
+marker with value ``2``. This records that the SST and skin temperature arrays
+(``SST_0``, ``TSK_0``) hold absolute temperature [K], which the SurfaceLayer
+converts to potential temperature at the current surface pressure each time it
+uses them, so they are restored directly, whatever the restart reads.
+
+Older checkpoints may hold these arrays as potential temperature, converted
+with the surface pressure of the input they were read from: those with marker
+value ``1``, and markerless ones written by a WRFInput run. (Markerless arrays
+written by a Metgrid run hold absolute temperature and are restored directly,
+and markerless checkpoints without SST/TSK arrays remain compatible.) On
+restart these are converted to absolute temperature with a pressure chosen by
+the ``erf.init_type`` of the run that *wrote* the checkpoint, as its own
+``job_info`` records it, never by the ``erf.init_type`` of the restart, which
+need not be the same:
+
+- **WRFInput: exact recovery.** The arrays are converted back with the
+  wrfinput surface pressure ``PSFC`` they were converted with, read again from
+  where each level read its SST and TSK: level 0 from the first file of
+  ``erf.nc_init_file_0``, the only one it reads; a finer level from its own
+  file, or interpolated from the coarser level where the level took its SST
+  and TSK from that level (no init file of its own, or a level-0
+  ``erf.nc_low_file`` and none of its own). This needs a restart with
+  ``erf.init_type = WRFInput``, in a build with NetCDF, that names the
+  wrfinput files of the original run; any other restart aborts. A finer level
+  with several init files of its own reads the first alone until another
+  starts: the run reads a later file, and regrids the level for it, only once
+  the start time and elapsed time of the coarser level reach the file's start
+  time. Its arrays are recovered with the ``PSFC`` of its first file if no
+  later file had started by the time of the checkpoint; once one had, the
+  checkpoint does not record which file each of its grids took them from, or
+  whether a regrid replaced them, and the restart aborts.
+- **Metgrid: approximate migration.** The surface pressure of the met_em
+  input is not read again, so the arrays are converted with the surface
+  pressure of the restarted state, and the restart warns that it does so.
+  This preserves the surface potential temperature the run had at the
+  restart; it does not recover the SST of the input. The migrated absolute
+  SST and TSK keep the factor :math:`(p_{restart}/p_{input})^{R_d/c_p}` of any
+  change in surface pressure since the input was read, the pressure-related
+  bias of the old potential-temperature storage. To avoid it, restart from a
+  version-2 checkpoint, or start again from the input.
+
+A checkpoint whose ``job_info`` does not record the ``erf.init_type`` that
+wrote these arrays is rejected rather than guessed, unless the restart asserts
+it with ``erf.legacy_surface_temperature_init_type``, which stands in for
+missing provenance only and cannot override provenance the checkpoint records.
+
+The land mask (``LMASK_0``, or ``erf.is_land`` where the checkpoint holds
+none) is restored first, as it decides which array the surface layer takes at
+each cell: at a level with an SST, the TSK everywhere if the level has one,
+else the SST over water and the prescribed ``most.pot_surf_temp`` over land;
+at a level without an SST, neither. (A finer level without an SST of its own
+counts as having one if a coarser level has one, as a restart gives it the
+coarser level's.) The restart tells three kinds of cells apart:
+
+- **Unused placeholders** -- a value that is not a finite, positive
+  temperature where the surface layer does not take the array, such as the
+  zero SST WRF writes over land -- are kept as they are, not counted as
+  failures and not made to look like a temperature; the restart reports how
+  many it kept.
+- **Invalid active values** -- a value that is not a finite, positive
+  potential temperature where the surface layer takes the array -- abort the
+  restart, naming the first such cell.
+- Every positive value is converted, used or not, so that the array holds
+  absolute temperature throughout and stays consistent if a later regrid or
+  input makes the cell active; one without a finite, positive conversion
+  pressure aborts the restart.
+
+Unsupported configurations -- unknown provenance, a pressure the restart
+cannot read again (a finer level with several init files of its own, one of
+which after the first had started by the time of the checkpoint) -- abort
+with a message naming them rather than converting with another pressure.
+
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):
 
@@ -78,7 +137,7 @@ Restarting
      - String
      - Not used if unset
    * - ``erf.legacy_surface_temperature_init_type``
-     - Explicit provenance assertion used only for markerless checkpoints with ``SST_0``/``TSK_0`` when checkpoint ``job_info`` cannot establish the original initialization source. ``WRFInput`` permits the known-safe legacy theta representation; ``Metgrid`` remains rejected because its arrays are absolute temperature and the checkpoint lacks the pressure needed to convert them safely. This setting must identify the actual old source and is not a general override of checkpoint metadata.
+     - The ``erf.init_type`` of the run that wrote a markerless or version-1 checkpoint with ``SST_0``/``TSK_0`` whose ``job_info`` does not record it. For a markerless checkpoint, ``WRFInput`` means the arrays are potential temperature, recovered exactly with the wrfinput ``PSFC``, and ``Metgrid`` that they are absolute temperature, restored directly. For a version-1 checkpoint, whose arrays are potential temperature, ``WRFInput`` recovers them exactly and ``Metgrid`` migrates them approximately with the surface pressure of the restarted state. Where the ``job_info`` records the init type, that takes precedence, and a conflicting assertion is ignored with a warning. It must name the actual old source and is not a general override of checkpoint metadata.
      - ``WRFInput`` or ``Metgrid`` (case-insensitive)
      - Unset
 
