@@ -362,9 +362,12 @@ and northward components at the cell centres of the level-0 surface, through
 from the latitude and longitude (a grid without them is taken to be aligned with east) and
 averaged to the faces. A face takes the current where the cells on both sides of it are water
 and covered by the ocean, and is at rest elsewhere, including before the coupler's first call;
-lakes the ocean model does not reach stay at rest. A regridded level 0 takes the coupler's last
-current again. Like the coupled SST, it is applied on level 0 only; refined levels are at rest,
-and ERF warns at start-up when there are any. The option needs a surface-layer boundary at the
+lakes the ocean model does not reach stay at rest. The surface is therefore at rest when ERF
+initializes, so the initial fluxes, and the TKE initialized from :math:`u_{\star}`, use the
+absolute wind; the relative wind takes over from the first step after the coupler's first
+call. A regridded level 0 takes the coupler's last current again. Like the coupled SST, it is
+applied on level 0 only; refined levels are at rest, so their fluxes use the absolute wind and
+differ from level 0's where they meet, and ERF warns at start-up when there are any. The option needs a surface-layer boundary at the
 z-low face, or ERF stops at start-up.
 
 Limits on the similarity solution

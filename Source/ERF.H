@@ -1250,21 +1250,25 @@ public:
     std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
 
     // The orientation of the level-0 grid (cosine and sine of the angle of its x axis
-    // from east) for turning the coupled surface current to the grid axes, from lat_m
-    // and lon_m on the first ApplyOceanSurfaceState call; null without lat/lon, where
-    // the grid is taken to be aligned with east.
-    std::unique_ptr<amrex::MultiFab> m_coupled_current_cos_alpha;
-    std::unique_ptr<amrex::MultiFab> m_coupled_current_sin_alpha;
-    bool m_coupled_current_rotation_set = false;
+    // from east) on ba2d[0], from lat_m and lon_m, for turning the vectors the coupler
+    // exchanges between the grid axes and east/north. Made by SetCouplerGridRotation, and
+    // made again when level 0's layout changes; null without lat/lon, where the grid is
+    // taken to be aligned with east.
+    std::unique_ptr<amrex::MultiFab> m_coupler_cos_alpha;
+    std::unique_ptr<amrex::MultiFab> m_coupler_sin_alpha;
+    bool m_warned_coupler_no_latlon = false;
+    void SetCouplerGridRotation ();
     // The coupler's last eastward and northward surface current and its coverage, on the
-    // layout of GetOceanToAtmosSurfaceLayout when first called. The SurfaceLayer borrows
-    // them, and sets the current from them again when level 0 is remade.
+    // layout of GetOceanToAtmosSurfaceLayout, made again when that changes. The
+    // SurfaceLayer borrows them, and sets the current from them again when level 0 is
+    // remade.
     std::unique_ptr<amrex::MultiFab>  m_coupled_current_east;
     std::unique_ptr<amrex::MultiFab>  m_coupled_current_north;
     std::unique_ptr<amrex::iMultiFab> m_coupled_current_valid;
 
     // One-shot latch so a misconfigured deck says so once rather than every step.
     bool m_warned_coupled_sst_declined = false;
+    bool m_warned_coupled_current_declined = false;
     // The coupled-SST diagnostics run on the first ApplyOceanSurfaceState call,
     // then only at erf.v >= 2.
     bool m_checked_coupled_sst = false;

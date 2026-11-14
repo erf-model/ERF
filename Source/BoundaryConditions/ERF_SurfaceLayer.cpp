@@ -233,9 +233,9 @@ SurfaceLayer::fill_surface_current (const int& lev)
     // cells inside the domain or its periodic images take the coupler's values
     const bool coupled = lev < static_cast<int>(m_coupled_current_east_lev.size()) &&
                          m_coupled_current_east_lev[lev] && m_coupled_current_north_lev[lev];
-    MultiFab east_north, rotation;
+    MultiFab east_north;
     iMultiFab cover;
-    CoupledCurrentCells cells{&east_north, &rotation, &cover};
+    CoupledCurrentCells cells{&east_north, nullptr, &cover};
     if (coupled) {
         BoxList bl = convert(current_x.boxArray(), IntVect(0)).boxList();
         for (auto& b : bl) { b.setRange(2, 0); }
@@ -247,13 +247,22 @@ SurfaceLayer::fill_surface_current (const int& lev)
         east_north.setVal(zero);
         east_north.ParallelCopy(*m_coupled_current_east_lev[lev],  0, 0, 1, IntVect(0), ng, period);
         east_north.ParallelCopy(*m_coupled_current_north_lev[lev], 0, 1, 1, IntVect(0), ng, period);
-        rotation.define(ba, dm, 2, ng);
-        rotation.setVal(one, 0, 1, ng);
-        rotation.setVal(zero, 1, 1, ng);
-        if (m_coupled_current_cos_lev[lev] && m_coupled_current_sin_lev[lev]) {
-            rotation.ParallelCopy(*m_coupled_current_cos_lev[lev], 0, 0, 1, IntVect(0), ng, period);
-            rotation.ParallelCopy(*m_coupled_current_sin_lev[lev], 0, 1, 1, IntVect(0), ng, period);
+        // The orientation does not change between calls, so its copy is kept
+        auto& rotation = m_coupled_rotation_lev[lev];
+        const MultiFab* cos_src = (m_coupled_current_cos_lev[lev] && m_coupled_current_sin_lev[lev])
+                                  ? m_coupled_current_cos_lev[lev] : nullptr;
+        if (!rotation || rotation->boxArray() != ba || rotation->DistributionMap() != dm ||
+            m_coupled_rotation_src_lev[lev] != cos_src) {
+            rotation = std::make_unique<MultiFab>(ba, dm, 2, ng);
+            rotation->setVal(one, 0, 1, ng);
+            rotation->setVal(zero, 1, 1, ng);
+            if (cos_src) {
+                rotation->ParallelCopy(*m_coupled_current_cos_lev[lev], 0, 0, 1, IntVect(0), ng, period);
+                rotation->ParallelCopy(*m_coupled_current_sin_lev[lev], 0, 1, 1, IntVect(0), ng, period);
+            }
+            m_coupled_rotation_src_lev[lev] = cos_src;
         }
+        cells.rotation = rotation.get();
         cover.define(ba, dm, 1, ng);
         cover.setVal(0);
         if (m_coupled_current_covered_lev[lev]) {
