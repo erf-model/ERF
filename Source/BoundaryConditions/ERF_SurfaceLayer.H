@@ -613,6 +613,8 @@ public:
           m_coupled_current_covered_lev.resize(nlevs, nullptr);
           m_coupled_current_cos_lev.resize(nlevs, nullptr);
           m_coupled_current_sin_lev.resize(nlevs, nullptr);
+          m_coupled_rotation_lev.resize(nlevs);
+          m_coupled_rotation_src_lev.resize(nlevs, nullptr);
           m_rel_k_top.resize(nlevs, 0);
           m_rel_src_ba.resize(nlevs);
 
@@ -1975,7 +1977,8 @@ public:
    */
   void set_coupled_current_active (const bool active)
   {
-      if (!active) { return; }
+      // Idempotent: the set-up that calls it may run again on the same layer
+      if (!active || m_coupled_current_active) { return; }
       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_surface_current,
           "most.surface_current cannot be combined with a coupled surface current "
           "(erf.use_coupled_currents).");
@@ -1983,6 +1986,7 @@ public:
           "A coupled surface current is supported only on the z-low face.");
       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_terrain_type != TerrainType::EB,
           "A coupled surface current is not supported with EB terrain.");
+      m_coupled_current_active = true;
       m_use_surface_current = true;
   }
 
@@ -2233,6 +2237,8 @@ private:
   // velocities' boxes cut at m_rel_k_top, the highest plane the averages read; m_rel_src_ba
   // is the x-velocity layout they were made for.
   bool m_use_surface_current = false;
+  // Whether the current comes from an ocean coupler (set_coupled_current_active)
+  bool m_coupled_current_active = false;
   amrex::Real m_surface_current_const[2] = {zero, zero};
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_x;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_y;
@@ -2243,6 +2249,11 @@ private:
   amrex::Vector<const amrex::iMultiFab*> m_coupled_current_covered_lev;
   amrex::Vector<const amrex::MultiFab*>  m_coupled_current_cos_lev;
   amrex::Vector<const amrex::MultiFab*>  m_coupled_current_sin_lev;
+  // The coupler's grid orientation on the layout fill_surface_current reads, ghost cells
+  // filled, per level; remade only when the orientation or that layout changes, since the
+  // coupler calls with the same orientation every step
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_coupled_rotation_lev;
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_rotation_src_lev;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_xvel;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_yvel;
   amrex::Vector<int> m_rel_k_top;

@@ -2116,10 +2116,16 @@ ERF::InitData_post ()
         const std::string zlo_prefix = (n_faces == 1 || use_legacy_zlo_prefix)
             ? pp_prefix : pp_prefix + "." + BoundaryFaceName[Orientation::zlo()];
         const std::string zlo_key = zlo_prefix + ".most.surface_current";
+        // Only keys under ERF's own prefix: another code in the same run (a coupled ocean
+        // model, say) may have a key of the same ending. AMReX's
+        // amrex.abort_on_unused_inputs catches unused keys in general; this one is checked
+        // here because, misplaced, it would silently change the physics.
         const std::string suffix(".most.surface_current");
+        const std::string erf_prefix = pp_prefix + ".";
         for (const auto& key : user_specified_inputs) {
             if (key.size() < suffix.size() ||
-                key.compare(key.size() - suffix.size(), suffix.size(), suffix) != 0) {
+                key.compare(key.size() - suffix.size(), suffix.size(), suffix) != 0 ||
+                key.compare(0, erf_prefix.size(), erf_prefix) != 0) {
                 continue;
             }
             if (!zlo_layer) {
