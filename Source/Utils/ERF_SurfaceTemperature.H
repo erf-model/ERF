@@ -94,6 +94,50 @@ temperature_to_theta (const amrex::Real temperature,
 }
 
 /**
+ * The field a cell of the lower boundary takes its surface temperature from, when the
+ * level has an SST (SurfaceLayer::fill_tsurf_with_sst_and_tsk)
+ */
+enum struct SurfaceTemperatureSource : int {
+    tsk,        ///< the skin temperature, TSK
+    sst,        ///< the sea-surface temperature, SST
+    prescribed  ///< the prescribed land surface potential temperature (most.pot_surf_temp)
+};
+
+/**
+ * Whether the surface layer ignores the SST of a level: when asked to (most.ignore_sst),
+ * and whenever the level has TSK, which carries the SST over water (update_sst_tsk) and so
+ * supplies every cell (make_SurfaceLayer_at_level).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool
+sst_ignored (const bool ignore_sst_requested, const bool have_tsk)
+{
+    return ignore_sst_requested || have_tsk;
+}
+
+/**
+ * Which field supplies the surface temperature of a cell: TSK over land, and over water
+ * where the SST is ignored, if the level has TSK; else the SST over water and the
+ * prescribed temperature over land.
+ *
+ * @param is_land    whether the cell is land: a nonzero land mask, or no land mask at all
+ * @param have_tsk   whether the level has TSK
+ * @param ignore_sst whether the surface layer ignores the SST (sst_ignored)
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+SurfaceTemperatureSource
+surface_temperature_source (const bool is_land, const bool have_tsk, const bool ignore_sst)
+{
+    if (have_tsk && (is_land || ignore_sst)) {
+        return SurfaceTemperatureSource::tsk;
+    }
+    if (!is_land) {
+        return SurfaceTemperatureSource::sst;
+    }
+    return SurfaceTemperatureSource::prescribed;
+}
+
+/**
  * Why a surface conversion could not be made, in the order the kernels test for it.
  *
  * Every kernel that converts between the atmospheric state and a surface temperature or

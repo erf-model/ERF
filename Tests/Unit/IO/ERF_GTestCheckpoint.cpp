@@ -21,6 +21,7 @@ using erf_checkpoint_surface_temperature::LegacySurfacePressureSource;
 using erf_checkpoint_surface_temperature::ProvenanceOrigin;
 using erf_checkpoint_surface_temperature::StoredSurfaceTemperature;
 using erf_checkpoint_surface_temperature::SurfaceTemperatureMigration;
+using erf_surface_temperature::SurfaceTemperatureSource;
 
 struct TemporaryCheckpoint
 {
@@ -65,6 +66,30 @@ set_from_host (amrex::MultiFab& mf, const F& value)
                                 host.size() * sizeof(amrex::Real));
     }
     amrex::Gpu::streamSynchronize();
+}
+
+// A land mask on the layout of a field, every cell, ghost cells included, set from the host
+template <typename F>
+amrex::iMultiFab
+make_land_mask (const amrex::MultiFab& field, const F& value)
+{
+    amrex::iMultiFab mask(field.boxArray(), field.DistributionMap(), 1, field.nGrowVect());
+    for (amrex::MFIter mfi(mask); mfi.isValid(); ++mfi) {
+        amrex::IArrayBox host(mask[mfi].box(), 1, amrex::The_Pinned_Arena());
+        const auto arr = host.array();
+        amrex::LoopOnCpu(host.box(), [&] (int i, int j, int k) { arr(i,j,k) = value(i,j,k); });
+        amrex::Gpu::htod_memcpy(mask[mfi].dataPtr(), host.dataPtr(),
+                                host.size() * sizeof(int));
+    }
+    amrex::Gpu::streamSynchronize();
+    return mask;
+}
+
+// A land mask on the layout of a field that is water everywhere
+amrex::iMultiFab
+make_water_mask (const amrex::MultiFab& field)
+{
+    return make_land_mask(field, [] (int, int, int) { return 0; });
 }
 
 void
@@ -357,10 +382,15 @@ TEST(CheckpointSurfaceTemperature, ConvertsPotentialTemperatureWithEachColumnsPr
         return getThgivenTandP(temperature_at(v[0],v[1]), pressure_at(v[0],v[1]), RdoCp);
     });
 
+    // Over water without TSK, where the surface layer takes the SST
+    const amrex::iMultiFab water = make_water_mask(field);
     erf_checkpoint_surface_temperature::LegacyConversionFailure fail =
         erf_checkpoint_surface_temperature::potential_to_absolute_temperature(
-            field, pressure, RdoCp, amrex::Periodicity::NonPeriodic());
+            field, SurfaceTemperatureSource::sst,
+            erf_checkpoint_surface_temperature::restart_surface_temperature_use(&water, false),
+            pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(fail.count, 0);
+    EXPECT_EQ(fail.preserved, 0);
 
     for (amrex::MFIter mfi(field); mfi.isValid(); ++mfi) {
         amrex::FArrayBox host(field[mfi].box(), 1, amrex::The_Pinned_Arena());
@@ -603,9 +633,10 @@ TEST(CheckpointSurfaceTemperatureMigration, RecoversPressureFromWhereEachLevelRe
 TEST(CheckpointSurfaceTemperatureMigration, CountsCellsWithoutUsablePressureOrPotentialTemperature)
 {
     // Motivation: mf_PSFC is allocated but not filled on restart, so an allocated pressure
-    // proves nothing.  A valid cell whose pressure was not recovered (zero), or whose
-    // pressure or potential temperature is not finite, must be left unconverted and
-    // counted, to abort the restart; a ghost cell is not counted.
+    // proves nothing.  A valid cell where the surface layer takes the field (water, without
+    // TSK, for the SST) whose pressure was not recovered (zero), or whose pressure or
+    // potential temperature is not finite, must be left unconverted and counted, to abort
+    // the restart; a ghost cell is not counted.
     const amrex::Box box(amrex::IntVect(0,0,0), amrex::IntVect(3,2,0));
     const amrex::BoxArray ba(box);
     const amrex::DistributionMapping dm(ba);
@@ -625,10 +656,15 @@ TEST(CheckpointSurfaceTemperatureMigration, CountsCellsWithoutUsablePressureOrPo
         return ((i == 3 && j == 2) || (i == -1 && j == 0)) ? nan : theta;
     });
 
+    const amrex::iMultiFab water = make_water_mask(field);
     const auto fail = cst::potential_to_absolute_temperature(
-        field, pressure, RdoCp, amrex::Periodicity::NonPeriodic());
+        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&water, false),
+        pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(fail.count, 3);
+    EXPECT_EQ(fail.preserved, 0);
     EXPECT_EQ(fail.claimed, 1);
+    EXPECT_EQ(fail.land, 0);
+    EXPECT_EQ(fail.used, 1);
 
     const auto host = to_host(field);
     ASSERT_EQ(host.size(), 1u);
@@ -649,6 +685,7 @@ TEST(CheckpointSurfaceTemperatureMigration, AbortsDescribingTheFirstCellThatCoul
 {
     ScopedThrowOnAbort throw_on_abort;
     EXPECT_NO_THROW(cst::abort_on_legacy_conversion_failure(cst::LegacyConversionFailure{},
+                                                             SurfaceTemperatureSource::sst,
                                                              "converting the SST"));
 
     cst::LegacyConversionFailure fail;
@@ -656,20 +693,27 @@ TEST(CheckpointSurfaceTemperatureMigration, AbortsDescribingTheFirstCellThatCoul
     fail.claimed = 1;
     fail.i = 3;
     fail.j = 1;
+    fail.land = 0;
+    fail.used = 1;
     fail.theta = 301.5;
     fail.pressure = 0.0;
     std::string message;
     testing::internal::CaptureStdout();
     try {
-        cst::abort_on_legacy_conversion_failure(fail, "converting the SST at level 0");
+        cst::abort_on_legacy_conversion_failure(fail, SurfaceTemperatureSource::sst,
+                                                "converting the SST at level 0");
     } catch (const amrex::RuntimeError& e) {
         message = e.what();
     }
     const std::string report = testing::internal::GetCapturedStdout();
     EXPECT_NE(message.find("2 cells could not be converted"), std::string::npos) << message;
+    EXPECT_NE(message.find("where the surface layer takes the SST needs a finite, positive "
+                           "potential temperature"), std::string::npos) << message;
     EXPECT_NE(report.find("converting the SST at level 0"), std::string::npos) << report;
-    EXPECT_NE(report.find("(3,1)"), std::string::npos) << report;
+    EXPECT_NE(report.find("(3,1), a water cell where the surface layer takes the SST"),
+              std::string::npos) << report;
     EXPECT_NE(report.find("surface pressure = 0 Pa"), std::string::npos) << report;
+    EXPECT_EQ(report.find("placeholders"), std::string::npos) << report;
 }
 
 TEST(CheckpointSurfaceTemperatureMigration, ApproximateMigrationKeepsTheRestartPressureBias)
@@ -689,8 +733,10 @@ TEST(CheckpointSurfaceTemperatureMigration, ApproximateMigrationKeepsTheRestartP
     field.setVal(sst * std::pow(p_0 / p_input, RdoCp));
     pressure.setVal(p_restart);
 
+    const amrex::iMultiFab water = make_water_mask(field);
     const auto fail = cst::potential_to_absolute_temperature(
-        field, pressure, RdoCp, amrex::Periodicity::NonPeriodic());
+        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&water, false),
+        pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(fail.count, 0);
 
     const auto host = to_host(field);
@@ -698,4 +744,270 @@ TEST(CheckpointSurfaceTemperatureMigration, ApproximateMigrationKeepsTheRestartP
     EXPECT_NEAR(migrated, sst * std::pow(p_restart / p_input, RdoCp),
                 amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() * sst);
     EXPECT_GT(std::abs(migrated - sst), amrex::Real(1.0));
+}
+
+// Where the surface layer takes each field.  A restart judges a stored SST or TSK by whether
+// the surface layer takes that field at its cell, by the rule the surface layer follows.
+
+TEST(CheckpointSurfaceTemperatureMigration, TakesEachFieldWhereTheSurfaceLayerDoes)
+{
+    // Motivation: make_SurfaceLayer_at_level ignores the SST of a level with TSK, which then
+    // supplies every cell, water too; without TSK, water takes the SST and land the
+    // prescribed temperature, whatever most.ignore_sst says.  A restart, which reads no
+    // most.ignore_sst, must reach the same selection.
+    namespace est = erf_surface_temperature;
+    EXPECT_FALSE(est::sst_ignored(false, false));
+    EXPECT_TRUE(est::sst_ignored(true, false));
+    EXPECT_TRUE(est::sst_ignored(false, true));
+    EXPECT_TRUE(est::sst_ignored(true, true));
+
+    for (const bool ignore_sst : {false, true}) {
+        EXPECT_EQ(est::surface_temperature_source(false, false, ignore_sst),
+                  SurfaceTemperatureSource::sst);
+        EXPECT_EQ(est::surface_temperature_source(true, false, ignore_sst),
+                  SurfaceTemperatureSource::prescribed);
+    }
+    EXPECT_EQ(est::surface_temperature_source(false, true, true), SurfaceTemperatureSource::tsk);
+    EXPECT_EQ(est::surface_temperature_source(true, true, true), SurfaceTemperatureSource::tsk);
+
+    const auto without_tsk = cst::restart_surface_temperature_use(nullptr, false);
+    EXPECT_TRUE(without_tsk.lmask == nullptr);
+    EXPECT_FALSE(without_tsk.have_tsk);
+    EXPECT_FALSE(without_tsk.ignore_sst);
+    const auto with_tsk = cst::restart_surface_temperature_use(nullptr, true);
+    EXPECT_TRUE(with_tsk.have_tsk);
+    EXPECT_TRUE(with_tsk.ignore_sst);
+}
+
+TEST(CheckpointSurfaceTemperatureMigration, KeepsUnusedLandSstPlaceholdersWithoutCountingThem)
+{
+    // Motivation: wrfinput files hold a placeholder SST over land, often zero, which a
+    // version 1 or markerless WRFInput checkpoint holds as it is.  Without TSK the surface
+    // layer takes the prescribed temperature over land, never the SST, so the restart must
+    // not abort on such a placeholder, nor make it look like a temperature: it is kept as
+    // it is.  The SST over water, and a positive SST over land, are converted, so that no
+    // potential temperature is left in a field held as absolute temperature.
+    const amrex::Box box(amrex::IntVect(0,0,0), amrex::IntVect(3,2,0));
+    const amrex::BoxArray ba(box);
+    const amrex::DistributionMapping dm(ba);
+    const amrex::IntVect ng(1,1,0);
+    amrex::MultiFab field(ba, dm, 1, ng);
+    amrex::MultiFab pressure(ba, dm, 1, ng);
+    const amrex::Real nan = std::numeric_limits<amrex::Real>::quiet_NaN();
+    const amrex::Real theta = 300.0;
+    const amrex::Real land_theta = 290.0;
+    const amrex::Real p_s = 90000.0;
+    pressure.setVal(p_s);
+    const auto land = make_land_mask(field, [] (int i, int, int) { return (i < 2) ? 1 : 0; });
+    set_from_host(field, [&] (int i, int j, int) {
+        if (i >= 2) { return theta; }
+        if (i == 1 && j == 0) { return nan; }
+        if (i == 0 && j == 1) { return amrex::Real(-1.0); }
+        if (i == 1 && j == 2) { return land_theta; }
+        return amrex::Real(0.0);
+    });
+
+    const auto fail = cst::potential_to_absolute_temperature(
+        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&land, false),
+        pressure, RdoCp, amrex::Periodicity::NonPeriodic());
+    EXPECT_EQ(fail.count, 0);
+    EXPECT_EQ(fail.preserved, 5);
+    EXPECT_EQ(fail.claimed, 0);
+
+    const auto host = to_host(field);
+    ASSERT_EQ(host.size(), 1u);
+    const auto values = host[0].const_array();
+    const amrex::Real factor = std::pow(p_s / p_0, RdoCp);
+    const amrex::Real tol = amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() *
+                            theta;
+    EXPECT_EQ(values(0,0,0), amrex::Real(0.0));
+    EXPECT_TRUE(std::isnan(values(1,0,0)));
+    EXPECT_EQ(values(0,1,0), amrex::Real(-1.0));
+    EXPECT_EQ(values(1,1,0), amrex::Real(0.0));
+    EXPECT_EQ(values(0,2,0), amrex::Real(0.0));
+    EXPECT_NEAR(values(1,2,0), land_theta * factor, tol);
+    for (int j = 0; j <= 2; ++j) {
+        for (int i = 2; i <= 3; ++i) {
+            EXPECT_NEAR(values(i,j,0), theta * factor, tol) << "at (" << i << "," << j << ")";
+        }
+    }
+}
+
+TEST(CheckpointSurfaceTemperatureMigration, CountsAnInvalidSstWhereTheSurfaceLayerTakesIt)
+{
+    // Motivation: without TSK the surface layer takes the SST over water, so a zero there is
+    // a missing value the run would use: the restart must count it, to abort, and describe
+    // it, while it keeps the land placeholders beside it.
+    const amrex::Box box(amrex::IntVect(0,0,0), amrex::IntVect(3,2,0));
+    const amrex::BoxArray ba(box);
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab field(ba, dm, 1, amrex::IntVect(1,1,0));
+    amrex::MultiFab pressure(ba, dm, 1, amrex::IntVect(1,1,0));
+    const amrex::Real p_s = 90000.0;
+    pressure.setVal(p_s);
+    const auto land = make_land_mask(field, [] (int i, int, int) { return (i < 2) ? 1 : 0; });
+    set_from_host(field, [&] (int i, int j, int) {
+        return (i < 2 || (i == 3 && j == 1)) ? amrex::Real(0.0) : amrex::Real(300.0);
+    });
+
+    const auto fail = cst::potential_to_absolute_temperature(
+        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&land, false),
+        pressure, RdoCp, amrex::Periodicity::NonPeriodic());
+    EXPECT_EQ(fail.count, 1);
+    EXPECT_EQ(fail.preserved, 6);
+    EXPECT_EQ(fail.claimed, 1);
+    EXPECT_EQ(fail.i, 3);
+    EXPECT_EQ(fail.j, 1);
+    EXPECT_EQ(fail.land, 0);
+    EXPECT_EQ(fail.used, 1);
+    EXPECT_EQ(fail.theta, amrex::Real(0.0));
+    EXPECT_EQ(fail.pressure, p_s);
+    EXPECT_EQ(to_host(field)[0].const_array()(3,1,0), amrex::Real(0.0));
+}
+
+TEST(CheckpointSurfaceTemperatureMigration, IgnoresTheSstAndTakesTheTskEverywhereWithTsk)
+{
+    // Motivation: a level with TSK takes it at every cell, water too, and ignores its SST.
+    // A zero SST over water is then a placeholder the restart keeps, but a zero TSK, over
+    // land or water, is a value the run would use, and must abort the restart.
+    const amrex::Box box(amrex::IntVect(0,0,0), amrex::IntVect(3,2,0));
+    const amrex::BoxArray ba(box);
+    const amrex::DistributionMapping dm(ba);
+    const amrex::IntVect ng(1,1,0);
+    amrex::MultiFab sst(ba, dm, 1, ng);
+    amrex::MultiFab tsk(ba, dm, 1, ng);
+    amrex::MultiFab pressure(ba, dm, 1, ng);
+    pressure.setVal(90000.0);
+    const auto land = make_land_mask(sst, [] (int i, int, int) { return (i < 2) ? 1 : 0; });
+    const auto use = cst::restart_surface_temperature_use(&land, true);
+
+    set_from_host(sst, [&] (int i, int j, int) {
+        return (i < 2 || (i == 3 && j == 1)) ? amrex::Real(0.0) : amrex::Real(300.0);
+    });
+    const auto sst_fail = cst::potential_to_absolute_temperature(
+        sst, SurfaceTemperatureSource::sst, use, pressure, RdoCp,
+        amrex::Periodicity::NonPeriodic());
+    EXPECT_EQ(sst_fail.count, 0);
+    EXPECT_EQ(sst_fail.preserved, 7);
+
+    for (const amrex::IntVect& bad : {amrex::IntVect(1,2,0), amrex::IntVect(2,0,0)}) {
+        SCOPED_TRACE(bad);
+        set_from_host(tsk, [&] (int i, int j, int) {
+            return (i == bad[0] && j == bad[1]) ? amrex::Real(0.0) : amrex::Real(301.0);
+        });
+        const auto tsk_fail = cst::potential_to_absolute_temperature(
+            tsk, SurfaceTemperatureSource::tsk, use, pressure, RdoCp,
+            amrex::Periodicity::NonPeriodic());
+        EXPECT_EQ(tsk_fail.count, 1);
+        EXPECT_EQ(tsk_fail.preserved, 0);
+        EXPECT_EQ(tsk_fail.i, bad[0]);
+        EXPECT_EQ(tsk_fail.j, bad[1]);
+        EXPECT_EQ(tsk_fail.land, (bad[0] < 2) ? 1 : 0);
+        EXPECT_EQ(tsk_fail.used, 1);
+    }
+}
+
+TEST(CheckpointSurfaceTemperatureMigration, CountsAPositiveValueWithoutPressureWhereverItIs)
+{
+    // Motivation: a positive value is a potential temperature, whether or not the surface
+    // layer takes the field at its cell.  Left unconverted, it would sit in a field held as
+    // absolute temperature, to be used should a regrid or an interpolation bring it where
+    // the field is taken.  Converting it takes a finite, positive surface pressure, and a
+    // cell without one aborts the restart; a placeholder needs none.
+    const amrex::Box box(amrex::IntVect(0,0,0), amrex::IntVect(3,2,0));
+    const amrex::BoxArray ba(box);
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab field(ba, dm, 1, amrex::IntVect(1,1,0));
+    amrex::MultiFab pressure(ba, dm, 1, amrex::IntVect(1,1,0));
+    set_from_host(pressure, [&] (int i, int j, int) {
+        return ((i == 0 && j == 0) || (i == 1 && j == 1)) ? amrex::Real(0.0)
+                                                          : amrex::Real(90000.0);
+    });
+    const auto land = make_land_mask(field, [] (int i, int, int) { return (i < 2) ? 1 : 0; });
+    set_from_host(field, [&] (int i, int j, int) {
+        if (i >= 2 || (i == 1 && j == 1)) { return amrex::Real(290.0); }
+        return amrex::Real(0.0);
+    });
+
+    const auto fail = cst::potential_to_absolute_temperature(
+        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&land, false),
+        pressure, RdoCp, amrex::Periodicity::NonPeriodic());
+    EXPECT_EQ(fail.count, 1);
+    EXPECT_EQ(fail.preserved, 5);
+    EXPECT_EQ(fail.i, 1);
+    EXPECT_EQ(fail.j, 1);
+    EXPECT_EQ(fail.land, 1);
+    EXPECT_EQ(fail.used, 0);
+    EXPECT_EQ(fail.pressure, amrex::Real(0.0));
+    const auto values = to_host(field)[0].const_array();
+    EXPECT_EQ(values(1,1,0), amrex::Real(290.0));
+    EXPECT_EQ(values(0,0,0), amrex::Real(0.0));
+}
+
+TEST(CheckpointSurfaceTemperatureMigration, TreatsEveryCellAsLandWithoutALandMask)
+{
+    // Motivation: without a land mask the surface layer takes every cell as land, and so
+    // does the restart.  Without TSK, an SST placeholder anywhere is then kept; with TSK, a
+    // zero TSK anywhere aborts.
+    const amrex::Box box(amrex::IntVect(0,0,0), amrex::IntVect(3,2,0));
+    const amrex::BoxArray ba(box);
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab field(ba, dm, 1, amrex::IntVect(1,1,0));
+    amrex::MultiFab pressure(ba, dm, 1, amrex::IntVect(1,1,0));
+    pressure.setVal(90000.0);
+
+    field.setVal(0.0);
+    const auto sst_fail = cst::potential_to_absolute_temperature(
+        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(nullptr, false),
+        pressure, RdoCp, amrex::Periodicity::NonPeriodic());
+    EXPECT_EQ(sst_fail.count, 0);
+    EXPECT_EQ(sst_fail.preserved, 12);
+
+    field.setVal(0.0);
+    const auto tsk_fail = cst::potential_to_absolute_temperature(
+        field, SurfaceTemperatureSource::tsk, cst::restart_surface_temperature_use(nullptr, true),
+        pressure, RdoCp, amrex::Periodicity::NonPeriodic());
+    EXPECT_EQ(tsk_fail.count, 12);
+    EXPECT_EQ(tsk_fail.preserved, 0);
+    EXPECT_EQ(tsk_fail.land, 1);
+    EXPECT_EQ(tsk_fail.used, 1);
+}
+
+TEST(CheckpointSurfaceTemperatureMigration, ReportsKeptPlaceholdersAndAbortsOnlyOnFailures)
+{
+    // Motivation: the kept placeholders are reported, not counted as failures; a failure
+    // beside them still aborts, describing whether the surface layer takes the field there.
+    ScopedThrowOnAbort throw_on_abort;
+    cst::LegacyConversionFailure fail;
+    fail.preserved = 6;
+    testing::internal::CaptureStdout();
+    EXPECT_NO_THROW(cst::abort_on_legacy_conversion_failure(fail, SurfaceTemperatureSource::sst,
+                                                             "converting the SST at level 0"));
+    std::string report = testing::internal::GetCapturedStdout();
+    EXPECT_NE(report.find("converting the SST at level 0: kept 6 cells where the surface "
+                          "layer does not take the SST as they are, placeholders"),
+              std::string::npos) << report;
+
+    fail.count = 1;
+    fail.claimed = 1;
+    fail.i = 1;
+    fail.j = 1;
+    fail.land = 1;
+    fail.used = 0;
+    fail.theta = 290.0;
+    fail.pressure = 0.0;
+    std::string message;
+    testing::internal::CaptureStdout();
+    try {
+        cst::abort_on_legacy_conversion_failure(fail, SurfaceTemperatureSource::sst,
+                                                "converting the SST at level 0");
+    } catch (const amrex::RuntimeError& e) {
+        message = e.what();
+    }
+    report = testing::internal::GetCapturedStdout();
+    EXPECT_NE(message.find("1 cells could not be converted"), std::string::npos) << message;
+    EXPECT_NE(report.find("kept 6 cells"), std::string::npos) << report;
+    EXPECT_NE(report.find("(1,1), a land cell where the surface layer does not take the SST, "
+                          "has theta = 290, surface pressure = 0 Pa"),
+              std::string::npos) << report;
 }

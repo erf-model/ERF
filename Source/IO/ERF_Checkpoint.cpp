@@ -997,8 +997,13 @@ ERF::convert_legacy_precip_accumulations (int lev)
  * the run had at the restart, not the SST of its input: the absolute temperature carries the
  * factor (p_restart/p_input)^(R_d/c_p) of the change in surface pressure since then.
  *
- * Either way, a valid cell without a finite, positive potential temperature and surface
- * pressure aborts the restart.
+ * Either way, every cell that holds a finite, positive potential temperature is converted.
+ * The land mask, restored before this, decides where the surface layer takes each field (see
+ * cst::restart_surface_temperature_use): a cell where it does not, and that holds no
+ * temperature, such as a zero SST over land, is a placeholder, kept as it is.  The restart
+ * aborts on a valid cell where the surface layer takes the field that holds no finite,
+ * positive potential temperature, and on one that holds such a temperature but has no
+ * finite, positive surface pressure to convert it with.
  *
  * @param lev            AMR level whose SST and TSK were just read
  * @param plan           how the SST and TSK of the checkpoint are migrated
@@ -1057,8 +1062,9 @@ ERF::convert_legacy_surface_temperature (
             const std::string why =
                 (lev == 0) ? "erf.nc_init_file_0 names no file" :
                 (num_own_init_files > 1)
-                    ? "the level read them from its " + std::to_string(num_own_init_files) +
-                      " init files (erf.nc_init_file_" + level + "), which is not supported"
+                    ? "the level lists " + std::to_string(num_own_init_files) + " init files "
+                      "(erf.nc_init_file_" + level + "), and the checkpoint does not record "
+                      "which of them its SST and TSK came from at each of its grids"
                     : "the level took them from level " + std::to_string(lev-1) +
                       ", whose wrfinput surface pressure was not recovered";
             Abort("Restart checkpoint " + restart_chkfile + " holds the SST and TSK as "
@@ -1120,14 +1126,19 @@ ERF::convert_legacy_surface_temperature (
         return;
     }
 
-    for (const auto& [field, name] : {std::pair<MultiFab*, const char*>{sst, "SST"},
-                                      std::pair<MultiFab*, const char*>{tsk, "TSK"}}) {
+    // Where the surface layer takes each of them, by the land mask restored before them
+    const iMultiFab* lmask = (!lmask_lev[lev].empty()) ? lmask_lev[lev][0].get() : nullptr;
+    const auto use = cst::restart_surface_temperature_use(lmask, tsk != nullptr);
+    using Source = erf_surface_temperature::SurfaceTemperatureSource;
+    for (const auto& [field, source] : {std::pair<MultiFab*, Source>{sst, Source::sst},
+                                        std::pair<MultiFab*, Source>{tsk, Source::tsk}}) {
         if (field) {
-            const auto fail = cst::potential_to_absolute_temperature(*field, *p_sfc, rdOcp,
-                                                                     period);
+            const auto fail = cst::potential_to_absolute_temperature(*field, source, use,
+                                                                     *p_sfc, rdOcp, period);
             cst::abort_on_legacy_conversion_failure(
-                fail, "Restart checkpoint " + restart_chkfile + ": converting the " + name +
-                      " at level " + level + " to absolute temperature");
+                fail, source, "Restart checkpoint " + restart_chkfile + ": converting the " +
+                              cst::surface_field_name(source) + " at level " + level +
+                              " to absolute temperature");
         }
     }
 }
@@ -2077,47 +2088,8 @@ ERF::ReadCheckpointFile ()
 
         // NOTE: We read MOST data in ReadCheckpointFileMOST (see below)!
 
-        // See if we wrote out SST data
-        std::string FirstSSTFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SST_0_H");
-        if (amrex::FileExists(FirstSSTFileName))
-        {
-            amrex::Print() << "Reading SST data" << std::endl;
-            int ntimes = 1;
-            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-            sst_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ng);
-            for (int nt(0); nt<ntimes; ++nt) {
-                read_checkpoint_mf(*sst_lev[lev][nt],
-                                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
-                                                          "SST_" + std::to_string(nt)),
-                                   lev, 0, 0, 1, ng, /*src_ghosts=*/true);
-            }
-        }
-
-        // See if we wrote out TSK data
-        std::string FirstTSKFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TSK_0_H");
-        if (amrex::FileExists(FirstTSKFileName))
-        {
-            amrex::Print() << "Reading TSK data" << std::endl;
-            int ntimes = 1;
-            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-            tsk_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ng);
-            for (int nt(0); nt<ntimes; ++nt) {
-                read_checkpoint_mf(*tsk_lev[lev][nt],
-                                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
-                                                          "TSK_" + std::to_string(nt)),
-                                   lev, 0, 0, 1, ng, /*src_ghosts=*/true);
-            }
-        }
-
-        // SST and TSK are kept as absolute temperature; an older checkpoint may hold them as
-        // potential temperature
-        if (surface_temperature_plan.method !=
-            erf_checkpoint_surface_temperature::SurfaceTemperatureMigration::None) {
-            convert_legacy_surface_temperature(lev, surface_temperature_plan,
-                                               legacy_psfc_recovered);
-        }
-
-        // See if we wrote out LMASK data
+        // See if we wrote out LMASK data.  It is restored before the SST and TSK, as it
+        // decides where the surface layer takes each of them.
         std::string LMaskFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LMASK_0_H");
         if (amrex::FileExists(LMaskFileName))
         {
@@ -2153,6 +2125,47 @@ ERF::ReadCheckpointFile ()
         if (solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
             !immersed_forcing_active(lev)) {
             erf_checkpoint_landmask::restore_coarse_building_landmask(*lmask_lev[lev][0]);
+        }
+
+        // See if we wrote out SST data
+        std::string FirstSSTFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SST_0_H");
+        if (amrex::FileExists(FirstSSTFileName))
+        {
+            amrex::Print() << "Reading SST data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            sst_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                read_checkpoint_mf(*sst_lev[lev][nt],
+                                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                          "SST_" + std::to_string(nt)),
+                                   lev, 0, 0, 1, ng, /*src_ghosts=*/true);
+            }
+        }
+
+        // See if we wrote out TSK data
+        std::string FirstTSKFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TSK_0_H");
+        if (amrex::FileExists(FirstTSKFileName))
+        {
+            amrex::Print() << "Reading TSK data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            tsk_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                read_checkpoint_mf(*tsk_lev[lev][nt],
+                                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                          "TSK_" + std::to_string(nt)),
+                                   lev, 0, 0, 1, ng, /*src_ghosts=*/true);
+            }
+        }
+
+        // SST and TSK are kept as absolute temperature; an older checkpoint may hold them as
+        // potential temperature.  The land mask, restored above, decides where the surface
+        // layer takes each of them.
+        if (surface_temperature_plan.method !=
+            erf_checkpoint_surface_temperature::SurfaceTemperatureMigration::None) {
+            convert_legacy_surface_temperature(lev, surface_temperature_plan,
+                                               legacy_psfc_recovered);
         }
 
         std::string LTypeFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LANDTYPE_0_H");

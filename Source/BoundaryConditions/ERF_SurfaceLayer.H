@@ -24,6 +24,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
 #include "ERF_SurfaceModel.H"
+#include "ERF_SurfaceTemperature.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
 
@@ -1007,7 +1008,7 @@ public:
               // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
               //       So if we have TSK, it contains everything and has been
               //       sanity checked for valid SST values.
-              if (use_tsk) { m_ignore_sst = true; }
+              m_ignore_sst = erf_surface_temperature::sst_ignored(m_ignore_sst, use_tsk);
               if (use_tsk) {
                   amrex::Print() << "(land: TSK, ";
               } else {

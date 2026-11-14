@@ -55,8 +55,30 @@ A checkpoint whose ``job_info`` does not record the ``erf.init_type`` that
 wrote these arrays is rejected rather than guessed, unless the restart asserts
 it with ``erf.legacy_surface_temperature_init_type``, which stands in for
 missing provenance only and cannot override provenance the checkpoint records.
-Either way, a cell without a finite, positive potential temperature and
-conversion pressure aborts the restart, naming the first such cell.
+
+The land mask (``LMASK_0``, or ``erf.is_land`` where the checkpoint holds
+none) is restored first, as it decides which array the surface layer takes at
+each cell: the TSK everywhere at a level that has it, else the SST over water
+and the prescribed ``most.pot_surf_temp`` over land. The restart tells three
+kinds of cells apart:
+
+- **Unused placeholders** -- a value that is not a finite, positive
+  temperature where the surface layer does not take the array, such as the
+  zero SST WRF writes over land -- are kept as they are, not counted as
+  failures and not made to look like a temperature; the restart reports how
+  many it kept.
+- **Invalid active values** -- a value that is not a finite, positive
+  potential temperature where the surface layer takes the array -- abort the
+  restart, naming the first such cell.
+- Every positive value is converted, used or not, so that the array holds
+  absolute temperature throughout and stays consistent if a later regrid or
+  input makes the cell active; one without a finite, positive conversion
+  pressure aborts the restart.
+
+Unsupported configurations -- unknown provenance, a pressure the restart
+cannot read again (a finer level with several init files of its own, whose
+checkpoint does not record which file supplied each of its grids) -- abort
+with a message naming them rather than converting with another pressure.
 
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):

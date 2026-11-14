@@ -1856,6 +1856,54 @@ TEST(SurfaceLayer, LowerBoundarySurfaceTemperatureIsInterpolatedThenConverted)
     }
 }
 
+// Motivation: over land the SST is a placeholder, often zero, and so is the SST everywhere
+// at a level with TSK, which supplies every cell.  A restart keeps such placeholders as they
+// are, so the lower boundary must never take them: it fills from the field the shared
+// selection (erf_surface_temperature::surface_temperature_source) names at each cell, and
+// reports nothing.
+TEST(SurfaceLayer, LowerBoundaryNeverTakesUnusedSstPlaceholders)
+{
+    const std::string prefix = "unit_surface_layer_lowbdy_sst_placeholder";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    const Real pressure = Real(0.9) * p_0;
+    const Real factor = std::pow(p_0 / pressure, RdoCp);
+    const Real tol = Real(64.0) * std::numeric_limits<Real>::epsilon() * Real(300.0) * factor;
+    const IntVect water(0, 0, 0);
+    const IntVect land = face_point(geom.Domain(), face);
+
+    for (const bool with_tsk : {false, true}) {
+        SCOPED_TRACE(with_tsk ? "with TSK" : "without TSK");
+        SurfaceLayerFields fields(geom);
+        fields.lmask[0]->setVal(0);
+        fields.lmask[0]->setVal(1, Box(land, land), 0, 1);
+        if (with_tsk) {
+            fields.sst_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(0.0)));
+            fields.tsk_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(280.0)));
+        } else {
+            fields.sst_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(290.0)));
+            fields.sst_data[0]->setVal(Real(0.0), Box(land, land), 0, 1);
+        }
+        fields.set_surface_cell_pressure(
+            pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix,
+                                          false, false);
+
+        layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                             fields.no_walldist, 20);
+
+        const MultiFab& t_surf = *layer->get_t_surf(0);
+        if (with_tsk) {
+            EXPECT_NEAR(mf_value(t_surf, water), Real(280.0) * factor, tol);
+            EXPECT_NEAR(mf_value(t_surf, land), Real(280.0) * factor, tol);
+        } else {
+            EXPECT_NEAR(mf_value(t_surf, water), Real(290.0) * factor, tol);
+            EXPECT_EQ(mf_value(t_surf, land), test_surface_temperature);
+        }
+    }
+}
+
 // Motivation: over water q_surf is the saturation mixing ratio at the SST.  It is
 // computed from t_surf with the current surface pressure, so the SST must have been
 // converted with that same pressure for q_surf to come out at the SST.

@@ -29,7 +29,9 @@
        are recovered exactly from the wrfinput PSFC, also with several level-0 init
        files, and need a WRFInput restart; version-1 Metgrid arrays are migrated
        approximately with the restarted state's surface pressure, keeping the old
-       pressure-related bias, with a warning; arrays of unknown origin abort
+       pressure-related bias, with a warning; arrays of unknown origin abort. Placeholders
+       the surface layer does not take (the zero SST over land) are kept as they are;
+       an invalid value where it takes the array aborts
 
 #26.11
     -- Implicit diffusion for all moist scalars (#4936)

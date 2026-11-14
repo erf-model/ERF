@@ -11,6 +11,7 @@
 #include <AMReX_Box.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_Gpu.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_ParmParse.H>
@@ -430,14 +431,50 @@ legacy_wrfinput_pressure_source (const int lev,
 }
 
 /**
- * The valid cells of a surface field that could not be converted on this rank: how many, and
- * the first one recorded
+ * What decides, at each cell of a level, whether its surface layer takes the SST, the TSK
+ * or the prescribed land temperature there (erf_surface_temperature::surface_temperature_source)
+ */
+struct SurfaceTemperatureUse {
+    const amrex::iMultiFab* lmask = nullptr;  ///< land mask; without one, every cell is land
+    bool have_tsk   = false;                  ///< whether the level has TSK
+    bool ignore_sst = false;                  ///< whether its surface layer ignores the SST
+};
+
+/**
+ * What decides it at a level on restart: the land mask restored from the checkpoint, and
+ * whether the checkpoint holds TSK at the level.  The surface layer ignores the SST of a
+ * level with TSK whatever most.ignore_sst says, and that parameter selects nothing at a
+ * level without TSK, so it does not matter here.
+ *
+ * @param lmask    the restored land mask of the level, or nullptr
+ * @param have_tsk whether the level has TSK
+ */
+inline SurfaceTemperatureUse
+restart_surface_temperature_use (const amrex::iMultiFab* lmask, const bool have_tsk)
+{
+    return SurfaceTemperatureUse{lmask, have_tsk,
+                                 erf_surface_temperature::sst_ignored(false, have_tsk)};
+}
+
+/** The name of a surface field: "SST" or "TSK" */
+inline const char*
+surface_field_name (const erf_surface_temperature::SurfaceTemperatureSource source)
+{
+    return (source == erf_surface_temperature::SurfaceTemperatureSource::tsk) ? "TSK" : "SST";
+}
+
+/**
+ * The valid cells of a surface field that were not converted on this rank: those that could
+ * not be, how many and the first one recorded, and the placeholders left as they are
  */
 struct LegacyConversionFailure {
-    int count   = 0;  ///< valid cells that could not be converted
-    int claimed = 0;  ///< whether the first of them is described below
+    int count     = 0;  ///< valid cells that could not be converted
+    int preserved = 0;  ///< valid cells left as they are: placeholders where the field is not used
+    int claimed   = 0;  ///< whether the first cell that could not be converted is described below
     int i = 0;
     int j = 0;
+    int land = 0;       ///< its land mask
+    int used = 0;       ///< whether the surface layer takes the field there
     amrex::Real theta    = amrex::Real(0.0);
     amrex::Real pressure = amrex::Real(0.0);
 };
@@ -448,30 +485,54 @@ struct LegacyConversionFailure {
  * pressure of the nearest valid cell of its box; the ghost cells are then filled from the
  * neighboring boxes where there are any.
  *
- * A cell is converted only where its potential temperature and pressure are finite and
- * positive.  A valid cell that is not converted is left as it is and counted, and the first
- * one described, for abort_on_legacy_conversion_failure; a ghost cell is left as it is.
+ * Every cell that holds a finite, positive potential temperature is converted, whether or not
+ * the surface layer takes the field there, so that no value the run may come to use (after a
+ * regrid or an interpolation, say) is left as a potential temperature; that takes a finite,
+ * positive surface pressure.  A cell that holds none is left as it is.  Of the valid cells
+ * left unconverted:
+ *
+ *  - one where the surface layer takes the field (see SurfaceTemperatureUse), or that holds a
+ *    potential temperature it has no pressure to convert with, is counted, and the first one
+ *    described, for abort_on_legacy_conversion_failure;
+ *  - one where the surface layer does not take the field, and that holds no temperature, is
+ *    a placeholder, such as a zero SST over land: it is only counted as preserved.  It is not
+ *    made to look like a temperature, so should the field ever be taken there, the surface
+ *    layer rejects it then.
+ *
+ * A ghost cell left unconverted is not counted.
  *
  * @param[in,out] field    potential temperature in, absolute temperature [K] out
- * @param[in]     pressure surface pressure [Pa] on the valid cells of the same 2D layout
+ * @param[in]     source   which field it is: SurfaceTemperatureSource::sst or ::tsk
+ * @param[in]     use      where the surface layer takes it; the land mask, if any, on the
+ *                         layout of field
+ * @param[in]     pressure surface pressure [Pa] on the valid cells of the layout of field
  * @param[in]     rdOcp    R_d/c_p
  * @param[in]     period   periodicity of the level
  * @return the valid cells of this rank that were not converted
  */
 inline LegacyConversionFailure
 potential_to_absolute_temperature (amrex::MultiFab& field,
+                                   const erf_surface_temperature::SurfaceTemperatureSource source,
+                                   const SurfaceTemperatureUse& use,
                                    const amrex::MultiFab& pressure,
                                    const amrex::Real rdOcp,
                                    const amrex::Periodicity& period)
 {
+    AMREX_ALWAYS_ASSERT(source != erf_surface_temperature::SurfaceTemperatureSource::prescribed);
+    AMREX_ALWAYS_ASSERT(!use.lmask || (use.lmask->boxArray() == field.boxArray() &&
+                                       use.lmask->DistributionMap() == field.DistributionMap()));
     amrex::Gpu::DeviceScalar<LegacyConversionFailure> d_fail(LegacyConversionFailure{});
     LegacyConversionFailure* fail = d_fail.dataPtr();
+    const bool have_tsk = use.have_tsk;
+    const bool ignore_sst = use.ignore_sst;
     for (amrex::MFIter mfi(field); mfi.isValid(); ++mfi) {
         const amrex::Box& vbx = mfi.validbox();
         const amrex::IntVect lo = vbx.smallEnd();
         const amrex::IntVect hi = vbx.bigEnd();
         const amrex::Array4<amrex::Real> f = field.array(mfi);
         const amrex::Array4<const amrex::Real> p = pressure.const_array(mfi);
+        const amrex::Array4<const int> mask = (use.lmask) ? use.lmask->const_array(mfi)
+                                                          : amrex::Array4<const int>{};
         amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int li = amrex::min(amrex::max(i, lo[0]), hi[0]);
@@ -481,14 +542,26 @@ potential_to_absolute_temperature (amrex::MultiFab& field,
             amrex::Real temperature = theta;
             if (erf_surface_temperature::theta_to_temperature(theta, p_s, rdOcp, temperature)) {
                 f(i,j,k) = temperature;
-            } else if (li == i && lj == j) {
-                amrex::Gpu::Atomic::Add(&fail->count, 1);
-                if (amrex::Gpu::Atomic::CAS(&fail->claimed, 0, 1) == 0) {
-                    fail->i = i;
-                    fail->j = j;
-                    fail->theta = theta;
-                    fail->pressure = p_s;
-                }
+                return;
+            }
+            if (li != i || lj != j) {
+                return;
+            }
+            const int land = (mask) ? mask(i,j,k) : 1;
+            const bool used = erf_surface_temperature::surface_temperature_source(
+                                  land != 0, have_tsk, ignore_sst) == source;
+            if (!used && !erf_surface_temperature::valid_temperature(theta)) {
+                amrex::Gpu::Atomic::Add(&fail->preserved, 1);
+                return;
+            }
+            amrex::Gpu::Atomic::Add(&fail->count, 1);
+            if (amrex::Gpu::Atomic::CAS(&fail->claimed, 0, 1) == 0) {
+                fail->i = i;
+                fail->j = j;
+                fail->land = land;
+                fail->used = used ? 1 : 0;
+                fail->theta = theta;
+                fail->pressure = p_s;
             }
         });
     }
@@ -498,18 +571,29 @@ potential_to_absolute_temperature (amrex::MultiFab& field,
 }
 
 /**
- * Abort the restart if any rank could not convert a valid cell, after each rank that could
- * not describes its first such cell.  Collective: every rank must call this.
+ * Say how many placeholders of a converted surface field were left as they are, and abort the
+ * restart if any rank could not convert a valid cell, after each rank that could not
+ * describes its first such cell.  Collective: every rank must call this.
  *
- * @param[in] fail this rank's record, from potential_to_absolute_temperature
- * @param[in] what what was being converted, to open the message with
+ * @param[in] fail   this rank's record, from potential_to_absolute_temperature
+ * @param[in] source which field was converted: SurfaceTemperatureSource::sst or ::tsk
+ * @param[in] what   what was being converted, to open the messages with
  */
 inline void
 abort_on_legacy_conversion_failure (const LegacyConversionFailure& fail,
+                                    const erf_surface_temperature::SurfaceTemperatureSource source,
                                     const std::string& what)
 {
-    int count = fail.count;
-    amrex::ParallelDescriptor::ReduceIntSum(count);
+    const std::string name = surface_field_name(source);
+    int counts[2] = {fail.count, fail.preserved};
+    amrex::ParallelDescriptor::ReduceIntSum(counts, 2);
+    const int count = counts[0];
+    const int preserved = counts[1];
+    if (preserved > 0) {
+        amrex::Print() << what << ": kept " << preserved << " cells where the surface layer "
+                       << "does not take the " << name << " as they are, placeholders without "
+                       << "a finite, positive temperature\n";
+    }
     if (count == 0) {
         return;
     }
@@ -517,14 +601,18 @@ abort_on_legacy_conversion_failure (const LegacyConversionFailure& fail,
         // Assemble the whole report before writing it, so that the ranks do not interleave
         std::ostringstream msg;
         msg << std::setprecision(10) << what << " [rank " << amrex::ParallelDescriptor::MyProc()
-            << "]: " << fail.count << " cells have no finite, positive potential temperature "
-            << "or surface pressure; the first, (" << fail.i << "," << fail.j << "), has "
-            << "theta = " << fail.theta << ", surface pressure = " << fail.pressure << " Pa\n";
+            << "]: " << fail.count << " cells cannot be converted; the first, (" << fail.i
+            << "," << fail.j << "), a " << ((fail.land != 0) ? "land" : "water") << " cell "
+            << "where the surface layer " << ((fail.used != 0) ? "takes" : "does not take")
+            << " the " << name << ", has theta = " << fail.theta << ", surface pressure = "
+            << fail.pressure << " Pa\n";
         amrex::AllPrint() << msg.str() << std::flush;
     }
     amrex::ParallelDescriptor::Barrier();
-    amrex::Abort(what + ": " + std::to_string(count) +
-                 " cells could not be converted to absolute temperature (see above)");
+    amrex::Abort(what + ": " + std::to_string(count) + " cells could not be converted to "
+                 "absolute temperature (see above). A cell where the surface layer takes the " +
+                 name + " needs a finite, positive potential temperature, and any cell that "
+                 "holds one a finite, positive surface pressure to convert it with");
 }
 
 /**

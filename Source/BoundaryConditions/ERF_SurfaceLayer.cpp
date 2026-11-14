@@ -2307,15 +2307,17 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+            const bool is_land = (lmask_arr) ? (lmask_arr(i,j,k) != 0) : true;
+            const auto source = erf_surface_temperature::surface_temperature_source(
+                is_land, use_tsk, ignore_sst);
 
             // The absolute surface temperature now.  TSK is written as
             // lo + alpha * (hi - lo) so that a cell whose TSK is the same in both
             // slices, as it is over land, keeps exactly that value.
             Real t_abs;
-            if (use_tsk && (is_land || ignore_sst)) {
+            if (source == erf_surface_temperature::SurfaceTemperatureSource::tsk) {
                 t_abs = tsk_lo_arr(i,j,k) + alpha * (tsk_hi_arr(i,j,k) - tsk_lo_arr(i,j,k));
-            } else if (!is_land) {
+            } else if (source == erf_surface_temperature::SurfaceTemperatureSource::sst) {
                 t_abs = oma * sst_lo_arr(i,j,k) + alpha * sst_hi_arr(i,j,k);
             } else {
                 t_surf_arr(i,j,k) = lst;
