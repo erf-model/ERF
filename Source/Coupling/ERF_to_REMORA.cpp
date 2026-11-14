@@ -56,6 +56,11 @@ FillEastNorth (amrex::MultiFab& en, const amrex::MultiFab& fx, const amrex::Mult
             "The coupler's grid orientation is not on the level-0 2D layout");
     }
     for (MFIter mfi(en, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        // The 2D boxes index the 3D ones: each 3D box is the 2D one over the whole height,
+        // so it holds plane k. ERF does not split level 0 in z; this says so if it ever does.
+        const Box& b3 = fx.box(mfi.index());
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(b3.smallEnd(2) <= k && b3.bigEnd(2) >= k,
+            "FillEastNorth needs each level-0 box to span the surface plane.");
         const Box bx = mfi.tilebox();
         auto const& ux = fx.const_array(mfi);
         auto const& vy = fy.const_array(mfi);
@@ -478,8 +483,8 @@ ERF::GetFillableAtmosToOceanLanes (bool state_contract,
 void
 ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                             double /*time*/,
-                            const amrex::MultiFab& weight_mf_ref,
-                            const amrex::iMultiFab& index_mf_ref,
+                            const amrex::MultiFab& weight_mf,
+                            const amrex::iMultiFab& index_mf,
                             int max_stencil_size,
                             const amrex::MultiFab* dst_mskr)
 {
@@ -490,15 +495,13 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     // driver/submodule version skew would read past the component count and silently
     // return garbage rather than failing.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        weight_mf_ref.nComp() >= max_stencil_size &&
-        index_mf_ref.nComp() >= 3 * max_stencil_size,
+        weight_mf.nComp() >= max_stencil_size &&
+        index_mf.nComp() >= 3 * max_stencil_size,
         "PackAtmosphericStates: driver remap stencil arrays have too few components for max_stencil_size.");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        weight_mf_ref.boxArray() == index_mf_ref.boxArray() &&
-        weight_mf_ref.DistributionMap() == index_mf_ref.DistributionMap(),
+        weight_mf.boxArray() == index_mf.boxArray() &&
+        weight_mf.DistributionMap() == index_mf.DistributionMap(),
         "PackAtmosphericStates: the weight and index arrays disagree on layout.");
-    const amrex::MultiFab* weight_mf = &weight_mf_ref;
-    const amrex::iMultiFab* index_mf = &index_mf_ref;
 
     // Values for destination cells no source cell overlaps (see
     // ApplyConservativeRemap). These are standard-atmosphere placeholders, not
@@ -617,13 +620,13 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                           m_coupler_cos_alpha.get(), m_coupler_sin_alpha.get());
             if (want_taux) {
                 MultiFab tau_east(tau_en, amrex::make_alias, 0, 1);
-                ApplyConservativeRemap(tau_east, *states[iTauX], *weight_mf, *index_mf,
+                ApplyConservativeRemap(tau_east, *states[iTauX], weight_mf, index_mf,
                                        max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("tau_east_lane", *states[iTauX]); }
             }
             if (want_tauy) {
                 MultiFab tau_north(tau_en, amrex::make_alias, 1, 1);
-                ApplyConservativeRemap(tau_north, *states[iTauY], *weight_mf, *index_mf,
+                ApplyConservativeRemap(tau_north, *states[iTauY], weight_mf, index_mf,
                                        max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("tau_north_lane", *states[iTauY]); }
             }
@@ -641,7 +644,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         hfx(i,j,klo));
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iSHflux], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iSHflux], weight_mf, index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("SHflux_lane", *states[iSHflux]); }
         }
 
@@ -657,7 +660,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         qfx(i,j,klo));
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iLHflux], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iLHflux], weight_mf, index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("LHflux_lane", *states[iLHflux]); }
         }
 
@@ -674,7 +677,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = rad_flux(i,j,k,1) - rad_flux(i,j,k,0);
                     });
                 }
-                ApplyConservativeRemap(tmp, *states[iFluxSWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+                ApplyConservativeRemap(tmp, *states[iFluxSWrad], weight_mf, index_mf, max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("SWrad_lane", *states[iFluxSWrad]); }
             }
             if (iFluxLWrad < static_cast<int>(states.size()) && states[iFluxLWrad] != nullptr) {
@@ -687,7 +690,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = rad_flux(i,j,k,3) - rad_flux(i,j,k,2);
                     });
                 }
-                ApplyConservativeRemap(tmp, *states[iFluxLWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+                ApplyConservativeRemap(tmp, *states[iFluxLWrad], weight_mf, index_mf, max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("LWrad_lane", *states[iFluxLWrad]); }
             }
         }
@@ -703,12 +706,12 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = qfx(i,j,klo);
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iFluxEvap], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iFluxEvap], weight_mf, index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("evap_lane", *states[iFluxEvap]); }
         }
 
         if (precip_rate != nullptr && states[iFluxRain] != nullptr) {
-            ApplyConservativeRemap(*precip_rate, *states[iFluxRain], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(*precip_rate, *states[iFluxRain], weight_mf, index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("rain_lane", *states[iFluxRain]); }
         }
         return;
@@ -725,13 +728,13 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
         if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
             MultiFab u_east(wind_en, amrex::make_alias, 0, 1);
-            ApplyConservativeRemap(u_east, *states[iUwind], *weight_mf, *index_mf,
+            ApplyConservativeRemap(u_east, *states[iUwind], weight_mf, index_mf,
                                    max_stencil_size, nullptr, fallback_wind_ms);
         }
 
         if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
             MultiFab v_north(wind_en, amrex::make_alias, 1, 1);
-            ApplyConservativeRemap(v_north, *states[iVwind], *weight_mf, *index_mf,
+            ApplyConservativeRemap(v_north, *states[iVwind], weight_mf, index_mf,
                                    max_stencil_size, nullptr, fallback_wind_ms);
         }
     }
@@ -754,7 +757,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        ApplyConservativeRemap(tmp, *states[iPatm], *weight_mf, *index_mf, max_stencil_size, dst_mskr,
+        ApplyConservativeRemap(tmp, *states[iPatm], weight_mf, index_mf, max_stencil_size, dst_mskr,
                                fallback_pressure_pa);
     }
 
@@ -776,7 +779,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        ApplyConservativeRemap(tmp, *states[iTair], *weight_mf, *index_mf, max_stencil_size, dst_mskr,
+        ApplyConservativeRemap(tmp, *states[iTair], weight_mf, index_mf, max_stencil_size, dst_mskr,
                                fallback_temp_k);
     }
 
@@ -830,7 +833,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = static_cast<Real>(cloudy);
                     });
                 }
-                ApplyConservativeRemap(tmp, *states[iCloud], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+                ApplyConservativeRemap(tmp, *states[iCloud], weight_mf, index_mf, max_stencil_size, dst_mskr);
             }
         }
     }
@@ -839,7 +842,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     // --- Rain ---
     // Without a precipitating microphysics scheme the slab keeps its prefill.
     if (precip_rate != nullptr && iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
-        ApplyConservativeRemap(*precip_rate, *states[iRain], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+        ApplyConservativeRemap(*precip_rate, *states[iRain], weight_mf, index_mf, max_stencil_size, dst_mskr);
     }
 
     // --- Radiation ---
@@ -856,12 +859,12 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = rad_flux(i,j,k,1) - rad_flux(i,j,k,0);
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iSWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iSWrad], weight_mf, index_mf, max_stencil_size, dst_mskr);
         }
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 3, 0, 1);
-            ApplyConservativeRemap(tmp, *states[iLWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iLWrad], weight_mf, index_mf, max_stencil_size, dst_mskr);
         }
     }
 }
