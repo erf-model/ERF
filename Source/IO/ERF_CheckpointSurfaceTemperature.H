@@ -7,6 +7,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include <AMReX_Box.H>
 #include <AMReX_Geometry.H>
@@ -391,6 +392,28 @@ enum class LegacySurfacePressureSource {
 };
 
 /**
+ * Of the init files of a finer level, the first after its first that had started by the time
+ * of a checkpoint, or -1 if none had.  The run reads a later init file only once its start
+ * time comes, when the coarser level's start time and elapsed time reach it (ERF::ErrorEst,
+ * with the same comparison), and only then tags the level for it.  Until then the level is
+ * made and kept as if it listed its first file alone.
+ *
+ * @param start_times     the start time of each init file of the level, in their order
+ * @param coarser_start   the start time of the first init file of the coarser level
+ * @param checkpoint_time the elapsed time of the coarser level at the checkpoint
+ */
+inline int
+first_started_later_init_file (const std::vector<double>& start_times,
+                               const double coarser_start,
+                               const double checkpoint_time)
+{
+    for (int i = 1; i < static_cast<int>(start_times.size()); ++i) {
+        if (start_times[i] <= coarser_start + checkpoint_time) { return i; }
+    }
+    return -1;
+}
+
+/**
  * Where the wrfinput surface pressure of a level is recovered from, on restart from a WRFInput
  * checkpoint that holds the SST and TSK as potential temperature.  It is read from where the
  * level read its SST and TSK, and converted them with:
@@ -400,11 +423,16 @@ enum class LegacySurfacePressureSource {
  *  - a finer level read them from its own init file, unless it has none, or level 0 reads a
  *    wrflowinp file and the level has none of its own (see init_fine_low_slices): it then
  *    took them from the coarser level, interpolated, with the coarser level's PSFC;
- *  - a finer level with several init files read them from all of them, each over its own
- *    footprint, which is not recovered.
+ *  - a finer level with several init files read them from its first alone if none of the
+ *    others had started by the time of the checkpoint (see first_started_later_init_file).
+ *    Once one has, the level may have read it as well, over its own footprint, or have been
+ *    regridded for it, which gives it the coarser level's, and the checkpoint does not record
+ *    which, so it is not recovered.
  *
  * @param lev                     AMR level
  * @param num_own_init_files      number of init files of the level (erf.nc_init_file_<lev>)
+ * @param later_init_file_started whether an init file of the level after the first may have
+ *                                started by the time of the checkpoint
  * @param level0_reads_low_file   whether level 0 reads a wrflowinp file (erf.nc_low_file)
  * @param has_own_low_file        whether the level has a wrflowinp file of its own
  * @param coarser_level_recovered whether the surface pressure of the coarser level was recovered
@@ -412,6 +440,7 @@ enum class LegacySurfacePressureSource {
 inline LegacySurfacePressureSource
 legacy_wrfinput_pressure_source (const int lev,
                                  const int num_own_init_files,
+                                 const bool later_init_file_started,
                                  const bool level0_reads_low_file,
                                  const bool has_own_low_file,
                                  const bool coarser_level_recovered)
@@ -426,33 +455,40 @@ legacy_wrfinput_pressure_source (const int lev,
         return coarser_level_recovered ? LegacySurfacePressureSource::CoarserLevel
                                        : LegacySurfacePressureSource::Unavailable;
     }
-    return (num_own_init_files == 1) ? LegacySurfacePressureSource::OwnInitFile
-                                     : LegacySurfacePressureSource::Unavailable;
+    return (num_own_init_files == 1 || !later_init_file_started)
+               ? LegacySurfacePressureSource::OwnInitFile
+               : LegacySurfacePressureSource::Unavailable;
 }
 
 /**
  * What decides, at each cell of a level, whether its surface layer takes the SST, the TSK
- * or the prescribed land temperature there (erf_surface_temperature::surface_temperature_source)
+ * or the prescribed land temperature there (erf_surface_temperature::surface_temperature_source).
+ * It takes neither field at a level without an SST.
  */
 struct SurfaceTemperatureUse {
     const amrex::iMultiFab* lmask = nullptr;  ///< land mask; without one, every cell is land
+    bool have_sst   = false;                  ///< whether the level has an SST
     bool have_tsk   = false;                  ///< whether the level has TSK
     bool ignore_sst = false;                  ///< whether its surface layer ignores the SST
 };
 
 /**
  * What decides it at a level on restart: the land mask restored from the checkpoint, and
- * whether the checkpoint holds TSK at the level.  The surface layer ignores the SST of a
- * level with TSK whatever most.ignore_sst says, and that parameter selects nothing at a
- * level without TSK, so it does not matter here.
+ * whether the level has an SST and TSK.  The surface layer fills the surface temperature
+ * from them only at a level with an SST (SurfaceLayer::update_fluxes), so a level with TSK
+ * and no SST takes neither.  It ignores the SST of a level with TSK whatever
+ * most.ignore_sst says, and that parameter selects nothing at a level without TSK, so it
+ * does not matter here.
  *
  * @param lmask    the restored land mask of the level, or nullptr
+ * @param have_sst whether the level has an SST once restarted
  * @param have_tsk whether the level has TSK
  */
 inline SurfaceTemperatureUse
-restart_surface_temperature_use (const amrex::iMultiFab* lmask, const bool have_tsk)
+restart_surface_temperature_use (const amrex::iMultiFab* lmask, const bool have_sst,
+                                 const bool have_tsk)
 {
-    return SurfaceTemperatureUse{lmask, have_tsk,
+    return SurfaceTemperatureUse{lmask, have_sst, have_tsk,
                                  erf_surface_temperature::sst_ignored(false, have_tsk)};
 }
 
@@ -495,9 +531,9 @@ struct LegacyConversionFailure {
  *    potential temperature it has no pressure to convert with, is counted, and the first one
  *    described, for abort_on_legacy_conversion_failure;
  *  - one where the surface layer does not take the field, and that holds no temperature, is
- *    a placeholder, such as a zero SST over land: it is only counted as preserved.  It is not
- *    made to look like a temperature, so should the field ever be taken there, the surface
- *    layer rejects it then.
+ *    a placeholder, such as a zero SST over land, or a zero TSK at a level without an SST:
+ *    it is only counted as preserved.  It is not made to look like a temperature, so should
+ *    the field ever be taken there, the surface layer rejects it then.
  *
  * A ghost cell left unconverted is not counted.
  *
@@ -523,6 +559,7 @@ potential_to_absolute_temperature (amrex::MultiFab& field,
                                        use.lmask->DistributionMap() == field.DistributionMap()));
     amrex::Gpu::DeviceScalar<LegacyConversionFailure> d_fail(LegacyConversionFailure{});
     LegacyConversionFailure* fail = d_fail.dataPtr();
+    const bool have_sst = use.have_sst;
     const bool have_tsk = use.have_tsk;
     const bool ignore_sst = use.ignore_sst;
     for (amrex::MFIter mfi(field); mfi.isValid(); ++mfi) {
@@ -548,7 +585,8 @@ potential_to_absolute_temperature (amrex::MultiFab& field,
                 return;
             }
             const int land = (mask) ? mask(i,j,k) : 1;
-            const bool used = erf_surface_temperature::surface_temperature_source(
+            const bool used = have_sst &&
+                              erf_surface_temperature::surface_temperature_source(
                                   land != 0, have_tsk, ignore_sst) == source;
             if (!used && !erf_surface_temperature::valid_temperature(theta)) {
                 amrex::Gpu::Atomic::Add(&fail->preserved, 1);

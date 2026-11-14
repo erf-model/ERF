@@ -13,8 +13,8 @@ PSFC -1 Pa at the land cell BAD_PSFC_CELL (i, j).
 
 nest_d01 (PSFC 2000 Pa lower) has two nests, read at level 1 by nest_files.i: nest_d02
 (5000 Pa lower) over its cells 2..5, and nest_d03 (10000 Pa lower) over 10..13, which
-starts 10 s later, so a run that stops before then never reads it.  i and j are the
-indices of each file.
+starts 10 s later, so a run that stops before then never reads it.  nest_d03_now is nest_d03
+starting at the start.  i and j are the indices of each file.
 """
 
 from pathlib import Path
@@ -119,6 +119,7 @@ def main():
     write_file("nest_d02", -5000.0, nx=NEST_CELLS, ratio=NEST_RATIO, parent_start=2)
     write_file("nest_d03", -10000.0, nx=NEST_CELLS, ratio=NEST_RATIO, parent_start=10,
                date="2026-01-01_00:00:10")
+    write_file("nest_d03_now", -10000.0, nx=NEST_CELLS, ratio=NEST_RATIO, parent_start=10)
 
 
 if __name__ == "__main__":

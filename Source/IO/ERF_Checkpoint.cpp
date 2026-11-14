@@ -31,6 +31,10 @@
 
 using namespace amrex;
 
+#ifdef ERF_USE_NETCDF
+double read_start_time_from_wrfinput (int lev, const std::string& fname);
+#endif
+
 namespace
 {
 
@@ -998,12 +1002,13 @@ ERF::convert_legacy_precip_accumulations (int lev)
  * factor (p_restart/p_input)^(R_d/c_p) of the change in surface pressure since then.
  *
  * Either way, every cell that holds a finite, positive potential temperature is converted.
- * The land mask, restored before this, decides where the surface layer takes each field (see
- * cst::restart_surface_temperature_use): a cell where it does not, and that holds no
- * temperature, such as a zero SST over land, is a placeholder, kept as it is.  The restart
- * aborts on a valid cell where the surface layer takes the field that holds no finite,
- * positive potential temperature, and on one that holds such a temperature but has no
- * finite, positive surface pressure to convert it with.
+ * The land mask, restored before this, decides where the surface layer takes each field, at
+ * a level with an SST; at one without, it takes neither (see
+ * cst::restart_surface_temperature_use).  A cell where it does not take the field, and that
+ * holds no temperature, such as a zero SST over land, is a placeholder, kept as it is.  The
+ * restart aborts on a valid cell where the surface layer takes the field that holds no
+ * finite, positive potential temperature, and on one that holds such a temperature but has
+ * no finite, positive surface pressure to convert it with.
  *
  * @param lev            AMR level whose SST and TSK were just read
  * @param plan           how the SST and TSK of the checkpoint are migrated
@@ -1036,9 +1041,37 @@ ERF::convert_legacy_surface_temperature (
         AMREX_ALWAYS_ASSERT(mf_PSFC[lev]);
         const int num_own_init_files =
             has_own_init_file(lev) ? static_cast<int>(nc_init_file[lev].size()) : 0;
+
+        // Whether an init file after the first, of a finer level that reads its own, had
+        // started by the time of the checkpoint, timed as ErrorEst times it, from the first
+        // init file of the coarser level: without one, it may have
+        bool later_init_file_started = false;
+        std::string started_file;
+        if (lev > 0 && num_own_init_files > 1 && (nc_low_file.empty() || has_own_low_file(lev))) {
+            later_init_file_started = true;
+            if (has_own_init_file(lev-1)) {
+                std::vector<double> start_times(num_own_init_files);
+                for (int i = 0; i < num_own_init_files; ++i) {
+                    start_times[i] = read_start_time_from_wrfinput(lev, nc_init_file[lev][i]);
+                }
+                const double coarser_start =
+                    read_start_time_from_wrfinput(lev-1, nc_init_file[lev-1][0]);
+                const int started =
+                    cst::first_started_later_init_file(start_times, coarser_start, t_new[lev-1]);
+                later_init_file_started = (started > 0);
+                if (later_init_file_started) {
+                    std::ostringstream os;
+                    os << nc_init_file[lev][started] << ", after the first, had started by "
+                       << "the time of the checkpoint (it starts at t = "
+                       << start_times[started] - coarser_start << " s at level " << lev-1
+                       << ", and the checkpoint is at t = " << t_new[lev-1] << " s)";
+                    started_file = os.str();
+                }
+            }
+        }
         const auto source = cst::legacy_wrfinput_pressure_source(
-            lev, num_own_init_files, !nc_low_file.empty(), has_own_low_file(lev),
-            lev > 0 && psfc_recovered[lev-1] != 0);
+            lev, num_own_init_files, later_init_file_started, !nc_low_file.empty(),
+            has_own_low_file(lev), lev > 0 && psfc_recovered[lev-1] != 0);
 
         // Zero, which no conversion accepts, wherever the recovery does not reach
         mf_PSFC[lev]->setVal(zero);
@@ -1047,6 +1080,11 @@ ERF::convert_legacy_surface_temperature (
             read_psfc_from_own_init_file(lev);
             mf_PSFC[lev]->FillBoundary(period);
             from = "the PSFC of " + nc_init_file[lev][0];
+            if (lev > 0 && num_own_init_files > 1) {
+                from += ", the first of its " + std::to_string(num_own_init_files) +
+                        " init files: none of the others had started by the time of the "
+                        "checkpoint, so the run that wrote it read no other";
+            }
         } else if (source == cst::LegacySurfacePressureSource::CoarserLevel) {
             interp_psfc_from_coarse(lev);
             from = "the PSFC of level " + std::to_string(lev-1) +
@@ -1061,10 +1099,16 @@ ERF::convert_legacy_surface_temperature (
         if (source == cst::LegacySurfacePressureSource::Unavailable) {
             const std::string why =
                 (lev == 0) ? "erf.nc_init_file_0 names no file" :
-                (num_own_init_files > 1)
+                !started_file.empty()
                     ? "the level lists " + std::to_string(num_own_init_files) + " init files "
-                      "(erf.nc_init_file_" + level + "), and the checkpoint does not record "
-                      "which of them its SST and TSK came from at each of its grids"
+                      "(erf.nc_init_file_" + level + "), and " + started_file + ": the "
+                      "run that wrote it may have read that file as well, or regridded the "
+                      "level for it, and the checkpoint does not record where the level's "
+                      "SST and TSK came from" :
+                later_init_file_started
+                    ? "the level lists " + std::to_string(num_own_init_files) + " init files "
+                      "(erf.nc_init_file_" + level + "), and level " + std::to_string(lev-1) +
+                      ", which lists none, cannot tell when they start"
                     : "the level took them from level " + std::to_string(lev-1) +
                       ", whose wrfinput surface pressure was not recovered";
             Abort("Restart checkpoint " + restart_chkfile + " holds the SST and TSK as "
@@ -1126,9 +1170,19 @@ ERF::convert_legacy_surface_temperature (
         return;
     }
 
-    // Where the surface layer takes each of them, by the land mask restored before them
+    // Where the surface layer takes each of them, by the land mask restored before them.  It
+    // takes either only at a level with an SST (SurfaceLayer::update_fluxes).  A finer level
+    // without an SST of its own is given its parent's once the levels are restored
+    // (Interp2DArrays), so this level has one if it or any coarser level has one in the
+    // checkpoint.  With a wrflow file, a restart past its first interval may leave such a
+    // level without one (Interp2DArrays makes only the slices from then on); its TSK is then
+    // judged as taken, which it is not.
+    bool have_sst = false;
+    for (int l = 0; l <= lev; ++l) {
+        have_sst = have_sst || (!sst_lev[l].empty() && sst_lev[l][0]);
+    }
     const iMultiFab* lmask = (!lmask_lev[lev].empty()) ? lmask_lev[lev][0].get() : nullptr;
-    const auto use = cst::restart_surface_temperature_use(lmask, tsk != nullptr);
+    const auto use = cst::restart_surface_temperature_use(lmask, have_sst, tsk != nullptr);
     using Source = erf_surface_temperature::SurfaceTemperatureSource;
     for (const auto& [field, source] : {std::pair<MultiFab*, Source>{sst, Source::sst},
                                         std::pair<MultiFab*, Source>{tsk, Source::tsk}}) {

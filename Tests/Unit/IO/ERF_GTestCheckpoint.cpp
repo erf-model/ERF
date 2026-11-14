@@ -387,7 +387,8 @@ TEST(CheckpointSurfaceTemperature, ConvertsPotentialTemperatureWithEachColumnsPr
     erf_checkpoint_surface_temperature::LegacyConversionFailure fail =
         erf_checkpoint_surface_temperature::potential_to_absolute_temperature(
             field, SurfaceTemperatureSource::sst,
-            erf_checkpoint_surface_temperature::restart_surface_temperature_use(&water, false),
+            erf_checkpoint_surface_temperature::restart_surface_temperature_use(&water, true,
+                                                                                false),
             pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(fail.count, 0);
     EXPECT_EQ(fail.preserved, 0);
@@ -609,25 +610,71 @@ TEST(CheckpointSurfaceTemperatureMigration, RecoversPressureFromWhereEachLevelRe
     // several level-0 files left the PSFC unread, and the arrays were converted with
     // whatever the allocated mf_PSFC held.
     using Source = LegacySurfacePressureSource;
-    // Arguments: level, its init files, level 0 reads wrflowinp, level has its own
-    // wrflowinp, coarser level recovered
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(0, 1, false, false, false), Source::OwnInitFile);
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(0, 2, false, false, false), Source::OwnInitFile);
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(0, 3, true, false, false), Source::OwnInitFile);
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(0, 0, false, false, false), Source::Unavailable);
+    // Arguments: level, its init files, an init file after its first had started by the
+    // checkpoint, level 0 reads wrflowinp, level has its own wrflowinp, coarser level
+    // recovered
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(0, 1, false, false, false, false),
+              Source::OwnInitFile);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(0, 2, false, false, false, false),
+              Source::OwnInitFile);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(0, 2, true, false, false, false),
+              Source::OwnInitFile);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(0, 3, false, true, false, false),
+              Source::OwnInitFile);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(0, 0, false, false, false, false),
+              Source::Unavailable);
 
     // A finer level read them from its own file, unless it took them from the coarser one
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 1, false, false, true), Source::OwnInitFile);
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 1, true, true, true), Source::OwnInitFile);
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 1, true, false, true), Source::CoarserLevel);
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(2, 0, false, false, true), Source::CoarserLevel);
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(2, 0, false, false, false), Source::Unavailable);
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 1, true, false, false), Source::Unavailable);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 1, false, false, false, true),
+              Source::OwnInitFile);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 1, false, true, true, true),
+              Source::OwnInitFile);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 1, false, true, false, true),
+              Source::CoarserLevel);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(2, 0, false, false, false, true),
+              Source::CoarserLevel);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(2, 0, false, false, false, false),
+              Source::Unavailable);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 1, false, true, false, false),
+              Source::Unavailable);
 
-    // A finer level with several files of its own read them from all of them, which is
-    // not recovered, unless it took them from the coarser level
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 2, false, false, true), Source::Unavailable);
-    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 2, true, false, true), Source::CoarserLevel);
+    // Motivation (multi-file regression): a finer level with several files of its own
+    // read its first alone until another started, and older versions restarted such a
+    // checkpoint.  Once another may have started, where it read them from is not recorded.
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 2, false, false, false, true),
+              Source::OwnInitFile);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(2, 3, false, false, false, true),
+              Source::OwnInitFile);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 2, true, false, false, true),
+              Source::Unavailable);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 2, true, false, false, false),
+              Source::Unavailable);
+    // ... unless it took them from the coarser level
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 2, true, true, false, true),
+              Source::CoarserLevel);
+    EXPECT_EQ(cst::legacy_wrfinput_pressure_source(1, 2, false, true, false, true),
+              Source::CoarserLevel);
+}
+
+TEST(CheckpointSurfaceTemperatureMigration, TimesLaterInitFilesAsTheRunDid)
+{
+    // Motivation (multi-file regression): the run reads an init file after the first once
+    // the coarser level's start time and elapsed time reach its start (ErrorEst, with <=),
+    // so a checkpoint written before then holds what the first file alone gave.
+    const std::vector<double> times{100.0, 110.0, 130.0};
+    EXPECT_EQ(cst::first_started_later_init_file(times, 100.0, 0.0), -1);
+    EXPECT_EQ(cst::first_started_later_init_file(times, 100.0, 9.5), -1);
+    EXPECT_EQ(cst::first_started_later_init_file(times, 100.0, 10.0), 1);
+    EXPECT_EQ(cst::first_started_later_init_file(times, 100.0, 40.0), 1);
+    EXPECT_EQ(cst::first_started_later_init_file(times, 95.0, 10.0), -1);
+    EXPECT_EQ(cst::first_started_later_init_file(times, 95.0, 15.0), 1);
+
+    // The first file's own start does not matter, and every later file is checked,
+    // whatever the order of the list
+    EXPECT_EQ(cst::first_started_later_init_file({200.0, 110.0}, 100.0, 10.0), 1);
+    EXPECT_EQ(cst::first_started_later_init_file({100.0, 130.0, 110.0}, 100.0, 10.0), 2);
+    EXPECT_EQ(cst::first_started_later_init_file({100.0}, 100.0, 1.0e9), -1);
+    EXPECT_EQ(cst::first_started_later_init_file({}, 100.0, 0.0), -1);
 }
 
 TEST(CheckpointSurfaceTemperatureMigration, CountsCellsWithoutUsablePressureOrPotentialTemperature)
@@ -658,7 +705,8 @@ TEST(CheckpointSurfaceTemperatureMigration, CountsCellsWithoutUsablePressureOrPo
 
     const amrex::iMultiFab water = make_water_mask(field);
     const auto fail = cst::potential_to_absolute_temperature(
-        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&water, false),
+        field, SurfaceTemperatureSource::sst,
+        cst::restart_surface_temperature_use(&water, true, false),
         pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(fail.count, 3);
     EXPECT_EQ(fail.preserved, 0);
@@ -735,7 +783,8 @@ TEST(CheckpointSurfaceTemperatureMigration, ApproximateMigrationKeepsTheRestartP
 
     const amrex::iMultiFab water = make_water_mask(field);
     const auto fail = cst::potential_to_absolute_temperature(
-        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&water, false),
+        field, SurfaceTemperatureSource::sst,
+        cst::restart_surface_temperature_use(&water, true, false),
         pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(fail.count, 0);
 
@@ -770,13 +819,18 @@ TEST(CheckpointSurfaceTemperatureMigration, TakesEachFieldWhereTheSurfaceLayerDo
     EXPECT_EQ(est::surface_temperature_source(false, true, true), SurfaceTemperatureSource::tsk);
     EXPECT_EQ(est::surface_temperature_source(true, true, true), SurfaceTemperatureSource::tsk);
 
-    const auto without_tsk = cst::restart_surface_temperature_use(nullptr, false);
+    const auto without_tsk = cst::restart_surface_temperature_use(nullptr, true, false);
     EXPECT_TRUE(without_tsk.lmask == nullptr);
+    EXPECT_TRUE(without_tsk.have_sst);
     EXPECT_FALSE(without_tsk.have_tsk);
     EXPECT_FALSE(without_tsk.ignore_sst);
-    const auto with_tsk = cst::restart_surface_temperature_use(nullptr, true);
+    const auto with_tsk = cst::restart_surface_temperature_use(nullptr, true, true);
+    EXPECT_TRUE(with_tsk.have_sst);
     EXPECT_TRUE(with_tsk.have_tsk);
     EXPECT_TRUE(with_tsk.ignore_sst);
+    const auto without_sst = cst::restart_surface_temperature_use(nullptr, false, true);
+    EXPECT_FALSE(without_sst.have_sst);
+    EXPECT_TRUE(without_sst.have_tsk);
 }
 
 TEST(CheckpointSurfaceTemperatureMigration, KeepsUnusedLandSstPlaceholdersWithoutCountingThem)
@@ -808,7 +862,8 @@ TEST(CheckpointSurfaceTemperatureMigration, KeepsUnusedLandSstPlaceholdersWithou
     });
 
     const auto fail = cst::potential_to_absolute_temperature(
-        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&land, false),
+        field, SurfaceTemperatureSource::sst,
+        cst::restart_surface_temperature_use(&land, true, false),
         pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(fail.count, 0);
     EXPECT_EQ(fail.preserved, 5);
@@ -851,7 +906,8 @@ TEST(CheckpointSurfaceTemperatureMigration, CountsAnInvalidSstWhereTheSurfaceLay
     });
 
     const auto fail = cst::potential_to_absolute_temperature(
-        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&land, false),
+        field, SurfaceTemperatureSource::sst,
+        cst::restart_surface_temperature_use(&land, true, false),
         pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(fail.count, 1);
     EXPECT_EQ(fail.preserved, 6);
@@ -879,7 +935,7 @@ TEST(CheckpointSurfaceTemperatureMigration, IgnoresTheSstAndTakesTheTskEverywher
     amrex::MultiFab pressure(ba, dm, 1, ng);
     pressure.setVal(90000.0);
     const auto land = make_land_mask(sst, [] (int i, int, int) { return (i < 2) ? 1 : 0; });
-    const auto use = cst::restart_surface_temperature_use(&land, true);
+    const auto use = cst::restart_surface_temperature_use(&land, true, true);
 
     set_from_host(sst, [&] (int i, int j, int) {
         return (i < 2 || (i == 3 && j == 1)) ? amrex::Real(0.0) : amrex::Real(300.0);
@@ -930,7 +986,8 @@ TEST(CheckpointSurfaceTemperatureMigration, CountsAPositiveValueWithoutPressureW
     });
 
     const auto fail = cst::potential_to_absolute_temperature(
-        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(&land, false),
+        field, SurfaceTemperatureSource::sst,
+        cst::restart_surface_temperature_use(&land, true, false),
         pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(fail.count, 1);
     EXPECT_EQ(fail.preserved, 5);
@@ -939,7 +996,9 @@ TEST(CheckpointSurfaceTemperatureMigration, CountsAPositiveValueWithoutPressureW
     EXPECT_EQ(fail.land, 1);
     EXPECT_EQ(fail.used, 0);
     EXPECT_EQ(fail.pressure, amrex::Real(0.0));
-    const auto values = to_host(field)[0].const_array();
+    const auto host = to_host(field);
+    ASSERT_EQ(host.size(), 1u);
+    const auto values = host[0].const_array();
     EXPECT_EQ(values(1,1,0), amrex::Real(290.0));
     EXPECT_EQ(values(0,0,0), amrex::Real(0.0));
 }
@@ -958,19 +1017,104 @@ TEST(CheckpointSurfaceTemperatureMigration, TreatsEveryCellAsLandWithoutALandMas
 
     field.setVal(0.0);
     const auto sst_fail = cst::potential_to_absolute_temperature(
-        field, SurfaceTemperatureSource::sst, cst::restart_surface_temperature_use(nullptr, false),
+        field, SurfaceTemperatureSource::sst,
+        cst::restart_surface_temperature_use(nullptr, true, false),
         pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(sst_fail.count, 0);
     EXPECT_EQ(sst_fail.preserved, 12);
 
     field.setVal(0.0);
     const auto tsk_fail = cst::potential_to_absolute_temperature(
-        field, SurfaceTemperatureSource::tsk, cst::restart_surface_temperature_use(nullptr, true),
+        field, SurfaceTemperatureSource::tsk,
+        cst::restart_surface_temperature_use(nullptr, true, true),
         pressure, RdoCp, amrex::Periodicity::NonPeriodic());
     EXPECT_EQ(tsk_fail.count, 12);
     EXPECT_EQ(tsk_fail.preserved, 0);
     EXPECT_EQ(tsk_fail.land, 1);
     EXPECT_EQ(tsk_fail.used, 1);
+}
+
+TEST(CheckpointSurfaceTemperatureMigration, TakesNeitherFieldAtALevelWithoutAnSst)
+{
+    // Motivation: the surface layer takes the SST or the TSK only at a level with an SST
+    // (SurfaceLayer::update_fluxes), so at a level with TSK and no SST an invalid TSK is a
+    // placeholder the restart must keep, not a failure.  A positive TSK there is still a
+    // potential temperature, converted, and one without a surface pressure to convert it
+    // with still aborts.  The same TSK at a level with an SST is taken at every cell, and
+    // each invalid value there aborts.
+    const amrex::Box box(amrex::IntVect(0,0,0), amrex::IntVect(3,2,0));
+    const amrex::BoxArray ba(box);
+    const amrex::DistributionMapping dm(ba);
+    const amrex::IntVect ng(1,1,0);
+    amrex::MultiFab tsk(ba, dm, 1, ng);
+    amrex::MultiFab pressure(ba, dm, 1, ng);
+    const amrex::Real nan = std::numeric_limits<amrex::Real>::quiet_NaN();
+    const amrex::Real theta = 301.0;
+    const amrex::Real p_s = 90000.0;
+    const auto land = make_land_mask(tsk, [] (int i, int, int) { return (i < 2) ? 1 : 0; });
+    // Placeholders at (0,0) and (1,2) over land, and at (2,1) and (3,2) over water
+    const auto fill_tsk = [&] () {
+        set_from_host(tsk, [&] (int i, int j, int) {
+            if ((i == 0 && j == 0) || (i == 2 && j == 1)) { return amrex::Real(0.0); }
+            if (i == 1 && j == 2) { return amrex::Real(-1.0); }
+            if (i == 3 && j == 2) { return nan; }
+            return theta;
+        });
+    };
+    const auto convert = [&] (const bool have_sst) {
+        return cst::potential_to_absolute_temperature(
+            tsk, SurfaceTemperatureSource::tsk,
+            cst::restart_surface_temperature_use(&land, have_sst, true),
+            pressure, RdoCp, amrex::Periodicity::NonPeriodic());
+    };
+
+    fill_tsk();
+    pressure.setVal(p_s);
+    const auto fail = convert(false);
+    EXPECT_EQ(fail.count, 0);
+    EXPECT_EQ(fail.preserved, 4);
+    EXPECT_EQ(fail.claimed, 0);
+    {
+        const auto host = to_host(tsk);
+        ASSERT_EQ(host.size(), 1u);
+        const auto values = host[0].const_array();
+        const amrex::Real factor = std::pow(p_s / p_0, RdoCp);
+        const amrex::Real tol = amrex::Real(64.0) *
+                                std::numeric_limits<amrex::Real>::epsilon() * theta;
+        EXPECT_EQ(values(0,0,0), amrex::Real(0.0));
+        EXPECT_EQ(values(2,1,0), amrex::Real(0.0));
+        EXPECT_EQ(values(1,2,0), amrex::Real(-1.0));
+        EXPECT_TRUE(std::isnan(values(3,2,0)));
+        for (const amrex::IntVect& cell : {amrex::IntVect(1,0,0), amrex::IntVect(3,0,0),
+                                           amrex::IntVect(0,1,0), amrex::IntVect(3,1,0)}) {
+            SCOPED_TRACE(cell);
+            EXPECT_NEAR(values(cell[0],cell[1],0), theta * factor, tol);
+        }
+    }
+
+    // A positive TSK without a surface pressure, over water at (3,0)
+    fill_tsk();
+    set_from_host(pressure, [&] (int i, int j, int) {
+        return (i == 3 && j == 0) ? amrex::Real(0.0) : p_s;
+    });
+    const auto no_pressure = convert(false);
+    EXPECT_EQ(no_pressure.count, 1);
+    EXPECT_EQ(no_pressure.preserved, 4);
+    EXPECT_EQ(no_pressure.i, 3);
+    EXPECT_EQ(no_pressure.j, 0);
+    EXPECT_EQ(no_pressure.land, 0);
+    EXPECT_EQ(no_pressure.used, 0);
+    EXPECT_EQ(no_pressure.theta, theta);
+    EXPECT_EQ(no_pressure.pressure, amrex::Real(0.0));
+
+    // The same TSK at a level with an SST
+    fill_tsk();
+    pressure.setVal(p_s);
+    const auto with_sst = convert(true);
+    EXPECT_EQ(with_sst.count, 4);
+    EXPECT_EQ(with_sst.preserved, 0);
+    EXPECT_EQ(with_sst.claimed, 1);
+    EXPECT_EQ(with_sst.used, 1);
 }
 
 TEST(CheckpointSurfaceTemperatureMigration, ReportsKeptPlaceholdersAndAbortsOnlyOnFailures)

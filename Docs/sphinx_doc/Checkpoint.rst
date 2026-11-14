@@ -38,9 +38,14 @@ need not be the same:
   and TSK from that level (no init file of its own, or a level-0
   ``erf.nc_low_file`` and none of its own). This needs a restart with
   ``erf.init_type = WRFInput``, in a build with NetCDF, that names the
-  wrfinput files of the original run; any other restart aborts, as does one
-  with a finer level that has several init files of its own, which is not
-  supported.
+  wrfinput files of the original run; any other restart aborts. A finer level
+  with several init files of its own reads the first alone until another
+  starts: the run reads a later file, and regrids the level for it, only once
+  the start time and elapsed time of the coarser level reach the file's start
+  time. Its arrays are recovered with the ``PSFC`` of its first file if no
+  later file had started by the time of the checkpoint; once one had, the
+  checkpoint does not record which file each of its grids took them from, or
+  whether a regrid replaced them, and the restart aborts.
 - **Metgrid: approximate migration.** The surface pressure of the met_em
   input is not read again, so the arrays are converted with the surface
   pressure of the restarted state, and the restart warns that it does so.
@@ -58,9 +63,11 @@ missing provenance only and cannot override provenance the checkpoint records.
 
 The land mask (``LMASK_0``, or ``erf.is_land`` where the checkpoint holds
 none) is restored first, as it decides which array the surface layer takes at
-each cell: the TSK everywhere at a level that has it, else the SST over water
-and the prescribed ``most.pot_surf_temp`` over land. The restart tells three
-kinds of cells apart:
+each cell: at a level with an SST, the TSK everywhere if the level has one,
+else the SST over water and the prescribed ``most.pot_surf_temp`` over land;
+at a level without an SST, neither. (A finer level without an SST of its own
+counts as having one if a coarser level has one, as a restart gives it the
+coarser level's.) The restart tells three kinds of cells apart:
 
 - **Unused placeholders** -- a value that is not a finite, positive
   temperature where the surface layer does not take the array, such as the
@@ -76,8 +83,8 @@ kinds of cells apart:
   pressure aborts the restart.
 
 Unsupported configurations -- unknown provenance, a pressure the restart
-cannot read again (a finer level with several init files of its own, whose
-checkpoint does not record which file supplied each of its grids) -- abort
+cannot read again (a finer level with several init files of its own, one of
+which after the first had started by the time of the checkpoint) -- abort
 with a message naming them rather than converting with another pressure.
 
 In the inputs file, the following options control the generation of

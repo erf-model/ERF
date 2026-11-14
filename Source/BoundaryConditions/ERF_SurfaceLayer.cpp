@@ -249,6 +249,10 @@ SurfaceLayer::update_fluxes (const int& lev,
     // does not cover. Coupled SST is applied below and only where the coupler
     // actually supplied a value, so the lower-boundary data is the base layer
     // rather than an alternative to it.
+    //
+    // Without an SST at the level, neither the SST nor the TSK is taken; the restart of
+    // an older checkpoint judges its fields by the same condition
+    // (erf_checkpoint_surface_temperature::restart_surface_temperature_use).
     if (zlo && !m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
         fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low, cons_in, z_phys_nd);
     }

@@ -26,12 +26,29 @@ where the surface layer takes the field, or a surface pressure that cannot conve
 stored temperature, aborts it.  Some cases remove TSK_0 (as checkpoints written before
 it was) or LMASK_0, or zero a cell, before restarting.
 
+At a level without an SST the surface layer takes neither field, so with SST_0 removed a
+zero TSK is a placeholder too, kept as it is, while every positive TSK is still converted;
+with the SST, the same TSK is taken at every cell and aborts the restart.  The version 2
+cases with the same edits check that the run takes the TSK just so: with the SST it
+rejects such a TSK, and without it runs, restoring the TSK as it is.  These cases restart
+with a surface layer below (SURFACE_LAYER), which the decks do not have, so that the run
+takes the SST and TSK wherever it takes them at all.
+
 The nest cases start from nest_chk00000, written by nest_files.i, whose level 1 lists two
-init files, nest_d02 and nest_d03, which starts later and had not been read.  Older
-versions restarted such a checkpoint, but which file each level-1 grid took its SST and
-TSK from is not recorded, so the pressure to convert them back with is not known, and the
-restart aborts.  Restarted once with nest_d02 alone, the only file read, it recovers them
-exactly and writes a version-2 checkpoint, which the deck as it was restarts from.
+init files, nest_d02 and nest_d03, which starts 10 s later.  A run reads a later file only
+once it starts, so until then level 1 holds what nest_d02 alone gave it, and the restart
+recovers its SST and TSK exactly, with the PSFC of nest_d02, as it does with nest_d02
+listed alone; the version-2 checkpoint it writes restarts bit for bit.  Once a later file
+had started by the time of the checkpoint, the run that wrote it may have read that file
+as well, or regridded the level for it, which is not recorded, and the restart aborts:
+with nest_d03_now, nest_d03 starting at the start, listed second, and from the checkpoint
+nest_later_chk00010, at t = 10 s, of the deck run on, while its nest_later_chk00005, at
+t = 5 s, is recovered exactly.
+
+A level 1 without an SST of its own is given level 0's on restart, so the surface layer
+takes its TSK, and a zero there aborts the restart, of a version 1 checkpoint and the run
+from a version 2 one alike; with no SST at any level, it is a placeholder, kept.  These
+cases restart with a surface layer below too.
 
 Usage: legacy_restarts.py ERF_EXECUTABLE RUN_DIR
 """
@@ -72,6 +89,13 @@ LAND_CELL = (3, 9)
 WATER_CELL = (12, 5)
 # The cells of wrfinput_mixed whose SST is a placeholder: its land
 LAND_CELLS = 128
+# A zero TSK over land and over water
+TSK_ZEROS = ("TSK_0", LAND_CELL), ("TSK_0", WATER_CELL)
+# A cell (i, j) of level 1 of nest_files.i, which nest_d02 covers
+NEST_CELL = (10, 13)
+# Restart inputs that put a surface layer below, which takes its surface temperature from
+# the SST and TSK (the decks have a slip wall there), with the closure it needs
+SURFACE_LAYER = ["zlo.type=surface_layer", "erf.les_type=Smagorinsky", "erf.Cs=0.1"]
 
 
 class Case:
@@ -90,10 +114,10 @@ class Case:
         self.zero = zero                      # (field, (i, j)) to set to zero in it
 
 
-def kept(cells):
-    """What the restart says of the SST placeholders it keeps at level 0"""
-    return (f"converting the SST at level 0 to absolute temperature: kept {cells} cells "
-            "where the surface layer does not take the SST as they are")
+def kept(cells, field="SST", level=0):
+    """What the restart says of the placeholders of a field it keeps at a level"""
+    return (f"converting the {field} at level {level} to absolute temperature: kept {cells} "
+            f"cells where the surface layer does not take the {field} as they are")
 
 
 EXACT_MIXED = "EXACT recovery at level 0 with the PSFC of wrfinput_mixed"
@@ -170,6 +194,28 @@ CASES = [
          base="mixed", remove=["LMASK_0", "TSK_0"]),
     # Version 2, placeholders and all, restored as it is
     Case("mixed_v2", 2, "WRFInput", None, [], "unchanged", "Reading SST data", base="mixed"),
+
+    # Without SST_0 the surface layer takes neither field: a zero TSK is a placeholder, over
+    # land and water alike, kept as it is, while every positive TSK is converted ...
+    Case("mixed_markerless_without_sst_tsk_zero", None, "WRFInput", "wrfinput",
+         SURFACE_LAYER, "exact", [EXACT_MIXED, kept(2, "TSK")], base="mixed",
+         remove=["SST_0"], zero=TSK_ZEROS),
+    Case("mixed_v1_without_sst_tsk_zero", 1, "WRFInput", "wrfinput", SURFACE_LAYER, "exact",
+         [EXACT_MIXED, kept(2, "TSK")], base="mixed", remove=["SST_0"], zero=TSK_ZEROS),
+    Case("mixed_v1_without_sst", 1, "WRFInput", "wrfinput", SURFACE_LAYER, "exact",
+         EXACT_MIXED, base="mixed", remove=["SST_0"]),
+    # ... while with the SST it takes the TSK at every cell, and the same zeros abort
+    Case("mixed_markerless_tsk_zero", None, "WRFInput", "wrfinput", SURFACE_LAYER, "abort",
+         ["converting the TSK at level 0 to absolute temperature: 2 cells could not be "
+          "converted", "where the surface layer takes the TSK, has theta = 0,"],
+         base="mixed", zero=TSK_ZEROS),
+    # The run takes the TSK just so: with the SST it rejects such a TSK ...
+    Case("mixed_v2_tsk_zero", 2, "WRFInput", None, SURFACE_LAYER, "abort",
+         "SurfaceLayer fill_tsurf_with_sst_and_tsk: surface conversion failed at level 0",
+         base="mixed", zero=TSK_ZEROS),
+    # ... and without it runs, restoring the TSK as it is
+    Case("mixed_v2_without_sst_tsk_zero", 2, "WRFInput", None, SURFACE_LAYER, "unchanged",
+         "Reading TSK data", base="mixed", remove=["SST_0"], zero=TSK_ZEROS),
 ]
 
 
@@ -298,11 +344,12 @@ def edit_job_info(checkpoint, init_type):
     path.write_text("".join(edited))
 
 
-def zero_cell(checkpoint, name, cell):
-    """Set a planar field of a checkpoint to zero at cell (i, j), ghost cells included"""
+def zero_cell(checkpoint, name, cell, level=0):
+    """Set a planar field of a checkpoint to zero at cell (i, j) of a level, ghost cells
+    included"""
     i, j = cell
     found = False
-    for fab in multifab_fabs(checkpoint / "Level_0", name):
+    for fab in multifab_fabs(checkpoint / f"Level_{level}", name):
         lo, hi = fab["lo"], fab["hi"]
         if lo[0] <= i <= hi[0] and lo[1] <= j <= hi[1]:
             data = fab_data(fab).copy()
@@ -313,9 +360,9 @@ def zero_cell(checkpoint, name, cell):
         raise AssertionError(f"{checkpoint}/{name} does not hold the cell {cell}")
 
 
-def remove_field(checkpoint, name):
-    """Remove a MultiFab from a checkpoint, as if it had not been written"""
-    level_dir = checkpoint / "Level_0"
+def remove_field(checkpoint, name, level=0):
+    """Remove a MultiFab of a level from a checkpoint, as if it had not been written"""
+    level_dir = checkpoint / f"Level_{level}"
     paths = [level_dir / (name + "_H")] + sorted(level_dir.glob(name + "_D_*"))
     if not paths[0].exists():
         raise AssertionError(f"{checkpoint} holds no {name}")
@@ -334,6 +381,38 @@ def restart(exe, run_dir, inputs, checkpoint, name, options, env, max_step=1):
         status = subprocess.run(command, cwd=run_dir, stdout=log, stderr=subprocess.STDOUT,
                                 env=env).returncode
     return status, log_path.read_text()
+
+
+def check_restart(name, status, log, messages, abort=False):
+    """That a restart aborted, or ran, saying each of messages"""
+    for message in messages:
+        if message not in log:
+            raise AssertionError(f"{name}: the restart output ({name}.log) does not say "
+                                 f"\"{message}\"")
+    if abort and status == 0:
+        raise AssertionError(f"{name}: the restart did not abort; see {name}.log")
+    if not abort and status != 0:
+        raise AssertionError(f"{name}: the restart failed ({status}); see {name}.log")
+
+
+def check_version_2(name, checkpoint):
+    """That a restart wrote its checkpoint as version 2, absolute temperature"""
+    marker = checkpoint / "surface_temperature_contract"
+    if not marker.exists() or marker.read_text().split() != ["2"]:
+        raise AssertionError(f"{name}: {checkpoint.name} is not a version 2 checkpoint")
+
+
+def edited_copy(checkpoint, name, remove=(), zero=()):
+    """A copy of a checkpoint without the fields (level, field) of remove, and with the
+    cells (level, field, (i, j)) of zero set to zero"""
+    copy = checkpoint.parent / ("legacy_" + name)
+    shutil.rmtree(copy, ignore_errors=True)
+    shutil.copytree(checkpoint, copy)
+    for level, field in remove:
+        remove_field(copy, field, level)
+    for level, field, cell in zero:
+        zero_cell(copy, field, cell, level)
+    return copy
 
 
 def run_case(case, exe, run_dir, bases, env):
@@ -379,6 +458,7 @@ def run_case(case, exe, run_dir, bases, env):
         return "aborted as it must"
     if status != 0:
         raise AssertionError(f"{case.name}: the restart failed ({status}); see {log_path}")
+    check_version_2(case.name, output)
 
     report = []
     for name in SURFACE_FIELDS:
@@ -387,12 +467,14 @@ def run_case(case, exe, run_dir, bases, env):
                 raise AssertionError(f"{case.name}: the restart wrote the {name} removed")
             report.append(f"{name} absent")
             continue
-        expected = surface_field(original, name, psfc.shape)
         actual = surface_field(output, name, psfc.shape)
         if case.expect == "unchanged":
-            if not np.array_equal(actual, expected):
+            # As the restart read it
+            if not np.array_equal(actual, stored[name], equal_nan=True):
                 raise AssertionError(f"{case.name}: {name} changed on restart")
+            report.append(f"{name} bit for bit")
             continue
+        expected = surface_field(original, name, psfc.shape)
         # Placeholders, which hold no positive temperature, come back as they are
         placeholder = ~(stored[name] > 0.0)
         if not np.array_equal(actual[placeholder], stored[name][placeholder]):
@@ -418,10 +500,51 @@ def run_case(case, exe, run_dir, bases, env):
     return ", ".join(report) if report else "bit for bit"
 
 
-def nest_fields(checkpoint):
-    """SST_0 and TSK_0 of a checkpoint of nest_files.i at each level"""
+def nest_fields(checkpoint, names=SURFACE_FIELDS):
+    """The fields names (SST_0 and TSK_0) of a checkpoint of nest_files.i at each level"""
     return {(level, name): surface_field(checkpoint, name, shape, level, origin)
-            for level, _, origin, shape in NEST_LEVELS for name in SURFACE_FIELDS}
+            for level, _, origin, shape in NEST_LEVELS for name in names}
+
+
+def check_no_sst(name, checkpoint):
+    """That a checkpoint of nest_files.i holds no SST at any level"""
+    for level, *_ in NEST_LEVELS:
+        if (checkpoint / f"Level_{level}" / "SST_0_H").exists():
+            raise AssertionError(f"{name}: the restart wrote an SST at level {level}")
+
+
+def legacy_nest_copy(checkpoint, name):
+    """A version 1 copy, legacy_<name>, of a checkpoint of nest_files.i, whose SST and TSK
+    are potential temperature converted with the PSFC of the file of each level"""
+    copy = checkpoint.parent / ("legacy_" + name)
+    shutil.rmtree(copy, ignore_errors=True)
+    shutil.copytree(checkpoint, copy)
+    (copy / "surface_temperature_contract").write_text("1\n")
+    for level, wrfinput, origin, _ in NEST_LEVELS:
+        with nc.Dataset(checkpoint.parent / wrfinput) as ds:
+            psfc = np.asarray(ds["PSFC"][0], dtype=np.float64)
+        to_potential_temperature(copy, psfc, level, origin)
+    return copy
+
+
+def check_nest_recovered(name, checkpoint, expected):
+    """That a restart wrote the SST and TSK of each level of nest_files.i as version 2,
+    absolute temperature, recovered exactly: the largest relative error"""
+    check_version_2(name, checkpoint)
+    actual = nest_fields(checkpoint)
+    error = max(np.abs(actual[key] / expected[key] - 1.0).max() for key in expected)
+    if error > 1.0e-10:
+        raise AssertionError(f"{name}: the SST or TSK is off by a relative {error:.3e}")
+    return actual, error
+
+
+def started_message(file, start, checkpoint_time):
+    """What a restart says when an init file of level 1 after its first had started"""
+    return ("at level 1 cannot be recovered: the level lists 2 init files "
+            f"(erf.nc_init_file_1), and {file}, after the first, had started by the time "
+            f"of the checkpoint (it starts at t = {start} s at level 0, and the checkpoint "
+            f"is at t = {checkpoint_time} s): the run that wrote it may have read that file "
+            "as well")
 
 
 def run_nest_cases(exe, run_dir, env):
@@ -430,40 +553,31 @@ def run_nest_cases(exe, run_dir, env):
     if (original / "surface_temperature_contract").read_text().split() != ["2"]:
         raise AssertionError("nest_chk00000 is not a version 2 checkpoint")
     expected = nest_fields(original)
-    legacy = run_dir / "legacy_nest_v1"
-    shutil.rmtree(legacy, ignore_errors=True)
-    shutil.copytree(original, legacy)
-    (legacy / "surface_temperature_contract").write_text("1\n")
-    for level, wrfinput, origin, _ in NEST_LEVELS:
-        with nc.Dataset(run_dir / wrfinput) as ds:
-            psfc = np.asarray(ds["PSFC"][0], dtype=np.float64)
-        to_potential_temperature(legacy, psfc, level, origin)
+    legacy = legacy_nest_copy(original, "nest_v1")
     results = []
+    from_first = ("EXACT recovery at level 1 with the PSFC of nest_d02, the first of its 2 "
+                  "init files: none of the others had started by the time of the checkpoint")
 
-    # The deck as it was
+    # The deck as it was: nest_d03 had not started, so level 1 had read nest_d02 alone
     name = "nest_v1_two_level1_init_files"
     status, log = restart(exe, run_dir, "nest_files.i", legacy.name, name, [], env)
-    message = ("at level 1 cannot be recovered: the level lists 2 init files "
-               "(erf.nc_init_file_1), and the checkpoint does not record which of them")
-    if status == 0 or message not in log:
-        raise AssertionError(f"{name}: the restart did not abort saying \"{message}\"; "
-                             f"see {name}.log")
-    results.append((name, "aborted as it must"))
+    check_restart(name, status, log,
+                  ["EXACT recovery at level 0 with the PSFC of nest_d01", from_first])
+    migrated = run_dir / (name + "_chk00001")
+    actual, error = check_nest_recovered(name, migrated, expected)
+    results.append((name, f"SST_0 and TSK_0 at both levels to {error:.1e}"))
 
-    # Once with nest_d02 alone, the only file read
+    # The same as with nest_d02 alone
     name = "nest_v1_first_level1_init_file"
     status, log = restart(exe, run_dir, "nest_files.i", legacy.name, name,
                           ["erf.nc_init_file_1=nest_d02"], env)
-    message = "EXACT recovery at level 1 with the PSFC of nest_d02"
-    if status != 0 or message not in log:
-        raise AssertionError(f"{name}: the restart failed ({status}) or did not say "
-                             f"\"{message}\"; see {name}.log")
-    migrated = run_dir / (name + "_chk00001")
-    actual = nest_fields(migrated)
-    error = max(np.abs(actual[key] / expected[key] - 1.0).max() for key in expected)
-    if error > 1.0e-10:
-        raise AssertionError(f"{name}: the SST or TSK is off by a relative {error:.3e}")
-    results.append((name, f"SST_0 and TSK_0 at both levels to {error:.1e}"))
+    check_restart(name, status, log,
+                  ["EXACT recovery at level 1 with the PSFC of nest_d02\n"])
+    alone, error = check_nest_recovered(name, run_dir / (name + "_chk00001"), expected)
+    if any(not np.array_equal(alone[key], actual[key]) for key in actual):
+        raise AssertionError(f"{name}: the SST or TSK differs from {migrated.name}'s")
+    results.append((name, f"SST_0 and TSK_0 at both levels to {error:.1e}, the same as "
+                          "with both files, bit for bit"))
 
     # Then the deck as it was, from the version-2 checkpoint that wrote
     name = "nest_v2_two_level1_init_files"
@@ -475,6 +589,109 @@ def run_nest_cases(exe, run_dir, env):
     if any(not np.array_equal(continued[key], actual[key]) for key in actual):
         raise AssertionError(f"{name}: the SST or TSK changed on restart")
     results.append((name, "bit for bit"))
+
+    # A file listed after nest_d02 that starts at the start may have been read as well
+    name = "nest_v1_level1_init_file_started"
+    status, log = restart(exe, run_dir, "nest_files.i", legacy.name, name,
+                          ["erf.nc_init_file_1=nest_d02 nest_d03_now"], env)
+    check_restart(name, status, log, [started_message("nest_d03_now", 0, 0)], abort=True)
+    results.append((name, "aborted as it must"))
+
+    # The deck run on to t = 10 s, when nest_d03 starts, with no regridding to read it: its
+    # checkpoint at t = 5 s is recovered exactly ...
+    status, _ = restart(exe, run_dir, "nest_files.i", original.name, "nest_later",
+                        ["erf.check_int=5"], env, max_step=10)
+    if status != 0:
+        raise AssertionError(f"nest_later: the run to t = 10 s failed ({status}); "
+                             "see nest_later.log")
+    name = "nest_v1_before_level1_init_file_starts"
+    written = run_dir / "nest_later_chk00005"
+    status, log = restart(exe, run_dir, "nest_files.i", legacy_nest_copy(written, name).name,
+                          name, [], env, max_step=6)
+    check_restart(name, status, log, [from_first])
+    _, error = check_nest_recovered(name, run_dir / (name + "_chk00006"),
+                                    nest_fields(written))
+    results.append((name, f"SST_0 and TSK_0 at both levels to {error:.1e}"))
+
+    # ... and the one at t = 10 s not, as the run may have read nest_d03 by then
+    name = "nest_v1_once_level1_init_file_starts"
+    written = run_dir / "nest_later_chk00010"
+    status, log = restart(exe, run_dir, "nest_files.i", legacy_nest_copy(written, name).name,
+                          name, [], env, max_step=11)
+    check_restart(name, status, log, [started_message("nest_d03", 10, 10)], abort=True)
+    results.append((name, "aborted as it must"))
+
+    # Level 1 without an SST of its own is given level 0's on restart, so the surface layer
+    # takes its TSK, and a zero there aborts the restart ...
+    name = "nest_v1_level1_without_sst_tsk_zero"
+    edited = edited_copy(legacy, name, remove=[(1, "SST_0")], zero=[(1, "TSK_0", NEST_CELL)])
+    status, log = restart(exe, run_dir, "nest_files.i", edited.name, name,
+                          ["erf.nc_init_file_1=nest_d02"] + SURFACE_LAYER, env)
+    check_restart(name, status, log,
+                  ["converting the TSK at level 1 to absolute temperature: 1 cells "
+                   "could not be converted",
+                   f"({NEST_CELL[0]},{NEST_CELL[1]}), a water cell where the surface layer "
+                   "takes the TSK, has theta = 0,"], abort=True)
+    results.append((name, "aborted as it must"))
+
+    # ... as the run from a version 2 checkpoint does
+    name = "nest_v2_level1_without_sst_tsk_zero"
+    edited = edited_copy(original, name, remove=[(1, "SST_0")],
+                         zero=[(1, "TSK_0", NEST_CELL)])
+    status, log = restart(exe, run_dir, "nest_files.i", edited.name, name, SURFACE_LAYER,
+                          env)
+    check_restart(name, status, log,
+                  ["SurfaceLayer fill_tsurf_with_sst_and_tsk: surface conversion failed at "
+                   "level 1"], abort=True)
+    results.append((name, "the run aborted as it must"))
+
+    # With no SST at any level, the zero is a placeholder, kept as it is, and every positive
+    # TSK is converted ...
+    tsk = ("TSK_0",)
+    name = "nest_v1_without_sst_tsk_zero"
+    edited = edited_copy(legacy, name, remove=[(0, "SST_0"), (1, "SST_0")],
+                         zero=[(1, "TSK_0", NEST_CELL)])
+    stored = nest_fields(edited, tsk)
+    status, log = restart(exe, run_dir, "nest_files.i", edited.name, name,
+                          ["erf.nc_init_file_1=nest_d02"] + SURFACE_LAYER, env)
+    check_restart(name, status, log,
+                  ["EXACT recovery at level 0 with the PSFC of nest_d01",
+                   "EXACT recovery at level 1 with the PSFC of nest_d02", kept(1, "TSK", 1)])
+    output = run_dir / (name + "_chk00001")
+    check_version_2(name, output)
+    check_no_sst(name, output)
+    actual = nest_fields(output, tsk)
+    placeholders = 0
+    error = 0.0
+    for key, value in actual.items():
+        placeholder = ~(stored[key] > 0.0)
+        if not np.array_equal(value[placeholder], stored[key][placeholder]):
+            raise AssertionError(f"{name}: the TSK placeholder at level {key[0]} changed")
+        placeholders += int(placeholder.sum())
+        relative = value[~placeholder] / expected[key][~placeholder] - 1.0
+        error = max(error, np.abs(relative).max())
+    if placeholders != 1:
+        raise AssertionError(f"{name}: {placeholders} TSK placeholders, not 1")
+    if error > 1.0e-10:
+        raise AssertionError(f"{name}: the TSK is off by a relative {error:.3e}")
+    results.append((name, f"TSK_0 at both levels to {error:.1e}, 1 placeholder kept, "
+                          "no SST"))
+
+    # ... and the run from a version 2 checkpoint restores the TSK as it is
+    name = "nest_v2_without_sst_tsk_zero"
+    edited = edited_copy(original, name, remove=[(0, "SST_0"), (1, "SST_0")],
+                         zero=[(1, "TSK_0", NEST_CELL)])
+    stored = nest_fields(edited, tsk)
+    status, log = restart(exe, run_dir, "nest_files.i", edited.name, name, SURFACE_LAYER,
+                          env)
+    check_restart(name, status, log, ["Reading TSK data"])
+    output = run_dir / (name + "_chk00001")
+    check_version_2(name, output)
+    check_no_sst(name, output)
+    actual = nest_fields(output, tsk)
+    if any(not np.array_equal(actual[key], stored[key]) for key in stored):
+        raise AssertionError(f"{name}: the TSK changed on restart")
+    results.append((name, "TSK_0 at both levels bit for bit, no SST"))
     return results
 
 

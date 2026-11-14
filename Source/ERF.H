@@ -1489,7 +1489,7 @@ private:
     // Check that this level's wrflowinp file has the same times as level 0's
     void check_own_low_file_times (int lev);
 
-    // Re-read the surface pressure of a level from its own (at level 0, first) init file
+    // Re-read the surface pressure of a level from its own (first) init file
     // (it is not checkpointed)
     void read_psfc_from_own_init_file (int lev);
 
