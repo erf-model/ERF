@@ -38,7 +38,7 @@ TEST(ForceRestoreSnow, ConstantsAreThePapersAndERFs)
 {
     EXPECT_EQ(force_restore_snow_t_melt, t00);
     EXPECT_EQ(lat_ice, l_f);
-    const ForceRestoreSnowParams p;
+    const ForceRestoreSnowParams p{};
     EXPECT_EQ(p.w_crn, Real(10.0));    // DRM95: W_crn = 10 mm
     EXPECT_EQ(p.albedo, Real(0.70));   // DRM95: alpha_n = 0.70
     RadChoice rc;
