@@ -104,9 +104,10 @@ public:
 
     /**
      * Average these horizontal velocities instead of the level's own, until the next
-     * update_field_ptrs. They must have the level's boxes, ghost cells included, cut
-     * at the top no lower than max_k_read: each box keeps its lower end, and a box
-     * wholly above max_k_read may keep a single plane, which is never read.
+     * update_field_ptrs or make_MOSTAverage_at_level, which point the averages back at the
+     * level's own. They must have the level's boxes, ghost cells included, cut at the top
+     * no lower than max_k_read: each box keeps its lower end, and a box wholly above
+     * max_k_read may keep a single plane, which is never read.
      *
      * @param[in] lev  level index
      * @param[in] xvel x-velocity to average
@@ -343,6 +344,17 @@ public:
      * @param[in] lev level index
      */
     [[nodiscard]] amrex::MultiFab* get_zref (const int& lev) const { return m_zref[lev].get(); }
+
+    /**
+     * Return the field the averages read.
+     *
+     * @param[in] lev  level index
+     * @param[in] comp 0 x-velocity, 1 y-velocity, 2 z-velocity, 3 theta, 4 qv, 5 qr
+     */
+    [[nodiscard]] const amrex::MultiFab* get_field_ptr (const int& lev, const int& comp) const
+    {
+        return m_fields[lev][comp];
+    }
 
     /**
      * Return the k-index iMultiFab.

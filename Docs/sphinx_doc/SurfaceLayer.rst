@@ -326,23 +326,46 @@ relative to it (e.g. Bye and Wolff 1999, JPO). With
 
    erf.most.surface_current = 0.5 0.2
 
-the water surface moves at :math:`(u_s, v_s)` = (0.5, 0.2) m/s along x and y, and the
-surface layer takes :math:`(u - u_s, v - v_s)` wherever it uses the near-surface wind: in the mean
-speed :math:`|\bar{\mathbf{u}}|` and mean components behind :math:`u_*`, the Obukhov length
+the water surface moves at :math:`(u_s, v_s)` = (0.5, 0.2) m/s along the grid's x and y
+axes, not east and north: on a rotated or projected grid an earth-relative current must first
+be turned into the grid's directions. The surface layer takes :math:`(u - u_s, v - v_s)`
+wherever it uses the near-surface wind: in the mean speed :math:`|\bar{\mathbf{u}}|` and mean
+components behind :math:`u_*`, the Obukhov length
 and the roughness, in the direction and magnitude of the stresses, and in the wind speed
 of the heat and moisture fluxes. The 10 m wind diagnostics ``u_10m`` and ``v_10m`` are the
 relative wind from the similarity profile plus the current, so they remain winds over the
-ground. PBL schemes that take the mean wind speed from the surface layer get the relative
-speed, while the winds they read from the grid themselves stay absolute: YSU, for example,
-forms its surface bulk Richardson number from the relative speed but those of the levels above
-from the absolute wind, and the countergradient momentum terms of the newer YSU use the absolute
-wind at the lowest level.
+ground.
+
+PBL schemes take :math:`u_*`, :math:`\theta_*` and the Obukhov length from the surface layer,
+so these are relative to the surface, while the winds a scheme reads from the grid itself stay
+absolute. The vertical shear does not depend on the frame, since the current is the same at
+every height of a column, but a wind speed does. YSU, for example, forms its surface bulk
+Richardson number from the relative mean speed of the surface layer but those of the levels
+above from the absolute wind, and the countergradient momentum terms of the newer YSU use the
+absolute wind at the lowest level. MRF likewise forms the bulk Richardson numbers of its
+boundary-layer height from the absolute wind. MYNN reads only the shear and the surface-layer
+scales from the wind, so it is consistent with the moving surface.
 
 Only water moves. A face of the lowest cells takes the current where the cells on both sides
-of it are water (land mask 0), and is at rest over land and buildings. A surface with no water
-is an error, since the current would do nothing; idealized cases are all land unless
-``erf.is_land = 0``. The current is applied at the z-low face on every level, and is not
-supported with EB terrain.
+of it are water (land mask 0), and is at rest over land and buildings. A water cell on the
+coast therefore has one face at rest across the coastline, and where the surface layer works at
+cell centres, averaging the two faces of the cell, it sees half the current along that
+direction. A current set with ``erf.most.surface_current`` is uniform and takes no account of
+where the water is: lakes and rivers in the land mask move with it as well as the sea, so it is
+meant for idealized domains and domains whose only water is the ocean. A surface with no water is an error, since the
+current would do nothing; idealized cases are all land unless ``erf.is_land = 0``. The current
+is applied at the z-low face on every level, and is not supported with EB terrain.
+
+With ``erf.use_coupled_currents`` an ocean coupler supplies the current instead, as eastward
+and northward components at the cell centres of the level-0 surface, through
+``ERF::ApplyOceanSurfaceState``. They are turned to the grid axes with the grid orientation
+from the latitude and longitude (a grid without them is taken to be aligned with east) and
+averaged to the faces. A face takes the current where the cells on both sides of it are water
+and covered by the ocean, and is at rest elsewhere, including before the coupler's first call;
+lakes the ocean model does not reach stay at rest. A regridded level 0 takes the coupler's last
+current again. Like the coupled SST, it is applied on level 0 only; refined levels are at rest,
+and ERF warns at start-up when there are any. The option needs a surface-layer boundary at the
+z-low face, or ERF stops at start-up.
 
 Limits on the similarity solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

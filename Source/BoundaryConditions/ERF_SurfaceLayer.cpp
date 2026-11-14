@@ -2,6 +2,7 @@
 #include <AMReX_Math.H>
 #include <AMReX_MultiFabUtil.H>
 #include "ERF_Constants.H"
+#include "ERF_EarthRelativeWind.H"
 #include "ERF_SurfaceLayerStress.H"
 #include "ERF_SurfaceTemperature.H"
 #include "ERF_SurfaceMoisture.H"
@@ -69,19 +70,57 @@ covers_columns (const Array4<const Real>& a, const Box& b)
 }
 
 /**
- * Set a uniform surface current on the faces normal to dir, ghost cells included. Only
- * water moves: a face takes the current where the cells on both sides of it are water
- * (land mask 0), and is at rest elsewhere; without a land mask every face moves.
+ * The cell a face of the surface current reads for a cell beside it: the cell itself, or
+ * outside a non-periodic domain the nearest one inside it, since the surface fields' ghost
+ * cells there hold no data. The periodic ghost cells, ng deep, hold their images.
  *
- * @param[out] current one component of the current, on 2D boxes at k = klo
- * @param[in]  speed   uniform current [m/s]
- * @param[in]  dir     0 for the x-component on x-faces, 1 for the y-component on y-faces
- * @param[in]  lmask   land mask on one 2D box for each box of the current, or null
+ * @param[in] geom geometry of the level
+ * @param[in] ng   lateral ghost cells of the surface fields read
+ */
+NearestColumn
+surface_columns (const Geometry& geom, const IntVect& ng)
+{
+    Box columns = geom.Domain();
+    for (int d = 0; d < 2; ++d) {
+        if (geom.isPeriodic(d)) { columns.grow(d, ng[d]); }
+    }
+    return NearestColumn(columns);
+}
+
+/**
+ * An ocean coupler's current at the cells of the surface: the eastward and northward
+ * components, the cosine and sine of the angle of the grid x axis from east, and the ocean's
+ * coverage, each on one 2D box at k = 0 for each box of the current, with one more lateral
+ * ghost cell than the current.
+ */
+struct CoupledCurrentCells
+{
+    const MultiFab* east_north;
+    const MultiFab* rotation;
+    const iMultiFab* covered;
+};
+
+/**
+ * Set one component of the surface current on the faces normal to dir, ghost cells
+ * included. Only water moves: a face takes the current where the cells on both sides of it
+ * are water (land mask 0) and, with a coupler, covered by the ocean; it is at rest elsewhere.
+ * Without a coupler the current is uniform; with one it is the average over the two cells of
+ * the coupler's current turned to the grid axes.
+ *
+ * @param[out] current   one component of the current, on 2D boxes at k = klo
+ * @param[in]  dir       0 for the x-component on x-faces, 1 for the y-component on y-faces
+ * @param[in]  lmask     land mask on one 2D box for each box of the current, or null
+ * @param[in]  in_domain the cells a face reads (surface_columns)
+ * @param[in]  speed     uniform current [m/s], used without a coupler
+ * @param[in]  coupled   the coupler's current at the cells, or null without a coupler
  */
 void
-fill_face_current (MultiFab& current, Real speed, int dir, const iMultiFab* lmask)
+fill_face_current (MultiFab& current, int dir, const iMultiFab* lmask,
+                   const NearestColumn& in_domain, Real speed,
+                   const CoupledCurrentCells* coupled)
 {
     const bool has_mask = (lmask != nullptr);
+    const bool is_coupled = (coupled != nullptr);
     const int di = (dir == 0) ? 1 : 0;
     const int dj = (dir == 1) ? 1 : 0;
 #ifdef _OPENMP
@@ -91,10 +130,27 @@ fill_face_current (MultiFab& current, Real speed, int dir, const iMultiFab* lmas
         const auto c = current.array(mfi);
         const auto m = has_mask ? lmask->const_array(mfi) : Array4<const int>{};
         const int km = has_mask ? amrex::lbound(m).z : 0;
+        const auto en  = is_coupled ? coupled->east_north->const_array(mfi) : Array4<const Real>{};
+        const auto rot = is_coupled ? coupled->rotation->const_array(mfi) : Array4<const Real>{};
+        const auto cov = is_coupled ? coupled->covered->const_array(mfi) : Array4<const int>{};
         ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            const bool water = !has_mask || (m(i-di,j-dj,km) == 0 && m(i,j,km) == 0);
-            c(i,j,k) = water ? speed : zero;
+            bool moves = true;
+            Real sum = zero;
+            for (int side = 0; side < 2; ++side) {
+                const int ii = in_domain.i(i - di * (1 - side));
+                const int jj = in_domain.j(j - dj * (1 - side));
+                moves = moves && (!has_mask || m(ii,jj,km) == 0) &&
+                        (!is_coupled || cov(ii,jj,0) != 0);
+                if (is_coupled) {
+                    Real u_grid, v_grid;
+                    erf_earth_wind::earth_to_grid(en(ii,jj,0,0), en(ii,jj,0,1),
+                                                  rot(ii,jj,0,0), rot(ii,jj,0,1),
+                                                  u_grid, v_grid);
+                    sum += (dir == 0) ? u_grid : v_grid;
+                }
+            }
+            c(i,j,k) = !moves ? zero : (is_coupled ? myhalf * sum : speed);
         });
     }
 }
@@ -143,11 +199,6 @@ SurfaceLayer::define_surface_current (const int& lev, const MultiFab& xvel, cons
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
 
-    // The land mask, on one 2D box for each 3D box like the current, carries one more
-    // lateral ghost cell than the velocities, so both cells beside every face are in it
-    const iMultiFab* lmask = (lev < static_cast<int>(m_lmask_lev.size()) &&
-                              !m_lmask_lev[lev].empty()) ? m_lmask_lev[lev][0] : nullptr;
-
     for (int dir = 0; dir < 2; ++dir) {
         const MultiFab& vel = (dir == 0) ? xvel : yvel;
         auto& current = (dir == 0) ? m_surface_current_x[lev] : m_surface_current_y[lev];
@@ -158,10 +209,62 @@ SurfaceLayer::define_surface_current (const int& lev, const MultiFab& xvel, cons
         for (auto& b : bl) { b.setRange(2, klo); }
         const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
         current = std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(), 1, ng);
-        fill_face_current(*current, m_surface_current_const[dir], dir, lmask);
     }
+    // From the coupler's last current, if it has sent one, so a remade level does not lose it
+    fill_surface_current(lev);
 
     define_relative_velocities(lev, xvel, yvel, m_ma.max_k_read(lev));
+}
+
+void
+SurfaceLayer::fill_surface_current (const int& lev)
+{
+    MultiFab& current_x = *m_surface_current_x[lev];
+    MultiFab& current_y = *m_surface_current_y[lev];
+
+    // The land mask, on one 2D box for each box of the current, carries one more lateral
+    // ghost cell than the current, so both cells beside every face are in it
+    const iMultiFab* lmask = (lev < static_cast<int>(m_lmask_lev.size()) &&
+                              !m_lmask_lev[lev].empty()) ? m_lmask_lev[lev][0] : nullptr;
+    const IntVect ng = current_x.nGrowVect() + IntVect(1, 1, 0);
+    const NearestColumn in_domain = surface_columns(m_geom[lev], ng);
+
+    // The coupler's current at the cells of the surface, laid out like the land mask; ghost
+    // cells inside the domain or its periodic images take the coupler's values
+    const bool coupled = lev < static_cast<int>(m_coupled_current_east_lev.size()) &&
+                         m_coupled_current_east_lev[lev] && m_coupled_current_north_lev[lev];
+    MultiFab east_north, rotation;
+    iMultiFab cover;
+    CoupledCurrentCells cells{&east_north, &rotation, &cover};
+    if (coupled) {
+        BoxList bl = convert(current_x.boxArray(), IntVect(0)).boxList();
+        for (auto& b : bl) { b.setRange(2, 0); }
+        const BoxArray ba(std::move(bl));
+        const DistributionMapping& dm = current_x.DistributionMap();
+        const Periodicity period = m_geom[lev].periodicity();
+
+        east_north.define(ba, dm, 2, ng);
+        east_north.setVal(zero);
+        east_north.ParallelCopy(*m_coupled_current_east_lev[lev],  0, 0, 1, IntVect(0), ng, period);
+        east_north.ParallelCopy(*m_coupled_current_north_lev[lev], 0, 1, 1, IntVect(0), ng, period);
+        rotation.define(ba, dm, 2, ng);
+        rotation.setVal(one, 0, 1, ng);
+        rotation.setVal(zero, 1, 1, ng);
+        if (m_coupled_current_cos_lev[lev] && m_coupled_current_sin_lev[lev]) {
+            rotation.ParallelCopy(*m_coupled_current_cos_lev[lev], 0, 0, 1, IntVect(0), ng, period);
+            rotation.ParallelCopy(*m_coupled_current_sin_lev[lev], 0, 1, 1, IntVect(0), ng, period);
+        }
+        cover.define(ba, dm, 1, ng);
+        cover.setVal(0);
+        if (m_coupled_current_covered_lev[lev]) {
+            cover.ParallelCopy(*m_coupled_current_covered_lev[lev], 0, 0, 1, IntVect(0), ng, period);
+        }
+    }
+
+    fill_face_current(current_x, 0, lmask, in_domain, m_surface_current_const[0],
+                      coupled ? &cells : nullptr);
+    fill_face_current(current_y, 1, lmask, in_domain, m_surface_current_const[1],
+                      coupled ? &cells : nullptr);
 }
 
 void
@@ -219,6 +322,28 @@ SurfaceLayer::build_relative_velocities (const int& lev, const MultiFab& xvel,
             });
         }
     }
+}
+
+void
+SurfaceLayer::update_coupled_surface_current (const int& lev,
+                                              const MultiFab& east,
+                                              const MultiFab& north,
+                                              const iMultiFab* covered,
+                                              const MultiFab* cos_alpha,
+                                              const MultiFab* sin_alpha)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        m_use_surface_current && lev < static_cast<int>(m_surface_current_x.size()) &&
+        m_surface_current_x[lev],
+        "The coupled surface current was set on a level made before set_coupled_current_active.");
+
+    // Kept, so a remade level takes the current again (define_surface_current)
+    m_coupled_current_east_lev[lev]    = &east;
+    m_coupled_current_north_lev[lev]   = &north;
+    m_coupled_current_covered_lev[lev] = covered;
+    m_coupled_current_cos_lev[lev]     = cos_alpha;
+    m_coupled_current_sin_lev[lev]     = sin_alpha;
+    fill_surface_current(lev);
 }
 
 /**
@@ -293,6 +418,15 @@ SurfaceLayer::update_fluxes (const int& lev,
 
     // Fill interior ghost cells
     fill_planar_boundary(lev, *t_surf[lev]);
+
+    // Over a moving surface the averages must read the velocities relative to it, which
+    // update_mac_ptrs points them at; anything that points them back at the level's own
+    // velocities in between would silently average the absolute wind
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_surface_current ||
+        (m_ma.get_field_ptr(lev, 0) == m_rel_xvel[lev].get() &&
+         m_ma.get_field_ptr(lev, 1) == m_rel_yvel[lev].get()),
+        "The surface-layer averages do not read the wind relative to the surface current: "
+        "call update_mac_ptrs before update_fluxes.");
 
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);

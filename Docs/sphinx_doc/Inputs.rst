@@ -4776,11 +4776,13 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.ignore_sst**               | use the skin temperature rather than the sea-surface     | Boolean             | false            |
 |                                       | temperature from the input data                          |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.surface_current**          | uniform velocity [m/s] of the water surface along x and  | 2 Reals             | None             |
-|                                       | y, such as an ocean current; the surface layer then uses |                     |                  |
-|                                       | the wind relative to it (see :ref:`sec:MovingSurface`).  |                     |                  |
-|                                       | Land stays at rest. Requires water at the surface, and   |                     |                  |
-|                                       | is not supported with EB terrain                         |                     |                  |
+| **erf.most.surface_current**          | uniform velocity [m/s] of the water surface along the    | 2 Reals             | None             |
+|                                       | grid's x and y, such as an ocean current; the surface    |                     |                  |
+|                                       | layer then uses the wind relative to it (see             |                     |                  |
+|                                       | :ref:`sec:MovingSurface`). All water moves, lakes        |                     |                  |
+|                                       | included, and land stays at rest. Requires a z-low       |                     |                  |
+|                                       | surface layer with water at the surface, and is not      |                     |                  |
+|                                       | supported with EB terrain                                |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_lsm_skin_temperature** | take the land model's skin temperature (SLM ``tsurf``,   | Boolean             | false            |
 |                                       | Noah-MP ``t_sfc``) as an absolute temperature and        |                     |                  |
@@ -4905,6 +4907,11 @@ List of Parameters
 |                          | temperature for some or all water cells; this must be    |                    |                  |
 |                          | set at problem definition time because the surface layer |                    |                  |
 |                          | uses it to select its temperature boundary treatment     |                    |                  |
++--------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_coupled_       | an external ocean coupler supplies the surface current,  | Boolean            | false            |
+| currents**               | and the surface layer takes the wind relative to it (see |                    |                  |
+|                          | :ref:`sec:MovingSurface`); may not be combined with      |                    |                  |
+|                          | ``erf.most.surface_current``                             |                    |                  |
 +--------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. note::

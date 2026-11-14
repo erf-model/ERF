@@ -240,31 +240,31 @@ public:
     void GetFillableAtmosToOceanLanes (bool state_contract,
                                        amrex::Vector<int>& can_fill) const;
 
-    // weight_mf/index_mf are keyed by WeightFamily slot order
-    // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
-    // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
-    // lane below picks the pair matching its own destination stagger.
-    // dst_mskr/dst_msku/dst_mskv are REMORA wet/dry masks (1 = wet, 0 = land)
-    // on the rho/u-face/v-face destination layouts. dst_msku/dst_mskv are applied
-    // to the TauX/TauY lanes; dst_mskr is applied to the rho-centred *scalar* lanes
-    // (Patm, Tair, cloud, and the scalar flux lanes) but deliberately NOT to
-    // Uwind/Vwind, which are also rho-centred - so the wind lanes carry live
-    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there.
-    // REMORA re-masks on its own side, so this asymmetry is currently harmless.
-    // Pass nullptr to skip masking.
+    // Every lane is remapped from ERF's level-0 cell centres to REMORA's rho points with
+    // the one set of weights weight_mf/index_mf the driver builds for that pair of grids.
+    // The vectors (Uwind/Vwind and tau_x/tau_y) are sent as their eastward and northward
+    // components, turned from the grid axes with the grid orientation from lat_m/lon_m,
+    // so that the ocean can turn them to its own axes; the stress is averaged from the
+    // faces to the cell centres first.
+    // dst_mskr is REMORA's wet/dry mask (1 = wet, 0 = land) on the rho layout, applied
+    // to the scalar lanes (Patm, Tair, cloud) and to the flux lanes, tau_x/tau_y
+    // included, but deliberately NOT to Uwind/Vwind, so the wind lanes carry live
+    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there. REMORA
+    // re-masks on its own side, so this asymmetry is currently harmless. Pass nullptr to
+    // skip masking.
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
-                                const amrex::Vector<const amrex::MultiFab*>& weight_mf,
-                                const amrex::Vector<const amrex::iMultiFab*>& index_mf,
+                                const amrex::MultiFab& weight_mf,
+                                const amrex::iMultiFab& index_mf,
                                 int max_stencil_size,
-                                const amrex::MultiFab* dst_mskr = nullptr,
-                                const amrex::MultiFab* dst_msku = nullptr,
-                                const amrex::MultiFab* dst_mskv = nullptr);
-    // Apply ocean-model sea-surface temperature to the ERF lower boundary.
+                                const amrex::MultiFab* dst_mskr = nullptr);
+    // Apply ocean-model sea-surface temperature, and with erf.use_coupled_currents the
+    // surface current, to the ERF lower boundary.
     //
-    // state[0] carries SST in Kelvin on the layout reported by
+    // state[0] carries SST in Kelvin, and state[1] and state[2] the eastward and
+    // northward surface current in m/s, on the layout reported by
     // GetOceanToAtmosSurfaceLayout. erf_coverage is the per-cell coverage flag on
     // that same layout: nonzero where the driver's remap found at least one
-    // ocean donor for that ERF cell.
+    // ocean donor for that ERF cell. A cell without one is at rest.
     //
     // Coverage is a contract, not a hint. Where erf_coverage is zero the ocean
     // supplied nothing and state[0] holds the remap's zero fill, which is
@@ -1246,6 +1246,22 @@ public:
     // only: the coupler exchanges on the base grid.
     std::unique_ptr<amrex::MultiFab>  m_coupled_sst;
     std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
+
+    // The orientation of the level-0 grid (cosine and sine of the angle of its x axis
+    // from east) on ba2d[0], from lat_m and lon_m, for turning the vectors the coupler
+    // exchanges between the grid axes and east/north: the surface current received, the
+    // wind and stress sent. Made on first use by SetCouplerGridRotation; null without
+    // lat/lon, where the grid is taken to be aligned with east.
+    std::unique_ptr<amrex::MultiFab> m_coupler_cos_alpha;
+    std::unique_ptr<amrex::MultiFab> m_coupler_sin_alpha;
+    bool m_coupler_rotation_set = false;
+    void SetCouplerGridRotation ();
+    // The coupler's last eastward and northward surface current and its coverage, on the
+    // layout of GetOceanToAtmosSurfaceLayout when first called. The SurfaceLayer borrows
+    // them, and sets the current from them again when level 0 is remade.
+    std::unique_ptr<amrex::MultiFab>  m_coupled_current_east;
+    std::unique_ptr<amrex::MultiFab>  m_coupled_current_north;
+    std::unique_ptr<amrex::iMultiFab> m_coupled_current_valid;
 
     // One-shot latch so a misconfigured deck says so once rather than every step.
     bool m_warned_coupled_sst_declined = false;
