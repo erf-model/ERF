@@ -248,10 +248,10 @@ public:
     // faces to the cell centres first.
     // dst_mskr is REMORA's wet/dry mask (1 = wet, 0 = land) on the rho layout, applied
     // to the scalar lanes (Patm, Tair, cloud) and to the flux lanes, tau_x/tau_y
-    // included (REMORA averages the stress to its faces from the wet points alone), but
-    // deliberately NOT to Uwind/Vwind, so the wind lanes carry live atmospheric values
-    // over REMORA land while Patm/Tair carry fallbacks there. REMORA re-masks on its own
-    // side, so this asymmetry is currently harmless. Pass nullptr to skip masking.
+    // included, but deliberately NOT to Uwind/Vwind, so the wind lanes carry live
+    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there. REMORA
+    // re-masks on its own side, so this asymmetry is currently harmless. Pass nullptr to
+    // skip masking.
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
                                 const amrex::MultiFab& weight_mf,
                                 const amrex::iMultiFab& index_mf,

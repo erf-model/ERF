@@ -141,9 +141,9 @@ StagedSourceBoxArray (const amrex::MultiFab& src,
     ParallelDescriptor::ReduceIntMin(lo.dataPtr(), static_cast<int>(lo.size()));
     ParallelDescriptor::ReduceIntMax(hi.dataPtr(), static_cast<int>(hi.size()));
 
-    // The staged boxes must carry the source's index type from the start: the tau
-    // lanes hand us a face-staggered source, and intersecting a cell-centered box
-    // with a face-staggered one trips Box::operator&='s sameType assertion.
+    // The staged boxes carry the source's index type, so that intersecting them with
+    // the source's boxes cannot trip Box::operator&='s sameType assertion. Every
+    // source is cell-centred today.
     const IndexType src_ixtype = src.boxArray().ixType();
 
     BoxList bl(src_ixtype);
