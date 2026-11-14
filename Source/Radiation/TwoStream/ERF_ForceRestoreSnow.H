@@ -143,7 +143,9 @@ force_restore_snow_step (amrex::Real& w_n, amrex::Real& t_s, amrex::Real p_n, am
 
     // Sublimation from the covered fraction: DRM95 Eq. (6), second term. A negative W_n (a
     // corrupt state, which the caller refuses after the step) gives none.
-    w_new = w_n - amrex::min(p_ng * e * dt, amrex::max(w_n, zero));
+    // amrex::max takes references: a namespace-scope constant passed to it is odr-used, which
+    // CUDA refuses in device code, so the constants are passed as temporaries here and below.
+    w_new = w_n - amrex::min(p_ng * e * dt, amrex::max(w_n, amrex::Real(0.0)));
     out.sublimation = w_n - w_new;
     w_n = w_new;
 
@@ -156,7 +158,7 @@ force_restore_snow_step (amrex::Real& w_n, amrex::Real& t_s, amrex::Real p_n, am
             w_n = w_new;
             // The heat of the part W_n did not take stays in T_s for the next step; it is
             // zero to round-off in double precision.
-            t_s = amrex::max(force_restore_snow_t_melt,
+            t_s = amrex::max(amrex::Real(force_restore_snow_t_melt),
                              force_restore_snow_t_melt + lat_ice * (potential - out.melt) / prm.c_s);
         } else {
             out.melt = w_n;

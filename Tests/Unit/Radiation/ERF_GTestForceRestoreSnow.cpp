@@ -382,7 +382,7 @@ TEST(ForceRestoreSnow, StateTakesSnowfallMeltsAndHandsTheSoilItsWater)
     // snow-free value.
     MultiFab alb(ba2d, dm, 1, IntVect(1, 1, 0));
     alb.setVal(0.2);
-    snow.swe(0)->setVal(10.0, 1);
+    snow.swe(0)->setVal(Real(10.0), 0, 1, IntVect(1, 1, 0));
     snow.apply_albedo(0, alb, prm);
     for (MFIter mfi(alb); mfi.isValid(); ++mfi) {
         const auto a = alb.const_array(mfi);
