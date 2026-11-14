@@ -322,6 +322,11 @@ target_sources(${erf_exe_name}
     # drainage and the deep temperature exactly over the step (NP89, MN96), and carry the
     # rain of a step the balance skips into the next.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestForceRestoreHydrology.cpp
+    # Motivation: the force-restore snow layer must follow Douville et al. (1995) Sec. 2.1:
+    # cover fraction (Eq. 7), albedo (Eq. 8), mass balance (Eq. 6) and melt (Eq. 12), split
+    # the surface precipitation into rain and frozen parts without counting either twice,
+    # and hand its melt water to the hydrology.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestForceRestoreSnow.cpp
     # Motivation: the forcing the two-stream model hands Noah-MP must be the
     # downwelling SW and LW at the surface interface and a zenith cosine floored
     # at zero, copied into the land model's k = 0 plane and nowhere else.
