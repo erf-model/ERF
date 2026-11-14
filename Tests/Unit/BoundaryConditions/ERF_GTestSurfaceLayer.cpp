@@ -2279,6 +2279,21 @@ set_water_except_column (SurfaceLayerFields& fields, const int land_i)
     Gpu::streamSynchronize();
 }
 
+// Coverage flag set everywhere except on the row j = uncovered_j. A free function rather
+// than inline in the test, because nvcc rejects a device lambda in a TEST body (private).
+void
+set_covered_except_row (iMultiFab& covered, const int uncovered_j)
+{
+    for (MFIter mfi(covered); mfi.isValid(); ++mfi) {
+        const auto c = covered.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            c(i,j,k) = (j == uncovered_j) ? 0 : 1;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 } // namespace
 
 // Only water moves: a face of the lowest cells takes most.surface_current where the cells on
@@ -2337,14 +2352,7 @@ TEST(SurfaceLayer, CoupledSurfaceCurrentIsTurnedToTheGridOverCoveredWater)
     north.setVal(n);
     cos_alpha.setVal(std::cos(alpha));
     sin_alpha.setVal(std::sin(alpha));
-    for (MFIter mfi(covered); mfi.isValid(); ++mfi) {
-        const auto c = covered.array(mfi);
-        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int kk) noexcept
-        {
-            c(i,j,kk) = (j == d.smallEnd(1)) ? 0 : 1;
-        });
-    }
-    Gpu::streamSynchronize();
+    set_covered_except_row(covered, d.smallEnd(1));
     layer->update_coupled_surface_current(0, east, north, &covered, &cos_alpha, &sin_alpha);
 
     // The grid axes are turned by alpha from east and north
