@@ -1274,6 +1274,23 @@ public:
     amrex::Real m_warned_coupled_sst_max = amrex::Real(320.0);
     amrex::Long m_warned_coupled_sst_nan = 0;
 
+    // The atmos->ocean rain lane is a rate, but the microphysics keeps only a
+    // cumulative surface accumulation, so PackAtmosphericStates differences it
+    // against the snapshot below. Level 0 only, on ba2d[0]:
+    //   m_a2o_precip_accum  total liquid-equivalent accumulation [kg m^-2] at
+    //                       m_a2o_precip_time (ERF's t_new[0], not the driver's clock)
+    //   m_a2o_precip_rate   mean rate between the last two snapshots [kg m^-2 s^-1]
+    // EvolveOneStep allocates them before its first step, so the first rate
+    // covers this run's first step, on a cold start and on a restart alike.
+    std::unique_ptr<amrex::MultiFab> m_a2o_precip_accum;
+    std::unique_ptr<amrex::MultiFab> m_a2o_precip_rate;
+    amrex::Real m_a2o_precip_time = amrex::Real(0.0);
+    // Whether the level-0 microphysics keeps any surface precipitation accumulator
+    [[nodiscard]] bool HasA2OPrecipSource () const;
+    // The total liquid-equivalent surface accumulation [kg m^-2] per column, on ba2d[0].
+    // Public because nvcc rejects extended __device__ lambdas in private members.
+    void SampleA2OPrecipAccumulation (amrex::MultiFab& accum_2d) const;
+
 private:
 
     ///////////////////////////

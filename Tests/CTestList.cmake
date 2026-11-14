@@ -576,6 +576,44 @@ function(add_test_two_stream_seb_moisture TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/wet/simulation.log;${CURRENT_TEST_BINARY_DIR}/mid/simulation.log;${CURRENT_TEST_BINARY_DIR}/veg/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare_f0/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare_dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/tables/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_moisture)
 
+# The force-restore hydrology on the deck of TwoStream_SEBSurfaceLayerFluxes in five legs: the
+# deep reservoir draining exactly toward field capacity with the deep temperature relaxing
+# toward the skin; Kessler rain into a soil at porosity, which must take in the scheme's own
+# accumulation, run off and close each column's water budget; that rain leg restarted
+# half-way, which must match it (fcompare); and that rain leg with a second level made
+# half-way, where the same checks hold on the finest data; and that two-level leg subcycled,
+# where the rain the soil took in must match the accumulation on the finest data
+# (Tests/RunTwoStreamSEBHydrology.cmake, Tests/check_two_stream_seb_hydrology.py).
+function(add_test_two_stream_seb_hydrology TEST_NAME)
+    set(TEST_FILES_DIR "TwoStream_SEBSurfaceLayerFluxes")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/TwoStream_SEBSurfaceLayerFluxes.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_SEB_HYDROLOGY_CHECKER}"
+        "-DDEEP_STEPS=10"
+        "-DRAIN_STEPS=60"
+        "-DDT=1.0"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBHydrology.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/deep/simulation.log;${CURRENT_TEST_BINARY_DIR}/rain/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/restart/fcompare.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_subcycled/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_two_stream_seb_hydrology)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -1546,7 +1584,7 @@ add_test_cloud_chamber_bulk_legacy(CloudChamber_BulkSmoke_Legacy_Kessler_NoRain 
 # These runs exercise initialization rejection through global solver guards or
 # the Cloud Chamber typed allowlist. Direct parser failures have separate tests.
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SBM SBM 0
-    "SBM M3 does not support scalar or particle diffusion")
+    "SBM does not support molecular diffusion")
 # Motivation: Anelastic SDM is valid in ERF, but Cloud Chamber still rejects
 # particle models before time stepping or output. Without particle support,
 # the earlier global build-capability guard must reject the same input.
@@ -3189,6 +3227,9 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # q_sat and the air's by beta, vegetation lowers the evaporation, and the balance's soil
     # loses the water the air gains.
     add_test_two_stream_seb_moisture(TwoStream_SEBSoilMoisture)
+    # The same deck with the force-restore hydrology: rain in, runoff, the deep reservoir,
+    # drainage and the deep temperature, across a restart and on two levels.
+    add_test_two_stream_seb_hydrology(TwoStream_SEBHydrology)
   endif()
 
   # Two-stream radiation feeding Noah-MP on two levels (see the function above). Noah-MP
@@ -3206,6 +3247,109 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  TwoStream_SEBSurfaceLayerFluxes.i
                  "seb_hfx_default = 10 is not used"
                  "erf.radiation.seb_hfx_default=10")
+
+  # Each start-up check of the force-restore hydrology stops the run with its own message:
+  # one step of the deck above per check, with the inputs that reach it.
+  add_test_abort(TwoStream_SEBHydrologyAbortPrecipSourceValue
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_precipitation_source must be none or microphysics"
+                 "erf.radiation.seb_precipitation_source=rain")
+  add_test_abort(TwoStream_SEBHydrologyAbortNeedsPrognostic
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "need erf.radiation.seb_prognostic_enable = true"
+                 "erf.radiation.seb_prognostic_enable=false erf.radiation.seb_deep_prognostic_enable=true")
+  add_test_abort(TwoStream_SEBHydrologyAbortDrainageNeedsDeep
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_drainage_enable needs erf.radiation.seb_deep_prognostic_enable"
+                 "erf.radiation.seb_drainage_enable=true")
+  add_test_abort(TwoStream_SEBHydrologyAbortDeepDepthUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_deep_layer_depth_m is used only with"
+                 "erf.radiation.seb_deep_layer_depth_m=2")
+  add_test_abort(TwoStream_SEBHydrologyAbortC3Unused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_drainage_c3_m is used only with"
+                 "erf.radiation.seb_drainage_c3_m=0.2")
+  add_test_abort(TwoStream_SEBHydrologyAbortPorosityUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_soil_porosity is used only with"
+                 "erf.radiation.seb_soil_porosity=0.4")
+  add_test_abort(TwoStream_SEBHydrologyAbortFcUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_soil_moisture_fc is used only with"
+                 "erf.radiation.seb_soil_moisture_fc=0.3")
+  add_test_abort(TwoStream_SEBHydrologyAbortWiltUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_soil_moisture_wilt is used only with"
+                 "erf.radiation.seb_soil_moisture_wilt=0.1")
+  add_test_abort(TwoStream_SEBHydrologyAbortFcRange
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_soil_moisture_fc must be in"
+                 "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_drainage_enable=true erf.radiation.seb_drainage_c3_m=0.2 erf.radiation.seb_soil_porosity=0.4 erf.radiation.seb_soil_moisture_fc=1.5")
+  add_test_abort(TwoStream_SEBHydrologyAbortDeepDepthShallow
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_deep_layer_depth_m must be deeper than"
+                 "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_porosity=0.4 erf.radiation.seb_deep_layer_depth_m=0.05")
+  add_test_abort(TwoStream_SEBHydrologyAbortDrainageNeedsFc
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "needs a field capacity"
+                 "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_drainage_enable=true erf.radiation.seb_drainage_c3_m=0.2 erf.radiation.seb_soil_porosity=0.4")
+  add_test_abort(TwoStream_SEBHydrologyAbortC3Positive
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_drainage_c3_m must be given and > 0"
+                 "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_drainage_enable=true erf.radiation.seb_soil_moisture_fc=0.3 erf.radiation.seb_soil_porosity=0.4")
+  add_test_abort(TwoStream_SEBHydrologyAbortSoilTypeAndPorosity
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "do not also give erf.radiation.seb_soil_porosity"
+                 "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_type=3 erf.radiation.seb_soil_porosity=0.4")
+  add_test_abort(TwoStream_SEBHydrologyAbortNeedsPorosity
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "need a porosity"
+                 "erf.radiation.seb_deep_prognostic_enable=true")
+  add_test_abort(TwoStream_SEBHydrologyAbortPorosityRange
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_soil_porosity must be in"
+                 "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_porosity=1.5")
+  add_test_abort(TwoStream_SEBHydrologyAbortFcBelowPorosity
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "must be below erf.radiation.seb_soil_porosity"
+                 "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_drainage_enable=true erf.radiation.seb_drainage_c3_m=0.2 erf.radiation.seb_soil_moisture_fc=0.45 erf.radiation.seb_soil_porosity=0.4")
+  add_test_abort(TwoStream_SEBHydrologyAbortDefaultAbovePorosity
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "must not exceed"
+                 "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_porosity=0.005")
+  add_test_abort(TwoStream_SEBHydrologyAbortMicrophysicsScheme
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "needs a microphysics scheme that accumulates"
+                 "erf.radiation.seb_precipitation_source=microphysics erf.radiation.seb_soil_porosity=0.4 erf.moisture_model=SatAdj")
+  add_test_abort(TwoStream_SEBHydrologyAbortLandSurfaceModel
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "turn them off with a land-surface model"
+                 "erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_porosity=0.4 erf.land_surface_model=SLM slm.nsoil=2 \"slm.soil_dz=0.1 0.4\" slm.sw0=0.6 slm.st0=300 slm.clay0=13 slm.sand0=17")
+  add_test_abort(TwoStream_SEBHydrologyAbortQMaxBelowPorosity
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "must be at or above erf.radiation.seb_soil_porosity"
+                 "erf.radiation.seb_precipitation_source=microphysics erf.radiation.seb_soil_porosity=0.4 erf.radiation.seb_prognostic_q_max=0.3")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 
@@ -3523,6 +3667,21 @@ if(ERF_ENABLE_PARTICLES)
     add_test_sdm(SDM_RICO3D                      "" "erf_exec"  "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding" RUNTIME_OPTIONS "erf.vert_implicit=false ")
     # multispecies setup with dummy water species
     add_test_sdm(SDM_MultiSpecies_Bubble2D       "" "erf_exec"  "plt00001" 5e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
+    # Golovin coalescence on a stretched mesh: initial number density and decay rate of each
+    # layer from the particle data, against the physical layer volumes (statistical, no gold file)
+    if(NOT WIN32 AND ERF_TEST_PYTHON)
+        function(add_test_sdm_stretched TEST_NAME)
+            setup_test()
+            resolve_test_exe("" "erf_exec" TEST_EXE)
+            set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+            add_test(${TEST_NAME} sh -c
+                "rm -rf plt0* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_stretched_coalescence.py ${TEST_NAME}.i plt00000 plt00300")
+            set_tests_properties(${TEST_NAME} PROPERTIES
+                TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+                LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+        endfunction(add_test_sdm_stretched)
+        add_test_sdm_stretched(SDM_StretchedCoalescence)
+    endif()
 endif()
 
 #=============================================================================

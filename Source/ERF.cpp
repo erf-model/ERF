@@ -625,22 +625,28 @@ ERF::fill_seb_from_coarse (int lev)
             const Array4<Real>& a = crse->array(mfi);
             const auto dlo = lbound(crse_dom);
             const auto dhi = ubound(crse_dom);
-            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(gbx, crse->nComp(), [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
                 const int ic = clamp_x ? amrex::max(dlo.x, amrex::min(dhi.x, i)) : i;
                 const int jc = clamp_y ? amrex::max(dlo.y, amrex::min(dhi.y, j)) : j;
-                if (ic != i || jc != j) { a(i,j,k) = a(ic,jc,k); }
+                if (ic != i || jc != j) { a(i,j,k,n) = a(ic,jc,k,n); }
             });
         }
+        // Every component takes the boundary conditions of the first cons component, as the
+        // one-component fields always did: the running totals have none of their own.
+        const Vector<BCRec> bcs(fine->nComp(), domain_bcs_type[BCVars::cons_bc]);
         InterpFromCoarseLevel(*fine, fine->nGrowVect(),
                               IntVect(0,0,0),          // no ghosts outside the domain
-                              *crse, 0, 0, 1,
+                              *crse, 0, 0, fine->nComp(),
                               geom[lev-1], geom[lev],
                               rr2d, &cell_cons_interp,
-                              domain_bcs_type, BCVars::cons_bc);
+                              bcs, 0);
     };
-    fill_one(two_stream_rad.seb_t_sfc(lev), two_stream_rad.seb_t_sfc(lev-1));
-    fill_one(two_stream_rad.seb_q_sfc(lev), two_stream_rad.seb_q_sfc(lev-1));
+    // t_sfc, q_sfc and, with the force-restore hydrology, its deep state and running totals.
+    const Vector<MultiFab*> fine_fields = two_stream_rad.seb_prognostic_fields(lev);
+    const Vector<MultiFab*> crse_fields = two_stream_rad.seb_prognostic_fields(lev-1);
+    AMREX_ALWAYS_ASSERT(fine_fields.size() == crse_fields.size());
+    for (int n = 0; n < fine_fields.size(); ++n) { fill_one(fine_fields[n], crse_fields[n]); }
 }
 
 /**
@@ -809,13 +815,17 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 two_stream_rad.seb_prognostic_active() &&
                 !rad_level_needs_interpolation(lev+1))
             {
+                // t_sfc, q_sfc and, with the force-restore hydrology, its deep state and
+                // running totals (seb_prognostic_fields).
                 const IntVect rr2d(refRatio(lev)[0], refRatio(lev)[1], 1);
-                MultiFab* t_crse = two_stream_rad.seb_t_sfc(lev);
-                MultiFab* t_fine = two_stream_rad.seb_t_sfc(lev+1);
-                if (t_crse && t_fine) { average_down(*t_fine, *t_crse, 0, 1, rr2d); }
-                MultiFab* q_crse = two_stream_rad.seb_q_sfc(lev);
-                MultiFab* q_fine = two_stream_rad.seb_q_sfc(lev+1);
-                if (q_crse && q_fine) { average_down(*q_fine, *q_crse, 0, 1, rr2d); }
+                const Vector<MultiFab*> crse_fields = two_stream_rad.seb_prognostic_fields(lev);
+                const Vector<MultiFab*> fine_fields = two_stream_rad.seb_prognostic_fields(lev+1);
+                AMREX_ALWAYS_ASSERT(fine_fields.size() == crse_fields.size());
+                for (int n = 0; n < fine_fields.size(); ++n) {
+                    if (crse_fields[n] && fine_fields[n]) {
+                        average_down(*fine_fields[n], *crse_fields[n], 0, fine_fields[n]->nComp(), rr2d);
+                    }
+                }
             }
         }
 
@@ -2187,6 +2197,30 @@ ERF::InitData_post ()
         }
     }
 #endif
+
+    // The force-restore hydrology's rain comes from the microphysics' surface precipitation
+    // accumulators: a scheme without them would give no rain, silently.
+    if (solverChoice.rad_type == RadiationType::TwoStream &&
+        solverChoice.radChoice.seb_precipitation_source == SEBPrecipitationSource::Microphysics) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            if (!micro || !surface_precip_has_any_source(micro->Get_Surface_Precip_Accumulation_Ptrs(lev))) {
+                amrex::Abort("erf.radiation.seb_precipitation_source = microphysics needs a "
+                             "microphysics scheme that accumulates surface precipitation "
+                             "(erf.moisture_model = Kessler, SAM, Morrison, WSM6, WDM6, ...)");
+            }
+        }
+    }
+    // The hydrology acts on the two-stream force-restore state, which a land-surface model
+    // that supplies the surface temperature (SLM, Noah-MP) leaves unused: stop here rather
+    // than in the first step (TwoStreamRadiation::advance stops there too).
+    if (solverChoice.rad_type == RadiationType::TwoStream &&
+        solverChoice.radChoice.seb_hydrology_enabled() &&
+        (solverChoice.lsm_type == LandSurfaceType::SLM ||
+         solverChoice.lsm_type == LandSurfaceType::NOAHMP)) {
+        amrex::Abort("erf.radiation.seb_precipitation_source and seb_deep_prognostic_enable act "
+                     "on the two-stream force-restore state, which erf.land_surface_model = SLM "
+                     "or NOAHMP replaces; turn them off with a land-surface model");
+    }
 
 #ifdef ERF_USE_DUST
     // The dust model starts after the fire, which it may read; on a restart it

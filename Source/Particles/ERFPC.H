@@ -53,6 +53,19 @@ struct ERFParticlesRealIdx
     };
 };
 
+namespace ERFParticleGeometry
+{
+    /*! \brief Physical thickness of cell (i,j,k): the mean of its four vertical edges */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real cell_thickness (amrex::Array4<amrex::Real const> const& z_nd, int i, int j, int k) noexcept
+    {
+        return amrex::Real(0.25) * (  z_nd(i  , j  , k+1) - z_nd(i  , j  , k)
+                                    + z_nd(i+1, j  , k+1) - z_nd(i+1, j  , k)
+                                    + z_nd(i  , j+1, k+1) - z_nd(i  , j+1, k)
+                                    + z_nd(i+1, j+1, k+1) - z_nd(i+1, j+1, k) );
+    }
+}
+
 namespace ERFParticleInitializations
 {
     /* list of particle initializations */

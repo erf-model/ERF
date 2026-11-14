@@ -209,7 +209,9 @@ ERF::WriteCheckpointFile () const
                                               std::ofstream::binary);
             if (!schema.good()) FileOpenFailed(schema_file);
             schema << erf_sbm::restart_schema(sbm_state_manager->layout(),
-                                              boundaries.identity());
+                                              boundaries.identity(),
+                                              erf_sbm::particle_mixing_schema(
+                                                  sbm_transport->particle_mixing()));
             if (!schema.good()) FileOpenFailed(schema_file);
             if (!boundaries.all_periodic()) {
                 const std::string ledger_file = checkpointname + "/SBM_BoundaryLedger";
@@ -1082,9 +1084,11 @@ ERF::ReadCheckpointFile ()
         const std::string persisted_schema(schema_chars.dataPtr());
         const auto& boundaries = sbm_transport->physical_boundaries();
         if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema,
-                                             boundaries.identity())) {
+                                             boundaries.identity(),
+                                             erf_sbm::particle_mixing_schema(
+                                                 sbm_transport->particle_mixing()))) {
             Abort("SBM restart schema does not exactly match the active spectral layout, "
-                  "M3 transport and physical boundary identity");
+                  "M3 transport, physical boundary identity and particle mixing");
         }
         if (!boundaries.all_periodic()) {
             const std::string ledger_file = restart_chkfile + "/SBM_BoundaryLedger";

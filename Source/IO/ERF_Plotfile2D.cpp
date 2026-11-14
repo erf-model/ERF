@@ -618,6 +618,29 @@ ERF::FillPlot2DVars (int lev,
         mf_comp++;
     } // ibseb_ground_wall_view
 
+    // The force-restore deep state and hydrology (ERF_ForceRestoreHydrology.H); -999 where
+    // the state does not exist (the deep state is the constant default unless
+    // erf.radiation.seb_deep_prognostic_enable; the hydrology fields need it on).
+    {
+        const bool ts = solverChoice.rad_type == RadiationType::TwoStream;
+        const MultiFab* totals = ts ? two_stream_rad.hydrology_totals(lev) : nullptr;
+        const struct { const char* name; const MultiFab* src; int comp; } hydro_vars[] = {
+            {"seb_t_deep",         ts ? two_stream_rad.seb_t_deep(lev) : nullptr, 0},
+            {"seb_q_deep",         ts ? two_stream_rad.seb_q_deep(lev) : nullptr, 0},
+            {"seb_rain_rate",      ts ? two_stream_rad.hydrology_rain_rate(lev) : nullptr, 0},
+            {"seb_rain_total",     totals, ForceRestoreHydrology::Rain},
+            {"seb_runoff_total",   totals, ForceRestoreHydrology::Runoff},
+            {"seb_drainage_total", totals, ForceRestoreHydrology::Drainage},
+            {"seb_deficit_total",  totals, ForceRestoreHydrology::Deficit},
+        };
+        for (const auto& v : hydro_vars) {
+            if (containerHasElement(plot_var_names, v.name)) {
+                plotfile2d::fill_component_from_klevel_or_value(mf_dst, mf_comp, v.src, 0, -999, v.comp);
+                mf_comp++;
+            }
+        }
+    }
+
     if (containerHasElement(plot_var_names, "sens_flux")) {
         plotfile2d::fill_component_from_klevel_or_value(
             mf_dst, mf_comp, sens_flux_source, klo, -999);

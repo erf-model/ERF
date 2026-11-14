@@ -317,6 +317,11 @@ target_sources(${erf_exe_name}
     # beta times the potential rate, beta linear between Noah-MP's wilting point and
     # field capacity for the soil category, so it dries as its water content falls.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBSoilMoisture.cpp
+    # Motivation: the force-restore hydrology must add rain to the surface layer, keep the
+    # column's water budget closed with runoff, drainage and any deficit, and relax the
+    # drainage and the deep temperature exactly over the step (NP89, MN96), and carry the
+    # rain of a step the balance skips into the next.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestForceRestoreHydrology.cpp
     # Motivation: the forcing the two-stream model hands Noah-MP must be the
     # downwelling SW and LW at the surface interface and a zenith cosine floored
     # at zero, copied into the land model's k = 0 plane and nowhere else.
@@ -424,6 +429,7 @@ if(ERF_DIM STREQUAL "3")
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTransport.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMBoundary.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMParticleMixing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMMixingTransport.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMAMRTransfer.cpp)
 endif()
 if(ERF_ENABLE_NETCDF)
@@ -450,6 +456,7 @@ target_sources(${erf_exe_name} PRIVATE
 if(ERF_ENABLE_PARTICLES)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestAnelasticThermodynamics.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestCellVolume.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestSpeciesProjection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityKernel.cpp
@@ -846,6 +853,11 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "-DRUN_ARGS=erf.grid_stretching_ratio=1.1|erf.initial_dz=0.25")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_StaticTerrain
     inputs_boundary_static_terrain nonzero)
+  # A front entering an empty domain binds the limiter, which drains cells to
+  # zero; without its roundoff margin a drained cell rounds below zero.
+  add_sbm_boundary_budget_test(SBM_Boundary_InflowFront_LimiterBinds
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=erf.sbm_fixture_initial_state=0 0 0 0|max_step=8")
   # The qualification build's executable accepts only its own two-level decks.
   if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
     add_sbm_boundary_budget_test(SBM_Boundary_AMR_Outflow_Compressible
@@ -890,10 +902,6 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     inputs_boundary_inflow_outflow
     "SBM physical boundary zlo is not supported: ERF does not hold the normal dry-air carrier"
     "-DOVERRIDE=zlo.type=Symmetry zhi.type=Symmetry")
-  add_sbm_expected_failure_test(SBM_Boundary_Reject_SurfaceLayer
-    inputs_boundary_inflow_outflow
-    "SBM physical boundary zlo is not supported: a surface_layer boundary"
-    "-DOVERRIDE=zlo.type=surface_layer")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_BoundaryPlanes
     inputs_boundary_inflow_outflow
     "SBM does not support erf.input_bndry_planes"
@@ -902,6 +910,81 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     inputs_boundary_walls
     "erf.sbm_budget_check requires erf.moisture_model = SBM"
     "-DOVERRIDE=erf.moisture_model=None")
+
+  # Particle mixing: ERF's LES eddy diffusivity, or a constant reference one,
+  # mixes the spectrum through the combined advection-diffusion FCT on a single
+  # level with periodic, wall and surface-layer faces. Walls carry nothing and
+  # every coarse step closes the inventory budget.
+  set(_sbm_mixing_host "-DEXPECTED_STDOUT=SBM particle mixing: particle-mixing=host-passive-scalar-v1")
+  set(_sbm_mixing_constant
+    "erf.les_type=None|erf.sbm_particle_mixing=ConstantReference|erf.sbm_particle_mixing_kh=2.e-2|erf.sbm_particle_mixing_kv=1.e-2")
+  add_sbm_boundary_budget_test(SBM_Mixing_Walls_Smagorinsky inputs_mixing_walls zero
+    ${_sbm_mixing_host})
+  add_sbm_boundary_budget_test(SBM_Mixing_Walls_Deardorff inputs_mixing_walls zero
+    ${_sbm_mixing_host} "-DRUN_ARGS=erf.les_type=Deardorff|erf.tke_min=1.e-2")
+  add_sbm_boundary_budget_test(SBM_Mixing_Walls_NoSlipAnelasticMidPoint inputs_mixing_walls zero
+    ${_sbm_mixing_host}
+    "-DRUN_ARGS=zlo.type=NoSlipWall|zhi.type=NoSlipWall|erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
+  add_sbm_boundary_budget_test(SBM_Mixing_SurfaceLayer_Smagorinsky inputs_mixing_walls zero
+    ${_sbm_mixing_host} "-DRUN_ARGS=zlo.type=surface_layer|erf.most.z0=0.01")
+  add_sbm_boundary_budget_test(SBM_Mixing_Stretched_ConstantReference inputs_mixing_walls zero
+    "-DEXPECTED_STDOUT=SBM particle mixing: particle-mixing=constant-reference-v1"
+    "-DRUN_ARGS=${_sbm_mixing_constant}|erf.grid_stretching_ratio=1.1|erf.initial_dz=0.08")
+  add_sbm_boundary_budget_test(SBM_Mixing_Walls_2M inputs_mixing_walls zero
+    ${_sbm_mixing_host}
+    "-DRUN_ARGS=${_sbm_boundary_2m}|erf.sbm_fixture_initial_state_xhi=3.0e-6 1.2e-5 9.0e-6 2.4e-5 2.0e12 4.0e12 1.5e12 2.0e12")
+  # An empty half carried by the flow binds the limiter with mixing active.
+  add_sbm_boundary_budget_test(SBM_Mixing_EmptyHalf_LimiterBinds inputs_mixing_walls zero
+    ${_sbm_mixing_host} "-DRUN_ARGS=erf.sbm_fixture_initial_state_xhi=0 0 0 0|prob.U_0=0.5|max_step=8")
+  # Adaptive steps: the lagged eddy estimate, and a reference diffusivity whose
+  # combined limit (6.9e-5 s) is below the acoustic one (1.2e-4 s).
+  add_sbm_boundary_budget_test(SBM_Mixing_Adaptive_Smagorinsky inputs_mixing_walls zero
+    ${_sbm_mixing_host} "-DRUN_ARGS=erf.fixed_dt=-1|erf.cfl=0.8|max_step=6")
+  set(_sbm_mixing_constant_adaptive
+    "erf.fixed_dt=-1|erf.cfl=0.8|erf.les_type=None|erf.sbm_particle_mixing=ConstantReference|erf.sbm_particle_mixing_kh=40|erf.sbm_particle_mixing_kv=40")
+  add_sbm_boundary_budget_test(SBM_Mixing_Adaptive_ConstantReference_DiffusionBound
+    inputs_mixing_walls zero "-DRUN_ARGS=${_sbm_mixing_constant_adaptive}|max_step=6")
+
+  add_sbm_expected_failure_test(SBM_Mixing_Reject_PBL inputs_mixing_walls
+    "SBM does not support a PBL closure .erf.pbl_type = MYNN25 .level 0.."
+    "-DOVERRIDE=erf.les_type=None erf.sbm_particle_mixing=None erf.pbl_type=MYNN25 zlo.type=surface_layer")
+  add_sbm_expected_failure_test(SBM_Mixing_Reject_Smagorinsky2D inputs_mixing_walls
+    "SBM particle mixing HostPassiveScalar does not support erf.les_type = Smagorinsky2D"
+    "-DOVERRIDE=erf.les_type=Smagorinsky2D")
+  add_sbm_expected_failure_test(SBM_Mixing_Reject_LESWithoutMixing inputs_mixing_walls
+    "SBM particle mixing None does not mix the spectrum with ERF's LES closure"
+    "-DOVERRIDE=erf.sbm_particle_mixing=None")
+  add_sbm_expected_failure_test(SBM_Mixing_Reject_LESWithConstantReference inputs_mixing_walls
+    "SBM particle mixing ConstantReference does not mix the spectrum with ERF's LES closure"
+    "-DOVERRIDE=erf.sbm_particle_mixing=ConstantReference erf.sbm_particle_mixing_kh=1.e-2")
+  add_sbm_expected_failure_test(SBM_Mixing_Reject_UnknownPolicy inputs_mixing_walls
+    "erf.sbm_particle_mixing must be None, ConstantReference or HostPassiveScalar, not 'Eddy'"
+    "-DOVERRIDE=erf.sbm_particle_mixing=Eddy")
+  add_sbm_expected_failure_test(SBM_Mixing_Reject_HostWithReference inputs_mixing_walls
+    "reference diffusivities apply only to ConstantReference, not HostPassiveScalar"
+    "-DOVERRIDE=erf.sbm_particle_mixing_kv=1.e-2")
+  add_sbm_expected_failure_test(SBM_Mixing_Reject_NegativeReference inputs_mixing_walls
+    "ConstantReference diffusivities must be finite and nonnegative"
+    "-DOVERRIDE=erf.les_type=None erf.sbm_particle_mixing=ConstantReference erf.sbm_particle_mixing_kh=-1.e-2")
+  add_sbm_expected_failure_test(SBM_Mixing_Reject_StaticTerrain inputs_periodic_static_terrain
+    "SBM particle mixing has no qualified monotone low-order operator on a terrain-fitted"
+    "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
+  # The qualification build's executable accepts only its own two-level decks.
+  if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
+    add_sbm_expected_failure_test(SBM_Mixing_Reject_AMR inputs_amr_production_2level
+      "SBM particle mixing HostPassiveScalar is not yet qualified with AMR"
+      "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
+  endif()
+  add_sbm_expected_failure_test(SBM_Mixing_Reject_InflowOutflow inputs_boundary_inflow_outflow
+    "SBM particle mixing HostPassiveScalar is qualified with periodic and wall faces only, not the"
+    "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
+  add_sbm_expected_failure_test(SBM_Mixing_Stage_Combined_CFL inputs_mixing_walls
+    "SBM combined advection-diffusion outgoing-demand condition failed"
+    "-DOVERRIDE=erf.sbm_test_donor_cfl_fault=true")
+  # dx = 1/8 and K = 100 m^2/s: the diffusive outflow alone allows about 2.6e-5 s
+  add_sbm_expected_failure_test(SBM_Mixing_Fixed_Unsafe_DT inputs_mixing_walls
+    "SBM fixed timestep exceeds the combined advection-diffusion positivity limit"
+    "-DOVERRIDE=erf.les_type=None erf.sbm_particle_mixing=ConstantReference erf.sbm_particle_mixing_kh=100 erf.sbm_particle_mixing_kv=100")
 
   add_test(NAME SBM_M3_Stretched_Static_Mesh
     COMMAND ${CMAKE_COMMAND}
@@ -1035,6 +1118,44 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       add_sbm_boundary_restart_test(SBM_Boundary_AMR_Restart_Equivalence_AnelasticMidPoint
         inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2 -DANELASTIC=MidPoint)
     endif()
+
+    # A restart reproduces the uninterrupted run bitwise, and a restart under
+    # another mixing policy is a different schema. Only ConstantReference has a
+    # clean reference without mixing (the same flow), so only it checks that
+    # mixing changes the spectrum; turning LES off would also change the flow.
+    function(add_sbm_particle_mixing_test test_name)
+      add_test(NAME ${test_name}
+        COMMAND ${CMAKE_COMMAND}
+          -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+          -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+          -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_mixing_walls
+          -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+          -DFINAL_STEP=4
+          ${ARGN}
+          -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunParticleMixing.cmake)
+      set_tests_properties(${test_name} PROPERTIES
+        LABELS "integration;sbm"
+        RUN_SERIAL TRUE
+        TIMEOUT 300)
+    endfunction()
+    add_sbm_particle_mixing_test(SBM_Mixing_Smagorinsky_Restart
+      -DRESTART_STEP=2
+      "-DMISMATCH_ARGS=erf.les_type=None|erf.sbm_particle_mixing=None")
+    # At rest Deardorff's eddy diffusivity comes from tke_min alone and the flow
+    # stays at rest, so the run without LES differs from it only by the mixing.
+    add_sbm_particle_mixing_test(SBM_Mixing_Deardorff_AtRest_Effect_Restart
+      "-DRUN_ARGS=erf.les_type=Deardorff|erf.tke_min=1.e-2|prob.test_flow_amp=0"
+      "-DREFERENCE_ARGS=erf.les_type=None|erf.sbm_particle_mixing=None"
+      -DRESTART_STEP=2)
+    add_sbm_particle_mixing_test(SBM_Mixing_ConstantReference_Effect_Restart
+      "-DRUN_ARGS=${_sbm_mixing_constant}"
+      "-DREFERENCE_ARGS=erf.sbm_particle_mixing=None|erf.sbm_particle_mixing_kh=0|erf.sbm_particle_mixing_kv=0"
+      -DRESTART_STEP=2
+      "-DMISMATCH_ARGS=erf.sbm_particle_mixing_kh=3.e-2")
+    # Reference coefficients need no restart cap, so an adaptive restart is bitwise.
+    add_sbm_particle_mixing_test(SBM_Mixing_ConstantReference_Adaptive_Restart
+      "-DRUN_ARGS=${_sbm_mixing_constant_adaptive}"
+      -DRESTART_STEP=2)
   endif()
 
   foreach(_mode IN ITEMS 1m 2m)
@@ -1234,6 +1355,8 @@ if(ERF_ENABLE_MPI)
     # The coefficient check and the rate maximum reduce over the ranks: check them across ranks
     target_sources(${erf_parallel_exe_name} PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMParticleMixing.cpp
+      # Mixing reads neighbours across box and rank boundaries in every stage
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMMixingTransport.cpp
     )
   endif()
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)

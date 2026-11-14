@@ -26,6 +26,7 @@ void SuperDropletsMoist::Define (SolverChoice& a_sc)
     m_Cp = a_sc.c_p;
     m_rdOcp = a_sc.rdOcp;
     m_compressibility_type = a_sc.compressibility_type;
+    m_variable_dz = (a_sc.mesh_type != MeshType::ConstantDz);
 }
 
 /*! \brief Read model configuration parameters from input file
@@ -210,6 +211,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
                                             m_aerosols,
                                             m_dt,
                                             m_name );
+    m_super_droplets->setVariableDz(m_variable_dz);
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
@@ -320,7 +322,7 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
                 MultiFab::Copy(rho_c, qc, 0, 0, 1, qc.nGrowVect());
                 SetCurrentLevel(k);
                 ratioToDensity(rho_c);
-                m_super_droplets->SetAttributes(rho_c, k);
+                m_super_droplets->SetAttributes(rho_c, *a_z_phys_nd[k], k);
             }
         }
         SetCurrentLevel(lev);
@@ -401,7 +403,7 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
     }
 
     if (lev == 0) {
-        m_super_droplets->Diagnostics(-1, lev, zero, (m_diagnostics_iter>0));
+        m_super_droplets->Diagnostics(-1, lev, zero, (m_diagnostics_iter>0), *a_z_phys_nd[lev]);
     }
 
     return;

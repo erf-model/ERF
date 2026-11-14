@@ -504,6 +504,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         amrex::Real m_Cp; /*!< specific heat at constant pressure for dry air */
         amrex::Real m_rdOcp;
         amrex::Vector<CompressibilityType> m_compressibility_type;
+        bool m_variable_dz = false; /*!< cells differ in physical thickness (stretched or terrain-fitted mesh) */
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
         amrex::Real m_rime_ratio; /*!< rime mass ratio to be considered graupel */
 

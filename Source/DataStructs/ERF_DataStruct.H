@@ -845,6 +845,10 @@ struct SolverChoice {
             pp.queryarr("sbm_edges", sbm_edges);
             pp.queryarr("sbm_pivots", sbm_pivots);
             pp.queryarr("sbm_fixture_initial_state", sbm_fixture_initial_state);
+            pp.queryarr("sbm_fixture_initial_state_xhi", sbm_fixture_initial_state_xhi);
+            pp.queryAdd("sbm_particle_mixing", sbm_particle_mixing);
+            pp.queryAdd("sbm_particle_mixing_kh", sbm_particle_mixing_kh);
+            pp.queryAdd("sbm_particle_mixing_kv", sbm_particle_mixing_kv);
 
             if (sbm_nbins < 2 || (sbm_moment_mode != 1 && sbm_moment_mode != 2)) {
                 amrex::Error("SBM requires sbm_nbins >= 2 and sbm_moment_mode equal to 1 or 2");
@@ -893,6 +897,16 @@ struct SolverChoice {
             for (const amrex::Real value : sbm_fixture_initial_state) {
                 if (!std::isfinite(value) || value < amrex::Real(0.0)) {
                     amrex::Error("sbm_fixture_initial_state values must be finite and nonnegative");
+                }
+            }
+            if (!sbm_fixture_initial_state_xhi.empty() &&
+                sbm_fixture_initial_state_xhi.size() != sbm_fixture_initial_state.size()) {
+                amrex::Error("sbm_fixture_initial_state_xhi must have as many values as "
+                             "sbm_fixture_initial_state");
+            }
+            for (const amrex::Real value : sbm_fixture_initial_state_xhi) {
+                if (!std::isfinite(value) || value < amrex::Real(0.0)) {
+                    amrex::Error("sbm_fixture_initial_state_xhi values must be finite and nonnegative");
                 }
             }
         }
@@ -3256,6 +3270,11 @@ struct SolverChoice {
     amrex::Vector<amrex::Real> sbm_edges;
     amrex::Vector<amrex::Real> sbm_pivots;
     amrex::Vector<amrex::Real> sbm_fixture_initial_state;
+    // The fixture state of cells whose centre lies in the upper half of the x domain
+    amrex::Vector<amrex::Real> sbm_fixture_initial_state_xhi;
+    std::string sbm_particle_mixing{"None"};
+    amrex::Real sbm_particle_mixing_kh{0};
+    amrex::Real sbm_particle_mixing_kv{0};
     WindFarmType windfarm_type;
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
