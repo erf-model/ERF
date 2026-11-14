@@ -50,6 +50,7 @@ ForceRestoreHydrology::define_level (int lev, const RadChoice& rc, const BoxArra
                                      const DistributionMapping& dm, const IntVect& ng)
 {
     if (!rc.seb_hydrology_enabled()) { return; }
+    m_phase = rc.seb_snow_enable ? SurfacePrecipPhase::Liquid : SurfacePrecipPhase::Total;
     m_accum_start[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
     m_rain_rate[lev]   = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
     m_totals[lev]      = std::make_unique<MultiFab>(ba2d, dm, NumTotals, ng);
@@ -65,7 +66,7 @@ void
 ForceRestoreHydrology::begin_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo)
 {
     if (!defined(lev)) { return; }
-    if (m_unused[lev] == 0) { surface_precip_accum_k0(*m_accum_start[lev], sources, klo); }
+    if (m_unused[lev] == 0) { surface_precip_accum_k0(*m_accum_start[lev], sources, klo, m_phase); }
     m_started[lev] = 1;
 }
 
@@ -76,7 +77,7 @@ ForceRestoreHydrology::end_step (int lev, const SurfacePrecipAccumulationSources
     if (!defined(lev)) { return; }
     if (m_started[lev] == 0) { m_rain_rate[lev]->setVal(0.0); return; }
     MultiFab accum_end(m_accum_start[lev]->boxArray(), m_accum_start[lev]->DistributionMap(), 1, 0);
-    surface_precip_accum_k0(accum_end, sources, klo);
+    surface_precip_accum_k0(accum_end, sources, klo, m_phase);
     // The time since the stored start: this step, plus any step whose rain step() did not use.
     m_elapsed[lev] += dt;
     const Real elapsed = m_elapsed[lev];
@@ -98,7 +99,8 @@ ForceRestoreHydrology::StepSums
 ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
                              MultiFab& q_deep, MultiFab& t_deep,
                              const MultiFab& lh, const MultiFab* footprint,
-                             Real dt, const ForceRestoreHydrologyParams& prm)
+                             Real dt, const ForceRestoreHydrologyParams& prm,
+                             const MultiFab* snow_water)
 {
     StepSums sums;
     if (!defined(lev)) { return sums; }
@@ -124,6 +126,8 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
         Array4<Real>       tot = m_totals[lev]->array(mfi);
         const bool has_foot = footprint != nullptr;
         Array4<const Real> foot = has_foot ? footprint->const_array(mfi) : Array4<const Real>{};
+        const bool has_snow = snow_water != nullptr;
+        Array4<const Real> sw = has_snow ? snow_water->const_array(mfi) : Array4<const Real>{};
 
         reduce_op.eval(bx, reduce_data,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> ReduceTuple
@@ -138,12 +142,16 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
 
             const Real qd_old = qd(i, j, k);
             Real qs_c = qs(i, j, k), qd_c = qd_old, td_c = td(i, j, k);
+            // The snow layer's water (melt, and the sublimation the balance took from the
+            // soil) enters as rain does; the Rain total keeps the rain alone.
+            const Real p_rain = p;
+            if (has_snow && prm.rain) { p += sw(i, j, k) / dt; }
             const ForceRestoreHydrologyFluxes f =
                 force_restore_hydrology_step(qs_c, qd_c, td_c, ts(i, j, k), p, e, dt, prm);
             qs(i, j, k) = qs_c;
             if (prm.deep) { qd(i, j, k) = qd_c; td(i, j, k) = td_c; }
 
-            tot(i, j, k, Rain)     += p * dt;
+            tot(i, j, k, Rain)     += p_rain * dt;
             tot(i, j, k, Runoff)   += f.runoff;
             tot(i, j, k, Drainage) += f.drainage;
             tot(i, j, k, Deficit)  += f.deficit;
@@ -154,7 +162,7 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
                 residual = amrex::Math::abs(rhor * prm.d_2 * (qd_c - qd_old)
                                             - ((p - e) * dt - f.drainage - f.runoff + f.deficit));
             }
-            return {p * dt, e * dt, f.runoff, f.drainage, f.deficit, residual, Long(1)};
+            return {p_rain * dt, e * dt, f.runoff, f.drainage, f.deficit, residual, Long(1)};
         });
     }
 

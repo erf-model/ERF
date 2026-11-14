@@ -41,7 +41,8 @@ struct ForceRestoreSoil
  * Owned by TwoStreamRadiation, which keeps the force-restore state itself (q_s, q_deep,
  * T_deep). Per level, and per step:
  *  - begin_step(...) at the start of ERF::Advance, before the dycore and microphysics,
- *    stores the surface precipitation accumulation of every column;
+ *    stores the surface precipitation accumulation of every column (the total; with
+ *    erf.radiation.seb_snow_enable the rain alone);
  *  - end_step(...) after microphysics turns its change over the step into the rain rate;
  *  - step(...) at the force-restore update after the dycore applies one hydrology step
  *    to every open column and adds to the running totals.
@@ -109,12 +110,16 @@ public:
      * @param footprint building footprints, or nullptr
      * @param dt        the step [s]
      * @param prm       params(rc)
+     * @param snow_water water the snow layer hands the soil this step [kg/m^2], or nullptr
+     *                  (ERF_ForceRestoreSnowState.H): it enters as rain does, and is not
+     *                  part of the Rain total
      * @return the step's domain sums, reduced over ranks
      */
     StepSums step (int lev, const amrex::MultiFab& t_s, amrex::MultiFab& q_s,
                    amrex::MultiFab& q_deep, amrex::MultiFab& t_deep,
                    const amrex::MultiFab& lh, const amrex::MultiFab* footprint,
-                   amrex::Real dt, const ForceRestoreHydrologyParams& prm);
+                   amrex::Real dt, const ForceRestoreHydrologyParams& prm,
+                   const amrex::MultiFab* snow_water = nullptr);
 
     /** @brief The rain rate of the last step [kg/m^2/s], or nullptr. Read-only. */
     [[nodiscard]] const amrex::MultiFab* rain_rate (int lev) const noexcept {
@@ -137,6 +142,9 @@ private:
     amrex::Vector<int> m_started;                                   ///< begin_step ran this step
     amrex::Vector<int> m_unused;                                    ///< end_step's rain not yet used by step()
     amrex::Vector<amrex::Real> m_elapsed;                           ///< time since m_accum_start [s]
+    /// What the accumulation holds: the total, or with seb_snow_enable the rain alone (the
+    /// snow layer takes the frozen part).
+    SurfacePrecipPhase m_phase = SurfacePrecipPhase::Total;
 };
 
 #endif // ERF_FORCE_RESTORE_HYDROLOGY_STATE_H_

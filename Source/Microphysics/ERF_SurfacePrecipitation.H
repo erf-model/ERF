@@ -77,6 +77,9 @@ bool surface_precip_has_any_frozen_source (const SurfacePrecipAccumulationSource
     return surface_precip_has_any_source(src);
 }
 
+/// Which part of the surface precipitation surface_precip_accum_k0 returns.
+enum class SurfacePrecipPhase { Total, Liquid, Frozen };
+
 /**
  * @brief Total liquid-water-equivalent surface precipitation accumulation [kg/m2]
  *        of every column, from the scheme-native accumulators.
@@ -92,10 +95,18 @@ bool surface_precip_has_any_frozen_source (const SurfacePrecipAccumulationSource
  * accumulator is read outside its box. Used by the fire layer's
  * fuel moisture (ERF_FirePrecip.H) and the force-restore hydrology
  * (ERF_ForceRestoreHydrology.H).
+ *
+ * With phase = Frozen the field is the frozen part, snow + graupel + hail
+ * (zero for a scheme without those accumulators). With phase = Liquid it is
+ * the rest: the total minus the frozen part, not below zero, or without a
+ * total the rain accumulator. Frozen plus Liquid is then the Total field for
+ * every scheme, including one whose total holds more than its species
+ * (Morrison's also counts the cloud water and cloud ice that fell out).
  */
 inline void surface_precip_accum_k0 (amrex::MultiFab& accum_2d,
                                      const SurfacePrecipAccumulationSources& sources,
-                                     int klo)
+                                     int klo,
+                                     SurfacePrecipPhase phase = SurfacePrecipPhase::Total)
 {
     using namespace amrex;
     accum_2d.setVal(Real(0.0));
@@ -134,7 +145,19 @@ inline void surface_precip_accum_k0 (amrex::MultiFab& accum_2d,
         {
             const int i = iv[0], j = iv[1];
             Real v;
-            if (has_total) {
+            if (phase != SurfacePrecipPhase::Total) {
+                Real frozen = Real(0.0);
+                if (has_snow)    { frozen += snow(i, j, klo)    * f_snow; }
+                if (has_graupel) { frozen += graupel(i, j, klo) * f_graupel; }
+                if (has_hail)    { frozen += hail(i, j, klo)    * f_hail; }
+                if (phase == SurfacePrecipPhase::Frozen) {
+                    v = frozen;
+                } else if (has_total) {
+                    v = amrex::max(Real(0.0), total(i, j, klo) * f_total - frozen);
+                } else {
+                    v = has_rain ? rain(i, j, klo) * f_rain : Real(0.0);
+                }
+            } else if (has_total) {
                 v = total(i, j, klo) * f_total;
             } else {
                 v = Real(0.0);

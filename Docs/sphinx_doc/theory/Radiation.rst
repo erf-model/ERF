@@ -794,6 +794,134 @@ References: Deardorff, J. W., 1978, J. Geophys. Res., 83, 1889-1903; Noilhan, J.
 1989, Mon. Wea. Rev., 117, 536-549; Mahfouf, J.-F. and J. Noilhan, 1996, J. Appl. Meteor., 35,
 987-992.
 
+.. _sec:TwoStreamForceRestoreSnow:
+
+Force-Restore Snow
+------------------
+
+``erf.radiation.seb_snow_enable`` puts one bulk snow layer on the force-restore surface
+(``ERF_ForceRestoreSnow.H``). It needs ``seb_prognostic_enable``, ``seb_use_radiation_fluxes``,
+``seb_precipitation_source = microphysics``, no ``surface_albedo_sw_diffuse``, no
+``seb_vegetation_type`` and ``seb_prognostic_t_min_k`` at or below 273.16; the run stops at
+start-up otherwise. It is the snow routine of the ISBA scheme as Douville, Royer and
+Mahfouf (1995, DRM95) describe it in their Sec. 2.1, for bare ground (vegetation fraction 0).
+The default is off, and the results are then unchanged. The state is the snow water equivalent
+:math:`W_n` [kg m\ :sup:`-2`]; 1 kg m\ :sup:`-2` of water is 1 mm.
+
+**Mass** (DRM95 Eq. 6):
+
+.. math::
+
+   \frac{dW_n}{dt} = P_n - E_n - F_n,
+
+where :math:`P_n` is the frozen precipitation, :math:`E_n` the sublimation and :math:`F_n` the
+melt, all in kg m\ :sup:`-2` s\ :sup:`-1`. :math:`P_n` is the change over the step of the
+microphysics scheme's snow, graupel and hail accumulations at the surface. With the snow layer
+on, the hydrology's rain :math:`P` is the rest: the scheme's total minus the frozen part (the
+rain accumulation for a scheme without a total), so the two always add up to what the
+hydrology takes without the snow layer. A scheme without those accumulations (Kessler,
+SAM without ice) has no frozen part: snow then comes only from
+``seb_snow_initial_swe_kg_m2``, and the run prints a note saying so.
+
+**Cover fraction** (DRM95 Eq. 7):
+
+.. math::
+
+   p_{ng} = \frac{W_n}{W_n + W_{crn}},
+
+with :math:`W_{crn}` = ``seb_snow_critical_swe_kg_m2`` (10 kg m\ :sup:`-2` in DRM95).
+
+**Albedo** (DRM95 Eq. 8 with no vegetation):
+
+.. math::
+
+   \alpha_t = (1 - p_{ng})\,\alpha_g + p_{ng}\,\alpha_n,
+
+where :math:`\alpha_g` is the snow-free albedo (``surface_albedo_sw``) and :math:`\alpha_n` =
+``seb_snow_albedo`` (0.70 in DRM95, constant). The column sweep uses :math:`\alpha_t` for the
+direct and the diffuse beam, so ``surface_albedo_sw_diffuse`` cannot be given with the snow
+layer. The albedo acts on the balance through the sweep's surface fluxes, so the snow layer
+needs ``seb_use_radiation_fluxes``.
+
+**Sublimation.** DRM95 states that :math:`p_{ng}` divides the surface evaporation between the
+soil and the snow and gives no equation. Here :math:`E_n = p_{ng} E` for an upward
+:math:`E = \text{LE}/L_v`, at most the snow present. A downward flux (dew, frost) stays with
+the soil.
+
+**Melt** (DRM95 Eq. 12). The balance above gives a first estimate :math:`T_s^*`. Where snow
+lies and :math:`T_s^* > T_{00} = 273.16` K,
+
+.. math::
+
+   F_n\,\Delta t = \min\!\left(\frac{C_s\,(T_s^* - T_{00})}{L_f},\; W_n'\right),
+   \qquad
+   T_s = T_s^* - \frac{L_f\,F_n\,\Delta t}{C_s},
+
+where :math:`C_s` = ``seb_surface_heat_capacity`` [J m\ :sup:`-2` K\ :sup:`-1`] is the inverse
+of the coefficient :math:`C_t` of DRM95, :math:`L_f = 3.337 \times 10^5` J kg\ :sup:`-1` is
+the latent heat of fusion and :math:`W_n'` is the snow after this step's snowfall and
+sublimation.
+
+**What this does:** the surface stays at :math:`T_{00}` while snow remains, and rises above it
+only after the last snow has melted (DRM95 Sec. 2.1).
+
+**Order of the step.** The snow step runs after the balance and before the hydrology step, on
+every column outside a building footprint: snowfall, then sublimation with :math:`p_{ng}` of
+the step's start, then melt. The albedo the radiation uses in a step is that of :math:`W_n`
+at the end of the previous step. The balance has already taken the whole evaporation from the
+soil, so the snow step returns :math:`(E_n + F_n)\,\Delta t` to the hydrology step, which adds
+it to the surface layer and the column with the rain. The soil's net loss is then
+:math:`E - E_n`, and the melt water wets the soil or runs off. One exception: where the
+balance held :math:`q_s` at its lower bound, the soil did not supply the evaporation, and the
+returned :math:`E_n\,\Delta t` then adds to the surface layer; the column budget still closes
+with ``seb_deep_prognostic_enable``.
+
+**What is conserved:** each column satisfies, to round-off,
+
+.. math::
+
+   W_n^{n+1} - W_n^n = (P_n - E_n - F_n)\,\Delta t .
+
+The snow water equivalent and the running totals of snowfall, sublimation and melt
+[kg m\ :sup:`-2`] are checkpointed (a restart takes them from the checkpoint, not from
+``seb_snow_initial_swe_kg_m2``) and written to the 2D plotfile (``seb_snow_swe``,
+``seb_snowfall_total``, ``seb_snow_sublimation_total``, ``seb_snow_melt_total``). They are
+filled from the coarse level on a new level and averaged down. With ``erf.radiation.v >= 2``
+each step logs the column means and the largest column residual. ``seb_rain_total`` counts the
+rain only; the water the snow returned is ``seb_snow_melt_total`` plus
+``seb_snow_sublimation_total``, and the column water budget above holds with that water added
+to the rain.
+
+**Limits.** This is the simple ISBA routine, not the new scheme of DRM95 Sec. 2.2:
+
+- the snow has no density, depth, heat capacity or thermal conductivity of its own, and its
+  albedo does not age;
+- the latent heat flux uses :math:`L_v` over snow, so the heat :math:`L_f E_n` is not taken
+  from the surface (1.7 W m\ :sup:`-2` for :math:`E` = 10\ :sup:`-5` kg m\ :sup:`-2`
+  s\ :sup:`-1` and :math:`p_{ng}` = 0.5; 30 W m\ :sup:`-2` for 10\ :sup:`-4` and 0.9);
+- :math:`E` is the balance's evaporation, so it carries the soil's moisture availability:
+  snow over a soil at or below wilting does not sublimate;
+- a downward :math:`E` (dew, frost) goes to the soil, also under full cover;
+- the surface roughness and the longwave emissivity are unchanged by snow (DRM95 Eqs. 9-10
+  are not used);
+- the soil does not freeze, so melt water that enters a soil below freezing stays liquid;
+- no vegetation: ``seb_vegetation_type`` stops the run at start-up with the snow layer;
+- a land-surface model (SLM, Noah-MP) owns the surface and stops the run with the snow layer;
+- no snow lies on a building footprint: the first step takes the initial cover off there.
+  The building faces (IBSEB) see the snow only through the ground albedo they are handed;
+- snowfall of a step in which the balance did not run (the first step of a new level) is
+  carried to the next step, and is lost if a regrid or a restart comes between the two, as
+  the hydrology's rain is;
+- in single precision, a change of :math:`W_n` in one step below the resolution of a deep
+  pack (about 3 x 10\ :sup:`-5` kg m\ :sup:`-2` at 500 kg m\ :sup:`-2`) is not taken. Melt
+  heat then stays in :math:`T_s` until it is large enough; snowfall that small is dropped.
+
+The lower bound ``seb_prognostic_t_min_k`` of the balance must be at or below 273.16 K with the
+snow layer, or the run stops at start-up: a higher bound would hold a snow-covered surface
+above the melting point.
+
+Reference: Douville, H., J.-F. Royer and J.-F. Mahfouf, 1995, Climate Dynamics, 12, 21-35.
+
 External Surface-Temperature Provider Ownership
 -------------------------------------------------
 
