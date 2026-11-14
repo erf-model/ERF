@@ -709,6 +709,11 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     }
 #endif
 
+    // Microphysics diagnostics once every level has reached the end of the step
+    if (solverChoice.moisture_type != MoistureType::None) {
+        micro->Diagnostics(nstep + 1, static_cast<Real>(time), z_phys_nd, file_name_digits);
+    }
+
     if (solverChoice.coupling_type == CouplingType::TwoWay)
     {
         int ncomp = vars_new[0][Vars::cons].nComp();
@@ -2214,8 +2219,7 @@ ERF::InitData_post ()
                 const amrex::MultiFab* base = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible ? &base_state[lev] : nullptr;
                 micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             }
-            micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd,
-                              istep[lev], static_cast<Real>(t_new[lev]));
+            micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
         }
 
         // Lagrangian microphysics with AMR (TwoWay): the per-level init above
@@ -2317,6 +2321,11 @@ ERF::InitData_post ()
         }
     }
 #endif
+
+    // Microphysics diagnostics of the initial state, once every level is initialized
+    if (solverChoice.moisture_type != MoistureType::None) {
+        micro->Diagnostics(istep[0], static_cast<Real>(t_new[0]), z_phys_nd, file_name_digits);
+    }
 
     // Print max values of lateral gradients of base state pressure at level 0
     if (verbose > 0) {

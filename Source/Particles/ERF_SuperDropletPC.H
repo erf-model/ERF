@@ -329,18 +329,18 @@ class SuperDropletPC : public ERFPC
         /*! \brief Return the number of deactivated super-droplets */
         [[nodiscard]] virtual amrex::Long NumSDDeactivated ();
 
-        /*! \brief Compute and print diagnostics of the state at a step and time (step, level, time, write files, node heights) */
-        virtual void Diagnostics (int, int, double, bool, const amrex::MultiFab& a_z_phys_nd);
+        /*! \brief Compute and print diagnostics of the state at a step and time (step, level, time, write files, node heights, file name digits) */
+        virtual void Diagnostics (int, int, double, bool, const amrex::MultiFab& a_z_phys_nd, int);
         /*! \brief Compute mass density distribution */
         virtual void ComputeDistributions (  int, int,
                                              amrex::ParticleReal,
                                              amrex::ParticleReal,
-                                             const amrex::MultiFab& a_z_phys_nd );
+                                             const amrex::MultiFab& a_z_phys_nd, int );
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         /*! \brief Compute binned size distributions */
-        virtual void ComputeBinnedDistributions ( int, int, const amrex::MultiFab& a_z_phys_nd );
+        virtual void ComputeBinnedDistributions ( int, int, const amrex::MultiFab& a_z_phys_nd, int );
         /*! \brief Compute cell-wise binned size distributions */
-        virtual void ComputeBinnedDistributionsCell ( int, int, amrex::Real, const amrex::MultiFab& a_z_phys_nd );
+        virtual void ComputeBinnedDistributionsCell ( int, int, amrex::Real, const amrex::MultiFab& a_z_phys_nd, int );
 #endif
 
         /*! \brief Mean physical volume of the cells of level a_lev */

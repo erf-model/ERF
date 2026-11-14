@@ -96,7 +96,8 @@ jobs:
         restore-keys: |
              ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-${{ matrix.particles }}-git-
 
-    # The SINGLE leg also builds the SDM ML-uphys diagnostics; it runs no gold-file tests.
+    # The SINGLE leg also builds the SDM ML-uphys diagnostics; it runs no gold-file tests,
+    # only the focused SINGLE steps below.
     - name: Configure Project and Generate Build System
       run: |
         cmake \
@@ -204,6 +205,13 @@ jobs:
         ctest -R '^(SBMRemapping|SBMFoundation)\.' -j 4 \
               --output-on-failure \
               --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    # The SDM diagnostics restart check, in the leg that builds the ML-uphys diagnostics.
+    - name: Run SINGLE SDM Diagnostics Test
+      if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
+      run: |
+        ctest -R '^SDM_DiagnosticsRestart$' --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
     # One step of a deck with buildings, for its EB build in single precision (#5006).

@@ -37,12 +37,10 @@ public:
                        std::unique_ptr<amrex::MultiFab>&,
                        std::unique_ptr<amrex::MultiFab>&) = 0;
 
-    /*! \brief finish initializations steps that require flow variables (level, state, terrain, step, time) */
+    /*! \brief finish initializations steps that require flow variables */
     virtual void FinishInit (const int&,
                              amrex::MultiFab&,
-                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,
-                             const int&,
-                             const amrex::Real&) = 0;
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) = 0;
 
     /*! \brief advance microphysics for one time step */
     virtual void Advance (const int&,
@@ -66,6 +64,12 @@ public:
 
     /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
     virtual void AverageDownMicroVars (const int /*finest_level*/) { }
+
+    /*! \brief diagnostics of the state of all levels at a step (step, time, terrain, file name digits) */
+    virtual void Diagnostics (const int& /*step*/,
+                              const amrex::Real& /*time*/,
+                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*z_phys_nd*/,
+                              const int /*file_name_digits*/) { }
 
     /*! \brief get scheme-native surface precipitation accumulators and their kg/m^2 conversion factors */
     virtual SurfacePrecipAccumulationSources

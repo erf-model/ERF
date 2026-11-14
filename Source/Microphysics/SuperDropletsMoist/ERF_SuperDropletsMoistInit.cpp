@@ -304,14 +304,10 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::
  * \param[in] a_lev AMR level
  * \param[in,out] a_cons_vars Conserved variables MultiFab to be updated
  * \param[in] a_z_phys_nd Vector of MultiFabs containing terrain information
- * \param[in] a_step Step of the initial state (nonzero on a restart)
- * \param[in] a_time Time of the initial state
  */
 void SuperDropletsMoist::FinishInit (const int& a_lev,
                                      MultiFab& a_cons_vars,
-                                     const Vector<MFPtr>& a_z_phys_nd,
-                                     const int& a_step,
-                                     const Real& a_time)
+                                     const Vector<MFPtr>& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::FinishInit()");
     const int lev = a_lev;
@@ -404,10 +400,6 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
     // that exchange in the initial conserved state, not just its condensate.
     if (relax && !m_kinematic_mode) {
         Copy_Micro_to_State(a_cons_vars);
-    }
-
-    if (lev == 0) {
-        m_super_droplets->Diagnostics(a_step, lev, a_time, (m_diagnostics_iter>0), *a_z_phys_nd[lev]);
     }
 
     return;

@@ -70,12 +70,10 @@ public:
     /*! \brief finish initializations steps that require flow variables */
     void FinishInit (const int& lev, /*!< AMR level */
                      amrex::MultiFab& cons_in, /*!< Conserved state variable */
-                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd, /*!< terrain */
-                     const int& step, /*!< step of the initial state */
-                     const amrex::Real& time /*!< time of the initial state */) override
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd /*!< terrain */) override
     {
         m_moist_model->SetCurrentLevel(lev);
-        m_moist_model->FinishInit( lev, cons_in, z_phys_nd, step, time );
+        m_moist_model->FinishInit( lev, cons_in, z_phys_nd );
     }
 
     /*! \brief Advance the moisture model for one time step */
@@ -114,6 +112,15 @@ public:
     void AverageDownMicroVars (const int finest_level) override
     {
         m_moist_model->AverageDownMicroVars(finest_level);
+    }
+
+    /*! \brief diagnostics of the state of all levels at a step */
+    void Diagnostics (const int& step, /*!< step of the state */
+                      const amrex::Real& time, /*!< time of the state */
+                      const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd, /*!< terrain */
+                      const int file_name_digits /*!< minimum digits of the step in file names */) override
+    {
+        m_moist_model->Diagnostics(step, time, z_phys_nd, file_name_digits);
     }
 
     void Update_Diagnostic_State_Lev (const int& lev, amrex::MultiFab& cons,
