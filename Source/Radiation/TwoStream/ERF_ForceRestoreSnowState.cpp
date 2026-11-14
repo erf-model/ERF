@@ -12,7 +12,6 @@
 #include <AMReX_iMultiFab.H>
 
 #include <ERF_Constants.H>               // L_v
-#include <ERF_ForceRestoreHydrology.H>   // force_restore_rain_rate
 #include <ERF_RadStruct.H>
 #include <ERF_ReadCheckpointMF.H>
 
@@ -25,6 +24,7 @@ ForceRestoreSnow::params (const RadChoice& rc)
     p.w_crn  = rc.seb_snow_critical_swe_kg_m2;
     p.albedo = rc.seb_snow_albedo;
     p.c_s    = rc.seb_surface_heat_capacity;
+    p.t_max  = rc.seb_prognostic_t_max_k;
     return p;
 }
 
@@ -33,12 +33,7 @@ ForceRestoreSnow::resize (int nlevs_max)
 {
     m_swe.resize(nlevs_max);
     m_totals.resize(nlevs_max);
-    m_accum_start.resize(nlevs_max);
-    m_frozen_rate.resize(nlevs_max);
     m_soil_water.resize(nlevs_max);
-    m_started.resize(nlevs_max, 0);
-    m_unused.resize(nlevs_max, 0);
-    m_elapsed.resize(nlevs_max, 0.0);
 }
 
 void
@@ -48,66 +43,16 @@ ForceRestoreSnow::define_level (int lev, const RadChoice& rc, const BoxArray& ba
     if (!rc.seb_snow_enable) { return; }
     m_swe[lev]         = std::make_unique<MultiFab>(ba2d, dm, 1, ng);
     m_totals[lev]      = std::make_unique<MultiFab>(ba2d, dm, NumTotals, ng);
-    m_accum_start[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
-    m_frozen_rate[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
     m_soil_water[lev]  = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
     m_swe[lev]->setVal(rc.seb_snow_initial_swe_kg_m2);
     m_totals[lev]->setVal(0.0);
-    m_accum_start[lev]->setVal(0.0);
-    m_frozen_rate[lev]->setVal(0.0);
     m_soil_water[lev]->setVal(0.0);
-    m_started[lev] = 0;
-    m_unused[lev] = 0;
-    m_elapsed[lev] = 0.0;
-}
-
-void
-ForceRestoreSnow::begin_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo)
-{
-    if (!defined(lev)) { return; }
-    if (!m_noted_no_frozen &&
-        !(surface_precip_has_source(sources.snow) || surface_precip_has_source(sources.graupel) ||
-          surface_precip_has_source(sources.hail))) {
-        m_noted_no_frozen = true;
-        amrex::Print() << "NOTE: erf.radiation.seb_snow_enable is on, but the microphysics scheme "
-                          "has no snow, graupel or hail accumulation at the surface: no snow will "
-                          "fall, and the snow is that of erf.radiation.seb_snow_initial_swe_kg_m2\n";
-    }
-    if (m_unused[lev] == 0) {
-        surface_precip_accum_k0(*m_accum_start[lev], sources, klo, SurfacePrecipPhase::Frozen);
-    }
-    m_started[lev] = 1;
-}
-
-void
-ForceRestoreSnow::end_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo,
-                            Real dt)
-{
-    if (!defined(lev)) { return; }
-    if (m_started[lev] == 0) { m_frozen_rate[lev]->setVal(0.0); return; }
-    MultiFab accum_end(m_accum_start[lev]->boxArray(), m_accum_start[lev]->DistributionMap(), 1, 0);
-    surface_precip_accum_k0(accum_end, sources, klo, SurfacePrecipPhase::Frozen);
-    // The time since the stored start: this step, plus any step whose snowfall step() did
-    // not use.
-    m_elapsed[lev] += dt;
-    const Real elapsed = m_elapsed[lev];
-    for (MFIter mfi(*m_frozen_rate[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        Array4<Real> r = m_frozen_rate[lev]->array(mfi);
-        Array4<const Real> a0 = m_accum_start[lev]->const_array(mfi);
-        Array4<const Real> a1 = accum_end.const_array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            r(i, j, k) = force_restore_rain_rate(a1(i, j, k), a0(i, j, k), elapsed);
-        });
-    }
-    m_started[lev] = 0;
-    m_unused[lev] = 1;
 }
 
 ForceRestoreSnow::StepSums
 ForceRestoreSnow::step (int lev, MultiFab& t_s, const MultiFab& lh, const MultiFab* footprint,
                         Real dt, const ForceRestoreSnowParams& prm,
+                        const ForceRestorePrecipInput& snowfall,
                         Real& t_s_sum_local, Real& t_s_max_local)
 {
     StepSums sums;
@@ -115,13 +60,15 @@ ForceRestoreSnow::step (int lev, MultiFab& t_s, const MultiFab& lh, const MultiF
     t_s_max_local = std::numeric_limits<Real>::lowest();
     if (!defined(lev)) { return sums; }
 
-    // The rate is a mean over m_elapsed, which exceeds dt when an earlier step's snowfall
-    // was carried: the step takes the whole of it.
-    const Real snow_scale = (m_elapsed[lev] > Real(0.0)) ? m_elapsed[lev] / dt : Real(1.0);
+    // The snowfall of the step: the rate times its scale (ERF_ForceRestorePrecipRate.H).
+    const bool has_snowfall = snowfall.rate != nullptr;
+    const Real snow_scale = snowfall.scale;
+    const int snow_comp = snowfall.comp;
 
+    // The last sum counts the columns the step left in a state the caller refuses.
     ReduceOps<ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpMax, ReduceOpSum,
-              ReduceOpSum, ReduceOpMax> reduce_op;
-    ReduceData<Real, Real, Real, Real, Real, Long, Real, Real> reduce_data(reduce_op);
+              ReduceOpSum, ReduceOpMax, ReduceOpSum> reduce_op;
+    ReduceData<Real, Real, Real, Real, Real, Long, Real, Real, Long> reduce_data(reduce_op);
     using ReduceTuple = typename decltype(reduce_data)::Type;
 
     // Untiled, on the valid boxes: the update is in place.
@@ -132,7 +79,8 @@ ForceRestoreSnow::step (int lev, MultiFab& t_s, const MultiFab& lh, const MultiF
         Array4<Real>       tot = m_totals[lev]->array(mfi);
         Array4<Real>       out = m_soil_water[lev]->array(mfi);
         Array4<const Real> le  = lh.const_array(mfi);
-        Array4<const Real> pn  = m_frozen_rate[lev]->const_array(mfi);
+        Array4<const Real> pn  = has_snowfall ? snowfall.rate->const_array(mfi)
+                                              : Array4<const Real>{};
         const bool has_foot = footprint != nullptr;
         Array4<const Real> foot = has_foot ? footprint->const_array(mfi) : Array4<const Real>{};
 
@@ -144,13 +92,14 @@ ForceRestoreSnow::step (int lev, MultiFab& t_s, const MultiFab& lh, const MultiF
                 wn(i, j, k) = Real(0.0);
                 out(i, j, k) = Real(0.0);
                 return {Real(0.), Real(0.), Real(0.), Real(0.), Real(0.), Long(0), Real(0.),
-                        std::numeric_limits<Real>::lowest()};
+                        std::numeric_limits<Real>::lowest(), Long(0)};
             }
-            const Real p = pn(i, j, k) * snow_scale;
+            const Real p = has_snowfall ? pn(i, j, k, snow_comp) * snow_scale : Real(0.0);
             const Real e = le(i, j, k) / L_v;
 
             const Real w_old = wn(i, j, k);
-            Real w_c = w_old, t_c = ts(i, j, k);
+            const Real t_old = ts(i, j, k);
+            Real w_c = w_old, t_c = t_old;
             const ForceRestoreSnowFluxes f = force_restore_snow_step(w_c, t_c, p, e, dt, prm);
             wn(i, j, k) = w_c;
             ts(i, j, k) = t_c;
@@ -163,30 +112,35 @@ ForceRestoreSnow::step (int lev, MultiFab& t_s, const MultiFab& lh, const MultiF
             // The column's snow budget, DRM95 Eq. (6), which closes to round-off.
             const Real residual = amrex::Math::abs((w_c - w_old)
                                                    - (f.snowfall - f.sublimation - f.melt));
+            // A column is refused on what the step was given as well as on what it leaves: the
+            // bounds of the step (the melt, the upper bound of T_s) can hide a bad input.
+            const bool bad = !amrex::Math::isfinite(t_old) || !amrex::Math::isfinite(w_old) ||
+                             w_old < Real(0.0) ||
+                             !amrex::Math::isfinite(t_c) || !amrex::Math::isfinite(w_c) ||
+                             w_c < Real(0.0);
             return {f.snowfall, f.sublimation, f.melt, w_c, residual, Long(1), t_c,
-                    amrex::Math::abs(t_c)};
+                    amrex::Math::abs(t_c), bad ? Long(1) : Long(0)};
         });
     }
-
-    m_unused[lev] = 0;
-    m_elapsed[lev] = 0.0;
 
     ReduceTuple h = reduce_data.value(reduce_op);
     Real s[4] = {amrex::get<0>(h), amrex::get<1>(h), amrex::get<2>(h), amrex::get<3>(h)};
     Real rmax = amrex::get<4>(h);
-    Long n = amrex::get<5>(h);
+    // The two counts go through one collective.
+    Long counts[2] = {amrex::get<5>(h), amrex::get<8>(h)};
     t_s_sum_local = amrex::get<6>(h);
     t_s_max_local = amrex::get<7>(h);
     ParallelDescriptor::ReduceRealSum(s, 4);
     ParallelDescriptor::ReduceRealMax(rmax);
-    ParallelDescriptor::ReduceLongSum(n);
+    ParallelDescriptor::ReduceLongSum(counts, 2);
     sums.snowfall = s[0]; sums.sublimation = s[1]; sums.melt = s[2]; sums.swe = s[3];
-    sums.max_residual = rmax; sums.columns = n;
+    sums.max_residual = rmax; sums.columns = counts[0]; sums.bad_columns = counts[1];
     return sums;
 }
 
 void
-ForceRestoreSnow::apply_albedo (int lev, MultiFab& alb_sw, const ForceRestoreSnowParams& prm) const
+ForceRestoreSnow::apply_albedo (int lev, MultiFab& alb_sw, const ForceRestoreSnowParams& prm,
+                                const MultiFab* footprint) const
 {
     if (!defined(lev)) { return; }
     // Valid cells only: step() does not refresh the ghost cells of W_n, and the sweep reads
@@ -195,8 +149,14 @@ ForceRestoreSnow::apply_albedo (int lev, MultiFab& alb_sw, const ForceRestoreSno
         const Box& bx = mfi.tilebox();
         Array4<Real> a = alb_sw.array(mfi);
         Array4<const Real> wn = m_swe[lev]->const_array(mfi);
+        const bool has_foot = footprint != nullptr;
+        Array4<const Real> foot = has_foot ? footprint->const_array(mfi) : Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            // step() takes the snow off a footprint, but W_n there still holds the initial
+            // value before the first step (at the start, and after a restart from a
+            // checkpoint without the snow layer).
+            if (has_foot && foot(i, j, k) > Real(0.5)) { return; }
             a(i, j, k) = force_restore_snow_albedo(a(i, j, k), wn(i, j, k), prm);
         });
     }
@@ -221,12 +181,24 @@ ForceRestoreSnow::read_checkpoint (int lev, const std::string& restart_chkfile,
         MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_SnowSWE");
     const std::string totals_name =
         MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_SnowTotals");
+    const bool has_swe = amrex::FileExists(swe_name + "_H");
+    const bool has_totals = amrex::FileExists(totals_name + "_H");
     // A checkpoint written without the snow layer has no snow: it starts from the input.
-    if (!amrex::FileExists(swe_name + "_H") || !amrex::FileExists(totals_name + "_H")) {
-        amrex::Print() << "NOTE: the checkpoint has no force-restore snow at level " << lev
-                       << "; seb_snow_swe starts from erf.radiation.seb_snow_initial_swe_kg_m2 "
-                       << "and the snow totals restart from zero.\n";
+    if (!has_swe && !has_totals) {
+        // Once, not per level.
+        if (lev == 0) {
+            amrex::Print() << "NOTE: the checkpoint has no force-restore snow; seb_snow_swe "
+                           << "starts from erf.radiation.seb_snow_initial_swe_kg_m2 and the "
+                           << "snow totals restart from zero.\n";
+        }
         return;
+    }
+    // One file without the other is not a checkpoint without the snow layer: starting the
+    // snow from the input here would drop the snow the run had.
+    if (has_swe != has_totals) {
+        amrex::Abort("The checkpoint " + restart_chkfile + " holds the force-restore snow file " +
+                     (has_swe ? swe_name : totals_name) + " but not " +
+                     (has_swe ? totals_name : swe_name) + ": the checkpoint is incomplete");
     }
     erf_checkpoint::read_checkpoint_multifab(*m_swe[lev], swe_name, 0, 0, 1,
                                              m_swe[lev]->nGrowVect(), true, period);

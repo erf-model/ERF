@@ -736,8 +736,10 @@ before the drainage, so water that never entered the soil does not drain. With r
 ``seb_prognostic_q_max`` must be at or above :math:`w_{\text{sat}}`; a lower cap would remove
 rain that the runoff does not count. When the balance skips a step (the first step of a level
 built from a coarser one), that step's rain is carried into the next: the next step's rain rate
-is the mean over both steps, and the step takes the rain of both. A level whose boxes do not span
-the domain in :math:`z` never runs the balance and takes no rain.
+is the mean over both steps, and the step takes the rain of both. A rain rate is used once: a
+step that runs without a new rate (a level whose radiation is interpolated from the coarser
+level) takes no rain, and ``seb_rain_rate`` there keeps the last rate for output. A level whose
+boxes do not span the domain in :math:`z` never runs the balance and takes no rain.
 
 **Deep reservoir** (``seb_deep_prognostic_enable``). :math:`q_{\text{deep}}` becomes
 :math:`w_2`, the mean water content of a soil column :math:`d_2` deep
@@ -865,10 +867,17 @@ sublimation.
 **What this does:** the surface stays at :math:`T_{00}` while snow remains, and rises above it
 only after the last snow has melted (DRM95 Sec. 2.1).
 
+The balance bounds :math:`T_s` at ``seb_prognostic_t_max_k``. On a column with snow that bound
+is applied after the melt, not to :math:`T_s^*`: the heat above the bound melts snow
+first, and the bound then acts on the temperature the melt leaves. The lower bound
+``seb_prognostic_t_min_k`` is applied to :math:`T_s^*` as without snow.
+
 **Order of the step.** The snow step runs after the balance and before the hydrology step, on
 every column outside a building footprint: snowfall, then sublimation with :math:`p_{ng}` of
 the step's start, then melt. The albedo the radiation uses in a step is that of :math:`W_n`
-at the end of the previous step. The balance has already taken the whole evaporation from the
+at the end of the previous step; a building footprint keeps the snow-free albedo. The rain
+is the change over the step of the total accumulation minus the frozen one, not below zero;
+the bound is on the change, not on the accumulation. The balance has already taken the whole evaporation from the
 soil, so the snow step returns :math:`(E_n + F_n)\,\Delta t` to the hydrology step, which adds
 it to the surface layer and the column with the rain. The soil's net loss is then
 :math:`E - E_n`, and the melt water wets the soil or runs off. One exception: where the
@@ -884,7 +893,9 @@ with ``seb_deep_prognostic_enable``.
 
 The snow water equivalent and the running totals of snowfall, sublimation and melt
 [kg m\ :sup:`-2`] are checkpointed (a restart takes them from the checkpoint, not from
-``seb_snow_initial_swe_kg_m2``) and written to the 2D plotfile (``seb_snow_swe``,
+``seb_snow_initial_swe_kg_m2``; a checkpoint without the snow layer starts the snow from that
+input and prints a note, and a checkpoint with only one of the two snow files stops the run)
+and written to the 2D plotfile (``seb_snow_swe``,
 ``seb_snowfall_total``, ``seb_snow_sublimation_total``, ``seb_snow_melt_total``). They are
 filled from the coarse level on a new level and averaged down. With ``erf.radiation.v >= 2``
 each step logs the column means and the largest column residual. ``seb_rain_total`` counts the
@@ -907,7 +918,8 @@ to the rain.
 - the soil does not freeze, so melt water that enters a soil below freezing stays liquid;
 - no vegetation: ``seb_vegetation_type`` stops the run at start-up with the snow layer;
 - a land-surface model (SLM, Noah-MP) owns the surface and stops the run with the snow layer;
-- no snow lies on a building footprint: the first step takes the initial cover off there.
+- no snow lies on a building footprint: the albedo there is the snow-free one, and the first
+  step takes the initial cover off ``seb_snow_swe``.
   The building faces (IBSEB) see the snow only through the ground albedo they are handed;
 - snowfall of a step in which the balance did not run (the first step of a new level) is
   carried to the next step, and is lost if a regrid or a restart comes between the two, as

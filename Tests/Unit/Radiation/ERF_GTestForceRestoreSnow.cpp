@@ -1,9 +1,16 @@
 #include <cmath>
+#include <cstdio>
 #include <limits>
+#include <string>
 
 #include <gtest/gtest.h>
 
+#include <AMReX.H>
+#include <AMReX_FileSystem.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_PlotFileUtil.H>
+#include <AMReX_Utility.H>
+#include <AMReX_VisMF.H>
 
 #include <ERF_ForceRestoreHydrology.H>
 #include <ERF_ForceRestoreHydrologyState.H>
@@ -23,6 +30,21 @@ using amrex::Real;
 constexpr Real tol = sizeof(Real) == 8 ? Real(1.0e-12) : Real(1.0e-5);
 constexpr Real t00 = Real(273.16);     // DRM95 Eq. (12)
 constexpr Real l_f = Real(3.337e5);    // ERF's latent heat of fusion [J/kg]
+
+// amrex::Abort throws instead of ending the process, for the life of the object.
+class ScopedThrowOnAbort
+{
+public:
+    ScopedThrowOnAbort () : m_saved(amrex::system::throw_exception)
+    {
+        amrex::system::throw_exception = true;
+    }
+    ~ScopedThrowOnAbort () { amrex::system::throw_exception = m_saved; }
+    ScopedThrowOnAbort (const ScopedThrowOnAbort&) = delete;
+    ScopedThrowOnAbort& operator= (const ScopedThrowOnAbort&) = delete;
+private:
+    bool m_saved;
+};
 
 ForceRestoreSnowParams base ()
 {
@@ -274,13 +296,24 @@ TEST(ForceRestoreSnow, LiquidAndFrozenSplitTheAccumulation)
         EXPECT_EQ(out.max(0), Real(4.0));
     }
 
-    // A total and frozen species but no rain slot: rain = total - frozen, not below zero.
+    // A total and frozen species but no rain slot: rain = total - frozen.
     src.rain.accum = nullptr; src.snow.native_to_kg_m2 = Real(1.0);
     surface_precip_accum_k0(out, src, 0, SurfacePrecipPhase::Liquid);
     EXPECT_NEAR(out.min(0), Real(4.0), tol);   // 10 - (3 + 2 + 1)
+    // The accumulation is not bounded at zero: a bound there would change the difference
+    // of two accumulations, which is what a step takes (see the test below).
     total.setVal(5.0);
     surface_precip_accum_k0(out, src, 0, SurfacePrecipPhase::Liquid);
-    EXPECT_EQ(out.min(0), Real(0.0));
+    EXPECT_NEAR(out.min(0), Real(-1.0), tol);
+    EXPECT_NEAR(out.max(0), Real(-1.0), tol);
+
+    // Both parts from one pass: the same values, in components 0 and 1.
+    MultiFab both(ba2d, dm, 2, 0);
+    surface_precip_liquid_frozen_accum_k0(both, src, 0);
+    EXPECT_NEAR(both.min(0), Real(-1.0), tol);
+    EXPECT_NEAR(both.max(0), Real(-1.0), tol);
+    EXPECT_NEAR(both.min(1), Real(6.0), tol);
+    EXPECT_NEAR(both.max(1), Real(6.0), tol);
 
     // A warm-rain scheme (Kessler): rain only; nothing frozen, liquid = total.
     SurfacePrecipAccumulationSources warm;
@@ -319,6 +352,11 @@ TEST(ForceRestoreSnow, StateTakesSnowfallMeltsAndHandsTheSoilItsWater)
     ForceRestoreHydrology hydro;
     hydro.resize(1);
     hydro.define_level(0, rc, ba2d, dm, IntVect(0));
+    ForceRestorePrecipRate precip;
+    precip.resize(1);
+    precip.define_level(0, rc, ba2d, dm);
+    ASSERT_TRUE(precip.split());
+    EXPECT_EQ(precip.rate(0)->nComp(), 2);
 
     MultiFab t_s(ba2d, dm, 1, 0), q_s(ba2d, dm, 1, 0), q_deep(ba2d, dm, 1, 0);
     MultiFab t_deep(ba2d, dm, 1, 0), lh(ba2d, dm, 1, 0), foot(ba2d, dm, 1, 0);
@@ -329,15 +367,34 @@ TEST(ForceRestoreSnow, StateTakesSnowfallMeltsAndHandsTheSoilItsWater)
 
     // One 10 s step: 0.5 kg/m^2 of snow and 0.3 kg/m^2 of rain.
     rain.setVal(1.0); snowacc.setVal(4.0);
-    snow.begin_step(0, src, 0); hydro.begin_step(0, src, 0);
+    precip.begin_step(0, src, 0);
     rain.setVal(1.3); snowacc.setVal(4.5);
-    snow.end_step(0, src, 0, Real(10.0)); hydro.end_step(0, src, 0, Real(10.0));
-    // The hydrology's rain is the liquid part only.
-    EXPECT_NEAR(hydro.rain_rate(0)->min(0), Real(0.03), tol);
-    EXPECT_NEAR(hydro.rain_rate(0)->max(0), Real(0.03), tol);
+    precip.end_step(0, src, 0, Real(10.0));
+    // The hydrology's rain is the liquid part only; the snow layer's is the frozen part.
+    EXPECT_NEAR(precip.rate(0)->min(ForceRestorePrecipRate::Rain), Real(0.03), tol);
+    EXPECT_NEAR(precip.rate(0)->max(ForceRestorePrecipRate::Rain), Real(0.03), tol);
+    EXPECT_NEAR(precip.rate(0)->min(ForceRestorePrecipRate::Frozen), Real(0.05), tol);
+    EXPECT_NEAR(precip.rate(0)->max(ForceRestorePrecipRate::Frozen), Real(0.05), tol);
+
+    // Before the first step the footprint still holds the initial snow, and the albedo
+    // must not see it: no snow lies on a building.
+    {
+        MultiFab alb0(ba2d, dm, 1, 0);
+        alb0.setVal(0.2);
+        snow.apply_albedo(0, alb0, prm, &foot);
+        for (MFIter mfi(alb0); mfi.isValid(); ++mfi) {
+            const auto a = alb0.const_array(mfi);
+            EXPECT_EQ(snow.swe(0)->const_array(mfi)(1, 2, 0), Real(2.0));
+            EXPECT_EQ(a(1, 2, 0), Real(0.2));
+            // An open column: p_ng = 2 / 12.
+            EXPECT_NEAR(a(0, 0, 0), Real(0.2) + (Real(0.7) - Real(0.2)) / Real(6.0), tol);
+        }
+    }
 
     Real ts_sum = 0.0, ts_max = 0.0;
-    const auto ss = snow.step(0, t_s, lh, &foot, Real(10.0), prm, ts_sum, ts_max);
+    const auto ss = snow.step(0, t_s, lh, &foot, Real(10.0), prm, precip.frozen(0, Real(10.0)),
+                              ts_sum, ts_max);
+    EXPECT_EQ(ss.bad_columns, Long(0));
     const Real melt = Real(2.0e4) / l_f;   // Eq. 12 with a 1 K excess
     EXPECT_EQ(ss.columns, Long(15));
     EXPECT_NEAR(ss.snowfall, Real(15.0 * 0.5), Real(100.0) * tol);
@@ -368,7 +425,19 @@ TEST(ForceRestoreSnow, StateTakesSnowfallMeltsAndHandsTheSoilItsWater)
     // The hydrology takes the rain and the melt water; its Rain total counts the rain only.
     ForceRestoreHydrologyParams hp = ForceRestoreHydrology::params(rc);
     hp.rain = true; hp.d_s = Real(0.1); hp.w_sat = Real(0.45); hp.q_max = Real(1.0);
-    hydro.step(0, t_s, q_s, q_deep, t_deep, lh, &foot, Real(10.0), hp, snow.soil_water(0));
+    // The soil takes the snow layer's water only with prm.rain: without it the step stops
+    // instead of dropping the water.
+    {
+        ForceRestoreHydrologyParams dry = hp;
+        dry.rain = false;
+        ScopedThrowOnAbort throw_on_abort;
+        EXPECT_THROW(hydro.step(0, t_s, q_s, q_deep, t_deep, lh, &foot, Real(10.0), dry,
+                                precip.rain(0, Real(10.0)), snow.soil_water(0)),
+                     amrex::RuntimeError);
+    }
+    hydro.step(0, t_s, q_s, q_deep, t_deep, lh, &foot, Real(10.0), hp, precip.rain(0, Real(10.0)),
+               snow.soil_water(0));
+    precip.mark_used(0);
     for (MFIter mfi(q_s); mfi.isValid(); ++mfi) {
         const auto q = q_s.const_array(mfi);
         const auto tot = hydro.totals(0)->const_array(mfi);
@@ -403,6 +472,7 @@ TEST(ForceRestoreSnow, SnowfallOfASkippedStepIsCarriedIntoTheNext)
     using namespace amrex;
     RadChoice rc;
     rc.seb_snow_enable = true;
+    rc.seb_precipitation_source = SEBPrecipitationSource::Microphysics;
     const BoxArray ba3d(Box(IntVect(0, 0, 0), IntVect(3, 3, 2)));
     const BoxArray ba2d(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)));
     const DistributionMapping dm(ba3d);
@@ -412,31 +482,259 @@ TEST(ForceRestoreSnow, SnowfallOfASkippedStepIsCarriedIntoTheNext)
     ForceRestoreSnow snow;
     snow.resize(1);
     snow.define_level(0, rc, ba2d, dm, IntVect(0));
+    ForceRestorePrecipRate precip;
+    precip.resize(1);
+    precip.define_level(0, rc, ba2d, dm);
     const ForceRestoreSnowParams prm = ForceRestoreSnow::params(rc);
     MultiFab t_s(ba2d, dm, 1, 0), lh(ba2d, dm, 1, 0);
     t_s.setVal(260.0); lh.setVal(0.0);
 
     // Step 1 (1 s): 2 kg/m^2, skipped by the balance. Step 2 (2 s): 1 kg/m^2 more.
     snowacc.setVal(1.0);
-    snow.begin_step(0, src, 0);
+    precip.begin_step(0, src, 0);
     snowacc.setVal(3.0);
-    snow.end_step(0, src, 0, Real(1.0));
-    snow.begin_step(0, src, 0);
+    precip.end_step(0, src, 0, Real(1.0));
+    precip.begin_step(0, src, 0);
     snowacc.setVal(4.0);
-    snow.end_step(0, src, 0, Real(2.0));
+    precip.end_step(0, src, 0, Real(2.0));
     Real ts_sum = 0.0, ts_max = 0.0;
-    snow.step(0, t_s, lh, nullptr, Real(2.0), prm, ts_sum, ts_max);
+    snow.step(0, t_s, lh, nullptr, Real(2.0), prm, precip.frozen(0, Real(2.0)), ts_sum, ts_max);
+    precip.mark_used(0);
     EXPECT_NEAR(snow.swe(0)->min(0), Real(3.0), tol);
     EXPECT_NEAR(snow.swe(0)->max(0), Real(3.0), tol);
     // Step 3 (1 s), used at once: its own 0.5 kg/m^2.
-    snow.begin_step(0, src, 0);
+    precip.begin_step(0, src, 0);
     snowacc.setVal(4.5);
-    snow.end_step(0, src, 0, Real(1.0));
-    snow.step(0, t_s, lh, nullptr, Real(1.0), prm, ts_sum, ts_max);
+    precip.end_step(0, src, 0, Real(1.0));
+    snow.step(0, t_s, lh, nullptr, Real(1.0), prm, precip.frozen(0, Real(1.0)), ts_sum, ts_max);
+    precip.mark_used(0);
     EXPECT_NEAR(snow.swe(0)->max(0), Real(3.5), tol);
     EXPECT_NEAR(snow.totals(0)->min(ForceRestoreSnow::Snowfall), Real(3.5), tol);
     // A step without begin_step (the first after a restart): no snowfall.
-    snow.end_step(0, src, 0, Real(1.0));
-    snow.step(0, t_s, lh, nullptr, Real(1.0), prm, ts_sum, ts_max);
+    precip.end_step(0, src, 0, Real(1.0));
+    snow.step(0, t_s, lh, nullptr, Real(1.0), prm, precip.frozen(0, Real(1.0)), ts_sum, ts_max);
+    precip.mark_used(0);
     EXPECT_NEAR(snow.swe(0)->max(0), Real(3.5), tol);
+}
+
+TEST(ForceRestoreSnow, ARateIsNotAppliedAgainWithoutANewEndStep)
+{
+    // A level whose radiation is interpolated has neither begin_step nor end_step, but its
+    // balance and snow step run. The rate of the last end_step is then still in the field,
+    // and must not add its snowfall to W_n and the Snowfall total a second time.
+    using namespace amrex;
+    RadChoice rc;
+    rc.seb_snow_enable = true;
+    rc.seb_precipitation_source = SEBPrecipitationSource::Microphysics;
+    const BoxArray ba3d(Box(IntVect(0, 0, 0), IntVect(3, 3, 2)));
+    const BoxArray ba2d(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)));
+    const DistributionMapping dm(ba3d);
+    MultiFab snowacc(ba3d, dm, 1, 0);
+    SurfacePrecipAccumulationSources src;
+    src.snow.accum = &snowacc;
+    ForceRestoreSnow snow;
+    snow.resize(1);
+    snow.define_level(0, rc, ba2d, dm, IntVect(0));
+    ForceRestorePrecipRate precip;
+    precip.resize(1);
+    precip.define_level(0, rc, ba2d, dm);
+    const ForceRestoreSnowParams prm = ForceRestoreSnow::params(rc);
+    MultiFab t_s(ba2d, dm, 1, 0), lh(ba2d, dm, 1, 0);
+    t_s.setVal(260.0); lh.setVal(0.0);
+
+    snowacc.setVal(1.0);
+    precip.begin_step(0, src, 0);
+    snowacc.setVal(1.5);
+    precip.end_step(0, src, 0, Real(1.0));
+    Real ts_sum = 0.0, ts_max = 0.0;
+    snow.step(0, t_s, lh, nullptr, Real(1.0), prm, precip.frozen(0, Real(1.0)), ts_sum, ts_max);
+    precip.mark_used(0);
+    EXPECT_NEAR(snow.swe(0)->max(0), Real(0.5), tol);
+
+    // Three more steps with no end_step between them.
+    EXPECT_NEAR(precip.rate(0)->max(ForceRestorePrecipRate::Frozen), Real(0.5), tol);
+    for (int n = 0; n < 3; ++n) {
+        EXPECT_EQ(precip.frozen(0, Real(1.0)).scale, Real(0.0));
+        const auto ss = snow.step(0, t_s, lh, nullptr, Real(1.0), prm, precip.frozen(0, Real(1.0)),
+                                  ts_sum, ts_max);
+        precip.mark_used(0);
+        EXPECT_EQ(ss.snowfall, Real(0.0));
+    }
+    EXPECT_NEAR(snow.swe(0)->max(0), Real(0.5), tol);
+    EXPECT_NEAR(snow.totals(0)->max(ForceRestoreSnow::Snowfall), Real(0.5), tol);
+}
+
+TEST(ForceRestoreSnow, RainOfAStepIsTheChangeOfTheTotalMinusTheFrozenPart)
+{
+    // Early in a run the frozen accumulators can exceed the total by round-off (a unit
+    // conversion, single precision). The rain of a step is the change of (total - frozen)
+    // over the step: with the accumulation bounded at zero, a start value below zero would
+    // be raised to zero and the step would lose that much rain.
+    using namespace amrex;
+    RadChoice rc;
+    rc.seb_snow_enable = true;
+    rc.seb_precipitation_source = SEBPrecipitationSource::Microphysics;
+    const BoxArray ba3d(Box(IntVect(0, 0, 0), IntVect(3, 3, 2)));
+    const BoxArray ba2d(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)));
+    const DistributionMapping dm(ba3d);
+    MultiFab total(ba3d, dm, 1, 0), snowacc(ba3d, dm, 1, 0);
+    SurfacePrecipAccumulationSources src;
+    src.total.accum = &total; src.snow.accum = &snowacc;
+    ForceRestorePrecipRate precip;
+    precip.resize(1);
+    precip.define_level(0, rc, ba2d, dm);
+
+    // Start: total 5, frozen 5.25 (liquid -0.25). End: total 6.5, frozen 5.75 (liquid 0.75).
+    // Over 2 s: 1.5 kg/m^2 in all, 0.5 frozen and 1.0 rain.
+    total.setVal(5.0); snowacc.setVal(5.25);
+    precip.begin_step(0, src, 0);
+    total.setVal(6.5); snowacc.setVal(5.75);
+    precip.end_step(0, src, 0, Real(2.0));
+    EXPECT_NEAR(precip.rate(0)->min(ForceRestorePrecipRate::Rain), Real(0.5), tol);
+    EXPECT_NEAR(precip.rate(0)->max(ForceRestorePrecipRate::Rain), Real(0.5), tol);
+    EXPECT_NEAR(precip.rate(0)->min(ForceRestorePrecipRate::Frozen), Real(0.25), tol);
+    EXPECT_NEAR(precip.rate(0)->max(ForceRestorePrecipRate::Frozen), Real(0.25), tol);
+    precip.mark_used(0);
+
+    // A step in which the liquid part falls (frozen grows faster than the total): no rain,
+    // never a negative rate.
+    precip.begin_step(0, src, 0);
+    total.setVal(6.75); snowacc.setVal(6.5);
+    precip.end_step(0, src, 0, Real(1.0));
+    EXPECT_EQ(precip.rate(0)->min(ForceRestorePrecipRate::Rain), Real(0.0));
+    EXPECT_NEAR(precip.rate(0)->max(ForceRestorePrecipRate::Frozen), Real(0.75), tol);
+}
+
+TEST(ForceRestoreSnow, HeatAboveTheUpperBoundMeltsSnowBeforeTheBoundApplies)
+{
+    // The balance bounds T_s at erf.radiation.seb_prognostic_t_max_k. Under snow the bound
+    // waits for the melt: the estimate comes in unbounded, the heat above the melting point
+    // melts snow (Eq. 12), and the bound applies to what is left.
+    ForceRestoreSnowParams p = base();
+    p.t_max = Real(274.0);
+    // A deep pack: all the heat of a 10 K excess goes to melt, not only the 0.84 K below
+    // the bound.
+    Real w = Real(100.0), t = t00 + Real(10.0);
+    ForceRestoreSnowFluxes f = force_restore_snow_step(w, t, Real(0.0), Real(0.0), Real(1.0), p);
+    EXPECT_NEAR(f.melt, p.c_s * Real(10.0) / l_f, Real(100.0) * tol);
+    EXPECT_NEAR(t, t00, Real(1.0e3) * tol);
+    // A thin pack melts in full; the rest of the heat would leave T_s above the bound,
+    // which then applies.
+    w = Real(0.01); t = t00 + Real(10.0);
+    f = force_restore_snow_step(w, t, Real(0.0), Real(0.0), Real(1.0), p);
+    EXPECT_NEAR(f.melt, Real(0.01), tol);
+    EXPECT_EQ(w, Real(0.0));
+    EXPECT_EQ(t, Real(274.0));
+    // No bound by default: the kernel's answers without one are unchanged.
+    EXPECT_EQ(ForceRestoreSnowParams().t_max, std::numeric_limits<Real>::max());
+    // The state class takes the bound from the balance's input.
+    RadChoice rc;
+    rc.seb_prognostic_t_max_k = Real(300.0);
+    EXPECT_EQ(ForceRestoreSnow::params(rc).t_max, Real(300.0));
+}
+
+TEST(ForceRestoreSnow, StepCountsTheColumnsItLeavesInARefusedState)
+{
+    using namespace amrex;
+    RadChoice rc;
+    rc.seb_snow_enable = true;
+    rc.seb_snow_initial_swe_kg_m2 = Real(1.0);
+    const BoxArray ba2d(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)));
+    const DistributionMapping dm(ba2d);
+    ForceRestoreSnow snow;
+    snow.resize(1);
+    snow.define_level(0, rc, ba2d, dm, IntVect(0));
+    const ForceRestoreSnowParams prm = ForceRestoreSnow::params(rc);
+    MultiFab t_s(ba2d, dm, 1, 0), lh(ba2d, dm, 1, 0), foot(ba2d, dm, 1, 0);
+    t_s.setVal(260.0); lh.setVal(0.0); foot.setVal(0.0);
+    Real ts_sum = 0.0, ts_max = 0.0;
+    auto ss = snow.step(0, t_s, lh, &foot, Real(1.0), prm, ForceRestorePrecipInput{}, ts_sum, ts_max);
+    EXPECT_EQ(ss.columns, Long(16));
+    EXPECT_EQ(ss.bad_columns, Long(0));
+
+    // A non-finite W_n, a negative W_n and a non-finite T_s: three columns. The same
+    // values on a footprint are not counted: the step does not use them.
+    for (MFIter mfi(t_s); mfi.isValid(); ++mfi) {
+        snow.swe(0)->array(mfi)(0, 0, 0) = std::numeric_limits<Real>::quiet_NaN();
+        snow.swe(0)->array(mfi)(1, 0, 0) = Real(-1.0);
+        t_s.array(mfi)(2, 0, 0) = std::numeric_limits<Real>::infinity();
+        t_s.array(mfi)(3, 3, 0) = std::numeric_limits<Real>::quiet_NaN();
+        foot.array(mfi)(3, 3, 0) = Real(1.0);
+    }
+    ss = snow.step(0, t_s, lh, &foot, Real(1.0), prm, ForceRestorePrecipInput{}, ts_sum, ts_max);
+    EXPECT_EQ(ss.columns, Long(15));
+    EXPECT_EQ(ss.bad_columns, Long(3));
+}
+
+TEST(ForceRestoreSnow, RestartRefusesHalfOfTheSnowFiles)
+{
+    using namespace amrex;
+    RadChoice rc;
+    rc.seb_snow_enable = true;
+    rc.seb_snow_initial_swe_kg_m2 = Real(1.0);
+    const BoxArray ba2d(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)));
+    const DistributionMapping dm(ba2d);
+    const Periodicity period = Periodicity::NonPeriodic();
+    const std::string chk = "unit_force_restore_snow_chk";
+    amrex::UtilCreateCleanDirectory(chk, true);
+    amrex::UtilCreateCleanDirectory(chk + "/Level_0", true);
+    amrex::UtilCreateCleanDirectory(chk + "/Level_1", true);
+
+    ForceRestoreSnow written;
+    written.resize(2);
+    written.define_level(0, rc, ba2d, dm, IntVect(0));
+    written.swe(0)->setVal(7.0);
+    written.totals(0)->setVal(3.0);
+
+    // Neither file: a checkpoint without the snow layer. The snow starts from the input,
+    // and the note is printed once, not per level.
+    {
+        ForceRestoreSnow snow;
+        snow.resize(2);
+        snow.define_level(0, rc, ba2d, dm, IntVect(0));
+        snow.define_level(1, rc, ba2d, dm, IntVect(0));
+        testing::internal::CaptureStdout();
+        snow.read_checkpoint(0, chk, period);
+        snow.read_checkpoint(1, chk, period);
+        const std::string report = testing::internal::GetCapturedStdout();
+        const std::string note = "NOTE: the checkpoint has no force-restore snow";
+        const auto first = report.find(note);
+        ASSERT_NE(first, std::string::npos) << report;
+        EXPECT_EQ(report.find(note, first + 1), std::string::npos) << report;
+        EXPECT_EQ(snow.swe(0)->min(0), Real(1.0));
+    }
+
+    // Both files: the snow of the checkpoint.
+    written.write_checkpoint(0, chk);
+    {
+        ForceRestoreSnow snow;
+        snow.resize(1);
+        snow.define_level(0, rc, ba2d, dm, IntVect(0));
+        snow.read_checkpoint(0, chk, period);
+        EXPECT_EQ(snow.swe(0)->min(0), Real(7.0));
+        EXPECT_EQ(snow.swe(0)->max(0), Real(7.0));
+        EXPECT_EQ(snow.totals(0)->min(ForceRestoreSnow::Melt), Real(3.0));
+    }
+
+    // One file without the other: the run stops and names the missing file, instead of
+    // starting the snow from the input.
+    for (const char* missing : {"TwoStream_SnowTotals", "TwoStream_SnowSWE"}) {
+        SCOPED_TRACE(missing);
+        amrex::UtilCreateCleanDirectory(chk + "/Level_0", true);
+        written.write_checkpoint(0, chk);
+        const std::string name = MultiFabFileFullPrefix(0, chk, "Level_", missing);
+        ASSERT_EQ(std::remove((name + "_H").c_str()), 0);
+        ForceRestoreSnow snow;
+        snow.resize(1);
+        snow.define_level(0, rc, ba2d, dm, IntVect(0));
+        ScopedThrowOnAbort throw_on_abort;
+        try {
+            snow.read_checkpoint(0, chk, period);
+            ADD_FAILURE() << "read_checkpoint did not stop";
+        } catch (const amrex::RuntimeError& e) {
+            const std::string what = e.what();
+            EXPECT_NE(what.find(std::string("but not ") + name), std::string::npos) << what;
+        }
+    }
+    amrex::FileSystem::RemoveAll(chk);
 }

@@ -37,12 +37,7 @@ ForceRestoreHydrology::params (const RadChoice& rc)
 void
 ForceRestoreHydrology::resize (int nlevs_max)
 {
-    m_accum_start.resize(nlevs_max);
-    m_rain_rate.resize(nlevs_max);
     m_totals.resize(nlevs_max);
-    m_started.resize(nlevs_max, 0);
-    m_unused.resize(nlevs_max, 0);
-    m_elapsed.resize(nlevs_max, 0.0);
 }
 
 void
@@ -50,49 +45,8 @@ ForceRestoreHydrology::define_level (int lev, const RadChoice& rc, const BoxArra
                                      const DistributionMapping& dm, const IntVect& ng)
 {
     if (!rc.seb_hydrology_enabled()) { return; }
-    m_phase = rc.seb_snow_enable ? SurfacePrecipPhase::Liquid : SurfacePrecipPhase::Total;
-    m_accum_start[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
-    m_rain_rate[lev]   = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
-    m_totals[lev]      = std::make_unique<MultiFab>(ba2d, dm, NumTotals, ng);
-    m_accum_start[lev]->setVal(0.0);
-    m_rain_rate[lev]->setVal(0.0);
+    m_totals[lev] = std::make_unique<MultiFab>(ba2d, dm, NumTotals, ng);
     m_totals[lev]->setVal(0.0);
-    m_started[lev] = 0;
-    m_unused[lev] = 0;
-    m_elapsed[lev] = 0.0;
-}
-
-void
-ForceRestoreHydrology::begin_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo)
-{
-    if (!defined(lev)) { return; }
-    if (m_unused[lev] == 0) { surface_precip_accum_k0(*m_accum_start[lev], sources, klo, m_phase); }
-    m_started[lev] = 1;
-}
-
-void
-ForceRestoreHydrology::end_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo,
-                                 Real dt)
-{
-    if (!defined(lev)) { return; }
-    if (m_started[lev] == 0) { m_rain_rate[lev]->setVal(0.0); return; }
-    MultiFab accum_end(m_accum_start[lev]->boxArray(), m_accum_start[lev]->DistributionMap(), 1, 0);
-    surface_precip_accum_k0(accum_end, sources, klo, m_phase);
-    // The time since the stored start: this step, plus any step whose rain step() did not use.
-    m_elapsed[lev] += dt;
-    const Real elapsed = m_elapsed[lev];
-    for (MFIter mfi(*m_rain_rate[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        Array4<Real> r = m_rain_rate[lev]->array(mfi);
-        Array4<const Real> a0 = m_accum_start[lev]->const_array(mfi);
-        Array4<const Real> a1 = accum_end.const_array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            r(i, j, k) = force_restore_rain_rate(a1(i, j, k), a0(i, j, k), elapsed);
-        });
-    }
-    m_started[lev] = 0;
-    m_unused[lev] = 1;
 }
 
 ForceRestoreHydrology::StepSums
@@ -100,14 +54,22 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
                              MultiFab& q_deep, MultiFab& t_deep,
                              const MultiFab& lh, const MultiFab* footprint,
                              Real dt, const ForceRestoreHydrologyParams& prm,
+                             const ForceRestorePrecipInput& rain,
                              const MultiFab* snow_water)
 {
     StepSums sums;
     if (!defined(lev)) { return sums; }
 
-    // The rain rate is a mean over m_elapsed, which exceeds dt when an earlier step's rain was
-    // carried: the step takes the whole of it, P m_elapsed, in its P dt.
-    const Real rain_scale = (prm.rain && m_elapsed[lev] > Real(0.0)) ? m_elapsed[lev] / dt : Real(1.0);
+    // The soil takes water only with prm.rain: the snow layer's water would otherwise leave
+    // the column unseen.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(snow_water == nullptr || prm.rain,
+        "ForceRestoreHydrology::step: the snow layer's water (snow_water) needs "
+        "erf.radiation.seb_precipitation_source, which lets the soil take water");
+
+    // The rain of the step: the rate times its scale (ERF_ForceRestorePrecipRate.H).
+    const bool has_rain = prm.rain && rain.rate != nullptr;
+    const Real rain_scale = rain.scale;
+    const int rain_comp = rain.comp;
 
     ReduceOps<ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpMax,
               ReduceOpSum> reduce_op;
@@ -122,7 +84,7 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
         Array4<Real>       qd  = q_deep.array(mfi);
         Array4<Real>       td  = t_deep.array(mfi);
         Array4<const Real> le  = lh.const_array(mfi);
-        Array4<const Real> pr  = m_rain_rate[lev]->const_array(mfi);
+        Array4<const Real> pr  = has_rain ? rain.rate->const_array(mfi) : Array4<const Real>{};
         Array4<Real>       tot = m_totals[lev]->array(mfi);
         const bool has_foot = footprint != nullptr;
         Array4<const Real> foot = has_foot ? footprint->const_array(mfi) : Array4<const Real>{};
@@ -135,7 +97,7 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
             if (has_foot && foot(i, j, k) > Real(0.5)) {
                 return {Real(0.), Real(0.), Real(0.), Real(0.), Real(0.), Real(0.), Long(0)};
             }
-            Real p = prm.rain ? pr(i, j, k) * rain_scale : Real(0.0);
+            Real p = has_rain ? pr(i, j, k, rain_comp) * rain_scale : Real(0.0);
             if (!amrex::Math::isfinite(p)) { p = Real(0.0); }
             Real e = le(i, j, k) / L_v;
             if (!amrex::Math::isfinite(e)) { e = Real(0.0); }
@@ -145,7 +107,7 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
             // The snow layer's water (melt, and the sublimation the balance took from the
             // soil) enters as rain does; the Rain total keeps the rain alone.
             const Real p_rain = p;
-            if (has_snow && prm.rain) { p += sw(i, j, k) / dt; }
+            if (has_snow) { p += sw(i, j, k) / dt; }
             const ForceRestoreHydrologyFluxes f =
                 force_restore_hydrology_step(qs_c, qd_c, td_c, ts(i, j, k), p, e, dt, prm);
             qs(i, j, k) = qs_c;
@@ -165,9 +127,6 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
             return {p_rain * dt, e * dt, f.runoff, f.drainage, f.deficit, residual, Long(1)};
         });
     }
-
-    m_unused[lev] = 0;
-    m_elapsed[lev] = 0.0;
 
     ReduceTuple h = reduce_data.value(reduce_op);
     Real s[5] = {amrex::get<0>(h), amrex::get<1>(h), amrex::get<2>(h), amrex::get<3>(h),
@@ -199,9 +158,12 @@ ForceRestoreHydrology::read_checkpoint (int lev, const std::string& restart_chkf
         MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_HydrologyTotals");
     // A checkpoint written without the hydrology has no totals: they restart from zero.
     if (!amrex::FileExists(name + "_H")) {
-        amrex::Print() << "NOTE: the checkpoint has no force-restore hydrology totals at level "
-                       << lev << "; seb_rain_total, seb_runoff_total, seb_drainage_total and "
-                       << "seb_deficit_total restart from zero.\n";
+        // Once, not per level.
+        if (lev == 0) {
+            amrex::Print() << "NOTE: the checkpoint has no force-restore hydrology totals; "
+                           << "seb_rain_total, seb_runoff_total, seb_drainage_total and "
+                           << "seb_deficit_total restart from zero.\n";
+        }
         return;
     }
     erf_checkpoint::read_checkpoint_multifab(*m_totals[lev], name, 0, 0, NumTotals,

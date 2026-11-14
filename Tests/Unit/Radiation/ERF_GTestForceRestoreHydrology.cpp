@@ -261,7 +261,7 @@ TEST(ForceRestoreHydrology, ColumnBudgetCloses)
 TEST(ForceRestoreHydrology, RainOfASkippedStepIsCarriedIntoTheNext)
 {
     // A level whose balance skips a step (a new level's first step without its radiation
-    // sweep) calls begin_step and end_step but not step(). The rain of that step must reach
+    // sweep) calls begin_step and end_step but no step. The rain of that step must reach
     // the soil with the next step: begin_step keeps the earlier start of the accumulation,
     // and the rate is the mean over the time since that start, not over the last step alone.
     using namespace amrex;
@@ -279,6 +279,15 @@ TEST(ForceRestoreHydrology, RainOfASkippedStepIsCarriedIntoTheNext)
     hydro.resize(1);
     hydro.define_level(0, rc, ba2d, dm, IntVect(0));
     ASSERT_TRUE(hydro.defined(0));
+    ForceRestorePrecipRate precip;
+    precip.resize(1);
+    precip.define_level(0, rc, ba2d, dm);
+    ASSERT_TRUE(precip.defined(0));
+    EXPECT_FALSE(precip.split());
+    EXPECT_EQ(precip.rate(0)->nComp(), 1);
+    // No frozen part without the snow layer, and no rain before the first end_step.
+    EXPECT_EQ(precip.frozen(0, Real(1.0)).rate, nullptr);
+    EXPECT_EQ(precip.rain(0, Real(1.0)).scale, Real(0.0));
 
     MultiFab t_s(ba2d, dm, 1, 0), q_s(ba2d, dm, 1, 0), q_deep(ba2d, dm, 1, 0);
     MultiFab t_deep(ba2d, dm, 1, 0), lh(ba2d, dm, 1, 0);
@@ -288,17 +297,20 @@ TEST(ForceRestoreHydrology, RainOfASkippedStepIsCarriedIntoTheNext)
 
     // Step 1 (dt = 1 s): 2 kg/m^2 of rain, skipped by the balance.
     accum.setVal(1.0);
-    hydro.begin_step(0, src, klo);
+    precip.begin_step(0, src, klo);
     accum.setVal(3.0);
-    hydro.end_step(0, src, klo, Real(1.0));
+    precip.end_step(0, src, klo, Real(1.0));
     // Step 2 (dt = 2 s): 1 kg/m^2 more; the soil takes in both steps' rain.
-    hydro.begin_step(0, src, klo);
+    precip.begin_step(0, src, klo);
     accum.setVal(4.0);
-    hydro.end_step(0, src, klo, Real(2.0));
-    // 3 kg/m^2 over 1 + 2 s.
-    EXPECT_NEAR(hydro.rain_rate(0)->min(0), Real(1.0), tol);
-    EXPECT_NEAR(hydro.rain_rate(0)->max(0), Real(1.0), tol);
-    const auto sums = hydro.step(0, t_s, q_s, q_deep, t_deep, lh, nullptr, Real(2.0), prm);
+    precip.end_step(0, src, klo, Real(2.0));
+    // 3 kg/m^2 over 1 + 2 s, taken by a 2 s step.
+    EXPECT_NEAR(precip.rate(0)->min(0), Real(1.0), tol);
+    EXPECT_NEAR(precip.rate(0)->max(0), Real(1.0), tol);
+    EXPECT_NEAR(precip.rain(0, Real(2.0)).scale, Real(1.5), tol);
+    const auto sums = hydro.step(0, t_s, q_s, q_deep, t_deep, lh, nullptr, Real(2.0), prm,
+                                 precip.rain(0, Real(2.0)));
+    precip.mark_used(0);
     EXPECT_EQ(sums.columns, Long(16));
     EXPECT_NEAR(hydro.totals(0)->min(ForceRestoreHydrology::Rain), Real(3.0), tol);
     EXPECT_NEAR(hydro.totals(0)->max(ForceRestoreHydrology::Rain), Real(3.0), tol);
@@ -306,20 +318,34 @@ TEST(ForceRestoreHydrology, RainOfASkippedStepIsCarriedIntoTheNext)
     EXPECT_NEAR(q_s.min(0), Real(0.13), tol);
     EXPECT_NEAR(q_s.max(0), Real(0.13), tol);
 
-    // Step 3 (dt = 1 s), with step() run: only its own rain, 0.5 kg/m^2.
-    hydro.begin_step(0, src, klo);
+    // A step without a new end_step (a level whose radiation is interpolated has neither
+    // begin_step nor end_step, but its balance runs): the rate of the step before is still
+    // there for output, and must not reach the soil a second time.
+    EXPECT_NEAR(precip.rate(0)->max(0), Real(1.0), tol);
+    EXPECT_EQ(precip.rain(0, Real(2.0)).scale, Real(0.0));
+    const auto again = hydro.step(0, t_s, q_s, q_deep, t_deep, lh, nullptr, Real(2.0), prm,
+                                  precip.rain(0, Real(2.0)));
+    precip.mark_used(0);
+    EXPECT_EQ(again.rain, Real(0.0));
+    EXPECT_NEAR(hydro.totals(0)->max(ForceRestoreHydrology::Rain), Real(3.0), tol);
+    EXPECT_NEAR(q_s.max(0), Real(0.13), tol);
+
+    // Step 3 (dt = 1 s), with the step run: only its own rain, 0.5 kg/m^2.
+    precip.begin_step(0, src, klo);
     accum.setVal(4.5);
-    hydro.end_step(0, src, klo, Real(1.0));
-    EXPECT_NEAR(hydro.rain_rate(0)->max(0), Real(0.5), tol);
-    hydro.step(0, t_s, q_s, q_deep, t_deep, lh, nullptr, Real(1.0), prm);
+    precip.end_step(0, src, klo, Real(1.0));
+    EXPECT_NEAR(precip.rate(0)->max(0), Real(0.5), tol);
+    hydro.step(0, t_s, q_s, q_deep, t_deep, lh, nullptr, Real(1.0), prm, precip.rain(0, Real(1.0)));
+    precip.mark_used(0);
     EXPECT_NEAR(hydro.totals(0)->max(ForceRestoreHydrology::Rain), Real(3.5), tol);
 
-    // A level whose step() never runs: the rate stays the mean since the kept start, bounded
+    // A level whose step never runs: the rate stays the mean since the kept start, bounded
     // by the rain rate, instead of growing with each step.
     for (int n = 0; n < 4; ++n) {
-        hydro.begin_step(0, src, klo);
+        precip.begin_step(0, src, klo);
         accum.setVal(Real(5.5) + Real(n));   // 1 kg/m^2 per 1 s step
-        hydro.end_step(0, src, klo, Real(1.0));
+        precip.end_step(0, src, klo, Real(1.0));
     }
-    EXPECT_NEAR(hydro.rain_rate(0)->max(0), Real(1.0), tol);
+    EXPECT_NEAR(precip.rate(0)->max(0), Real(1.0), tol);
+    EXPECT_NEAR(precip.rain(0, Real(1.0)).scale, Real(4.0), tol);
 }

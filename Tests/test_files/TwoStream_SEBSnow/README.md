@@ -47,6 +47,7 @@ mpiexec -n 1 ./erf_exec TwoStream_SEBSnow.i
 | `bare` | the `erf.radiation.seb_snow_*` lines removed | reference for the next two legs |
 | `no_snow` | `seb_snow_initial_swe_kg_m2 = 0` | last 2D plotfile equal to the `bare` leg's (`fcompare`): the snow layer without snow changes nothing |
 | `melt` | none | every step: `seb_t_sfc` = 273.16 K (Eq. 12); `seb_snow_swe - 50 = snowfall - sublimation - melt` (Eq. 6); the step's sublimation = `dt max(LE, 0) / L_v * p_ng` (Eq. 7); `seb_sw_net` = the bare leg's times `(1 - alpha_t) / (1 - alpha_g)` (Eq. 8) |
+| `low_bound` | `seb_prognostic_t_max_k = 274` | last 2D plotfile equal to the `melt` leg's (`fcompare`): under snow the upper bound of `T_s` applies after the melt, so the heat above it still melts snow |
 | `full_melt` | `seb_snow_initial_swe_kg_m2 = 1`, `seb_snow_albedo = 0.3` (the ground's) | after step 1: no snow left; melt + sublimation = 1 kg/m^2; `seb_t_sfc` below the bare leg's by `L_f melt / C_s` (about 16.7 K) and above 273.16 K; `seb_q_sfc` above the bare leg's by `1 / (rho_w d_s)` = 0.01 |
 | `restart` | checkpoint at step 5, restart to step 10 | last 2D plotfile equal to the `melt` leg's (`fcompare`) |
 | `two_level` | a second level over the middle half of x after step 5 | the melting point and the budget on every cell of the finest data; the snow and the melt total there equal the `melt` leg's; the last plotfile has level 1 |

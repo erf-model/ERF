@@ -5770,7 +5770,9 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | (their Eq. 8), sublimates, and melts where the balance     |                    |                  |
 |                                                    | takes T_s above 273.16 K (their Eq. 12), which holds T_s   |                    |                  |
 |                                                    | at 273.16 K while snow remains; the melt water enters the  |                    |                  |
-|                                                    | soil as rain. Checkpointed. Needs seb_prognostic_enable,   |                    |                  |
+|                                                    | soil as rain. Under snow, seb_prognostic_t_max_k bounds    |                    |                  |
+|                                                    | T_s after the melt, so heat above it melts snow first.     |                    |                  |
+|                                                    | Checkpointed. Needs seb_prognostic_enable,                 |                    |                  |
 |                                                    | seb_use_radiation_fluxes and seb_precipitation_source =    |                    |                  |
 |                                                    | microphysics, no surface_albedo_sw_diffuse, no             |                    |                  |
 |                                                    | seb_vegetation_type, no land-surface model, and            |                    |                  |

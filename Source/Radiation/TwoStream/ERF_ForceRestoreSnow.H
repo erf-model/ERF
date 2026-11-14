@@ -1,6 +1,8 @@
 #ifndef ERF_FORCE_RESTORE_SNOW_H_
 #define ERF_FORCE_RESTORE_SNOW_H_
 
+#include <limits>
+
 #include <AMReX_Algorithm.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_Math.H>
@@ -66,6 +68,8 @@ struct ForceRestoreSnowParams
     amrex::Real w_crn  = amrex::Real(10.0);   ///< Critical snow water equivalent W_crn [kg/m^2] (seb_snow_critical_swe_kg_m2)
     amrex::Real albedo = amrex::Real(0.70);   ///< Snow albedo alpha_n [-] (seb_snow_albedo)
     amrex::Real c_s    = amrex::Real(2.0e4);  ///< Surface heat capacity C_s = 1 / C_t [J/m^2/K] (seb_surface_heat_capacity)
+    /// Upper bound of T_s after the melt [K] (seb_prognostic_t_max_k); no bound by default
+    amrex::Real t_max  = std::numeric_limits<amrex::Real>::max();
 };
 
 /**
@@ -113,7 +117,8 @@ amrex::Real force_restore_snow_albedo (amrex::Real alb_ground, amrex::Real w_n,
  *
  * @param[in,out] w_n snow water equivalent [kg/m^2]
  * @param[in,out] t_s surface temperature [K]: the balance's estimate in, the value after
- *                    the melt out
+ *                    the melt out, at most prm.t_max. The estimate of a snow-covered column
+ *                    comes in without that bound, so the heat above it melts snow first.
  * @param[in]     p_n frozen precipitation [kg/m^2/s]
  * @param[in]     e   evaporation LE / L_v [kg/m^2/s], positive upward
  * @param[in]     dt  the step [s]
@@ -166,6 +171,8 @@ force_restore_snow_step (amrex::Real& w_n, amrex::Real& t_s, amrex::Real p_n, am
             t_s -= lat_ice * out.melt / prm.c_s;
         }
     }
+    // The balance's upper bound, after the melt has taken its heat.
+    if (t_s > prm.t_max) { t_s = prm.t_max; }
     return out;
 }
 

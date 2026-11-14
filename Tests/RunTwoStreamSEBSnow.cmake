@@ -121,6 +121,12 @@ same_last_plotfile(bare no_snow "${WORKING_DIRECTORY}/no_snow/fcompare.log")
 
 run_in(melt simulation.log TRUE "${INPUT}" ${STEPS})
 
+# The melt leg with the balance's upper bound of T_s just above the melting point. Under snow
+# the bound waits for the melt, so the heat above it still melts snow: the same answers.
+run_in(low_bound simulation.log TRUE "${INPUT}" ${STEPS}
+       erf.radiation.seb_prognostic_t_max_k=274.0)
+same_last_plotfile(melt low_bound "${WORKING_DIRECTORY}/low_bound/fcompare.log")
+
 run_in(full_melt simulation.log TRUE "${INPUT}" ${STEPS}
        erf.radiation.seb_snow_initial_swe_kg_m2=${FULL_MELT_SWE0}
        erf.radiation.seb_snow_albedo=${ALBEDO_GROUND})
