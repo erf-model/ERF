@@ -49,6 +49,7 @@ using namespace amrex;
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_damp_coef
  * @param[in   ] beta_d divergence damping coefficient: how far (rho theta) is projected forward
+ * @param[in   ] lateral_walls whether the xlo, xhi, ylo and yhi faces are walls (zero normal velocity)
  */
 
 void erf_substep_MT (int step, int /*nrk*/,
@@ -91,7 +92,8 @@ void erf_substep_MT (int step, int /*nrk*/,
                      bool /*l_real_bc*/,
                      const Real* sinesq_stag_d,
                      const Real l_damp_coef,
-                     const Real beta_d)
+                     const Real beta_d,
+                     const GpuArray<bool,4>& lateral_walls)
 {
     BL_PROFILE_REGION("erf_substep_MT()");
 
@@ -103,6 +105,19 @@ void erf_substep_MT (int step, int /*nrk*/,
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const int domlo_z = geom.Domain().smallEnd(2);
     const int domhi_z = geom.Domain().bigEnd(2);
+
+    // The normal momentum on a lateral wall (slip, no-slip or symmetry) is zero.  The substeps
+    // must keep it so: over terrain that slopes normal to the wall, the terrain terms of the
+    // pressure gradient are not zero on the wall face, and updating the face would carry
+    // mass through the wall until the boundary fill reset it after the step
+    const int ilo = geom.Domain().smallEnd(0);
+    const int ihi = geom.Domain().bigEnd(0) + 1;
+    const int jlo = geom.Domain().smallEnd(1);
+    const int jhi = geom.Domain().bigEnd(1) + 1;
+    const bool wall_xlo = lateral_walls[0];
+    const bool wall_xhi = lateral_walls[1];
+    const bool wall_ylo = lateral_walls[2];
+    const bool wall_yhi = lateral_walls[3];
 
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
@@ -381,6 +396,9 @@ void erf_substep_MT (int step, int /*nrk*/,
                 cur_xmom(i,j,k) = h_zeta_old * prev_xmom(i,j,k) + dtau * fast_rhs_rho_u
                                                                 + dtau * slow_rhs_rho_u(i,j,k)
                                                                 + dtau * xmom_src_arr(i,j,k);
+                if ((wall_xlo && i == ilo) || (wall_xhi && i == ihi)) {
+                    cur_xmom(i,j,k) = zero;
+                }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -417,6 +435,9 @@ void erf_substep_MT (int step, int /*nrk*/,
                 cur_ymom(i, j, k) = h_zeta_old * prev_ymom(i,j,k) + dtau * fast_rhs_rho_v
                                                                   + dtau * slow_rhs_rho_v(i,j,k)
                                                                   + dtau * ymom_src_arr(i,j,k);
+                if ((wall_ylo && j == jlo) || (wall_yhi && j == jhi)) {
+                    cur_ymom(i,j,k) = zero;
+                }
         });
         } // end profile
 
