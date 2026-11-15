@@ -8,6 +8,7 @@
 #include <AMReX.H>
 #include <AMReX_FileSystem.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Utility.H>
 #include <AMReX_VisMF.H>
@@ -465,6 +466,106 @@ TEST(ForceRestoreSnow, StateTakesSnowfallMeltsAndHandsTheSoilItsWater)
         EXPECT_EQ(a(-1, 0, 0), Real(0.2));
         EXPECT_EQ(a(4, 4, 0), Real(0.2));
     }
+}
+
+// Land where i < 2, with a building's column (2, which is land) at (0,0); water where
+// i >= 2. Outside the TEST body: a device lambda cannot be launched from a private member.
+namespace {
+void fill_water_east_mask (amrex::iMultiFab& mask)
+{
+    for (amrex::MFIter mfi(mask); mfi.isValid(); ++mfi) {
+        const auto m = mask.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            m(i, j, k) = (i >= 2) ? 0 : ((i == 0 && j == 0) ? 2 : 1);
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+}
+}
+
+// With a land mask the snow layer is kept on land columns only. A water column (mask 0)
+// keeps its temperature, loses its initial snow at the first step, hands the soil nothing,
+// books no snowfall, is not counted, and the albedo there is the snow-free one before and
+// after that step. 4 x 4 columns, water where i >= 2; a building's column (mask 2) is land.
+// 2 kg/m^2 of snow at 1 K above the melting point with C_s = 2e4 J/m^2/K: Eq. 12 melts
+// C_s / L_f, and 0.5 kg/m^2 of snow falls in the 10 s step.
+TEST(ForceRestoreSnow, WaterColumnsAreLeftOut)
+{
+    using namespace amrex;
+    RadChoice rc;
+    rc.seb_snow_enable = true;
+    rc.seb_precipitation_source = SEBPrecipitationSource::Microphysics;
+    rc.seb_snow_initial_swe_kg_m2 = Real(2.0);
+    rc.seb_surface_heat_capacity = Real(2.0e4);
+    const BoxArray ba3d(Box(IntVect(0, 0, 0), IntVect(3, 3, 2)));
+    const BoxArray ba2d(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)));
+    const DistributionMapping dm(ba3d);
+    MultiFab rain(ba3d, dm, 1, 0), snowacc(ba3d, dm, 1, 0);
+    SurfacePrecipAccumulationSources src;
+    src.rain.accum = &rain; src.snow.accum = &snowacc;
+
+    ForceRestoreSnow snow;
+    snow.resize(1);
+    snow.define_level(0, rc, ba2d, dm, IntVect(1, 1, 0));
+    const ForceRestoreSnowParams prm = ForceRestoreSnow::params(rc);
+    ForceRestorePrecipRate precip;
+    precip.resize(1);
+    precip.define_level(0, rc, ba2d, dm);
+
+    MultiFab t_s(ba2d, dm, 1, 0), lh(ba2d, dm, 1, 0);
+    t_s.setVal(t00 + 1.0); lh.setVal(0.0);
+    iMultiFab mask(ba2d, dm, 1, 0);
+    fill_water_east_mask(mask);
+    const Box land(IntVect(0, 0, 0), IntVect(1, 3, 0)), water(IntVect(2, 0, 0), IntVect(3, 3, 0));
+
+    rain.setVal(0.0); snowacc.setVal(4.0);
+    precip.begin_step(0, src, 0);
+    snowacc.setVal(4.5);
+    precip.end_step(0, src, 0, Real(10.0));
+
+    // Before the first step the water columns still hold the initial snow; the albedo does
+    // not see it. On land: p_ng = 2 / 12.
+    const Real albedo_snow = Real(0.2) + (Real(0.7) - Real(0.2)) / Real(6.0);
+    {
+        MultiFab alb(ba2d, dm, 1, 0);
+        alb.setVal(0.2);
+        snow.apply_albedo(0, alb, prm, nullptr, &mask);
+        EXPECT_EQ(snow.swe(0)->min(water, 0), Real(2.0));
+        EXPECT_EQ(alb.min(water, 0), Real(0.2));
+        EXPECT_EQ(alb.max(water, 0), Real(0.2));
+        EXPECT_NEAR(alb.min(land, 0), albedo_snow, tol);
+        EXPECT_NEAR(alb.max(land, 0), albedo_snow, tol);
+    }
+
+    Real ts_sum = 0.0, ts_max = 0.0;
+    const auto ss = snow.step(0, t_s, lh, nullptr, Real(10.0), prm, precip.frozen(0, Real(10.0)),
+                              ts_sum, ts_max, &mask);
+    precip.mark_used(0);
+    const Real melt = Real(2.0e4) / l_f;
+    EXPECT_EQ(ss.columns, Long(8));
+    EXPECT_EQ(ss.bad_columns, Long(0));
+    EXPECT_NEAR(ss.snowfall, Real(8.0 * 0.5), Real(100.0) * tol);
+    EXPECT_NEAR(ss.melt, Real(8.0) * melt, Real(100.0) * tol);
+    EXPECT_NEAR(ts_sum, Real(8.0) * t00, Real(1.0e4) * tol);
+    // Water: the temperature as it was, no snow, nothing for the soil, nothing booked.
+    EXPECT_EQ(t_s.min(water, 0), t00 + Real(1.0));
+    EXPECT_EQ(t_s.max(water, 0), t00 + Real(1.0));
+    EXPECT_EQ(snow.swe(0)->max(water, 0), Real(0.0));
+    EXPECT_EQ(snow.soil_water(0)->max(water, 0), Real(0.0));
+    EXPECT_EQ(snow.totals(0)->max(water, ForceRestoreSnow::Snowfall), Real(0.0));
+    EXPECT_EQ(snow.totals(0)->max(water, ForceRestoreSnow::Melt), Real(0.0));
+    // Land, the building's column with it: snow held at the melting point.
+    EXPECT_NEAR(t_s.max(land, 0), t00, Real(1.0e3) * tol);
+    EXPECT_NEAR(snow.swe(0)->min(land, 0), Real(2.5) - melt, Real(100.0) * tol);
+    EXPECT_NEAR(snow.swe(0)->max(land, 0), Real(2.5) - melt, Real(100.0) * tol);
+    EXPECT_NEAR(snow.totals(0)->min(land, ForceRestoreSnow::Snowfall), Real(0.5), Real(100.0) * tol);
+
+    // After the step the albedo over water is still the snow-free one.
+    MultiFab alb(ba2d, dm, 1, 0);
+    alb.setVal(0.2);
+    snow.apply_albedo(0, alb, prm, nullptr, &mask);
+    EXPECT_EQ(alb.max(water, 0), Real(0.2));
+    EXPECT_GT(alb.min(land, 0), Real(0.2) + Real(0.01));
 }
 
 TEST(ForceRestoreSnow, SnowfallOfASkippedStepIsCarriedIntoTheNext)

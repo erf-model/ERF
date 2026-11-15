@@ -652,6 +652,36 @@ function(add_test_two_stream_seb_snow TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/bare/simulation.log;${CURRENT_TEST_BINARY_DIR}/no_snow/simulation.log;${CURRENT_TEST_BINARY_DIR}/no_snow/fcompare.log;${CURRENT_TEST_BINARY_DIR}/melt/simulation.log;${CURRENT_TEST_BINARY_DIR}/full_melt/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/restart/fcompare.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_snow)
 
+# The land mask in the two-stream force-restore balance: the case's deck with erf.is_land = 1
+# and = 0. A water column must keep its skin and soil water, be left out of the means, and
+# give the sweep the surface layer's sea surface temperature as the longwave boundary
+# (Tests/RunTwoStreamSEBLandMask.cmake, test_files/TwoStream_SEBLandMask/check_land_mask.py).
+function(add_test_two_stream_seb_land_mask TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_SEB_LAND_MASK_CHECKER}"
+        "-DSTEPS=10"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBLandMask.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/land/simulation.log;${CURRENT_TEST_BINARY_DIR}/water/simulation.log;${CURRENT_TEST_BINARY_DIR}/nest/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_two_stream_seb_land_mask)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -2034,6 +2064,27 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
             WORKING_DIRECTORY "${_anelastic_dir}" TIMEOUT 600
             PROCESSORS ${_species_ranks} LABELS "regression;anelastic;particles")
     endforeach()
+    # Motivation: Diagnostics files must carry the step and time of the state they
+    # hold, also at the start of a restarted run.
+    set(_diag_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/SDM_DiagnosticsRestart")
+    file(MAKE_DIRECTORY "${_diag_dir}")
+    set(_diag_binned "")
+    if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS)
+        set(_diag_binned "--expect-binned")
+    endif()
+    add_test(NAME SDM_DiagnosticsRestart
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/test_files/SDM_DiagnosticsRestart/check_diagnostics_restart.py"
+            "--exe=$<TARGET_FILE:erf_exec>"
+            "--input=${_species_input}/SDM_SpeciesDiffusion.i"
+            "--mpi-exec=${_species_mpi_exec}"
+            "--mpi-numproc-flag=${MPIEXEC_NUMPROC_FLAG}"
+            "--mpi-preflags=${_species_mpi_preflags}" "--ranks=${_species_ranks}"
+            ${_diag_binned})
+    set_tests_properties(SDM_DiagnosticsRestart PROPERTIES
+        WORKING_DIRECTORY "${_diag_dir}" TIMEOUT 600
+        PROCESSORS ${_species_ranks} LABELS "regression;restart;particles"
+        ATTACHED_FILES_ON_FAIL "${_diag_dir}/straight/simulation.log;${_diag_dir}/restart_2/simulation.log;${_diag_dir}/restart_3/simulation.log")
     set(_anelastic_options "erf.input_sounding_file=${_species_input}/input_sounding erf.c_p=1200 erf.Cs=2 super_droplets_moisture.include_phase_change=true super_droplets_moisture.num_substeps_phase_change=2 super_droplets_moisture.initial_phase_change_relaxation=true super_droplets_moisture.initial_phase_change_relaxation_time=0.02")
     # Motivation: Restart reconstruction must preserve the active phase-change
     # trajectory with base pressure and a nondefault heat capacity.
@@ -3311,6 +3362,10 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # The force-restore snow layer on its own deck: no snow, melting, melting away, across a
     # restart and on two levels.
     add_test_two_stream_seb_snow(TwoStream_SEBSnow)
+    # The balance over water: the state is held and the sweep takes the sea surface
+    # temperature. With the balance run on every column (the behaviour before this test) the
+    # water run's skin moves and the two runs' net longwave agree at step 1.
+    add_test_two_stream_seb_land_mask(TwoStream_SEBLandMask)
   endif()
 
   # Two-stream radiation feeding Noah-MP on two levels (see the function above). Noah-MP

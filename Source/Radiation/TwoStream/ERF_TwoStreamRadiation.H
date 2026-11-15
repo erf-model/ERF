@@ -148,6 +148,15 @@ public:
      * @param have_datetime true when start_datetime (or a WRF/metgrid start
      *                   date) fixed the calendar; without it a dynamic sun
      *                   cannot be placed and the call aborts
+     * @param land_mask  the level's land mask (ERF::lmask_lev: 0 water, 1 land, 2 a
+     *                   building's column), one 2D box at k = 0 for each box of the
+     *                   state, or nullptr (every column is land). The force-restore
+     *                   balance is a model of soil, so a water column (mask 0) is not
+     *                   its ground: its state is held (the snow layer's water is set to
+     *                   zero), it is left out of the balance's
+     *                   means and of the hydrology, and the sweep takes its surface
+     *                   temperature from @p t_surf (the surface layer's sea surface
+     *                   temperature) and not from the balance's skin.
      */
     void advance (int lev,
                   int nstep,
@@ -168,7 +177,8 @@ public:
                   const amrex::MultiFab* lat_m,
                   const amrex::MultiFab* lon_m,
                   double epoch_time,
-                  bool have_datetime);
+                  bool have_datetime,
+                  const amrex::iMultiFab* land_mask = nullptr);
 
     /**
      * @brief The prognostic surface state of one level, or nullptr when the SEB is
@@ -606,6 +616,11 @@ private:
     amrex::Vector<int> m_has_cover;
     // Whether the ground balance of the level has updated after a sweep (seb_sw_net()).
     amrex::Vector<int> m_seb_updated;
+    // Whether advance() has looked at the level's land mask for its one message about
+    // water columns: 1 water was found and reported, 0 none was found, -1 not looked at
+    // yet (set by define_level(): the level may have new grids). A message only: every
+    // decision reads the mask itself (ERF_SEBLandMask.H).
+    amrex::Vector<int> m_water_message;
 
     amrex::Vector<FluxDiag> m_flux_diag;
 };

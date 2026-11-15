@@ -6,6 +6,9 @@ CEXE_sources += ERF_ForceRestorePrecipRate.cpp
 CEXE_sources += ERF_ForceRestoreSnowState.cpp
 
 CEXE_headers += ERF_TwoStreamRadiation.H
+CEXE_headers += ERF_SEBLandAverageDown.H
+CEXE_headers += ERF_SEBLandFill.H
+CEXE_headers += ERF_SEBLandMask.H
 CEXE_headers += ERF_TwoStreamSW.H
 CEXE_headers += ERF_TwoStreamLW.H
 CEXE_headers += ERF_TwoStreamColumn.H

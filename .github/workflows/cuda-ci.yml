@@ -102,6 +102,7 @@ jobs:
                ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-
       - name: Show disk space
         run: df -h
+      # Also builds the SDM ML-uphys diagnostics (build only, no tests).
       - name: Configure and build
         shell: bash
         run: |
@@ -127,6 +128,7 @@ jobs:
             -DERF_ENABLE_MOVING_BODIES:BOOL=ON \
             -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
             -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
+            -DERF_ENABLE_ML_UPHYS_DIAGNOSTICS:BOOL=ON \
             -DERF_TEST_NRANKS:STRING=2 \
             -DERF_ENABLE_UNIT_TESTS:BOOL=ON .
           echo "Building with $(nproc) processes"

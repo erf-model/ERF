@@ -11,6 +11,7 @@
 
 #include <ERF_Constants.H>          // L_v
 #include <ERF_RadStruct.H>
+#include <ERF_SEBLandMask.H>
 #include <ERF_ReadCheckpointMF.H>
 
 using namespace amrex;
@@ -55,10 +56,12 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
                              const MultiFab& lh, const MultiFab* footprint,
                              Real dt, const ForceRestoreHydrologyParams& prm,
                              const ForceRestorePrecipInput& rain,
-                             const MultiFab* snow_water)
+                             const MultiFab* snow_water,
+                             const iMultiFab* land_mask)
 {
     StepSums sums;
     if (!defined(lev)) { return sums; }
+    seb_assert_land_mask_layout(land_mask, q_s, "ForceRestoreHydrology::step");
 
     // The soil takes water only with prm.rain: the snow layer's water would otherwise leave
     // the column unseen.
@@ -90,11 +93,13 @@ ForceRestoreHydrology::step (int lev, const MultiFab& t_s, MultiFab& q_s,
         Array4<const Real> foot = has_foot ? footprint->const_array(mfi) : Array4<const Real>{};
         const bool has_snow = snow_water != nullptr;
         Array4<const Real> sw = has_snow ? snow_water->const_array(mfi) : Array4<const Real>{};
+        // A water column is not soil: no rain, runoff or drainage is booked on it.
+        const SEBLandMaskView mask = seb_land_mask_view(land_mask, mfi);
 
         reduce_op.eval(bx, reduce_data,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> ReduceTuple
         {
-            if (has_foot && foot(i, j, k) > Real(0.5)) {
+            if ((has_foot && foot(i, j, k) > Real(0.5)) || mask.water(i, j)) {
                 return {Real(0.), Real(0.), Real(0.), Real(0.), Real(0.), Real(0.), Long(0)};
             }
             Real p = has_rain ? pr(i, j, k, rain_comp) * rain_scale : Real(0.0);
