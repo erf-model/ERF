@@ -159,7 +159,8 @@ CASES = [
     Case("allzero_psfc_uses_p0", 1, "WRFInput", P_0,
          ["erf.nc_init_file_0=wrfinput_allzero"], "input",
          ["all zero on the covered level-0 domain; replacing its covered cells with p_0",
-          "all zero and was replaced by p_0, as during initialization"]),
+          "all covered valid PSFC samples read for the level were zero; covered cells were "
+          "replaced by p_0"]),
     # One actual checkpoint valid box has zero PSFC while others have positive PSFC; the
     # level-wide fallback must not accept that zero region by itself.
     Case("zero_valid_box_in_mixed_psfc_does_not_use_p0", 1, "WRFInput", "wrfinput",

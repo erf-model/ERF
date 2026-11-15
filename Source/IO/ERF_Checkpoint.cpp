@@ -1089,8 +1089,8 @@ ERF::convert_legacy_surface_temperature (
             mf_PSFC[lev]->FillBoundary(period);
             from = "the PSFC of " + nc_init_file[lev][0];
             if (used_p0_fallback) {
-                from += " (its covered field was all zero and was replaced by p_0, as during "
-                        "initialization)";
+                from += " (all covered valid PSFC samples read for the level were zero; "
+                        "covered cells were replaced by p_0)";
             }
             if (lev > 0 && num_own_init_files > 1) {
                 from += ", the first of its " + std::to_string(num_own_init_files) +
