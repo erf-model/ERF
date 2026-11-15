@@ -130,7 +130,7 @@ public:
     {
         if (m_constant) { return m_mdot[0]; }
         if (t < m_t.front() || t > m_t.back()) { return amrex::Real(0); }
-        std::size_t n = 1;
+        amrex::Long n = 1;
         while (n < m_t.size() - 1 && m_t[n] < t) { ++n; }
         const amrex::Real w = (t - m_t[n-1]) / (m_t[n] - m_t[n-1]);
         return (amrex::Real(1) - w) * m_mdot[n-1] + w * m_mdot[n];
@@ -140,7 +140,7 @@ public:
     [[nodiscard]] amrex::Real total_mass () const
     {
         amrex::Real m = 0;
-        for (std::size_t n = 1; n < m_t.size(); ++n) {
+        for (amrex::Long n = 1; n < m_t.size(); ++n) {
             m += amrex::Real(0.5) * (m_mdot[n] + m_mdot[n-1]) * (m_t[n] - m_t[n-1]);
         }
         return m;
