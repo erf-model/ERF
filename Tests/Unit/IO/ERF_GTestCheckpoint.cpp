@@ -755,6 +755,14 @@ TEST(CheckpointSurfaceTemperature, DiagnosesSurfacePressureWithValidatedStateAnd
                 getPgivenRTh(rho_theta, rho_qv / rho) - rho * CONST_GRAV * half_dz,
                 amrex::Real(1.0e-12) * moist.pressure);
 
+    const auto negative_vapor = erf_surface_temperature::diagnose_surface_pressure(
+        rho, rho_theta, amrex::Real(-0.001), true, true, -half_dz);
+    const auto zero_vapor = erf_surface_temperature::diagnose_surface_pressure(
+        rho, rho_theta, amrex::Real(0.0), true, true, -half_dz);
+    EXPECT_EQ(negative_vapor.error, Error::none);
+    EXPECT_EQ(negative_vapor.qv, amrex::Real(0.0));
+    EXPECT_EQ(negative_vapor.pressure, zero_vapor.pressure);
+
     EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
                   rho, rho_theta, amrex::Real(0.0), true, false, half_dz).error,
               Error::no_moisture_comp);
@@ -770,8 +778,17 @@ TEST(CheckpointSurfaceTemperature, DiagnosesSurfacePressureWithValidatedStateAnd
                   true, true, half_dz).error,
               Error::bad_rho_qv);
     EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
-                  rho, rho_theta, amrex::Real(-0.001), true, true, half_dz).error,
+                  rho, rho_theta, -std::numeric_limits<amrex::Real>::infinity(),
+                  true, true, half_dz).error,
               Error::bad_rho_qv);
+    EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
+                  rho, rho_theta, std::numeric_limits<amrex::Real>::quiet_NaN(),
+                  true, true, half_dz).error,
+              Error::bad_rho_qv);
+    EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
+                  std::numeric_limits<amrex::Real>::min(), rho_theta,
+                  std::numeric_limits<amrex::Real>::max(), true, true, half_dz).error,
+              Error::bad_qv);
     EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
                   rho, rho_theta, rho_qv, false, false,
                   std::numeric_limits<amrex::Real>::quiet_NaN()).error,

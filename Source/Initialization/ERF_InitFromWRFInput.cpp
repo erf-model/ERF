@@ -3392,8 +3392,9 @@ ERF::check_own_low_file_times (int lev)
  * it retain the parent value.  Without that parent, every valid cell must be covered by the file.
  *
  * @param[in] lev level with an init file of its own
+ * @return whether every covered valid PSFC value from the file was zero and replaced by p_0
  */
-void
+bool
 ERF::read_psfc_from_own_init_file (int lev, bool allow_uncovered)
 {
     AMREX_ALWAYS_ASSERT(!nc_init_file[lev].empty());
@@ -3413,6 +3414,7 @@ ERF::read_psfc_from_own_init_file (int lev, bool allow_uncovered)
     IntVect ng = mf_PSFC[lev]->nGrowVect();
     ng[2] = 0;
     Vector<Box> local_erf_regions;
+    Vector<Box> local_valid_regions;
     Vector<int> local_fab_indices;
     for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
         const Box valid = mfi.validbox();
@@ -3423,9 +3425,11 @@ ERF::read_psfc_from_own_init_file (int lev, bool allow_uncovered)
                << " in " << nc_init_file[lev][0];
             Abort(os.str());
         }
+        const Box valid_from_file = valid & psfc_erf_box;
         Box needed = amrex::grow(valid, ng) & psfc_erf_box;
         if (needed.ok()) {
             local_erf_regions.push_back(needed);
+            local_valid_regions.push_back(valid_from_file);
             local_fab_indices.push_back(mfi.index());
         }
     }
@@ -3435,6 +3439,8 @@ ERF::read_psfc_from_own_init_file (int lev, bool allow_uncovered)
     pp.query("wrfinput_max_readers", max_readers);
     int max_regions = static_cast<int>(local_erf_regions.size());
     ParallelDescriptor::ReduceIntMax(max_regions);
+    int local_has_valid_file_data = 0;
+    int local_has_nonzero_file_data = 0;
     for (int iregion = 0; iregion < max_regions; ++iregion) {
         // All ranks make the same number of calls because read_region_from_wrfinput has
         // collective reader throttling. Ranks without a region in this slot pass an empty
@@ -3450,15 +3456,60 @@ ERF::read_psfc_from_own_init_file (int lev, bool allow_uncovered)
         read_region_from_wrfinput(nc_init_file[lev][0], "PSFC", psfc_file_box,
                                   file_region, psfc_from_file, max_readers);
         if (psfc_from_file.box().ok()) {
+            Box valid_file_region;
+            if (iregion < static_cast<int>(local_valid_regions.size())) {
+                valid_file_region = local_valid_regions[iregion];
+                valid_file_region.shift(-shift);
+            }
+            if (valid_file_region.ok()) {
+                local_has_valid_file_data = 1;
+                const auto file_arr = psfc_from_file.const_array();
+                for (BoxIterator bit(valid_file_region); bit.ok(); ++bit) {
+                    if (file_arr(bit(), 0) != zero) {
+                        // Negative, NaN and infinite values also prevent the exact all-zero
+                        // fallback; the normal pressure validation must reject them.
+                        local_has_nonzero_file_data = 1;
+                    }
+                }
+            }
             psfc_from_file.shift(shift);
             FArrayBox& psfc_fab = (*mf_PSFC[lev])[local_fab_indices[iregion]];
             const Box copy_box = psfc_fab.box() & psfc_from_file.box();
             if (copy_box.ok()) {
                 psfc_fab.template copy<RunOn::Device>(
                     psfc_from_file, copy_box, 0, copy_box, 0, 1);
+                // read_region_from_wrfinput allocates this source in the pinned host arena
+                // on GPU builds. Keep it alive until the asynchronous host-to-device copy
+                // has consumed it, before this FArrayBox is destroyed or the arena reuses it.
+                Gpu::streamSynchronize();
             }
         }
     }
+
+    // Match initialization's whole-field all-zero fallback, while excluding uncovered
+    // parent-seeded cells and avoiding a per-grid fallback. A zero-only tile in a field
+    // containing any nonzero (or invalid) covered pressure therefore remains an error.
+    ParallelDescriptor::ReduceIntMax(local_has_valid_file_data);
+    ParallelDescriptor::ReduceIntMax(local_has_nonzero_file_data);
+    const bool all_zero_psfc = local_has_valid_file_data != 0 &&
+                               local_has_nonzero_file_data == 0;
+    if (all_zero_psfc) {
+        for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
+            const Box covered = mfi.fabbox() & psfc_erf_box;
+            if (covered.ok()) {
+                const auto psfc_arr = mf_PSFC[lev]->array(mfi);
+                ParallelFor(covered, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    psfc_arr(i,j,k) = p_0;
+                });
+            }
+        }
+        Gpu::streamSynchronize();
+        Print() << "PSFC in " << nc_init_file[lev][0]
+                << " is all zero on the covered level-" << lev
+                << " domain; replacing its covered cells with p_0\n";
+    }
+    return all_zero_psfc;
 }
 
 /** Return a WRF file's box in the global ERF index space.  WRF's I/J_PARENT_START

@@ -6,7 +6,8 @@ geometry.prob_extent = 8000.0 8000.0 800.0
 amr.n_cell = 8 8 8
 geometry.is_periodic = 0 0 0
 amr.max_level = 0
-amr.max_grid_size = 8 8 8
+amr.blocking_factor = 2
+amr.max_grid_size = 4 4 8
 
 xlo.type = "Outflow"
 xhi.type = "Outflow"

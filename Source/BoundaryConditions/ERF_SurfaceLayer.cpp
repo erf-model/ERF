@@ -324,14 +324,12 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_tsurf_with_skin_temperature(lev, cons_in, z_phys_nd, conversion_fail);
     }
 
-    // Check any attempted surface-temperature conversion before qsat or a flux kernel can
-    // consume it; dataValue performs the blocking copy, so no separate stream sync is needed.
-    // Objects with no temperature conversion and the other orientations need only the
-    // humidity check below.
-    if (check_surface_temperature) {
+    // Dry updates have no later humidity check, so validate their temperature conversions
+    // here before a flux kernel can consume them. Moist updates keep the record for qsat and
+    // validate once at the end, after the humidity producers have finished.
+    if (!check_surface_humidity && check_surface_temperature) {
         erf_surface_temperature::abort_on_conversion_failure(
             "SurfaceLayer temperature update", lev, m_surface_conversion_failure.dataValue());
-        reset_failure();
     }
 
     // Update qsurf with qsat over sea
@@ -2527,6 +2525,15 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                                     const std::unique_ptr<MultiFab>& z_phys_nd,
                                     erf_surface_temperature::ConversionFailure* fail)
 {
+    // Temperature producers run before this routine on the same AMReX stream. Snapshot
+    // their failure state once so qsat cannot consume invalid t_surf values, while qsat's
+    // own failures do not suppress diagnostics from its remaining cells.
+    ParallelFor(1, [=] AMREX_GPU_DEVICE (int) noexcept
+    {
+        fail->skip_qsat =
+            (fail->code != static_cast<int>(erf_surface_temperature::ConversionError::none));
+    });
+
     const int dir = m_face.coordDir();
     int sm_index;
     if (m_face.isLow()) {
@@ -2611,6 +2618,7 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            if (fail->skip_qsat) { return; }
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
             if (!is_land) {
                 const bool authoritative = i >= src_i_lo && i <= src_i_hi &&

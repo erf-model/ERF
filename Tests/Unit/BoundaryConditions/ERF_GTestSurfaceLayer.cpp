@@ -1420,7 +1420,8 @@ TEST(SurfaceLayer, AbsoluteSurfaceTemperatureReportsUnusableState)
                          amrex::RuntimeError);
         }
         const std::string report = testing::internal::GetCapturedStdout();
-        EXPECT_NE(report.find("SurfaceLayer temperature update"), std::string::npos) << report;
+        EXPECT_NE(report.find("SurfaceLayer surface humidity update"), std::string::npos)
+            << report;
         EXPECT_NE(report.find("density of the state cell"), std::string::npos) << report;
     }
 }
@@ -1971,6 +1972,34 @@ TEST(SurfaceLayer, LowerBoundarySstGivesSaturationAtTheSst)
                 qsat_tolerance(expected));
 }
 
+// A finite advection undershoot in rho_qv is diagnostic-only dry air. The pressure
+// and qsat path must match a zero-vapor state without modifying the prognostic field.
+TEST(SurfaceLayer, LowerBoundaryQsatClampsFiniteNegativeLowestVapor)
+{
+    const std::string prefix = "unit_surface_layer_lowbdy_sst_negative_qv";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    fields.sst_data.push_back(make_surface_slice(fields.ba, fields.dm, Real(290.0)));
+    const Real pressure = Real(0.92) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2), Real(0.0));
+    fields.cons.setVal(Real(-0.001) * test_rho, RhoQ1_comp, 1);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true, false);
+
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const IntVect point = face_point(fields.domain, face);
+    Real expected = Real(0.0);
+    erf_qsatw(Real(290.0), pressure * Real(0.01), expected);
+    EXPECT_NEAR(mf_value(*layer->get_q_surf(0), point), expected,
+                qsat_tolerance(expected));
+    EXPECT_EQ(fields.cons.min(RhoQ1_comp), Real(-0.001) * test_rho);
+}
+
 // Motivation: through a run the SST follows the lower-boundary slices while the surface
 // pressure follows the flow, each on its own.  At every update the surface potential
 // temperature must be the SST of that time at the surface pressure of that time,
@@ -2047,6 +2076,106 @@ TEST(SurfaceLayer, LowerBoundarySstReportsUnusableTemperature)
         const std::string report = testing::internal::GetCapturedStdout();
         EXPECT_NE(report.find("SurfaceLayer temperature update"), std::string::npos) << report;
         EXPECT_NE(report.find("could not be converted to potential temperature"),
+                  std::string::npos) << report;
+    }
+}
+
+// Moist updates retain temperature failures for the one final collective check. qsat
+// skips unsafe temperatures, while later independent humidity producers still contribute
+// to the shared record without replacing its first diagnostic.
+TEST(SurfaceLayer, MoistUpdateChecksTemperatureAndHumidityFailuresOnce)
+{
+    const std::string prefix = "unit_surface_layer_moist_shared_failure";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    const IntVect water(2, 1, 0);
+    const IntVect land = face_point(geom.Domain(), face);
+
+    // A temperature-only error in a moist update reaches the final humidity check;
+    // qsat must not consume the failed t_surf value.
+    {
+        SurfaceLayerFields fields(geom);
+        fields.lmask[0]->setVal(0);
+        fields.sst_data.push_back(make_surface_slice(
+            fields.ba, fields.dm, std::numeric_limits<Real>::quiet_NaN()));
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true, false);
+        testing::internal::CaptureStdout();
+        {
+            ScopedThrowOnAbort throw_on_abort;
+            EXPECT_THROW(layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                                              fields.no_walldist, 20),
+                         amrex::RuntimeError);
+        }
+        const std::string report = testing::internal::GetCapturedStdout();
+        EXPECT_NE(report.find("SurfaceLayer surface humidity update"), std::string::npos)
+            << report;
+        EXPECT_NE(report.find("surface temperature could not be converted to potential temperature"),
+                  std::string::npos) << report;
+    }
+
+    // A humidity-only error with no temperature producer is also reported at that same
+    // final check.
+    {
+        SurfaceLayerFields fields(geom);
+        fields.lmask[0]->setVal(0);
+        fields.cons.setVal(Real(0.0), Rho_comp, 1);
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true, false);
+        testing::internal::CaptureStdout();
+        {
+            ScopedThrowOnAbort throw_on_abort;
+            EXPECT_THROW(layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                                              fields.no_walldist, 20),
+                         amrex::RuntimeError);
+        }
+        const std::string report = testing::internal::GetCapturedStdout();
+        EXPECT_NE(report.find("SurfaceLayer surface humidity update"), std::string::npos)
+            << report;
+        EXPECT_NE(report.find("the density of the state cell is not usable"),
+                  std::string::npos) << report;
+    }
+
+    // The temperature error is recorded first. A skin-humidity failure from a separate
+    // reference-height vapor field later in the same update must not replace that
+    // diagnostic or clear its failure state.
+    {
+        using namespace erf_surface_moisture;
+        SurfaceLayerFields fields(geom);
+        fields.lmask[0]->setVal(0);
+        fields.lmask[0]->setVal(1, Box(land, land), 0, 1);
+        auto sst = make_surface_slice(fields.ba, fields.dm, Real(290.0));
+        sst->setVal(std::numeric_limits<Real>::quiet_NaN(), Box(water, water), 0, 1);
+        fields.sst_data.push_back(std::move(sst));
+        fields.set_surface_cell_pressure(
+            Real(0.9) * p_0 - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true, false);
+
+        MultiFab skin(layer->get_t_surf(0)->boxArray(),
+                      layer->get_t_surf(0)->DistributionMap(), 1,
+                      layer->get_t_surf(0)->nGrowVect());
+        skin.setVal(Real(300.0));
+        MultiFab moisture(layer->get_q_surf(0)->boxArray(),
+                          layer->get_q_surf(0)->DistributionMap(), NumComponents,
+                          layer->get_q_surf(0)->nGrowVect());
+        moisture.setVal(Real(1.0), SoilFactor, 1);
+        fields.qv_prim[0]->setVal(std::numeric_limits<Real>::quiet_NaN(),
+                                  Box(land, land), 0, 1);
+        layer->set_skin_temperature(0, &skin);
+        layer->set_skin_moisture(0, &moisture, false);
+
+        testing::internal::CaptureStdout();
+        {
+            ScopedThrowOnAbort throw_on_abort;
+            EXPECT_THROW(layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                                              fields.no_walldist, 20),
+                         amrex::RuntimeError);
+        }
+        const std::string report = testing::internal::GetCapturedStdout();
+        EXPECT_NE(report.find("SurfaceLayer surface humidity update"), std::string::npos)
+            << report;
+        EXPECT_NE(report.find("surface temperature could not be converted to potential temperature"),
+                  std::string::npos) << report;
+        EXPECT_EQ(report.find("surface mixing ratio came out non-finite"),
                   std::string::npos) << report;
     }
 }

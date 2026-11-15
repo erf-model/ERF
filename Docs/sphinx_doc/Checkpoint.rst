@@ -33,9 +33,13 @@ need not be the same:
 - **WRFInput: best-available pressure, approximate on fine levels.** Level 0
   reads ``PSFC`` from the first file in ``erf.nc_init_file_0``. A smaller
   level-0 checkpoint domain reads only the corresponding local regions of that
-  file. On a finer level, an own-file ``PSFC`` overlays the part of the
-  regridded level covered by that file; newly covered cells outside its
-  footprint use interpolated parent pressure. A level without its own surface
+  file. If every covered valid value read for the level is exactly zero, ERF
+  replaces those covered values with ``p_0``, matching initialization's
+  all-zero fallback. A zero tile in a field that also contains nonzero values,
+  or a negative or non-finite value, does not use this fallback and remains
+  subject to pressure validation. On a finer level, an own-file ``PSFC``
+  overlays the part of the regridded level covered by that file; newly covered
+  cells outside its footprint use interpolated parent pressure. A level without its own surface
   forcing uses pressure interpolated from its parent. In particular, when
   level 0 reads ``erf.nc_low_file`` and a finer level has no own
   ``erf.nc_low_file_<lev>``, its SST/TSK slices are inherited from the parent,
@@ -78,8 +82,11 @@ need not be the same:
   retained and the surface layer converts it using the then-current local
   ground pressure. Migration warns that the original absolute temperature
   cannot be recovered exactly because the input pressure and regrid history
-  are absent. Markerless Metgrid arrays are already in kelvin and are restored
-  directly.
+  are absent. Pressure is prepared and validated on each level even when that
+  level has no SST/TSK arrays, so an aloft descendant can inherit populated
+  parent pressure; if no finite positive parent or diagnosed ground pressure
+  is available, migration aborts. Markerless Metgrid arrays are already in
+  kelvin and are restored directly.
 
 A checkpoint whose ``job_info`` does not record the ``erf.init_type`` that
 wrote these arrays is rejected rather than guessed, unless the restart asserts

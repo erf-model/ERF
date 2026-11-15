@@ -1491,7 +1491,7 @@ private:
 
     // Read local PSFC regions from a level's first WRFInput file for legacy checkpoint
     // temperature migration; this is not an input to ongoing SST/TSK updates.
-    void read_psfc_from_own_init_file (int lev, bool allow_uncovered);
+    bool read_psfc_from_own_init_file (int lev, bool allow_uncovered);
 
     // The full WRF file box in ERF's global index space, including all ancestor nest offsets;
     // optionally return the requested refined file's parent-grid ratio

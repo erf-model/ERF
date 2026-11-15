@@ -1013,13 +1013,14 @@ ERF::convert_legacy_precip_accumulations (int lev)
  *
  * @param lev            AMR level whose SST and TSK were just read
  * @param plan           how the SST and TSK of the checkpoint are migrated
- * @param psfc_recovered per level, whether its wrfinput surface pressure has been recovered
+ * @param legacy_psfc_ready per level, whether pressure for legacy migration has been populated
+ *                          and validated
  */
 void
 ERF::convert_legacy_surface_temperature (
     int lev,
     const erf_checkpoint_surface_temperature::SurfaceTemperatureMigrationPlan& plan,
-    Vector<int>& psfc_recovered)
+    Vector<int>& legacy_psfc_ready)
 {
     namespace cst = erf_checkpoint_surface_temperature;
 
@@ -1071,21 +1072,26 @@ ERF::convert_legacy_surface_temperature (
         }
         const auto source = cst::legacy_wrfinput_pressure_source(
             lev, num_own_init_files, later_init_file_started, !nc_low_file.empty(),
-            has_own_low_file(lev), lev > 0 && psfc_recovered[lev-1] != 0);
+            has_own_low_file(lev), lev > 0 && legacy_psfc_ready[lev-1] != 0);
 
         // Seed newly regridded cells and ghost regions from an available parent pressure.
         // The file read below overlays its footprint, as init_from_wrfinput does for fields
         // that were initialized partly from a parent and partly from a level's own file.
         mf_PSFC[lev]->setVal(zero);
-        const bool parent_pressure_available = lev > 0 && psfc_recovered[lev-1] != 0;
+        const bool parent_pressure_available = lev > 0 && legacy_psfc_ready[lev-1] != 0;
         if (parent_pressure_available) {
             interp_psfc_from_coarse(lev);
         }
         std::string from;
         if (source == cst::LegacySurfacePressureSource::OwnInitFile) {
-            read_psfc_from_own_init_file(lev, parent_pressure_available);
+            const bool used_p0_fallback =
+                read_psfc_from_own_init_file(lev, parent_pressure_available);
             mf_PSFC[lev]->FillBoundary(period);
             from = "the PSFC of " + nc_init_file[lev][0];
+            if (used_p0_fallback) {
+                from += " (its covered field was all zero and was replaced by p_0, as during "
+                        "initialization)";
+            }
             if (lev > 0 && num_own_init_files > 1) {
                 from += ", the first of its " + std::to_string(num_own_init_files) +
                         " init files: none of the others had started by the time of the "
@@ -1097,7 +1103,7 @@ ERF::convert_legacy_surface_temperature (
         }
         if (source != cst::LegacySurfacePressureSource::Unavailable) {
             cst::fill_outside_domain_from_nearest(*mf_PSFC[lev], geom[lev]);
-            psfc_recovered[lev] = 1;
+            legacy_psfc_ready[lev] = 1;
         }
 
         if (!sst && !tsk) { return; }
@@ -1136,21 +1142,12 @@ ERF::convert_legacy_surface_temperature (
                 << "potential temperature, and " << recorded_by << "a WRFInput run converted "
                 << "them: pressure recovery at level " << lev << " with " << from << "\n";
 #else
-        amrex::ignore_unused(psfc_recovered);
+        amrex::ignore_unused(legacy_psfc_ready);
         Abort("convert_legacy_surface_temperature: recovering the SST and TSK with the "
               "wrfinput surface pressure needs a build with NetCDF");
 #endif
     } else if (plan.method == cst::SurfaceTemperatureMigration::RestartPressure) {
-        if (!sst && !tsk) { return; }
-        Warning("Restart checkpoint " + restart_chkfile + " holds the SST and TSK as potential "
-                "temperature, and " + recorded_by + "a Metgrid run converted them with the "
-                "surface pressure of its input, which a restart does not read. APPROXIMATE "
-                "migration at level " + level + ": where this level reaches the ground, use "
-                "the restarted ground-state pressure; where it is refined aloft, use the "
-                "coarser level's ground pressure. This is the best available pressure "
-                "policy, but the input pressure and any regrid history are absent from the "
-                "checkpoint, so the original absolute temperature cannot be recovered "
-                "exactly.");
+        AMREX_ALWAYS_ASSERT(mf_PSFC[lev]);
 
         // Diagnose pressure only in boxes that contain the domain's ground plane.  Boxes
         // aloft keep the pressure interpolated from the coarser level; their lowest cell is
@@ -1162,7 +1159,13 @@ ERF::convert_legacy_surface_temperature (
         const bool have_rho_qv = cons.nComp() > RhoQ1_comp;
 
         mf_PSFC[lev]->setVal(zero);
-        if (lev > 0 && mf_PSFC[lev-1]) {
+        if (lev > 0) {
+            if (legacy_psfc_ready[lev-1] == 0) {
+                Abort("Cannot prepare legacy Metgrid surface pressure at level " + level +
+                      ": pressure at parent level " + std::to_string(lev-1) +
+                      " was not populated. The restart cannot safely migrate the SST/TSK "
+                      "or prepare pressure for this aloft level.");
+            }
             IntVect ng = mf_PSFC[lev]->nGrowVect(); ng[2] = 0;
             const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
             InterpFromCoarseLevel(*mf_PSFC[lev], ng, IntVect(0,0,0),
@@ -1233,6 +1236,42 @@ ERF::convert_legacy_surface_temperature (
             d_pressure_fail.dataValue());
         mf_PSFC[lev]->FillBoundary(period);
         cst::fill_outside_domain_from_nearest(*mf_PSFC[lev], geom[lev]);
+
+        // Allocation alone does not make a pressure field ready. Check every valid cell
+        // after parent interpolation and any ground-state overwrite, before a descendant
+        // is allowed to interpolate from this level.
+        Gpu::DeviceScalar<int> d_bad_pressure(0);
+        auto* bad_pressure = d_bad_pressure.dataPtr();
+        for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
+            const auto pressure = mf_PSFC[lev]->const_array(mfi);
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (!amrex::Math::isfinite(pressure(i,j,k)) || pressure(i,j,k) <= Real(0.0)) {
+                    Gpu::Atomic::Exch(bad_pressure, 1);
+                }
+            });
+        }
+        int any_bad_pressure = d_bad_pressure.dataValue();
+        ParallelDescriptor::ReduceIntMax(any_bad_pressure);
+        if (any_bad_pressure != 0) {
+            Abort("Cannot prepare legacy Metgrid surface pressure at level " + level +
+                  ": one or more valid cells have no finite, positive parent or diagnosed "
+                  "ground pressure. The restart cannot safely migrate the SST/TSK.");
+        }
+        legacy_psfc_ready[lev] = 1;
+
+        // A level with no surface arrays still has to prepare pressure for an aloft child.
+        if (!sst && !tsk) { return; }
+
+        Warning("Restart checkpoint " + restart_chkfile + " holds the SST and TSK as potential "
+                "temperature, and " + recorded_by + "a Metgrid run converted them with the "
+                "surface pressure of its input, which a restart does not read. APPROXIMATE "
+                "migration at level " + level + ": where this level reaches the ground, use "
+                "the restarted ground-state pressure; where it is refined aloft, use the "
+                "coarser level's ground pressure. This is the best available pressure "
+                "policy, but the input pressure and any regrid history are absent from the "
+                "checkpoint, so the original absolute temperature cannot be recovered "
+                "exactly.");
 
         p_sfc = mf_PSFC[lev].get();
     } else {
@@ -1374,8 +1413,9 @@ ERF::ReadCheckpointFile ()
         erf_checkpoint_surface_temperature::SurfaceTemperatureMigration::Reject) {
         Abort(surface_temperature_plan.reason);
     }
-    // Per level, whether the wrfinput surface pressure of an exact migration was recovered
-    Vector<int> legacy_psfc_recovered(finest_level+1, 0);
+    // Per level, whether pressure for legacy migration has been populated and validated.
+    // A Metgrid level without surface fields still prepares pressure for its descendants.
+    Vector<int> legacy_psfc_ready(finest_level+1, 0);
 
     // read the number of components
     // for each variable we store
@@ -2288,7 +2328,7 @@ ERF::ReadCheckpointFile ()
         if (surface_temperature_plan.method !=
             erf_checkpoint_surface_temperature::SurfaceTemperatureMigration::None) {
             convert_legacy_surface_temperature(lev, surface_temperature_plan,
-                                               legacy_psfc_recovered);
+                                               legacy_psfc_ready);
         }
 
         std::string LTypeFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LANDTYPE_0_H");

@@ -154,6 +154,18 @@ CASES = [
          ["erf.nc_init_file_0=wrfinput_crop"], "input",
          "pressure recovery at level 0 with the PSFC of wrfinput_crop", base="crop",
          input_file="WRFInput_LegacySurfaceTemperature_Cropped.i"),
+    # Initialization's global all-zero fallback is preserved for the covered model field.
+    Case("allzero_psfc_uses_p0", 1, "WRFInput", P_0,
+         ["erf.nc_init_file_0=wrfinput_allzero"], "input",
+         ["all zero on the covered level-0 domain; replacing its covered cells with p_0",
+          "all zero and was replaced by p_0, as during initialization"]),
+    # A zero-only tile in a field with positive values is not an absent whole-field PSFC.
+    Case("mixed_zero_positive_psfc_does_not_use_p0", 1, "WRFInput", "wrfinput",
+         ["erf.nc_init_file_0=wrfinput_zero_tile"], "abort",
+         ["surface pressure = 0 Pa", "cells cannot be converted"]),
+    Case("nonfinite_psfc_does_not_use_p0", 1, "WRFInput", "wrfinput",
+         ["erf.nc_init_file_0=wrfinput_nanpsfc"], "abort",
+         ["surface pressure = nan Pa", "cells cannot be converted"]),
     # A markerless checkpoint whose job_info does not record the init type, with and
     # without the assertion
     Case("markerless_asserted", None, None, "wrfinput", [ASSERTION + "=WRFInput"], "input",
@@ -226,7 +238,7 @@ CASES = [
          base="mixed", zero=TSK_ZEROS),
     # The run takes the TSK just so: with the SST it rejects such a TSK ...
     Case("mixed_v2_tsk_zero", 2, "WRFInput", None, SURFACE_LAYER, "abort",
-         "SurfaceLayer temperature update: surface conversion failed at level 0",
+         "SurfaceLayer surface humidity update: surface conversion failed at level 0",
          base="mixed", zero=TSK_ZEROS),
     # ... and without it runs, restoring the TSK as it is
     Case("mixed_v2_without_sst_tsk_zero", 2, "WRFInput", None, SURFACE_LAYER, "unchanged",
@@ -440,6 +452,10 @@ def run_case(case, exe, run_dir, bases, env):
         shutil.rmtree(path, ignore_errors=True)
     shutil.copytree(original, legacy)
 
+    if case.base == "crop" and len(valid_boxes(original, "SST_0", 0)) < 4:
+        raise AssertionError(f"{case.name}: the cropped fixture does not have four disjoint "
+                             "local regions for the PSFC read")
+
     marker = legacy / "surface_temperature_contract"
     if case.marker is None:
         marker.unlink()
@@ -631,6 +647,25 @@ def set_aloft_checkpoint_pressure(checkpoint, target_cell_pressure):
                      i - fab["lo"][0]] = target_rho_theta
         write_fab_data(fab, data)
     return target_rho_theta
+
+
+def set_valid_ground_component(checkpoint, level, comp, value):
+    """Set one conserved component on every valid ground-plane cell of a level"""
+    found = False
+    for fab in multifab_fabs(checkpoint / f"Level_{level}", "Cell"):
+        ng = fab["nghost"]
+        klo = fab["lo"][2] + ng[2]
+        if klo != 0:
+            continue
+        data = fab_data(fab).copy()
+        ilo, jlo = fab["lo"][0] + ng[0], fab["lo"][1] + ng[1]
+        ihi, jhi = fab["hi"][0] - ng[0], fab["hi"][1] - ng[1]
+        data[comp, klo - fab["lo"][2], jlo - fab["lo"][1]:jhi - fab["lo"][1] + 1,
+             ilo - fab["lo"][0]:ihi - fab["lo"][0] + 1] = value
+        write_fab_data(fab, data)
+        found = True
+    if not found:
+        raise AssertionError(f"{checkpoint}: level {level} has no valid ground cells")
 
 
 def cell_cons_prolong(coarse, ratio=3):
@@ -836,6 +871,51 @@ def run_nest_aloft_metgrid_case(exe, run_dir, env):
         raise AssertionError("nest_aloft: elevated pressure is not substantially different "
                              "from ground pressure")
 
+    # The parent has no surface arrays, but its ground pressure must still be prepared for
+    # this aloft child. Also make the failure mode explicit if that parent pressure itself
+    # cannot be diagnosed.
+    parent_missing = run_dir / "legacy_nest_aloft_metgrid_parent_without_surface"
+    shutil.rmtree(parent_missing, ignore_errors=True)
+    shutil.copytree(legacy, parent_missing)
+    for field in SURFACE_FIELDS:
+        remove_field(parent_missing, field, level=0)
+    parent_name = "nest_aloft_metgrid_parent_without_surface_restart"
+    status, log = restart(exe, run_dir, "nest_files.i", parent_missing.name, parent_name,
+                          [], env, max_step=3)
+    check_restart(parent_name, status, log,
+                  ["APPROXIMATE migration at level 1", "coarser level's ground pressure"])
+    parent_output = run_dir / (parent_name + "_chk00003")
+    check_version_2(parent_name, parent_output)
+    parent_pressure = np.full((16, 16), np.nan, dtype=np.float64)
+    for (i, j), value in ground_pressure.items():
+        parent_pressure[j, i] = value
+    parent_pressure_fine = cell_cons_prolong(parent_pressure)
+    parent_errors = []
+    for field in SURFACE_FIELDS:
+        stored_theta = valid_cells(parent_missing, field, 1)
+        actual = valid_cells(parent_output, field, 1)
+        if actual.keys() != stored_theta.keys():
+            raise AssertionError(f"{parent_name}: {field} changed layout")
+        parent_errors.extend(
+            abs(value / (stored_theta[(i, j)] * (parent_pressure_fine[j, i] / P_0) ** KAPPA)
+                - 1.0)
+            for (i, j), value in actual.items())
+    parent_error = max(parent_errors) if parent_errors else float("inf")
+    if parent_error > 2.0e-10:
+        raise AssertionError(f"{parent_name}: child did not use prepared parent ground pressure "
+                             f"(relative error {parent_error:.3e})")
+
+    invalid_parent = run_dir / "legacy_nest_aloft_metgrid_parent_bad_pressure"
+    shutil.rmtree(invalid_parent, ignore_errors=True)
+    shutil.copytree(parent_missing, invalid_parent)
+    set_valid_ground_component(invalid_parent, 0, RHO_COMP, 0.0)
+    invalid_name = "nest_aloft_metgrid_parent_bad_pressure_restart"
+    status, log = restart(exe, run_dir, "nest_files.i", invalid_parent.name, invalid_name,
+                          [], env, max_step=3)
+    check_restart(invalid_name, status, log,
+                  ["legacy checkpoint surface-pressure recovery",
+                   "density of the state cell is not usable"], abort=True)
+
     name = "nest_aloft_metgrid_v1_restart"
     status, log = restart(exe, run_dir, "nest_files.i", legacy.name, name, [], env,
                           max_step=3)
@@ -1002,7 +1082,7 @@ def run_nest_cases(exe, run_dir, env):
     status, log = restart(exe, run_dir, "nest_files.i", edited.name, name, SURFACE_LAYER,
                           env)
     check_restart(name, status, log,
-                  ["SurfaceLayer temperature update: surface conversion failed at "
+                  ["SurfaceLayer surface humidity update: surface conversion failed at "
                    "level 1"], abort=True)
     results.append((name, "the run aborted as it must"))
 

@@ -68,15 +68,18 @@ diagnose_surface_pressure (const amrex::Real rho,
             result.error = SurfacePressureError::no_moisture_comp;
             return result;
         }
-        if (!amrex::Math::isfinite(rho_qv) || rho_qv < amrex::Real(0.0)) {
+        if (!amrex::Math::isfinite(rho_qv)) {
             result.error = SurfacePressureError::bad_rho_qv;
             return result;
         }
         result.qv = rho_qv / rho;
-        if (!amrex::Math::isfinite(result.qv) || result.qv < amrex::Real(0.0)) {
+        if (!amrex::Math::isfinite(result.qv)) {
             result.error = SurfacePressureError::bad_qv;
             return result;
         }
+        // Advection can produce finite negative undershoots. Treat them as dry for this
+        // thermodynamic diagnostic; the prognostic rho_qv field is left untouched.
+        result.qv = amrex::max(result.qv, amrex::Real(0.0));
     }
     result.pressure = getPgivenRTh(rho_theta, result.qv) +
                       rho * CONST_GRAV * delta_z;
@@ -266,6 +269,7 @@ struct ConversionFailure
     int code       = static_cast<int>(ConversionError::none);
     int count      = 0;
     int halo_count = 0;
+    int skip_qsat  = 0;  ///< a prior temperature failure makes qsat unsafe for this update
     int i = 0, j = 0, k = 0;
     amrex::Real rho       = amrex::Real(0.0);
     amrex::Real rho_theta = amrex::Real(0.0);
