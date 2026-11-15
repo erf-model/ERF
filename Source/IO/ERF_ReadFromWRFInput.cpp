@@ -62,7 +62,9 @@ wrfinput_dim_type (const std::string& NC_name)
              NC_name == "XLAT"     || NC_name == "XLONG"    || NC_name == "TSK" ||
              NC_name == "PSFC"     || NC_name == "IVGTYP"   || NC_name == "ISLTYP" ||
              NC_name == "LAI"      || NC_name == "VEGFRA"   || NC_name == "TMN" ||
-             NC_name == "SHDMIN"   || NC_name == "SHDMAX")
+             NC_name == "SHDMIN"   || NC_name == "SHDMAX"   ||
+             NC_name == "ZNT"      || NC_name == "ALBEDO"   || NC_name == "ALBBCK" ||
+             NC_name == "SEAICE"   || NC_name == "SNOW"     || NC_name == "SNOWH")
     {
         // Note: staggering is handled in `fill_fab_from_arrays`
         return NC_Data_Dims_Type::Time_SN_WE;
@@ -213,7 +215,8 @@ wrfinput_var_box (const Box& subdomain_to_read,
         if (success) {
             std::vector<size_t> shape = ncf.var(NC_name).shape();
 
-            // This mirrors the box built by fill_fab_from_arrays
+            // This mirrors the box built by fill_fab_from_arrays, except for the soil
+            // variables (see khi below)
             NC_Data_Dims_Type dim_type = wrfinput_dim_type(NC_name);
             int ns1 = 1, ns2 = 1, ns3 = 1;
             if (dim_type == NC_Data_Dims_Type::Time_BT || dim_type == NC_Data_Dims_Type::Time_SL) {
@@ -226,7 +229,11 @@ wrfinput_var_box (const Box& subdomain_to_read,
                 ns2 = static_cast<int>(shape[2]);
                 ns3 = static_cast<int>(shape[3]);
             }
-            int khi = std::min(subdomain_to_read.bigEnd(2), ns1-1);
+            // A soil variable's first index is the soil layer: every layer is read,
+            // also when the file has fewer atmospheric levels than soil layers.
+            const bool soil_layers = (dim_type == NC_Data_Dims_Type::Time_SL ||
+                                      dim_type == NC_Data_Dims_Type::Time_SL_SN_WE);
+            int khi = soil_layers ? ns1-1 : std::min(subdomain_to_read.bigEnd(2), ns1-1);
 
             var_box = Box(IntVect(0,0,0), IntVect(ns3-1,ns2-1,khi));
             if (NC_name == "PH" || NC_name == "PHB" || NC_name == "W") {

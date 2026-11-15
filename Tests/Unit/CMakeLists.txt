@@ -360,6 +360,10 @@ target_sources(${erf_exe_name}
     # dataset's soil layers in depth to the Noah layers, and the monthly vegetation to the
     # start date the way real.exe does, across the year's end and in leap years.
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridLandUtils.cpp
+    # Motivation: the wrfinput land and soil fields that no land model takes (LAI, VEGFRA, TMN,
+    # ZNT, ALBEDO, ALBBCK, SEAICE, SNOW, SNOWH, TSLB, SMOIS) must reach their holder column for column
+    # and soil layer for soil layer, and a value that cannot be the quantity must stop the run.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestWRFSurfaceFields.cpp
     # Motivation: erf.metgrid_force_sfc_k must drop the same origin levels whether or not the
     # column has origin levels below the surface (erf-model/ERF#4607).
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridForceSfc.cpp

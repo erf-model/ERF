@@ -534,6 +534,26 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             amrex::Print() << "Warning: LSM model is being used, but no mapping is defined to fill its variables from WRFinput!" << std::endl;
         }
     }
+
+    // The land and soil fields that no land model takes. They are asked for when the
+    // two-stream force-restore balance evolves the surface without a land model, each of
+    // them is optional, and they go to wrf_surface_fields as the file gives them.
+    // They are held for a level that has one file; a level put together from several
+    // files does not take them.
+    const bool want_surface_fields = !use_lsm &&
+        (solverChoice.rad_type == RadiationType::TwoStream) &&
+        solverChoice.radChoice.seb_prognostic_enable;
+    const bool read_surface_fields = want_surface_fields && (num_boxes_at_level[lev] == 1);
+    wrf_surface_fields.clear(lev);
+    if (want_surface_fields && !read_surface_fields) {
+        Print() << "   wrfinput land and soil fields are not read at level " << lev
+                << ": the level has " << num_boxes_at_level[lev] << " files\n";
+    }
+    if (read_surface_fields) {
+        for (const auto& d : WRFSurfaceFields::catalog()) { NC_names.push_back(d.nc_name); }
+        NC_names.push_back("ZS");
+        NC_names.push_back("DZS");
+    }
     int nvar = NC_names.size();
 
     auto& lev_new = vars_new[lev];
@@ -724,6 +744,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
                 (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
                 (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
+            // With a land model these names are its required inputs; without one they
+            // are the optional fields of wrf_surface_fields.
+            const bool is_surface_field = read_surface_fields &&
+                (WRFSurfaceFields::find(var_name) != nullptr || var_name == "ZS" || var_name == "DZS");
+            has_fallback_behavior = has_fallback_behavior || is_surface_field;
             if (!success && !has_fallback_behavior) {
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
@@ -1296,6 +1321,20 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               (soil_type_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
           }
 
+          // The optional land and soil fields, taken as read from the file, like the
+          // land model's inputs below: var_fab_from_file is filled on the host, and the
+          // third index of a soil field is the soil layer.
+          if (is_surface_field && success) {
+              const WRFSurfaceFields::Descriptor* d = WRFSurfaceFields::find(var_name);
+              if (d != nullptr) {
+                  wrf_surface_fields.fill(lev, d->id, ba2d[lev], dm, ngv, geom[lev].periodicity(),
+                                          var_fab_from_file,
+                                          i_lo, i_hi, j_lo, j_hi);
+              } else {
+                  wrf_surface_fields.set_soil_layers(lev, var_name == "DZS", var_fab_from_file);
+              }
+          }
+
           // Initialize any LSM variables
           if (use_lsm) {
               auto &lsm_wrfmap = lsm.Get_WRFInputNames();
@@ -1449,6 +1488,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               var_fab.clear();
           }
         } // ivar
+
+        if (read_surface_fields) { wrf_surface_fields.check_soil_layers(lev); }
         Print() << "\n";
         have_read_nc_init_file[lev][idx] = 1;
     } // idx

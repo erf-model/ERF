@@ -1559,6 +1559,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // those must not survive onto the new grids.
     for (auto& sst : sst_lev[lev]) { sst.reset(); }
     for (auto& tsk : tsk_lev[lev]) { tsk.reset(); }
+    wrf_surface_fields.clear(lev);
     if (lat_m[lev]) {
         lat_m[lev].reset();
     }
@@ -1848,6 +1849,7 @@ ERF::ClearLevel (int lev)
     // those must not survive onto the new grids.
     for (auto& sst : sst_lev[lev]) { sst.reset(); }
     for (auto& tsk : tsk_lev[lev]) { tsk.reset(); }
+    wrf_surface_fields.clear(lev);
     if (lat_m[lev]) {
         lat_m[lev].reset();
     }

@@ -4791,8 +4791,71 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     add_test_wrfinput_nest(WRFInput_Abort_NestOutsideParent
         "erf.crop.in_box_lo_indices=32 24 0"
         "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
+
+    # The land and soil fields of a wrfinput file with the two-stream force-restore balance and
+    # no land model. make_wrfinput.py makes every field vary in both horizontal directions and
+    # with the soil layer; check_log.py compares the component count, minimum and maximum the
+    # reader reports with the file. The legs: every field present; some absent, which must be
+    # skipped and not stop the run; the balance off, when no field may be asked for; an albedo
+    # of 1.5, which must stop the run and name the field; a file with fewer atmospheric levels
+    # (3) than soil layers (4), which must still give four layers; ZS and DZS left at zero,
+    # which is a file without them; and, with MPI, four ranks on two boxes, so that two ranks
+    # hold no box, and the albedo of 1.5 on two ranks, where the rank that holds it is not
+    # the one that prints.
+    function(add_test_wrfinput_surface_fields TEST_NAME MAKE_OPTIONS RUNTIME_OPTIONS CHECK_MODE EXPECT_ABORT)
+      set(_launch "")
+      if(ARGC GREATER 5)
+        set(_launch "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ARGV5} ${MPIEXEC_PREFLAGS} ")
+      endif()
+      set(TEST_FILES_DIR WRFInput_SurfaceFields)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_make "${ERF_TEST_PYTHON} make_wrfinput.py ${MAKE_OPTIONS} > generate.log")
+      set(_run "${_launch}${TEST_EXE} WRFInput_SurfaceFields.i amrex.call_addr2line=0 ${RUNTIME_OPTIONS} > ${_log} 2>&1")
+      set(_check "${ERF_TEST_PYTHON} check_log.py ${CHECK_MODE}")
+      if(EXPECT_ABORT)
+        add_test(${TEST_NAME} sh -c
+            "${_make} && if ${_run}; then echo 'the run did not stop'; false; else ${_check}; fi")
+      else()
+        add_test(${TEST_NAME} sh -c
+            "${_make} && ( ${_run} || ( tail -n 40 ${_log} && false ) ) && ${_check}")
+      endif()
+      set(_np 1)
+      if(ARGC GREATER 5)
+        set(_np ${ARGV5})
+      endif()
+      set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS ${_np}
+          WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_wrfinput_surface_fields)
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields "" ""
+        "full WRFInput_SurfaceFields.log" FALSE)
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Absent
+        "--omit LAI SEAICE SNOWH SMOIS DZS" ""
+        "partial WRFInput_SurfaceFields_Absent.log LAI SEAICE SNOWH SMOIS DZS" FALSE)
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_BalanceOff
+        "" "erf.radiation.seb_prognostic_enable=false"
+        "off WRFInput_SurfaceFields_BalanceOff.log" FALSE)
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Abort_Albedo
+        "--bad-albedo" ""
+        "bad WRFInput_SurfaceFields_Abort_Albedo.log" TRUE)
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_ThinColumn
+        "--nz 3" "amr.n_cell=12 8 3 geometry.prob_extent=12000.0 8000.0 300.0"
+        "full WRFInput_SurfaceFields_ThinColumn.log" FALSE)
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_ZeroLayers
+        "--zero-layers" ""
+        "zero WRFInput_SurfaceFields_ZeroLayers.log" FALSE)
+    if(ERF_ENABLE_MPI)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_MPI
+          "" ""
+          "full WRFInput_SurfaceFields_MPI.log" FALSE 4)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Abort_Albedo_MPI
+          "--bad-albedo" ""
+          "bad WRFInput_SurfaceFields_Abort_Albedo_MPI.log" TRUE 2)
+    endif()
   else()
-    message(STATUS "Skipping WRFInput_CroppedParent: Python netCDF4 and numpy are required")
+    message(STATUS "Skipping WRFInput_CroppedParent and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
   endif()
 endif()
 

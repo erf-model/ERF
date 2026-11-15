@@ -83,6 +83,7 @@
 #endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
+#include "ERF_WRFSurfaceFields.H"
 #include "ERF_Plotfile2DCloudOptics.H"
 
 #ifdef ERF_USE_WINDFARM
@@ -1499,6 +1500,12 @@ private:
     // of which are mass-point values, so a consumer that wants the mass point
     // can use these directly.
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
+
+    // The land and soil fields of the wrfinput file that no land model takes (LAI, VEGFRA,
+    // TMN, ZNT, ALBEDO, ALBBCK, SEAICE, SNOW, SNOWH, TSLB, SMOIS, ZS, DZS), as read at the initial
+    // time. Filled by init_from_wrfinput when the two-stream force-restore balance runs
+    // without a land model; empty otherwise, after a restart, and after a regrid.
+    WRFSurfaceFields wrf_surface_fields;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 

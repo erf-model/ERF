@@ -1,0 +1,82 @@
+# WRFInput_SurfaceFields
+
+## Purpose
+
+A wrfinput file carries land and soil fields. ERF asked for five of them (`LAI`, `VEGFRA`,
+`TMN`, `TSLB`, `SMOIS`) only when a land model was on, and never read `ZNT`, `ALBEDO`,
+`ALBBCK`, `SEAICE`, `SNOW` or `SNOWH`. With the two-stream force-restore surface energy
+balance and no land model, the reader now takes all eleven, plus the soil layer depths `ZS`
+and thicknesses `DZS`, and keeps them per level in `WRFSurfaceFields`. Each one is optional.
+
+This case checks the reader only. Nothing uses the fields yet.
+
+## Files
+
+| File | Role |
+| --- | --- |
+| `WRFInput_SurfaceFields.i` | One level, 12 x 8 x 8 cells, `max_step = 0`, two-stream radiation with `seb_prognostic_enable` |
+| `make_wrfinput.py` | Writes `wrfinput_d01` and `wrflowinp_d01`; `--omit NAME ...` leaves variables out; `--bad-albedo` puts 1.5 in one column; `--nz N` sets the atmospheric levels; `--zero-layers` leaves `ZS` and `DZS` at zero |
+| `check_log.py` | Compares the reader's report in the log with the formulas in `make_wrfinput.py` |
+
+## Data
+
+None is downloaded. `make_wrfinput.py` writes the files. Every field varies in both
+horizontal directions and with the soil layer, for example
+`TSLB = 290 - 2 k + 0.5 i + 0.0625 j` and `SMOIS = 0.1 + 0.05 k + 0.003 j + 0.0002 i`
+(`i`, `j` column indices, `k` soil layer, all from zero). `SEAICE` is 1 in one column.
+
+## How to run
+
+Needs ERF built with NetCDF, and Python with `netCDF4` and `numpy`.
+
+```bash
+python3 make_wrfinput.py
+./erf_exec WRFInput_SurfaceFields.i > run.log
+python3 check_log.py full run.log
+```
+
+## Expected Results
+
+The log holds one line per field, for example
+
+```
+   wrfinput surface field TSLB at level 0: 4 components, min 284, max 295.938 [K]
+   wrfinput soil layer depths ZS at level 0: 0.05 0.25 0.7 1.5 [m]
+```
+
+| Field | Components | Min | Max |
+| --- | --- | --- | --- |
+| `LAI` | 1 | 0.5 | 3.46875 |
+| `VEGFRA` | 1 | 10 | 47.75 |
+| `TMN` | 1 | 280 | 285.9375 |
+| `ZNT` | 1 | 0.01 | 0.091 |
+| `ALBEDO` | 1 | 0.1 | 0.327 |
+| `ALBBCK` | 1 | 0.15 | 0.274 |
+| `SEAICE` | 1 | 0 | 1 |
+| `SNOW` | 1 | 0 | 15.375 |
+| `SNOWH` | 1 | 0 | 0.0755 |
+| `TSLB` | 4 | 284 | 295.9375 |
+| `SMOIS` | 4 | 0.1 | 0.2732 |
+
+The file holds single-precision values, so the log shows for example 0.3269999921 for 0.327. The check allows a relative difference of 2e-5.
+
+The log check pins the component count and the range of each field, not where each value
+lands. A reversed order of the `TSLB` or `SMOIS` layers would pass it; a reversed `ZS` or
+`DZS` would not. The unit test `WRFSurfaceFields` (`Tests/Unit/Initialization`) checks
+every column, the ghost columns and the layer order of the copy into the holder.
+
+## CTest
+
+| Test | What it runs | Passes when |
+| --- | --- | --- |
+| `WRFInput_SurfaceFields` | every field in the file | all eleven fields, `ZS` and `DZS` are reported with the values above |
+| `WRFInput_SurfaceFields_Absent` | `LAI`, `SEAICE`, `SNOWH`, `SMOIS`, `DZS` left out | the run finishes, these five are skipped and the others are reported |
+| `WRFInput_SurfaceFields_BalanceOff` | `erf.radiation.seb_prognostic_enable=false` | none of the fields is asked for |
+| `WRFInput_SurfaceFields_Abort_Albedo` | one `ALBEDO` column is 1.5 | the run stops with `wrfinput ALBEDO holds a value outside its allowed range` |
+| `WRFInput_SurfaceFields_ThinColumn` | a file and a grid with 3 atmospheric levels and 4 soil layers | all four soil layers are reported, as in the first test |
+| `WRFInput_SurfaceFields_ZeroLayers` | `ZS` and `DZS` declared and left at zero | the run finishes, both are reported as not given and the eleven fields are read |
+| `WRFInput_SurfaceFields_MPI` | the first test on 4 ranks (2 boxes, so 2 ranks hold none); MPI builds only | the same report as the first test |
+| `WRFInput_SurfaceFields_Abort_Albedo_MPI` | the albedo of 1.5 on 2 ranks; the second rank holds the column; MPI builds only | the run stops with the same report, printed by the first rank |
+
+All have the labels `regression;wrfinput` and are registered only with
+`ERF_ENABLE_NETCDF` and a Python that has `netCDF4` and `numpy`.

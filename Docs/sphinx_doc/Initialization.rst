@@ -206,6 +206,108 @@ makes the layers through the boundary layer substantially thicker than the file'
 A level whose grids do not reach the top of the domain has no mean profile over part of its
 column, and falls back to the geometric construction with a message saying so.
 
+.. _subsec:wrfinput-surface-fields:
+
+Land and soil fields of a wrfinput file
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With the two-stream force-restore surface energy balance
+(``erf.radiation_model = TwoStream`` and ``erf.radiation.seb_prognostic_enable = true``)
+and no land model, the reader also takes the fields below. There is no input for this.
+Each field is optional: one that the file does not carry is reported as skipped and the
+run goes on. With a land model the list of fields does not change: the land model asks for
+the fields it needs (``LAI``, ``VEGFRA``, ``TMN``, ``TSLB``, ``SMOIS``, ``ZS``, ``DZS``
+among them), they are required, and the others in the table are not read. One thing
+changes with a land model too: every soil layer of the file is read (see below).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 14 16 56
+
+   * - Variable
+     - Units
+     - Allowed range
+     - Meaning
+   * - ``LAI``
+     - m2/m2
+     - 0 to 100
+     - Leaf area index
+   * - ``VEGFRA``
+     - %
+     - 0 to 100
+     - Vegetation fraction
+   * - ``TMN``
+     - K
+     - 0 to 1000
+     - Deep soil temperature
+   * - ``ZNT``
+     - m
+     - 0 to 100
+     - Roughness length
+   * - ``ALBEDO``
+     - 1
+     - 0 to 1
+     - Surface albedo
+   * - ``ALBBCK``
+     - 1
+     - 0 to 1
+     - Background (snow-free) albedo
+   * - ``SEAICE``
+     - 1
+     - 0 to 1
+     - Sea ice flag
+   * - ``SNOW``
+     - kg/m2
+     - 0 to 1e6
+     - Snow water equivalent
+   * - ``SNOWH``
+     - m
+     - 0 to 1e4
+     - Snow depth
+   * - ``TSLB``
+     - K
+     - 0 to 1000
+     - Soil temperature, one value per soil layer, top layer first
+   * - ``SMOIS``
+     - m3/m3
+     - 0 to 1
+     - Soil moisture, one value per soil layer, top layer first
+   * - ``ZS``, ``DZS``
+     - m
+     - > 0, or all zero
+     - Depth of the centre and thickness of each soil layer; ``ZS`` must increase
+
+A value outside the allowed range, or one that is not finite, stops the run. The message
+names the variable and, for the eleven fields, gives the number of values outside the
+range and the number that are not finite. The range only rejects values that cannot be the named quantity; a field
+that the file declares and leaves at zero is accepted. The upper bounds of ``LAI``,
+``TMN``, ``ZNT``, ``SNOW``, ``SNOWH`` and ``TSLB`` are not physical limits. They are set
+far above any value of the quantity so that a NetCDF fill value (9.97e36) is stopped.
+For every field read, the log reports the number of components, the minimum and the
+maximum over the level.
+
+``ZS`` or ``DZS`` that is zero in every layer is taken as not given, and the log says so.
+Files written without a land model can hold them that way. ``TSLB``, ``SMOIS``, ``ZS`` and
+``DZS``, whichever are read, must have the same number of layers. Every soil layer of the
+file is read, also when the file has fewer atmospheric levels than soil layers. Before,
+the soil variables were cut at the number of atmospheric levels; this also holds for a run
+with a land model.
+
+A ``wrfinput`` file written by ``real.exe`` holds ``ALBBCK`` and does not hold ``ALBEDO``
+or ``ZNT``; those two are in ``wrfout`` files and in hand-built files. This was checked on
+one file written by ``real.exe`` of WRF V4.8.0.
+
+The fields are kept per level in ``WRFSurfaceFields``
+(``Source/Initialization/ERF_WRFSurfaceFields.H``). They are data of the initial time.
+They are not written to a checkpoint, so they are not held after a restart. A level made
+by tagging has none, and a regrid drops the fields of the level without a message. A level
+that is put together from more than one file does not take them; the log says so. No part
+of ERF uses them yet; the force-restore balance will take its albedo, roughness, deep
+temperature, soil moisture and snow from them in later changes. Until then the cost is
+the read of up to thirteen more variables at the start, the memory of up to eleven
+two-dimensional fields per level, and a run that stops at the start when one of these
+fields holds a value outside its range.
+
 .. _sec:nested-wrfinput:
 
 Nested Initialization From WRF Input Files

@@ -837,6 +837,7 @@ ERF::ERF_shared ()
     // Size lat long arrays and default to null pointers
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
+    wrf_surface_fields.resize(nlevs_max);
     for (int lev = 0; lev < max_level; ++lev) {
         lat_m[lev] = nullptr;
         lon_m[lev] = nullptr;
