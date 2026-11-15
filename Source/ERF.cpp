@@ -605,12 +605,12 @@ ERF::fill_seb_from_coarse (int lev)
     // only where the stencil touches a water column, and a fine land column over coarse
     // water takes its value from coarse land columns (ERF_SEBLandFill.H). The fine mask
     // does not choose the path: a fine water column holds its value in any case.
-    iMultiFab* crse_mask = lmask_lev[lev-1].empty() ? nullptr : lmask_lev[lev-1][0].get();
-    const iMultiFab* fine_mask = lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get();
-    const bool crse_has_water = seb_land_mask_has_water(crse_mask);
+    iMultiFab* crse_lmask = lmask_lev[lev-1].empty() ? nullptr : lmask_lev[lev-1][0].get();
+    const iMultiFab* fine_lmask = lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get();
+    const bool crse_has_water = seb_land_mask_has_water(crse_lmask);
     // The 3 x 3 test reads the mask's ghost columns; the WW3 coupling rewrites the valid
     // columns only.
-    if (crse_has_water) { crse_mask->FillBoundary(geom[lev-1].periodicity()); }
+    if (crse_has_water) { crse_lmask->FillBoundary(geom[lev-1].periodicity()); }
     Long n_no_land_source = 0;
     bool counted = false;
     auto fill_one = [&] (MultiFab* fine, MultiFab* crse)
@@ -631,7 +631,7 @@ ERF::fill_seb_from_coarse (int lev)
                                   rr2d, &cell_cons_interp,
                                   bcs, 0);
         } else {
-            const Long n = seb_fill_from_coarse_over_land(*fine, *crse, *crse_mask, fine_mask,
+            const Long n = seb_fill_from_coarse_over_land(*fine, *crse, *crse_lmask, fine_lmask,
                                                           geom[lev-1], geom[lev], rr2d, bcs);
             // The same columns for every field: counted once.
             if (!counted) { n_no_land_source = n; counted = true; }
@@ -834,15 +834,15 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 // per pair of levels and coarse step): the answer does not wait for the
                 // radiation to have run on a level, and it follows a mask that is rewritten
                 // during the run. With no water the call is amrex::average_down, as before.
-                const iMultiFab* crse_mask = lmask_lev[lev  ].empty() ? nullptr : lmask_lev[lev  ][0].get();
-                const iMultiFab* fine_mask = lmask_lev[lev+1].empty() ? nullptr : lmask_lev[lev+1][0].get();
-                const bool land_only = crse_mask && fine_mask &&
-                                       (seb_land_mask_has_water(crse_mask) ||
-                                        seb_land_mask_has_water(fine_mask));
+                const iMultiFab* crse_lmask = lmask_lev[lev  ].empty() ? nullptr : lmask_lev[lev  ][0].get();
+                const iMultiFab* fine_lmask = lmask_lev[lev+1].empty() ? nullptr : lmask_lev[lev+1][0].get();
+                const bool land_only = crse_lmask && fine_lmask &&
+                                       (seb_land_mask_has_water(crse_lmask) ||
+                                        seb_land_mask_has_water(fine_lmask));
                 if (land_only) {
                     // All fields in one call: one count of the land columns, one copy.
                     const Vector<const MultiFab*> fine_const(fine_fields.begin(), fine_fields.end());
-                    seb_average_down_land(fine_const, crse_fields, *fine_mask, *crse_mask, rr2d);
+                    seb_average_down_land(fine_const, crse_fields, *fine_lmask, *crse_lmask, rr2d);
                 } else {
                     for (int n = 0; n < fine_fields.size(); ++n) {
                         if (crse_fields[n] && fine_fields[n]) {
