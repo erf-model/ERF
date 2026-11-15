@@ -289,8 +289,62 @@ TEST(WRFSurfaceFields, TwoFilesThatDisagreeOnTheLayerCountLeaveTheFieldOut)
     const FArrayBox east = make_source(3, nx - 1, 0, ny - 1, 4, 0, val);
     f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, 3, west, columns(0, 2, 0, ny - 1));
     f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, 4, east, columns(3, nx - 1, 0, ny - 1));
+    testing::internal::CaptureStdout();
     f.finish_level(0, Periodicity::NonPeriodic());
+    const std::string report = testing::internal::GetCapturedStdout();
     EXPECT_FALSE(f.has(0, Field::TSLB));
+    // The reason is the disagreement, not a count of values: the second file is not copied
+    EXPECT_NE(report.find("disagree on its number of soil layers"), std::string::npos) << report;
+}
+
+// Grids that do not fill their bounding box: a ghost column that no box covers, inside the
+// bounding box, takes the nearest column of its own box. One layout leaves the gap in y,
+// the other in x.
+TEST(WRFSurfaceFields, GhostColumnsNoBoxCoversTakeTheNearestOfTheirBox)
+{
+    const auto check = [] (const Box& small, const Box& other, int gap_dir) {
+        BoxList bl;
+        bl.push_back(small);
+        bl.push_back(other);
+        const BoxArray ba(bl);
+        const DistributionMapping dm(ba);
+        MultiFab mf(ba, dm, 1, IntVect(1, 1, 0));
+        mf.setVal(Real(-1.0));
+        for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+            const Box vbx = mfi.validbox();
+            FArrayBox host(vbx, 1, The_Pinned_Arena());
+            const auto h = host.array();
+            for (int j = vbx.smallEnd(1); j <= vbx.bigEnd(1); ++j) {
+                for (int i = vbx.smallEnd(0); i <= vbx.bigEnd(0); ++i) { h(i, j, 0) = albedo_at(i, j); }
+            }
+            mf[mfi].copy<RunOn::Host>(host, vbx, 0, vbx, 0, 1);
+        }
+        WRFSurfaceFields::fill_ghost_cells(mf, Periodicity::NonPeriodic());
+        int n_checked = 0;
+        for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+            if (mfi.validbox() != small) { continue; }
+            const Box gbx = mfi.fabbox();
+            FArrayBox host(gbx, 1, The_Pinned_Arena());
+            Gpu::dtoh_memcpy(host.dataPtr(), mf[mfi].dataPtr(), host.nBytes());
+            const auto a = host.const_array();
+            // The row (or line) of ghost columns just beyond the small box, in the gap
+            const int g = small.bigEnd(gap_dir) + 1;
+            const int t = 1 - gap_dir;
+            for (int s = small.smallEnd(t); s <= small.bigEnd(t); ++s) {
+                const int i = (gap_dir == 0) ? g : s;
+                const int j = (gap_dir == 0) ? s : g;
+                const int ci = (gap_dir == 0) ? g - 1 : s;
+                const int cj = (gap_dir == 0) ? s : g - 1;
+                EXPECT_EQ(a(i, j, 0), albedo_at(ci, cj)) << "i=" << i << " j=" << j;
+                ++n_checked;
+            }
+        }
+        EXPECT_GT(n_checked, 0);
+    };
+    // Gap in y: the columns 0..3 x 3..4 belong to no box
+    check(columns(0, 3, 0, 2), columns(4, nx - 1, 0, ny - 1), 1);
+    // Gap in x: the columns 3..5 x 0..2 belong to no box
+    check(columns(0, 2, 0, 2), columns(0, nx - 1, 3, ny - 1), 0);
 }
 
 // A value that cannot be the quantity leaves the field out, and does not stop the run
