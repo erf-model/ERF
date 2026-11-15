@@ -671,7 +671,7 @@ def cell_cons_prolong(coarse, ratio=3):
     return fine
 
 
-def make_regridded_legacy_copy(checkpoint, name, parent_pressure, fine_pressure, origin):
+def make_regridded_legacy_copy(checkpoint, name, parent_pressure):
     """Encode a post-RemakeLevel checkpoint as old theta, retaining its regridded layout"""
     copy = checkpoint.parent / ("legacy_" + name)
     shutil.rmtree(copy, ignore_errors=True)
@@ -688,10 +688,30 @@ def make_regridded_legacy_copy(checkpoint, name, parent_pressure, fine_pressure,
             data = fab_data(fab).copy()
             ii = np.arange(fab["lo"][0], fab["hi"][0] + 1)
             jj = np.arange(fab["lo"][1], fab["hi"][1] + 1)
-            ci = np.clip(ii // 3, 0, fine_theta.shape[1] - 1)
-            cj = np.clip(jj // 3, 0, fine_theta.shape[0] - 1)
-            data[0, 0] = fine_theta[np.ix_(cj, ci)]
+            fi = np.clip(ii, 0, fine_theta.shape[1] - 1)
+            fj = np.clip(jj, 0, fine_theta.shape[0] - 1)
+            data[0, 0] = fine_theta[np.ix_(fj, fi)]
             write_fab_data(fab, data)
+
+        # Independently read the fabricated checkpoint field back and compare each valid
+        # fine index with a fresh parent-theta prolongation. This catches index scaling errors
+        # in the fixture itself before the migration test can accidentally validate them.
+        expected_parent_theta = surface_field(checkpoint, field, parent_pressure.shape) * \
+            (P_0 / parent_pressure) ** KAPPA
+        expected_fine_theta = cell_cons_prolong(expected_parent_theta)
+        fabricated_theta = valid_cells(copy, field, 1)
+        relative_errors = []
+        for (i, j), value in fabricated_theta.items():
+            if not (0 <= i < expected_fine_theta.shape[1] and
+                    0 <= j < expected_fine_theta.shape[0]):
+                raise AssertionError(f"{copy.name}: fine valid cell {(i, j)} is outside the "
+                                     "parent-prolonged theta field")
+            expected = expected_fine_theta[j, i]
+            relative_errors.append(abs(value / expected - 1.0))
+        if not relative_errors or max(relative_errors) > 2.0e-12:
+            error = max(relative_errors) if relative_errors else float("inf")
+            raise AssertionError(f"{copy.name}: fabricated {field} is not the independently "
+                                 f"prolonged parent theta field (relative error {error:.3e})")
 
     return copy, parent_pressure_fine
 
@@ -719,9 +739,9 @@ def run_nest_regrid_pressure_case(exe, run_dir, env):
         parent_pressure = np.asarray(ds["PSFC"][0], dtype=np.float64)
     with nc.Dataset(run_dir / "nest_d02") as ds:
         fine_pressure = np.asarray(ds["PSFC"][0], dtype=np.float64)
-    origin = NEST_LEVELS[1][2]
     legacy, parent_pressure_fine = make_regridded_legacy_copy(
-        checkpoint, "nest_regrid_v1", parent_pressure, fine_pressure, origin)
+        checkpoint, "nest_regrid_v1", parent_pressure)
+    origin = NEST_LEVELS[1][2]
 
     name = "nest_regrid_v1_restart"
     status, log = restart(exe, run_dir, "nest_files.i", legacy.name, name,
