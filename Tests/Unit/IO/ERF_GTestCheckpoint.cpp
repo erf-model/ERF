@@ -786,7 +786,6 @@ TEST(CheckpointSurfaceTemperature, ReconstructsFailedBoundaryAndFinePatchGhostsI
 {
     // Potential-temperature placeholders in nonperiodic and fine-footprint ghosts must
     // not survive in arrays whose valid cells have already been converted to kelvin.
-    const amrex::Box domain(amrex::IntVect(0,0,0), amrex::IntVect(11,7,0));
     amrex::BoxList boxes;
     boxes.push_back(amrex::Box(amrex::IntVect(1,2,0), amrex::IntVect(3,4,0)));
     boxes.push_back(amrex::Box(amrex::IntVect(7,2,0), amrex::IntVect(9,4,0)));
