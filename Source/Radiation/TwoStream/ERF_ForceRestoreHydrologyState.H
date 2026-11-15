@@ -5,6 +5,7 @@
 #include <string>
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_Periodicity.H>
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
@@ -76,7 +77,8 @@ public:
 
     /**
      * @brief One hydrology step on every open column of @p lev, after the balance has
-     * updated T_s and q_s. A footprint cell (footprint > 0.5) keeps its state.
+     * updated T_s and q_s. A footprint cell (footprint > 0.5) and a water column
+     * (land_mask 0) keep their state and are left out of the sums.
      *
      * @param t_s       surface temperature after the update [K]
      * @param q_s       surface water content [m^3/m^3], updated
@@ -92,6 +94,7 @@ public:
      *                  (ERF_ForceRestoreSnowState.H): it enters as rain does, and is not
      *                  part of the Rain total. It needs prm.rain (the soil takes no water
      *                  otherwise), which the step asserts
+     * @param land_mask the level's land mask (0 water), or nullptr: every column is land
      * @return the step's domain sums, reduced over ranks
      */
     StepSums step (int lev, const amrex::MultiFab& t_s, amrex::MultiFab& q_s,
@@ -99,7 +102,8 @@ public:
                    const amrex::MultiFab& lh, const amrex::MultiFab* footprint,
                    amrex::Real dt, const ForceRestoreHydrologyParams& prm,
                    const ForceRestorePrecipInput& rain,
-                   const amrex::MultiFab* snow_water = nullptr);
+                   const amrex::MultiFab* snow_water = nullptr,
+                   const amrex::iMultiFab* land_mask = nullptr);
 
     /** @brief The running totals (Total components) [kg/m^2], or nullptr. */
     [[nodiscard]] amrex::MultiFab* totals (int lev) noexcept {
