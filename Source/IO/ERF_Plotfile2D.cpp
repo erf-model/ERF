@@ -624,6 +624,9 @@ ERF::FillPlot2DVars (int lev,
     {
         const bool ts = solverChoice.rad_type == RadiationType::TwoStream;
         const MultiFab* totals = ts ? two_stream_rad.hydrology_totals(lev) : nullptr;
+        // The snow layer (ERF_ForceRestoreSnow.H): -999 without erf.radiation.seb_snow_enable.
+        const MultiFab* snow_swe = ts ? two_stream_rad.snow_swe(lev) : nullptr;
+        const MultiFab* snow_totals = ts ? two_stream_rad.snow_totals(lev) : nullptr;
         const struct { const char* name; const MultiFab* src; int comp; } hydro_vars[] = {
             {"seb_t_deep",         ts ? two_stream_rad.seb_t_deep(lev) : nullptr, 0},
             {"seb_q_deep",         ts ? two_stream_rad.seb_q_deep(lev) : nullptr, 0},
@@ -632,6 +635,10 @@ ERF::FillPlot2DVars (int lev,
             {"seb_runoff_total",   totals, ForceRestoreHydrology::Runoff},
             {"seb_drainage_total", totals, ForceRestoreHydrology::Drainage},
             {"seb_deficit_total",  totals, ForceRestoreHydrology::Deficit},
+            {"seb_snow_swe",       snow_swe, 0},
+            {"seb_snowfall_total", snow_totals, ForceRestoreSnow::Snowfall},
+            {"seb_snow_sublimation_total", snow_totals, ForceRestoreSnow::Sublimation},
+            {"seb_snow_melt_total", snow_totals, ForceRestoreSnow::Melt},
         };
         for (const auto& v : hydro_vars) {
             if (containerHasElement(plot_var_names, v.name)) {

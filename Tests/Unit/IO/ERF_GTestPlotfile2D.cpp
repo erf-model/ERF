@@ -263,6 +263,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "seb_lw_net", "ibseb_ground_wall_view",
         "seb_t_deep", "seb_q_deep", "seb_rain_rate", "seb_rain_total",
         "seb_runoff_total", "seb_drainage_total", "seb_deficit_total",
+        "seb_snow_swe", "seb_snowfall_total", "seb_snow_sublimation_total", "seb_snow_melt_total",
         "sens_flux", "laten_flux",
         "surf_pres",
         "sea_level_pressure",

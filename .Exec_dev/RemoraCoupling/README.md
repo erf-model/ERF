@@ -26,24 +26,21 @@ mpiexec -n 1 ../../Exec/ERF3d.<...>.ex inputs_oneway \
 
 ## What is non-default about the configuration
 
-Three settings in `inputs_oneway` depart from ERF's MYNN defaults, and all
-three are needed to reproduce P07.  They are commented in place; briefly:
+Two groups of settings in `inputs_oneway` depart from ERF's MYNN defaults.
+They are commented in place; briefly:
 
 | setting | value | why |
 |---|---|---|
 | `pbl_mynn_{A1,A2,B1,B2,C1}` | MY82 constants | COAMPS uses Mellor--Yamada (1982), not Nakanishi--Niino |
 | `pbl_mynn_{C2,C3,C5}` | 0 | NN09 extensions; zeroing them recovers the MY82 stability functions |
 | `pbl_mynn_Lt_alpha` | 0.10 | the MY82 value, not NN09's 0.23 |
-| `pbl_mynn_Lt_taper_exp` | 1.35 | boundary-layer-depth taper on `l_T` (see below) |
-
-The taper matters most.  Without it the MYNN master length scale saturates once
-`kappa*z` exceeds `l_T` and stays flat to the inversion, giving a flat-topped
-eddy viscosity; P07's falls steeply above about 150 m.  **The exponent 1.35 was
-calibrated against their Fig. 8a and is not independently derived.**
 
 `erf.prob_name = Perlin07` selects this case: it sets the same initial TKE
 profile as the `WPS` problem and additionally supplies the uniform potential
-temperature tendency used for the radiative cooling, which `WPS` does not.
+temperature tendency (`prob.advection_heating_rate`, +1 K/day) that stands in
+for the large-scale subsidence and advection P07's domain omits, which `WPS`
+does not.  Radiation is computed with RRTMGP (`erf.radiation_model = RRTMGP`);
+set `erf.rrtmgp_file_path` to the directory holding the RRTMGP data files.
 
 Two further points that are easy to get wrong:
 
@@ -55,17 +52,8 @@ Two further points that are easy to get wrong:
 
 ## Known discrepancies against P07
 
-Documented in the validation section of the paper, and summarized here so the
-numbers are not lost:
-
-* eddy viscosity agrees to within 15% from 50 to 400 m; peak 4.3 m2/s at 95 m
-  against their 4.7 at 100 m;
-* turbulent kinetic energy is good near the surface (within 9% to 100 m) but
-  decays too fast above, reaching -58% at 350 m;
-* the mixed layer is 0.45--0.7 K warmer than theirs, traceable to the use of
-  constant rather than stability-dependent surface exchange coefficients;
-* the boundary layer is shallower (420 m against 475 m) and is still deepening
-  at 72 h.
+The discrepancies previously listed here were measured with an earlier
+configuration and need to be regenerated for the current `inputs_oneway`.
 
 ## Scripts
 
@@ -74,7 +62,7 @@ All take plotfile or run-directory arguments and need `yt`, `numpy` and
 
 | script | what it does |
 |---|---|
-| `make_paper_figure.py` | The six-panel validation figure for the paper: theta, u, v, TKE, K_m and L_m against height, overlaid on values pixel-traced from P07's Figs. 7 and 8.  Writes `perlin_validation.pdf/.png`.  Takes a run directory, default `run_taper1.35`; run it from this directory. |
+| `make_paper_figure.py` | The six-panel validation figure for the paper: theta, u, v, TKE, K_m and L_m against height, overlaid on values pixel-traced from P07's Figs. 7 and 8.  Writes `perlin_validation.pdf/.png`.  Takes a run directory, default `run_oneway`; run it from this directory. |
 | `compare_perlin.py` | Quicker exploratory version of the same comparison for one or more plotfiles, plus a one-line summary table (peak K_m, boundary layer depth, surface fluxes).  `compare_perlin.py <plt> [<plt> ...] --labels a,b` |
 | `mynn_diag.py` | Recomputes the MYNN length scales (`l_S`, `l_T`, `l_B`), the stability functions and `K_m` offline from a plotfile column, exactly as `ERF_ComputeDiffusivityMYNN25.cpp` does, and compares against what ERF stored.  Used to verify the scheme is evaluating NN09 faithfully; reproduces ERF to 0.5%.  `mynn_diag.py <plt>` |
 | `heat_budget.py` | Mixed-layer heat budget (storage, surface flux, flux through the control-volume top, radiative sink) plus an entrainment diagnostic.  Closes to 0.2--0.4 W/m2.  Expects run directories named `run_<case>` containing `plt72000` and `plt86400`.  `heat_budget.py <case> [<case> ...]` |

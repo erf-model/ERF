@@ -23,8 +23,8 @@ max_step = 86400
 
 # PROBLEM PARAMETERS (optional)
 # Perlin07 gives the same initial TKE profile as the WPS problem and, unlike
-# it, dispatches the uniform rhotheta tendency used for the radiative cooling
-# below.
+# it, dispatches the uniform rhotheta tendency used for the large-scale
+# heating below.
 erf.prob_name        = Perlin07
 prob.KE_0            = 0.4 # [m2/s2]
 prob.KE_decay_height = 250. # [m]
@@ -75,7 +75,8 @@ erf.most.surf_moist = .00802
 erf.most.z0         = 0.1
 erf.most.zref       = 10.0
 
-# The MYNN length-scale taper below needs a diagnosed boundary layer height.
+# Diagnose the boundary layer height so it can be written as the pblh plot
+# variable.
 erf.most.pblh_calc  = MYNN25
 
 # TIME STEP CONTROL
@@ -113,7 +114,7 @@ erf.molec_diff_type   = None
 erf.pbl_type          = MYNN25
 
 # --- Turbulence closure -----------------------------------------------------
-# Three departures from ERF's MYNN defaults, all needed to reproduce P07.
+# Two departures from ERF's MYNN defaults, both needed to reproduce P07.
 #
 # 1. Mellor-Yamada (1982) closure constants rather than Nakanishi-Niino.  This
 #    is the set COAMPS uses: its dissipation is a*e^(3/2)/l with a = 0.17,
@@ -149,11 +150,11 @@ erf.rayleigh_damp_V = true
 erf.rayleigh_damp_W = true
 erf.rayleigh_damp_T = true
 
-# --- Radiative cooling ------------------------------------------------------
+# --- Large-scale heating -----------------------------------------------------
 # P07 add a uniform 1 C/day heating everywhere to stand in for the large-scale
 # subsidence and advection their idealized domain omits.  Without it the mixed
 # layer equilibrates with the fixed sea surface temperature and the surface
-# fluxes shut down.  1.1574074074e-5 K/s = -1 K/day.
+# fluxes shut down.  1.1574074074e-5 K/s = +1 K/day.
 erf.add_custom_rhotheta_forcing        = true
 erf.custom_forcing_uses_primitive_vars = true
 prob.advection_heating_rate            = 1.1574074074e-5

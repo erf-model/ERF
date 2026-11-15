@@ -614,6 +614,44 @@ function(add_test_two_stream_seb_hydrology TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/deep/simulation.log;${CURRENT_TEST_BINARY_DIR}/rain/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/restart/fcompare.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_subcycled/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_hydrology)
 
+# The force-restore snow layer (erf.radiation.seb_snow_enable, ERF_ForceRestoreSnow.H) on the
+# TwoStream_SEBSnow deck: without snow, where the answers must be those of the deck without
+# the snow layer (fcompare); a 50 kg/m^2 snowpack melting, which must hold the surface at
+# 273.16 K, close each cell's snow budget, sublimate the covered fraction of the evaporation
+# and absorb the shortwave of the albedo with snow; 1 kg/m^2 melting in one step, which must
+# leave the surface colder than bare ground by L_f melt / C_s and the soil wetter by the
+# snow's water; the melting leg restarted half-way, which must match it (fcompare); and the
+# melting leg with a second level made half-way (Tests/RunTwoStreamSEBSnow.cmake,
+# Tests/test_files/TwoStream_SEBSnow/check_two_stream_seb_snow.py).
+function(add_test_two_stream_seb_snow TEST_NAME)
+    set(TEST_FILES_DIR "TwoStream_SEBSnow")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/TwoStream_SEBSnow.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_SEB_SNOW_CHECKER}"
+        "-DSTEPS=10"
+        "-DDT=1.0"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBSnow.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/bare/simulation.log;${CURRENT_TEST_BINARY_DIR}/no_snow/simulation.log;${CURRENT_TEST_BINARY_DIR}/no_snow/fcompare.log;${CURRENT_TEST_BINARY_DIR}/melt/simulation.log;${CURRENT_TEST_BINARY_DIR}/full_melt/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/restart/fcompare.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_two_stream_seb_snow)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -3230,6 +3268,9 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # The same deck with the force-restore hydrology: rain in, runoff, the deep reservoir,
     # drainage and the deep temperature, across a restart and on two levels.
     add_test_two_stream_seb_hydrology(TwoStream_SEBHydrology)
+    # The force-restore snow layer on its own deck: no snow, melting, melting away, across a
+    # restart and on two levels.
+    add_test_two_stream_seb_snow(TwoStream_SEBSnow)
   endif()
 
   # Two-stream radiation feeding Noah-MP on two levels (see the function above). Noah-MP
@@ -3350,6 +3391,72 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  TwoStream_SEBSurfaceLayerFluxes.i
                  "must be at or above erf.radiation.seb_soil_porosity"
                  "erf.radiation.seb_precipitation_source=microphysics erf.radiation.seb_soil_porosity=0.4 erf.radiation.seb_prognostic_q_max=0.3")
+
+  # Each start-up check of the force-restore snow layer stops the run with its own message:
+  # one step per check, with the inputs that reach it. The checks of an input that is absent
+  # from a deck (the first three, and the prognostic balance and the precipitation source
+  # with their own porosity check ahead) use the deck without the snow layer; the others the
+  # snow deck.
+  add_test_abort(TwoStream_SEBSnowAbortInitialSweUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_initial_swe_kg_m2 is used only with"
+                 "erf.radiation.seb_snow_initial_swe_kg_m2=5.0")
+  add_test_abort(TwoStream_SEBSnowAbortAlbedoUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_albedo is used only with"
+                 "erf.radiation.seb_snow_albedo=0.8")
+  add_test_abort(TwoStream_SEBSnowAbortCriticalSweUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_critical_swe_kg_m2 is used only with"
+                 "erf.radiation.seb_snow_critical_swe_kg_m2=20.0")
+  add_test_abort(TwoStream_SEBSnowAbortNeedsPrognostic
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_enable needs erf.radiation.seb_prognostic_enable"
+                 "erf.radiation.seb_snow_enable=true erf.radiation.seb_prognostic_enable=false")
+  add_test_abort(TwoStream_SEBSnowAbortNeedsMicrophysicsSource
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_enable needs erf.radiation.seb_precipitation_source"
+                 "erf.radiation.seb_snow_enable=true")
+  add_test_abort(TwoStream_SEBSnowAbortNeedsRadiationFluxes
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "seb_snow_enable needs erf.radiation.seb_use_radiation_fluxes"
+                 "erf.radiation.seb_use_radiation_fluxes=false")
+  add_test_abort(TwoStream_SEBSnowAbortDiffuseAlbedo
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "surface_albedo_sw_diffuse cannot be given with"
+                 "erf.radiation.surface_albedo_sw_diffuse=0.2")
+  add_test_abort(TwoStream_SEBSnowAbortVegetation
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_vegetation_type cannot be given with"
+                 "erf.radiation.seb_snow_enable=true erf.radiation.seb_vegetation_type=10 erf.radiation.seb_surface_layer_uses_moisture=true erf.radiation.seb_soil_type=3 erf.radiation.seb_leaf_area_index=2.0 erf.radiation.seb_surface_layer_uses_skin=true")
+  add_test_abort(TwoStream_SEBSnowAbortTMinAboveMelt
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "must be at or below 273.16"
+                 "erf.radiation.seb_prognostic_t_min_k=280.0")
+  add_test_abort(TwoStream_SEBSnowAbortInitialSweRange
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "seb_snow_initial_swe_kg_m2 must be finite and >= 0"
+                 "erf.radiation.seb_snow_initial_swe_kg_m2=-1.0")
+  add_test_abort(TwoStream_SEBSnowAbortAlbedoRange
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "seb_snow_albedo must be in"
+                 "erf.radiation.seb_snow_albedo=1.5")
+  add_test_abort(TwoStream_SEBSnowAbortCriticalSweRange
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "seb_snow_critical_swe_kg_m2 must be finite and > 0"
+                 "erf.radiation.seb_snow_critical_swe_kg_m2=0.0")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 
@@ -5252,14 +5359,18 @@ add_test_terrain_stress_ridge(TerrainStress_Hill3D survive "plt00060"
     OPTIONS "geometry.prob_extent=96000 96000 12952.825935499923 amr.n_cell=32 32 40 amr.max_grid_size_y=16 prob.dir=2 erf.fixed_dt=20 erf.fixed_mri_dt_ratio=12 max_step=60 erf.plot_int_1=60"
     WMAX 5)
 # At a small time step the option changes only the time discretization of the metric term: after
-# 60 steps of 5 s, u and w differ by about 4e-4 and Kmh by 0.1 % (relative), and the two runs
-# must still differ.  A split that removed one form and added another would differ by O(1).
+# 120 steps of 2.5 s, u and w differ by about 2e-4 and 4e-4, Kmh by 0.10 % and Kmv by 0.40 %
+# (relative), and the two runs must still differ.  A split that removed one form and added another
+# would differ by O(1).  At 5 s the time error of either run alone is about 2 % in Kmv (against a
+# run at 1.25 s), so the two runs can differ by more than RTOL there for reasons that have nothing
+# to do with the option: with erf.gradp_2nd_order_bndry = true they differ by 1.7 % in Kmv at 5 s,
+# and by 0.46 % at 2.5 s.
 # Double precision only: y_velocity is round-off (1e-13 here), which in single precision is far
 # above ATOL in both runs and would make the comparison meaningless.
 if(ERF_PRECISION STREQUAL "DOUBLE")
-add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetricAgree agree "plt00060"
-    ON_OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
-    OFF_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
+add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetricAgree agree "plt00120"
+    ON_OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=2.5 erf.fixed_mri_dt_ratio=4 max_step=120 erf.plot_int_1=120"
+    OFF_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=2.5 erf.fixed_mri_dt_ratio=4 max_step=120 erf.plot_int_1=120"
     RTOL 0.01
     ATOL 1.e-9)
 endif()

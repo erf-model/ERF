@@ -298,6 +298,11 @@ SurfaceLayer::update_fluxes (const int& lev,
             fill_tsurf_with_abs_surf_temp(lev, elapsed_time, cons_in, z_phys_nd,
                                           conversion_fail);
         }
+    } else if (flux_type == FluxCalcType::BULK_COEFF && surf_temp_is_absolute) {
+        // bulk_coeff reads t_surf without selecting the surface-temperature formulation;
+        // an absolute surface temperature is converted with the current surface pressure
+        // here as well (bulk_coeff has no heating rate, so it is the constant value).
+        fill_tsurf_with_abs_surf_temp(lev, elapsed_time, cons_in, z_phys_nd);
     }
 
     // Overwrite the covered water cells with coupled ocean SST. This must come
