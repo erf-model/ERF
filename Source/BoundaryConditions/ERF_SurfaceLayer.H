@@ -12,6 +12,7 @@
 #include "AMReX_MultiFab.H"
 #include "AMReX_iMultiFab.H"
 #include "AMReX_MFInterpolater.H"
+#include "AMReX_GpuMemory.H"
 
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
@@ -1277,7 +1278,8 @@ public:
   void fill_tsurf_with_sst_and_tsk (const int& lev,
                                     const double& time,
                                     const amrex::MultiFab& cons_in,
-                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                    erf_surface_temperature::ConversionFailure* fail);
 
   /**
    * Fill surface temperature interpolated from time varying SST file
@@ -1288,7 +1290,8 @@ public:
   void fill_tsurf_with_sfc_sst (const int& lev,
                                 const double& time,
                                 const amrex::MultiFab& cons_in,
-                                const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                                const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                erf_surface_temperature::ConversionFailure* fail);
 
   /**
    * Overwrite surface temperature with coupled ocean SST where the coupler
@@ -1302,7 +1305,8 @@ public:
    */
   void fill_tsurf_with_coupled_sst (const int& lev,
                                     const amrex::MultiFab& cons_in,
-                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                    erf_surface_temperature::ConversionFailure* fail);
 
   /**
    * Set t_surf from the prescribed absolute surface temperature (most.abs_surf_temp, plus
@@ -1319,7 +1323,8 @@ public:
   void fill_tsurf_with_abs_surf_temp (const int& lev,
                                       const double& time,
                                       const amrex::MultiFab& cons_in,
-                                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                      erf_surface_temperature::ConversionFailure* fail);
 
   /**
    * Overwrite the land surface temperature with an external skin temperature.
@@ -1335,7 +1340,8 @@ public:
    */
   void fill_tsurf_with_skin_temperature (const int& lev,
                                          const amrex::MultiFab& cons_in,
-                                         const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                                         const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                         erf_surface_temperature::ConversionFailure* fail);
 
   /**
    * Overwrite the land surface mixing ratio from the external skin temperature and the
@@ -1356,6 +1362,11 @@ public:
                                       const amrex::MultiFab& cons_in,
                                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
+  void fill_qsurf_with_skin_moisture (const int& lev,
+                                      const amrex::MultiFab& cons_in,
+                                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                      erf_surface_temperature::ConversionFailure* fail);
+
   /**
    * Fill surface moisture from saturation specific humidity.
    *
@@ -1366,6 +1377,11 @@ public:
   void fill_qsurf_with_qsat (const int& lev,
                              const amrex::MultiFab& cons_in,
                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
+  void fill_qsurf_with_qsat (const int& lev,
+                             const amrex::MultiFab& cons_in,
+                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                             erf_surface_temperature::ConversionFailure* fail);
 
   void set_pblh (const int& lev, const amrex::MultiFab& pblh_in);
 
@@ -1396,7 +1412,8 @@ public:
    */
   void get_lsm_tsurf (const int& lev,
                       const amrex::MultiFab& cons_in,
-                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                      erf_surface_temperature::ConversionFailure* fail);
 
   /**
    * Wrapper around compute_pblh.
@@ -2039,6 +2056,10 @@ private:
   amrex::Orientation m_face;
   std::string m_pp_prefix;
   amrex::Vector<amrex::Geometry> m_geom;
+  // Reused for the two collective validation points in update_fluxes; all GPU writes
+  // complete before it is read back and before their outputs reach a flux kernel.
+  amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+      m_surface_conversion_failure{erf_surface_temperature::ConversionFailure{}};
   bool m_rotate = false;
   amrex::GpuArray<int, AMREX_SPACEDIM*2> m_surface_layer_faces{};
   double m_start_low_time;

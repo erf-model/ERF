@@ -1377,8 +1377,8 @@ TEST(SurfaceLayer, AbsoluteSurfaceTemperatureReportsUnusableState)
                          amrex::RuntimeError);
         }
         const std::string report = testing::internal::GetCapturedStdout();
-        EXPECT_NE(report.find("fill_tsurf_with_abs_surf_temp"), std::string::npos) << report;
-        EXPECT_NE(report.find("density or (rho theta)"), std::string::npos) << report;
+        EXPECT_NE(report.find("SurfaceLayer temperature update"), std::string::npos) << report;
+        EXPECT_NE(report.find("density of the state cell"), std::string::npos) << report;
     }
 }
 
@@ -2002,7 +2002,7 @@ TEST(SurfaceLayer, LowerBoundarySstReportsUnusableTemperature)
                          amrex::RuntimeError);
         }
         const std::string report = testing::internal::GetCapturedStdout();
-        EXPECT_NE(report.find("fill_tsurf_with_sst_and_tsk"), std::string::npos) << report;
+        EXPECT_NE(report.find("SurfaceLayer temperature update"), std::string::npos) << report;
         EXPECT_NE(report.find("could not be converted to potential temperature"),
                   std::string::npos) << report;
     }
