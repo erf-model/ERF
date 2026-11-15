@@ -66,14 +66,29 @@ Governing Equations
 |                                 | inverse relations inconsistent. See                      |                    |                  |
 |                                 | :ref:`GoverningEquations`.                               |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | 0, 1               | 0                |
-|                                 | with terrain-fitted coordinates: 0 for dp/dx with a      |                    |                  |
-|                                 | dp/dz correction, 1 for the gradient of the vertically   |                    |                  |
-|                                 | interpolated pressure (Klemp 2011)                       |                    |                  |
+| **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | ChainRule,         | ChainRule        |
+|                                 | with terrain-fitted coordinates: ChainRule for dp/dx     | HydrostaticHybrid  |                  |
+|                                 | along the coordinate surface with a dp/dz correction;    |                    |                  |
+|                                 | HydrostaticHybrid for the same with the hydrostatic part |                    |                  |
+|                                 | of the perturbational pressure carried to the height of  |                    |                  |
+|                                 | the face exactly, and only the non-hydrostatic remainder |                    |                  |
+|                                 | differenced. Used only in fully compressible runs;       |                    |                  |
+|                                 | anelastic and pseudo-incompressible runs take the        |                    |                  |
+|                                 | pressure gradient from the projection. The former        |                    |                  |
+|                                 | integer values 0 and 2 are still accepted, with a        |                    |                  |
+|                                 | warning. See :ref:`sec:HorizPGF`.                        |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.gradp_2nd_order_bndry**   | with gradp_type = ChainRule, take dp/dz at the bottom    | Boolean            | false            |
+|                                 | and top of the domain from the second-order one-sided    |                    |                  |
+|                                 | difference through the three nearest cells rather than   |                    |                  |
+|                                 | the first-order two-point one (only used in fully        |                    |                  |
+|                                 | compressible runs). See :ref:`sec:HorizPGF`.             |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_pert_pres_gradient**  | if true, the lateral pressure gradient in the momentum   | Boolean            | true             |
 |                                 | equation uses horizontal derivatives of the              |                    |                  |
 |                                 | perturbational pressure; if false, of the full pressure  |                    |                  |
+|                                 | (only used with gradp_type = ChainRule, and only in      |                    |                  |
+|                                 | fully compressible runs)                                 |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.transport_scalar**        | transport the passive scalar component                   | Boolean            | true             |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -6514,7 +6529,7 @@ Equation Set
 * :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.use_gravity``
 * :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.compressibility_type``,
   ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,
-  ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
+  ``erf.gradp_2nd_order_bndry``, ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
 * :ref:`Time Step <inputs-time-step>` -- ``erf.timestepping_type``
 * :ref:`Initialization <inputs-initialization>` -- ``erf.project_initial_velocity``
 

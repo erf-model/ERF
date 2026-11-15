@@ -785,30 +785,6 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
 void WeatherDataInterpolation (const double time);
 
 /**
- * Perform quadratic interpolation in one dimension.
- * @param[in] z Interpolation coordinate.
- * @param[in] z0 Coordinate of first point.
- * @param[in] p0 Value at first point.
- * @param[in] z1 Coordinate of second point.
- * @param[in] p1 Value at second point.
- * @param[in] z2 Coordinate of third point.
- * @param[in] p2 Value at third point.
- * @return Interpolated value.
- */
-AMREX_GPU_HOST_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-quad_interp_1d (amrex::Real z,
-                amrex::Real z0, amrex::Real p0,
-                amrex::Real z1, amrex::Real p1,
-                amrex::Real z2, amrex::Real p2)
-{
-    return p0 * ( (z - z1) * (z - z2) ) / ( (z0 - z1) * (z0 - z2) )
-         + p1 * ( (z - z0) * (z - z2) ) / ( (z1 - z0) * (z1 - z2) )
-         + p2 * ( (z - z0) * (z - z1) ) / ( (z2 - z0) * (z2 - z1) );
-}
-
-/**
  * Which time level(s) a fillpatch at a given time should draw from.
  */
 enum struct TimeLevelSel { Old, New, Interp };

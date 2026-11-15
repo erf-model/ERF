@@ -5332,14 +5332,18 @@ add_test_terrain_stress_ridge(TerrainStress_Hill3D survive "plt00060"
     OPTIONS "geometry.prob_extent=96000 96000 12952.825935499923 amr.n_cell=32 32 40 amr.max_grid_size_y=16 prob.dir=2 erf.fixed_dt=20 erf.fixed_mri_dt_ratio=12 max_step=60 erf.plot_int_1=60"
     WMAX 5)
 # At a small time step the option changes only the time discretization of the metric term: after
-# 60 steps of 5 s, u and w differ by about 4e-4 and Kmh by 0.1 % (relative), and the two runs
-# must still differ.  A split that removed one form and added another would differ by O(1).
+# 120 steps of 2.5 s, u and w differ by about 2e-4 and 4e-4, Kmh by 0.10 % and Kmv by 0.40 %
+# (relative), and the two runs must still differ.  A split that removed one form and added another
+# would differ by O(1).  At 5 s the time error of either run alone is about 2 % in Kmv (against a
+# run at 1.25 s), so the two runs can differ by more than RTOL there for reasons that have nothing
+# to do with the option: with erf.gradp_2nd_order_bndry = true they differ by 1.7 % in Kmv at 5 s,
+# and by 0.46 % at 2.5 s.
 # Double precision only: y_velocity is round-off (1e-13 here), which in single precision is far
 # above ATOL in both runs and would make the comparison meaningless.
 if(ERF_PRECISION STREQUAL "DOUBLE")
-add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetricAgree agree "plt00060"
-    ON_OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
-    OFF_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
+add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetricAgree agree "plt00120"
+    ON_OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=2.5 erf.fixed_mri_dt_ratio=4 max_step=120 erf.plot_int_1=120"
+    OFF_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=2.5 erf.fixed_mri_dt_ratio=4 max_step=120 erf.plot_int_1=120"
     RTOL 0.01
     ATOL 1.e-9)
 endif()
