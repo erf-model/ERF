@@ -615,6 +615,8 @@ public:
           m_coupled_current_sin_lev.resize(nlevs, nullptr);
           m_coupled_rotation_lev.resize(nlevs);
           m_coupled_rotation_src_lev.resize(nlevs, nullptr);
+          m_coupled_rotation_src_ba_lev.resize(nlevs);
+          m_coupled_rotation_src_dm_lev.resize(nlevs);
           m_rel_k_top.resize(nlevs, 0);
           m_rel_src_ba.resize(nlevs);
 
@@ -2254,6 +2256,8 @@ private:
   // coupler calls with the same orientation every step
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_coupled_rotation_lev;
   amrex::Vector<const amrex::MultiFab*>  m_coupled_rotation_src_lev;
+  amrex::Vector<amrex::BoxArray>            m_coupled_rotation_src_ba_lev;
+  amrex::Vector<amrex::DistributionMapping> m_coupled_rotation_src_dm_lev;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_xvel;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_yvel;
   amrex::Vector<int> m_rel_k_top;
