@@ -17,6 +17,7 @@
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamCanopyForcing.H>
 #include <ERF_ForceRestoreHydrologyState.H>
+#include <ERF_ForceRestoreSnowState.H>
 #include <ERF_SurfacePrecipitation.H>
 
 /**
@@ -218,7 +219,8 @@ public:
      * @brief Every field of the force-restore state of @p lev that evolves and so must
      * survive a regrid, be filled from the coarse level on a new level and be averaged
      * down: t_sfc and q_sfc; with erf.radiation.seb_deep_prognostic_enable, t_deep and
-     * q_deep; with the hydrology, its running totals (several components). Empty when the
+     * q_deep; with the hydrology, its running totals (several components); with the snow
+     * layer, its water equivalent and totals. Empty when the
      * state is not evolved. Each is a 2D field (k = 0) on the level's horizontal grids.
      */
     [[nodiscard]] amrex::Vector<amrex::MultiFab*> seb_prognostic_fields (int lev);
@@ -252,14 +254,17 @@ public:
         return (active() && m_rad->seb_enable && lev < static_cast<int>(m_q_deep.size())) ? m_q_deep[lev].get() : nullptr;
     }
 
-    /** @brief The hydrology's rain rate of the last step [kg/m^2/s] (nullptr without seb_precipitation_source) and running totals [kg/m^2] (nullptr without the hydrology). Read-only: for output. */
+    /** @brief The hydrology's rain rate of the last step [kg/m^2/s], in component 0 (nullptr without seb_precipitation_source) and running totals [kg/m^2] (nullptr without the hydrology). Read-only: for output. */
     [[nodiscard]] const amrex::MultiFab* hydrology_rain_rate (int lev) const {
-        return (m_rad && m_rad->seb_precipitation_source != SEBPrecipitationSource::None)
-             ? m_hydro.rain_rate(lev) : nullptr;
+        return m_precip.rate(lev);
     }
     [[nodiscard]] const amrex::MultiFab* hydrology_totals (int lev) {
         return m_hydro.totals(lev);
     }
+
+    /** @brief The snow water equivalent [kg/m^2] and the snow layer's running totals (ForceRestoreSnow::Total components) [kg/m^2]; nullptr without erf.radiation.seb_snow_enable. Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* snow_swe (int lev) { return m_snow.swe(lev); }
+    [[nodiscard]] const amrex::MultiFab* snow_totals (int lev) { return m_snow.totals(lev); }
 
     /** @brief True when the force-restore state is being evolved and so needs transferring. */
     [[nodiscard]] bool seb_prognostic_active () const {
@@ -549,7 +554,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_t_deep;      // deep-soil temperature [K]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture q_s restores to
     // (both constant at their defaults unless erf.radiation.seb_deep_prognostic_enable)
+    ForceRestorePrecipRate m_precip;                                // rain and snowfall of the step (ERF_ForceRestorePrecipRate.H)
     ForceRestoreHydrology m_hydro;                                  // rain, runoff, drainage (ERF_ForceRestoreHydrologyState.H)
+    ForceRestoreSnow m_snow;                                        // snow water equivalent (ERF_ForceRestoreSnowState.H)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_moisture;    // seb_surface_moisture (seb_surface_layer_uses_moisture)
 
     // What the sweep hands to a land-surface model (2D: i,j), allocated when
