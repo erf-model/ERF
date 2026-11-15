@@ -1,6 +1,7 @@
 #ifndef ERF_MASS_SOURCE_H_
 #define ERF_MASS_SOURCE_H_
 
+#include <functional>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -168,7 +169,10 @@ public:
      * Bring the ground heights and the composite source volume up to date with the grids:
      * a no-op unless the BoxArray or DistributionMapping of a level, or the finest level,
      * has changed since the last call.  Aborts if no level has a cell centre in the region.
-     * z_phys_nd and detJ may hold nullptr on a mesh without them.
+     * z_phys_nd and detJ may hold nullptr on a mesh without them.  fill_ground(lev, slab)
+     * must fill a one-node-thick nodal slab at the bottom of the domain, on the footprint of
+     * every box of the level, with the ground heights (ERF::fill_surface_nodes, which
+     * interpolates them from coarser levels where the level does not reach the ground).
      */
     void update_geometry (int finest_level,
                           const amrex::Vector<amrex::Geometry>& geom,
@@ -178,7 +182,8 @@ public:
                           const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                           const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& detJ,
                           const amrex::Vector<const amrex::MultiFab*>& mf_mx,
-                          const amrex::Vector<const amrex::MultiFab*>& mf_my)
+                          const amrex::Vector<const amrex::MultiFab*>& mf_my,
+                          const std::function<void(int, amrex::MultiFab&)>& fill_ground)
     {
         bool same = (finest_level + 1 == static_cast<int>(m_lev.size()));
         for (int lev = 0; same && lev <= finest_level; ++lev) {
@@ -199,15 +204,11 @@ public:
             // aloft, or a grid split in z) can tell how high its cells are
             const int kg = geom[lev].Domain().smallEnd(2);
             if (z_phys_nd[lev]) {
-                amrex::BoxList bl;
-                for (int n = 0; n < z_phys_nd[lev]->size(); ++n) {
-                    amrex::Box b = z_phys_nd[lev]->boxArray()[n];
-                    b.setSmall(2, kg); b.setBig(2, kg);
-                    bl.push_back(b);
-                }
+                amrex::BoxList bl = z_phys_nd[lev]->boxArray().boxList();
+                for (auto& b : bl) { b.setRange(2, kg); }
                 lg.ground = std::make_unique<amrex::MultiFab>(amrex::BoxArray(std::move(bl)),
                                                               z_phys_nd[lev]->DistributionMap(), 1, 0);
-                lg.ground->ParallelCopy(*z_phys_nd[lev], 0, 0, 1);
+                fill_ground(lev, *lg.ground);
             }
 
             // Cells not covered by the next finer level count towards the composite volume

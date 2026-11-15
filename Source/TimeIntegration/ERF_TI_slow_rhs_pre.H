@@ -160,7 +160,8 @@
                 mf_my[lev] = mapfac[lev][MapFacType::m_y].get();
             }
             m_mass_source->update_geometry(finest_level, Geom(), grids, dmap, ref_ratio,
-                                           z_phys_nd, detJ_cc, mf_mx, mf_my);
+                                           z_phys_nd, detJ_cc, mf_mx, mf_my,
+                                           [this] (int lev, MultiFab& slab) { fill_surface_nodes(lev, slab); });
             m_mass_source->add_sources(level, cc_src, S_data[IntVars::cons], zpn_to_use,
                                        fine_geom, old_stage_time);
         }

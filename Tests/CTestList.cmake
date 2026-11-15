@@ -3146,6 +3146,10 @@ endif()
 # theta; no tracer; and with a refined patch coupled two-way that holds the whole region, none of
 # it, all of it but aloft, or half of it (the composite source volume).
 function(add_test_mass_source TEST_NAME RUNTIME_OPTIONS CHECK_OPTIONS)
+    cmake_parse_arguments(ADD_TEST_MS "" "DECK" "" ${ARGN})
+    if(NOT ADD_TEST_MS_DECK)
+        set(ADD_TEST_MS_DECK MassSource.i)
+    endif()
     if(ERF_PRECISION STREQUAL "DOUBLE")
         set(tol 1e-9)
     else()
@@ -3155,7 +3159,7 @@ function(add_test_mass_source TEST_NAME RUNTIME_OPTIONS CHECK_OPTIONS)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} sh -c
-      "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MassSource.i ${RUNTIME_OPTIONS} > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_mass_source.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log ${CHECK_OPTIONS} --tol ${tol}")
+      "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_MS_DECK} ${RUNTIME_OPTIONS} > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_mass_source.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log ${CHECK_OPTIONS} --tol ${tol}")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;conservation" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
@@ -3171,8 +3175,7 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   add_test_mass_source(MassSource_SplitZ
       "amr.no_box_split_dir=-1 amr.max_grid_size_z=8 erf.timestepping_type=RK3_NoSubstepping erf.vert_implicit_fac=0 0 0 erf.fixed_dt=0.05 max_step=100"
       "--rate 1.0e4")
-  add_test_mass_source(MassSource_RateTable
-      "erf.mass_source.rate_file=mass_source_ramp.txt" "--expected 55000.0")
+  add_test_mass_source(MassSource_RateTable "" "--expected 55000.0" DECK MassSource_RateTable.i)
   add_test_mass_source(MassSource_Theta "erf.mass_source.theta=280.0" "--rate 1.0e4 --theta 280.0")
   add_test_mass_source(MassSource_NoTracer "erf.mass_source.tracer=false" "--rate 1.0e4 --no-tracer")
   add_test_mass_source(MassSource_AMR
