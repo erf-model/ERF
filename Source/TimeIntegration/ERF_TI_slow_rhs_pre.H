@@ -148,6 +148,17 @@
 #endif
 
         // *****************************************************************************
+        // A localized source of gas (erf.mass_source), added AFTER make_sources, which
+        // resets cc_src at every RK stage.  It goes into the slow RHS of rho and rho*theta,
+        // which the acoustic substeps apply; the substeps' own make_sources call does not see it.
+        // *****************************************************************************
+        if (m_mass_source) {
+            m_mass_source->add_sources(cc_src, S_data[IntVars::cons], zpn_to_use, dJ_to_use,
+                                       *mapfac[level][MapFacType::m_x], *mapfac[level][MapFacType::m_y],
+                                       fine_geom, old_stage_time);
+        }
+
+        // *****************************************************************************
         // Inject the fire-to-atmosphere heat flux AFTER make_sources, which resets
         // cc_src at every RK stage. The lagged fire flux (FireCoupler) is constant
         // across all RK stages and must be added here to survive the integrator.

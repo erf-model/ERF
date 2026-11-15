@@ -4114,6 +4114,19 @@ ERF::ReadParameters ()
 
     solverChoice.init_params(max_level,pp_prefix);
 
+    m_mass_source = MassSource::from_inputs();
+    if (m_mass_source) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
+                amrex::Abort("erf.mass_source needs erf.compressibility_type = FullyCompressible at every "
+                             "level: the anelastic and pseudo-incompressible projections do not admit a mass source");
+            }
+        }
+        if (!solverChoice.transport_scalar) {
+            amrex::Print() << "WARNING: erf.transport_scalar = false, so the mass-source tracer is not transported" << std::endl;
+        }
+    }
+
     // SurfaceModel output is opt-in for single-provider runs.  When both
     // providers are active, retain the useful combined diagnostic output
     // by default, while allowing an explicit false to disable it.

@@ -3460,6 +3460,95 @@ function(s).
 Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
 with an ``erf.abl_geo_wind_table``.
 
+.. _sec:MassSourceInputs:
+
+Mass Source
+-----------
+
+A localized source of gas inside the domain, e.g. the release from a ruptured
+pipeline or a stack, can be added from the inputs without problem-specific code.
+The gas is injected at a total rate :math:`\dot m(t)` [kg/s], spread uniformly over
+the cells whose centres lie within ``erf.mass_source.radius`` of
+``erf.mass_source.center`` horizontally and less than ``erf.mass_source.height``
+above the local ground (the bottom of the terrain-fitted column). With :math:`V`
+the total physical volume of those cells, including the terrain metric and the
+map factors, every source cell receives
+
+.. math::
+
+   S_\rho = \frac{\dot m(t)}{V}, \qquad
+   S_{\rho\theta} = S_\rho \, \theta_{src}, \qquad
+   S_{\rho s} = S_\rho \;\; \text{(when } \texttt{erf.mass_source.tracer} \text{ is true)},
+
+where :math:`\theta_{src}` is ``erf.mass_source.theta`` if given and otherwise the
+cell's own potential temperature, so that the injection on its own does not change
+the temperature. :math:`s` is the first passive scalar (plotted as ``rhoadv_0``
+and, divided by the density, as ``scalar``), which therefore holds the mass
+fraction of the released gas. No momentum is added: the gas enters at rest. The
+gas has the properties of dry air; in a moist run it carries no water, so it
+dilutes the mixing ratios of the cells it enters.
+
+The mass source requires ``erf.compressibility_type = FullyCompressible`` at every
+level, and ERF stops at start-up otherwise: the anelastic and pseudo-incompressible
+projections constrain the divergence of the velocity and would remove the injected
+mass. The source is added to the slow right-hand side of the density and
+:math:`\rho\theta`, which the acoustic substeps apply, and to the right-hand side of
+the scalar. ERF also stops if no cell centre on a level lies inside the source
+region; make ``radius`` or ``height`` larger than half the cell size. If
+``erf.transport_scalar`` is false, ERF warns that the tracer is not transported.
+
+With mesh refinement each level adds the source to its own cells in the region,
+normalized by their volume on that level, and the coarse cells under a fine level
+are replaced by the average of the fine ones. The composite injection rate is
+therefore :math:`\dot m` when the source region lies entirely inside the finest
+level that covers any part of it (or outside every refined level), as with a
+refinement box around the source; a coarse/fine boundary that cuts through the
+region injects too much.
+
+Over a sharp-edged source region the passive scalar is close to a step function,
+so non-monotone advection schemes for scalars (e.g. ``Upwind_5th``) give small
+over- and undershoots at its edge; the WENO schemes for
+``erf.dryscal_horiz_adv_type`` and ``erf.dryscal_vert_adv_type`` reduce them.
+
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                          | Definition                                               | Acceptable Values  | Default          |
++====================================+==========================================================+====================+==================+
+| **erf.mass_source.rate**           | constant total mass flow rate of the source [kg/s];      | Real               | None             |
+|                                    | giving this or ``rate_file`` turns the source on         |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.rate_file**      | text file of the time-varying mass flow rate: two        | String             | None             |
+|                                    | columns, time [s] and rate [kg/s], times strictly        |                    |                  |
+|                                    | increasing, at least two rows, ``#`` starts a comment;   |                    |                  |
+|                                    | linear in between and zero outside the table. Give       |                    |                  |
+|                                    | either ``rate`` or ``rate_file``, not both               |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.center**         | horizontal position x y of the centre of the source [m]  | 2 Reals            | required         |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.radius**         | horizontal radius of the source region [m]               | Real > 0           | required         |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.height**         | depth of the source region above the local ground [m]    | Real > 0           | required         |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.theta**          | potential temperature of the injected gas [K]            | Real               | the cell's own   |
+|                                    |                                                          |                    | theta            |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.tracer**         | add the same source to the first passive scalar, so      | Boolean            | true             |
+|                                    | ``scalar`` is the mass fraction of the released gas      |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+For example, a release that ramps up to 14000 kg/s from a 50 m radius, 20 m deep
+region around the origin:
+
+::
+
+    erf.compressibility_type  = FullyCompressible
+    erf.mass_source.center    = 0.0 0.0
+    erf.mass_source.radius    = 50.0
+    erf.mass_source.height    = 20.0
+    erf.mass_source.rate_file = "release_rate.txt"
+
+At start-up ERF prints the source region and, for a rate table, its time span and
+the total mass it releases.
+
 
 
 .. _sec:LargeScaleForcingInputs:

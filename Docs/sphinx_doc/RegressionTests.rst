@@ -797,6 +797,25 @@ Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/
 
 .. _`Tests/test_files/ScalarDiffusion_Reflux`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion_Reflux
 
+Mass Source
+-----------
+The ``MassSource_*`` tests (with Python, not Windows) check the localized mass source
+(:ref:`sec:MassSourceInputs`). The ``MassSource`` deck injects a constant 1.0e4 kg/s, with the
+tracer on, from the cells within 100 m of the centre of a closed 1 km x 1 km x 500 m box (slip
+walls on all six faces) and less than 100 m above the ground, for 20 fully compressible steps.
+Nothing enters or leaves, so ``Tests/check_mass_source.py`` requires the domain mass ERF prints
+to grow by the rate times the elapsed time, and the tracer integral, zero at the start, to equal
+it, both to 1e-9 relative in double precision. ``Flat`` runs the deck as it stands, ``Hill`` over
+a cos\ :sup:`4` hill 100 m high and 800 m across on the terrain-fitted mesh (so the source volume
+includes the terrain metric; the hill is flat where it meets the walls), ``Stretched`` on a stretched mesh
+(``erf.initial_dz = 10``, ratio 1.1), and ``AMR`` with a refined patch around the source
+coupled two-way, which checks the composite integrals. ``MassSource_Anelastic_Abort`` requires
+ERF to stop at start-up when the deck is run anelastic.
+
+Test Location: `Tests/test_files/MassSource`_
+
+.. _`Tests/test_files/MassSource`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MassSource
+
 Terrain Poisson operator at Neumann faces
 -----------------------------------------
 The ``TerrainPoisson_*`` tests (MPI builds, not Windows) check the anelastic projection on a
