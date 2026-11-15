@@ -2030,6 +2030,8 @@ ERF::InitData_post ()
             }
             m_SurfaceLayer[ori]->set_coupled_sst_active(solverChoice.use_coupled_sst &&
                                                         static_cast<int>(ori) == Orientation::zlo());
+            m_SurfaceLayer[ori]->set_coupled_current_active(solverChoice.use_coupled_currents &&
+                                                            static_cast<int>(ori) == Orientation::zlo());
 
             // This call will allocate the arrays at each level. If we regrid later, either changing
             // the number of levels or just the grids at each existing level, we will call an update routine
@@ -2144,6 +2146,48 @@ ERF::InitData_post ()
             m_SurfaceLayer[ori] = nullptr;
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+
+    // most.surface_current is read only by a z-low surface layer, under the prefix that face
+    // takes its inputs from; anywhere else it would be silently ignored
+    {
+        const SurfaceLayer* zlo_layer = m_SurfaceLayer[Orientation::zlo()].get();
+        const std::string zlo_prefix = (n_faces == 1 || use_legacy_zlo_prefix)
+            ? pp_prefix : pp_prefix + "." + BoundaryFaceName[Orientation::zlo()];
+        const std::string zlo_key = zlo_prefix + ".most.surface_current";
+        // Only keys under ERF's own prefix: another code in the same run (a coupled ocean
+        // model, say) may have a key of the same ending. AMReX's
+        // amrex.abort_on_unused_inputs catches unused keys in general; this one is checked
+        // here because, misplaced, it would silently change the physics.
+        const std::string suffix(".most.surface_current");
+        const std::string erf_prefix = pp_prefix + ".";
+        for (const auto& key : user_specified_inputs) {
+            if (key.size() < suffix.size() ||
+                key.compare(key.size() - suffix.size(), suffix.size(), suffix) != 0 ||
+                key.compare(0, erf_prefix.size(), erf_prefix) != 0) {
+                continue;
+            }
+            if (!zlo_layer) {
+                Abort(key + " is read only by a surface_layer boundary at zlo, and zlo is "
+                      "not one: set zlo.type = \"surface_layer\".");
+            }
+            if (key != zlo_key) {
+                Abort(key + " is not read: the surface current applies only to the zlo "
+                      "surface layer, which reads it as " + zlo_key + ".");
+            }
+        }
+
+        // The coupled current has the same reader, and arrives only once coupling starts
+        if (solverChoice.use_coupled_currents) {
+            if (!zlo_layer) {
+                Abort("erf.use_coupled_currents is read only by a surface_layer boundary at "
+                      "zlo, and zlo is not one: set zlo.type = \"surface_layer\".");
+            }
+            if (max_level > 0) {
+                Print() << "WARNING: the coupled surface current is applied on level 0 only; "
+                        << "the surface of the refined levels is at rest." << std::endl;
+            }
+        }
+    }
 
     // A land-surface model hands its fluxes to the atmosphere only through the surface
     // layer (make_SurfaceLayer_at_level is the one consumer of lsm_flux). Without a
