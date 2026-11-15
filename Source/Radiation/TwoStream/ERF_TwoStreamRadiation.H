@@ -69,6 +69,15 @@ public:
         return (m_rad != nullptr) && m_rad->enabled;
     }
 
+    /**
+     * @brief True when the land mask the balance last ran with at @p lev holds a water
+     * column (mask 0). ERF then averages the balance's fields down over land columns only
+     * (ERF_SEBLandAverageDown.H). False before the level's first advance() with a mask.
+     */
+    [[nodiscard]] bool seb_level_has_water (int lev) const noexcept {
+        return lev >= 0 && lev < static_cast<int>(m_has_water.size()) && m_has_water[lev] == 1;
+    }
+
     /** @brief Read-only view of the per-level prognostic surface-temperature state. */
     [[nodiscard]] const amrex::MultiFab* prognostic_surface_temperature_state (int lev) const noexcept {
         return (lev >= 0 && lev < static_cast<int>(m_t_sfc.size()))
@@ -148,6 +157,15 @@ public:
      * @param have_datetime true when start_datetime (or a WRF/metgrid start
      *                   date) fixed the calendar; without it a dynamic sun
      *                   cannot be placed and the call aborts
+     * @param land_mask  the level's land mask (ERF::lmask_lev: 0 water, 1 land, 2 a
+     *                   building's column), one 2D box at k = 0 for each box of the
+     *                   state, or nullptr (every column is land). The force-restore
+     *                   balance is a model of soil, so a water column (mask 0) is not
+     *                   its ground: its state is held (the snow layer's water is set to
+     *                   zero), it is left out of the balance's
+     *                   means and of the hydrology, and the sweep takes its surface
+     *                   temperature from @p t_surf (the surface layer's sea surface
+     *                   temperature) and not from the balance's skin.
      */
     void advance (int lev,
                   int nstep,
@@ -168,7 +186,8 @@ public:
                   const amrex::MultiFab* lat_m,
                   const amrex::MultiFab* lon_m,
                   double epoch_time,
-                  bool have_datetime);
+                  bool have_datetime,
+                  const amrex::iMultiFab* land_mask = nullptr);
 
     /**
      * @brief The prognostic surface state of one level, or nullptr when the SEB is
@@ -606,6 +625,10 @@ private:
     amrex::Vector<int> m_has_cover;
     // Whether the ground balance of the level has updated after a sweep (seb_sw_net()).
     amrex::Vector<int> m_seb_updated;
+    // Whether the land mask advance() was given at a level holds a water column: 1 yes,
+    // 0 no, -1 not looked at yet. The mask does not change in time, so it is looked at
+    // once after each define_level(), which sets -1 (the level may have new grids).
+    amrex::Vector<int> m_has_water;
 
     amrex::Vector<FluxDiag> m_flux_diag;
 };

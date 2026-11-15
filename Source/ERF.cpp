@@ -23,6 +23,7 @@
 #include "ERF_PlotfileSelection.H"
 #include "ERF_Utils.H"
 #include "ERF_PlanarBoundary.H"
+#include "ERF_SEBLandAverageDown.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TerrainFileChecks.H"
 #include "ERF_SrcHeaders.H"
@@ -598,6 +599,15 @@ ERF::fill_seb_from_coarse (int lev)
 
     const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
     const Box& crse_dom = geom[lev-1].Domain();
+    // With a water column on either level each fine column takes its parent's value and
+    // no slope: the slope of a coarse land column on a shore is formed with the held
+    // value of the water column next to it, which is not a land surface's. Two
+    // reductions here, when a level is built or regridded; none in a step.
+    const bool has_water =
+        (!lmask_lev[lev-1].empty() && lmask_lev[lev-1][0]->min(0) == 0) ||
+        (!lmask_lev[lev  ].empty() && lmask_lev[lev  ][0]->min(0) == 0);
+    Interpolater* mapper = &cell_cons_interp;
+    if (has_water) { mapper = &pc_interp; }
     auto fill_one = [&] (MultiFab* fine, MultiFab* crse)
     {
         if (!fine || !crse) { return; }
@@ -639,7 +649,7 @@ ERF::fill_seb_from_coarse (int lev)
                               IntVect(0,0,0),          // no ghosts outside the domain
                               *crse, 0, 0, fine->nComp(),
                               geom[lev-1], geom[lev],
-                              rr2d, &cell_cons_interp,
+                              rr2d, mapper,
                               bcs, 0);
     };
     // t_sfc, q_sfc and, with the force-restore hydrology, its deep state and running totals.
@@ -821,9 +831,20 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 const Vector<MultiFab*> crse_fields = two_stream_rad.seb_prognostic_fields(lev);
                 const Vector<MultiFab*> fine_fields = two_stream_rad.seb_prognostic_fields(lev+1);
                 AMREX_ALWAYS_ASSERT(fine_fields.size() == crse_fields.size());
+                // With a water column on either level the mean is over the fine land
+                // columns, and a coarse water column keeps its values: the balance does not
+                // run on water, which holds what it started with (ERF_SEBLandAverageDown.H).
+                const bool land_only = !lmask_lev[lev].empty() && !lmask_lev[lev+1].empty() &&
+                                       (two_stream_rad.seb_level_has_water(lev) ||
+                                        two_stream_rad.seb_level_has_water(lev+1));
                 for (int n = 0; n < fine_fields.size(); ++n) {
                     if (crse_fields[n] && fine_fields[n]) {
-                        average_down(*fine_fields[n], *crse_fields[n], 0, fine_fields[n]->nComp(), rr2d);
+                        if (land_only) {
+                            seb_average_down_land(*fine_fields[n], *crse_fields[n],
+                                                  *lmask_lev[lev+1][0], *lmask_lev[lev][0], rr2d);
+                        } else {
+                            average_down(*fine_fields[n], *crse_fields[n], 0, fine_fields[n]->nComp(), rr2d);
+                        }
                     }
                 }
             }

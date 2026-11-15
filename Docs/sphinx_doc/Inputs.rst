@@ -4876,7 +4876,8 @@ List of Parameters
 | **erf.land_surface_model**  | Enables land surface energy and moisture fluxes          | None, SLM, NOAHMP  | None             |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.is_land**             | whether each AMR level is treated as land (1) or water   | 0, 1               | 1                |
-|                             | (0) (per-level)                                          |                    |                  |
+|                             | (0) (per-level). The two-stream force-restore balance    |                    |                  |
+|                             | (``erf.radiation.seb_enable``) runs on land columns only |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.lsm_nsoil**           | number of soil layers; must match ``NSOIL`` in the       | Integer >= 1       | 4                |
 |                             | Noah-MP namelist, and also sets how many                 |                    |                  |
@@ -5414,6 +5415,43 @@ from its parent and never evolves a surface of its own. A fine level therefore s
 surface rather than resolving more surface structure than the coarse grid did. The fields are
 written with the 2D plotfile variables ``seb_t_sfc`` and ``seb_q_sfc``.
 
+The balance is a model of soil, so it follows the land mask (``erf.is_land``, or ``LANDMASK`` of a
+``wrfinput`` or metgrid file). A water column (mask 0) keeps its :math:`T_s` and :math:`q_s`, takes
+no rain, runoff or drainage, and is left out of the means and residuals the balance reports. A
+building's column (mask 2) is land. The sweep's longwave boundary on a water column is the surface
+layer's sea surface temperature, and without a z-low surface layer the scalar ``erf.rad_t_sfc``.
+The run prints one line for each level that has water columns, and names which of the two it uses.
+``seb_t_sfc`` and ``seb_q_sfc`` on a water column are held values, not a state of the water: the
+values the column had at the start, at the restart, or when its level was built.
+
+With ``erf.radiation.seb_snow_enable`` a water column carries no snow, and its albedo stays the
+snow-free one. Rain and snow that fall on a water column enter none of the ``seb_*_total`` fields.
+The cover of ``erf.radiation.seb_snow_initial_swe_kg_m2`` is removed from a water column at the
+first step and is not booked in any total; the plotfile and checkpoint written before that step
+still show it there. The printed budget residuals are over land columns and stay closed. The
+shortwave albedo and the longwave emissivity of a water column are still the land values of the
+run; a water albedo is not part of the balance.
+
+Between levels, where either level has a water column, a coarse land column takes the mean of the
+fine land columns under it; a coarse land column over fine water only, and a coarse water column,
+keep their values. The totals in kg/m^2 of a coarse column on a shore are then per unit of land
+area. A new fine level takes its parent's values column by column, with no slope, where either
+level has a water column: the slope of a coarse land column on a shore would be formed with the
+held value of the water column next to it. Two limits remain. A fine land column under a coarse
+water column starts from the held value. A fine water column under a coarse land column starts
+with the land's values, including its snow and totals; the snow is removed at the first step, as
+above. Both arise only where a level has its own mask: with ``wrfinput`` a new level takes its
+parent's mask, and otherwise it takes ``erf.is_land`` of its level (default 1), so a level 1 over
+a level 0 of water is land unless ``erf.is_land`` says otherwise.
+
+A run with no water column is unchanged. These runs change: a ``seb_enable`` run with
+``erf.is_land = 0`` on a level, a ``seb_enable`` run whose ``wrfinput`` or metgrid ``LANDMASK``
+has zeros, and a restart of such a run from a checkpoint written before this behaviour (the water
+columns then hold the soil values of that checkpoint). Before, the balance ran on those columns
+as soil. With ``erf.radiation.seb_prognostic_enable = false``, or with a land-surface model that
+owns the surface, only the reported residual changes. On a level that is water everywhere no
+column is in the balance, and the means in ``radiation_diag.dat`` are written as ``nan``.
+
 The balance removes the sensible and latent heat fluxes the ``zlo`` surface layer puts into the
 air (``erf.radiation.seb_turbulent_flux_source = surface_layer``, the default), where no
 land-surface model supplies them; ``seb_turbulent_flux_source = defaults`` uses the constants
@@ -5798,7 +5836,9 @@ atmospheric cell), ``start_datetime`` and the
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_snow_initial_swe_kg_m2**       | Snow water equivalent at the start [kg/m^2], every column  | Real >= 0; stops   | 0.0              |
 |                                                    | and level; a restart takes the snow from the checkpoint.   | at start-up if not |                  |
-|                                                    | Giving it without seb_snow_enable stops at start-up        |                    |                  |
+|                                                    | Giving it without seb_snow_enable stops at start-up.       |                    |                  |
+|                                                    | A water column loses it at the first step (land mask,      |                    |                  |
+|                                                    | above)                                                     |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_snow_albedo**                  | Snow albedo (Douville et al. 1995, Eq. 8: 0.70, constant). | Real in [0, 1];    | 0.70             |
 |                                                    | Giving it without seb_snow_enable stops at start-up        | stops at start-up  |                  |

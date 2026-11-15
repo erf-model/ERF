@@ -5,6 +5,7 @@
 #include <string>
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_Periodicity.H>
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
@@ -65,7 +66,8 @@ public:
 
     /**
      * @brief One snow step on every open column of @p lev, after the balance has updated
-     * T_s. A footprint cell (footprint > 0.5) keeps its state and hands the soil no water.
+     * T_s. A footprint cell (footprint > 0.5) keeps its state and hands the soil no water;
+     * so does a water column (land_mask 0), which the balance does not run on.
      *
      * @param t_s       surface temperature [K]; lowered where snow melts
      * @param lh        latent heat flux the balance used [W/m^2]; E = LH / L_v
@@ -75,21 +77,25 @@ public:
      * @param snowfall  the frozen precipitation of the step (ForceRestorePrecipRate::frozen)
      * @param[out] t_s_sum_local sum of T_s over this rank's open columns after the step
      * @param[out] t_s_max_local max |T_s| over this rank's open columns after the step
+     * @param land_mask the level's land mask (0 water), or nullptr: every column is land
      * @return the step's domain sums, reduced over ranks
      */
     StepSums step (int lev, amrex::MultiFab& t_s, const amrex::MultiFab& lh,
                    const amrex::MultiFab* footprint, amrex::Real dt,
                    const ForceRestoreSnowParams& prm, const ForceRestorePrecipInput& snowfall,
-                   amrex::Real& t_s_sum_local, amrex::Real& t_s_max_local);
+                   amrex::Real& t_s_sum_local, amrex::Real& t_s_max_local,
+                   const amrex::iMultiFab* land_mask = nullptr);
 
     /**
      * @brief Write the surface albedo with snow into @p alb_sw, which holds the snow-free
      * albedo: DRM95 Eq. (8) with veg = 0, per column, on valid cells. A footprint cell
      * (@p footprint > 0.5, or none with nullptr) keeps the snow-free albedo: no snow lies on
-     * a building, whatever W_n holds there before the first step.
+     * a building, whatever W_n holds there before the first step. The same holds for a
+     * water column (@p land_mask 0): step() and this function leave out the same columns.
      */
     void apply_albedo (int lev, amrex::MultiFab& alb_sw, const ForceRestoreSnowParams& prm,
-                       const amrex::MultiFab* footprint = nullptr) const;
+                       const amrex::MultiFab* footprint = nullptr,
+                       const amrex::iMultiFab* land_mask = nullptr) const;
 
     /** @brief The snow water equivalent [kg/m^2], or nullptr. */
     [[nodiscard]] amrex::MultiFab* swe (int lev) noexcept {
