@@ -57,7 +57,8 @@ FillEastNorth (amrex::MultiFab& en, const amrex::MultiFab& fx, const amrex::Mult
     }
     for (MFIter mfi(en, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         // The 2D boxes index the 3D ones: each 3D box is the 2D one over the whole height,
-        // so it holds plane k. ERF does not split level 0 in z; this says so if it ever does.
+        // so it holds plane k. ERF doesn't split in z by default (amr.no_box_split_dir = 2);
+        // this says so when it is told to.
         const Box& b3 = fx.box(mfi.index());
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(b3.smallEnd(2) <= k && b3.bigEnd(2) >= k,
             "FillEastNorth needs each level-0 box to span the surface plane.");
