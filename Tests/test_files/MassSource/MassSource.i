@@ -6,7 +6,9 @@
 # tracer on.  The domain mass ERF prints ("MASS") must therefore grow by exactly 1.0e4 kg/s
 # times the elapsed time, and the tracer mass ("RHO SCALAR"), zero at the start, must equal it
 # (Tests/check_mass_source.py).  Tests/CTestList.cmake runs it flat, over a hill, on a
-# stretched mesh, with a refined patch around the source, and anelastic, where ERF must stop.
+# stretched mesh, with the grids split in z, with a rate table (mass_source_ramp.txt), a fixed
+# theta and no tracer, with refined patches that hold all, none, the column above or half of the
+# source region, and anelastic, where ERF must stop.
 #
 max_step = 20
 
