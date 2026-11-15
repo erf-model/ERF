@@ -850,23 +850,29 @@ ERF::SetCouplerGridRotation ()
 {
     // From lat/lon when ERF has them; made again whenever level 0's layout has changed
     if (!lat_m.empty() && !lon_m.empty() && lat_m[0] != nullptr && lon_m[0] != nullptr) {
-        if (m_coupler_cos_alpha == nullptr || m_coupler_cos_alpha->boxArray() != ba2d[0] ||
+        if (m_coupler_cos_alpha == nullptr) {
+            m_coupler_cos_alpha = std::make_unique<amrex::MultiFab>();
+            m_coupler_sin_alpha = std::make_unique<amrex::MultiFab>();
+        }
+        // Remade in place, so the surface layer, which borrows them, never holds a freed one
+        if (!m_coupler_cos_alpha->ok() || m_coupler_cos_alpha->boxArray() != ba2d[0] ||
             m_coupler_cos_alpha->DistributionMap() != dmap[0]) {
-            m_coupler_cos_alpha = std::make_unique<amrex::MultiFab>(ba2d[0], dmap[0], 1, 0);
-            m_coupler_sin_alpha = std::make_unique<amrex::MultiFab>(ba2d[0], dmap[0], 1, 0);
+            for (auto* mf : {m_coupler_cos_alpha.get(), m_coupler_sin_alpha.get()}) {
+                mf->clear();
+                mf->define(ba2d[0], dmap[0], 1, 0);
+            }
             fill_grid_rotation(*m_coupler_cos_alpha, *m_coupler_sin_alpha,
                                *lat_m[0], *lon_m[0], geom[0]);
         }
         return;
     }
-    // Without lat/lon ERF cannot know its orientation; say once what it assumes
-    m_coupler_cos_alpha.reset();
-    m_coupler_sin_alpha.reset();
+    // Without lat/lon ERF cannot know its orientation, and takes its grid axes as east and
+    // north, which an idealized Cartesian case means anyway; said once
     if (!m_warned_coupler_no_latlon) {
         m_warned_coupler_no_latlon = true;
-        amrex::Print() << "ERF has no latitude and longitude, so the vectors exchanged with the "
-                       << "ocean coupler are taken along its grid axes as east and north. On a "
-                       << "projected or rotated grid, give ERF its lat/lon." << std::endl;
+        amrex::Print() << "ERF has no latitude and longitude, so it takes its grid axes as east "
+                       << "and north for the vectors it exchanges with the ocean coupler."
+                       << std::endl;
     }
 }
 

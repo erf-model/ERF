@@ -251,8 +251,12 @@ SurfaceLayer::fill_surface_current (const int& lev)
         auto& rotation = m_coupled_rotation_lev[lev];
         const MultiFab* cos_src = (m_coupled_current_cos_lev[lev] && m_coupled_current_sin_lev[lev])
                                   ? m_coupled_current_cos_lev[lev] : nullptr;
+        // Remade when the orientation is another array, or the same one remade on another
+        // layout, or the surface's own layout has changed
         if (!rotation || rotation->boxArray() != ba || rotation->DistributionMap() != dm ||
-            m_coupled_rotation_src_lev[lev] != cos_src) {
+            m_coupled_rotation_src_lev[lev] != cos_src ||
+            (cos_src && (cos_src->boxArray() != m_coupled_rotation_src_ba_lev[lev] ||
+                         cos_src->DistributionMap() != m_coupled_rotation_src_dm_lev[lev]))) {
             rotation = std::make_unique<MultiFab>(ba, dm, 2, ng);
             rotation->setVal(one, 0, 1, ng);
             rotation->setVal(zero, 1, 1, ng);
@@ -261,6 +265,10 @@ SurfaceLayer::fill_surface_current (const int& lev)
                 rotation->ParallelCopy(*m_coupled_current_sin_lev[lev], 0, 1, 1, IntVect(0), ng, period);
             }
             m_coupled_rotation_src_lev[lev] = cos_src;
+            if (cos_src) {
+                m_coupled_rotation_src_ba_lev[lev] = cos_src->boxArray();
+                m_coupled_rotation_src_dm_lev[lev] = cos_src->DistributionMap();
+            }
         }
         cells.rotation = rotation.get();
         cover.define(ba, dm, 1, ng);
