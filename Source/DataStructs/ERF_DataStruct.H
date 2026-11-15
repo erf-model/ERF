@@ -798,6 +798,10 @@ struct SolverChoice {
             }
         }
 
+        // With ChainRule, whether dp/dz at the bottom and top of the domain is the second-order
+        //    one-sided difference through three cells rather than the first-order two-point one
+        pp.query("gradp_2nd_order_bndry", gradp_2nd_order_bndry);
+
         // For the lateral pressure gradient to be used in the momentum equation, should we
         // take the x- and y-derivatives of the perturbational pressure or the full pressure?
         pp.queryAdd("use_pert_pres_gradient", use_pert_pres_gradient);
@@ -2775,6 +2779,7 @@ struct SolverChoice {
         }
 
         amrex::Print() << "Gradp_type                  : " << amrex::getEnumNameString(gradp_type) << std::endl;
+        amrex::Print() << "Gradp_2nd_order_bndry       : " << gradp_2nd_order_bndry << std::endl;
 
         for (int lev = 0; lev <= max_level; lev++) {
             amrex::Print() << "Buoyancy_type at level " << lev << " : " << buoyancy_type[lev] << std::endl;
@@ -2974,6 +2979,8 @@ struct SolverChoice {
     amrex::Real test_mapfactor_amp     = amrex::Real(0);
 
     GradpType   gradp_type             = GradpType::ChainRule;
+
+    bool        gradp_2nd_order_bndry  = false;
 
     bool        use_pert_pres_gradient = true;
 
@@ -3502,6 +3509,8 @@ struct SolverChoice {
  * @brief Amplitude of the spatially varying test map scale factors on level 0 (0: not used).
  * @var SolverChoice::gradp_type
  * @brief Terrain-fitted horizontal pressure-gradient formulation.
+ * @var SolverChoice::gradp_2nd_order_bndry
+ * @brief Whether ChainRule takes dp/dz at the bottom and top from a second-order one-sided difference.
  * @var SolverChoice::use_pert_pres_gradient
  * @brief Whether momentum equations use perturbational pressure gradients.
  * @var SolverChoice::use_gravity

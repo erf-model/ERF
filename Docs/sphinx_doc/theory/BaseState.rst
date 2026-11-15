@@ -228,10 +228,11 @@ gradient comes from the projection and ``erf.gradp_type`` is not used.
 
 - ``erf.gradp_type = ChainRule`` (default) takes :math:`S` from a centered difference of
   :math:`p^\prime` in each column, and at the bottom and top of the domain from a
-  second-order one-sided difference through the three nearest cells.  A two-point
-  one-sided difference there would be only first-order accurate, and since the bottom
-  cell is where the metric term is largest that error would dominate the horizontal
-  force over steep terrain.
+  two-point one-sided difference.  With ``erf.gradp_2nd_order_bndry = true`` (default
+  false) it uses there instead the second-order one-sided difference through the three
+  nearest cells.  The two-point difference is only first-order accurate, and since the
+  bottom cell is where the metric term is largest that error can dominate the
+  horizontal force over steep terrain.
 - ``erf.gradp_type = HydrostaticHybrid`` splits :math:`S` into its hydrostatic part, which it integrates
   exactly over the segment, and a non-hydrostatic remainder, which alone it differences.
   It is described below.

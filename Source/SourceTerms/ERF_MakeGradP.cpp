@@ -286,8 +286,9 @@ compute_gradp_xy (const MultiFab& p,
     const int domain_klo = domain.smallEnd(2);
     const int domain_khi = domain.bigEnd(2);
 
-    // The one-sided difference at the bottom and top needs three cells in the column
-    const bool l_three_point = (domain_khi - domain_klo >= 2);
+    // The second-order one-sided difference at the bottom and top (an option) needs three
+    //    cells in the column
+    const bool l_three_point = solverChoice.gradp_2nd_order_bndry && (domain_khi - domain_klo >= 2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
@@ -323,9 +324,9 @@ compute_gradp_xy (const MultiFab& p,
 
                     Real dz_phys_hi, dz_phys_lo;
                     Real gpz_lo, gpz_hi;
-                    // At the bottom and top a second-order one-sided difference, so that
-                    //    dp/dz is as accurate there as the centered difference is inside
-                    //    (with a two-point difference the error is first order and sits
+                    // At the bottom and top, optionally a second-order one-sided difference,
+                    //    so that dp/dz is as accurate there as the centered difference is inside
+                    //    (with the two-point difference the error is first order and sits
                     //    right at the ground)
                     if (k==domain_klo && l_three_point) {
                         gpz_hi  = dqdz_cc_onesided(i,j,k, 1,p_arr,z_cc_arr);
@@ -367,9 +368,9 @@ compute_gradp_xy (const MultiFab& p,
 
                     Real dz_phys_hi, dz_phys_lo;
                     Real gpz_lo, gpz_hi;
-                    // At the bottom and top a second-order one-sided difference, so that
-                    //    dp/dz is as accurate there as the centered difference is inside
-                    //    (with a two-point difference the error is first order and sits
+                    // At the bottom and top, optionally a second-order one-sided difference,
+                    //    so that dp/dz is as accurate there as the centered difference is inside
+                    //    (with the two-point difference the error is first order and sits
                     //    right at the ground)
                     if (k==domain_klo && l_three_point) {
                         gpz_hi  = dqdz_cc_onesided(i,j,k, 1,p_arr,z_cc_arr);

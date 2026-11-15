@@ -78,6 +78,12 @@ Governing Equations
 |                                 | integer values 0 and 2 are still accepted, with a        |                    |                  |
 |                                 | warning. See :ref:`sec:HorizPGF`.                        |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.gradp_2nd_order_bndry**   | with gradp_type = ChainRule, take dp/dz at the bottom    | Boolean            | false            |
+|                                 | and top of the domain from the second-order one-sided    |                    |                  |
+|                                 | difference through the three nearest cells rather than   |                    |                  |
+|                                 | the first-order two-point one (only used in fully        |                    |                  |
+|                                 | compressible runs). See :ref:`sec:HorizPGF`.             |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_pert_pres_gradient**  | if true, the lateral pressure gradient in the momentum   | Boolean            | true             |
 |                                 | equation uses horizontal derivatives of the              |                    |                  |
 |                                 | perturbational pressure; if false, of the full pressure  |                    |                  |
@@ -6523,7 +6529,7 @@ Equation Set
 * :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.use_gravity``
 * :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.compressibility_type``,
   ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,
-  ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
+  ``erf.gradp_2nd_order_bndry``, ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
 * :ref:`Time Step <inputs-time-step>` -- ``erf.timestepping_type``
 * :ref:`Initialization <inputs-initialization>` -- ``erf.project_initial_velocity``
 
