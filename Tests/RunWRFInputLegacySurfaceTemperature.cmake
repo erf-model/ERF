@@ -26,6 +26,22 @@ if(NOT EXISTS "${RUN_DIR}/chk00000/Level_0/SST_0_H" OR
   message(FATAL_ERROR "The initial run did not write the SST and TSK to chk00000")
 endif()
 
+# Make a small level-zero checkpoint. The legacy restart cases attach a larger WRFInput
+# file and verify recovered SST/TSK numerically against its local PSFC region.
+file(REMOVE_RECURSE "${RUN_DIR}/crop_chk00000")
+execute_process(COMMAND "${ERF_EXECUTABLE}"
+  "${RUN_DIR}/WRFInput_LegacySurfaceTemperature_Cropped.i"
+  WORKING_DIRECTORY "${RUN_DIR}" OUTPUT_FILE "${RUN_DIR}/run_crop.log"
+  ERROR_FILE "${RUN_DIR}/run_crop.err" RESULT_VARIABLE status)
+if(NOT status EQUAL 0)
+  message(FATAL_ERROR "Small WRF input run failed (${status}); inspect "
+                      "${RUN_DIR}/run_crop.log and run_crop.err")
+endif()
+if(NOT EXISTS "${RUN_DIR}/crop_chk00000/Level_0/SST_0_H" OR
+   NOT EXISTS "${RUN_DIR}/crop_chk00000/Level_0/TSK_0_H")
+  message(FATAL_ERROR "The small run did not write SST and TSK to crop_chk00000")
+endif()
+
 # The same from wrfinput_mixed, part land, whose SST over land is a placeholder
 file(REMOVE_RECURSE "${RUN_DIR}/mixed_chk00000")
 execute_process(COMMAND "${ERF_EXECUTABLE}" "${RUN_DIR}/WRFInput_LegacySurfaceTemperature.i"

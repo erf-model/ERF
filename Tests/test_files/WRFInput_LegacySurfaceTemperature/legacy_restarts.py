@@ -10,10 +10,9 @@ absolute temperature.  Each case copies chk00000 (version 2), turns the copy int
 checkpoint, restarts from it for one step, and compares SST_0 and TSK_0 of the
 checkpoint the restart writes with what the migration must give:
 
-  exact        the SST and TSK of chk00000, recovered with the PSFC of wrfinput_d01
-  approximate  theta (p_restart/p0)^(R_d/c_p), with p_restart the surface pressure of
-               the restarted state; not the SST of the input, which it misses by
-               (p_restart/p_input)^(R_d/c_p)
+  input        the SST and TSK of chk00000, recovered with the available wrfinput PSFC
+  approximate  theta (p_restart/p0)^(R_d/c_p), using diagnosed ground pressure or parent
+               ground pressure on an aloft-only fine level
   unchanged    the SST and TSK of chk00000, bit for bit
   abort        the restart stops with the messages given
 
@@ -35,15 +34,16 @@ with a surface layer below (SURFACE_LAYER), which the decks do not have, so that
 takes the SST and TSK wherever it takes them at all.
 
 The nest cases start from nest_chk00000, written by nest_files.i, whose level 1 lists two
-init files, nest_d02 and nest_d03, which starts 10 s later.  A run reads a later file only
-once it starts, so until then level 1 holds what nest_d02 alone gave it, and the restart
-recovers its SST and TSK exactly, with the PSFC of nest_d02, as it does with nest_d02
-listed alone; the version-2 checkpoint it writes restarts bit for bit.  Once a later file
+init files, nest_d02 and nest_d03, which starts 10 s later. A run reads a later file only
+once it starts, so until then level 1 holds what nest_d02 alone gave it. In this no-regrid
+fixture, the selected first-file PSFC reproduces those values numerically; that does not
+establish exact provenance for arbitrary restarted fine grids. The version-2 checkpoint it
+writes restarts bit for bit. Once a later file
 had started by the time of the checkpoint, the run that wrote it may have read that file
 as well, or regridded the level for it, which is not recorded, and the restart aborts:
 with nest_d03_now, nest_d03 starting at the start, listed second, and from the checkpoint
 nest_later_chk00010, at t = 10 s, of the deck run on, while its nest_later_chk00005, at
-t = 5 s, is recovered exactly.
+t = 5 s, uses the first-file pressure policy.
 
 A level 1 without an SST of its own is given level 0's on restart, so the surface layer
 takes its TSK, and a zero there aborts the restart, of a version 1 checkpoint and the run
@@ -79,7 +79,11 @@ P_METGRID_INPUT = 101325.0
 SURFACE_FIELDS = ("SST_0", "TSK_0")
 ASSERTION = "erf.legacy_surface_temperature_init_type"
 # The initial checkpoint each case starts from, and the wrfinput it was written from
-BASES = {"d01": ("chk00000", "wrfinput_d01"), "mixed": ("mixed_chk00000", "wrfinput_mixed")}
+BASES = {
+    "d01": ("chk00000", "wrfinput_d01", (0, 0), (16, 16)),
+    "mixed": ("mixed_chk00000", "wrfinput_mixed", (0, 0), (16, 16)),
+    "crop": ("crop_chk00000", "wrfinput_crop", (0, 0), (8, 8)),
+}
 # Each level of nest_files.i: the file it took its SST and TSK from, and the cells (from,
 # number) that file covers
 NEST_LEVELS = ((0, "nest_d01", (0, 0), (16, 16)), (1, "nest_d02", (6, 6), (12, 12)))
@@ -100,7 +104,7 @@ SURFACE_LAYER = ["zlo.type=surface_layer", "erf.les_type=Smagorinsky", "erf.Cs=0
 
 class Case:
     def __init__(self, name, marker, init_type, theta_pressure, options, expect, messages,
-                 base="d01", remove=(), zero=()):
+                 base="d01", remove=(), zero=(), input_file="WRFInput_LegacySurfaceTemperature.i"):
         self.name = name
         self.marker = marker                  # contract version to write, None to remove it
         self.init_type = init_type            # erf.init_type in job_info, None to remove it
@@ -112,6 +116,7 @@ class Case:
         self.base = base                      # the initial checkpoint it starts from (BASES)
         self.remove = remove                  # fields to remove from the legacy checkpoint
         self.zero = zero                      # (field, (i, j)) to set to zero in it
+        self.input_file = input_file
 
 
 def kept(cells, field="SST", level=0):
@@ -120,28 +125,38 @@ def kept(cells, field="SST", level=0):
             f"cells where the surface layer does not take the {field} as they are")
 
 
-EXACT_MIXED = "EXACT recovery at level 0 with the PSFC of wrfinput_mixed"
+INPUT_MIXED = "pressure recovery at level 0 with the PSFC of wrfinput_mixed"
 
 
 CASES = [
     # A WRFInput checkpoint from before the marker, restarted as it was run
-    Case("markerless_wrfinput", None, "WRFInput", "wrfinput", [], "exact",
-         "EXACT recovery at level 0 with the PSFC of wrfinput_d01"),
+    Case("markerless_wrfinput", None, "WRFInput", "wrfinput", [], "input",
+         "pressure recovery at level 0 with the PSFC of wrfinput_d01"),
     # The same, restarted with two level-0 init files: level 0 read its SST, TSK and PSFC
     # from the first only, and its PSFC must be read from that one, not left unread
     Case("two_level0_init_files", None, "WRFInput", "wrfinput",
-         ["erf.nc_init_file_0=wrfinput_d01 wrfinput_d01b"], "exact",
-         "EXACT recovery at level 0 with the PSFC of wrfinput_d01"),
+         ["erf.nc_init_file_0=wrfinput_d01 wrfinput_d01b"], "input",
+         "pressure recovery at level 0 with the PSFC of wrfinput_d01"),
     # A version 1 checkpoint written by a Metgrid run, restarted by a WRFInput run: the
     # PSFC of these wrfinput files is not the pressure it was converted with
     Case("v1_metgrid_on_wrfinput_restart", 1, "Metgrid", P_METGRID_INPUT, [], "approximate",
          "APPROXIMATE migration at level 0"),
     # A version 1 checkpoint written by a WRFInput run
-    Case("v1_wrfinput", 1, "WRFInput", "wrfinput", [], "exact",
-         "EXACT recovery at level 0 with the PSFC of wrfinput_d01"),
+    Case("v1_wrfinput", 1, "WRFInput", "wrfinput", [], "input",
+         "pressure recovery at level 0 with the PSFC of wrfinput_d01"),
+    # A small level-zero checkpoint restarted with a larger WRFInput file must recover
+    # only the PSFC region mapped to its local grids, with spatially varying values.
+    Case("cropped_markerless_wrfinput", None, "WRFInput", "wrfinput",
+         ["erf.nc_init_file_0=wrfinput_crop"], "input",
+         "pressure recovery at level 0 with the PSFC of wrfinput_crop", base="crop",
+         input_file="WRFInput_LegacySurfaceTemperature_Cropped.i"),
+    Case("cropped_v1_wrfinput", 1, "WRFInput", "wrfinput",
+         ["erf.nc_init_file_0=wrfinput_crop"], "input",
+         "pressure recovery at level 0 with the PSFC of wrfinput_crop", base="crop",
+         input_file="WRFInput_LegacySurfaceTemperature_Cropped.i"),
     # A markerless checkpoint whose job_info does not record the init type, with and
     # without the assertion
-    Case("markerless_asserted", None, None, "wrfinput", [ASSERTION + "=WRFInput"], "exact",
+    Case("markerless_asserted", None, None, "wrfinput", [ASSERTION + "=WRFInput"], "input",
          "erf.legacy_surface_temperature_init_type asserts that a WRFInput run converted"),
     Case("markerless_unasserted", None, None, "wrfinput", [], "abort",
          "Set erf.legacy_surface_temperature_init_type"),
@@ -154,16 +169,16 @@ CASES = [
     # Part land, part water.  With TSK, which supplies every cell, the SST over land is a
     # placeholder no surface layer takes: kept as it is, while the SST over water and the
     # TSK are recovered
-    Case("mixed_markerless", None, "WRFInput", "wrfinput", [], "exact",
-         [EXACT_MIXED, kept(LAND_CELLS)], base="mixed"),
-    Case("mixed_v1", 1, "WRFInput", "wrfinput", [], "exact",
-         [EXACT_MIXED, kept(LAND_CELLS)], base="mixed"),
+    Case("mixed_markerless", None, "WRFInput", "wrfinput", [], "input",
+         [INPUT_MIXED, kept(LAND_CELLS)], base="mixed"),
+    Case("mixed_v1", 1, "WRFInput", "wrfinput", [], "input",
+         [INPUT_MIXED, kept(LAND_CELLS)], base="mixed"),
     # A zero SST over water is a placeholder too at a level with TSK
-    Case("mixed_v1_water_sst_zero_with_tsk", 1, "WRFInput", "wrfinput", [], "exact",
+    Case("mixed_v1_water_sst_zero_with_tsk", 1, "WRFInput", "wrfinput", [], "input",
          kept(LAND_CELLS + 1), base="mixed", zero=[("SST_0", WATER_CELL)]),
     # Without TSK, as checkpoints written before TSK_0 was, land takes the prescribed
     # temperature and keeps its SST placeholders, and water takes the SST ...
-    Case("mixed_v1_without_tsk", 1, "WRFInput", "wrfinput", [], "exact",
+    Case("mixed_v1_without_tsk", 1, "WRFInput", "wrfinput", [], "input",
          kept(LAND_CELLS), base="mixed", remove=["TSK_0"]),
     # ... so a zero SST over water aborts
     Case("mixed_v1_without_tsk_water_sst_zero", 1, "WRFInput", "wrfinput", [], "abort",
@@ -184,13 +199,13 @@ CASES = [
           "TSK", "surface pressure = -1 Pa"], base="mixed"),
     # Without LMASK_0 the restart takes the land mask from erf.is_land, land by default,
     # as the surface layer will ...
-    Case("mixed_v1_without_lmask", 1, "WRFInput", "wrfinput", [], "exact",
+    Case("mixed_v1_without_lmask", 1, "WRFInput", "wrfinput", [], "input",
          kept(LAND_CELLS), base="mixed", remove=["LMASK_0"]),
     # ... and water with erf.is_land = 0, where, without TSK, every placeholder is taken
     Case("mixed_v1_without_lmask_or_tsk_on_water", 1, "WRFInput", "wrfinput",
          ["erf.is_land=0"], "abort",
          ["a water cell where the surface layer takes the SST, has theta = 0,",
-          f"{LAND_CELLS} cells could not be converted"],
+          f"{LAND_CELLS} cells (0 ghosts) could not be converted"],
          base="mixed", remove=["LMASK_0", "TSK_0"]),
     # Version 2, placeholders and all, restored as it is
     Case("mixed_v2", 2, "WRFInput", None, [], "unchanged", "Reading SST data", base="mixed"),
@@ -198,20 +213,20 @@ CASES = [
     # Without SST_0 the surface layer takes neither field: a zero TSK is a placeholder, over
     # land and water alike, kept as it is, while every positive TSK is converted ...
     Case("mixed_markerless_without_sst_tsk_zero", None, "WRFInput", "wrfinput",
-         SURFACE_LAYER, "exact", [EXACT_MIXED, kept(2, "TSK")], base="mixed",
+         SURFACE_LAYER, "input", [INPUT_MIXED, kept(2, "TSK")], base="mixed",
          remove=["SST_0"], zero=TSK_ZEROS),
-    Case("mixed_v1_without_sst_tsk_zero", 1, "WRFInput", "wrfinput", SURFACE_LAYER, "exact",
-         [EXACT_MIXED, kept(2, "TSK")], base="mixed", remove=["SST_0"], zero=TSK_ZEROS),
-    Case("mixed_v1_without_sst", 1, "WRFInput", "wrfinput", SURFACE_LAYER, "exact",
-         EXACT_MIXED, base="mixed", remove=["SST_0"]),
+    Case("mixed_v1_without_sst_tsk_zero", 1, "WRFInput", "wrfinput", SURFACE_LAYER, "input",
+         [INPUT_MIXED, kept(2, "TSK")], base="mixed", remove=["SST_0"], zero=TSK_ZEROS),
+    Case("mixed_v1_without_sst", 1, "WRFInput", "wrfinput", SURFACE_LAYER, "input",
+         INPUT_MIXED, base="mixed", remove=["SST_0"]),
     # ... while with the SST it takes the TSK at every cell, and the same zeros abort
     Case("mixed_markerless_tsk_zero", None, "WRFInput", "wrfinput", SURFACE_LAYER, "abort",
-         ["converting the TSK at level 0 to absolute temperature: 2 cells could not be "
-          "converted", "where the surface layer takes the TSK, has theta = 0,"],
+         ["converting the TSK at level 0 to absolute temperature: 2 cells (0 ghosts) could "
+          "not be converted", "where the surface layer takes the TSK, has theta = 0,"],
          base="mixed", zero=TSK_ZEROS),
     # The run takes the TSK just so: with the SST it rejects such a TSK ...
     Case("mixed_v2_tsk_zero", 2, "WRFInput", None, SURFACE_LAYER, "abort",
-         "SurfaceLayer fill_tsurf_with_sst_and_tsk: surface conversion failed at level 0",
+         "SurfaceLayer temperature update: surface conversion failed at level 0",
          base="mixed", zero=TSK_ZEROS),
     # ... and without it runs, restoring the TSK as it is
     Case("mixed_v2_without_sst_tsk_zero", 2, "WRFInput", None, SURFACE_LAYER, "unchanged",
@@ -446,7 +461,7 @@ def run_case(case, exe, run_dir, bases, env):
     options = list(case.options)
     if not any(option.startswith("erf.nc_init_file_0=") for option in options):
         options.append(f"erf.nc_init_file_0={wrfinput}")
-    status, log_text = restart(exe, run_dir, "WRFInput_LegacySurfaceTemperature.i",
+    status, log_text = restart(exe, run_dir, case.input_file,
                                legacy.name, case.name, options, env)
     for message in case.messages:
         if message not in log_text:
@@ -528,14 +543,338 @@ def legacy_nest_copy(checkpoint, name):
 
 
 def check_nest_recovered(name, checkpoint, expected):
-    """That a restart wrote the SST and TSK of each level of nest_files.i as version 2,
-    absolute temperature, recovered exactly: the largest relative error"""
+    """That the known no-regrid fixture matches its source values numerically; this is not
+    a general guarantee of exact fine-level recovery"""
     check_version_2(name, checkpoint)
     actual = nest_fields(checkpoint)
     error = max(np.abs(actual[key] / expected[key] - 1.0).max() for key in expected)
     if error > 1.0e-10:
         raise AssertionError(f"{name}: the SST or TSK is off by a relative {error:.3e}")
     return actual, error
+
+
+def valid_boxes(checkpoint, name, level):
+    """The valid boxes of a checkpoint MultiFab at a level"""
+    boxes = set()
+    for fab in multifab_fabs(checkpoint / f"Level_{level}", name):
+        ng = fab["nghost"]
+        boxes.add(tuple(fab["lo"][d] + ng[d] for d in range(2)) +
+                  tuple(fab["hi"][d] - ng[d] for d in range(2)))
+    return boxes
+
+
+def valid_boxes_3d(checkpoint, name, level):
+    """The valid 3D boxes of a checkpoint MultiFab at a level"""
+    boxes = set()
+    for fab in multifab_fabs(checkpoint / f"Level_{level}", name):
+        ng = fab["nghost"]
+        boxes.add(tuple(fab["lo"][d] + ng[d] for d in range(3)) +
+                  tuple(fab["hi"][d] - ng[d] for d in range(3)))
+    return boxes
+
+
+def valid_cells(checkpoint, name, level):
+    """A planar checkpoint MultiFab as {(i, j): value} over its valid cells"""
+    result = {}
+    for fab in multifab_fabs(checkpoint / f"Level_{level}", name):
+        data = fab_data(fab)[0, 0]
+        ng = fab["nghost"]
+        ilo, jlo = fab["lo"][0] + ng[0], fab["lo"][1] + ng[1]
+        ihi, jhi = fab["hi"][0] - ng[0], fab["hi"][1] - ng[1]
+        for j in range(jlo, jhi + 1):
+            for i in range(ilo, ihi + 1):
+                result[(i, j)] = data[j - fab["lo"][1], i - fab["lo"][0]]
+    return result
+
+
+def conserved_cells(checkpoint, level):
+    """The valid checkpoint Cell state as {(i,j,k): component values}"""
+    result = {}
+    for fab in multifab_fabs(checkpoint / f"Level_{level}", "Cell"):
+        data = fab_data(fab)
+        ng = fab["nghost"]
+        ilo, jlo, klo = (fab["lo"][d] + ng[d] for d in range(3))
+        ihi, jhi, khi = (fab["hi"][d] - ng[d] for d in range(3))
+        for k in range(klo, khi + 1):
+            for j in range(jlo, jhi + 1):
+                for i in range(ilo, ihi + 1):
+                    result[(i, j, k)] = data[:, k - fab["lo"][2],
+                                             j - fab["lo"][1], i - fab["lo"][0]]
+    return result
+
+
+def diagnosed_ground_pressure(checkpoint):
+    """Flat-deck ground pressure diagnosed from level-0 rho, rho-theta and cell height"""
+    state = conserved_cells(checkpoint, 0)
+    return { (i, j): P_0 * (R_D * values[1] / P_0) ** GAMMA +
+                     values[0] * GRAV * 50.0
+             for (i, j, k), values in state.items() if k == 0 }
+
+
+def elevated_surface_pressure_at_cell(rho_theta, rho):
+    """Ground-face pressure proxy at the lowest cell of an aloft 100 m layer"""
+    return P_0 * (R_D * rho_theta / P_0) ** GAMMA + rho * GRAV * 50.0
+
+
+def set_aloft_checkpoint_pressure(checkpoint, target_cell_pressure):
+    """Set only the lowest valid rho-theta plane of aloft level-1 boxes to a target pressure"""
+    target_rho_theta = (P_0 / R_D) * (target_cell_pressure / P_0) ** (1.0 / GAMMA)
+    for fab in multifab_fabs(checkpoint / "Level_1", "Cell"):
+        ng = fab["nghost"]
+        klo = fab["lo"][2] + ng[2]
+        if klo <= 0:
+            raise AssertionError("the Metgrid pressure fixture's level 1 reaches the ground")
+        data = fab_data(fab).copy()
+        for j in range(fab["lo"][1] + ng[1], fab["hi"][1] - ng[1] + 1):
+            for i in range(fab["lo"][0] + ng[0], fab["hi"][0] - ng[0] + 1):
+                data[1, klo - fab["lo"][2], j - fab["lo"][1],
+                     i - fab["lo"][0]] = target_rho_theta
+        write_fab_data(fab, data)
+    return target_rho_theta
+
+
+def cell_cons_prolong(coarse, ratio=3):
+    """AMReX's limited cell-consistent linear interpolation for a smooth 2D field"""
+    ny, nx = coarse.shape
+    padded = np.pad(coarse, 1, mode="edge")
+    sx = np.zeros_like(coarse)
+    sy = np.zeros_like(coarse)
+    for j in range(ny):
+        for i in range(nx):
+            center = padded[j + 1, i + 1]
+            left, right = padded[j + 1, i], padded[j + 1, i + 2]
+            down, up = padded[j, i + 1], padded[j + 2, i + 1]
+            dcx = 0.5 * (right - left)
+            dfx, dbx = 2.0 * (right - center), 2.0 * (center - left)
+            dcy = 0.5 * (up - down)
+            dfy, dby = 2.0 * (up - center), 2.0 * (center - down)
+            if dfx * dbx >= 0.0:
+                sx[j, i] = np.copysign(min(abs(dfx), abs(dbx), abs(dcx)), dcx)
+            if dfy * dby >= 0.0:
+                sy[j, i] = np.copysign(min(abs(dfy), abs(dby), abs(dcy)), dcy)
+            neighborhood = padded[j:j + 3, i:i + 3]
+            dmax = (abs(sx[j, i]) + abs(sy[j, i])) * (ratio - 1) / (2.0 * ratio)
+            if dmax > 0.0:
+                alpha = min(1.0, (neighborhood.max() - center) / dmax,
+                            (center - neighborhood.min()) / dmax)
+                sx[j, i] *= alpha
+                sy[j, i] *= alpha
+
+    fine = np.empty((ny * ratio, nx * ratio), dtype=np.float64)
+    for j in range(fine.shape[0]):
+        cj, rj = divmod(j, ratio)
+        yoff = (rj + 0.5) / ratio - 0.5
+        for i in range(fine.shape[1]):
+            ci, ri = divmod(i, ratio)
+            xoff = (ri + 0.5) / ratio - 0.5
+            fine[j, i] = coarse[cj, ci] + xoff * sx[cj, ci] + yoff * sy[cj, ci]
+    return fine
+
+
+def make_regridded_legacy_copy(checkpoint, name, parent_pressure, fine_pressure, origin):
+    """Encode a post-RemakeLevel checkpoint as old theta, retaining its regridded layout"""
+    copy = checkpoint.parent / ("legacy_" + name)
+    shutil.rmtree(copy, ignore_errors=True)
+    shutil.copytree(checkpoint, copy)
+    (copy / "surface_temperature_contract").write_text("1\n")
+    edit_job_info(copy, "WRFInput")
+    parent_pressure_fine = cell_cons_prolong(parent_pressure)
+
+    for field in SURFACE_FIELDS:
+        parent_temperature = surface_field(checkpoint, field, parent_pressure.shape)
+        parent_theta = parent_temperature * (P_0 / parent_pressure) ** KAPPA
+        fine_theta = cell_cons_prolong(parent_theta)
+        for fab in multifab_fabs(copy / "Level_1", field):
+            data = fab_data(fab).copy()
+            ii = np.arange(fab["lo"][0], fab["hi"][0] + 1)
+            jj = np.arange(fab["lo"][1], fab["hi"][1] + 1)
+            ci = np.clip(ii // 3, 0, fine_theta.shape[1] - 1)
+            cj = np.clip(jj // 3, 0, fine_theta.shape[0] - 1)
+            data[0, 0] = fine_theta[np.ix_(cj, ci)]
+            write_fab_data(fab, data)
+
+    return copy, parent_pressure_fine
+
+
+def run_nest_regrid_pressure_case(exe, run_dir, env):
+    """Exercise legacy migration after RemakeLevel changed a WRFInput fine footprint"""
+    checkpoint = run_dir / "nest_regrid_chk00002"
+    shutil.rmtree(checkpoint, ignore_errors=True)
+    log_path = run_dir / "nest_regrid.log"
+    status, _ = restart(
+        exe, run_dir, "nest_files.i", "nest_chk00000", "nest_regrid",
+        ["erf.nc_init_file_1=nest_d02_full", "erf.regrid_int=1",
+         "erf.refinement_indicators=box1", "erf.box1.max_level=1",
+         "erf.box1.start_time=0", "erf.box1.in_box_lo=0 0 0",
+         "erf.box1.in_box_hi=8000 8000 800"], env, max_step=2)
+    if status != 0:
+        raise AssertionError(f"nest_regrid: run failed ({status}); see {log_path}")
+    if not checkpoint.exists():
+        raise AssertionError("nest_regrid: the post-regrid checkpoint was not written")
+    if valid_boxes(run_dir / "nest_chk00000", "SST_0", 1) == \
+            valid_boxes(checkpoint, "SST_0", 1):
+        raise AssertionError("nest_regrid: level 1 did not change grids through RemakeLevel")
+
+    with nc.Dataset(run_dir / "nest_d01") as ds:
+        parent_pressure = np.asarray(ds["PSFC"][0], dtype=np.float64)
+    with nc.Dataset(run_dir / "nest_d02") as ds:
+        fine_pressure = np.asarray(ds["PSFC"][0], dtype=np.float64)
+    origin = NEST_LEVELS[1][2]
+    legacy, parent_pressure_fine = make_regridded_legacy_copy(
+        checkpoint, "nest_regrid_v1", parent_pressure, fine_pressure, origin)
+
+    name = "nest_regrid_v1_restart"
+    status, log = restart(exe, run_dir, "nest_files.i", legacy.name, name,
+                          ["erf.nc_init_file_1=nest_d02"], env, max_step=3)
+    check_restart(name, status, log,
+                  ["APPROXIMATE migration: the PSFC of nest_d02", "do not commute"])
+    output = run_dir / (name + "_chk00003")
+    check_version_2(name, output)
+
+    differences = []
+    for field in SURFACE_FIELDS:
+        actual = valid_cells(output, field, 1)
+        parent_temp = surface_field(checkpoint, field, parent_pressure.shape)
+        parent_theta = parent_temp * (P_0 / parent_pressure) ** KAPPA
+        fine_theta = cell_cons_prolong(parent_theta)
+        fine_file_on_erf = np.full_like(parent_pressure_fine, np.nan)
+        # The level-1 WRFInput file begins at the nonzero nest origin. The migration overlays
+        # it there and uses recovered parent pressure where the regridded patch extends beyond.
+        for j in range(fine_pressure.shape[0]):
+            for i in range(fine_pressure.shape[1]):
+                fine_file_on_erf[origin[1] + j, origin[0] + i] = fine_pressure[j, i]
+        errors = []
+        policy_delta = []
+        stored_theta = valid_cells(legacy, field, 1)
+        for (i, j), value in actual.items():
+            if not (0 <= i < fine_theta.shape[1] and 0 <= j < fine_theta.shape[0]):
+                raise AssertionError(f"{name}: fine valid cell {(i, j)} is outside the parent")
+            p_file = fine_file_on_erf[j, i]
+            p_parent = parent_pressure_fine[j, i]
+            p_used = p_file if np.isfinite(p_file) else p_parent
+            theta = stored_theta[(i, j)]
+            expected = theta * (p_used / P_0) ** KAPPA
+            parent_recovery = theta * (p_parent / P_0) ** KAPPA
+            errors.append(abs(value / expected - 1.0))
+            if np.isfinite(p_file):
+                policy_delta.append(abs(expected - parent_recovery))
+        error = max(errors)
+        if error > 2.0e-10:
+            raise AssertionError(f"{name}: {field} is off the selected pressure policy by "
+                                 f"a relative {error:.3e}")
+        if not policy_delta or max(policy_delta) < 0.5:
+            raise AssertionError(f"{name}: the fine and parent PSFC produced no measurable "
+                                 "regrid migration difference")
+        differences.append(f"{field} policy error {error:.1e}, fine/parent pressure "
+                           f"difference up to {max(policy_delta):.2f} K")
+    return ", ".join(differences)
+
+
+def run_nest_aloft_metgrid_case(exe, run_dir, env):
+    """Regrid a WRFInput checkpoint aloft, migrate Metgrid-v1 arrays, then reach the ground"""
+    checkpoint = run_dir / "nest_aloft_chk00002"
+    shutil.rmtree(checkpoint, ignore_errors=True)
+    log_path = run_dir / "nest_aloft.log"
+    status, _ = restart(
+        exe, run_dir, "nest_files.i", "nest_chk00000", "nest_aloft",
+        ["erf.init_type=Uniform", "erf.check_file=nest_aloft_chk", "erf.check_int=2",
+         "erf.regrid_int=1",
+         "amr.refine_whole_domain_dir=0", "erf.refinement_indicators=box1",
+         "erf.box1.max_level=1", "erf.box1.start_time=1",
+         "erf.box1.in_box_lo=3000 3000 400", "erf.box1.in_box_hi=5000 5000 800"],
+        env, max_step=2)
+    if status != 0:
+        raise AssertionError(f"nest_aloft: run failed ({status}); see {log_path}")
+    if not checkpoint.exists():
+        raise AssertionError("nest_aloft: the checkpoint was not written")
+    aloft_boxes = valid_boxes_3d(checkpoint, "Cell", 1)
+    if not aloft_boxes or min(box[2] for box in aloft_boxes) <= 0:
+        raise AssertionError("nest_aloft: the regridded level-1 boxes reach the ground")
+
+    legacy = run_dir / "legacy_nest_aloft_metgrid_v1"
+    shutil.rmtree(legacy, ignore_errors=True)
+    shutil.copytree(checkpoint, legacy)
+    (legacy / "surface_temperature_contract").write_text("1\n")
+    edit_job_info(legacy, "Metgrid")
+    to_potential_temperature(legacy, 50000.0, level=0)
+    to_potential_temperature(legacy, 50000.0, level=1)
+
+    # Keep the synthetic elevated state physically warm enough for the one-step restart,
+    # while remaining at least 10 kPa away from the true ground pressure.
+    target_cell_pressure = 75000.0
+    target_rho_theta = set_aloft_checkpoint_pressure(legacy, target_cell_pressure)
+    legacy_state = conserved_cells(legacy, 1)
+    first_aloft = next((key, values) for key, values in legacy_state.items()
+                       if key[2] == min(box[2] for box in aloft_boxes))
+    elevated_pressure = elevated_surface_pressure_at_cell(
+        target_rho_theta, first_aloft[1][0])
+    ground_pressure = diagnosed_ground_pressure(checkpoint)
+    if not ground_pressure:
+        raise AssertionError("nest_aloft: no level-0 ground pressure could be diagnosed")
+    ground_values = np.asarray(list(ground_pressure.values()))
+    if np.min(np.abs(ground_values - elevated_pressure)) < 10000.0:
+        raise AssertionError("nest_aloft: elevated pressure is not substantially different "
+                             "from ground pressure")
+
+    name = "nest_aloft_metgrid_v1_restart"
+    status, log = restart(exe, run_dir, "nest_files.i", legacy.name, name, [], env,
+                          max_step=3)
+    check_restart(name, status, log,
+                  ["APPROXIMATE migration at level 1", "coarser level's ground pressure"])
+    migrated = run_dir / (name + "_chk00003")
+    check_version_2(name, migrated)
+
+    pressure_parent = np.full((16, 16), np.nan, dtype=np.float64)
+    for (i, j), value in ground_pressure.items():
+        pressure_parent[j, i] = value
+    if np.isnan(pressure_parent).any():
+        raise AssertionError("nest_aloft: level 0 does not cover its full ground plane")
+    pressure_fine = cell_cons_prolong(pressure_parent)
+    migration_errors = []
+    elevated_differences = []
+    for field in SURFACE_FIELDS:
+        theta = valid_cells(legacy, field, 1)
+        actual = valid_cells(migrated, field, 1)
+        if actual.keys() != theta.keys():
+            raise AssertionError(f"{name}: {field} changed layout before the regrid")
+        for (i, j), value in actual.items():
+            expected = theta[(i, j)] * (pressure_fine[j, i] / P_0) ** KAPPA
+            wrong = theta[(i, j)] * (elevated_pressure / P_0) ** KAPPA
+            migration_errors.append(abs(value / expected - 1.0))
+            elevated_differences.append(abs(value - wrong))
+    migration_error = max(migration_errors)
+    if migration_error > 2.0e-10:
+        raise AssertionError(f"{name}: migration did not use parent ground pressure "
+                             f"(relative error {migration_error:.3e})")
+    if max(elevated_differences) < 5.0:
+        raise AssertionError(f"{name}: elevated stand-in pressure caused no measurable "
+                             "temperature difference")
+
+    # A later regrid expands level 1 down to the ground. RemakeLevel interpolates already
+    # migrated absolute temperatures from the parent; those values must remain kelvin.
+    next_name = "nest_aloft_metgrid_regridded"
+    status, log = restart(
+        exe, run_dir, "nest_files.i", migrated.name, next_name,
+        ["erf.init_type=Uniform", "erf.regrid_int=1", "amr.refine_whole_domain_dir=2",
+         "erf.refinement_indicators=box1", "erf.box1.max_level=1",
+         "erf.box1.start_time=0", "erf.box1.in_box_lo=3000 3000 0",
+         "erf.box1.in_box_hi=5000 5000 800"], env, max_step=4)
+    if status != 0:
+        raise AssertionError(f"{next_name}: restart failed ({status}); see {next_name}.log")
+    regridded = run_dir / (next_name + "_chk00004")
+    boxes = valid_boxes_3d(regridded, "Cell", 1)
+    if not boxes or min(box[2] for box in boxes) != 0:
+        raise AssertionError(f"{next_name}: level-1 regrid did not bring coverage to ground")
+    for field in SURFACE_FIELDS:
+        parent_temperature = surface_field(regridded, field, (16, 16), level=0)
+        expected = cell_cons_prolong(parent_temperature)
+        actual = valid_cells(regridded, field, 1)
+        errors = [abs(value - expected[j, i]) for (i, j), value in actual.items()]
+        if not errors or max(errors) > 2.0e-10:
+            raise AssertionError(f"{next_name}: {field} is not kelvin after ground regrid")
+
+    return (f"parent-pressure migration error {migration_error:.1e}; elevated-pressure bias "
+            f"up to {max(elevated_differences):.1f} K; regridded ground coverage in kelvin")
 
 
 def started_message(file, start, checkpoint_time):
@@ -555,14 +894,15 @@ def run_nest_cases(exe, run_dir, env):
     expected = nest_fields(original)
     legacy = legacy_nest_copy(original, "nest_v1")
     results = []
-    from_first = ("EXACT recovery at level 1 with the PSFC of nest_d02, the first of its 2 "
+    from_first = ("pressure recovery at level 1 with the PSFC of nest_d02, the first of its 2 "
                   "init files: none of the others had started by the time of the checkpoint")
 
     # The deck as it was: nest_d03 had not started, so level 1 had read nest_d02 alone
     name = "nest_v1_two_level1_init_files"
     status, log = restart(exe, run_dir, "nest_files.i", legacy.name, name, [], env)
     check_restart(name, status, log,
-                  ["EXACT recovery at level 0 with the PSFC of nest_d01", from_first])
+                  ["pressure recovery at level 0 with the PSFC of nest_d01", from_first,
+                   "APPROXIMATE migration: the PSFC of nest_d02"])
     migrated = run_dir / (name + "_chk00001")
     actual, error = check_nest_recovered(name, migrated, expected)
     results.append((name, f"SST_0 and TSK_0 at both levels to {error:.1e}"))
@@ -572,7 +912,7 @@ def run_nest_cases(exe, run_dir, env):
     status, log = restart(exe, run_dir, "nest_files.i", legacy.name, name,
                           ["erf.nc_init_file_1=nest_d02"], env)
     check_restart(name, status, log,
-                  ["EXACT recovery at level 1 with the PSFC of nest_d02\n"])
+                  ["pressure recovery at level 1 with the PSFC of nest_d02\n"])
     alone, error = check_nest_recovered(name, run_dir / (name + "_chk00001"), expected)
     if any(not np.array_equal(alone[key], actual[key]) for key in actual):
         raise AssertionError(f"{name}: the SST or TSK differs from {migrated.name}'s")
@@ -598,7 +938,8 @@ def run_nest_cases(exe, run_dir, env):
     results.append((name, "aborted as it must"))
 
     # The deck run on to t = 10 s, when nest_d03 starts, with no regridding to read it: its
-    # checkpoint at t = 5 s is recovered exactly ...
+    # checkpoint at t = 5 s selects the first file. This run has no regrid, so the
+    # expected field remains the known no-regrid fixture value ...
     status, _ = restart(exe, run_dir, "nest_files.i", original.name, "nest_later",
                         ["erf.check_int=5"], env, max_step=10)
     if status != 0:
@@ -629,7 +970,7 @@ def run_nest_cases(exe, run_dir, env):
                           ["erf.nc_init_file_1=nest_d02"] + SURFACE_LAYER, env)
     check_restart(name, status, log,
                   ["converting the TSK at level 1 to absolute temperature: 1 cells "
-                   "could not be converted",
+                   "(0 ghosts) could not be converted",
                    f"({NEST_CELL[0]},{NEST_CELL[1]}), a water cell where the surface layer "
                    "takes the TSK, has theta = 0,"], abort=True)
     results.append((name, "aborted as it must"))
@@ -641,7 +982,7 @@ def run_nest_cases(exe, run_dir, env):
     status, log = restart(exe, run_dir, "nest_files.i", edited.name, name, SURFACE_LAYER,
                           env)
     check_restart(name, status, log,
-                  ["SurfaceLayer fill_tsurf_with_sst_and_tsk: surface conversion failed at "
+                  ["SurfaceLayer temperature update: surface conversion failed at "
                    "level 1"], abort=True)
     results.append((name, "the run aborted as it must"))
 
@@ -655,8 +996,9 @@ def run_nest_cases(exe, run_dir, env):
     status, log = restart(exe, run_dir, "nest_files.i", edited.name, name,
                           ["erf.nc_init_file_1=nest_d02"] + SURFACE_LAYER, env)
     check_restart(name, status, log,
-                  ["EXACT recovery at level 0 with the PSFC of nest_d01",
-                   "EXACT recovery at level 1 with the PSFC of nest_d02", kept(1, "TSK", 1)])
+                  ["pressure recovery at level 0 with the PSFC of nest_d01",
+                   "pressure recovery at level 1 with the PSFC of nest_d02",
+                   kept(1, "TSK", 1)])
     output = run_dir / (name + "_chk00001")
     check_version_2(name, output)
     check_no_sst(name, output)
@@ -703,12 +1045,15 @@ def main():
     run_dir = args.run_dir.resolve()
 
     bases = {}
-    for base, (checkpoint, wrfinput) in BASES.items():
+    for base, (checkpoint, wrfinput, origin, shape) in BASES.items():
         original = run_dir / checkpoint
         if (original / "surface_temperature_contract").read_text().split() != ["2"]:
             raise AssertionError(f"{checkpoint} is not a version 2 checkpoint")
         with nc.Dataset(run_dir / wrfinput) as ds:
-            psfc = np.asarray(ds["PSFC"][0], dtype=np.float64)
+            psfc_full = np.asarray(ds["PSFC"][0], dtype=np.float64)
+        i0, j0 = origin
+        nx, ny = shape
+        psfc = psfc_full[j0:j0 + ny, i0:i0 + nx]
         bases[base] = (original, psfc)
 
     env = dict(os.environ)
@@ -725,6 +1070,16 @@ def main():
     try:
         for name, result in run_nest_cases(args.exe, run_dir, env):
             print(f"{name}: {result}")
+    except AssertionError as error:
+        print(f"FAILED {error}")
+        failures += 1
+    try:
+        print(f"nest_regrid_v1_restart: {run_nest_regrid_pressure_case(args.exe, run_dir, env)}")
+    except AssertionError as error:
+        print(f"FAILED {error}")
+        failures += 1
+    try:
+        print(f"nest_aloft_metgrid_v1_restart: {run_nest_aloft_metgrid_case(args.exe, run_dir, env)}")
     except AssertionError as error:
         print(f"FAILED {error}")
         failures += 1

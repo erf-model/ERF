@@ -4629,7 +4629,7 @@ endif()
 # A small, generated three-level WRF case. The middle ERF patch starts six
 # level-1 cells inside d02, so placing d03 relative to that patch shifts its
 # global position. Check both the level-2 box and a coordinate-coded field,
-# then restart with per-level wrflow files to re-read the nest box and PSFC.
+# then restart with per-level wrflow files to re-read the nest box and forcing slices.
 if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
   execute_process(COMMAND "${ERF_TEST_PYTHON}" -c "import netCDF4, numpy"
                   RESULT_VARIABLE _wrf_nested_python_status
@@ -4688,15 +4688,15 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     # Restart from the checkpoints older versions wrote, holding the SST and TSK as
     # potential temperature: the pressure they are converted back with follows from the
     # init type that wrote them (job_info, or erf.legacy_surface_temperature_init_type),
-    # not the restart's; a WRFInput one is recovered exactly with the PSFC of its first
-    # level-0 init file, also when erf.nc_init_file_0 lists several, a Metgrid one is
-    # migrated approximately with the pressure of the restarted state, and one of
-    # unknown origin, or that the restart cannot recover, aborts.  Over land the SST is a
+    # not the restart's; a WRFInput one uses recovered PSFC from its first level-0 init file
+    # (with fine-level regrid uncertainty), a Metgrid one is migrated approximately with
+    # restarted ground pressure or parent ground pressure for aloft-only coverage, and one
+    # of unknown origin, or that the restart cannot recover, aborts.  Over land the SST is a
     # placeholder the surface layer never takes, which is kept as it is; an invalid value
     # where the surface layer takes the field, or a surface pressure that cannot convert a
     # stored temperature, aborts.  So does a level with several init files of its own,
     # as the checkpoint does not record which file each grid took them from; restarted
-    # once with the one file it read, it is recovered exactly.
+    # once with the one file it read, the no-regrid fixture matches its source numerically.
     set(TEST_NAME WRFInput_LegacySurfaceTemperature)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)

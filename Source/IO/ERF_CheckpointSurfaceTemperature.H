@@ -302,7 +302,7 @@ resolve_surface_temperature_provenance (const int marker_version,
  */
 enum class SurfaceTemperatureMigration {
     None,             ///< they hold absolute temperature: restored as they are
-    InputPressure,    ///< exact: converted back with the wrfinput PSFC they were converted with
+    InputPressure,    ///< best available WRFInput pressure; refined regrids can make it approximate
     RestartPressure,  ///< approximate: converted with the surface pressure of the restarted state
     Reject            ///< they cannot be migrated: the restart aborts, giving the reason
 };
@@ -317,14 +317,16 @@ struct SurfaceTemperatureMigrationPlan {
  * Decide how to bring the SST_0 and TSK_0 of a checkpoint to absolute temperature.
  *
  * Arrays that hold potential temperature were converted with the surface pressure of the
- * input they were read from, which only the init type that wrote them identifies.  A WRFInput
- * run converted them with the PSFC of its wrfinput files: a WRFInput restart reads that PSFC
- * again and recovers them exactly, provided its inputs name the wrfinput files of the original
- * run.  A Metgrid run converted them with the surface pressure of its met_em files, which a
- * restart does not read: they are migrated with the surface pressure of the restarted state
- * instead.  That keeps the surface potential temperature the run had at the restart, not the
- * SST of the input: the absolute temperature it gives carries the factor
- * (p_restart/p_input)^(R_d/c_p) between the two pressures.
+ * input they were read from, which only the init type that wrote them identifies. A WRFInput
+ * restart reads the first init file's PSFC at level 0 and, at finer levels, uses the level's
+ * own PSFC where covered and the recovered parent pressure elsewhere. The checkpoint does
+ * not record whether RemakeLevel replaced fine values with parent-interpolated potential
+ * temperature, so fine-level migration is approximate wherever that may have happened:
+ * pressure-dependent conversion and spatial interpolation do not commute. A Metgrid run
+ * converted them with its met_em surface pressure, which a restart does not read. Metgrid
+ * migration therefore uses restarted ground pressure on boxes that reach the ground and
+ * parent ground pressure for aloft-only boxes. Both old formats lack enough metadata to
+ * recover the original absolute temperatures exactly.
  *
  * @param provenance             what the checkpoint holds and which init type wrote it
  * @param restart_reads_wrfinput whether the restart is a WRFInput run, in a build with NetCDF
@@ -373,9 +375,9 @@ plan_surface_temperature_migration (const SurfaceTemperatureProvenance& provenan
                       std::to_string(provenance.marker_version) + "), but its job_info does not "
                       "record the erf.init_type that converted them, so the surface pressure "
                       "they were converted with is not known. " + set_assertion +
-                      "WRFInput, to recover them exactly with the PSFC of its wrfinput files, or "
-                      "Metgrid, to migrate them approximately with the surface pressure of the "
-                      "restarted state.";
+                      "WRFInput, to use available wrfinput PSFC (fine-level regrids may be "
+                      "approximate), or Metgrid, to migrate them approximately with restarted "
+                      "ground pressure and parent ground pressure for aloft-only levels.";
         break;
     }
     return plan;
@@ -492,6 +494,21 @@ restart_surface_temperature_use (const amrex::iMultiFab* lmask, const bool have_
                                  erf_surface_temperature::sst_ignored(false, have_tsk)};
 }
 
+/**
+ * Select pressure for migrating one level's legacy surface fields.  `ground_pressure` is
+ * diagnosed only where that level's grid actually reaches the domain ground.  Elsewhere the
+ * cell is a refined patch aloft and must use the coarser level's ground pressure, never the
+ * lowest elevated cell as a stand-in.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+restart_surface_pressure (const bool has_ground_coverage,
+                          const amrex::Real ground_pressure,
+                          const amrex::Real parent_ground_pressure)
+{
+    return has_ground_coverage ? ground_pressure : parent_ground_pressure;
+}
+
 /** The name of a surface field: "SST" or "TSK" */
 inline const char*
 surface_field_name (const erf_surface_temperature::SurfaceTemperatureSource source)
@@ -504,13 +521,15 @@ surface_field_name (const erf_surface_temperature::SurfaceTemperatureSource sour
  * not be, how many and the first one recorded, and the placeholders left as they are
  */
 struct LegacyConversionFailure {
-    int count     = 0;  ///< valid cells that could not be converted
+    int count     = 0;  ///< cells that could not be converted or reconstructed
+    int ghost_count = 0; ///< ghost cells among count
     int preserved = 0;  ///< valid cells left as they are: placeholders where the field is not used
     int claimed   = 0;  ///< whether the first cell that could not be converted is described below
     int i = 0;
     int j = 0;
     int land = 0;       ///< its land mask
     int used = 0;       ///< whether the surface layer takes the field there
+    int ghost = 0;      ///< whether the first failure is a ghost cell
     amrex::Real theta    = amrex::Real(0.0);
     amrex::Real pressure = amrex::Real(0.0);
 };
@@ -518,8 +537,8 @@ struct LegacyConversionFailure {
 /**
  * Convert a surface field (SST or TSK) from potential to absolute temperature with the
  * surface pressure it was converted with, T = theta (p/p0)^(R_d/c_p).  A ghost cell takes the
- * pressure of the nearest valid cell of its box; the ghost cells are then filled from the
- * neighboring boxes where there are any.
+ * pressure of the nearest valid cell of its box.  If the ghost cannot be converted, a usable
+ * nearest valid temperature is converted to kelvin and copied into it before FillBoundary.
  *
  * Every cell that holds a finite, positive potential temperature is converted, whether or not
  * the surface layer takes the field there, so that no value the run may come to use (after a
@@ -535,7 +554,8 @@ struct LegacyConversionFailure {
  *    it is only counted as preserved.  It is not made to look like a temperature, so should
  *    the field ever be taken there, the surface layer rejects it then.
  *
- * A ghost cell left unconverted is not counted.
+ * An invalid unused ghost placeholder is left as it is.  A required ghost that cannot be
+ * reconstructed is counted and aborts the migration, just like an unconvertible valid cell.
  *
  * @param[in,out] field    potential temperature in, absolute temperature [K] out
  * @param[in]     source   which field it is: SurfaceTemperatureSource::sst or ::tsk
@@ -544,7 +564,7 @@ struct LegacyConversionFailure {
  * @param[in]     pressure surface pressure [Pa] on the valid cells of the layout of field
  * @param[in]     rdOcp    R_d/c_p
  * @param[in]     period   periodicity of the level
- * @return the valid cells of this rank that were not converted
+ * @return the cells of this rank that were not converted or reconstructed
  */
 inline LegacyConversionFailure
 potential_to_absolute_temperature (amrex::MultiFab& field,
@@ -562,26 +582,27 @@ potential_to_absolute_temperature (amrex::MultiFab& field,
     const bool have_sst = use.have_sst;
     const bool have_tsk = use.have_tsk;
     const bool ignore_sst = use.ignore_sst;
+    amrex::iMultiFab converted(field.boxArray(), field.DistributionMap(), 1,
+                               field.nGrowVect());
+    converted.setVal(0);
+
+    // Convert valid cells first.  A later ghost pass can then safely copy a converted
+    // neighbor, without racing a valid-cell thread that is still changing theta to kelvin.
     for (amrex::MFIter mfi(field); mfi.isValid(); ++mfi) {
         const amrex::Box& vbx = mfi.validbox();
-        const amrex::IntVect lo = vbx.smallEnd();
-        const amrex::IntVect hi = vbx.bigEnd();
         const amrex::Array4<amrex::Real> f = field.array(mfi);
         const amrex::Array4<const amrex::Real> p = pressure.const_array(mfi);
         const amrex::Array4<const int> mask = (use.lmask) ? use.lmask->const_array(mfi)
                                                           : amrex::Array4<const int>{};
-        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        const amrex::Array4<int> was_converted = converted.array(mfi);
+        amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            const int li = amrex::min(amrex::max(i, lo[0]), hi[0]);
-            const int lj = amrex::min(amrex::max(j, lo[1]), hi[1]);
             const amrex::Real theta = f(i,j,k);
-            const amrex::Real p_s = p(li,lj,lo[2]);
+            const amrex::Real p_s = p(i,j,k);
             amrex::Real temperature = theta;
             if (erf_surface_temperature::theta_to_temperature(theta, p_s, rdOcp, temperature)) {
                 f(i,j,k) = temperature;
-                return;
-            }
-            if (li != i || lj != j) {
+                was_converted(i,j,k) = 1;
                 return;
             }
             const int land = (mask) ? mask(i,j,k) : 1;
@@ -598,6 +619,80 @@ potential_to_absolute_temperature (amrex::MultiFab& field,
                 fail->j = j;
                 fail->land = land;
                 fail->used = used ? 1 : 0;
+                fail->ghost = 0;
+                fail->theta = theta;
+                fail->pressure = p_s;
+            }
+        });
+    }
+
+    for (amrex::MFIter mfi(field); mfi.isValid(); ++mfi) {
+        const amrex::Box& vbx = mfi.validbox();
+        const amrex::IntVect lo = vbx.smallEnd();
+        const amrex::IntVect hi = vbx.bigEnd();
+        const amrex::Array4<amrex::Real> f = field.array(mfi);
+        const amrex::Array4<const amrex::Real> p = pressure.const_array(mfi);
+        const amrex::Array4<const int> mask = (use.lmask) ? use.lmask->const_array(mfi)
+                                                          : amrex::Array4<const int>{};
+        const amrex::Array4<int> was_converted = converted.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (i >= lo[0] && i <= hi[0] && j >= lo[1] && j <= hi[1] &&
+                k >= lo[2] && k <= hi[2]) {
+                return;
+            }
+            const int li = amrex::min(amrex::max(i, lo[0]), hi[0]);
+            const int lj = amrex::min(amrex::max(j, lo[1]), hi[1]);
+            const int lk = amrex::min(amrex::max(k, lo[2]), hi[2]);
+            const amrex::Real theta = f(i,j,k);
+            const amrex::Real p_s = p(li,lj,lk);
+            amrex::Real temperature = theta;
+            if (erf_surface_temperature::theta_to_temperature(theta, p_s, rdOcp, temperature)) {
+                f(i,j,k) = temperature;
+                was_converted(i,j,k) = 1;
+                return;
+            }
+
+            // An invalid temperature is not a positive potential temperature.  If an
+            // authoritative neighbor was converted, copy its kelvin value into this
+            // physical-boundary/nest-edge ghost; otherwise preserve the invalid sentinel.
+            // Active invalid valid cells are reported by the valid-cell pass below/above.
+            if (!erf_surface_temperature::valid_temperature(theta)) {
+                if (was_converted(li,lj,lk) != 0) {
+                    f(i,j,k) = f(li,lj,lk);
+                    was_converted(i,j,k) = 1;
+                }
+                return;
+            }
+
+            const int land = (mask) ? mask(li,lj,lk) : 1;
+            const bool used = have_sst &&
+                              erf_surface_temperature::surface_temperature_source(
+                                  land != 0, have_tsk, ignore_sst) == source;
+            if (was_converted(li,lj,lk) != 0) {
+                f(i,j,k) = f(li,lj,lk);
+                was_converted(i,j,k) = 1;
+                return;
+            }
+
+            // A ghost that merely repeats a positive potential temperature from an
+            // unconvertible valid cell is covered by that valid-cell failure.  Counting
+            // each duplicate physical-boundary ghost separately obscures the actionable
+            // owner location and cannot let a mixed-unit field proceed past the abort.
+            const amrex::Real owner_theta = f(li,lj,lk);
+            if (erf_surface_temperature::valid_temperature(owner_theta) &&
+                theta == owner_theta) {
+                return;
+            }
+
+            amrex::Gpu::Atomic::Add(&fail->count, 1);
+            amrex::Gpu::Atomic::Add(&fail->ghost_count, 1);
+            if (amrex::Gpu::Atomic::CAS(&fail->claimed, 0, 1) == 0) {
+                fail->i = i;
+                fail->j = j;
+                fail->land = land;
+                fail->used = used ? 1 : 0;
+                fail->ghost = 1;
                 fail->theta = theta;
                 fail->pressure = p_s;
             }
@@ -623,10 +718,11 @@ abort_on_legacy_conversion_failure (const LegacyConversionFailure& fail,
                                     const std::string& what)
 {
     const std::string name = surface_field_name(source);
-    int counts[2] = {fail.count, fail.preserved};
-    amrex::ParallelDescriptor::ReduceIntSum(counts, 2);
+    int counts[3] = {fail.count, fail.preserved, fail.ghost_count};
+    amrex::ParallelDescriptor::ReduceIntSum(counts, 3);
     const int count = counts[0];
     const int preserved = counts[1];
+    const int ghosts = counts[2];
     if (preserved > 0) {
         amrex::Print() << what << ": kept " << preserved << " cells where the surface layer "
                        << "does not take the " << name << " as they are, placeholders without "
@@ -640,14 +736,16 @@ abort_on_legacy_conversion_failure (const LegacyConversionFailure& fail,
         std::ostringstream msg;
         msg << std::setprecision(10) << what << " [rank " << amrex::ParallelDescriptor::MyProc()
             << "]: " << fail.count << " cells cannot be converted; the first, (" << fail.i
-            << "," << fail.j << "), a " << ((fail.land != 0) ? "land" : "water") << " cell "
+            << "," << fail.j << "), a " << ((fail.ghost != 0) ? "ghost " : "")
+            << ((fail.land != 0) ? "land" : "water") << " cell "
             << "where the surface layer " << ((fail.used != 0) ? "takes" : "does not take")
             << " the " << name << ", has theta = " << fail.theta << ", surface pressure = "
             << fail.pressure << " Pa\n";
         amrex::AllPrint() << msg.str() << std::flush;
     }
     amrex::ParallelDescriptor::Barrier();
-    amrex::Abort(what + ": " + std::to_string(count) + " cells could not be converted to "
+    amrex::Abort(what + ": " + std::to_string(count) + " cells (" +
+                 std::to_string(ghosts) + " ghosts) could not be converted to "
                  "absolute temperature (see above). A cell where the surface layer takes the " +
                  name + " needs a finite, positive potential temperature, and any cell that "
                  "holds one a finite, positive surface pressure to convert it with");

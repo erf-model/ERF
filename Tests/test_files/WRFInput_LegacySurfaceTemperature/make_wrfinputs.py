@@ -73,15 +73,19 @@ def write_file(path, psfc_offset, land_columns=0, bad_psfc_cell=None, nx=NX, rat
 
         i = np.arange(nx, dtype=np.float64)[None, :]
         j = np.arange(ny, dtype=np.float64)[:, None]
-        sst = 295.0 + 0.2 * i + 0.1 * j
+        origin = ratio * parent_start
+        global_i = origin + i
+        global_j = origin + j
+        sst = 295.0 + 0.2 * global_i + 0.1 * global_j
         land = np.broadcast_to(i < land_columns, (ny, nx))
-        psfc = np.array(np.broadcast_to(100000.0 + psfc_offset + 150.0 * i - 100.0 * j,
+        psfc = np.array(np.broadcast_to(100000.0 + psfc_offset + 150.0 * global_i -
+                                        100.0 * global_j,
                                         (ny, nx)))
         if bad_psfc_cell is not None:
             psfc[bad_psfc_cell[1], bad_psfc_cell[0]] = -1.0
         put("PSFC", xy, psfc[None])
         put("SST", xy, np.where(land, 0.0, sst)[None])
-        put("TSK", xy, (sst + 1.0 + 0.05 * i)[None])
+        put("TSK", xy, (sst + 1.0 + 0.05 * global_i)[None])
         put("LANDMASK", xy, land.astype(np.float64)[None])
 
         put("ALT", xyz, 1.0)
@@ -103,7 +107,6 @@ def write_file(path, psfc_offset, land_columns=0, bad_psfc_cell=None, nx=NX, rat
         put("C2H", ("Time", "bottom_top"), 0.0)
         put("RDNW", ("Time", "bottom_top"), 1.0 / NZ)
         # At the indices of the outermost domain
-        origin = ratio * parent_start
         put("XLAT", xy, 30.0 + 0.001 * (origin + j + 0.5) / ratio)
         put("XLONG", xy, -100.0 + 0.001 * (origin + i + 0.5) / ratio)
         put("IVGTYP", xy, 16, "i4")
@@ -112,11 +115,18 @@ def write_file(path, psfc_offset, land_columns=0, bad_psfc_cell=None, nx=NX, rat
 
 def main():
     write_file("wrfinput_d01", 0.0)
+    # The restart regression uses this larger file to recover PSFC for an 8x8
+    # level-zero checkpoint. Root-level WRFInput uses file index zero as the model
+    # origin; its I_PARENT_START does not select a crop within the file.
+    write_file("wrfinput_crop", 0.0, nx=16, parent_start=4)
+    write_file("wrfinput_crop_small", 0.0, nx=8)
     write_file("wrfinput_d01b", 5000.0)
     write_file("wrfinput_mixed", 0.0, LAND_COLUMNS)
     write_file("wrfinput_mixed_badpsfc", 0.0, LAND_COLUMNS, BAD_PSFC_CELL)
     write_file("nest_d01", -2000.0)
     write_file("nest_d02", -5000.0, nx=NEST_CELLS, ratio=NEST_RATIO, parent_start=2)
+    # A wider fine-level file for a restart regrid that adds cells outside nest_d02.
+    write_file("nest_d02_full", -5000.0, nx=24, ratio=NEST_RATIO, parent_start=0)
     write_file("nest_d03", -10000.0, nx=NEST_CELLS, ratio=NEST_RATIO, parent_start=10,
                date="2026-01-01_00:00:10")
     write_file("nest_d03_now", -10000.0, nx=NEST_CELLS, ratio=NEST_RATIO, parent_start=10)

@@ -10,6 +10,7 @@
 
 #include "ERF_CheckpointSurfaceTemperature.H"
 #include "ERF_CheckpointLandmask.H"
+#include "ERF_ReadFromWRFInput.H"
 
 namespace {
 
@@ -218,6 +219,34 @@ TEST(CheckpointSurfaceTemperature, ReadsCurrentMarker)
     EXPECT_EQ(erf_checkpoint_surface_temperature::read_contract_version(marker, version),
               ContractReadStatus::Valid);
     EXPECT_EQ(version, erf_checkpoint_surface_temperature::contract_version);
+}
+
+TEST(CheckpointSurfaceTemperature, MapsCroppedAndNestedWrfinputFileBoxes)
+{
+    // A smaller level-zero domain uses the same horizontal shift as the WRF ingestion path:
+    // file coordinates beginning at a nonzero crop offset map to ERF's local domain origin.
+    const amrex::Box level0_domain(amrex::IntVect(0,0,0), amrex::IntVect(31,23,0));
+    const amrex::Box cropped_file(amrex::IntVect(12,7,0), amrex::IntVect(111,86,0));
+    const auto crop_shift = erf_wrfinput::file_to_erf_shift(level0_domain, cropped_file);
+    const auto cropped_in_erf = erf_wrfinput::file_box_to_erf(cropped_file, crop_shift);
+    EXPECT_EQ(crop_shift[0], -12);
+    EXPECT_EQ(crop_shift[1], -7);
+    EXPECT_TRUE(cropped_in_erf.contains(level0_domain));
+    EXPECT_EQ(cropped_in_erf.smallEnd(0), 0);
+    EXPECT_EQ(cropped_in_erf.smallEnd(1), 0);
+
+    // A refined file also carries its parent-grid offset; mapping retains the full nest origin
+    // computed by wrfinput_file_box rather than aligning the local file at index zero.
+    const amrex::Box level1_file(amrex::IntVect(5,9,0), amrex::IntVect(68,72,0));
+    const amrex::Box level1_erf(amrex::IntVect(41,53,0), amrex::IntVect(104,116,0));
+    const auto nest_shift = erf_wrfinput::file_to_erf_shift(level1_erf, level1_file);
+    const auto nest_in_erf = erf_wrfinput::file_box_to_erf(level1_file, nest_shift);
+    EXPECT_EQ(nest_shift[0], 36);
+    EXPECT_EQ(nest_shift[1], 44);
+    EXPECT_EQ(nest_in_erf.smallEnd(0), level1_erf.smallEnd(0));
+    EXPECT_EQ(nest_in_erf.smallEnd(1), level1_erf.smallEnd(1));
+    EXPECT_EQ(nest_in_erf.bigEnd(0), level1_erf.bigEnd(0));
+    EXPECT_EQ(nest_in_erf.bigEnd(1), level1_erf.bigEnd(1));
 }
 
 TEST(CheckpointSurfaceTemperature, ReadsVersionOneMarker)
@@ -443,11 +472,12 @@ TEST(CheckpointSurfaceTemperature, ScansEveryAMRLevelForLegacySurfaceArrays)
 // The migration of a checkpoint's SST and TSK, planned from the checkpoint as
 // ReadCheckpointFile plans it: from its marker, its job_info and the assertion.
 
-TEST(CheckpointSurfaceTemperatureMigration, RecoversLegacyWrfInputArraysExactly)
+TEST(CheckpointSurfaceTemperatureMigration, PlansLegacyWrfInputPressureRecovery)
 {
     // Motivation (case 1): a WRFInput checkpoint without a marker holds the SST and
-    // TSK as potential temperature, converted with the PSFC of its wrfinput files.  A
-    // WRFInput restart reads that PSFC again and recovers them exactly.
+    // TSK as potential temperature, converted with the PSFC of its wrfinput files. A
+    // WRFInput restart reads the available input pressure; fine levels remain approximate
+    // when RemakeLevel may have replaced some checkpoint cells with parent interpolation.
     TemporaryCheckpoint checkpoint;
     make_checkpoint(checkpoint, 0, "WRFInput");
     const auto plan = plan_restart(checkpoint, true);
@@ -656,6 +686,160 @@ TEST(CheckpointSurfaceTemperatureMigration, RecoversPressureFromWhereEachLevelRe
               Source::CoarserLevel);
 }
 
+TEST(CheckpointSurfaceTemperatureMigration, UsesParentGroundPressureForAloftOnlyLevels)
+{
+    // A refined patch aloft has no ground-state pressure.  Its marker-1 Metgrid surface
+    // temperature is a parent-interpolated potential temperature, so use the parent ground
+    // pressure instead of the pressure of the patch's elevated lowest cell.
+    constexpr amrex::Real rdOcp = amrex::Real(0.286);
+    constexpr amrex::Real input_ground_pressure = amrex::Real(100000.0);
+    constexpr amrex::Real elevated_pressure = amrex::Real(70000.0);
+    constexpr amrex::Real parent_ground_pressure = amrex::Real(99500.0);
+    constexpr amrex::Real original_temperature = amrex::Real(289.0);
+
+    const amrex::Real legacy_theta = getThgivenTandP(
+        original_temperature, input_ground_pressure, rdOcp);
+    const amrex::Real selected_aloft_pressure = cst::restart_surface_pressure(
+        false, elevated_pressure, parent_ground_pressure);
+    EXPECT_EQ(selected_aloft_pressure, parent_ground_pressure);
+
+    amrex::Real recovered = amrex::Real(0.0);
+    ASSERT_TRUE(erf_surface_temperature::theta_to_temperature(
+        legacy_theta, selected_aloft_pressure, rdOcp, recovered));
+    EXPECT_NEAR(recovered,
+                getTgivenPandTh(
+                    parent_ground_pressure, legacy_theta, rdOcp),
+                amrex::Real(1.0e-12));
+    amrex::Real wrong_elevated_recovery = amrex::Real(0.0);
+    ASSERT_TRUE(erf_surface_temperature::theta_to_temperature(
+        legacy_theta, elevated_pressure, rdOcp, wrong_elevated_recovery));
+    EXPECT_LT(wrong_elevated_recovery, recovered - amrex::Real(5.0));
+
+    // After regridding brings the fine level to the ground, the migrated Kelvin-valued
+    // field is preserved and converted with the new local ground pressure for the surface
+    // layer.  The round trip is the restart contract for the next level remake.
+    constexpr amrex::Real fine_ground_pressure = amrex::Real(98500.0);
+    const amrex::Real selected_ground_pressure = cst::restart_surface_pressure(
+        true, fine_ground_pressure, parent_ground_pressure);
+    EXPECT_EQ(selected_ground_pressure, fine_ground_pressure);
+    amrex::Real fine_theta = amrex::Real(0.0);
+    ASSERT_TRUE(erf_surface_temperature::temperature_to_theta(
+        recovered, selected_ground_pressure, rdOcp, fine_theta));
+    amrex::Real after_regrid = amrex::Real(0.0);
+    ASSERT_TRUE(erf_surface_temperature::theta_to_temperature(
+        fine_theta, selected_ground_pressure, rdOcp, after_regrid));
+    EXPECT_NEAR(after_regrid, recovered, amrex::Real(1.0e-12));
+}
+
+TEST(CheckpointSurfaceTemperature, DiagnosesSurfacePressureWithValidatedStateAndGeometry)
+{
+    using Error = erf_surface_temperature::SurfacePressureError;
+    constexpr amrex::Real rho = amrex::Real(1.1);
+    constexpr amrex::Real rho_theta = amrex::Real(330.0);
+    constexpr amrex::Real rho_qv = amrex::Real(0.011);
+    constexpr amrex::Real half_dz = amrex::Real(5.0);
+
+    const auto dry = erf_surface_temperature::diagnose_surface_pressure(
+        rho, rho_theta, amrex::Real(0.0), false, false, half_dz);
+    EXPECT_EQ(dry.error, Error::none);
+    EXPECT_EQ(dry.qv, amrex::Real(0.0));
+    EXPECT_NEAR(dry.pressure,
+                getPgivenRTh(rho_theta) + rho * CONST_GRAV * half_dz,
+                amrex::Real(1.0e-12) * dry.pressure);
+
+    const auto moist = erf_surface_temperature::diagnose_surface_pressure(
+        rho, rho_theta, rho_qv, true, true, -half_dz);
+    EXPECT_EQ(moist.error, Error::none);
+    EXPECT_NEAR(moist.qv, rho_qv / rho, amrex::Real(1.0e-14));
+    EXPECT_NEAR(moist.pressure,
+                getPgivenRTh(rho_theta, rho_qv / rho) - rho * CONST_GRAV * half_dz,
+                amrex::Real(1.0e-12) * moist.pressure);
+
+    EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
+                  rho, rho_theta, amrex::Real(0.0), true, false, half_dz).error,
+              Error::no_moisture_comp);
+    EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
+                  amrex::Real(0.0), rho_theta, rho_qv, true, true, half_dz).error,
+              Error::bad_density);
+    EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
+                  rho, std::numeric_limits<amrex::Real>::quiet_NaN(), rho_qv,
+                  true, true, half_dz).error,
+              Error::bad_rho_theta);
+    EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
+                  rho, rho_theta, std::numeric_limits<amrex::Real>::infinity(),
+                  true, true, half_dz).error,
+              Error::bad_rho_qv);
+    EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
+                  rho, rho_theta, amrex::Real(-0.001), true, true, half_dz).error,
+              Error::bad_rho_qv);
+    EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
+                  rho, rho_theta, rho_qv, false, false,
+                  std::numeric_limits<amrex::Real>::quiet_NaN()).error,
+              Error::bad_delta_z);
+    EXPECT_EQ(erf_surface_temperature::diagnose_surface_pressure(
+                  rho, rho_theta, amrex::Real(0.0), false, false,
+                  amrex::Real(-1.0e6)).error,
+              Error::bad_pressure);
+}
+
+TEST(CheckpointSurfaceTemperature, ReconstructsFailedBoundaryAndFinePatchGhostsInKelvin)
+{
+    // Potential-temperature placeholders in nonperiodic and fine-footprint ghosts must
+    // not survive in arrays whose valid cells have already been converted to kelvin.
+    const amrex::Box domain(amrex::IntVect(0,0,0), amrex::IntVect(11,7,0));
+    amrex::BoxList boxes;
+    boxes.push_back(amrex::Box(amrex::IntVect(1,2,0), amrex::IntVect(3,4,0)));
+    boxes.push_back(amrex::Box(amrex::IntVect(7,2,0), amrex::IntVect(9,4,0)));
+    amrex::BoxArray ba(std::move(boxes));
+    const amrex::DistributionMapping dm(ba);
+    const amrex::IntVect ng(1,1,0);
+    amrex::MultiFab field(ba, dm, 1, ng);
+    amrex::MultiFab pressure(ba, dm, 1, ng);
+    const amrex::Real invalid = std::numeric_limits<amrex::Real>::quiet_NaN();
+    const auto temperature_at = [] (int i, int j) {
+        return amrex::Real(281.0) + amrex::Real(i) + amrex::Real(0.25) * j;
+    };
+    const auto pressure_at = [] (int i, int j) {
+        return amrex::Real(93000.0) + amrex::Real(450.0) * i - amrex::Real(125.0) * j;
+    };
+    set_from_host(pressure, [&] (int i, int j, int) {
+        const bool valid = ba[0].contains(amrex::IntVect(i,j,0)) ||
+                           ba[1].contains(amrex::IntVect(i,j,0));
+        return valid ? pressure_at(i,j) : invalid;
+    });
+    set_from_host(field, [&] (int i, int j, int) {
+        const bool valid = ba[0].contains(amrex::IntVect(i,j,0)) ||
+                           ba[1].contains(amrex::IntVect(i,j,0));
+        if (!valid) { return invalid; }
+        return getThgivenTandP(temperature_at(i,j), pressure_at(i,j), RdoCp);
+    });
+    const amrex::iMultiFab water = make_water_mask(field);
+    const auto fail = cst::potential_to_absolute_temperature(
+        field, SurfaceTemperatureSource::sst,
+        cst::restart_surface_temperature_use(&water, true, false), pressure,
+        RdoCp, amrex::Periodicity::NonPeriodic());
+    EXPECT_EQ(fail.count, 0);
+    EXPECT_EQ(fail.ghost_count, 0);
+
+    for (amrex::MFIter mfi(field); mfi.isValid(); ++mfi) {
+        amrex::FArrayBox host(field[mfi].box(), 1, amrex::The_Pinned_Arena());
+        amrex::Gpu::dtoh_memcpy(host.dataPtr(), field[mfi].dataPtr(),
+                                host.size() * sizeof(amrex::Real));
+        const auto values = host.const_array();
+        const amrex::Box valid = mfi.validbox();
+        amrex::LoopOnCpu(host.box(), [&] (int i, int j, int k) {
+            if (valid.contains(amrex::IntVect(i,j,k))) {
+                EXPECT_NEAR(values(i,j,k), temperature_at(i,j), amrex::Real(1.0e-10));
+            } else {
+                const int ni = std::clamp(i, valid.smallEnd(0), valid.bigEnd(0));
+                const int nj = std::clamp(j, valid.smallEnd(1), valid.bigEnd(1));
+                EXPECT_NEAR(values(i,j,k), temperature_at(ni,nj), amrex::Real(1.0e-10))
+                    << "ghost at (" << i << "," << j << ")";
+            }
+        });
+    }
+}
+
 TEST(CheckpointSurfaceTemperatureMigration, TimesLaterInitFilesAsTheRunDid)
 {
     // Motivation (multi-file regression): the run reads an init file after the first once
@@ -683,7 +867,8 @@ TEST(CheckpointSurfaceTemperatureMigration, CountsCellsWithoutUsablePressureOrPo
     // proves nothing.  A valid cell where the surface layer takes the field (water, without
     // TSK, for the SST) whose pressure was not recovered (zero), or whose pressure or
     // potential temperature is not finite, must be left unconverted and counted, to abort
-    // the restart; a ghost cell is not counted.
+    // the restart; an invalid active ghost is reconstructed from the nearest converted
+    // valid cell and is not counted as a migration failure.
     const amrex::Box box(amrex::IntVect(0,0,0), amrex::IntVect(3,2,0));
     const amrex::BoxArray ba(box);
     const amrex::DistributionMapping dm(ba);
@@ -723,7 +908,7 @@ TEST(CheckpointSurfaceTemperatureMigration, CountsCellsWithoutUsablePressureOrPo
     EXPECT_EQ(values(1,1,0), theta);
     EXPECT_EQ(values(2,0,0), theta);
     EXPECT_TRUE(std::isnan(values(3,2,0)));
-    EXPECT_TRUE(std::isnan(values(-1,0,0)));
+    EXPECT_NEAR(values(-1,0,0), converted, tol);
     EXPECT_NEAR(values(0,0,0), converted, tol);
     EXPECT_NEAR(values(3,1,0), converted, tol);
     EXPECT_NEAR(values(-1,1,0), converted, tol);
@@ -754,7 +939,8 @@ TEST(CheckpointSurfaceTemperatureMigration, AbortsDescribingTheFirstCellThatCoul
         message = e.what();
     }
     const std::string report = testing::internal::GetCapturedStdout();
-    EXPECT_NE(message.find("2 cells could not be converted"), std::string::npos) << message;
+    EXPECT_NE(message.find("2 cells (0 ghosts) could not be converted"), std::string::npos)
+        << message;
     EXPECT_NE(message.find("where the surface layer takes the SST needs a finite, positive "
                            "potential temperature"), std::string::npos) << message;
     EXPECT_NE(report.find("converting the SST at level 0"), std::string::npos) << report;
@@ -1149,7 +1335,8 @@ TEST(CheckpointSurfaceTemperatureMigration, ReportsKeptPlaceholdersAndAbortsOnly
         message = e.what();
     }
     report = testing::internal::GetCapturedStdout();
-    EXPECT_NE(message.find("1 cells could not be converted"), std::string::npos) << message;
+    EXPECT_NE(message.find("1 cells (0 ghosts) could not be converted"), std::string::npos)
+        << message;
     EXPECT_NE(report.find("kept 6 cells"), std::string::npos) << report;
     EXPECT_NE(report.find("(1,1), a land cell where the surface layer does not take the SST, "
                           "has theta = 290, surface pressure = 0 Pa"),

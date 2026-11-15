@@ -989,17 +989,18 @@ ERF::convert_legacy_precip_accumulations (int lev)
  * temperature they are now kept as, as plan_surface_temperature_migration decided from the
  * provenance of the checkpoint (not from the init type of the restart).
  *
- * InputPressure, for a checkpoint written by a WRFInput run, is an exact recovery: they are
- * converted back with the wrfinput surface pressure they were converted with, read again
- * from where the level read its SST and TSK (see legacy_wrfinput_pressure_source).  mf_PSFC
- * is allocated but not filled on restart; it is filled here, at every level, so that a finer
- * level can interpolate from it, and a level whose pressure cannot be recovered aborts.
+ * InputPressure, for a checkpoint written by a WRFInput run, uses the first init file's PSFC
+ * at level 0 and the own-file/parent pressure mapping in legacy_wrfinput_pressure_source at
+ * finer levels. mf_PSFC is allocated but not filled on restart; it is filled here so finer
+ * levels can inherit pressure and a level whose required pressure cannot be recovered aborts.
+ * Fine-level conversion is approximate if RemakeLevel replaced checkpoint temperatures with
+ * parent-interpolated potential temperature; the checkpoint carries no per-cell provenance.
  *
- * RestartPressure, for a checkpoint written by a Metgrid run, is an approximate migration:
- * the surface pressure of its met_em input is not read again, and they are converted with
- * the surface pressure of the restarted state.  That keeps the surface potential temperature
- * the run had at the restart, not the SST of its input: the absolute temperature carries the
- * factor (p_restart/p_input)^(R_d/c_p) of the change in surface pressure since then.
+ * RestartPressure, for a checkpoint written by a Metgrid run, is approximate: the input
+ * pressure is absent. Ground-touching boxes use pressure diagnosed from their ground-state
+ * cells; aloft-only boxes use the parent level's ground pressure rather than an elevated
+ * stand-in. If the level is later regridded to the ground, its migrated kelvin field is kept
+ * and converted by the surface layer at the new local ground pressure.
  *
  * Either way, every cell that holds a finite, positive potential temperature is converted.
  * The land mask, restored before this, decides where the surface layer takes each field, at
@@ -1034,7 +1035,6 @@ ERF::convert_legacy_surface_temperature (
 
     // The surface pressure to convert them with
     const MultiFab* p_sfc = nullptr;
-    MultiFab p_restart;
 
     if (plan.method == cst::SurfaceTemperatureMigration::InputPressure) {
 #ifdef ERF_USE_NETCDF
@@ -1073,11 +1073,17 @@ ERF::convert_legacy_surface_temperature (
             lev, num_own_init_files, later_init_file_started, !nc_low_file.empty(),
             has_own_low_file(lev), lev > 0 && psfc_recovered[lev-1] != 0);
 
-        // Zero, which no conversion accepts, wherever the recovery does not reach
+        // Seed newly regridded cells and ghost regions from an available parent pressure.
+        // The file read below overlays its footprint, as init_from_wrfinput does for fields
+        // that were initialized partly from a parent and partly from a level's own file.
         mf_PSFC[lev]->setVal(zero);
+        const bool parent_pressure_available = lev > 0 && psfc_recovered[lev-1] != 0;
+        if (parent_pressure_available) {
+            interp_psfc_from_coarse(lev);
+        }
         std::string from;
         if (source == cst::LegacySurfacePressureSource::OwnInitFile) {
-            read_psfc_from_own_init_file(lev);
+            read_psfc_from_own_init_file(lev, parent_pressure_available);
             mf_PSFC[lev]->FillBoundary(period);
             from = "the PSFC of " + nc_init_file[lev][0];
             if (lev > 0 && num_own_init_files > 1) {
@@ -1086,7 +1092,6 @@ ERF::convert_legacy_surface_temperature (
                         "checkpoint, so the run that wrote it read no other";
             }
         } else if (source == cst::LegacySurfacePressureSource::CoarserLevel) {
-            interp_psfc_from_coarse(lev);
             from = "the PSFC of level " + std::to_string(lev-1) +
                    ", interpolated, as the level took its SST and TSK from that level";
         }
@@ -1119,9 +1124,17 @@ ERF::convert_legacy_surface_temperature (
                   "again from the wrfinput files.");
         }
         p_sfc = mf_PSFC[lev].get();
+        if (lev > 0) {
+            Warning("Restart checkpoint " + restart_chkfile + " has legacy WRFInput surface "
+                    "temperatures at level " + level + ". APPROXIMATE migration: " + from +
+                    " is the best available pressure source, but the checkpoint does not "
+                    "record whether RemakeLevel replaced some fine values with parent-interpolated "
+                    "potential temperature. Pressure-dependent conversion and spatial "
+                    "interpolation do not commute, so those cells cannot be recovered exactly.");
+        }
         Print() << "Restart checkpoint " << restart_chkfile << " holds the SST and TSK as "
                 << "potential temperature, and " << recorded_by << "a WRFInput run converted "
-                << "them: EXACT recovery at level " << lev << " with " << from << "\n";
+                << "them: pressure recovery at level " << lev << " with " << from << "\n";
 #else
         amrex::ignore_unused(psfc_recovered);
         Abort("convert_legacy_surface_temperature: recovering the SST and TSK with the "
@@ -1130,42 +1143,98 @@ ERF::convert_legacy_surface_temperature (
     } else if (plan.method == cst::SurfaceTemperatureMigration::RestartPressure) {
         if (!sst && !tsk) { return; }
         Warning("Restart checkpoint " + restart_chkfile + " holds the SST and TSK as potential "
-                "temperature, and " + recorded_by + "a Metgrid run converted them, with the "
+                "temperature, and " + recorded_by + "a Metgrid run converted them with the "
                 "surface pressure of its input, which a restart does not read. APPROXIMATE "
-                "migration at level " + level + ": converting them with the surface pressure "
-                "of the restarted state instead. This keeps the surface potential temperature "
-                "the run had at the restart, not the SST of its input: the absolute SST and TSK "
-                "keep the factor (p_restart/p_input)^(R_d/c_p) of any change in surface "
-                "pressure since the input was read");
+                "migration at level " + level + ": where this level reaches the ground, use "
+                "the restarted ground-state pressure; where it is refined aloft, use the "
+                "coarser level's ground pressure. This is the best available pressure "
+                "policy, but the input pressure and any regrid history are absent from the "
+                "checkpoint, so the original absolute temperature cannot be recovered "
+                "exactly.");
 
-        // The surface pressure of the restarted state, from its lowest cell as the surface
-        // layer takes it, on every planar box including those above the ground
+        // Diagnose pressure only in boxes that contain the domain's ground plane.  Boxes
+        // aloft keep the pressure interpolated from the coarser level; their lowest cell is
+        // not a surface-pressure sample.
         const int klo = geom[lev].Domain().smallEnd(2);
         const Real dz = geom[lev].CellSize(2);
         const MultiFab& cons = vars_new[lev][Vars::cons];
-        const bool moist = (solverChoice.moisture_type != MoistureType::None) &&
-                           (cons.nComp() > RhoQ1_comp);
-        const auto cons_ground = copy_ground_plane(cons, klo);
-        const auto z_ground = (z_phys_nd[lev]) ? copy_ground_plane(*z_phys_nd[lev], klo)
-                                               : nullptr;
+        const bool moist = solverChoice.moisture_type != MoistureType::None;
+        const bool have_rho_qv = cons.nComp() > RhoQ1_comp;
 
-        p_restart.define(ba2d[lev], dmap[lev], 1, 0);
-        for (MFIter mfi(p_restart); mfi.isValid(); ++mfi) {
-            const auto p_arr    = p_restart.array(mfi);
-            const auto cons_arr = cons_ground->const_array(mfi);
-            const auto z_arr    = (z_ground) ? z_ground->const_array(mfi) : Array4<const Real>{};
-            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                const Real rho = cons_arr(i,j,klo,Rho_comp);
-                const Real qv  = (moist) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : Real(0);
-                const Real delta_z = (z_arr) ? Compute_Z_AtCellCenter(i,j,klo,z_arr) -
-                                               Compute_Z_AtWFace(i,j,klo,z_arr)
-                                             : myhalf*dz;
-                p_arr(i,j,k) = erf_surface_temperature::pressure_at_boundary_from_cell(
-                    rho, cons_arr(i,j,klo,RhoTheta_comp), qv, delta_z);
-            });
+        mf_PSFC[lev]->setVal(zero);
+        if (lev > 0 && mf_PSFC[lev-1]) {
+            IntVect ng = mf_PSFC[lev]->nGrowVect(); ng[2] = 0;
+            const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+            InterpFromCoarseLevel(*mf_PSFC[lev], ng, IntVect(0,0,0),
+                                  *mf_PSFC[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev], rr2d, &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
         }
-        p_sfc = &p_restart;
+
+        BoxList ground_box_list;
+        Vector<int> ground_processors;
+        Vector<int> ground_source_indices;
+        const BoxArray& cons_ba = cons.boxArray();
+        Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+            d_pressure_fail(erf_surface_temperature::ConversionFailure{});
+        auto* pressure_fail = d_pressure_fail.dataPtr();
+        for (int ib = 0; ib < cons_ba.size(); ++ib) {
+            if (cons_ba[ib].smallEnd(2) != klo) { continue; }
+            Box ground_box = ba2d[lev][ib];
+            ground_box_list.push_back(ground_box);
+            ground_processors.push_back(cons.DistributionMap()[ib]);
+            ground_source_indices.push_back(ib);
+        }
+
+        if (!ground_box_list.isEmpty()) {
+            BoxArray ground_ba(std::move(ground_box_list));
+            DistributionMapping ground_dm(std::move(ground_processors));
+            MultiFab ground_pressure(ground_ba, ground_dm, 1, 0);
+            for (MFIter mfi(ground_pressure); mfi.isValid(); ++mfi) {
+                const int source_index = ground_source_indices[mfi.index()];
+                const auto p_arr    = ground_pressure.array(mfi);
+                const auto cons_arr = cons.const_array(source_index);
+                const auto z_arr    = (z_phys_nd[lev])
+                    ? z_phys_nd[lev]->const_array(source_index) : Array4<const Real>{};
+                const Box bx = mfi.validbox();
+                const int source_klo = klo;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    const Real rho = cons_arr(i,j,source_klo,Rho_comp);
+                    const Real rho_theta = cons_arr(i,j,source_klo,RhoTheta_comp);
+                    const Real rho_qv = (moist && have_rho_qv)
+                        ? cons_arr(i,j,source_klo,RhoQ1_comp) : Real(0.0);
+                    const Real delta_z = (z_arr)
+                        ? Compute_Z_AtCellCenter(i,j,source_klo,z_arr) -
+                          Compute_Z_AtWFace(i,j,source_klo,z_arr)
+                        : myhalf*dz;
+                    const auto ground_pressure =
+                        erf_surface_temperature::diagnose_surface_pressure(
+                            rho, rho_theta, rho_qv, moist, have_rho_qv, delta_z);
+                    if (ground_pressure.error !=
+                        erf_surface_temperature::SurfacePressureError::none) {
+                        erf_surface_temperature::record_conversion_failure(
+                            pressure_fail, true,
+                            erf_surface_temperature::conversion_error(ground_pressure.error),
+                            i, j, source_klo, rho, rho_theta, rho_qv, Real(0.0),
+                            ground_pressure.pressure, delta_z);
+                    } else {
+                        p_arr(i,j,k) = cst::restart_surface_pressure(
+                            true, ground_pressure.pressure, Real(0.0));
+                    }
+                });
+            }
+            mf_PSFC[lev]->ParallelCopy(ground_pressure, 0, 0, 1,
+                                       IntVect(0), IntVect(0), period);
+        }
+        Gpu::streamSynchronize();
+        erf_surface_temperature::abort_on_conversion_failure(
+            "legacy checkpoint surface-pressure recovery", lev,
+            d_pressure_fail.dataValue());
+        mf_PSFC[lev]->FillBoundary(period);
+        cst::fill_outside_domain_from_nearest(*mf_PSFC[lev], geom[lev]);
+
+        p_sfc = mf_PSFC[lev].get();
     } else {
         return;
     }
