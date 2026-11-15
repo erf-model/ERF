@@ -14,7 +14,7 @@ offshore" annotation crosses are omitted.  The master length scale is not
 plotted in the paper; it is back-computed from Figs. 8a and 8b using ERF's own
 stability function, so it carries the uncertainty of both.
 
-Usage:  python make_paper_figure.py [run_dir]   (default run_taper1.35)
+Usage:  python make_paper_figure.py [run_dir]   (default run_oneway)
 """
 import sys
 
@@ -26,7 +26,7 @@ import yt
 
 yt.set_log_level("error")
 
-RUN = sys.argv[1] if len(sys.argv) > 1 else "run_taper1.35"
+RUN = sys.argv[1] if len(sys.argv) > 1 else "run_oneway"
 OUT = "perlin_validation.pdf"
 
 # --- traced from Perlin et al. (2007), 25 km offshore, uncoupled ------------

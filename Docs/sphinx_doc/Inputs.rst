@@ -2746,11 +2746,6 @@ List of Parameters
 |                                          | pbl_mynn_config and may be overridden on its own.        |                    |                  |
 |                                          | Mellor-Yamada 1982 uses 0.1.                             |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_mynn_Lt_taper_exp**            | Exponent n in the optional boundary-layer-depth taper    | Real               | 0.0              |
-|                                          | of the ABL length scale, l_T -> l_T (1 - z/h)^n. Zero    |                    |                  |
-|                                          | disables the taper. Requires erf.most.pblh_calc to be    |                    |                  |
-|                                          | set, since it needs a diagnosed PBL height h.            |                    |                  |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.diffuse_QKE_3D**                   | Include horizontal turb. diffusion terms in QKE eqn.     | Boolean            | false            |
@@ -4663,7 +4658,8 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.pot_surf_temp**            | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
 |                                       | value selects the surface-temperature formulation.       |                     |                  |
-|                                       | **Required** when ``flux_type`` = ``bulk_coeff`` (the    |                     |                  |
+|                                       | This or ``erf.most.abs_surf_temp`` is **Required** when  |                     |                  |
+|                                       | ``flux_type`` = ``bulk_coeff`` (the                      |                     |                  |
 |                                       | surface value of the ``Ch`` form); with                  |                     |                  |
 |                                       | ``erf.most.surf_temp_flux`` it is still read but no      |                     |                  |
 |                                       | longer sets the heat flux                                |                     |                  |
@@ -4673,7 +4669,7 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | pressure diagnosed from the lowest cell; z-low face      |                     |                  |
 |                                       | only, not with EB terrain, SST/TSK input,                |                     |                  |
 |                                       | ``erf.most.use_sfc_fluxes``, ``erf.most.use_sfc_sst``    |                     |                  |
-|                                       | or custom/rico/bulk_coeff fluxes                         |                     |                  |
+|                                       | or custom/rico fluxes                                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp**                | deprecated spelling of ``erf.most.pot_surf_temp``; at    | Real > 0            | -1.0 (not set)   |
 |                                       | most one of the three may be given, and a value that is  |                     |                  |
