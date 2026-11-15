@@ -4,6 +4,7 @@
 #include "ERF_NCWpsFile.H"
 #include "AMReX_FArrayBox.H"
 #include "ERF_DataStruct.H"
+#include "ERF_WRFSurfaceFields.H"
 
 using namespace amrex;
 
@@ -62,9 +63,7 @@ wrfinput_dim_type (const std::string& NC_name)
              NC_name == "XLAT"     || NC_name == "XLONG"    || NC_name == "TSK" ||
              NC_name == "PSFC"     || NC_name == "IVGTYP"   || NC_name == "ISLTYP" ||
              NC_name == "LAI"      || NC_name == "VEGFRA"   || NC_name == "TMN" ||
-             NC_name == "SHDMIN"   || NC_name == "SHDMAX"   ||
-             NC_name == "ZNT"      || NC_name == "ALBEDO"   || NC_name == "ALBBCK" ||
-             NC_name == "SEAICE"   || NC_name == "SNOW"     || NC_name == "SNOWH")
+             NC_name == "SHDMIN"   || NC_name == "SHDMAX")
     {
         // Note: staggering is handled in `fill_fab_from_arrays`
         return NC_Data_Dims_Type::Time_SN_WE;
@@ -79,6 +78,14 @@ wrfinput_dim_type (const std::string& NC_name)
     }
     else if (NC_name == "ZS" || NC_name == "DZS") {
         return NC_Data_Dims_Type::Time_SL;
+    }
+    // The land and soil fields that no land model takes: their layout is in their catalog
+    if (const WRFSurfaceFields::Descriptor* d = WRFSurfaceFields::find(NC_name)) {
+        switch (d->kind) {
+            case WRFSurfaceFields::Kind::Surface:     return NC_Data_Dims_Type::Time_SN_WE;
+            case WRFSurfaceFields::Kind::SoilField:   return NC_Data_Dims_Type::Time_SL_SN_WE;
+            case WRFSurfaceFields::Kind::LayerColumn: return NC_Data_Dims_Type::Time_SL;
+        }
     }
     amrex::Abort("wrfinput_dim_type: no NC dim type for NC_name = '" + NC_name + "'");
     return NC_Data_Dims_Type::Time;
@@ -243,8 +250,7 @@ wrfinput_var_box (const Box& subdomain_to_read,
                 var_box.setType(IndexType(IntVect(1,0,0)));
             } else if (NC_name == "V" || NC_name == "MAPFAC_V") {
                 var_box.setType(IndexType(IntVect(0,1,0)));
-            } else if (NC_name == "TSLB" || NC_name == "SMOIS" || NC_name == "SH2O" ||
-                       NC_name == "ZS"   || NC_name == "DZS") {
+            } else if (NC_name == "SH2O" || WRFSurfaceFields::has_soil_layers(NC_name)) {
                 // soil variables are staggered in z
                 var_box.setType(IndexType(IntVect(0,0,1)));
             }

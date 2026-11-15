@@ -4797,12 +4797,15 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     # with the soil layer; check_log.py compares the component count, minimum and maximum the
     # reader reports with the file. The legs: every field present; some absent, which must be
     # skipped and not stop the run; the balance off, when no field may be asked for; an albedo
-    # of 1.5, which must stop the run and name the field; a file with fewer atmospheric levels
-    # (3) than soil layers (4), which must still give four layers; ZS and DZS left at zero,
-    # which is a file without them; and, with MPI, four ranks on two boxes, so that two ranks
-    # hold no box, and the albedo of 1.5 on two ranks, where the rank that holds it is not
-    # the one that prints.
-    function(add_test_wrfinput_surface_fields TEST_NAME MAKE_OPTIONS RUNTIME_OPTIONS CHECK_MODE EXPECT_ABORT)
+    # of 1.5, and flag values (SNOWH of -999 on every column, one SEAICE just below zero),
+    # which must be reported and left out while the run goes on and the other fields are
+    # held; a file with fewer atmospheric levels (3) than soil layers (4), which must still
+    # give four layers; ZS and DZS left at zero, which is a file without them; ZS that starts
+    # at zero, which is held; a restart, which must give every field back from the
+    # checkpoint with the same count and range, also onto smaller boxes; and, with MPI, four
+    # ranks on two boxes, so that two ranks hold no box, and the albedo of 1.5 on two ranks,
+    # where the rank that holds it is not the one that prints.
+    function(add_test_wrfinput_surface_fields TEST_NAME MAKE_OPTIONS RUNTIME_OPTIONS CHECK_MODE RESTART_OPTIONS)
       set(_launch "")
       if(ARGC GREATER 5)
         set(_launch "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ARGV5} ${MPIEXEC_PREFLAGS} ")
@@ -4812,15 +4815,17 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
       resolve_test_exe("" "erf_exec" TEST_EXE)
       set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
       set(_make "${ERF_TEST_PYTHON} make_wrfinput.py ${MAKE_OPTIONS} > generate.log")
-      set(_run "${_launch}${TEST_EXE} WRFInput_SurfaceFields.i amrex.call_addr2line=0 ${RUNTIME_OPTIONS} > ${_log} 2>&1")
-      set(_check "${ERF_TEST_PYTHON} check_log.py ${CHECK_MODE}")
-      if(EXPECT_ABORT)
-        add_test(${TEST_NAME} sh -c
-            "${_make} && if ${_run}; then echo 'the run did not stop'; false; else ${_check}; fi")
+      set(_exe "${_launch}${TEST_EXE} WRFInput_SurfaceFields.i amrex.call_addr2line=0")
+      if("${RESTART_OPTIONS}" STREQUAL "")
+        set(_run "${_exe} ${RUNTIME_OPTIONS} > ${_log} 2>&1")
       else()
-        add_test(${TEST_NAME} sh -c
-            "${_make} && ( ${_run} || ( tail -n 40 ${_log} && false ) ) && ${_check}")
+        # The first run writes chk00000; the log that is checked is the restart's
+        set(_first ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}_first.log)
+        set(_run "rm -rf chk00000 && ${_exe} ${RUNTIME_OPTIONS} erf.check_file=chk erf.check_int=1 > ${_first} 2>&1 && ${ERF_TEST_PYTHON} check_log.py full ${_first} && ${_exe} ${RUNTIME_OPTIONS} erf.restart=chk00000 ${RESTART_OPTIONS} > ${_log} 2>&1")
       endif()
+      set(_check "${ERF_TEST_PYTHON} check_log.py ${CHECK_MODE}")
+      add_test(${TEST_NAME} sh -c
+          "${_make} && ( ${_run} || ( tail -n 40 ${_log} && false ) ) && ${_check}")
       set(_np 1)
       if(ARGC GREATER 5)
         set(_np ${ARGV5})
@@ -4830,29 +4835,44 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
     endfunction(add_test_wrfinput_surface_fields)
     add_test_wrfinput_surface_fields(WRFInput_SurfaceFields "" ""
-        "full WRFInput_SurfaceFields.log" FALSE)
+        "full WRFInput_SurfaceFields.log" "")
     add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Absent
         "--omit LAI SEAICE SNOWH SMOIS DZS" ""
-        "partial WRFInput_SurfaceFields_Absent.log LAI SEAICE SNOWH SMOIS DZS" FALSE)
+        "partial WRFInput_SurfaceFields_Absent.log LAI SEAICE SNOWH SMOIS DZS" "")
     add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_BalanceOff
         "" "erf.radiation.seb_prognostic_enable=false"
-        "off WRFInput_SurfaceFields_BalanceOff.log" FALSE)
-    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Abort_Albedo
-        "--bad-albedo" ""
-        "bad WRFInput_SurfaceFields_Abort_Albedo.log" TRUE)
+        "off WRFInput_SurfaceFields_BalanceOff.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Drop_Albedo
+        "--bad ALBEDO 1.5" ""
+        "drop WRFInput_SurfaceFields_Drop_Albedo.log ALBEDO=1" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Drop_FlagValues
+        "--fill SNOWH -999 --bad SEAICE -0.001" ""
+        "drop WRFInput_SurfaceFields_Drop_FlagValues.log SNOWH=96 SEAICE=1" "")
     add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_ThinColumn
         "--nz 3" "amr.n_cell=12 8 3 geometry.prob_extent=12000.0 8000.0 300.0"
-        "full WRFInput_SurfaceFields_ThinColumn.log" FALSE)
+        "full WRFInput_SurfaceFields_ThinColumn.log" "")
     add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_ZeroLayers
         "--zero-layers" ""
-        "zero WRFInput_SurfaceFields_ZeroLayers.log" FALSE)
+        "zero WRFInput_SurfaceFields_ZeroLayers.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_SurfaceZS
+        "--surface-zs" ""
+        "surfacezs WRFInput_SurfaceFields_SurfaceZS.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart
+        "" ""
+        "restart WRFInput_SurfaceFields_Restart.log" "max_step=0")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart_OtherGrids
+        "" ""
+        "restart WRFInput_SurfaceFields_Restart_OtherGrids.log" "amr.max_grid_size=4")
     if(ERF_ENABLE_MPI)
       add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_MPI
           "" ""
-          "full WRFInput_SurfaceFields_MPI.log" FALSE 4)
-      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Abort_Albedo_MPI
-          "--bad-albedo" ""
-          "bad WRFInput_SurfaceFields_Abort_Albedo_MPI.log" TRUE 2)
+          "full WRFInput_SurfaceFields_MPI.log" "" 4)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Drop_Albedo_MPI
+          "--bad ALBEDO 1.5" ""
+          "drop WRFInput_SurfaceFields_Drop_Albedo_MPI.log ALBEDO=1" "" 2)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart_MPI
+          "" ""
+          "restart WRFInput_SurfaceFields_Restart_MPI.log" "max_step=0" 3)
     endif()
   else()
     message(STATUS "Skipping WRFInput_CroppedParent and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")

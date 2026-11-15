@@ -5,9 +5,11 @@ The state is at rest and uniform. Every land and soil field varies in both horiz
 directions (and with the soil layer); check_log.py imports the same formulas.
 
   --omit NAME [NAME ...]   leave these variables out of the file
-  --bad-albedo             one column of ALBEDO holds 1.5
+  --bad NAME VALUE         one column of the field holds VALUE (may be repeated)
+  --fill NAME VALUE        every column of the field holds VALUE (may be repeated)
   --nz N                   atmospheric levels (default 8); 3 is fewer than the soil layers
   --zero-layers            ZS and DZS are declared and left at zero
+  --surface-zs             ZS starts at zero (a land model with its first level at the surface)
 """
 
 import argparse
@@ -21,6 +23,8 @@ GRAV = 9.81
 # The four Noah layers [m]
 DZS = np.array([0.1, 0.3, 0.6, 1.0], dtype=np.float32)
 ZS = np.array([0.05, 0.25, 0.7, 1.5], dtype=np.float32)
+# Depths that start at the surface [m]
+ZS_SURFACE = np.array([0.0, 0.1, 0.4, 1.0], dtype=np.float32)
 
 
 def surface_fields():
@@ -48,7 +52,9 @@ def surface_fields():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--omit", nargs="*", default=[])
-    parser.add_argument("--bad-albedo", action="store_true")
+    parser.add_argument("--bad", nargs=2, action="append", default=[], metavar=("NAME", "VALUE"))
+    parser.add_argument("--fill", nargs=2, action="append", default=[], metavar=("NAME", "VALUE"))
+    parser.add_argument("--surface-zs", action="store_true")
     parser.add_argument("--nz", type=int, default=8)
     parser.add_argument("--zero-layers", action="store_true")
     args = parser.parse_args()
@@ -111,14 +117,18 @@ def main():
         put("ISLTYP", xy, 14, "i4")
 
         for name, data in surface_fields().items():
-            if args.bad_albedo and name == "ALBEDO":
-                data = data.copy()
-                # i = 8 is the first column of the deck's second box: the second rank of a
-                # two-rank run holds it, and it is a ghost column of the first box
-                data[3, 8] = 1.5
+            for bad_name, value in args.fill:
+                if bad_name == name:
+                    data = np.full_like(data, float(value))
+            for bad_name, value in args.bad:
+                if bad_name == name:
+                    data = data.copy()
+                    # i = 8 is the first column of the deck's second box: the second rank
+                    # of a two-rank run holds it, and it is a ghost column of the first box
+                    data[..., 3, 8] = float(value)
             put(name, soil if data.ndim == 3 else xy, data[None, ...])
         zero = 0.0 if args.zero_layers else 1.0
-        put("ZS", ("Time", "soil_layers_stag"), zero * ZS[None, :])
+        put("ZS", ("Time", "soil_layers_stag"), zero * (ZS_SURFACE if args.surface_zs else ZS)[None, :])
         put("DZS", ("Time", "soil_layers_stag"), zero * DZS[None, :])
 
     with nc.Dataset("wrflowinp_d01", "w", format="NETCDF4_CLASSIC") as ds:

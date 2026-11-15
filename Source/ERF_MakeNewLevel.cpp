@@ -1559,7 +1559,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // those must not survive onto the new grids.
     for (auto& sst : sst_lev[lev]) { sst.reset(); }
     for (auto& tsk : tsk_lev[lev]) { tsk.reset(); }
-    wrf_surface_fields.clear(lev);
+    // The wrfinput land and soil fields are data of the initial time that nothing rebuilds:
+    // they are carried onto the new grids, and dropped with a message when the new grids
+    // reach beyond the region they were read on.
+    wrf_surface_fields.remake(lev, ba2d[lev], dm, geom[lev].periodicity());
     if (lat_m[lev]) {
         lat_m[lev].reset();
     }

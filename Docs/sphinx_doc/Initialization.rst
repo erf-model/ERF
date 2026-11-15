@@ -272,26 +272,43 @@ changes with a land model too: every soil layer of the file is read (see below).
      - m3/m3
      - 0 to 1
      - Soil moisture, one value per soil layer, top layer first
-   * - ``ZS``, ``DZS``
+   * - ``ZS``
      - m
-     - > 0, or all zero
-     - Depth of the centre and thickness of each soil layer; ``ZS`` must increase
+     - 0 to 1e4, increasing
+     - Depth of the centre of each soil layer, one column for the level
+   * - ``DZS``
+     - m
+     - > 0 to 1e4
+     - Thickness of each soil layer, one column for the level
 
-A value outside the allowed range, or one that is not finite, stops the run. The message
-names the variable and, for the eleven fields, gives the number of values outside the
-range and the number that are not finite. The range only rejects values that cannot be the named quantity; a field
-that the file declares and leaves at zero is accepted. The upper bounds of ``LAI``,
-``TMN``, ``ZNT``, ``SNOW``, ``SNOWH`` and ``TSLB`` are not physical limits. They are set
-far above any value of the quantity so that a NetCDF fill value (9.97e36) is stopped.
-For every field read, the log reports the number of components, the minimum and the
+A field that holds a value outside the allowed range, or one that is not finite, is not
+held. The run goes on, as for a field the file does not have. The log has one line that
+names the variable and the level and gives the number of values outside the range, the
+number that are not finite, and the span of the finite values, for example::
+
+    Warning: wrfinput SNOWH at level 0 is not held: 96 value(s) outside 0 to 10000 [m], 0 not finite; the finite values span -999 to -999
+
+Files can hold such values where a field does not apply: a snow depth of -999, or a sea
+ice value just below zero. Nothing is clamped; the field is left out as a whole. The code
+that takes a field decides whether its absence stops the run. The other fields of the
+level are not affected.
+
+The range only leaves out values that cannot be the named quantity; a field that the file
+declares and leaves at zero is held. The upper bounds of ``LAI``, ``TMN``, ``ZNT``,
+``SNOW``, ``SNOWH``, ``TSLB``, ``ZS`` and ``DZS`` are not physical limits. They are set
+far above any value of the quantity so that a NetCDF fill value (9.97e36) is left out.
+For every field held, the log reports the number of components, the minimum and the
 maximum over the level.
 
-``ZS`` or ``DZS`` that is zero in every layer is taken as not given, and the log says so.
-Files written without a land model can hold them that way. ``TSLB``, ``SMOIS``, ``ZS`` and
-``DZS``, whichever are read, must have the same number of layers. Every soil layer of the
-file is read, also when the file has fewer atmospheric levels than soil layers. Before,
-the soil variables were cut at the number of atmospheric levels; this also holds for a run
-with a land model.
+``ZS`` may start at zero: a land model can put its first level at the surface. ``ZS`` or
+``DZS`` that is zero in every layer is taken as not given, and the log says so. Files
+written without a land model can hold them that way. ``TSLB``, ``SMOIS``, ``ZS`` and
+``DZS``, whichever are read, must have the same number of layers; when they do not, the
+four are left out together, with a message. Every soil layer of the file is read, also
+when the file has fewer atmospheric levels than soil layers. Before, the soil variables
+were cut at the number of atmospheric levels; this also holds for a run with a land
+model, where it is the intended behaviour: the soil arrays of a land model have the
+file's number of soil layers.
 
 A ``wrfinput`` file written by ``real.exe`` holds ``ALBBCK`` and does not hold ``ALBEDO``
 or ``ZNT``; those two are in ``wrfout`` files and in hand-built files. This was checked on
@@ -299,14 +316,34 @@ one file written by ``real.exe`` of WRF V4.8.0.
 
 The fields are kept per level in ``WRFSurfaceFields``
 (``Source/Initialization/ERF_WRFSurfaceFields.H``). They are data of the initial time.
-They are not written to a checkpoint, so they are not held after a restart. A level made
-by tagging has none, and a regrid drops the fields of the level without a message. A level
-that is put together from more than one file does not take them; the log says so. No part
-of ERF uses them yet; the force-restore balance will take its albedo, roughness, deep
-temperature, soil moisture and snow from them in later changes. Until then the cost is
-the read of up to thirteen more variables at the start, the memory of up to eleven
-two-dimensional fields per level, and a run that stops at the start when one of these
-fields holds a value outside its range.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Event
+     - What the level holds afterwards
+   * - Initial read
+     - The fields its files hold and that pass the checks. A level put together from
+       several files takes a field when the files together cover every column of the
+       level; otherwise the field is left out, with a message
+   * - Checkpoint and restart
+     - The same fields. They are written to the checkpoint (``WRFSurfaceFieldsHeader``
+       and one ``WRFSfc_<NAME>`` per field and level) and read back, also onto other
+       grids. The log of the restart reports each one. A checkpoint written before this
+       was added gives none, with a message
+   * - Regrid or rebalance of the level
+     - The same fields on the new grids, when the old grids cover the new ones. When
+       they do not, the fields of the level are dropped and the log says so
+   * - Level removed
+     - None; the log says so when the level held any
+   * - Level made by tagging
+     - None
+
+No part of ERF uses them yet; the force-restore balance will take its albedo, roughness,
+deep temperature, soil moisture and snow from them in later changes. Until then the cost
+is the read of up to thirteen more variables at the start, the memory of up to eleven
+two-dimensional fields per level, and their files in each checkpoint.
 
 .. _sec:nested-wrfinput:
 

@@ -362,7 +362,8 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridLandUtils.cpp
     # Motivation: the wrfinput land and soil fields that no land model takes (LAI, VEGFRA, TMN,
     # ZNT, ALBEDO, ALBBCK, SEAICE, SNOW, SNOWH, TSLB, SMOIS) must reach their holder column for column
-    # and soil layer for soil layer, and a value that cannot be the quantity must stop the run.
+    # and soil layer for soil layer; a field with a value that cannot be the quantity must be
+    # left out without stopping the run; and the fields must survive a regrid and a checkpoint.
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestWRFSurfaceFields.cpp
     # Motivation: erf.metgrid_force_sfc_k must drop the same origin levels whether or not the
     # column has origin levels below the surface (erf-model/ERF#4607).

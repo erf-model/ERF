@@ -1504,7 +1504,8 @@ private:
     // The land and soil fields of the wrfinput file that no land model takes (LAI, VEGFRA,
     // TMN, ZNT, ALBEDO, ALBBCK, SEAICE, SNOW, SNOWH, TSLB, SMOIS, ZS, DZS), as read at the initial
     // time. Filled by init_from_wrfinput when the two-stream force-restore balance runs
-    // without a land model; empty otherwise, after a restart, and after a regrid.
+    // without a land model; empty otherwise. Written to the checkpoint and read back on a
+    // restart; carried onto the new grids by RemakeLevel.
     WRFSurfaceFields wrf_surface_fields;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid

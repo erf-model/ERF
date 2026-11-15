@@ -845,6 +845,9 @@ ERF::WriteCheckpointFile () const
 #endif
     } // for lev
 
+     // The wrfinput land and soil fields that no land model takes (none for most runs)
+     wrf_surface_fields.write_checkpoint(checkpointname, finest_level+1);
+
 #ifdef ERF_USE_FIRE
     // The fire: the engine's state (FireEngine::write_checkpoint), then the
     // coupling's lagged fluxes, on the level the fire grid refines
@@ -2185,6 +2188,17 @@ ERF::ReadCheckpointFile ()
         }
 #endif
     } // for lev
+
+    // The wrfinput land and soil fields that no land model takes: data of the initial time,
+    // restored onto this run's grids. A checkpoint written before they were stored leaves
+    // the holder empty.
+    {
+        IntVect ng_sfc = vars_new[0][Vars::cons].nGrowVect(); ng_sfc[2] = 0;
+        Vector<Periodicity> period(finest_level+1);
+        for (int lev = 0; lev <= finest_level; ++lev) { period[lev] = geom[lev].periodicity(); }
+        wrf_surface_fields.read_checkpoint(restart_chkfile, finest_level+1, ba2d, dmap,
+                                           ng_sfc, period);
+    }
 
     // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the
     // substepping schedule survives restart. lsm.Init() during

@@ -5,33 +5,47 @@
   check_log.py partial LOG NAME...   the named fields skipped, the others read
   check_log.py off LOG               no field asked for
   check_log.py zero LOG              ZS and DZS all zero: taken as not given, the others read
-  check_log.py bad LOG               the run stopped on ALBEDO
+  check_log.py surfacezs LOG         ZS starts at zero: held
+  check_log.py drop LOG NAME=N...    the named fields reported with N values outside their
+                                     range and not held; the others read; the run completed
+  check_log.py restart LOG           a restart: every field restored from the checkpoint
 """
 
 import re
 import sys
 
-from make_wrfinput import DZS, NSOIL, ZS, surface_fields
+from make_wrfinput import DZS, NSOIL, ZS, ZS_SURFACE, surface_fields
 
 RTOL = 2.0e-5   # the file holds 4-byte reals and the log prints 6 digits
 
 FIELD = re.compile(r"wrfinput surface field (\w+) at level 0: (\d+) components?, "
                    r"min (\S+), max (\S+) \[")
+RESTORED = re.compile(r"wrfinput surface field (\w+) at level 0 restored from the checkpoint: "
+                      r"(\d+) components?, min (\S+), max (\S+) \[")
 
 
 def close(a, b):
     return abs(a - b) <= RTOL * max(abs(a), abs(b), 1.0e-3)
 
 
-def reported(log):
+def reported(log, pattern=FIELD):
     return {m.group(1): (int(m.group(2)), float(m.group(3)), float(m.group(4)))
-            for m in FIELD.finditer(log)}
+            for m in pattern.finditer(log)}
 
 
-def check_fields(log, omitted, zero_layers=False):
-    got = reported(log)
+def check_fields(log, omitted, zero_layers=False, dropped=None, depths=ZS, restored=False):
+    got = reported(log, RESTORED if restored else FIELD)
+    dropped = dropped or {}
+    tail = " restored from the checkpoint" if restored else ""
     errors = []
     for name, data in surface_fields().items():
+        if name in dropped:
+            if name in got:
+                errors.append(f"{name}: reported as held although it holds a value outside its range")
+            if not re.search(rf"Warning: wrfinput {name} at level 0 is not held: {dropped[name]} "
+                             rf"value\(s\) outside ", log):
+                errors.append(f"{name}: no 'is not held' line with {dropped[name]} value(s) outside")
+            continue
         if name in omitted:
             if name in got:
                 errors.append(f"{name}: reported although it is not in the file")
@@ -45,8 +59,8 @@ def check_fields(log, omitted, zero_layers=False):
         want = (NSOIL if data.ndim == 3 else 1, float(data.min()), float(data.max()))
         if ncomp != want[0] or not close(vmin, want[1]) or not close(vmax, want[2]):
             errors.append(f"{name}: reported {got[name]}, the file holds {want}")
-    for label, name, values in (("depths ZS", "ZS", ZS), ("thicknesses DZS", "DZS", DZS)):
-        match = re.search(rf"wrfinput soil layer {label} at level 0:(.*) \[m\]", log)
+    for label, name, values in (("depths ZS", "ZS", depths), ("thicknesses DZS", "DZS", DZS)):
+        match = re.search(rf"wrfinput soil layer {label} at level 0{tail}:(.*) \[m\]", log)
         if name in omitted:
             if match:
                 errors.append(f"{name}: reported although it is not in the file")
@@ -82,14 +96,21 @@ def main():
                   if f"Checking for {name} " in log]
         if "Checking for LANDMASK " not in log:
             errors.append("the reader's own field list was not found in the log")
-    elif mode == "bad":
-        errors = [] if "wrfinput ALBEDO holds a value outside its allowed range" in log else \
-            ["the run did not stop on ALBEDO"]
-        match = re.search(r"wrfinput ALBEDO at level 0: (\d+) value\(s\) outside 0 to 1 \[1\], (\d+) not finite; "
-                          r"the finite values span (\S+) to (\S+)", log)
-        if not match or (match.group(1), match.group(2)) != ("1", "0") or \
-                not close(float(match.group(3)), 0.1) or not close(float(match.group(4)), 1.5):
-            errors.append("the range report for ALBEDO is missing or wrong")
+    elif mode == "surfacezs":
+        errors = check_fields(log, [], depths=ZS_SURFACE)
+    elif mode == "drop":
+        dropped = dict(item.split("=") for item in sys.argv[3:])
+        errors = check_fields(log, [], dropped=dropped)
+        if "ALBEDO" in dropped:
+            match = re.search(r"wrfinput ALBEDO at level 0 is not held: (\d+) value\(s\) outside 0 to 1 \[1\], "
+                              r"(\d+) not finite; the finite values span (\S+) to (\S+)", log)
+            if not match or (match.group(1), match.group(2)) != ("1", "0") or \
+                    not close(float(match.group(3)), 0.1) or not close(float(match.group(4)), 1.5):
+                errors.append("the range report for ALBEDO is missing or wrong")
+    elif mode == "restart":
+        errors = check_fields(log, [], restored=True)
+        if "Checking for ALBEDO " in log:
+            errors.append("the restart read the fields from the wrfinput file again")
     else:
         raise SystemExit(f"unknown mode {mode}")
     for error in errors:

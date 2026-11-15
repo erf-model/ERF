@@ -1,5 +1,6 @@
 #include <cmath>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -10,6 +11,7 @@
 #include <AMReX_Gpu.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Periodicity.H>
+#include <AMReX_Utility.H>
 
 #include <gtest/gtest.h>
 
@@ -24,6 +26,7 @@ namespace {
 
 using namespace amrex;
 using Field = WRFSurfaceFields::Field;
+using Kind  = WRFSurfaceFields::Kind;
 
 constexpr int nx = 6;
 constexpr int ny = 5;
@@ -41,10 +44,10 @@ struct Level
     BoxArray ba2d;
     DistributionMapping dm;
     IntVect ng{1, 1, 0};
-    Level ()
+    explicit Level (const IntVect& max_size = IntVect(4, 3, 1))
     {
         ba2d = BoxArray(domain);
-        ba2d.maxSize(IntVect(4, 3, 1));
+        ba2d.maxSize(max_size);
         dm = DistributionMapping(ba2d);
     }
 };
@@ -53,19 +56,46 @@ struct Level
 Real albedo_at (int i, int j) { return Real(0.015625) * Real(i) + Real(0.125) * Real(j); }
 Real soil_at (int i, int j, int n) { return Real(280.0) + Real(n) + Real(0.015625) * Real(i) + Real(0.125) * Real(j); }
 
-// The columns the file covers, with nlay values in z, filled on the host.
+// Columns ilo..ihi x jlo..jhi with nlay values in z from k0, as a rank reads them.
 template <typename F>
-FArrayBox make_source (int nlay, F&& value)
+FArrayBox make_source (int ilo, int ihi, int jlo, int jhi, int nlay, int k0, F&& value, bool nodal_z = false)
 {
-    const Box bx(IntVect(0, 0, 0), IntVect(nx - 1, ny - 1, nlay - 1));
+    Box bx(IntVect(ilo, jlo, k0), IntVect(ihi, jhi, k0 + nlay - 1));
+    if (nodal_z) { bx.setType(IndexType(IntVect(0, 0, 1))); }
     FArrayBox src(bx, 1, The_Pinned_Arena());
     const auto a = src.array();
     for (int k = 0; k < nlay; ++k) {
-        for (int j = 0; j < ny; ++j) {
-            for (int i = 0; i < nx; ++i) { a(i, j, k) = value(i, j, k); }
+        for (int j = jlo; j <= jhi; ++j) {
+            for (int i = ilo; i <= ihi; ++i) { a(i, j, k0 + k) = value(i, j, k); }
         }
     }
     return src;
+}
+
+// The whole level from one file
+template <typename F>
+FArrayBox make_source (int nlay, F&& value)
+{
+    return make_source(0, nx - 1, 0, ny - 1, nlay, 0, std::forward<F>(value));
+}
+
+Box columns (int ilo, int ihi, int jlo, int jhi)
+{
+    return Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0));
+}
+
+Box all_columns () { return columns(0, nx - 1, 0, ny - 1); }
+
+// A soil layer column of the file: one (i,j), nodal in z as the reader builds it
+FArrayBox make_column (std::initializer_list<Real> vals)
+{
+    Box bx(IntVect(0, 0, 0), IntVect(0, 0, static_cast<int>(vals.size()) - 1));
+    bx.setType(IndexType(IntVect(0, 0, 1)));
+    FArrayBox col(bx, 1, The_Pinned_Arena());
+    const auto a = col.array();
+    int k = 0;
+    for (const Real v : vals) { a(0, 0, k++) = v; }
+    return col;
 }
 
 // Visit every cell of the field, ghost cells included, on the host.
@@ -89,16 +119,36 @@ void for_each_cell (const MultiFab& mf, F&& visit)
 
 int clamp (int v, int lo, int hi) { return std::min(std::max(v, lo), hi); }
 
+// Every cell, ghost cells included, holds the value of the nearest column of the level
+template <typename F>
+void expect_field (const MultiFab& mf, F&& value)
+{
+    int ncell = 0;
+    for_each_cell(mf, [&] (int i, int j, int n, Real v) {
+        EXPECT_EQ(v, value(clamp(i, 0, nx - 1), clamp(j, 0, ny - 1), n)) << "i=" << i << " j=" << j << " n=" << n;
+        ++ncell;
+    });
+    EXPECT_GT(ncell, 0);
+}
+
+// One file that covers the level, then the close of the level
+void fill_whole (WRFSurfaceFields& f, const Level& L, Field id, const FArrayBox& src, int nlay = 1)
+{
+    f.fill(0, id, L.ba2d, L.dm, L.ng, nlay, src, all_columns());
+    f.finish_level(0, Periodicity::NonPeriodic());
+}
+
 } // namespace
 
-TEST(WRFSurfaceFields, CatalogNamesAndBounds)
+TEST(WRFSurfaceFields, CatalogNamesKindsAndBounds)
 {
     const auto& cat = WRFSurfaceFields::catalog();
-    constexpr int nf = 11;
-    const char* names[nf] = {"LAI", "VEGFRA", "TMN", "ZNT", "ALBEDO", "ALBBCK", "SEAICE", "SNOW", "SNOWH", "TSLB", "SMOIS"};
-    const char* units[nf] = {"m2/m2", "%", "K", "m", "1", "1", "1", "kg/m2", "m", "K", "m3/m3"};
+    constexpr int nf = 13;
+    const char* names[nf] = {"LAI", "VEGFRA", "TMN", "ZNT", "ALBEDO", "ALBBCK", "SEAICE", "SNOW", "SNOWH",
+                             "TSLB", "SMOIS", "ZS", "DZS"};
+    const char* units[nf] = {"m2/m2", "%", "K", "m", "1", "1", "1", "kg/m2", "m", "K", "m3/m3", "m", "m"};
     const Real  hi[nf]    = {Real(100.0), Real(100.0), Real(1000.0), Real(100.0), Real(1.0), Real(1.0), Real(1.0),
-                             Real(1.0e6), Real(1.0e4), Real(1000.0), Real(1.0)};
+                             Real(1.0e6), Real(1.0e4), Real(1000.0), Real(1.0), Real(1.0e4), Real(1.0e4)};
     ASSERT_EQ(static_cast<int>(cat.size()), nf);
     ASSERT_EQ(WRFSurfaceFields::num_fields, nf);
     for (int n = 0; n < nf; ++n) {
@@ -107,57 +157,14 @@ TEST(WRFSurfaceFields, CatalogNamesAndBounds)
         EXPECT_EQ(static_cast<int>(cat[n].id), n);
         EXPECT_EQ(cat[n].lo, Real(0.0));
         EXPECT_EQ(cat[n].hi, hi[n]) << names[n];
-        EXPECT_EQ(cat[n].soil, n >= 9);
+        const Kind kind = (n < 9) ? Kind::Surface : ((n < 11) ? Kind::SoilField : Kind::LayerColumn);
+        EXPECT_EQ(cat[n].kind, kind) << names[n];
         EXPECT_EQ(WRFSurfaceFields::find(names[n]), &cat[n]);
+        EXPECT_EQ(WRFSurfaceFields::has_soil_layers(names[n]), n >= 9) << names[n];
     }
     EXPECT_EQ(WRFSurfaceFields::find("TSK"), nullptr);
-    EXPECT_EQ(WRFSurfaceFields::find("ZS"), nullptr);
     EXPECT_EQ(WRFSurfaceFields::find("albedo"), nullptr);
-}
-
-// A nested level: the file covers columns 2..5 x 1..3 of a 6 x 5 level, the source's z
-// index starts at 3, and the source holds more columns than the file covers. A ghost or
-// valid column outside the file's range takes the nearest column inside it, not the
-// nearest column of the source.
-TEST(WRFSurfaceFields, OffsetFileRangeAndOffsetLayerIndex)
-{
-    Level L;
-    WRFSurfaceFields f;
-    f.resize(1);
-    const int nlay = 3;
-    const int k0 = 3;
-    const Box bx(IntVect(-1, -1, k0), IntVect(nx, ny, k0 + nlay - 1));
-    FArrayBox src(bx, 1, The_Pinned_Arena());
-    const auto a = src.array();
-    for (int k = k0; k < k0 + nlay; ++k) {
-        for (int j = -1; j <= ny; ++j) {
-            for (int i = -1; i <= nx; ++i) { a(i, j, k) = soil_at(i, j, k - k0); }
-        }
-    }
-    const int i_lo = 2, i_hi = 5, j_lo = 1, j_hi = 3;
-    f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), src, i_lo, i_hi, j_lo, j_hi);
-    const MultiFab* mf = f.get(0, Field::TSLB);
-    ASSERT_NE(mf, nullptr);
-    ASSERT_EQ(mf->nComp(), nlay);
-    for_each_cell(*mf, [&] (int i, int j, int n, Real v) {
-        EXPECT_EQ(v, soil_at(clamp(i, i_lo, i_hi), clamp(j, j_lo, j_hi), n)) << i << " " << j << " " << n;
-    });
-}
-
-// On a periodic level the ghost columns across the seam hold the far side's values.
-TEST(WRFSurfaceFields, PeriodicGhostsComeFromTheFarSide)
-{
-    Level L;
-    WRFSurfaceFields f;
-    f.resize(1);
-    const FArrayBox src = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
-    const Periodicity period(IntVect(nx, ny, 0));
-    f.fill(0, Field::ALBEDO, L.ba2d, L.dm, L.ng, period, src, 0, nx - 1, 0, ny - 1);
-    const MultiFab* mf = f.get(0, Field::ALBEDO);
-    ASSERT_NE(mf, nullptr);
-    for_each_cell(*mf, [&] (int i, int j, int, Real v) {
-        EXPECT_EQ(v, albedo_at((i + nx) % nx, (j + ny) % ny)) << i << " " << j;
-    });
+    EXPECT_FALSE(WRFSurfaceFields::has_soil_layers("SH2O"));   // the land model's own
 }
 
 TEST(WRFSurfaceFields, ColumnFieldKeepsEveryColumnAndClampsTheGhosts)
@@ -165,116 +172,307 @@ TEST(WRFSurfaceFields, ColumnFieldKeepsEveryColumnAndClampsTheGhosts)
     Level L;
     WRFSurfaceFields f;
     f.resize(2);
-    EXPECT_EQ(f.get(0, Field::ALBEDO), nullptr);
-    EXPECT_FALSE(f.has(0, Field::ALBEDO));
-
     const FArrayBox src = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
-    f.fill(0, Field::ALBEDO, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), src, 0, nx - 1, 0, ny - 1);
-
+    fill_whole(f, L, Field::ALBEDO, src);
     const MultiFab* mf = f.get(0, Field::ALBEDO);
     ASSERT_NE(mf, nullptr);
-    EXPECT_TRUE(f.has(0, Field::ALBEDO));
     EXPECT_EQ(mf->nComp(), 1);
     EXPECT_EQ(mf->nGrowVect(), L.ng);
-    EXPECT_TRUE(mf->boxArray() == L.ba2d);
-    // The other fields and the other level are untouched
-    EXPECT_EQ(f.get(0, Field::LAI), nullptr);
-    EXPECT_EQ(f.get(1, Field::ALBEDO), nullptr);
-    EXPECT_EQ(f.get(2, Field::ALBEDO), nullptr);   // beyond the levels held
-
-    int cells = 0;
-    for_each_cell(*mf, [&] (int i, int j, int, Real v) {
-        EXPECT_EQ(v, albedo_at(clamp(i, 0, nx - 1), clamp(j, 0, ny - 1))) << i << " " << j;
-        ++cells;
-    });
-    if (ParallelDescriptor::NProcs() == 1) { EXPECT_GT(cells, nx * ny); }
+    expect_field(*mf, [] (int i, int j, int) { return albedo_at(i, j); });
+    EXPECT_TRUE(f.has(0, Field::ALBEDO));
+    EXPECT_FALSE(f.has(0, Field::LAI));
+    EXPECT_FALSE(f.has(1, Field::ALBEDO));
+    EXPECT_EQ(f.get(-1, Field::ALBEDO), nullptr);
+    EXPECT_EQ(f.get(2, Field::ALBEDO), nullptr);
+    EXPECT_TRUE(f.holds_any(0));
+    EXPECT_FALSE(f.holds_any(1));
 }
 
+// The source's z index starts at 3 and is nodal in z, as the reader's fab of a soil
+// variable is; the first layer of the file is component 0.
 TEST(WRFSurfaceFields, SoilFieldHasOneComponentPerLayerTopFirst)
 {
     Level L;
     WRFSurfaceFields f;
     f.resize(1);
     const int nlay = 4;
-    const FArrayBox src = make_source(nlay, [] (int i, int j, int k) { return soil_at(i, j, k); });
-    f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), src, 0, nx - 1, 0, ny - 1);
-
+    const FArrayBox src = make_source(0, nx - 1, 0, ny - 1, nlay, 3,
+                                      [] (int i, int j, int n) { return soil_at(i, j, n); }, true);
+    fill_whole(f, L, Field::TSLB, src, nlay);
     const MultiFab* mf = f.get(0, Field::TSLB);
     ASSERT_NE(mf, nullptr);
     ASSERT_EQ(mf->nComp(), nlay);
-    for_each_cell(*mf, [&] (int i, int j, int n, Real v) {
-        EXPECT_EQ(v, soil_at(clamp(i, 0, nx - 1), clamp(j, 0, ny - 1), n)) << i << " " << j << " " << n;
-    });
+    expect_field(*mf, [] (int i, int j, int n) { return soil_at(i, j, n); });
 }
 
-// A field with one value per column takes the source's lowest z index only.
+// A surface field takes the first z index only, whatever the source holds above it
 TEST(WRFSurfaceFields, ColumnFieldIgnoresHigherLayersOfTheSource)
 {
     Level L;
     WRFSurfaceFields f;
     f.resize(1);
-    const FArrayBox src = make_source(3, [] (int i, int j, int k) { return soil_at(i, j, k); });
-    f.fill(0, Field::TMN, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), src, 0, nx - 1, 0, ny - 1);
+    const FArrayBox src = make_source(3, [] (int i, int j, int n) { return soil_at(i, j, n); });
+    fill_whole(f, L, Field::TMN, src, 3);
     const MultiFab* mf = f.get(0, Field::TMN);
     ASSERT_NE(mf, nullptr);
     ASSERT_EQ(mf->nComp(), 1);
-    for_each_cell(*mf, [&] (int i, int j, int, Real v) {
-        EXPECT_EQ(v, soil_at(clamp(i, 0, nx - 1), clamp(j, 0, ny - 1), 0));
+    expect_field(*mf, [] (int i, int j, int) { return soil_at(i, j, 0); });
+}
+
+// A level put together from two files: each call gives the columns of one file, from a
+// source that holds only those columns.
+TEST(WRFSurfaceFields, TwoFilesEachGiveTheirPart)
+{
+    Level L;
+    WRFSurfaceFields f;
+    f.resize(1);
+    const int nlay = 3;
+    const auto val = [] (int i, int j, int n) { return soil_at(i, j, n); };
+    const FArrayBox west = make_source(0, 2, 0, ny - 1, nlay, 0, val);
+    const FArrayBox east = make_source(3, nx - 1, 0, ny - 1, nlay, 0, val);
+    f.fill(0, Field::SMOIS, L.ba2d, L.dm, L.ng, nlay, west, columns(0, 2, 0, ny - 1));
+    f.fill(0, Field::SMOIS, L.ba2d, L.dm, L.ng, nlay, east, columns(3, nx - 1, 0, ny - 1));
+    // SMOIS is bounded by 1: these values (about 280) are outside, so the field is dropped
+    f.finish_level(0, Periodicity::NonPeriodic());
+    EXPECT_FALSE(f.has(0, Field::SMOIS));
+
+    f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, nlay, west, columns(0, 2, 0, ny - 1));
+    f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, nlay, east, columns(3, nx - 1, 0, ny - 1));
+    f.finish_level(0, Periodicity::NonPeriodic());
+    const MultiFab* mf = f.get(0, Field::TSLB);
+    ASSERT_NE(mf, nullptr);
+    ASSERT_EQ(mf->nComp(), nlay);
+    // The ghost columns across the seam hold the other file's values
+    expect_field(*mf, val);
+}
+
+// The files give only part of the level: the field is reported and not held; the run goes on
+TEST(WRFSurfaceFields, FilesThatDoNotCoverTheLevelLeaveTheFieldOut)
+{
+    Level L;
+    WRFSurfaceFields f;
+    f.resize(1);
+    ScopedThrowOnAbort guard;
+    const FArrayBox west = make_source(0, 2, 0, ny - 1, 1, 0, [] (int i, int j, int) { return albedo_at(i, j); });
+    EXPECT_NO_THROW(f.fill(0, Field::ALBEDO, L.ba2d, L.dm, L.ng, 1, west, columns(0, 2, 0, ny - 1)));
+    EXPECT_NO_THROW(f.finish_level(0, Periodicity::NonPeriodic()));
+    EXPECT_FALSE(f.has(0, Field::ALBEDO));
+    EXPECT_FALSE(f.holds_any(0));
+}
+
+// The file says it covers the level, and the region read does not reach: not read there,
+// reported, not held
+TEST(WRFSurfaceFields, SourceThatDoesNotReachLeavesTheFieldOut)
+{
+    Level L;
+    WRFSurfaceFields f;
+    f.resize(1);
+    ScopedThrowOnAbort guard;
+    const FArrayBox src = make_source(0, nx - 2, 0, ny - 1, 1, 0, [] (int i, int j, int) { return albedo_at(i, j); });
+    EXPECT_NO_THROW(f.fill(0, Field::LAI, L.ba2d, L.dm, L.ng, 1, src, all_columns()));
+    EXPECT_NO_THROW(f.finish_level(0, Periodicity::NonPeriodic()));
+    EXPECT_FALSE(f.has(0, Field::LAI));
+    // A soil source with fewer layers than the file declares
+    const FArrayBox thin = make_source(2, [] (int i, int j, int n) { return soil_at(i, j, n); });
+    EXPECT_NO_THROW(f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, 3, thin, all_columns()));
+    EXPECT_NO_THROW(f.finish_level(0, Periodicity::NonPeriodic()));
+    EXPECT_FALSE(f.has(0, Field::TSLB));
+}
+
+TEST(WRFSurfaceFields, TwoFilesThatDisagreeOnTheLayerCountLeaveTheFieldOut)
+{
+    Level L;
+    WRFSurfaceFields f;
+    f.resize(1);
+    const auto val = [] (int i, int j, int n) { return soil_at(i, j, n); };
+    const FArrayBox west = make_source(0, 2, 0, ny - 1, 3, 0, val);
+    const FArrayBox east = make_source(3, nx - 1, 0, ny - 1, 4, 0, val);
+    f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, 3, west, columns(0, 2, 0, ny - 1));
+    f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, 4, east, columns(3, nx - 1, 0, ny - 1));
+    f.finish_level(0, Periodicity::NonPeriodic());
+    EXPECT_FALSE(f.has(0, Field::TSLB));
+}
+
+// A value that cannot be the quantity leaves the field out, and does not stop the run
+TEST(WRFSurfaceFields, ValuesOutsideTheBoundsLeaveTheFieldOut)
+{
+    Level L;
+    ScopedThrowOnAbort guard;
+    // One column of the level holds the value; the others hold a value inside the bounds
+    const auto held = [&L] (Field id, Real bad) {
+        WRFSurfaceFields f;
+        f.resize(1);
+        const FArrayBox src = make_source(1, [bad] (int i, int j, int) {
+            return (i == 4 && j == 3) ? bad : Real(0.5);
+        });
+        EXPECT_NO_THROW(fill_whole(f, L, id, src));
+        return f.has(0, id);
+    };
+    EXPECT_FALSE(held(Field::ALBEDO, Real(1.5)));
+    EXPECT_FALSE(held(Field::ALBEDO, Real(-0.01)));
+    EXPECT_FALSE(held(Field::VEGFRA, Real(100.5)));
+    EXPECT_FALSE(held(Field::SEAICE, Real(2.0)));
+    EXPECT_FALSE(held(Field::SEAICE, Real(-1.0e-6)));
+    EXPECT_FALSE(held(Field::SMOIS, Real(1.2)));
+    EXPECT_FALSE(held(Field::TMN, Real(-1.0)));
+    EXPECT_FALSE(held(Field::ALBBCK, Real(1.5)));
+    EXPECT_FALSE(held(Field::SNOWH, Real(-999.0)));
+    EXPECT_FALSE(held(Field::ZNT, std::numeric_limits<Real>::quiet_NaN()));
+    EXPECT_FALSE(held(Field::SNOW, std::numeric_limits<Real>::infinity()));
+    EXPECT_FALSE(held(Field::SNOWH, -std::numeric_limits<Real>::infinity()));
+    // The next number above a bound
+    EXPECT_FALSE(held(Field::ALBEDO, std::nextafter(Real(1.0), Real(2.0))));
+    EXPECT_FALSE(held(Field::VEGFRA, std::nextafter(Real(100.0), Real(200.0))));
+    // A NetCDF fill value is finite: the upper bounds leave it out
+    for (const Field id : {Field::LAI, Field::TMN, Field::ZNT, Field::SNOW, Field::SNOWH, Field::TSLB}) {
+        EXPECT_FALSE(held(id, Real(9.96921e36)));
+    }
+    // The bounds themselves pass
+    EXPECT_TRUE(held(Field::ALBEDO, Real(1.0)));
+    EXPECT_TRUE(held(Field::ALBEDO, Real(0.0)));
+    EXPECT_TRUE(held(Field::VEGFRA, Real(100.0)));
+    EXPECT_TRUE(held(Field::SNOWH, Real(1.0e4)));
+}
+
+// A field left out does not take the others with it
+TEST(WRFSurfaceFields, OneFieldLeftOutLeavesTheOthersHeld)
+{
+    Level L;
+    WRFSurfaceFields f;
+    f.resize(1);
+    const FArrayBox good = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
+    const FArrayBox bad  = make_source(1, [] (int, int, int) { return Real(-999.0); });
+    f.fill(0, Field::ALBBCK, L.ba2d, L.dm, L.ng, 1, good, all_columns());
+    f.fill(0, Field::SNOWH,  L.ba2d, L.dm, L.ng, 1, bad,  all_columns());
+    f.finish_level(0, Periodicity::NonPeriodic());
+    EXPECT_FALSE(f.has(0, Field::SNOWH));
+    const MultiFab* mf = f.get(0, Field::ALBBCK);
+    ASSERT_NE(mf, nullptr);
+    expect_field(*mf, [] (int i, int j, int) { return albedo_at(i, j); });
+}
+
+TEST(WRFSurfaceFields, PeriodicGhostsComeFromTheFarSide)
+{
+    Level L;
+    WRFSurfaceFields f;
+    f.resize(1);
+    const Periodicity period(IntVect(nx, 0, 0));
+    const FArrayBox src = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
+    f.fill(0, Field::ALBEDO, L.ba2d, L.dm, L.ng, 1, src, all_columns());
+    f.finish_level(0, period);
+    const MultiFab* mf = f.get(0, Field::ALBEDO);
+    ASSERT_NE(mf, nullptr);
+    for_each_cell(*mf, [] (int i, int j, int, Real v) {
+        const int pi = (i + nx) % nx;
+        EXPECT_EQ(v, albedo_at(pi, clamp(j, 0, ny - 1))) << "i=" << i << " j=" << j;
     });
 }
 
-TEST(WRFSurfaceFields, ValuesOutsideTheBoundsStopTheRun)
+TEST(WRFSurfaceFields, SoilLayersComeFromTheColumn)
 {
-    Level L;
     WRFSurfaceFields f;
-    f.resize(1);
-    ScopedThrowOnAbort guard;
-    const auto fill = [&] (Field id, Real value_at_one_column) {
-        const FArrayBox src = make_source(1, [=] (int i, int j, int) {
-            return (i == 3 && j == 2) ? value_at_one_column : Real(0.5);
-        });
-        f.fill(0, id, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), src, 0, nx - 1, 0, ny - 1);
-    };
-    // At a bound, and a field left at zero: accepted
-    EXPECT_NO_THROW(fill(Field::ALBEDO, Real(1.0)));
-    EXPECT_NO_THROW(fill(Field::ALBEDO, Real(0.0)));
-    EXPECT_NO_THROW(fill(Field::VEGFRA, Real(100.0)));
-    EXPECT_NO_THROW(fill(Field::SNOW, Real(5000.0)));
-    EXPECT_NO_THROW(fill(Field::TMN, Real(1000.0)));
-    EXPECT_NO_THROW(fill(Field::ALBBCK, Real(1.0)));
-    // One column outside
-    EXPECT_THROW(fill(Field::ALBEDO, Real(1.5)), std::runtime_error);
-    EXPECT_THROW(fill(Field::ALBEDO, Real(-0.01)), std::runtime_error);
-    EXPECT_THROW(fill(Field::VEGFRA, Real(100.5)), std::runtime_error);
-    EXPECT_THROW(fill(Field::SEAICE, Real(2.0)), std::runtime_error);
-    EXPECT_THROW(fill(Field::SMOIS, Real(1.2)), std::runtime_error);
-    EXPECT_THROW(fill(Field::TMN, Real(-1.0)), std::runtime_error);
-    EXPECT_THROW(fill(Field::ALBBCK, Real(1.5)), std::runtime_error);
-    EXPECT_THROW(fill(Field::ZNT, std::numeric_limits<Real>::quiet_NaN()), std::runtime_error);
-    EXPECT_THROW(fill(Field::SNOW, std::numeric_limits<Real>::infinity()), std::runtime_error);
-    EXPECT_THROW(fill(Field::SNOWH, -std::numeric_limits<Real>::infinity()), std::runtime_error);
-    // The next value above a bound
-    EXPECT_THROW(fill(Field::ALBEDO, std::nextafter(Real(1.0), Real(2.0))), std::runtime_error);
-    EXPECT_THROW(fill(Field::VEGFRA, std::nextafter(Real(100.0), Real(200.0))), std::runtime_error);
-    // The NetCDF fill value is finite: the upper bounds stop it
-    for (const Field id : {Field::LAI, Field::TMN, Field::ZNT, Field::SNOW, Field::SNOWH, Field::TSLB}) {
-        EXPECT_THROW(fill(id, Real(9.96921e36)), std::runtime_error);
-    }
+    f.resize(2);
+    f.set_soil_layers(0, Field::ZS,  make_column({Real(0.05), Real(0.25), Real(0.7), Real(1.5)}));
+    f.set_soil_layers(0, Field::DZS, make_column({Real(0.1), Real(0.3), Real(0.6), Real(1.0)}));
+    ASSERT_EQ(f.soil_depth(0).size(), 4);
+    ASSERT_EQ(f.soil_thickness(0).size(), 4);
+    EXPECT_EQ(f.soil_depth(0)[0], Real(0.05));
+    EXPECT_EQ(f.soil_depth(0)[3], Real(1.5));
+    EXPECT_EQ(f.soil_thickness(0)[1], Real(0.3));
+    EXPECT_TRUE(f.soil_depth(1).empty());
+    EXPECT_TRUE(f.holds_any(0));
+    EXPECT_FALSE(f.holds_any(1));
+    // Not fields: get() stays null for them
+    EXPECT_EQ(f.get(0, Field::ZS), nullptr);
+    EXPECT_EQ(f.get(0, Field::DZS), nullptr);
 }
 
-// The source must cover the rank's columns; a region that is one column short stops the
-// run. The count of uncovered cells is reduced before the stop, so every rank throws.
-TEST(WRFSurfaceFields, SourceThatDoesNotCoverTheColumnsStopsTheRun)
+// A land model with its first level at the surface gives ZS = 0 there
+TEST(WRFSurfaceFields, FirstSoilDepthMayBeZero)
 {
-    Level L;
     WRFSurfaceFields f;
     f.resize(1);
+    f.set_soil_layers(0, Field::ZS, make_column({Real(0.0), Real(0.05), Real(0.2), Real(0.6)}));
+    ASSERT_EQ(f.soil_depth(0).size(), 4);
+    EXPECT_EQ(f.soil_depth(0)[0], Real(0.0));
+    EXPECT_EQ(f.soil_depth(0)[1], Real(0.05));
+}
+
+TEST(WRFSurfaceFields, SoilLayerColumnsThatBreakTheRulesAreLeftOut)
+{
     ScopedThrowOnAbort guard;
-    const Box short_box(IntVect(0, 0, 0), IntVect(nx - 2, ny - 1, 0));
-    FArrayBox src(short_box, 1, The_Pinned_Arena());
-    src.setVal<RunOn::Host>(Real(0.5));
-    EXPECT_THROW(f.fill(0, Field::LAI, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), src, 0, nx - 1, 0, ny - 1),
-                 std::runtime_error);
+    const auto depth_held = [] (std::initializer_list<Real> v) {
+        WRFSurfaceFields f;
+        f.resize(1);
+        EXPECT_NO_THROW(f.set_soil_layers(0, Field::ZS, make_column(v)));
+        return !f.soil_depth(0).empty();
+    };
+    const auto thick_held = [] (std::initializer_list<Real> v) {
+        WRFSurfaceFields f;
+        f.resize(1);
+        EXPECT_NO_THROW(f.set_soil_layers(0, Field::DZS, make_column(v)));
+        return !f.soil_thickness(0).empty();
+    };
+    EXPECT_TRUE (depth_held({Real(0.05), Real(0.25), Real(0.7)}));
+    EXPECT_FALSE(depth_held({Real(0.0), Real(0.0), Real(0.0)}));        // not given
+    EXPECT_FALSE(depth_held({Real(0.05), Real(0.05), Real(0.7)}));      // does not increase
+    EXPECT_FALSE(depth_held({Real(0.7), Real(0.25), Real(0.05)}));      // bottom layer first
+    EXPECT_FALSE(depth_held({Real(-0.05), Real(0.25), Real(0.7)}));     // negative
+    EXPECT_FALSE(depth_held({Real(0.0), Real(0.0), Real(0.7)}));        // zero twice
+    EXPECT_FALSE(depth_held({Real(0.05), std::numeric_limits<Real>::quiet_NaN(), Real(0.7)}));
+    EXPECT_FALSE(depth_held({Real(0.05), Real(0.25), Real(9.96921e36)}));
+    EXPECT_TRUE (thick_held({Real(0.1), Real(0.3), Real(0.6)}));
+    EXPECT_FALSE(thick_held({Real(0.0), Real(0.0), Real(0.0)}));        // not given
+    EXPECT_FALSE(thick_held({Real(0.0), Real(0.3), Real(0.6)}));        // a zero thickness
+    EXPECT_FALSE(thick_held({Real(0.1), Real(-0.3), Real(0.6)}));
+    EXPECT_FALSE(thick_held({Real(0.1), std::numeric_limits<Real>::infinity(), Real(0.6)}));
+
+    // Two files of a level that disagree: left out; a later file does not bring it back
+    WRFSurfaceFields f;
+    f.resize(1);
+    f.set_soil_layers(0, Field::ZS, make_column({Real(0.05), Real(0.25), Real(0.7)}));
+    f.set_soil_layers(0, Field::ZS, make_column({Real(0.05), Real(0.25), Real(0.7)}));
+    EXPECT_EQ(f.soil_depth(0).size(), 3);
+    f.set_soil_layers(0, Field::ZS, make_column({Real(0.05), Real(0.3), Real(0.7)}));
+    EXPECT_TRUE(f.soil_depth(0).empty());
+    f.set_soil_layers(0, Field::ZS, make_column({Real(0.05), Real(0.25), Real(0.7)}));
+    EXPECT_TRUE(f.soil_depth(0).empty());
+
+    EXPECT_THROW(amrex::ignore_unused(f.soil_depth(1)), std::runtime_error);
+}
+
+TEST(WRFSurfaceFields, SoilDataThatDisagreeOnTheLayerCountAreLeftOut)
+{
+    Level L;
+    ScopedThrowOnAbort guard;
+    const FArrayBox soil3 = make_source(3, [] (int i, int j, int n) { return soil_at(i, j, n); });
+    const FArrayBox alb   = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
+    {
+        // Agreement: all held
+        WRFSurfaceFields f;
+        f.resize(1);
+        f.set_soil_layers(0, Field::ZS,  make_column({Real(0.05), Real(0.25), Real(0.7)}));
+        f.set_soil_layers(0, Field::DZS, make_column({Real(0.1), Real(0.3), Real(0.6)}));
+        f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, 3, soil3, all_columns());
+        f.finish_level(0, Periodicity::NonPeriodic());
+        EXPECT_TRUE(f.has(0, Field::TSLB));
+        EXPECT_EQ(f.soil_depth(0).size(), 3);
+        EXPECT_EQ(f.soil_thickness(0).size(), 3);
+    }
+    {
+        // Four depths, three layers of temperature: the four soil data go, the albedo stays
+        WRFSurfaceFields f;
+        f.resize(1);
+        f.set_soil_layers(0, Field::ZS,  make_column({Real(0.05), Real(0.25), Real(0.7), Real(1.5)}));
+        f.set_soil_layers(0, Field::DZS, make_column({Real(0.1), Real(0.3), Real(0.6)}));
+        f.fill(0, Field::TSLB,   L.ba2d, L.dm, L.ng, 3, soil3, all_columns());
+        f.fill(0, Field::ALBBCK, L.ba2d, L.dm, L.ng, 1, alb,   all_columns());
+        EXPECT_NO_THROW(f.finish_level(0, Periodicity::NonPeriodic()));
+        EXPECT_FALSE(f.has(0, Field::TSLB));
+        EXPECT_TRUE(f.soil_depth(0).empty());
+        EXPECT_TRUE(f.soil_thickness(0).empty());
+        EXPECT_TRUE(f.has(0, Field::ALBBCK));
+    }
 }
 
 TEST(WRFSurfaceFields, ClearDropsOneLevel)
@@ -283,95 +481,159 @@ TEST(WRFSurfaceFields, ClearDropsOneLevel)
     WRFSurfaceFields f;
     f.resize(2);
     const FArrayBox src = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
-    f.fill(0, Field::ALBEDO, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), src, 0, nx - 1, 0, ny - 1);
-    f.fill(1, Field::ALBEDO, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), src, 0, nx - 1, 0, ny - 1);
+    for (int lev = 0; lev < 2; ++lev) {
+        f.fill(lev, Field::ALBEDO, L.ba2d, L.dm, L.ng, 1, src, all_columns());
+        f.finish_level(lev, Periodicity::NonPeriodic());
+        f.set_soil_layers(lev, Field::ZS, make_column({Real(0.05), Real(0.25)}));
+    }
     f.clear(0);
-    EXPECT_EQ(f.get(0, Field::ALBEDO), nullptr);
-    EXPECT_NE(f.get(1, Field::ALBEDO), nullptr);
-    f.clear(7);   // a level that is not held: nothing happens
-    EXPECT_NE(f.get(1, Field::ALBEDO), nullptr);
+    EXPECT_FALSE(f.has(0, Field::ALBEDO));
+    EXPECT_TRUE(f.soil_depth(0).empty());
+    EXPECT_FALSE(f.holds_any(0));
+    EXPECT_TRUE(f.has(1, Field::ALBEDO));
+    EXPECT_EQ(f.soil_depth(1).size(), 2);
+    f.clear(5);    // out of range: nothing
+    f.clear(-1);
+    EXPECT_TRUE(f.has(1, Field::ALBEDO));
 }
 
-TEST(WRFSurfaceFields, SoilLayersComeFromTheColumn)
-{
-    WRFSurfaceFields f;
-    f.resize(1);
-    EXPECT_TRUE(f.soil_depth(0).empty());
-    EXPECT_TRUE(f.soil_thickness(0).empty());
-
-    // The Noah layers: thickness 0.1, 0.3, 0.6, 1.0 m; centres 0.05, 0.25, 0.7, 1.5 m.
-    // The column sits away from the origin, as it does on a nested level.
-    const Real dzs[4] = {Real(0.1), Real(0.3), Real(0.6), Real(1.0)};
-    const Real zs[4]  = {Real(0.05), Real(0.25), Real(0.7), Real(1.5)};
-    const Box col(IntVect(12, 7, 0), IntVect(12, 7, 3));
-    FArrayBox thick(col, 1, The_Pinned_Arena());
-    FArrayBox depth(col, 1, The_Pinned_Arena());
-    for (int k = 0; k < 4; ++k) {
-        thick.array()(12, 7, k) = dzs[k];
-        depth.array()(12, 7, k) = zs[k];
-    }
-    f.set_soil_layers(0, true, thick);
-    f.set_soil_layers(0, false, depth);
-    ASSERT_EQ(f.soil_thickness(0).size(), 4);
-    ASSERT_EQ(f.soil_depth(0).size(), 4);
-    for (int k = 0; k < 4; ++k) {
-        EXPECT_EQ(f.soil_thickness(0)[k], dzs[k]);
-        EXPECT_EQ(f.soil_depth(0)[k], zs[k]);
-    }
-
-    EXPECT_NO_THROW(f.check_soil_layers(0));
-
-    ScopedThrowOnAbort guard;
-    // One layer at zero among positive ones
-    thick.array()(12, 7, 2) = Real(0.0);
-    EXPECT_THROW(f.set_soil_layers(0, true, thick), std::runtime_error);
-    // Depths that do not increase
-    depth.array()(12, 7, 2) = Real(0.2);
-    EXPECT_THROW(f.set_soil_layers(0, false, depth), std::runtime_error);
-    // Two layers at the same depth
-    depth.array()(12, 7, 2) = zs[1];
-    EXPECT_THROW(f.set_soil_layers(0, false, depth), std::runtime_error);
-    depth.array()(12, 7, 1) = std::numeric_limits<Real>::quiet_NaN();
-    EXPECT_THROW(f.set_soil_layers(0, false, depth), std::runtime_error);
-    // Every layer at zero: taken as not given
-    for (int k = 0; k < 4; ++k) { thick.array()(12, 7, k) = Real(0.0); }
-    EXPECT_NO_THROW(f.set_soil_layers(0, true, thick));
-    EXPECT_TRUE(f.soil_thickness(0).empty());
-    // A level that is not held
-    EXPECT_THROW(amrex::ignore_unused(f.soil_depth(1)), std::runtime_error);
-
-    f.clear(0);
-    EXPECT_TRUE(f.soil_depth(0).empty());
-    EXPECT_TRUE(f.soil_thickness(0).empty());
-}
-
-// TSLB, SMOIS, ZS and DZS, whichever are read, must agree on the number of layers.
-TEST(WRFSurfaceFields, SoilDataMustAgreeOnTheLayerCount)
+// A regrid or a rebalance: the same columns in other boxes keep every value
+TEST(WRFSurfaceFields, RemakeCarriesTheFieldsOntoNewGrids)
 {
     Level L;
     WRFSurfaceFields f;
     f.resize(1);
-    EXPECT_NO_THROW(f.check_soil_layers(0));   // nothing read
+    const int nlay = 3;
+    const FArrayBox alb  = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
+    const FArrayBox soil = make_source(nlay, [] (int i, int j, int n) { return soil_at(i, j, n); });
+    f.fill(0, Field::ALBEDO, L.ba2d, L.dm, L.ng, 1,    alb,  all_columns());
+    f.fill(0, Field::TSLB,   L.ba2d, L.dm, L.ng, nlay, soil, all_columns());
+    f.set_soil_layers(0, Field::ZS, make_column({Real(0.05), Real(0.25), Real(0.7)}));
+    f.finish_level(0, Periodicity::NonPeriodic());
 
-    const auto column = [] (int nlay) {
-        FArrayBox c(Box(IntVect(0, 0, 0), IntVect(0, 0, nlay - 1)), 1, The_Pinned_Arena());
-        for (int k = 0; k < nlay; ++k) { c.array()(0, 0, k) = Real(0.25) * Real(k + 1); }
-        return c;
-    };
-    const auto soil = [] (int nlay) {
-        return make_source(nlay, [] (int, int, int) { return Real(0.25); });
-    };
-    f.fill(0, Field::SMOIS, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), soil(4), 0, nx - 1, 0, ny - 1);
-    EXPECT_NO_THROW(f.check_soil_layers(0));   // one of the four alone
-    f.set_soil_layers(0, false, column(4));
-    f.set_soil_layers(0, true, column(4));
-    f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), soil(4), 0, nx - 1, 0, ny - 1);
-    EXPECT_NO_THROW(f.check_soil_layers(0));
+    const Level N(IntVect(2, 5, 1));
+    ASSERT_FALSE(N.ba2d == L.ba2d);
+    f.remake(0, N.ba2d, N.dm, Periodicity::NonPeriodic());
+    const MultiFab* a = f.get(0, Field::ALBEDO);
+    const MultiFab* t = f.get(0, Field::TSLB);
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(t, nullptr);
+    EXPECT_TRUE(a->boxArray() == N.ba2d);
+    EXPECT_TRUE(t->boxArray() == N.ba2d);
+    EXPECT_EQ(a->nGrowVect(), L.ng);
+    ASSERT_EQ(t->nComp(), nlay);
+    expect_field(*a, [] (int i, int j, int) { return albedo_at(i, j); });
+    expect_field(*t, [] (int i, int j, int n) { return soil_at(i, j, n); });
+    EXPECT_EQ(f.soil_depth(0).size(), 3);
+}
 
+// New grids that reach beyond the region the fields were read on: dropped, the run goes on
+TEST(WRFSurfaceFields, RemakeDropsTheFieldsBeyondTheirRegion)
+{
+    Level L;
+    WRFSurfaceFields f;
+    f.resize(1);
     ScopedThrowOnAbort guard;
-    f.set_soil_layers(0, true, column(3));
-    EXPECT_THROW(f.check_soil_layers(0), std::runtime_error);
-    f.set_soil_layers(0, true, column(4));
-    f.fill(0, Field::TSLB, L.ba2d, L.dm, L.ng, Periodicity::NonPeriodic(), soil(3), 0, nx - 1, 0, ny - 1);
-    EXPECT_THROW(f.check_soil_layers(0), std::runtime_error);
+    const FArrayBox alb = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
+    fill_whole(f, L, Field::ALBEDO, alb);
+    f.set_soil_layers(0, Field::ZS, make_column({Real(0.05), Real(0.25)}));
+    BoxArray wider(Box(IntVect(0, 0, 0), IntVect(nx + 1, ny - 1, 0)));
+    const DistributionMapping dm(wider);
+    EXPECT_NO_THROW(f.remake(0, wider, dm, Periodicity::NonPeriodic()));
+    EXPECT_FALSE(f.has(0, Field::ALBEDO));
+    EXPECT_TRUE(f.soil_depth(0).empty());
+    EXPECT_FALSE(f.holds_any(0));
+}
+
+TEST(WRFSurfaceFields, CheckpointHeaderRoundTrip)
+{
+    Level L;
+    WRFSurfaceFields f;
+    f.resize(2);
+    const int nlay = 3;
+    const FArrayBox alb  = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
+    const FArrayBox soil = make_source(nlay, [] (int i, int j, int n) { return soil_at(i, j, n); });
+    f.fill(0, Field::ALBBCK, L.ba2d, L.dm, L.ng, 1,    alb,  all_columns());
+    f.fill(0, Field::TSLB,   L.ba2d, L.dm, L.ng, nlay, soil, all_columns());
+    // Not multiples of a power of two: the text must give them back bit for bit
+    const Real third = Real(1.0) / Real(3.0);
+    f.set_soil_layers(0, Field::ZS,  make_column({Real(0.05), third, Real(0.7)}));
+    f.set_soil_layers(0, Field::DZS, make_column({Real(0.1), Real(0.3), third}));
+    f.finish_level(0, Periodicity::NonPeriodic());
+
+    std::ostringstream os;
+    f.write_header(os, 2);
+    std::istringstream is(os.str());
+    Vector<WRFSurfaceFields::HeaderLevel> levels;
+    ASSERT_TRUE(WRFSurfaceFields::parse_header(is, levels));
+    ASSERT_EQ(levels.size(), 2);
+    for (int n = 0; n < WRFSurfaceFields::num_fields; ++n) {
+        const Field id = static_cast<Field>(n);
+        const int expect = (id == Field::ALBBCK) ? 1
+                         : ((id == Field::TSLB || id == Field::ZS || id == Field::DZS) ? nlay : 0);
+        EXPECT_EQ(levels[0].ncomp[n], expect) << n;
+        EXPECT_EQ(levels[1].ncomp[n], 0) << n;
+    }
+    ASSERT_EQ(levels[0].soil_depth.size(), nlay);
+    ASSERT_EQ(levels[0].soil_thickness.size(), nlay);
+    EXPECT_EQ(levels[0].soil_depth[1], third);
+    EXPECT_EQ(levels[0].soil_thickness[2], third);
+    EXPECT_EQ(levels[0].soil_depth[0], Real(0.05));
+    EXPECT_TRUE(levels[1].soil_depth.empty());
+
+    // Not a header of this class
+    std::istringstream other("HyperCLaw-V1.1\n3\n");
+    EXPECT_FALSE(WRFSurfaceFields::parse_header(other, levels));
+    EXPECT_TRUE(levels.empty());
+    std::istringstream cut("WRFSurfaceFields 1\n1\nLevel 0 2\nALBBCK 1\n");
+    EXPECT_FALSE(WRFSurfaceFields::parse_header(cut, levels));
+    std::istringstream newer("WRFSurfaceFields 2\n0\n");
+    EXPECT_FALSE(WRFSurfaceFields::parse_header(newer, levels));
+}
+
+// Write the held fields, read them back on other boxes: every value and ghost cell returns
+TEST(WRFSurfaceFields, CheckpointRoundTripOntoOtherGrids)
+{
+    Level L;
+    WRFSurfaceFields f;
+    f.resize(1);
+    const int nlay = 3;
+    const FArrayBox alb  = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
+    const FArrayBox soil = make_source(nlay, [] (int i, int j, int n) { return soil_at(i, j, n); });
+    f.fill(0, Field::ALBBCK, L.ba2d, L.dm, L.ng, 1,    alb,  all_columns());
+    f.fill(0, Field::TSLB,   L.ba2d, L.dm, L.ng, nlay, soil, all_columns());
+    f.set_soil_layers(0, Field::ZS, make_column({Real(0.0), Real(0.25), Real(0.7)}));
+    f.finish_level(0, Periodicity::NonPeriodic());
+
+    const std::string dir = "wrfsfc_gtest_chk";
+    amrex::UtilCreateCleanDirectory(dir, false);
+    amrex::UtilCreateDirectory(dir + "/Level_0", 0755);
+    f.write_checkpoint(dir, 1);
+
+    const Level N(IntVect(3, 2, 1));
+    WRFSurfaceFields g;
+    g.resize(1);
+    ASSERT_TRUE(g.read_checkpoint(dir, 1, {N.ba2d}, {N.dm}, N.ng, {Periodicity::NonPeriodic()}));
+    const MultiFab* a = g.get(0, Field::ALBBCK);
+    const MultiFab* t = g.get(0, Field::TSLB);
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(t, nullptr);
+    EXPECT_TRUE(a->boxArray() == N.ba2d);
+    ASSERT_EQ(t->nComp(), nlay);
+    expect_field(*a, [] (int i, int j, int) { return albedo_at(i, j); });
+    expect_field(*t, [] (int i, int j, int n) { return soil_at(i, j, n); });
+    EXPECT_FALSE(g.has(0, Field::ALBEDO));
+    ASSERT_EQ(g.soil_depth(0).size(), nlay);
+    EXPECT_EQ(g.soil_depth(0)[0], Real(0.0));
+    EXPECT_EQ(g.soil_depth(0)[2], Real(0.7));
+    EXPECT_TRUE(g.soil_thickness(0).empty());
+
+    // A checkpoint written before the fields were stored: nothing is restored
+    WRFSurfaceFields h;
+    h.resize(1);
+    amrex::FileSystem::Remove(dir + "/" + WRFSurfaceFields::checkpoint_header_name);
+    EXPECT_FALSE(h.read_checkpoint(dir, 1, {N.ba2d}, {N.dm}, N.ng, {Periodicity::NonPeriodic()}));
+    EXPECT_FALSE(h.holds_any(0));
+
+    amrex::FileSystem::RemoveAll(dir);
 }

@@ -7,6 +7,8 @@ A wrfinput file carries land and soil fields. ERF asked for five of them (`LAI`,
 `ALBBCK`, `SEAICE`, `SNOW` or `SNOWH`. With the two-stream force-restore surface energy
 balance and no land model, the reader now takes all eleven, plus the soil layer depths `ZS`
 and thicknesses `DZS`, and keeps them per level in `WRFSurfaceFields`. Each one is optional.
+A field with a value outside its range is reported and left out; the run goes on. The
+fields are written to the checkpoint and read back on a restart.
 
 This case checks the reader only. Nothing uses the fields yet.
 
@@ -15,7 +17,7 @@ This case checks the reader only. Nothing uses the fields yet.
 | File | Role |
 | --- | --- |
 | `WRFInput_SurfaceFields.i` | One level, 12 x 8 x 8 cells, `max_step = 0`, two-stream radiation with `seb_prognostic_enable` |
-| `make_wrfinput.py` | Writes `wrfinput_d01` and `wrflowinp_d01`; `--omit NAME ...` leaves variables out; `--bad-albedo` puts 1.5 in one column; `--nz N` sets the atmospheric levels; `--zero-layers` leaves `ZS` and `DZS` at zero |
+| `make_wrfinput.py` | Writes `wrfinput_d01` and `wrflowinp_d01`; `--omit NAME ...` leaves variables out; `--bad NAME VALUE` puts the value in one column of a field; `--fill NAME VALUE` puts it in every column; `--surface-zs` starts `ZS` at zero; `--nz N` sets the atmospheric levels; `--zero-layers` leaves `ZS` and `DZS` at zero |
 | `check_log.py` | Compares the reader's report in the log with the formulas in `make_wrfinput.py` |
 
 ## Data
@@ -72,11 +74,16 @@ every column, the ghost columns and the layer order of the copy into the holder.
 | `WRFInput_SurfaceFields` | every field in the file | all eleven fields, `ZS` and `DZS` are reported with the values above |
 | `WRFInput_SurfaceFields_Absent` | `LAI`, `SEAICE`, `SNOWH`, `SMOIS`, `DZS` left out | the run finishes, these five are skipped and the others are reported |
 | `WRFInput_SurfaceFields_BalanceOff` | `erf.radiation.seb_prognostic_enable=false` | none of the fields is asked for |
-| `WRFInput_SurfaceFields_Abort_Albedo` | one `ALBEDO` column is 1.5 | the run stops with `wrfinput ALBEDO holds a value outside its allowed range` |
+| `WRFInput_SurfaceFields_Drop_Albedo` | one `ALBEDO` column is 1.5 | the run finishes; `ALBEDO` is reported as not held with 1 value outside 0 to 1; the other fields are reported |
+| `WRFInput_SurfaceFields_Drop_FlagValues` | `SNOWH` is -999 in every column and one `SEAICE` column is -0.001 | the run finishes; both are reported as not held (96 values and 1 value); the other fields are reported |
 | `WRFInput_SurfaceFields_ThinColumn` | a file and a grid with 3 atmospheric levels and 4 soil layers | all four soil layers are reported, as in the first test |
 | `WRFInput_SurfaceFields_ZeroLayers` | `ZS` and `DZS` declared and left at zero | the run finishes, both are reported as not given and the eleven fields are read |
+| `WRFInput_SurfaceFields_SurfaceZS` | `ZS` is 0, 0.1, 0.4, 1.0 | `ZS` is held with these values |
+| `WRFInput_SurfaceFields_Restart` | the first test with a checkpoint, then a restart from it | the restart reports every field as restored with the values above, and does not read the file again |
+| `WRFInput_SurfaceFields_Restart_OtherGrids` | the same, the restart with `amr.max_grid_size=4` | the same report on the smaller boxes |
 | `WRFInput_SurfaceFields_MPI` | the first test on 4 ranks (2 boxes, so 2 ranks hold none); MPI builds only | the same report as the first test |
-| `WRFInput_SurfaceFields_Abort_Albedo_MPI` | the albedo of 1.5 on 2 ranks; the second rank holds the column; MPI builds only | the run stops with the same report, printed by the first rank |
+| `WRFInput_SurfaceFields_Drop_Albedo_MPI` | the albedo of 1.5 on 2 ranks; the second rank holds the column; MPI builds only | the same report as on one rank, printed by the first rank |
+| `WRFInput_SurfaceFields_Restart_MPI` | the restart test on 3 ranks; MPI builds only | the same report as on one rank |
 
 All have the labels `regression;wrfinput` and are registered only with
 `ERF_ENABLE_NETCDF` and a Python that has `netCDF4` and `numpy`.

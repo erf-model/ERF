@@ -538,21 +538,14 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     // The land and soil fields that no land model takes. They are asked for when the
     // two-stream force-restore balance evolves the surface without a land model, each of
     // them is optional, and they go to wrf_surface_fields as the file gives them.
-    // They are held for a level that has one file; a level put together from several
-    // files does not take them.
-    const bool want_surface_fields = !use_lsm &&
+    // A level put together from several files takes each file's part; a field that the
+    // files do not give on every column of the level is reported and not held.
+    const bool read_surface_fields = !use_lsm &&
         (solverChoice.rad_type == RadiationType::TwoStream) &&
         solverChoice.radChoice.seb_prognostic_enable;
-    const bool read_surface_fields = want_surface_fields && (num_boxes_at_level[lev] == 1);
     wrf_surface_fields.clear(lev);
-    if (want_surface_fields && !read_surface_fields) {
-        Print() << "   wrfinput land and soil fields are not read at level " << lev
-                << ": the level has " << num_boxes_at_level[lev] << " files\n";
-    }
     if (read_surface_fields) {
         for (const auto& d : WRFSurfaceFields::catalog()) { NC_names.push_back(d.nc_name); }
-        NC_names.push_back("ZS");
-        NC_names.push_back("DZS");
     }
     int nvar = NC_names.size();
 
@@ -746,8 +739,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
             // With a land model these names are its required inputs; without one they
             // are the optional fields of wrf_surface_fields.
-            const bool is_surface_field = read_surface_fields &&
-                (WRFSurfaceFields::find(var_name) != nullptr || var_name == "ZS" || var_name == "DZS");
+            const WRFSurfaceFields::Descriptor* sfc_desc =
+                read_surface_fields ? WRFSurfaceFields::find(var_name) : nullptr;
+            const bool is_surface_field = (sfc_desc != nullptr);
             has_fallback_behavior = has_fallback_behavior || is_surface_field;
             if (!success && !has_fallback_behavior) {
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
@@ -756,10 +750,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             FArrayBox var_fab;
             FArrayBox var_fab_crse;
 
+            // Number of z indices of the variable in the file (the soil layers of a soil
+            // variable); the file's metadata, the same on every rank
+            int file_nz = 1;
+
             if (success) {
                 // The box the whole variable covers, in this level's index space
                 Box var_box(file_box);
                 var_box.shift(shift_by);
+                file_nz = var_box.length(2);
 
 
                 // In the case where the array is 1D in the z-direction, the destination box needs to also
@@ -792,9 +791,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 // fields, whose third index is a soil layer rather than an atmospheric
                 // level even though their fab is staggered in z.
                 // *********************************************************************
-                const bool is_soil_var = (var_name == "TSLB" || var_name == "SMOIS" ||
-                                          var_name == "SH2O" || var_name == "ZS"    ||
-                                          var_name == "DZS");
+                const bool is_soil_var = WRFSurfaceFields::has_soil_layers(var_name) ||
+                                         (var_name == "SH2O");
                 const bool refine_in_z = (rr_z > 1) && (nz > 1) && !is_soil_var;
 
                 Box subdomain_crse(local_to_fill);
@@ -1322,16 +1320,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
           }
 
           // The optional land and soil fields, taken as read from the file, like the
-          // land model's inputs below: var_fab_from_file is filled on the host, and the
-          // third index of a soil field is the soil layer.
+          // land model's inputs below: the third index of a soil field is the soil
+          // layer. Each file gives the part of the level it covers; the checks and the
+          // ghost cells follow the last file (finish_level).
           if (is_surface_field && success) {
-              const WRFSurfaceFields::Descriptor* d = WRFSurfaceFields::find(var_name);
-              if (d != nullptr) {
-                  wrf_surface_fields.fill(lev, d->id, ba2d[lev], dm, ngv, geom[lev].periodicity(),
-                                          var_fab_from_file,
-                                          i_lo, i_hi, j_lo, j_hi);
+              if (sfc_desc->kind == WRFSurfaceFields::Kind::LayerColumn) {
+                  wrf_surface_fields.set_soil_layers(lev, sfc_desc->id, var_fab_from_file);
               } else {
-                  wrf_surface_fields.set_soil_layers(lev, var_name == "DZS", var_fab_from_file);
+                  wrf_surface_fields.fill(lev, sfc_desc->id, ba2d[lev], dm, ngv, file_nz,
+                                          var_fab_from_file, subdomain_to_fill);
               }
           }
 
@@ -1489,10 +1486,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
           }
         } // ivar
 
-        if (read_surface_fields) { wrf_surface_fields.check_soil_layers(lev); }
         Print() << "\n";
         have_read_nc_init_file[lev][idx] = 1;
     } // idx
+
+    // After the last file: reduce the checks over the ranks, report, fill the ghost cells
+    if (read_surface_fields) { wrf_surface_fields.finish_level(lev, geom[lev].periodicity()); }
 
     // Convert the velocities using the map factors
     //

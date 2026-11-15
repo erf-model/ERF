@@ -13,16 +13,22 @@
  * optional: a file without it leaves get() null. The holder keeps the values as the file
  * gives them, in the file's units; it applies no physics.
  *
- * The data are those of the initial time. They are not checkpointed, they are dropped when
- * the level's grids change, and a level made by tagging (no file of its own) has none.
- * Code that needs them after the start must copy what it needs into its own state.
+ * A field that holds a value outside its catalog range, or one that is not finite, or
+ * that the level's files do not cover, is reported and not held: get() is null, as for a
+ * field the file does not have. The code that takes a field decides whether its absence
+ * stops the run.
+ *
+ * The data are those of the initial time. They are written to the checkpoint and read
+ * back on a restart. A regrid carries them onto the new grids where the old grids cover
+ * them, and drops them, with a message, where they do not. A level made by tagging (no
+ * file of its own) has none.
  *
  * The class has no NetCDF dependency: fill() takes the region a rank has read as an
  * FArrayBox, so the unit tests can drive it without a file.
  */
 
 #include <array>
-#include <cmath>
+#include <iosfwd>
 #include <limits>
 #include <memory>
 #include <string>
@@ -30,17 +36,14 @@
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_FArrayBox.H>
-#include <AMReX_Gpu.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Periodicity.H>
-#include <AMReX_Print.H>
 #include <AMReX_Vector.H>
 
 class WRFSurfaceFields
 {
 public:
-    /** The fields, in the order they are requested from the file. */
+    /** The variables, in the order they are requested from the file. */
     enum class Field : int {
         LAI = 0,   ///< leaf area index [m2/m2]
         VEGFRA,    ///< vegetation fraction [percent]
@@ -53,78 +56,64 @@ public:
         SNOWH,     ///< snow depth [m]
         TSLB,      ///< soil temperature, one component per soil layer, top layer first [K]
         SMOIS,     ///< soil moisture, one component per soil layer, top layer first [m3/m3]
+        ZS,        ///< depth of the centre of each soil layer, one column for the level [m]
+        DZS,       ///< thickness of each soil layer, one column for the level [m]
         NumFields
     };
 
     static constexpr int num_fields = static_cast<int>(Field::NumFields);
 
-    /** A field's name in the file, its units, and the range outside which the read stops. */
+    /** How a variable is laid out in the file. */
+    enum class Kind : int {
+        Surface,      ///< one value per column
+        SoilField,    ///< one value per column and soil layer
+        LayerColumn   ///< one value per soil layer, the same for every column (ZS, DZS)
+    };
+
+    /** A variable's name in the file, its layout, its units, and the range a file may hold. */
     struct Descriptor {
         Field       id;
         const char* nc_name;
+        Kind        kind;
         const char* units;
         amrex::Real lo;    ///< smallest value a file may hold
         amrex::Real hi;    ///< largest value a file may hold
-        bool        soil;  ///< true: one value per soil layer
     };
 
     /**
-     * The bounds stop only values that cannot be the named quantity (a negative
-     * temperature, a fraction above one, a NaN). A field that a hand-built file declares
-     * and leaves at zero passes; whether zero is usable is for the code that takes the field.
-     * The upper bounds of LAI, TMN, ZNT, SNOW, SNOWH and TSLB are not physical limits: they
-     * are set far above any value of the quantity so that a NetCDF fill value (9.97e36),
-     * which is finite, is stopped.
+     * The one list of the variables. The reader asks the file for every name in it, and
+     * takes the layout of a name from its kind.
+     *
+     * The bounds leave out only values that cannot be the named quantity (a negative
+     * temperature, a fraction above one). A field that a hand-built file declares and
+     * leaves at zero passes; whether zero is usable is for the code that takes the field.
+     * The upper bounds of LAI, TMN, ZNT, SNOW, SNOWH, TSLB, ZS and DZS are not physical
+     * limits: they are set far above any value of the quantity so that a NetCDF fill
+     * value (9.97e36), which is finite, is left out.
      */
-    [[nodiscard]] static const std::array<Descriptor, num_fields>& catalog ()
+    [[nodiscard]] static const std::array<Descriptor, num_fields>& catalog ();
+
+    /** The descriptor of the variable with this name in the file, or null when it is not one of these. */
+    [[nodiscard]] static const Descriptor* find (const std::string& nc_name);
+
+    /** True when the third index of this variable in the file is the soil layer. */
+    [[nodiscard]] static bool has_soil_layers (const std::string& nc_name)
     {
-        // Not named zero and one: those are constants of ERF_NumericalConstants.H
-        constexpr amrex::Real lo0 = amrex::Real(0.0);
-        constexpr amrex::Real hi1 = amrex::Real(1.0);
-        static const std::array<Descriptor, num_fields> table{{
-            {Field::LAI,    "LAI",    "m2/m2",  lo0,  amrex::Real(100.0),  false},
-            {Field::VEGFRA, "VEGFRA", "%",      lo0,  amrex::Real(100.0),  false},
-            {Field::TMN,    "TMN",    "K",      lo0,  amrex::Real(1000.0), false},
-            {Field::ZNT,    "ZNT",    "m",      lo0,  amrex::Real(100.0),  false},
-            {Field::ALBEDO, "ALBEDO", "1",      lo0,  hi1,                 false},
-            {Field::ALBBCK, "ALBBCK", "1",      lo0,  hi1,                 false},
-            {Field::SEAICE, "SEAICE", "1",      lo0,  hi1,                 false},
-            {Field::SNOW,   "SNOW",   "kg/m2",  lo0,  amrex::Real(1.0e6),  false},
-            {Field::SNOWH,  "SNOWH",  "m",      lo0,  amrex::Real(1.0e4),  false},
-            {Field::TSLB,   "TSLB",   "K",      lo0,  amrex::Real(1000.0), true},
-            {Field::SMOIS,  "SMOIS",  "m3/m3",  lo0,  hi1,                 true},
-        }};
-        return table;
+        const Descriptor* d = find(nc_name);
+        return d != nullptr && d->kind != Kind::Surface;
     }
 
-    /** The descriptor of the field with this name in the file, or null when it is not one of these. */
-    [[nodiscard]] static const Descriptor* find (const std::string& nc_name)
-    {
-        for (const auto& d : catalog()) {
-            if (nc_name == d.nc_name) { return &d; }
-        }
-        return nullptr;
-    }
-
-    void resize (int nlevs)
-    {
-        m_fields.resize(nlevs);
-        m_soil_depth.resize(nlevs);
-        m_soil_thickness.resize(nlevs);
-    }
+    void resize (int nlevs);
 
     [[nodiscard]] int num_levels () const { return static_cast<int>(m_fields.size()); }
 
-    /** Drop everything held at this level (its grids are about to change). */
-    void clear (int lev)
-    {
-        if (lev < 0 || lev >= num_levels()) { return; }
-        for (auto& f : m_fields[lev]) { f.reset(); }
-        m_soil_depth[lev].clear();
-        m_soil_thickness[lev].clear();
-    }
+    /** True when the level holds a field or a soil layer column. */
+    [[nodiscard]] bool holds_any (int lev) const;
 
-    /** The field at this level, or null when the level's file did not hold it. */
+    /** Drop everything held at this level. Prints one line when something was held. */
+    void clear (int lev);
+
+    /** The field at this level, or null when it is not held. Always null for ZS and DZS. */
     [[nodiscard]] const amrex::MultiFab* get (int lev, Field id) const
     {
         if (lev < 0 || lev >= num_levels()) { return nullptr; }
@@ -133,14 +122,14 @@ public:
 
     [[nodiscard]] bool has (int lev, Field id) const { return get(lev, id) != nullptr; }
 
-    /** Depth of the centre of each soil layer [m], top layer first (ZS); empty when not read. */
+    /** Depth of the centre of each soil layer [m], top layer first (ZS); empty when not held. */
     [[nodiscard]] const amrex::Vector<amrex::Real>& soil_depth (int lev) const
     {
         AMREX_ALWAYS_ASSERT(lev >= 0 && lev < num_levels());
         return m_soil_depth[lev];
     }
 
-    /** Thickness of each soil layer [m], top layer first (DZS); empty when not read. */
+    /** Thickness of each soil layer [m], top layer first (DZS); empty when not held. */
     [[nodiscard]] const amrex::Vector<amrex::Real>& soil_thickness (int lev) const
     {
         AMREX_ALWAYS_ASSERT(lev >= 0 && lev < num_levels());
@@ -148,209 +137,137 @@ public:
     }
 
     /**
-     * Take the soil layer depths or thicknesses from the column a rank has read.
+     * Take the soil layer depths (ZS) or thicknesses (DZS) from the column a rank has
+     * read. Local: every rank reads the same column.
+     *
+     * A column that is zero in every layer is taken as not given. Otherwise the depths
+     * must be zero or more and increase with the layer (a land model may put its first
+     * level at the surface), and the thicknesses must be positive. A column that breaks
+     * these rules, or holds a value that is not finite or above the catalog bound, is
+     * reported and not held.
      *
      * @param lev level
-     * @param thickness true for DZS, false for ZS
-     * @param src the column as read; host memory; its z range is the soil layers
-     *
-     * A column that is zero in every layer is taken as not given and leaves the vector
-     * empty. Otherwise every value must be positive, and the depths must increase.
+     * @param id Field::ZS or Field::DZS
+     * @param src the column as read; host-readable memory; its z range is the soil layers
      */
-    void set_soil_layers (int lev, bool thickness, const amrex::FArrayBox& src)
-    {
-        AMREX_ALWAYS_ASSERT(lev >= 0 && lev < num_levels());
-        const amrex::Box& sbx = src.box();
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sbx.ok(),
-            "WRFSurfaceFields::set_soil_layers: this rank holds no part of the soil layer column");
-        auto& dst = thickness ? m_soil_thickness[lev] : m_soil_depth[lev];
-        const char* name = thickness ? "DZS" : "ZS";
-        const auto arr = src.const_array();
-        const int ilo = sbx.smallEnd(0);
-        const int jlo = sbx.smallEnd(1);
-        const int nlay = sbx.length(2);
-        dst.resize(nlay);
-        bool all_zero = true;
-        for (int n = 0; n < nlay; ++n) {
-            dst[n] = arr(ilo, jlo, sbx.smallEnd(2) + n);
-            // isfinite first: a comparison with a NaN raises the invalid-operation exception
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(dst[n]),
-                thickness ? "wrfinput DZS holds a value that is not finite"
-                          : "wrfinput ZS holds a value that is not finite");
-            all_zero = all_zero && (dst[n] == amrex::Real(0.0));
-        }
-        // A file written without a land model (ideal.exe, or a hand-built file) declares
-        // the layers and leaves them at zero: that is a file without them.
-        if (all_zero) {
-            dst.clear();
-            amrex::Print() << "   wrfinput " << name << " at level " << lev
-                           << " is zero in every soil layer: taken as not given\n";
-            return;
-        }
-        for (int n = 0; n < nlay; ++n) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dst[n] > amrex::Real(0.0),
-                thickness ? "wrfinput DZS: every soil layer thickness must be positive"
-                          : "wrfinput ZS: every soil layer depth must be positive");
-            // The top layer is first: the depths grow with the layer index
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(thickness || n == 0 || dst[n] > dst[n-1],
-                "wrfinput ZS: the soil layer depths must increase, top layer first");
-        }
-        amrex::Print() << "   wrfinput soil layer " << (thickness ? "thicknesses DZS" : "depths ZS")
-                       << " at level " << lev << ":";
-        for (const amrex::Real v : dst) { amrex::Print() << " " << v; }
-        amrex::Print() << " [m]\n";
-    }
+    void set_soil_layers (int lev, Field id, const amrex::FArrayBox& src);
 
     /**
-     * Stop the run when the soil data of a level do not agree on the number of layers:
-     * TSLB, SMOIS, ZS and DZS, whichever of them were read. Local; every rank holds the
-     * same counts.
-     */
-    void check_soil_layers (int lev) const
-    {
-        AMREX_ALWAYS_ASSERT(lev >= 0 && lev < num_levels());
-        int nlay = 0;
-        const auto agree = [&nlay] (int n) {
-            if (n == 0) { return true; }   // not read
-            if (nlay == 0) { nlay = n; }
-            return n == nlay;
-        };
-        bool ok = agree(static_cast<int>(m_soil_depth[lev].size()));
-        ok = agree(static_cast<int>(m_soil_thickness[lev].size())) && ok;
-        for (const Field id : {Field::TSLB, Field::SMOIS}) {
-            const amrex::MultiFab* mf = get(lev, id);
-            ok = agree(mf ? mf->nComp() : 0) && ok;
-        }
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ok,
-            "wrfinput TSLB, SMOIS, ZS and DZS must have the same number of soil layers");
-    }
-
-    /**
-     * Copy one field from the region this rank has read. Collective: every rank calls it.
+     * Copy the part of one field that one file covers. Every rank calls it, once per file
+     * of the level; no MPI call is made here.
      *
-     * A cell outside [i_lo,i_hi] x [j_lo,j_hi] (a ghost cell beyond the file) takes the
-     * value of the nearest column inside, as the reader's other surface fields do. A soil
-     * field gets one component per layer of the source's z range, in the file's order.
-     * The values are checked against the catalog's bounds over the valid cells and the run
-     * stops, naming the variable, when one lies outside or is not finite. The run also
-     * stops when the source does not cover the rank's columns. Both checks are reduced
-     * over the ranks first, so every rank stops together.
-     *
-     * Three reductions per call: the component count, the three counts of the checks, and
-     * the range.
+     * The valid cells of the level inside file_box take the file's values. A soil field
+     * gets one component per layer, in the file's order. The values are counted against
+     * the catalog range here; the report, the decision and the ghost cells are left to
+     * finish_level().
      *
      * @param lev level
-     * @param id field
+     * @param id field (not ZS or DZS)
      * @param ba2d the level's grids, one cell thick in z
      * @param dm the level's distribution
      * @param ng ghost cells of the stored field (none in z)
-     * @param period the level's periodicity
-     * @param src this rank's part of the field; host memory; must cover the rank's
-     *            columns in [i_lo,i_hi] x [j_lo,j_hi], ghost columns included
-     * @param i_lo,i_hi,j_lo,j_hi the columns the file covers at this level
+     * @param nlayers number of soil layers of the variable in the file (1 for a surface
+     *                field); the same on every rank
+     * @param src this rank's part of the field as read; memory a device kernel can read
+     *            (the reader's fab); its low z index is the first layer
+     * @param file_box the columns this file covers at this level (z is ignored)
      */
     void fill (int lev, Field id,
                const amrex::BoxArray& ba2d,
                const amrex::DistributionMapping& dm,
                const amrex::IntVect& ng,
-               const amrex::Periodicity& period,
+               int nlayers,
                const amrex::FArrayBox& src,
-               int i_lo, int i_hi, int j_lo, int j_hi)
-    {
-        AMREX_ALWAYS_ASSERT(lev >= 0 && lev < num_levels());
-        const Descriptor& d = catalog()[static_cast<int>(id)];
-        const amrex::Box& sbx = src.box();
-        const int klo   = sbx.ok() ? sbx.smallEnd(2) : 0;
-        int ncomp = (d.soil && sbx.ok()) ? sbx.length(2) : 1;
-        // A rank without boxes at this level reads one column only; all ranks must agree
-        // on the number of layers before the MultiFab is defined.
-        amrex::ParallelDescriptor::ReduceIntMax(ncomp);
+               const amrex::Box& file_box);
 
-        auto& mf = m_fields[lev][static_cast<int>(id)];
-        mf = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
+    /**
+     * Close the read of a level, after the last file. Collective: every rank calls it.
+     *
+     * Reduces the counts and ranges of fill() over the ranks (two reductions for the
+     * level, whatever the number of fields), then for every field read: reports it and
+     * fills its ghost cells; or, when a valid cell was not covered by a file, a value
+     * lies outside the catalog range, a value is not finite, or two files disagree on
+     * the number of layers, reports that with the counts and drops the field. Then drops
+     * TSLB, SMOIS, ZS and DZS together when they disagree on the number of soil layers.
+     *
+     * @param lev level
+     * @param period the level's periodicity
+     */
+    void finish_level (int lev, const amrex::Periodicity& period);
 
-        amrex::Real vmin =  std::numeric_limits<amrex::Real>::max();
-        amrex::Real vmax = -std::numeric_limits<amrex::Real>::max();
-        // Valid cells outside the bounds, valid cells that are not finite, and cells
-        // (ghost cells included) the source does not cover
-        amrex::Long n_outside = 0;
-        amrex::Long n_not_finite = 0;
-        amrex::Long n_uncovered = 0;
+    /**
+     * Carry the level's fields onto new grids (a regrid or a rebalance). The fields are
+     * copied where the old grids cover the new ones. When the old grids do not cover the
+     * new ones, the fields are dropped and one line says so. The soil layer columns are
+     * kept in the first case and dropped with the fields in the second.
+     */
+    void remake (int lev,
+                 const amrex::BoxArray& new_ba2d,
+                 const amrex::DistributionMapping& new_dm,
+                 const amrex::Periodicity& period);
 
-        // The source is in host memory, so the copy is made on the host into a buffer
-        // that is then sent to the field's own memory.
-        for (amrex::MFIter mfi(*mf, false); mfi.isValid(); ++mfi) {
-            const amrex::Box gbx = mfi.fabbox();
-            const amrex::Box vbx = mfi.validbox();
-            amrex::FArrayBox buf(gbx, ncomp, amrex::The_Pinned_Arena());
-            const auto b = buf.array();
-            const auto s = src.const_array();
-            const amrex::Dim3 lo = amrex::lbound(gbx);
-            const amrex::Dim3 hi = amrex::ubound(gbx);
-            for (int n = 0; n < ncomp; ++n) {
-                for (int j = lo.y; j <= hi.y; ++j) {
-                    for (int i = lo.x; i <= hi.x; ++i) {
-                        const int li = amrex::min(amrex::max(i, i_lo), i_hi);
-                        const int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                        if (!sbx.contains(amrex::IntVect(li, lj, klo + n))) {
-                            // Counted and reported below; the source is not read here
-                            ++n_uncovered;
-                            b(i, j, lo.z, n) = amrex::Real(0.0);
-                            continue;
-                        }
-                        const amrex::Real v = s(li, lj, klo + n);
-                        b(i, j, lo.z, n) = v;
-                        if (vbx.contains(amrex::IntVect(i, j, lo.z))) {
-                            // isfinite first: a comparison with a NaN raises the
-                            // invalid-operation exception, which a run may trap
-                            if (!std::isfinite(v)) {
-                                ++n_not_finite;
-                            } else {
-                                if (v < d.lo || v > d.hi) { ++n_outside; }
-                                vmin = amrex::min(vmin, v);
-                                vmax = amrex::max(vmax, v);
-                            }
-                        }
-                    }
-                }
-            }
-            amrex::Gpu::htod_memcpy_async((*mf)[mfi].dataPtr(), buf.dataPtr(), buf.nBytes());
-            // The buffer leaves scope at the end of this pass
-            amrex::Gpu::streamSynchronize();
-        }
+    /** Name of the checkpoint's text file that lists what each level holds. */
+    static constexpr const char* checkpoint_header_name = "WRFSurfaceFieldsHeader";
 
-        amrex::Long counts[3] = {n_outside, n_not_finite, n_uncovered};
-        amrex::ParallelDescriptor::ReduceLongSum(counts, 3);
-        amrex::Real range[2] = {-vmin, vmax};
-        amrex::ParallelDescriptor::ReduceRealMax(range, 2);
-        vmin = -range[0];
-        vmax =  range[1];
+    /**
+     * Write the held fields into a checkpoint directory: one MultiFab file per field
+     * under the level's directory, and one text file that lists what each level holds.
+     * The text file is written by the I/O rank, also when nothing is held.
+     */
+    void write_checkpoint (const std::string& checkpoint_dir, int nlevels) const;
 
-        if (counts[2] > 0) {
-            amrex::Abort(std::string("wrfinput ") + d.nc_name +
-                         ": the region read does not cover the level's columns");
-        }
-        if (counts[0] > 0 || counts[1] > 0) {
-            amrex::Print() << "wrfinput " << d.nc_name << " at level " << lev << ": "
-                           << counts[0] << " value(s) outside " << d.lo << " to " << d.hi
-                           << " [" << d.units << "], " << counts[1] << " not finite";
-            if (vmin <= vmax) {
-                amrex::Print() << "; the finite values span " << vmin << " to " << vmax;
-            }
-            amrex::Print() << "\n";
-            amrex::Abort(std::string("wrfinput ") + d.nc_name +
-                         " holds a value outside its allowed range, or one that is not finite");
-        }
-        amrex::Print() << "   wrfinput surface field " << d.nc_name << " at level " << lev << ": "
-                       << ncomp << (ncomp == 1 ? " component" : " components")
-                       << ", min " << vmin << ", max " << vmax << " [" << d.units << "]\n";
+    /**
+     * Read what write_checkpoint() wrote, onto the grids of this run (they need not be
+     * those of the checkpoint). A checkpoint without the text file (written before this
+     * class) leaves the holder empty and returns false.
+     *
+     * @param ba2d,dm the grids and distribution of each level of this run
+     * @param ng ghost cells of the stored fields
+     * @param period per level
+     */
+    bool read_checkpoint (const std::string& checkpoint_dir, int nlevels,
+                          const amrex::Vector<amrex::BoxArray>& ba2d,
+                          const amrex::Vector<amrex::DistributionMapping>& dm,
+                          const amrex::IntVect& ng,
+                          const amrex::Vector<amrex::Periodicity>& period);
 
-        mf->FillBoundary(period);
-    }
+    /** Write and parse the text file; public for the unit tests. */
+    void write_header (std::ostream& os, int nlevels) const;
+    struct HeaderLevel {
+        std::array<int, num_fields> ncomp{};   ///< 0: not held
+        amrex::Vector<amrex::Real> soil_depth;
+        amrex::Vector<amrex::Real> soil_thickness;
+    };
+    /** Returns false, leaving out empty, when the text is not a header of this class. */
+    [[nodiscard]] static bool parse_header (std::istream& is, amrex::Vector<HeaderLevel>& out);
+
+    /**
+     * Fill the ghost cells of a field from its valid cells: a ghost cell that the
+     * level's grids cover (also through a periodic boundary) takes the value there; one
+     * beyond the bounding box of the level's grids takes the nearest column inside it, as
+     * the reader's other surface fields do beyond the file; any other takes the nearest
+     * column of its own box. Public for the unit tests.
+     */
+    static void fill_ghost_cells (amrex::MultiFab& mf, const amrex::Periodicity& period);
 
 private:
-    // (lev)(field); null when the level's file did not hold the field
+    // What fill() has found on this rank for one field, until finish_level() reduces it
+    struct Pending {
+        amrex::Long n_filled     = 0;   // valid cell values taken from a file
+        amrex::Long n_outside    = 0;   // of those, outside the catalog range
+        amrex::Long n_not_finite = 0;   // of those, not finite
+        amrex::Long n_uncovered  = 0;   // boxes whose part of a file this rank did not read
+        bool        read         = false;   // a file of the level held the variable
+        bool        conflict     = false;   // two files disagree (layer count, ZS or DZS)
+        amrex::Real vmin =  std::numeric_limits<amrex::Real>::max();
+        amrex::Real vmax = -std::numeric_limits<amrex::Real>::max();
+    };
+
+    void drop (int lev, Field id);
+
+    // (lev)(field); null when the field is not held
     amrex::Vector<std::array<std::unique_ptr<amrex::MultiFab>, num_fields>> m_fields;
+    amrex::Vector<std::array<Pending, num_fields>> m_pending;
     // (lev)(layer)
     amrex::Vector<amrex::Vector<amrex::Real>> m_soil_depth;
     amrex::Vector<amrex::Vector<amrex::Real>> m_soil_thickness;
