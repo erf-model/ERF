@@ -2746,6 +2746,12 @@ List of Parameters
 |                                          | pbl_mynn_config and may be overridden on its own.        |                    |                  |
 |                                          | Mellor-Yamada 1982 uses 0.1.                             |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_surface_lm**              | Use the surface-layer length scale l_S alone as the      | Boolean            | false            |
+|                                          | master length scale in the first cell (MYNN25 only),     |                    |                  |
+|                                          | matching the surface-layer shear its TKE production is   |                    |                  |
+|                                          | built from, instead of the 1/l sum with l_T and l_B.     |                    |                  |
+|                                          | The first-cell TKE then approaches B1^(2/3) u*^2 / 2.    |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.diffuse_QKE_3D**                   | Include horizontal turb. diffusion terms in QKE eqn.     | Boolean            | false            |
