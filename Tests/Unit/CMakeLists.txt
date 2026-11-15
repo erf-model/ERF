@@ -300,6 +300,10 @@ target_sources(${erf_exe_name}
     # building's solid cells, and the ground balance holds a footprint and takes the
     # absorbed beam (not the diffuse light) off the shaded ground, once per sweep.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamBuildingCover.cpp
+    # Motivation: the force-restore balance is a model of soil. With a land mask, a water
+    # column keeps its state and the sweep's longwave boundary there is the surface
+    # layer's sea surface temperature (sigma T_sea^4), not the balance's skin.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandMask.cpp
     # Motivation: with erf.ibseb.sun_mode = two_stream the building faces must
     # see the two-stream columns' sun: the same zenith, a morning sun in the
     # east, and the start date read the same way.

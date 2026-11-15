@@ -349,3 +349,65 @@ TEST(ForceRestoreHydrology, RainOfASkippedStepIsCarriedIntoTheNext)
     EXPECT_NEAR(precip.rate(0)->max(0), Real(1.0), tol);
     EXPECT_NEAR(precip.rain(0, Real(1.0)).scale, Real(4.0), tol);
 }
+
+// Land where i < 2, with a building's column (2, which is land) at (0,0); water where
+// i >= 2. Outside the TEST body: a device lambda cannot be launched from a private member.
+namespace {
+void fill_water_east_mask (amrex::iMultiFab& mask)
+{
+    for (amrex::MFIter mfi(mask); mfi.isValid(); ++mfi) {
+        const auto m = mask.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            m(i, j, k) = (i >= 2) ? 0 : ((i == 0 && j == 0) ? 2 : 1);
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+}
+}
+
+TEST(ForceRestoreHydrology, WaterColumnsAreLeftOut)
+{
+    // With a land mask the step runs on the land columns only: a water column (mask 0)
+    // keeps its soil water, books no rain, and is not counted. 4 x 4 columns, water where
+    // i >= 2, 2 kg/m^2 of rain in a 1 s step into a 0.1 m layer: q_s 0.1 -> 0.12 on land.
+    using namespace amrex;
+    RadChoice rc;
+    rc.seb_precipitation_source = SEBPrecipitationSource::Microphysics;
+    const BoxArray ba3d(Box(IntVect(0, 0, 0), IntVect(3, 3, 2)));
+    const BoxArray ba2d(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)));
+    const DistributionMapping dm(ba3d);
+    MultiFab accum(ba3d, dm, 1, 0);
+    SurfacePrecipAccumulationSources src;
+    src.total.accum = &accum;
+
+    ForceRestoreHydrology hydro;
+    hydro.resize(1);
+    hydro.define_level(0, rc, ba2d, dm, IntVect(0));
+    MultiFab t_s(ba2d, dm, 1, 0), q_s(ba2d, dm, 1, 0), q_deep(ba2d, dm, 1, 0);
+    MultiFab t_deep(ba2d, dm, 1, 0), lh(ba2d, dm, 1, 0);
+    t_s.setVal(295.0); q_s.setVal(0.1); q_deep.setVal(0.1); t_deep.setVal(295.0); lh.setVal(0.0);
+    ForceRestoreHydrologyParams prm = base();
+    prm.rain = true;
+    iMultiFab mask(ba2d, dm, 1, 0);
+    fill_water_east_mask(mask);   // a building's column is land here
+
+    ForceRestorePrecipRate precip;
+    precip.resize(1);
+    precip.define_level(0, rc, ba2d, dm);
+    accum.setVal(0.0);
+    precip.begin_step(0, src, 0);
+    accum.setVal(2.0);
+    precip.end_step(0, src, 0, Real(1.0));
+    const auto sums = hydro.step(0, t_s, q_s, q_deep, t_deep, lh, nullptr, Real(1.0), prm,
+                                 precip.rain(0, Real(1.0)), nullptr, &mask);
+    precip.mark_used(0);
+    EXPECT_EQ(sums.columns, Long(8));
+    EXPECT_NEAR(sums.rain, Real(16.0), Real(16.0) * tol);
+    const Box land(IntVect(0, 0, 0), IntVect(1, 3, 0)), water(IntVect(2, 0, 0), IntVect(3, 3, 0));
+    EXPECT_NEAR(q_s.min(land, 0), Real(0.12), tol);
+    EXPECT_NEAR(q_s.max(land, 0), Real(0.12), tol);
+    EXPECT_EQ(q_s.min(water, 0), Real(0.1));
+    EXPECT_EQ(q_s.max(water, 0), Real(0.1));
+    EXPECT_EQ(hydro.totals(0)->max(water, ForceRestoreHydrology::Rain), Real(0.0));
+    EXPECT_NEAR(hydro.totals(0)->min(land, ForceRestoreHydrology::Rain), Real(2.0), tol);
+}
