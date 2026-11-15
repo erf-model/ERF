@@ -755,12 +755,12 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
 
-# Run a deck and require the composite integral of QUANTITY that ERF prints ("MASS", "RHO SCALAR"
-# or "RHO QTOTAL") to be the same at the start and the end of the run (see
-# Tests/RunConservation.cmake).  TEST_FILES_DIR names the test_files directory, whose deck is
-# <TEST_FILES_DIR>.i; OPTIONS are added to the run.  The integral must agree to 12 significant
-# digits in double precision; a single-precision build accumulates roundoff of up to 6e-6
-# relative over these runs, so there it must agree to 5.
+# Run a deck and require the integral of QUANTITY that ERF prints ("MASS", "RHO SCALAR" or
+# "RHO QTOTAL"; the composite one on several levels) to be the same at the start and the end of
+# the run (see Tests/RunConservation.cmake).  TEST_FILES_DIR names the test_files directory,
+# whose deck is <TEST_FILES_DIR>.i; OPTIONS are added to the run.  The integral must agree to
+# 12 significant digits in double precision; a single-precision build accumulates roundoff of
+# up to 6e-6 relative over these runs, so there it must agree to 5.
 function(add_test_conservation TEST_NAME TEST_FILES_DIR QUANTITY)
     set(oneValueArgs "OPTIONS")
     cmake_parse_arguments(ADD_TEST_CONS "" "${oneValueArgs}" "" ${ARGN})
@@ -3625,6 +3625,16 @@ add_test_conservation(Conservation_MoistDiffusion_ImplicitTerrain MoistDiffusion
 add_test_conservation(Conservation_MoistDiffusion_Explicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
     OPTIONS "${_moist_cons_options} erf.alpha_C=0.4 erf.vert_implicit=false")
 add_test_conservation(Conservation_ScalarDiffusion_Flat      ScalarDiffusion_Reflux "RHO SCALAR")
+# A closed, fully compressible box over terrain that slopes into its slip walls, with a warm
+# bubble setting up the flow: the acoustic substeps must keep the normal momentum on the wall
+# faces at zero, or mass crosses the walls (3e-11 to 1e-10 relative in 40 steps before the fix,
+# roundoff after it).
+# A ridge sloping into the x walls, one sloping into the y walls, and a radial hill
+add_test_conservation(Conservation_TerrainSlipWall_RidgeX TerrainSlipWall_Mass "MASS")
+add_test_conservation(Conservation_TerrainSlipWall_RidgeY TerrainSlipWall_Mass "MASS"
+    OPTIONS "prob.dir=1 prob.bubble_x_c=500.0 prob.bubble_y_c=400.0")
+add_test_conservation(Conservation_TerrainSlipWall_Hill   TerrainSlipWall_Mass "MASS"
+    OPTIONS "prob.dir=2")
 # Pseudo-incompressible levels evolve rho and (rho theta), which are refluxed and averaged down:
 # both must be conserved over two levels coupled two-way (a stratified flow over a hill)
 add_test_conservation(Conservation_PseudoIncompressible_Mass     PseudoIncompressible_StratifiedHill "MASS")

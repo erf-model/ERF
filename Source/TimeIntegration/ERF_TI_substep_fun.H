@@ -199,6 +199,15 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             cf_fluxes.tgt_w = &H.tgt_w;
         }
 
+        // Lateral faces on which the normal velocity is zero; the terrain substep keeps the
+        // normal momentum there at zero
+        auto is_wall = [&] (int ori) {
+            const ERF_BC bc = phys_bc_type[ori];
+            return bc == ERF_BC::slip_wall || bc == ERF_BC::no_slip_wall || bc == ERF_BC::symmetry;
+        };
+        const GpuArray<bool,4> lateral_walls{is_wall(Orientation::xlo()), is_wall(Orientation::xhi()),
+                                             is_wall(Orientation::ylo()), is_wall(Orientation::yhi())};
+
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             erf_substep_MT(fast_step, nrk, level, finest_level,
@@ -226,7 +235,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                          solverChoice.beta_d, cf_fluxes);
+                          solverChoice.beta_d, cf_fluxes, lateral_walls);
 
         } else {
 

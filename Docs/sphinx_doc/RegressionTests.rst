@@ -793,9 +793,23 @@ here. It goes through the same functions as that of moisture.
 EB runs do not reflux diffusive fluxes, and ERF warns when two-way coupling is used with EB and
 diffusion.
 
-Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/ScalarDiffusion_Reflux`_
+The ``Conservation_TerrainSlipWall_*`` tests run the ``TerrainSlipWall_Mass`` deck on one level:
+a closed, fully compressible 1 km x 1 km x 500 m box (slip walls on all six faces) over terrain
+that slopes into its walls, where a 10 K warm bubble sets up a flow for 40 steps, and require
+the domain mass not to change. ``RidgeX`` has a ridge in x (a Witch of Agnesi 100 m high with a
+half-width of 150 m, still about 8 m high and sloping at the x walls), ``RidgeY`` the same ridge
+in y, and ``Hill`` a radial hill. Over terrain that slopes normal to a wall, the terrain term of
+the horizontal pressure gradient is not zero on the wall face; until the acoustic substeps kept
+the normal momentum on wall faces at zero, they carried mass through the walls (3e-11 to 1e-10
+relative in these runs), which the boundary fill only hid by resetting the momentum after the
+step.
+
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/ScalarDiffusion_Reflux`_,
+`Tests/test_files/TerrainSlipWall_Mass`_
 
 .. _`Tests/test_files/ScalarDiffusion_Reflux`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion_Reflux
+
+.. _`Tests/test_files/TerrainSlipWall_Mass`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TerrainSlipWall_Mass
 
 Terrain Poisson operator at Neumann faces
 -----------------------------------------
