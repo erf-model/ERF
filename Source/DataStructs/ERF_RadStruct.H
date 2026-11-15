@@ -740,7 +740,8 @@ public:
 
   /**
    * @brief Snow water equivalent at the start of the run [kg/m^2], every column, every
-   * level. Must be finite and >= 0; given without seb_snow_enable stops at start-up.
+   * level. Must be finite and >= 0; given without seb_snow_enable stops at start-up. A
+   * water column of the land mask loses it at the first step.
    */
   amrex::Real seb_snow_initial_swe_kg_m2 = 0.0;
 

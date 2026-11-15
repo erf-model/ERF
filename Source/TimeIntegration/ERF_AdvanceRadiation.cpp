@@ -480,7 +480,8 @@ void ERF::advance_radiation (int lev,
                                lsm, radiation_inputs, noahmp_active,
                                qheating_rates[lev].get(), rad_fluxes[lev].get(),
                                t_surf, sfc_sens_flux, sfc_laten_flux, lat_ptr, lon_ptr,
-                               t_old[lev] + start_time, use_datetime);
+                               t_old[lev] + start_time, use_datetime,
+                               lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get());
 
         // Hand the land-surface model the surface forcing of this sweep, as RRTMGP does
         // through lsm_output_ptrs. The two-stream model sweeps on every step, so this is

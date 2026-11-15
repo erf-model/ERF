@@ -599,7 +599,10 @@ The selection contract and the value written after selection are separate:
      - Value: the two-stream simplified surface energy balance's own prognostic surface
        state, which is distinct from Noah-MP's ``t_sfc`` and from the surface layer's
        ``t_surf``. ``-999`` unless the two-stream solver is running with
-       ``erf.radiation.seb_enable = true``.
+       ``erf.radiation.seb_enable = true``. On a water column of the land mask the balance
+       does not run: these fields, and the ``seb_*_total`` and ``seb_snow_swe`` fields, hold
+       held values there, not a state of the water (see the land mask under the two-stream
+       surface energy balance inputs).
    * - ``seb_hfx``, ``seb_lh``
      - Selectable: fixed request names.
      - Value: the sensible and latent heat fluxes the two-stream surface energy balance
