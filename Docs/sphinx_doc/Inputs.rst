@@ -66,14 +66,29 @@ Governing Equations
 |                                 | inverse relations inconsistent. See                      |                    |                  |
 |                                 | :ref:`GoverningEquations`.                               |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | 0, 1               | 0                |
-|                                 | with terrain-fitted coordinates: 0 for dp/dx with a      |                    |                  |
-|                                 | dp/dz correction, 1 for the gradient of the vertically   |                    |                  |
-|                                 | interpolated pressure (Klemp 2011)                       |                    |                  |
+| **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | ChainRule,         | ChainRule        |
+|                                 | with terrain-fitted coordinates: ChainRule for dp/dx     | HydrostaticHybrid  |                  |
+|                                 | along the coordinate surface with a dp/dz correction;    |                    |                  |
+|                                 | HydrostaticHybrid for the same with the hydrostatic part |                    |                  |
+|                                 | of the perturbational pressure carried to the height of  |                    |                  |
+|                                 | the face exactly, and only the non-hydrostatic remainder |                    |                  |
+|                                 | differenced. Used only in fully compressible runs;       |                    |                  |
+|                                 | anelastic and pseudo-incompressible runs take the        |                    |                  |
+|                                 | pressure gradient from the projection. The former        |                    |                  |
+|                                 | integer values 0 and 2 are still accepted, with a        |                    |                  |
+|                                 | warning. See :ref:`sec:HorizPGF`.                        |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.gradp_2nd_order_bndry**   | with gradp_type = ChainRule, take dp/dz at the bottom    | Boolean            | false            |
+|                                 | and top of the domain from the second-order one-sided    |                    |                  |
+|                                 | difference through the three nearest cells rather than   |                    |                  |
+|                                 | the first-order two-point one (only used in fully        |                    |                  |
+|                                 | compressible runs). See :ref:`sec:HorizPGF`.             |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_pert_pres_gradient**  | if true, the lateral pressure gradient in the momentum   | Boolean            | true             |
 |                                 | equation uses horizontal derivatives of the              |                    |                  |
 |                                 | perturbational pressure; if false, of the full pressure  |                    |                  |
+|                                 | (only used with gradp_type = ChainRule, and only in      |                    |                  |
+|                                 | fully compressible runs)                                 |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.transport_scalar**        | transport the passive scalar component                   | Boolean            | true             |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2731,11 +2746,6 @@ List of Parameters
 |                                          | pbl_mynn_config and may be overridden on its own.        |                    |                  |
 |                                          | Mellor-Yamada 1982 uses 0.1.                             |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_mynn_Lt_taper_exp**            | Exponent n in the optional boundary-layer-depth taper    | Real               | 0.0              |
-|                                          | of the ABL length scale, l_T -> l_T (1 - z/h)^n. Zero    |                    |                  |
-|                                          | disables the taper. Requires erf.most.pblh_calc to be    |                    |                  |
-|                                          | set, since it needs a diagnosed PBL height h.            |                    |                  |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.diffuse_QKE_3D**                   | Include horizontal turb. diffusion terms in QKE eqn.     | Boolean            | false            |
@@ -4648,7 +4658,8 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.pot_surf_temp**            | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
 |                                       | value selects the surface-temperature formulation.       |                     |                  |
-|                                       | **Required** when ``flux_type`` = ``bulk_coeff`` (the    |                     |                  |
+|                                       | This or ``erf.most.abs_surf_temp`` is **Required** when  |                     |                  |
+|                                       | ``flux_type`` = ``bulk_coeff`` (the                      |                     |                  |
 |                                       | surface value of the ``Ch`` form); with                  |                     |                  |
 |                                       | ``erf.most.surf_temp_flux`` it is still read but no      |                     |                  |
 |                                       | longer sets the heat flux                                |                     |                  |
@@ -4658,7 +4669,7 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | pressure diagnosed from the lowest cell; z-low face      |                     |                  |
 |                                       | only, not with EB terrain, SST/TSK input,                |                     |                  |
 |                                       | ``erf.most.use_sfc_fluxes``, ``erf.most.use_sfc_sst``    |                     |                  |
-|                                       | or custom/rico/bulk_coeff fluxes                         |                     |                  |
+|                                       | or custom/rico fluxes                                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp**                | deprecated spelling of ``erf.most.pot_surf_temp``; at    | Real > 0            | -1.0 (not set)   |
 |                                       | most one of the three may be given, and a value that is  |                     |                  |
@@ -5762,6 +5773,38 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | seb_deep_layer_depth_m. Required with seb_drainage_enable; |                    |                  |
 |                                                    | giving it otherwise stops at start-up                      |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_enable**                  | One bulk snow layer on the force-restore surface: the ISBA | Boolean            | false            |
+|                                                    | snow routine as in Douville et al. (1995), Sec. 2.1, for   |                    |                  |
+|                                                    | bare ground. Frozen surface precipitation (snow, graupel,  |                    |                  |
+|                                                    | hail) builds a snow water equivalent, and the hydrology    |                    |                  |
+|                                                    | then takes the rain only. Snow raises the surface albedo   |                    |                  |
+|                                                    | (their Eq. 8), sublimates, and melts where the balance     |                    |                  |
+|                                                    | takes T_s above 273.16 K (their Eq. 12), which holds T_s   |                    |                  |
+|                                                    | at 273.16 K while snow remains; the melt water enters the  |                    |                  |
+|                                                    | soil as rain. Under snow, seb_prognostic_t_max_k bounds    |                    |                  |
+|                                                    | T_s after the melt, so heat above it melts snow first.     |                    |                  |
+|                                                    | Checkpointed. Needs seb_prognostic_enable,                 |                    |                  |
+|                                                    | seb_use_radiation_fluxes and seb_precipitation_source =    |                    |                  |
+|                                                    | microphysics, no surface_albedo_sw_diffuse, no             |                    |                  |
+|                                                    | seb_vegetation_type, no land-surface model, and            |                    |                  |
+|                                                    | seb_prognostic_t_min_k at or below 273.16; stops           |                    |                  |
+|                                                    | otherwise. With a scheme that has no snow, graupel or hail |                    |                  |
+|                                                    | accumulation (Kessler) no snow falls, and the run prints a |                    |                  |
+|                                                    | note. false: no snow, results unchanged                    |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_initial_swe_kg_m2**       | Snow water equivalent at the start [kg/m^2], every column  | Real >= 0; stops   | 0.0              |
+|                                                    | and level; a restart takes the snow from the checkpoint.   | at start-up if not |                  |
+|                                                    | Giving it without seb_snow_enable stops at start-up        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_albedo**                  | Snow albedo (Douville et al. 1995, Eq. 8: 0.70, constant). | Real in [0, 1];    | 0.70             |
+|                                                    | Giving it without seb_snow_enable stops at start-up        | stops at start-up  |                  |
+|                                                    |                                                            | if not             |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_critical_swe_kg_m2**      | Critical snow water equivalent W_crn [kg/m^2] of the snow  | Real > 0; stops at | 10.0             |
+|                                                    | cover fraction W_n / (W_n + W_crn) (Douville et al. 1995,  | start-up if not    |                  |
+|                                                    | Eq. 7: 10 mm). Giving it without seb_snow_enable stops at  |                    |                  |
+|                                                    | start-up                                                   |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Diagnostics Control Parameters**                 |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.v**                                | Verbosity level for radiation debug output (0=off)         | Integer            | 0                |
@@ -6482,7 +6525,7 @@ Equation Set
 * :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.use_gravity``
 * :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.compressibility_type``,
   ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,
-  ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
+  ``erf.gradp_2nd_order_bndry``, ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
 * :ref:`Time Step <inputs-time-step>` -- ``erf.timestepping_type``
 * :ref:`Initialization <inputs-initialization>` -- ``erf.project_initial_velocity``
 

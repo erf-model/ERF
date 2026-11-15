@@ -269,7 +269,9 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_seb_updated.resize(nlevs_max, 0);
     m_flux_diag.resize(nlevs_max);
     m_diag.resize(nlevs_max);
+    m_precip.resize(nlevs_max);
     m_hydro.resize(nlevs_max);
+    m_snow.resize(nlevs_max);
 }
 
 void
@@ -347,8 +349,12 @@ TwoStreamRadiation::define_level (int lev,
         } else {
             m_moisture[lev].reset();
         }
-        // The hydrology's rain rate and running totals (a no-op when it is off).
+        // The precipitation rate of the step, and the hydrology's running totals (each a
+        // no-op when it is off).
+        m_precip.define_level(lev, rad_choice, ba2d, dm);
         m_hydro.define_level(lev, rad_choice, ba2d, dm, ng_sfc);
+        // The snow water equivalent and its running totals (a no-op when it is off).
+        m_snow.define_level(lev, rad_choice, ba2d, dm, ng_sfc);
     }
 
     // The land-model forcing (see the members). It holds the lsm_undefined sentinel until a
@@ -721,6 +727,7 @@ TwoStreamRadiation::write_checkpoint (int lev, const std::string& checkpointname
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QDeep"));
     }
     m_hydro.write_checkpoint(lev, checkpointname);
+    m_snow.write_checkpoint(lev, checkpointname);
 }
 
 void
@@ -767,6 +774,7 @@ TwoStreamRadiation::read_checkpoint (int lev, const std::string& restart_chkfile
         }
     }
     m_hydro.read_checkpoint(lev, restart_chkfile, period);
+    m_snow.read_checkpoint(lev, restart_chkfile, period);
 }
 
 Vector<MultiFab*>
@@ -781,6 +789,10 @@ TwoStreamRadiation::seb_prognostic_fields (int lev)
         out.push_back(m_q_deep[lev].get());
     }
     if (m_hydro.totals(lev)) { out.push_back(m_hydro.totals(lev)); }
+    if (m_snow.defined(lev)) {
+        out.push_back(m_snow.swe(lev));
+        out.push_back(m_snow.totals(lev));
+    }
     return out;
 }
 
@@ -789,7 +801,7 @@ TwoStreamRadiation::hydrology_begin_step (int lev, const SurfacePrecipAccumulati
                                           int klo)
 {
     if (!active() || m_rad->seb_precipitation_source == SEBPrecipitationSource::None) { return; }
-    m_hydro.begin_step(lev, sources, klo);
+    m_precip.begin_step(lev, sources, klo);
 }
 
 void
@@ -797,7 +809,7 @@ TwoStreamRadiation::hydrology_end_step (int lev, const SurfacePrecipAccumulation
                                         int klo, Real dt)
 {
     if (!active() || m_rad->seb_precipitation_source == SEBPrecipitationSource::None) { return; }
-    m_hydro.end_step(lev, sources, klo, dt);
+    m_precip.end_step(lev, sources, klo, dt);
 }
 
 ForceRestoreSoil
@@ -812,8 +824,7 @@ TwoStreamRadiation::force_restore_soil (int lev) const
     v.q_sfc  = m_q_sfc[lev].get();
     v.q_deep = m_q_deep[lev].get();
     v.t_sfc  = m_t_sfc[lev].get();
-    v.rain_rate = (rc.seb_precipitation_source != SEBPrecipitationSource::None)
-                ? m_hydro.rain_rate(lev) : nullptr;
+    v.rain_rate = m_precip.rate(lev);
     v.d_s  = rc.seb_moisture_layer_depth_m;
     v.deep = rc.seb_deep_prognostic_enable;
     v.d_2  = v.deep ? rc.seb_deep_layer_depth_m : Real(0.0);
@@ -1071,6 +1082,21 @@ TwoStreamRadiation::advance (int lev,
 
         if (seb_active) {
             fill_or_copy_seb_field(m_alb_sw[lev].get(), lsm, lev, lsm_broadband_albedo_name, rad_choice.surface_albedo_sw);
+            // With the snow layer, the albedo of each column is the blend of the snow-free
+            // value just written and the snow albedo (Douville et al. 1995, Eq. 8).
+            if (rad_choice.seb_snow_enable && m_snow.defined(lev)) {
+                // The sweep below takes a land-surface model's albedo before this field;
+                // the snow would then melt under an albedo that does not see it.
+                if ((noahmp_active && lsm_has_field(lsm, lev, lsm_broadband_albedo_name)) ||
+                    (radiation_inputs.size() > 2 && radiation_inputs[2] != nullptr)) {
+                    amrex::Abort("erf.radiation.seb_snow_enable acts on the two-stream surface "
+                                 "albedo, but a land-surface model supplies the albedo here; turn "
+                                 "it off with a land-surface model");
+                }
+                // No snow lies on a building footprint.
+                m_snow.apply_albedo(lev, *m_alb_sw[lev], ForceRestoreSnow::params(rad_choice),
+                                    has_building_cover(lev) ? m_footprint[lev].get() : nullptr);
+            }
             fill_or_copy_seb_field(m_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
 
             // In prognostic mode, do not seed this state from an LSM field.
@@ -1851,6 +1877,11 @@ TwoStreamRadiation::advance (int lev,
                     const bool hold_footprints = cover_seb;
                     Array4<const amrex::Real> foot_arr;
                     if (hold_footprints) { foot_arr = m_footprint[lev]->const_array(mfi); }
+                    // Under snow the upper bound of T_s waits for the snow step below: the
+                    // heat above it melts snow first (ERF_ForceRestoreSnow.H).
+                    const bool melt_first = rad_choice.seb_snow_enable && m_snow.defined(lev);
+                    Array4<const amrex::Real> swe_arr;
+                    if (melt_first) { swe_arr = m_snow.swe(lev)->const_array(mfi); }
                     // Count columns and prepare for reductions
                     amrex::Long n_cols_box = 0;
                     amrex::Real t_s_sum_box = 0.0;
@@ -1904,7 +1935,8 @@ TwoStreamRadiation::advance (int lev,
                             amrex::Real q_s_new = q_s_old + dt_step * dq_s_dt;
 
                             // Clamp to valid ranges
-                            t_s_new = amrex::max(t_min, amrex::min(t_max, t_s_new));
+                            const bool under_snow = melt_first && swe_arr(i, j, 0) > amrex::Real(0.0);
+                            t_s_new = amrex::max(t_min, under_snow ? t_s_new : amrex::min(t_max, t_s_new));
                             q_s_new = amrex::max(q_min, amrex::min(q_max, q_s_new));
 
                             // Write back updated values (this modifies the device array)
@@ -1945,11 +1977,46 @@ TwoStreamRadiation::advance (int lev,
                 // the deep reservoir, drainage and the deep temperature, after the balance
                 // and on the same columns. A second pass so that with it off the balance's
                 // kernel and its answers are unchanged.
+                // The snow layer (ERF_ForceRestoreSnow.H), between the balance and the
+                // hydrology: it takes the frozen precipitation, lowers T_s where snow melts
+                // and leaves the melt water for the hydrology step below.
+                const bool snow_on = rad_choice.seb_snow_enable && m_snow.defined(lev);
+                if (snow_on) {
+                    amrex::Real t_s_sum_snow = 0.0;
+                    amrex::Real t_s_max_snow = -std::numeric_limits<amrex::Real>::max();
+                    const ForceRestoreSnow::StepSums ss = m_snow.step(
+                        lev, *m_t_sfc[lev], *m_lh_sfc[lev],
+                        cover_seb ? m_footprint[lev].get() : nullptr, dt_step,
+                        ForceRestoreSnow::params(rad_choice), m_precip.frozen(lev, dt_step),
+                        t_s_sum_snow, t_s_max_snow);
+                    // The melt changed T_s: the step's T_s statistics are those after it.
+                    t_s_sum = t_s_sum_snow;
+                    t_s_max_val = t_s_max_snow;
+                    // Counted in the step's own reduction.
+                    if (ss.bad_columns > 0) {
+                        amrex::Abort("TwoStreamRadiation: non-finite surface temperature, or "
+                                     "non-finite or negative snow water equivalent, after the force-restore snow step at level " +
+                                     std::to_string(lev) + ", step " + std::to_string(nstep));
+                    }
+                    if (rad_choice.verbosity >= 2 && ss.columns > 0) {
+                        const amrex::Real inv_n = amrex::Real(1.0) / static_cast<amrex::Real>(ss.columns);
+                        amrex::Print() << "Force-restore snow at level " << lev << ", step " << nstep
+                                       << " (column means, kg/m^2): snowfall = " << ss.snowfall * inv_n
+                                       << ", sublimation = " << ss.sublimation * inv_n
+                                       << ", melt = " << ss.melt * inv_n
+                                       << ", snow water equivalent = " << ss.swe * inv_n
+                                       << "; max column budget residual = " << ss.max_residual
+                                       << " kg/m^2\n";
+                    }
+                }
+
                 if (rad_choice.seb_hydrology_enabled()) {
                     const ForceRestoreHydrology::StepSums hs = m_hydro.step(
                         lev, *m_t_sfc[lev], *m_q_sfc[lev], *m_q_deep[lev], *m_t_deep[lev],
                         *m_lh_sfc[lev], cover_seb ? m_footprint[lev].get() : nullptr,
-                        dt_step, ForceRestoreHydrology::params(rad_choice));
+                        dt_step, ForceRestoreHydrology::params(rad_choice),
+                        m_precip.rain(lev, dt_step),
+                        snow_on ? m_snow.soil_water(lev) : nullptr);
                     if (m_q_sfc[lev]->contains_nan(0, 1, 0) || m_q_deep[lev]->contains_nan(0, 1, 0) ||
                         m_t_deep[lev]->contains_nan(0, 1, 0)) {
                         amrex::Abort("TwoStreamRadiation: non-finite soil water or deep temperature "
@@ -1968,6 +2035,9 @@ TwoStreamRadiation::advance (int lev,
                                        << " kg/m^2\n";
                     }
                 }
+                // The steps above took the precipitation rate of this step: a step that
+                // follows without a new rate takes none.
+                m_precip.mark_used(lev);
 
                 {
                     amrex::Real sums[2] = {t_s_sum, q_s_sum};

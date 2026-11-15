@@ -726,6 +726,37 @@ public:
    */
   amrex::Real seb_drainage_c3_m = -1.0;
 
+  /**
+   * @brief One bulk snow layer on the force-restore surface (ERF_ForceRestoreSnow.H): the
+   * snow routine of the ISBA scheme as in Douville, Royer and Mahfouf (1995), Sec. 2.1, for
+   * bare ground. Frozen surface precipitation (snow, graupel, hail) builds a snow water
+   * equivalent; the snow raises the surface albedo, sublimates, and melts where the balance
+   * takes T_s above 273.16 K, with the melt water going to the soil as rain. Needs
+   * seb_prognostic_enable, seb_use_radiation_fluxes, seb_precipitation_source = microphysics,
+   * no surface_albedo_sw_diffuse, no seb_vegetation_type and seb_prognostic_t_min_k at or
+   * below 273.16; init_params() stops otherwise. Default false: the surface has no snow and results are unchanged.
+   */
+  bool seb_snow_enable = false;
+
+  /**
+   * @brief Snow water equivalent at the start of the run [kg/m^2], every column, every
+   * level. Must be finite and >= 0; given without seb_snow_enable stops at start-up.
+   */
+  amrex::Real seb_snow_initial_swe_kg_m2 = 0.0;
+
+  /**
+   * @brief Snow albedo alpha_n [-] (Douville et al. 1995, Eq. 8; their constant 0.70).
+   * Must be in [0, 1]; given without seb_snow_enable stops at start-up.
+   */
+  amrex::Real seb_snow_albedo = 0.70;
+
+  /**
+   * @brief Critical snow water equivalent W_crn [kg/m^2] of the snow cover fraction
+   * p_ng = W_n / (W_n + W_crn) (Douville et al. 1995, Eq. 7; their 10 mm). Must be finite
+   * and > 0; given without seb_snow_enable stops at start-up.
+   */
+  amrex::Real seb_snow_critical_swe_kg_m2 = 10.0;
+
   /// True when any of the force-restore hydrology inputs is on.
   [[nodiscard]] bool seb_hydrology_enabled () const noexcept
   {
@@ -938,6 +969,10 @@ public:
    * - erf.radiation.seb_deep_layer_depth_m (real, optional, default 1.0, > seb_moisture_layer_depth_m)
    * - erf.radiation.seb_drainage_enable (bool, optional, default false)
    * - erf.radiation.seb_drainage_c3_m (real, required with seb_drainage_enable, > 0)
+   * - erf.radiation.seb_snow_enable (bool, optional, default false)
+   * - erf.radiation.seb_snow_initial_swe_kg_m2 (real, optional, default 0, >= 0; only with seb_snow_enable)
+   * - erf.radiation.seb_snow_albedo (real, optional, default 0.70, in [0, 1]; only with seb_snow_enable)
+   * - erf.radiation.seb_snow_critical_swe_kg_m2 (real, optional, default 10, > 0; only with seb_snow_enable)
    *
    * Sub-option queries are only performed when the two-stream model is selected.
    */
@@ -1397,6 +1432,10 @@ public:
       pp.query("radiation.seb_deep_layer_depth_m", seb_deep_layer_depth_m);
       pp.query("radiation.seb_drainage_enable", seb_drainage_enable);
       pp.query("radiation.seb_drainage_c3_m", seb_drainage_c3_m);
+      pp.query("radiation.seb_snow_enable", seb_snow_enable);
+      pp.query("radiation.seb_snow_initial_swe_kg_m2", seb_snow_initial_swe_kg_m2);
+      pp.query("radiation.seb_snow_albedo", seb_snow_albedo);
+      pp.query("radiation.seb_snow_critical_swe_kg_m2", seb_snow_critical_swe_kg_m2);
 
       // The prognostic update needs the SEB fields and the residual, so
       // requesting it turns on the infrastructure it depends on. Report that,
@@ -1603,6 +1642,7 @@ public:
       }
 
       check_seb_hydrology(pp);
+      check_seb_snow(pp);
   }
 
 }
@@ -1700,6 +1740,72 @@ public:
                        ") must be at or above erf.radiation.seb_soil_porosity (" +
                        std::to_string(seb_soil_porosity) + ") with seb_precipitation_source = "
                        "microphysics: a lower cap would remove rain without counting it as runoff");
+      }
+  }
+
+  /**
+   * @brief Checks of the force-restore snow inputs (ERF_ForceRestoreSnow.H): each stops the
+   * run naming the input, never clamps. Called after check_seb_hydrology.
+   */
+  void check_seb_snow (amrex::ParmParse& pp)
+  {
+      if (!seb_snow_enable) {
+          for (const char* name : {"seb_snow_initial_swe_kg_m2", "seb_snow_albedo",
+                                   "seb_snow_critical_swe_kg_m2"}) {
+              if (pp.contains((std::string("radiation.") + name).c_str())) {
+                  amrex::Abort(std::string("erf.radiation.") + name + " is used only with "
+                               "erf.radiation.seb_snow_enable = true");
+              }
+          }
+          return;
+      }
+      // The routine is DRM95 Sec. 2.1 with no vegetation: a canopy would neither mask the
+      // snow's albedo nor hold snow.
+      if (seb_vegetation_type != 0) {
+          amrex::Abort("erf.radiation.seb_vegetation_type cannot be given with "
+                       "erf.radiation.seb_snow_enable = true: the snow layer is for bare ground");
+      }
+      if (!seb_prognostic_enable) {
+          amrex::Abort("erf.radiation.seb_snow_enable needs "
+                       "erf.radiation.seb_prognostic_enable = true: the snow acts on the "
+                       "force-restore surface temperature");
+      }
+      if (seb_precipitation_source != SEBPrecipitationSource::Microphysics) {
+          amrex::Abort("erf.radiation.seb_snow_enable needs "
+                       "erf.radiation.seb_precipitation_source = microphysics: the snowfall "
+                       "comes from the microphysics and the melt water goes to the soil as rain");
+      }
+      if (!seb_use_radiation_fluxes) {
+          amrex::Abort("erf.radiation.seb_snow_enable needs "
+                       "erf.radiation.seb_use_radiation_fluxes = true: the snow acts on the "
+                       "balance through the surface albedo of the radiation");
+      }
+      // The diffuse albedo follows the direct one only when it is not given; a given value
+      // would not see the snow.
+      if (surface_albedo_sw_diffuse >= 0.0) {
+          amrex::Abort("erf.radiation.surface_albedo_sw_diffuse cannot be given with "
+                       "erf.radiation.seb_snow_enable = true: the snow sets one broadband "
+                       "albedo for the direct and the diffuse beam");
+      }
+      // The melt returns a snow-covered surface to 273.16 K; the balance's own lower bound
+      // must allow that temperature.
+      if (seb_prognostic_t_min_k > amrex::Real(273.16)) {
+          amrex::Abort("erf.radiation.seb_prognostic_t_min_k (" +
+                       std::to_string(seb_prognostic_t_min_k) + ") must be at or below 273.16 "
+                       "with erf.radiation.seb_snow_enable = true: the melting snow holds the "
+                       "surface at 273.16 K");
+      }
+      if (!(std::isfinite(seb_snow_initial_swe_kg_m2) && seb_snow_initial_swe_kg_m2 >= 0.0)) {
+          amrex::Abort("erf.radiation.seb_snow_initial_swe_kg_m2 must be finite and >= 0; got " +
+                       std::to_string(seb_snow_initial_swe_kg_m2));
+      }
+      if (!(seb_snow_albedo >= 0.0 && seb_snow_albedo <= 1.0)) {
+          amrex::Abort("erf.radiation.seb_snow_albedo must be in [0, 1]; got " +
+                       std::to_string(seb_snow_albedo));
+      }
+      if (!(std::isfinite(seb_snow_critical_swe_kg_m2) && seb_snow_critical_swe_kg_m2 > 0.0)) {
+          amrex::Abort("erf.radiation.seb_snow_critical_swe_kg_m2 must be finite and > 0; got " +
+                       std::to_string(seb_snow_critical_swe_kg_m2));
       }
   }
 
