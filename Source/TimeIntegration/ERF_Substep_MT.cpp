@@ -106,10 +106,13 @@ void erf_substep_MT (int step, int /*nrk*/,
     const int domlo_z = geom.Domain().smallEnd(2);
     const int domhi_z = geom.Domain().bigEnd(2);
 
-    // The normal momentum on a lateral wall (slip, no-slip or symmetry) is zero.  The substeps
-    // must keep it so: over terrain that slopes normal to the wall, the terrain terms of the
-    // pressure gradient are not zero on the wall face, and updating the face would carry
-    // mass through the wall until the boundary fill reset it after the step
+    // The substeps keep the normal momentum on a lateral wall face (slip, no-slip, symmetry or
+    // surface layer) at its stage value, zero on all but a symmetry face, as erf_substep_T does.
+    // Over terrain that slopes normal to the wall the terrain terms of the pressure gradient are
+    // not zero on the wall face, and updating the face would carry mass through the wall until
+    // the boundary fill reset it after the substep.  (Across a symmetry face the terrain is
+    // mirrored, so those terms are zero there.)  The face then carries no density flux, which
+    // is the difference from the stage momentum times h_zeta at the stage
     const int ilo = geom.Domain().smallEnd(0);
     const int ihi = geom.Domain().bigEnd(0) + 1;
     const int jlo = geom.Domain().smallEnd(1);
@@ -397,7 +400,7 @@ void erf_substep_MT (int step, int /*nrk*/,
                                                                 + dtau * slow_rhs_rho_u(i,j,k)
                                                                 + dtau * xmom_src_arr(i,j,k);
                 if ((wall_xlo && i == ilo) || (wall_xhi && i == ihi)) {
-                    cur_xmom(i,j,k) = zero;
+                    cur_xmom(i,j,k) = stg_xmom(i,j,k) * Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_stg);
                 }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -436,7 +439,7 @@ void erf_substep_MT (int step, int /*nrk*/,
                                                                   + dtau * slow_rhs_rho_v(i,j,k)
                                                                   + dtau * ymom_src_arr(i,j,k);
                 if ((wall_ylo && j == jlo) || (wall_yhi && j == jhi)) {
-                    cur_ymom(i,j,k) = zero;
+                    cur_ymom(i,j,k) = stg_ymom(i,j,k) * Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_stg);
                 }
         });
         } // end profile

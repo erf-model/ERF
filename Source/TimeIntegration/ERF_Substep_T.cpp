@@ -115,10 +115,12 @@ void erf_substep_T (int step, int /*nrk*/,
     int jlo = domlo.y;
     int jhi = domhi.y + 1;
 
-    // The normal momentum on a lateral wall (slip, no-slip or symmetry) is zero.  The substeps
-    // must keep it so: over terrain that slopes normal to the wall, the terrain term of the
-    // pressure gradient is not zero on the wall face, and updating the face would carry
-    // mass through the wall until the boundary fill reset it after the step
+    // The substeps keep the normal momentum on a lateral wall face (slip, no-slip, symmetry or
+    // surface layer) at its stage value, zero on all but a symmetry face.  Over terrain that
+    // slopes normal to the wall the terrain term of the pressure gradient is not zero on the
+    // wall face, and updating the face would carry mass through the wall until the boundary
+    // fill reset it after the substep.  (Across a symmetry face the terrain is mirrored, so
+    // that term is zero there.)
     const bool wall_xlo = lateral_walls[0];
     const bool wall_xhi = lateral_walls[1];
     const bool wall_ylo = lateral_walls[2];

@@ -199,11 +199,13 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             cf_fluxes.tgt_w = &H.tgt_w;
         }
 
-        // Lateral faces on which the normal velocity is zero; the terrain substep keeps the
-        // normal momentum there at zero
+        // Lateral walls: faces through which no mass passes. The terrain substeps keep the
+        // normal momentum there at its stage value (a lateral surface layer sets the normal
+        // velocity to zero, as a slip wall does)
         auto is_wall = [&] (int ori) {
             const ERF_BC bc = phys_bc_type[ori];
-            return bc == ERF_BC::slip_wall || bc == ERF_BC::no_slip_wall || bc == ERF_BC::symmetry;
+            return bc == ERF_BC::slip_wall || bc == ERF_BC::no_slip_wall || bc == ERF_BC::symmetry ||
+                   bc == ERF_BC::surface_layer;
         };
         const GpuArray<bool,4> lateral_walls{is_wall(Orientation::xlo()), is_wall(Orientation::xhi()),
                                              is_wall(Orientation::ylo()), is_wall(Orientation::yhi())};

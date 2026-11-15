@@ -3629,12 +3629,16 @@ add_test_conservation(Conservation_ScalarDiffusion_Flat      ScalarDiffusion_Ref
 # bubble setting up the flow: the acoustic substeps must keep the normal momentum on the wall
 # faces at zero, or mass crosses the walls (3e-11 to 1e-10 relative in 40 steps before the fix,
 # roundoff after it).
-# A ridge sloping into the x walls, one sloping into the y walls, and a radial hill
-add_test_conservation(Conservation_TerrainSlipWall_RidgeX TerrainSlipWall_Mass "MASS")
-add_test_conservation(Conservation_TerrainSlipWall_RidgeY TerrainSlipWall_Mass "MASS"
-    OPTIONS "prob.dir=1 prob.bubble_x_c=500.0 prob.bubble_y_c=400.0")
-add_test_conservation(Conservation_TerrainSlipWall_Hill   TerrainSlipWall_Mass "MASS"
-    OPTIONS "prob.dir=2")
+# A ridge sloping into the x walls, one sloping into the y walls, and a radial hill.
+# Double precision only: the leak is 3e-11 to 1e-10 relative, far below the 5 digits the
+# conservation check asks of a single-precision run, which would pass without the fix
+if(ERF_PRECISION STREQUAL "DOUBLE")
+    add_test_conservation(Conservation_TerrainSlipWall_RidgeX TerrainSlipWall_Mass "MASS")
+    add_test_conservation(Conservation_TerrainSlipWall_RidgeY TerrainSlipWall_Mass "MASS"
+        OPTIONS "prob.dir=1 prob.bubble_x_c=500.0 prob.bubble_y_c=400.0")
+    add_test_conservation(Conservation_TerrainSlipWall_Hill   TerrainSlipWall_Mass "MASS"
+        OPTIONS "prob.dir=2")
+endif()
 # Pseudo-incompressible levels evolve rho and (rho theta), which are refluxed and averaged down:
 # both must be conserved over two levels coupled two-way (a stratified flow over a hill)
 add_test_conservation(Conservation_PseudoIncompressible_Mass     PseudoIncompressible_StratifiedHill "MASS")

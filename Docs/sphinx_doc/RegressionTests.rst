@@ -746,15 +746,17 @@ Test Location: `Tests/test_files/Closure_BoxParity`_
 
 Conservation across coarse/fine boundaries
 ------------------------------------------
-The ``Conservation_*`` tests (label ``conservation``, no gold file) run a two-level deck with
-two-way coupling in a closed domain: slip walls in z, periodic in x and y. They require the
-composite integral of a scalar to be the same at the start and the end of the run
-(``Tests/RunConservation.cmake``). The integral is the one ERF prints every step with
-``erf.sum_interval = 1`` (``RHO SCALAR SL/ML`` or ``RHO QTOTAL SL/ML``, see
-``erf.sum_interval`` in :ref:`Inputs <examples-of-usage-9>`). It weights each cell by
+The ``Conservation_*`` tests (label ``conservation``, no gold file) run a closed domain and
+require an integral that ERF prints every step with ``erf.sum_interval = 1`` to be the same at the
+start and the end of the run (``Tests/RunConservation.cmake``; see ``erf.sum_interval`` in
+:ref:`Inputs <examples-of-usage-9>`). Most run a two-level deck with two-way coupling, slip walls
+in z and periodic in x and y, and check the composite integral of a scalar (``RHO SCALAR SL/ML``
+or ``RHO QTOTAL SL/ML``); the ``Conservation_TerrainSlipWall_*`` tests below run one level and
+check ``MASS``. It weights each cell by
 :math:`\det J/(m_x m_y)` and masks the covered cells, so it is the quantity the discretization
 conserves on any mesh and with any refinement ratio. The two values must agree to 12
-significant digits in double precision and to 5 in single precision.
+significant digits in double precision and to 5 in single precision (the
+``Conservation_TerrainSlipWall_*`` tests are registered in double precision only).
 
 That holds only if the reflux at the coarse/fine faces includes the diffusive fluxes, both the
 explicit ones and the implicit part of the vertical ones (erf-model/ERF#4323). Before that fix
@@ -800,9 +802,9 @@ the domain mass not to change. ``RidgeX`` has a ridge in x (a Witch of Agnesi 10
 half-width of 150 m, still about 8 m high and sloping at the x walls), ``RidgeY`` the same ridge
 in y, and ``Hill`` a radial hill. Over terrain that slopes normal to a wall, the terrain term of
 the horizontal pressure gradient is not zero on the wall face; until the acoustic substeps kept
-the normal momentum on wall faces at zero, they carried mass through the walls (3e-11 to 1e-10
-relative in these runs), which the boundary fill only hid by resetting the momentum after the
-step.
+the normal momentum on wall faces at its stage value (zero on a slip wall), they carried mass
+through the walls (3e-11 to 1e-10 relative in these runs), which the boundary fill only hid by
+resetting the momentum after each substep.
 
 Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/ScalarDiffusion_Reflux`_,
 `Tests/test_files/TerrainSlipWall_Mass`_
