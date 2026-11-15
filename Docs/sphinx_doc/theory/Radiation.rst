@@ -408,9 +408,13 @@ for one physical surface, so ERF keeps them consistent in three places:
 
 - **A new level starts from its parent.** ``t_sfc`` and ``q_sfc`` are interpolated from the
   coarse level when a level is created, so a fine level begins from the surface its parent has
-  already reached rather than from ``erf.rad_t_sfc``.
+  already reached rather than from ``erf.rad_t_sfc``. Where the parent column or one of its
+  eight neighbours is a water column of the land mask, no slope is used, and a fine land column
+  over a coarse water column takes the mean of the neighbouring coarse land columns.
 - **Fine levels are averaged down.** After the finer levels advance, their surface state is
-  averaged onto the coarse level, exactly as the atmospheric state is. This runs under
+  averaged onto the coarse level, exactly as the atmospheric state is. Where either level has
+  a water column of the land mask, the mean is over the fine land columns, and a coarse water
+  column keeps its values (:ref:`Inputs <sec:Inputs>`, the land mask in the balance). This runs under
   ``erf.coupling_type = TwoWay``; with ``OneWay`` the levels are left to evolve independently,
   which is what that option asks for everywhere else as well.
   A level that cannot sweep is skipped: one whose boxes do not span the domain in
@@ -444,7 +448,8 @@ Limitations
   surface temperature of the longwave boundary is, in RRTMGP's order, the land-surface model's
   field, else the surface layer's potential temperature converted to absolute temperature, else
   ``erf.rad_t_sfc``; the prognostic surface
-  energy balance, when on, supplies its own state ahead of the surface layer. The surface
+  energy balance, when on, supplies its own state ahead of the surface layer on land columns;
+  on a water column of the land mask the balance does not run, and the order above holds. The surface
   layer works in potential temperature, so its value is converted to temperature with the
   Exner function evaluated at the physical surface pressure diagnosed from the lowest atmospheric cell
   before it enters the :math:`\sigma T_s^4` emission; with a
@@ -772,7 +777,7 @@ is integrated exactly, :math:`x^{n+1} - x_{eq} = (x^n - x_{eq}) e^{-k \Delta t}`
 pass field capacity or :math:`T_s` for any step. Rain and evaporation are forward Euler, as in the
 balance.
 
-**What is conserved:** with the deep reservoir, each column satisfies, to round-off,
+**What is conserved:** with the deep reservoir, each land column satisfies, to round-off,
 
 .. math::
 
@@ -873,7 +878,8 @@ first, and the bound then acts on the temperature the melt leaves. The lower bou
 ``seb_prognostic_t_min_k`` is applied to :math:`T_s^*` as without snow.
 
 **Order of the step.** The snow step runs after the balance and before the hydrology step, on
-every column outside a building footprint: snowfall, then sublimation with :math:`p_{ng}` of
+every land column outside a building footprint (a water column of the land mask carries no
+snow): snowfall, then sublimation with :math:`p_{ng}` of
 the step's start, then melt. The albedo the radiation uses in a step is that of :math:`W_n`
 at the end of the previous step; a building footprint keeps the snow-free albedo. The rain
 is the change over the step of the total accumulation minus the frozen one, not below zero;
@@ -885,7 +891,7 @@ balance held :math:`q_s` at its lower bound, the soil did not supply the evapora
 returned :math:`E_n\,\Delta t` then adds to the surface layer; the column budget still closes
 with ``seb_deep_prognostic_enable``.
 
-**What is conserved:** each column satisfies, to round-off,
+**What is conserved:** each land column satisfies, to round-off,
 
 .. math::
 
