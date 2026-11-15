@@ -1489,9 +1489,9 @@ private:
     // Check that this level's wrflowinp file has the same times as level 0's
     void check_own_low_file_times (int lev);
 
-    // Re-read the surface pressure of a level from its own (first) init file
-    // (it is not checkpointed)
-    void read_psfc_from_own_init_file (int lev);
+    // Read local PSFC regions from a level's first WRFInput file for legacy checkpoint
+    // temperature migration; this is not an input to ongoing SST/TSK updates.
+    void read_psfc_from_own_init_file (int lev, bool allow_uncovered);
 
     // The full WRF file box in ERF's global index space, including all ancestor nest offsets;
     // optionally return the requested refined file's parent-grid ratio

@@ -684,9 +684,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         // fields.  A WRF nest carries the full eta column of its parent, so its k indices are
         // already those of the domain: there is no vertical shift at any level, also when
         // the refined region does not start at the bottom of the domain.
-        IntVect shift_by(0);
-        shift_by[0] = global_file_box.smallEnd(0) - subdomain_to_read.smallEnd(0);
-        shift_by[1] = global_file_box.smallEnd(1) - subdomain_to_read.smallEnd(1);
+        const IntVect shift_by = erf_wrfinput::file_to_erf_shift(
+            global_file_box, subdomain_to_read);
 
         Box subdomain_to_fill = boxes_at_level[lev][idx];
         Print() << "Box to fill " << subdomain_to_fill << "\n";
@@ -731,8 +730,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
             if (success) {
                 // The box the whole variable covers, in this level's index space
-                Box var_box(file_box);
-                var_box.shift(shift_by);
+                Box var_box = erf_wrfinput::file_box_to_erf(file_box, shift_by);
 
 
                 // In the case where the array is 1D in the z-direction, the destination box needs to also
@@ -3289,8 +3287,7 @@ init_terrain_from_wrfinput (int /*lev*/,
  * A level made by refinement, with no init file of its own, is left to Interp2DArrays.
  *
  * @param[in] lev        level (> 0)
- * @param[in] restarting true when restarting from a checkpoint: slice 0 was read from it, and
- *                       the surface pressure, which is not checkpointed, is re-read
+ * @param[in] restarting true when restarting from a checkpoint; slice 0 was read from it
  */
 void
 ERF::init_fine_low_slices (int lev, bool restarting)
@@ -3306,8 +3303,6 @@ ERF::init_fine_low_slices (int lev, bool restarting)
     if (has_own_low_file(lev))
     {
         check_own_low_file_times(lev);
-        if (restarting) { read_psfc_from_own_init_file(lev); }
-
         sst_lev[lev].resize(ntimes);
         tsk_lev[lev].resize(ntimes);
 
@@ -3391,44 +3386,78 @@ ERF::check_own_low_file_times (int lev)
 }
 
 /**
- * Re-read the surface pressure of a level from its own init file, on the box init_from_wrfinput
- * reads it on (the domain at level 0, the nest box above).  Level 0 reads its first init file
- * only, as init_from_wrfinput does however many erf.nc_init_file_0 lists, and so does a finer
- * level with several, which a run reads alone until another starts (see ErrorEst).  The surface
- * pressure is not checkpointed; a restart from a WRFInput checkpoint that holds the SST and TSK
- * as potential temperature converts them back with it (see convert_legacy_surface_temperature).
+ * Read only the local PSFC region needed on this rank, with the same file-to-ERF mapping and
+ * local-region read used by init_from_wrfinput.  If a recovered parent pressure already fills
+ * part of a regridded fine level, this file overlays the cells in its footprint; cells outside
+ * it retain the parent value.  Without that parent, every valid cell must be covered by the file.
  *
  * @param[in] lev level with an init file of its own
  */
 void
-ERF::read_psfc_from_own_init_file (int lev)
+ERF::read_psfc_from_own_init_file (int lev, bool allow_uncovered)
 {
     AMREX_ALWAYS_ASSERT(!nc_init_file[lev].empty());
+    AMREX_ALWAYS_ASSERT(mf_PSFC[lev]);
 
-    int ratio;
-    Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][0], ratio);
-
-    FArrayBox fab_from_file;
-    int success, use_theta_m;
-    read_from_wrfinput(lev, subdomain_to_read, nc_init_file[lev][0], fab_from_file, "PSFC",
-                       geom[lev], use_theta_m, success);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(success, "read_psfc_from_own_init_file: no PSFC in the init file");
-
-    // Put it on the box init_from_wrfinput puts it on
-    Box box2d = wrfinput_file_box(lev, 0);
-    box2d.setRange(2, 0);
-    AMREX_ALWAYS_ASSERT(fab_from_file.box().length(0) == box2d.length(0) &&
-                        fab_from_file.box().length(1) == box2d.length(1));
-    fab_from_file.shift(box2d.smallEnd() - fab_from_file.box().smallEnd());
-
-    FArrayBox var_fab(box2d, 1, The_Pinned_Arena());
-    var_fab.template copy<RunOn::Host>(fab_from_file, 0, 0, 1);
-
-    for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
-        (*mf_PSFC[lev])[mfi].template copy<RunOn::Device>(var_fab, 0, 0, 1);
+    Box subdomain_to_read;
+    const Box erf_file_box = wrfinput_file_box(lev, 0, nullptr, &subdomain_to_read);
+    Box psfc_file_box;
+    if (!wrfinput_var_box(subdomain_to_read, nc_init_file[lev][0], "PSFC", psfc_file_box)) {
+        Abort("read_psfc_from_own_init_file: " + nc_init_file[lev][0] +
+              " has no PSFC variable");
     }
-    if (mf_PSFC[lev]->max(0) == zero) {
-        mf_PSFC[lev]->setVal(p_0);
+
+    const IntVect shift = erf_wrfinput::file_to_erf_shift(erf_file_box, subdomain_to_read);
+    const Box psfc_erf_box = erf_wrfinput::file_box_to_erf(psfc_file_box, shift);
+
+    IntVect ng = mf_PSFC[lev]->nGrowVect();
+    ng[2] = 0;
+    Vector<Box> local_erf_regions;
+    Vector<int> local_fab_indices;
+    for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
+        const Box valid = mfi.validbox();
+        if (!allow_uncovered && !psfc_erf_box.contains(valid)) {
+            std::ostringstream os;
+            os << "read_psfc_from_own_init_file: required PSFC region " << valid
+               << " at level " << lev << " is outside the file footprint " << psfc_erf_box
+               << " in " << nc_init_file[lev][0];
+            Abort(os.str());
+        }
+        Box needed = amrex::grow(valid, ng) & psfc_erf_box;
+        if (needed.ok()) {
+            local_erf_regions.push_back(needed);
+            local_fab_indices.push_back(mfi.index());
+        }
+    }
+
+    int max_readers = 256;
+    ParmParse pp("erf");
+    pp.query("wrfinput_max_readers", max_readers);
+    int max_regions = static_cast<int>(local_erf_regions.size());
+    ParallelDescriptor::ReduceIntMax(max_regions);
+    for (int iregion = 0; iregion < max_regions; ++iregion) {
+        // All ranks make the same number of calls because read_region_from_wrfinput has
+        // collective reader throttling. Ranks without a region in this slot pass an empty
+        // box, and each rank reads only the region of one of its own grids.
+        Box file_region = psfc_file_box;
+        if (iregion < static_cast<int>(local_erf_regions.size())) {
+            file_region = local_erf_regions[iregion];
+            file_region.shift(-shift);
+        } else {
+            file_region.setBig(0, file_region.smallEnd(0)-1);
+        }
+        FArrayBox psfc_from_file;
+        read_region_from_wrfinput(nc_init_file[lev][0], "PSFC", psfc_file_box,
+                                  file_region, psfc_from_file, max_readers);
+        if (psfc_from_file.box().ok()) {
+            psfc_from_file.shift(shift);
+            FArrayBox& psfc_fab = (*mf_PSFC[lev])[local_fab_indices[iregion]];
+            const Box copy_box = psfc_fab.box() & psfc_from_file.box();
+            if (copy_box.ok()) {
+                psfc_fab.template copy<RunOn::Device>(
+                    psfc_from_file, copy_box, 0, copy_box, 0, 1);
+            }
+        }
     }
 }
 
