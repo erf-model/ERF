@@ -5421,6 +5421,8 @@ no rain, runoff or drainage, and is left out of the means and residuals the bala
 building's column (mask 2) is land. The sweep's longwave boundary on a water column is the surface
 layer's sea surface temperature, and without a z-low surface layer the scalar ``erf.rad_t_sfc``.
 The run prints one line for each level that has water columns, and names which of the two it uses.
+The line is printed once per set of grids. The balance, the average-down and the fill of a new
+level read the mask itself each time, so they follow a mask that changes during a run.
 ``seb_t_sfc`` and ``seb_q_sfc`` on a water column are held values, not a state of the water: the
 values the column had at the start, at the restart, or when its level was built.
 
@@ -5435,14 +5437,27 @@ run; a water albedo is not part of the balance.
 Between levels, where either level has a water column, a coarse land column takes the mean of the
 fine land columns under it; a coarse land column over fine water only, and a coarse water column,
 keep their values. The totals in kg/m^2 of a coarse column on a shore are then per unit of land
-area. A new fine level takes its parent's values column by column, with no slope, where either
-level has a water column: the slope of a coarse land column on a shore would be formed with the
-held value of the water column next to it. Two limits remain. A fine land column under a coarse
-water column starts from the held value. A fine water column under a coarse land column starts
+area. Whether a level has water is read from the masks at each average-down: one or two
+reductions per pair of levels and coarse step.
+
+A new fine level is filled from its parent. Where the parent column and its eight neighbours are
+all land, the fine columns are interpolated with slopes, as in a run with no water. Elsewhere no
+slope is used: the slope of a coarse land column on a shore would be formed with the held value of
+the water column next to it. There a fine land column over a coarse land column takes the parent's
+value. A fine land column over a coarse water column takes the mean of the land columns among the
+parent's eight neighbours. Neighbours beyond a domain wall are left out. On a regrid, the columns
+the level already had keep their own values; the fill is for the new columns. Two limits remain.
+A fine land column whose parent and all eight neighbours are water has no land value to take: it
+starts from the parent's held value, and the run prints the number of such columns for the level.
+A fine water column under a coarse land column starts
 with the land's values, including its snow and totals; the snow is removed at the first step, as
 above. Both arise only where a level has its own mask: with ``wrfinput`` a new level takes its
 parent's mask, and otherwise it takes ``erf.is_land`` of its level (default 1), so a level 1 over
 a level 0 of water is land unless ``erf.is_land`` says otherwise.
+
+The WW3 coupling rewrites the land mask from the wave height at every step. A column that turns
+from water to land would resume the balance from the state it held as water, so a build with the
+WW3 coupling stops at the start when ``erf.radiation.seb_prognostic_enable`` is true.
 
 A run with no water column is unchanged. These runs change: a ``seb_enable`` run with
 ``erf.is_land = 0`` on a level, a ``seb_enable`` run whose ``wrfinput`` or metgrid ``LANDMASK``

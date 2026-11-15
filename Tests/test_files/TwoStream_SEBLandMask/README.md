@@ -13,7 +13,10 @@ all land, all water, and with two levels: water on level 0 and a level 1 of land
 western half. The third run checks the average-down of the balance's fields between the
 levels, which is over land columns: the level 0 water columns under level 1 keep their
 values. A level that holds both is covered by the unit test
-`Tests/Unit/Radiation/ERF_GTestTwoStreamLandMask.cpp`.
+`Tests/Unit/Radiation/ERF_GTestTwoStreamLandMask.cpp`, and so is the fill of a new level
+along a shore. In the third run every level 1 column lies over water with no land next to
+it, so the fill has no land value to give: the columns take the parent's held value and the
+log reports their number.
 
 ## Files
 

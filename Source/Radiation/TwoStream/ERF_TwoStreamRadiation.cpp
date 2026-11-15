@@ -14,6 +14,7 @@
 #include <ERF_SimplifiedSEB.H>
 #include <ERF_SurfaceMoisture.H>
 #include <ERF_SEBTurbulentFlux.H>
+#include <ERF_SEBLandMask.H>
 #include <ERF_OrbCosZenith.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -267,7 +268,7 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_shaded_step.resize(nlevs_max, -1);
     m_has_cover.resize(nlevs_max, 0);
     m_seb_updated.resize(nlevs_max, 0);
-    m_has_water.resize(nlevs_max, -1);
+    m_water_message.resize(nlevs_max, -1);
     m_flux_diag.resize(nlevs_max);
     m_diag.resize(nlevs_max);
     m_precip.resize(nlevs_max);
@@ -400,7 +401,7 @@ TwoStreamRadiation::define_level (int lev,
     m_has_cover[lev] = 0;
     m_seb_updated[lev] = 0;
     // The level may have new grids: look at its land mask again.
-    m_has_water[lev] = -1;
+    m_water_message[lev] = -1;
     m_flux_diag[lev] = FluxDiag{};
 }
 
@@ -940,16 +941,17 @@ TwoStreamRadiation::advance (int lev,
     const bool seb_active = rad_choice.seb_enable;
     // The land mask counts only for the balance: a water column (mask 0) is not soil.
     // The mask is read by the local index of the state's boxes, as the 2D fields are.
-    const bool water_mask = seb_active && land_mask != nullptr;
-    if (water_mask) {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_alb_sw[lev] &&
-            land_mask->boxArray() == m_alb_sw[lev]->boxArray() &&
-            land_mask->DistributionMap() == m_alb_sw[lev]->DistributionMap(),
-            "TwoStreamRadiation::advance: the land mask is not on the level's 2D grids");
-        // Once per set of grids (one reduction and one collective): the mask is fixed in time.
-        if (m_has_water[lev] < 0) {
-            m_has_water[lev] = (land_mask->min(0) == 0) ? 1 : 0;
-            if (m_has_water[lev] == 1) {
+    // How the mask is read is in ERF_SEBLandMask.H; balance_mask is nullptr with no balance.
+    const iMultiFab* const balance_mask = seb_active ? land_mask : nullptr;
+    if (balance_mask != nullptr) {
+        AMREX_ALWAYS_ASSERT(m_alb_sw[lev]);
+        seb_assert_land_mask_layout(balance_mask, *m_alb_sw[lev], "TwoStreamRadiation::advance");
+        // A message only, once per set of grids (one reduction and one collective). The
+        // kernels below read the mask as it is at each sweep, and ERF reads it again for
+        // the average-down and the fill of a new level; none of them uses this flag.
+        if (m_water_message[lev] < 0) {
+            m_water_message[lev] = seb_land_mask_has_water(balance_mask) ? 1 : 0;
+            if (m_water_message[lev] == 1) {
                 // Say so once: the keys of the balance are read, but it does not run there.
                 amrex::Print() << "TwoStreamRadiation: level " << lev
                                << " has water columns in its land mask. The force-restore "
@@ -1122,7 +1124,7 @@ TwoStreamRadiation::advance (int lev,
                 // No snow lies on a building footprint, or on water.
                 m_snow.apply_albedo(lev, *m_alb_sw[lev], ForceRestoreSnow::params(rad_choice),
                                     has_building_cover(lev) ? m_footprint[lev].get() : nullptr,
-                                    water_mask ? land_mask : nullptr);
+                                    balance_mask);
             }
             fill_or_copy_seb_field(m_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
 
@@ -1316,9 +1318,7 @@ TwoStreamRadiation::advance (int lev,
             // The balance's skin is a soil temperature. Over water (land mask 0) it is
             // not offered, so the column falls through to the surface layer's sea surface
             // temperature, then to the scalar fallback.
-            const bool skin_on_land_only = has_seb_t_sfc && water_mask;
-            Array4<const int> lmask_arr;
-            if (skin_on_land_only) { lmask_arr = land_mask->const_array(mfi); }
+            const SEBLandMaskView skin_mask = seb_land_mask_view(has_seb_t_sfc ? balance_mask : nullptr, mfi);
 
             // Per-column latitude and longitude for the calendar sun (only
             // the WRF and metgrid initialisations fill them; otherwise the
@@ -1510,7 +1510,7 @@ TwoStreamRadiation::advance (int lev,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
                         has_hetero_emiss_lw, &hetero_emiss_lw_arr,
                         has_lsm_t_sfc, &lsm_t_sfc_arr,
-                        has_seb_t_sfc && !(skin_on_land_only && lmask_arr(i, j, 0) == 0), &seb_t_sfc_arr,
+                        has_seb_t_sfc && !skin_mask.water(i, j), &seb_t_sfc_arr,
                         has_surface_layer, &surface_layer_theta_arr,
                         has_latlon, &lat_arr, &lon_arr,
                         write_fluxes ? &rad_flux_clear_arr : nullptr,
@@ -1550,7 +1550,7 @@ TwoStreamRadiation::advance (int lev,
                             has_hetero_alb_sw, &hetero_alb_sw_arr,
                             has_hetero_emiss_lw, &hetero_emiss_lw_arr,
                             has_lsm_t_sfc, &lsm_t_sfc_arr,
-                            has_seb_t_sfc && !(skin_on_land_only && lmask_arr(i, j, 0) == 0), &seb_t_sfc_arr,
+                            has_seb_t_sfc && !skin_mask.water(i, j), &seb_t_sfc_arr,
                             has_surface_layer, &surface_layer_theta_arr,
                             has_latlon, &lat_arr, &lon_arr,
                             write_fluxes ? &rad_flux_cloudy_arr : nullptr,
@@ -1813,8 +1813,7 @@ TwoStreamRadiation::advance (int lev,
                 Array4<const amrex::Real> foot_arr;
                 if (skip_footprints) { foot_arr = m_footprint[lev]->const_array(mfi); }
                 // Nor is a water column (land mask 0).
-                Array4<const int> lmask_arr;
-                if (water_mask) { lmask_arr = land_mask->const_array(mfi); }
+                const SEBLandMaskView lmask = seb_land_mask_view(balance_mask, mfi);
 
                 // Count columns and compute residuals
                 amrex::Long n_cols_box = 0;
@@ -1830,7 +1829,7 @@ TwoStreamRadiation::advance (int lev,
                 seb_reduce_ops.eval(xy_box, seb_reduce_data,
                     [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> SEBReduceTuple {
                         if ((skip_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) ||
-                            (water_mask && lmask_arr(i, j, 0) == 0)) {
+                            lmask.water(i, j)) {
                             return {amrex::Real(0.0), amrex::Real(0.0), amrex::Long(0)};
                         }
                         amrex::Real sw_net = sw_flux_arr(i, j, 0);
@@ -1920,8 +1919,7 @@ TwoStreamRadiation::advance (int lev,
                     Array4<const amrex::Real> swe_arr;
                     if (melt_first) { swe_arr = m_snow.swe(lev)->const_array(mfi); }
                     // So does a water column (land mask 0): the update is a soil's.
-                    Array4<const int> lmask_arr;
-                    if (water_mask) { lmask_arr = land_mask->const_array(mfi); }
+                    const SEBLandMaskView lmask = seb_land_mask_view(balance_mask, mfi);
                     // Count columns and prepare for reductions
                     amrex::Long n_cols_box = 0;
                     amrex::Real t_s_sum_box = 0.0;
@@ -1946,7 +1944,7 @@ TwoStreamRadiation::advance (int lev,
                             q_max=rad_choice.seb_prognostic_q_max]
                             AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
                             if ((hold_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) ||
-                                (water_mask && lmask_arr(i, j, 0) == 0)) {
+                                lmask.water(i, j)) {
                                 constexpr amrex::Real lowest = std::numeric_limits<amrex::Real>::lowest();
                                 return {amrex::Real(0.0), lowest, amrex::Real(0.0), lowest, amrex::Long(0)};
                             }
@@ -2029,7 +2027,7 @@ TwoStreamRadiation::advance (int lev,
                         lev, *m_t_sfc[lev], *m_lh_sfc[lev],
                         cover_seb ? m_footprint[lev].get() : nullptr, dt_step,
                         ForceRestoreSnow::params(rad_choice), m_precip.frozen(lev, dt_step),
-                        t_s_sum_snow, t_s_max_snow, water_mask ? land_mask : nullptr);
+                        t_s_sum_snow, t_s_max_snow, balance_mask);
                     // The melt changed T_s: the step's T_s statistics are those after it.
                     t_s_sum = t_s_sum_snow;
                     t_s_max_val = t_s_max_snow;
@@ -2058,7 +2056,7 @@ TwoStreamRadiation::advance (int lev,
                         dt_step, ForceRestoreHydrology::params(rad_choice),
                         m_precip.rain(lev, dt_step),
                         snow_on ? m_snow.soil_water(lev) : nullptr,
-                        water_mask ? land_mask : nullptr);
+                        balance_mask);
                     if (m_q_sfc[lev]->contains_nan(0, 1, 0) || m_q_deep[lev]->contains_nan(0, 1, 0) ||
                         m_t_deep[lev]->contains_nan(0, 1, 0)) {
                         amrex::Abort("TwoStreamRadiation: non-finite soil water or deep temperature "

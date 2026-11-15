@@ -2,7 +2,11 @@
 #include <string>
 #include <utility>
 
+#include <AMReX_BCRec.H>
+#include <AMReX_BC_TYPES.H>
+#include <AMReX_FillPatchUtil.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_Interpolater.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Print.H>
 #include <AMReX_iMultiFab.H>
@@ -17,6 +21,8 @@
 #include <ERF_LandSurface.H>
 #include <ERF_RadStruct.H>
 #include <ERF_SEBLandAverageDown.H>
+#include <ERF_SEBLandFill.H>
+#include <ERF_SEBLandMask.H>
 #include <ERF_SurfacePrecipitation.H>
 #include <ERF_SurfaceTemperature.H>
 #include <ERF_TwoStreamLW.H>
@@ -442,20 +448,231 @@ TEST(TwoStreamLandMask, AverageDownIsOverTheLandColumns)
     EXPECT_NEAR(value_at(crse, IntVect(2, 2, 0), 0), Real(49.5), Real(49.5) * tol);
 }
 
-// The radiation object reports a level with water once it has run with that level's mask.
-TEST(TwoStreamLandMask, LevelWithWaterIsReported)
+// Every field goes down in one call (ERF_SEBLandAverageDown.H): the result of each is the
+// result of a call of its own, a pair with a null pointer is left out, and the fields may
+// differ in their number of components. The second field has one component, 3 (10 i + j):
+// coarse (1,0) then holds 3 x 20.5 = 61.5.
+TEST(TwoStreamLandMask, AverageDownOfSeveralFieldsIsOneCall)
 {
-    MaskRun shore, land;
-    iMultiFab m0(shore.L.ba2d, shore.L.dm, 1, IntVect(1, 1, 0));
-    iMultiFab m1(land.L.ba2d, land.L.dm, 1, IntVect(1, 1, 0));
-    fill_mask(m0, 0);
-    fill_mask(m1, 1);
-    EXPECT_FALSE(shore.radiation.seb_level_has_water(0));
-    shore.sweep(&m0);
-    land.sweep(&m1);
-    EXPECT_TRUE(shore.radiation.seb_level_has_water(0));
-    EXPECT_FALSE(land.radiation.seb_level_has_water(0));
-    EXPECT_FALSE(shore.radiation.seb_level_has_water(1));
+    const Box cdomain(IntVect(0, 0, 0), IntVect(3, 3, 0));
+    const Box fdomain(IntVect(0, 0, 0), IntVect(7, 7, 0));
+    BoxArray cba(cdomain), fba(fdomain);
+    cba.maxSize(IntVect(2, 4, 1));
+    fba.maxSize(IntVect(8, 4, 1));
+    const DistributionMapping cdm(cba), fdm(fba);
+    MultiFab crse_a(cba, cdm, 2, 0), fine_a(fba, fdm, 2, 0);
+    MultiFab crse_b(cba, cdm, 1, 0), fine_b(fba, fdm, 1, 0);
+    MultiFab one_a(cba, cdm, 2, 0), one_b(cba, cdm, 1, 0);
+    iMultiFab cmask(cba, cdm, 1, 0), fmask(fba, fdm, 1, 0);
+    fill_average_down_case(fine_a, fmask, cmask);
+    MultiFab::Copy(fine_b, fine_a, 0, 0, 1, 0);
+    fine_b.mult(Real(3.0));
+    for (MultiFab* c : {&crse_a, &one_a}) { c->setVal(Real(-7.0), 0, 1); c->setVal(Real(7.0), 1, 1); }
+    crse_b.setVal(Real(11.0));
+    one_b.setVal(Real(11.0));
+
+    seb_average_down_land(Vector<const MultiFab*>{&fine_a, nullptr, &fine_b},
+                          Vector<MultiFab*>{&crse_a, &crse_b, &crse_b}, fmask, cmask, IntVect(2, 2, 1));
+    seb_average_down_land(fine_a, one_a, fmask, cmask, IntVect(2, 2, 1));
+    seb_average_down_land(fine_b, one_b, fmask, cmask, IntVect(2, 2, 1));
+
+    for (int j = 0; j < 4; ++j) {
+        for (int i = 0; i < 4; ++i) {
+            const IntVect p(i, j, 0);
+            EXPECT_EQ(value_at(crse_a, p, 0), value_at(one_a, p, 0)) << i << " " << j;
+            EXPECT_EQ(value_at(crse_a, p, 1), value_at(one_a, p, 1)) << i << " " << j;
+            EXPECT_EQ(value_at(crse_b, p, 0), value_at(one_b, p, 0)) << i << " " << j;
+        }
+    }
+    const Real tol = Real(64) * real_eps;
+    EXPECT_NEAR(value_at(crse_a, IntVect(1, 0, 0), 0), Real(20.5), Real(20.5) * tol);
+    EXPECT_NEAR(value_at(crse_b, IntVect(1, 0, 0), 0), Real(61.5), Real(61.5) * tol);
+    EXPECT_EQ(value_at(crse_b, IntVect(2, 0, 0), 0), Real(11.0));
+    EXPECT_EQ(value_at(crse_b, IntVect(3, 3, 0), 0), Real(11.0));
+}
+
+// Whether a level has water is read from its mask, with no radiation step before it, and
+// again after the mask is rewritten (the WW3 coupling rewrites it during a run). A
+// building's column (2) is land; no mask is all land.
+void set_mask_column (iMultiFab& mask, int ic, int jc, int value)
+{
+    for (MFIter mfi(mask); mfi.isValid(); ++mfi) {
+        const auto m = mask.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (i == ic && j == jc) { m(i, j, k) = value; }
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+int count_water (const iMultiFab* mask)
+{
+    int n = 0;
+    for (MFIter mfi(*mask); mfi.isValid(); ++mfi) {
+        const SEBLandMaskView v = seb_land_mask_view(mask, mfi);
+        const SEBLandMaskView off = seb_land_mask_view(nullptr, mfi);
+        const Box& bx = mfi.validbox();
+        ReduceOps<ReduceOpSum> reduce_op;
+        ReduceData<int> reduce_data(reduce_op);
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int) -> GpuTuple<int> {
+            return {(v.water(i, j) ? 1 : 0) + (off.water(i, j) ? 1000 : 0)};
+        });
+        n += amrex::get<0>(reduce_data.value());
+    }
+    ParallelDescriptor::ReduceIntSum(n);
+    return n;
+}
+
+TEST(TwoStreamLandMask, WaterIsReadFromTheMask)
+{
+    const Box domain(IntVect(0, 0, 0), IntVect(3, 3, 0));
+    BoxArray ba(domain);
+    ba.maxSize(IntVect(2, 2, 1));
+    const DistributionMapping dm(ba);
+    iMultiFab mask(ba, dm, 1, IntVect(1, 1, 0));
+    mask.setVal(1);
+    EXPECT_FALSE(seb_land_mask_has_water(nullptr));
+    EXPECT_FALSE(seb_land_mask_has_water(&mask));
+    set_mask_column(mask, 1, 2, 2);
+    EXPECT_FALSE(seb_land_mask_has_water(&mask));
+    EXPECT_EQ(count_water(&mask), 0);
+    set_mask_column(mask, 3, 0, 0);
+    EXPECT_TRUE(seb_land_mask_has_water(&mask));
+    EXPECT_EQ(count_water(&mask), 1);
+    set_mask_column(mask, 3, 0, 1);
+    EXPECT_FALSE(seb_land_mask_has_water(&mask));
+}
+
+// The fill of a new fine level from a parent with water (ERF_SEBLandFill.H). An 8 x 8
+// coarse level, walls in x and periodic in y, under a 16 x 16 fine level, ratio 2. The
+// coarse land columns hold 100 + 3 i + 7 j in component 0 and its negative in component 1.
+// The coarse water columns, i = 5..7 with j = 2..4, hold the "held" values -999 and 999.
+// The fine columns (10,4) and (12,6) are water; every other fine column is land.
+struct FillCase
+{
+    Box cdomain{IntVect(0, 0, 0), IntVect(7, 7, 0)};
+    Box fdomain{IntVect(0, 0, 0), IntVect(15, 15, 0)};
+    Geometry cgeom, fgeom;
+    BoxArray cba, fba;
+    DistributionMapping cdm, fdm;
+    MultiFab crse, fine;
+    iMultiFab cmask, fmask;
+    Vector<BCRec> bcs;
+
+    explicit FillCase (bool with_water)
+    {
+        const RealBox rb({Real(0.), Real(0.), Real(0.)}, {Real(800.), Real(800.), Real(100.)});
+        const Array<int, 3> periodic{0, 1, 0};
+        cgeom.define(cdomain, rb, 0, periodic);
+        fgeom.define(fdomain, rb, 0, periodic);
+        cba.define(cdomain); cba.maxSize(IntVect(4, 4, 1));
+        fba.define(fdomain); fba.maxSize(IntVect(8, 4, 1));
+        cdm.define(cba); fdm.define(fba);
+        const IntVect ng(1, 1, 0);
+        crse.define(cba, cdm, 2, ng); fine.define(fba, fdm, 2, ng);
+        cmask.define(cba, cdm, 1, ng); fmask.define(fba, fdm, 1, ng);
+        // The mask's ghost columns beyond the walls read as land: the fill must leave them out.
+        cmask.setVal(1); fmask.setVal(1);
+        BCRec bc;
+        bc.setLo(0, BCType::foextrap); bc.setHi(0, BCType::foextrap);
+        bc.setLo(1, BCType::int_dir);  bc.setHi(1, BCType::int_dir);
+        bc.setLo(2, BCType::foextrap); bc.setHi(2, BCType::foextrap);
+        bcs.assign(2, bc);
+        fill(with_water);
+    }
+
+    void fill (bool with_water);
+};
+
+void fill_fill_case (MultiFab& crse, iMultiFab& cmask, iMultiFab& fmask, bool with_water)
+{
+    for (MFIter mfi(crse); mfi.isValid(); ++mfi) {
+        const auto c = crse.array(mfi);
+        const auto m = cmask.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const bool water = with_water && i >= 5 && j >= 2 && j <= 4;
+            m(i, j, k) = water ? 0 : 1;
+            const Real v = water ? Real(-999.0) : static_cast<Real>(100 + 3 * i + 7 * j);
+            c(i, j, k, 0) = v;
+            c(i, j, k, 1) = -v;
+        });
+    }
+    for (MFIter mfi(fmask); mfi.isValid(); ++mfi) {
+        const auto m = fmask.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            m(i, j, k) = (with_water && ((i == 10 && j == 4) || (i == 12 && j == 6))) ? 0 : 1;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+void FillCase::fill (bool with_water)
+{
+    fill_fill_case(crse, cmask, fmask, with_water);
+    cmask.FillBoundary(cgeom.periodicity());
+    fmask.FillBoundary(fgeom.periodicity());
+    fine.setVal(Real(-1.0));
+    seb_extend_halo(crse, cgeom);
+}
+
+// The interpolation with slopes of the same coarse field, as on a level with no water.
+void fill_with_slopes (FillCase& c, MultiFab& out)
+{
+    out.define(c.fba, c.fdm, 2, IntVect(1, 1, 0));
+    out.setVal(Real(-1.0));
+    InterpFromCoarseLevel(out, out.nGrowVect(), IntVect(0, 0, 0), c.crse, 0, 0, 2,
+                          c.cgeom, c.fgeom, IntVect(2, 2, 1), &cell_cons_interp, c.bcs, 0);
+}
+
+TEST(TwoStreamLandMask, FillOfANewLevelTakesLandValues)
+{
+    FillCase c(true);
+    MultiFab slopes;
+    fill_with_slopes(c, slopes);
+    Long n_none = seb_fill_from_coarse_over_land(c.fine, c.crse, c.cmask, &c.fmask,
+                                                 c.cgeom, c.fgeom, IntVect(2, 2, 1), c.bcs);
+    ParallelDescriptor::ReduceLongSum(n_none);
+
+    const Real tol = Real(64) * real_eps;
+    // Parent (1,4) and its eight neighbours are land: the interpolation with slopes, which
+    // is exact for a linear field: 100 + 3 (0.75) + 7 (3.75) = 128.5 at the fine column (2,8).
+    EXPECT_EQ(value_at(c.fine, IntVect(2, 8, 0), 0), value_at(slopes, IntVect(2, 8, 0), 0));
+    EXPECT_NEAR(value_at(c.fine, IntVect(2, 8, 0), 0), Real(128.5), Real(128.5) * tol);
+    EXPECT_NEAR(value_at(c.fine, IntVect(2, 8, 0), 1), Real(-128.5), Real(128.5) * tol);
+    // Parent (4,2) is land next to the water column (5,2): its own value 126, no slope.
+    EXPECT_EQ(value_at(c.fine, IntVect(8, 4, 0), 0), Real(126.0));
+    EXPECT_EQ(value_at(c.fine, IntVect(9, 5, 0), 0), Real(126.0));
+    EXPECT_EQ(value_at(c.fine, IntVect(9, 5, 0), 1), Real(-126.0));
+    // Parent (5,2) is water. Its land neighbours (4,1), (5,1), (6,1), (4,2), (4,3) hold
+    // 119, 122, 125, 126, 133: the mean is 125, not the held -999.
+    EXPECT_NEAR(value_at(c.fine, IntVect(11, 4, 0), 0), Real(125.0), Real(125.0) * tol);
+    EXPECT_NEAR(value_at(c.fine, IntVect(11, 5, 0), 1), Real(-125.0), Real(125.0) * tol);
+    // The fine water column (10,4) over the same parent keeps the parent's held value.
+    EXPECT_EQ(value_at(c.fine, IntVect(10, 4, 0), 0), Real(-999.0));
+    // Parent (7,2) is water at the wall: the columns beyond the wall are left out. Its land
+    // neighbours (6,1), (7,1) hold 125 and 128: the mean is 126.5.
+    EXPECT_NEAR(value_at(c.fine, IntVect(15, 4, 0), 0), Real(126.5), Real(126.5) * tol);
+    // Parents (6,3) and (7,3) are water with no land neighbour: the held value, and the
+    // fine land columns over them are counted: 8 less the fine water column (12,6).
+    EXPECT_EQ(value_at(c.fine, IntVect(13, 7, 0), 0), Real(-999.0));
+    EXPECT_EQ(value_at(c.fine, IntVect(14, 6, 0), 1), Real(999.0));
+    EXPECT_EQ(n_none, Long(7));
+}
+
+// With no water on the parent the fill is the interpolation with slopes in every column.
+TEST(TwoStreamLandMask, FillWithNoWaterIsTheInterpolationWithSlopes)
+{
+    FillCase c(false);
+    MultiFab slopes;
+    fill_with_slopes(c, slopes);
+    Long n_none = seb_fill_from_coarse_over_land(c.fine, c.crse, c.cmask, nullptr,
+                                                 c.cgeom, c.fgeom, IntVect(2, 2, 1), c.bcs);
+    ParallelDescriptor::ReduceLongSum(n_none);
+    EXPECT_EQ(n_none, Long(0));
+    MultiFab::Subtract(slopes, c.fine, 0, 0, 2, 0);
+    EXPECT_EQ(slopes.norminf(0, 0), Real(0.0));
+    EXPECT_EQ(slopes.norminf(1, 0), Real(0.0));
+    EXPECT_NEAR(value_at(c.fine, IntVect(2, 8, 0), 0), Real(128.5), Real(128.5) * Real(64) * real_eps);
 }
 
 // The radiation step hands the mask on to the snow albedo, the snow step and the hydrology

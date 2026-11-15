@@ -408,8 +408,9 @@ for one physical surface, so ERF keeps them consistent in three places:
 
 - **A new level starts from its parent.** ``t_sfc`` and ``q_sfc`` are interpolated from the
   coarse level when a level is created, so a fine level begins from the surface its parent has
-  already reached rather than from ``erf.rad_t_sfc``. Where either level has a water column of
-  the land mask, each fine column takes its parent's value with no slope.
+  already reached rather than from ``erf.rad_t_sfc``. Where the parent column or one of its
+  eight neighbours is a water column of the land mask, no slope is used, and a fine land column
+  over a coarse water column takes the mean of the neighbouring coarse land columns.
 - **Fine levels are averaged down.** After the finer levels advance, their surface state is
   averaged onto the coarse level, exactly as the atmospheric state is. Where either level has
   a water column of the land mask, the mean is over the fine land columns, and a coarse water

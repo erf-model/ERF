@@ -61,6 +61,14 @@ run_leg("${NEST_DIR}" "0 1"
     "erf.patch.in_box_lo=0.0 0.0" "erf.patch.in_box_hi=200.0 400.0"
     erf.regrid_int=1 erf.dt_ref_ratio=1)
 
+# The fill of level 1 from level 0 (ERF::fill_seb_from_coarse): every level 1 column is land
+# over water with no land next to it, so the fill reports all of them: 4 x 8 columns of 50 m.
+file(READ "${NEST_DIR}/simulation.log" nest_log)
+string(FIND "${nest_log}" "ERF::fill_seb_from_coarse: level 1: 32 land column(s) lie over a coarse water column" fill_line)
+if(fill_line EQUAL -1)
+    message(FATAL_ERROR "RunTwoStreamSEBLandMask.cmake: the two-level run did not report 32 level 1 land columns with no land source (see ${NEST_DIR}/simulation.log)")
+endif()
+
 execute_process(
     COMMAND "${PYTHON_EXE}" "${CHECKER}"
             --fextract "${FEXTRACT}"

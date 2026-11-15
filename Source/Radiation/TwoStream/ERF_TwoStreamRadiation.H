@@ -69,15 +69,6 @@ public:
         return (m_rad != nullptr) && m_rad->enabled;
     }
 
-    /**
-     * @brief True when the land mask the balance last ran with at @p lev holds a water
-     * column (mask 0). ERF then averages the balance's fields down over land columns only
-     * (ERF_SEBLandAverageDown.H). False before the level's first advance() with a mask.
-     */
-    [[nodiscard]] bool seb_level_has_water (int lev) const noexcept {
-        return lev >= 0 && lev < static_cast<int>(m_has_water.size()) && m_has_water[lev] == 1;
-    }
-
     /** @brief Read-only view of the per-level prognostic surface-temperature state. */
     [[nodiscard]] const amrex::MultiFab* prognostic_surface_temperature_state (int lev) const noexcept {
         return (lev >= 0 && lev < static_cast<int>(m_t_sfc.size()))
@@ -625,10 +616,11 @@ private:
     amrex::Vector<int> m_has_cover;
     // Whether the ground balance of the level has updated after a sweep (seb_sw_net()).
     amrex::Vector<int> m_seb_updated;
-    // Whether the land mask advance() was given at a level holds a water column: 1 yes,
-    // 0 no, -1 not looked at yet. The mask does not change in time, so it is looked at
-    // once after each define_level(), which sets -1 (the level may have new grids).
-    amrex::Vector<int> m_has_water;
+    // Whether advance() has looked at the level's land mask for its one message about
+    // water columns: 1 water was found and reported, 0 none was found, -1 not looked at
+    // yet (set by define_level(): the level may have new grids). A message only: every
+    // decision reads the mask itself (ERF_SEBLandMask.H).
+    amrex::Vector<int> m_water_message;
 
     amrex::Vector<FluxDiag> m_flux_diag;
 };

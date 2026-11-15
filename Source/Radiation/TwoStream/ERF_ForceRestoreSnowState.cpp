@@ -13,6 +13,7 @@
 
 #include <ERF_Constants.H>               // L_v
 #include <ERF_RadStruct.H>
+#include <ERF_SEBLandMask.H>
 #include <ERF_ReadCheckpointMF.H>
 
 using namespace amrex;
@@ -60,9 +61,7 @@ ForceRestoreSnow::step (int lev, MultiFab& t_s, const MultiFab& lh, const MultiF
     t_s_sum_local = Real(0.0);
     t_s_max_local = std::numeric_limits<Real>::lowest();
     if (!defined(lev)) { return sums; }
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(land_mask == nullptr ||
-        (land_mask->boxArray() == t_s.boxArray() && land_mask->DistributionMap() == t_s.DistributionMap()),
-        "ForceRestoreSnow::step: the land mask is not on the level's 2D grids");
+    seb_assert_land_mask_layout(land_mask, t_s, "ForceRestoreSnow::step");
 
     // The snowfall of the step: the rate times its scale (ERF_ForceRestorePrecipRate.H).
     const bool has_snowfall = snowfall.rate != nullptr;
@@ -87,13 +86,12 @@ ForceRestoreSnow::step (int lev, MultiFab& t_s, const MultiFab& lh, const MultiF
                                               : Array4<const Real>{};
         const bool has_foot = footprint != nullptr;
         Array4<const Real> foot = has_foot ? footprint->const_array(mfi) : Array4<const Real>{};
-        const bool has_mask = land_mask != nullptr;
-        Array4<const int> mask = has_mask ? land_mask->const_array(mfi) : Array4<const int>{};
+        const SEBLandMaskView mask = seb_land_mask_view(land_mask, mfi);
 
         reduce_op.eval(bx, reduce_data,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> ReduceTuple
         {
-            if ((has_foot && foot(i, j, k) > Real(0.5)) || (has_mask && mask(i, j, 0) == 0)) {
+            if ((has_foot && foot(i, j, k) > Real(0.5)) || mask.water(i, j)) {
                 // No snow lies on a building footprint, and the layer is not kept on water
                 // (the balance does not run there): the initial cover is taken off.
                 wn(i, j, k) = Real(0.0);
@@ -150,9 +148,7 @@ ForceRestoreSnow::apply_albedo (int lev, MultiFab& alb_sw, const ForceRestoreSno
                                 const MultiFab* footprint, const iMultiFab* land_mask) const
 {
     if (!defined(lev)) { return; }
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(land_mask == nullptr ||
-        (land_mask->boxArray() == alb_sw.boxArray() && land_mask->DistributionMap() == alb_sw.DistributionMap()),
-        "ForceRestoreSnow::apply_albedo: the land mask is not on the level's 2D grids");
+    seb_assert_land_mask_layout(land_mask, alb_sw, "ForceRestoreSnow::apply_albedo");
     // Valid cells only: step() does not refresh the ghost cells of W_n, and the sweep reads
     // the albedo on valid cells.
     for (MFIter mfi(alb_sw, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -161,8 +157,7 @@ ForceRestoreSnow::apply_albedo (int lev, MultiFab& alb_sw, const ForceRestoreSno
         Array4<const Real> wn = m_swe[lev]->const_array(mfi);
         const bool has_foot = footprint != nullptr;
         Array4<const Real> foot = has_foot ? footprint->const_array(mfi) : Array4<const Real>{};
-        const bool has_mask = land_mask != nullptr;
-        Array4<const int> mask = has_mask ? land_mask->const_array(mfi) : Array4<const int>{};
+        const SEBLandMaskView mask = seb_land_mask_view(land_mask, mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // step() takes the snow off a footprint, but W_n there still holds the initial
@@ -170,7 +165,7 @@ ForceRestoreSnow::apply_albedo (int lev, MultiFab& alb_sw, const ForceRestoreSno
             // checkpoint without the snow layer).
             if (has_foot && foot(i, j, k) > Real(0.5)) { return; }
             // Nor on a water column, the same columns step() leaves out.
-            if (has_mask && mask(i, j, 0) == 0) { return; }
+            if (mask.water(i, j)) { return; }
             a(i, j, k) = force_restore_snow_albedo(a(i, j, k), wn(i, j, k), prm);
         });
     }
