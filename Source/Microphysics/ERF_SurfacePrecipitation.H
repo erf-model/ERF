@@ -77,27 +77,20 @@ bool surface_precip_has_any_frozen_source (const SurfacePrecipAccumulationSource
     return surface_precip_has_any_source(src);
 }
 
+/// Which part of the surface precipitation surface_precip_accum_k0 returns.
+enum class SurfacePrecipPhase { Total, Liquid, Frozen };
+
 /**
- * @brief Total liquid-water-equivalent surface precipitation accumulation [kg/m2]
- *        of every column, from the scheme-native accumulators.
- *
- * Fills accum_2d, a one-component MultiFab on the level's boxes coarsened to one
- * cell in z (box n of accum_2d is box n of the accumulators, with the same
- * owner), from the k = klo plane of the sources. Schemes that provide a total
- * give it directly; schemes that provide the species give their sum, so
- * nothing is counted twice (the same rule as the 2D plotfile precipitation
- * diagnostics). Without any source the field is zero. A box whose 3D box does
- * not hold the k = klo plane (a fine level that does not span z, or the upper
- * box of a column split in z) has no ground to read and stays zero, so no
- * accumulator is read outside its box. Used by the fire layer's
- * fuel moisture (ERF_FirePrecip.H) and the force-restore hydrology
- * (ERF_ForceRestoreHydrology.H).
+ * @brief The work of surface_precip_accum_k0 and surface_precip_liquid_frozen_accum_k0:
+ *        component 0 of accum_2d takes the @p phase part and, with @p frozen_in_comp1,
+ *        component 1 takes the frozen part from the same pass over the accumulators.
  */
-inline void surface_precip_accum_k0 (amrex::MultiFab& accum_2d,
-                                     const SurfacePrecipAccumulationSources& sources,
-                                     int klo)
+inline void surface_precip_fill_k0 (amrex::MultiFab& accum_2d,
+                                    const SurfacePrecipAccumulationSources& sources,
+                                    int klo, SurfacePrecipPhase phase, bool frozen_in_comp1)
 {
     using namespace amrex;
+    AMREX_ALWAYS_ASSERT(accum_2d.nComp() >= (frozen_in_comp1 ? 2 : 1));
     accum_2d.setVal(Real(0.0));
     if (!surface_precip_has_any_source(sources)) { return; }
 
@@ -133,8 +126,24 @@ inline void surface_precip_accum_k0 (amrex::MultiFab& accum_2d,
         ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept
         {
             const int i = iv[0], j = iv[1];
+            Real frozen = Real(0.0);
+            if (phase != SurfacePrecipPhase::Total || frozen_in_comp1) {
+                if (has_snow)    { frozen += snow(i, j, klo)    * f_snow; }
+                if (has_graupel) { frozen += graupel(i, j, klo) * f_graupel; }
+                if (has_hail)    { frozen += hail(i, j, klo)    * f_hail; }
+            }
             Real v;
-            if (has_total) {
+            if (phase == SurfacePrecipPhase::Frozen) {
+                v = frozen;
+            } else if (phase == SurfacePrecipPhase::Liquid) {
+                // No bound here: this is an accumulation, and a bound on it would change the
+                // difference of two of its values. The user bounds that difference.
+                if (has_total) {
+                    v = total(i, j, klo) * f_total - frozen;
+                } else {
+                    v = has_rain ? rain(i, j, klo) * f_rain : Real(0.0);
+                }
+            } else if (has_total) {
                 v = total(i, j, klo) * f_total;
             } else {
                 v = Real(0.0);
@@ -143,9 +152,56 @@ inline void surface_precip_accum_k0 (amrex::MultiFab& accum_2d,
                 if (has_graupel) { v += graupel(i, j, klo) * f_graupel; }
                 if (has_hail)    { v += hail(i, j, klo)    * f_hail; }
             }
-            a(i, j, 0) = v;
+            a(i, j, 0, 0) = v;
+            if (frozen_in_comp1) { a(i, j, 0, 1) = frozen; }
         });
     }
+}
+
+/**
+ * @brief Total liquid-water-equivalent surface precipitation accumulation [kg/m2]
+ *        of every column, from the scheme-native accumulators.
+ *
+ * Fills component 0 of accum_2d, a MultiFab on the level's boxes coarsened to one
+ * cell in z (box n of accum_2d is box n of the accumulators, with the same
+ * owner), from the k = klo plane of the sources. Schemes that provide a total
+ * give it directly; schemes that provide the species give their sum, so
+ * nothing is counted twice (the same rule as the 2D plotfile precipitation
+ * diagnostics). Without any source the field is zero. A box whose 3D box does
+ * not hold the k = klo plane (a fine level that does not span z, or the upper
+ * box of a column split in z) has no ground to read and stays zero, so no
+ * accumulator is read outside its box. Used by the fire layer's
+ * fuel moisture (ERF_FirePrecip.H) and the force-restore precipitation rate
+ * (ERF_ForceRestorePrecipRate.H).
+ *
+ * With phase = Frozen the field is the frozen part, snow + graupel + hail
+ * (zero for a scheme without those accumulators). With phase = Liquid it is
+ * the rest: the total minus the frozen part, or without a total the rain
+ * accumulator. Frozen plus Liquid is then the Total field for every scheme
+ * with a total, including one whose total holds more than its species
+ * (Morrison's also counts the cloud water and cloud ice that fell out). The
+ * Liquid field is not bounded at zero: where the frozen accumulators exceed
+ * the total by round-off it is slightly negative, and a caller that takes the
+ * change over a step bounds that change (force_restore_rain_rate).
+ */
+inline void surface_precip_accum_k0 (amrex::MultiFab& accum_2d,
+                                     const SurfacePrecipAccumulationSources& sources,
+                                     int klo,
+                                     SurfacePrecipPhase phase = SurfacePrecipPhase::Total)
+{
+    surface_precip_fill_k0(accum_2d, sources, klo, phase, false);
+}
+
+/**
+ * @brief The Liquid accumulation in component 0 and the Frozen one in component 1 of
+ *        accum_2d (two components), from one pass over the accumulators; each as
+ *        surface_precip_accum_k0 gives it.
+ */
+inline void surface_precip_liquid_frozen_accum_k0 (amrex::MultiFab& accum_2d,
+                                                   const SurfacePrecipAccumulationSources& sources,
+                                                   int klo)
+{
+    surface_precip_fill_k0(accum_2d, sources, klo, SurfacePrecipPhase::Liquid, true);
 }
 
 #endif

@@ -246,6 +246,26 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``kg/m^2``
      - ``FillMinus999WhenUnavailable``
      - Evaporation the two-stream force-restore soil column could not supply since the start
+   * - ``seb_snow_swe``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Snow water equivalent on the two-stream force-restore surface (erf.radiation.seb_snow_enable)
+   * - ``seb_snowfall_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Frozen precipitation the two-stream force-restore snow layer has taken in since the start
+   * - ``seb_snow_sublimation_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Snow sublimated from the two-stream force-restore snow layer since the start
+   * - ``seb_snow_melt_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Snow melted on the two-stream force-restore surface since the start (the melt water goes to the soil as rain)
    * - ``sens_flux``
      - ``SurfaceFlux``
      - ``kg K m^-2 s^-1``
@@ -579,7 +599,10 @@ The selection contract and the value written after selection are separate:
      - Value: the two-stream simplified surface energy balance's own prognostic surface
        state, which is distinct from Noah-MP's ``t_sfc`` and from the surface layer's
        ``t_surf``. ``-999`` unless the two-stream solver is running with
-       ``erf.radiation.seb_enable = true``.
+       ``erf.radiation.seb_enable = true``. On a water column of the land mask the balance
+       does not run: these fields, and the ``seb_*_total`` and ``seb_snow_swe`` fields, hold
+       held values there, not a state of the water (see the land mask under the two-stream
+       surface energy balance inputs).
    * - ``seb_hfx``, ``seb_lh``
      - Selectable: fixed request names.
      - Value: the sensible and latent heat fluxes the two-stream surface energy balance

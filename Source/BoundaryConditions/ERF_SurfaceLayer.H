@@ -251,9 +251,8 @@ public:
               m_face.coordDir() == 2 && m_face.isLow() && m_terrain_type != TerrainType::EB,
               "most.abs_surf_temp is supported only on the z-low face without EB terrain");
           AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-              flux_type != FluxCalcType::CUSTOM && flux_type != FluxCalcType::RICO &&
-              flux_type != FluxCalcType::BULK_COEFF,
-              "most.abs_surf_temp is not supported with custom, rico or bulk_coeff fluxes; "
+              flux_type != FluxCalcType::CUSTOM && flux_type != FluxCalcType::RICO,
+              "most.abs_surf_temp is not supported with custom or rico fluxes; "
               "use most.pot_surf_temp");
       }
 
@@ -311,7 +310,7 @@ public:
           }
           pp.get("most.Cq", m_Cq);
           AMREX_ALWAYS_ASSERT_WITH_MESSAGE(erf_st,
-              "bulk_coeff fluxes need most.pot_surf_temp");
+              "bulk_coeff fluxes need most.pot_surf_temp or most.abs_surf_temp");
           default_land_surf_temp = surf_temp;
           pp.get("most.surf_moist", default_land_surf_moist);
           if (m_bulk_use_fixed_tflux) {

@@ -1189,6 +1189,49 @@ TEST(SurfaceLayer, AbsoluteSurfaceHeatingRateUsesElapsedTimeAndCurrentPressure)
     pp.remove("most.surf_heating_rate");
 }
 
+// Motivation: bulk_coeff fluxes read t_surf without selecting the surface-temperature
+// formulation, so most.abs_surf_temp used to be rejected for them.  A fixed absolute
+// temperature (a fixed SST) must give a surface potential temperature that follows the
+// surface pressure of the step it is converted on.
+TEST(SurfaceLayer, BulkCoeffAbsoluteSurfaceTemperatureFollowsCurrentPressure)
+{
+    const std::string prefix = "unit_surface_layer_bulk_abs_surf_temp";
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+    ParmParse pp(prefix);
+    pp.add("surface_layer.flux_type", std::string("bulk_coeff"));
+    pp.add("most.Cd", Real(0.0014));
+    pp.add("most.Ch", Real(0.0012));
+    pp.add("most.Cq", Real(0.0012));
+    pp.add("most.surf_moist", Real(0.008));
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    const Real dz_half = myhalf * geom.CellSize(2);
+    const IntVect point = face_point(fields.domain, face);
+
+    const Real p_init = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(p_init - test_rho * CONST_GRAV * dz_half);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+    const Real theta_init = Real(290.0) * std::pow(p_0 / p_init, RdoCp);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), theta_init,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * theta_init);
+
+    const Real pressure = Real(0.8) * p_0;
+    fields.set_surface_cell_pressure(pressure - test_rho * CONST_GRAV * dz_half);
+    layer->update_fluxes(0, 2.0, 2.0, fields.cons, nullptr, fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+
+    pp.remove("surface_layer.flux_type");
+    pp.remove("most.Cd");
+    pp.remove("most.Ch");
+    pp.remove("most.Cq");
+    pp.remove("most.surf_moist");
+}
+
 // Motivation: a surface temperature that is given must select the boundary condition
 // or stop the run.  A non-positive value used to be treated as not given, so it was
 // silently ignored, and alongside another key it bypassed the one-key check.
