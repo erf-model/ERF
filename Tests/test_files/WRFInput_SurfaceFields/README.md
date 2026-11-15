@@ -62,6 +62,17 @@ The log holds one line per field, for example
 
 The file holds single-precision values, so the log shows for example 0.3269999921 for 0.327. The check allows a relative difference of 2e-5.
 
+With a second level and `erf.v=1` the log also holds one line per field each time the
+level is put on new grids, for example
+
+```
+   wrfinput surface field TSLB at level 1 on the new grids: 4 components, 64 of 96 columns from level 0, min 286.125, max 294.8125 [K]
+```
+
+The level takes the level 0 column each of its columns lies in, so the range is that of
+the level 0 columns under it. The regrid legs pin the counts and the ranges; the unit
+tests check that a column the old grids held keeps the level's own value.
+
 The log check pins the component count and the range of each field, not where each value
 lands. A reversed order of the `TSLB` or `SMOIS` layers would pass it; a reversed `ZS` or
 `DZS` would not. The unit test `WRFSurfaceFields` (`Tests/Unit/Initialization`) checks
@@ -81,6 +92,9 @@ every column, the ghost columns and the layer order of the copy into the holder.
 | `WRFInput_SurfaceFields_SurfaceZS` | `ZS` is 0, 0.1, 0.4, 1.0 | `ZS` is held with these values |
 | `WRFInput_SurfaceFields_Restart` | the first test with a checkpoint, then a restart from it | the restart reports every field as restored with the values above, and does not read the file again |
 | `WRFInput_SurfaceFields_Restart_OtherGrids` | the same, the restart with `amr.max_grid_size=4` | the same report on the smaller boxes |
+| `WRFInput_SurfaceFields_TaggedLevel` | a second level, refined by 2, made by tagging at the start on level 0 columns 2..5 x 2..5; no file of its own | level 1 reports every field with 64 of 64 columns from level 0 and the range of those level 0 columns |
+| `WRFInput_SurfaceFields_Regrid` | three steps; the regrid after step 1 makes level 1 on the same columns, the regrid after step 2 moves and widens it to columns 4..9 x 2..5 | level 1 reports every field twice: 64 of 64 columns from level 0, then 64 of 96, each with the range of the level 0 columns under it; no field is dropped |
+| `WRFInput_SurfaceFields_Regrid_MPI` | the regrid test on 3 ranks with `amr.max_grid_size=4`; MPI builds only | the same report as on one rank |
 | `WRFInput_SurfaceFields_MPI` | the first test on 4 ranks (2 boxes, so 2 ranks hold none); MPI builds only | the same report as the first test |
 | `WRFInput_SurfaceFields_Drop_Albedo_MPI` | the albedo of 1.5 on 2 ranks; the second rank holds the column; MPI builds only | the same report as on one rank, printed by the first rank |
 | `WRFInput_SurfaceFields_Restart_MPI` | the restart test on 3 ranks; MPI builds only | the same report as on one rank |

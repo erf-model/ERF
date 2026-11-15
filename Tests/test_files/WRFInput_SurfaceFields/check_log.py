@@ -9,6 +9,10 @@
   check_log.py drop LOG NAME=N...    the named fields reported with N values outside their
                                      range and not held; the others read; the run completed
   check_log.py restart LOG           a restart: every field restored from the checkpoint
+  check_log.py regrid LOG            level 1 made by a regrid, then moved and widened by the
+                                     next: every field of level 0 on its grids both times
+  check_log.py tagged LOG            level 1 made by tagging at the start: every field of
+                                     level 0 on its grids
 """
 
 import re
@@ -22,6 +26,17 @@ FIELD = re.compile(r"wrfinput surface field (\w+) at level 0: (\d+) components?,
                    r"min (\S+), max (\S+) \[")
 RESTORED = re.compile(r"wrfinput surface field (\w+) at level 0 restored from the checkpoint: "
                       r"(\d+) components?, min (\S+), max (\S+) \[")
+
+
+ON_NEW_GRIDS = re.compile(r"wrfinput surface field (\w+) at level 1 on the new grids: "
+                          r"(\d+) components?, (\d+) of (\d+) columns from level 0, "
+                          r"min (\S+), max (\S+) \[")
+
+# Level 1 (refined by 2 in x and y) in the regrid leg: the level 0 columns under it as
+# (j range, i range), the fine columns taken from level 0 and the fine columns in all.
+# First the level is new, on level 0 columns 2..5 x 2..5: all 64 from level 0. Then it
+# moves to 4..9 x 2..5: its old grids give 32 of the 96, level 0 the other 64.
+REGRID_STAGES = (((2, 6), (2, 6), 64, 64), ((2, 6), (4, 10), 64, 96))
 
 
 def close(a, b):
@@ -82,6 +97,35 @@ def check_fields(log, omitted, zero_layers=False, dropped=None, depths=ZS, resto
     return errors
 
 
+def check_regrid(log, stages=REGRID_STAGES, last_step=3):
+    errors = []
+    got = {}
+    for m in ON_NEW_GRIDS.finditer(log):
+        got.setdefault(m.group(1), []).append(
+            (int(m.group(2)), int(m.group(3)), int(m.group(4)), float(m.group(5)), float(m.group(6))))
+    for name, data in surface_fields().items():
+        lines = got.get(name, [])
+        if len(lines) != len(stages):
+            errors.append(f"{name}: {len(lines)} report(s) at level 1, expected {len(stages)}")
+            continue
+        for stage, line in zip(stages, lines):
+            (j0, j1), (i0, i1), from_coarse, columns = stage
+            under = data[..., j0:j1, i0:i1]
+            want = (NSOIL if data.ndim == 3 else 1, from_coarse, columns)
+            if line[:3] != want or not close(line[3], float(under.min())) or \
+                    not close(line[4], float(under.max())):
+                errors.append(f"{name}: reported {line}, expected {want} and the range "
+                              f"{float(under.min())} to {float(under.max())}")
+    if re.search(r"Warning: wrfinput \w+ at level \d+ is dropped", log):
+        errors.append("a field was dropped on a regrid")
+    if last_step > 0:
+        if f"Coarse STEP {last_step} ends." not in log:
+            errors.append(f"the run did not reach the end of step {last_step}")
+        if "Done with advance_dycore at level 1" not in log:
+            errors.append("level 1 took no step")
+    return errors
+
+
 def main():
     mode, log = sys.argv[1], open(sys.argv[2]).read()
     if mode == "full":
@@ -111,6 +155,10 @@ def main():
         errors = check_fields(log, [], restored=True)
         if "Checking for ALBEDO " in log:
             errors.append("the restart read the fields from the wrfinput file again")
+    elif mode == "regrid":
+        errors = check_fields(log, []) + check_regrid(log)
+    elif mode == "tagged":
+        errors = check_fields(log, []) + check_regrid(log, REGRID_STAGES[:1], last_step=0)
     else:
         raise SystemExit(f"unknown mode {mode}")
     for error in errors:

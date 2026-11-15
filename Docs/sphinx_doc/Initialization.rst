@@ -331,14 +331,20 @@ The fields are kept per level in ``WRFSurfaceFields``
      - The same fields. They are written to the checkpoint (``WRFSurfaceFieldsHeader``
        and one ``WRFSfc_<NAME>`` per field and level) and read back, also onto other
        grids. The log of the restart reports each one. A checkpoint written before this
-       was added gives none, with a message
+       was added gives none, with a message. Where the grids of the restart reach beyond
+       those of the checkpoint, the rule of a regrid below applies
    * - Regrid or rebalance of the level
-     - The same fields on the new grids, when the old grids cover the new ones. When
-       they do not, the fields of the level are dropped and the log says so
+     - The same fields on the new grids. A column the old grids of the level covered
+       keeps its values. Any other column takes the values of the column of the next
+       coarser level it lies in (piecewise constant: a flag stays a flag, and a soil
+       profile stays that of one column). A field that the coarser level does not hold
+       with the same number of soil layers is dropped when the new grids reach beyond the
+       old ones, and the log says so. With ``erf.v`` above zero the log reports each
+       field put on new grids, with the number of columns taken from the coarser level
    * - Level removed
      - None; the log says so when the level held any
-   * - Level made by tagging
-     - None
+   * - Level without a file of its own (made by tagging, at the start or by a regrid)
+     - Every field of the next coarser level, and its soil layer depths, in the same way
 
 No part of ERF uses them yet; the force-restore balance will take its albedo, roughness,
 deep temperature, soil moisture and snow from them in later changes. Until then the cost

@@ -912,6 +912,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
 
+    // The wrfinput land and soil fields: a level without a file of its own takes those of
+    // level lev-1. A level that has just read its own file keeps what the file gave.
+    wrf_surface_fields.remake(lev, ba2d[lev], dm, geom[lev].periodicity(), refRatio(lev-1),
+                              !has_own_init_file(lev), verbose);
+
     // Populate dz_min for dynamically-created fine levels (non-terrain path).
     if (static_cast<int>(dz_min.size()) <= lev) { dz_min.resize(lev+1); }
     dz_min[lev] = geom[lev].CellSize(2);
@@ -1560,9 +1565,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     for (auto& sst : sst_lev[lev]) { sst.reset(); }
     for (auto& tsk : tsk_lev[lev]) { tsk.reset(); }
     // The wrfinput land and soil fields are data of the initial time that nothing rebuilds:
-    // they are carried onto the new grids, and dropped with a message when the new grids
-    // reach beyond the region they were read on.
-    wrf_surface_fields.remake(lev, ba2d[lev], dm, geom[lev].periodicity());
+    // they are carried onto the new grids, and the columns the old grids did not cover
+    // take the values of level lev-1, which regrid has already put on its new grids.
+    wrf_surface_fields.remake(lev, ba2d[lev], dm, geom[lev].periodicity(),
+                              (lev > 0) ? refRatio(lev-1) : IntVect(1),
+                              !has_own_init_file(lev), verbose);
     if (lat_m[lev]) {
         lat_m[lev].reset();
     }

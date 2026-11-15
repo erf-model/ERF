@@ -4859,7 +4859,11 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     # at zero, which is held; a restart, which must give every field back from the
     # checkpoint with the same count and range, also onto smaller boxes; and, with MPI, four
     # ranks on two boxes, so that two ranks hold no box, and the albedo of 1.5 on two ranks,
-    # where the rank that holds it is not the one that prints.
+    # where the rank that holds it is not the one that prints. Two more runs have a second
+    # level without a file of its own, refined by 2: made by tagging at the start, and made
+    # by the regrid after step 1 and then moved and widened by the regrid after step 2. The
+    # level must hold every field of level 0 each time, with the range of the level 0
+    # columns under it, and the second regrid must take 64 of its 96 columns from level 0.
     function(add_test_wrfinput_surface_fields TEST_NAME MAKE_OPTIONS RUNTIME_OPTIONS CHECK_MODE RESTART_OPTIONS)
       set(_launch "")
       if(ARGC GREATER 5)
@@ -4918,7 +4922,18 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart_OtherGrids
         "" ""
         "restart WRFInput_SurfaceFields_Restart_OtherGrids.log" "amr.max_grid_size=4")
+    set(_sfc_two_levels "amr.max_level=1 amr.ref_ratio_vect=2 2 1 amr.n_error_buf=0 amr.blocking_factor=2 erf.regrid_int=1 erf.v=1 erf.boxa.max_level=1 erf.boxa.in_box_lo=2000.0 2000.0 erf.boxa.in_box_hi=6000.0 6000.0")
+    set(_sfc_regrid "${_sfc_two_levels} max_step=3 erf.refinement_indicators=boxa boxb erf.boxa.start_time=0.5 erf.boxa.end_time=1.5 erf.boxb.max_level=1 erf.boxb.in_box_lo=4000.0 2000.0 erf.boxb.in_box_hi=10000.0 6000.0 erf.boxb.start_time=1.5")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_TaggedLevel
+        "" "${_sfc_two_levels} erf.refinement_indicators=boxa"
+        "tagged WRFInput_SurfaceFields_TaggedLevel.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Regrid
+        "" "${_sfc_regrid}"
+        "regrid WRFInput_SurfaceFields_Regrid.log" "")
     if(ERF_ENABLE_MPI)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Regrid_MPI
+          "" "${_sfc_regrid} amr.max_grid_size=4"
+          "regrid WRFInput_SurfaceFields_Regrid_MPI.log" "" 3)
       add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_MPI
           "" ""
           "full WRFInput_SurfaceFields_MPI.log" "" 4)

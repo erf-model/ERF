@@ -19,9 +19,12 @@
  * stops the run.
  *
  * The data are those of the initial time. They are written to the checkpoint and read
- * back on a restart. A regrid carries them onto the new grids where the old grids cover
- * them, and drops them, with a message, where they do not. A level made by tagging (no
- * file of its own) has none.
+ * back on a restart. A regrid carries them onto the new grids: a column the old grids
+ * of the level held keeps its values, and any other column takes those of the column of
+ * the coarser level it lies in (piecewise constant, so a flag stays a flag, a soil
+ * profile stays the profile of one column, and no value leaves the catalog range). A
+ * level without a file of its own (made by tagging, at the start or by a regrid) takes
+ * every field of the coarser level in the same way.
  *
  * The class has no NetCDF dependency: fill() takes the region a rank has read as an
  * FArrayBox, so the unit tests can drive it without a file.
@@ -196,15 +199,36 @@ public:
     void finish_level (int lev, const amrex::Periodicity& period);
 
     /**
-     * Carry the level's fields onto new grids (a regrid or a rebalance). The fields are
-     * copied where the old grids cover the new ones. When the old grids do not cover the
-     * new ones, the fields are dropped and one line says so. The soil layer columns are
-     * kept in the first case and dropped with the fields in the second.
+     * Put the level's fields on new grids (a new level, a regrid or a rebalance).
+     * Collective: every rank calls it. Level lev-1 must already be on its new grids.
+     *
+     * A field the level holds keeps its values on the columns its old grids covered. The
+     * other columns take the values of the column of level lev-1 they lie in. When level
+     * lev-1 does not hold the field with the same number of components and the new grids
+     * reach beyond the old ones, that field is dropped and one line says so.
+     *
+     * With take_coarser_fields, a field the level does not hold and level lev-1 does is
+     * taken from level lev-1 on every column, and so are the soil layer columns when the
+     * level has none. This is for a level without a file of its own.
+     *
+     * The soil layer columns do not depend on the grids and are kept.
+     *
+     * @param lev level
+     * @param new_ba2d,new_dm the new grids, one cell thick in z, and their distribution
+     * @param period the level's periodicity
+     * @param ratio refinement ratio between level lev-1 and this level (z is ignored;
+     *              not used at level 0)
+     * @param take_coarser_fields take the fields the level lacks from level lev-1
+     * @param verbose above zero: one line per field put on new grids, with the number of
+     *                columns taken from level lev-1 and the range
      */
     void remake (int lev,
                  const amrex::BoxArray& new_ba2d,
                  const amrex::DistributionMapping& new_dm,
-                 const amrex::Periodicity& period);
+                 const amrex::Periodicity& period,
+                 const amrex::IntVect& ratio,
+                 bool take_coarser_fields,
+                 int verbose = 0);
 
     /** Name of the checkpoint's text file that lists what each level holds. */
     static constexpr const char* checkpoint_header_name = "WRFSurfaceFieldsHeader";
@@ -219,17 +243,23 @@ public:
     /**
      * Read what write_checkpoint() wrote, onto the grids of this run (they need not be
      * those of the checkpoint). A checkpoint without the text file (written before this
-     * class) leaves the holder empty and returns false.
+     * class) leaves the holder empty, prints one line and returns false.
+     *
+     * Where this run's grids reach beyond those of the checkpoint, the rule of remake()
+     * applies: the columns the checkpoint does not give come from level lev-1, or the
+     * field is not restored and one line says so. No cell is left without a value.
      *
      * @param ba2d,dm the grids and distribution of each level of this run
      * @param ng ghost cells of the stored fields
      * @param period per level
+     * @param ratio refinement ratio between level lev and lev+1, per level (z is ignored)
      */
     bool read_checkpoint (const std::string& checkpoint_dir, int nlevels,
                           const amrex::Vector<amrex::BoxArray>& ba2d,
                           const amrex::Vector<amrex::DistributionMapping>& dm,
                           const amrex::IntVect& ng,
-                          const amrex::Vector<amrex::Periodicity>& period);
+                          const amrex::Vector<amrex::Periodicity>& period,
+                          const amrex::Vector<amrex::IntVect>& ratio);
 
     /** Write and parse the text file; public for the unit tests. */
     void write_header (std::ostream& os, int nlevels) const;
@@ -264,6 +294,15 @@ private:
     };
 
     void drop (int lev, Field id);
+
+    // The field on the grids ba2d: the valid cells of src (the level's own values on
+    // other grids; may be null) where they reach, and the column of level lev-1 it lies
+    // in elsewhere. Null when the two together do not give every column.
+    [[nodiscard]] std::unique_ptr<amrex::MultiFab>
+    on_grids (int lev, Field id, const amrex::MultiFab* src,
+              const amrex::BoxArray& ba2d, const amrex::DistributionMapping& dm,
+              const amrex::IntVect& ng, const amrex::Periodicity& period,
+              const amrex::IntVect& ratio) const;
 
     // (lev)(field); null when the field is not held
     amrex::Vector<std::array<std::unique_ptr<amrex::MultiFab>, num_fields>> m_fields;

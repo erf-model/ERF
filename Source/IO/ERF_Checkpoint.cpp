@@ -2197,7 +2197,7 @@ ERF::ReadCheckpointFile ()
         Vector<Periodicity> period(finest_level+1);
         for (int lev = 0; lev <= finest_level; ++lev) { period[lev] = geom[lev].periodicity(); }
         wrf_surface_fields.read_checkpoint(restart_chkfile, finest_level+1, ba2d, dmap,
-                                           ng_sfc, period);
+                                           ng_sfc, period, refRatio());
     }
 
     // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the

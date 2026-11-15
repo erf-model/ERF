@@ -5,7 +5,6 @@
 
 #include <AMReX_GpuLaunch.H>
 #include <AMReX_iMultiFab.H>
-#include <AMReX_MultiFabUtil.H>  // amrex::cast, used by ERF_ReadCheckpointMF.H
 #include <AMReX_Math.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -15,7 +14,6 @@
 #include <AMReX_Utility.H>
 #include <AMReX_VisMF.H>
 
-#include "ERF_ReadCheckpointMF.H"
 #include "ERF_WRFSurfaceFields.H"
 
 using namespace amrex;
@@ -28,6 +26,29 @@ const char* const chk_mf_prefix = "WRFSfc_";
 // First line of the checkpoint's text file
 const char* const chk_magic   = "WRFSurfaceFields";
 constexpr int     chk_version = 1;
+
+// Piecewise constant: every column of fine takes the column of crse it lies in. The
+// caller has checked that the valid cells of crse cover the coarsened grids of fine.
+void
+fill_from_coarser (MultiFab& fine, const MultiFab& crse, const IntVect& ratio)
+{
+    const int ncomp = fine.nComp();
+    const int rx = ratio[0];
+    const int ry = ratio[1];
+    BoxArray cba = fine.boxArray();
+    cba.coarsen(IntVect(rx, ry, 1));   // the fields have no vertical extent
+    MultiFab ctmp(cba, fine.DistributionMap(), ncomp, 0);
+    ctmp.ParallelCopy(crse, 0, 0, ncomp, IntVect(0), IntVect(0));
+    for (MFIter mfi(fine, false); mfi.isValid(); ++mfi) {
+        const Array4<Real>       f = fine.array(mfi);
+        const Array4<const Real> c = ctmp.const_array(mfi);
+        ParallelFor(mfi.validbox(), ncomp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            f(i, j, k, n) = c(amrex::coarsen(i, rx), amrex::coarsen(j, ry), k, n);
+        });
+    }
+}
 
 } // namespace
 
@@ -301,6 +322,10 @@ WRFSurfaceFields::finish_level (int lev, const Periodicity& period)
         const Real vmin = -range[2*f];
         const Real vmax =  range[2*f+1];
 
+        // n_filled is a sum over the files. The files of a level do not overlap (the
+        // reader takes them as the level's boxes). If two ever did, the columns they
+        // share would be counted twice, n_filled would exceed n_expect, and the field
+        // would be left out with a count above the level's.
         std::ostringstream why;
         if (pend[f].conflict) {
             why << "the files of the level disagree on its number of soil layers";
@@ -395,34 +420,95 @@ WRFSurfaceFields::fill_ghost_cells (MultiFab& mf, const Periodicity& period)
     }
 }
 
+std::unique_ptr<MultiFab>
+WRFSurfaceFields::on_grids (int lev, Field id, const MultiFab* src,
+                            const BoxArray& ba2d, const DistributionMapping& dm,
+                            const IntVect& ng, const Periodicity& period,
+                            const IntVect& ratio) const
+{
+    const MultiFab* crse = (lev > 0) ? get(lev-1, id) : nullptr;
+    if (src == nullptr && crse == nullptr) { return nullptr; }
+    const int ncomp = src ? src->nComp() : crse->nComp();
+
+    const bool src_covers = src && src->boxArray().contains(ba2d);
+    bool use_crse = false;
+    if (!src_covers) {
+        // The coarser level must hold the field with the same soil layers, on every
+        // column under the new grids (proper nesting gives the last)
+        if (crse == nullptr || crse->nComp() != ncomp) { return nullptr; }
+        BoxArray cba = ba2d;
+        cba.coarsen(IntVect(ratio[0], ratio[1], 1));
+        if (!crse->boxArray().contains(cba)) { return nullptr; }
+        use_crse = true;
+    }
+
+    auto fresh = std::make_unique<MultiFab>(ba2d, dm, ncomp, ng);
+    if (use_crse) { fill_from_coarser(*fresh, *crse, ratio); }
+    // The level's own values go on top, wherever they reach
+    if (src) { fresh->ParallelCopy(*src, 0, 0, ncomp, IntVect(0), IntVect(0)); }
+    fill_ghost_cells(*fresh, period);
+    return fresh;
+}
+
 void
 WRFSurfaceFields::remake (int lev,
                           const BoxArray& new_ba2d,
                           const DistributionMapping& new_dm,
-                          const Periodicity& period)
+                          const Periodicity& period,
+                          const IntVect& ratio,
+                          bool take_coarser_fields,
+                          int verbose)
 {
     if (lev < 0 || lev >= num_levels()) { return; }
-    const MultiFab* any = nullptr;
-    for (const auto& f : m_fields[lev]) {
-        if (f) { any = f.get(); break; }
-    }
-    if (any == nullptr) { return; }   // the soil layer columns do not depend on the grids
-    if (any->boxArray() == new_ba2d && any->DistributionMap() == new_dm) { return; }
+    const Long ncol = new_ba2d.numPts();
 
-    if (!any->boxArray().contains(new_ba2d)) {
-        Print() << "Warning: wrfinput land and soil fields at level " << lev
-                << " are dropped: the new grids reach beyond the region they were read on\n";
-        for (auto& f : m_fields[lev]) { f.reset(); }
-        m_soil_depth[lev].clear();
-        m_soil_thickness[lev].clear();
-        return;
-    }
-    for (auto& f : m_fields[lev]) {
-        if (!f) { continue; }
-        auto fresh = std::make_unique<MultiFab>(new_ba2d, new_dm, f->nComp(), f->nGrowVect());
-        fresh->ParallelCopy(*f, 0, 0, f->nComp(), IntVect(0), IntVect(0));
-        fill_ghost_cells(*fresh, period);
+    for (const auto& d : catalog()) {
+        if (d.kind == Kind::LayerColumn) { continue; }
+        auto& f = m_fields[lev][static_cast<int>(d.id)];
+        const MultiFab* crse = (lev > 0) ? get(lev-1, d.id) : nullptr;
+        const bool held = (f != nullptr);
+        if (!held && !(take_coarser_fields && crse)) { continue; }
+        if (held && f->boxArray() == new_ba2d && f->DistributionMap() == new_dm) { continue; }
+
+        const IntVect ng = held ? f->nGrowVect() : crse->nGrowVect();
+        // Columns the level's own grids give; the others come from the coarser level
+        const Long n_own = (held && verbose > 0) ? amrex::intersect(new_ba2d, f->boxArray()).numPts() : 0;
+        auto fresh = on_grids(lev, d.id, f.get(), new_ba2d, new_dm, ng, period, ratio);
+        if (!fresh) {
+            if (held) {
+                Print() << "Warning: wrfinput " << d.nc_name << " at level " << lev
+                        << " is dropped: the new grids reach beyond the grids that held it";
+                if (lev > 0) {
+                    Print() << ", and level " << lev-1
+                            << " does not hold it with the same number of components";
+                }
+                Print() << "\n";
+                f.reset();
+            }
+            continue;
+        }
         f = std::move(fresh);
+        if (verbose > 0) {
+            Real vmin =  std::numeric_limits<Real>::max();
+            Real vmax = -std::numeric_limits<Real>::max();
+            for (int n = 0; n < f->nComp(); ++n) {
+                vmin = amrex::min(vmin, f->min(n));
+                vmax = amrex::max(vmax, f->max(n));
+            }
+            Print() << "   wrfinput surface field " << d.nc_name << " at level " << lev
+                    << " on the new grids: " << f->nComp()
+                    << (f->nComp() == 1 ? " component" : " components") << ", "
+                    << ncol - n_own << " of " << ncol << " columns from level "
+                    << amrex::max(lev-1, 0) << ", min " << vmin << ", max " << vmax
+                    << " [" << d.units << "]\n";
+        }
+    }
+
+    // The soil layer columns do not depend on the grids: they are kept. A level that
+    // takes the fields of the coarser level takes its columns too, when it has none.
+    if (take_coarser_fields && lev > 0) {
+        if (m_soil_depth[lev].empty())     { m_soil_depth[lev]     = m_soil_depth[lev-1]; }
+        if (m_soil_thickness[lev].empty()) { m_soil_thickness[lev] = m_soil_thickness[lev-1]; }
     }
 }
 
@@ -515,10 +601,15 @@ WRFSurfaceFields::read_checkpoint (const std::string& checkpoint_dir, int nlevel
                                    const Vector<BoxArray>& ba2d,
                                    const Vector<DistributionMapping>& dm,
                                    const IntVect& ng,
-                                   const Vector<Periodicity>& period)
+                                   const Vector<Periodicity>& period,
+                                   const Vector<IntVect>& ratio)
 {
     const std::string name = checkpoint_dir + "/" + checkpoint_header_name;
-    if (!amrex::FileExists(name)) { return false; }
+    if (!amrex::FileExists(name)) {
+        Print() << "   " << name << " is not in the checkpoint (written before the wrfinput "
+                << "land and soil fields were stored): none is restored\n";
+        return false;
+    }
 
     Vector<char> chars;
     ParallelDescriptor::ReadAndBcastFile(name, chars);
@@ -555,11 +646,32 @@ WRFSurfaceFields::read_checkpoint (const std::string& checkpoint_dir, int nlevel
                         << d.nc_name << " at level " << lev << " is not restored\n";
                 continue;
             }
+            // Defined by VisMF::Read on the grids the checkpoint was written with
+            MultiFab src;
+            VisMF::Read(src, prefix);
+            if (src.nComp() != ncomp) {
+                Print() << "Warning: " << prefix << " holds " << src.nComp() << " component(s) and "
+                        << name << " lists " << ncomp << ": wrfinput " << d.nc_name
+                        << " at level " << lev << " is not restored\n";
+                continue;
+            }
+            // As on a regrid: the checkpoint's values where its grids reach, the coarser
+            // level (restored just before) elsewhere, and no field when neither covers
+            // this run's grids. No cell is left without a value.
             auto& mf = m_fields[lev][static_cast<int>(d.id)];
-            mf = std::make_unique<MultiFab>(ba2d[lev], dm[lev], ncomp, ng);
-            erf_checkpoint::read_checkpoint_multifab(*mf, prefix, 0, 0, ncomp, IntVect(0),
-                                                     false, period[lev]);
-            fill_ghost_cells(*mf, period[lev]);
+            mf = on_grids(lev, d.id, &src, ba2d[lev], dm[lev], ng, period[lev],
+                          (lev > 0) ? ratio[lev-1] : IntVect(1));
+            if (!mf) {
+                Print() << "Warning: wrfinput " << d.nc_name << " at level " << lev
+                        << " is not restored: this run's grids reach beyond the grids of "
+                        << "the checkpoint";
+                if (lev > 0) {
+                    Print() << ", and level " << lev-1
+                            << " does not hold it with the same number of components";
+                }
+                Print() << "\n";
+                continue;
+            }
             // The range is reported so that a restart can be compared with the first run
             Real vmin =  std::numeric_limits<Real>::max();
             Real vmax = -std::numeric_limits<Real>::max();

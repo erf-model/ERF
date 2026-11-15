@@ -1,8 +1,10 @@
 #include <cmath>
 #include <limits>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include <AMReX.H>
 #include <AMReX_BoxArray.H>
@@ -130,6 +132,43 @@ void expect_field (const MultiFab& mf, F&& value)
     });
     EXPECT_GT(ncell, 0);
 }
+
+Real fine_albedo_at (int i, int j) { return Real(0.25) + Real(0.0078125) * Real(i) + Real(0.015625) * Real(j); }
+Real fine_soil_at (int i, int j, int n) { return Real(300.0) + Real(n) + Real(0.015625) * Real(i) + Real(0.125) * Real(j); }
+
+// Level 0 of 6 x 5 columns with ALBEDO, LAI, TSLB and ZS; level 1, refined by 2, on the
+// fine columns 2..5 x 2..5 with ALBEDO, TSLB and ZS of its own (other values than level 0)
+struct TwoLevels
+{
+    static constexpr int nlay = 3;
+    Level L;
+    IntVect ng{1, 1, 0};
+    Box fine_box{IntVect(2, 2, 0), IntVect(5, 5, 0)};
+    BoxArray fine_ba;
+    DistributionMapping fine_dm;
+    WRFSurfaceFields f;
+    TwoLevels ()
+    {
+        fine_ba = BoxArray(fine_box);
+        fine_ba.maxSize(IntVect(2, 4, 1));
+        fine_dm = DistributionMapping(fine_ba);
+        f.resize(2);
+        const FArrayBox alb  = make_source(1, [] (int i, int j, int) { return albedo_at(i, j); });
+        const FArrayBox lai  = make_source(1, [] (int i, int j, int) { return Real(2.0) + albedo_at(i, j); });
+        const FArrayBox soil = make_source(nlay, [] (int i, int j, int n) { return soil_at(i, j, n); });
+        f.fill(0, Field::ALBEDO, L.ba2d, L.dm, ng, 1,    alb,  all_columns());
+        f.fill(0, Field::LAI,    L.ba2d, L.dm, ng, 1,    lai,  all_columns());
+        f.fill(0, Field::TSLB,   L.ba2d, L.dm, ng, nlay, soil, all_columns());
+        f.set_soil_layers(0, Field::ZS, make_column({Real(0.05), Real(0.25), Real(0.7)}));
+        f.finish_level(0, Periodicity::NonPeriodic());
+        const FArrayBox falb  = make_source(2, 5, 2, 5, 1, 0, [] (int i, int j, int) { return fine_albedo_at(i, j); });
+        const FArrayBox fsoil = make_source(2, 5, 2, 5, nlay, 0, [] (int i, int j, int n) { return fine_soil_at(i, j, n); });
+        f.fill(1, Field::ALBEDO, fine_ba, fine_dm, ng, 1,    falb,  fine_box);
+        f.fill(1, Field::TSLB,   fine_ba, fine_dm, ng, nlay, fsoil, fine_box);
+        f.set_soil_layers(1, Field::ZS, make_column({Real(0.125), Real(0.25), Real(0.75)}));
+        f.finish_level(1, Periodicity::NonPeriodic());
+    }
+};
 
 // One file that covers the level, then the close of the level
 void fill_whole (WRFSurfaceFields& f, const Level& L, Field id, const FArrayBox& src, int nlay = 1)
@@ -567,7 +606,7 @@ TEST(WRFSurfaceFields, RemakeCarriesTheFieldsOntoNewGrids)
 
     const Level N(IntVect(2, 5, 1));
     ASSERT_FALSE(N.ba2d == L.ba2d);
-    f.remake(0, N.ba2d, N.dm, Periodicity::NonPeriodic());
+    f.remake(0, N.ba2d, N.dm, Periodicity::NonPeriodic(), IntVect(1), false);
     const MultiFab* a = f.get(0, Field::ALBEDO);
     const MultiFab* t = f.get(0, Field::TSLB);
     ASSERT_NE(a, nullptr);
@@ -581,7 +620,8 @@ TEST(WRFSurfaceFields, RemakeCarriesTheFieldsOntoNewGrids)
     EXPECT_EQ(f.soil_depth(0).size(), 3);
 }
 
-// New grids that reach beyond the region the fields were read on: dropped, the run goes on
+// Level 0 has no coarser level: new grids that reach beyond the grids that held a field
+// drop it, with one line; the run goes on and the soil layer columns are kept
 TEST(WRFSurfaceFields, RemakeDropsTheFieldsBeyondTheirRegion)
 {
     Level L;
@@ -593,10 +633,147 @@ TEST(WRFSurfaceFields, RemakeDropsTheFieldsBeyondTheirRegion)
     f.set_soil_layers(0, Field::ZS, make_column({Real(0.05), Real(0.25)}));
     BoxArray wider(Box(IntVect(0, 0, 0), IntVect(nx + 1, ny - 1, 0)));
     const DistributionMapping dm(wider);
-    EXPECT_NO_THROW(f.remake(0, wider, dm, Periodicity::NonPeriodic()));
+    testing::internal::CaptureStdout();
+    EXPECT_NO_THROW(f.remake(0, wider, dm, Periodicity::NonPeriodic(), IntVect(1), true));
+    const std::string report = testing::internal::GetCapturedStdout();
     EXPECT_FALSE(f.has(0, Field::ALBEDO));
-    EXPECT_TRUE(f.soil_depth(0).empty());
-    EXPECT_FALSE(f.holds_any(0));
+    EXPECT_NE(report.find("Warning: wrfinput ALBEDO at level 0 is dropped"), std::string::npos) << report;
+    ASSERT_EQ(f.soil_depth(0).size(), 2);
+    EXPECT_EQ(f.soil_depth(0)[1], Real(0.25));
+}
+
+// A regrid of a fine level that moves and grows: the columns its old grids held keep the
+// level's own values, every other column takes the coarse column it lies in
+TEST(WRFSurfaceFields, RemakeTakesTheNewColumnsFromTheCoarserLevel)
+{
+    TwoLevels T;
+    const Box moved = columns(4, 9, 2, 7);   // old grids: 2..5 x 2..5
+    BoxArray nba(moved);
+    nba.maxSize(IntVect(4, 3, 1));
+    const DistributionMapping ndm(nba);
+    testing::internal::CaptureStdout();
+    // The ratio in z is ignored: the fields have no vertical extent
+    T.f.remake(1, nba, ndm, Periodicity::NonPeriodic(), IntVect(2, 2, 2), false, 1);
+    const std::string report = testing::internal::GetCapturedStdout();
+
+    const MultiFab* a = T.f.get(1, Field::ALBEDO);
+    const MultiFab* t = T.f.get(1, Field::TSLB);
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(t, nullptr);
+    EXPECT_TRUE(a->boxArray() == nba);
+    EXPECT_EQ(a->nGrowVect(), T.ng);
+    ASSERT_EQ(t->nComp(), TwoLevels::nlay);
+    // Sets: a ghost cell of one box is a valid cell of its neighbour
+    std::set<std::pair<int,int>> n_own;
+    std::set<std::pair<int,int>> ncrse;
+    for_each_cell(*a, [&] (int i, int j, int, Real v) {
+        if (!moved.contains(IntVect(i, j, 0))) { return; }
+        const bool own = T.fine_box.contains(IntVect(i, j, 0));
+        EXPECT_EQ(v, own ? fine_albedo_at(i, j) : albedo_at(i/2, j/2)) << "i=" << i << " j=" << j;
+        (own ? n_own : ncrse).insert({i, j});
+    });
+    EXPECT_EQ(n_own.size(), 8);
+    EXPECT_EQ(ncrse.size(), 28);
+    for_each_cell(*t, [&] (int i, int j, int n, Real v) {
+        if (!moved.contains(IntVect(i, j, 0))) { return; }
+        const bool own = T.fine_box.contains(IntVect(i, j, 0));
+        EXPECT_EQ(v, own ? fine_soil_at(i, j, n) : soil_at(i/2, j/2, n)) << "i=" << i << " j=" << j << " n=" << n;
+    });
+    // The level's own soil layer columns are kept; LAI, which only level 0 holds, is not taken
+    ASSERT_EQ(T.f.soil_depth(1).size(), TwoLevels::nlay);
+    EXPECT_EQ(T.f.soil_depth(1)[0], Real(0.125));
+    EXPECT_FALSE(T.f.has(1, Field::LAI));
+    EXPECT_NE(report.find("wrfinput surface field ALBEDO at level 1 on the new grids: 1 component, "
+                          "28 of 36 columns from level 0"), std::string::npos) << report;
+    EXPECT_EQ(report.find("Warning"), std::string::npos) << report;
+}
+
+// A level without a file of its own (made by tagging): every field of the coarser level,
+// with its soil layers and soil layer columns. A level with a file takes none it lacks.
+TEST(WRFSurfaceFields, ALevelWithoutAFileTakesEveryFieldOfTheCoarserLevel)
+{
+    for (const bool take : {true, false}) {
+        TwoLevels T;
+        T.f.clear(1);
+        ASSERT_FALSE(T.f.holds_any(1));
+        const Box where = columns(6, 11, 0, 5);
+        BoxArray nba(where);
+        nba.maxSize(IntVect(4, 3, 1));
+        const DistributionMapping ndm(nba);
+        T.f.remake(1, nba, ndm, Periodicity::NonPeriodic(), IntVect(2, 2, 1), take);
+        if (!take) {
+            EXPECT_FALSE(T.f.holds_any(1));
+            continue;
+        }
+        const MultiFab* a = T.f.get(1, Field::ALBEDO);
+        const MultiFab* l = T.f.get(1, Field::LAI);
+        const MultiFab* t = T.f.get(1, Field::TSLB);
+        ASSERT_NE(a, nullptr);
+        ASSERT_NE(l, nullptr);
+        ASSERT_NE(t, nullptr);
+        EXPECT_FALSE(T.f.has(1, Field::SMOIS));
+        EXPECT_EQ(a->nGrowVect(), T.ng);
+        ASSERT_EQ(t->nComp(), TwoLevels::nlay);
+        int ncell = 0;
+        for_each_cell(*t, [&] (int i, int j, int n, Real v) {
+            // Ghost cells included: beyond the level's box they take its nearest column
+            const int ci = clamp(i, 6, 11) / 2;
+            const int cj = clamp(j, 0, 5) / 2;
+            EXPECT_EQ(v, soil_at(ci, cj, n)) << "i=" << i << " j=" << j << " n=" << n;
+            ++ncell;
+        });
+        EXPECT_GT(ncell, 0);
+        for_each_cell(*a, [&] (int i, int j, int, Real v) {
+            EXPECT_EQ(v, albedo_at(clamp(i, 6, 11) / 2, clamp(j, 0, 5) / 2)) << "i=" << i << " j=" << j;
+        });
+        ASSERT_EQ(T.f.soil_depth(1).size(), TwoLevels::nlay);
+        EXPECT_EQ(T.f.soil_depth(1)[2], Real(0.7));
+    }
+}
+
+// Grids that grow where the coarser level cannot give a field (it does not hold it, or
+// holds another number of soil layers): that field is dropped, the others are carried
+TEST(WRFSurfaceFields, RemakeDropsOnlyTheFieldsTheCoarserLevelCannotGive)
+{
+    TwoLevels T;
+    // At level 1 only: SNOW. With two layers where level 0 has three: SMOIS.
+    const auto flat = [] (int, int, int) { return Real(0.25); };
+    const FArrayBox snow  = make_source(2, 5, 2, 5, 1, 0, flat);
+    const FArrayBox smois = make_source(2, 5, 2, 5, 2, 0, flat);
+    const FArrayBox smois0 = make_source(TwoLevels::nlay, flat);
+    WRFSurfaceFields& f = T.f;
+    f.clear(1);
+    f.fill(0, Field::SMOIS, T.L.ba2d, T.L.dm, T.ng, TwoLevels::nlay, smois0, all_columns());
+    f.finish_level(0, Periodicity::NonPeriodic());
+    const FArrayBox alb = make_source(2, 5, 2, 5, 1, 0, [] (int i, int j, int) { return fine_albedo_at(i, j); });
+    f.fill(1, Field::ALBEDO, T.fine_ba, T.fine_dm, T.ng, 1, alb,   T.fine_box);
+    f.fill(1, Field::SNOW,   T.fine_ba, T.fine_dm, T.ng, 1, snow,  T.fine_box);
+    f.fill(1, Field::SMOIS,  T.fine_ba, T.fine_dm, T.ng, 2, smois, T.fine_box);
+    f.finish_level(1, Periodicity::NonPeriodic());
+    ASSERT_TRUE(f.has(1, Field::SNOW));
+    ASSERT_TRUE(f.has(1, Field::SMOIS));
+
+    // Inside the old grids: nothing is needed from level 0, every field is carried
+    BoxArray inner(columns(2, 5, 2, 3));
+    const DistributionMapping idm(inner);
+    f.remake(1, inner, idm, Periodicity::NonPeriodic(), IntVect(2, 2, 1), false);
+    EXPECT_TRUE(f.has(1, Field::ALBEDO));
+    EXPECT_TRUE(f.has(1, Field::SNOW));
+    ASSERT_TRUE(f.has(1, Field::SMOIS));
+    EXPECT_EQ(f.get(1, Field::SMOIS)->nComp(), 2);
+
+    // Beyond them
+    BoxArray grown(columns(2, 7, 2, 3));
+    const DistributionMapping gdm(grown);
+    testing::internal::CaptureStdout();
+    f.remake(1, grown, gdm, Periodicity::NonPeriodic(), IntVect(2, 2, 1), false);
+    const std::string report = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(f.has(1, Field::ALBEDO));
+    EXPECT_FALSE(f.has(1, Field::SNOW));
+    EXPECT_FALSE(f.has(1, Field::SMOIS));
+    EXPECT_NE(report.find("Warning: wrfinput SNOW at level 1 is dropped"), std::string::npos) << report;
+    EXPECT_NE(report.find("Warning: wrfinput SMOIS at level 1 is dropped"), std::string::npos) << report;
+    EXPECT_EQ(report.find("ALBEDO"), std::string::npos) << report;
 }
 
 TEST(WRFSurfaceFields, CheckpointHeaderRoundTrip)
@@ -667,7 +844,7 @@ TEST(WRFSurfaceFields, CheckpointRoundTripOntoOtherGrids)
     const Level N(IntVect(3, 2, 1));
     WRFSurfaceFields g;
     g.resize(1);
-    ASSERT_TRUE(g.read_checkpoint(dir, 1, {N.ba2d}, {N.dm}, N.ng, {Periodicity::NonPeriodic()}));
+    ASSERT_TRUE(g.read_checkpoint(dir, 1, {N.ba2d}, {N.dm}, N.ng, {Periodicity::NonPeriodic()}, {}));
     const MultiFab* a = g.get(0, Field::ALBBCK);
     const MultiFab* t = g.get(0, Field::TSLB);
     ASSERT_NE(a, nullptr);
@@ -686,8 +863,73 @@ TEST(WRFSurfaceFields, CheckpointRoundTripOntoOtherGrids)
     WRFSurfaceFields h;
     h.resize(1);
     amrex::FileSystem::Remove(dir + "/" + WRFSurfaceFields::checkpoint_header_name);
-    EXPECT_FALSE(h.read_checkpoint(dir, 1, {N.ba2d}, {N.dm}, N.ng, {Periodicity::NonPeriodic()}));
+    testing::internal::CaptureStdout();
+    EXPECT_FALSE(h.read_checkpoint(dir, 1, {N.ba2d}, {N.dm}, N.ng, {Periodicity::NonPeriodic()}, {}));
+    const std::string report = testing::internal::GetCapturedStdout();
     EXPECT_FALSE(h.holds_any(0));
+    EXPECT_NE(report.find("WRFSurfaceFieldsHeader is not in the checkpoint"), std::string::npos) << report;
+    EXPECT_NE(report.find("none is restored"), std::string::npos) << report;
+
+    amrex::FileSystem::RemoveAll(dir);
+}
+
+// A restart onto grids that reach beyond those of the checkpoint follows the rule of a
+// regrid: a fine level takes the missing columns from the level below; level 0, which has
+// none below, does not restore the field. No cell is left without a value.
+TEST(WRFSurfaceFields, CheckpointOntoGridsBeyondThoseOfTheCheckpoint)
+{
+    TwoLevels T;
+    const std::string dir = "wrfsfc_gtest_chk_beyond";
+    amrex::UtilCreateCleanDirectory(dir, false);
+    amrex::UtilCreateDirectory(dir + "/Level_0", 0755);
+    amrex::UtilCreateDirectory(dir + "/Level_1", 0755);
+    T.f.write_checkpoint(dir, 2);
+    const Vector<Periodicity> period(2, Periodicity::NonPeriodic());
+    const Vector<IntVect> ratio(1, IntVect(2, 2, 1));
+
+    // Level 1 on 0..7 x 2..5 where the checkpoint has 2..5 x 2..5
+    {
+        const Box wide = columns(0, 7, 2, 5);
+        BoxArray wba(wide);
+        wba.maxSize(IntVect(3, 4, 1));
+        const DistributionMapping wdm(wba);
+        WRFSurfaceFields g;
+        g.resize(2);
+        testing::internal::CaptureStdout();
+        ASSERT_TRUE(g.read_checkpoint(dir, 2, {T.L.ba2d, wba}, {T.L.dm, wdm}, T.ng, period, ratio));
+        const std::string report = testing::internal::GetCapturedStdout();
+        EXPECT_EQ(report.find("Warning"), std::string::npos) << report;
+        const MultiFab* t = g.get(1, Field::TSLB);
+        ASSERT_NE(t, nullptr);
+        std::set<std::pair<int,int>> n_own;
+        std::set<std::pair<int,int>> ncrse;
+        for_each_cell(*t, [&] (int i, int j, int n, Real v) {
+            const int ci = clamp(i, 0, 7);   // ghost cells take the nearest column of the level
+            const int cj = clamp(j, 2, 5);
+            const bool own = T.fine_box.contains(IntVect(ci, cj, 0));
+            EXPECT_EQ(v, own ? fine_soil_at(ci, cj, n) : soil_at(ci/2, cj/2, n)) << "i=" << i << " j=" << j << " n=" << n;
+            if (wide.contains(IntVect(i, j, 0))) { (own ? n_own : ncrse).insert({i, j}); }
+        });
+        EXPECT_EQ(n_own.size(), 16);
+        EXPECT_EQ(ncrse.size(), 16);
+        EXPECT_EQ(g.soil_depth(1)[0], Real(0.125));
+    }
+
+    // Level 0 one column wider than the checkpoint
+    {
+        BoxArray wider(Box(IntVect(0, 0, 0), IntVect(nx, ny - 1, 0)));
+        const DistributionMapping dm(wider);
+        WRFSurfaceFields g;
+        g.resize(1);
+        testing::internal::CaptureStdout();
+        ASSERT_TRUE(g.read_checkpoint(dir, 1, {wider}, {dm}, T.ng, {Periodicity::NonPeriodic()}, {}));
+        const std::string report = testing::internal::GetCapturedStdout();
+        EXPECT_FALSE(g.has(0, Field::ALBEDO));
+        EXPECT_FALSE(g.has(0, Field::TSLB));
+        EXPECT_NE(report.find("Warning: wrfinput ALBEDO at level 0 is not restored: this run's grids "
+                              "reach beyond the grids of the checkpoint"), std::string::npos) << report;
+        EXPECT_EQ(g.soil_depth(0).size(), TwoLevels::nlay);
+    }
 
     amrex::FileSystem::RemoveAll(dir);
 }
