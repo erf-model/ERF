@@ -154,14 +154,16 @@ CASES = [
          ["erf.nc_init_file_0=wrfinput_crop"], "input",
          "pressure recovery at level 0 with the PSFC of wrfinput_crop", base="crop",
          input_file="WRFInput_LegacySurfaceTemperature_Cropped.i"),
-    # Initialization's global all-zero fallback is preserved for the covered model field.
+    # The fallback is decided across all covered valid samples on this level. Uncovered
+    # parent-seeded cells are excluded from the decision.
     Case("allzero_psfc_uses_p0", 1, "WRFInput", P_0,
          ["erf.nc_init_file_0=wrfinput_allzero"], "input",
          ["all zero on the covered level-0 domain; replacing its covered cells with p_0",
           "all zero and was replaced by p_0, as during initialization"]),
-    # A zero-only tile in a field with positive values is not an absent whole-field PSFC.
-    Case("mixed_zero_positive_psfc_does_not_use_p0", 1, "WRFInput", "wrfinput",
-         ["erf.nc_init_file_0=wrfinput_zero_tile"], "abort",
+    # One actual checkpoint valid box has zero PSFC while others have positive PSFC; the
+    # level-wide fallback must not accept that zero region by itself.
+    Case("zero_valid_box_in_mixed_psfc_does_not_use_p0", 1, "WRFInput", "wrfinput",
+         ["erf.nc_init_file_0=wrfinput_zero_region"], "abort",
          ["surface pressure = 0 Pa", "cells cannot be converted"]),
     Case("nonfinite_psfc_does_not_use_p0", 1, "WRFInput", "wrfinput",
          ["erf.nc_init_file_0=wrfinput_nanpsfc"], "abort",
@@ -455,6 +457,10 @@ def run_case(case, exe, run_dir, bases, env):
     if case.base == "crop" and len(valid_boxes(original, "SST_0", 0)) < 4:
         raise AssertionError(f"{case.name}: the cropped fixture does not have four disjoint "
                              "local regions for the PSFC read")
+    if case.name == "zero_valid_box_in_mixed_psfc_does_not_use_p0":
+        with nc.Dataset(run_dir / "wrfinput_zero_region") as ds:
+            fixture_psfc = np.asarray(ds["PSFC"][0], dtype=np.float64)
+        assert_zero_and_positive_psfc_boxes(original, fixture_psfc)
 
     marker = legacy / "surface_temperature_contract"
     if case.marker is None:
@@ -577,6 +583,23 @@ def valid_boxes(checkpoint, name, level):
         boxes.add(tuple(fab["lo"][d] + ng[d] for d in range(2)) +
                   tuple(fab["hi"][d] - ng[d] for d in range(2)))
     return boxes
+
+
+def assert_zero_and_positive_psfc_boxes(checkpoint, psfc):
+    """Assert that mixed-zero PSFC contains both zero and positive actual valid boxes."""
+    boxes = valid_boxes(checkpoint, "SST_0", 0)
+    zero_boxes = []
+    positive_boxes = []
+    for ilo, jlo, ihi, jhi in boxes:
+        values = psfc[jlo:jhi + 1, ilo:ihi + 1]
+        if values.size and np.all(values == 0.0):
+            zero_boxes.append((ilo, jlo, ihi, jhi))
+        if values.size and np.all(np.isfinite(values) & (values > 0.0)):
+            positive_boxes.append((ilo, jlo, ihi, jhi))
+    if not zero_boxes or not positive_boxes:
+        raise AssertionError("mixed-zero PSFC fixture must contain an all-zero valid box "
+                             "and a separate all-positive valid box; actual boxes are "
+                             f"{sorted(boxes)}")
 
 
 def valid_boxes_3d(checkpoint, name, level):

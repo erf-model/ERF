@@ -35,7 +35,7 @@ NEST_CELLS = 12
 
 
 def write_file(path, psfc_offset, land_columns=0, bad_psfc_cell=None, nx=NX, ratio=1,
-               parent_start=0, date=DATE, psfc_all_zero=False, psfc_zero_cell=None,
+               parent_start=0, date=DATE, psfc_all_zero=False, psfc_zero_box=None,
                bad_psfc_value=-1.0):
     ny = nx
     with nc.Dataset(Path(path), "w", format="NETCDF4_CLASSIC") as ds:
@@ -84,8 +84,9 @@ def write_file(path, psfc_offset, land_columns=0, bad_psfc_cell=None, nx=NX, rat
                                         (ny, nx)))
         if psfc_all_zero:
             psfc.fill(0.0)
-        if psfc_zero_cell is not None:
-            psfc[psfc_zero_cell[1], psfc_zero_cell[0]] = 0.0
+        if psfc_zero_box is not None:
+            ilo, jlo, ihi, jhi = psfc_zero_box
+            psfc[jlo:jhi, ilo:ihi] = 0.0
         if bad_psfc_cell is not None:
             psfc[bad_psfc_cell[1], bad_psfc_cell[0]] = bad_psfc_value
         put("PSFC", xy, psfc[None])
@@ -129,7 +130,9 @@ def main():
     write_file("wrfinput_mixed", 0.0, LAND_COLUMNS)
     write_file("wrfinput_mixed_badpsfc", 0.0, LAND_COLUMNS, BAD_PSFC_CELL)
     write_file("wrfinput_allzero", 0.0, psfc_all_zero=True)
-    write_file("wrfinput_zero_tile", 0.0, psfc_zero_cell=(12, 5))
+    # This whole 8x8 region matches one valid box in the regression's checkpoint;
+    # all other boxes retain spatially varying positive pressure.
+    write_file("wrfinput_zero_region", 0.0, psfc_zero_box=(0, 0, 8, 8))
     write_file("wrfinput_nanpsfc", 0.0, bad_psfc_cell=(12, 5), bad_psfc_value=np.nan)
     write_file("nest_d01", -2000.0)
     write_file("nest_d02", -5000.0, nx=NEST_CELLS, ratio=NEST_RATIO, parent_start=2)

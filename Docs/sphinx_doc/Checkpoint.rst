@@ -33,14 +33,20 @@ need not be the same:
 - **WRFInput: best-available pressure, approximate on fine levels.** Level 0
   reads ``PSFC`` from the first file in ``erf.nc_init_file_0``. A smaller
   level-0 checkpoint domain reads only the corresponding local regions of that
-  file. If every covered valid value read for the level is exactly zero, ERF
-  replaces those covered values with ``p_0``, matching initialization's
-  all-zero fallback. A zero tile in a field that also contains nonzero values,
-  or a negative or non-finite value, does not use this fallback and remains
-  subject to pressure validation. On a finer level, an own-file ``PSFC``
-  overlays the part of the regridded level covered by that file; newly covered
-  cells outside its footprint use interpolated parent pressure. A level without its own surface
-  forcing uses pressure interpolated from its parent. In particular, when
+  file. If every covered valid file sample read for the model level is exactly
+  zero, ERF replaces those covered values with ``p_0``. The decision is made
+  across the level's covered valid samples, not separately for each local box;
+  uncovered parent-seeded cells are excluded and left unchanged. Cold
+  initialization uses a level-MultiFab ``max == 0`` check; migration instead
+  tests every covered file sample for exact zero. These checks are not generally
+  equivalent on cropped or partially covered levels. Migration's check ensures
+  negative or non-finite covered samples are not hidden by the fallback. A
+  zero-only local box in a level that also has positive covered samples, or any
+  negative or non-finite covered value, does not use this fallback and remains
+  subject to pressure validation. On a finer level, an own-file ``PSFC`` overlays
+  the part of the regridded level covered by that file; newly covered cells
+  outside its footprint use interpolated parent pressure. A level without its
+  own surface forcing uses pressure interpolated from its parent. In particular, when
   level 0 reads ``erf.nc_low_file`` and a finer level has no own
   ``erf.nc_low_file_<lev>``, its SST/TSK slices are inherited from the parent,
   and migration uses the parent's pressure.
