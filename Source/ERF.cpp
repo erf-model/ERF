@@ -715,6 +715,11 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     }
 #endif
 
+    // Microphysics diagnostics once every level has reached the end of the step
+    if (solverChoice.moisture_type != MoistureType::None) {
+        micro->Diagnostics(nstep + 1, static_cast<Real>(time), z_phys_nd, file_name_digits);
+    }
+
     if (solverChoice.coupling_type == CouplingType::TwoWay)
     {
         int ncomp = vars_new[0][Vars::cons].nComp();
@@ -1679,6 +1684,10 @@ ERF::InitData_post ()
     for (int lev = 1; lev <= finest_level; ++lev)
     {
         Interp2DArrays(lev,ba2d[lev],dmap[lev]);
+        // A level without a file of its own takes the wrfinput land and soil fields of
+        // level lev-1; nothing changes for a level that already holds them on these grids
+        wrf_surface_fields.remake(lev, ba2d[lev], dmap[lev], geom[lev].periodicity(),
+                                  refRatio(lev-1), !has_own_init_file(lev), verbose);
     } // lev
 
 #ifdef ERF_USE_WW3_COUPLING
@@ -2005,6 +2014,8 @@ ERF::InitData_post ()
             }
             m_SurfaceLayer[ori]->set_coupled_sst_active(solverChoice.use_coupled_sst &&
                                                         static_cast<int>(ori) == Orientation::zlo());
+            m_SurfaceLayer[ori]->set_coupled_current_active(solverChoice.use_coupled_currents &&
+                                                            static_cast<int>(ori) == Orientation::zlo());
 
             // This call will allocate the arrays at each level. If we regrid later, either changing
             // the number of levels or just the grids at each existing level, we will call an update routine
@@ -2119,6 +2130,48 @@ ERF::InitData_post ()
             m_SurfaceLayer[ori] = nullptr;
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+
+    // most.surface_current is read only by a z-low surface layer, under the prefix that face
+    // takes its inputs from; anywhere else it would be silently ignored
+    {
+        const SurfaceLayer* zlo_layer = m_SurfaceLayer[Orientation::zlo()].get();
+        const std::string zlo_prefix = (n_faces == 1 || use_legacy_zlo_prefix)
+            ? pp_prefix : pp_prefix + "." + BoundaryFaceName[Orientation::zlo()];
+        const std::string zlo_key = zlo_prefix + ".most.surface_current";
+        // Only keys under ERF's own prefix: another code in the same run (a coupled ocean
+        // model, say) may have a key of the same ending. AMReX's
+        // amrex.abort_on_unused_inputs catches unused keys in general; this one is checked
+        // here because, misplaced, it would silently change the physics.
+        const std::string suffix(".most.surface_current");
+        const std::string erf_prefix = pp_prefix + ".";
+        for (const auto& key : user_specified_inputs) {
+            if (key.size() < suffix.size() ||
+                key.compare(key.size() - suffix.size(), suffix.size(), suffix) != 0 ||
+                key.compare(0, erf_prefix.size(), erf_prefix) != 0) {
+                continue;
+            }
+            if (!zlo_layer) {
+                Abort(key + " is read only by a surface_layer boundary at zlo, and zlo is "
+                      "not one: set zlo.type = \"surface_layer\".");
+            }
+            if (key != zlo_key) {
+                Abort(key + " is not read: the surface current applies only to the zlo "
+                      "surface layer, which reads it as " + zlo_key + ".");
+            }
+        }
+
+        // The coupled current has the same reader, and arrives only once coupling starts
+        if (solverChoice.use_coupled_currents) {
+            if (!zlo_layer) {
+                Abort("erf.use_coupled_currents is read only by a surface_layer boundary at "
+                      "zlo, and zlo is not one: set zlo.type = \"surface_layer\".");
+            }
+            if (max_level > 0) {
+                Print() << "WARNING: the coupled surface current is applied on level 0 only; "
+                        << "the surface of the refined levels is at rest." << std::endl;
+            }
+        }
+    }
 
     // A land-surface model hands its fluxes to the atmosphere only through the surface
     // layer (make_SurfaceLayer_at_level is the one consumer of lsm_flux). Without a
@@ -2329,6 +2382,11 @@ ERF::InitData_post ()
         }
     }
 #endif
+
+    // Microphysics diagnostics of the initial state, once every level is initialized
+    if (solverChoice.moisture_type != MoistureType::None) {
+        micro->Diagnostics(istep[0], static_cast<Real>(t_new[0]), z_phys_nd, file_name_digits);
+    }
 
     // Print max values of lateral gradients of base state pressure at level 0
     if (verbose > 0) {
@@ -2915,14 +2973,17 @@ ERF::interp_psfc_from_coarse (int lev)
     const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
 
     //
-    // Do NOT fill the ghost cells outside the domain: unlike the fields that
-    // init_from_wrfinput fills by clamping into the valid region, PSFC is copied out of
-    // the file over the intersection with the domain, so the coarse level has nothing
-    // there for us to interpolate.  Nothing reads those cells -- the conversion of the SST
-    // and TSK clamps its PSFC index into the valid box.  The interpolation does read the
-    // coarse ghost cells next to the domain boundary, though: on restart,
-    // convert_legacy_surface_temperature fills those of the coarse level first.
+    // Do NOT fill the fine ghost cells outside the domain: nothing reads those cells --
+    // the conversion of the SST and TSK clamps its PSFC index into the valid box.
     //
+    // The coarse ghost cells are another matter.  PSFC is copied out of the file over the
+    // intersection with the domain, so the coarse ghost cells beyond a domain face hold
+    // nothing, and the slope stencil of the interpolater reads them wherever the fine
+    // level, with its ghost cells, comes within one coarse cell of that face.  They take
+    // the nearest column inside the domain first (seb_extend_halo, which also calls
+    // FillBoundary).
+    //
+    seb_extend_halo(*mf_PSFC[lev-1], geom[lev-1]);
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
                           *mf_PSFC[lev-1], 0, 0, 1,
                           geom[lev-1], geom[lev],

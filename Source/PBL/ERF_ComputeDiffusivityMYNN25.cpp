@@ -51,6 +51,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
     auto level2   = turbChoice.pbl_mynn_level2;
 
     Real Lt_alpha = mynn.Lt_alpha;
+    const bool use_surface_lm = mynn.surface_lm;
 
     // Dirichlet flags to switch derivative stencil
     bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -243,6 +244,12 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             } else {
                 // NN09, Eqn 52
                 Lm = one / (one/l_S + one/l_T + one/l_B);
+            }
+            // erf.pbl_mynn_surface_lm: in the first cell the production comes from the
+            // MOST profile (above), u_*^3 phi_m/(kappa z); give it the surface-layer length
+            // scale alone so the local balance is the surface-layer one.
+            if (use_surface_lm && k == izmin) {
+                Lm = l_S;
             }
 
             // Calculate nondimensional production terms

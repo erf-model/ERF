@@ -402,10 +402,6 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
         Copy_Micro_to_State(a_cons_vars);
     }
 
-    if (lev == 0) {
-        m_super_droplets->Diagnostics(-1, lev, zero, (m_diagnostics_iter>0), *a_z_phys_nd[lev]);
-    }
-
     return;
 }
 
