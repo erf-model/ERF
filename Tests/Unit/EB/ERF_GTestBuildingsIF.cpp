@@ -67,7 +67,7 @@ void run_buildings_test (bool include_terrain)
 
     if (include_terrain) {
         FArrayBox heights(makeSlab(surroundingNodes(domain), 2, 0), 1);
-        heights.setVal(Real(0.25));
+        heights.setVal<RunOn::Gpu>(Real(0.25));
         Gpu::DeviceVector<Real> dz(domain.length(2), Real(0.125));
         TerrainIF const terrain(heights, geom, dz);
         check_geometry(EB2::makeUnion(terrain, owner.getIF()), geom, true);
