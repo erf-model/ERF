@@ -65,6 +65,7 @@
 #include <ERF_StationSampler.H>
 #include <ERF_ObsNudging.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_MassSource.H>
 #include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
 
@@ -2447,6 +2448,9 @@ private:
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
+
+    /// A localized source of gas (erf.mass_source.*); nullptr unless one is given
+    std::unique_ptr<MassSource> m_mass_source = nullptr;
 
 #ifdef ERF_USE_FIRE
     /// The fire coupling (atmosphere side) and the engine it owns (erf.fire.engine)

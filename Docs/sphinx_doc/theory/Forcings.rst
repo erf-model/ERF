@@ -12,8 +12,9 @@ Physical Forcings
 
 Physical forcings available in ERF comprise the standard source terms for atmospheric modeling.
 These include Coriolis and geostrophic forcing; Rayleigh damping and sponge layer(s); subsidence;
-simplified radiative thermal sources; solution nudging towards a prescribed input sounding; and
-nudging towards observations at stations (:ref:`sec:ObsNudging`).
+simplified radiative thermal sources; solution nudging towards a prescribed input sounding;
+nudging towards observations at stations (:ref:`sec:ObsNudging`); and a localized mass
+source of gas with an optional tracer, for fully compressible runs (:ref:`sec:MassSourceInputs`).
 
 ERF also supports models for wind farm parametrization in which the effects of wind turbines are represented
 by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE).

@@ -199,7 +199,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             cf_fluxes.tgt_w = &H.tgt_w;
         }
 
-        // Lateral walls: faces through which no mass passes. The terrain substeps keep the
+        // Lateral walls: faces through which no mass passes. The substeps keep the
         // normal momentum there at its stage value (a lateral surface layer sets the normal
         // velocity to zero, as a slip wall does)
         auto is_wall = [&] (int ori) {
@@ -250,7 +250,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
                            solverChoice.beta_d, cf_fluxes,
-                           (l_reflux) ? momentum_reflux_pressure(level) : nullptr);
+                           (l_reflux) ? momentum_reflux_pressure(level) : nullptr, lateral_walls);
         }
 
         // The vertical quantity at the start and end of the substep: Omega, recorded by the
