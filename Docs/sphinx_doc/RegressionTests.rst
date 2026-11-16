@@ -752,11 +752,11 @@ start and the end of the run (``Tests/RunConservation.cmake``; see ``erf.sum_int
 :ref:`Inputs <examples-of-usage-9>`). Most run a two-level deck with two-way coupling, slip walls
 in z and periodic in x and y, and check the composite integral of a scalar (``RHO SCALAR SL/ML``
 or ``RHO QTOTAL SL/ML``); the ``Conservation_TerrainSlipWall_*`` and
-``Conservation_SlipWallTheta_Flat`` tests below run one level and check ``MASS``. It weights each cell by
-:math:`\det J/(m_x m_y)` and masks the covered cells, so it is the quantity the discretization
-conserves on any mesh and with any refinement ratio. The two values must agree to 12
-significant digits in double precision and to 5 in single precision (the
-``Conservation_TerrainSlipWall_*`` and ``Conservation_SlipWallTheta_Flat`` tests are registered in
+``Conservation_SlipWall*_Flat`` tests below run one level and check ``MASS``. The integral weights
+each cell by :math:`\det J/(m_x m_y)` and masks the covered cells, so it is the quantity the
+discretization conserves on any mesh and with any refinement ratio. The two values must agree to
+12 significant digits in double precision and to 5 in single precision (the
+``Conservation_TerrainSlipWall_*`` and ``Conservation_SlipWall*_Flat`` tests are registered in
 double precision only).
 
 That holds only if the reflux at the coarse/fine faces includes the diffusive fluxes, both the
@@ -807,14 +807,16 @@ the normal momentum on wall faces at its stage value (zero on a slip wall), they
 through the walls (3e-11 to 1e-10 relative in these runs), which the boundary fill only hid by
 resetting the momentum after each substep.
 
-``Conservation_SlipWallTheta_Flat`` runs the same deck without terrain and with
-``theta = 290`` given on the four side walls, against about 300 K inside. The (rho theta) ghost
-cells are then not an even reflection, so the pressure gradient on the wall faces is not zero even
-on a flat mesh; until the substep without terrain also kept the wall faces at their stage value,
-the mass changed by 2.7e-8 relative in this run.
+``Conservation_SlipWallTheta_Flat`` and ``Conservation_SlipWallRayleigh_Flat`` run the same deck
+without terrain. The first gives ``theta = 290`` on the four side walls, against about 300 K
+inside: the ghost cells of (rho theta) are then not an even reflection, so the pressure gradient
+on the wall faces is not zero even on a flat mesh. The second damps u and v toward the 5 / 3 m/s
+wind of ``input_sounding_wind`` with fast Rayleigh damping, which is not zero on a wall face
+where u = 0. Until the substep without terrain also kept the wall faces at their stage value,
+the mass changed by 2.7e-8 and 4.1e-6 relative in these runs.
 
-Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/ScalarDiffusion_Reflux`_,
-`Tests/test_files/TerrainSlipWall_Mass`_
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_,
+`Tests/test_files/ScalarDiffusion_Reflux`_, `Tests/test_files/TerrainSlipWall_Mass`_
 
 .. _`Tests/test_files/ScalarDiffusion_Reflux`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion_Reflux
 

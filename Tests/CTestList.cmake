@@ -3720,12 +3720,16 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
         OPTIONS "prob.dir=1 prob.bubble_x_c=500.0 prob.bubble_y_c=400.0")
     add_test_conservation(Conservation_TerrainSlipWall_Hill   TerrainSlipWall_Mass "MASS"
         OPTIONS "prob.dir=2")
-    # The same box without terrain and with theta given on the four side walls (290 K against
-    # about 300 K inside): the (rho theta) ghost cells are then not an even reflection, the
-    # pressure gradient on the wall faces is not zero, and before the substep without terrain
-    # held those faces at their stage value the mass changed by 2.7e-8 relative in 40 steps
+    # The same box without terrain, as the substep without terrain sees it (the terrain inputs
+    # of the deck are then not read).  With theta given on the four side walls (290 K against
+    # about 300 K inside) the ghost cells of (rho theta) are not an even reflection and the
+    # pressure gradient on the wall faces is not zero; with fast Rayleigh damping toward a
+    # 5 / 3 m/s wind the damping is not zero on the wall faces.  Before that substep held the
+    # wall faces at their stage value, the mass changed by 2.7e-8 and 4.1e-6 relative in 40 steps
     add_test_conservation(Conservation_SlipWallTheta_Flat     TerrainSlipWall_Mass "MASS"
-        OPTIONS "erf.terrain_type=None xlo.theta=290.0 xhi.theta=290.0 ylo.theta=290.0 yhi.theta=290.0")
+        OPTIONS "erf.terrain_type=None prob.custom_terrain_type=None xlo.theta=290.0 xhi.theta=290.0 ylo.theta=290.0 yhi.theta=290.0")
+    add_test_conservation(Conservation_SlipWallRayleigh_Flat  TerrainSlipWall_Mass "MASS"
+        OPTIONS "erf.terrain_type=None prob.custom_terrain_type=None erf.input_sounding_file=input_sounding_wind erf.rayleigh_damping_type=FastExplicit erf.rayleigh_damp_U=1 erf.rayleigh_damp_V=1 erf.rayleigh_dampcoef=0.2 erf.rayleigh_zdamp=500.0")
 endif()
 # Pseudo-incompressible levels evolve rho and (rho theta), which are refluxed and averaged down:
 # both must be conserved over two levels coupled two-way (a stratified flow over a hill)

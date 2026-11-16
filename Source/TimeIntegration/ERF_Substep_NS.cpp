@@ -98,11 +98,14 @@ void erf_substep_NS (int step, int nrk,
     int jhi = domhi.y + 1;
 
     // The substeps keep the normal momentum on a lateral wall face (slip, no-slip, symmetry or
-    // surface layer) at its stage value, as the terrain substeps do.  The pressure gradient on
-    // a wall face is zero only while the (rho theta) ghost cell is an even reflection, which it
-    // is not on a wall with a given theta or density; and the fast sources (in xmom_src and
-    // ymom_src) are not zero on the face either.  Updating the face would carry mass through
-    // the wall until the boundary fill reset it after the substep
+    // surface layer) at its stage value, zero on all but a symmetry face, as the terrain
+    // substeps do.  The pressure gradient on a wall face, the difference of theta_extrap across
+    // it, is zero only while the ghost cell is an even reflection, which it is not on a wall
+    // with a given theta or density; and the fast sources in xmom_src and ymom_src (Rayleigh
+    // damping toward a nonzero mean wind) are not zero on the face either.  Updating the face
+    // carried mass through the wall: on a slip or no-slip wall until the boundary fill reset it
+    // after the substep, and on a symmetry face, which the fill does not set and where the slow
+    // RHS is not zeroed, for good
     const bool wall_xlo = lateral_walls[0];
     const bool wall_xhi = lateral_walls[1];
     const bool wall_ylo = lateral_walls[2];
@@ -285,6 +288,9 @@ void erf_substep_NS (int step, int nrk,
         //           applied.  It is identically 1 for MeshType::ConstantDz.
         // *********************************************************************
         if (nrk == 0 and step == 0) { // prev == stage
+            // The wall faces are held here too, for consistency with the branch below.  This
+            // branch runs only in the first RK stage, whose result feeds only the next stage's
+            // slow RHS, so the domain mass at the end of the step does not show these guards
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
