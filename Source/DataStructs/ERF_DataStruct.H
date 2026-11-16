@@ -101,6 +101,18 @@ AMREX_ENUM(CompressibilityType,
 );
 
 /**
+ * @brief Horizontal pressure-gradient formulation with terrain-fitted coordinates.
+ *
+ * ChainRule:         dp/dx along the coordinate surface minus the terrain slope times dp/dz
+ * HydrostaticHybrid: as ChainRule, but the hydrostatic part of p' is carried to the height
+ *                    of the face along dp'/dz = -g rho' and only the remainder
+ *                    dp'/dz + g rho' is differenced
+ */
+AMREX_ENUM(GradpType,
+    ChainRule, HydrostaticHybrid
+);
+
+/**
  * @brief Values of the deprecated erf.anelastic_type; read only to map them onto
  *        TimesteppingType.
  */
@@ -759,10 +771,36 @@ struct SolverChoice {
         }
 
         // Which horizontal pressure gradient formulation to use with terrain fitted coords?
-        // 0: dp/dx with dp/dz correction (default)
-        // 1: gradient of vertically interpolated p, see Klemp 2011
-        pp.queryAdd("gradp_type", gradp_type);
-        AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
+        //    (see GradpType).  HydrostaticHybrid always uses the perturbational pressure,
+        //    regardless of the setting of use_pert_pres_gradient.
+        //
+        // The integer values this used to take are still accepted, with a warning:
+        //    0 -> ChainRule, 2 -> HydrostaticHybrid; 1 (Klemp 2011) has been removed
+        if (pp.contains("gradp_type")) {
+            std::string gradp_str;
+            pp.get("gradp_type", gradp_str);
+            if (gradp_str == "0" || gradp_str == "1" || gradp_str == "2") {
+                if (gradp_str == "1") {
+                    amrex::Abort("erf.gradp_type = 1 has been removed; use erf.gradp_type = HydrostaticHybrid");
+                }
+                gradp_type = (gradp_str == "0") ? GradpType::ChainRule : GradpType::HydrostaticHybrid;
+                amrex::Print() << "WARNING: integer values of erf.gradp_type are deprecated; use erf.gradp_type = "
+                               << amrex::getEnumNameString(gradp_type) << std::endl;
+            } else {
+                // Case-insensitive and ignoring underscores, so that e.g. hydrostatic_hybrid
+                //    selects HydrostaticHybrid
+                try {
+                    pp.query_enum_sloppy("gradp_type", gradp_type, "_");
+                } catch (...) {
+                    amrex::Abort("erf.gradp_type must be ChainRule or HydrostaticHybrid, not '"
+                                 + gradp_str + "'");
+                }
+            }
+        }
+
+        // With ChainRule, whether dp/dz at the bottom and top of the domain is the second-order
+        //    one-sided difference through three cells rather than the first-order two-point one
+        pp.query("gradp_2nd_order_bndry", gradp_2nd_order_bndry);
 
         // For the lateral pressure gradient to be used in the momentum equation, should we
         // take the x- and y-derivatives of the perturbational pressure or the full pressure?
@@ -944,6 +982,11 @@ struct SolverChoice {
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
         // ApplyOceanSurfaceState call.
         pp.queryAdd("use_coupled_sst", use_coupled_sst);
+
+        // Will an external ocean coupler supply the surface current? The surface layer
+        // allocates the current with each level, before the first ApplyOceanSurfaceState
+        // call, and takes the wind relative to it.
+        pp.queryAdd("use_coupled_currents", use_coupled_currents);
 
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
@@ -2741,7 +2784,8 @@ struct SolverChoice {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
 
-        amrex::Print() << "Gradp_type                  : " << gradp_type << std::endl;
+        amrex::Print() << "Gradp_type                  : " << amrex::getEnumNameString(gradp_type) << std::endl;
+        amrex::Print() << "Gradp_2nd_order_bndry       : " << gradp_2nd_order_bndry << std::endl;
 
         for (int lev = 0; lev <= max_level; lev++) {
             amrex::Print() << "Buoyancy_type at level " << lev << " : " << buoyancy_type[lev] << std::endl;
@@ -2938,7 +2982,9 @@ struct SolverChoice {
     bool        test_mapfactor         = false;
     amrex::Real test_mapfactor_amp     = amrex::Real(0);
 
-    int         gradp_type             = 0;
+    GradpType   gradp_type             = GradpType::ChainRule;
+
+    bool        gradp_2nd_order_bndry  = false;
 
     bool        use_pert_pres_gradient = true;
 
@@ -3299,6 +3345,8 @@ struct SolverChoice {
 
     // Does an external ocean coupler supply SST? See the query in init_params.
     bool use_coupled_sst = false;
+    // Does an external ocean coupler supply the surface current? See the query in init_params.
+    bool use_coupled_currents = false;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
@@ -3463,6 +3511,8 @@ struct SolverChoice {
  * @brief Amplitude of the spatially varying test map scale factors on level 0 (0: not used).
  * @var SolverChoice::gradp_type
  * @brief Terrain-fitted horizontal pressure-gradient formulation.
+ * @var SolverChoice::gradp_2nd_order_bndry
+ * @brief Whether ChainRule takes dp/dz at the bottom and top from a second-order one-sided difference.
  * @var SolverChoice::use_pert_pres_gradient
  * @brief Whether momentum equations use perturbational pressure gradients.
  * @var SolverChoice::use_gravity

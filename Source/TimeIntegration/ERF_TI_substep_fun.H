@@ -199,6 +199,17 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             cf_fluxes.tgt_w = &H.tgt_w;
         }
 
+        // Lateral walls: faces through which no mass passes. The substeps keep the
+        // normal momentum there at its stage value (a lateral surface layer sets the normal
+        // velocity to zero, as a slip wall does)
+        auto is_wall = [&] (int ori) {
+            const ERF_BC bc = phys_bc_type[ori];
+            return bc == ERF_BC::slip_wall || bc == ERF_BC::no_slip_wall || bc == ERF_BC::symmetry ||
+                   bc == ERF_BC::surface_layer;
+        };
+        const GpuArray<bool,4> lateral_walls{is_wall(Orientation::xlo()), is_wall(Orientation::xhi()),
+                                             is_wall(Orientation::ylo()), is_wall(Orientation::yhi())};
+
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             erf_substep_MT(fast_step, nrk, level, finest_level,
@@ -213,7 +224,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                           solverChoice.beta_d);
+                           solverChoice.beta_d, lateral_walls);
 
         } else if (cf_terrain) {
 
@@ -226,7 +237,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                          solverChoice.beta_d, cf_fluxes);
+                          solverChoice.beta_d, cf_fluxes, lateral_walls);
 
         } else {
 
@@ -239,7 +250,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
                            solverChoice.beta_d, cf_fluxes,
-                           (l_reflux) ? momentum_reflux_pressure(level) : nullptr);
+                           (l_reflux) ? momentum_reflux_pressure(level) : nullptr, lateral_walls);
         }
 
         // The vertical quantity at the start and end of the substep: Omega, recorded by the

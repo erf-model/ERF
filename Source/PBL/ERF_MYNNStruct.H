@@ -76,17 +76,10 @@ struct MYNNLevel25 {
     // erf.pbl_mynn_Lt_alpha.  Mellor-Yamada 1982, which COAMPS uses, takes 0.1.
     amrex::Real Lt_alpha = amrex::Real(0.23);
 
-    // Optional taper of the ABL-depth length scale toward the top of the
-    // boundary layer: l_T -> l_T * (1 - z/h)^Lt_taper_exp, with h the
-    // diagnosed PBL height.  Zero (the default) disables it and recovers the
-    // untapered NN09 form exactly.
-    //
-    // l_T (NN09 Eqn. 54) is a single number for the whole column, so once
-    // kappa*z exceeds it the master length scale saturates and stays flat all
-    // the way to the inversion.  l_S only grows with height and l_B only bites
-    // once the layer is stably stratified, so in a mixed layer that is neutral
-    // or slightly unstable nothing brings the length scale back down.
-    amrex::Real Lt_taper_exp = amrex::Real(0.0);
+    // Use the surface-layer length scale l_S alone as the master length scale in the
+    // first cell (erf.pbl_mynn_surface_lm), matching the MOST shear its production is
+    // built from, instead of the harmonic sum with l_T and l_B.  Off by default.
+    bool surface_lm = false;
 };
 
 /**

@@ -148,6 +148,25 @@
 #endif
 
         // *****************************************************************************
+        // A localized source of gas (erf.mass_source), added AFTER make_sources, which
+        // resets cc_src at every RK stage.  It goes into the slow RHS of rho and rho*theta,
+        // which the acoustic substeps apply; the substeps' own make_sources call does not see it.
+        // Its geometry (ground heights, composite volume) is redone only when the grids change.
+        // *****************************************************************************
+        if (m_mass_source) {
+            Vector<const MultiFab*> mf_mx(finest_level+1), mf_my(finest_level+1);
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                mf_mx[lev] = mapfac[lev][MapFacType::m_x].get();
+                mf_my[lev] = mapfac[lev][MapFacType::m_y].get();
+            }
+            m_mass_source->update_geometry(finest_level, Geom(), grids, dmap, ref_ratio,
+                                           z_phys_nd, detJ_cc, mf_mx, mf_my,
+                                           [this] (int lev, MultiFab& slab) { fill_surface_nodes(lev, slab); });
+            m_mass_source->add_sources(level, cc_src, S_data[IntVars::cons], zpn_to_use,
+                                       fine_geom, old_stage_time);
+        }
+
+        // *****************************************************************************
         // Inject the fire-to-atmosphere heat flux AFTER make_sources, which resets
         // cc_src at every RK stage. The lagged fire flux (FireCoupler) is constant
         // across all RK stages and must be added here to survive the integrator.
@@ -224,7 +243,7 @@
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp_pert(level, solverChoice, fine_geom, S_data,
-                        p0_to_use, *zpn_to_use, *zpc_to_use,
+                        base_to_use, qt, *zpn_to_use, *zpc_to_use,
                         mapfac[level],
                         get_eb(level), gradp[level]);
 

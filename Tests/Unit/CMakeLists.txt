@@ -300,6 +300,10 @@ target_sources(${erf_exe_name}
     # building's solid cells, and the ground balance holds a footprint and takes the
     # absorbed beam (not the diffuse light) off the shaded ground, once per sweep.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamBuildingCover.cpp
+    # Motivation: the force-restore balance is a model of soil. With a land mask, a water
+    # column keeps its state and the sweep's longwave boundary there is the surface
+    # layer's sea surface temperature (sigma T_sea^4), not the balance's skin.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandMask.cpp
     # Motivation: with erf.ibseb.sun_mode = two_stream the building faces must
     # see the two-stream columns' sun: the same zenith, a morning sun in the
     # east, and the start date read the same way.
@@ -322,6 +326,11 @@ target_sources(${erf_exe_name}
     # drainage and the deep temperature exactly over the step (NP89, MN96), and carry the
     # rain of a step the balance skips into the next.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestForceRestoreHydrology.cpp
+    # Motivation: the force-restore snow layer must follow Douville et al. (1995) Sec. 2.1:
+    # cover fraction (Eq. 7), albedo (Eq. 8), mass balance (Eq. 6) and melt (Eq. 12), split
+    # the surface precipitation into rain and frozen parts without counting either twice,
+    # and hand its melt water to the hydrology.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestForceRestoreSnow.cpp
     # Motivation: the forcing the two-stream model hands Noah-MP must be the
     # downwelling SW and LW at the surface interface and a zenith cosine floored
     # at zero, copied into the land model's k = 0 plane and nowhere else.
@@ -355,6 +364,11 @@ target_sources(${erf_exe_name}
     # dataset's soil layers in depth to the Noah layers, and the monthly vegetation to the
     # start date the way real.exe does, across the year's end and in leap years.
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridLandUtils.cpp
+    # Motivation: the wrfinput land and soil fields that no land model takes (LAI, VEGFRA, TMN,
+    # ZNT, ALBEDO, ALBBCK, SEAICE, SNOW, SNOWH, TSLB, SMOIS) must reach their holder column for column
+    # and soil layer for soil layer; a field with a value that cannot be the quantity must be
+    # left out without stopping the run; and the fields must survive a regrid and a checkpoint.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestWRFSurfaceFields.cpp
     # Motivation: erf.metgrid_force_sfc_k must drop the same origin levels whether or not the
     # column has origin levels below the surface (erf-model/ERF#4607).
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridForceSfc.cpp

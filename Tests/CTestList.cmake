@@ -614,6 +614,74 @@ function(add_test_two_stream_seb_hydrology TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/deep/simulation.log;${CURRENT_TEST_BINARY_DIR}/rain/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/restart/fcompare.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_subcycled/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_hydrology)
 
+# The force-restore snow layer (erf.radiation.seb_snow_enable, ERF_ForceRestoreSnow.H) on the
+# TwoStream_SEBSnow deck: without snow, where the answers must be those of the deck without
+# the snow layer (fcompare); a 50 kg/m^2 snowpack melting, which must hold the surface at
+# 273.16 K, close each cell's snow budget, sublimate the covered fraction of the evaporation
+# and absorb the shortwave of the albedo with snow; 1 kg/m^2 melting in one step, which must
+# leave the surface colder than bare ground by L_f melt / C_s and the soil wetter by the
+# snow's water; the melting leg restarted half-way, which must match it (fcompare); and the
+# melting leg with a second level made half-way (Tests/RunTwoStreamSEBSnow.cmake,
+# Tests/test_files/TwoStream_SEBSnow/check_two_stream_seb_snow.py).
+function(add_test_two_stream_seb_snow TEST_NAME)
+    set(TEST_FILES_DIR "TwoStream_SEBSnow")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/TwoStream_SEBSnow.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_SEB_SNOW_CHECKER}"
+        "-DSTEPS=10"
+        "-DDT=1.0"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBSnow.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/bare/simulation.log;${CURRENT_TEST_BINARY_DIR}/no_snow/simulation.log;${CURRENT_TEST_BINARY_DIR}/no_snow/fcompare.log;${CURRENT_TEST_BINARY_DIR}/melt/simulation.log;${CURRENT_TEST_BINARY_DIR}/full_melt/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/restart/fcompare.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_two_stream_seb_snow)
+
+# The land mask in the two-stream force-restore balance: the case's deck with erf.is_land = 1
+# and = 0. A water column must keep its skin and soil water, be left out of the means, and
+# give the sweep the surface layer's sea surface temperature as the longwave boundary
+# (Tests/RunTwoStreamSEBLandMask.cmake, test_files/TwoStream_SEBLandMask/check_land_mask.py).
+function(add_test_two_stream_seb_land_mask TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_SEB_LAND_MASK_CHECKER}"
+        "-DSTEPS=10"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBLandMask.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/land/simulation.log;${CURRENT_TEST_BINARY_DIR}/water/simulation.log;${CURRENT_TEST_BINARY_DIR}/nest/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_two_stream_seb_land_mask)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -687,12 +755,12 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
 
-# Run a deck and require the composite integral of QUANTITY that ERF prints ("MASS", "RHO SCALAR"
-# or "RHO QTOTAL") to be the same at the start and the end of the run (see
-# Tests/RunConservation.cmake).  TEST_FILES_DIR names the test_files directory, whose deck is
-# <TEST_FILES_DIR>.i; OPTIONS are added to the run.  The integral must agree to 12 significant
-# digits in double precision; a single-precision build accumulates roundoff of up to 6e-6
-# relative over these runs, so there it must agree to 5.
+# Run a deck and require the integral of QUANTITY that ERF prints ("MASS", "RHO SCALAR" or
+# "RHO QTOTAL"; the composite one on several levels) to be the same at the start and the end of
+# the run (see Tests/RunConservation.cmake).  TEST_FILES_DIR names the test_files directory,
+# whose deck is <TEST_FILES_DIR>.i; OPTIONS are added to the run.  The integral must agree to
+# 12 significant digits in double precision; a single-precision build accumulates roundoff of
+# up to 6e-6 relative over these runs, so there it must agree to 5.
 function(add_test_conservation TEST_NAME TEST_FILES_DIR QUANTITY)
     set(oneValueArgs "OPTIONS")
     cmake_parse_arguments(ADD_TEST_CONS "" "${oneValueArgs}" "" ${ARGN})
@@ -1996,6 +2064,27 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
             WORKING_DIRECTORY "${_anelastic_dir}" TIMEOUT 600
             PROCESSORS ${_species_ranks} LABELS "regression;anelastic;particles")
     endforeach()
+    # Motivation: Diagnostics files must carry the step and time of the state they
+    # hold, also at the start of a restarted run.
+    set(_diag_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/SDM_DiagnosticsRestart")
+    file(MAKE_DIRECTORY "${_diag_dir}")
+    set(_diag_binned "")
+    if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS)
+        set(_diag_binned "--expect-binned")
+    endif()
+    add_test(NAME SDM_DiagnosticsRestart
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/test_files/SDM_DiagnosticsRestart/check_diagnostics_restart.py"
+            "--exe=$<TARGET_FILE:erf_exec>"
+            "--input=${_species_input}/SDM_SpeciesDiffusion.i"
+            "--mpi-exec=${_species_mpi_exec}"
+            "--mpi-numproc-flag=${MPIEXEC_NUMPROC_FLAG}"
+            "--mpi-preflags=${_species_mpi_preflags}" "--ranks=${_species_ranks}"
+            ${_diag_binned})
+    set_tests_properties(SDM_DiagnosticsRestart PROPERTIES
+        WORKING_DIRECTORY "${_diag_dir}" TIMEOUT 600
+        PROCESSORS ${_species_ranks} LABELS "regression;restart;particles"
+        ATTACHED_FILES_ON_FAIL "${_diag_dir}/straight/simulation.log;${_diag_dir}/restart_2/simulation.log;${_diag_dir}/restart_3/simulation.log")
     set(_anelastic_options "erf.input_sounding_file=${_species_input}/input_sounding erf.c_p=1200 erf.Cs=2 super_droplets_moisture.include_phase_change=true super_droplets_moisture.num_substeps_phase_change=2 super_droplets_moisture.initial_phase_change_relaxation=true super_droplets_moisture.initial_phase_change_relaxation_time=0.02")
     # Motivation: Restart reconstruction must preserve the active phase-change
     # trajectory with base pressure and a nondefault heat capacity.
@@ -3048,6 +3137,67 @@ if(NOT WIN32)
                  "erf.const_massflux_u=1.0 erf.const_massflux_tau=0")
 endif()
 
+# A localized mass source (erf.mass_source) in a closed box: the domain mass must grow by the
+# mass injected, the tracer integral must equal it, and (where checked) rho*theta must grow by
+# theta times it (Tests/check_mass_source.py). The cases: flat; over a hill on the terrain-fitted
+# mesh (the source volume includes detJ; a cos^4 hill, flat where it meets the slip walls); on a
+# stretched mesh; with grids split in z (boxes that do not reach the ground); a rate table (a
+# ramp and a hold, which a source evaluated at the wrong stage time would not integrate); a fixed
+# theta; no tracer; and with a refined patch coupled two-way that holds the whole region, none of
+# it, all of it but aloft, or half of it (the composite source volume).
+function(add_test_mass_source TEST_NAME RUNTIME_OPTIONS CHECK_OPTIONS)
+    cmake_parse_arguments(ADD_TEST_MS "" "DECK" "" ${ARGN})
+    if(NOT ADD_TEST_MS_DECK)
+        set(ADD_TEST_MS_DECK MassSource.i)
+    endif()
+    if(ERF_PRECISION STREQUAL "DOUBLE")
+        set(tol 1e-9)
+    else()
+        set(tol 1e-2)
+    endif()
+    set(TEST_FILES_DIR "MassSource")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} sh -c
+      "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_MS_DECK} ${RUNTIME_OPTIONS} > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_mass_source.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log ${CHECK_OPTIONS} --tol ${tol}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;conservation" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+endfunction(add_test_mass_source)
+
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  set(_ms_amr "amr.max_level=1 amr.ref_ratio_vect=2 2 2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.coupling_type=TwoWay")
+  add_test_mass_source(MassSource_Flat "" "--rate 1.0e4 --theta 300.0")
+  add_test_mass_source(MassSource_Hill
+      "erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=Cos4Hill prob.hmax=100.0 prob.L=100.0"
+      "--rate 1.0e4")
+  add_test_mass_source(MassSource_Stretched "erf.initial_dz=10.0 erf.grid_stretching_ratio=1.1" "--rate 1.0e4")
+  add_test_mass_source(MassSource_SplitZ
+      "amr.no_box_split_dir=-1 amr.max_grid_size_z=8 erf.timestepping_type=RK3_NoSubstepping erf.vert_implicit_fac=0 0 0 erf.fixed_dt=0.05 max_step=100"
+      "--rate 1.0e4")
+  add_test_mass_source(MassSource_RateTable "" "--expected 55000.0" DECK MassSource_RateTable.i)
+  add_test_mass_source(MassSource_Theta "erf.mass_source.theta=280.0" "--rate 1.0e4 --theta 280.0")
+  add_test_mass_source(MassSource_NoTracer "erf.mass_source.tracer=false" "--rate 1.0e4 --no-tracer")
+  add_test_mass_source(MassSource_AMR
+      "${_ms_amr} erf.box1.in_box_lo=250.0 250.0 0.0 erf.box1.in_box_hi=750.0 750.0 250.0" "--rate 1.0e4")
+  add_test_mass_source(MassSource_AMR_Away
+      "${_ms_amr} erf.box1.in_box_lo=0.0 0.0 0.0 erf.box1.in_box_hi=250.0 250.0 250.0" "--rate 1.0e4")
+  add_test_mass_source(MassSource_AMR_Aloft
+      "${_ms_amr} erf.box1.in_box_lo=250.0 250.0 250.0 erf.box1.in_box_hi=750.0 750.0 500.0" "--rate 1.0e4")
+  add_test_mass_source(MassSource_AMR_Cut
+      "${_ms_amr} erf.box1.in_box_lo=250.0 250.0 0.0 erf.box1.in_box_hi=500.0 750.0 250.0" "--rate 1.0e4")
+  unset(_ms_amr)
+endif()
+
+# The anelastic projection would remove the injected mass, so ERF stops at start-up
+if(NOT WIN32)
+  add_test_abort(MassSource_Anelastic_Abort
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MassSource
+                 MassSource.i
+                 "erf.mass_source needs erf.compressibility_type = FullyCompressible"
+                 "erf.compressibility_type=Anelastic")
+endif()
+
 # The projection on a stretched mesh that is periodic in z has no solver: it stops with the same
 # message with and without FFT, rather than the AMReX assertion of the hybrid FFT solver or a
 # request to rebuild with FFT (erf-model/ERF#4281)
@@ -3230,6 +3380,13 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # The same deck with the force-restore hydrology: rain in, runoff, the deep reservoir,
     # drainage and the deep temperature, across a restart and on two levels.
     add_test_two_stream_seb_hydrology(TwoStream_SEBHydrology)
+    # The force-restore snow layer on its own deck: no snow, melting, melting away, across a
+    # restart and on two levels.
+    add_test_two_stream_seb_snow(TwoStream_SEBSnow)
+    # The balance over water: the state is held and the sweep takes the sea surface
+    # temperature. With the balance run on every column (the behaviour before this test) the
+    # water run's skin moves and the two runs' net longwave agree at step 1.
+    add_test_two_stream_seb_land_mask(TwoStream_SEBLandMask)
   endif()
 
   # Two-stream radiation feeding Noah-MP on two levels (see the function above). Noah-MP
@@ -3350,6 +3507,72 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  TwoStream_SEBSurfaceLayerFluxes.i
                  "must be at or above erf.radiation.seb_soil_porosity"
                  "erf.radiation.seb_precipitation_source=microphysics erf.radiation.seb_soil_porosity=0.4 erf.radiation.seb_prognostic_q_max=0.3")
+
+  # Each start-up check of the force-restore snow layer stops the run with its own message:
+  # one step per check, with the inputs that reach it. The checks of an input that is absent
+  # from a deck (the first three, and the prognostic balance and the precipitation source
+  # with their own porosity check ahead) use the deck without the snow layer; the others the
+  # snow deck.
+  add_test_abort(TwoStream_SEBSnowAbortInitialSweUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_initial_swe_kg_m2 is used only with"
+                 "erf.radiation.seb_snow_initial_swe_kg_m2=5.0")
+  add_test_abort(TwoStream_SEBSnowAbortAlbedoUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_albedo is used only with"
+                 "erf.radiation.seb_snow_albedo=0.8")
+  add_test_abort(TwoStream_SEBSnowAbortCriticalSweUnused
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_critical_swe_kg_m2 is used only with"
+                 "erf.radiation.seb_snow_critical_swe_kg_m2=20.0")
+  add_test_abort(TwoStream_SEBSnowAbortNeedsPrognostic
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_enable needs erf.radiation.seb_prognostic_enable"
+                 "erf.radiation.seb_snow_enable=true erf.radiation.seb_prognostic_enable=false")
+  add_test_abort(TwoStream_SEBSnowAbortNeedsMicrophysicsSource
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_snow_enable needs erf.radiation.seb_precipitation_source"
+                 "erf.radiation.seb_snow_enable=true")
+  add_test_abort(TwoStream_SEBSnowAbortNeedsRadiationFluxes
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "seb_snow_enable needs erf.radiation.seb_use_radiation_fluxes"
+                 "erf.radiation.seb_use_radiation_fluxes=false")
+  add_test_abort(TwoStream_SEBSnowAbortDiffuseAlbedo
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "surface_albedo_sw_diffuse cannot be given with"
+                 "erf.radiation.surface_albedo_sw_diffuse=0.2")
+  add_test_abort(TwoStream_SEBSnowAbortVegetation
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_vegetation_type cannot be given with"
+                 "erf.radiation.seb_snow_enable=true erf.radiation.seb_vegetation_type=10 erf.radiation.seb_surface_layer_uses_moisture=true erf.radiation.seb_soil_type=3 erf.radiation.seb_leaf_area_index=2.0 erf.radiation.seb_surface_layer_uses_skin=true")
+  add_test_abort(TwoStream_SEBSnowAbortTMinAboveMelt
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "must be at or below 273.16"
+                 "erf.radiation.seb_prognostic_t_min_k=280.0")
+  add_test_abort(TwoStream_SEBSnowAbortInitialSweRange
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "seb_snow_initial_swe_kg_m2 must be finite and >= 0"
+                 "erf.radiation.seb_snow_initial_swe_kg_m2=-1.0")
+  add_test_abort(TwoStream_SEBSnowAbortAlbedoRange
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "seb_snow_albedo must be in"
+                 "erf.radiation.seb_snow_albedo=1.5")
+  add_test_abort(TwoStream_SEBSnowAbortCriticalSweRange
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSnow
+                 TwoStream_SEBSnow.i
+                 "seb_snow_critical_swe_kg_m2 must be finite and > 0"
+                 "erf.radiation.seb_snow_critical_swe_kg_m2=0.0")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 
@@ -3484,6 +3707,30 @@ add_test_conservation(Conservation_MoistDiffusion_ImplicitTerrain MoistDiffusion
 add_test_conservation(Conservation_MoistDiffusion_Explicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
     OPTIONS "${_moist_cons_options} erf.alpha_C=0.4 erf.vert_implicit=false")
 add_test_conservation(Conservation_ScalarDiffusion_Flat      ScalarDiffusion_Reflux "RHO SCALAR")
+# A closed, fully compressible box over terrain that slopes into its slip walls, with a warm
+# bubble setting up the flow: the acoustic substeps must keep the normal momentum on the wall
+# faces at zero, or mass crosses the walls (3e-11 to 1e-10 relative in 40 steps before the fix,
+# roundoff after it).
+# A ridge sloping into the x walls, one sloping into the y walls, and a radial hill.
+# Double precision only: the leak is 3e-11 to 1e-10 relative, far below the 5 digits the
+# conservation check asks of a single-precision run, which would pass without the fix
+if(ERF_PRECISION STREQUAL "DOUBLE")
+    add_test_conservation(Conservation_TerrainSlipWall_RidgeX TerrainSlipWall_Mass "MASS")
+    add_test_conservation(Conservation_TerrainSlipWall_RidgeY TerrainSlipWall_Mass "MASS"
+        OPTIONS "prob.dir=1 prob.bubble_x_c=500.0 prob.bubble_y_c=400.0")
+    add_test_conservation(Conservation_TerrainSlipWall_Hill   TerrainSlipWall_Mass "MASS"
+        OPTIONS "prob.dir=2")
+    # The same box without terrain, as the substep without terrain sees it (the terrain inputs
+    # of the deck are then not read).  With theta given on the four side walls (290 K against
+    # about 300 K inside) the ghost cells of (rho theta) are not an even reflection and the
+    # pressure gradient on the wall faces is not zero; with fast Rayleigh damping toward a
+    # 5 / 3 m/s wind the damping is not zero on the wall faces.  Before that substep held the
+    # wall faces at their stage value, the mass changed by 2.7e-8 and 4.1e-6 relative in 40 steps
+    add_test_conservation(Conservation_SlipWallTheta_Flat     TerrainSlipWall_Mass "MASS"
+        OPTIONS "erf.terrain_type=None prob.custom_terrain_type=None xlo.theta=290.0 xhi.theta=290.0 ylo.theta=290.0 yhi.theta=290.0")
+    add_test_conservation(Conservation_SlipWallRayleigh_Flat  TerrainSlipWall_Mass "MASS"
+        OPTIONS "erf.terrain_type=None prob.custom_terrain_type=None erf.input_sounding_file=input_sounding_wind erf.rayleigh_damping_type=FastExplicit erf.rayleigh_damp_U=1 erf.rayleigh_damp_V=1 erf.rayleigh_dampcoef=0.2 erf.rayleigh_zdamp=500.0")
+endif()
 # Pseudo-incompressible levels evolve rho and (rho theta), which are refluxed and averaged down:
 # both must be conserved over two levels coupled two-way (a stratified flow over a hill)
 add_test_conservation(Conservation_PseudoIncompressible_Mass     PseudoIncompressible_StratifiedHill "MASS")
@@ -4684,8 +4931,106 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     add_test_wrfinput_nest(WRFInput_Abort_NestOutsideParent
         "erf.crop.in_box_lo_indices=32 24 0"
         "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
+
+    # The land and soil fields of a wrfinput file with the two-stream force-restore balance and
+    # no land model. make_wrfinput.py makes every field vary in both horizontal directions and
+    # with the soil layer; check_log.py compares the component count, minimum and maximum the
+    # reader reports with the file. The legs: every field present; some absent, which must be
+    # skipped and not stop the run; the balance off, when no field may be asked for; an albedo
+    # of 1.5, and flag values (SNOWH of -999 on every column, one SEAICE just below zero),
+    # which must be reported and left out while the run goes on and the other fields are
+    # held; a file with fewer atmospheric levels (3) than soil layers (4), which must still
+    # give four layers; ZS and DZS left at zero, which is a file without them; ZS that starts
+    # at zero, which is held; a restart, which must give every field back from the
+    # checkpoint with the same count and range, also onto smaller boxes; and, with MPI, four
+    # ranks on two boxes, so that two ranks hold no box, and the albedo of 1.5 on two ranks,
+    # where the rank that holds it is not the one that prints. Two more runs have a second
+    # level without a file of its own, refined by 2: made by tagging at the start, and made
+    # by the regrid after step 1 and then moved and widened by the regrid after step 2. The
+    # level must hold every field of level 0 each time, with the range of the level 0
+    # columns under it, and the second regrid must take 64 of its 96 columns from level 0.
+    function(add_test_wrfinput_surface_fields TEST_NAME MAKE_OPTIONS RUNTIME_OPTIONS CHECK_MODE RESTART_OPTIONS)
+      set(_launch "")
+      if(ARGC GREATER 5)
+        set(_launch "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ARGV5} ${MPIEXEC_PREFLAGS} ")
+      endif()
+      set(TEST_FILES_DIR WRFInput_SurfaceFields)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_make "${ERF_TEST_PYTHON} make_wrfinput.py ${MAKE_OPTIONS} > generate.log")
+      set(_exe "${_launch}${TEST_EXE} WRFInput_SurfaceFields.i amrex.call_addr2line=0")
+      if("${RESTART_OPTIONS}" STREQUAL "")
+        set(_run "${_exe} ${RUNTIME_OPTIONS} > ${_log} 2>&1")
+      else()
+        # The first run writes chk00000; the log that is checked is the restart's
+        set(_first ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}_first.log)
+        set(_run "rm -rf chk00000 && ${_exe} ${RUNTIME_OPTIONS} erf.check_file=chk erf.check_int=1 > ${_first} 2>&1 && ${ERF_TEST_PYTHON} check_log.py full ${_first} && ${_exe} ${RUNTIME_OPTIONS} erf.restart=chk00000 ${RESTART_OPTIONS} > ${_log} 2>&1")
+      endif()
+      set(_check "${ERF_TEST_PYTHON} check_log.py ${CHECK_MODE}")
+      add_test(${TEST_NAME} sh -c
+          "${_make} && ( ${_run} || ( tail -n 40 ${_log} && false ) ) && ${_check}")
+      set(_np 1)
+      if(ARGC GREATER 5)
+        set(_np ${ARGV5})
+      endif()
+      set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS ${_np}
+          WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_wrfinput_surface_fields)
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields "" ""
+        "full WRFInput_SurfaceFields.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Absent
+        "--omit LAI SEAICE SNOWH SMOIS DZS" ""
+        "partial WRFInput_SurfaceFields_Absent.log LAI SEAICE SNOWH SMOIS DZS" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_BalanceOff
+        "" "erf.radiation.seb_prognostic_enable=false"
+        "off WRFInput_SurfaceFields_BalanceOff.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Drop_Albedo
+        "--bad ALBEDO 1.5" ""
+        "drop WRFInput_SurfaceFields_Drop_Albedo.log ALBEDO=1" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Drop_FlagValues
+        "--fill SNOWH -999 --bad SEAICE -0.001" ""
+        "drop WRFInput_SurfaceFields_Drop_FlagValues.log SNOWH=96 SEAICE=1" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_ThinColumn
+        "--nz 3" "amr.n_cell=12 8 3 geometry.prob_extent=12000.0 8000.0 300.0"
+        "full WRFInput_SurfaceFields_ThinColumn.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_ZeroLayers
+        "--zero-layers" ""
+        "zero WRFInput_SurfaceFields_ZeroLayers.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_SurfaceZS
+        "--surface-zs" ""
+        "surfacezs WRFInput_SurfaceFields_SurfaceZS.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart
+        "" ""
+        "restart WRFInput_SurfaceFields_Restart.log" "max_step=0")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart_OtherGrids
+        "" ""
+        "restart WRFInput_SurfaceFields_Restart_OtherGrids.log" "amr.max_grid_size=4")
+    set(_sfc_two_levels "amr.max_level=1 amr.ref_ratio_vect=2 2 1 amr.n_error_buf=0 amr.blocking_factor=2 erf.regrid_int=1 erf.v=1 erf.boxa.max_level=1 erf.boxa.in_box_lo=2000.0 2000.0 erf.boxa.in_box_hi=6000.0 6000.0")
+    set(_sfc_regrid "${_sfc_two_levels} max_step=3 erf.refinement_indicators=boxa boxb erf.boxa.start_time=0.5 erf.boxa.end_time=1.5 erf.boxb.max_level=1 erf.boxb.in_box_lo=4000.0 2000.0 erf.boxb.in_box_hi=10000.0 6000.0 erf.boxb.start_time=1.5")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_TaggedLevel
+        "" "${_sfc_two_levels} erf.refinement_indicators=boxa"
+        "tagged WRFInput_SurfaceFields_TaggedLevel.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Regrid
+        "" "${_sfc_regrid}"
+        "regrid WRFInput_SurfaceFields_Regrid.log" "")
+    if(ERF_ENABLE_MPI)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Regrid_MPI
+          "" "${_sfc_regrid} amr.max_grid_size=4"
+          "regrid WRFInput_SurfaceFields_Regrid_MPI.log" "" 3)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_MPI
+          "" ""
+          "full WRFInput_SurfaceFields_MPI.log" "" 4)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Drop_Albedo_MPI
+          "--bad ALBEDO 1.5" ""
+          "drop WRFInput_SurfaceFields_Drop_Albedo_MPI.log ALBEDO=1" "" 2)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart_MPI
+          "" ""
+          "restart WRFInput_SurfaceFields_Restart_MPI.log" "max_step=0" 3)
+    endif()
   else()
-    message(STATUS "Skipping WRFInput_CroppedParent: Python netCDF4 and numpy are required")
+    message(STATUS "Skipping WRFInput_CroppedParent and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
   endif()
 endif()
 
@@ -5225,14 +5570,18 @@ add_test_terrain_stress_ridge(TerrainStress_Hill3D survive "plt00060"
     OPTIONS "geometry.prob_extent=96000 96000 12952.825935499923 amr.n_cell=32 32 40 amr.max_grid_size_y=16 prob.dir=2 erf.fixed_dt=20 erf.fixed_mri_dt_ratio=12 max_step=60 erf.plot_int_1=60"
     WMAX 5)
 # At a small time step the option changes only the time discretization of the metric term: after
-# 60 steps of 5 s, u and w differ by about 4e-4 and Kmh by 0.1 % (relative), and the two runs
-# must still differ.  A split that removed one form and added another would differ by O(1).
+# 120 steps of 2.5 s, u and w differ by about 2e-4 and 4e-4, Kmh by 0.10 % and Kmv by 0.40 %
+# (relative), and the two runs must still differ.  A split that removed one form and added another
+# would differ by O(1).  At 5 s the time error of either run alone is about 2 % in Kmv (against a
+# run at 1.25 s), so the two runs can differ by more than RTOL there for reasons that have nothing
+# to do with the option: with erf.gradp_2nd_order_bndry = true they differ by 1.7 % in Kmv at 5 s,
+# and by 0.46 % at 2.5 s.
 # Double precision only: y_velocity is round-off (1e-13 here), which in single precision is far
 # above ATOL in both runs and would make the comparison meaningless.
 if(ERF_PRECISION STREQUAL "DOUBLE")
-add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetricAgree agree "plt00060"
-    ON_OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
-    OFF_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
+add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetricAgree agree "plt00120"
+    ON_OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=2.5 erf.fixed_mri_dt_ratio=4 max_step=120 erf.plot_int_1=120"
+    OFF_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=2.5 erf.fixed_mri_dt_ratio=4 max_step=120 erf.plot_int_1=120"
     RTOL 0.01
     ATOL 1.e-9)
 endif()

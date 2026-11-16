@@ -23,6 +23,8 @@
 #include "ERF_PlotfileSelection.H"
 #include "ERF_Utils.H"
 #include "ERF_PlanarBoundary.H"
+#include "ERF_SEBLandAverageDown.H"
+#include "ERF_SEBLandFill.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TerrainFileChecks.H"
 #include "ERF_SrcHeaders.H"
@@ -597,56 +599,60 @@ ERF::fill_seb_from_coarse (int lev)
     if (!two_stream_rad.seb_prognostic_active()) { return; }
 
     const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
-    const Box& crse_dom = geom[lev-1].Domain();
+    // The coarse land mask is read here, each time a level is built or regridded: one
+    // reduction and one collective. With no water column on the parent every fine column
+    // is interpolated with slopes, as before the mask. With water, the slopes are dropped
+    // only where the stencil touches a water column, and a fine land column over coarse
+    // water takes its value from coarse land columns (ERF_SEBLandFill.H). The fine mask
+    // does not choose the path: a fine water column holds its value in any case.
+    iMultiFab* crse_lmask = lmask_lev[lev-1].empty() ? nullptr : lmask_lev[lev-1][0].get();
+    const iMultiFab* fine_lmask = lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get();
+    const bool crse_has_water = seb_land_mask_has_water(crse_lmask);
+    // The 3 x 3 test reads the mask's ghost columns; the WW3 coupling rewrites the valid
+    // columns only.
+    if (crse_has_water) { crse_lmask->FillBoundary(geom[lev-1].periodicity()); }
+    Long n_no_land_source = 0;
+    bool counted = false;
     auto fill_one = [&] (MultiFab* fine, MultiFab* crse)
     {
         if (!fine || !crse) { return; }
-        // The coarse halo feeds the interpolation stencil, so fill it first. FillBoundary
-        // covers the interior and periodic ghosts only; the slope stencil
-        // (0.5*(u(i+1)-u(i-1)), evaluated for every BC type) also reaches outside the
-        // domain at a non-periodic face. define_level setVal'd the whole array, so those
-        // cells still hold erf.rad_t_sfc while the interior has evolved, and a fine level
-        // abutting such a face would get its edge column interpolated from a stencil
-        // biased toward the scalar. Extend the surface outward by clamping into the valid
-        // region first -- the same zeroth-order extension init_from_wrfinput gives the
-        // fields whose halos this interpolater is documented to require.
-        //
-        // Only across a NON-periodic face. Across a periodic one FillBoundary has already
-        // put the periodic image there, and InterpFromCoarseLevel's ParallelCopy reads
-        // that cell twice -- from this halo and from the periodic image of the valid cell
-        // it mirrors. Clamping it would make the two sources disagree, and ParallelCopy
-        // does not say which one wins: the answer then depended on the box layout, and a
-        // level created mid-run came out different on 1 and 2 ranks.
-        crse->FillBoundary(geom[lev-1].periodicity());
-        const bool clamp_x = !geom[lev-1].isPeriodic(0);
-        const bool clamp_y = !geom[lev-1].isPeriodic(1);
-        for (MFIter mfi(*crse, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const Box& gbx = mfi.growntilebox();
-            const Array4<Real>& a = crse->array(mfi);
-            const auto dlo = lbound(crse_dom);
-            const auto dhi = ubound(crse_dom);
-            ParallelFor(gbx, crse->nComp(), [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                const int ic = clamp_x ? amrex::max(dlo.x, amrex::min(dhi.x, i)) : i;
-                const int jc = clamp_y ? amrex::max(dlo.y, amrex::min(dhi.y, j)) : j;
-                if (ic != i || jc != j) { a(i,j,k,n) = a(ic,jc,k,n); }
-            });
-        }
+        // The coarse halo feeds the interpolation stencil (seb_extend_halo): interior and
+        // periodic ghost columns from FillBoundary, the nearest column inside the domain
+        // across a non-periodic face.
+        seb_extend_halo(*crse, geom[lev-1]);
         // Every component takes the boundary conditions of the first cons component, as the
         // one-component fields always did: the running totals have none of their own.
         const Vector<BCRec> bcs(fine->nComp(), domain_bcs_type[BCVars::cons_bc]);
-        InterpFromCoarseLevel(*fine, fine->nGrowVect(),
-                              IntVect(0,0,0),          // no ghosts outside the domain
-                              *crse, 0, 0, fine->nComp(),
-                              geom[lev-1], geom[lev],
-                              rr2d, &cell_cons_interp,
-                              bcs, 0);
+        if (!crse_has_water) {
+            InterpFromCoarseLevel(*fine, fine->nGrowVect(),
+                                  IntVect(0,0,0),          // no ghosts outside the domain
+                                  *crse, 0, 0, fine->nComp(),
+                                  geom[lev-1], geom[lev],
+                                  rr2d, &cell_cons_interp,
+                                  bcs, 0);
+        } else {
+            const Long n = seb_fill_from_coarse_over_land(*fine, *crse, *crse_lmask, fine_lmask,
+                                                          geom[lev-1], geom[lev], rr2d, bcs);
+            // The same columns for every field: counted once.
+            if (!counted) { n_no_land_source = n; counted = true; }
+        }
     };
     // t_sfc, q_sfc and, with the force-restore hydrology, its deep state and running totals.
     const Vector<MultiFab*> fine_fields = two_stream_rad.seb_prognostic_fields(lev);
     const Vector<MultiFab*> crse_fields = two_stream_rad.seb_prognostic_fields(lev-1);
     AMREX_ALWAYS_ASSERT(fine_fields.size() == crse_fields.size());
     for (int n = 0; n < fine_fields.size(); ++n) { fill_one(fine_fields[n], crse_fields[n]); }
+    if (crse_has_water) {
+        // One more collective, only with water on the parent.
+        ParallelDescriptor::ReduceLongSum(n_no_land_source);
+        if (n_no_land_source > 0) {
+            amrex::Print() << "ERF::fill_seb_from_coarse: level " << lev << ": " << n_no_land_source
+                           << " land column(s) lie over a coarse water column with no land column"
+                           << " next to it. They take the coarse water column's held values"
+                           << " (RemakeLevel then puts back the old values of the columns the"
+                           << " level already had).\n";
+        }
+    }
 }
 
 /**
@@ -708,6 +714,11 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         }
     }
 #endif
+
+    // Microphysics diagnostics once every level has reached the end of the step
+    if (solverChoice.moisture_type != MoistureType::None) {
+        micro->Diagnostics(nstep + 1, static_cast<Real>(time), z_phys_nd, file_name_digits);
+    }
 
     if (solverChoice.coupling_type == CouplingType::TwoWay)
     {
@@ -821,9 +832,27 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 const Vector<MultiFab*> crse_fields = two_stream_rad.seb_prognostic_fields(lev);
                 const Vector<MultiFab*> fine_fields = two_stream_rad.seb_prognostic_fields(lev+1);
                 AMREX_ALWAYS_ASSERT(fine_fields.size() == crse_fields.size());
-                for (int n = 0; n < fine_fields.size(); ++n) {
-                    if (crse_fields[n] && fine_fields[n]) {
-                        average_down(*fine_fields[n], *crse_fields[n], 0, fine_fields[n]->nComp(), rr2d);
+                // With a water column on either level the mean is over the fine land
+                // columns, and a coarse water column keeps its values: the balance does not
+                // run on water, which holds what it started with (ERF_SEBLandAverageDown.H).
+                // The masks are read here each time (one or two reductions and collectives
+                // per pair of levels and coarse step): the answer does not wait for the
+                // radiation to have run on a level, and it follows a mask that is rewritten
+                // during the run. With no water the call is amrex::average_down, as before.
+                const iMultiFab* crse_lmask = lmask_lev[lev  ].empty() ? nullptr : lmask_lev[lev  ][0].get();
+                const iMultiFab* fine_lmask = lmask_lev[lev+1].empty() ? nullptr : lmask_lev[lev+1][0].get();
+                const bool land_only = crse_lmask && fine_lmask &&
+                                       (seb_land_mask_has_water(crse_lmask) ||
+                                        seb_land_mask_has_water(fine_lmask));
+                if (land_only) {
+                    // All fields in one call: one count of the land columns, one copy.
+                    const Vector<const MultiFab*> fine_const(fine_fields.begin(), fine_fields.end());
+                    seb_average_down_land(fine_const, crse_fields, *fine_lmask, *crse_lmask, rr2d);
+                } else {
+                    for (int n = 0; n < fine_fields.size(); ++n) {
+                        if (crse_fields[n] && fine_fields[n]) {
+                            average_down(*fine_fields[n], *crse_fields[n], 0, fine_fields[n]->nComp(), rr2d);
+                        }
                     }
                 }
             }
@@ -1675,9 +1704,22 @@ ERF::InitData_post ()
     for (int lev = 1; lev <= finest_level; ++lev)
     {
         Interp2DArrays(lev,ba2d[lev],dmap[lev]);
+        // A level without a file of its own takes the wrfinput land and soil fields of
+        // level lev-1; nothing changes for a level that already holds them on these grids
+        wrf_surface_fields.remake(lev, ba2d[lev], dmap[lev], geom[lev].periodicity(),
+                                  refRatio(lev-1), !has_own_init_file(lev), verbose);
     } // lev
 
 #ifdef ERF_USE_WW3_COUPLING
+    // read_waves rewrites the land mask from the wave height every step. The average-down
+    // and the fill of the force-restore balance follow the mask as it is. A column that
+    // turns from water to land would resume the balance from the state it held while it
+    // was water, so the two are not combined.
+    if (solverChoice.rad_type == RadiationType::TwoStream &&
+        solverChoice.radChoice.seb_prognostic_enable) {
+        amrex::Abort("erf.radiation.seb_prognostic_enable = true is not supported with the WW3 "
+                     "coupling: the coupling rewrites the land mask during the run");
+    }
     int my_lev = 0;
     amrex::Print() <<  " About to call send_to_ww3 from ERF.cpp" << std::endl;
     send_to_ww3(my_lev);
@@ -1992,6 +2034,8 @@ ERF::InitData_post ()
             }
             m_SurfaceLayer[ori]->set_coupled_sst_active(solverChoice.use_coupled_sst &&
                                                         static_cast<int>(ori) == Orientation::zlo());
+            m_SurfaceLayer[ori]->set_coupled_current_active(solverChoice.use_coupled_currents &&
+                                                            static_cast<int>(ori) == Orientation::zlo());
 
             // This call will allocate the arrays at each level. If we regrid later, either changing
             // the number of levels or just the grids at each existing level, we will call an update routine
@@ -2106,6 +2150,48 @@ ERF::InitData_post ()
             m_SurfaceLayer[ori] = nullptr;
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+
+    // most.surface_current is read only by a z-low surface layer, under the prefix that face
+    // takes its inputs from; anywhere else it would be silently ignored
+    {
+        const SurfaceLayer* zlo_layer = m_SurfaceLayer[Orientation::zlo()].get();
+        const std::string zlo_prefix = (n_faces == 1 || use_legacy_zlo_prefix)
+            ? pp_prefix : pp_prefix + "." + BoundaryFaceName[Orientation::zlo()];
+        const std::string zlo_key = zlo_prefix + ".most.surface_current";
+        // Only keys under ERF's own prefix: another code in the same run (a coupled ocean
+        // model, say) may have a key of the same ending. AMReX's
+        // amrex.abort_on_unused_inputs catches unused keys in general; this one is checked
+        // here because, misplaced, it would silently change the physics.
+        const std::string suffix(".most.surface_current");
+        const std::string erf_prefix = pp_prefix + ".";
+        for (const auto& key : user_specified_inputs) {
+            if (key.size() < suffix.size() ||
+                key.compare(key.size() - suffix.size(), suffix.size(), suffix) != 0 ||
+                key.compare(0, erf_prefix.size(), erf_prefix) != 0) {
+                continue;
+            }
+            if (!zlo_layer) {
+                Abort(key + " is read only by a surface_layer boundary at zlo, and zlo is "
+                      "not one: set zlo.type = \"surface_layer\".");
+            }
+            if (key != zlo_key) {
+                Abort(key + " is not read: the surface current applies only to the zlo "
+                      "surface layer, which reads it as " + zlo_key + ".");
+            }
+        }
+
+        // The coupled current has the same reader, and arrives only once coupling starts
+        if (solverChoice.use_coupled_currents) {
+            if (!zlo_layer) {
+                Abort("erf.use_coupled_currents is read only by a surface_layer boundary at "
+                      "zlo, and zlo is not one: set zlo.type = \"surface_layer\".");
+            }
+            if (max_level > 0) {
+                Print() << "WARNING: the coupled surface current is applied on level 0 only; "
+                        << "the surface of the refined levels is at rest." << std::endl;
+            }
+        }
+    }
 
     // A land-surface model hands its fluxes to the atmosphere only through the surface
     // layer (make_SurfaceLayer_at_level is the one consumer of lsm_flux). Without a
@@ -2316,6 +2402,11 @@ ERF::InitData_post ()
         }
     }
 #endif
+
+    // Microphysics diagnostics of the initial state, once every level is initialized
+    if (solverChoice.moisture_type != MoistureType::None) {
+        micro->Diagnostics(istep[0], static_cast<Real>(t_new[0]), z_phys_nd, file_name_digits);
+    }
 
     // Print max values of lateral gradients of base state pressure at level 0
     if (verbose > 0) {
@@ -2903,12 +2994,17 @@ ERF::interp_psfc_from_coarse (int lev)
     const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
 
     //
-    // Do NOT fill the ghost cells outside the domain: unlike the fields that
-    // init_from_wrfinput fills by clamping into the valid region, PSFC is copied out of
-    // the file over the intersection with the domain, so the coarse level has nothing
-    // there for us to interpolate.  Nothing reads those cells -- update_sst_tsk clamps
-    // its PSFC index into the domain.
+    // Do NOT fill the fine ghost cells outside the domain: nothing reads those cells --
+    // update_sst_tsk clamps its PSFC index into the domain.
     //
+    // The coarse ghost cells are another matter.  PSFC is copied out of the file over the
+    // intersection with the domain, so the coarse ghost cells beyond a domain face hold
+    // nothing, and the slope stencil of the interpolater reads them wherever the fine
+    // level, with its ghost cells, comes within one coarse cell of that face.  They take
+    // the nearest column inside the domain first (seb_extend_halo, which also calls
+    // FillBoundary).
+    //
+    seb_extend_halo(*mf_PSFC[lev-1], geom[lev-1]);
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
                           *mf_PSFC[lev-1], 0, 0, 1,
                           geom[lev-1], geom[lev],
@@ -4113,6 +4209,34 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+    m_mass_source = MassSource::from_inputs();
+    if (m_mass_source) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
+                amrex::Abort("erf.mass_source needs erf.compressibility_type = FullyCompressible at every "
+                             "level: the anelastic and pseudo-incompressible projections do not admit a mass source");
+            }
+        }
+        // The region is measured up from the bottom of the terrain-fitted (or flat) grid, and
+        // its volume is computed once per set of grids
+        if (solverChoice.terrain_type == TerrainType::EB ||
+            solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+            solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
+            amrex::Abort("erf.mass_source is not supported with erf.terrain_type = EB, ImmersedForcing "
+                         "or MovingFittedMesh");
+        }
+        const auto plo = Geom(0).ProbLoArray();
+        const auto phi = Geom(0).ProbHiArray();
+        if (m_mass_source->x0() < plo[0] || m_mass_source->x0() > phi[0] ||
+            m_mass_source->y0() < plo[1] || m_mass_source->y0() > phi[1]) {
+            amrex::Abort("erf.mass_source.center is outside the domain");
+        }
+        if (!solverChoice.transport_scalar) {
+            amrex::Print() << "WARNING: erf.transport_scalar = false: the passive scalar is not evolved, "
+                           << "so the mass-source tracer is not added" << std::endl;
+        }
+    }
 
     // SurfaceModel output is opt-in for single-provider runs.  When both
     // providers are active, retain the useful combined diagnostic output
