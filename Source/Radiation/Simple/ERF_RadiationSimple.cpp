@@ -32,15 +32,20 @@ void RadiationSimple::Init (const amrex::Geometry& geom,
     deltaq.setVal(zero);
     flux.setVal(zero);
 
-    if (datalog_int > 0) {
+    // Run() skips a level made of partial columns (and aborts on level 0), so the datalog
+    // is never filled there; drop any MultiFabs left over from an earlier grid.
+    if (datalog_int > 0 && !m_partial_columns) {
         datalog_mf.define(ba, dm, n_datalog_comp, 0);
         datalog_mf.setVal(zero);
 
-        // One cell thick in z; each box spans the full column (checked above for the sweep)
+        // One cell thick in z; each box spans the full column (m_partial_columns is false)
         BoxList bl_bdy = ba.boxList();
         for (auto& b : bl_bdy) { b.setRange(2, 0, 1); }
         datalog_bdy_mf.define(BoxArray(std::move(bl_bdy)), dm, n_datalog_bdy_comp, 0);
         datalog_bdy_mf.setVal(zero);
+    } else {
+        datalog_mf.clear();
+        datalog_bdy_mf.clear();
     }
 }
 

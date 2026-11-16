@@ -316,8 +316,8 @@ Radiation::set_grids (int& level,
                 datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), nDatalogComp(), 0);
                 datalog_mf.setVal(0.0);
 
-                // Every box spans the full column, so collapsing each one to a single cell in z
-                // keeps the same box ordering and lets populateDatalogMF() share one MFIter
+                // Every box spans the full column (asserted in Init()), so collapsing each one to a
+                // single cell in z keeps the same box ordering and lets populateDatalogMF() share one MFIter
                 BoxList bl_bdy = cons_in->boxArray().boxList();
                 for (auto& b : bl_bdy) { b.setRange(2, 0, 1); }
                 datalog_bdy_mf.define(BoxArray(std::move(bl_bdy)), cons_in->DistributionMap(),
