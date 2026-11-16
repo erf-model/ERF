@@ -2973,13 +2973,16 @@ ERF::interp_psfc_from_coarse (int lev)
     const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
 
     //
-    // InterpFromCoarseLevel fills the fine in-domain ghosts needed by neighboring boxes;
-    // no fine ghost outside the physical domain is consumed by the pressure or surface
-    // temperature paths. The coarse slope stencil does read ghost columns near a domain
-    // face. WRFInput PSFC is copied only over its domain intersection, so extend the
-    // coarse halo from its nearest valid column before interpolation. During legacy
-    // restart migration, the coarse pressure ghosts have also been prepared before this
-    // routine runs.
+    // Do NOT fill the fine ghost cells outside the domain: nothing reads those cells --
+    // the conversion of the SST and TSK clamps its PSFC index into the valid box.
+    //
+    // The coarse ghost cells are another matter.  PSFC is copied out of the file over the
+    // intersection with the domain, so the coarse ghost cells beyond a domain face hold
+    // nothing, and the slope stencil of the interpolater reads them wherever the fine
+    // level, with its ghost cells, comes within one coarse cell of that face.  They take
+    // the nearest column inside the domain first (seb_extend_halo, which also calls
+    // FillBoundary). During legacy restart migration, the coarse pressure ghosts have
+    // also been prepared before this routine runs.
     //
     seb_extend_halo(*mf_PSFC[lev-1], geom[lev-1]);
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
