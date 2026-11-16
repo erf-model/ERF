@@ -1829,6 +1829,14 @@ ERF::ReadCheckpointFile ()
         std::vector<std::string> qmoist_names;
         micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
         int qmoist_nvar = static_cast<int>(qmoist_indices.size());
+        // Super-droplet checkpoints written before the accumulators were kept hold none of them
+        if (solverChoice.moisture_type == MoistureType::SuperDroplets && qmoist_nvar > 0 &&
+            !amrex::FileExists(amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                             qmoist_names[0]) + "_H")) {
+            Warning("Restart checkpoint " + restart_chkfile + " has no precipitation accumulations at level "
+                    + std::to_string(lev) + "; they start from zero");
+            qmoist_nvar = 0;
+        }
         bool precip_accum_missing = false;
         for (int var = 0; var < qmoist_nvar; var++) {
             const int ncomp  = 1;

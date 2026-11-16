@@ -286,6 +286,16 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return sources;
         }
 
+        /*! \brief qmoist indices and names of the accumulators a restart or regrid keeps */
+        void Qmoist_Restart_Vars (const SolverChoice& a_sc,
+                                  std::vector<int>& a_idx,
+                                  std::vector<std::string>& a_names) const override
+        {
+            const auto& mi = a_sc.moisture_indices;
+            a_idx   = {mi.rain_accum, mi.snow_accum, mi.precip_accum};
+            a_names = {"RainAccum", "SnowAccum", "PrecipAccum"};
+        }
+
         /*! \brief returns number of moist conserved variables */
         inline virtual int Qstate_Moist_Size () override
         {
