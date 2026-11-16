@@ -5463,9 +5463,10 @@ with the land's values, including its snow and totals; the snow is removed at th
 above. Both arise only where a level has its own mask. With ``wrfinput`` a level with no file of
 its own takes its parent's mask, and the fill reads the mask after that: a fine column over a
 coarse water column is water and keeps the parent's held value, and none is counted. A
-``wrfinput`` or metgrid level with its own file has its own ``LANDMASK``. Every other level,
-a metgrid level with no file included, takes ``erf.is_land`` of its level (default 1), so a
-level 1 over a level 0 of water is land unless ``erf.is_land`` says otherwise.
+``wrfinput`` level with its own file has its own ``LANDMASK``, and so has a metgrid level whose
+file holds ``LANDMASK``. Every other level, a metgrid level with no file or with a file that
+has no ``LANDMASK`` included, takes ``erf.is_land`` of its level (default 1), so a level 1 over
+a level 0 of water is land unless ``erf.is_land`` says otherwise.
 
 The WW3 coupling rewrites the land mask from the wave height at every step. A column that turns
 from water to land would resume the balance from the state it held as water, so a build with the

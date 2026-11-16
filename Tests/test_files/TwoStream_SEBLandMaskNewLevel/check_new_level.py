@@ -20,7 +20,9 @@ it takes its parent's mask, and it covers coarse columns i = 6..11, j = 4..9. As
    steps 0 and --last-step, and 1c at --last-step. At the start land and water hold the same
    values, so 1e is the check that sees the order of the fill and the mask there. The text
    of the line is pinned by RunTwoStreamSEBLandMask.cmake, which expects it.
-3. --restart-dir, the regrid run restarted from a checkpoint written after the regrid: its
+3. --nestfile-dir, level 1 from the start with its own wrfinput file (wrfinput_d02 of
+   make_wrfinput.py, the parent's mask under each cell): the checks of 2.
+4. --restart-dir, the regrid run restarted from a checkpoint written after the regrid: its
    last 2D plotfile holds the same values as the uninterrupted run's, on both levels.
 """
 
@@ -46,7 +48,7 @@ def level_columns(reader, plotfile, level):
     """{(i, j): {field: value}} of the columns the level's grids cover."""
     hdr, data = reader.read_fields(plotfile, FIELDS, level=level)
     lo, _ = hdr["domains"][level]
-    _, _, boxes, _ = reader._read_cell_h(os.path.join(plotfile, "Level_%d" % level))
+    boxes = reader.level_boxes(plotfile, level)
     out = {}
     for blo, bhi in boxes:
         for j in range(blo[1], bhi[1] + 1):
@@ -55,11 +57,22 @@ def level_columns(reader, plotfile, level):
     return out
 
 
+# What a missing or short plotfile or log raises in the reader: reported as a failure of
+# the check, so that the failures collected so far are still printed.
+READ_ERRORS = (OSError, IndexError, KeyError, ValueError, StopIteration, AttributeError)
+
+
 def check_levels(reader, directory, step, args, deck, check_land, failures):
     tag = f"{os.path.basename(os.path.normpath(directory))} step {step}"
     plotfile = os.path.join(directory, f"{args.prefix}{step:0{args.digits}d}")
-    hdr = reader._read_header(plotfile)
-    if hdr["finest"] != 1:
+    try:
+        _check_levels(reader, plotfile, tag, args, deck, check_land, failures)
+    except READ_ERRORS as err:
+        failures.append(f"{tag}: could not read {plotfile}: {type(err).__name__}: {err}")
+
+
+def _check_levels(reader, plotfile, tag, args, deck, check_land, failures):
+    if reader.finest_level(plotfile) != 1:
         failures.append(f"{tag}: the 2D plotfile has no level 1")
         return
     crse = level_columns(reader, plotfile, 0)
@@ -116,8 +129,12 @@ def check_levels(reader, directory, step, args, deck, check_land, failures):
 
 def check_log(directory, failures):
     tag = os.path.basename(os.path.normpath(directory))
-    with open(os.path.join(directory, 'simulation.log')) as handle:
-        lines = [line.strip() for line in handle if FILL_LINE in line]
+    try:
+        with open(os.path.join(directory, 'simulation.log')) as handle:
+            lines = [line.strip() for line in handle if FILL_LINE in line]
+    except OSError as err:
+        failures.append(f"{tag}: could not read the log: {err}")
+        return
     for line in lines:
         failures.append(f"{tag}: the fill counted land columns over water: {line}")
 
@@ -128,6 +145,7 @@ def main():
     parser.add_argument('--reader-dir', required=True, help='directory of erf_plotfile.py')
     parser.add_argument('--regrid-dir', required=True)
     parser.add_argument('--scratch-dir', required=True)
+    parser.add_argument('--nestfile-dir', required=True)
     parser.add_argument('--restart-dir', required=True)
     parser.add_argument('--first-step', type=int, required=True,
                         help='first 2D plotfile of the regrid run with level 1')
@@ -152,21 +170,30 @@ def main():
 
     # The regrid run has one level until the regrid.
     before = os.path.join(args.regrid_dir, f"{args.prefix}{args.first_step - 1:0{args.digits}d}")
-    if reader._read_header(before)["finest"] != 0:
-        failures.append(f"regrid: level 1 exists before step {args.first_step}; the run "
-                        f"does not make it by a regrid")
+    try:
+        if reader.finest_level(before) != 0:
+            failures.append(f"regrid: level 1 exists before step {args.first_step}; the run "
+                            f"does not make it by a regrid")
+    except READ_ERRORS as err:
+        failures.append(f"regrid: could not read {before}: {type(err).__name__}: {err}")
     for step in range(args.first_step, args.last_step + 1):
         check_levels(reader, args.regrid_dir, step, args, deck, True, failures)
     check_log(args.regrid_dir, failures)
 
-    for step in (0, args.last_step):
-        check_levels(reader, args.scratch_dir, step, args, deck, step > 0, failures)
-    check_log(args.scratch_dir, failures)
+    for directory in (args.scratch_dir, args.nestfile_dir):
+        for step in (0, args.last_step):
+            check_levels(reader, directory, step, args, deck, step > 0, failures)
+        check_log(directory, failures)
 
     name = f"{args.prefix}{args.last_step:0{args.digits}d}"
     for level in (0, 1):
-        ran = level_columns(reader, os.path.join(args.regrid_dir, name), level)
-        again = level_columns(reader, os.path.join(args.restart_dir, name), level)
+        try:
+            ran = level_columns(reader, os.path.join(args.regrid_dir, name), level)
+            again = level_columns(reader, os.path.join(args.restart_dir, name), level)
+        except READ_ERRORS as err:
+            failures.append(f"restart: could not read level {level} of {name}: "
+                            f"{type(err).__name__}: {err}")
+            continue
         if set(ran) != set(again):
             failures.append(f"restart: level {level} covers other columns than the "
                             f"uninterrupted run")

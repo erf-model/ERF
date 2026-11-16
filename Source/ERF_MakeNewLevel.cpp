@@ -404,9 +404,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // radiates at erf.rad_t_sfc for its first step. The fill reads this level's land mask,
     // so it comes after init_only: with wrfinput the mask is read from the level's file or
     // taken from the parent there (init_from_wrfinput, Interp2DArrays), and until then it
-    // holds erf.is_land of the level. On a restart the parent holds the scalar defaults
-    // here and the checkpoint read sets the state of every level afterwards.
-    fill_seb_from_coarse(lev);
+    // holds erf.is_land of the level. Not on a restart: the parent holds the scalar
+    // defaults here and the mask is still erf.is_land, and the checkpoint read sets the
+    // state and the mask of every level afterwards.
+    if (restart_chkfile.empty()) { fill_seb_from_coarse(lev); }
 
     // Initialize the non-cons auxiliary tracer only after the host atmospheric
     // density has been initialized from the selected problem configuration.
