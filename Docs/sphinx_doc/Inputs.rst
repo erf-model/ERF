@@ -5350,7 +5350,10 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_write_fluxes**              | Write radiation fluxes to plotfiles                      | Boolean            | false                              |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling                          | Boolean            | true                               |
+| **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling with maximum-random      | Boolean            | true                               |
+|                                       | cloud overlap. If false, every layer with nonzero        |                    |                                    |
+|                                       | radiative cloud fraction is treated as overcast in all   |                    |                                    |
+|                                       | g-points (no partial cloudiness).                        |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_orbital_year**              | Fixed orbital year for zenith calcs                      | Integer            | < 0 uses timestamp year            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
