@@ -3137,6 +3137,67 @@ if(NOT WIN32)
                  "erf.const_massflux_u=1.0 erf.const_massflux_tau=0")
 endif()
 
+# A localized mass source (erf.mass_source) in a closed box: the domain mass must grow by the
+# mass injected, the tracer integral must equal it, and (where checked) rho*theta must grow by
+# theta times it (Tests/check_mass_source.py). The cases: flat; over a hill on the terrain-fitted
+# mesh (the source volume includes detJ; a cos^4 hill, flat where it meets the slip walls); on a
+# stretched mesh; with grids split in z (boxes that do not reach the ground); a rate table (a
+# ramp and a hold, which a source evaluated at the wrong stage time would not integrate); a fixed
+# theta; no tracer; and with a refined patch coupled two-way that holds the whole region, none of
+# it, all of it but aloft, or half of it (the composite source volume).
+function(add_test_mass_source TEST_NAME RUNTIME_OPTIONS CHECK_OPTIONS)
+    cmake_parse_arguments(ADD_TEST_MS "" "DECK" "" ${ARGN})
+    if(NOT ADD_TEST_MS_DECK)
+        set(ADD_TEST_MS_DECK MassSource.i)
+    endif()
+    if(ERF_PRECISION STREQUAL "DOUBLE")
+        set(tol 1e-9)
+    else()
+        set(tol 1e-2)
+    endif()
+    set(TEST_FILES_DIR "MassSource")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} sh -c
+      "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_MS_DECK} ${RUNTIME_OPTIONS} > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_mass_source.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log ${CHECK_OPTIONS} --tol ${tol}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;conservation" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+endfunction(add_test_mass_source)
+
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  set(_ms_amr "amr.max_level=1 amr.ref_ratio_vect=2 2 2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.coupling_type=TwoWay")
+  add_test_mass_source(MassSource_Flat "" "--rate 1.0e4 --theta 300.0")
+  add_test_mass_source(MassSource_Hill
+      "erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=Cos4Hill prob.hmax=100.0 prob.L=100.0"
+      "--rate 1.0e4")
+  add_test_mass_source(MassSource_Stretched "erf.initial_dz=10.0 erf.grid_stretching_ratio=1.1" "--rate 1.0e4")
+  add_test_mass_source(MassSource_SplitZ
+      "amr.no_box_split_dir=-1 amr.max_grid_size_z=8 erf.timestepping_type=RK3_NoSubstepping erf.vert_implicit_fac=0 0 0 erf.fixed_dt=0.05 max_step=100"
+      "--rate 1.0e4")
+  add_test_mass_source(MassSource_RateTable "" "--expected 55000.0" DECK MassSource_RateTable.i)
+  add_test_mass_source(MassSource_Theta "erf.mass_source.theta=280.0" "--rate 1.0e4 --theta 280.0")
+  add_test_mass_source(MassSource_NoTracer "erf.mass_source.tracer=false" "--rate 1.0e4 --no-tracer")
+  add_test_mass_source(MassSource_AMR
+      "${_ms_amr} erf.box1.in_box_lo=250.0 250.0 0.0 erf.box1.in_box_hi=750.0 750.0 250.0" "--rate 1.0e4")
+  add_test_mass_source(MassSource_AMR_Away
+      "${_ms_amr} erf.box1.in_box_lo=0.0 0.0 0.0 erf.box1.in_box_hi=250.0 250.0 250.0" "--rate 1.0e4")
+  add_test_mass_source(MassSource_AMR_Aloft
+      "${_ms_amr} erf.box1.in_box_lo=250.0 250.0 250.0 erf.box1.in_box_hi=750.0 750.0 500.0" "--rate 1.0e4")
+  add_test_mass_source(MassSource_AMR_Cut
+      "${_ms_amr} erf.box1.in_box_lo=250.0 250.0 0.0 erf.box1.in_box_hi=500.0 750.0 250.0" "--rate 1.0e4")
+  unset(_ms_amr)
+endif()
+
+# The anelastic projection would remove the injected mass, so ERF stops at start-up
+if(NOT WIN32)
+  add_test_abort(MassSource_Anelastic_Abort
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MassSource
+                 MassSource.i
+                 "erf.mass_source needs erf.compressibility_type = FullyCompressible"
+                 "erf.compressibility_type=Anelastic")
+endif()
+
 # The projection on a stretched mesh that is periodic in z has no solver: it stops with the same
 # message with and without FFT, rather than the AMReX assertion of the hybrid FFT solver or a
 # request to rebuild with FFT (erf-model/ERF#4281)
