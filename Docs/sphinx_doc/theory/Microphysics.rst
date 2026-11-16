@@ -856,7 +856,14 @@ and :math:`N_\text{SD}` is the number of super-droplets per cell (``particles_pe
 **Sampled multiplicity**: Multiplicities are sampled from the mass/radius distribution to better represent the underlying
 size distribution. The sampled multiplicities are scaled to ensure the total number of physical particles matches the specified
 number density. This approach can provide better statistical representation of the particle size distribution, especially for
-broad distributions.
+broad distributions. Each varying component (species or aerosol) of a super-droplet is sampled uniformly in the logarithm of its
+mass or radius, independently of the others, so the weight of the super-droplet is the product of the probability densities, in
+the logarithm, of its varying components at their sampled values; constant components weight it only when none varies. The weights are rescaled
+cell by cell, which widens the sampled distributions when a few super-droplets carry most of a cell's weight. With several
+varying components this happens sooner, more so for wide sampling ranges around narrow distributions: for a core radius sampled
+over :math:`0.5-15\,\mu\mathrm{m}` with geometric standard deviation 1.7 and a coating radius over
+:math:`1\,\mathrm{nm}-1\,\mu\mathrm{m}` with 1.5, the standard deviation of the logarithm of each radius is about 22% too large at
+16 super-droplets per cell, 4% at 64, and 2% at 128.
 
 Effective Radius and Total Mass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1460,7 +1467,7 @@ For each initialization region (indexed by ``N``) and each species/aerosol (``<N
      - Distribution type for species <NAME>: ``mass_constant``, ``mass_exponential``, ``radius_log_normal``, ``radius_lognormal_autorange``
    * - ``species_min_mass_<NAME>``
      - --
-     - Minimum mass (kg) for species <NAME>
+     - Minimum mass (kg) for species <NAME>; positive for ``mass_exponential`` with sampled multiplicity
    * - ``species_mean_mass_<NAME>``
      - --
      - Mean mass (kg) for species <NAME>
