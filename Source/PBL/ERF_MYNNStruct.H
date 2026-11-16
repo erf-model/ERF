@@ -75,6 +75,11 @@ struct MYNNLevel25 {
     // for NN09, 0.10 for Chen2021 -- and then overridable on its own with
     // erf.pbl_mynn_Lt_alpha.  Mellor-Yamada 1982, which COAMPS uses, takes 0.1.
     amrex::Real Lt_alpha = amrex::Real(0.23);
+
+    // Use the surface-layer length scale l_S alone as the master length scale in the
+    // first cell (erf.pbl_mynn_surface_lm), matching the MOST shear its production is
+    // built from, instead of the harmonic sum with l_T and l_B.  Off by default.
+    bool surface_lm = false;
 };
 
 /**
