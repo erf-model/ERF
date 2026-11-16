@@ -1,8 +1,8 @@
 # SEB/WallFunction
 
-The wall function beyond neutral. Two switches, both
-off by default, so every earlier result is unchanged unless a deck asks
-for them.
+The wall function beyond neutral: two switches, both off by default, and
+a choice of stability scheme, so every earlier result is unchanged unless
+a deck asks for them.
 
 ```
 ./run_wallfunction.sh /path/to/erf_exec        # NP=4 by default, a few minutes
@@ -35,7 +35,15 @@ reason.
   layer's iteration is in erf-model #3486, and seeded from the ground
   surface layer's 2D field at the face's column. Walls stay on the log
   law: the functions assume a horizontal surface, and on a wall the
-  convective scale carries free convection.
+  convective scale carries free convection. This is
+  `erf.ibseb.stability_scheme = iterative`, the default.
+- `erf.ibseb.stability_scheme = louis` (with the correction on): the
+  Louis (1979) factors on the bulk Richardson number between the skin and
+  the cell centre, `Ri_b = g/theta delta (theta_air - theta_skin) / U_eff^2`,
+  multiply the neutral coefficients, `u* = kappa U_eff sqrt(F_m) / ln(delta/z0)`
+  and `ln_h,eff = ln(delta/z0h) sqrt(F_m) / F_h`; no iteration and no seed.
+  The scheme without the correction, an unknown scheme, and `obukhov_seed`
+  or `obukhov_relax` with `louis` abort at start-up.
 
 ## The scenario
 
@@ -60,7 +68,16 @@ roofs' L is entirely their own.
    stored H is the balance's flux at the new skin), u* and H follow the
    corrected log law with Dyer's psi_m and psi_h at delta/L to 1e-7, and
    the roof flux exceeds the run without the functions.
-4. `inputs_bulkri` (capped sounding, inversion at 100 m): the diagnosed
+4. `inputs_louis` (Louis factors and the scale): the roofs' bulk
+   Richardson number is negative, u* and the Obukhov length follow the
+   factors with the previous step's skin, H follows the coefficient at the
+   new skin, all to 1e-6; the walls stay on the log law, and the roof flux
+   lies within a factor of two of the iterated functions' run. The same
+   check on the iterated run's dumps fails (u* 3 %, H 14 % off), so it
+   tells the two schemes apart. `inputs_louis_bad_scheme`,
+   `inputs_louis_no_correction` and `inputs_louis_relax` must abort with
+   the message naming the input.
+5. `inputs_bulkri` (capped sounding, inversion at 100 m): the diagnosed
    depth is the first cell centre above the inversion, 95 m, and the
    roofs' depth in w* is that minus the 40 m roof.
 
@@ -79,6 +96,8 @@ T_skin_min=304.6169719 T_skin_max=341.5596623 SW_abs_mean=340.6282257 SW_abs_max
 T_skin_min=304.4643253 T_skin_max=331.6713707 SW_abs_mean=340.6282257 SW_abs_max=976.3269777 shadow_frac=0 LW_net_mean=-119.36381 H_mean=59.22946039 G_mean=162.0349554 Q_ext_mean=0 resid_max=2.171532287e-09 w_star_max=1.941227363 H_total_W=473835.683097
 == stability (4 ranks, 600 steps)
 T_skin_min=304.4754743 T_skin_max=324.7544115 SW_abs_mean=340.6282257 SW_abs_max=976.3269777 shadow_frac=0 LW_net_mean=-108.9114065 H_mean=92.77441933 G_mean=138.9423999 Q_ext_mean=0 resid_max=2.127933385e-09 w_star_max=2.281911818 H_total_W=742195.354618
+== louis (4 ranks, 600 steps)
+T_skin_min=304.4755551 T_skin_max=323.4791746 SW_abs_mean=340.6282257 SW_abs_max=976.3269777 shadow_frac=0 LW_net_mean=-107.0520205 H_mean=98.6215857 G_mean=134.9546196 Q_ext_mean=0 resid_max=2.04570938e-09 w_star_max=2.331142698 H_total_W=788972.685567
 == bulkri (4 ranks, 600 steps)
 T_skin_min=304.456798 T_skin_max=338.3709009 SW_abs_mean=340.6282257 SW_abs_max=976.3269777 shadow_frac=0 LW_net_mean=-130.1564219 H_mean=23.9846172 G_mean=186.4871866 Q_ext_mean=0 resid_max=2.223373485e-09 w_star_max=0.5254213395 H_total_W=191876.937604
   roof in calm air: neutral law sheds little, the convective scale ten times more: PASS (roof H neutral 0.18 W/m2 at T_skin 341.6 K, with w* 267.8 W/m2 at 331.4 K; U_tan 1.5e-03 m/s)
@@ -92,9 +111,21 @@ deardorff: PASS
   u* and H from the log law with Dyer's psi_m, psi_h at delta/L on the roofs: PASS (rel diff u* 7.1e-08, H 1.5e-07)
   roof flux above the run without the functions: PASS (with 436.1 W/m2, without 267.8 W/m2)
 stability: PASS
+  roof bulk Richardson number negative (hot roof in calm air): PASS (Ri_b in [-0.47, -0.46])
+  roof u* = kappa U sqrt(F_m) / ln(delta/z0) and L from u* and theta* (previous skin): PASS (rel diff u* 4.7e-12, L 2.7e-11; F_m 1.78-1.78, F_h 2.01-2.02)
+  roof H = rho c_p kappa u* / ln_h,eff (theta_skin - theta_air) with ln_h,eff = ln(delta/z0h) sqrt(F_m) / F_h: PASS (rel diff 4.5e-11)
+  walls stay on the log law: PASS (rel diff u* 2.0e-12)
+  roof flux within a factor of two of the iterated functions: PASS (Louis 465.3 W/m2, iterated 436.1 W/m2)
+louis: PASS
   bulk Richardson depth on the capped sounding: PASS (diagnosed 95.0 m (expected 95), range over the run 95.0-95.0 m)
   roofs' depth in w* is the mixed layer above the roof: PASS (55.0 m above the 40 m roof)
 bulkri: PASS
+== inputs_louis_bad_scheme must abort
+  PASS
+== inputs_louis_no_correction must abort
+  PASS
+== inputs_louis_relax must abort
+  PASS
 == deardorff through a checkpoint at step 300 (4 ranks)
   same faces: PASS (80 faces)
   skin and slab after the restart: PASS (max |dT_skin| 0.0e+00 K, max |dT_slab| 0.0e+00 K)

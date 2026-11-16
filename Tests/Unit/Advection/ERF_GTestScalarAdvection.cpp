@@ -1,3 +1,4 @@
+#include <array>
 #include <algorithm>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>
@@ -101,6 +102,22 @@ void fill_momentum (FArrayBox& fab, const int dir)
     amrex::ParallelFor(fab.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         arr(i,j,k,0) = momentum_value(i,j,k,dir);
+    });
+}
+
+// The reversed mass flux, and the upwind direction of the flow and its reverse (+1 or -1), on mom's faces.
+// A function of its own: the CUDA compiler takes no device lambda inside a test body
+void fill_reversed_and_directions (const FArrayBox& mom, FArrayBox& neg_mom, FArrayBox& same_dir, FArrayBox& rev_dir)
+{
+    auto m  = mom.const_array();
+    auto nm = neg_mom.array();
+    auto sd = same_dir.array();
+    auto rd = rev_dir.array();
+    amrex::ParallelFor(mom.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        nm(i,j,k) = -m(i,j,k);
+        sd(i,j,k) = (m(i,j,k) > Real(0)) ? Real(1) : Real(-1);
+        rd(i,j,k) = -sd(i,j,k);
     });
 }
 
@@ -334,6 +351,63 @@ TEST(ScalarAdvectionPrimitives, HigherOrderFluxUsesRequestedScalarAndFluxCompone
     check_centered4(host_zflux, 2);
 }
 
+// Motivation: A pseudo-incompressible level picks the upwind side of each face from the
+// direction its projection set, not from the sign of the mass flux (which the projection can
+// reverse).  With the direction opposite to the flow on every face, the flux must be the mass
+// flux times the face value reconstructed from the other side: minus the flux of the reversed
+// mass flux.  With the direction equal to the sign of the flow it must be the ordinary flux.
+TEST(ScalarAdvectionPrimitives, UpwindDirectionArrayPicksTheStencil)
+{
+    const Box bx = test_cell_box();
+    Box scalar_box = bx;
+    scalar_box.grow(3);
+    FArrayBox scalar(scalar_box, kNumComponents);
+    fill_scalar_components(scalar, kScalarComp);
+
+    std::array<FArrayBox,3> mom, neg_mom, same_dir, rev_dir, f_dir, f_ref;
+    for (int d = 0; d < 3; ++d) {
+        const Box fbx = amrex::surroundingNodes(bx,d);
+        for (auto* fab : {&mom[d], &neg_mom[d], &same_dir[d], &rev_dir[d]}) { fab->resize(fbx, 1); }
+        f_dir[d].resize(fbx, kNumFluxComponents);
+        f_ref[d].resize(fbx, kNumFluxComponents);
+        fill_momentum(mom[d], d);
+        fill_reversed_and_directions(mom[d], neg_mom[d], same_dir[d], rev_dir[d]);
+    }
+
+    for (const AdvType type : {AdvType::Upwind_3rd, AdvType::Upwind_5th, AdvType::Weno_5}) {
+        for (const bool reversed : {false, true}) {
+            for (int d = 0; d < 3; ++d) { fill_flux_sentinels(f_dir[d]); fill_flux_sentinels(f_ref[d]); }
+            const auto& dir = reversed ? rev_dir : same_dir;
+            const auto& ref = reversed ? neg_mom : mom;
+            BuildScalarAdvectionFluxes(bx, scalar.const_array(), kScalarComp,
+                                       make_flux_views(f_dir[0], f_dir[1], f_dir[2]), kFluxComp,
+                                       mom[0].const_array(), mom[1].const_array(), mom[2].const_array(),
+                                       dir[0].const_array(), dir[1].const_array(), dir[2].const_array(),
+                                       type, type, Real(1.0), Real(1.0));
+            BuildScalarAdvectionFluxes(bx, scalar.const_array(), kScalarComp,
+                                       make_flux_views(f_ref[0], f_ref[1], f_ref[2]), kFluxComp,
+                                       ref[0].const_array(), ref[1].const_array(), ref[2].const_array(),
+                                       type, type, Real(1.0), Real(1.0));
+            gpu_sync();
+            const Real sign = reversed ? Real(-1) : Real(1);
+            for (int d = 0; d < 3; ++d) {
+                FArrayBox h_dir(f_dir[d].box(), kNumFluxComponents, amrex::The_Pinned_Arena());
+                FArrayBox h_ref(f_ref[d].box(), kNumFluxComponents, amrex::The_Pinned_Arena());
+                copy_to_host(f_dir[d], h_dir);
+                copy_to_host(f_ref[d], h_ref);
+                const auto a = h_dir.const_array();
+                const auto b = h_ref.const_array();
+                const Box& fbx = h_dir.box();
+                for (int k = fbx.smallEnd(2); k <= fbx.bigEnd(2); ++k) {
+                for (int j = fbx.smallEnd(1); j <= fbx.bigEnd(1); ++j) {
+                for (int i = fbx.smallEnd(0); i <= fbx.bigEnd(0); ++i) {
+                    expect_close(a(i,j,k,kFluxComp), sign * b(i,j,k,kFluxComp));
+                }}}
+            }
+        }
+    }
+}
+
 // Motivation: Native ERF stores primitive scalar n one component below its
 // conserved counterpart, and stores the face flux in the component matching
 // the conserved counterpart, because the flux registers reflux state
@@ -392,6 +466,7 @@ TEST(ScalarAdvectionPrimitives, NativeAdapterMatchesExplicitPrimitiveMapping)
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv{{Real(0.5), Real(0.8), Real(1.2)}};
 
     AdvectionSrcForScalars(bx, cons_comp, 1,
+                           xmom.const_array(), ymom.const_array(), zmom.const_array(),
                            xmom.const_array(), ymom.const_array(), zmom.const_array(),
                            scalar.const_array(), native_rhs.array(), detJ.const_array(),
                            cellSizeInv, mf_mx.const_array(), mf_my.const_array(),

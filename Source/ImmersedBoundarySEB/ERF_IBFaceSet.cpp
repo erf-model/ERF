@@ -8,6 +8,7 @@
 #include "ERF_IBSEBSolar.H"
 #include "ERF_IBSEBSlab.H"
 #include "ERF_IBSEBBalance.H"
+#include "ERF_IBSEBWallFunction.H"
 #include <ERF_TwoStreamCanopyForcing.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
@@ -593,6 +594,9 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     fill(d_gnd_far,       nf, 0);
     d_gnd_land.clear();
     d_gnd_rays.clear();
+    d_roof_face.clear();
+    m_roof_fab_start.clear();
+    m_roof_faces_built = false;
     m_landings_built = false;
     fill(d_shadow,        nf, Real(0.0));
     fill(d_SW_direct_in,  nf, Real(0.0));
@@ -1158,6 +1162,9 @@ IBFaceSet::check_canopy_layout (const MultiFab& cons, const TwoStreamCanopyView&
             "erf.ibseb.ground_view_shadow with erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
             "'s two-stream view holds no direct-beam albedo of the ground");
         const auto& alb = *canopy.ground_albedo_dir;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(alb.nComp() >= 2,
+            "erf.ibseb.ground_view_shadow with erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
+            "'s field of the columns' direct-beam albedo holds no second component (the interface each column starts on)");
         bool ok_alb = alb.boxArray().size() == ba.size() && alb.DistributionMap() == dm;
         for (int n = 0; ok_alb && n < static_cast<int>(ba.size()); ++n) {
             const Box& a = alb.boxArray()[n];
@@ -1344,8 +1351,9 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
 {
     const Real z0   = m_params.z0_wall, z0h = m_params.z0h_wall;
     const bool stab = m_params.stability_correction;
+    const bool louis = stab && (m_params.stability_scheme == "louis");
     const bool conv = (m_params.convective_velocity == "deardorff");
-    const bool seed = stab && (olen_ground != nullptr) && (m_params.obukhov_seed == "ground");
+    const bool seed = stab && !louis && (olen_ground != nullptr) && (m_params.obukhov_seed == "ground");
     const bool use_pblh = conv && (pblh_ground != nullptr) && (m_params.z_i_mode == "pblh");
     const Real beta = m_params.beta_conv;
     const Real relax = m_params.obukhov_relax;
@@ -1403,7 +1411,21 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
             Real thstar = KAPPA * (th - th_skin) / lnh;
             Real lnh_eff = lnh;
             Real olen = 1.0e30;
-            if (stab && d == 2) {
+            if (louis && d == 2) {
+                // Roofs, Louis (1979): explicit factors on the bulk Richardson
+                // number between the skin and the cell centre, no iteration.
+                // u*^2 = (kappa U / ln(delta/z0))^2 F_m and u* theta* =
+                // kappa^2 U dtheta F_h / (ln(delta/z0) ln(delta/z0h)), so the
+                // neutral limit is the two log laws above; the heat law's
+                // effective logarithm carries both factors.
+                const Real Rib = CONST_GRAV / th * delta * (th - th_skin) / (Ut_eff * Ut_eff);
+                Real Fm = 1.0, Fh = 1.0;
+                ibseb::louis_factors(Rib, delta / z0, KAPPA * KAPPA / (lnm * lnm), Fm, Fh);
+                ustar   = KAPPA * Ut_eff * std::sqrt(Fm) / lnm;
+                lnh_eff = amrex::max(lnh * std::sqrt(Fm) / Fh, Real(0.1));
+                thstar  = KAPPA * (th - th_skin) / lnh_eff;
+                olen    = ustar * ustar * th / (KAPPA * CONST_GRAV * thstar + 1.0e-20);
+            } else if (stab && d == 2) {
                 // Roofs: the surface layer's similarity functions on the
                 // face's own Obukhov length, a few fixed-point passes, seeded
                 // from the ground's field at this column when available.
@@ -1486,6 +1508,54 @@ IBFaceSet::add_heat_flux_to_source (MultiFab& source, const MultiFab& cons,
 }
 
 /**
+ * The sun at @p time by erf.ibseb.sun_mode: its position and unit vector, and the
+ * clear-sky irradiances of the faces' own radiation. It changes nothing in the set, so
+ * the shortwave (compute_shortwave()) and the roofs' shadow (fill_roofs()) each ask for
+ * the sun of their own time. With sun_mode = two_stream the two-stream sun of that time
+ * must have been given (set_two_stream_sun()).
+ */
+IBFaceSet::SunState
+IBFaceSet::sun_at (Real time) const
+{
+    SunState s;
+    if (m_params.sun_mode == "fixed") {
+        s.zenith  = m_params.sun_zenith_deg  * PI / 180.0;
+        s.azimuth = m_params.sun_azimuth_deg * PI / 180.0;
+        const Real cz = std::cos(s.zenith);
+        s.dni       = (cz > 0.0) ? m_params.sw_direct_normal : 0.0;
+        s.diffuse_h = (cz > 0.0) ? m_params.sw_diffuse : 0.0;
+    } else if (m_params.sun_mode == "two_stream") {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ts_sun.set,
+            "erf.ibseb.sun_mode = two_stream: the two-stream sun was not given before the shortwave or the roofs' shadow");
+        const Real decl = m_ts_sun.decl;
+        const Real ha   = m_ts_sun.hour_angle;
+        s.zenith  = ibseb::solar_zenith(m_ts_sun.lat_deg, decl, ha);
+        s.azimuth = ibseb::solar_azimuth(m_ts_sun.lat_deg, decl, ha, s.zenith);
+        const Real cz = std::cos(s.zenith);
+        // The irradiance carries the date's distance factor already.
+        s.dni       = ibseb::clear_sky_dni(cz, m_ts_sun.S0, m_params.sw_transmission, Real(1.0));
+        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_ts_sun.S0, m_params.sw_transmission,
+                                                 Real(1.0), m_params.sw_diffuse_coeff);
+    } else {
+        const Real t_utc = m_params.time_zero_utc_s + time;
+        // The date advances at each 00:00 UTC, so a run of several days follows the season.
+        const Real day   = ibseb::day_of_year_at(m_params.day_of_year, t_utc);
+        const Real decl  = ibseb::solar_declination(day);
+        // Hour angle from UTC and the longitude (a time-zone offset would cancel).
+        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, day);
+        s.zenith  = ibseb::solar_zenith(m_params.latitude_deg, decl, ha);
+        s.azimuth = ibseb::solar_azimuth(m_params.latitude_deg, decl, ha, s.zenith);
+        const Real cz = std::cos(s.zenith);
+        const Real e0 = ibseb::earth_sun_distance_factor(day);
+        s.dni       = ibseb::clear_sky_dni(cz, m_params.solar_constant, m_params.sw_transmission, e0);
+        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_params.solar_constant, m_params.sw_transmission,
+                                                 e0, m_params.sw_diffuse_coeff);
+    }
+    ibseb::sun_vector(s.zenith, s.azimuth, s.sx, s.sy, s.sz);
+    return s;
+}
+
+/**
  * Shortwave of the current step. The sun and the irradiances are scalars
  * computed on the host from the provider inputs; the per-face work is one
  * kernel: incidence cosine, ray cast against the column tops, direct and
@@ -1514,43 +1584,9 @@ void
 IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
 {
     // ---- Sun and irradiances (host scalars) ----
-    SunState s;
-    if (m_params.sun_mode == "fixed") {
-        s.zenith  = m_params.sun_zenith_deg  * PI / 180.0;
-        s.azimuth = m_params.sun_azimuth_deg * PI / 180.0;
-        const Real cz = std::cos(s.zenith);
-        s.dni       = (cz > 0.0) ? m_params.sw_direct_normal : 0.0;
-        s.diffuse_h = (cz > 0.0) ? m_params.sw_diffuse : 0.0;
-    } else if (m_params.sun_mode == "two_stream") {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ts_sun.set,
-            "erf.ibseb.sun_mode = two_stream: the two-stream sun was not given before the shortwave");
-        // Used once: the next shortwave needs the sun of its own time.
-        m_ts_sun.set = false;
-        const Real decl = m_ts_sun.decl;
-        const Real ha   = m_ts_sun.hour_angle;
-        s.zenith  = ibseb::solar_zenith(m_ts_sun.lat_deg, decl, ha);
-        s.azimuth = ibseb::solar_azimuth(m_ts_sun.lat_deg, decl, ha, s.zenith);
-        const Real cz = std::cos(s.zenith);
-        // The irradiance carries the date's distance factor already.
-        s.dni       = ibseb::clear_sky_dni(cz, m_ts_sun.S0, m_params.sw_transmission, Real(1.0));
-        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_ts_sun.S0, m_params.sw_transmission,
-                                                 Real(1.0), m_params.sw_diffuse_coeff);
-    } else {
-        const Real t_utc = m_params.time_zero_utc_s + time;
-        // The date advances at each 00:00 UTC, so a run of several days follows the season.
-        const Real day   = ibseb::day_of_year_at(m_params.day_of_year, t_utc);
-        const Real decl  = ibseb::solar_declination(day);
-        // Hour angle from UTC and the longitude (a time-zone offset would cancel).
-        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, day);
-        s.zenith  = ibseb::solar_zenith(m_params.latitude_deg, decl, ha);
-        s.azimuth = ibseb::solar_azimuth(m_params.latitude_deg, decl, ha, s.zenith);
-        const Real cz = std::cos(s.zenith);
-        const Real e0 = ibseb::earth_sun_distance_factor(day);
-        s.dni       = ibseb::clear_sky_dni(cz, m_params.solar_constant, m_params.sw_transmission, e0);
-        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_params.solar_constant, m_params.sw_transmission,
-                                                 e0, m_params.sw_diffuse_coeff);
-    }
-    ibseb::sun_vector(s.zenith, s.azimuth, s.sx, s.sy, s.sz);
+    SunState s = sun_at(time);
+    // The two-stream sun is used once: the next shortwave needs the sun of its own time.
+    if (m_params.sun_mode == "two_stream") { m_ts_sun.set = false; }
     m_sun = s;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_params.ground_view_shadow || m_landings_built,
         "erf.ibseb.ground_view_shadow: the shortwave needs the faces' ground landings; call"
@@ -1712,7 +1748,9 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
                 // tolerance below, so at sunrise and sunset the column can have a beam
                 // while the faces' sun has none: no shadow is cast then and the ground
                 // view takes the whole reflection, as without the input.
-                const bool beam_up = ibseb::ground_view_beam_up(sz, beam(pi[f], pj[f], 0));
+                // (The beam at the column's lower boundary: the ground, or the roof it starts on.)
+                const bool beam_up = ibseb::ground_view_beam_up(
+                    sz, beam(pi[f], pj[f], two_stream_column_base(pi[f], pj[f], alb_g)));
                 const Real fgl = beam_up
                                ? ibseb::ground_view_lit(pi[f], pj[f], pgf[f], pgl + pgs[f], pgr + pgs[f],
                                                         pgs[f + 1] - pgs[f], ray_weight, sx, sy, sz, rm)
@@ -1775,6 +1813,85 @@ IBFaceSet::compute_ground_shadow (MultiFab& shadow) const
             // The start of ibseb::ray_blocked_near(), so the faces' sunlit ground view and
             // this shadow are one walk from one point.
             out(i, j, 0) = ibseb::ray_blocked(rm.centre_x(i), rm.centre_y(j), z_ground, sx, sy, sz, rm) ? Real(1.0) : Real(0.0);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * The roof face of each column under a building (see the header). The roof faces are
+ * found once, on the host: the upward faces whose cell is the cell on their column's
+ * roof, listed fab by fab. Each call then runs one kernel per fab over that fab's roof
+ * faces only; a column has at most one upward face on a given cell, so no two faces
+ * write the same column.
+ */
+void
+IBFaceSet::fill_roofs (MultiFab& out, const iMultiFab& roof_cell, bool with_fixed, Real time)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(out.nComp() >= 5,
+        "erf.ibseb.two_stream_roofs: the field of the roofs holds fewer than five components");
+    const int nfab = static_cast<int>(m_fab_start.size()) - 1;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(out.local_size() == nfab && roof_cell.local_size() == nfab,
+        "erf.ibseb.two_stream_roofs: the field of the roofs holds another number of boxes than the faces' level");
+    if (!m_roof_faces_built) {
+        std::vector<int> hi(m_nface), hj(m_nface), hk(m_nface), hd(m_nface), hs(m_nface), list;
+        Gpu::copy(Gpu::deviceToHost, d_i.begin(), d_i.end(), hi.begin());
+        Gpu::copy(Gpu::deviceToHost, d_j.begin(), d_j.end(), hj.begin());
+        Gpu::copy(Gpu::deviceToHost, d_k.begin(), d_k.end(), hk.begin());
+        Gpu::copy(Gpu::deviceToHost, d_dir.begin(), d_dir.end(), hd.begin());
+        Gpu::copy(Gpu::deviceToHost, d_side.begin(), d_side.end(), hs.begin());
+        Gpu::streamSynchronize();
+        m_roof_fab_start.assign(static_cast<size_t>(nfab) + 1, 0);
+        for (MFIter mfi(roof_cell); mfi.isValid(); ++mfi) {
+            const int li = mfi.LocalIndex();
+            IArrayBox cell(mfi.validbox(), 1, The_Pinned_Arena());
+            Gpu::dtoh_memcpy(cell.dataPtr(), roof_cell[mfi].dataPtr(), cell.nBytes());
+            const auto rk = cell.const_array();
+            m_roof_fab_start[li] = static_cast<int>(list.size());
+            for (int f = m_fab_start[li]; f < m_fab_start[li + 1]; ++f) {
+                // An upward face (the solid below it) on the cell the column's roof carries.
+                if (hd[f] == 2 && hs[f] < 0 && hk[f] == rk(hi[f], hj[f], 0)) { list.push_back(f); }
+            }
+            m_roof_fab_start[li + 1] = static_cast<int>(list.size());
+        }
+        upload(d_roof_face, list);
+        Gpu::streamSynchronize();
+        m_roof_faces_built = true;
+    }
+    // The first fill of a field: zeros everywhere, then what does not change (that a roof
+    // stands there, its albedo, its emissivity). Every fill: what does change.
+    if (with_fixed) { out.setVal(0.0, 0, 5, 0); }
+    const int* prf = d_roof_face.data();
+    const int* pi = d_i.data();  const int* pj = d_j.data();
+    const Real* palb = d_albedo.data();  const Real* peps = d_emis.data();
+    const Real* pT = d_T_skin.data();
+    // The roof's shadow under the sun of the sweep's own time, not the sun the faces hold
+    // from their last shortwave (m_sun): that one is the previous step's with the two-stream
+    // columns and the start-up sun after a restart, and it is not in the checkpoint, so a
+    // moving sun would give a restarted run another shadow in its first step.
+    const ibseb::RayMap rm = ray_map();
+    const SunState sun_now = sun_at(time);
+    // The two-stream sun is used once here too: the faces' next shortwave is given its own.
+    if (m_params.sun_mode == "two_stream") { m_ts_sun.set = false; }
+    const Real sx = sun_now.sx, sy = sun_now.sy, sz = sun_now.sz;
+    const Real* pxf = d_xf.data();  const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
+    for (MFIter mfi(out); mfi.isValid(); ++mfi) {
+        const int r0 = m_roof_fab_start[mfi.LocalIndex()];
+        const int r1 = m_roof_fab_start[mfi.LocalIndex() + 1];
+        if (r1 == r0) { continue; }
+        const auto o = out.array(mfi);
+        ParallelFor(r1 - r0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = prf[r0 + m];
+            if (with_fixed) {
+                o(pi[f], pj[f], 0, 0) = Real(1.0);
+                o(pi[f], pj[f], 0, 1) = palb[f];
+                o(pi[f], pj[f], 0, 2) = peps[f];
+            }
+            o(pi[f], pj[f], 0, 3) = pT[f];
+            // The share of the beam that reaches the roof: none where a taller building
+            // shades it. With the sun down there is no beam and the share plays no part.
+            const bool shaded = sz > Real(0.0) && ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, rm);
+            o(pi[f], pj[f], 0, 4) = shaded ? Real(0.0) : Real(1.0);
         });
     }
     Gpu::streamSynchronize();

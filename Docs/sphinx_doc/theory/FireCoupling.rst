@@ -11,11 +11,11 @@ fire, and the fire's heat drives the wind. ERF provides the atmosphere side of
 that coupling: where the fire grid sits, what the fire is handed each step,
 and how its heat, water vapour and smoke enter the atmosphere. The fire
 itself, the model that spreads the front and computes the heat it releases,
-is a *fire engine* that plugs into this coupling. Fire engines live outside
-this repository, each in its own *engine directory*; a user builds ERF plus
-one or more engines in their own build directory against the same ERF source
-tree, and ERF itself needs no change to add an engine. The coupling layer is
-the common part every engine shares.
+is a *fire engine* that plugs into this coupling. Each fire engine lives in
+its own repository, which holds ERF as a git submodule pinned to an ERF release
+or commit and builds against it; ERF itself needs no change to add an engine.
+The engine's cases and tests stay in its repository and its CI, so ERF runs no
+fire tests. The coupling layer is the common part every engine shares.
 
 Building with the fire coupling
 -------------------------------
@@ -38,6 +38,28 @@ without the fire coupling stops on :cpp:`erf.fire.enable = true` as well.
 Building ERF with a fire engine
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The engine's repository holds ERF as a git submodule:
+
+.. code-block:: console
+
+   git submodule add https://github.com/erf-model/ERF.git Submodules/ERF
+   git submodule update --init --recursive    # also brings AMReX, through ERF
+
+A change the engine needs in ERF comes to ERF as a pull request; the engine
+then moves its submodule to an ERF commit that contains it. The engine is
+built from its repository in one of two ways.
+
+* **ERF as a library** (recommended). The engine's repository has its own
+  CMake project, which adds the submodule, compiles the engine and its own
+  problem file into its own executable, and sets that executable up with
+  ``erf_setup_executable`` (see :ref:`sec:ERFAsLibrary`). The engine's
+  :cpp:`ERF_REGISTER_FIRE_ENGINE` line runs from that executable, so ERF is
+  given no engine directory. erf-model/FLARE builds this way.
+* **Engine directory.** The repository configures ERF's own build from the
+  submodule and passes it the engine directory (``ERF_FIRE_ENGINE_DIRS`` with
+  CMake, ``FIRE_HOME`` with GNU make), as below.
+  `LSFIRE <https://github.com/erf-model/LSFIRE>`_ builds this way.
+
 An engine directory provides two build files next to its sources:
 
 * ``Make.package`` for GNU make. ``Exec/Make.ERF`` includes it, with the
@@ -49,26 +71,37 @@ An engine directory provides two build files next to its sources:
   ``ERF_FIRE_ENGINE_DIR`` set to the directory; it adds the sources
   (``target_sources``), include directories and libraries.
 
-With GNU make, from any directory:
+With ERF as a library, the engine's ``CMakeLists.txt`` calls
+``erf_fire_engine_add`` on its own executable before ``erf_setup_executable``:
+
+.. code-block:: cmake
+
+   set(ERF_FIRE_ENGINE_DIR "${PROJECT_SOURCE_DIR}/FireEngine")
+   include("${ERF_FIRE_ENGINE_DIR}/ERFFireEngine.cmake")
+   erf_fire_engine_add(my_fire)
+   erf_setup_executable(my_fire)
+
+With an engine directory, using GNU make from the engine's repository:
 
 .. code-block:: make
 
-   ERF_HOME   = /path/to/ERF
-   FIRE_HOME  = /path/to/fire-engine      # one or more engine directories
+   ERF_HOME   = $(abspath Submodules/ERF)
+   FIRE_HOME  = $(abspath FireEngine)     # one or more engine directories
    USE_FIRE   = TRUE
    include $(ERF_HOME)/Exec/Make.ERF
 
-With CMake:
+or CMake:
 
 .. code-block:: console
 
-   cmake -S /path/to/ERF -B build -DERF_ENABLE_FIRE=ON \
-         -DERF_FIRE_ENGINE_DIRS="/path/to/fire-engine;/path/to/other-engine"
+   cmake -S Submodules/ERF -B build -DERF_ENABLE_FIRE=ON \
+         -DERF_FIRE_ENGINE_DIRS="$PWD/FireEngine"
 
 Several engines can be compiled into one executable; :cpp:`erf.fire.engine`
 then picks one at run time (with a single engine it is the default).
-``Tests/FireEngineExample`` is a complete engine directory, a prescribed
-growing disk of heat that ERF's CI builds both ways.
+A complete example engine directory, a prescribed growing disk of heat, is in
+erf-model/FLARE (``Tests/FireEngineExample``), which also holds the coupling's
+tests; ERF itself builds no fire engine and runs no fire tests.
 
 Coupling layer and fire engines
 -------------------------------
@@ -131,7 +164,7 @@ it declares; the optional methods are kept in it by hand.
 
 To add an engine:
 
-#. Copy ``Tests/FireEngineExample`` (or the template) into the new model's
+#. Copy FLARE's ``Tests/FireEngineExample`` (or the template) into the new model's
    engine directory, outside ERF, rename the class, and write the method
    bodies there. Delete the optional methods the engine does not provide;
    their defaults then apply.
@@ -146,7 +179,7 @@ To add an engine:
    references; an engine shipping a prebuilt library keeps its registering
    wrapper as source. List the sources in the directory's ``Make.package``
    and ``ERFFireEngine.cmake``.
-#. Run the ``FireCoupler`` unit tests (``Tests/Unit/Fire/ERF_GTestFireCoupler.cpp``,
+#. Run the ``FireCoupler`` unit tests (FLARE's ``Tests/Unit/Fire/ERF_GTestFireCoupler.cpp``,
    whose stand-in engine is the smallest engine that works) with the new
    engine, and a restart of a coupled run against an uninterrupted one: the
    atmosphere and fire plotfiles must agree at zero tolerance.

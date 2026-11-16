@@ -46,11 +46,25 @@ struct TwoStreamCanopyView
     const amrex::MultiFab* beam = nullptr;        ///< Direct beam on a horizontal surface, interfaces 0 .. m_top [W/m^2]
     const amrex::MultiFab* cos_zenith = nullptr;  ///< Cosine of the zenith of the sweep, floored at zero (2D) [1]
     const amrex::MultiFab* fluxes = nullptr;      ///< The level's rad_fluxes (SW up, SW down, LW up, LW down) [W/m^2]
-    /// The ground's direct-beam albedo the sweep used in each column (2D) [1]. Read only with
+    /// The direct-beam albedo the sweep used at each column's lower boundary (2D) [1], and, as a
+    /// second component, the interface that boundary is at, counted from the ground (0, or a
+    /// roof's with erf.ibseb.two_stream_roofs; two_stream_column_base()). Read only with
     /// erf.ibseb.ground_view_shadow, which checks for it; valid() does not ask for it.
     const amrex::MultiFab* ground_albedo_dir = nullptr;
     [[nodiscard]] bool valid () const noexcept { return beam != nullptr && cos_zenith != nullptr && fluxes != nullptr; }
 };
+
+/**
+ * @brief The interface a column starts on, counted from the ground: 0, or the roof's
+ * with erf.ibseb.two_stream_roofs. It is the second component of the field of
+ * TwoStreamCanopyView::ground_albedo_dir, which the sweep writes with the albedo of the
+ * column's lower boundary.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+int two_stream_column_base (int i, int j, const amrex::Array4<const amrex::Real>& alb_dir) noexcept
+{
+    return static_cast<int>(alb_dir(i, j, 0, 1) + amrex::Real(0.5));
+}
 
 /**
  * @brief Write the direct beam on a horizontal surface at the interfaces
@@ -177,8 +191,10 @@ amrex::Real two_stream_ground_beam_share (int i, int j, int k0,
                                           const amrex::Array4<const amrex::Real>& fluxes,
                                           const amrex::Array4<const amrex::Real>& alb_dir)
 {
-    const amrex::Real up0  = fluxes(i, j, k0, 0);
-    const amrex::Real refl = alb_dir(i, j, 0) * beam(i, j, 0);
+    // The column's lower boundary: the ground, or the roof it starts on.
+    const int m_base = two_stream_column_base(i, j, alb_dir);
+    const amrex::Real up0  = fluxes(i, j, k0 + m_base, 0);
+    const amrex::Real refl = alb_dir(i, j, 0) * beam(i, j, m_base);
     // Both operands valid in both arms (see two_stream_face_sky()).
     const amrex::Real share = (up0 > amrex::Real(0.0) && refl > amrex::Real(0.0))
                             ? refl / (up0 + std::numeric_limits<amrex::Real>::min()) : amrex::Real(0.0);

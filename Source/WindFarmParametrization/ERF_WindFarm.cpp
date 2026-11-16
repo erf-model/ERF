@@ -575,12 +575,14 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
  * @param[in,out] mf_SMark MultiFab to be filled with turbine markers.
  * @param[in] mf_Nturb MultiFab containing turbine counts per cell.
  * @param[in] z_phys_nd Node-centered physical height FAB.
+ * @param[in] z_sfc_nd Heights of the ground at the nodes.
  */
 void
 WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
                                                 MultiFab& mf_SMark,
                                                 const MultiFab& mf_Nturb,
-                                                std::unique_ptr<MultiFab>& z_phys_nd)
+                                                std::unique_ptr<MultiFab>& z_phys_nd,
+                                                const std::unique_ptr<MultiFab>& z_sfc_nd)
 {
     mf_SMark.setVal(-1.0);
 
@@ -609,7 +611,9 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
         auto  SMark_array = mf_SMark.array(mfi);
         auto  Nturb_array = mf_Nturb.array(mfi);
         const Array4<const Real> z_nd_arr = (is_terrain) ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        int k0 = std::max(gbx.smallEnd(2), geom.Domain().smallEnd(2));
+        // The hub height is above the ground, not above the bottom of this box -- these
+        //    differ for every box that doesn't touch the ground
+        const Array4<const Real> z_sfc_arr = (is_terrain) ? z_sfc_nd->const_array(mfi) : Array4<const Real>{};
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             if(Nturb_array(i,j,k,0) > 0) {
@@ -620,7 +624,7 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
                 Real z1 = (is_terrain) ? z_nd_arr(li,lj,lk  ) : ProbLoArr[2] +  lk   *dx[2];
                 Real z2 = (is_terrain) ? z_nd_arr(li,lj,lk+1) : ProbLoArr[2] + (lk+1)*dx[2];
 
-                Real zturb = ((is_terrain) ? z_nd_arr(li,lj,k0) : ProbLoArr[2] + k0*dx[2]) + d_hub_height;
+                Real zturb = ((is_terrain) ? z_sfc_arr(li,lj,0) : ProbLoArr[2] + k_lo*dx[2]) + d_hub_height;
                 if (zturb+1e-3 > z1 and zturb+1e-3 < z2) {
                     SMark_array(i,j,k,0) = one;
                 }

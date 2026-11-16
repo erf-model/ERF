@@ -1,0 +1,6 @@
+# A rate table for the MassSource tests: a ramp from 0 to 1.0e4 kg/s over 5 s, held to 8 s and
+# zero after it (the table ends there), so 55000 kg in all; the 0.5 s steps fall on its corners
+# t [s]   mdot [kg/s]
+0.0       0.0
+5.0       1.0e4
+8.0       1.0e4

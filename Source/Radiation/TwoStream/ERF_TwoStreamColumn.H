@@ -261,6 +261,44 @@ amrex::Real resolve_surface_albedo_sw (
 }
 
 /**
+ * @brief A roof as the lower boundary of a column (erf.ibseb.two_stream_roofs): the
+ * column under a building starts at the first cell above the building, on a grey,
+ * diffuse surface with the roof face's own albedo, emissivity and skin temperature,
+ * in place of the ground under the building seen through the building's cells.
+ */
+struct TwoStreamRoof
+{
+    int k_lower = 0;                 ///< First cell of the column above the roof (the roof is its lower interface)
+    amrex::Real albedo = 0.0;        ///< Shortwave albedo of the roof, for the beam and for diffuse light [1]
+    amrex::Real emissivity = 1.0;    ///< Longwave emissivity of the roof [1]
+    amrex::Real temperature = 0.0;   ///< Skin temperature of the roof [K]
+    amrex::Real lit = 1.0;           ///< Share of the direct beam that reaches the roof: 0 where a taller building shades it [1]
+};
+
+/**
+ * @brief Whether a column starts on a roof: the layer on the roof, @p k_lower, is above the
+ * box's bottom layer @p kbot. The one condition for the sweep and for what the sweep's
+ * caller hands the faces of that column (the albedo and the interface the column starts at).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool two_stream_starts_on_roof (int k_lower, int kbot) noexcept
+{
+    return k_lower > kbot;
+}
+
+/**
+ * @brief The longwave a grey surface sends up: what it emits and the part of the
+ * longwave coming down that it reflects (Kirchhoff's law). The one expression for the
+ * ground and for a roof (TwoStreamRoof), so the two give the same number to the last bit.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real grey_surface_lw_up (amrex::Real emissivity, amrex::Real temperature, amrex::Real lw_down,
+                                amrex::Real sigma) noexcept
+{
+    return emissivity * compute_thermal_intensity(temperature, sigma) + (amrex::Real(1.0) - emissivity) * lw_down;
+}
+
+/**
  * @brief The ground's albedo for diffuse shortwave: the input @p surface_albedo_sw_diffuse, or the
  * direct-beam albedo @p alb_dir of the column when that input is negative (not set).
  * The one expression for the sweep and for what the sweep hands on
@@ -956,6 +994,11 @@ void two_stream_land_forcing (int i, int j, int kmin,
  * surface that the direct beam brings, (1 - direct albedo) times the beam at the surface
  * [W/m^2] (zero with the shortwave off or the sun down), so a caller can take the beam off
  * the ground where something the column does not hold shades it
+ * @param[in] roof Optional: the roof this column starts on (TwoStreamRoof). The layers
+ * and interfaces below roof->k_lower then get no heating and no flux, the surface
+ * outputs are the roof's, and heights (the cloud band, the aerosol profile) are still
+ * measured from the ground. A roof at or below the box's bottom cell is the ground;
+ * one above the top cell leaves the column empty.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep (
@@ -989,18 +1032,22 @@ void vertical_two_stream_sweep (
     const amrex::Array4<const amrex::Real>* lon_arr = nullptr,
     const amrex::Array4<amrex::Real>* rad_flux_out = nullptr,
     amrex::Real* cos_zenith_out = nullptr,
-    amrex::Real* sw_beam_absorbed_out = nullptr)
+    amrex::Real* sw_beam_absorbed_out = nullptr,
+    const TwoStreamRoof* roof = nullptr)
 {
-    // Grid bounds: kmin is the surface layer, kmax the top layer.
-    const int kmin = bx.smallEnd(2);
+    // Grid bounds: kbot is the box's bottom layer, kmin the layer on the column's lower
+    // boundary (the ground, or the first layer above a roof), kmax the top layer.
+    const int kbot = bx.smallEnd(2);
+    const bool on_roof = (roof != nullptr && two_stream_starts_on_roof(roof->k_lower, kbot));
+    const int kmin = on_roof ? roof->k_lower : kbot;
     const int kmax = bx.bigEnd(2);
     const int nlev = kmax - kmin + 1;
 
     // The scratch box must hold nlev + 1 interface entries for this column,
     // and so must the flux output when it is wanted.
-    AMREX_ASSERT(scratch.contains(i, j, kmin) && scratch.contains(i, j, kmax + 1));
+    AMREX_ASSERT(scratch.contains(i, j, kbot) && scratch.contains(i, j, kmax + 1));
     AMREX_ASSERT(rad_flux_out == nullptr ||
-                 (rad_flux_out->contains(i, j, kmin) && rad_flux_out->contains(i, j, kmax + 1)));
+                 (rad_flux_out->contains(i, j, kbot) && rad_flux_out->contains(i, j, kmax + 1)));
 
     // Per-column scratch accessors (see TwoStreamScratch). Layer fields are
     // indexed by layer m in [0, nlev), interface fields by m in [0, nlev].
@@ -1034,7 +1081,7 @@ void vertical_two_stream_sweep (
             return 0.25 * (z_phys_nd(i, j, k) + z_phys_nd(i + 1, j, k) +
                            z_phys_nd(i, j + 1, k) + z_phys_nd(i + 1, j + 1, k));
         };
-        const amrex::Real z_surface = z_face(kmin);
+        const amrex::Real z_surface = z_face(kbot);
         for (int m = 0; m < nlev; ++m) {
             const amrex::Real z_lo = z_face(kmin + m);
             const amrex::Real z_hi = z_face(kmin + m + 1);
@@ -1045,7 +1092,7 @@ void vertical_two_stream_sweep (
     } else {
         for (int m = 0; m < nlev; ++m) {
             dz_level(m) = dz_uniform;
-            z_level(m)  = (static_cast<amrex::Real>(m) + 0.5) * dz_uniform;
+            z_level(m)  = (static_cast<amrex::Real>(kmin - kbot + m) + 0.5) * dz_uniform;
         }
     }
 
@@ -1063,16 +1110,34 @@ void vertical_two_stream_sweep (
     // Zero-initialize this column's heating rate output (covers the
     // sw_enabled=false and lw_enabled=false cases), and the interface fluxes
     // when they are wanted (a disabled band or night leaves zeros).
-    for (int k = kmin; k <= kmax; ++k) {
+    for (int k = kbot; k <= kmax; ++k) {
         qheating_arr(i, j, k, 0) = 0.0;
         qheating_arr(i, j, k, 1) = 0.0;
     }
     if (rad_flux_out != nullptr) {
-        for (int k = kmin; k <= kmax + 1; ++k) {
+        for (int k = kbot; k <= kmax + 1; ++k) {
             for (int comp = 0; comp < 4; ++comp) { (*rad_flux_out)(i, j, k, comp) = 0.0; }
         }
     }
     sw_down_toa = (rad_choice.sw_enabled && cos_zenith > 0.0) ? S0 * cos_zenith : 0.0;
+
+    // Under a roof the column holds nothing: the beam a caller reads from the scratch
+    // (the building faces' canopy forcing) is zero there, like the fluxes above.
+    // (A building that fills the column leaves every interface without a beam, the top one too.)
+    const int k_dark = (nlev <= 0) ? kmax + 1 : kmin - 1;
+    for (int k = kbot; k <= k_dark; ++k) {
+        scratch(i, j, k, TwoStreamScratch::F_DIR) = 0.0;
+    }
+    // A building that fills the column to the top leaves no layer to sweep.
+    if (nlev <= 0) {
+        max_heating_rate = 0.0;
+        sw_surface_flux = 0.0;
+        sw_up_toa = 0.0;
+        lw_net_surface = 0.0;
+        lw_up_toa = 0.0;
+        if (sw_beam_absorbed_out != nullptr) { *sw_beam_absorbed_out = 0.0; }
+        return;
+    }
 
     // ========================================================================
     // SHORTWAVE. Interfaces m = 0 (surface) .. nlev (TOA); layer m lies
@@ -1092,8 +1157,11 @@ void vertical_two_stream_sweep (
     amrex::Real sw_up_at_toa = 0.0;        // u(nlev)
     // Direct-beam albedo (per column, LSM field or fallback) and diffuse albedo
     // (surface_albedo_sw_diffuse, or the direct value when negative).
-    const amrex::Real alb_dir = resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
-    const amrex::Real alb_dif = resolve_surface_albedo_sw_diffuse(alb_dir, rad_choice.surface_albedo_sw_diffuse);
+    // A roof reflects the beam and the diffuse light alike (one albedo per face).
+    const amrex::Real alb_dir = on_roof ? roof->albedo
+                              : resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
+    const amrex::Real alb_dif = on_roof ? roof->albedo
+                              : resolve_surface_albedo_sw_diffuse(alb_dir, rad_choice.surface_albedo_sw_diffuse);
 
     if (rad_choice.sw_enabled && cos_zenith > 0.0) {
 
@@ -1116,9 +1184,13 @@ void vertical_two_stream_sweep (
             return compute_sw_layer_two_stream(tau_sw_level(m), omega, g, cos_zenith);
         };
 
+        // The beam the lower boundary takes: all of it at the ground (a shadow there is the
+        // ground balance's), the lit share on a roof a taller building shades.
+        const amrex::Real beam_sfc = on_roof ? roof->lit * F_dir(0) : F_dir(0);
+
         // 2. Upward pass of the adding method.
         A(0) = alb_dif;
-        S(0) = alb_dir * F_dir(0);
+        S(0) = alb_dir * beam_sfc;
         for (int m = 0; m < nlev; ++m) {
             const TwoStreamLayerSW L = layer_props(m);
             amrex::Real denom = 1.0 - L.R_dif * A(m);
@@ -1165,7 +1237,7 @@ void vertical_two_stream_sweep (
             d_above = d_m;
             F_net_above = F_net_m;
             if (m == 0) {
-                sw_surface_absorbed = (1.0 - alb_dir) * F_dir(0) + (1.0 - alb_dif) * d_m;
+                sw_surface_absorbed = (1.0 - alb_dir) * beam_sfc + (1.0 - alb_dif) * d_m;
             }
         }
     }
@@ -1199,7 +1271,9 @@ void vertical_two_stream_sweep (
         // Upward sweep: surface -> TOA. The surface emits eps * sigma * T_s^4
         // and reflects the fraction (1 - eps) of the downwelling flux that
         // reaches it (gray surface, Kirchhoff's law).
-        {
+        if (on_roof) {
+            F_lw_up_iface(0) = grey_surface_lw_up(roof->emissivity, roof->temperature, F_lw_down_iface(0), sigma);
+        } else {
             bool t_sfc_from_surface_layer = false;
             amrex::Real t_surface = resolve_surface_temp_k(
                 i, j, lsm_t_sfc, has_lsm_t_sfc, seb_t_sfc, has_seb_t_sfc,
@@ -1222,8 +1296,7 @@ void vertical_two_stream_sweep (
                 }
             }
             amrex::Real emiss_lw  = resolve_surface_emissivity_lw(i, j, hetero_emiss_lw, rad_choice, has_hetero_emiss_lw);
-            F_lw_up_iface(0) = emiss_lw * compute_thermal_intensity(t_surface, sigma)
-                             + (1.0 - emiss_lw) * F_lw_down_iface(0);
+            F_lw_up_iface(0) = grey_surface_lw_up(emiss_lw, t_surface, F_lw_down_iface(0), sigma);
         }
         for (int k = kmin; k <= kmax; ++k) {
             const int m = k - kmin;
@@ -1274,8 +1347,9 @@ void vertical_two_stream_sweep (
         // the scratch was never written, and a product formed ahead of the selection
         // would raise the invalid flag on its signalling NaN.
         const bool lit = rad_choice.sw_enabled && cos_zenith > 0.0;
-        const amrex::Real beam_sfc = lit ? F_dir(0) : amrex::Real(0.0);
-        *sw_beam_absorbed_out = (amrex::Real(1.0) - alb_dir) * beam_sfc;
+        const amrex::Real beam_low = lit ? F_dir(0) : amrex::Real(0.0);
+        const amrex::Real beam_taken = on_roof ? roof->lit * beam_low : beam_low;
+        *sw_beam_absorbed_out = (amrex::Real(1.0) - alb_dir) * beam_taken;
     }
     if (rad_choice.sw_enabled) {
         // Absorbed direct plus diffuse (see the SW block above)

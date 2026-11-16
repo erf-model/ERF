@@ -122,6 +122,14 @@ void ERF::advance_dycore (int level,
     MultiFab  pi_stage  (ba  , dm,        1,          1);
     MultiFab fast_coeffs(ba_z, dm,        6,          0);
 
+    // Pressure of the stage state, for the acoustic sub-steps on a moving mesh (filled in make_pi_stage)
+    const bool l_need_p_stage = (solverChoice.terrain_type == TerrainType::MovingFittedMesh &&
+                                 solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep);
+    MultiFab   p_stage;
+    if (l_need_p_stage) {
+        p_stage.define(ba, dm, 1, 1);
+    }
+
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
@@ -644,12 +652,24 @@ void ERF::advance_dycore (int level,
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
         bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
         const BCRec* bc_ptr_h = domain_bcs_type.data();
+
+        // Prepare fire heat flux for PBL if needed; the flux lives on the atmospheric
+        // columns of the fire grid's level only
+        const MultiFab* Q_fire_for_pbl = nullptr;
+#ifdef ERF_USE_FIRE
+        if (m_fire_coupler && level == m_fire_coupler->level() &&
+            m_fire_coupler->params().injects_flux() &&
+            tc.mrf_fire_thermal_excess) {
+            Q_fire_for_pbl = m_fire_coupler->get_Q_atm_prev();
+        }
+#endif
+
         ComputeTurbulentViscosity(dt_advance, xvel_old, yvel_old,Tau[level],
                                   state_old[IntVars::cons],
                                   *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, mapfac[level],
-                                  z_phys_nd[level], z_phys_cc[level], solverChoice,
+                                  z_phys_nd[level], z_sfc_nd[level], z_phys_cc[level], solverChoice,
                                   m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level,
                                   bc_ptr_h,
@@ -660,7 +680,8 @@ void ERF::advance_dycore (int level,
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
                                       terrain_blanking[level].get() : nullptr,
                                   (solverChoice.do_forest_drag) ?
-                                      m_forest_drag[level]->get_drag_field() : nullptr);
+                                      m_forest_drag[level]->get_drag_field() : nullptr,
+                                  Q_fire_for_pbl);
 
         // Zero turbulent mixing in fully immersed cells
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||

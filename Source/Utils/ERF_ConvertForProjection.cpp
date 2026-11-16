@@ -4,6 +4,7 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <ERF_Utils.H>
+#include <ERF_AdvectionSrcForScalars.H>
 
 using namespace amrex;
 
@@ -462,4 +463,81 @@ MakeProjectionWeights (const MultiFab& den_div, const MultiFab& den_mlt,
                                     dd(i,j,k,Rho_comp) + dd(i,j,k-1,Rho_comp));
         });
     } // end MFIter
+}
+
+/**
+ * Face weights beta = den_mlt / den_div mapped onto the faces the way the advection scheme maps a
+ * scalar onto them: the cell-centered ratio den_mlt / den_div (on the valid and ghost cells) is
+ * reconstructed on each face by BuildScalarAdvectionFaceValues with the given schemes and upwind
+ * fractions, the upwind side picked from the sign of the momenta passed in.  On a
+ * pseudo-incompressible level, with den_mlt = rho0 theta0 and den_div = rho, this is the face value
+ * of theta with which (rho theta) is advected when rho theta = rho0 theta0, so the projected flux
+ * beta (rho u) is the advective flux of (rho theta).
+ *
+ * @param[in]  den_div  density divided out, at cell centers (component Rho_comp), with ghost cells
+ * @param[in]  den_mlt  density multiplied in, at cell centers (component Rho_comp), with ghost cells
+ * @param[in]  xmom     x-face momentum (its sign picks the upwind side)
+ * @param[in]  ymom     y-face momentum (its sign picks the upwind side)
+ * @param[in]  zmom     z-face vertical mass flux, Omega on a terrain-fitted mesh (its sign picks the upwind side)
+ * @param[out] beta     face weights on the valid faces of xmom, ymom and zmom (defined here)
+ * @param[in]  horiz_adv_type horizontal advection scheme
+ * @param[in]  vert_adv_type  vertical advection scheme
+ * @param[in]  horiz_upw_frac horizontal upwind fraction
+ * @param[in]  vert_upw_frac  vertical upwind fraction
+ * @param[in]  period   periodicity of the level, to fill the ratio's ghost cells between boxes
+ *
+ * The ratio is computed on the valid and ghost cells and then its ghost cells inside the domain
+ * (between boxes and across periodic boundaries) are filled from the neighbouring valid cells,
+ * so that they hold the same values as the valid cells there: the reconstruction reads two or
+ * three cells past the face, and the base state's ghost cells beyond the first are not filled
+ * between boxes.  Outside the domain the ratio comes from the ghost cells of den_div and
+ * den_mlt; a cell with no density (covered by an embedded boundary, or a corner the boundary
+ * conditions leave unfilled) gets the ratio one.
+ */
+void
+MakeAdvectiveProjectionWeights (const MultiFab& den_div, const MultiFab& den_mlt,
+                                const MultiFab& xmom, const MultiFab& ymom, const MultiFab& zmom,
+                                Array<MultiFab,AMREX_SPACEDIM>& beta,
+                                const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                                const Real horiz_upw_frac, const Real vert_upw_frac,
+                                const Periodicity& period)
+{
+    BL_PROFILE("MakeAdvectiveProjectionWeights()");
+
+    beta[0].define(xmom.boxArray(), xmom.DistributionMap(), 1, 0, MFInfo(), xmom.Factory());
+    beta[1].define(ymom.boxArray(), ymom.DistributionMap(), 1, 0, MFInfo(), ymom.Factory());
+    beta[2].define(zmom.boxArray(), zmom.DistributionMap(), 1, 0, MFInfo(), zmom.Factory());
+
+    const IntVect ng = amrex::min(den_div.nGrowVect(), den_mlt.nGrowVect());
+    MultiFab ratio(den_div.boxArray(), den_div.DistributionMap(), 1, ng);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(ratio,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& gbx = mfi.growntilebox(ng);
+        const Array4<const Real>& dd = den_div.const_array(mfi);
+        const Array4<const Real>& dm = den_mlt.const_array(mfi);
+        const Array4<      Real>& q  = ratio.array(mfi);
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            q(i,j,k) = proj_weight(dm(i,j,k,Rho_comp), dd(i,j,k,Rho_comp));
+        });
+    }
+
+    ratio.FillBoundary(period);
+
+    // Each box writes the faces of its own valid cells (faces shared by two boxes get the same
+    // value from both, as the advection fluxes do)
+    for ( MFIter mfi(ratio); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.validbox();
+        const GpuArray<const Array4<Real>, AMREX_SPACEDIM> b_arr{beta[0].array(mfi),
+                                                                beta[1].array(mfi),
+                                                                beta[2].array(mfi)};
+        BuildScalarAdvectionFaceValues(bx, ratio.const_array(mfi), 0, b_arr, 0,
+                                       xmom.const_array(mfi), ymom.const_array(mfi), zmom.const_array(mfi),
+                                       horiz_adv_type, vert_adv_type, horiz_upw_frac, vert_upw_frac);
+    }
 }

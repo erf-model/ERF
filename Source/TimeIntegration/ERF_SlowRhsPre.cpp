@@ -35,6 +35,11 @@ using namespace amrex;
  * @param[inout] avg_xmom
  * @param[inout] avg_ymom
  * @param[inout] avg_zmom
+ * @param[in   ] upw_dir upwind direction on the faces set by the latest projection, on a
+ *                       pseudo-incompressible level (nullptr otherwise: the mass flux picks it)
+ * @param[out  ] pi_adv_rt advective tendency of (rho theta) in this stage (averaged with the
+ *                         previous stage's where the RHS is averaged), on a pseudo-incompressible
+ *                         level (nullptr otherwise)
  * @param[in   ] xvel x-component of velocity
  * @param[in   ] yvel y-component of velocity
  * @param[in   ] zvel z-component of velocity
@@ -78,6 +83,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab& avg_xmom,
                        MultiFab& avg_ymom,
                        MultiFab& avg_zmom,
+                       const Array<const MultiFab*,AMREX_SPACEDIM>& upw_dir,
+                       MultiFab* pi_adv_rt,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
@@ -469,6 +476,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<Real> avg_xmom_arr = avg_xmom.array(mfi);
         Array4<Real> avg_ymom_arr = avg_ymom.array(mfi);
         Array4<Real> avg_zmom_arr = avg_zmom.array(mfi);
+        // Pseudo-incompressible: the upwind side is the one the projection picked
+        const Array4<const Real> upw_x_arr = upw_dir[0] ? upw_dir[0]->const_array(mfi) : avg_xmom.const_array(mfi);
+        const Array4<const Real> upw_y_arr = upw_dir[1] ? upw_dir[1]->const_array(mfi) : avg_ymom.const_array(mfi);
+        const Array4<const Real> upw_z_arr = upw_dir[2] ? upw_dir[2]->const_array(mfi) : avg_zmom.const_array(mfi);
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
@@ -634,11 +645,24 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 flx_arr, l_fixed_rho);
             AdvectionSrcForScalars(bx, icomp, ncomp,
                                 avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                upw_x_arr, upw_y_arr, upw_z_arr,
                                 cell_prim, cell_rhs,
                                 detJ_arr, dxInv, mf_mx, mf_my,
                                 l_horiz_adv_type, l_vert_adv_type,
                                 l_horiz_upw_frac, l_vert_upw_frac,
                                 flx_arr, domain, bc_ptr_h);
+            // Pseudo-incompressible: keep the advective part of the (rho theta) RHS, so that the
+            // rest of it (diffusion and sources) can go into the constraint (see project_momenta).
+            // Where the RHS is averaged with the previous stage's below, so is this.
+            if (pi_adv_rt) {
+                const Array4<Real> adv_arr = pi_adv_rt->array(mfi);
+                const bool l_avg = l_anelastic && l_anelastic_rk2 && (nrk == 1);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    adv_arr(i,j,k) = l_avg ? myhalf * (adv_arr(i,j,k) + cell_rhs(i,j,k,RhoTheta_comp))
+                                           : cell_rhs(i,j,k,RhoTheta_comp);
+                });
+            }
         } else {
             EBAdvectionSrcForRho(bx, cell_rhs,
                                 rho_u, rho_v, omega_arr,

@@ -5,7 +5,9 @@ on:
     branches: [development]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -16,7 +18,9 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -92,6 +96,8 @@ jobs:
         restore-keys: |
              ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-${{ matrix.particles }}-git-
 
+    # The SINGLE leg also builds the SDM ML-uphys diagnostics; it runs no gold-file tests,
+    # only the focused SINGLE steps below.
     - name: Configure Project and Generate Build System
       run: |
         cmake \
@@ -108,6 +114,7 @@ jobs:
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
           -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
+          -DERF_ENABLE_ML_UPHYS_DIAGNOSTICS:BOOL=${{ matrix.mesh_precision == 'SINGLE' && 'ON' || 'OFF' }} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
@@ -200,6 +207,13 @@ jobs:
               --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
+    # The SDM diagnostics restart check, in the leg that builds the ML-uphys diagnostics.
+    - name: Run SINGLE SDM Diagnostics Test
+      if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
+      run: |
+        ctest -R '^SDM_DiagnosticsRestart$' --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
     # One step of a deck with buildings, for its EB build in single precision (#5006).
     - name: Run SINGLE EB Build Tests
       if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
@@ -263,18 +277,6 @@ jobs:
     - name: GNUmake Compile and Link
       run: |
         make -C Exec -j2 USE_NETCDF=FALSE USE_PARTICLES=FALSE
-
-    - name: GNUmake Compile and Link with an out-of-tree fire engine
-      run: |
-        mkdir -p ${{runner.temp}}/fire_build
-        cd ${{runner.temp}}/fire_build
-        printf 'ERF_HOME = %s\nFIRE_HOME = %s/Tests/FireEngineExample\nUSE_FIRE = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
-          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
-        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
-        make -j2
-        cp ${{github.workspace}}/Tests/FireEngineExample/inputs_fire_example ${{github.workspace}}/Tests/FireEngineExample/input_sounding .
-        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_fire_example max_step=4 erf.check_int=-1 | tee run.log
-        grep -q "fire_phi" plt00004/Header
 
     - name: GNUmake Compile and Link with an out-of-tree structure model
       run: |

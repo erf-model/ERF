@@ -4,9 +4,12 @@
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMAdvectionBoundary.H"
+#include "ERF_SBMParticleMixing.H"
+#include "ERF_SBMPhysicalBoundary.H"
 #include "AuxiliaryState/ERF_AuxiliaryStage.H"
 
 #include <AMReX_Geometry.H>
+#include <AMReX_GpuContainers.H>
 #include <AMReX_IntVect.H>
 
 #include <array>
@@ -86,6 +89,31 @@ struct SBMAMRStageParent {
 };
 
 /**
+ * Host fields of a stage that mixes particles: ERF's eddy diffusivity as
+ * prepared for the current step (HostPassiveScalar only) and the level's
+ * metrics, whose mesh must be the one installed with the mixing policy.
+ */
+struct SBMStageMixingInputs {
+    const amrex::MultiFab* eddy_diffusivity{nullptr};
+    erf_auxiliary::MappedDiffusionMetrics metrics;
+};
+
+class SBMTransport;
+
+/**
+ * Stage mixing inputs from ERF's level fields: map factors indexed by
+ * MapFacType, the face areas and vertical spacing of a stretched mesh, and
+ * the eddy diffusivity, which only HostPassiveScalar reads.
+ */
+[[nodiscard]] SBMStageMixingInputs make_stage_mixing_inputs (
+    const SBMTransport& transport,
+    const amrex::MultiFab* eddy_diffusivity,
+    const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+    const amrex::MultiFab* ax,
+    const amrex::MultiFab* ay,
+    const amrex::Real* stretched_dz);
+
+/**
  * Bounded mapped advection for the authoritative SBM spectrum.
  *
  * The state manager remains the owner of prognostic state. This object owns
@@ -93,9 +121,8 @@ struct SBMAMRStageParent {
  * qc/qr completed-step face ledger, and (in reference mode) an optional
  * all-component completed spectral face ledger. Production AMR instances add
  * accepted chunk-local stage rates directly to their pending interface YA
- * register and do not retain that full spectral ledger. Operational AMR
- * execution remains disabled by the ERF runtime guard until lifecycle gates
- * are qualified.
+ * register and do not retain that full spectral ledger. It also owns the
+ * physical-face configuration and the cumulative boundary ledger.
  */
 class SBMTransport
 {
@@ -123,6 +150,27 @@ class SBMTransport
     void set_amr_flux_registers (int level,
                                  SBMAMRFluxRegister* as_coarse,
                                  SBMAMRFluxRegister* as_fine);
+    /** Install validated face kinds and inflow spectra; every stage checks them against its geometry. */
+    void set_physical_boundaries (const SBMPhysicalBoundaryConfig& config);
+    [[nodiscard]] const SBMPhysicalBoundaryConfig& physical_boundaries () const noexcept
+    { return m_boundaries; }
+    [[nodiscard]] const SBMBoundaryLedger& boundary_ledger () const noexcept
+    { return m_boundary_ledger; }
+    void restore_boundary_ledger (const SBMBoundaryLedger& ledger);
+    /**
+     * Install the particle mixing policy and its mesh. With a policy other
+     * than None, every stage adds the low-order diffusive exchange to the
+     * donor rates and ERF's diffusion of the stage input to the high-order
+     * rates, so the group limiter bounds their combined correction.
+     */
+    void set_particle_mixing (const ParticleMixingConfig& config,
+                              erf_auxiliary::DiffusionMesh mesh);
+    [[nodiscard]] const ParticleMixingConfig& particle_mixing () const noexcept
+    { return m_mixing; }
+    [[nodiscard]] bool mixes_particles () const noexcept
+    { return m_mixing.policy != ParticleMixingPolicy::None; }
+    [[nodiscard]] erf_auxiliary::DiffusionMesh mixing_mesh () const noexcept
+    { return m_mixing_mesh; }
     bool begin_physical_step (int level, double step_begin, double step_end,
                               std::string& diagnostic);
     bool accept_physical_step (int level, double step_begin, double step_end,
@@ -151,7 +199,8 @@ class SBMTransport
                                   const amrex::Geometry& geometry,
                                   int qc_component,
                                   int qr_component,
-                                  const SBMAMRStageParent* parent = nullptr);
+                                  const SBMAMRStageParent* parent = nullptr,
+                                  const SBMStageMixingInputs* mixing = nullptr);
 
     void advance_stage (int level,
                         erf_auxiliary::HostIntegrator method,
@@ -170,7 +219,8 @@ class SBMTransport
                         const amrex::Geometry& geometry,
                         int qc_component,
                         int qr_component,
-                        const SBMAMRStageParent* parent = nullptr);
+                        const SBMAMRStageParent* parent = nullptr,
+                        const SBMStageMixingInputs* mixing = nullptr);
 
     void destroy (int level);
     [[nodiscard]] int nlevels () const noexcept
@@ -218,6 +268,12 @@ class SBMTransport
     std::vector<std::unique_ptr<LevelStorage>> m_levels;
     std::unique_ptr<DeviceMetadata> m_device_metadata;
     std::unique_ptr<SBMStateAdmission> m_admission;
+    SBMPhysicalBoundaryConfig m_boundaries;
+    amrex::Gpu::DeviceVector<amrex::Real> m_inflow_device;
+    SBMBoundaryLedger m_boundary_ledger;
+    ParticleMixingConfig m_mixing;
+    erf_auxiliary::DiffusionMesh m_mixing_mesh{erf_auxiliary::DiffusionMesh::ConstantDz};
+    amrex::Gpu::DeviceVector<amrex::BCRec> m_mixing_bc;
     bool m_keep_spectral_ledger_reference{true};
     bool m_zero_flow_diagnostics_enabled{false};
     // Split qualification checks parent ghosts once at the coarse start and

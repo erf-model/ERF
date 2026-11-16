@@ -980,6 +980,29 @@ Two ABL tests in ``Exec/CanonicalTests/ABL/MRF_Enhancements/`` verify the implem
 - Hong, S.-Y., and H.-L. Pan, 1996: Nonlocal boundary layer vertical diffusion in a medium-range forecast model. *Monthly Weather Review*, 124, 2322–2339.
   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
 
+7. Fire Coupling of the Velocity Scale
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In a build with the fire coupling (``ERF_ENABLE_FIRE``), ``erf.pbl_mrf_fire_thermal_excess = true``
+(default ``false``) lets the fire raise w\* in the K-profile amplitude of burning columns. It needs
+``erf.fire.enable = true`` with ``erf.fire.coupling_type = lagged`` or ``synchronous``, and acts on the
+fire grid's level only. The PBL height is left alone:
+
+.. math::
+
+   w_{*,fire} = \left( \frac{g}{\theta} \, (kbfs_{MOST} + kbfs_{fire}) \, h \right)^{1/3}, \qquad
+   w_{*,eff} = \max(w_{*,fire}, w_*) \quad \text{where } kbfs_{fire} > 0,
+
+with :math:`kbfs_{fire} = Q_{fire} / (\rho_{sfc} c_{p,d})` from the lagged fire heat flux,
+:math:`kbfs_{MOST} = -u_* \theta_*`, :math:`h` the corrected PBL height and :math:`w_*` the scale
+of the final pass. A column counts as burning when its fire heat flux exceeds
+``erf.mrf_fire_q_threshold`` (default 50 W/m\ :sup:`2`). Columns without fire keep :math:`w_*`, and
+HGAMT/HGAMQ always use the unboosted :math:`w_*`. The fire flux is kept out of the PBL-height
+corrector because a fire thermal excess would make the Richardson number negative through a neutral
+or shear-driven ABL and collapse the PBL height to its floor.
+
+The flux carries 5 ghost columns, so with the fire boost ``erf.pblh_smoothing_passes`` is at most 5.
+
 Older MRF Enhancements (Deprecated/Documented for Historical Completeness)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1216,6 +1239,19 @@ When enabled, the diffusivity bounds scale with local grid-spacing and density a
   :math:`K_{min} = 0.1\ \text{m}^2/\text{s}, K_{max} = 300\ \text{m}^2/\text{s}`
 - High-Resolution Bounds:
   :math:`K_{min} = 0.001 \times \Delta z \times \rho, K_{max} = 1000\ \text{m}^2/\text{s}`
+
+Passive Scalars
+^^^^^^^^^^^^^^^
+
+MRF sets the vertical diffusivity of the passive scalars (``rhoadv_0``, and the dust and
+smoke scalars when those couplings are built), ``EddyDiff::Scalar_v``, equal to the heat
+diffusivity, as for moisture: inside and above the PBL, with the same scale-aware blending
+and the same bounds. ``erf.pbl_mrf_Sc_t`` (default 0) sets a turbulent Schmidt number for
+them: with :math:`Sc_t > 0` their diffusivity is the heat one times
+:math:`Pr_t / Sc_t` (:math:`Pr_t` is ``erf.Pr_t``), the same for every passive scalar.
+Whether scalars should have different coefficients is erf-model/ERF#5080. Before this, MRF
+left ``Scalar_v`` at zero, so a run with MRF and no LES model did not mix the passive
+scalars vertically at all, and with an LES model alongside they took its vertical value.
 
 Combined Usage Examples
 ^^^^^^^^^^^^^^^^^^^^^^^

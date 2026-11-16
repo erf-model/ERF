@@ -2,6 +2,7 @@
 #include <AMReX_Math.H>
 #include <AMReX_MultiFabUtil.H>
 #include "ERF_Constants.H"
+#include "ERF_EarthRelativeWind.H"
 #include "ERF_SurfaceLayerStress.H"
 #include "ERF_SurfaceTemperature.H"
 #include "ERF_SurfaceMoisture.H"
@@ -68,6 +69,92 @@ covers_columns (const Array4<const Real>& a, const Box& b)
                   a.begin[1] <= b.smallEnd(1) && a.end[1] > b.bigEnd(1));
 }
 
+/**
+ * The cell a face of the surface current reads for a cell beside it: the cell itself, or
+ * outside a non-periodic domain the nearest one inside it, since the surface fields' ghost
+ * cells there hold no data. The periodic ghost cells, ng deep, hold their images.
+ *
+ * @param[in] geom geometry of the level
+ * @param[in] ng   lateral ghost cells of the surface fields read
+ */
+NearestColumn
+surface_columns (const Geometry& geom, const IntVect& ng)
+{
+    Box columns = geom.Domain();
+    for (int d = 0; d < 2; ++d) {
+        if (geom.isPeriodic(d)) { columns.grow(d, ng[d]); }
+    }
+    return NearestColumn(columns);
+}
+
+/**
+ * An ocean coupler's current at the cells of the surface: the eastward and northward
+ * components, the cosine and sine of the angle of the grid x axis from east, and the ocean's
+ * coverage, each on one 2D box at k = 0 for each box of the current, with one more lateral
+ * ghost cell than the current.
+ */
+struct CoupledCurrentCells
+{
+    const MultiFab* east_north;
+    const MultiFab* rotation;
+    const iMultiFab* covered;
+};
+
+/**
+ * Set one component of the surface current on the faces normal to dir, ghost cells
+ * included. Only water moves: a face takes the current where the cells on both sides of it
+ * are water (land mask 0) and, with a coupler, covered by the ocean; it is at rest elsewhere.
+ * Without a coupler the current is uniform; with one it is the average over the two cells of
+ * the coupler's current turned to the grid axes.
+ *
+ * @param[out] current   one component of the current, on 2D boxes at k = klo
+ * @param[in]  dir       0 for the x-component on x-faces, 1 for the y-component on y-faces
+ * @param[in]  lmask     land mask on one 2D box for each box of the current, or null
+ * @param[in]  in_domain the cells a face reads (surface_columns)
+ * @param[in]  speed     uniform current [m/s], used without a coupler
+ * @param[in]  coupled   the coupler's current at the cells, or null without a coupler
+ */
+void
+fill_face_current (MultiFab& current, int dir, const iMultiFab* lmask,
+                   const NearestColumn& in_domain, Real speed,
+                   const CoupledCurrentCells* coupled)
+{
+    const bool has_mask = (lmask != nullptr);
+    const bool is_coupled = (coupled != nullptr);
+    const int di = (dir == 0) ? 1 : 0;
+    const int dj = (dir == 1) ? 1 : 0;
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(current, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto c = current.array(mfi);
+        const auto m = has_mask ? lmask->const_array(mfi) : Array4<const int>{};
+        const int km = has_mask ? amrex::lbound(m).z : 0;
+        const auto en  = is_coupled ? coupled->east_north->const_array(mfi) : Array4<const Real>{};
+        const auto rot = is_coupled ? coupled->rotation->const_array(mfi) : Array4<const Real>{};
+        const auto cov = is_coupled ? coupled->covered->const_array(mfi) : Array4<const int>{};
+        ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            bool moves = true;
+            Real sum = zero;
+            for (int side = 0; side < 2; ++side) {
+                const int ii = in_domain.i(i - di * (1 - side));
+                const int jj = in_domain.j(j - dj * (1 - side));
+                moves = moves && (!has_mask || m(ii,jj,km) == 0) &&
+                        (!is_coupled || cov(ii,jj,0) != 0);
+                if (is_coupled) {
+                    Real u_grid, v_grid;
+                    erf_earth_wind::earth_to_grid(en(ii,jj,0,0), en(ii,jj,0,1),
+                                                  rot(ii,jj,0,0), rot(ii,jj,0,1),
+                                                  u_grid, v_grid);
+                    sum += (dir == 0) ? u_grid : v_grid;
+                }
+            }
+            c(i,j,k) = !moves ? zero : (is_coupled ? myhalf * sum : speed);
+        });
+    }
+}
+
 } // namespace
 
 void
@@ -105,6 +192,175 @@ SurfaceLayer::set_immersed_surface_params (const int& lev)
             }
         });
     }
+}
+
+void
+SurfaceLayer::define_surface_current (const int& lev, const MultiFab& xvel, const MultiFab& yvel)
+{
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    for (int dir = 0; dir < 2; ++dir) {
+        const MultiFab& vel = (dir == 0) ? xvel : yvel;
+        auto& current = (dir == 0) ? m_surface_current_x[lev] : m_surface_current_y[lev];
+
+        // One 2D box at k = klo for each box of the velocity, on its faces and with its
+        // lateral ghost cells
+        BoxList bl = vel.boxArray().boxList();
+        for (auto& b : bl) { b.setRange(2, klo); }
+        const IntVect ng(vel.nGrowVect()[0], vel.nGrowVect()[1], 0);
+        current = std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(), 1, ng);
+    }
+    // From the coupler's last current, if it has sent one, so a remade level does not lose it
+    fill_surface_current(lev);
+
+    define_relative_velocities(lev, xvel, yvel, m_ma.max_k_read(lev));
+}
+
+void
+SurfaceLayer::fill_surface_current (const int& lev)
+{
+    MultiFab& current_x = *m_surface_current_x[lev];
+    MultiFab& current_y = *m_surface_current_y[lev];
+
+    // The land mask, on one 2D box for each box of the current, carries one more lateral
+    // ghost cell than the current, so both cells beside every face are in it
+    const iMultiFab* lmask = (lev < static_cast<int>(m_lmask_lev.size()) &&
+                              !m_lmask_lev[lev].empty()) ? m_lmask_lev[lev][0] : nullptr;
+    const IntVect ng = current_x.nGrowVect() + IntVect(1, 1, 0);
+    const NearestColumn in_domain = surface_columns(m_geom[lev], ng);
+
+    // The coupler's current at the cells of the surface, laid out like the land mask; ghost
+    // cells inside the domain or its periodic images take the coupler's values
+    const bool coupled = lev < static_cast<int>(m_coupled_current_east_lev.size()) &&
+                         m_coupled_current_east_lev[lev] && m_coupled_current_north_lev[lev];
+    MultiFab east_north;
+    iMultiFab cover;
+    CoupledCurrentCells cells{&east_north, nullptr, &cover};
+    if (coupled) {
+        BoxList bl = convert(current_x.boxArray(), IntVect(0)).boxList();
+        for (auto& b : bl) { b.setRange(2, 0); }
+        const BoxArray ba(std::move(bl));
+        const DistributionMapping& dm = current_x.DistributionMap();
+        const Periodicity period = m_geom[lev].periodicity();
+
+        east_north.define(ba, dm, 2, ng);
+        east_north.setVal(zero);
+        east_north.ParallelCopy(*m_coupled_current_east_lev[lev],  0, 0, 1, IntVect(0), ng, period);
+        east_north.ParallelCopy(*m_coupled_current_north_lev[lev], 0, 1, 1, IntVect(0), ng, period);
+        // The orientation does not change between calls, so its copy is kept
+        auto& rotation = m_coupled_rotation_lev[lev];
+        const MultiFab* cos_src = (m_coupled_current_cos_lev[lev] && m_coupled_current_sin_lev[lev])
+                                  ? m_coupled_current_cos_lev[lev] : nullptr;
+        // Remade when the orientation is another array, or the same one remade on another
+        // layout, or the surface's own layout has changed
+        if (!rotation || rotation->boxArray() != ba || rotation->DistributionMap() != dm ||
+            m_coupled_rotation_src_lev[lev] != cos_src ||
+            (cos_src && (cos_src->boxArray() != m_coupled_rotation_src_ba_lev[lev] ||
+                         cos_src->DistributionMap() != m_coupled_rotation_src_dm_lev[lev]))) {
+            rotation = std::make_unique<MultiFab>(ba, dm, 2, ng);
+            rotation->setVal(one, 0, 1, ng);
+            rotation->setVal(zero, 1, 1, ng);
+            if (cos_src) {
+                rotation->ParallelCopy(*m_coupled_current_cos_lev[lev], 0, 0, 1, IntVect(0), ng, period);
+                rotation->ParallelCopy(*m_coupled_current_sin_lev[lev], 0, 1, 1, IntVect(0), ng, period);
+            }
+            m_coupled_rotation_src_lev[lev] = cos_src;
+            if (cos_src) {
+                m_coupled_rotation_src_ba_lev[lev] = cos_src->boxArray();
+                m_coupled_rotation_src_dm_lev[lev] = cos_src->DistributionMap();
+            }
+        }
+        cells.rotation = rotation.get();
+        cover.define(ba, dm, 1, ng);
+        cover.setVal(0);
+        if (m_coupled_current_covered_lev[lev]) {
+            cover.ParallelCopy(*m_coupled_current_covered_lev[lev], 0, 0, 1, IntVect(0), ng, period);
+        }
+    }
+
+    fill_face_current(current_x, 0, lmask, in_domain, m_surface_current_const[0],
+                      coupled ? &cells : nullptr);
+    fill_face_current(current_y, 1, lmask, in_domain, m_surface_current_const[1],
+                      coupled ? &cells : nullptr);
+}
+
+void
+SurfaceLayer::define_relative_velocities (const int& lev, const MultiFab& xvel,
+                                          const MultiFab& yvel, int k_top)
+{
+    // The averages read the velocities only up to k_top (MOSTAverage::max_k_read), so
+    // each box of the velocities is held from its lower end to k_top, with its ghost
+    // cells; a box wholly above k_top keeps a single plane, which is never read
+    m_rel_k_top[lev] = k_top;
+    for (int dir = 0; dir < 2; ++dir) {
+        const MultiFab& vel = (dir == 0) ? xvel : yvel;
+        auto& rel = (dir == 0) ? m_rel_xvel[lev] : m_rel_yvel[lev];
+        BoxList bl = vel.boxArray().boxList();
+        for (auto& b : bl) { b.setBig(2, amrex::max(b.smallEnd(2), amrex::min(b.bigEnd(2), k_top))); }
+        rel = std::make_unique<MultiFab>(BoxArray(std::move(bl)), vel.DistributionMap(), 1,
+                                         vel.nGrowVect());
+    }
+    m_rel_src_ba[lev] = xvel.boxArray();
+}
+
+void
+SurfaceLayer::build_relative_velocities (const int& lev, const MultiFab& xvel,
+                                         const MultiFab& yvel)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        m_rel_xvel[lev] && m_rel_src_ba[lev] == xvel.boxArray() &&
+        m_rel_xvel[lev]->DistributionMap() == xvel.DistributionMap(),
+        "The surface current was defined for another layout of this level's velocities.");
+
+    // On a moving mesh the planes the averages read can rise
+    if (m_ma.max_k_read_can_change()) {
+        const int k_top = m_ma.max_k_read(lev);
+        if (k_top > m_rel_k_top[lev]) { define_relative_velocities(lev, xvel, yvel, k_top); }
+    }
+
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    // Each component less the current of the plane k = klo, over the planes held,
+    // ghost cells included
+    for (int dir = 0; dir < 2; ++dir) {
+        const MultiFab& vel     = (dir == 0) ? xvel : yvel;
+        const MultiFab& current = (dir == 0) ? *m_surface_current_x[lev] : *m_surface_current_y[lev];
+        MultiFab&       rel     = (dir == 0) ? *m_rel_xvel[lev] : *m_rel_yvel[lev];
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(rel, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto v = vel.const_array(mfi);
+            const auto c = current.const_array(mfi);
+            const auto r = rel.array(mfi);
+            ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                r(i,j,k) = v(i,j,k) - c(i,j,klo);
+            });
+        }
+    }
+}
+
+void
+SurfaceLayer::update_coupled_surface_current (const int& lev,
+                                              const MultiFab& east,
+                                              const MultiFab& north,
+                                              const iMultiFab* covered,
+                                              const MultiFab* cos_alpha,
+                                              const MultiFab* sin_alpha)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        m_use_surface_current && lev < static_cast<int>(m_surface_current_x.size()) &&
+        m_surface_current_x[lev],
+        "The coupled surface current was set on a level made before set_coupled_current_active.");
+
+    // Kept, so a remade level takes the current again (define_surface_current)
+    m_coupled_current_east_lev[lev]    = &east;
+    m_coupled_current_north_lev[lev]   = &north;
+    m_coupled_current_covered_lev[lev] = covered;
+    m_coupled_current_cos_lev[lev]     = cos_alpha;
+    m_coupled_current_sin_lev[lev]     = sin_alpha;
+    fill_surface_current(lev);
 }
 
 /**
@@ -152,6 +408,11 @@ SurfaceLayer::update_fluxes (const int& lev,
         if (surf_temp_is_absolute) {
             fill_tsurf_with_abs_surf_temp(lev, elapsed_time, cons_in, z_phys_nd);
         }
+    } else if (flux_type == FluxCalcType::BULK_COEFF && surf_temp_is_absolute) {
+        // bulk_coeff reads t_surf without selecting the surface-temperature formulation;
+        // an absolute surface temperature is converted with the current surface pressure
+        // here as well (bulk_coeff has no heating rate, so it is the constant value).
+        fill_tsurf_with_abs_surf_temp(lev, elapsed_time, cons_in, z_phys_nd);
     }
 
     // Overwrite the covered water cells with coupled ocean SST. This must come
@@ -179,6 +440,15 @@ SurfaceLayer::update_fluxes (const int& lev,
 
     // Fill interior ghost cells
     fill_planar_boundary(lev, *t_surf[lev]);
+
+    // Over a moving surface the averages must read the velocities relative to it, which
+    // update_mac_ptrs points them at; anything that points them back at the level's own
+    // velocities in between would silently average the absolute wind
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_surface_current ||
+        (m_ma.get_field_ptr(lev, 0) == m_rel_xvel[lev].get() &&
+         m_ma.get_field_ptr(lev, 1) == m_rel_yvel[lev].get()),
+        "The surface-layer averages do not read the wind relative to the surface current: "
+        "call update_mac_ptrs before update_fluxes.");
 
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
@@ -968,7 +1238,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp, mf_surface_fluxes);
     } else if (flux_type == FluxCalcType::BULK_COEFF) {
-        bulk_coeff_flux flux_comp(m_Cd, m_Ch, m_Cq);
+        bulk_coeff_flux flux_comp(m_Cd, m_Ch, m_Cq, m_bulk_use_fixed_tflux, m_bulk_fixed_tflux);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
@@ -1123,6 +1393,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         (has_lsm_flux_source && lev < m_lsm_held_columns.size() && !m_lsm_held_columns[lev].empty())
         ? &m_lsm_held_columns[lev] : nullptr;
 
+    // Over a moving surface the stresses and fluxes take the wind relative to it. They read
+    // the velocities only in the plane k = klo, so only that plane is made relative.
+    const bool use_current = m_use_surface_current && dir == 2 && m_face.isLow();
+    const MultiFab* current_x = use_current ? get_surface_current(lev, 0) : nullptr;
+    const MultiFab* current_y = use_current ? get_surface_current(lev, 1) : nullptr;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_current || (current_x && current_y),
+        "The surface current has not been defined on this level.");
+
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
         // Skip boxes that do not own the selected face before acquiring any
@@ -1146,10 +1424,29 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         }
 
         // Get field arrays
-        const auto cons_arr  = mfs[Vars::cons]->array(mfi);
-        const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
-        const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
-        const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
+        const auto cons_arr = mfs[Vars::cons]->array(mfi);
+        auto       velx_arr = mfs[Vars::xvel]->const_array(mfi);
+        auto       vely_arr = mfs[Vars::yvel]->const_array(mfi);
+        const auto velz_arr = mfs[Vars::zvel]->array(mfi);
+        FArrayBox rel_xvel, rel_yvel;
+        if (use_current) {
+            // The plane k = klo less the current, ghost cells included: all the kernels read
+            for (int vdir = 0; vdir < 2; ++vdir) {
+                const MultiFab& vel = *mfs[(vdir == 0) ? Vars::xvel : Vars::yvel];
+                FArrayBox&      rel = (vdir == 0) ? rel_xvel : rel_yvel;
+                const Box plane = makeSlab(vel.fabbox(mfi.index()), 2, klo);
+                rel.resize(plane, 1, The_Async_Arena());
+                const auto v = vel.const_array(mfi);
+                const auto c = ((vdir == 0) ? current_x : current_y)->const_array(mfi);
+                const auto r = rel.array();
+                ParallelFor(plane, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    r(i,j,k) = v(i,j,k) - c(i,j,k);
+                });
+            }
+            velx_arr = rel_xvel.const_array();
+            vely_arr = rel_yvel.const_array();
+        }
 
         // Output stresses:
         //            T     Q      U     V
@@ -1586,6 +1883,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         if (flux_type == FluxCalcType::BULK_COEFF) {
             constexpr Real eps  = std::numeric_limits<Real>::epsilon();
             bool l_use_moisture = use_moisture;
+            // With an imposed heat flux (most.surf_temp_flux) the flux stays on in calm
+            // air, where u* -> 0: t*, q* and the Obukhov length then use u* floored at
+            // 0.001 m/s, the floor of the MOST imposed-flux path (ERF_MOSTStress.H
+            // USTARMIN), so they stay finite (t* = -F / 0.001 rather than -F / 2e-16).
+            // The Ch form's flux vanishes with the wind and keeps the plain u*.
+            const Real ustar_min = m_bulk_use_fixed_tflux ? Real(0.001) : eps;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
             {
                 Real rho = cons_arr(i,j,klo,Rho_comp);
@@ -1596,22 +1899,23 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real tau = std::sqrt( t13_arr(i,j,klo)/rho * t13_arr(i,j,klo)/rho
                                     + t23_arr(i,j,klo)/rho * t23_arr(i,j,klo)/rho );
                 u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
+                const Real ustar_d = amrex::max(u_star_arr(i,j,0), ustar_min);
 
                 if (hfx3_arr(i,j,klo)>=zero) {
-                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                    t_star_arr(i,j,0) = amrex::min(-hfx3_arr(i,j,klo) / (rho * ustar_d),-eps);
                 } else {
-                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),eps);
+                    t_star_arr(i,j,0) = amrex::max(-hfx3_arr(i,j,klo) / (rho * ustar_d),eps);
                 }
                 if (!l_use_moisture) {
                     q_star_arr(i,j,0) = zero;
                 } else if (qfx3_arr(i,j,klo)>=zero) {
-                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / (rho * u_star_arr(i,j,0)),-eps);
+                    q_star_arr(i,j,0) = amrex::min(-qfx3_arr(i,j,klo) / (rho * ustar_d),-eps);
                 } else {
-                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * u_star_arr(i,j,0)),eps);
+                    q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * ustar_d),eps);
                 }
                 Real tstv = t_star_arr(i,j,0)*(one + epsv*qv) + epsv*Thd*q_star_arr(i,j,0);
                 tstv = (tstv >= zero) ? amrex::max(tstv, eps) : amrex::min(tstv, -eps);
-                olen_arr(i,j,0) = ( u_star_arr(i,j,0)  * u_star_arr(i,j,0) * Thv ) /
+                olen_arr(i,j,0) = ( ustar_d * ustar_d * Thv ) /
                                   ( KAPPA * CONST_GRAV * tstv );
                 z0_arr(i,j,0)  = Compute_roughness(zref_arr(i,j,0),   olen_arr(i,j,0),
                                                     umm_arr(i,j,0), u_star_arr(i,j,0));

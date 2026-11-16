@@ -22,7 +22,9 @@ namespace erf_actuator {
 inline bool open_log (std::ofstream& out, const std::string& fname, bool truncate)
 {
     const auto slash = fname.rfind('/');
-    if (slash != std::string::npos) { amrex::UtilCreateDirectory(fname.substr(0, slash), 0755); }
+    if (slash != std::string::npos && !amrex::UtilCreateDirectory(fname.substr(0, slash), 0755)) {
+        amrex::Abort("cannot create the directory of the diagnostics file '" + fname + "'");
+    }
     bool need_header = truncate;
     if (!truncate) {
         std::ifstream probe(fname, std::ios::ate);

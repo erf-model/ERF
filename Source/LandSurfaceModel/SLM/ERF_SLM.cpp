@@ -479,7 +479,8 @@ SLM::Init (const int& /*lev*/,
     // Following Noah-MP, zref is modified to become ztop (canopy top height) + dz0 (height above the ground of the center of the atmosphere's lowest cell)
     if (!use_wrfinput) {
         Real dz       = m_geom.CellSize(2);
-        // The ground nodes under every box, including those that start above the ground
+        // The ground nodes under every box, including those that start above the ground; its
+        //    plane k = 0 is also the ground heights Compute_Zrel_AtCellCenter wants
         const auto z_ground = (use_terrain) ? copy_ground_plane(*z_phys_nd, m_geom.Domain().smallEnd(2))
                                             : std::unique_ptr<MultiFab>{};
         for ( MFIter mfi(cons_in,TileNoZ()); mfi.isValid(); ++mfi) {
@@ -489,7 +490,7 @@ SLM::Init (const int& /*lev*/,
             auto zrefxy_arr = zrefxy.array(mfi);
 
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : myhalf*dz;
+                amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr, z_nd_arr) : myhalf*dz;
                 zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
             });
         }
@@ -1501,7 +1502,8 @@ void
 SLM::initialize_zrefxy ()
 {
     const Real dz = m_geom.CellSize(2);
-    // The ground nodes under every box, including those that start above the ground
+    // The ground nodes under every box, including those that start above the ground; its
+    //    plane k = 0 is also the ground heights Compute_Zrel_AtCellCenter wants
     const auto z_ground = use_terrain ? copy_ground_plane(*z_phys_nd, m_geom.Domain().smallEnd(2))
                                       : std::unique_ptr<MultiFab>{};
     for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
@@ -1514,7 +1516,7 @@ SLM::initialize_zrefxy ()
 
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
             if (landmask_arr(i, j, 0) == 1) {
-                const Real znd = z_nd_arr ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr)
+                const Real znd = z_nd_arr ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr, z_nd_arr)
                                            : myhalf * dz;
                 zrefxy_arr(i, j, 0) = ztop_arr(i, j, 0) + znd;
             }

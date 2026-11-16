@@ -60,6 +60,10 @@ public:
         pp.getarr("force", m_force, 0, 3);
         pp.get("epsilon", m_eps);
         pp.query("level", m_level);
+        pp.query("test_support", m_test_support);
+        if (m_test_support != "reach" && m_test_support != "nan" && m_test_support != "inverted") {
+            Abort("structure.example.test_support must be reach, nan or inverted, got " + m_test_support);
+        }
         for (int d = 0; d < 3; ++d) {
             if (!std::isfinite(m_pos[d]) || !std::isfinite(m_force[d])) {
                 Abort("structure.example.position and structure.example.force must be finite");
@@ -97,6 +101,21 @@ public:
                 Abort("structure.example.position lies outside the domain");
             }
         }
+        // What a model that drives a solver of its own needs before the first step. Values
+        // that mean "not given" are printed as words, so the CTests do not depend on how a
+        // stream formats the largest double.
+        std::ostringstream os;
+        os << std::setprecision(10) << "structure example: level " << init.lev;
+        if (init.fixed_dt > 0.0) { os << " steps with " << init.fixed_dt << " s"; }
+        else                     { os << " has no fixed step"; }
+        if (init.stop_time < std::numeric_limits<double>::max()) { os << ", the run stops at t = " << init.stop_time << " s"; }
+        else                                                     { os << ", the run has no stop time"; }
+        if (init.max_step < std::numeric_limits<int>::max()) { os << " or after level-0 step " << init.max_step; }
+        else                                                 { os << " and no step limit"; }
+        os << ", fully compressible: " << (init.fully_compressible ? "yes" : "no") << "\n";
+        Print() << os.str();
+        // A run that takes no step (a restart at its last step) ends where it starts
+        m_end_time = init.time;
         if (!init.restart_chkfile.empty()) {
             // The impulse given so far, written by write_checkpoint
             const std::string file = init.restart_chkfile + "/example/impulse";
@@ -142,7 +161,9 @@ public:
         erf_actuator::spread_forces(m_pos, m_force, m_eps, step.z_phys_nd, step.detJ_cc, step.geom,
                                     m_src_x, m_src_y, m_src_z);
         if (step.fire) { report_fire(step); }
-        for (int d = 0; d < 3; ++d) { m_impulse[d] += m_force[d] * step.dt; }
+        for (int d = 0; d < 3; ++d) { m_impulse[d] += static_cast<double>(m_force[d]) * step.dt; }
+        ++m_steps;
+        m_end_time = step.time + step.dt;
 
         Print() << std::setprecision(10) << "structure example: t = " << step.time + step.dt
                 << " impulse_x = " << m_impulse[0] << " wind_x = " << m_wind[0] << "\n";
@@ -152,6 +173,14 @@ public:
     {
         // The point with its kernel's reach (3 epsilon), as advance() checks the coverage
         const Real r = Real(3.0) * m_eps;
+        // For ERF's tests of its check of these boxes: a box no model should return
+        if (m_test_support == "nan") {
+            const Real nan = std::numeric_limits<Real>::quiet_NaN();
+            return {RealBox(m_pos[0] - r, nan, m_pos[2] - r, m_pos[0] + r, m_pos[1] + r, m_pos[2] + r)};
+        }
+        if (m_test_support == "inverted") {
+            return {RealBox(m_pos[0] + r, m_pos[1] - r, m_pos[2] - r, m_pos[0] - r, m_pos[1] + r, m_pos[2] + r)};
+        }
         return {RealBox(m_pos[0] - r, m_pos[1] - r, m_pos[2] - r, m_pos[0] + r, m_pos[1] + r, m_pos[2] + r)};
     }
 
@@ -162,13 +191,19 @@ public:
         MultiFab::Add(zmom_src, m_src_z, 0, 0, 1, 0);
     }
 
+    void finalize () override
+    {
+        Print() << std::setprecision(10) << "structure example: finished at t = " << m_end_time << " after "
+                << m_steps << " steps of this run\n";
+    }
+
     void write_checkpoint (const std::string& checkpointname) const override
     {
         const std::string dir = checkpointname + "/example";
         if (ParallelDescriptor::IOProcessor()) {
             if (!UtilCreateDirectory(dir, 0755)) { CreateDirectoryFailed(dir); }
             std::ofstream os(dir + "/impulse");
-            os << std::setprecision(std::numeric_limits<Real>::max_digits10)
+            os << std::setprecision(std::numeric_limits<double>::max_digits10)
                << m_impulse[0] << " " << m_impulse[1] << " " << m_impulse[2] << "\n";
         }
         ParallelDescriptor::Barrier();
@@ -207,8 +242,11 @@ private:
     std::vector<Real> m_force;
     Real m_eps = Real(0.0);
     int m_level = -1;
+    std::string m_test_support = "reach";   // what support() returns: the kernel's reach, or a box ERF must refuse
     int m_lev = -1;   // the level of the last advance()
-    std::array<Real,3> m_impulse{{Real(0.0), Real(0.0), Real(0.0)}};
+    std::array<double,3> m_impulse{{0.0, 0.0, 0.0}};
+    int m_steps = 0;            // steps advanced in this run (not checkpointed)
+    double m_end_time = 0.0;    // end of the last step advanced, or the start time [s]
     std::vector<Real> m_wind{Real(0.0), Real(0.0), Real(0.0)};
     MultiFab m_src_x, m_src_y, m_src_z;
 };

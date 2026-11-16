@@ -51,57 +51,13 @@ amrex::Real fire_precip_rate_mm_hr (amrex::Real accum_now_kgm2,
 
 /**
  * @brief Total liquid-water-equivalent surface precipitation accumulation [kg/m2]
- *        of every column, from the scheme-native accumulators.
- *
- * Fills accum_2d, a one-component MultiFab on the level's boxes coarsened to one
- * cell in z (box n of accum_2d is box n of the accumulators, with the same
- * owner), from the k = klo plane of the sources. Schemes that provide a total
- * give it directly; schemes that provide the species give their sum, so
- * nothing is counted twice (the same rule as the 2D plotfile precipitation
- * diagnostics). Without any source the field is zero.
+ *        of every column: surface_precip_accum_k0 (ERF_SurfacePrecipitation.H).
  */
 inline void fire_surface_precip_accum_k0 (amrex::MultiFab& accum_2d,
                                           const SurfacePrecipAccumulationSources& sources,
                                           int klo)
 {
-    using namespace amrex;
-    accum_2d.setVal(Real(0.0));
-    if (!surface_precip_has_any_source(sources)) { return; }
-
-    const bool has_total   = surface_precip_has_source(sources.total);
-    const bool has_rain    = surface_precip_has_source(sources.rain);
-    const bool has_snow    = surface_precip_has_source(sources.snow);
-    const bool has_graupel = surface_precip_has_source(sources.graupel);
-    const bool has_hail    = surface_precip_has_source(sources.hail);
-    const Real f_total   = sources.total.native_to_kg_m2;
-    const Real f_rain    = sources.rain.native_to_kg_m2;
-    const Real f_snow    = sources.snow.native_to_kg_m2;
-    const Real f_graupel = sources.graupel.native_to_kg_m2;
-    const Real f_hail    = sources.hail.native_to_kg_m2;
-
-    for (MFIter mfi(accum_2d, false); mfi.isValid(); ++mfi) {
-        Array4<Real> a = accum_2d.array(mfi);
-        Array4<const Real> total   = has_total   ? sources.total.accum->const_array(mfi)   : Array4<const Real>{};
-        Array4<const Real> rain    = has_rain    ? sources.rain.accum->const_array(mfi)    : Array4<const Real>{};
-        Array4<const Real> snow    = has_snow    ? sources.snow.accum->const_array(mfi)    : Array4<const Real>{};
-        Array4<const Real> graupel = has_graupel ? sources.graupel.accum->const_array(mfi) : Array4<const Real>{};
-        Array4<const Real> hail    = has_hail    ? sources.hail.accum->const_array(mfi)    : Array4<const Real>{};
-        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept
-        {
-            const int i = iv[0], j = iv[1];
-            Real v;
-            if (has_total) {
-                v = total(i, j, klo) * f_total;
-            } else {
-                v = Real(0.0);
-                if (has_rain)    { v += rain(i, j, klo)    * f_rain; }
-                if (has_snow)    { v += snow(i, j, klo)    * f_snow; }
-                if (has_graupel) { v += graupel(i, j, klo) * f_graupel; }
-                if (has_hail)    { v += hail(i, j, klo)    * f_hail; }
-            }
-            a(i, j, 0) = v;
-        });
-    }
+    surface_precip_accum_k0(accum_2d, sources, klo);
 }
 
 /**

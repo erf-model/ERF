@@ -754,6 +754,7 @@ Compute_Z_AtWFace (const int &i, const int &j, const int &k,
  * @param[in] i x-index
  * @param[in] j y-index
  * @param[in] k z-index
+ * @param[in] z_sfc_nd Nodal physical height field of the surface.
  * @param[in] z_nd Nodal physical height field.
  * @return Relative height at cell center.
  */
@@ -761,19 +762,17 @@ AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_Zrel_AtCellCenter (const int &i, const int &j, const int &k,
+                           const amrex::Array4<const amrex::Real>& z_sfc_nd,
                            const amrex::Array4<const amrex::Real>& z_nd)
 {
     const amrex::Real z_cc = amrex::Real(0.125)*(  z_nd(i  ,j  ,k) + z_nd(i  ,j  ,k+1) +
                                                  + z_nd(i+1,j  ,k) + z_nd(i+1,j  ,k+1)
                                                  + z_nd(i  ,j+1,k) + z_nd(i  ,j+1,k+1)
                                                  + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1));
+    const amrex::Real z0_wf = fourth*( z_sfc_nd(i  ,j  ,0) + z_sfc_nd(i  ,j+1,0)
+                                     + z_sfc_nd(i+1,j  ,0) + z_sfc_nd(i+1,j+1,0));
 
-    // Note: we assume the z_nd array spans from the bottom to top of the domain
-    // i.e. no domain decomposition across processors in vertical direction
-    const amrex::Real z0_cc = fourth*( z_nd(i  ,j  ,0) + z_nd(i  ,j+1,0)
-                                     + z_nd(i+1,j  ,0) + z_nd(i+1,j+1,0));
-
-    return (z_cc - z0_cc);
+    return (z_cc - z0_wf);
 }
 
 

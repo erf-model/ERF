@@ -1,5 +1,5 @@
 /**
- *  Define the Exner pressure at this RK stage
+ *  Define the Exner pressure at this RK stage, and the pressure for the acoustic sub-step on a moving mesh
  */
     auto make_pi_stage = [&](const MultiFab& cons_state)
     {
@@ -25,6 +25,18 @@
               auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : zero;
               pi_stage_arr(i,j,k) = getExnergivenRTh(cons_arr(i,j,k,RhoTheta_comp), rdOcp, qv_for_p);
           });
+
+          // The complete pressure of the stage state, from the function that make_gradp_pert uses for the
+          // slow tendency.  The stage state does not change during the sub-steps, so erf_substep_MT takes
+          // it from here
+          if (l_need_p_stage) {
+              const Array4<Real>& p_stage_arr = p_stage.array(mfi);
+              amrex::ParallelFor(gbx1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+              {
+                  auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : zero;
+                  p_stage_arr(i,j,k) = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp), qv_for_p);
+              });
+          }
       } // mfi
     };
 

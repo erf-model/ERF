@@ -147,11 +147,13 @@ public:
      * @param[out] mf_SMark MultiFab to fill with SMark values.
      * @param[in] mf_Nturb MultiFab containing turbine counts.
      * @param[in,out] z_phys_cc Physical height MultiFab.
+     * @param[in] z_sfc_nd Heights of the ground at the nodes.
      */
     void fill_SMark_multifab_mesoscale_models (const amrex::Geometry& geom,
                                           amrex::MultiFab& mf_SMark,
                                           const amrex::MultiFab& mf_Nturb,
-                                          std::unique_ptr<amrex::MultiFab>& z_phys_cc);
+                                          std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                                          const std::unique_ptr<amrex::MultiFab>& z_sfc_nd);
 
     /**
      * @brief Write turbine locations to a VTK file.

@@ -1,0 +1,9 @@
+# inputs_structure_example with the run's end given by dates (Structures_ExampleModel_RunInfo).
+# ERF then holds start_time and stop_time as seconds since 1970; the model must be told
+# the stop on its own clock, 1 s. With stop_datetime given, ERF does not read stop_time,
+# so the stop_time of the included deck has no effect.
+
+FILE = inputs_structure_example
+
+start_datetime = "2026-01-01 00:00:00"
+stop_datetime  = "2026-01-01 00:00:01"

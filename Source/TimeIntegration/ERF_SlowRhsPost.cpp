@@ -53,6 +53,8 @@ auxiliary_host_integrator (const SolverChoice& solverChoice, const int level)
  * @param[in   ] avg_xmom
  * @param[in   ] avg_ymom
  * @param[in   ] avg_zmom
+ * @param[in   ] upw_dir upwind direction used by erf_slow_rhs_pre in this stage, on a
+ *                       pseudo-incompressible level (nullptr otherwise: the mass flux picks it)
  * @param[in   ] xvel x-component of velocity
  * @param[in   ] yvel y-component of velocity
  * @param[in   ] zvel z-component of velocity
@@ -94,6 +96,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                               MultiFab& avg_xmom,
                               MultiFab& avg_ymom,
                               MultiFab& avg_zmom,
+                        const Array<const MultiFab*,AMREX_SPACEDIM>& upw_dir,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
                         const MultiFab& zvel,
@@ -320,12 +323,20 @@ void erf_slow_rhs_post (int level, int finest_level,
         const MultiFab& stage_cons_anchor = S_old[IntVars::cons];
         const MultiFab& stage_cons_input = S_new[IntVars::cons];
         MultiFab& stage_cons_target = S_data[IntVars::cons];
+        erf_sbm::SBMStageMixingInputs sbm_mixing_inputs;
+        const erf_sbm::SBMStageMixingInputs* sbm_mixing = nullptr;
+        if (sbm_transport->mixes_particles()) {
+            sbm_mixing_inputs = erf_sbm::make_stage_mixing_inputs(
+                *sbm_transport, eddyDiffs, mapfac, ax.get(), ay.get(),
+                stretched_dz_d.data());
+            sbm_mixing = &sbm_mixing_inputs;
+        }
         sbm_transport->advance_stage_from_host(
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
             *sbm_state_manager, stage_cons_anchor, stage_cons_input,
             stage_cons_target, avg_xmom, avg_ymom, avg_zmom, geom,
             solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr,
-            sbm_parent_stage);
+            sbm_parent_stage, sbm_mixing);
     }
 
     // *************************************************************************
@@ -403,6 +414,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> avg_xmom_arr = avg_xmom.array(mfi);
         Array4<Real> avg_ymom_arr = avg_ymom.array(mfi);
         Array4<Real> avg_zmom_arr = avg_zmom.array(mfi);
+        // Pseudo-incompressible: the upwind side is the one the projection picked
+        const Array4<const Real> upw_x_arr = upw_dir[0] ? upw_dir[0]->const_array(mfi) : avg_xmom.const_array(mfi);
+        const Array4<const Real> upw_y_arr = upw_dir[1] ? upw_dir[1]->const_array(mfi) : avg_ymom.const_array(mfi);
+        const Array4<const Real> upw_z_arr = upw_dir[2] ? upw_dir[2]->const_array(mfi) : avg_zmom.const_array(mfi);
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
@@ -607,6 +622,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                             }
                             AdvectionSrcForScalars(tbx, start_comp, num_comp,
                                                    avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                                   upw_x_arr, upw_y_arr, upw_z_arr,
                                                    cur_prim, cell_rhs,
                                                    detJ_arr, dxInv, mf_mx, mf_my,
                                                    horiz_adv_type, vert_adv_type,

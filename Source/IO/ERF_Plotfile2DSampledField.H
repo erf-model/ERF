@@ -96,6 +96,7 @@ amrex::Real sampled_field_value (SampledFieldID field_id,
                                  const amrex::Array4<const amrex::Real>& cons_arr,
                                  const amrex::Array4<const amrex::Real>& z_phys_cc_arr,
                                  const amrex::Array4<const amrex::Real>& z_phys_nd_arr,
+                                 const amrex::Array4<const amrex::Real>& z_sfc_nd_arr,
                                  const amrex::Array4<const amrex::Real>& p_hse_arr,
                                  bool have_z_phys_cc,
                                  bool use_hse_pressure,
@@ -130,7 +131,7 @@ amrex::Real sampled_field_value (SampledFieldID field_id,
         }
         return Compute_Z_AtCellCenter(i, j, k, z_phys_nd_arr);
     case SampledFieldID::HeightAGL:
-        return Compute_Zrel_AtCellCenter(i, j, k, z_phys_nd_arr);
+        return Compute_Zrel_AtCellCenter(i, j, k, z_sfc_nd_arr, z_phys_nd_arr);
     case SampledFieldID::Qv:
         return has_moisture ? cons_arr(i, j, k, moisture_indices.qv) / rho : amrex::Real(0.0);
     case SampledFieldID::Qc:

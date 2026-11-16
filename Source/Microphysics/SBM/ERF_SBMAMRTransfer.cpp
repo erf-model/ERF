@@ -968,13 +968,14 @@ static bool prolong_carrier_relative_chunks (
 
         amrex::Vector<amrex::BCRec> bcs(
             static_cast<std::size_t>(chunk_components));
-        // PCInterp currently ignores these records under the periodic-only
-        // M4a gate. Keep every face explicit; this is not a nonperiodic BC
-        // policy.
+        // Valid fine cells only: piecewise-constant prolongation reads the
+        // in-domain parent and never these records or a physical ghost.
         for (auto& bc : bcs) {
             for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
-                bc.setLo(direction, amrex::BCType::int_dir);
-                bc.setHi(direction, amrex::BCType::int_dir);
+                const int type = fine_geometry.isPeriodic(direction)
+                    ? amrex::BCType::int_dir : amrex::BCType::foextrap;
+                bc.setLo(direction, type);
+                bc.setHi(direction, type);
             }
         }
         amrex::InterpFromCoarseLevel(
@@ -1054,12 +1055,12 @@ static bool prolong_carrier_relative_spectrum_impl (
         "prolongation candidate must be separate from both input tuples and match the fine SBM layout";
     if (local_candidate_ok) {
         for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
-            if (!coarse_geometry.isPeriodic(direction) ||
-                !fine_geometry.isPeriodic(direction)) {
+            if (coarse_geometry.isPeriodic(direction) !=
+                fine_geometry.isPeriodic(direction)) {
                 local_candidate_ok = false;
                 local_candidate_diagnostic =
-                    "M4a carrier-relative prolongation requires periodic "
-                    "geometry";
+                    "carrier-relative prolongation requires matching coarse and "
+                    "fine periodicity";
                 break;
             }
         }
@@ -1262,11 +1263,12 @@ bool RemapRegriddedSpectrumPrivate (
         "regrid candidate must be separate from the coarse, retained, and carrier inputs";
     if (local_candidate_ok) {
         for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
-            if (!coarse_geometry.isPeriodic(direction) ||
-                !fine_geometry.isPeriodic(direction)) {
+            if (coarse_geometry.isPeriodic(direction) !=
+                fine_geometry.isPeriodic(direction)) {
                 local_candidate_ok = false;
                 local_candidate_diagnostic =
-                    "M4b carrier-relative regrid requires periodic geometry";
+                    "carrier-relative regrid requires matching coarse and fine "
+                    "periodicity";
                 break;
             }
         }

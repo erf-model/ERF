@@ -141,6 +141,7 @@ public:
          amrex::MultiFab* qheating_rates,
          amrex::MultiFab* rad_fluxes,
          amrex::MultiFab* z_phys,
+         amrex::MultiFab* z_sfc,
          amrex::MultiFab* lat_ptr,
          amrex::MultiFab* lon_ptr,
          const bool force_update,
@@ -162,7 +163,7 @@ public:
         set_grids(level, step, time, dt, ba, geom,
                   cons_in, lmask, t_surf,
                   lsm_input_ptrs, qheating_rates,
-                  rad_fluxes, z_phys, lat_ptr, lon_ptr,
+                  rad_fluxes, z_phys, z_sfc, lat_ptr, lon_ptr,
                   force_update);
         rad_run_impl(lsm_output_ptrs);
         declin = m_declin;
@@ -186,6 +187,7 @@ public:
                amrex::MultiFab* qheating_rates,
                amrex::MultiFab* rad_fluxes,
                amrex::MultiFab* z_phys,
+               amrex::MultiFab* z_sfc,
                amrex::MultiFab* lat,
                amrex::MultiFab* lon,
                const bool force_update);
@@ -335,6 +337,9 @@ private:
 
     // Pointer to the terrain heights
     amrex::MultiFab* m_z_phys = nullptr;
+
+    // Pointer to the heights of the ground at the nodes, given with m_z_phys
+    amrex::MultiFab* m_z_sfc = nullptr;
 
     // Pointer to latitude and longitude
     amrex::MultiFab* m_lat = nullptr;

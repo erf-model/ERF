@@ -534,6 +534,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             amrex::Print() << "Warning: LSM model is being used, but no mapping is defined to fill its variables from WRFinput!" << std::endl;
         }
     }
+
+    // The land and soil fields that no land model takes. They are asked for when the
+    // two-stream force-restore balance evolves the surface without a land model, each of
+    // them is optional, and they go to wrf_surface_fields as the file gives them.
+    // A level put together from several files takes each file's part; a field that the
+    // files do not give on every column of the level is reported and not held.
+    const bool read_surface_fields = !use_lsm &&
+        (solverChoice.rad_type == RadiationType::TwoStream) &&
+        solverChoice.radChoice.seb_prognostic_enable;
+    wrf_surface_fields.clear(lev);
+    if (read_surface_fields) {
+        for (const auto& d : WRFSurfaceFields::catalog()) { NC_names.push_back(d.nc_name); }
+    }
     int nvar = NC_names.size();
 
     auto& lev_new = vars_new[lev];
@@ -724,16 +737,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
                 (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
                 (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
-            const bool required_hydrometeor = solverChoice.use_wrf_bdy_qc_qi &&
-                ((var_name == "QCLOUD" && solverChoice.moisture_indices.qc >= 0) ||
-                 (var_name == "QICE"   && solverChoice.moisture_indices.qi >= 0) ||
-                 (var_name == "QRAIN"  && solverChoice.moisture_indices.qr >= 0) ||
-                 (var_name == "QSNOW"  && solverChoice.moisture_indices.qs >= 0) ||
-                 (var_name == "QGRAUP" && solverChoice.moisture_indices.qg >= 0));
-            if (!success && required_hydrometeor) {
-                amrex::Abort(std::string("erf.use_wrf_bdy_qc_qi requires " + var_name +
-                                         " in wrfinput for the active moisture component").c_str());
-            }
+            // With a land model these names are its required inputs; without one they
+            // are the optional fields of wrf_surface_fields.
+            const WRFSurfaceFields::Descriptor* sfc_desc =
+                read_surface_fields ? WRFSurfaceFields::find(var_name) : nullptr;
+            const bool is_surface_field = (sfc_desc != nullptr);
+            has_fallback_behavior = has_fallback_behavior || is_surface_field;
             if (!success && !has_fallback_behavior) {
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
@@ -741,10 +750,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             FArrayBox var_fab;
             FArrayBox var_fab_crse;
 
+            // Number of z indices of the variable in the file (the soil layers of a soil
+            // variable); the file's metadata, the same on every rank
+            int file_nz = 1;
+
             if (success) {
                 // The box the whole variable covers, in this level's index space
                 Box var_box(file_box);
                 var_box.shift(shift_by);
+                file_nz = var_box.length(2);
 
 
                 // In the case where the array is 1D in the z-direction, the destination box needs to also
@@ -758,9 +772,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
                     subdomain_tmp.setBig(1,subdomain_tmp.smallEnd(1));
                 }
-                // For 2D variables like MAPFAC_U, MAPFAC_V, PSFC, MUB, etc.
+                // For 2D variables like MAPFAC_U, MAPFAC_V, PSFC, MUB, etc.: they sit at k = 0
+                //    in the file, and in ba2d and every 2D field they are copied into, also
+                //    when this level's region does not start at the bottom of the domain
                 if (nz == 1) {
-                    subdomain_tmp.setBig(2,subdomain_tmp.smallEnd(2));
+                    subdomain_tmp.setRange(2, var_box.smallEnd(2));
                 }
 
                 Box subdomain_to_fill_typed(convert(subdomain_tmp,var_box.ixType()));
@@ -777,9 +793,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 // fields, whose third index is a soil layer rather than an atmospheric
                 // level even though their fab is staggered in z.
                 // *********************************************************************
-                const bool is_soil_var = (var_name == "TSLB" || var_name == "SMOIS" ||
-                                          var_name == "SH2O" || var_name == "ZS"    ||
-                                          var_name == "DZS");
+                const bool is_soil_var = WRFSurfaceFields::has_soil_layers(var_name) ||
+                                         (var_name == "SH2O");
                 const bool refine_in_z = (rr_z > 1) && (nz > 1) && !is_soil_var;
 
                 Box subdomain_crse(local_to_fill);
@@ -1306,6 +1321,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               (soil_type_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
           }
 
+          // The optional land and soil fields, taken as read from the file, like the
+          // land model's inputs below: the third index of a soil field is the soil
+          // layer. Each file gives the part of the level it covers; the checks and the
+          // ghost cells follow the last file (finish_level).
+          if (is_surface_field && success) {
+              if (sfc_desc->kind == WRFSurfaceFields::Kind::LayerColumn) {
+                  wrf_surface_fields.set_soil_layers(lev, sfc_desc->id, var_fab_from_file);
+              } else {
+                  wrf_surface_fields.fill(lev, sfc_desc->id, ba2d[lev], dm, ngv, file_nz,
+                                          var_fab_from_file, subdomain_to_fill);
+              }
+          }
+
           // Initialize any LSM variables
           if (use_lsm) {
               auto &lsm_wrfmap = lsm.Get_WRFInputNames();
@@ -1459,9 +1487,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               var_fab.clear();
           }
         } // ivar
+
         Print() << "\n";
         have_read_nc_init_file[lev][idx] = 1;
     } // idx
+
+    // After the last file: reduce the checks over the ranks, report, fill the ghost cells
+    if (read_surface_fields) { wrf_surface_fields.finish_level(lev, geom[lev].periodicity()); }
 
     // Convert the velocities using the map factors
     //
@@ -2313,20 +2345,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     << " -- reading the boundary data from " << nc_bdy_file << " instead" << std::endl;
             use_erfbdy = false;
         }
-        const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
-            wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
         if (write_erfbdy) {
-            nvars_erfbdy = separate_hydrometeors
-                         ? WRFBdyHydrometeorVars::NumTypes
-                         : (solverChoice.use_wrf_bdy_qc_qi
-                            ? WRFBdyVars::NumTypes : WRFBdyVars::LegacyNumTypes);
+            nvars_erfbdy = WRFBdyVars::NumTypes;
         }
-        auto repack_runtime_bdy = [&] (const int itime) {
-            repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-            repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-            repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-            repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-        };
 
         // Path 1: Load from existing erfbdy file.
         if (use_erfbdy) {
@@ -2339,17 +2360,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
                                                        bdy_times, start_bdy_time, final_bdy_time);
 
-            if (nvars_erfbdy != WRFBdyVars::LegacyNumTypes &&
-                nvars_erfbdy != WRFBdyVars::NumTypes &&
-                nvars_erfbdy != WRFBdyHydrometeorVars::NumTypes) {
-                amrex::Error("ERFBdy cache has an unsupported boundary-variable layout");
-            }
-            const int expected_bdy_nvars = separate_hydrometeors
-                ? WRFBdyHydrometeorVars::NumTypes
-                : (solverChoice.use_wrf_bdy_qc_qi ? WRFBdyVars::NumTypes
-                                                  : WRFBdyVars::LegacyNumTypes);
-            if (nvars_erfbdy != expected_bdy_nvars) {
-                amrex::Error("ERFBdy cache layout does not match the active WRF hydrometeor boundary mode; regenerate it from wrfbdy");
+            if (nvars_erfbdy != WRFBdyVars::NumTypes) {
+                amrex::Error("ERFBdy cache has an unsupported boundary-variable layout; regenerate it from wrfbdy");
             }
 
             Print() << "erfbdy file contains " << ntimes_erfbdy << " time slices" << std::endl;
@@ -2368,7 +2380,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                  bdy_data_xlo, bdy_data_xhi,
                                  bdy_data_ylo, bdy_data_yhi,
                                  nvars_erfbdy, real_width);
-                repack_runtime_bdy(itime);
                 Print() << "Loaded erfbdy time slice " << itime << std::endl;
             }
 
@@ -2413,9 +2424,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                              lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                              r_hse, area_vec, geom[lev], use_moist,
-                                             solverChoice.use_wrf_bdy_qc_qi,
-                                             solverChoice.moisture_indices.qi >= 0,
-                                             separate_hydrometeors,
                                              solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
 
@@ -2427,10 +2435,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                          nvars_erfbdy);
                     Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
                 }
-                if (itime == ntimes_total-1 && itime > 0) {
-                    repack_runtime_bdy(itime-1);
-                }
-                repack_runtime_bdy(itime);
             } // itime
 
             // If writing erfbdy and we have more than 3 times, then process the remaining times.
@@ -2442,9 +2446,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                                  wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                                  lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                                  r_hse, area_vec, geom[lev], use_moist,
-                                                 solverChoice.use_wrf_bdy_qc_qi,
-                                                 solverChoice.moisture_indices.qi >= 0,
-                                                 separate_hydrometeors,
                                                  solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
 
@@ -2453,11 +2454,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                          bdy_data_ylo[itime], bdy_data_yhi[itime],
                                          nvars_erfbdy);
                     Print() << "Wrote erfbdy time index " << itime << " of " << ntimes_total-1 << std::endl;
-
-                    if (itime == ntimes_total-1 && itime > 0) {
-                        repack_runtime_bdy(itime-1);
-                    }
-                    repack_runtime_bdy(itime);
 
                     bdy_data_xlo[itime].clear();
                     bdy_data_xhi[itime].clear();
@@ -2712,7 +2708,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                              "init_base_state_from_wrfinput requires boxes that "
                                              "reach the bottom of the region being initialized: "
                                              "each column is seeded there and integrated upward. "
-                                             "Set erf.max_grid_size_z large enough that the grids "
+                                             "Set amr.max_grid_size_z large enough that the grids "
                                              "are not decomposed in z.");
             bx.makeSlab(2,klo);
 

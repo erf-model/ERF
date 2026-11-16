@@ -113,12 +113,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 "M2 auxiliary inert tracer fixture requires triply periodic geometry");
         }
     }
-    if (sbm_state_manager) {
-        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom[lev].isPeriodic(dir),
-                "SBM M3 currently requires triply periodic geometry; spectral physical boundary filling is not implemented");
-        }
-    }
     //
     // Note that "time" here is elapsed time
     //
@@ -225,6 +219,23 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             sbm_state_manager->new_state_for_initialization(lev).setVal(
                 solverChoice.sbm_fixture_initial_state[static_cast<std::size_t>(comp)], comp, 1, 0);
         }
+        if (!solverChoice.sbm_fixture_initial_state_xhi.empty()) {
+            const auto& upper_state = solverChoice.sbm_fixture_initial_state_xhi;
+            Gpu::DeviceVector<Real> upper(upper_state.size());
+            Gpu::copy(Gpu::hostToDevice, upper_state.begin(), upper_state.end(), upper.begin());
+            const Real* upper_values = upper.data();
+            const int x_lo = geom[lev].Domain().smallEnd(0);
+            const int nx = geom[lev].Domain().length(0);
+            auto& spectrum = sbm_state_manager->new_state_for_initialization(lev);
+            for (MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
+                const auto values = spectrum.array(mfi);
+                ParallelFor(mfi.validbox(), spectrum.nComp(),
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                        if (2 * (i - x_lo) + 1 > nx) { values(i, j, k, n) = upper_values[n]; }
+                    });
+            }
+            Gpu::streamSynchronize();
+        }
 #ifdef ERF_SBM_AMR_QUALIFICATION
         sbm_qualification_apply_initial_profile(lev);
 #endif
@@ -233,11 +244,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         bind_sbm_amr_flux_registers(lev);
         if (lev > 0) { bind_sbm_amr_flux_registers(lev - 1); }
     }
-
-    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
-    // defaults; a level that evolves it needs its parent's values instead, or it
-    // radiates at erf.rad_t_sfc for its first step.
-    fill_seb_from_coarse(lev);
 
     //********************************************************************************************
     // Land Surface Model
@@ -393,6 +399,16 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         }
     }
 
+    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
+    // defaults; a level that evolves it needs its parent's values instead, or it
+    // radiates at erf.rad_t_sfc for its first step. The fill reads this level's land mask,
+    // so it comes after init_only: with wrfinput the mask is read from the level's file or
+    // taken from the parent there (init_from_wrfinput, Interp2DArrays), and until then it
+    // holds erf.is_land of the level. Not on a restart: the parent holds the scalar
+    // defaults here and the mask is still erf.is_land, and the checkpoint read sets the
+    // state and the mask of every level afterwards.
+    if (restart_chkfile.empty()) { fill_seb_from_coarse(lev); }
+
     // Initialize the non-cons auxiliary tracer only after the host atmospheric
     // density has been initialized from the selected problem configuration.
     if (auxiliary_inert_tracer) {
@@ -427,7 +443,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // write out the vtk files for wind turbine location and/or
     // actuator disks
     #ifdef ERF_USE_WINDFARM
+    if (solverChoice.windfarm_type != WindFarmType::None) {
         init_windfarm(lev);
+    }
     #endif
 
     // ********************************************************************************************
@@ -644,11 +662,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                               interval_means[lev-1].get(), t_mean_cnt[lev-1],
                               geom[lev-1], geom[lev], refRatio(lev-1));
     }
-
-    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
-    // defaults; a level that evolves it needs its parent's values instead, or it
-    // radiates at erf.rad_t_sfc for its first step.
-    fill_seb_from_coarse(lev);
 
     //
     // Note that t_new = time here is elapsed time
@@ -899,6 +912,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
 
+    // The wrfinput land and soil fields: a level without a file of its own takes those of
+    // level lev-1. A level that has just read its own file keeps what the file gave.
+    wrf_surface_fields.remake(lev, ba2d[lev], dm, geom[lev].periodicity(), refRatio(lev-1),
+                              !has_own_init_file(lev), verbose);
+
     // Populate dz_min for dynamically-created fine levels (non-terrain path).
     if (static_cast<int>(dz_min.size()) <= lev) { dz_min.resize(lev+1); }
     dz_min[lev] = geom[lev].CellSize(2);
@@ -908,6 +926,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 #ifdef ERF_USE_NETCDF
     }
 #endif
+
+    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
+    // defaults; a level that evolves it needs its parent's values instead, or it
+    // radiates at erf.rad_t_sfc for its first step. The fill reads this level's land mask,
+    // so it comes after both branches above: a level with its own wrfinput or metgrid file
+    // has read its mask, and a wrfinput level with no file has taken its parent's
+    // (Interp2DArrays). Until then the mask holds erf.is_land of the level. RemakeLevel has
+    // the same order.
+    fill_seb_from_coarse(lev);
 
     // ********************************************************************************************
     // Initialize the integrator class
@@ -1142,19 +1169,20 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // path only became reachable when the single-level restriction on the prognostic SEB
     // was lifted -- before that a level carrying this state could never be regridded.)
     //
-    std::unique_ptr<MultiFab> old_seb_t_sfc, old_seb_q_sfc;
+    // t_sfc, q_sfc and, with the force-restore hydrology, its deep state and running totals
+    // (TwoStreamRadiation::seb_prognostic_fields).
+    Vector<std::unique_ptr<MultiFab>> old_seb;
     if (solverChoice.rad_type == RadiationType::TwoStream &&
         two_stream_rad.seb_prognostic_active())
     {
         auto keep = [] (MultiFab* src) -> std::unique_ptr<MultiFab> {
             if (!src) { return nullptr; }
             auto dst = std::make_unique<MultiFab>(src->boxArray(), src->DistributionMap(),
-                                                  1, src->nGrowVect());
-            MultiFab::Copy(*dst, *src, 0, 0, 1, src->nGrowVect());
+                                                  src->nComp(), src->nGrowVect());
+            MultiFab::Copy(*dst, *src, 0, 0, src->nComp(), src->nGrowVect());
             return dst;
         };
-        old_seb_t_sfc = keep(two_stream_rad.seb_t_sfc(lev));
-        old_seb_q_sfc = keep(two_stream_rad.seb_q_sfc(lev));
+        for (MultiFab* f : two_stream_rad.seb_prognostic_fields(lev)) { old_seb.push_back(keep(f)); }
     }
 
     // The EB factories of the new grids, which init_stuff defines the state with: built here,
@@ -1250,9 +1278,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     {
         if (lev > 0) { fill_seb_from_coarse(lev); }
 
-        MultiFab* new_seb[] = {two_stream_rad.seb_t_sfc(lev), two_stream_rad.seb_q_sfc(lev)};
-        MultiFab* old_seb[] = {old_seb_t_sfc.get(), old_seb_q_sfc.get()};
-        for (int i = 0; i < 2; i++) {
+        const Vector<MultiFab*> new_seb = two_stream_rad.seb_prognostic_fields(lev);
+        AMREX_ALWAYS_ASSERT(new_seb.size() == old_seb.size());
+        for (int i = 0; i < new_seb.size(); i++) {
             if (!new_seb[i] || !old_seb[i]) { continue; }
             IntVect ngv = new_seb[i]->nGrowVect(); ngv[2] = 0;
             //
@@ -1268,7 +1296,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             // (This is where the mapfac/PSFC idiom does not carry over: those halos are
             // consistent with their valid data, and these are not.)
             //
-            new_seb[i]->ParallelCopy(*old_seb[i], 0, 0, 1, IntVect(0), ngv,
+            new_seb[i]->ParallelCopy(*old_seb[i], 0, 0, new_seb[i]->nComp(), IntVect(0), ngv,
                                      geom[lev].periodicity());
             new_seb[i]->FillBoundary(geom[lev].periodicity());
         }
@@ -1545,6 +1573,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // those must not survive onto the new grids.
     for (auto& sst : sst_lev[lev]) { sst.reset(); }
     for (auto& tsk : tsk_lev[lev]) { tsk.reset(); }
+    // The wrfinput land and soil fields are data of the initial time that nothing rebuilds:
+    // they are carried onto the new grids, and the columns the old grids did not cover
+    // take the values of level lev-1, which regrid has already put on its new grids.
+    wrf_surface_fields.remake(lev, ba2d[lev], dm, geom[lev].periodicity(),
+                              (lev > 0) ? refRatio(lev-1) : IntVect(1),
+                              !has_own_init_file(lev), verbose);
     if (lat_m[lev]) {
         lat_m[lev].reset();
     }
@@ -1834,6 +1868,7 @@ ERF::ClearLevel (int lev)
     // those must not survive onto the new grids.
     for (auto& sst : sst_lev[lev]) { sst.reset(); }
     for (auto& tsk : tsk_lev[lev]) { tsk.reset(); }
+    wrf_surface_fields.clear(lev);
     if (lat_m[lev]) {
         lat_m[lev].reset();
     }

@@ -108,21 +108,29 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         const auto proc_ctx = buildProcessContext(a_lev);
         const auto dx_h = Geom(a_lev).CellSize();
-        const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
+        // recycled super-droplets land uniformly in physical space: one multiplicity, from the mean cell volume
+        const Real cell_volume = m_variable_dz ? meanCellVolume(a_lev, *a_z_phys_nd[a_lev])
+                                               : dx_h[0]*dx_h[1]*dx_h[2];
 
         const Box& dom = Geom(a_lev).Domain();
         const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
         const MFPtr& z_height = a_z_phys_nd[a_lev];
 
-        // number of super-droplets per cell
-        int num_sd_per_cell = m_num_sd_per_cell;
-        // number of physical particles per cell
-        Real num_par_per_cell = zero;
-        for (int i = 0; i < m_num_initializations; i++) {
-            num_par_per_cell += m_initializations[i]->numParticlesPerCell(cell_volume);
-        }
         // average multiplicity
-        auto mult_avg = num_par_per_cell / num_sd_per_cell;
+        Real mult_avg = zero;
+        if (m_variable_dz) {
+            const auto init_counts = initCellCountsHost();
+            mult_avg = SD_init_multiplicity(init_counts.data(), static_cast<int>(init_counts.size()), cell_volume);
+        } else {
+            // number of super-droplets per cell
+            const int num_sd_per_cell = m_num_sd_per_cell;
+            // number of physical particles per cell
+            Real num_par_per_cell = zero;
+            for (int i = 0; i < m_num_initializations; i++) {
+                num_par_per_cell += m_initializations[i]->numParticlesPerCell(cell_volume);
+            }
+            mult_avg = num_par_per_cell / num_sd_per_cell;
+        }
 
         Long np_recycle_total = 0;
 

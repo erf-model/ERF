@@ -13,7 +13,6 @@ using namespace amrex;
  * 3. Advection if enabled
  * 4. Coalescence if enabled
  * 5. Recycling of particles
- * 6. Computing diagnostics at specified intervals
  *
  * \param[in] a_dt Timestep size
  * \param[in] a_iter Current iteration number
@@ -134,11 +133,25 @@ void SuperDropletsMoist::Advance ( const Real& a_dt,
 
     // Recycle super-droplets
     m_super_droplets->Recycle( current_lev, a_z, a_iter, a_dt, m_recycle_particles );
+}
 
-    // Diagnostics on level 0 only (avoids double-counting)
-    if (current_lev == 0) {
-        m_super_droplets->Diagnostics(a_iter, current_lev, a_time, ((m_diagnostics_iter>0) && ((a_iter+1)%m_diagnostics_iter==0)));
-    }
+/*! \brief Diagnostics of the super-droplets of all levels at a step
+ *
+ * Called once all levels hold the state of the step. The distribution files are
+ * written at multiples of the diagnostics interval.
+ *
+ * \param[in] a_step Step of the state
+ * \param[in] a_time Time of the state
+ * \param[in] a_z Terrain height information
+ * \param[in] a_file_name_digits Minimum number of digits of the step in file names
+ */
+void SuperDropletsMoist::Diagnostics ( const int& a_step,
+                                       const Real& a_time,
+                                       const Vector<MFPtr>& a_z,
+                                       const int a_file_name_digits )
+{
+    const bool write_files = (m_diagnostics_iter > 0) && (a_step % m_diagnostics_iter == 0);
+    m_super_droplets->Diagnostics(a_step, 0, a_time, write_files, *a_z[0], a_file_name_digits);
 }
 
 #endif

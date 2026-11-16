@@ -30,6 +30,15 @@ public:
         amrex::ParmParse pp("erf");
         pp.queryAdd("tau_nudging", tau_nudging);
 
+        // Interpolate the sounding winds at the height above the local terrain
+        // instead of the physical height (terrain-fitted meshes)
+        pp.queryAdd("input_sounding_wind_above_ground", wind_above_ground);
+
+        // Interpolate the sounding theta at the height above the local terrain as
+        // well; rho*theta, and so the pressure, stays at the physical height, and
+        // each column is then rebalanced hydrostatically with that theta
+        pp.queryAdd("input_sounding_theta_above_ground", theta_above_ground);
+
         // Read in input_sounding filename
         n_sounding_files = pp.countval("input_sounding_file");
         if (n_sounding_files > 0) {
@@ -497,6 +506,8 @@ public:
     int ntimes;
 
     amrex::Real tau_nudging = amrex::Real(5.0); // time scale used for nudging
+    bool wind_above_ground{false}; // sounding winds by height above the local terrain
+    bool theta_above_ground{false}; // sounding theta by height above the local terrain
 
     amrex::Vector<std::string> input_sounding_file = {};
     amrex::Vector<amrex::Real> input_sounding_time = {};

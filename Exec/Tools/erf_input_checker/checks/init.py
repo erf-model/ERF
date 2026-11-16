@@ -44,7 +44,7 @@ class IdealInitChecker(InitChecker):
             if len(files) > 1 and not self.bool_("erf.nudging_from_input_sounding", False):
                 self.advise("erf.input_sounding_file", "several soundings are only used over time with erf.nudging_from_input_sounding = true")
         for key in ("erf.nc_init_file_0", "erf.nc_bdy_file", "erf.nc_low_file", "erf.real_width", "erf.use_real_bcs",
-                    "erf.use_wrf_bdy_density", "erf.use_wrf_bdy_qc_qi", "erf.wrfinput_zlevels_from_file"):
+                    "erf.use_wrf_bdy_density", "erf.wrfinput_zlevels_from_file"):
             if d.has(key):
                 self.warn(key, "only read for init_type = WRFInput / Metgrid / NCFile",
                           "Remove the key, or set erf.init_type to a real-data type.")

@@ -211,7 +211,10 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     // First, copy any of the conserved state variables into the output plotfile
     for (int i = 0; i < cons_names.size(); ++i) {
         if (containerHasElement(subvol_var_names, cons_names[i])) {
-            mf.ParallelCopy(vars_new[lev_for_sub][Vars::cons],i,mf_comp,1,1,0);
+            // the component behind the name, rather than its place in the name list
+            const int cons_comp = erf_plotfile::plot3d_conserved_component_index(cons_names[i]);
+            AMREX_ALWAYS_ASSERT(cons_comp >= 0 && cons_comp < vars_new[lev_for_sub][Vars::cons].nComp());
+            mf.ParallelCopy(vars_new[lev_for_sub][Vars::cons],cons_comp,mf_comp,1,1,0);
             mf_comp++;
         }
     }

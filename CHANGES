@@ -11,6 +11,12 @@
        beam. On by default with erf.ibseb.enable; erf.ibseb.two_stream_buildings = false
        keeps the previous answers (#5004)
 
+    -- Structure models are told the level's step, the stop time, max_step and whether a
+       level is fully compressible at initialize(), and get a finalize() call at the end
+       of the run. StructureStep::dt is now double: in single precision, out-of-tree
+       models that pass it where a Real is expected (e.g. std::min(Real, step.dt)) need
+       a static_cast<amrex::Real>, and plug-ins must be rebuilt (#5085)
+
 #26.11
     -- Implicit diffusion for all moist scalars (#4936)
 

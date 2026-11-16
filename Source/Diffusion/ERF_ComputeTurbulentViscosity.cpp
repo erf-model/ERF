@@ -920,6 +920,7 @@ void ComputeTurbulentViscosityRANS (int level,
  * @param[in]  geom problem geometry
  * @param[in]  mapfac map factors
  * @param[in]  z_phys_nd nodal physical z coordinates
+ * @param[in]  z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in]  z_phys_cc cell-centered physical z coordinates
  * @param[in]  solverChoice container with solver, diffusion, and turbulence parameters
  * @param[in]  SurfLayer optional surface-layer model
@@ -933,6 +934,7 @@ void ComputeTurbulentViscosityRANS (int level,
  * @param[in]  qheating_rates radiation heating rates (SW, LW components)
  * @param[in]  terrain_blank immersed forcing mask, or null
  * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
+ * @param[in]  Q_fire_atm lagged fire heat flux [W/m2] for the MRF w* boost, or null without it
  */
 void ComputeTurbulentViscosity (double dt,
                                 const MultiFab& xvel, const MultiFab& yvel,
@@ -944,6 +946,7 @@ void ComputeTurbulentViscosity (double dt,
                                 const Geometry& geom,
                                 Vector<std::unique_ptr<MultiFab>>& mapfac,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
+                                const std::unique_ptr<MultiFab>& z_sfc_nd,
                                 const std::unique_ptr<MultiFab>& z_phys_cc,
                                 const SolverChoice& solverChoice,
                                 std::unique_ptr<SurfaceLayer>& SurfLayer,
@@ -956,7 +959,8 @@ void ComputeTurbulentViscosity (double dt,
                                 bool vert_only,
                                 const MultiFab* qheating_rates,
                                 const MultiFab* terrain_blank,
-                                const MultiFab* forest_drag)
+                                const MultiFab* forest_drag,
+                                const MultiFab* Q_fire_atm)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
@@ -1019,37 +1023,37 @@ void ComputeTurbulentViscosity (double dt,
         ComputeDiffusivityMYJ(dt, xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
-                              level, bc_ptr, vert_only, z_phys_nd, z_phys_cc,
+                              level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
                               solverChoice.moisture_indices);
     } else if (turbChoice.pbl_type == PBLType::MYNN25) {
         ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
                                  geom, turbChoice, SurfLayer,
                                  use_terrain_fitted_coords, use_moisture,
-                                 level, bc_ptr, vert_only, z_phys_nd, z_phys_cc,
+                                 level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
                                  solverChoice.moisture_indices);
     } else if (turbChoice.pbl_type == PBLType::MYNNEDMF) {
         ComputeDiffusivityMYNNEDMF(xvel, yvel, cons_in, eddyViscosity,
                                    geom, turbChoice, SurfLayer,
                                    use_terrain_fitted_coords, use_moisture,
-                                   level, bc_ptr, vert_only, z_phys_nd, z_phys_cc,
+                                   level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
                                    solverChoice.moisture_indices);
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
-                              level, bc_ptr, vert_only, z_phys_nd, z_phys_cc,
+                              level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
                               solverChoice.moisture_indices);
     } else if (turbChoice.pbl_type == PBLType::MRF) {
         ComputeDiffusivityMRF(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
-                              level, bc_ptr, vert_only, z_phys_nd, z_phys_cc,
-                              solverChoice.moisture_indices, terrain_blank);
+                              level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
+                              solverChoice.moisture_indices, terrain_blank, Q_fire_atm);
     } else if (turbChoice.pbl_type == PBLType::YSUNew) {
         ComputeDiffusivityYSUNew(xvel, yvel, cons_in, eddyViscosity,
                                  geom, turbChoice, SurfLayer,
                                  use_terrain_fitted_coords, use_moisture,
-                                 level, bc_ptr, vert_only, z_phys_nd, z_phys_cc,
+                                 level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
                                  solverChoice.moisture_indices,
                                  qheating_rates, terrain_blank);
     } else if (turbChoice.uses_shoc_family()) {

@@ -3,6 +3,7 @@
 
 #include <type_traits>
 
+#include "AMReX_BCRec.H"
 #include "AMReX_Box.H"
 #include "AMReX_FArrayBox.H"
 #include "AMReX_Gpu.H"

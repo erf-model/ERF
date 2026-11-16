@@ -65,6 +65,7 @@
 #include <ERF_StationSampler.H>
 #include <ERF_ObsNudging.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_MassSource.H>
 #include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
 
@@ -78,8 +79,12 @@
 #ifdef ERF_USE_FIRE
 #include "ERF_FireCoupler.H"
 #endif
+#ifdef ERF_USE_DUST
+#include "ERF_DustModel.H"
+#endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
+#include "ERF_WRFSurfaceFields.H"
 #include "ERF_Plotfile2DCloudOptics.H"
 
 #ifdef ERF_USE_WINDFARM
@@ -87,6 +92,7 @@
 #endif
 #ifdef ERF_USE_MOVING_BODIES
 #include "ERF_StructureModel.H"
+#include "ERF_ActuatorSampling.H"
 #endif
 #include <ERF_SurfaceModel.H>
 
@@ -236,31 +242,31 @@ public:
     void GetFillableAtmosToOceanLanes (bool state_contract,
                                        amrex::Vector<int>& can_fill) const;
 
-    // weight_mf/index_mf are keyed by WeightFamily slot order
-    // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
-    // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
-    // lane below picks the pair matching its own destination stagger.
-    // dst_mskr/dst_msku/dst_mskv are REMORA wet/dry masks (1 = wet, 0 = land)
-    // on the rho/u-face/v-face destination layouts. dst_msku/dst_mskv are applied
-    // to the TauX/TauY lanes; dst_mskr is applied to the rho-centred *scalar* lanes
-    // (Patm, Tair, cloud, and the scalar flux lanes) but deliberately NOT to
-    // Uwind/Vwind, which are also rho-centred - so the wind lanes carry live
-    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there.
-    // REMORA re-masks on its own side, so this asymmetry is currently harmless.
-    // Pass nullptr to skip masking.
+    // Every lane is remapped from ERF's level-0 cell centres to REMORA's rho points with
+    // the one set of weights weight_mf/index_mf the driver builds for that pair of grids.
+    // The vectors (Uwind/Vwind and tau_x/tau_y) are sent as their eastward and northward
+    // components, turned from the grid axes with the grid orientation from lat_m/lon_m,
+    // so that the ocean can turn them to its own axes; the stress is averaged from the
+    // faces to the cell centres first.
+    // dst_mskr is REMORA's wet/dry mask (1 = wet, 0 = land) on the rho layout, applied
+    // to the scalar lanes (Patm, Tair, cloud) and to the flux lanes, tau_x/tau_y
+    // included, but deliberately NOT to Uwind/Vwind, so the wind lanes carry live
+    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there. REMORA
+    // re-masks on its own side, so this asymmetry is currently harmless. Pass nullptr to
+    // skip masking.
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
-                                const amrex::Vector<const amrex::MultiFab*>& weight_mf,
-                                const amrex::Vector<const amrex::iMultiFab*>& index_mf,
+                                const amrex::MultiFab& weight_mf,
+                                const amrex::iMultiFab& index_mf,
                                 int max_stencil_size,
-                                const amrex::MultiFab* dst_mskr = nullptr,
-                                const amrex::MultiFab* dst_msku = nullptr,
-                                const amrex::MultiFab* dst_mskv = nullptr);
-    // Apply ocean-model sea-surface temperature to the ERF lower boundary.
+                                const amrex::MultiFab* dst_mskr = nullptr);
+    // Apply ocean-model sea-surface temperature, and with erf.use_coupled_currents the
+    // surface current, to the ERF lower boundary.
     //
-    // state[0] carries SST in Kelvin on the layout reported by
+    // state[0] carries SST in Kelvin, and state[1] and state[2] the eastward and
+    // northward surface current in m/s, on the layout reported by
     // GetOceanToAtmosSurfaceLayout. erf_coverage is the per-cell coverage flag on
     // that same layout: nonzero where the driver's remap found at least one
-    // ocean donor for that ERF cell.
+    // ocean donor for that ERF cell. A cell without one is at rest.
     //
     // Coverage is a contract, not a hint. Where erf_coverage is zero the ocean
     // supplied nothing and state[0] holds the remap's zero fill, which is
@@ -637,6 +643,12 @@ public:
     [[nodiscard]] std::vector<amrex::Real>
     sbm_qualification_composite_inventory () const;
 
+    // SBM leaf-domain inventory and its boundary budget
+    // (Microphysics/SBM/ERF_SBMAMRCoupling.cpp); public because they launch device lambdas.
+    [[nodiscard]] std::vector<amrex::Real> sbm_composite_inventory () const;
+    void sbm_record_budget_reference ();
+    void sbm_check_budget (int nstep);
+
     // Do whatever writing needs to be done at intermediate times
     void WriteAtIntermediateTime (int nstep, double time);
 
@@ -664,6 +676,9 @@ public:
     // The volume fraction of each level for line and plane sampling, or nullptr without
     // immersed terrain
     amrex::Vector<const amrex::MultiFab*> sampling_volfrac () const;
+    // The ground of each level for line sampling (station_ground), or nullptr where the
+    // sampler does not need it
+    amrex::Vector<const amrex::MultiFab*> sampling_ground (const LineSampler& sampler);
 
     void derive_diag_profiles (double time,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
@@ -992,6 +1007,7 @@ public:
     void ibseb_check_two_stream_provider () const;
     void ibseb_check_two_stream_buildings () const;
     void ibseb_give_ground_walls (int lev);
+    void ibseb_give_roofs (int lev);
     [[nodiscard]] bool ibseb_two_stream_buildings () const {
         return ibseb_params.enable && ibseb_params.two_stream_buildings && solverChoice.rad_type == RadiationType::TwoStream;
     }
@@ -1233,8 +1249,26 @@ public:
     std::unique_ptr<amrex::MultiFab>  m_coupled_sst;
     std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
 
+    // The orientation of the level-0 grid (cosine and sine of the angle of its x axis
+    // from east) on ba2d[0], from lat_m and lon_m, for turning the vectors the coupler
+    // exchanges between the grid axes and east/north. Made by SetCouplerGridRotation, and
+    // made again when level 0's layout changes; null without lat/lon, where the grid is
+    // taken to be aligned with east.
+    std::unique_ptr<amrex::MultiFab> m_coupler_cos_alpha;
+    std::unique_ptr<amrex::MultiFab> m_coupler_sin_alpha;
+    bool m_warned_coupler_no_latlon = false;
+    void SetCouplerGridRotation ();
+    // The coupler's last eastward and northward surface current and its coverage, on the
+    // layout of GetOceanToAtmosSurfaceLayout, made again when that changes. The
+    // SurfaceLayer borrows them, and sets the current from them again when level 0 is
+    // remade.
+    std::unique_ptr<amrex::MultiFab>  m_coupled_current_east;
+    std::unique_ptr<amrex::MultiFab>  m_coupled_current_north;
+    std::unique_ptr<amrex::iMultiFab> m_coupled_current_valid;
+
     // One-shot latch so a misconfigured deck says so once rather than every step.
     bool m_warned_coupled_sst_declined = false;
+    bool m_warned_coupled_current_declined = false;
     // The coupled-SST diagnostics run on the first ApplyOceanSurfaceState call,
     // then only at erf.v >= 2.
     bool m_checked_coupled_sst = false;
@@ -1243,6 +1277,23 @@ public:
     amrex::Real m_warned_coupled_sst_min = amrex::Real(260.0);
     amrex::Real m_warned_coupled_sst_max = amrex::Real(320.0);
     amrex::Long m_warned_coupled_sst_nan = 0;
+
+    // The atmos->ocean rain lane is a rate, but the microphysics keeps only a
+    // cumulative surface accumulation, so PackAtmosphericStates differences it
+    // against the snapshot below. Level 0 only, on ba2d[0]:
+    //   m_a2o_precip_accum  total liquid-equivalent accumulation [kg m^-2] at
+    //                       m_a2o_precip_time (ERF's t_new[0], not the driver's clock)
+    //   m_a2o_precip_rate   mean rate between the last two snapshots [kg m^-2 s^-1]
+    // EvolveOneStep allocates them before its first step, so the first rate
+    // covers this run's first step, on a cold start and on a restart alike.
+    std::unique_ptr<amrex::MultiFab> m_a2o_precip_accum;
+    std::unique_ptr<amrex::MultiFab> m_a2o_precip_rate;
+    amrex::Real m_a2o_precip_time = amrex::Real(0.0);
+    // Whether the level-0 microphysics keeps any surface precipitation accumulator
+    [[nodiscard]] bool HasA2OPrecipSource () const;
+    // The total liquid-equivalent surface accumulation [kg m^-2] per column, on ba2d[0].
+    // Public because nvcc rejects extended __device__ lambdas in private members.
+    void SampleA2OPrecipAccumulation (amrex::MultiFab& accum_2d) const;
 
 private:
 
@@ -1273,6 +1324,7 @@ private:
                            const amrex::BoxArray& ba,
                            const amrex::DistributionMapping& dm);
     void sbm_synchronize_levels (int nstep);
+    void configure_sbm_physical_boundaries ();
 
     void Construct_ERFFillPatchers (int lev);
 
@@ -1468,6 +1520,13 @@ private:
     // can use these directly.
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
 
+    // The land and soil fields of the wrfinput file that no land model takes (LAI, VEGFRA,
+    // TMN, ZNT, ALBEDO, ALBBCK, SEAICE, SNOW, SNOWH, TSLB, SMOIS, ZS, DZS), as read at the initial
+    // time. Filled by init_from_wrfinput when the two-stream force-restore balance runs
+    // without a land model; empty otherwise. Written to the checkpoint and read back on a
+    // restart; carried onto the new grids by RemakeLevel.
+    WRFSurfaceFields wrf_surface_fields;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
     // Struct for working with the sounding data we take as an input. Its profiles are
@@ -1487,12 +1546,19 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> th_bc_data;
 
+    // Terrain-following inflow profiles per face (xlo.inflow_profile = log_law or file)
+    amrex::Array<InflowProfile, 2*AMREX_SPACEDIM> m_inflow_profiles;
+
     // Planar averages for immersed forcing (computed on slow step, used in slow and fast steps)
     amrex::Vector<amrex::TableData<amrex::Real, 1>> r_plane_avg;   // density planar average per level
     amrex::Vector<amrex::TableData<amrex::Real, 1>> t_plane_avg;   // RhoTheta planar average per level
 
     // Function to read and populate above vectors (if input file exists)
     bool init_Dirichlet_bc_data (const std::string input_file);
+
+    // Build the terrain-following inflow profile of face ori (xlo.inflow_profile)
+    void init_inflow_profile (const std::string& bcid, amrex::Orientation ori,
+                              const std::string& kind, amrex::ParmParse& pp);
 
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and
@@ -1567,6 +1633,29 @@ private:
     // Used for anelastic or when we impose an initial projection
     amrex::Vector<amrex::MultiFab> pp_inc;
 
+    // Pseudo-incompressible (non-EB) levels: the upwind direction on each face (+1, -1, or 0 for
+    // a zero momentum, which selects the centered blend), the sign of the momentum the latest
+    // projection on the level started from.  The projection maps rho0 theta0 / rho onto the
+    // faces with it, and the advection of the cell-centered scalars from the projected state
+    // picks its upwind side from it rather than from the sign of the projected mass flux, so
+    // that with rho theta = rho0 theta0 the advective flux of (rho theta) is the flux the
+    // projection made divergence-free, even where the projection reverses the flow.
+    // pi_upw_dir_stage is the copy an RK stage advects with: the stage's projection overwrites
+    // pi_upw_dir before erf_slow_rhs_post advects the remaining scalars.
+    amrex::Vector<amrex::Array<std::unique_ptr<amrex::MultiFab>,AMREX_SPACEDIM>> pi_upw_dir;
+    amrex::Vector<amrex::Array<std::unique_ptr<amrex::MultiFab>,AMREX_SPACEDIM>> pi_upw_dir_stage;
+
+    //! Define pi_upw_dir[lev] and pi_upw_dir_stage[lev] on the level's faces (zero) if needed
+    void define_pi_upw_dir (int lev);
+
+    // Pseudo-incompressible (non-EB) levels: the advective part of the (rho theta) RHS of the
+    // latest stage (pi_adv_rt), and the rest of that RHS (pi_src: diffusion, implicit diffusion
+    // and the sources in cc_src), the non-advective tendency Q of (rho theta).  The projection
+    // at the end of the stage imposes div(rho0 theta0 u) = Q + the drift correction, so that the
+    // next update keeps rho theta = rho0 theta0 (see project_momenta)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_adv_rt;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> pi_src;
+
     // Used only for fast substepping
     amrex::Vector<amrex::MultiFab> lagged_delta_rt;
     amrex::Vector<amrex::MultiFab> avg_xmom;
@@ -1605,6 +1694,12 @@ private:
     // transport are destroyed before these register owners.
     amrex::Vector<std::unique_ptr<erf_sbm::SBMAMRFluxRegister>> sbm_amr_flux_regs;
     std::vector<amrex::Real> sbm_qualification_initial_inventory;
+    // Leaf inventory, cumulative outward boundary transfer and its gross scale
+    // at the previous erf.sbm_budget_check (or the start or restart).
+    std::vector<amrex::Real> sbm_budget_reference_inventory;
+    std::vector<double> sbm_budget_reference_outward;
+    std::vector<double> sbm_budget_reference_gross;
+    std::uint64_t sbm_budget_reference_terms{0};
     // Declared after the state manager so its non-owning layout reference is
     // destroyed before the authoritative SBM owner.
     std::unique_ptr<erf_sbm::SBMTransport> sbm_transport;
@@ -1718,7 +1813,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
     // Height of the bottom of the domain at each node, like z_phys_nd at its bottom: on
-    // ba2d[lev] made nodal in x and y, with no ghost cells; see update_zsfc_nd
+    // ba2d[lev] made nodal in x and y, with z_phys_nd's ghost cells in x and y; see update_zsfc_nd
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_sfc_nd;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
@@ -1788,9 +1883,6 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
-    // The mesh and Jacobian at the acoustic sub-step midpoint (MovingFittedMesh), rewritten every sub-step
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_mid;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_mid;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
@@ -2345,6 +2437,9 @@ private:
     amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
+    /// A localized source of gas (erf.mass_source.*); nullptr unless one is given
+    std::unique_ptr<MassSource> m_mass_source = nullptr;
+
 #ifdef ERF_USE_FIRE
     /// The fire coupling (atmosphere side) and the engine it owns (erf.fire.engine)
     std::unique_ptr<FireCoupler>      m_fire_coupler = nullptr;
@@ -2352,6 +2447,17 @@ private:
     std::string m_fire_plot_file {"plt_fire_"};
     int         m_fire_plot_int  = -1;
     amrex::Real m_fire_plot_per  = -1.0;
+#endif
+
+#ifdef ERF_USE_DUST
+    /// The dust model erf.dust.model selects (ERF_DustModel.H); nullptr unless erf.dust.enable = true
+    std::unique_ptr<DustModel> m_dust_model = nullptr;
+
+    /// Make and set up the dust model, once, in InitData_post; zero the dust scalars on a fresh start
+    void initialize_dust_model ();
+
+    /// Advance the dust model over the step of level 0 just taken (from step, at time, by dt[0])
+    void advance_dust_model (int step, double time);
 #endif
 
 #ifdef ERF_USE_MOVING_BODIES
@@ -2362,7 +2468,7 @@ private:
     void initialize_structure_model ();
 
     /// Advance the structure model over this step of level lev, then check its support() against level lev+1
-    void advance_structure_model (int lev, double time, amrex::Real dt_lev,
+    void advance_structure_model (int lev, double time, double dt_lev,
                                   const amrex::MultiFab& U_old, const amrex::MultiFab& V_old,
                                   const amrex::MultiFab& W_old, const amrex::MultiFab& S_old);
 
@@ -2378,6 +2484,18 @@ private:
     /// The grids of the model's level at its last advance(): the source add_momentum_sources() returns lives there
     amrex::BoxArray            m_structure_src_ba;
     amrex::DistributionMapping m_structure_src_dm;
+
+    /// After a restart, until the model's first advance(): its source on its level when the checkpoint was written
+    std::array<amrex::MultiFab,AMREX_SPACEDIM> m_structure_chk_src;
+
+    /// Write the model's current source on its level under checkpointname/StructureCoarseSource (TwoWay, level() > 0)
+    void write_structure_coarse_source_checkpoint (const std::string& checkpointname) const;
+
+    /// Read what write_structure_coarse_source_checkpoint wrote, for the model on level L, into m_structure_chk_src
+    void read_structure_coarse_source_checkpoint (int L);
+
+    /// The node heights of the level above the model's, for the check of its support(): kept until that level's boxes change
+    erf_actuator::LevelHeights m_structure_fine_heights;
 #endif
 
     //

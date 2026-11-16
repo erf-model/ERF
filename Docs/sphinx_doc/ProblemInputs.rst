@@ -30,9 +30,11 @@ Initial state perturbation
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | Problem setup           | Defined in                                       | Inputs read (prefix ``prob.``)                                                     |
 +=========================+==================================================+====================================================================================+
-| ABL                     | ``ERF_InitCustomPert_ABL.H``                     | ``A_0``, ``KE_0``, ``KE_decay_height``, ``KE_decay_order``, ``T_0``,               |
-|                         |                                                  | ``T_0_Pert_Mag``, ``pert_deltaU``, ``pert_deltaV``, ``pert_ref_height``,           |
-|                         |                                                  | ``pert_rhotheta``, ``rhoKE_0``, ``rho_0``                                          |
+| ABL,                    | ``ERF_InitCustomPert_ABL.H``                     | ``A_0``, ``KE_0``, ``KE_decay_height``, ``KE_decay_order``, ``T_0``,               |
+| constant_rhotheta_src   |                                                  | ``T_0_Pert_Mag``, ``bubble_dT``, ``bubble_x_c``, ``bubble_x_r``, ``bubble_y_c``,   |
+|                         |                                                  | ``bubble_y_r``, ``bubble_z_c``, ``bubble_z_r``, ``pert_deltaT``, ``pert_deltaU``,  |
+|                         |                                                  | ``pert_deltaV``, ``pert_periods_T``, ``pert_ref_height``, ``pert_rhotheta``,       |
+|                         |                                                  | ``rhoKE_0``, ``rho_0`` (the ``bubble_*`` inputs: see :ref:`sec:ABLWarmBubble`)     |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | AnelasticWallDiffusion  | ``ERF_InitCustomPert_AnelasticWallDiffusion.H``  | ``axis``, ``theta_hi``, ``theta_lo``                                               |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
@@ -99,6 +101,69 @@ Initial state perturbation
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | WPS, Metgrid            | ``ERF_InitCustomPert_KE.H``                      | ``KE_0``, ``KE_decay_height``, ``KE_decay_order``                                  |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
+
+.. _sec:ABLWarmBubble:
+
+ABL warm bubble
+~~~~~~~~~~~~~~~
+
+The ABL setup (and ``constant_rhotheta_src``, which shares its perturbation file, keys and
+start-up checks) can start the run with one warm bubble, made as WRF's idealized fire
+cases make it (``delt_perturbation``, ``xrad_perturbation``, ``yrad_perturbation``,
+``zrad_perturbation`` and ``hght_perturbation`` in WRF's ``module_initialize_fire.F``).
+The potential temperature of each cell is raised by
+
+.. math::
+
+   \theta' = \Delta\theta \cos^2\left(\frac{\pi r}{2}\right), \qquad
+   r = \sqrt{\left(\frac{x - x_c}{x_r}\right)^2 + \left(\frac{y - y_c}{y_r}\right)^2
+            + \left(\frac{z - z_c}{z_r}\right)^2} \le 1,
+
+with :math:`(x, y)` the cell centre and :math:`z` the cell-centre height, terrain included
+(WRF uses the geopotential height of the mass point, also terrain included). With EB terrain
+the cells are Cartesian and :math:`z` is the cell's own height, so the bubble sits at a fixed
+altitude whatever the ground below it; an ``eb2.geometry = plane`` boundary shifts the heights
+so that the plane lies at zero. Cells with :math:`r > 1` are not changed, and the bubble is not
+wrapped across periodic boundaries (WRF's is not either): a bubble that crosses a periodic
+boundary is cut there.
+
+- **Compressible:** the bubble is made at constant pressure, as WRF makes it: :math:`\rho\theta`
+  and the mixing ratio :math:`q_v` are kept and the density drops to
+  :math:`\rho\theta / (\theta + \theta')`, so the bubble starts buoyant and with no pressure
+  pulse. Other moisture species are not rescaled. WRF also re-integrates the geopotential of
+  the column above the bubble; on ERF's fixed heights that is a change of about 1 Pa and is
+  left out.
+- **Fixed-in-time density (anelastic):** the density is held, so the bubble is carried by
+  :math:`\rho\theta` alone (:math:`\rho\theta \mathrel{+}= \rho\,\theta'`).
+
+The bubble is added to the random (``T_0_Pert_Mag``) and sinusoidal (``pert_deltaT``)
+perturbations when those are set as well. WRF places the centre on the mass point
+:math:`i_c = (\mathrm{ide}-\mathrm{ids})/2` (rounded down), whose centre is
+:math:`x_c = (i_c - 1/2)\,\Delta x` from the domain's west edge: for an even number of cells,
+half a cell short of the domain centre (and likewise in y). Use that value to match WRF exactly.
+
+The following table lists the inputs. A start-up line reports the bubble at each level whose
+grids hold the domain's lowest corner (always level 0; a refined patch away from that corner
+gets the bubble without the line).
+
++---------------------+-------------------------------------------------------------+--------------------+---------+
+| Input               | Meaning                                                     | Acceptable values  | Default |
++=====================+=============================================================+====================+=========+
+| ``prob.bubble_dT``  | potential-temperature excess at the bubble centre [K]       | finite Real        | 0 (off) |
+|                     | (WRF ``delt_perturbation``); 0 adds no bubble               |                    |         |
++---------------------+-------------------------------------------------------------+--------------------+---------+
+| ``prob.bubble_x_c`` | bubble centre x, y and height z [m] (WRF centres x and y on | finite Real        | 0       |
+| ``prob.bubble_y_c`` | the domain; z is ``hght_perturbation``)                     |                    |         |
+| ``prob.bubble_z_c`` |                                                             |                    |         |
++---------------------+-------------------------------------------------------------+--------------------+---------+
+| ``prob.bubble_x_r`` | bubble radii in x, y and z [m] (WRF ``xrad_perturbation``,  | Real > 0 when      | 0       |
+| ``prob.bubble_y_r`` | ``yrad_perturbation``, ``zrad_perturbation``)               | ``bubble_dT`` is   |         |
+| ``prob.bubble_z_r`` |                                                             | not 0              |         |
++---------------------+-------------------------------------------------------------+--------------------+---------+
+
+A non-finite value or a radius that is not positive stops the run when ``bubble_dT`` is not 0.
+A centre or radius given without ``bubble_dT`` stops the run; with ``bubble_dT = 0`` it gives a
+warning that they are not used.
 
 Initial velocity perturbation
 -----------------------------

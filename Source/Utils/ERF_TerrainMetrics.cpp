@@ -1283,7 +1283,8 @@ make_zcc (const Geometry& geom,
  * @param[in ] geom       geometry of this level
  * @param[in ] z_phys_nd  nodal heights of this level
  * @param[out] z_sfc_nd   defined on the 2D projection of z_phys_nd's grids (nodal in x and
- *                        y, z index 0), with the same DistributionMapping
+ *                        y, z index 0), with the same DistributionMapping; its ghost cells,
+ *                        at most as many as z_phys_nd's in x and y, are filled too
  * @param[in ] z_sfc_crse z_sfc_nd of the next coarser level; may be null only if every column
  *                        of this level has a box reaching the bottom of the domain
  * @param[in ] ref_ratio  refinement ratio between the coarser level and this one
@@ -1297,6 +1298,10 @@ make_zsfc_nd (const Geometry& geom,
 {
     AMREX_ALWAYS_ASSERT(z_sfc_nd.size() == z_phys_nd.size() &&
                         z_sfc_nd.DistributionMap() == z_phys_nd.DistributionMap());
+
+    // The ghost cells are taken from z_phys_nd's, so it must have at least as many
+    const IntVect ng(z_sfc_nd.nGrowVect()[0], z_sfc_nd.nGrowVect()[1], 0);
+    AMREX_ALWAYS_ASSERT(ng[0] <= z_phys_nd.nGrowVect()[0] && ng[1] <= z_phys_nd.nGrowVect()[1]);
 
     const int klo = geom.Domain().smallEnd(2);
     const BoxArray& ba_nd = z_phys_nd.boxArray();
@@ -1321,7 +1326,7 @@ make_zsfc_nd (const Geometry& geom,
 #endif
         for (MFIter mfi(z_sfc_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& bx = mfi.tilebox();
+            const Box& bx = mfi.growntilebox(ng);
             const Array4<      Real>& zs_arr = z_sfc_nd.array(mfi);
             const Array4<const Real>& z_nd   = z_phys_nd.const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -1338,11 +1343,12 @@ make_zsfc_nd (const Geometry& geom,
         // The coarse nodes surrounding the coarse cells under this level's columns
         const IntVect rr(ref_ratio[0], ref_ratio[1], 1);
         BoxArray ba_crse(z_sfc_nd.boxArray());
+        ba_crse.grow(ng);
         ba_crse.enclosedCells(0); ba_crse.enclosedCells(1);
         ba_crse.coarsen(rr);
         ba_crse.surroundingNodes(0); ba_crse.surroundingNodes(1);
         MultiFab tmp(ba_crse, z_sfc_nd.DistributionMap(), 1, 0);
-        tmp.ParallelCopy(*z_sfc_crse);
+        tmp.ParallelCopy(*z_sfc_crse, 0, 0, 1, z_sfc_crse->nGrowVect(), IntVect(0));
 
         const Real rx_inv = one / Real(rr[0]);
         const Real ry_inv = one / Real(rr[1]);
@@ -1352,7 +1358,7 @@ make_zsfc_nd (const Geometry& geom,
 #endif
         for (MFIter mfi(z_sfc_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& bx = mfi.tilebox();
+            const Box& bx = mfi.growntilebox(ng);
             const Array4<      Real>& zs_arr  = z_sfc_nd.array(mfi);
             const Array4<const Real>& zsc_arr = tmp.const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -1380,10 +1386,10 @@ make_zsfc_nd (const Geometry& geom,
 
     if (bl_bot.isEmpty()) { return; }
 
-    MultiFab z_sfc_bot(BoxArray(std::move(bl_bot)), DistributionMapping(std::move(pmap_bot)), 1, 0);
+    MultiFab z_sfc_bot(BoxArray(std::move(bl_bot)), DistributionMapping(std::move(pmap_bot)), 1, ng);
     for (MFIter mfi(z_sfc_bot); mfi.isValid(); ++mfi)
     {
-        const Box& bx = mfi.validbox();
+        const Box& bx = mfi.fabbox();
         const Array4<      Real>& zs_arr = z_sfc_bot.array(mfi);
         const Array4<const Real>& z_nd   = z_phys_nd.const_array(idx_bot[mfi.index()]);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -1391,7 +1397,8 @@ make_zsfc_nd (const Geometry& geom,
             zs_arr(i,j,0) = z_nd(i,j,klo);
         });
     }
-    z_sfc_nd.ParallelCopy(z_sfc_bot);
+    // The ghost cells of the boxes reaching the bottom reach ghost cells of the others too
+    z_sfc_nd.ParallelCopy(z_sfc_bot, 0, 0, 1, ng, ng);
 }
 
 

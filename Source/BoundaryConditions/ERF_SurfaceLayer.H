@@ -1,6 +1,7 @@
 #ifndef ERF_SURFACELAYER_H
 #define ERF_SURFACELAYER_H
 
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -176,6 +177,8 @@ public:
           pblh_type = PBLHeightCalcType::YSU;
       } else if (pblh_string == "mrf") {
           pblh_type = PBLHeightCalcType::MRF;
+      } else if (pblh_string == "ysunew") {
+          pblh_type = PBLHeightCalcType::YSUNew;
       } else {
           amrex::Abort("Undefined PBLH calc type!");
       }
@@ -248,9 +251,8 @@ public:
               m_face.coordDir() == 2 && m_face.isLow() && m_terrain_type != TerrainType::EB,
               "most.abs_surf_temp is supported only on the z-low face without EB terrain");
           AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-              flux_type != FluxCalcType::CUSTOM && flux_type != FluxCalcType::RICO &&
-              flux_type != FluxCalcType::BULK_COEFF,
-              "most.abs_surf_temp is not supported with custom, rico or bulk_coeff fluxes; "
+              flux_type != FluxCalcType::CUSTOM && flux_type != FluxCalcType::RICO,
+              "most.abs_surf_temp is not supported with custom or rico fluxes; "
               "use most.pot_surf_temp");
       }
 
@@ -281,16 +283,45 @@ public:
 
       // Bulk transfer coefficient (must specify coeffs and surface values)
       } else if (flux_type == FluxCalcType::BULK_COEFF) {
+          // Optional imposed kinematic heat flux <theta'w'> [K m/s], positive upward (the
+          // sign of most.surf_temp_flux for the other flux types). It replaces Ch * |U| *
+          // (theta_surf - theta): a constant drag with a fixed heat flux, as WRF's
+          // isfflx = 0 with tke_drag_coefficient and tke_heat_flux.
+          m_bulk_use_fixed_tflux = (pp.query("most.surf_temp_flux", m_bulk_fixed_tflux) != 0);
           pp.get("most.Cd", m_Cd);
-          pp.get("most.Ch", m_Ch);
+          if (m_bulk_use_fixed_tflux) {
+              if (!std::isfinite(m_bulk_fixed_tflux)) {
+                  amrex::Abort("erf.most.surf_temp_flux must be a finite number");
+              }
+              // the bulk_coeff branch never reads a surface heating rate: stop rather than
+              // run with it silently unused (the doc row of surf_temp_flux forbids the pair)
+              if (pp.contains("most.surf_heating_rate")) {
+                  amrex::Abort("erf.most.surf_temp_flux with surface_layer.flux_type = bulk_coeff "
+                               "imposes the surface heat flux; it may not be combined with "
+                               "erf.most.surf_heating_rate");
+              }
+              // Ch is optional here: the heat flux does not use it
+              if (pp.query("most.Ch", m_Ch)) {
+                  amrex::Print() << "WARNING: erf.most.Ch is not used: erf.most.surf_temp_flux "
+                                 << "imposes the bulk_coeff heat flux" << std::endl;
+              }
+          } else {
+              pp.get("most.Ch", m_Ch);
+          }
           pp.get("most.Cq", m_Cq);
           AMREX_ALWAYS_ASSERT_WITH_MESSAGE(erf_st,
-              "bulk_coeff fluxes need most.pot_surf_temp");
+              "bulk_coeff fluxes need most.pot_surf_temp or most.abs_surf_temp");
           default_land_surf_temp = surf_temp;
           pp.get("most.surf_moist", default_land_surf_moist);
-          amrex::Print() << "Using specified Cd, Ch, Cq for MOST = "
-                         << m_Cd << " " << m_Ch << " "
-                         << m_Cq << std::endl;
+          if (m_bulk_use_fixed_tflux) {
+              amrex::Print() << "Using specified Cd, Cq for MOST = " << m_Cd << " " << m_Cq
+                             << " with an imposed surface heat flux most.surf_temp_flux = "
+                             << m_bulk_fixed_tflux << " K m/s" << std::endl;
+          } else {
+              amrex::Print() << "Using specified Cd, Ch, Cq for MOST = "
+                             << m_Cd << " " << m_Ch << " "
+                             << m_Cq << std::endl;
+          }
 
       // Specify surface temperature/moisture or surface flux
       } else {
@@ -416,6 +447,21 @@ public:
       // (wrfinput data may have lower resolution SST data)
       pp.queryAdd("most.ignore_sst", m_ignore_sst);
 
+      // A uniform current of the water surface [m/s, along grid x and y]. The surface
+      // layer then takes the wind relative to the surface, as over an ocean current.
+      if (m_face.coordDir() == 2 && m_face.isLow()) {
+          amrex::Vector<amrex::Real> current;
+          if (pp.queryarr("most.surface_current", current)) {
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(current.size() == 2,
+                  "most.surface_current takes two components, along x and y.");
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_terrain_type != TerrainType::EB,
+                  "most.surface_current is not supported with EB terrain.");
+              m_use_surface_current = true;
+              m_surface_current_const[0] = current[0];
+              m_surface_current_const[1] = current[1];
+          }
+      }
+
       // If we're using the RANS k model, then we need to update the dirichlet
       // wall value of k (written into the first cell above the wall and held
       // there through the step) based on the instantaneous u* and θ*; the turbulence modeling
@@ -534,6 +580,12 @@ public:
               amrex::Print() << "Variable sea roughness (type " << rough_sea_string
                              << ")" << std::endl;
           }
+
+          // The surface current moves only the water, so without water it would do nothing
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_surface_current || lmask_min < 1,
+              "The surface current (most.surface_current or erf.use_coupled_currents) moves "
+              "only water, and the surface has none: set erf.is_land = 0 or supply a land "
+              "mask with water.");
       }
 
       if (m_eddyDiffs_lev.size() < lev+1) {
@@ -550,6 +602,22 @@ public:
 
           m_coupled_sst_lev.resize(nlevs, nullptr);
           m_coupled_sst_valid_lev.resize(nlevs, nullptr);
+
+          m_surface_current_x.resize(nlevs);
+          m_surface_current_y.resize(nlevs);
+          m_rel_xvel.resize(nlevs);
+          m_rel_yvel.resize(nlevs);
+          m_coupled_current_east_lev.resize(nlevs, nullptr);
+          m_coupled_current_north_lev.resize(nlevs, nullptr);
+          m_coupled_current_covered_lev.resize(nlevs, nullptr);
+          m_coupled_current_cos_lev.resize(nlevs, nullptr);
+          m_coupled_current_sin_lev.resize(nlevs, nullptr);
+          m_coupled_rotation_lev.resize(nlevs);
+          m_coupled_rotation_src_lev.resize(nlevs, nullptr);
+          m_coupled_rotation_src_ba_lev.resize(nlevs);
+          m_coupled_rotation_src_dm_lev.resize(nlevs);
+          m_rel_k_top.resize(nlevs, 0);
+          m_rel_src_ba.resize(nlevs);
 
           // Size the MOST params for all levels
           z_0.resize(nlevs);
@@ -583,6 +651,11 @@ public:
           m_lmask_lev[lev][nt] = lmask_lev[nt].get();
       }
 
+      // The surface current over this level's water, and room for the velocities relative to it
+      if (m_use_surface_current) {
+          define_surface_current(lev, *mfv[Vars::xvel], *mfv[Vars::yvel]);
+      }
+
       // Get pointers to wave data
       m_Hwave_lev[lev] = Hwave;
       m_Lwave_lev[lev] = Lwave;
@@ -595,6 +668,11 @@ public:
       pp.queryAdd("most.use_sfc_sst", m_use_sfc_sst);
       if (m_use_sfc_fluxes && m_use_sfc_sst) {
           amrex::Abort("Only one of most.use_sfc_fluxes and most.use_sfc_sst may be enabled");
+      }
+      if (m_bulk_use_fixed_tflux && (m_use_sfc_fluxes || m_use_sfc_sst)) {
+          amrex::Abort("erf.most.surf_temp_flux with surface_layer.flux_type = bulk_coeff "
+                       "imposes the surface heat flux; it cannot be combined with "
+                       "most.use_sfc_fluxes or most.use_sfc_sst");
       }
       if (m_use_sfc_fluxes || m_use_sfc_sst) {
           if (m_use_sfc_fluxes) {
@@ -715,6 +793,16 @@ public:
       const bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
       const bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
 
+      // An imposed bulk_coeff heat flux and a surface temperature or flux supplied from
+      // elsewhere contradict each other: one of the two would be dropped without a word.
+      if (m_bulk_use_fixed_tflux &&
+          (use_sst || use_tsk || m_has_lsm_tsurf || m_has_lsm_fluxes ||
+           m_use_coupled_sst || use_surface_model)) {
+          amrex::Abort("erf.most.surf_temp_flux with surface_layer.flux_type = bulk_coeff "
+                       "imposes the surface heat flux; it cannot be combined with SST/TSK data, "
+                       "a land-surface or surface model, or a coupled ocean");
+      }
+
       // Check if there is a user-specified roughness file to be read
       std::string fname;
       bool read_z0 = false;
@@ -781,7 +869,7 @@ public:
                   ba[ibox].smallEnd(2) == dom_lo_z && ba[ibox].bigEnd(2) == dom_hi_z,
                   "Surface layer boundaries on x/y faces require Cartesian grids that "
                   "span the full level z domain; partial-height refined grids and grids "
-                  "decomposed in z are not supported. Set erf.max_grid_size_z accordingly.");
+                  "decomposed in z are not supported. Set amr.max_grid_size_z accordingly.");
           }
       }
 
@@ -1407,6 +1495,79 @@ public:
                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim)
   {
       m_ma.update_field_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
+      if (m_use_surface_current) {
+          // Average the wind relative to the surface. The averages read a copy of the
+          // velocities taken here, not the velocities themselves, so they must be computed
+          // before the velocities change, as update_fluxes does right after this.
+          build_relative_velocities(lev, vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel]);
+          m_ma.set_velocity_field_ptrs(lev, m_rel_xvel[lev].get(), m_rel_yvel[lev].get());
+      }
+  }
+
+  /**
+   * Allocate the surface current for this level's velocities and set it over the water,
+   * and allocate the velocities relative to it over the planes the averages read.
+   *
+   * The current is held on the x- and y-faces of the plane k = klo, one 2D box for each
+   * box of the velocities, with their lateral ghost cells. Only water moves: a face takes
+   * the current where the cells on both sides of it are water (land mask 0), and is at
+   * rest elsewhere.
+   *
+   * @param[in] lev  level index
+   * @param[in] xvel x-velocity on the level
+   * @param[in] yvel y-velocity on the level
+   */
+  void define_surface_current (const int& lev, const amrex::MultiFab& xvel,
+                               const amrex::MultiFab& yvel);
+
+  /**
+   * Set the surface current on this level's faces: the uniform most.surface_current, or the
+   * coupler's last current (update_coupled_surface_current), with water on both sides of a
+   * face and, with a coupler, the ocean covering both cells; at rest elsewhere.
+   *
+   * @param[in] lev level index
+   */
+  void fill_surface_current (const int& lev);
+
+  /**
+   * Allocate the velocities relative to the surface current, over the planes the
+   * averages read: each box of the velocities from its lower end to k_top.
+   *
+   * @param[in] lev   level index
+   * @param[in] xvel  x-velocity on the level
+   * @param[in] yvel  y-velocity on the level
+   * @param[in] k_top highest k the averages read (MOSTAverage::max_k_read)
+   */
+  void define_relative_velocities (const int& lev, const amrex::MultiFab& xvel,
+                                   const amrex::MultiFab& yvel, int k_top);
+
+  /**
+   * Fill the velocities relative to the surface current.
+   *
+   * @param[in] lev  level index
+   * @param[in] xvel x-velocity on the level
+   * @param[in] yvel y-velocity on the level
+   */
+  void build_relative_velocities (const int& lev, const amrex::MultiFab& xvel,
+                                  const amrex::MultiFab& yvel);
+
+  /**
+   * Return whether the surface layer takes the wind relative to a current of the surface.
+   */
+  [[nodiscard]] bool use_surface_current () const { return m_use_surface_current; }
+
+  /**
+   * Return a component of the surface current on its faces of the plane k = klo, or
+   * null when there is none on this level.
+   *
+   * @param[in] lev  level index
+   * @param[in] comp 0 for the x-component on x-faces, 1 for the y-component on y-faces
+   */
+  [[nodiscard]] const amrex::MultiFab* get_surface_current (const int& lev, int comp) const
+  {
+      const auto& current = (comp == 0) ? m_surface_current_x : m_surface_current_y;
+      return (m_use_surface_current && lev < static_cast<int>(current.size()))
+             ? current[lev].get() : nullptr;
   }
 
   /**
@@ -1808,6 +1969,58 @@ public:
   void set_coupled_sst_active (const bool active) { m_use_coupled_sst = active; }
 
   /**
+   * Declare that an ocean coupler will supply the surface current for this run.
+   *
+   * Must be called before make_SurfaceLayer_at_level, which allocates the current. The
+   * surface is at rest until update_coupled_surface_current first sets it.
+   *
+   * @param[in] active whether a coupled surface current is configured
+   */
+  void set_coupled_current_active (const bool active)
+  {
+      // Idempotent: the set-up that calls it may run again on the same layer
+      if (!active || m_coupled_current_active) { return; }
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_surface_current,
+          "most.surface_current cannot be combined with a coupled surface current "
+          "(erf.use_coupled_currents).");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_face.coordDir() == 2 && m_face.isLow(),
+          "A coupled surface current is supported only on the z-low face.");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_terrain_type != TerrainType::EB,
+          "A coupled surface current is not supported with EB terrain.");
+      m_coupled_current_active = true;
+      m_use_surface_current = true;
+  }
+
+  /**
+   * Set the surface current on this level from an ocean coupler's current at the cell
+   * centres of the surface.
+   *
+   * The current is rotated from east and north to the grid axes and averaged to the faces.
+   * A face takes it where the cells on both sides of it are water (land mask 0) and covered
+   * by the ocean, and is at rest elsewhere. Outside a non-periodic domain, the cells beside
+   * a face are those of the nearest column inside it.
+   *
+   * The fields are borrowed, like the coupled SST's: the surface layer keeps them and sets
+   * the current from them again whenever the level is remade, so they must outlive it or
+   * be replaced by a later call.
+   *
+   * @param[in] lev       level index
+   * @param[in] east      eastward current [m/s], cell-centred on the 2D surface layout
+   * @param[in] north     northward current [m/s], on the layout of east
+   * @param[in] covered   nonzero where the ocean covers the cell, on the layout of east;
+   *                      null when it covers none, as for the coupled SST
+   * @param[in] cos_alpha cosine of the angle of the grid x axis from east, cell-centred on
+   *                      the 2D surface layout; null when the grid is aligned with east
+   * @param[in] sin_alpha sine of that angle, on the layout of cos_alpha
+   */
+  void update_coupled_surface_current (const int& lev,
+                                       const amrex::MultiFab& east,
+                                       const amrex::MultiFab& north,
+                                       const amrex::iMultiFab* covered,
+                                       const amrex::MultiFab* cos_alpha,
+                                       const amrex::MultiFab* sin_alpha);
+
+  /**
    * Set the domain faces that use the surface-layer boundary condition.
    *
    * The face set is used to suppress transpose stress writes at shared edges;
@@ -1949,6 +2162,9 @@ private:
   amrex::Real m_Cd = zero;
   amrex::Real m_Ch = zero;
   amrex::Real m_Cq = zero;
+  // bulk_coeff only: most.surf_temp_flux given, imposed kinematic heat flux [K m/s]
+  bool m_bulk_use_fixed_tflux = false;
+  amrex::Real m_bulk_fixed_tflux = zero;
   bool m_ignore_sst = false;
 
   amrex::Vector<const eb_*> m_eb_vec;
@@ -2014,6 +2230,37 @@ private:
   // lower-boundary SST/TSK value filled earlier in update_fluxes stands.
   amrex::Vector<amrex::MultiFab*>  m_coupled_sst_lev;
   amrex::Vector<amrex::iMultiFab*> m_coupled_sst_valid_lev;
+
+  // Current of the lower surface (most.surface_current, or from an ocean coupler): the
+  // uniform value read from the inputs (zero with a coupler), and per level its x-component
+  // on the x-faces and y-component on the y-faces of the plane k = klo. The surface layer
+  // averages and applies the wind relative to it, held in m_rel_xvel and m_rel_yvel on the
+  // velocities' boxes cut at m_rel_k_top, the highest plane the averages read; m_rel_src_ba
+  // is the x-velocity layout they were made for.
+  bool m_use_surface_current = false;
+  // Whether the current comes from an ocean coupler (set_coupled_current_active)
+  bool m_coupled_current_active = false;
+  amrex::Real m_surface_current_const[2] = {zero, zero};
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_x;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_surface_current_y;
+  // The coupler's last current per level (update_coupled_surface_current), borrowed; null
+  // until it first calls
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_current_east_lev;
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_current_north_lev;
+  amrex::Vector<const amrex::iMultiFab*> m_coupled_current_covered_lev;
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_current_cos_lev;
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_current_sin_lev;
+  // The coupler's grid orientation on the layout fill_surface_current reads, ghost cells
+  // filled, per level; remade only when the orientation or that layout changes, since the
+  // coupler calls with the same orientation every step
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_coupled_rotation_lev;
+  amrex::Vector<const amrex::MultiFab*>  m_coupled_rotation_src_lev;
+  amrex::Vector<amrex::BoxArray>            m_coupled_rotation_src_ba_lev;
+  amrex::Vector<amrex::DistributionMapping> m_coupled_rotation_src_dm_lev;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_xvel;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_rel_yvel;
+  amrex::Vector<int> m_rel_k_top;
+  amrex::Vector<amrex::BoxArray> m_rel_src_ba;
   // External absolute skin temperature per level (set_skin_temperature), owned
   // by the caller; nullptr where none is supplied.
   amrex::Vector<const amrex::MultiFab*> m_skin_tsurf_lev;

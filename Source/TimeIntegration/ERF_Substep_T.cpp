@@ -63,6 +63,7 @@ cf_omega_stage (int i, int j, int k, int klo, int khi,
  * @param[in   ] l_damp_coef
  * @param[in   ] beta_d divergence damping coefficient: how far (rho theta) is projected forward
  * @param[inout] cf_fluxes coarse/fine face fluxes: recorded here on a coarse level, imposed on a fine one
+ * @param[in   ] lateral_walls whether the xlo, xhi, ylo and yhi faces are walls (zero normal velocity)
  */
 
 void erf_substep_T (int step, int /*nrk*/,
@@ -98,7 +99,8 @@ void erf_substep_T (int step, int /*nrk*/,
                     const Real* sinesq_stag_d,
                     const Real l_damp_coef,
                     const Real beta_d,
-                    const CFFaceFluxes& cf_fluxes)
+                    const CFFaceFluxes& cf_fluxes,
+                    const GpuArray<bool,4>& lateral_walls)
 {
     BL_PROFILE_REGION("erf_substep_T()");
 
@@ -112,6 +114,17 @@ void erf_substep_T (int step, int /*nrk*/,
     int ihi = domhi.x + 1;
     int jlo = domlo.y;
     int jhi = domhi.y + 1;
+
+    // The substeps keep the normal momentum on a lateral wall face (slip, no-slip, symmetry or
+    // surface layer) at its stage value, zero on all but a symmetry face.  Over terrain that
+    // slopes normal to the wall the terrain term of the pressure gradient is not zero on the
+    // wall face, and updating the face would carry mass through the wall until the boundary
+    // fill reset it after the substep.  (Across a symmetry face the terrain is mirrored, so
+    // that term is zero there.)
+    const bool wall_xlo = lateral_walls[0];
+    const bool wall_xhi = lateral_walls[1];
+    const bool wall_ylo = lateral_walls[2];
+    const bool wall_yhi = lateral_walls[3];
 
     Real RvOverRd = R_v / R_d;
 
@@ -346,6 +359,9 @@ void erf_substep_T (int step, int /*nrk*/,
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                         + dtau * slow_rhs_rho_u(i,j,k)
                                                         + dtau * xmom_src_arr(i,j,k);
+                if ((wall_xlo && i == ilo) || (wall_xhi && i == ihi)) {
+                    new_drho_u(i,j,k) = zero;
+                }
                 if (k == bx_lo.z && k != domlo.z) {
                     new_drho_u(i,j,k-1) = new_drho_u(i,j,k);
                 }
@@ -385,6 +401,9 @@ void erf_substep_T (int step, int /*nrk*/,
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
                                                         + dtau * slow_rhs_rho_v(i,j,k)
                                                         + dtau * ymom_src_arr(i,j,k);
+                if ((wall_ylo && j == jlo) || (wall_yhi && j == jhi)) {
+                    new_drho_v(i,j,k) = zero;
+                }
 
                 if (k == bx_lo.z && k != domlo.z) {
                     new_drho_v(i,j,k-1) = new_drho_v(i,j,k);

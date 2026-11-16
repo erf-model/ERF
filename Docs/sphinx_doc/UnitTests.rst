@@ -25,6 +25,8 @@ Agent and contributor quick path
 Use this sequence for each test change.
 
 1. Classify the change as serial, SHOC, device-path, MPI, or regression.
+   A test in any binary that launches an AMReX kernel is also device-path;
+   read :ref:`unit-tests-device-code`.
 2. Inspect the nearest existing test and its common header.
 3. State one observable contract and choose an independent oracle.
 4. Add the test to the correct existing source file, or add a new source file
@@ -258,9 +260,9 @@ Test configuration options
    * - ``ERF_ENABLE_PARTICLES``
      - Enables particle code and tests that depend on it.
    * - ``ERF_ENABLE_FIRE``
-     - Enables the fire coupling and its tests (``FireCoupler``, ``FireAnchorLevel``,
-       ``FirePrecip``, ``ExnerTendency``, ``HeatInjection``, ``SmokeInjection``, and
-       ``FireCouplingGTests_FpeTraps``, which reruns them with floating-point traps armed).
+     - Enables the fire coupling. ERF registers no fire tests: the coupling's unit tests
+       (``FireCoupler``, ``FireAnchorLevel``, ``FirePrecip`` and others) live in
+       erf-model/FLARE, with the engines that use the coupling.
    * - ``ERF_ENABLE_MOVING_BODIES``
      - Enables the actuator core, the structure coupling and their tests (``ActuatorSampling``,
        ``ActuatorSpreading``, ``WakeLines``, ``RunningStats``, ``StructureRegistry``; the first
@@ -546,7 +548,8 @@ Follow these steps.
 1. Find the nearest test family and read its common header.
 2. State the contract in one sentence.
 3. Choose ``TEST``, ``TEST_P``, or a loop.
-4. Write a deterministic case with the smallest useful state.
+4. Write a deterministic case with the smallest useful state. If the test
+   launches any AMReX kernel, follow :ref:`unit-tests-device-code`.
 5. Add the source file to the correct CMake target if it is new.
 6. Rebuild the target.
 7. Confirm that GoogleTest and CTest discover the case.
@@ -763,6 +766,8 @@ Use ``erf_gtest::print_field`` to keep field formatting consistent:
 
 Do not add a production ``operator<<`` solely for a test.
 
+.. _unit-tests-device-code:
+
 Test device code
 ----------------
 
@@ -770,10 +775,59 @@ GoogleTest assertions are host code. Never call ``EXPECT_*``, ``ASSERT_*``,
 ``GTEST_SKIP()``, stream output, or host-only formatting from an AMReX device
 lambda.
 
+Never write a device lambda directly in the body of a ``TEST``, ``TEST_P``, or
+``TEST_F``. Launch every kernel from a helper function instead. This applies
+to any ``AMREX_GPU_DEVICE`` lambda, including ``ParallelFor``,
+``ParallelForRNG``, ``ParallelReduce``, ``ReduceOps``, and ``amrex::launch``.
+
+The GoogleTest macros expand each test body into a private member function.
+CUDA rejects an extended device lambda defined there. CPU builds compile the
+same code without complaint, so a passing local build does not show that a
+test follows this rule.
+
+Place the helper at namespace scope, in an anonymous namespace in the test
+source or in the family's common test header. A private or protected fixture
+member function has the same restriction as the test body.
+
+.. code-block:: cpp
+
+   namespace {
+
+   // Launch the production kernel and return the largest error on the host.
+   amrex::Real max_error_of_kernel (amrex::MultiFab& state)
+   {
+       for (amrex::MFIter mfi(state); mfi.isValid(); ++mfi) {
+           const auto a = state.array(mfi);
+           amrex::ParallelFor(mfi.validbox(),
+               [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+           {
+               a(i, j, k, 1) = amrex::Math::abs(my_feature_update(a(i, j, k, 0))
+                                                - my_feature_reference(a(i, j, k, 0)));
+           });
+       }
+       amrex::Gpu::streamSynchronize();
+       return state.norm0(1);
+   }
+
+   } // namespace
+
+   TEST(MyFeatureKernel, UpdateMatchesReference)
+   {
+       amrex::MultiFab state = make_small_state();
+
+       const amrex::Real max_error = max_error_of_kernel(state);
+
+       EXPECT_LE(max_error, kernel_tolerance());
+   }
+
+The test body sets up state and asserts on host values. The helper owns the
+kernel.
+
 A device-path test should:
 
 1. allocate or initialize the smallest useful AMReX object;
-2. run the production function inside the intended AMReX kernel;
+2. run the production function inside the intended AMReX kernel, launched from
+   a helper function rather than the test body;
 3. compute values, counters, or normalized errors on the device;
 4. synchronize the device work;
 5. copy or reduce the result to the host;
@@ -925,6 +979,8 @@ Do not add:
 - sleeps or wall-clock performance thresholds;
 - rank-dependent control flow around MPI collectives;
 - GoogleTest assertions inside device code;
+- device lambdas, such as ``ParallelFor`` kernels, written directly in a
+  ``TEST``, ``TEST_P``, or ``TEST_F`` body;
 - arbitrary golden values when a stronger invariant exists;
 - magic tolerances without provenance;
 - a copied production formula presented as an independent oracle;

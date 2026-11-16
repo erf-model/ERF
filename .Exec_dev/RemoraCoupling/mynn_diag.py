@@ -152,7 +152,8 @@ def main():
     p.add_argument("--Cd", type=float, default=0.0014)
     p.add_argument("--Ch", type=float, default=0.0012)
     p.add_argument("--Cq", type=float, default=0.0012)
-    p.add_argument("--surf_temp", type=float, default=287.15)
+    p.add_argument("--surf_temp", type=float, default=287.0,
+                   help="absolute SST [K] (erf.most.abs_surf_temp)")
     p.add_argument("--surf_moist", type=float, default=None,
                    help="surface mixing ratio; default is q_sat at surf_temp, "
                         "which is what ERF uses over sea (erf.is_land = 0)")
@@ -177,14 +178,15 @@ def main():
     dz = np.diff(zf)
 
     # ---- surface layer: bulk_coeff_flux, ERF_MOSTStress.H:2588 --------------
+    th_s = args.surf_temp * (1.0e5 / c["pressure"][0]) ** (R_d / CP_D)   # SST as theta
     if args.surf_moist is None:
-        args.surf_moist = q_surf_over_sea(args.surf_temp, c["pressure"][0])
+        args.surf_moist = q_surf_over_sea(th_s, c["pressure"][0])
         qnote = " (q_sat over sea; erf.most.surf_moist is overwritten there)"
     else:
         qnote = " (from --surf_moist)"
     wsp = np.hypot(u[0], v[0])
     u_star = np.sqrt(args.Cd) * wsp
-    wth = args.Ch * wsp * (args.surf_temp - th[0])        # <w'theta'>
+    wth = args.Ch * wsp * (th_s - th[0])        # <w'theta'>
     wq = args.Cq * wsp * (args.surf_moist - qv[0])        # <w'qv'>
     t_star = -wth / u_star
     q_star = -wq / u_star

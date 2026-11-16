@@ -18,27 +18,32 @@ A complete spectral-bin microphysics model can explicitly represent the
 particle-size distributions of aerosols and hydrometeors and their evolution
 through physical processes. ERF's currently exposed ``SBM`` option is
 narrower: it predicts a bin-resolved liquid-water distribution and advances
-it by resolved atmospheric advection on a single grid level or on a periodic
-two-level adaptive mesh (see :ref:`sec:SBMMultilevel`).
+it by resolved atmospheric advection on a single grid level or on a
+two-level adaptive mesh (see :ref:`sec:SBMMultilevel`), between periodic,
+wall, outflow and prescribed-inflow boundaries (see :ref:`sec:SBMBoundaries`),
+and on a single level can mix it with ERF's LES eddy diffusivity (see
+:ref:`sec:SBMParticleMixing`).
 Aerosol evolution and cloud microphysical processes are not yet included.
 See :ref:`AuxiliaryState` for the reusable mapped-transport interface.
 
 .. warning::
 
    The current ``SBM`` option provides resolved advection of a liquid-water
-   size distribution on one grid level or on two periodic levels. It is not
-   yet a complete warm-cloud or warm-rain microphysics scheme.
+   size distribution on one or two grid levels, and turbulent mixing of it on
+   one level. It is not yet a complete warm-cloud or warm-rain microphysics
+   scheme.
 
    The liquid spectrum is the authoritative condensed-water state. It is
    advected using ERF's dry-air mass carrier, high-order reconstruction,
    coupled flux-corrected transport, and fixed projections to conventional
    cloud- and rain-water fields.
 
-   The runtime does not yet provide particle diffusion or turbulent mixing,
+   The runtime does not yet provide particle mixing on refined or
+   terrain-following meshes or through open boundaries,
    condensation/evaporation, aerosol activation or evolution,
    collision-coalescence, sedimentation, precipitation, spectral transport on
    more than two levels or on refined stretched or terrain-following meshes,
-   or the full nonperiodic spectral-boundary lifecycle. Moving
+   or symmetry, open or real-data boundaries. Moving
    terrain and embedded boundaries remain unsupported.
 
    Unsupported configurations are rejected rather than silently reverting
@@ -479,7 +484,15 @@ than silently interpreted as the currently supported advection scheme.
 The multilevel lifecycle, restriction, prolongation, reflux,
 synchronization, regrid and boundary policies are also part of the identity,
 so a checkpoint written before they were (schema version 1) is rejected
-rather than restarted under policies it did not record.
+rather than restarted under policies it did not record. A domain with a
+physical face records each face's kind and every inflow spectrum in that
+identity, so a restart with different boundary data is rejected, and its
+checkpoint carries the boundary ledger of :ref:`sec:SBMBoundaries`. A triply
+periodic domain keeps the identity it had before physical faces existed.
+Particle mixing other than ``None`` adds its policy, with any reference
+diffusivities, and its diffusion method to the identity, so a restart under
+another policy or other coefficients is rejected; without mixing the identity
+is unchanged.
 
 Auxiliary prognostic-state transport
 ------------------------------------
@@ -499,13 +512,14 @@ spectrum. They are refreshed from the spectrum and do not receive an
 independent liquid advection, diffusion, clipping, or microphysical update.
 
 Available end-to-end simulation evidence is deliberately bounded. It covers
-single-level, triply periodic advection on constant- and stretched-z grids,
-plus a one-step static Cos4Hill terrain-fitted case with terrain flat at the
-periodic boundaries, and the periodic two-level hierarchies described in
-:ref:`sec:SBMMultilevel`. Direct transport tests also exercise nontrivial
-fluxes with a synthetic static mapped measure. These tests do not establish a
-nonperiodic terrain-boundary capability. Particle diffusion and turbulent
-mixing, nonperiodic spectral boundaries, condensation/evaporation,
+single-level advection on constant- and stretched-z grids and on a static
+Cos4Hill terrain-fitted grid, triply periodic or with the walls, outflow and
+prescribed inflow of :ref:`sec:SBMBoundaries`, and the two-level hierarchies
+described in :ref:`sec:SBMMultilevel`. Direct transport tests also exercise
+nontrivial fluxes with a synthetic static mapped measure. Particle mixing is
+covered on single-level constant- and stretched-z grids between periodic and
+wall faces, with Smagorinsky and Deardorff LES and with constant reference
+diffusivities (see :ref:`sec:SBMParticleMixing`). Condensation/evaporation,
 activation, collision-coalescence, sedimentation, and precipitation are not
 available in the runtime. Moving terrain and embedded boundaries remain
 unsupported.
@@ -627,7 +641,7 @@ following qualified configuration, which ERF checks when it reads the inputs:
   levels different dry-air carriers;
 * a double-precision build; and
 * the single-level restrictions of :ref:`sec:SBMRestrictions`, including
-  periodic boundaries in all three directions.
+  the boundary types of :ref:`sec:SBMBoundaries`.
 
 Regridding (``erf.regrid_int``), clearing and recreating the fine level, any
 number of fine steps per coarse step (``erf.dt_ref_ratio``), and multilevel
@@ -677,8 +691,9 @@ ghost completion, and distributed rank ownership. Remote coarse-parent ghost
 values are compared with an independent reconstruction both at the start of
 the coarse step and at the first stage time inside it, which for the MidPoint
 corrector is the half step. Evidence is specific to the
-executed CPU/MPI fixtures and does not establish GPU performance or
-nonperiodic spectral boundary handling.
+executed CPU/MPI fixtures and does not establish GPU performance. The
+qualification decks are triply periodic; two-level runs with physical faces
+are checked by the boundary budget of :ref:`sec:SBMBoundaries`.
 
 A uniform dry-air-relative spectrum, :math:`U_a = z_a\rho_d` with constant
 :math:`z_a`, stays uniform only as far as the spectral fluxes and the
@@ -735,9 +750,168 @@ needs no transfer for the same reason as releasing a parent.
 
 A conservation budget for a refined simulation must count each atmospheric
 region only once, using fine-grid values where refinement is present and
-excluding the underlying coarse-grid cells. Nonperiodic spectral boundaries,
-more than two levels, and refined stretched or terrain-following meshes
-remain to be qualified.
+excluding the underlying coarse-grid cells. More than two levels, and refined
+stretched or terrain-following meshes remain to be qualified.
+
+.. _sec:SBMBoundaries:
+
+Physical boundaries
+-------------------
+
+Each face of the domain takes one of four spectral boundary kinds, from its
+ERF boundary type:
+
+* ``Periodic``: the face is shared with the opposite face;
+* **wall** (``SlipWall``, ``NoSlipWall``, ``surface_layer``): no spectrum
+  crosses the face. The dry-air carrier must be exactly zero there; a nonzero
+  carrier aborts the stage;
+* **outflow** (``Outflow``, ``ho_outflow``): the spectrum leaves with the
+  interior donor state. An inward carrier contradicts the declared outflow and
+  aborts the stage rather than turning the face into an inflow;
+* **prescribed inflow** (``Inflow``, ``inflow_outflow``): an inward carrier
+  brings the spectrum given by ``<face>.sbm_inflow_z``; an outward one takes
+  the interior donor state.
+
+``Symmetry`` faces are rejected because ERF does not hold their normal
+dry-air carrier at zero, and ``Open`` because it advects with a
+characteristic scheme the spectrum does not share. A ``surface_layer`` face
+is a wall for the spectrum: the surface fluxes it gives ERF's own scalars do
+not apply, so particles neither deposit on the surface nor leave it. ERF
+accepts a surface layer only with a diffusive closure, so with SBM it needs
+an LES closure and ``erf.sbm_particle_mixing = HostPassiveScalar``. Real-data
+lateral boundaries remain
+rejected: their files carry compact moisture, not a spectrum. So does
+``erf.input_bndry_planes``, whose files would set the density and compact
+moisture of an inflow face.
+
+The ghost cells outside a wall or outflow face repeat the edge cell, and those
+outside an inflow face hold the inflow spectrum. They are filled at every
+stage on every level, after the coarse/fine ghosts of a refined level, and
+are never stored. Every face whose WENO-Z3 stencil can reach such a ghost --
+the physical face itself and the next face inside -- takes the donor rate as
+its high-order candidate, so the accepted rate there is the donor rate.
+
+The inflow spectrum gives every layout component per kilogram of dry air,
+in the component order of ``erf.sbm_fixture_initial_state``: liquid-water
+mass (kg/kg), and in two-moment mode droplet number (1/kg). It must be
+complete, canonical for its representation, and admissible for every bin
+group. ``<face>.density`` must be given, and ERF sets the compact ``qc`` and
+``qr`` boundary values from the projection of the inflow spectrum;
+``<face>.qc`` is rejected, since a compact value can neither define nor
+override a spectrum. Inflow data on any other kind of face is rejected.
+
+The accepted transfer through each physical face is accumulated in a
+boundary ledger, per face and component, with the completed-step weights of
+the host integrator. A coarse face under the finer level does not count:
+the fine faces there carry the transfer. With ``erf.sbm_budget_check =
+true``, after each coarse step ERF checks that the composite leaf inventory
+changed by exactly the outward transfer of that step,
+
+.. math::
+
+   \left|I_n - I_{n-1} + (B_n - B_{n-1})\right| \le
+   \epsilon_{\rm ops}\,\left(|I_{n-1}| + |I_n| + G_n - G_{n-1}\right),
+
+where :math:`I_n` is the composite inventory of a component after step
+:math:`n` (:math:`I_{n-1}` at the start or restart of the run before the
+first check), :math:`B` its cumulative outward boundary transfer, :math:`G`
+the cumulative magnitude of that transfer, and :math:`\epsilon_{\rm ops}` an
+operation-count roundoff bound for one step, which does not grow with the
+length of the run. Each check prints an ``SBM_BUDGET`` line, and a failure
+aborts. A grid so large that the bound reaches one at the working precision
+(possible in single precision) is rejected.
+
+ERF's own dry-air mass is not conserved through periodic z faces when a
+lateral face is not periodic and the flow has a vertical component, and the
+spectrum, carried by the same mass flux, follows it. Use walls in z with
+nonperiodic lateral faces.
+
+.. _sec:SBMParticleMixing:
+
+Particle mixing
+---------------
+
+``erf.sbm_particle_mixing`` selects how subgrid turbulence mixes the
+spectrum. A policy gives one gradient-mixing coefficient to every member of
+every bin group:
+
+* ``None`` (default): no mixing;
+* ``ConstantReference``: the kinematic horizontal and vertical diffusivities
+  ``erf.sbm_particle_mixing_kh`` and ``erf.sbm_particle_mixing_kv``,
+  multiplied by the face-averaged dry-air density;
+* ``HostPassiveScalar``: ERF's ``Scalar_h`` and ``Scalar_v`` eddy
+  coefficients on horizontal and vertical faces, used as they are: they are
+  already density weighted and already include the turbulent Schmidt factor.
+  Under ERF's LES closures they equal the ``Q_h`` and ``Q_v`` coefficients
+  that diffuse moisture. ERF computes them once per step from the state at
+  the start of the step, and every stage of the spectrum uses that field, as
+  ERF's own scalars do.
+
+``HostPassiveScalar`` requires ``erf.les_type = Smagorinsky`` or
+``Deardorff``, the same on every level. ``Smagorinsky2D`` is rejected: it
+leaves vertical mixing to a PBL scheme. ``None`` and ``ConstantReference``
+reject any LES closure, which would mix the vapor but not the spectrum, or
+the spectrum by unrelated coefficients. Every policy rejects PBL and RANS
+closures, since the PBL schemes other than SHOC set ``Q_v`` but not
+``Scalar_v`` and several add nonlocal transport, and rejects molecular
+diffusion. Mixing also requires one level (``amr.max_level = 0``), a
+constant- or stretched-z mesh, and periodic or wall faces (including
+``surface_layer``); refined meshes, terrain-fitted meshes and open faces are
+rejected until they are qualified.
+
+Particle molecular (Brownian) diffusion is zero under every policy; a vapor
+or scalar molecular diffusivity is never inherited. A nonfinite or negative
+coefficient in any cell the operator reads is rejected, not clipped.
+
+The low-order operator exchanges the intensive state :math:`z=U/\rho_d`
+between the two cells of each face, :math:`F_f=-T_f\,(z_R-z_L)` with
+:math:`T_f\ge0`. On constant- and stretched-z grids this is ERF's own scalar
+diffusion stencil. At each host stage it is evaluated on the same base state
+as the donor advection, with :math:`T_f` from that state's dry-air density,
+and added to the low-order advective candidate. ERF's own scalar-diffusion
+flux of the stage input state is added to the high-order candidate, and the
+grouped FCT limiter of :ref:`AuxiliaryState` bounds the combined correction.
+Where the limiter is inactive the spectrum is therefore mixed exactly as an
+ERF scalar would be, with the host integrator's order of accuracy, and a
+uniform ratio :math:`U/\rho_d` stays uniform under varying density and
+coefficients. Two-moment pairs are mixed in physical mass and number: the
+operator is linear, so no endpoint transformation is needed. Physical faces
+carry no diffusive transfer.
+
+Low-order advection and diffusion evaluated from the same anchor keep every
+cell nonnegative only under their combined bound
+
+.. math::
+
+   \frac{\tau}{C_{d,i}}\left[\sum_{f\in\partial i}\max(\sigma_{if}\dot M_{d,f},0)
+   +\sum_j g_{ij}\right]\le1,
+
+where :math:`C_{d,i}` is the cell's dry-air inventory, :math:`\dot M_{d,f}`
+the dry-air face rate and :math:`g_{ij}` the face exchange coefficient.
+Separate advective and diffusive fractions of 0.6 each pass their own bounds
+but leave :math:`-0.2` of the cell. Because every member of a bin group shares
+one coefficient, the update preserves the group's linear admissibility
+constraints. Each stage checks the combined bound and aborts if it fails.
+Adaptive timesteps respect it and a fixed timestep that exceeds it is
+rejected. ``ConstantReference`` coefficients are known in advance, but ERF
+prepares the ``HostPassiveScalar`` eddy coefficients inside the step, so their
+estimate uses the previous step's coefficients. The first step of a run sees
+none, and the first step after a restart, whose eddy coefficients are not
+checkpointed, keeps the checkpointed timestep; the stage check guards both,
+and aborts rather than shrinking the step. Where the eddy diffusivity can
+approach the advective limit, for example an LES started from a strong
+perturbation, leave margin with a smaller ``erf.cfl`` or shrink the first step
+with ``erf.init_shrink``.
+
+The limiter keeps a roundoff margin of :math:`128\,\epsilon` times each
+cell's gross budget, so a cell it drains exactly to a bound cannot round
+below it. The margin applies with or without mixing. A nearly empty cell whose
+margin to a bound is within that roundoff of the material passing through it
+takes the low-order update on its faces.
+
+On terrain-fitted grids ERF's centred cross-diffusion stencil is
+not positive: a single diagonal neighbour gives an empty cell a negative
+tendency. No low-order operator is yet qualified there.
 
 Numerical reconstruction for resolved spectral advection
 --------------------------------------------------------
@@ -763,10 +937,8 @@ numerical meaning:
   At this revision its linear weights are :math:`1/3` and :math:`2/3`, with a
   fixed epsilon of ``1.e-12`` in ``AMREX_USE_FLOAT`` builds and ``1.e-40``
   otherwise; and
-* the enabled SBM runtime is triply periodic, so its end-to-end simulations
-  do not exercise a physical-boundary high-order fallback. The declared
-  spectral boundary policy permits an admissible donor proposal when a
-  physical-boundary high-order stencil is not qualified.
+* on a nonperiodic physical face and the next face inside, the donor rate is
+  the high-order candidate (see :ref:`sec:SBMBoundaries`).
 
 Changing the reconstruction basis, component normalization, WENO epsilon or
 stencil, or physical-boundary fallback is a numerical-method change requiring
@@ -946,6 +1118,64 @@ number components have units of :math:`\mathrm{m^{-3}}`.
 All supplied values must be finite and nonnegative. Two-moment states must
 also satisfy the per-bin realizability condition described above.
 
+``erf.sbm_fixture_initial_state_xhi``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Type:** List of real values
+
+**Default:** none (the state above everywhere)
+
+A second test state, in the order, units and constraints of
+``erf.sbm_fixture_initial_state``, for the cells in the upper half of the
+domain in x. The step between the two states gives advection and mixing
+something to move.
+
+``erf.sbm_particle_mixing``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Type:** ``None``, ``ConstantReference`` or ``HostPassiveScalar``
+
+**Default:** ``None``
+
+The particle mixing policy of :ref:`sec:SBMParticleMixing`.
+
+``erf.sbm_particle_mixing_kh``, ``erf.sbm_particle_mixing_kv``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Type:** Real, :math:`\mathrm{m^2\,s^{-1}}`
+
+**Default:** ``0``
+
+The horizontal and vertical kinematic diffusivities of
+``ConstantReference``. They must be finite and nonnegative, and any other
+policy rejects a nonzero value.
+
+``erf.sbm_budget_check``
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Type:** Boolean
+
+**Default:** ``false``
+
+After every coarse step, check that the composite spectral inventory changed
+only by that step's accepted transfer through the physical faces, print one
+``SBM_BUDGET`` line per component, and abort if the difference exceeds its
+roundoff bound (see :ref:`sec:SBMBoundaries`). Requires
+``erf.moisture_model = SBM``.
+
+``<face>.sbm_inflow_z``
+~~~~~~~~~~~~~~~~~~~~~~~
+
+**Type:** List of real values, one per spectral component
+
+**Units:** per kilogram of dry air
+
+The constant spectrum entering through an ``Inflow`` or ``inflow_outflow``
+face, where ``<face>`` is ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo`` or
+``zhi`` (with or without the ``erf.`` prefix, as for the face's ``type``).
+It is required on every such face and rejected on any other, and the face
+must also give ``<face>.density``.
+
 .. _sec:SBMRestrictions:
 
 Current execution restrictions
@@ -958,16 +1188,19 @@ The current configuration requires:
 
 * a three-dimensional ERF build;
 * at most two AMR levels, ``amr.max_level <= 1``;
-* periodic boundaries in all three directions;
+* periodic, wall, outflow or prescribed-inflow faces, as in
+  :ref:`sec:SBMBoundaries`, and only periodic and wall faces with particle
+  mixing;
 * static non-EB geometry; end-to-end evidence covers ``ConstantDz``,
-  ``StretchedDz``, and the triply periodic static ``Cos4Hill`` fitted-mesh
-  smoke profile, with terrain flat at the periodic boundaries;
+  ``StretchedDz``, and the static ``Cos4Hill`` fitted-mesh profile;
 * no moving terrain, embedded boundaries, or immersed buildings;
 * no acoustic substepping: ``erf.timestepping_type`` is ``RK3_NoSubstepping``
   at compressible levels and ``RK2`` or ``MidPoint`` at anelastic levels;
 * no ``PseudoIncompressible`` levels;
-* no molecular scalar diffusion;
-* no turbulent scalar diffusion or PBL/SHOC transport acting on moisture;
+* no molecular diffusion;
+* no PBL or RANS closure, and an LES closure (``Smagorinsky`` or
+  ``Deardorff``) only with ``erf.sbm_particle_mixing = HostPassiveScalar``;
+* particle mixing only on one level and on a constant- or stretched-z mesh;
 * no ERF numerical diffusion;
 * no sponge source;
 * no configured perturbation forcing;
@@ -984,9 +1217,8 @@ Anelastic SBM advection is supported only for the currently qualified
 non-fitted-terrain cases, including constant- and stretched-z grids, with
 either anelastic integrator: ``RK2`` (Heun) or ``MidPoint``, ERF's default.
 ``StaticFittedMesh`` with ``VariableDz`` is explicitly rejected for anelastic
-SBM because ERF's fitted-terrain anelastic projection requires a nonperiodic
-vertical boundary, whereas the current spectral transport capability requires
-a triply periodic domain. This is a support-envelope restriction, not a
+SBM: the fitted-terrain anelastic projection with spectral transport has not
+been qualified. This is a support-envelope restriction, not a
 different spectral carrier convention.
 
 The resolved host dry-air carrier may be nonzero. SBM transport uses that
@@ -1002,13 +1234,16 @@ used in a periodic SBM advection case with:
    prob.W_0 = 0.4
 
 Adaptive ERF timestep selection also applies the SBM donor-outflow restriction
-using the current mapped dry-air carrier. A user-specified fixed timestep that
+using the current mapped dry-air carrier, and with particle mixing the
+combined advection-diffusion bound of :ref:`sec:SBMParticleMixing`. A
+user-specified fixed timestep that
 exceeds the current hard donor-positivity limit is rejected rather than
 silently subcycling the spectrum. The exact stage-time outgoing-demand check
 remains active as a fail-closed guard because the carrier used by a later host
 stage may differ from the pre-step estimate.
 
-The currently enabled SBM capability implements resolved advection only;
+The currently enabled SBM capability implements resolved advection and
+turbulent particle mixing only;
 cloud microphysical source processes are not yet coupled to the spectrum.
 
 One-moment example

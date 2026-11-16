@@ -202,13 +202,26 @@ ERF::WriteCheckpointFile () const
                 "SBM checkpoint requires every interface reflux amount to be consumed");
         }
         const std::string schema_file = checkpointname + "/SBM_Schema";
+        const auto& boundaries = sbm_transport->physical_boundaries();
         if (ParallelDescriptor::IOProcessor()) {
             std::ofstream schema(schema_file, std::ofstream::out |
                                               std::ofstream::trunc |
                                               std::ofstream::binary);
             if (!schema.good()) FileOpenFailed(schema_file);
-            schema << erf_sbm::restart_schema(sbm_state_manager->layout());
+            schema << erf_sbm::restart_schema(sbm_state_manager->layout(),
+                                              boundaries.identity(),
+                                              erf_sbm::particle_mixing_schema(
+                                                  sbm_transport->particle_mixing()));
             if (!schema.good()) FileOpenFailed(schema_file);
+            if (!boundaries.all_periodic()) {
+                const std::string ledger_file = checkpointname + "/SBM_BoundaryLedger";
+                std::ofstream ledger(ledger_file, std::ofstream::out |
+                                                  std::ofstream::trunc |
+                                                  std::ofstream::binary);
+                if (!ledger.good()) FileOpenFailed(ledger_file);
+                ledger << sbm_transport->boundary_ledger().serialize();
+                if (!ledger.good()) FileOpenFailed(ledger_file);
+            }
         }
         ParallelDescriptor::Barrier();
     }
@@ -248,7 +261,8 @@ ERF::WriteCheckpointFile () const
        HeaderFile << ncomp_cons << "\n";
 
        // The passive-scalar block is compile-time (NSCALARS: the base scalar,
-       // plus smoke with ERF_USE_FIRE), so record it next to the header: a
+       // plus the dust scalars with ERF_ENABLE_DUST, plus smoke with
+       // ERF_USE_FIRE), so record it next to the header: a
        // reader built differently would otherwise shift every component after
        // it (and with a difference of one take the QKE backward-compatibility
        // path below).
@@ -454,6 +468,21 @@ ERF::WriteCheckpointFile () const
             MultiFab gpz(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
             MultiFab::Copy(gpz,gradp[lev][GpVars::gpz],0,0,1,0);
             VisMF::Write(gpz, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpz"));
+        }
+
+        // Pseudo-incompressible: the upwind direction of the latest projection, with which the
+        // first stage after the restart advects the cell-centered scalars
+        if (pi_upw_dir[lev][0]) {
+            const char* names[AMREX_SPACEDIM] = {"PiUpwDirX", "PiUpwDirY", "PiUpwDirZ"};
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                VisMF::Write(*pi_upw_dir[lev][idim],
+                             MultiFabFileFullPrefix(lev, checkpointname, "Level_", names[idim]));
+            }
+        }
+        // ... and the non-advective tendency of (rho theta) of the latest stage, the Q of the
+        // constraint of the first projection after the restart
+        if (pi_src[lev]) {
+            VisMF::Write(*pi_src[lev], MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PiSrc"));
         }
 
         // Surface momentum and scalar fluxes handed to an ocean model in
@@ -816,6 +845,9 @@ ERF::WriteCheckpointFile () const
 #endif
     } // for lev
 
+     // The wrfinput land and soil fields that no land model takes (none for most runs)
+     wrf_surface_fields.write_checkpoint(checkpointname, finest_level+1);
+
 #ifdef ERF_USE_FIRE
     // The fire: the engine's state (FireEngine::write_checkpoint), then the
     // coupling's lagged fluxes, on the level the fire grid refines
@@ -824,10 +856,20 @@ ERF::WriteCheckpointFile () const
     }
 #endif
 
+#ifdef ERF_USE_DUST
+    // The dust model's own state (DustModel::write_checkpoint), which
+    // DustModel::initialize reads back on a restart
+    if (m_dust_model) {
+        m_dust_model->write_checkpoint(checkpointname);
+    }
+#endif
+
 #ifdef ERF_USE_MOVING_BODIES
     // The structure model's own state, under checkpointname/<model name>
     if (m_structure_model) {
         m_structure_model->write_checkpoint(checkpointname);
+        // and its source on its level, which the coarser levels take at their first step after a restart
+        write_structure_coarse_source_checkpoint(checkpointname);
     }
 #endif
 
@@ -1043,8 +1085,29 @@ ERF::ReadCheckpointFile ()
         Vector<char> schema_chars;
         ParallelDescriptor::ReadAndBcastFile(schema_file, schema_chars);
         const std::string persisted_schema(schema_chars.dataPtr());
-        if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema)) {
-            Abort("SBM restart schema does not exactly match the active spectral layout and M3 transport identity");
+        const auto& boundaries = sbm_transport->physical_boundaries();
+        if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema,
+                                             boundaries.identity(),
+                                             erf_sbm::particle_mixing_schema(
+                                                 sbm_transport->particle_mixing()))) {
+            Abort("SBM restart schema does not exactly match the active spectral layout, "
+                  "M3 transport, physical boundary identity and particle mixing");
+        }
+        if (!boundaries.all_periodic()) {
+            const std::string ledger_file = restart_chkfile + "/SBM_BoundaryLedger";
+            if (!FileExists(ledger_file)) {
+                Abort("SBM restart is missing its boundary ledger '" + ledger_file + "'");
+            }
+            Vector<char> ledger_chars;
+            ParallelDescriptor::ReadAndBcastFile(ledger_file, ledger_chars);
+            erf_sbm::SBMBoundaryLedger ledger;
+            std::string reason;
+            if (!erf_sbm::SBMBoundaryLedger::parse(std::string(ledger_chars.dataPtr()),
+                                                   sbm_state_manager->layout().ncomp(),
+                                                   ledger, reason)) {
+                Abort("SBM restart boundary ledger is invalid: " + reason);
+            }
+            sbm_transport->restore_boundary_ledger(ledger);
         }
     }
 
@@ -1427,7 +1490,8 @@ ERF::ReadCheckpointFile ()
 
     // The passive-scalar block of the writer (ScalarLayout): a different
     // NSCALARS means a build with or without the fire coupling's smoke scalar,
-    // whose components would be read shifted. Read on the IO rank and
+    // or with another number of dust scalars, whose components would be read
+    // shifted. Read on the IO rank and
     // broadcast, so every rank takes the same decision. A checkpoint without
     // the file was written before it was recorded, so with one passive scalar.
     {
@@ -1444,14 +1508,14 @@ ERF::ReadCheckpointFile ()
             ("Checkpoint " + restart_chkfile + " was written with " + std::to_string(nsc)
              + " passive scalar(s)" + (recorded ? "" : " (it records no scalar layout, so it predates the"
              " fire coupling's smoke scalar)") + " but this build has " + std::to_string(NSCALARS)
-             + " (ERF_USE_FIRE adds the smoke scalar); restart with a build configured like the one"
-             " that wrote it").c_str());
+             + " (ERF_USE_FIRE adds the smoke scalar, ERF_ENABLE_DUST adds ERF_NUM_DUST_SCALARS dust scalars);"
+             " restart with a build configured like the one that wrote it").c_str());
     }
 
     // NOTE: QKE was removed so this is for backward compatibility
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE((chk_ncomp_cons==ncomp_cons) || ((chk_ncomp_cons-1)==ncomp_cons),
         ("Checkpoint has " + std::to_string(chk_ncomp_cons) + " conserved components, this build "
-         + std::to_string(ncomp_cons) + ": was it written by a build with other modules (fire, moisture)?").c_str());
+         + std::to_string(ncomp_cons) + ": was it written by a build with other modules (fire, dust, moisture)?").c_str());
     //
     // See if we have a written separate file that tells how many components and how many ghost cells
     // we have of the base state
@@ -1570,6 +1634,31 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(gpz, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpz"));
             gradp[lev][GpVars::gpz].ParallelCopy(gpz,0,0,1,IntVect(0),IntVect(0));
             gradp[lev][GpVars::gpz].FillBoundary(geom[lev].periodicity());
+        }
+
+        // Pseudo-incompressible: the upwind direction of the latest projection (see the write
+        // above).  A checkpoint without it leaves the direction zero, the centered blend, for the
+        // first stage, so (rho theta) can depart from rho0 theta0 by the upwind correction there.
+        if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible &&
+            solverChoice.terrain_type != TerrainType::EB) {
+            define_pi_upw_dir(lev);
+            const char* names[AMREX_SPACEDIM] = {"PiUpwDirX", "PiUpwDirY", "PiUpwDirZ"};
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                if (!read_checkpoint_mf_if_present(*pi_upw_dir[lev][idim],
+                                                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", names[idim]),
+                                                   lev, 0, 0, 1, IntVect(0), false)) {
+                    amrex::Print() << "WARNING: checkpoint has no " << names[idim] << " at level " << lev
+                                   << "; the pseudo-incompressible upwind direction starts centered" << std::endl;
+                }
+            }
+            pi_src[lev] = std::make_unique<MultiFab>(grids[lev], dmap[lev], 1, 0);
+            pi_src[lev]->setVal(zero);
+            if (!read_checkpoint_mf_if_present(*pi_src[lev],
+                                               MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PiSrc"),
+                                               lev, 0, 0, 1, IntVect(0), false)) {
+                amrex::Print() << "WARNING: checkpoint has no PiSrc at level " << lev
+                               << "; the first pseudo-incompressible projection takes Q = 0" << std::endl;
+            }
         }
 
         // Restore the surface fluxes an ocean model is driven by in flux-passing
@@ -2099,6 +2188,17 @@ ERF::ReadCheckpointFile ()
         }
 #endif
     } // for lev
+
+    // The wrfinput land and soil fields that no land model takes: data of the initial time,
+    // restored onto this run's grids. A checkpoint written before they were stored leaves
+    // the holder empty.
+    {
+        IntVect ng_sfc = vars_new[0][Vars::cons].nGrowVect(); ng_sfc[2] = 0;
+        Vector<Periodicity> period(finest_level+1);
+        for (int lev = 0; lev <= finest_level; ++lev) { period[lev] = geom[lev].periodicity(); }
+        wrf_surface_fields.read_checkpoint(restart_chkfile, finest_level+1, ba2d, dmap,
+                                           ng_sfc, period, refRatio());
+    }
 
     // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the
     // substepping schedule survives restart. lsm.Init() during

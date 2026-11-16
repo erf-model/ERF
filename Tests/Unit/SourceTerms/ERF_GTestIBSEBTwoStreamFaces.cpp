@@ -230,11 +230,12 @@ TEST(IBSEBTwoStreamFaces, GroundViewShadowWhenTheFacesSunIsDown)
         BoxList bl2 = ba.boxList();
         for (Box& b : bl2) { b.setRange(2, 0); }
         const BoxArray ba2(std::move(bl2));
-        MultiFab cosz(ba2, dm, 1, 0), alb(ba2, dm, 1, 0);
+        MultiFab cosz(ba2, dm, 1, 0), alb(ba2, dm, 2, 0);   // the albedo, and the interface the column starts on
         MultiFab fluxes(ba, dm, 4, IntVect(1, 1, 1));
         fill_view(beam, cosz, fluxes);
         cosz.setVal(cos_sweep);
-        alb.setVal(0.2);
+        alb.setVal(0.2, 0, 1);
+        alb.setVal(0.0, 1, 1);
         TwoStreamCanopyView view;
         view.beam = &beam;
         view.cos_zenith = &cosz;

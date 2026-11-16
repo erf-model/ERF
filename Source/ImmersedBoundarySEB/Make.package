@@ -8,3 +8,4 @@ CEXE_headers += ERF_IBSEBMaterials.H
 CEXE_headers += ERF_IBSEBParams.H
 CEXE_headers += ERF_IBSEBSlab.H
 CEXE_headers += ERF_IBSEBSolar.H
+CEXE_headers += ERF_IBSEBWallFunction.H

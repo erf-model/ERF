@@ -101,6 +101,18 @@ AMREX_ENUM(CompressibilityType,
 );
 
 /**
+ * @brief Horizontal pressure-gradient formulation with terrain-fitted coordinates.
+ *
+ * ChainRule:         dp/dx along the coordinate surface minus the terrain slope times dp/dz
+ * HydrostaticHybrid: as ChainRule, but the hydrostatic part of p' is carried to the height
+ *                    of the face along dp'/dz = -g rho' and only the remainder
+ *                    dp'/dz + g rho' is differenced
+ */
+AMREX_ENUM(GradpType,
+    ChainRule, HydrostaticHybrid
+);
+
+/**
  * @brief Values of the deprecated erf.anelastic_type; read only to map them onto
  *        TimesteppingType.
  */
@@ -759,10 +771,36 @@ struct SolverChoice {
         }
 
         // Which horizontal pressure gradient formulation to use with terrain fitted coords?
-        // 0: dp/dx with dp/dz correction (default)
-        // 1: gradient of vertically interpolated p, see Klemp 2011
-        pp.queryAdd("gradp_type", gradp_type);
-        AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
+        //    (see GradpType).  HydrostaticHybrid always uses the perturbational pressure,
+        //    regardless of the setting of use_pert_pres_gradient.
+        //
+        // The integer values this used to take are still accepted, with a warning:
+        //    0 -> ChainRule, 2 -> HydrostaticHybrid; 1 (Klemp 2011) has been removed
+        if (pp.contains("gradp_type")) {
+            std::string gradp_str;
+            pp.get("gradp_type", gradp_str);
+            if (gradp_str == "0" || gradp_str == "1" || gradp_str == "2") {
+                if (gradp_str == "1") {
+                    amrex::Abort("erf.gradp_type = 1 has been removed; use erf.gradp_type = HydrostaticHybrid");
+                }
+                gradp_type = (gradp_str == "0") ? GradpType::ChainRule : GradpType::HydrostaticHybrid;
+                amrex::Print() << "WARNING: integer values of erf.gradp_type are deprecated; use erf.gradp_type = "
+                               << amrex::getEnumNameString(gradp_type) << std::endl;
+            } else {
+                // Case-insensitive and ignoring underscores, so that e.g. hydrostatic_hybrid
+                //    selects HydrostaticHybrid
+                try {
+                    pp.query_enum_sloppy("gradp_type", gradp_type, "_");
+                } catch (...) {
+                    amrex::Abort("erf.gradp_type must be ChainRule or HydrostaticHybrid, not '"
+                                 + gradp_str + "'");
+                }
+            }
+        }
+
+        // With ChainRule, whether dp/dz at the bottom and top of the domain is the second-order
+        //    one-sided difference through three cells rather than the first-order two-point one
+        pp.query("gradp_2nd_order_bndry", gradp_2nd_order_bndry);
 
         // For the lateral pressure gradient to be used in the momentum equation, should we
         // take the x- and y-derivatives of the perturbational pressure or the full pressure?
@@ -819,6 +857,10 @@ struct SolverChoice {
             (sbm_test_native_qc_write_fault || sbm_test_donor_cfl_fault)) {
             amrex::Error("SBM test fault-injection options require moisture_model=SBM");
         }
+        pp.queryAdd("sbm_budget_check", sbm_budget_check);
+        if (moisture_type != MoistureType::SBM && sbm_budget_check) {
+            amrex::Error("erf.sbm_budget_check requires erf.moisture_model = SBM");
+        }
 
         // Register the moisture data this scheme carries: conserved-state
         // components and qmoist diagnostic slots alike.  MoistureComponentIndices
@@ -841,6 +883,10 @@ struct SolverChoice {
             pp.queryarr("sbm_edges", sbm_edges);
             pp.queryarr("sbm_pivots", sbm_pivots);
             pp.queryarr("sbm_fixture_initial_state", sbm_fixture_initial_state);
+            pp.queryarr("sbm_fixture_initial_state_xhi", sbm_fixture_initial_state_xhi);
+            pp.queryAdd("sbm_particle_mixing", sbm_particle_mixing);
+            pp.queryAdd("sbm_particle_mixing_kh", sbm_particle_mixing_kh);
+            pp.queryAdd("sbm_particle_mixing_kv", sbm_particle_mixing_kv);
 
             if (sbm_nbins < 2 || (sbm_moment_mode != 1 && sbm_moment_mode != 2)) {
                 amrex::Error("SBM requires sbm_nbins >= 2 and sbm_moment_mode equal to 1 or 2");
@@ -891,6 +937,16 @@ struct SolverChoice {
                     amrex::Error("sbm_fixture_initial_state values must be finite and nonnegative");
                 }
             }
+            if (!sbm_fixture_initial_state_xhi.empty() &&
+                sbm_fixture_initial_state_xhi.size() != sbm_fixture_initial_state.size()) {
+                amrex::Error("sbm_fixture_initial_state_xhi must have as many values as "
+                             "sbm_fixture_initial_state");
+            }
+            for (const amrex::Real value : sbm_fixture_initial_state_xhi) {
+                if (!std::isfinite(value) || value < amrex::Real(0.0)) {
+                    amrex::Error("sbm_fixture_initial_state_xhi values must be finite and nonnegative");
+                }
+            }
         }
 
         // Set a default for both dry and moist
@@ -926,6 +982,11 @@ struct SolverChoice {
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
         // ApplyOceanSurfaceState call.
         pp.queryAdd("use_coupled_sst", use_coupled_sst);
+
+        // Will an external ocean coupler supply the surface current? The surface layer
+        // allocates the current with each level, before the first ApplyOceanSurfaceState
+        // call, and takes the wind relative to it.
+        pp.queryAdd("use_coupled_currents", use_coupled_currents);
 
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
@@ -1353,6 +1414,10 @@ struct SolverChoice {
             amrex::Error("erf.wall_dist_type must be poisson or terrain_height");
         }
         pp.queryAdd("poisson_abstol", poisson_abstol);
+        pp.queryAdd("pi_drift_factor", pi_drift_factor);
+        if (pi_drift_factor < zero) {
+            amrex::Abort("erf.pi_drift_factor must be non-negative");
+        }
         pp.queryAdd("poisson_reltol", poisson_reltol);
         // Solver for the projection on a terrain-fitted mesh: FFT-preconditioned GMRES (default),
         // or amrex::MLTerrainPoisson with multigrid, alone or under GMRES
@@ -1977,9 +2042,6 @@ struct SolverChoice {
         // Optionally use the dry-air density reconstructed from wrfbdy.
         pp.queryAdd("use_wrf_bdy_density", use_wrf_bdy_density);
 
-        // Optionally ingest cloud water and cloud ice from wrfinput/wrfbdy.
-        pp.queryAdd("use_wrf_bdy_qc_qi", use_wrf_bdy_qc_qi);
-
         if (!use_real_bcs || init_type != InitType::WRFInput) {
             use_wrf_bdy_density = false;
         }
@@ -1988,32 +2050,8 @@ struct SolverChoice {
 
         // Which approach to nudging the moist variables in the boundary region?
         pp.queryAdd("bdy_moist_nudge_type",bdy_moist_nudge_type);
-        if (bdy_moist_nudge_type < 0 || bdy_moist_nudge_type > 3) {
-            amrex::Error("erf.bdy_moist_nudge_type must be one of 0, 1, 2, or 3");
-        }
-        if (bdy_moist_nudge_type == 3 && !use_wrf_bdy_qc_qi) {
-            amrex::Error("erf.bdy_moist_nudge_type = 3 requires erf.use_wrf_bdy_qc_qi = true");
-        }
-        if (use_wrf_bdy_qc_qi) {
-            if (moisture_type == MoistureType::None) {
-                amrex::Error("erf.use_wrf_bdy_qc_qi requires an active moisture model");
-            }
-            if (!use_real_bcs || init_type != InitType::WRFInput) {
-                amrex::Error("erf.use_wrf_bdy_qc_qi requires WRFInput real boundary conditions");
-            }
-            if (moisture_indices.qv < RhoQ1_comp || moisture_indices.qv > RhoQ11_comp ||
-                moisture_indices.qc < RhoQ1_comp || moisture_indices.qc > RhoQ11_comp) {
-                amrex::Error("erf.use_wrf_bdy_qc_qi requires active qv and qc component indices");
-            }
-            const int optional_moisture_comps[] = {moisture_indices.qi,
-                                                   moisture_indices.qr,
-                                                   moisture_indices.qs,
-                                                   moisture_indices.qg};
-            for (const int comp : optional_moisture_comps) {
-                if (comp != -1 && (comp < RhoQ1_comp || comp > RhoQ11_comp)) {
-                    amrex::Error("erf.use_wrf_bdy_qc_qi found an invalid active moisture component index");
-                }
-            }
+        if (bdy_moist_nudge_type < 0 || bdy_moist_nudge_type > 2) {
+            amrex::Error("erf.bdy_moist_nudge_type must be one of 0, 1, or 2");
         }
 
         // Are me transporting the scalar component?
@@ -2449,6 +2487,14 @@ struct SolverChoice {
                           " turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction"
                           " will have turb_disk_angle value of 90 deg.");
         }
+#ifdef ERF_USE_WINDFARM
+        // Without a location type no turbine table is read, and the model would run on empty tables
+        if (windfarm_type != WindFarmType::None && windfarm_loc_type == WindFarmLocType::None) {
+            amrex::Error(std::string("erf.windfarm_type = ") + amrex::getEnumNameString(windfarm_type)
+                         + " needs erf.windfarm_loc_type, either lat_lon or x_y, with the turbine locations"
+                         " in erf.windfarm_loc_table and their specifications in erf.windfarm_spec_table.");
+        }
+#endif
         if (windfarm_loc_type == WindFarmLocType::lat_lon and (windfarm_x_shift < zero or windfarm_y_shift < zero)) {
             amrex::Error("You are using windfarms with latitude-logitude option to position the turbines."
                          " For this you should provide the inputs erf.windfarm_x_shift and"
@@ -2737,7 +2783,8 @@ struct SolverChoice {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
 
-        amrex::Print() << "Gradp_type                  : " << gradp_type << std::endl;
+        amrex::Print() << "Gradp_type                  : " << amrex::getEnumNameString(gradp_type) << std::endl;
+        amrex::Print() << "Gradp_2nd_order_bndry       : " << gradp_2nd_order_bndry << std::endl;
 
         for (int lev = 0; lev <= max_level; lev++) {
             amrex::Print() << "Buoyancy_type at level " << lev << " : " << buoyancy_type[lev] << std::endl;
@@ -2929,10 +2976,16 @@ struct SolverChoice {
     amrex::Real poisson_reltol      = amrex::Real(1e-8);
 #endif
 
+    // Pseudo-incompressible: the constraint is div(rho0 theta0 u) = Q + c (rho theta - rho0 theta0) / dt,
+    // with Q the non-advective tendency of (rho theta) and c this factor (0 for no drift correction)
+    amrex::Real pi_drift_factor     = myhalf;
+
     bool        test_mapfactor         = false;
     amrex::Real test_mapfactor_amp     = amrex::Real(0);
 
-    int         gradp_type             = 0;
+    GradpType   gradp_type             = GradpType::ChainRule;
+
+    bool        gradp_2nd_order_bndry  = false;
 
     bool        use_pert_pres_gradient = true;
 
@@ -3254,9 +3307,15 @@ struct SolverChoice {
     bool sbm_amr_qualification_uniform_ratio{false};
     bool sbm_test_native_qc_write_fault{false};
     bool sbm_test_donor_cfl_fault{false};
+    bool sbm_budget_check{false};
     amrex::Vector<amrex::Real> sbm_edges;
     amrex::Vector<amrex::Real> sbm_pivots;
     amrex::Vector<amrex::Real> sbm_fixture_initial_state;
+    // The fixture state of cells whose centre lies in the upper half of the x domain
+    amrex::Vector<amrex::Real> sbm_fixture_initial_state_xhi;
+    std::string sbm_particle_mixing{"None"};
+    amrex::Real sbm_particle_mixing_kh{0};
+    amrex::Real sbm_particle_mixing_kv{0};
     WindFarmType windfarm_type;
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
@@ -3287,6 +3346,8 @@ struct SolverChoice {
 
     // Does an external ocean coupler supply SST? See the query in init_params.
     bool use_coupled_sst = false;
+    // Does an external ocean coupler supply the surface current? See the query in init_params.
+    bool use_coupled_currents = false;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
@@ -3315,9 +3376,6 @@ struct SolverChoice {
 
     // Use density reconstructed from standard WRF lateral boundary data.
     bool use_wrf_bdy_density = true;
-
-    // Ingest WRF cloud water and active cloud ice at initialization and lateral boundaries.
-    bool use_wrf_bdy_qc_qi = false;
 
     // Density-specific Davies factor; non-positive means use bdy_nudge_factor.
     amrex::Real bdy_rho_nudge_factor = amrex::Real(-1.0);
@@ -3458,6 +3516,8 @@ struct SolverChoice {
  * @brief Amplitude of the spatially varying test map scale factors on level 0 (0: not used).
  * @var SolverChoice::gradp_type
  * @brief Terrain-fitted horizontal pressure-gradient formulation.
+ * @var SolverChoice::gradp_2nd_order_bndry
+ * @brief Whether ChainRule takes dp/dz at the bottom and top from a second-order one-sided difference.
  * @var SolverChoice::use_pert_pres_gradient
  * @brief Whether momentum equations use perturbational pressure gradients.
  * @var SolverChoice::use_gravity
@@ -3674,8 +3734,6 @@ struct SolverChoice {
  * @brief Wind-farm y-coordinate shift.
  * @var SolverChoice::bdy_nudge_factor
  * @brief Boundary sponge nudging factor.
- * @var SolverChoice::use_wrf_bdy_qc_qi
- * @brief Whether WRF cloud water and active cloud ice are ingested at real boundaries.
  * @var SolverChoice::bdy_moist_nudge_type
  * @brief Moist-variable nudging strategy in boundary regions.
  * @var SolverChoice::do_forest_drag

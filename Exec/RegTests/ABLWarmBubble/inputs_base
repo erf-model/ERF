@@ -1,0 +1,58 @@
+# ABLWarmBubble: settings shared by the decks in this folder (see inputs for the
+# case). This file alone sets the bubble centre and radii without prob.bubble_dT,
+# which must stop the run at start-up (inputs_keys_without_dT).
+geometry.prob_lo     =   0.0   0.0   0.0
+geometry.prob_hi     = 320.0 320.0 116.00666947929889   # 12 levels from 4 m stretched by 1.15
+amr.n_cell           =  16    16    12
+geometry.is_periodic =   1     1     0
+amr.max_level        = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+amrex.fpe_trap_invalid = 1
+
+erf.terrain_type          = StaticFittedMesh
+erf.initial_dz            = 4.0
+erf.grid_stretching_ratio = 1.15
+
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+erf.surface_layer.flux_type = "bulk_coeff"
+erf.most.Cd             = 0.002
+erf.most.Cq             = 0.0
+erf.most.surf_temp      = 300.0
+erf.most.surf_moist     = 0.0
+erf.most.surf_temp_flux = 0.24     # K m/s, imposed; erf.most.Ch is not needed
+
+# The surface layer needs a diffusion operator; zero coefficients keep the interior idle.
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 0.0
+erf.alpha_T           = 0.0
+erf.alpha_C           = 0.0
+erf.les_type          = "None"
+
+erf.prob_name   = "ABL"
+erf.init_type   = "Isentropic"   # constant theta = prob.T_0 in hydrostatic balance
+erf.use_gravity = true
+prob.rho_0 = 1.0
+prob.T_0   = 300.0
+prob.U_0   = 0.0
+prob.V_0   = 0.0
+prob.A_0   = 0.0
+
+prob.bubble_x_c = 160.0
+prob.bubble_y_c = 150.0
+prob.bubble_z_c = 30.0
+prob.bubble_x_r = 80.0
+prob.bubble_y_r = 60.0
+prob.bubble_z_r = 20.0
+
+erf.fixed_dt = 0.05
+max_step     = 10
+stop_time    = 1000.0
+
+erf.v = 1
+amr.v = 0
+erf.sum_interval = -1
+erf.check_int    = -1
+erf.plot_file_1  = plt
+erf.plot_int_1   = 10
+erf.plot_vars_1  = density theta dens_hse pert_pres z_phys
