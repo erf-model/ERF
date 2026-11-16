@@ -2458,6 +2458,23 @@ ERF::ReadCheckpointFileSurfaceLayer ()
 
                 // Z0
                 read_most_var("Z0" + face, m_SurfaceLayer[ori]->get_z0(lev));
+                if (solverChoice.terrain_type == TerrainType::EB) {
+                    // Periodic copies of checkpoint ghosts can disagree at the
+                    // physical z boundaries, where no valid source overwrites
+                    // them. EB roughness is a horizontal map: restore its
+                    // vertical ghosts from the now-restored interior columns.
+                    MultiFab& z0 = *m_SurfaceLayer[ori]->get_z0(lev);
+                    for (MFIter mfi(z0); mfi.isValid(); ++mfi) {
+                        const int klo = mfi.validbox().smallEnd(2);
+                        const int khi = mfi.validbox().bigEnd(2);
+                        const auto a = z0.array(mfi);
+                        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                            if (k < klo || k > khi) {
+                                a(i,j,k) = a(i,j,amrex::Clamp(k,klo,khi));
+                            }
+                        });
+                    }
+                }
 
                 // The exponentially filtered averages.  We only mark the filter as initialized
                 // if every piece of its state came back, so that a partial restore degrades to
