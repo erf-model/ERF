@@ -65,6 +65,7 @@
 #include <ERF_StationSampler.H>
 #include <ERF_ObsNudging.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_MassSource.H>
 #include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
 
@@ -83,6 +84,7 @@
 #endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
+#include "ERF_WRFSurfaceFields.H"
 #include "ERF_Plotfile2DCloudOptics.H"
 
 #ifdef ERF_USE_WINDFARM
@@ -1518,6 +1520,13 @@ private:
     // can use these directly.
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
 
+    // The land and soil fields of the wrfinput file that no land model takes (LAI, VEGFRA,
+    // TMN, ZNT, ALBEDO, ALBBCK, SEAICE, SNOW, SNOWH, TSLB, SMOIS, ZS, DZS), as read at the initial
+    // time. Filled by init_from_wrfinput when the two-stream force-restore balance runs
+    // without a land model; empty otherwise. Written to the checkpoint and read back on a
+    // restart; carried onto the new grids by RemakeLevel.
+    WRFSurfaceFields wrf_surface_fields;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
     // Struct for working with the sounding data we take as an input. Its profiles are
@@ -2427,6 +2436,9 @@ private:
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
+
+    /// A localized source of gas (erf.mass_source.*); nullptr unless one is given
+    std::unique_ptr<MassSource> m_mass_source = nullptr;
 
 #ifdef ERF_USE_FIRE
     /// The fire coupling (atmosphere side) and the engine it owns (erf.fire.engine)

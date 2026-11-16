@@ -1704,6 +1704,10 @@ ERF::InitData_post ()
     for (int lev = 1; lev <= finest_level; ++lev)
     {
         Interp2DArrays(lev,ba2d[lev],dmap[lev]);
+        // A level without a file of its own takes the wrfinput land and soil fields of
+        // level lev-1; nothing changes for a level that already holds them on these grids
+        wrf_surface_fields.remake(lev, ba2d[lev], dmap[lev], geom[lev].periodicity(),
+                                  refRatio(lev-1), !has_own_init_file(lev), verbose);
     } // lev
 
 #ifdef ERF_USE_WW3_COUPLING
@@ -2990,12 +2994,17 @@ ERF::interp_psfc_from_coarse (int lev)
     const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
 
     //
-    // Do NOT fill the ghost cells outside the domain: unlike the fields that
-    // init_from_wrfinput fills by clamping into the valid region, PSFC is copied out of
-    // the file over the intersection with the domain, so the coarse level has nothing
-    // there for us to interpolate.  Nothing reads those cells -- update_sst_tsk clamps
-    // its PSFC index into the domain.
+    // Do NOT fill the fine ghost cells outside the domain: nothing reads those cells --
+    // update_sst_tsk clamps its PSFC index into the domain.
     //
+    // The coarse ghost cells are another matter.  PSFC is copied out of the file over the
+    // intersection with the domain, so the coarse ghost cells beyond a domain face hold
+    // nothing, and the slope stencil of the interpolater reads them wherever the fine
+    // level, with its ghost cells, comes within one coarse cell of that face.  They take
+    // the nearest column inside the domain first (seb_extend_halo, which also calls
+    // FillBoundary).
+    //
+    seb_extend_halo(*mf_PSFC[lev-1], geom[lev-1]);
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
                           *mf_PSFC[lev-1], 0, 0, 1,
                           geom[lev-1], geom[lev],
@@ -4200,6 +4209,34 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+    m_mass_source = MassSource::from_inputs();
+    if (m_mass_source) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
+                amrex::Abort("erf.mass_source needs erf.compressibility_type = FullyCompressible at every "
+                             "level: the anelastic and pseudo-incompressible projections do not admit a mass source");
+            }
+        }
+        // The region is measured up from the bottom of the terrain-fitted (or flat) grid, and
+        // its volume is computed once per set of grids
+        if (solverChoice.terrain_type == TerrainType::EB ||
+            solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+            solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
+            amrex::Abort("erf.mass_source is not supported with erf.terrain_type = EB, ImmersedForcing "
+                         "or MovingFittedMesh");
+        }
+        const auto plo = Geom(0).ProbLoArray();
+        const auto phi = Geom(0).ProbHiArray();
+        if (m_mass_source->x0() < plo[0] || m_mass_source->x0() > phi[0] ||
+            m_mass_source->y0() < plo[1] || m_mass_source->y0() > phi[1]) {
+            amrex::Abort("erf.mass_source.center is outside the domain");
+        }
+        if (!solverChoice.transport_scalar) {
+            amrex::Print() << "WARNING: erf.transport_scalar = false: the passive scalar is not evolved, "
+                           << "so the mass-source tracer is not added" << std::endl;
+        }
+    }
 
     // SurfaceModel output is opt-in for single-provider runs.  When both
     // providers are active, retain the useful combined diagnostic output

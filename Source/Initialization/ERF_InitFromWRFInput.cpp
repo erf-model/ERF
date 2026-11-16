@@ -534,6 +534,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             amrex::Print() << "Warning: LSM model is being used, but no mapping is defined to fill its variables from WRFinput!" << std::endl;
         }
     }
+
+    // The land and soil fields that no land model takes. They are asked for when the
+    // two-stream force-restore balance evolves the surface without a land model, each of
+    // them is optional, and they go to wrf_surface_fields as the file gives them.
+    // A level put together from several files takes each file's part; a field that the
+    // files do not give on every column of the level is reported and not held.
+    const bool read_surface_fields = !use_lsm &&
+        (solverChoice.rad_type == RadiationType::TwoStream) &&
+        solverChoice.radChoice.seb_prognostic_enable;
+    wrf_surface_fields.clear(lev);
+    if (read_surface_fields) {
+        for (const auto& d : WRFSurfaceFields::catalog()) { NC_names.push_back(d.nc_name); }
+    }
     int nvar = NC_names.size();
 
     auto& lev_new = vars_new[lev];
@@ -724,6 +737,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
                 (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
                 (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
+            // With a land model these names are its required inputs; without one they
+            // are the optional fields of wrf_surface_fields.
+            const WRFSurfaceFields::Descriptor* sfc_desc =
+                read_surface_fields ? WRFSurfaceFields::find(var_name) : nullptr;
+            const bool is_surface_field = (sfc_desc != nullptr);
+            has_fallback_behavior = has_fallback_behavior || is_surface_field;
             if (!success && !has_fallback_behavior) {
                 amrex::Abort(std::string("ERF::init_from_wrfinput: failed to read required variable " + var_name).c_str());
             }
@@ -731,10 +750,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             FArrayBox var_fab;
             FArrayBox var_fab_crse;
 
+            // Number of z indices of the variable in the file (the soil layers of a soil
+            // variable); the file's metadata, the same on every rank
+            int file_nz = 1;
+
             if (success) {
                 // The box the whole variable covers, in this level's index space
                 Box var_box(file_box);
                 var_box.shift(shift_by);
+                file_nz = var_box.length(2);
 
 
                 // In the case where the array is 1D in the z-direction, the destination box needs to also
@@ -748,9 +772,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
                     subdomain_tmp.setBig(1,subdomain_tmp.smallEnd(1));
                 }
-                // For 2D variables like MAPFAC_U, MAPFAC_V, PSFC, MUB, etc.
+                // For 2D variables like MAPFAC_U, MAPFAC_V, PSFC, MUB, etc.: they sit at k = 0
+                //    in the file, and in ba2d and every 2D field they are copied into, also
+                //    when this level's region does not start at the bottom of the domain
                 if (nz == 1) {
-                    subdomain_tmp.setBig(2,subdomain_tmp.smallEnd(2));
+                    subdomain_tmp.setRange(2, var_box.smallEnd(2));
                 }
 
                 Box subdomain_to_fill_typed(convert(subdomain_tmp,var_box.ixType()));
@@ -767,9 +793,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 // fields, whose third index is a soil layer rather than an atmospheric
                 // level even though their fab is staggered in z.
                 // *********************************************************************
-                const bool is_soil_var = (var_name == "TSLB" || var_name == "SMOIS" ||
-                                          var_name == "SH2O" || var_name == "ZS"    ||
-                                          var_name == "DZS");
+                const bool is_soil_var = WRFSurfaceFields::has_soil_layers(var_name) ||
+                                         (var_name == "SH2O");
                 const bool refine_in_z = (rr_z > 1) && (nz > 1) && !is_soil_var;
 
                 Box subdomain_crse(local_to_fill);
@@ -1296,6 +1321,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               (soil_type_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
           }
 
+          // The optional land and soil fields, taken as read from the file, like the
+          // land model's inputs below: the third index of a soil field is the soil
+          // layer. Each file gives the part of the level it covers; the checks and the
+          // ghost cells follow the last file (finish_level).
+          if (is_surface_field && success) {
+              if (sfc_desc->kind == WRFSurfaceFields::Kind::LayerColumn) {
+                  wrf_surface_fields.set_soil_layers(lev, sfc_desc->id, var_fab_from_file);
+              } else {
+                  wrf_surface_fields.fill(lev, sfc_desc->id, ba2d[lev], dm, ngv, file_nz,
+                                          var_fab_from_file, subdomain_to_fill);
+              }
+          }
+
           // Initialize any LSM variables
           if (use_lsm) {
               auto &lsm_wrfmap = lsm.Get_WRFInputNames();
@@ -1449,9 +1487,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               var_fab.clear();
           }
         } // ivar
+
         Print() << "\n";
         have_read_nc_init_file[lev][idx] = 1;
     } // idx
+
+    // After the last file: reduce the checks over the ranks, report, fill the ghost cells
+    if (read_surface_fields) { wrf_surface_fields.finish_level(lev, geom[lev].periodicity()); }
 
     // Convert the velocities using the map factors
     //

@@ -3137,6 +3137,67 @@ if(NOT WIN32)
                  "erf.const_massflux_u=1.0 erf.const_massflux_tau=0")
 endif()
 
+# A localized mass source (erf.mass_source) in a closed box: the domain mass must grow by the
+# mass injected, the tracer integral must equal it, and (where checked) rho*theta must grow by
+# theta times it (Tests/check_mass_source.py). The cases: flat; over a hill on the terrain-fitted
+# mesh (the source volume includes detJ; a cos^4 hill, flat where it meets the slip walls); on a
+# stretched mesh; with grids split in z (boxes that do not reach the ground); a rate table (a
+# ramp and a hold, which a source evaluated at the wrong stage time would not integrate); a fixed
+# theta; no tracer; and with a refined patch coupled two-way that holds the whole region, none of
+# it, all of it but aloft, or half of it (the composite source volume).
+function(add_test_mass_source TEST_NAME RUNTIME_OPTIONS CHECK_OPTIONS)
+    cmake_parse_arguments(ADD_TEST_MS "" "DECK" "" ${ARGN})
+    if(NOT ADD_TEST_MS_DECK)
+        set(ADD_TEST_MS_DECK MassSource.i)
+    endif()
+    if(ERF_PRECISION STREQUAL "DOUBLE")
+        set(tol 1e-9)
+    else()
+        set(tol 1e-2)
+    endif()
+    set(TEST_FILES_DIR "MassSource")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} sh -c
+      "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_MS_DECK} ${RUNTIME_OPTIONS} > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_mass_source.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log ${CHECK_OPTIONS} --tol ${tol}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;conservation" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+endfunction(add_test_mass_source)
+
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  set(_ms_amr "amr.max_level=1 amr.ref_ratio_vect=2 2 2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.coupling_type=TwoWay")
+  add_test_mass_source(MassSource_Flat "" "--rate 1.0e4 --theta 300.0")
+  add_test_mass_source(MassSource_Hill
+      "erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=Cos4Hill prob.hmax=100.0 prob.L=100.0"
+      "--rate 1.0e4")
+  add_test_mass_source(MassSource_Stretched "erf.initial_dz=10.0 erf.grid_stretching_ratio=1.1" "--rate 1.0e4")
+  add_test_mass_source(MassSource_SplitZ
+      "amr.no_box_split_dir=-1 amr.max_grid_size_z=8 erf.timestepping_type=RK3_NoSubstepping erf.vert_implicit_fac=0 0 0 erf.fixed_dt=0.05 max_step=100"
+      "--rate 1.0e4")
+  add_test_mass_source(MassSource_RateTable "" "--expected 55000.0" DECK MassSource_RateTable.i)
+  add_test_mass_source(MassSource_Theta "erf.mass_source.theta=280.0" "--rate 1.0e4 --theta 280.0")
+  add_test_mass_source(MassSource_NoTracer "erf.mass_source.tracer=false" "--rate 1.0e4 --no-tracer")
+  add_test_mass_source(MassSource_AMR
+      "${_ms_amr} erf.box1.in_box_lo=250.0 250.0 0.0 erf.box1.in_box_hi=750.0 750.0 250.0" "--rate 1.0e4")
+  add_test_mass_source(MassSource_AMR_Away
+      "${_ms_amr} erf.box1.in_box_lo=0.0 0.0 0.0 erf.box1.in_box_hi=250.0 250.0 250.0" "--rate 1.0e4")
+  add_test_mass_source(MassSource_AMR_Aloft
+      "${_ms_amr} erf.box1.in_box_lo=250.0 250.0 250.0 erf.box1.in_box_hi=750.0 750.0 500.0" "--rate 1.0e4")
+  add_test_mass_source(MassSource_AMR_Cut
+      "${_ms_amr} erf.box1.in_box_lo=250.0 250.0 0.0 erf.box1.in_box_hi=500.0 750.0 250.0" "--rate 1.0e4")
+  unset(_ms_amr)
+endif()
+
+# The anelastic projection would remove the injected mass, so ERF stops at start-up
+if(NOT WIN32)
+  add_test_abort(MassSource_Anelastic_Abort
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MassSource
+                 MassSource.i
+                 "erf.mass_source needs erf.compressibility_type = FullyCompressible"
+                 "erf.compressibility_type=Anelastic")
+endif()
+
 # The projection on a stretched mesh that is periodic in z has no solver: it stops with the same
 # message with and without FFT, rather than the AMReX assertion of the hybrid FFT solver or a
 # request to rebuild with FFT (erf-model/ERF#4281)
@@ -4866,8 +4927,106 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     add_test_wrfinput_nest(WRFInput_Abort_NestOutsideParent
         "erf.crop.in_box_lo_indices=32 24 0"
         "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
+
+    # The land and soil fields of a wrfinput file with the two-stream force-restore balance and
+    # no land model. make_wrfinput.py makes every field vary in both horizontal directions and
+    # with the soil layer; check_log.py compares the component count, minimum and maximum the
+    # reader reports with the file. The legs: every field present; some absent, which must be
+    # skipped and not stop the run; the balance off, when no field may be asked for; an albedo
+    # of 1.5, and flag values (SNOWH of -999 on every column, one SEAICE just below zero),
+    # which must be reported and left out while the run goes on and the other fields are
+    # held; a file with fewer atmospheric levels (3) than soil layers (4), which must still
+    # give four layers; ZS and DZS left at zero, which is a file without them; ZS that starts
+    # at zero, which is held; a restart, which must give every field back from the
+    # checkpoint with the same count and range, also onto smaller boxes; and, with MPI, four
+    # ranks on two boxes, so that two ranks hold no box, and the albedo of 1.5 on two ranks,
+    # where the rank that holds it is not the one that prints. Two more runs have a second
+    # level without a file of its own, refined by 2: made by tagging at the start, and made
+    # by the regrid after step 1 and then moved and widened by the regrid after step 2. The
+    # level must hold every field of level 0 each time, with the range of the level 0
+    # columns under it, and the second regrid must take 64 of its 96 columns from level 0.
+    function(add_test_wrfinput_surface_fields TEST_NAME MAKE_OPTIONS RUNTIME_OPTIONS CHECK_MODE RESTART_OPTIONS)
+      set(_launch "")
+      if(ARGC GREATER 5)
+        set(_launch "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ARGV5} ${MPIEXEC_PREFLAGS} ")
+      endif()
+      set(TEST_FILES_DIR WRFInput_SurfaceFields)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_make "${ERF_TEST_PYTHON} make_wrfinput.py ${MAKE_OPTIONS} > generate.log")
+      set(_exe "${_launch}${TEST_EXE} WRFInput_SurfaceFields.i amrex.call_addr2line=0")
+      if("${RESTART_OPTIONS}" STREQUAL "")
+        set(_run "${_exe} ${RUNTIME_OPTIONS} > ${_log} 2>&1")
+      else()
+        # The first run writes chk00000; the log that is checked is the restart's
+        set(_first ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}_first.log)
+        set(_run "rm -rf chk00000 && ${_exe} ${RUNTIME_OPTIONS} erf.check_file=chk erf.check_int=1 > ${_first} 2>&1 && ${ERF_TEST_PYTHON} check_log.py full ${_first} && ${_exe} ${RUNTIME_OPTIONS} erf.restart=chk00000 ${RESTART_OPTIONS} > ${_log} 2>&1")
+      endif()
+      set(_check "${ERF_TEST_PYTHON} check_log.py ${CHECK_MODE}")
+      add_test(${TEST_NAME} sh -c
+          "${_make} && ( ${_run} || ( tail -n 40 ${_log} && false ) ) && ${_check}")
+      set(_np 1)
+      if(ARGC GREATER 5)
+        set(_np ${ARGV5})
+      endif()
+      set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS ${_np}
+          WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_wrfinput_surface_fields)
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields "" ""
+        "full WRFInput_SurfaceFields.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Absent
+        "--omit LAI SEAICE SNOWH SMOIS DZS" ""
+        "partial WRFInput_SurfaceFields_Absent.log LAI SEAICE SNOWH SMOIS DZS" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_BalanceOff
+        "" "erf.radiation.seb_prognostic_enable=false"
+        "off WRFInput_SurfaceFields_BalanceOff.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Drop_Albedo
+        "--bad ALBEDO 1.5" ""
+        "drop WRFInput_SurfaceFields_Drop_Albedo.log ALBEDO=1" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Drop_FlagValues
+        "--fill SNOWH -999 --bad SEAICE -0.001" ""
+        "drop WRFInput_SurfaceFields_Drop_FlagValues.log SNOWH=96 SEAICE=1" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_ThinColumn
+        "--nz 3" "amr.n_cell=12 8 3 geometry.prob_extent=12000.0 8000.0 300.0"
+        "full WRFInput_SurfaceFields_ThinColumn.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_ZeroLayers
+        "--zero-layers" ""
+        "zero WRFInput_SurfaceFields_ZeroLayers.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_SurfaceZS
+        "--surface-zs" ""
+        "surfacezs WRFInput_SurfaceFields_SurfaceZS.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart
+        "" ""
+        "restart WRFInput_SurfaceFields_Restart.log" "max_step=0")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart_OtherGrids
+        "" ""
+        "restart WRFInput_SurfaceFields_Restart_OtherGrids.log" "amr.max_grid_size=4")
+    set(_sfc_two_levels "amr.max_level=1 amr.ref_ratio_vect=2 2 1 amr.n_error_buf=0 amr.blocking_factor=2 erf.regrid_int=1 erf.v=1 erf.boxa.max_level=1 erf.boxa.in_box_lo=2000.0 2000.0 erf.boxa.in_box_hi=6000.0 6000.0")
+    set(_sfc_regrid "${_sfc_two_levels} max_step=3 erf.refinement_indicators=boxa boxb erf.boxa.start_time=0.5 erf.boxa.end_time=1.5 erf.boxb.max_level=1 erf.boxb.in_box_lo=4000.0 2000.0 erf.boxb.in_box_hi=10000.0 6000.0 erf.boxb.start_time=1.5")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_TaggedLevel
+        "" "${_sfc_two_levels} erf.refinement_indicators=boxa"
+        "tagged WRFInput_SurfaceFields_TaggedLevel.log" "")
+    add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Regrid
+        "" "${_sfc_regrid}"
+        "regrid WRFInput_SurfaceFields_Regrid.log" "")
+    if(ERF_ENABLE_MPI)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Regrid_MPI
+          "" "${_sfc_regrid} amr.max_grid_size=4"
+          "regrid WRFInput_SurfaceFields_Regrid_MPI.log" "" 3)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_MPI
+          "" ""
+          "full WRFInput_SurfaceFields_MPI.log" "" 4)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Drop_Albedo_MPI
+          "--bad ALBEDO 1.5" ""
+          "drop WRFInput_SurfaceFields_Drop_Albedo_MPI.log ALBEDO=1" "" 2)
+      add_test_wrfinput_surface_fields(WRFInput_SurfaceFields_Restart_MPI
+          "" ""
+          "restart WRFInput_SurfaceFields_Restart_MPI.log" "max_step=0" 3)
+    endif()
   else()
-    message(STATUS "Skipping WRFInput_CroppedParent: Python netCDF4 and numpy are required")
+    message(STATUS "Skipping WRFInput_CroppedParent and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
   endif()
 endif()
 

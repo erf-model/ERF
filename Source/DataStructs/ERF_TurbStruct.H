@@ -233,6 +233,13 @@ public:
         // initializer was evaluated before either could be overridden here.
         pbl_mynn.SQmax = pbl_mynn.SQfac * pbl_mynn.SHmax;
 
+        // Surface-layer length scale alone in the first cell (see MYNNLevel25::surface_lm).
+        query_one_or_per_level(
+          pp, "pbl_mynn_surface_lm", pbl_mynn.surface_lm, lev, max_level);
+        if (pbl_mynn.surface_lm && pbl_type != PBLType::MYNN25) {
+            amrex::Abort("erf.pbl_mynn_surface_lm is only implemented for erf.pbl_type = MYNN25");
+        }
+
       } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
         query_one_or_per_level(
           pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
@@ -745,6 +752,7 @@ public:
       amrex::Print() << "    pbl_mynn_C3 : " << pbl_mynn.C3 << std::endl;
       amrex::Print() << "    pbl_mynn_C4 : " << pbl_mynn.C4 << std::endl;
       amrex::Print() << "    pbl_mynn_C5 : " << pbl_mynn.C5 << std::endl;
+      amrex::Print() << "    pbl_mynn_surface_lm : " << pbl_mynn.surface_lm << std::endl;
     } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
       amrex::Print() << "    pbl_ysu_coriolis_freq              : "
                      << pbl_ysu_coriolis_freq << std::endl;
