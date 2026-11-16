@@ -131,6 +131,9 @@ void ERFPC::ExtractAndRouteOORParticles (int a_lev)
     // A local grid is preferred; a rank that owns no L0 grid stages them on
     // grid 0, since Redistribute(0, 0) visits every tile on the rank and sends
     // each particle to the owner of the grid that contains it (#5172).
+    // Redistribute does not erase the then-empty (0, 0) tile, so such a rank
+    // keeps one in GetParticles(0) for grid 0 it does not own: ParIter skips
+    // it, but a raw loop over that map must not index a MultiFab by its grid.
     int dest_grid_L0 = 0;
     {
         const int my_proc = ParallelDescriptor::MyProc();
@@ -142,46 +145,46 @@ void ERFPC::ExtractAndRouteOORParticles (int a_lev)
     DefaultAssignor cell_assignor;
 
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
-      auto& src_tile = ParticlesAt(a_lev, pti);
-      auto& aos = src_tile.GetArrayOfStructs();
-      auto* p_pbox = aos().data();
-      const int np = aos.numParticles();
-      if (np == 0) { continue; }
+        auto& src_tile = ParticlesAt(a_lev, pti);
+        auto& aos = src_tile.GetArrayOfStructs();
+        auto* p_pbox = aos().data();
+        const int np = aos.numParticles();
+        if (np == 0) { continue; }
 
-      Gpu::DeviceVector<int> oor_mask(np);
-      auto* mask_ptr = oor_mask.data();
-      ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
-      {
-          auto& p = p_pbox[i];
-          if (p.id() <= 0) { mask_ptr[i] = 0; return; }
-          const int grd = ag_fine(p, 0, cell_assignor).first;
-          mask_ptr[i] = (grd < 0) ? 1 : 0;
-      });
+        Gpu::DeviceVector<int> oor_mask(np);
+        auto* mask_ptr = oor_mask.data();
+        ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
+        {
+            auto& p = p_pbox[i];
+            if (p.id() <= 0) { mask_ptr[i] = 0; return; }
+            const int grd = ag_fine(p, 0, cell_assignor).first;
+            mask_ptr[i] = (grd < 0) ? 1 : 0;
+        });
 
-      ReduceOps<ReduceOpSum> reduce_op;
-      ReduceData<int> reduce_data(reduce_op);
-      using TT = typename decltype(reduce_data)::Type;
-      reduce_op.eval(np, reduce_data,
-          [=] AMREX_GPU_DEVICE (int i) -> TT { return {mask_ptr[i]}; });
-      const int n_oor = amrex::get<0>(reduce_data.value(reduce_op));
-      if (n_oor == 0) { continue; }
+        ReduceOps<ReduceOpSum> reduce_op;
+        ReduceData<int> reduce_data(reduce_op);
+        using TT = typename decltype(reduce_data)::Type;
+        reduce_op.eval(np, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i) -> TT { return {mask_ptr[i]}; });
+        const int n_oor = amrex::get<0>(reduce_data.value(reduce_op));
+        if (n_oor == 0) { continue; }
 
-      ParticleTileType tmp_tile;
-      tmp_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
-      tmp_tile.resize(n_oor);
-      [[maybe_unused]] int nc = amrex::filterParticles(tmp_tile, src_tile, mask_ptr,
-                                                       int(0), int(0), np);
-      AMREX_ASSERT(nc == n_oor);
+        ParticleTileType tmp_tile;
+        tmp_tile.define(NumRuntimeRealComps(), NumRuntimeIntComps());
+        tmp_tile.resize(n_oor);
+        [[maybe_unused]] int nc = amrex::filterParticles(tmp_tile, src_tile, mask_ptr,
+                                                         int(0), int(0), np);
+        AMREX_ASSERT(nc == n_oor);
 
-      auto& dst_tile = DefineAndReturnParticleTile(0, dest_grid_L0, 0);
-      const auto dst_start = static_cast<int>(dst_tile.numParticles());
-      dst_tile.resize(dst_start + n_oor);
-      amrex::copyParticles(dst_tile, tmp_tile, int(0), dst_start, n_oor);
+        auto& dst_tile = DefineAndReturnParticleTile(0, dest_grid_L0, 0);
+        const auto dst_start = static_cast<int>(dst_tile.numParticles());
+        dst_tile.resize(dst_start + n_oor);
+        amrex::copyParticles(dst_tile, tmp_tile, int(0), dst_start, n_oor);
 
-      ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
-          if (mask_ptr[i]) { p_pbox[i].id() = -1; }
-      });
-      Gpu::synchronize();
+        ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+            if (mask_ptr[i]) { p_pbox[i].id() = -1; }
+        });
+        Gpu::synchronize();
     }
 
     Redistribute(0, 0);
