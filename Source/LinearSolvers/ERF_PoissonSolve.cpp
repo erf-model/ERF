@@ -6,6 +6,38 @@
 
 using namespace amrex;
 
+namespace {
+/**
+ * Stop a solve on one region of a level when another region of the level meets it across a
+ * periodic boundary.  A solver that works on the region alone gives the region a Neumann face
+ * where it reaches only one end of a periodic direction (get_fft_bc), so the correction could
+ * not cross that boundary.  The regions meet when the other region, shifted by one period,
+ * shares a face with this one.
+ */
+void
+abort_if_regions_meet_across_periodic (const Geometry& lev_geom, const Vector<BoxArray>& regions,
+                                       int isub, const Box& my_region, const char* solver_name)
+{
+    const Box& domain = lev_geom.Domain();
+    for (int dir = 0; dir < 2; ++dir) {
+        if (!lev_geom.isPeriodic(dir)) { continue; }
+        const bool at_lo = (my_region.smallEnd(dir) == domain.smallEnd(dir));
+        const bool at_hi = (my_region.bigEnd(dir)   == domain.bigEnd(dir));
+        if (at_lo == at_hi) { continue; }
+        const Box grown = amrex::grow(my_region, dir, 1);
+        const int period = domain.length(dir);
+        for (int jsub = 0; jsub < regions.size(); ++jsub) {
+            if (jsub == isub) { continue; }
+            const Box shifted = amrex::shift(regions[jsub].minimalBox(), dir, at_lo ? -period : period);
+            if (grown.intersects(shifted)) {
+                amrex::Abort(std::string(solver_name) + ": a refined level crosses a periodic "
+                             "boundary; refine on one side of it");
+            }
+        }
+    }
+}
+} // namespace
+
 /**
  * Solve the Poisson equation using the MLMG solver.
  *
@@ -1044,6 +1076,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 if (my_region.numPts() != subdomains[lev][isub].numPts()) {
                     amrex::Abort("erf.if_implicit_projection: the FFT preconditioner needs a rectangular union of boxes");
                 }
+                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], isub, my_region,
+                                                      "erf.if_implicit_projection");
 #endif
                 solve_with_if_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
                                     {&sigma_sub[0], &sigma_sub[1], &sigma_sub[2]});
@@ -1052,6 +1086,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                                 mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
             } else {
 #ifdef ERF_USE_FFT
+                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], isub, my_region,
+                                                      "The FFT projection");
                 solve_with_fft(lev, isub, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
 #endif
             }
@@ -1078,6 +1114,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 if (!use_fft) {
                     amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
                 }
+                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], isub, my_region,
+                                                      "The hybrid FFT projection");
                 solve_with_fft(lev, isub, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
             }
 #endif
@@ -1096,26 +1134,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                     amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each "
                                  "region of a level to make a rectangle");
                 }
-                // Regions of one level that meet across a periodic boundary would each get a
-                // Neumann face there, and the correction could not cross it.  They meet when
-                // the other region, shifted by one period, shares a face with this one.
-                for (int dir = 0; dir < 2; ++dir) {
-                    if (!geom[lev].isPeriodic(dir)) { continue; }
-                    const bool at_lo = (my_region.smallEnd(dir) == domain.smallEnd(dir));
-                    const bool at_hi = (my_region.bigEnd(dir)   == domain.bigEnd(dir));
-                    if (at_lo == at_hi) { continue; }
-                    const Box grown = amrex::grow(my_region, dir, 1);
-                    for (int jsub = 0; jsub < subdomains[lev].size(); ++jsub) {
-                        if (jsub == isub) { continue; }
-                        const Box other = subdomains[lev][jsub].minimalBox();
-                        const int period = domain.length(dir);
-                        const Box shifted = amrex::shift(other, dir, at_lo ? -period : period);
-                        if (grown.intersects(shifted)) {
-                            amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg: a refined level "
-                                         "crosses a periodic boundary; refine on one side of it");
-                        }
-                    }
-                }
+                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], isub, my_region,
+                                                      "erf.terrain_poisson_solver = mlmg or gmres_mlmg");
                 solve_with_terrain_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
                                         ax_sub, ay_sub, az_sub, dJ_sub, znd_sub,
                                         !flat_terrain_solve &&
@@ -1125,6 +1145,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 if (!boxes_make_rectangle) {
                     amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
                 } else {
+                    abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], isub, my_region,
+                                                          "erf.terrain_poisson_solver = gmres_fft");
                     solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
                 }
 #else

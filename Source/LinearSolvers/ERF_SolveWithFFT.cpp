@@ -220,7 +220,10 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
                 if (k == sub_lo.z || (k == sub_hi.z+1 && !top_is_dirichlet)) {
                     fz_arr(i,j,k) = zero;
                 } else {
-                    Real dz = myhalf * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
+                    // At a Dirichlet (Outflow/Open) top the ghost phi is the mirror of the top
+                    // cell, a distance dz of the top layer away; stretched_dz has no entry above it
+                    Real dz = (k == sub_hi.z+1) ? stretched_dz_d_ptr[k-1]
+                                                : myhalf * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) / dz;
                 }
             });
