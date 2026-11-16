@@ -86,6 +86,8 @@ class CleanupTests(unittest.TestCase):
             return copy.deepcopy(
                 [{"workflow_runs": self.history[:1]}, {"workflow_runs": self.history[1:]}]
             )
+        if endpoint.endswith("/jobs"):
+            return {"total_count": 1, "jobs": [{"id": 100}]}
         if "/actions/runs/" in endpoint:
             return copy.deepcopy(self.current[int(endpoint.rsplit("/", 1)[1])])
         if "/commits/" in endpoint:
