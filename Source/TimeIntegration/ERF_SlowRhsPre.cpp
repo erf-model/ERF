@@ -68,6 +68,7 @@ using namespace amrex;
  * @param[in   ] gradp  pressure gradient
  * @param[in   ] mapfac map factors
  * @param[in   ] ebfact EB factories for cell- and face-centered variables
+ * @param[in   ] physbnd_mask EB only: masks of the physical-boundary ghost cells of each variable
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  */
@@ -119,6 +120,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<MultiFab>& gradp,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                        const eb_& ebfact,
+                       const Vector<iMultiFab>& physbnd_mask,
 #ifdef ERF_USE_EAMXX_SHOC
                        SHOCInterface* eamxx_shoc_lev,
 #endif
@@ -310,18 +312,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // *****************************************************************************
     // Cell-centered masks for EB (used for flux interpolation)
     bool already_on_centroids = false;
-    Vector<iMultiFab> physbnd_mask;
-    physbnd_mask.resize(IntVars::NumTypes);
-    if (l_use_eb) {
-        physbnd_mask[IntVars::cons].define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-        physbnd_mask[IntVars::cons].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
-        // physbnd_mask[IntVars::cons].FillBoundary(geom.periodicity());
-        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            physbnd_mask[1+dir].define(S_data[1+dir].boxArray(), S_data[1+dir].DistributionMap(), 1, 1);
-            physbnd_mask[1+dir].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
-            // physbnd_mask[1+dir].FillBoundary(geom.periodicity());
-        }
-    }
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

@@ -125,7 +125,7 @@
                         }
                     });
 
-                } else { // Fixed or no terrain
+                } else if (solverChoice.terrain_type != TerrainType::EB) { // Fixed or no terrain
                     const Array4<const Real>& dJ_old = detJ_cc[level]->const_array(mfi);
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
@@ -138,58 +138,20 @@
                         }
                     });
 
-                    // Commenting out the update is a HACK while developing the EB capability
-                    if (solverChoice.terrain_type == TerrainType::EB)
-                    {
-                        const Array4<const Real>& vfrac_u = (get_eb(level).get_u_const_factory())->getVolFrac().const_array(mfi);
-                        const Array4<const Real>& vfrac_v = (get_eb(level).get_v_const_factory())->getVolFrac().const_array(mfi);
-                        const Array4<const Real>& vfrac_w = (get_eb(level).get_w_const_factory())->getVolFrac().const_array(mfi);
-
-                        ParallelFor(tbx, tby, tbz,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (vfrac_u(i,j,k) > zero) {
-                                // ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
-                                ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
-                                                           + slow_dt * fslow[IntVars::xmom](i,j,k);
-                            } else {
-                                ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
-                            }
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (vfrac_v(i,j,k) > zero) {
-                                // ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
-                                ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
-                                                           + slow_dt * fslow[IntVars::ymom](i,j,k);
-                            } else {
-                                ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
-                            }
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (vfrac_w(i,j,k) > zero) {
-                                // ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
-                                ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
-                                                           + slow_dt * fslow[IntVars::zmom](i,j,k);
-                            } else {
-                                ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
-                            }
-                        });
-
-                    } else {
-                        ParallelFor(tbx, tby, tbz,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::xmom](i,j,k);
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::ymom](i,j,k);
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::zmom](i,j,k);
-                        });
-                    } // no EB
-                } // not moving terrain
+                    ParallelFor(tbx, tby, tbz,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
+                                                   + slow_dt * fslow[IntVars::xmom](i,j,k);
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
+                                                   + slow_dt * fslow[IntVars::ymom](i,j,k);
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
+                                                   + slow_dt * fslow[IntVars::zmom](i,j,k);
+                    });
+                } // not moving terrain (with EB, S_sum is set after the redistribution below)
             } // mfi
         } // omp
 
@@ -205,12 +167,11 @@
                 dUdt[i].define(F_slow[i].boxArray(), F_slow[i].DistributionMap(), F_slow[i].nComp(), F_slow[i].nGrow(), MFInfo());
             }
             for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
-                dUdt[i].setVal(0, 0, ncomp_fast[i], dUdt[i].nGrow());
                 // Copy F_slow to dUdt, INCLUDING GHOST CELLS
                 // Ghost cells are required by redistribute_term which operates on grown boxes
                 MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), F_slow[i].nGrow());
+                // redistribute_term fills the interior and periodic ghost cells
                 dUdt[i].setDomainBndry(bogus_large_value_d, 0, ncomp_fast[i], fine_geom);
-                dUdt[i].FillBoundary(fine_geom.periodicity());
             }
 
             BCRec const* bc_ptr_d = domain_bcs_type_d.data();
@@ -244,7 +205,7 @@
                               S_old[IntVars::zmom], *(get_eb(level).get_w_const_factory()), bc_ptr_d, slow_dt, IntVars::zmom);
 
 
-            // Update state using the updated F_slow.
+            // Update state using the updated F_slow; covered cells and faces keep S_old
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -255,63 +216,43 @@
                 Box tby = mfi.nodaltilebox(1);
                 Box tbz = mfi.nodaltilebox(2);
 
-                Vector<Array4<Real> >  ssum_h(n_data);
-                Vector<Array4<Real> >  sold_h(n_data);
-                Vector<Array4<Real> > fslow_h(n_data);
+                const Array4<Real      >& ssum_c  =  S_sum[IntVars::cons].array(mfi);
+                const Array4<Real      >& ssum_u  =  S_sum[IntVars::xmom].array(mfi);
+                const Array4<Real      >& ssum_v  =  S_sum[IntVars::ymom].array(mfi);
+                const Array4<Real      >& ssum_w  =  S_sum[IntVars::zmom].array(mfi);
+                const Array4<const Real>& sold_c  =  S_old[IntVars::cons].const_array(mfi);
+                const Array4<const Real>& sold_u  =  S_old[IntVars::xmom].const_array(mfi);
+                const Array4<const Real>& sold_v  =  S_old[IntVars::ymom].const_array(mfi);
+                const Array4<const Real>& sold_w  =  S_old[IntVars::zmom].const_array(mfi);
+                const Array4<const Real>& fslow_c = F_slow[IntVars::cons].const_array(mfi);
+                const Array4<const Real>& fslow_u = F_slow[IntVars::xmom].const_array(mfi);
+                const Array4<const Real>& fslow_v = F_slow[IntVars::ymom].const_array(mfi);
+                const Array4<const Real>& fslow_w = F_slow[IntVars::zmom].const_array(mfi);
 
-                for (int i = 0; i < n_data; ++i) {
-                     ssum_h[i] =  S_sum[i].array(mfi);
-                     sold_h[i] =  S_old[i].array(mfi);
-                    fslow_h[i] = F_slow[i].array(mfi);
-                }
-
-                Gpu::AsyncVector<Array4<Real> >  sold_d(n_data);
-                Gpu::AsyncVector<Array4<Real> >  ssum_d(n_data);
-                Gpu::AsyncVector<Array4<Real> > fslow_d(n_data);
-
-                Gpu::copy(Gpu::hostToDevice,  sold_h.begin(),  sold_h.end(),  sold_d.begin());
-                Gpu::copy(Gpu::hostToDevice,  ssum_h.begin(),  ssum_h.end(),  ssum_d.begin());
-                Gpu::copy(Gpu::hostToDevice, fslow_h.begin(), fslow_h.end(), fslow_d.begin());
-
-                Array4<Real>*  sold =  sold_d.dataPtr();
-                Array4<Real>*  ssum =  ssum_d.dataPtr();
-                Array4<Real>* fslow = fslow_d.dataPtr();
-
-                // const Array4<const Real>& vfrac_c = detJ_cc[level]->const_array(mfi);
                 const Array4<const Real>& vfrac_c = (get_eb(level).get_const_factory())->getVolFrac().const_array(mfi);
-
-                ParallelFor(bx, ncomp_fast[IntVars::cons], [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
-                {
-                    const int n = scomp_fast[IntVars::cons] + nn;
-                    if (vfrac_c(i,j,k) > zero) {
-                        ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
-                            ( fslow[IntVars::cons](i,j,k,n) );
-                    }
-                });
-
                 const Array4<const Real>& vfrac_u = (get_eb(level).get_u_const_factory())->getVolFrac().const_array(mfi);
                 const Array4<const Real>& vfrac_v = (get_eb(level).get_v_const_factory())->getVolFrac().const_array(mfi);
                 const Array4<const Real>& vfrac_w = (get_eb(level).get_w_const_factory())->getVolFrac().const_array(mfi);
 
+                ParallelFor(bx, ncomp_fast[IntVars::cons], [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
+                {
+                    const int n = scomp_fast[IntVars::cons] + nn;
+                    ssum_c(i,j,k,n) = (vfrac_c(i,j,k) > zero) ? sold_c(i,j,k,n) + slow_dt * fslow_c(i,j,k,n)
+                                                              : sold_c(i,j,k,n);
+                });
+
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    if (vfrac_u(i,j,k) > zero) {
-                        ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
-                        + slow_dt * fslow[IntVars::xmom](i,j,k);
-                    }
+                    ssum_u(i,j,k) = (vfrac_u(i,j,k) > zero) ? sold_u(i,j,k) + slow_dt * fslow_u(i,j,k)
+                                                            : sold_u(i,j,k);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    if (vfrac_v(i,j,k) > zero) {
-                        ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
-                                                + slow_dt * fslow[IntVars::ymom](i,j,k);
-                    }
+                    ssum_v(i,j,k) = (vfrac_v(i,j,k) > zero) ? sold_v(i,j,k) + slow_dt * fslow_v(i,j,k)
+                                                            : sold_v(i,j,k);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    if (vfrac_w(i,j,k) > zero) {
-                        ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
-                                                + slow_dt * fslow[IntVars::zmom](i,j,k);
-
-                    }
+                    ssum_w(i,j,k) = (vfrac_w(i,j,k) > zero) ? sold_w(i,j,k) + slow_dt * fslow_w(i,j,k)
+                                                            : sold_w(i,j,k);
                 });
             } // MFIter
         } // EB
