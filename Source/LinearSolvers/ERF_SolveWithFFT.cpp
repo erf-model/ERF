@@ -57,6 +57,14 @@ void ERF::build_fft_solvers (int lev)
             auto dx    = geom[lev].CellSizeArray();
 
             auto bc_fft = get_fft_bc(geom[lev],domain_bc_type,subdomain,solverChoice.use_real_bcs);
+            if (mg_verbose > 0) {
+                amrex::Print() << "FFT boundary conditions (lo, hi) in x, y, z on " << subdomain << ":";
+                for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                    amrex::Print() << " (" << amrex::getEnumNameString(bc_fft[dir].first)
+                                   << ", " << amrex::getEnumNameString(bc_fft[dir].second) << ")";
+                }
+                amrex::Print() << std::endl;
+            }
 
             Geometry my_geom;
 
