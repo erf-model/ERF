@@ -3526,9 +3526,10 @@ ERF::read_psfc_from_own_init_file (int lev, bool allow_uncovered)
         }
     }
 
-    // Match initialization's whole-field all-zero fallback, while excluding uncovered
-    // parent-seeded cells and avoiding a per-grid fallback. A zero-only tile in a field
-    // containing any nonzero (or invalid) covered pressure therefore remains an error.
+    // Apply one fallback decision across all covered valid PSFC samples for this model
+    // level, excluding uncovered parent-seeded cells and avoiding a per-grid fallback.
+    // This deliberately requires every covered sample to be exactly zero; unlike the
+    // cold-start max==0 check, negative or non-finite samples cannot be masked by it.
     ParallelDescriptor::ReduceIntMax(local_has_valid_file_data);
     ParallelDescriptor::ReduceIntMax(local_has_nonzero_file_data);
     const bool all_zero_psfc = local_has_valid_file_data != 0 &&

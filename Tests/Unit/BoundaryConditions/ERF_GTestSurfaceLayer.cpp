@@ -1250,6 +1250,63 @@ TEST(SurfaceLayer, BulkCoeffAbsoluteSurfaceTemperatureFollowsCurrentPressure)
     pp.remove("most.surf_moist");
 }
 
+// Motivation: bulk_coeff converts most.abs_surf_temp even though it uses an adiabatic
+// theta calculation. A dry update must still validate that conversion before calculating
+// fluxes, and a later failed update must not consume the previous update's t_surf value.
+TEST(SurfaceLayer, DryBulkCoeffAbsoluteTemperatureChecksConversionBeforeFlux)
+{
+    const std::string prefix = "unit_surface_layer_bulk_abs_bad_state";
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+    ParmParse pp(prefix);
+    pp.add("surface_layer.flux_type", std::string("bulk_coeff"));
+    pp.add("most.Cd", Real(0.0014));
+    pp.add("most.Ch", Real(0.0012));
+    pp.add("most.Cq", Real(0.0012));
+    pp.add("most.surf_moist", Real(0.008));
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    const Real dz_half = myhalf * geom.CellSize(2);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(pressure - test_rho * CONST_GRAV * dz_half);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+
+    // A successful update leaves a valid converted temperature for a second update.
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+    const IntVect point = face_point(fields.domain, face);
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+
+    // If this update gets past the conversion check, bulk_coeff will change u_star and
+    // use the stale t_surf from the previous successful update.
+    constexpr Real untouched_ustar = Real(-91.0);
+    layer->get_u_star(0)->setVal(untouched_ustar);
+    Gpu::streamSynchronize();
+    fields.cons.setVal(Real(0.0), RhoTheta_comp, 1);
+
+    testing::internal::CaptureStdout();
+    {
+        ScopedThrowOnAbort throw_on_abort;
+        EXPECT_THROW(layer->update_fluxes(0, 1.0, 1.0, fields.cons, nullptr,
+                                          fields.no_walldist, 20),
+                     amrex::RuntimeError);
+    }
+    const std::string report = testing::internal::GetCapturedStdout();
+    EXPECT_NE(report.find("SurfaceLayer temperature update"), std::string::npos) << report;
+    EXPECT_NE(report.find("(rho theta) of the state cell is not usable"),
+              std::string::npos) << report;
+    EXPECT_EQ(mf_value(*layer->get_u_star(0), point), untouched_ustar);
+
+    pp.remove("surface_layer.flux_type");
+    pp.remove("most.Cd");
+    pp.remove("most.Ch");
+    pp.remove("most.Cq");
+    pp.remove("most.surf_moist");
+}
+
 // Motivation: a surface temperature that is given must select the boundary condition
 // or stop the run.  A non-positive value used to be treated as not given, so it was
 // silently ignored, and alongside another key it bypassed the one-key check.

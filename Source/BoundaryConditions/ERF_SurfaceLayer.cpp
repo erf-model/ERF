@@ -395,8 +395,11 @@ SurfaceLayer::update_fluxes (const int& lev,
     const bool zlo = (int) m_face == Orientation::zlo();
     const bool has_sst_tsk = zlo && !m_sst_lev[lev].empty() && m_sst_lev[lev][0];
     const bool has_sfc_sst = zlo && m_use_sfc_sst;
-    const bool has_absolute_temperature =
-        theta_type == ThetaCalcType::SURFACE_TEMPERATURE && surf_temp_is_absolute;
+    // Keep this predicate aligned with the absolute-temperature producer below: the
+    // bulk-coefficient path consumes t_surf without selecting SURFACE_TEMPERATURE.
+    const bool has_absolute_temperature = surf_temp_is_absolute &&
+        (theta_type == ThetaCalcType::SURFACE_TEMPERATURE ||
+         flux_type == FluxCalcType::BULK_COEFF);
     const bool has_coupled_sst = zlo && lev < static_cast<int>(m_coupled_sst_lev.size()) &&
                                  m_coupled_sst_lev[lev];
     const bool has_lsm_temperature_conversion =
@@ -436,14 +439,11 @@ SurfaceLayer::update_fluxes (const int& lev,
     // erf.start_datetime and no wrflowinp file is the epoch time of the start.
     if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
         update_surf_temp(elapsed_time);
-        if (has_absolute_temperature) {
-            fill_tsurf_with_abs_surf_temp(lev, elapsed_time, cons_in, z_phys_nd,
-                                          conversion_fail);
-        }
-    } else if (flux_type == FluxCalcType::BULK_COEFF && surf_temp_is_absolute) {
+    }
+    if (has_absolute_temperature) {
         // bulk_coeff reads t_surf without selecting the surface-temperature formulation;
-        // an absolute surface temperature is converted with the current surface pressure
-        // here as well (bulk_coeff has no heating rate, so it is the constant value).
+        // its absolute temperature is converted with the current surface pressure too.
+        // Heating-rate updates remain exclusive to SURFACE_TEMPERATURE above.
         fill_tsurf_with_abs_surf_temp(lev, elapsed_time, cons_in, z_phys_nd,
                                       conversion_fail);
     }
