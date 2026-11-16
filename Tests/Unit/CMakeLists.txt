@@ -435,6 +435,12 @@ target_sources(${erf_exe_name}
     # from water (erf-model/ERF#4390), keeping each coarse mean and cell_cons_interp elsewhere.
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/ERF_GTestTypedInterp.cpp
 )
+# Motivation (#5187): STL buildings and their terrain union must use GPUable
+# evaluators while the host owners retain the sampled arrays through EB builds.
+target_sources(${erf_exe_name} PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/EB/ERF_GTestBuildingsIF.cpp)
+target_compile_definitions(${erf_exe_name} PRIVATE
+  ERF_BUILDINGS_TEST_STL="${PROJECT_SOURCE_DIR}/Tests/test_files/BuildingsIF/unit_cube.stl")
 if(ERF_DIM STREQUAL "3")
   # Motivation: the auxiliary mapped state must reproduce ERF's computational
   # divergence, exact host stage recipes, canonical metric transfers, and ledger.
@@ -1365,6 +1371,11 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestActuatorSpreading.cpp
     )
   endif()
+  # Verify that the replicated buildings levelset is valid on every rank.
+  target_sources(${erf_parallel_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/EB/ERF_GTestBuildingsIF.cpp)
+  target_compile_definitions(${erf_parallel_exe_name} PRIVATE
+    ERF_BUILDINGS_TEST_STL="${PROJECT_SOURCE_DIR}/Tests/test_files/BuildingsIF/unit_cube.stl")
   if(ERF_DIM STREQUAL "3")
     # The coefficient check and the rate maximum reduce over the ranks: check them across ranks
     target_sources(${erf_parallel_exe_name} PRIVATE
