@@ -6277,7 +6277,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  "erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each region of a level to make a rectangle"
                  "erf.terrain_poisson_solver=mlmg amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=8 4 0 erf.box2.in_box_hi_indices_crse=11 11 15")
   add_test_abort(TerrainPoisson_Abort_MLMGAcrossPeriodic ${_tph_dir} TerrainPoisson_Hill.i
-                 "a refined level crosses a periodic boundary"
+                 "meet across the periodic boundary"
                  "erf.terrain_poisson_solver=mlmg amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=0 12 0 erf.box1.in_box_hi_indices_crse=7 23 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=24 12 0 erf.box2.in_box_hi_indices_crse=31 23 15")
   # MLMG that cannot reach its tolerance stops with a message naming the inputs to change
   # (double precision only: single precision raises the tolerances to 1e-6, which it reaches)
