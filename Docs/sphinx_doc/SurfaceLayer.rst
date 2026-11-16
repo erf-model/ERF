@@ -178,7 +178,12 @@ While the MOST methods relevant to air-sea interfaces (``charnock``, ``modified_
 
    erf.most.roughness_file_name    = STRING    #Name of file that contains (x,y,z_0)
 
-in the inputs file and ERF will populate the 2D :math:`z_{0}` array with values contained in the text file.
+in the inputs file. The file contains headerless ``x y z0`` triples, ordered
+with ``x`` varying fastest at ``xlo + i*dx``, ``ylo + j*dy`` for zero-based
+indices. Cover the full horizontal grid with finite, positive ``z0`` in meters.
+Non-EB terrain fills the surface slab; EB extends each value through the
+vertical column, including ghosts. One file supplies level 0 and interpolates
+to finer levels; per-level files preserve sharp material boundaries.
 
 When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified distance :math:`z_{ref}` inward from the selected boundary, specified :math:`k_{index}`, or (when employing terrain-fitted coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
 
@@ -424,15 +429,15 @@ radiation path and is not adopted as the SurfaceLayer field.
 Notes
 ^^^^^
 
-With ``erf.terrain_type = EB``, SurfaceLayer does not support planar SST/TSK
-from real-data input, coupled-ocean SST, or LSM surface-temperature or
-surface-flux providers because those LSM flux arrays are planar and the helper
-only writes their ``k=0`` slab, while EB MOST consumes surface parameters on
-arbitrary cut-cell ``k``; no 2-D-to-cut-cell mapping is defined. Custom/file-
-driven roughness (``most.roughness_file_name``) is also unsupported under EB
-for the same planar-provider compatibility policy. Ordinary EB SurfaceLayer
-operation using SurfaceLayer-native prescribed or default state remains
-supported.
+With ``erf.terrain_type = EB``, ``erf.eb_boundary_type = SurfaceLayer``
+activates MOST independently of ``zlo.type``, which may remain ``SlipWall``
+when covered by EB terrain. A diffusive closure is required. Prescribe
+roughness with ``erf.most.z0`` or ``erf.most.roughness_file_name``, using
+``erf.is_land = 1`` and ``erf.most.roughness_type_land = constant``.
+
+EB SurfaceLayer does not support sea surface-flux models, planar SST/TSK,
+coupled-ocean SST, or LSM surface-temperature/flux providers. These planar
+providers have no defined mapping to EB cut cells.
 
 - For both flux and sst modes, the time column is reset relative to the simulation elapsed time (t=0s). This might cause issues with simulations initialized with real data, such as WRFInput.
 - The sst mode only applies the surface temperature where there are ocean cells (landmask=0). This can be forced with ``erf.is_land = 0``.

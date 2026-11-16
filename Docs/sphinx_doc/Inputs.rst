@@ -4262,6 +4262,8 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.roughness_file_name**      | text file of (x, y, z0) giving a spatially varying       | String, or list of  | None             |
 |                                       | roughness length; may be given once or once per level.   | Strings             |                  |
+|                                       | Supported for EB by vertical extension of the map;       |                     |                  |
+|                                       | see :ref:`sec:surface_layer` for the file format.        |                     |                  |
 |                                       | Read only when ``flux_type`` is ``moeng`` or when        |                     |                  |
 |                                       | surface-flux rotation is active                          |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
