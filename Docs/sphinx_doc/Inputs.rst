@@ -1554,7 +1554,8 @@ List of Parameters
 |                                     | diagnostics                                              |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.profile_rad_int**             | number of steps between writes of the radiation profile  | Integer            | -1 (not used)    |
-|                                     | log; read only in an RRTMGP build                        |                    |                  |
+|                                     | log ``erf.rad.datalog`` (RRTMGP and Simple models);      |                    |                  |
+|                                     | see :ref:`sec:RadiationDatalog`                          |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_lsm**                    | write the land-surface-model fields to the plotfile      | Boolean            | false            |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -1570,8 +1571,8 @@ List of Parameters
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.write_eb_surface**            | write the embedded-boundary surface as a separate file   | Boolean            | false            |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rad.datalog**                 | name of the log file to which radiation diagnostics are  | String             | None             |
-|                                     | written                                                  |                    |                  |
+| **erf.rad.datalog**                 | name of the log file to which radiation profiles are     | String             | None             |
+|                                     | written; see :ref:`sec:RadiationDatalog`                 |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 All profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
@@ -5522,6 +5523,67 @@ broadband shortwave; SLM receives corrected visible and near-infrared direct
 components. See :ref:`sec:TopographicRadiation` for the equations and
 approximations, and :ref:`sec:Plotfile2DTopographicRadiation` for mask and flux
 outputs and a visualization example.
+
+.. _sec:RadiationDatalog:
+
+Radiation Profile Log
+---------------------
+
+When ``erf.rad.datalog`` names a file and ``erf.profile_rad_int`` is positive, the RRTMGP and
+Simple radiation models append planar-averaged profiles on level 0 to that file every
+``erf.profile_rad_int`` steps. A new file starts with a header of lines beginning with ``#``
+that names the columns. A run that appends to an existing file, such as a restart, does not
+write the header again.
+
+Each output is a block of ``nz + 2`` rows, where ``nz`` is the number of cells in z:
+
+#. the surface face, with ``z_agl`` = 0,
+
+#. the ``nz`` cell centers, from bottom to top,
+
+#. the top-of-atmosphere face.
+
+``z_agl`` is the height above ground, averaged over the plane. With terrain it is the average
+over columns of the height above the local surface. On the cell-center rows each flux is the
+average of its values on the lower and upper faces of the cell; on the two face rows the fluxes
+are the values on those faces. Heating rates exist only at cell centers and are written as
+``nan`` on the face rows, which ``numpy.loadtxt`` and gnuplot read as missing values.
+
+The RRTMGP log has the following columns:
+
+#. Time, ``time`` (s)
+
+#. Height above ground, ``z_agl`` (m)
+
+#. All-sky shortwave and longwave heating rates, ``sw_heating`` and ``lw_heating``, as
+   potential temperature tendencies (K/s)
+
+#. All-sky fluxes ``sw_flux_up``, ``sw_flux_dn``, ``sw_flux_dn_dir``, ``lw_flux_up`` and
+   ``lw_flux_dn`` (W/m\ :sup:`2`)
+
+#. Cosine of the solar zenith angle, ``mu0``; it does not vary with height
+
+#. Clear-sky shortwave and longwave heating rates, ``sw_clrsky_heating`` and
+   ``lw_clrsky_heating``, as potential temperature tendencies (K/s)
+
+#. Clear-sky fluxes ``sw_clrsky_flux_up``, ``sw_clrsky_flux_dn``, ``sw_clrsky_flux_dn_dir``,
+   ``lw_clrsky_flux_up`` and ``lw_clrsky_flux_dn`` (W/m\ :sup:`2`)
+
+#. Clean-sky fluxes ``sw_clnsky_flux_*`` and ``lw_clnsky_flux_*``, in the same order
+   (W/m\ :sup:`2`); 0 unless ``erf.rad_extra_clnsky_diag = true``
+
+#. Clean-clear-sky fluxes ``sw_clnclrsky_flux_*`` and ``lw_clnclrsky_flux_*``, in the same
+   order (W/m\ :sup:`2`); 0 unless ``erf.rad_extra_clnclrsky_diag = true``
+
+The Simple log has the following columns:
+
+#. Time, ``time`` (s)
+
+#. Height above ground, ``z_agl`` (m)
+
+#. Net upward longwave flux, ``lw_flux_net`` (W/m\ :sup:`2`)
+
+#. Longwave heating rate, ``lw_heating``, as a potential temperature tendency (K/s)
 
 
 Two-Stream Radiation Model
