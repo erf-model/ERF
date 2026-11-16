@@ -6500,12 +6500,13 @@ ERF prints which of the three modes it selected, together with the STL file
 name and the scale, center and reverse-normal values, when it builds the EB
 geometry.
 
-Internally the STL mesh is handled by the ``BuildingsIF`` implicit function
+Internally the STL mesh is handled by the host-side ``BuildingsIF`` owner
 (``Source/EB/ERF_EBIFBuildings.H``), which uses the AMReX ``STLtools``
 infrastructure with bounding-volume-hierarchy acceleration.  At construction it
 samples the signed distance to the mesh onto the finest-level grid, computing
 the samples in parallel across ranks and then replicating the result so that
-each rank can evaluate the implicit function locally, including on the GPU.
+each rank can evaluate the implicit function locally, including on the GPU,
+through its ``BuildingsLevelsetIF`` evaluator.
 Evaluation is a trilinear interpolation of that sampled field, so the building
 geometry is resolved at the finest level's cell size; points outside the sampled
 region are treated as fluid.  Very large or highly detailed meshes will
