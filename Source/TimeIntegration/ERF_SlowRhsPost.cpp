@@ -342,6 +342,14 @@ void erf_slow_rhs_post (int level, int finest_level,
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
+    // BuildMask manages its own OpenMP region; build the shared read-only mask
+    // before entering the parallel MFIter loop.
+    iMultiFab physbnd_mask;
+    if (l_use_eb) {
+        physbnd_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
+        physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
+    }
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -351,13 +359,7 @@ void erf_slow_rhs_post (int level, int finest_level,
       int start_comp;
       int   num_comp;
 
-      // Cell-centered masks for EB (used for flux interpolation)
-      iMultiFab physbnd_mask;
       bool already_on_centroids = false;
-      if (l_use_eb) {
-          physbnd_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-          physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
-      }
 
       // NOTE: this loop must NOT be tiled.  It both reads and writes S_new[cons]:
       //   - the diffusion and PBL source routines below read new_cons with stencils

@@ -1678,6 +1678,43 @@ add_test_cloud_chamber_budget(CloudChamber_SatAdj_MOSTWetBudget most_wet CloudCh
 add_test_cloud_chamber_most(CloudChamber_SatAdj_MOSTMixedWalls)
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
+# Exercise both no-substepping integrators with cut cells and multiple boxes;
+# the compressible case also uses multiple tiles per box. MPI builds check
+# the hybrid MPI/OpenMP path.
+foreach(mode IN ITEMS Compressible Anelastic)
+    set(test_name "EB_NoSubstep_OpenMP_${mode}")
+    set(test_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${test_name}")
+    file(MAKE_DIRECTORY "${test_dir}")
+    if(ERF_ENABLE_MPI)
+        set(nranks ${ERF_TEST_NRANKS})
+    else()
+        set(nranks 1)
+    endif()
+    math(EXPR processors "4 * ${nranks}")
+    resolve_test_exe("" "erf_exec" test_exe)
+    if(mode STREQUAL "Anelastic")
+        set(test_input "${PROJECT_SOURCE_DIR}/Exec/RegTests/WitchOfAgnesi/inputs_EB_anelastic")
+    else()
+        set(test_input "${PROJECT_SOURCE_DIR}/Exec/RegTests/EB_Poiseuille/inputs_compressible")
+    endif()
+    add_test(NAME ${test_name} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${nranks}"
+        "-DTEST_EXE=${test_exe}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${test_dir}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DMODE=${mode}"
+        "-DRTOL=${ERF_TEST_FCOMPARE_RTOL}"
+        "-DATOL=${ERF_TEST_FCOMPARE_ATOL}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunEBNoSubstepOpenMP.cmake)
+    set_tests_properties(${test_name} PROPERTIES
+        TIMEOUT 360 PROCESSORS ${processors} LABELS "regression;eb;openmp"
+        ATTACHED_FILES_ON_FAIL "${test_dir}/omp_1/simulation.log;${test_dir}/omp_4/simulation.log;${test_dir}/parity.log")
+endforeach()
 endif()
 # ctest runs this argv directly, with no shell, so the launcher cannot be
 # pasted in as one word: "flux run" has to reach ctest as two arguments.
