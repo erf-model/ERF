@@ -1678,6 +1678,55 @@ add_test_cloud_chamber_budget(CloudChamber_SatAdj_MOSTWetBudget most_wet CloudCh
 add_test_cloud_chamber_most(CloudChamber_SatAdj_MOSTMixedWalls)
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
+# Exercise both no-substepping integrators with cut cells, multiple boxes and
+# multiple tiles per box, comparing one and two threads. MPI builds check the
+# hybrid MPI/OpenMP path. The anelastic case needs its projection to converge
+# to 1e-12, which single precision cannot reach.
+set(eb_nosub_threads 2)
+foreach(mode IN ITEMS Compressible Anelastic)
+    if(mode STREQUAL "Anelastic" AND ERF_PRECISION STREQUAL "SINGLE")
+        continue()
+    endif()
+    set(test_name "EB_NoSubstep_OpenMP_${mode}")
+    set(test_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${test_name}")
+    file(MAKE_DIRECTORY "${test_dir}")
+    if(ERF_ENABLE_MPI)
+        set(nranks ${ERF_TEST_NRANKS})
+    else()
+        set(nranks 1)
+    endif()
+    math(EXPR processors "${eb_nosub_threads} * ${nranks}")
+    resolve_test_exe("" "erf_exec" test_exe)
+    if(mode STREQUAL "Anelastic")
+        set(test_input "${PROJECT_SOURCE_DIR}/Exec/RegTests/WitchOfAgnesi/inputs_EB_anelastic")
+        # The projection's reductions depend on the thread count; the runs
+        # agree to about 1e-11 relative
+        set(rtol 1.e-9)
+        set(atol 1.e-9)
+    else()
+        set(test_input "${PROJECT_SOURCE_DIR}/Exec/RegTests/EB_Poiseuille/inputs_compressible")
+        set(rtol ${ERF_TEST_FCOMPARE_RTOL})
+        set(atol ${ERF_TEST_FCOMPARE_ATOL})
+    endif()
+    add_test(NAME ${test_name} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${nranks}"
+        "-DTEST_EXE=${test_exe}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${test_dir}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DMODE=${mode}"
+        "-DRTOL=${rtol}"
+        "-DATOL=${atol}"
+        "-DTHREADS=${eb_nosub_threads}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunEBNoSubstepOpenMP.cmake)
+    set_tests_properties(${test_name} PROPERTIES
+        TIMEOUT 360 PROCESSORS ${processors} LABELS "regression;eb;openmp"
+        ATTACHED_FILES_ON_FAIL "${test_dir}/omp_1/simulation.log;${test_dir}/omp_${eb_nosub_threads}/simulation.log;${test_dir}/parity.log")
+endforeach()
 endif()
 # ctest runs this argv directly, with no shell, so the launcher cannot be
 # pasted in as one word: "flux run" has to reach ctest as two arguments.
@@ -3914,20 +3963,27 @@ if(ERF_ENABLE_PARTICLES)
     add_test_sdm(SDM_RICO3D                      "" "erf_exec"  "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding" RUNTIME_OPTIONS "erf.vert_implicit=false ")
     # multispecies setup with dummy water species
     add_test_sdm(SDM_MultiSpecies_Bubble2D       "" "erf_exec"  "plt00001" 5e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
-    # Golovin coalescence on a stretched mesh: initial number density and decay rate of each
-    # layer from the particle data, against the physical layer volumes (statistical, no gold file)
+    # SDM decks whose particle data a Python script checks (statistical, no gold file);
+    # CHECK_ARGS are the script and its arguments
     if(NOT WIN32 AND ERF_TEST_PYTHON)
-        function(add_test_sdm_stretched TEST_NAME)
+        function(add_test_sdm_check TEST_NAME CHECK_ARGS)
             setup_test()
             resolve_test_exe("" "erf_exec" TEST_EXE)
             set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
             add_test(${TEST_NAME} sh -c
-                "rm -rf plt0* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_stretched_coalescence.py ${TEST_NAME}.i plt00000 plt00300")
+                "rm -rf plt0* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} ${CHECK_ARGS}")
             set_tests_properties(${TEST_NAME} PROPERTIES
                 TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
                 LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
-        endfunction(add_test_sdm_stretched)
-        add_test_sdm_stretched(SDM_StretchedCoalescence)
+        endfunction(add_test_sdm_check)
+        # Golovin coalescence on a stretched mesh: initial number density and decay rate of each
+        # layer against the physical layer volumes
+        add_test_sdm_check(SDM_StretchedCoalescence
+                           "check_stretched_coalescence.py SDM_StretchedCoalescence.i plt00000 plt00300")
+        # Sampled multiplicities with more than one varying component per super-droplet: weighted
+        # moments of each component against its distribution
+        add_test_sdm_check(SDM_Box3D_SampledMultiplicity
+                           "check_sampled_multiplicity.py SDM_Box3D_SampledMultiplicity.i plt00000")
     endif()
 endif()
 
@@ -6043,6 +6099,28 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         LABELS "unit")
   endif()
   if(ERF_ENABLE_FFT AND ERF_TEST_PYTHON)
+    # FFT projection of an anelastic warm bubble under an Outflow top (FFTProjection_Bubble)
+    set(_fft_stretch "erf.initial_dz=4.0 erf.grid_stretching_ratio=1.15 geometry.prob_hi=320.0 320.0 116.00666947929889")
+    set(_fft_one_end "amr.max_level=1 erf.refinement_indicators=box1 erf.box1.in_box_lo=0.0 80.0 0.0 erf.box1.in_box_hi=120.0 240.0 116.0")
+    # #5185: on a stretched mesh the top-face flux read stretched_dz one past its end and left
+    # 2.7e-5 of the 4.3e-5 divergence before the solve in the top layer; now 7e-20
+    add_test_terrain_poisson_divergence(FFTProjection_StretchedOutflowTop FFTProjection_Bubble 0
+        COMMON_OPTIONS "${_fft_stretch}")
+    # #5186: a refined box that reaches only x = 0 of the periodic x direction got a mixed
+    # (periodic, even) pair, which AMReX's FFT solvers stop on; now both faces are Neumann.
+    # Constant dz (FFT::Poisson) and stretched dz (FFT::PoissonHybrid)
+    add_test_terrain_poisson_divergence(FFTProjection_OneEndedPeriodic FFTProjection_Bubble "0 1"
+        COMMON_OPTIONS "${_fft_one_end}")
+    add_test_terrain_poisson_divergence(FFTProjection_OneEndedPeriodic_Stretched FFTProjection_Bubble "0 1"
+        COMMON_OPTIONS "${_fft_stretch} ${_fft_one_end}")
+    # A refined region that reaches a lateral Outflow face (and not the top) has a Dirichlet
+    # face, so its problem is not singular.  project_momenta took only the top into account on
+    # a refined level and subtracted the mean of the divergence (up to 3.9e-14 here), which the
+    # solve then left behind; now no mean is subtracted.  Level 0 starts from too little
+    # divergence (2e-11) for the check, so only level 1 is checked.
+    add_test_terrain_poisson_divergence(FFTProjection_RefinedLateralOutflow FFTProjection_Bubble 1
+        COMMON_OPTIONS "${_fft_one_end} zhi.type=SlipWall geometry.is_periodic=0 1 0 xlo.type=Outflow xhi.type=SlipWall prob.bubble_x_c=60.0"
+        MAX_MEAN 0)
     # Two levels: the refined level converges
     add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill TerrainPoisson_Hill 1)
     # One level in a box of slip walls on the hill's slopes: the wall part of the fix

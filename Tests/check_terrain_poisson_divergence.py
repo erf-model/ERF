@@ -27,6 +27,9 @@ faces divided by its volume, which is zero when the fluxes through a refined lev
 coarse/fine faces add up to the coarse level's (a level that stops inside the domain in z
 leaves it nonzero unless the flux through its top and bottom comes from the coarse level).
 
+A solve that starts from no divergence at all (the projection at initialization of a flow
+at rest, which ERF skips) is left out.
+
 Exit status: 0 when every solve passes, 1 when one does not, 2 when the log has no solve
 on that level (or fewer than --min-solves), or a solve whose divergence before it was
 already below --min-before (the check would say nothing).
@@ -96,6 +99,7 @@ def main(argv=None):
     except (OSError, ValueError) as err:
         print(f"check_terrain_poisson_divergence: {err}")
         return 2
+    solves = [s for s in solves if s[0] != 0.0]
 
     if len(solves) < args.min_solves:
         print(f"check_terrain_poisson_divergence: {len(solves)} solves at level {args.level} "
