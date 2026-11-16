@@ -126,12 +126,6 @@ static int a_accum_idx (const int a_ns, /*!< number of nonmoist species */
             +   MicVar_SD_Aerosols::accum;
 }
 
-/*! \brief List of super-droplet moisture model initializations */
-AMREX_ENUM(SDMoistInit,
-    uniform,
-    condensate_density
-);
-
 AMREX_ENUM(SDMSimulationDim,
     one_d_z, two_d_xz, two_d_yz, three_d
 );
@@ -523,9 +517,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         amrex::Real m_init_phase_change_time;
 
         int m_diagnostics_iter; /*!< number of iterations between computing diagnostics */
-
-        /*! initialization type */
-        SDMoistInit m_init_type;
 
         /*! name of model and its particle container */
         std::string m_name;

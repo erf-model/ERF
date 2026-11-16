@@ -137,31 +137,13 @@ void composite_initialization_test ()
                 total += value;
             }
         }
-        MultiFab condensate(ba[lev], dm[lev], 1, 0);
-        condensate.setVal(Real(1.e-4));
-        pc.SetAttributes(condensate, *height, lev);
-        for (SuperDropletPC::ParIterType pti(pc, lev); pti.isValid(); ++pti) {
-            const auto& soa = pti.GetStructOfArrays();
-            const auto& xi = soa.GetRealData(static_cast<int>(SDPCDefn::SuperDropletsRealIdx::ncomps) +
-                                            SDPCDefn::SuperDropletsRealIdxSoA_RT::multiplicity);
-            const auto& mass = soa.GetRealData(SDPCDefn::SuperDropletsRealIdx::mass);
-            Vector<ParticleReal> multiplicity(xi.size()), per_drop(mass.size());
-            Gpu::copy(Gpu::deviceToHost, xi.begin(), xi.end(), multiplicity.begin());
-            Gpu::copy(Gpu::deviceToHost, mass.begin(), mass.end(), per_drop.begin());
-            const Real expected = Real(1.e-4) / Real(16);
-            for (int i = 0; i < static_cast<int>(multiplicity.size()); ++i) {
-                EXPECT_NEAR(multiplicity[i] * (per_drop[i] - ParticleReal(1.e-12) - ParticleReal(1.e-19)),
-                            expected, expected * Real(32) * std::numeric_limits<ParticleReal>::epsilon());
-            }
-        }
     }
     EXPECT_EQ(total, ParticleReal(2560));
 }
 
 // Motivation: Covered coarse cells must not seed a second initial population,
 // and density scaling must use the flow on each owning level before particles
-// move. Distinct level densities give an exact composite multiplicity oracle;
-// volume-based sampling also checks the level-local condensate attribute divisor.
+// move. Distinct level densities give an exact composite multiplicity oracle.
 TEST(SpeciesProjection, CompositeInitializationScalesEachLevelOnce)
 {
     composite_initialization_test();
