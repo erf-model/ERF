@@ -8,7 +8,10 @@
 # normal momentum on a wall face at zero, which over sloping terrain they did not do before the
 # fix (the terrain term of the horizontal pressure gradient is not zero on the wall face), and
 # mass left through the walls.  Tests/CTestList.cmake also runs it with the ridge in y and with
-# a radial hill.
+# a radial hill, and without terrain (erf.terrain_type = None, the terrain inputs then unread)
+# with theta given on the side walls and with fast Rayleigh damping toward the wind of
+# input_sounding_wind (5 / 3 m/s), which the substep without terrain must also keep out of the
+# wall faces.
 #
 erf.prob_name = "ABL"
 
