@@ -118,7 +118,7 @@ ERF::initializeEB ()
                 // Buildings-only
                 BuildingsIF buildings_if(buildings_stl_file, stl_scale, stl_center,
                                         stl_reverse_normal, geom[max_level]);
-                auto gshop = EB2::makeShop(buildings_if);
+                auto gshop = EB2::makeShop(buildings_if.getIF());
                 build_eb(gshop);
 
             } else {
@@ -135,7 +135,7 @@ ERF::initializeEB ()
                     // Terrain + Buildings
                     BuildingsIF buildings_if(buildings_stl_file, stl_scale, stl_center,
                                             stl_reverse_normal, geom[max_level]);
-                    auto combined_if = EB2::makeUnion(terrain_if, buildings_if);
+                    auto combined_if = EB2::makeUnion(terrain_if, buildings_if.getIF());
                     auto gshop = EB2::makeShop(combined_if);
                     build_eb(gshop);
                 } else {
