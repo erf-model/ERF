@@ -119,7 +119,12 @@ void make_fast_coeffs (int /*level*/,
                 // Terrain slopes
                 const Real h_xi   = (has_z_nd) ? Compute_h_xi_AtKface (i, j, k, dxInv, z_nd) : zero;
                 const Real h_eta  = (has_z_nd) ? Compute_h_eta_AtKface(i, j, k, dxInv, z_nd) : zero;
-                const Real sigma2 = amrex::max(h_xi*h_xi + h_eta*h_eta, Real(2.0e-6));
+
+                // Limit the terrain slope so that the eigenvalue for
+                // the flat-terrain (sigma2 = 0) is \lambda ~= 0.99.
+                // Since the applification factor is applied each
+                // substep, the damping is \propto \lambda^{n_sub}.
+                const Real sigma2 = amrex::max(h_xi*h_xi + h_eta*h_eta, Real(0.021));
 
                 // Small Z scaling regime
                 // NOTE: The stability limit for beta, in the small Z regime, is utilized
@@ -135,7 +140,7 @@ void make_fast_coeffs (int /*level*/,
                                              + stage_cons(i, j, k-1, RhoTheta_comp) );
                 const Real qv_kf  = (l_use_moisture) ? myhalf * ( stage_cons(i, j, k  , RhoQ1_comp)
                                                                 + stage_cons(i, j, k-1, RhoQ1_comp) ) / r_kf
-                                                   : zero;
+                                                     : zero;
                 const Real p      = getPgivenRTh(rth_kf, qv_kf);
                 const Real cs     = std::sqrt(Gamma * p / r_kf); // Approximate with dry Gamma
                 const Real dz_kf  = z_cc(i,j,k) - z_cc(i,j,k-1);
