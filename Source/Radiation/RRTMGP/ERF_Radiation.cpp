@@ -670,14 +670,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             qv_lay_tab(icol,ilay) = qv;
             qc_lay_tab(icol,ilay) = qc;
             qi_lay_tab(icol,ilay) = qi;
-            // NOTE: Binary (all-or-nothing) cloud fraction is consistent with the saturation-adjustment
-            //       style microphysics and is reasonable at LES/cloud-resolving resolutions, where clouds
-            //       are resolved. At mesoscale resolutions (dx >~ 1 km) subgrid cloud variability matters
-            //       and a diagnosed fraction in [0,1] (e.g., Xu-Randall as in WRF) would be more appropriate:
-            //       binary fractions miss cloud in subsaturated cells and spread cloud water homogeneously
-            //       over the whole cell (plane-parallel albedo bias). With binary fractions the MCICA
-            //       sampling (erf.rad_do_subcol_sampling) has no effect, and the in-cloud mixing ratio cap
-            //       in mixing_ratio_to_cloud_mass acts on the grid-mean condensate.
+            // NOTE: Binary (all-or-nothing) cloud fraction, consistent with saturation adjustment and suited to
+            //       resolved clouds; with it erf.rad_do_subcol_sampling has no effect (see #5212)
             cldfrac_tot_tab(icol,ilay) = ((qc+qi)>Real(0.)) ? Real(1.) : Real(0.);
 
             // NOTE: These are populated in 'mixing_ratio_to_cloud_mass'

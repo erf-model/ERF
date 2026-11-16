@@ -5356,7 +5356,12 @@ List of Parameters
 | **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling with maximum-random      | Boolean            | true                               |
 |                                       | cloud overlap. If false, every layer with nonzero        |                    |                                    |
 |                                       | radiative cloud fraction is treated as overcast in all   |                    |                                    |
-|                                       | g-points (no partial cloudiness).                        |                    |                                    |
+|                                       | g-points (no partial cloudiness), with the in-cloud      |                    |                                    |
+|                                       | condensate (grid mean divided by cloud fraction) spread  |                    |                                    |
+|                                       | over the whole layer. That is exact for the binary (0 or |                    |                                    |
+|                                       | 1) cloud fraction ERF uses now, but would overstate the  |                    |                                    |
+|                                       | cloud optical depth by 1/(cloud fraction) for a          |                    |                                    |
+|                                       | fractional one.                                          |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_orbital_year**              | Fixed orbital year for zenith calcs                      | Integer            | < 0 uses timestamp year            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
