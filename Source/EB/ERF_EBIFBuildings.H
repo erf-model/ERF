@@ -259,8 +259,11 @@ public:
      *
      * This owner must remain alive until all evaluations have finished, including
      * EB2::Build and EB2::BuildFC. In GPU builds, evaluate on the device.
+     * Calling it on a temporary owner does not compile, since the evaluator
+     * would point at the owner's freed levelset.
      */
-    BuildingsLevelsetIF getIF () const noexcept { return m_if; }
+    BuildingsLevelsetIF getIF () const& noexcept { return m_if; }
+    BuildingsLevelsetIF getIF () const&& = delete;
 
 protected:
     //! Domain geometry (for coordinate transformations)
