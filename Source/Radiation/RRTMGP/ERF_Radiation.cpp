@@ -670,6 +670,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             qv_lay_tab(icol,ilay) = qv;
             qc_lay_tab(icol,ilay) = qc;
             qi_lay_tab(icol,ilay) = qi;
+            // NOTE: Binary (all-or-nothing) cloud fraction, consistent with saturation adjustment and suited to
+            //       resolved clouds; with it erf.rad_do_subcol_sampling has no effect (see #5212)
             cldfrac_tot_tab(icol,ilay) = ((qc+qi)>Real(0.)) ? Real(1.) : Real(0.);
 
             // NOTE: These are populated in 'mixing_ratio_to_cloud_mass'
@@ -1574,7 +1576,8 @@ Radiation::run_impl ()
                             lw_clnsky_flux_up_c, lw_clnsky_flux_dn_c,
                             sw_bnd_flux_up_c, sw_bnd_flux_dn_c, sw_bnd_flux_dir_c,
                             lw_bnd_flux_up_c, lw_bnd_flux_dn_c,
-                            eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
+                            eccf, m_do_subcol_sampling,
+                            m_extra_clnclrsky_diag, m_extra_clnsky_diag);
 
         // Compute heating rates for this chunk
         rrtmgp::compute_heating_rate(sw_flux_up_c, sw_flux_dn_c, r_lay_c, z_del_c, sw_heating_c);
