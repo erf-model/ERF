@@ -55,12 +55,15 @@ Fitch::advance (const Geometry& geom,
                 MultiFab& W_old,
                 const MultiFab& mf_Nturb,
                 const MultiFab& mf_SMark,
+                const MultiFab* z_phys_nd,
+                const MultiFab* z_phys_cc,
                 const double& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_SMark.nComp() > 0);
     AMREX_ALWAYS_ASSERT(time > -one);
-    source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb);
+    amrex::ignore_unused(z_phys_cc);
+    source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb, z_phys_nd);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
     compute_power_output(cons_in, U_old, V_old, mf_SMark, mf_Nturb, time);
 }
@@ -172,19 +175,21 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
                                   const MultiFab& U_old,
                                   const MultiFab& V_old,
                                   const MultiFab& W_old,
-                                  const MultiFab& mf_Nturb)
+                                  const MultiFab& mf_Nturb,
+                                  const MultiFab* z_phys_nd)
 {
 
   get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
 
   auto dx = geom.CellSizeArray();
-  auto ProbLoArr = geom.ProbLoArray();
 
   // Domain valid box
   const amrex::Box& domain = geom.Domain();
   int domlo_z = domain.smallEnd(2);
   int domhi_z = domain.bigEnd(2) + 1;
+  // Cells for the heights: kc+1 stays a node of the domain
+  int domhi_cc = domain.bigEnd(2);
 
 
   //Real sum = zero;
@@ -209,6 +214,8 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
         auto u_vel       = U_old.array(mfi);
         auto v_vel       = V_old.array(mfi);
         auto w_vel       = W_old.array(mfi);
+        // Physical node heights (#5182); without them, uniform dz above the domain bottom
+        const Array4<const Real> zp = (z_phys_nd) ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
 
         const Real* wind_speed_d     = d_wind_speed.dataPtr();
         const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
@@ -216,9 +223,12 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
+            int kc = amrex::min(amrex::max(k, domlo_z), domhi_cc);
 
-            Real z_k   = ProbLoArr[2] +  kk   *dx[2];
-            Real z_kp1 = ProbLoArr[2] + (kk+1)*dx[2];
+            // Heights of the bottom and top faces of the cell above the ground, which is
+            // where the hub height is measured from (as in the SMark fill)
+            Real z_k   = windfarm_face_height_above_ground(zp, i, j, kc  , domlo_z, dx[2]);
+            Real z_kp1 = windfarm_face_height_above_ground(zp, i, j, kc+1, domlo_z, dx[2]);
 
             Real A_ijk = compute_Aijk(z_k, z_kp1, d_hub_height, d_rotor_rad);
 
