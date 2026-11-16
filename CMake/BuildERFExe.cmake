@@ -568,6 +568,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/EB/ERF_EBInit.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
+       ${SRC_DIR}/Initialization/ERF_WRFSurfaceFields.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustomPertState.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustomTerrain.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
