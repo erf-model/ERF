@@ -5349,6 +5349,9 @@ List of Parameters
 |                                       |                                                          |                    | kernel launch overhead.            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_write_fluxes**              | Write radiation fluxes to plotfiles                      | Boolean            | false                              |
+|                                       | named ``plt_rad_lev<L>_<step>``, one single-level        |                    |                                    |
+|                                       | plotfile per level; a fine-level file covers only that   |                    |                                    |
+|                                       | level's refined region.                                  |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling                          | Boolean            | true                               |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
