@@ -105,6 +105,11 @@ protected:
 
     int datalog_int = -1; // datalog frequency in steps
 
+    // Formatting of the datalog columns, shared by every radiation model
+    static constexpr int datalog_width          = 14;
+    static constexpr int datalog_precision      = 9;
+    static constexpr int datalog_time_precision = 13;
+
 private:
     void
     setRecordDataInfo (const std::string& filename)

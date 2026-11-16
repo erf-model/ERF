@@ -349,8 +349,40 @@ private:
     amrex::Real m_lat_cons;
     amrex::Real m_lon_cons;
 
-    // Holds output from KOKKOS views used in the datalog
+    // Holds output from KOKKOS views used in the datalog: cell-centred profiles, and the
+    // fluxes on the surface and top-of-atmosphere faces (one cell thick in z)
     amrex::MultiFab datalog_mf;
+    amrex::MultiFab datalog_bdy_mf;
+
+    // Datalog layout. Fluxes come in sets of sw up, sw dn, sw dn dir, lw up and lw dn: the
+    // all-sky and clear-sky sets are always written, the clean-sky and clean-clear-sky sets
+    // only when enabled. Every count below derives from these, so nDatalogFluxComp() can
+    // never exceed max_datalog_flux, which sizes the per-cell flux arrays in populateDatalogMF.
+    static constexpr int n_flux_per_set       = 5;
+    static constexpr int n_flux_sets_base     = 2;
+    static constexpr int n_flux_sets_optional = 2;
+    static constexpr int max_datalog_flux     = n_flux_per_set * (n_flux_sets_base + n_flux_sets_optional);
+
+    // Cell-centred components that are not fluxes: height, heating rates (4) and mu0
+    static constexpr int n_datalog_nonflux = 6;
+
+    // Number of flux fields in the datalog for the enabled diagnostics
+    int nDatalogFluxComp () const
+    {
+        const int n_opt = (m_extra_clnsky_diag ? 1 : 0) + (m_extra_clnclrsky_diag ? 1 : 0);
+        return n_flux_per_set * (n_flux_sets_base + n_opt);
+    }
+
+    // Cell-centred datalog components: the non-flux fields and the fluxes
+    int nDatalogComp () const { return n_datalog_nonflux + nDatalogFluxComp(); }
+
+    // Layout of datalog_bdy_mf: fluxes on the surface face, fluxes on the top face, then the
+    // top-face height. Usable in device code.
+    AMREX_GPU_HOST_DEVICE static constexpr int bdySfcComp  (int n)            { return n; }
+    AMREX_GPU_HOST_DEVICE static constexpr int bdyToaComp  (int n, int nflux) { return nflux + n; }
+    AMREX_GPU_HOST_DEVICE static constexpr int bdyZtopComp (int nflux)        { return 2*nflux; }
+
+    int nDatalogBdyComp () const { return bdyZtopComp(nDatalogFluxComp()) + 1; }
 
     // Path, data file, and coefficient file for K-distribution
     std::string rrtmgp_file_path       = ".";
