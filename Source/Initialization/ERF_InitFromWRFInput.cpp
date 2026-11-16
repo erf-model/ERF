@@ -772,9 +772,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
                     subdomain_tmp.setBig(1,subdomain_tmp.smallEnd(1));
                 }
-                // For 2D variables like MAPFAC_U, MAPFAC_V, PSFC, MUB, etc.
+                // For 2D variables like MAPFAC_U, MAPFAC_V, PSFC, MUB, etc.: they sit at k = 0
+                //    in the file, and in ba2d and every 2D field they are copied into, also
+                //    when this level's region does not start at the bottom of the domain
                 if (nz == 1) {
-                    subdomain_tmp.setBig(2,subdomain_tmp.smallEnd(2));
+                    subdomain_tmp.setRange(2, var_box.smallEnd(2));
                 }
 
                 Box subdomain_to_fill_typed(convert(subdomain_tmp,var_box.ixType()));
