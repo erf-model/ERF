@@ -1678,10 +1678,15 @@ add_test_cloud_chamber_budget(CloudChamber_SatAdj_MOSTWetBudget most_wet CloudCh
 add_test_cloud_chamber_most(CloudChamber_SatAdj_MOSTMixedWalls)
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
-# Exercise both no-substepping integrators with cut cells and multiple boxes;
-# the compressible case also uses multiple tiles per box. MPI builds check
-# the hybrid MPI/OpenMP path.
+# Exercise both no-substepping integrators with cut cells, multiple boxes and
+# multiple tiles per box, comparing one and two threads. MPI builds check the
+# hybrid MPI/OpenMP path. The anelastic case needs its projection to converge
+# to 1e-12, which single precision cannot reach.
+set(eb_nosub_threads 2)
 foreach(mode IN ITEMS Compressible Anelastic)
+    if(mode STREQUAL "Anelastic" AND ERF_PRECISION STREQUAL "SINGLE")
+        continue()
+    endif()
     set(test_name "EB_NoSubstep_OpenMP_${mode}")
     set(test_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${test_name}")
     file(MAKE_DIRECTORY "${test_dir}")
@@ -1690,12 +1695,18 @@ foreach(mode IN ITEMS Compressible Anelastic)
     else()
         set(nranks 1)
     endif()
-    math(EXPR processors "4 * ${nranks}")
+    math(EXPR processors "${eb_nosub_threads} * ${nranks}")
     resolve_test_exe("" "erf_exec" test_exe)
     if(mode STREQUAL "Anelastic")
         set(test_input "${PROJECT_SOURCE_DIR}/Exec/RegTests/WitchOfAgnesi/inputs_EB_anelastic")
+        # The projection's reductions depend on the thread count; the runs
+        # agree to about 1e-11 relative
+        set(rtol 1.e-9)
+        set(atol 1.e-9)
     else()
         set(test_input "${PROJECT_SOURCE_DIR}/Exec/RegTests/EB_Poiseuille/inputs_compressible")
+        set(rtol ${ERF_TEST_FCOMPARE_RTOL})
+        set(atol ${ERF_TEST_FCOMPARE_ATOL})
     endif()
     add_test(NAME ${test_name} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
@@ -1708,12 +1719,13 @@ foreach(mode IN ITEMS Compressible Anelastic)
         "-DWORKING_DIRECTORY=${test_dir}"
         "-DFCOMPARE=${FCOMPARE_EXE}"
         "-DMODE=${mode}"
-        "-DRTOL=${ERF_TEST_FCOMPARE_RTOL}"
-        "-DATOL=${ERF_TEST_FCOMPARE_ATOL}"
+        "-DRTOL=${rtol}"
+        "-DATOL=${atol}"
+        "-DTHREADS=${eb_nosub_threads}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunEBNoSubstepOpenMP.cmake)
     set_tests_properties(${test_name} PROPERTIES
         TIMEOUT 360 PROCESSORS ${processors} LABELS "regression;eb;openmp"
-        ATTACHED_FILES_ON_FAIL "${test_dir}/omp_1/simulation.log;${test_dir}/omp_4/simulation.log;${test_dir}/parity.log")
+        ATTACHED_FILES_ON_FAIL "${test_dir}/omp_1/simulation.log;${test_dir}/omp_${eb_nosub_threads}/simulation.log;${test_dir}/parity.log")
 endforeach()
 endif()
 # ctest runs this argv directly, with no shell, so the launcher cannot be
