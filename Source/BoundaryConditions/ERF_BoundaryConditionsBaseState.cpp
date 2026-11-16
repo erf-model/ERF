@@ -50,14 +50,26 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
 
     int bc_comp = BaseBCVars::rho0_bc_comp;
 
+    // The base state takes Rho's BC type, but a Dirichlet-type density (ext_dir,
+    // ext_dir_upwind, ext_dir_ingested or ext_dir_prim on an inflow face, or a wall's
+    // density value or gradient) means nothing for the hydrostatic column r0/p0/pi0/th0/qv0,
+    // and the passes below have no branch for those types. Extrapolate the column on every
+    // non-periodic lateral face that does not reflect it or extrapolate it to higher order.
+    auto base_bc_type = [] (int t) {
+        return (t == ERFBCType::reflect_even || t == ERFBCType::reflect_odd ||
+                t == ERFBCType::hoextrap     || t == ERFBCType::open        ||
+                t == ERFBCType::int_dir) ? t : int(ERFBCType::foextrap);
+    };
+
     for (int nc = 0; nc < ncomp; nc++)
     {
         for (int dir = 0; dir < AMREX_SPACEDIM; dir++)
         {
-            bcrs[nc].setLo(dir, ( bxlo[dir]<=dlo[dir]
-                                 ? m_domain_bcs_type[bc_comp].lo(dir) : BCType::int_dir ));
-            bcrs[nc].setHi(dir, ( bxhi[dir]>=dhi[dir]
-                                 ? m_domain_bcs_type[bc_comp].hi(dir) : BCType::int_dir ));
+            int lo_t = m_domain_bcs_type[bc_comp].lo(dir);
+            int hi_t = m_domain_bcs_type[bc_comp].hi(dir);
+            if (dir < 2) { lo_t = base_bc_type(lo_t); hi_t = base_bc_type(hi_t); }
+            bcrs[nc].setLo(dir, ( bxlo[dir]<=dlo[dir] ? lo_t : BCType::int_dir ));
+            bcrs[nc].setHi(dir, ( bxhi[dir]>=dhi[dir] ? hi_t : BCType::int_dir ));
         }
     }
 

@@ -161,6 +161,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][0];
                     }
+                } else if (l_bc_type == ERFBCType::ext_dir_upwind) {
+                    // outflow part of an inflow_outflow face (inflow was taken above): foextrap
+                    dest_arr(i,j,k,dest_comp) = dest_arr(dom_lo.x,j,k,dest_comp);
                 }
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
@@ -193,6 +196,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][3];
                     }
+                } else if (h_bc_type == ERFBCType::ext_dir_upwind) {
+                    // outflow part of an inflow_outflow face (inflow was taken above): foextrap
+                    dest_arr(i,j,k,dest_comp) = dest_arr(dom_hi.x,j,k,dest_comp);
                 }
             }
         );
@@ -240,6 +246,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][1];
                     }
+                } else if (l_bc_type == ERFBCType::ext_dir_upwind) {
+                    // outflow part of an inflow_outflow face (inflow was taken above): foextrap
+                    dest_arr(i,j,k,dest_comp) = dest_arr(i,dom_lo.y,k,dest_comp);
                 }
             },
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
@@ -271,6 +280,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][4];
                     }
+                } else if (h_bc_type == ERFBCType::ext_dir_upwind) {
+                    // outflow part of an inflow_outflow face (inflow was taken above): foextrap
+                    dest_arr(i,j,k,dest_comp) = dest_arr(i,dom_hi.y,k,dest_comp);
                 }
             }
         );

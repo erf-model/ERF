@@ -163,8 +163,9 @@ The inflow therefore follows the terrain along the face and the terrain stays on
 the boundary, as WindNinja's inlets do; ``dirichlet_file`` instead holds one
 value per grid level along the whole face. The option applies to ``inflow`` and
 ``inflow_outflow`` faces; on an ``inflow_outflow`` face only the cells where the
-flow enters take the profile. Density is extrapolated from the interior and the
-vertical velocity keeps its boundary value.
+flow enters take the profile. Density is ``<face>.density`` when that is given
+and is otherwise extrapolated from the interior; theta and tke are converted to
+conserved form with that density. The vertical velocity keeps its boundary value.
 
 ``<face>.inflow_profile = log_law`` tabulates the neutral log law
 

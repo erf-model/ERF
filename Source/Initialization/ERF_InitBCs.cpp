@@ -787,8 +787,9 @@ void ERF::init_bcs ()
     }
 
     // Terrain-following inflow profiles prescribe theta and tke where their
-    // tables have them (rho times the tabulated value); density stays
-    // extrapolated from the interior
+    // tables have them (rho times the tabulated value); density comes from
+    // <face>.density when it is given, and is otherwise extrapolated from the
+    // interior
     for (OrientationIter oit; oit; ++oit) {
         const Orientation ori = oit();
         const auto& prof = m_inflow_profiles[ori];
