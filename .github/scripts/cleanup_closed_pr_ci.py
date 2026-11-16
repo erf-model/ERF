@@ -77,6 +77,11 @@ class RunPage(TypedDict):
     workflow_runs: list[Run]
 
 
+class JobPage(TypedDict, total=False):
+    total_count: int
+    jobs: list[object]
+
+
 CancelResult = Optional[Literal["requested", "conflict", "unresolved"]]
 
 
@@ -113,6 +118,12 @@ def api(method: Literal["GET", "POST"], path: str, paginate: bool = False) -> ob
 def read_run(repo: str, run_id: int) -> Run:
     # These casts describe GitHub's response shapes, not runtime schema validation.
     return cast(Run, api("GET", f"repos/{repo}/actions/runs/{run_id}"))
+
+
+def has_no_jobs(repo: str, run_id: int) -> bool:
+    page = cast(JobPage, api("GET", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=1"))
+    jobs = page.get("jobs")
+    return page.get("total_count") == 0 and isinstance(jobs, list) and not jobs
 
 
 def timestamp(value: str | None) -> float | None:
@@ -297,6 +308,13 @@ def cancel_if_obsolete(
         fresh = read_run(repo, run["id"])
         if not unchanged_unfinished(fresh, original, cutoff):
             print(f"Skipping run {run['id']}: finished, changed, or restarted after HTTP 409")
+            return None
+        if has_no_jobs(repo, run["id"]):
+            # Platform incidents can leave queued run records that never created
+            # jobs; GitHub rejects both cancel and force-cancel with HTTP 409.
+            print(
+                f"Skipping run {run['id']}: {operation} returned HTTP 409 and run has no jobs"
+            )
             return None
         if force:
             print(
