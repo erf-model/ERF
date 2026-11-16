@@ -87,46 +87,38 @@ get_fft_bc (Geometry const& lev_geom,
 
     for (int dir = 0; dir <= 2; dir++)
     {
-        auto bc_type_lo = l_domain_bc_type[Orientation(dir,Orientation::low)];
-        if ( lev_geom.isPeriodic(dir) &&
-            (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) )
+        const bool on_lo = (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir));
+        const bool on_hi = (lev_geom.Domain().bigEnd(dir)   == bounding_box.bigEnd(dir));
+
+        // A direction is periodic only if the region spans it.  A region that reaches one end
+        // of a periodic direction only has coarse cells across the other end, so both of its
+        // faces are Neumann faces (AMReX's FFT solvers need both ends periodic or neither).
+        if (lev_geom.isPeriodic(dir) && on_lo && on_hi)
         {
-            first = FFT::Boundary::periodic;
-             // amrex::Print() << "SETTING FIRST OF " << dir << " TO PERIODIC " << std::endl;
+            r[dir] = std::make_pair(FFT::Boundary::periodic, FFT::Boundary::periodic);
+            continue;
         }
 
-        else if ( (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) &&
-                  (bc_type_lo == "Outflow" || bc_type_lo == "Open") && (dir == 2 || !use_real_bcs) )
+        auto bc_type_lo = l_domain_bc_type[Orientation(dir,Orientation::low)];
+        if ( on_lo && !lev_geom.isPeriodic(dir) &&
+             (bc_type_lo == "Outflow" || bc_type_lo == "Open") && (dir == 2 || !use_real_bcs) )
         {
             first = FFT::Boundary::odd;
-             // amrex::Print() << "SETTING FIRST OF " << dir << " TO ODD " << std::endl;
         }
-
         else
         {
             first = FFT::Boundary::even;
-            // amrex::Print() << "SETTING FIRST OF " << dir << " TO EVEN " << std::endl;
         }
 
         auto bc_type_hi = l_domain_bc_type[Orientation(dir,Orientation::high)];
-        if ( lev_geom.isPeriodic(dir) &&
-            (lev_geom.Domain().bigEnd(dir) == bounding_box.bigEnd(dir)) )
-        {
-            second = FFT::Boundary::periodic;
-             // amrex::Print() << "SETTING SECOND OF " << dir << " TO PERIODIC " << std::endl;
-        }
-
-        else if ( (lev_geom.Domain().bigEnd(dir) == bounding_box.bigEnd(dir)) &&
-                  (bc_type_hi == "Outflow" || bc_type_hi == "Open") && (dir == 2 || !use_real_bcs) )
+        if ( on_hi && !lev_geom.isPeriodic(dir) &&
+             (bc_type_hi == "Outflow" || bc_type_hi == "Open") && (dir == 2 || !use_real_bcs) )
         {
             second = FFT::Boundary::odd;
-             // amrex::Print() << "SETTING SECOND OF " << dir << " TO ODD " << std::endl;
         }
-
         else
         {
             second = FFT::Boundary::even;
-            // amrex::Print() << "SETTING SECOND OF " << dir << " TO EVEN " << std::endl;
         }
 
         r[dir] = std::make_pair(first,second);

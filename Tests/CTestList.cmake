@@ -6099,6 +6099,28 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         LABELS "unit")
   endif()
   if(ERF_ENABLE_FFT AND ERF_TEST_PYTHON)
+    # FFT projection of an anelastic warm bubble under an Outflow top (FFTProjection_Bubble)
+    set(_fft_stretch "erf.initial_dz=4.0 erf.grid_stretching_ratio=1.15 geometry.prob_hi=320.0 320.0 116.00666947929889")
+    set(_fft_one_end "amr.max_level=1 erf.refinement_indicators=box1 erf.box1.in_box_lo=0.0 80.0 0.0 erf.box1.in_box_hi=120.0 240.0 116.0")
+    # #5185: on a stretched mesh the top-face flux read stretched_dz one past its end and left
+    # 2.7e-5 of the 4.3e-5 divergence before the solve in the top layer; now 7e-20
+    add_test_terrain_poisson_divergence(FFTProjection_StretchedOutflowTop FFTProjection_Bubble 0
+        COMMON_OPTIONS "${_fft_stretch}")
+    # #5186: a refined box that reaches only x = 0 of the periodic x direction got a mixed
+    # (periodic, even) pair, which AMReX's FFT solvers stop on; now both faces are Neumann.
+    # Constant dz (FFT::Poisson) and stretched dz (FFT::PoissonHybrid)
+    add_test_terrain_poisson_divergence(FFTProjection_OneEndedPeriodic FFTProjection_Bubble "0 1"
+        COMMON_OPTIONS "${_fft_one_end}")
+    add_test_terrain_poisson_divergence(FFTProjection_OneEndedPeriodic_Stretched FFTProjection_Bubble "0 1"
+        COMMON_OPTIONS "${_fft_stretch} ${_fft_one_end}")
+    # A refined region that reaches a lateral Outflow face (and not the top) has a Dirichlet
+    # face, so its problem is not singular.  project_momenta took only the top into account on
+    # a refined level and subtracted the mean of the divergence (up to 3.9e-14 here), which the
+    # solve then left behind; now no mean is subtracted.  Level 0 starts from too little
+    # divergence (2e-11) for the check, so only level 1 is checked.
+    add_test_terrain_poisson_divergence(FFTProjection_RefinedLateralOutflow FFTProjection_Bubble 1
+        COMMON_OPTIONS "${_fft_one_end} zhi.type=SlipWall geometry.is_periodic=0 1 0 xlo.type=Outflow xhi.type=SlipWall prob.bubble_x_c=60.0"
+        MAX_MEAN 0)
     # Two levels: the refined level converges
     add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill TerrainPoisson_Hill 1)
     # One level in a box of slip walls on the hill's slopes: the wall part of the fix

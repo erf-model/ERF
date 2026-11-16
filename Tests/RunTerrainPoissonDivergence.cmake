@@ -48,8 +48,10 @@ function(run_leg name rc_var)
     set(dir "${WORKING_DIRECTORY}/${name}")
     file(REMOVE_RECURSE "${dir}")
     file(MAKE_DIRECTORY "${dir}")
-    # The deck reads its sounding by a relative name.
-    file(COPY "${input_dir}/input_sounding" DESTINATION "${dir}")
+    # A deck that reads a sounding reads it by a relative name.
+    if(EXISTS "${input_dir}/input_sounding")
+        file(COPY "${input_dir}/input_sounding" DESTINATION "${dir}")
+    endif()
     execute_process(
         COMMAND ${launch} ${TEST_EXE} ${INPUT} ${common_opts}
         WORKING_DIRECTORY "${dir}"
