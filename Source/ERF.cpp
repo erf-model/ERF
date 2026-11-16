@@ -4210,6 +4210,34 @@ ERF::ReadParameters ()
 
     solverChoice.init_params(max_level,pp_prefix);
 
+    m_mass_source = MassSource::from_inputs();
+    if (m_mass_source) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
+                amrex::Abort("erf.mass_source needs erf.compressibility_type = FullyCompressible at every "
+                             "level: the anelastic and pseudo-incompressible projections do not admit a mass source");
+            }
+        }
+        // The region is measured up from the bottom of the terrain-fitted (or flat) grid, and
+        // its volume is computed once per set of grids
+        if (solverChoice.terrain_type == TerrainType::EB ||
+            solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+            solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
+            amrex::Abort("erf.mass_source is not supported with erf.terrain_type = EB, ImmersedForcing "
+                         "or MovingFittedMesh");
+        }
+        const auto plo = Geom(0).ProbLoArray();
+        const auto phi = Geom(0).ProbHiArray();
+        if (m_mass_source->x0() < plo[0] || m_mass_source->x0() > phi[0] ||
+            m_mass_source->y0() < plo[1] || m_mass_source->y0() > phi[1]) {
+            amrex::Abort("erf.mass_source.center is outside the domain");
+        }
+        if (!solverChoice.transport_scalar) {
+            amrex::Print() << "WARNING: erf.transport_scalar = false: the passive scalar is not evolved, "
+                           << "so the mass-source tracer is not added" << std::endl;
+        }
+    }
+
     // SurfaceModel output is opt-in for single-provider runs.  When both
     // providers are active, retain the useful combined diagnostic output
     // by default, while allowing an explicit false to disable it.

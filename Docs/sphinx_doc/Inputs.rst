@@ -3466,6 +3466,137 @@ function(s).
 Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
 with an ``erf.abl_geo_wind_table``.
 
+.. _sec:MassSourceInputs:
+
+Mass Source
+-----------
+
+A localized source of gas inside the domain, e.g. the release from a ruptured
+pipeline or a stack, can be added from the inputs without problem-specific code.
+The gas is injected at a total rate :math:`\dot m(t)` [kg/s], spread uniformly over
+the cells whose centres lie within ``erf.mass_source.radius`` of
+``erf.mass_source.center`` horizontally and less than ``erf.mass_source.height``
+above the local ground (the bottom of the terrain-fitted column). With :math:`V`
+the total physical volume of those cells on the composite grid (see below),
+including the terrain metric and the map factors, every source cell receives
+
+.. math::
+
+   S_\rho = \frac{\dot m(t)}{V}, \qquad
+   S_{\rho\theta} = S_\rho \, \theta_{src}, \qquad
+   S_{\rho s} = S_\rho \;\; \text{(when } \texttt{erf.mass_source.tracer} \text{ is true)},
+
+where :math:`\theta_{src}` is ``erf.mass_source.theta`` if given and otherwise the
+cell's own potential temperature, so that the injection on its own does not change
+the potential temperature. :math:`s` is the first passive scalar (plotted as ``rhoadv_0``
+and, divided by the density, as ``scalar``), which therefore holds the mass
+fraction of the released gas, provided the scalar starts at zero and nothing else
+(a problem setup, boundary planes) adds to it. No momentum is added: the gas enters
+at rest. In a periodic direction the region wraps around the domain.
+
+The gas has the properties of dry air: its molecular weight, :math:`c_p` and
+:math:`\gamma`. In a moist run it carries no water, so it dilutes the mixing ratios
+of the cells it enters. A gas that is denser than air at the same temperature, such
+as CO\ :sub:`2` (molecular weight 1.52 times that of air), therefore gets no buoyancy
+from its molecular weight; a density excess comes only from a low ``theta``. Setting
+:math:`\theta_{src} = \theta \, M_{air} / M_{gas}` (about 197 K for CO\ :sub:`2` in
+300 K air) gives the density of the mixture under adiabatic mixing, but the
+temperature of the gas is then not the physical one.
+
+The mass source requires ``erf.compressibility_type = FullyCompressible`` at every
+level, and ERF stops at start-up otherwise: the anelastic and pseudo-incompressible
+projections constrain the divergence of the velocity and would remove the injected
+mass. The source is added to the slow right-hand side of the density and
+:math:`\rho\theta`, which the acoustic substeps apply, and to the right-hand side of
+the scalar. The region is measured up from the bottom of the grid, so ERF also stops
+with ``erf.terrain_type`` = ``EB`` or ``ImmersedForcing`` (where the bottom of the
+grid can lie inside the terrain) and with ``MovingFittedMesh``. It stops as well if
+``center`` is outside the domain, if ``rate``, a rate in the table or ``theta`` is
+negative (a negative rate would be a sink), if an ``erf.mass_source`` input is
+misspelt (any key other than those below), if ``erf.mass_source`` inputs are given
+without ``rate`` or ``rate_file``, or if no cell centre on any level lies inside the
+region. The nearest cell centre can be :math:`\Delta x/\sqrt{2}` from ``center``
+horizontally (more with :math:`\Delta x \neq \Delta y`), and the lowest one half the
+lowest cell above the ground, so ``radius`` must exceed the first and ``height`` the
+second; a region a few cells across gives a better-resolved source. This last check
+is made at the first step, whatever the rate then, and whenever the grids change. If ``erf.transport_scalar`` is false the passive scalar is not
+evolved, so the tracer is not added, and ERF says so.
+
+With mesh refinement every level adds the same :math:`S_\rho` to its own cells in
+the region, and :math:`V` is the volume of the region on the composite grid: the
+source cells of each level that the next finer level does not cover. The composite
+injection rate is therefore :math:`\dot m` however the levels cut the region, and a
+level with no source cells adds nothing. :math:`V`, and the height of the ground
+under each column, are recomputed only when the grids change, and ERF prints
+:math:`V` and the source volume of each level then.
+
+The time of the rate table is the time since the start of the run (not counting
+``erf.start_time``). The source is evaluated at the times of the stages of each
+step, so a table whose corners fall on step boundaries is integrated exactly; one
+that ends at a non-zero rate between two steps can inject up to
+:math:`\dot m \, \Delta t / 2` more or less than the total ERF prints for it.
+
+Over a sharp-edged source region the scalar and :math:`\theta` are close to step
+functions, and non-monotone advection schemes for them (the default ``Upwind_3rd``,
+or ``Upwind_5th``) over- and undershoot at its edge. In a closed 1 km box with a
+100 m source, ``Upwind_3rd`` gave a mass fraction between -5.5e-5 and 0.030 at
+1.0e4 kg/s, but between -0.015 and 1.08 at 1.0e6 kg/s, where ``WENO5`` gave
+-2e-23 to 0.946 (the estimate :math:`1 - e^{-S t / \rho}` is 0.947). With ``theta``
+above the ambient value, :math:`\theta` likewise overshoots it (646 K for a 600 K
+source at 1.0e6 kg/s). Use a WENO scheme for ``erf.dryscal_horiz_adv_type`` and
+``erf.dryscal_vert_adv_type`` when the mass fraction approaches 1 or ``theta`` is far
+from the ambient value.
+
+The source is explicit in time. A strong source changes the density of its cells by
+:math:`S \Delta t / \rho` and their :math:`\rho\theta` by
+:math:`S \Delta t \, \theta_{src} / (\rho\theta)` in a step; keep these well below 1
+(about 0.1). A run at 1.0e6 kg/s with ``theta = 600`` and :math:`\Delta t` = 0.5 s,
+where the second is about 0.3, stopped with a negative density; at :math:`\Delta t`
+= 0.1 s it ran.
+
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                          | Definition                                               | Acceptable Values  | Default          |
++====================================+==========================================================+====================+==================+
+| **erf.mass_source.rate**           | constant total mass flow rate of the source [kg/s];      | Real >= 0          | None             |
+|                                    | giving this or ``rate_file`` turns the source on         |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.rate_file**      | text file of the time-varying mass flow rate: every line | String             | None             |
+|                                    | that is not blank or a comment (``#`` starts one) is two |                    |                  |
+|                                    | numbers, time [s] and rate [kg/s] (anything else stops   |                    |                  |
+|                                    | the run); times strictly increasing, rates >= 0, at      |                    |                  |
+|                                    | least two rows; linear in between and zero outside the   |                    |                  |
+|                                    | table,                                                   |                    |                  |
+|                                    | in the time since the start of the run. Give             |                    |                  |
+|                                    | either ``rate`` or ``rate_file``, not both               |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.center**         | horizontal position x y of the centre of the source [m], | 2 Reals            | required         |
+|                                    | inside the domain                                        |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.radius**         | horizontal radius of the source region [m]               | Real > 0           | required         |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.height**         | depth of the source region above the local ground [m]    | Real > 0           | required         |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.theta**          | potential temperature of the injected gas [K]            | Real > 0           | the cell's own   |
+|                                    |                                                          |                    | theta            |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.tracer**         | add the same source to the first passive scalar, so      | Boolean            | true             |
+|                                    | ``scalar`` is the mass fraction of the released gas      |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+For example, a release that ramps up to 14000 kg/s from a 50 m radius, 20 m deep
+region around the origin:
+
+::
+
+    erf.compressibility_type  = FullyCompressible
+    erf.mass_source.center    = 0.0 0.0
+    erf.mass_source.radius    = 50.0
+    erf.mass_source.height    = 20.0
+    erf.mass_source.rate_file = "release_rate.txt"
+
+At start-up ERF prints the source region, the theta of the injected gas and, for a
+rate table, its time span and the total mass it releases.
+
 
 
 .. _sec:LargeScaleForcingInputs:
