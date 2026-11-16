@@ -205,7 +205,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     if (solverChoice.windfarm_type != WindFarmType::None) {
         advance_windfarm(Geom(lev), dt_lev, S_old,
                          U_old, V_old, W_old, vars_windfarm[lev],
-                         Nturb[lev], SMark[lev], time);
+                         Nturb[lev], SMark[lev],
+                         z_phys_nd[lev].get(), z_phys_cc[lev].get(), time);
     }
 
 #endif

@@ -672,6 +672,13 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     init_zphys(lev, time);
     update_terrain_arrays(lev);
 
+#ifdef ERF_USE_WINDFARM
+    // Nturb, SMark and vars_windfarm were just allocated on the new grids by init_stuff (#5164)
+    if (solverChoice.windfarm_type != WindFarmType::None) {
+        fill_windfarm_markers(lev);
+    }
+#endif
+
     //
     // Make sure that detJ is the average of the data on a finer level if there is one
     //     *and* if there is two-way coupling
@@ -1304,6 +1311,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
+
+#ifdef ERF_USE_WINDFARM
+    // Nturb, SMark and vars_windfarm were just allocated on the new grids by init_stuff (#5164)
+    if (solverChoice.windfarm_type != WindFarmType::None) {
+        fill_windfarm_markers(lev);
+    }
+#endif
 
     // ********************************************************************************************
     // Make sure that detJ is the average of the data on a finer level if there is one
