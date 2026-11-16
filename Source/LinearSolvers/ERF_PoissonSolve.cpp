@@ -939,16 +939,23 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // Enforce solvability if the problem is singular (i.e all sides Neumann or periodic)
         // Note that solves at lev > 0 are always singular because we impose Neumann bc's on all sides
         // *******************************************************************************************
+        // The problem is singular unless the region reaches a Dirichlet face of the domain: an
+        // Outflow or Open face, a lateral one only without real boundary conditions, as in
+        // get_fft_bc.  Level 0 reaches every face; a region of a refined level only some.
         bool is_singular = true;
-        if (lev == 0) {
-            if ( (domain_bc_type[0] == "Outflow" || domain_bc_type[0] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
-            if ( (domain_bc_type[1] == "Outflow" || domain_bc_type[1] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
-            if ( (domain_bc_type[3] == "Outflow" || domain_bc_type[3] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
-            if ( (domain_bc_type[4] == "Outflow" || domain_bc_type[4] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
-            if ( (domain_bc_type[5] == "Outflow" || domain_bc_type[5] == "Open")                               ) is_singular = false;
-        } else {
-            Box my_region(subdomains[lev][isub].minimalBox());
-            if ( (domain_bc_type[5] == "Outflow" || domain_bc_type[5] == "Open") && (my_region.bigEnd(2) == domain.bigEnd(2)) ) is_singular = false;
+        {
+            const Box my_region(subdomains[lev][isub].minimalBox());
+            for (OrientationIter oit; oit; ++oit) {
+                const Orientation ori = oit();
+                const int dir = ori.coordDir();
+                const bool reaches = ori.isLow() ? (my_region.smallEnd(dir) == domain.smallEnd(dir))
+                                                 : (my_region.bigEnd(dir)   == domain.bigEnd(dir));
+                const std::string& bc_type = domain_bc_type[ori];
+                if (reaches && (bc_type == "Outflow" || bc_type == "Open") &&
+                    (dir == 2 || !solverChoice.use_real_bcs)) {
+                    is_singular = false;
+                }
+            }
         }
 
         if (is_singular)

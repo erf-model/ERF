@@ -6057,6 +6057,14 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         COMMON_OPTIONS "${_fft_one_end}")
     add_test_terrain_poisson_divergence(FFTProjection_OneEndedPeriodic_Stretched FFTProjection_Bubble "0 1"
         COMMON_OPTIONS "${_fft_stretch} ${_fft_one_end}")
+    # A refined region that reaches a lateral Outflow face (and not the top) has a Dirichlet
+    # face, so its problem is not singular.  project_momenta took only the top into account on
+    # a refined level and subtracted the mean of the divergence (up to 3.9e-14 here), which the
+    # solve then left behind; now no mean is subtracted.  Level 0 starts from too little
+    # divergence (2e-11) for the check, so only level 1 is checked.
+    add_test_terrain_poisson_divergence(FFTProjection_RefinedLateralOutflow FFTProjection_Bubble 1
+        COMMON_OPTIONS "${_fft_one_end} zhi.type=SlipWall geometry.is_periodic=0 1 0 xlo.type=Outflow xhi.type=SlipWall prob.bubble_x_c=60.0"
+        MAX_MEAN 0)
     # Two levels: the refined level converges
     add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill TerrainPoisson_Hill 1)
     # One level in a box of slip walls on the hill's slopes: the wall part of the fix
