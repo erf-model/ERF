@@ -314,6 +314,9 @@ void SuperDropletPC::addParticles ( int a_lev,
     // On a stretched or terrain-fitted mesh each cell's counts follow its physical volume
     const bool per_cell_counts = variable_dz && !perbox;
     const SDCellCounts cell_counts = a_init.cellCounts();
+    // Split/merge tag: native to this level when its cells get the per-cell count; with a
+    // super-droplet density they get fewer, and the split as level-0 entrants restores the count
+    const int native_tag = (cell_counts.sd_density >= 0) ? 1 : a_lev + 1;
     int num_sd_per_cell;
     Real num_par_per_cell;
     Real inject_mult = one;
@@ -622,7 +625,7 @@ void SuperDropletPC::addParticles ( int a_lev,
                     }
                 }
 
-                active_ptr[n] = 1;
+                active_ptr[n] = native_tag;
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = zero;
 
                 if (perbox) {

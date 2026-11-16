@@ -8,11 +8,6 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
-namespace {
-    // Recycled super-droplet whose vz still carries its physical height
-    constexpr int recycle_pending = -1;
-}
-
 /*! Recycle deactivated particles: particles that have zero multiplicity are
  *  recycled by resetting them to dry aerosol particles and placing them randomly
  *  in the domain. */
@@ -272,8 +267,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                     ctx.num_species, ctx.num_aerosols, ptrs.sp_sol_arr, ptrs.ae_sol_arr,
                     ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs, ptrs.sp_rho_arr, ptrs.ae_rho_arr);
 
-                // set as active once placed
-                ptrs.active_ptr[i] = recycle_pending;
+                // pending (vz holds the height) until placed, which flips the sign to this level's split/merge tag
+                ptrs.active_ptr[i] = -(a_lev + 1);
 
                 // add to count
                 Gpu::Atomic::Add(np_recycle_ptr, Long(1));
@@ -350,7 +345,7 @@ void SuperDropletPC::placeRecycledParticles ( const Vector<MFPtr>& a_z_phys_nd )
                 {
                     ParticleType& p = p_pbox[i];
                     if (p.id() <= 0) { return; }
-                    if (ptrs.active_ptr[i] != recycle_pending) { return; }
+                    if (ptrs.active_ptr[i] >= 0) { return; }
 
                     const Real x = static_cast<Real>(p.pos(0));
                     const Real y = static_cast<Real>(p.pos(1));
@@ -373,7 +368,7 @@ void SuperDropletPC::placeRecycledParticles ( const Vector<MFPtr>& a_z_phys_nd )
                     } else {
                         p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(zeta);
                         ptrs.v_ptr[AMREX_SPACEDIM-1][i] = zero;
-                        ptrs.active_ptr[i] = 1;
+                        ptrs.active_ptr[i] = -ptrs.active_ptr[i];
                     }
                 });
                 Gpu::synchronize();
