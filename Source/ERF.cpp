@@ -3617,6 +3617,12 @@ ERF::init_only (int lev, double elapsed_time)
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
 
+        // Impose the physical bc's on the base state, as initHSE and restart do: the
+        // sounding fills only the valid cells and (by its column integration) the first
+        // lateral ghost, so without this a non-periodic lateral boundary leaves the base
+        // state's ghosts differing from what a restart rebuilds there
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+
         // The base state has been initialized by integrating vertically
         // through the sounding for ideal (like WRF) or isentropic approaches
         if (solverChoice.sounding_type == SoundingType::Ideal ||
