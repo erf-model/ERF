@@ -103,6 +103,10 @@ seb_fill_from_coarse_over_land (amrex::MultiFab& fine, const amrex::MultiFab& cr
     const int i_near = 2 * nc;
     const int i_none = 2 * nc + 1;
     amrex::MultiFab src(crse.boxArray(), crse.DistributionMap(), 2 * nc + 2, crse.nGrowVect());
+    // The ghost columns at a coarse-fine edge of the coarse level are not set below. With
+    // the proper nesting ERF runs with no fine column has its parent there; a zero flag
+    // leaves such a column with the interpolation above.
+    src.setVal(Real(0.0));
     const bool per_x = cgeom.isPeriodic(0);
     const bool per_y = cgeom.isPeriodic(1);
     const auto dlo = amrex::lbound(cgeom.Domain());

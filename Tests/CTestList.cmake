@@ -4827,6 +4827,37 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
       ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run.log;${CURRENT_TEST_BINARY_DIR}/run.err;${CURRENT_TEST_BINARY_DIR}/restart.log;${CURRENT_TEST_BINARY_DIR}/restart.err")
     unset(TEST_NAME)
 
+    # The two-stream force-restore balance on a wrfinput land mask with a shore, with a
+    # level 1 that has no file of its own and takes its parent's mask. The fill of the new
+    # level's surface fields reads that mask: a level 1 column over coarse water keeps the
+    # parent's held values and no land column over water is counted, for a level made by a
+    # regrid, for a level made at the start, and across a restart
+    # (Tests/RunTwoStreamSEBLandMaskNewLevel.cmake,
+    # test_files/TwoStream_SEBLandMaskNewLevel/check_new_level.py). With the fill run before
+    # the mask reaches the level, the columns next to the shore take a land mean.
+    set(TEST_NAME TwoStream_SEBLandMaskNewLevel)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND "${CMAKE_COMMAND}"
+      "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+      "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+      "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+      "-DNRANKS=${NP}"
+      "-DTEST_EXE=${TEST_EXE}"
+      "-DCONFIG=$<CONFIG>"
+      "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+      "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+      "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+      "-DGENERATOR=${CURRENT_TEST_BINARY_DIR}/make_wrfinput.py"
+      "-DCHECKER=${CURRENT_TEST_BINARY_DIR}/check_new_level.py"
+      "-DREADER_DIR=${PROJECT_SOURCE_DIR}/Exec/Tools"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/RunTwoStreamSEBLandMaskNewLevel.cmake")
+    set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 600 PROCESSORS ${NP}
+      WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
+      LABELS "regression;radiation;wrfinput"
+      ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/regrid/simulation.log;${CURRENT_TEST_BINARY_DIR}/scratch/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+    unset(TEST_NAME)
+
     # The same files with level 2 refined only from k = 2 up (#4995): a WRF nest carries the
     # full eta column, so cell k of level 2 must hold layer k of d03, not layer k - 2. And with
     # level 1 cropped to start at i = 32, d03 (level-1 cells 26..31) does not fit inside it,

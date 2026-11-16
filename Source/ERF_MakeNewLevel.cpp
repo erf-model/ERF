@@ -245,11 +245,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         if (lev > 0) { bind_sbm_amr_flux_registers(lev - 1); }
     }
 
-    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
-    // defaults; a level that evolves it needs its parent's values instead, or it
-    // radiates at erf.rad_t_sfc for its first step.
-    fill_seb_from_coarse(lev);
-
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
@@ -403,6 +398,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             make_terrain_blanking(lev);
         }
     }
+
+    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
+    // defaults; a level that evolves it needs its parent's values instead, or it
+    // radiates at erf.rad_t_sfc for its first step. The fill reads this level's land mask,
+    // so it comes after init_only: with wrfinput the mask is read from the level's file or
+    // taken from the parent there (init_from_wrfinput, Interp2DArrays), and until then it
+    // holds erf.is_land of the level. On a restart the parent holds the scalar defaults
+    // here and the checkpoint read sets the state of every level afterwards.
+    fill_seb_from_coarse(lev);
 
     // Initialize the non-cons auxiliary tracer only after the host atmospheric
     // density has been initialized from the selected problem configuration.
@@ -657,11 +661,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                               interval_means[lev-1].get(), t_mean_cnt[lev-1],
                               geom[lev-1], geom[lev], refRatio(lev-1));
     }
-
-    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
-    // defaults; a level that evolves it needs its parent's values instead, or it
-    // radiates at erf.rad_t_sfc for its first step.
-    fill_seb_from_coarse(lev);
 
     //
     // Note that t_new = time here is elapsed time
@@ -926,6 +925,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 #ifdef ERF_USE_NETCDF
     }
 #endif
+
+    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
+    // defaults; a level that evolves it needs its parent's values instead, or it
+    // radiates at erf.rad_t_sfc for its first step. The fill reads this level's land mask,
+    // so it comes after both branches above: a level with its own wrfinput or metgrid file
+    // has read its mask, and a wrfinput level with no file has taken its parent's
+    // (Interp2DArrays). Until then the mask holds erf.is_land of the level. RemakeLevel has
+    // the same order.
+    fill_seb_from_coarse(lev);
 
     // ********************************************************************************************
     // Initialize the integrator class
