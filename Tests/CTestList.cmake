@@ -4932,18 +4932,14 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
         "erf.crop.in_box_lo_indices=32 24 0"
         "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
 
-    # Restart from the checkpoints older versions wrote, holding the SST and TSK as
-    # potential temperature: the pressure they are converted back with follows from the
-    # init type that wrote them (job_info, or erf.legacy_surface_temperature_init_type),
-    # not the restart's; a WRFInput one uses recovered PSFC from its first level-0 init file
-    # (with fine-level regrid uncertainty), a Metgrid one is migrated approximately with
-    # restarted ground pressure or parent ground pressure for aloft-only coverage, and one
-    # of unknown origin, or that the restart cannot recover, aborts.  Over land the SST is a
-    # placeholder the surface layer never takes, which is kept as it is; an invalid value
-    # where the surface layer takes the field, or a surface pressure that cannot convert a
-    # stored temperature, aborts.  So does a level with several init files of its own,
-    # as the checkpoint does not record which file each grid took them from; restarted
-    # once with the one file it read, the no-regrid fixture matches its source numerically.
+    # Restart checkpoints from before the surface-temperature contract, holding SST and
+    # TSK as potential temperature. The writing run's init type (job_info, or the explicit
+    # legacy assertion) selects the pressure policy: level 0 WRFInput uses its first init
+    # file, fine-level recovery is approximate after regridding, and Metgrid migration uses
+    # restarted ground pressure or parent ground pressure for aloft-only coverage. Unknown
+    # or unrecoverable provenance and invalid active values abort. A later fine-level init
+    # file causes an abort only if it may have started and pressure provenance is ambiguous.
+    # The fixture also checks land SST placeholders and version-2 direct restoration.
     set(TEST_NAME WRFInput_LegacySurfaceTemperature)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -5057,7 +5053,7 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           "restart WRFInput_SurfaceFields_Restart_MPI.log" "max_step=0" 3)
     endif()
   else()
-    message(STATUS "Skipping WRFInput_CroppedParent, WRFInput_LegacySurfaceTemperature and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
+    message(STATUS "Skipping WRFInput_CroppedParent, WRFInput_LegacySurfaceTemperature, and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
   endif()
 endif()
 

@@ -2981,7 +2981,8 @@ ERF::interp_psfc_from_coarse (int lev)
     // nothing, and the slope stencil of the interpolater reads them wherever the fine
     // level, with its ghost cells, comes within one coarse cell of that face.  They take
     // the nearest column inside the domain first (seb_extend_halo, which also calls
-    // FillBoundary).
+    // FillBoundary). During legacy restart migration, the coarse pressure ghosts have
+    // also been prepared before this routine runs.
     //
     seb_extend_halo(*mf_PSFC[lev-1], geom[lev-1]);
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
