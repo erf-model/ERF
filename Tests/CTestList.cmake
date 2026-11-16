@@ -67,6 +67,26 @@ macro(setup_test)
     endif()
 endmacro(setup_test)
 
+# EB MOST must own state and apply drag with a covered physical zlo SlipWall,
+# including varying roughness, levels created later, and restarts from the
+# historical physical-zlo owner.
+set(TEST_NAME EB_SurfaceLayerActivation)
+setup_test()
+add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+    "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+    "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+    "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+    "-DNRANKS=${NP}"
+    "-DTEST_EXE=$<TARGET_FILE:erf_exec>"
+    "-DCHECKER=$<TARGET_FILE:erf_eb_surface_layer_activation_check>"
+    "-DCONFIG=$<CONFIG>"
+    "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+    "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+    -P ${PROJECT_SOURCE_DIR}/Tests/RunEBSurfaceLayerActivation.cmake)
+set_tests_properties(${TEST_NAME} PROPERTIES
+    TIMEOUT 1200 PROCESSORS ${NP} LABELS "regression"
+    ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/embedded/simulation.log;${CURRENT_TEST_BINARY_DIR}/physical_restart/simulation.log;${CURRENT_TEST_BINARY_DIR}/varying_drag.log;${CURRENT_TEST_BINARY_DIR}/varying_restart_state.log;${CURRENT_TEST_BINARY_DIR}/per_level_remade/simulation.log;${CURRENT_TEST_BINARY_DIR}/interpolated_remade/simulation.log")
+
 # Production contract test for native 3D plotfile names and unavailable-name warnings.
 function(add_test_plotfile_header TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     setup_test()
@@ -2212,6 +2232,25 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
 endfunction(add_test_abort)
 
 if(NOT WIN32)
+  add_test_abort(EB_SurfaceLayerRequiresDiffusion ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "needs a diffusive closure" "erf.les_type=None")
+  # EB roughness input failures must be diagnosed on the host before filling the field.
+  add_test_abort(EB_RoughnessFileMalformed ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "expected exactly three numbers" "erf.most.roughness_file_name=roughness_malformed.txt")
+  add_test_abort(EB_RoughnessFileNonfiniteCoordinate ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "x must be finite" "erf.most.roughness_file_name=roughness_nonfinite_coordinate.txt")
+  add_test_abort(EB_RoughnessFileNonpositive ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "z0 must be finite and strictly positive" "erf.most.roughness_file_name=roughness_nonpositive.txt")
+  add_test_abort(EB_RoughnessFileNonfiniteZ0 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "z0 must be finite and strictly positive" "erf.most.roughness_file_name=roughness_nonfinite_z0.txt")
+  add_test_abort(EB_RoughnessFileDuplicate ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "duplicate grid location" "erf.most.roughness_file_name=roughness_duplicate.txt")
+  add_test_abort(EB_RoughnessFileMissingCoverage ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "missing horizontal model coordinate" "erf.most.roughness_file_name=roughness_missing.txt")
+  add_test_abort(EB_RoughnessFileEmpty ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "holds no .x, y, z0. triples" "erf.most.roughness_file_name=roughness_empty.txt")
+  add_test_abort(EB_RoughnessFileNotFound ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "Could not open the MOST roughness file" "erf.most.roughness_file_name=roughness_does_not_exist.txt")
   # Inputs that used to index past an array or divide by zero (#4620, #4624)
   add_test_abort(AnelasticWallDiffusion_AxisOutOfRange ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticWallDiffusion_X
                  AnelasticWallDiffusion_X.i "prob.axis must be 0, 1 or 2" "prob.axis=3")
