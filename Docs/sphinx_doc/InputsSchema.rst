@@ -14,7 +14,10 @@ it.
 The schema is reference material for checking and tooling, not a fixed workflow contract. It reads only literal
 queries, and a key whose variable type it cannot find is ``unknown``. Prefixes ERF builds at run time (boundary
 faces, stations, refinement indicators, particle containers) are read as families, listed in ``scan.FAMILIES``;
-reads the generator still cannot place are listed under ``unresolved``.
+reads the generator still cannot place are listed under ``unresolved``. A key name passed to a local lambda and
+read inside it (``get_layer_prop`` in ``ERF_SLM.cpp``) takes the literal of each call of that lambda; a call whose
+argument is not a literal is listed under ``unresolved``. A key name built in another way, such as a concatenation
+at the read, is not in the schema and is not listed.
 
 Generating a Schema
 -------------------
