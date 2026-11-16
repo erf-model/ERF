@@ -152,6 +152,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             m_qstate_nonmoist_size = -1; // sentinel; readInputs() sets the actual count before construction returns
             m_name = "super_droplets_moisture";
             m_idx_w = -1;
+            m_idx_i = -1;
+            m_super_droplets = nullptr;
             m_num_species = 0;
             m_num_aerosols = 0;
             readInputs();
@@ -572,7 +574,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! species index of water */
         int m_idx_w;
 
-        /*! species index of ice */
+        /*! species index of ice; -1 without cold processes */
         int m_idx_i;
 
         /*! starting index of non-moisture species */
