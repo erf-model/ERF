@@ -87,10 +87,10 @@
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
 
             state_pert(i, j, k, Rho_comp) = rhonew - rho;
-            state_pert(i, j, k, RhoTheta_comp) = zero;
         }
 
-        if (use_moisture && pert_deltaQV != zero)
+        // rho*qv follows the new density so qv is held when only T is perturbed
+        if (use_moisture && (pert_deltaT != zero || pert_deltaQV != zero))
         {
             const Real zl = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
@@ -101,6 +101,6 @@
             Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
             Real qvnew = qvold + qvfac * damp * z_agl * std::cos(dval * (x - xc));
 
-            state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
+            state_pert(i, j, k, RhoQ1_comp) += rhonew * qvnew - rhoold * qvold;
         }
     });
