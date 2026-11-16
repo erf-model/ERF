@@ -16,14 +16,17 @@ GeneralAD::advance (const Geometry& geom,
                     MultiFab& W_old,
                     const MultiFab& mf_Nturb,
                     const MultiFab& mf_SMark,
+                    const MultiFab* z_phys_nd,
+                    const MultiFab* z_phys_cc,
                     const double& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_vars_generalAD.nComp() > 0);
     AMREX_ALWAYS_ASSERT(time > -one);
+    amrex::ignore_unused(z_phys_nd);
     compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
-    source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_generalAD);
+    source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_generalAD, z_phys_cc);
     update(dt_advance, cons_in, U_old, V_old, W_old, mf_vars_generalAD);
     compute_power_output(time);
 }
@@ -323,7 +326,8 @@ void
 GeneralAD::source_terms_cellcentered (const Geometry& geom,
                                       const MultiFab& cons_in,
                                       const MultiFab& mf_SMark,
-                                      MultiFab& mf_vars_generalAD)
+                                      MultiFab& mf_vars_generalAD,
+                                      const MultiFab* z_phys_cc)
 {
 
     get_turb_loc(xloc, yloc);
@@ -344,6 +348,13 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     Gpu::DeviceVector<Real> d_yloc(yloc.size());
     Gpu::copy(Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
     Gpu::copy(Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+
+    // Ground elevation under each turbine, which SMark's disk is centred hub_height above
+    // (#5181); zero when it was never set
+    Vector<Real> zloc_h(xloc.size(), zero);
+    if (m_zloc.size() == xloc.size()) { zloc_h = m_zloc; }
+    Gpu::DeviceVector<Real> d_zloc(zloc_h.size());
+    Gpu::copy(Gpu::hostToDevice, zloc_h.begin(), zloc_h.end(), d_zloc.begin());
 
       auto dx = geom.CellSizeArray();
 
@@ -375,6 +386,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
 
     Real* d_xloc_ptr = d_xloc.data();
     Real* d_yloc_ptr = d_yloc.data();
+    Real* d_zloc_ptr = d_zloc.data();
     Real* d_freestream_velocity_ptr = d_freestream_velocity.data();
     Real* d_disk_cell_count_ptr     = d_disk_cell_count.data();
 
@@ -463,6 +475,8 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
         const Box& gbx      = mfi.growntilebox(1);
         auto SMark_array    = mf_SMark.array(mfi);
         auto generalAD_array = mf_vars_generalAD.array(mfi);
+        // Physical cell-centre heights, as fill_SMark_multifab marks the disk with (#5181)
+        const Array4<const Real> z_cc = (z_phys_cc) ? z_phys_cc->const_array(mfi) : Array4<const Real>{};
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
@@ -471,7 +485,6 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
 
             Real x   = ProbLoArr[0] + (ii+myhalf)*dx[0];
             Real y   = ProbLoArr[1] + (jj+myhalf)*dx[1];
-            Real z   = ProbLoArr[2] + (kk+myhalf)*dx[2];
             // ?? Density needed here
 
             int check_int = 0;
@@ -487,10 +500,16 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                 if(SMark_array(ii,jj,kk,1) == static_cast<double>(it)) {
                     check_int++;
 
+                    // Height of the point above the hub: the hub is d_hub_height above the
+                    // ground under the turbine.  Without physical heights, uniform dz above
+                    // the domain bottom.
+                    Real dzh = (z_cc) ? z_cc(ii,jj,kk) - (d_hub_height + d_zloc_ptr[it])
+                                      : (kk - domlo_z + myhalf)*dx[2] - d_hub_height;
+
                     // Find radial distance of the point and the zeta angle
                     Real rad = std::pow( (x-d_xloc_ptr[it])*(x-d_xloc_ptr[it]) +
                                          (y-d_yloc_ptr[it])*(y-d_yloc_ptr[it]) +
-                                         (z-d_hub_height)*(z-d_hub_height), myhalf );
+                                         dzh*dzh, myhalf );
 
                     int index = find_rad_loc_index(rad, bld_rad_loc_ptr, n_bld_sections);
 
@@ -498,7 +517,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                     // between the hub radius and the rotor radius.
                     // ?? hub radius needed here
                     if(rad >= two and rad <= d_rotor_rad) {
-                        //AMREX_ASSERT( (z-d_hub_height) <= rad );
+                        //AMREX_ASSERT( dzh <= rad );
                         // Consider the vector that joines the point and the turbine center.
                         // Dot it on to the vector that joins the turbine center and along
                         // the plane of the disk. See fig. 10 in Mirocha et. al. Real(2014.)
@@ -507,7 +526,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                                         (y-d_yloc_ptr[it])*(-std::cos(phi));
 
 
-                        Real zeta = std::atan2(z-d_hub_height, vec_proj);
+                        Real zeta = std::atan2(dzh, vec_proj);
                         //printf("zeta val is %0.15g\n", zeta*Real(180.0)/PI);
                         Fn_and_Ft = compute_source_terms_Fn_Ft(rad, avg_vel,
                                                                bld_rad_loc_ptr,

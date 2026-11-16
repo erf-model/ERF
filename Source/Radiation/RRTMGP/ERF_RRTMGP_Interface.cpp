@@ -106,7 +106,8 @@ get_subsampled_clouds (const int ncol,
                        optical_props2_t& cloud_optics,
                        gas_optics_t& kdist,
                        real2d_k& cld,
-                       real2d_k& p_lay)
+                       real2d_k& p_lay,
+                       const bool do_subcol_sampling)
 {
     // Initialized subsampled optics
     optical_props2_t subsampled_optics;
@@ -130,12 +131,12 @@ get_subsampled_clouds (const int ncol,
         }
     });
 
-    // Get subcolumn cloud mask; note that get_subcolumn_mask exposes overlap assumption as an option,
-    // but the only currently supported options are 0 (trivial all-or-nothing cloud) or 1 (max-rand),
-    // so overlap has not been exposed as an option beyond this subcolumn. In the future, we should
-    // support generalized overlap as well, with parameters derived from DPSCREAM simulations with very
+    // Get subcolumn cloud mask; get_subcolumn_mask supports overlap options 0 (trivial all-or-nothing
+    // cloud: any layer with nonzero radiative cloud fraction is overcast in every gpoint) or 1 (max-rand
+    // MCICA sampling), selected here by erf.rad_do_subcol_sampling. In the future, we should support
+    // generalized overlap as well, with parameters derived from DPSCREAM simulations with very
     // high resolution.
-    int overlap = 1;
+    int overlap = do_subcol_sampling ? 1 : 0;
 
     // Get unique seeds for each column that are reproducible across different MPI rank layouts;
     // use decimal part of pressure for this, consistent with the implementation in EAM
@@ -174,7 +175,8 @@ get_subsampled_clouds (const int ncol,
                        optical_props1_t& cloud_optics,
                        gas_optics_t& kdist,
                        real2d_k& cld,
-                       real2d_k& p_lay)
+                       real2d_k& p_lay,
+                       const bool do_subcol_sampling)
 {
     // Initialized subsampled optics
     optical_props1_t subsampled_optics;
@@ -198,8 +200,8 @@ get_subsampled_clouds (const int ncol,
         }
     });
 
-    // Get subcolumn cloud mask
-    int overlap = 1;
+    // Get subcolumn cloud mask (see the shortwave overload for the overlap options)
+    int overlap = do_subcol_sampling ? 1 : 0;
     // Get unique seeds for each column that are reproducible across different MPI rank layouts;
     // use decimal part of pressure for this, consistent with the implementation in EAM; use different
     // seed values for longwave and shortwave
@@ -409,6 +411,7 @@ rrtmgp_main (const int ncol, const int nlay,
              real3d_k& sw_bnd_flux_up      , real3d_k& sw_bnd_flux_dn      , real3d_k& sw_bnd_flux_dn_dir,
              real3d_k& lw_bnd_flux_up      , real3d_k& lw_bnd_flux_dn      ,
              const RealT tsi_scaling,
+             const bool do_subcol_sampling,
              const bool extra_clnclrsky_diag, const bool extra_clnsky_diag)
 {
     // Check if we need to reinitialize the memory pool for larger ncol or nlay
@@ -495,11 +498,13 @@ rrtmgp_main (const int ncol, const int nlay,
     // subcolumn (cloud state) to each gpoint.
     auto nswgpts = k_dist_sw_k->get_ngpt();
     auto clouds_sw_gpt = get_subsampled_clouds(ncol, nlay, nswbands, nswgpts,
-                                               clouds_sw, *k_dist_sw_k, cldfrac, p_lay);
+                                               clouds_sw, *k_dist_sw_k, cldfrac, p_lay,
+                                               do_subcol_sampling);
     // Longwave
     auto nlwgpts = k_dist_lw_k->get_ngpt();
     auto clouds_lw_gpt = get_subsampled_clouds(ncol, nlay, nlwbands, nlwgpts,
-                                               clouds_lw, *k_dist_lw_k, cldfrac, p_lay);
+                                               clouds_lw, *k_dist_lw_k, cldfrac, p_lay,
+                                               do_subcol_sampling);
 
   // Do shortwave
   rrtmgp_sw(ncol, nlay,

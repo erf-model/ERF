@@ -1177,6 +1177,7 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm (int lev);
+    void fill_windfarm_markers (int lev);
     void advance_windfarm (const amrex::Geometry& a_geom,
                            const double& dt_advance,
                            amrex::MultiFab& cons_in,
@@ -1186,6 +1187,8 @@ public:
                            amrex::MultiFab& mf_vars_windfarm,
                            const amrex::MultiFab& mf_Nturb,
                            const amrex::MultiFab& mf_SMark,
+                           const amrex::MultiFab* z_phys_nd,
+                           const amrex::MultiFab* z_phys_cc,
                            const double& time);
 #endif
 

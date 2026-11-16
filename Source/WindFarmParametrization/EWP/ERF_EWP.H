@@ -23,6 +23,8 @@ public:
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
                   const amrex::MultiFab& mf_SMark,
+                  const amrex::MultiFab* z_phys_nd,
+                  const amrex::MultiFab* z_phys_cc,
                   const double& time) override;
 
     void source_terms_cellcentered (const amrex::Geometry& geom,
@@ -31,7 +33,8 @@ public:
                                     const amrex::MultiFab& U_old,
                                     const amrex::MultiFab& V_old,
                                     const amrex::MultiFab& W_old,
-                                    const amrex::MultiFab& mf_Nturb);
+                                    const amrex::MultiFab& mf_Nturb,
+                                    const amrex::MultiFab* z_phys_nd);
 
     void update (const double& dt_advance,
                  amrex::MultiFab& cons_in,
