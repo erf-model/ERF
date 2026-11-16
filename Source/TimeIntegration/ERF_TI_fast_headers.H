@@ -67,7 +67,8 @@ void erf_substep_NS (int step, int nrk, int level, int finest_level,
                      const amrex::Real l_damp_coef,
                      const amrex::Real beta_d,
                      const CFFaceFluxes& cf_fluxes,
-                     amrex::MultiFab* mom_reflux_p = nullptr);
+                     amrex::MultiFab* mom_reflux_p,
+                     const amrex::GpuArray<bool,4>& lateral_walls);
 
 /**
  * Function for computing the fast RHS with fixed-in-time terrain
