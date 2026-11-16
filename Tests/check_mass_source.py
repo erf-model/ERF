@@ -2,7 +2,7 @@
 """Check the budget of a run with a mass source (erf.mass_source).
 
 Usage: check_mass_source.py <log> (--rate RATE | --expected MASS) [--theta THETA]
-                            [--no-tracer] [--tol TOL]
+                            [--no-tracer] [--tol TOL] [--roundoff R]
 
 <log> is the output of a run in a closed domain (nothing enters or leaves), with
 erf.sum_interval = 1 and erf.v >= 1, so that ERF prints at every step
@@ -18,7 +18,9 @@ ends before that time) with --expected. The mass must grow by E, and, with the i
 scalar zero, the scalar integral must equal E, or stay zero with --no-tracer. With --theta
 the rho*theta integral must grow by THETA * E (in a closed domain without diffusion, where
 the injected gas carries THETA, or where theta is uniform and equal to THETA). Each to a
-relative --tol of E. A source added at the wrong stage time, normalized by the wrong volume
+relative --tol of E, plus --roundoff (default 1e-13) times the size of the domain integral
+itself: the gain is the difference of two sums over the whole domain, whose round-off does
+not shrink with the rate. A source added at the wrong stage time, normalized by the wrong volume
 or lost by the substeps changes one or more of these. The check also requires the source to
 have been on for more than one step.
 Exit status 0 on pass, 1 on a mismatch, 2 when the log cannot be checked.
@@ -42,6 +44,7 @@ def main():
     ap.add_argument("--theta", type=float)
     ap.add_argument("--no-tracer", action="store_true")
     ap.add_argument("--tol", type=float, default=1e-10)
+    ap.add_argument("--roundoff", type=float, default=1e-13)
     a = ap.parse_args()
 
     times, mass, rhth, scal = [], [], [], []
@@ -67,22 +70,24 @@ def main():
         return 2
 
     expected = a.rate * times[-1] if a.rate is not None else a.expected
+    # name: (value, expected value, scale of the expected value, size of the domain integral)
     errors = {}
-    errors["mass gain"] = (mass[-1] - mass[0], expected)
-    errors["tracer"] = (scal[-1], 0.0 if a.no_tracer else expected)
+    errors["mass gain"] = (mass[-1] - mass[0], expected, expected, abs(mass[-1]))
+    errors["tracer"] = (scal[-1], 0.0 if a.no_tracer else expected, expected, abs(scal[-1]))
     if a.theta is not None:
-        errors["rho theta gain"] = (rhth[-1] - rhth[0], a.theta * expected)
+        errors["rho theta gain"] = (rhth[-1] - rhth[0], a.theta * expected, a.theta * expected,
+                                    abs(rhth[-1]))
 
     ok = True
     if scal[0] != 0.0:
         print("check_mass_source: FAIL: the tracer integral is %g at t = 0, not 0" % scal[0])
         ok = False
-    for name, (got, want) in errors.items():
-        scale = expected * (a.theta if name == "rho theta gain" else 1.0)
+    for name, (got, want, scale, size) in errors.items():
         err = abs(got - want) / scale
-        print("check_mass_source: t = %.6g s, %s %.17g, expected %.17g (rel err %.2e, tol %.1e)"
-              % (times[-1], name, got, want, err, a.tol))
-        ok = ok and err <= a.tol
+        allowed = a.tol + a.roundoff * size / scale
+        print("check_mass_source: t = %.6g s, %s %.17g, expected %.17g (rel err %.2e, allowed %.2e)"
+              % (times[-1], name, got, want, err, allowed))
+        ok = ok and err <= allowed
     print("check_mass_source: " + ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 

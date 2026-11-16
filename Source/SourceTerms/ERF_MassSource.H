@@ -2,7 +2,9 @@
 #define ERF_MASS_SOURCE_H_
 
 #include <functional>
+#include <cmath>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <string>
 
@@ -31,8 +33,9 @@
  *     is true, so that s is the mass fraction of the released gas.
  * No momentum is added: the gas enters at rest.  The gas has the properties of dry air
  * (in a moist run it carries no water, so it dilutes the mixing ratios of the cells it
- * enters).  The cell volumes include the terrain metric and the map factors.  The rate
- * table is in the time since the start of the run.
+ * enters).  The cell volumes include the terrain metric and the map factors.  In a
+ * periodic direction the region wraps around the domain.  The rate table is in the time
+ * since the start of the run.  Unknown erf.mass_source keys stop the run.
  *
  * With mesh refinement every level adds the same source density S = mdot / V to its own
  * cells in the region, where V is the volume of the region on the composite grid: the
@@ -54,29 +57,35 @@
 namespace erf_mass_source {
 
 /// Is the centre of cell (i,j,k) inside the source region?  z is the nodal height z_phys_nd
-/// and zg the nodal height of the ground under the column (2D, at k = kg), both empty on a
-/// mesh without them, where the height of the centre above the bottom is (k+1/2) dz
+/// and zg the nodal height of the ground under the column (2D, at k = kg).  period holds the
+/// domain length in x and y where the domain is periodic and 0 where it is not: there the
+/// distance is to the nearest periodic image of the centre, so the region wraps around
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE bool
 in_source (int i, int j, int k,
            amrex::Array4<amrex::Real const> const& z,
-           amrex::Array4<amrex::Real const> const& zg, int kg, bool has_z,
+           amrex::Array4<amrex::Real const> const& zg, int kg,
            amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& problo,
            amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& dx,
+           amrex::GpuArray<amrex::Real,2> const& period,
            amrex::Real x0, amrex::Real y0, amrex::Real r2, amrex::Real hmax) noexcept
 {
-    const amrex::Real xc = problo[0] + (i + amrex::Real(0.5)) * dx[0];
-    const amrex::Real yc = problo[1] + (j + amrex::Real(0.5)) * dx[1];
-    if ((xc - x0) * (xc - x0) + (yc - y0) * (yc - y0) > r2) { return false; }
-    amrex::Real hag;
-    if (has_z) {
-        const amrex::Real g  = amrex::Real(0.25) * (zg(i,j,kg) + zg(i+1,j,kg) + zg(i,j+1,kg) + zg(i+1,j+1,kg));
-        const amrex::Real zc = amrex::Real(0.125) * (z(i,j,k  ) + z(i+1,j,k  ) + z(i,j+1,k  ) + z(i+1,j+1,k  ) +
-                                                     z(i,j,k+1) + z(i+1,j,k+1) + z(i,j+1,k+1) + z(i+1,j+1,k+1));
-        hag = zc - g;
-    } else {
-        hag = (k - kg + amrex::Real(0.5)) * dx[2];
-    }
-    return hag < hmax;
+    amrex::Real ddx = problo[0] + (i + amrex::Real(0.5)) * dx[0] - x0;
+    amrex::Real ddy = problo[1] + (j + amrex::Real(0.5)) * dx[1] - y0;
+    if (period[0] > 0) { ddx -= period[0] * std::floor(ddx / period[0] + amrex::Real(0.5)); }
+    if (period[1] > 0) { ddy -= period[1] * std::floor(ddy / period[1] + amrex::Real(0.5)); }
+    if (ddx * ddx + ddy * ddy > r2) { return false; }
+    const amrex::Real g  = amrex::Real(0.25) * (zg(i,j,kg) + zg(i+1,j,kg) + zg(i,j+1,kg) + zg(i+1,j+1,kg));
+    const amrex::Real zc = amrex::Real(0.125) * (z(i,j,k  ) + z(i+1,j,k  ) + z(i,j+1,k  ) + z(i+1,j+1,k  ) +
+                                                 z(i,j,k+1) + z(i+1,j,k+1) + z(i,j+1,k+1) + z(i+1,j+1,k+1));
+    return zc - g < hmax;
+}
+
+/// The domain length in x and y where geom is periodic, 0 where it is not
+inline amrex::GpuArray<amrex::Real,2>
+periodic_lengths (const amrex::Geometry& geom)
+{
+    return {geom.isPeriodic(0) ? geom.ProbLength(0) : amrex::Real(0),
+            geom.isPeriodic(1) ? geom.ProbLength(1) : amrex::Real(0)};
 }
 
 } // namespace erf_mass_source
@@ -84,11 +93,31 @@ in_source (int i, int j, int k,
 class MassSource
 {
 public:
-    /// The source the inputs ask for, or nullptr when neither rate nor rate_file is given
+    /// The source the inputs ask for, or nullptr when no erf.mass_source input is given.
+    /// Stops on an unknown erf.mass_source key (a misspelt one would otherwise be ignored,
+    /// and a misspelt rate would turn the source off) and on inputs without a rate.
     static std::unique_ptr<MassSource> from_inputs ()
     {
+        const std::string prefix = "erf.mass_source.";
+        const std::set<std::string> known = {"rate", "rate_file", "center", "radius",
+                                             "height", "theta", "tracer"};
+        bool any = false;
+        for (const auto& name : amrex::ParmParse::getEntries("erf.mass_source")) {
+            if (name.rfind(prefix, 0) != 0) { continue; }
+            any = true;
+            if (known.count(name.substr(prefix.size())) == 0) {
+                amrex::Abort("erf.mass_source: unknown input " + name + "; the inputs are rate, "
+                             "rate_file, center, radius, height, theta and tracer");
+            }
+        }
         amrex::ParmParse pp("erf.mass_source");
-        if (!pp.contains("rate") && !pp.contains("rate_file")) { return nullptr; }
+        if (!pp.contains("rate") && !pp.contains("rate_file")) {
+            if (any) {
+                amrex::Abort("erf.mass_source: inputs are given but neither erf.mass_source.rate "
+                             "nor erf.mass_source.rate_file");
+            }
+            return nullptr;
+        }
         if (pp.contains("rate") && pp.contains("rate_file")) {
             amrex::Abort("erf.mass_source: give rate or rate_file, not both");
         }
@@ -169,7 +198,7 @@ public:
      * Bring the ground heights and the composite source volume up to date with the grids:
      * a no-op unless the BoxArray or DistributionMapping of a level, or the finest level,
      * has changed since the last call.  Aborts if no level has a cell centre in the region.
-     * z_phys_nd and detJ may hold nullptr on a mesh without them.  fill_ground(lev, slab)
+     * z_phys_nd and detJ must be allocated on every level.  fill_ground(lev, slab)
      * must fill a one-node-thick nodal slab at the bottom of the domain, on the footprint of
      * every box of the level, with the ground heights (ERF::fill_surface_nodes, which
      * interpolates them from coarser levels where the level does not reach the ground).
@@ -203,13 +232,12 @@ public:
             // box's own (i,j) range, so that a box that does not reach the bottom (a patch
             // aloft, or a grid split in z) can tell how high its cells are
             const int kg = geom[lev].Domain().smallEnd(2);
-            if (z_phys_nd[lev]) {
-                amrex::BoxList bl = z_phys_nd[lev]->boxArray().boxList();
-                for (auto& b : bl) { b.setRange(2, kg); }
-                lg.ground = std::make_unique<amrex::MultiFab>(amrex::BoxArray(std::move(bl)),
-                                                              z_phys_nd[lev]->DistributionMap(), 1, 0);
-                fill_ground(lev, *lg.ground);
-            }
+            AMREX_ALWAYS_ASSERT(z_phys_nd[lev] && detJ[lev]);
+            amrex::BoxList bl = z_phys_nd[lev]->boxArray().boxList();
+            for (auto& b : bl) { b.setRange(2, kg); }
+            lg.ground = std::make_unique<amrex::MultiFab>(amrex::BoxArray(std::move(bl)),
+                                                          z_phys_nd[lev]->DistributionMap(), 1, 0);
+            fill_ground(lev, *lg.ground);
 
             // Cells not covered by the next finer level count towards the composite volume
             std::unique_ptr<amrex::iMultiFab> uncovered;
@@ -220,18 +248,17 @@ public:
 
             const auto dx     = geom[lev].CellSizeArray();
             const auto problo = geom[lev].ProbLoArray();
+            const auto period = erf_mass_source::periodic_lengths(geom[lev]);
             const amrex::Real x0 = m_x0, y0 = m_y0, r2 = m_radius * m_radius, hmax = m_height;
-            const bool has_z = (z_phys_nd[lev] != nullptr);
-            const bool has_J = (detJ[lev] != nullptr);
             const amrex::Real dV0 = dx[0] * dx[1] * dx[2];
 
             amrex::ReduceOps<amrex::ReduceOpSum, amrex::ReduceOpSum> reduce_op;
             amrex::ReduceData<amrex::Real, amrex::Real> reduce_data(reduce_op);
             for (amrex::MFIter mfi(grids[lev], dmap[lev]); mfi.isValid(); ++mfi) {
                 const amrex::Box& bx = mfi.validbox();
-                auto z  = has_z ? z_phys_nd[lev]->const_array(mfi) : amrex::Array4<amrex::Real const>{};
-                auto zg = has_z ? lg.ground->const_array(mfi)      : amrex::Array4<amrex::Real const>{};
-                auto dj = has_J ? detJ[lev]->const_array(mfi)      : amrex::Array4<amrex::Real const>{};
+                auto z  = z_phys_nd[lev]->const_array(mfi);
+                auto zg = lg.ground->const_array(mfi);
+                auto dj = detJ[lev]->const_array(mfi);
                 auto mx = mf_mx[lev]->const_array(mfi);
                 auto my = mf_my[lev]->const_array(mfi);
                 const bool has_mask = (uncovered != nullptr);
@@ -239,11 +266,10 @@ public:
                 reduce_op.eval(bx, reduce_data,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<amrex::Real, amrex::Real>
                     {
-                        if (!erf_mass_source::in_source(i,j,k,z,zg,kg,has_z,problo,dx,x0,y0,r2,hmax)) {
+                        if (!erf_mass_source::in_source(i,j,k,z,zg,kg,problo,dx,period,x0,y0,r2,hmax)) {
                             return {amrex::Real(0), amrex::Real(0)};
                         }
-                        const amrex::Real J  = has_J ? dj(i,j,k) : amrex::Real(1);
-                        const amrex::Real dV = dV0 * J / (mx(i,j,0) * my(i,j,0));
+                        const amrex::Real dV = dV0 * dj(i,j,k) / (mx(i,j,0) * my(i,j,0));
                         const amrex::Real u  = (!has_mask || msk(i,j,k) == 1) ? dV : amrex::Real(0);
                         return {dV, u};
                     });
@@ -268,9 +294,8 @@ public:
 
     /**
      * Add the source at time `time` to cc_src of `level` (per unit physical volume, as the
-     * other cell-centred sources).  cons is the current conserved state, z_phys_nd may be
-     * null on a mesh without terrain.  update_geometry must have been called for the
-     * current grids.
+     * other cell-centred sources).  cons is the current conserved state and z_phys_nd the
+     * nodal heights of the level.  update_geometry must have been called for the current grids.
      */
     void add_sources (int level,
                       amrex::MultiFab& cc_src,
@@ -287,8 +312,9 @@ public:
         const auto dx     = geom.CellSizeArray();
         const auto problo = geom.ProbLoArray();
         const int  kg     = geom.Domain().smallEnd(2);
+        const auto period = erf_mass_source::periodic_lengths(geom);
         const amrex::Real x0 = m_x0, y0 = m_y0, r2 = m_radius * m_radius, hmax = m_height;
-        const bool has_z = (z_phys_nd != nullptr);
+        AMREX_ALWAYS_ASSERT(z_phys_nd != nullptr);
 
         const amrex::Real S = mdot / m_volume;  // [kg/m^3/s]
         const bool fixed_theta = m_fixed_theta;
@@ -297,13 +323,13 @@ public:
 
         for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
             const amrex::Box& bx = mfi.validbox();
-            auto z   = has_z ? z_phys_nd->const_array(mfi) : amrex::Array4<amrex::Real const>{};
-            auto zg  = has_z ? lg.ground->const_array(mfi) : amrex::Array4<amrex::Real const>{};
+            auto z   = z_phys_nd->const_array(mfi);
+            auto zg  = lg.ground->const_array(mfi);
             auto c   = cons.const_array(mfi);
             auto src = cc_src.array(mfi);
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (!erf_mass_source::in_source(i,j,k,z,zg,kg,has_z,problo,dx,x0,y0,r2,hmax)) { return; }
+                if (!erf_mass_source::in_source(i,j,k,z,zg,kg,problo,dx,period,x0,y0,r2,hmax)) { return; }
                 const amrex::Real th = fixed_theta ? theta_src : c(i,j,k,RhoTheta_comp) / c(i,j,k,Rho_comp);
                 src(i,j,k,Rho_comp)      += S;
                 src(i,j,k,RhoTheta_comp) += S * th;
@@ -320,12 +346,15 @@ private:
         std::istringstream is(std::string(chars.dataPtr()));
         std::string line;
         while (std::getline(is, line)) {
-            const auto p = line.find('#');
-            if (p != std::string::npos) { line.erase(p); }
-            std::istringstream ls(line);
+            std::string data = line.substr(0, line.find('#'));
+            if (data.find_first_not_of(" \t\r") == std::string::npos) { continue; }  // blank or comment
+            std::istringstream ls(data);
             amrex::Real t, m;
-            if (!(ls >> t)) { continue; }
-            if (!(ls >> m)) { amrex::Abort("erf.mass_source.rate_file " + fname + ": line without a rate: " + line); }
+            std::string extra;
+            if (!(ls >> t >> m) || (ls >> extra)) {
+                amrex::Abort("erf.mass_source.rate_file " + fname + ": a line is not two numbers, "
+                             "time and rate: " + line);
+            }
             if (!m_t.empty() && t <= m_t.back()) {
                 amrex::Abort("erf.mass_source.rate_file " + fname + ": times must increase strictly");
             }
