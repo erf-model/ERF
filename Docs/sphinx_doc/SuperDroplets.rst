@@ -134,6 +134,8 @@ the particle's represented mass. Near these boundaries the stencil is one-sided;
 it does not transfer condensate mass between levels independently of particle
 motion. Diagnostic condensate is refreshed after initialization, time-step
 redistribution, and regridding without advancing phase change or vapor transport.
+For water, ice and the other projected quantities, the share of the stencil
+outside a non-periodic domain boundary is added to the adjacent boundary cell.
 
 With ``split_merge_amr = true``, ERF also adjusts the super-droplet sampling as
 particles change levels. When empty fine cells are populated from a neighboring
