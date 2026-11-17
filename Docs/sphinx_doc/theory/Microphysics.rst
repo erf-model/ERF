@@ -1349,7 +1349,7 @@ All SDM parameters use the prefix ``super_droplets_moisture``:
      - Use prescribed vertical velocity
    * - ``coalescence_kernel``
      - ``sedimentation``
-     - Coalescence kernel type (``golovin``, ``sedimentation``, ``Longs``, ``Halls``)
+     - Coalescence kernel type (``golovin``, ``sedimentation``, ``Longs``, ``Halls``, ``geometric``: :math:`E_{coll} = 1`)
    * - ``terminal_velocity_model``
      - ``CloudRainShima`` (water), ``IceBohm`` (ice)
      - Terminal velocity formula. For water droplets: ``RogersYau``, ``AtlasUlbrich``, ``CloudRainShima``. For ice particles: ``IceBohm``. Can specify 1 value (applies to both) or 2 values (water, ice)

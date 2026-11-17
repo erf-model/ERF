@@ -315,9 +315,11 @@ Coalescence
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | Parameter                                       | Definition                                               | Acceptable Values                                | Default                             |
 +=================================================+==========================================================+==================================================+=====================================+
-| **coalescence_kernel**                          | collision kernel used for coalescence.  An unrecognized  | sedimentation, golovin, Longs, Halls             | sedimentation                       |
+| **coalescence_kernel**                          | collision kernel used for coalescence.  An unrecognized  | sedimentation, golovin, Longs, Halls, geometric  | sedimentation                       |
 |                                                 | value aborts the run.  Note that ``Longs`` and           |                                                  |                                     |
-|                                                 | ``Halls`` are matched case-sensitively                   |                                                  |                                     |
+|                                                 | ``Halls`` are matched case-sensitively;                  |                                                  |                                     |
+|                                                 | ``geometric`` is ``sedimentation`` with collision        |                                                  |                                     |
+|                                                 | efficiency 1                                             |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **kernel_relative_velocity**                    | which relative velocity enters the kernel                | terminal_velocity, absolute_velocity,            | terminal_velocity                   |
 |                                                 |                                                          | radial_velocity                                  |                                     |

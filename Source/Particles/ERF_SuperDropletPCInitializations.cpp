@@ -177,6 +177,8 @@ void SuperDropletPC::readInputs (const double a_dt)
         m_coalescence_kernel = SDCoalescenceKernelType::Longs;
     } else if (coal_kernel_name == "Halls") {
         m_coalescence_kernel = SDCoalescenceKernelType::Halls;
+    } else if (coal_kernel_name == "geometric") {
+        m_coalescence_kernel = SDCoalescenceKernelType::geometric;
     } else {
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
@@ -341,6 +343,8 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, con
             Print() << "Longs" << "\n";
         } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
             Print() << "Halls" << "\n";
+        } else if (m_coalescence_kernel == SDCoalescenceKernelType::geometric) {
+            Print() << "geometric" << "\n";
         }
         Print() << "  Kernel relative velocity: "
                 << getEnumNameString(m_kernel_relative_velocity) << "\n";
