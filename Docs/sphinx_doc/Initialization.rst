@@ -275,7 +275,7 @@ changes with a land model too: every soil layer of the file is read (see below).
    * - ``ZS``
      - m
      - 0 to 1e4, increasing
-     - Depth of the centre of each soil layer, one column for the level
+     - Depth of the center of each soil layer, one column for the level
    * - ``DZS``
      - m
      - > 0 to 1e4
@@ -307,7 +307,7 @@ written without a land model can hold them that way. ``TSLB``, ``SMOIS``, ``ZS``
 four are left out together, with a message. Every soil layer of the file is read, also
 when the file has fewer atmospheric levels than soil layers. Before, the soil variables
 were cut at the number of atmospheric levels; this also holds for a run with a land
-model, where it is the intended behaviour: the soil arrays of a land model have the
+model, where it is the intended behavior: the soil arrays of a land model have the
 file's number of soil layers.
 
 A ``wrfinput`` file written by ``real.exe`` holds ``ALBBCK`` and does not hold ``ALBEDO``

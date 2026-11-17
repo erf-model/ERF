@@ -37,7 +37,7 @@ and reports, without running ERF:
   missing;
 * **WARNING**: the run starts but a setting is very likely not what was meant: a key
   the selected mode never reads (``erf.Cs`` without an LES, acoustic substep keys in an
-  anelastic deck, ``erf.most.*`` without ``zlo.type = surface_layer``), a misspelt key
+  anelastic deck, ``erf.most.*`` without ``zlo.type = surface_layer``), a misspelled key
   with its closest documented name, a fixed time step whose acoustic or advective CFL
   exceeds one for the wind speed given with ``--umax``;
 * **ADVICE**: a working setting that could be chosen better, for example ``erf.cfl``
@@ -59,6 +59,6 @@ coverage of the domain, sounding surface temperature and top.
 
 The exit code is 1 when a deck has an ERROR (``--strict`` adds WARNING). Run it from
 inside the repository, where it finds the documentation tables and the ``Source`` tree
-used by the misspelt-key check. ``Exec/Tools/erf_input_checker/README.md`` lists every
+used by the misspelled-key check. ``Exec/Tools/erf_input_checker/README.md`` lists every
 check and the options. A quick alternative after a run is the "Unused ParmParse Variables"
 table AMReX prints at exit with ``amr.v = 1``, which lists every key nothing read.

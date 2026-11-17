@@ -15,7 +15,7 @@ Each face carries `n_slab_layers` uniform layers between its skin and the
 building interior at `T_interior`. The solver is the SLUCM branch's implicit
 tridiagonal conduction with one change: the skin temperature is the top
 boundary instead of a flux, since that is what the balance holds, and the
-conduction into the slab, G, is what comes out. Layer centres sit half a
+conduction into the slab, G, is what comes out. Layer centers sit half a
 layer below the skin and half a layer above the interior, so both boundary
 fluxes use 2k/dz. Unconditionally stable; up to 32 layers (the kernels keep
 the layers on the stack).
