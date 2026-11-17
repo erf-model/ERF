@@ -1451,14 +1451,20 @@ private:
     //! Initialize Rayleigh damping profiles at a level
     void initRayleigh_at_level (const int& lev);
 
-    //! Initialize sponge profiles
+    //! Initialize sponge profiles at every level that exists
     void initSponge ();
 
-    //! Set Rayleigh mean profiles from input sounding
-    void setRayleighRefFromSounding (bool restarting);
+    //! Allocate the sponge profiles at a level
+    void initSponge_at_level (int lev);
 
-    //! Set sponge mean profiles from input sounding
+    //! Set Rayleigh mean profiles at a level from the input sounding
+    void setRayleighRefFromSounding_at_level (int lev);
+
+    //! Set sponge mean profiles from the input sponge file at every level that exists
     void setSpongeRefFromSounding (bool restarting);
+
+    //! Set sponge mean profiles at a level from the input sponge file (already read)
+    void setSpongeRef_at_level (int lev);
 
     // a wrapper for estTimeStep()
     void ComputeDt (int step = -1, double cur_time_d = 0.0);
