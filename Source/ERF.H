@@ -1588,6 +1588,7 @@ private:
     amrex::Vector<amrex::Vector<amrex::Box>> boxes_at_level; //      the boxes specified at each level by tagging criteria
 
     amrex::Vector<int> istep;      // which step?
+    int m_restart_step = -1;       // level-0 step of the checkpoint we restarted from (-1: none)
     amrex::Vector<int> nsubsteps;  // how many substeps on each level?
 
     // One entry per level: set when that level has just been built by the
