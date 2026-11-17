@@ -31,6 +31,9 @@ on:
     types:
       - requested
 
+permissions:
+  contents: read
+
 jobs:
   CancelStaleCI:
     name: Cancel stale CI runs

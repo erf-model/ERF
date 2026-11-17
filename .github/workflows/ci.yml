@@ -17,6 +17,9 @@ on:
       - '.github/actions/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # Development pushes finish the active run and keep only the newest pending commit.
 # PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:

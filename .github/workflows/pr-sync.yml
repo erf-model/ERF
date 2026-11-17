@@ -11,6 +11,8 @@ on:
 # to be a workflow_run trigger for CancelStaleCI, which then runs in
 # base-repo context where actions: write is actually granted.
 
+permissions: {}
+
 jobs:
   noop:
     runs-on: ubuntu-22.04
