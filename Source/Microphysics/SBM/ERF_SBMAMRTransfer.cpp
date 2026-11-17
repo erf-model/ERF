@@ -38,7 +38,7 @@ void SBMTransferAllocationCensus::sample () noexcept
         static_cast<std::uint64_t>(amrex::TotalBytesAllocatedInFabs()));
 }
 
-namespace {
+namespace erf_detail_SBMAMRTransfer {
 
 using amrex::MultiFab;
 using amrex::Real;
@@ -490,6 +490,7 @@ bool candidate_is_separate (const MultiFab& candidate,
 }
 
 } // namespace
+using namespace erf_detail_SBMAMRTransfer;
 
 bool ApplyMappedRefluxCorrectionChunk (
     MultiFab& private_candidate, const MultiFab& mapped_correction,

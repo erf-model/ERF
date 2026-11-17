@@ -23,7 +23,7 @@
  * @param[in] Thetabar Potential temperature of the isentropic column.
  */
 template <int NZMAX>
-static void
+inline void
 hse_terrain_columns (amrex::MultiFab& rho_hse,
                      const amrex::MultiFab& z_phys_cc,
                      amrex::Geometry const& geom,

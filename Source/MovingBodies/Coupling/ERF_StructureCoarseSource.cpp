@@ -9,7 +9,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_StructureCoarseSource {
 
 /**
  * Restrict a face field from a level onto the faces normal to dir of the next coarser level:
@@ -83,6 +83,7 @@ restrict_face_field (const MultiFab& fine, MultiFab& crse, int dir, const IntVec
 }
 
 } // namespace
+using namespace erf_detail_StructureCoarseSource;
 
 namespace erf_structure {
 

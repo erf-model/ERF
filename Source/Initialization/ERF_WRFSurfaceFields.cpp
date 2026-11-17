@@ -18,7 +18,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_WRFSurfaceFields {
 
 // Prefix of the fields' MultiFab files in a checkpoint level directory
 const char* const chk_mf_prefix = "WRFSfc_";
@@ -51,6 +51,7 @@ fill_from_coarser (MultiFab& fine, const MultiFab& crse, const IntVect& ratio)
 }
 
 } // namespace
+using namespace erf_detail_WRFSurfaceFields;
 
 const std::array<WRFSurfaceFields::Descriptor, WRFSurfaceFields::num_fields>&
 WRFSurfaceFields::catalog ()

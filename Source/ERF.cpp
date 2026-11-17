@@ -2240,7 +2240,12 @@ ERF::InitData_post ()
         // level-0 steps, and the fire takes one step per step of its own level.
         int fire_steps_per_coarse_step = 1;
         for (int l = 1; l <= fire_lev; ++l) { fire_steps_per_coarse_step *= nsubsteps[l]; }
-        m_fire_coupler->engine().start_run(stop_time, max_step, fire_steps_per_coarse_step);
+        // stop_time is on the absolute clock (it includes start_time, an epoch time with
+        // start_datetime); the engine counts elapsed time, so give it the run's length
+        const amrex::Real fire_stop = (stop_time < std::numeric_limits<double>::max())
+                                    ? static_cast<amrex::Real>(stop_time - start_time)
+                                    : std::numeric_limits<amrex::Real>::max();
+        m_fire_coupler->engine().start_run(fire_stop, max_step, fire_steps_per_coarse_step);
 
         if (restart_chkfile != "") {
             // the engine's state, then the coupling's lagged fluxes

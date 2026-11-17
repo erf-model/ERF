@@ -305,7 +305,7 @@ read_base_state_params_from_wrfinput (const std::string& fname,
     ParallelDescriptor::Bcast(&P_STRAT,1,ParallelDescriptor::IOProcessorNumber());
 }
 
-namespace {
+namespace erf_detail_InitFromWRFInput {
 
 /**
  * @brief Domain-mean layer thickness of the file's vertical grid, level by level.
@@ -430,6 +430,7 @@ wrf_max_first_layer_thickness (const MultiFab& mf_PH,
 }
 
 } // namespace
+using namespace erf_detail_InitFromWRFInput;
 
 /**
  * ERF function that initializes data from a WRF dataset
@@ -2829,12 +2830,16 @@ ERF::rebuild_base_state_from_wrfinput (int lev, MultiFab& base_state_mf)
     // mf_PB / mf_ALB are unused by the routine (the base state is built entirely from the
     // six reference parameters and z_phys_cc), so there is nothing to hand it here.
     //
-    // We pass the level's Domain rather than boxes_at_level[lev][0] because the only thing
-    // the routine takes from this box is the k index at which each column starts, and the
-    // two agree there; the Domain is also always available, whereas boxes_at_level[lev] is
-    // only populated when the refinement was specified as an explicit box.
+    // The only thing the routine takes from the region box is the k index at which each
+    // column starts: it seeds the column from the analytic profile in that cell and
+    // integrates upward.  That is the bottom of this level's grids, not of its Domain: a
+    // nest may start above k = 0 (e.g. a shallow nest whose grids start at k = 2), and
+    // its columns are then seeded in their own lowest cell.  The routine still requires
+    // every grid to reach that bottom, i.e. that the grids are not split in z.
+    Box region = geom[lev].Domain();
+    region.setSmall(2, base_state_mf.boxArray().minimalBox().smallEnd(2));
     MultiFab dummy_PB;
-    init_base_state_from_wrfinput(geom[lev].Domain(), solverChoice.rdOcp,
+    init_base_state_from_wrfinput(region, solverChoice.rdOcp,
                                   p_hse, pi_hse, th_hse, qv_hse, r_hse,
                                   dummy_PB, nullptr, z_phys_cc[lev].get(),
                                   wrf_bsp);
