@@ -715,6 +715,58 @@ TEST(SurfaceLayerParallel, CoupledSstNonuniformInternalGhostUsesNeighbor)
     EXPECT_EQ(duplicate_copies, 2);
 }
 
+// Motivation: where a box seam meets a nonperiodic domain edge, two boxes hold the same
+// halo cell outside the domain, and no exchange reconciles their copies. Clamping into
+// each box's own valid region gave the two copies the donor and pressure of different
+// columns, which a restart (whose checkpoint read collapses the copies) cannot reproduce.
+// Every copy must take the column clamped into the domain.
+TEST(SurfaceLayerParallel, CoupledSstEdgeHaloAtBoxSeamIsBoxIndependent)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_coupled_sst_seam";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, false, "", true);
+
+    set_coupled_sst_ramp(*fields.coupled_sst);
+    fields.coupled_valid->setVal(1);
+    Gpu::streamSynchronize();
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real factor = std::pow(p_0 / pressure, RdoCp);
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    const int ilo = fields.domain.smallEnd(0);
+    const int jlo = fields.domain.smallEnd(1);
+    const int jhi = fields.domain.bigEnd(1);
+    int seam_copies = 0;
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != ilo ||
+            source.smallEnd(2) != fields.domain.smallEnd(2)) { continue; }
+        const Box& target = t_surf->boxArray()[ibox];
+        for (int j = target.smallEnd(1) - 1; j <= target.bigEnd(1) + 1; ++j) {
+            const IntVect edge(AMREX_D_DECL(ilo - 1, j, target.smallEnd(2)));
+            const int jc = amrex::min(amrex::max(j, jlo), jhi);
+            const Real expected = (Real(280.0) + static_cast<Real>(ilo) +
+                                   Real(0.25) * static_cast<Real>(jc)) * factor;
+            EXPECT_NEAR(global_fab_value(*t_surf, ibox, edge, true),
+                        expected, halo_tolerance(expected))
+                << "box " << ibox << " halo cell " << edge;
+            const bool seam = (j < target.smallEnd(1) || j > target.bigEnd(1)) &&
+                              j >= jlo && j <= jhi;
+            if (seam) { ++seam_copies; }
+        }
+    }
+    EXPECT_GT(seam_copies, 0);
+}
+
 // Motivation: the z-high qsat boundary is located at the upper W face, not at
 // the cell center or the ground. Its pressure correction must therefore use
 // the local signed distance z_cc-z_upper, and the result must agree on every

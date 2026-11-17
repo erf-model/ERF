@@ -117,6 +117,36 @@ pressure_at_surface (const amrex::Real rho,
     return pressure_at_boundary_from_cell(rho, rho_theta, qv, delta_z);
 }
 
+/**
+ * The column whose lowest state cell gives the surface pressure of a surface cell,
+ * including the lateral halo of a planar surface field.
+ *
+ * The choice depends only on the domain, never on the box that holds the cell: where a
+ * box seam meets a non-periodic domain edge, two boxes hold the same halo cell, and a
+ * column taken from each box's own valid region gave the two copies different values,
+ * which a restart cannot reproduce.  In a non-periodic direction the index is clamped to
+ * the domain; in a periodic one it is kept, so that the state's periodic ghost cell is
+ * read.  Either way the cell read lies in the domain or its periodic image, so it is a
+ * valid cell of this box or a ghost cell that the state's FillBoundary has filled.
+ */
+struct SurfacePressureColumn {
+    int dom_lo[2];
+    int dom_hi[2];
+    bool periodic[2];
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int clamp (const int n, const int dir) const noexcept
+    {
+        return periodic[dir] ? n : amrex::min(amrex::max(n, dom_lo[dir]), dom_hi[dir]);
+    }
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int i (const int n) const noexcept { return clamp(n, 0); }
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int j (const int n) const noexcept { return clamp(n, 1); }
+};
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool
 valid_pressure (const amrex::Real pressure)
