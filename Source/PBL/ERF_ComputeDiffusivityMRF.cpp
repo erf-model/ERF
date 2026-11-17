@@ -583,7 +583,7 @@ Real fire_kbfs_max      = Real(0);
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
             // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
-            // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+            // arm gets folded away by the optimizer and the pow hoisted (see sqrt_neg_Ri).
             const Real HOL_abs = std::abs(HOL_bounded);
             const Real one_quarter = Real(0.25);
             const Real phiM = (obuk_val > 0)
@@ -785,7 +785,7 @@ Real fire_kbfs_max      = Real(0);
         if (turbChoice.enable_pblh_smoothing) {
             // Smooth the tile's own columns, reading the halo the passes above
             // filled. The result is the same however the domain is split.
-            // The stencil mixes neighbouring columns, so it runs on the
+            // The stencil mixes neighboring columns, so it runs on the
             // absolute height (the stored convention): the column's surface
             // height zib goes on over the work box first and comes off
             // after, and the result is kept at or above the column's floor.
@@ -841,7 +841,7 @@ Real fire_kbfs_max      = Real(0);
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
             // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
-            // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+            // arm gets folded away by the optimizer and the pow hoisted (see sqrt_neg_Ri).
             const Real HOL_abs = std::abs(HOL_bounded);
             const Real one_quarter = Real(0.25);
             // Enable QNSE stable functions if requested, otherwise use default linear form
@@ -1098,7 +1098,7 @@ Real fire_kbfs_max      = Real(0);
                 const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
                 // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
                 // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
-                // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+                // arm gets folded away by the optimizer and the pow hoisted (see sqrt_neg_Ri).
                 const Real HOL_abs = std::abs(HOL_bounded);
 
                 const Real one_quarter = Real(0.25);
@@ -1199,7 +1199,7 @@ Real fire_kbfs_max      = Real(0);
 
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
                 // sqrt(|Ri|), which equals the sqrt(-Ri) of the unstable arm below and is valid
-                // for every Ri. Written as max(-Ri, 0) inside the arm, the optimiser used the
+                // for every Ri. Written as max(-Ri, 0) inside the arm, the optimizer used the
                 // arm's condition to drop the max and then hoisted the bare sqrt above the
                 // selection, where Ri can be positive; written as min(Ri, 0) it folded the
                 // sqrt into the arms of the min. Either way an invalid operation whose

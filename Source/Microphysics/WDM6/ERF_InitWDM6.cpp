@@ -241,7 +241,7 @@ WDM6::initialize_coeffs ()
     // Routed through wdm6_literal like every other constant: it is constexpr but
     // not restricted to constant expressions, so it applies the same rounding to
     // a runtime value. Do not re-expand the toggle inline here; the contract is
-    // that ERF_WDM6_F32_LITERALS is honoured in exactly one place.
+    // that ERF_WDM6_F32_LITERALS is honored in exactly one place.
     m_pi_wdm6 = wdm6_literal(Real(4.0) * std::atan(Real(1.0)));
     m_xlv1    = cl - cpv_loc;
 
@@ -400,7 +400,7 @@ WDM6::initialize_coeffs ()
     m_pacrg   = m_pi_wdm6 * m_n0g * m_avtg * m_g3pbg * Real(0.25);
     m_g5pbgo2 = rgmma(m_bvtg2);
     m_pvtg    = m_avtg * m_g4pbg / Real(6.0);
-    // Fortran :3264-3265, the graupel analogues of precs1/precs2 with the same
+    // Fortran :3264-3265, the graupel analogs of precs1/precs2 with the same
     // unsuffixed .78 and .31. Routed on the same evidence class as precs1 and
     // precs2 rather than on separate measurements: pgdep reads bitwise in the
     // current column only because its branch is inactive there.

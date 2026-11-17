@@ -7,7 +7,7 @@
 # regrid after t = 10 remakes it through RemakeLevel.  The damping targets of a remade level
 # used to be reset to the problem defaults (theta = 300 K, U = V = 0), and the remade level was
 # relaxed toward those, well below the sounding's 309 to 310 K in the top 100 m by t = 20
-# (erf-model/ERF#5142).  The CTest entry bounds theta in the column through the domain centre,
+# (erf-model/ERF#5142).  The CTest entry bounds theta in the column through the domain center,
 # which lies in the late box, from 900 m up.
 
 erf.prob_name = "ABL"

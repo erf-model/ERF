@@ -38,7 +38,7 @@ AMREX_ENUM(SDDistributionType,
 /*! \brief List of super-droplet initializations */
 namespace SupDropInit
 {
-    /*! Maximum number of vapour/condensate species */
+    /*! Maximum number of vapor/condensate species */
     const int num_species_max = 10;
 
     /*! Maximum number of aerosols */

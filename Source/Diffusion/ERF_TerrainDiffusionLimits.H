@@ -23,7 +23,7 @@
  * coordinate surfaces, each the mean of the absolute differences on the four
  * cell edges in that direction; dz is the physical thickness of the cell, the
  * mean of its four vertical edges (detJ * dz at the cell center).  All three
- * are in metres and read only the eight nodes of the cell.
+ * are in meters and read only the eight nodes of the cell.
  */
 struct TerrainCellDrops
 {
@@ -180,10 +180,10 @@ MomentumDiffusiveRate (amrex::Real rho, amrex::Real mu_h, amrex::Real mu_v,
 }
 
 /**
- * Largest value of component n over cell (i,j,k) and its 26 neighbours.  The diffusion
+ * Largest value of component n over cell (i,j,k) and its 26 neighbors.  The diffusion
  * operators average the cell diffusivities to faces and edges, so a row of the operator
  * never carries more than this.  With NeighbourhoodMinPositive for the density and the
- * coefficients frozen, the scalar rate is a Gershgorin bound on the centred interior stencil
+ * coefficients frozen, the scalar rate is a Gershgorin bound on the centered interior stencil
  * of the Cartesian operator (the higher-order one-sided gradients next to Dirichlet
  * boundaries, ERF_ScalarDiffusion.H, whose row is about 4/3 larger, are not covered); for
  * momentum it is a bound for
@@ -207,7 +207,7 @@ NeighbourhoodMax (int i, int j, int k, int n, const amrex::Array4<const amrex::R
 }
 
 /**
- * Smallest positive value of component n over cell (i,j,k) and its 26 neighbours; ghost
+ * Smallest positive value of component n over cell (i,j,k) and its 26 neighbors; ghost
  * cells that hold no density (<= 0) are skipped.  Returns `fallback` if none is positive.
  */
 AMREX_GPU_HOST_DEVICE
@@ -261,7 +261,7 @@ struct DiffusiveRateSettings
  * Explicit diffusion rates of cell (i,j,k), momentum and scalars (1/s), as the diffusive
  * time-step check reduces them: MomentumDiffusiveRate and ScalarDiffusiveRate with the largest
  * diffusivities -- eddy plus molecular -- and the smallest positive density over the cell and
- * its 26 neighbours.  Both are zero in a cell without density (covered).
+ * its 26 neighbors.  Both are zero in a cell without density (covered).
  *
  * @param[in]  s_arr  conserved state (Rho_comp), one ghost cell
  * @param[in]  k_arr  eddy diffusivities (EddyDiff components), one ghost cell; read only when

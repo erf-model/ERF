@@ -19,8 +19,8 @@ namespace MicVar_SD {
         theta,       /*!< Potential temperature */
         temperature, /*!< Temperature */
         pressure,    /*!< Pressure */
-        q_t,         /*!< Total (vapour + cloud) */
-        q_v,         /*!< Water vapour */
+        q_t,         /*!< Total (vapor + cloud) */
+        q_v,         /*!< Water vapor */
         q_c,         /*!< Liquid water */
         q_i,         /*!< Ice */
         q_r,         /*!< Rain */
@@ -40,7 +40,7 @@ namespace MicVar_SD {
 namespace MicVar_SD_Species {
     enum {
         q_t = 0,    /*!< Total density ratio */
-        q_v,        /*!< Vapour density ratio */
+        q_v,        /*!< Vapor density ratio */
         q_c,        /*!< Condensate density ratio */
         sr,         /*!< Saturation ratio */
         accum,      /*!< Ground accumulation */
@@ -549,7 +549,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! current AMR level being processed */
         mutable int m_current_lev = 0;
 
-        /*! names of vapour/condensate species */
+        /*! names of vapor/condensate species */
         std::vector<Species::Name> m_species;
         int m_num_species;
 

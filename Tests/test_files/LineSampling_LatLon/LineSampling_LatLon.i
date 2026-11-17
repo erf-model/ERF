@@ -1,13 +1,13 @@
 # Lines given by latitude and longitude (erf.sample_line_lo/hi_latlon), on the rotated
 # lat/lon grid of the wrfinput that make_wrfinput.py writes. theta = 300 + 0.1 i + 0.001 j
 # names the column each sample comes from, and check_line_latlon.py requires:
-#   - prof: a vertical line at the centre of cell (10,20), all 8 cells of the column;
-#   - ew:   along x from the centre of (4,5) to a point 0.4 cells north of the centre of
+#   - prof: a vertical line at the center of cell (10,20), all 8 cells of the column;
+#   - ew:   along x from the center of (4,5) to a point 0.4 cells north of the center of
 #           (25,5), sampled along row j = 5 (i = 4..25);
-#   - ns:   along y from the centre of (7,3) to a point 0.7 cells west of the centre of
+#   - ns:   along y from the center of (7,3) to a point 0.7 cells west of the center of
 #           (7,28), sampled along column i = 7 (j = 3..28).
 # erf.sample_line_latlon places the column of the log col_ll at the same site as prof, which
-# must be the centre of cell (10,20). The boxes are 16 x 16, so each horizontal line crosses
+# must be the center of cell (10,20). The boxes are 16 x 16, so each horizontal line crosses
 # two of them.
 max_step = 1
 start_datetime = "2026-01-01 00:00:00"

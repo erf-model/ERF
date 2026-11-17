@@ -1597,7 +1597,7 @@ ERF::ReadCheckpointFile ()
             //
             // The grids a fresh start would build.  MakeBaseGrids keeps every box inside the
             // domain when a direction has an odd number of cells (it then does not coarsen
-            // that direction before splitting), and it honours amr.no_box_split_dir.
+            // that direction before splitting), and it honors amr.no_box_split_dir.
             //
             BoxArray new_ba = MakeBaseGrids();
 
@@ -2076,7 +2076,7 @@ ERF::ReadCheckpointFile ()
         // The min dz the microphysics sizes its sedimentation substeps with, for
         // every mesh type as init_zphys does on a fresh start. Set only on fitted
         // meshes before, so a restart on a constant-dz mesh left Kessler's (and
-        // SAM's, Morrison's) dzmin uninitialised and the substep count unbounded:
+        // SAM's, Morrison's) dzmin uninitialized and the substep count unbounded:
         // the first restarted step of a raining run never finished.
         {
             Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);

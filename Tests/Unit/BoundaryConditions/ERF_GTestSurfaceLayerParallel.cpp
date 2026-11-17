@@ -115,7 +115,7 @@ void set_quadratic_node_heights (MultiFab& z_phys_nd)
 }
 
 // Donor SST ramp T(i,j) = 280 + i + j/4, so a value exchanged from a
-// neighbouring valid FAB is distinguishable from a locally clamped one.
+// neighboring valid FAB is distinguishable from a locally clamped one.
 void set_coupled_sst_ramp (MultiFab& coupled_sst)
 {
     for (MFIter mfi(coupled_sst, false); mfi.isValid(); ++mfi) {
@@ -716,7 +716,7 @@ TEST(SurfaceLayerParallel, CoupledSstNonuniformInternalGhostUsesNeighbor)
 }
 
 // Motivation: the z-high qsat boundary is located at the upper W face, not at
-// the cell centre or the ground. Its pressure correction must therefore use
+// the cell center or the ground. Its pressure correction must therefore use
 // the local signed distance z_cc-z_upper, and the result must agree on every
 // duplicate planar copy of a z-split layout.
 TEST(SurfaceLayerParallel, QsurfZHighUsesLocalSignedFacePressureOnZSplitGrids)
@@ -819,7 +819,7 @@ namespace {
 
 // theta = 300 K in the two lowest cells and 302 K above, rho = 1, no TKE, over every cell of every
 // box including ghost cells.  With dz = 1 m the MYNN25 estimator puts the PBL height where theta_v
-// reaches min + 1.25 K between the cell centres at 1.5 m and 2.5 m: 1.5 + 1.25/2 = 2.125 m.
+// reaches min + 1.25 K between the cell centers at 1.5 m and 2.5 m: 1.5 + 1.25/2 = 2.125 m.
 //
 // k_jump moves the jump: theta = 302 K from cell k_jump up, and the height is k_jump + 0.125 m.
 void set_theta_jump (MultiFab& cons, const int k_jump = 2)
@@ -836,7 +836,7 @@ void set_theta_jump (MultiFab& cons, const int k_jump = 2)
     Gpu::streamSynchronize();
 }
 
-// The same jump of 2 K in theta_v made by water vapour alone: theta = 300 K everywhere, and qv
+// The same jump of 2 K in theta_v made by water vapor alone: theta = 300 K everywhere, and qv
 // steps from zero to 2 / (300 epsv) at k = 2.  The estimator only sees it if it is handed qv.
 void set_vapour_jump (MultiFab& cons)
 {
@@ -1056,7 +1056,7 @@ TEST(SurfaceLayerParallel, PBLHeightIsZeroOnGridsEntirelyAloft)
 }
 
 // The columns hold only the components the estimator reads.  A jump in theta_v that water
-// vapour alone makes is found on grids split in z only if the moisture species are among them.
+// vapor alone makes is found on grids split in z only if the moisture species are among them.
 TEST(SurfaceLayerParallel, PBLHeightSeesMoistureOnZSplitGrids)
 {
     ScopedSurfaceLayerParams params("unit_surface_layer_zsplit_pblh");

@@ -190,7 +190,7 @@ EWP::source_terms_cellcentered (const Geometry& geom,
 
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
             int kc = amrex::min(amrex::max(k, domlo_z), domhi_cc);
-            // Cell-centre height above the ground, where the hub height is measured from
+            // Cell-center height above the ground, where the hub height is measured from
             Real z = myhalf * (windfarm_face_height_above_ground(zp, i, j, kc  , domlo_z, dx[2]) +
                                windfarm_face_height_above_ground(zp, i, j, kc+1, domlo_z, dx[2]));
 

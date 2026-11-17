@@ -311,8 +311,8 @@ ERF::FillIntermediatePatch (int lev, double time_d,
 
 /**
  * Mask of the coarse/fine ghost cells of level lev (1 there, 0 in the valid region, in ghost
- * cells covered by another grid at this level and outside the domain), for the cell-centred
- * (which = 0) or face-centred (which = 1 + dir) data of FillCoarseFineGhostsForImplicit.  It
+ * cells covered by another grid at this level and outside the domain), for the cell-centered
+ * (which = 0) or face-centered (which = 1 + dir) data of FillCoarseFineGhostsForImplicit.  It
  * depends only on the grids, so it is kept and rebuilt only when they change.
  */
 const iMultiFab&
@@ -348,7 +348,7 @@ ERF::get_cf_implicit_mask (int lev, int which, const BoxArray& ba,
  * its valid region only, and apply_bcs fills all the ghost cells of S_new at the end of
  * slow_rhs_post).  Every column is closed in z, so a solved component is read at the cell above
  * and below the column, but not at its sides; the same holds for the momenta.  Density is read
- * at those cells too, and also by the face averages: at the neighbouring cell in x (y) all the
+ * at those cells too, and also by the face averages: at the neighboring cell in x (y) all the
  * way up the column for the x- (y-) momentum, and at two cells above and below for the
  * z-momentum.
  *

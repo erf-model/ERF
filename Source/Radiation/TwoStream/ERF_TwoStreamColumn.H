@@ -262,7 +262,7 @@ amrex::Real resolve_surface_albedo_sw (
 
 /**
  * @brief A roof as the lower boundary of a column (erf.ibseb.two_stream_roofs): the
- * column under a building starts at the first cell above the building, on a grey,
+ * column under a building starts at the first cell above the building, on a gray,
  * diffuse surface with the roof face's own albedo, emissivity and skin temperature,
  * in place of the ground under the building seen through the building's cells.
  */
@@ -287,7 +287,7 @@ bool two_stream_starts_on_roof (int k_lower, int kbot) noexcept
 }
 
 /**
- * @brief The longwave a grey surface sends up: what it emits and the part of the
+ * @brief The longwave a gray surface sends up: what it emits and the part of the
  * longwave coming down that it reflects (Kirchhoff's law). The one expression for the
  * ground and for a roof (TwoStreamRoof), so the two give the same number to the last bit.
  */
@@ -647,7 +647,7 @@ amrex::Real diagnose_cloud_fraction_prognostic (
  */
 namespace TwoStreamScratch {
     constexpr int DZ     = 0;  // layer thickness [m]
-    constexpr int Z      = 1;  // layer-centre height above the surface [m]
+    constexpr int Z      = 1;  // layer-center height above the surface [m]
     constexpr int TAU_SW = 2;  // shortwave optical depth per layer
     constexpr int F_DIR  = 3;  // direct beam at interfaces
     constexpr int A      = 4;  // adding-method albedo at interfaces
@@ -1066,11 +1066,11 @@ void vertical_two_stream_sweep (
     const amrex::Real cp_air = Cp_d;              // Dry-air specific heat at constant pressure [J/(kg·K)]
 
     // ------------------------------------------------------------------
-    // Layer thickness dz_level(m) and layer-centre height z_level(m) above
+    // Layer thickness dz_level(m) and layer-center height z_level(m) above
     // the surface. On a stretched or terrain-following grid both come from
     // the interface heights: the height of face k over cell (i,j) is the
     // mean of its four nodes in z_phys_nd, so the thickness is the distance
-    // between the layer's two interfaces (not the centre-to-centre spacing,
+    // between the layer's two interfaces (not the center-to-center spacing,
     // which differs by the stretch ratio) and the top layer gets its own
     // thickness. Without z_phys_nd the spacing is uniform. The heating
     // divergence dF/(rho cp dz) and the mass path rho dz both use this
@@ -1345,7 +1345,7 @@ void vertical_two_stream_sweep (
     if (sw_beam_absorbed_out != nullptr) {
         // Select the beam before any arithmetic: with the shortwave off or the sun down
         // the scratch was never written, and a product formed ahead of the selection
-        // would raise the invalid flag on its signalling NaN.
+        // would raise the invalid flag on its signaling NaN.
         const bool lit = rad_choice.sw_enabled && cos_zenith > 0.0;
         const amrex::Real beam_low = lit ? F_dir(0) : amrex::Real(0.0);
         const amrex::Real beam_taken = on_roof ? roof->lit * beam_low : beam_low;

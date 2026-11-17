@@ -132,7 +132,7 @@ public:
     //
     // LITERAL PRECISION CONTRACT
     // --------------------------
-    // Every constant below is initialised through wdm6_literal() rather than
+    // Every constant below is initialized through wdm6_literal() rather than
     // written directly, because the two implementations do not agree on what
     // these literals mean.
     //

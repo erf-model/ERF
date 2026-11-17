@@ -22,7 +22,7 @@
  * from a ruptured pipeline.
  *
  * The gas is injected at a total rate mdot(t) [kg/s], spread uniformly over the cells
- * whose centres lie within erf.mass_source.radius of (center_x, center_y) horizontally
+ * whose centers lie within erf.mass_source.radius of (center_x, center_y) horizontally
  * and less than erf.mass_source.height above the local ground.  The same source is
  * added to
  *   - rho, so the mass enters the continuity equation (FullyCompressible only: the
@@ -56,10 +56,10 @@
  */
 namespace erf_mass_source {
 
-/// Is the centre of cell (i,j,k) inside the source region?  z is the nodal height z_phys_nd
+/// Is the center of cell (i,j,k) inside the source region?  z is the nodal height z_phys_nd
 /// and zg the nodal height of the ground under the column (2D, at k = kg).  period holds the
 /// domain length in x and y where the domain is periodic and 0 where it is not: there the
-/// distance is to the nearest periodic image of the centre, so the region wraps around
+/// distance is to the nearest periodic image of the center, so the region wraps around
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE bool
 in_source (int i, int j, int k,
            amrex::Array4<amrex::Real const> const& z,
@@ -94,8 +94,8 @@ class MassSource
 {
 public:
     /// The source the inputs ask for, or nullptr when no erf.mass_source input is given.
-    /// Stops on an unknown erf.mass_source key (a misspelt one would otherwise be ignored,
-    /// and a misspelt rate would turn the source off) and on inputs without a rate.
+    /// Stops on an unknown erf.mass_source key (a misspelled one would otherwise be ignored,
+    /// and a misspelled rate would turn the source off) and on inputs without a rate.
     static std::unique_ptr<MassSource> from_inputs ()
     {
         const std::string prefix = "erf.mass_source.";
@@ -197,7 +197,7 @@ public:
     /**
      * Bring the ground heights and the composite source volume up to date with the grids:
      * a no-op unless the BoxArray or DistributionMapping of a level, or the finest level,
-     * has changed since the last call.  Aborts if no level has a cell centre in the region.
+     * has changed since the last call.  Aborts if no level has a cell center in the region.
      * z_phys_nd and detJ must be allocated on every level.  fill_ground(lev, slab)
      * must fill a one-node-thick nodal slab at the bottom of the domain, on the footprint of
      * every box of the level, with the ground heights (ERF::fill_surface_nodes, which
@@ -294,7 +294,7 @@ public:
 
     /**
      * Add the source at time `time` to cc_src of `level` (per unit physical volume, as the
-     * other cell-centred sources).  cons is the current conserved state and z_phys_nd the
+     * other cell-centered sources).  cons is the current conserved state and z_phys_nd the
      * nodal heights of the level.  update_geometry must have been called for the current grids.
      */
     void add_sources (int level,

@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 #
-# A 5 m/s westerly over a 100 m hill (Cos4Hill, centred at x = 800 m) on a
+# A 5 m/s westerly over a 100 m hill (Cos4Hill, centered at x = 800 m) on a
 # terrain-fitted mesh, with a refined level from the ground up over the hill,
 # and station output on the upwind and lee slopes 100 m from the summit, where
 # the ground is 53.08 m up.

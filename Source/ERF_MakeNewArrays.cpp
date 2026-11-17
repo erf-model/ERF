@@ -1035,7 +1035,7 @@ ERF::init_zphys (int lev, double elapsed_time)
         // average_down the terrain (see ERF_MakeNewLevel.cpp).
         //
         // If a file IS present at this level, the terrain has already been built from
-        // that file's PH + PHB by init_terrain_from_wrfinput (or its metgrid analogue),
+        // that file's PH + PHB by init_terrain_from_wrfinput (or its metgrid analog),
         // which runs BEFORE this routine on both the from-scratch and the from-coarse
         // paths (init_only precedes init_zphys there because level 0 has to read its
         // terrain and its data in the same pass). Interpolating from the coarse level
@@ -1214,7 +1214,7 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
 /**
  * The immersed terrain's (or buildings') solid fraction on level lev, one minus the EB volume
  * fraction, with fractions below eb2.small_volfrac (almost fluid cells) set to zero in the valid
- * cells and in the ghost cells FillBoundary fills; with the face-centred factories, the same on
+ * cells and in the ghost cells FillBoundary fills; with the face-centered factories, the same on
  * the faces. A fresh start, a regrid and a restart all build it here, so a restarted run forces
  * the same cells as the run it continues. On levels coarser than the building cutoff, all
  * allocated masks are zero.

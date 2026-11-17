@@ -173,7 +173,7 @@
         // *****************************************************************************
 #ifdef ERF_USE_FIRE
         // on the level the fire grid refines; coarser levels get it by average-down.
-        // The heat and vapour with the WRF-Fire profile, then the smoke tracer,
+        // The heat and vapor with the WRF-Fire profile, then the smoke tracer,
         // proportional to the fuel burnt (FireCoupler::add_sources).
         if (m_fire_coupler && level == m_fire_coupler->level()) {
             bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
@@ -586,7 +586,7 @@
             // Lateral and periodic ghost cells of the updated base state, on the new mesh (the functor
             // starts with the periodic and interior FillBoundary).  The vertical
             // ghost planes are again left alone: nothing that uses this base state on a moving mesh
-            // changes the solution through them.  The pressure gradient, buoyancy and cell-centred
+            // changes the solution through them.  The pressure gradient, buoyancy and cell-centered
             // sources read only cells inside the domain; the momentum sponge reads the plane below at
             // the bottom face, where w is set by the boundary condition instead.
             (*physbcs_base_new[level])(base_state_new[level],0,BaseState::num_comps,base_state_new[level].nGrowVect());

@@ -855,7 +855,7 @@ public:
      * @brief Fills fine-level surface fields from the next coarser level with interp_by_type.
      *
      * Each component is typed valid or invalid (is_valid_lsm_value) per coarse cell, so a
-     * valid fine cell takes no slope toward an invalid coarse cell; where every neighbour is
+     * valid fine cell takes no slope toward an invalid coarse cell; where every neighbor is
      * valid this is cell_cons_interp.  A fine cell whose parent is invalid is set to
      * lsm_undefined.  Fine ghost cells outside the domain keep their values.
      *

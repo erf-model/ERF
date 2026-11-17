@@ -19,7 +19,7 @@
  * A column of solid fractions beta (terrain_blanking) meets the air in its WALL CELL: a
  * partial cell with fluid above it, or a fluid cell sitting on a solid cell. The surface is
  * at h = z_bot + beta dz of that cell (beta = 0 for the fluid cell), the wall cell's fluid
- * centroid at d1 = (1 - beta) dz / 2 above it and the centre of the cell above at
+ * centroid at d1 = (1 - beta) dz / 2 above it and the center of the cell above at
  * d2 = (3/2 - beta) dz. The fraction-stress law takes the friction velocity
  *     u*^2 = (1 - beta) u*_own^2 + beta u*_ref^2,
  *     u*_own = kappa |u_t| / ln(d1/z0),   u*_ref = kappa |u_t,ref| / ln(d2/z0),
@@ -128,7 +128,7 @@ struct WallCond
     amrex::Real theta_s{0.0};
     amrex::Real Linv{0.0};
     similarity_funs sfuns{};  //!< the similarity functions (erf.most.stable_functions)
-    // Surface moisture condition (a moisture model with water vapour): none, a given kinematic
+    // Surface moisture condition (a moisture model with water vapor): none, a given kinematic
     // moisture flux, or a given surface mixing ratio
     static constexpr int moist_none    = 0;   //!< no moisture exchange, q* = 0
     static constexpr int moist_flux    = 1;   //!< given kinematic surface moisture flux [kg/kg m/s]
@@ -151,7 +151,7 @@ struct WallState
 };
 
 /**
- * Virtual potential temperature of the wall law, theta (1 + epsv q), water vapour only (the flat
+ * Virtual potential temperature of the wall law, theta (1 + epsv q), water vapor only (the flat
  * surface layer's plane average subtracts rain water too; the two agree without rain)
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -197,7 +197,7 @@ amrex::Real phi (amrex::Real d, amrex::Real z0, amrex::Real psi) noexcept
  *                                                           iterated also for a moisture condition alone)
  * with d1 = (1-b) dz/2, d2 = (3/2-b) dz floored at 2 z0 and phi_{m,h}(d) = ln(d/z0) - psi(d/L).
  * With c.moist a given L (obukhov) sets theta_v*, and theta* = (theta_v* - epsv theta q*) / (1 + epsv q).
- * q and q_ref are the water vapour mixing ratios of the wall cell and the cell above (ignored
+ * q and q_ref are the water vapor mixing ratios of the wall cell and the cell above (ignored
  * without c.moist). The iteration starts from neutral and runs a fixed number of passes, so it is
  * deterministic and has no data-dependent trip count.
  */

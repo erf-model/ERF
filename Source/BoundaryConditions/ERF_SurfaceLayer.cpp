@@ -872,7 +872,7 @@ SurfaceLayer::surface_sum (const int& lev, const MultiFab& mf, int comp) const
         return sumToLine(mf, comp, 1, m_geom[lev].Domain(), 2)[0];
     }
     // A face-centered planar field (the MOST velocity averages) shares the planar BoxArray
-    // but not its index type, and neighbouring surface boxes would then share a face, which
+    // but not its index type, and neighboring surface boxes would then share a face, which
     // this sum would count twice
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(mf.boxArray().ixType().cellCentered(),
         "SurfaceLayer::surface_sum is only defined for a cell-centered planar MultiFab");
@@ -1420,7 +1420,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
     // The face stresses read the LSM fluxes of the cells on both sides of a face, one cell
     // beyond the grid.  Beside another grid or a periodic image that cell holds the
-    // neighbour's own fluxes, so both grids compute the face from the same values.  Outside
+    // neighbor's own fluxes, so both grids compute the face from the same values.  Outside
     // a non-periodic domain it holds no LSM value, and the column there was set by
     // compute_fluxes and compute_sfc_params_from_lsm_fluxes from the nearest column of the
     // grid, so it reads that column, as set_pblh does.  The face-normal direction of a
@@ -2465,7 +2465,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
-    // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapour
+    // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapor
     // component aborts below rather than reading past the components.
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
@@ -3107,7 +3107,7 @@ SurfaceLayer::fill_tsurf_with_abs_surf_temp (const int& lev,
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
     const Real rdOcp = m_rdOcp;
-    // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapour
+    // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapor
     // component aborts below rather than reading past the components.
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
 
@@ -3192,7 +3192,7 @@ SurfaceLayer::fill_tsurf_with_skin_temperature (const int& lev,
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
     const Real rdOcp = m_rdOcp;
-    // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapour
+    // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapor
     // component aborts below rather than reading past the components.
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
 
@@ -3621,7 +3621,7 @@ SurfaceLayer::compute_pblh (const int& lev,
     // passes below leave no cell of the columns unset.  Ghost cells go first (they hold the
     // physical boundary values and, next to a coarser level, the values interpolated from
     // it), then the valid cells, so that every cell this level owns comes from the box that
-    // owns it and not from a neighbour's ghost cell.
+    // owns it and not from a neighbor's ghost cell.
     MultiFab cons_col(cols.ba_col, cols.dm_col, ncomp_col, ng_col);
     for (const IntVect& ng_src : {ng_col, IntVect(0)}) {
         cons_col.ParallelCopy(cons, 0, 0, ncomp_col, ng_src, ng_col, period);

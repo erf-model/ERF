@@ -6,10 +6,10 @@ using namespace amrex;
  * @brief Wind at a target height within one atmospheric column
  *
  * Brackets the target height by bisection on the column's terrain-following
- * cell-centre heights, averages the face velocities to cell centres at the two
+ * cell-center heights, averages the face velocities to cell centers at the two
  * bracketing levels, and interpolates linearly between them. A target above the
- * highest cell centre takes that level's wind. A target below the lowest cell
- * centre takes the lowest centre's wind as it is (below_first_log = false, which
+ * highest cell center takes that level's wind. A target below the lowest cell
+ * center takes the lowest center's wind as it is (below_first_log = false, which
  * with a 20 m first cell hands the fire the 10 m wind as its 6.1 m wind, 12 %
  * high at z0 = 0.1 m), or scaled down a neutral log profile of roughness z0_log
  * (below_first_log = true), U(z) = U(z_1) ln(z/z0) / ln(z_1/z0), the better form
@@ -27,7 +27,7 @@ void column_wind_at_height(const Array4<const Real>& xvel,
 {
     // Bracket by bisection; z_cc is monotonically increasing in k.
     int k_lo;
-    // Log-profile factor for a target below the lowest centre, from floored
+    // Log-profile factor for a target below the lowest center, from floored
     // heights (both arguments valid whether or not the branch is taken, so
     // nothing speculated under the fpe traps can raise a flag).
     Real below_scale = Real(1.0);
@@ -170,7 +170,7 @@ void fill_fire_wind_from_interpolation(
                 const int j_a = amrex::max(ja_min, amrex::min(j_f / C + lo_y, ja_max));
 
                 // Ground elevation of this fire cell's atmospheric column. This
-                // is the terrain surface, not the first cell centre, which sits
+                // is the terrain surface, not the first cell center, which sits
                 // half an atmospheric cell higher and would push the extraction
                 // height up by an amount that varies with vertical resolution.
                 const Real z_target = z_surf_arr(i_f, j_f, 0) + z_at;
@@ -186,7 +186,7 @@ void fill_fire_wind_from_interpolation(
             }
 
             // Bilinear between the four surrounding atmospheric columns. The
-            // fire cell centre sits at continuous atmospheric cell-centre
+            // fire cell center sits at continuous atmospheric cell-center
             // coordinate (i_f + 0.5)/C - 0.5 relative to the region's corner; the
             // weights come from that, the column indices add the corner.
             const Real gx = (Real(i_f) + Real(0.5)) / Real(C) - Real(0.5);
@@ -236,7 +236,7 @@ void fill_fire_wind_from_interpolation(
                 // Each column is sampled at the same height above *its own*
                 // ground: near the surface the profile is anchored to the local
                 // terrain, so blending at one absolute height would sample an
-                // upslope neighbour far higher above ground than asked for.
+                // upslope neighbor far higher above ground than asked for.
                 const Real z_target_c = z_col_arr(i_f, j_f, 0, c) + z_at;
 
                 Real u_c, v_c;

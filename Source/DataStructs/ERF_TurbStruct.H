@@ -135,7 +135,7 @@ public:
     // above them, heights and the boundary-layer depth are measured from it,
     // the eddy diffusivities are zero inside the solid, and the surface
     // scales over such a column come from a neutral log law at its top with
-    // the roughness pbl_ib_z0. Only MRF and YSUNew honour it.
+    // the roughness pbl_ib_z0. Only MRF and YSUNew honor it.
     query_one_or_per_level(pp, "pbl_ib_aware", pbl_ib_aware, lev, max_level);
     query_one_or_per_level(pp, "pbl_ib_z0",    pbl_ib_z0,    lev, max_level);
 
@@ -446,7 +446,7 @@ public:
     const bool strat_type_set = (pp.countval("thermal_stratification") > 0);
     query_one_or_per_level(pp, "thermal_stratification", strat_type, lev, max_level);
     // The PBL schemes have always used theta_v for their buoyancy gradient,
-    // which is the physically right choice there.  Honour an explicit
+    // which is the physically right choice there.  Honor an explicit
     // erf.thermal_stratification everywhere, but when the user has not set it
     // keep the historical split: theta for the LES closures, theta_v for the
     // PBL ones.  That way the knob reaches the PBL schemes without silently
@@ -946,7 +946,7 @@ public:
 
   // k-eqn RANS: moist TKE buoyancy production (erf.rans_moist_buoyancy),
   //   B = g / theta_v0 [(1 + epsv qv) <w'theta'> + epsv theta <w'qv'>],
-  // water vapour only (no cloud-water flux, no saturated form); false keeps the
+  // water vapor only (no cloud-water flux, no saturated form); false keeps the
   // dry production g / theta_0 <w'theta'>
   bool rans_moist_buoyancy = false;
 
@@ -1082,7 +1082,7 @@ public:
   amrex::Real pbl_mrf_sf      = amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
   // Scale-aware PBL-LES blending parameters.
   // Boutle et al. (2014): https://doi.org/10.1175/MWR-D-13-00229.1
-  // Set pbl_blend_length = 0 to disable (default). Recovers original behaviour.
+  // Set pbl_blend_length = 0 to disable (default). Recovers original behavior.
   amrex::Real pbl_blend_length   = amrex::Real(0.0);   ///< Boutle blending length L [m]. 0 = off.
   amrex::Real pbl_blend_cs       = amrex::Real(0.17);  ///< Smagorinsky coeff for K_h ceiling.
   amrex::Real pbl_blend_c_max    = amrex::Real(0.1);   ///< Power-law ceiling coeff [m^(2/3)/s].

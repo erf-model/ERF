@@ -153,7 +153,7 @@ ImplicitDiffForStateLU_T (const Box& bx,
 
     // k-eqn RANS with a Dirichlet wall value of k: the first cell is held at
     // the value set by the surface layer, so its row reduces to x(klo) = phi(klo)
-    // and the row above sees it as a Dirichlet neighbour.
+    // and the row above sees it as a Dirichlet neighbor.
     // NOTE: init_bcs requires zlo.type = surface_layer whenever dirichlet_k is set,
     //       so this matches the l_dirichlet_k pin in erf_slow_rhs_post, which also
     //       requires a surface layer. Do not relax one without the other.
@@ -412,7 +412,7 @@ TerrainMetricMomCoeffs (int i, int j, int k, int dom_klo, int dom_khi,
  * the flux the solve removes at the old state and the flux it puts back use the same
  * stencil.  With a different h_zeta the split leaves the operator changed by
  * implicit_fac*(L_solve - L_tau_corr) whatever the time step, wherever h_zeta varies along
- * the column's horizontal neighbours non-linearly (curved, height-decaying terrain).
+ * the column's horizontal neighbors non-linearly (curved, height-decaying terrain).
  */
 template <int stagdir>
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE

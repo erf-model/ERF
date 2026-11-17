@@ -396,7 +396,7 @@ make_terrain_fitted_coords (int lev,
             init_which_terrain_grid(lev, geom, z_phys_nd_col, z_levels_h, fine_terrain, z_phys_interp);
 
             // Copy the ghost nodes too, then give every node the value of a box that holds it
-            // as valid, rather than one a neighbouring box computed for its ghost node
+            // as valid, rather than one a neighboring box computed for its ghost node
             z_phys_nd.ParallelCopy(z_phys_nd_col,0,0,1,ng,ng);
             z_phys_nd.ParallelCopy(z_phys_nd_col,0,0,1,IntVect(0),ng);
         }

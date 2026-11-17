@@ -97,7 +97,7 @@ public:
                         const amrex::MultiFab* z_phys_nd, double time);
 
     // Add rho * d(theta)/dt to the RhoTheta component of cc_src at level lev.
-    // z_phys_nd may be null on a flat mesh; blank is the cell-centred terrain
+    // z_phys_nd may be null on a flat mesh; blank is the cell-centered terrain
     // blanking of immersed forcing, or null.
     void add_theta_source (int lev, double time, amrex::Real dt, const amrex::Geometry& geom,
                            const amrex::MultiFab& cons, amrex::MultiFab& cc_src,

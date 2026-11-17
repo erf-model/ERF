@@ -35,7 +35,7 @@
  *
  * This replaces every ghost cell below the domain with the value computed by the
  * box whose valid columns contain it (or, outside the domain laterally, the box
- * at that boundary), where the lateral stencil is always centred.  Values in the
+ * at that boundary), where the lateral stencil is always centered.  Values in the
  * owning box are unchanged.  The layout of the owning slabs is cached.
  */
 struct BelowGroundGhostSync

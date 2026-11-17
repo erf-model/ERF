@@ -773,7 +773,7 @@ ApplyPBLHSmoothing (amrex::FArrayBox& pblh_fab,
         {
             // Reflective (Neumann) at a non-periodic domain edge: reuse the cell's
             // own value. Everywhere else -- including across a periodic edge, where
-            // the halo holds the wrapped column -- read the neighbour.
+            // the halo holds the wrapped column -- read the neighbor.
             const int i_xlo = (per_x || i > dom_lo.x) ? (i - 1) : i;
             const int i_xhi = (per_x || i < dom_hi.x) ? (i + 1) : i;
             const int j_ylo = (per_y || j > dom_lo.y) ? (j - 1) : j;

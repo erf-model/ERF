@@ -105,7 +105,7 @@ struct StructureInit
  * The fire engine's fields (the getters of ERF_FireEngine.H) on the fire grid: a
  * horizontal grid, one cell in z, that refines one atmospheric level
  * (erf.fire.anchor_level). That level need not be the one the model couples to.
- * Fire cell (i, j) has its centre at geom.ProbLo() + ((i + 1/2) dx, (j + 1/2) dy),
+ * Fire cell (i, j) has its center at geom.ProbLo() + ((i + 1/2) dx, (j + 1/2) dy),
  * in the coordinates of the model's own points.
  *
  * The fields are the engine's state at time: the time ERF assigns to the fire's
@@ -225,7 +225,7 @@ public:
     /**
      * @brief Add the structures' force on the air to the momentum sources
      *
-     * Face-centred sources on level lev [N/m^3, i.e. kg/(m^2 s^2)], added (not set),
+     * Face-centered sources on level lev [N/m^3, i.e. kg/(m^2 s^2)], added (not set),
      * held fixed over the step. Called at every Runge-Kutta stage, after ERF's
      * own sources. ERF applies no mask to them: the model keeps its kernels clear
      * of embedded boundaries, immersed terrain and buildings.
@@ -295,7 +295,7 @@ public:
     /**
      * @brief Fill the field plot_var_names() lists as name on level lev
      *
-     * One cell-centred component written into dst at component comp, on dst's
+     * One cell-centered component written into dst at component comp, on dst's
      * boxes, with no ghost cells; zero where the model has nothing (for example
      * on levels other than level()).
      */

@@ -1,6 +1,6 @@
 /**
  * @file ERF_PBLScaleAwareBlending.H
- * @brief GPU-inline blending functions for PBL diffusivity at grey-zone resolution.
+ * @brief GPU-inline blending functions for PBL diffusivity at gray-zone resolution.
  *
  * Provides scale-aware reduction of PBL vertical diffusivity (K_h) when the
  * horizontal grid spacing falls between mesoscale and LES resolution.
@@ -18,7 +18,7 @@
  * ends up scaling like 1/rho instead of being a constant diffusivity.
  *
  * Gating: pbl_kh_blend_and_cap returns K_h unchanged when L_blend <= 0.
- * Setting L_blend = 0 recovers original PBL behaviour exactly.
+ * Setting L_blend = 0 recovers original PBL behavior exactly.
  *
  * References:
  *   Boutle, I.A. et al. (2014). Mon. Wea. Rev., 142, 1655.

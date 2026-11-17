@@ -221,7 +221,7 @@ struct MYNNPBLH {
 
                 // Find minimum thetav and maximum TKE in the surface layer (this
                 // updates ghost cells, too)
-                // - box size is known a priori: the cells whose centres, (k+1/2)*dz,
+                // - box size is known a priori: the cells whose centers, (k+1/2)*dz,
                 //   lie below thetamin_height, the same strict test as with terrain;
                 //   the bottom cell is always included
                 const int kmax = static_cast<int>(std::ceil(thetamin_height / dz_no_terrain - myhalf)) - 1;

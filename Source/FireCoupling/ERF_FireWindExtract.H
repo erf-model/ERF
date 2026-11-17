@@ -42,8 +42,8 @@
  * @param[in]  nz              Number of vertical levels
  * @param[in]  z_ref_cell_mf   Height above ground [m] to sample each fire cell
  *                             at, on the fire grid; nullptr = the global z_ref
- * @param[in]  below_first_log Target below the lowest cell centre: false takes the
- *                             lowest centre's wind as it is; true scales it
+ * @param[in]  below_first_log Target below the lowest cell center: false takes the
+ *                             lowest center's wind as it is; true scales it
  *                             with a neutral log profile of roughness z0_log,
  *                             U(z) = U(z_1) ln(z/z0)/ln(z_1/z0)
  *
@@ -58,8 +58,8 @@
  * 4. Compute target height: z_target = z_surf + z_ref_cell
  * 5. Bisection on the column's z_phys_cc profile for k_lo such that
  *    z_phys_cc(i_a, j_a, k_lo) <= z_target < z_phys_cc(i_a, j_a, k_lo+1),
- *    clamped to [0, nz-2]; a target above the top takes the highest centre,
- *    a target below the first centre the lowest centre's wind scaled by the
+ *    clamped to [0, nz-2]; a target above the top takes the highest center,
+ *    a target below the first center the lowest center's wind scaled by the
  *    log profile (below_first_log) or as it is
  * 6. Compute interpolation weight:
  *    alpha = (z_target - z_phys_cc(i_a, j_a, k_lo)) /
@@ -81,7 +81,7 @@
  * With col_open and col_roof given (2D atmospheric-column fields, one ghost
  * cell) each bilinear weight is multiplied by the column's open fraction when
  * its roof is above the cell's wind height, and the four weights are
- * renormalised, so a column inside a building does not contribute its
+ * renormalized, so a column inside a building does not contribute its
  * relaxed in-building velocity to the fire cells around it. A cell whose four
  * columns are all closed keeps the plain weights; it is inside a footprint
  * and masked anyway.
@@ -115,12 +115,12 @@ void fill_fire_wind_from_interpolation(
     bool                   below_first_log = false);
 
 /**
- * @brief The wind at the lowest cell centre of each atmospheric column, and
+ * @brief The wind at the lowest cell center of each atmospheric column, and
  *        its height above that column's ground
  *
  * For an engine that drives its fire with the k = 0 wind of the atmospheric
  * columns rather than a wind interpolated to a height (LSFIRE does). The face
- * velocities are averaged to the k = 0 cell centre; the height is that centre
+ * velocities are averaged to the k = 0 cell center; the height is that center
  * minus the column's ground, the mean of its four k = 0 nodes (the ground
  * compute_fire_surface_height uses), or minus the domain floor without nodal
  * heights.
@@ -130,7 +130,7 @@ void fill_fire_wind_from_interpolation(
  *                         ghost cells: those are filled with FillBoundary
  * @param[out] h_k0        Height of that wind above the column's ground [m], laid out as u_k0
  * @param[in]  xvel, yvel  Face velocities of the level (FireForcing::xvel, yvel)
- * @param[in]  z_phys_cc   Cell-centre height of the level [m]
+ * @param[in]  z_phys_cc   Cell-center height of the level [m]
  * @param[in]  z_phys_nd   Nodal height of the level [m], or nullptr (flat floor)
  * @param[in]  geom        Geometry of the level
  */

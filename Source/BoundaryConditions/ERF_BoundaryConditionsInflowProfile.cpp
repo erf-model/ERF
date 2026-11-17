@@ -73,7 +73,7 @@ ERFPhysBCFunct_u::impose_inflow_profile_xvel (const Array4<Real>& dest_arr,
             const int jface = low ? dom_lo.y : dom_hi.y+1;
 
             // The loop box carries one more ghost than the velocity arrays (and is nodal
-            // where they are cell centred), so clamp the upwind read to the array read,
+            // where they are cell centered), so clamp the upwind read to the array read,
             // as the lateral fills do (kk is clamped to the domain only: it also sets zq)
             const auto ulo = lbound(xvel_arr), uhi = ubound(xvel_arr);
             const auto vlo = lbound(yvel_arr), vhi = ubound(yvel_arr);
@@ -147,7 +147,7 @@ ERFPhysBCFunct_v::impose_inflow_profile_yvel (const Array4<Real>& dest_arr,
             const int jface = low ? dom_lo.y : dom_hi.y+1;
 
             // The loop box carries one more ghost than the velocity arrays (and is nodal
-            // where they are cell centred), so clamp the upwind read to the array read,
+            // where they are cell centered), so clamp the upwind read to the array read,
             // as the lateral fills do (kk is clamped to the domain only: it also sets zq)
             const auto ulo = lbound(xvel_arr), uhi = ubound(xvel_arr);
             const auto vlo = lbound(yvel_arr), vhi = ubound(yvel_arr);

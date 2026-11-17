@@ -268,7 +268,7 @@ struct similarity_funs
             return amrex::max(C / (two * beta_m), (most_bracket_floor(C) - C) / beta_m);
         }
         // A non-finite C (bad zref or z0) is returned as it is, as most_rib_zeta_bracketed does,
-        // so that it shows up in the kernel's results instead of a bisection artefact
+        // so that it shows up in the kernel's results instead of a bisection artifact
         if (!amrex::Math::isfinite(C)) { return C; }
         const amrex::Real b = m_qnse_bm;
         const amrex::Real c = (m_qnse_am - m_qnse_bm) / m_qnse_bm;

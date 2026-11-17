@@ -1279,7 +1279,7 @@ function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
 endfunction(add_test_field_bounds)
 
 # Run test_files/<TEST_NAME>/<TEST_NAME>.i and require every cell at or above Z_MIN in the
-# vertical column through the domain centre of PLTFILE to lie within [LO, HI] for each
+# vertical column through the domain center of PLTFILE to lie within [LO, HI] for each
 # variable (Tests/RunColumnBounds.cmake). VARIABLES, LOS and HIS are comma-separated lists.
 function(add_test_column_bounds TEST_NAME PLTFILE Z_MIN VARIABLES LOS HIS)
     setup_test()
@@ -1505,7 +1505,7 @@ endfunction(add_test_cloud_chamber_openmp)
 
 # Native SHOC regression test.  This intentionally remains separate from
 # add_test_r so existing registrations retain their exact command and
-# fixture behaviour.  TEST_FILES_DIR and INPUT_FILE allow the small SHOC
+# fixture behavior.  TEST_FILES_DIR and INPUT_FILE allow the small SHOC
 # matrix to reuse a physical fixture while keeping unique binary and gold
 # directories.  The checker runs before the selected gold comparison path.
 function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
@@ -1806,7 +1806,7 @@ add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
 
 # RANS wall distance on levels a regrid makes (#4691): level 1 is added after step 1 and
 # moved after step 3, and walldist over both levels must lie between half a level-1 cell
-# (8 m) and the top level-0 cell centre (1008 m), reaching 8 m so level 1 is in the file.
+# (8 m) and the top level-0 cell center (1008 m), reaching 8 m so level 1 is in the file.
 # Before the fix level 1 kept the bogus_large_value its new grids were set to.
 add_test_field_bounds(RANS_WallDist_Regrid "plt00004" walldist 7.99 1008.01 MIN_HI 8.01)
 # The same deck stopped after step 2, when level 1 has only been added from level 0
@@ -1834,14 +1834,14 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
   add_test_column_bounds(ForestCanopyRANS_Uniform "plt00001" 45
       "x_velocity,KE" "4.87805419660,1.01104711783" "4.87805429416,1.01104713806")
 endif()
-# A stretched mesh starts at geometry.prob_lo[2] = -1, so the cell-centre z_phys runs from -0.9375
+# A stretched mesh starts at geometry.prob_lo[2] = -1, so the cell-center z_phys runs from -0.9375
 # to 0.9375.  With the flat surface left at 0 the column was squashed onto 0 to 1 and reached
 # 0.96875 (erf-model/ERF#4442).
 add_test_column_bounds(StretchedProbLo_Poiseuille "plt00000" -10 "z_phys" "-0.9375001" "0.9375001")
 # A regrid keeps the time averages (erf-model/ERF#3917).  The state is a uniform wind turned by
 # Coriolis, so both levels carry the same values; at t = 50 s the fine grids move, and before the
 # fix the remade level restarted its averages from zero (u_t_avg on the fine level near -0.3
-# against 4.1 on the coarse level).  The centre column crosses the fine region.
+# against 4.1 on the coarse level).  The center column crosses the fine region.
 add_test_column_bounds(RegridKeepsTimeAverages "plt00100" -10 "u_t_avg,u_mean,uu_mean"
     "4.0,3.95,39.0" "4.2,4.15,39.7")
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
@@ -2329,7 +2329,7 @@ add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
 # to be the first shifted by SHIFT cells in x. MovingTerrain: half a wavelength (50 m, 10
 # cells); before the fix the terrain and w ignored prob_lo while u used it (z_velocity off
 # by 2x its size). ScalarAdvDiff: one domain length in x, y and z with prob_type 12 (an
-# ellipse in x-z) and xc_frac = zc_frac = 0.25; before the fix the centre was
+# ellipse in x-z) and xc_frac = zc_frac = 0.25; before the fix the center was
 # frac * (lo + hi) and the blob moved by 0.5 domain lengths in x and z.
 function(add_test_shift_invariance TEST_NAME TEST_FILES_DIR SHIFT VARS OPTIONS_A OPTIONS_B)
     setup_test()
@@ -2728,7 +2728,7 @@ endif()
 # The moist bubble with Kessler rain (the MoistBubble deck with erf.moisture_model=Kessler
 # and the rain fields in the plotfile), restarted from step 4 to step 8 on its constant-dz
 # mesh: the restart path set the microphysics' minimum dz only on fitted meshes, so the
-# sedimentation substep count of the first restarted step came from an uninitialised
+# sedimentation substep count of the first restarted step came from an uninitialized
 # value and the step never finished. The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 4 8
@@ -2743,7 +2743,7 @@ add_test_restart_parity(CloudChamber_WDM6_ActiveRestart CloudChamber_WDM6_Active
 endif()
 endif()
 # Kessler rain over a uniform, laterally periodic layer, with the fine box moved at t = 30 s:
-# a regrid must keep the surface rain accumulator.  The centre column of the 2D plotfile lies
+# a regrid must keep the surface rain accumulator.  The center column of the 2D plotfile lies
 # in the new fine box.  It accumulates 5.11e-4 mm by t = 60 s (5.11e-4 on the coarse level too);
 # rebuilt as zero at the regrid, it reaches only 3.80e-4.  Values with the 0.1364 Kessler
 # fall-speed exponent (#5193).
@@ -3141,7 +3141,7 @@ if(NOT WIN32)
 endif()
 
 # Thin-body projection (project_velocity_tb) with two corrector passes and dt = 0.025:
-# the stored gradient gradp (dpdx, dpdy, dpdz) must equal the centred difference of the
+# the stored gradient gradp (dpdx, dpdy, dpdz) must equal the centered difference of the
 # stored pressure increment pp_inc (pert_pres) in every interior cell. Before #4608 was
 # fixed gradp kept only the last pass, and pp_inc took phi = dt * p without the 1/dt;
 # both made the two differ by 65-100 % of the gradient. The 1e-8 tolerance is for
@@ -3160,7 +3160,7 @@ endif()
 
 # Constant mass-flux control (erf.const_massflux_u, erf.const_massflux_v) with
 # amrex.fpe_trap_invalid = 1. Without a mass flux the cross-sectional areas are zero, and
-# the guarded divisions by them formed 0/0 in optimised Apple clang builds, which divided
+# the guarded divisions by them formed 0/0 in optimized Apple clang builds, which divided
 # before testing the area: MassFlux_Off_TrapInvalid stopped with SIGILL at step 1 before
 # the fix. MassFlux_X_Relaxation checks the relaxation of the integrated x mass flux
 # against the closed form of the RK2 step (Tests/check_massflux_relaxation.py).
@@ -3358,7 +3358,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # in z. Such a level never sweeps, so its surface state stays frozen at what
   # fill_seb_from_coarse wrote, and averaging that down would pin level 0's surface under
   # the patch at its level-creation value -- a regression against the old level-0-only
-  # behaviour. post_timestep skips the transfer for such a level; this asserts every cell
+  # behavior. post_timestep skips the transfer for such a level; this asserts every cell
   # of level 0 moved away from erf.rad_t_sfc. With the guard removed those cells sit at
   # exactly 300.0 instead of 300.0476.
   if(ERF_TEST_PYTHON)
@@ -3432,7 +3432,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # latent_heat_flux at every step (to 1e-10 relative, with |H| and |LE| above 1 W/m^2),
   # that the defaults leg keeps the constants, and that the skin ends cooler by
   # sum(dt (H + LE)) / C_s to 5 %. With the balance reading the defaults in both legs
-  # (the behaviour before this test) seb_hfx is 0 against a sensible_heat_flux of tens
+  # (the behavior before this test) seb_hfx is 0 against a sensible_heat_flux of tens
   # of W/m^2, and the two skins agree.
   if(ERF_TEST_PYTHON)
     add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxes)
@@ -3454,7 +3454,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # restart and on two levels.
     add_test_two_stream_seb_snow(TwoStream_SEBSnow)
     # The balance over water: the state is held and the sweep takes the sea surface
-    # temperature. With the balance run on every column (the behaviour before this test) the
+    # temperature. With the balance run on every column (the behavior before this test) the
     # water run's skin moves and the two runs' net longwave agree at step 1.
     add_test_two_stream_seb_land_mask(TwoStream_SEBLandMask)
   endif()
@@ -4165,7 +4165,7 @@ endfunction(add_test_rans_pair)
 # The buoyancy production of k must not depend on how theta is diffused: the
 # convective case, run compressible with the implicit vertical solve (A) and
 # with explicit vertical diffusion (B), must give the same KE to within the
-# time-discretisation difference. The command runs through sh, so not on Windows.
+# time-discretization difference. The command runs through sh, so not on Windows.
 if(NOT WIN32)
     add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_kEqn Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
         RUNTIME_OPTIONS "erf.compressibility_type=FullyCompressible erf.use_fft=false"
@@ -4248,7 +4248,7 @@ add_test_rans(InflowProfile_ThetaAboveGround         Terrain_Inflow_Profile inpu
 add_test_rans(InflowProfile_ThetaAboveGround_FlagOff Terrain_Inflow_Profile inputs_theta 4 check_theta_flag_off.py
               RUNTIME_OPTIONS "erf.input_sounding_theta_above_ground=false")
 
-# xlo.inflow_profile over idealised terrain (Exec/CanonicalTests/Canonical_RANS/Terrain_Inflow_Profile,
+# xlo.inflow_profile over idealized terrain (Exec/CanonicalTests/Canonical_RANS/Terrain_Inflow_Profile,
 # README.md): after 60 steps the first column follows the log law at the height above the
 # local ground, much better than at absolute height or by level. The terrain-fitted
 # projection is GMRES with the FFT preconditioner, so these need an FFT build.
@@ -4351,7 +4351,7 @@ add_test_abort(MOST_Zref_BelowRoughness
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
 
 # The same deck for one step, for its EB build. The single-precision CI job runs it, since in
-# single precision the face-centred EB factories met a face with more than two cuts
+# single precision the face-centered EB factories met a face with more than two cuts
 # (erf-model/ERF#5006).
 add_test_eb_build(IBSEB_Cube_EBBuild
                   ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
@@ -5167,10 +5167,10 @@ endif()
 
 #=============================================================================
 # Input sounding on refined levels (#4143): each level samples the sounding, and
-# the large-scale forcing profiles, at its own cell centres
+# the large-scale forcing profiles, at its own cell centers
 #=============================================================================
 # The two sounding files differ only in their surface line, which lies below every cell
-# centre, so the initial states must be identical on both levels.
+# center, so the initial states must be identical on both levels.
 add_test_option_parity(InputSounding_FineLevelInit InputSoundingFineLevels "plt00000"
     OFF_OPTIONS "erf.input_sounding_file=../input_sounding_sfc300"
     ON_OPTIONS  "erf.input_sounding_file=../input_sounding_sfc303")
@@ -5275,7 +5275,7 @@ add_test_box_parity(Terrain2Lev_Hill_BoxParity TerrainHill "plt00020"
     DATALOG_SIGDIGITS 10)
 
 # The same with the refined level starting 100 m up, so that none of its boxes
-# reaches the ground: the synchronisation has no cells below the ground to own
+# reaches the ground: the synchronization has no cells below the ground to own
 # on that level and must leave it alone (a first version copied from boxes
 # that do not reach the bottom, and the run aborted in Debug).
 terrain_hill_files(Terrain2Lev_HillAloft_BoxParity _hill_files)
@@ -5290,7 +5290,7 @@ add_test_box_parity(Terrain2Lev_HillAloft_BoxParity TerrainHill "plt00020"
 # (the ground is 53.08 m up there).  They agree to 1.4e-5 m/s on the fitted
 # mesh and 1.2e-4 m/s over the immersed hill, and to 3e-6 K.  The previous
 # code fails both: it interpolated the ground from cell averages between cell
-# centres, 3.4 m too low on the flank (0.047 m/s away on the fitted mesh), and
+# centers, 3.4 m too low on the flank (0.047 m/s away on the fitted mesh), and
 # with immersed-forcing terrain it measured the height from the flat bottom of
 # the mesh, so the series was the flow inside the hill (3.8 m/s away).
 add_test_station_series(StationSampling_FittedTerrain TerrainHill single
@@ -5502,7 +5502,7 @@ function(obs_nudging_hill_files TEST_NAME OUT_VAR)
     set(${OUT_VAR} "erf.input_sounding_file=${_d}/input_sounding erf.obs_nudging.mast.file=${_d}/mast.txt erf.obs_nudging.lidar.file=${_d}/lidar.txt" PARENT_SCOPE)
 endfunction()
 
-# The nudging reads a face's neighbours (the density, the mesh and the terrain
+# The nudging reads a face's neighbors (the density, the mesh and the terrain
 # under it), the terrain is gathered from the boxes that touch the ground, and
 # the two copies of a face on a periodic boundary must see the same distance to
 # every station, so the answer is checked across a change of decomposition on
@@ -6209,7 +6209,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         FCOMPARE_RTOL "1.0e-9")
     # The same for a level that stops inside the domain in z: its top and bottom faces are
     # set from the coarse Omega in the fills, which must reach the ghost copies of those faces
-    # in the neighbouring boxes too, or the answer depends on how the level is cut
+    # in the neighboring boxes too, or the answer depends on how the level is cut
     set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_PartialDepth_BoxParity/input_sounding")
     add_test_box_parity(TerrainPoisson_PartialDepth_BoxParity TerrainPoisson_Hill "plt00006"
         COMMON_OPTIONS "${_tph_snd} ${_tp_partial}"
@@ -6390,7 +6390,7 @@ if(NOT WIN32)
                  "one y value: constant in y"
                  "erf.terrain_file_name=one_row.txt")
   set_tests_properties(TerrainFile_OneRow PROPERTIES FAIL_REGULAR_EXPRESSION "Abort")
-  # The USGS layout: a valid file is summarised; a truncated extra line and a y that
+  # The USGS layout: a valid file is summarized; a truncated extra line and a y that
   # changes within a row stop the run (the base reader accepted both)
   add_test_abort(TerrainFile_USGS_Summary ${_tf_dir} TerrainFileChecksUSGS.i
                  "x varies fastest, height n is at \\(x\\[n\\], y\\[n / nx\\]\\).*largest \\|dh/dx\\| 0\\.819[0-9]* at \\(325, 0\\)"
@@ -6767,7 +6767,7 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
 
   # Line coordinates of a level made by a regrid after the start: level 1 is made by the
   # regrid after step 1, so plt_line_lev1.zcc must then be written, one row of the 32 cell
-  # centres of the level-1 column, and the line sampled on level 1 from step 2
+  # centers of the level-1 column, and the line sampled on level 1 from step 2
   function(add_test_line_sampling_regrid_coords TEST_NAME)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -6827,7 +6827,7 @@ add_test_abort(LineSampling_Abort_LatLonAndIndices ${CMAKE_CURRENT_SOURCE_DIR}/t
                "erf.sample_line_lo_latlon=40. -105. 0. 40. -105. 0. erf.sample_line_hi_latlon=40. -105. 100. 40. -105. 100.")
 
 # Lines given by latitude and longitude (#4979), on the rotated lat/lon grid of a generated
-# wrfinput: a vertical line at a cell centre, and lines along x and y whose hi ends are 0.4
+# wrfinput: a vertical line at a cell center, and lines along x and y whose hi ends are 0.4
 # and 0.7 cells across them and are sampled along the cells through their lo ends. theta
 # names the column of each sample; erf.sample_line_latlon must place its column at the
 # profile's cell. The ends of a horizontal line 1.5 cells apart across it,

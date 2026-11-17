@@ -229,7 +229,7 @@ public:
 
         AMREX_ALWAYS_ASSERT(num_times == static_cast<int>(times_lsf.size()));
         // On pressure levels, cell k is placed by the sounding's hydrostatic pressure at its
-        // centre, pm_integ[k+1] (pm_integ[0] is the surface), so the sounding must be sampled
+        // center, pm_integ[k+1] (pm_integ[0] is the surface), so the sounding must be sampled
         // on this same grid and integrated (sounding_type Ideal or Isentropic)
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_z_grid || static_cast<int>(sounding.pm_integ.size()) >= Nz+1,
             "a large-scale forcing file on pressure levels needs the input sounding integrated "

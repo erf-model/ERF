@@ -25,7 +25,7 @@ namespace erf_surface_moisture {
  * (TwoStreamRadiation::seb_surface_moisture): the soil-water factor beta in [0, 1]; with a
  * soil type, the bare-soil resistance [s/m] and the relative humidity of the bare soil's
  * pore air; with a vegetation type as well, the vegetated fraction and the canopy
- * resistance without its vapour-deficit factor [s/m]. Absent pieces are a fraction of 0,
+ * resistance without its vapor-deficit factor [s/m]. Absent pieces are a fraction of 0,
  * resistances of no_flux_resistance (1e6 s/m) and a relative humidity of 1.
  */
 enum Component : int {
@@ -58,7 +58,7 @@ surface_mixing_ratio (const amrex::Real beta,
 }
 
 /**
- * The vapour-deficit factor of the Jarvis canopy resistance,
+ * The vapor-deficit factor of the Jarvis canopy resistance,
  * 1 / (1 + HS * max(0, q_sat - q_air)), floored at 0.01 as in Noah-MP
  * (ResistanceCanopyStomataJarvisMod).
  */
@@ -80,12 +80,12 @@ inline constexpr amrex::Real no_flux_resistance = amrex::Real(1.0e6);
 
 /**
  * The canopy resistance the surface layer uses [s/m]: the balance's resistance without the
- * vapour-deficit factor (TwoStream's seb_canopy_resistance_without_vpd) divided by that
+ * vapor-deficit factor (TwoStream's seb_canopy_resistance_without_vpd) divided by that
  * factor, capped at no_flux_resistance after the divide (the factor alone can raise it
  * 100-fold).
  *
- * @param[in] r_c_without_vpd canopy resistance without the vapour-deficit factor [s/m]
- * @param[in] hs              the canopy's vapour-deficit parameter [1/(kg/kg)]
+ * @param[in] r_c_without_vpd canopy resistance without the vapor-deficit factor [s/m]
+ * @param[in] hs              the canopy's vapor-deficit parameter [1/(kg/kg)]
  * @param[in] q_sat           saturation mixing ratio at the surface temperature [kg/kg]
  * @param[in] q_air           mixing ratio of the air at the reference height [kg/kg]
  */
@@ -171,7 +171,7 @@ surface_layer_aerodynamic_resistance (const similarity_funs& sfuns,
  * so that the surface layer's flux (q_surf - q_air) / r_a is the sum of the two. With
  * rh_ground = 1 it is beta q_sat + (1 - beta) q_air with
  * beta = f_veg r_a/(r_a + r_c) + (1 - f_veg) r_a/(r_a + r_soil). Over dry soil q_surf can
- * fall below q_air: the soil then takes up water vapour, as in Noah-MP.
+ * fall below q_air: the soil then takes up water vapor, as in Noah-MP.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real

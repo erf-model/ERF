@@ -173,7 +173,7 @@ static void erf_flush_fortran_units () {}
  * Make a run that leaves through exit() before amrex::Finalize report failure.
  *
  * A normal run calls amrex::Finalize before main returns, so a process that reaches
- * exit() while AMReX is still initialised has stopped part-way -- with no final
+ * exit() while AMReX is still initialized has stopped part-way -- with no final
  * plotfile or checkpoint -- whatever status it asked for. The ways in are a Fortran STOP
  * in a coupled library (Noah-MP has 27, all exit status 0) and the exit() calls left in
  * ERF itself, some of which also pass 0. Run under Open MPI's launcher such a run is
@@ -191,7 +191,7 @@ static void erf_flush_fortran_units () {}
  * notices (Open MPI does; srun without --kill-on-bad-exit and some PMI setups may not).
  * So the trap calls MPI_Abort to tear the whole job down, guarded so that an MPI whose
  * own MPI_Abort ends in exit() (MPICH, Cray MPICH) cannot re-enter it, and skipped when
- * MPI is not initialised or already finalised.
+ * MPI is not initialized or already finalized.
  *
  * std::_Exit is the only way to change the status from here, and it skips the rest of the
  * exit sequence, which is what would flush the output buffers. Standard output is fully

@@ -138,7 +138,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
     // Collect YSUNew-computed PBLH for writing back to SurfaceLayer.
     // NOTE: OpenMP is not used here; if re-enabled, this MultiFab must remain
-    // outside any omp parallel structured block to avoid undefined behaviour.
+    // outside any omp parallel structured block to avoid undefined behavior.
     MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
     pblh_mf.setVal(0.0);
 
@@ -1139,7 +1139,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                          turbChoice.pblh_smoothing_passes,
                          geom.Domain(), geom.periodicity());
         // The smoothed height stays at or above the column's own floor (half
-        // a cell above its surface, at least 10 m): beside lower neighbours a
+        // a cell above its surface, at least 10 m): beside lower neighbors a
         // column over a building (erf.pbl_ib_aware) would otherwise be handed
         // a height below its first cell, and the K profile a negative depth.
         ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {

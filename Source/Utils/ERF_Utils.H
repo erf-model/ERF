@@ -20,7 +20,7 @@
  * component up to NVAR_max: whether the component is read from the WRF/metgrid
  * boundary data (read), from which boundary field (map), and from which
  * boundary-plane slot when planes are read as well (bnd, cons_bc_comp).
- * Density is read with erf.use_wrf_bdy_density, theta and the water vapour
+ * Density is read with erf.use_wrf_bdy_density, theta and the water vapor
  * always; passive scalars and hydrometeors never.
  * Built from the component layout, so every passive scalar (NSCALARS of them)
  * sits between RhoKE_comp and RhoQ1_comp.
@@ -106,7 +106,7 @@ void
 make_qt (const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
 
 /**
- * Average down a cell-centred state over immersed-forcing levels (erf.if_average_down =
+ * Average down a cell-centered state over immersed-forcing levels (erf.if_average_down =
  * fluid_mass). The fine cells are weighted by their fluid mass,
  * (rho S)_c = rho_c * sum (1 - beta_f) V_f (rho S)_f / sum (1 - beta_f) V_f rho_f,
  * with beta the solid fraction, V the fine cell volume (detJ / (m_x m_y), the weight the plain
@@ -140,9 +140,9 @@ if_average_down (const amrex::MultiFab& S_fine, amrex::MultiFab& S_crse,
  * A box that does not see the surface of a column (a fine box inside the solid, or above the
  * surface without reaching the bottom) measures from the coarser level's wall height.
  * @param[out] wdist Wall distance (valid cells; ghost cells are left untouched).
- * @param[in] terrain_blank Cell-centred solid fraction.
+ * @param[in] terrain_blank Cell-centered solid fraction.
  * @param[in] z_phys_nd Node heights.
- * @param[in] z_phys_cc Cell-centre heights.
+ * @param[in] z_phys_cc Cell-center heights.
  * @param[in] domain Index domain of the level.
  * @param[in] small_volfrac Solid fraction below which a cell counts as fluid.
  * @param[out] wall_height Optional: the height measured from in each column, on the level's
@@ -166,7 +166,7 @@ immersed_wall_dist (amrex::MultiFab& wdist,
  * column, the spacing factor on the face above it, one elsewhere. The vertical flux of x (y)
  * momentum is multiplied by them, so no resolved flux crosses the wall face (see
  * ERF_ImmersedWallCell.H).
- * @param[in] terrain_blank Cell-centred solid fraction; needs one more ghost cell than the masks.
+ * @param[in] terrain_blank Cell-centered solid fraction; needs one more ghost cell than the masks.
  * @param[out] mask13 On convert(ba, IntVect(1,0,1)), valid and ghost cells.
  * @param[out] mask23 On convert(ba, IntVect(0,1,1)), valid and ghost cells.
  * @param[out] mask33 On convert(ba, IntVect(0,0,1)): the same for the cell columns, applied to

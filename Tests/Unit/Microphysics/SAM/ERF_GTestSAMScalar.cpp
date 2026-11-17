@@ -1208,7 +1208,7 @@ TEST(SAMScalar, PrecipComponentFaceState_BottomTopInteriorBranches)
     expect_near_roundoff(bottom.qpg_avg, qpg(0,0,0));
 
     const auto interior = sam_precip_component_face_state(rho, tabs, qpr, qps, qpg, 0, 0, 1, 0, 1);
-    // rho stays centred on the face; the transported mixing ratios come from the
+    // rho stays centered on the face; the transported mixing ratios come from the
     // donor cell above it (#4415).
     expect_near_roundoff(interior.rho_avg, myhalf * (rho(0,0,0) + rho(0,0,1)));
     expect_near_roundoff(interior.qpr_avg, qpr(0,0,1));

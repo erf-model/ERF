@@ -283,7 +283,7 @@ void ERF::advance_dycore (int level,
     if (use_lsf) {
         lsf_data[level]->setVal(0.0);
 
-        // The forcing profiles interpolated to this level's cell centres, so that index k
+        // The forcing profiles interpolated to this level's cell centers, so that index k
         // below is this level's cell k
         const LargeScaleForcingData& lsf_lev = lsf_at_level(level);
 
@@ -379,7 +379,7 @@ void ERF::advance_dycore (int level,
     if (use_nudging) {
         nudge_data[level]->setVal(0.0);
 
-        // The sounding sampled at this level's cell centres, so that index k below is this
+        // The sounding sampled at this level's cell centers, so that index k below is this
         // level's cell k (the level-0 profile indexed by a fine k is the wrong height)
         const InputSoundingData& snd = sounding_at_level(level);
 

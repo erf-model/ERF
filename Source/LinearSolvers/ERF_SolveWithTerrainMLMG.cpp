@@ -92,7 +92,7 @@ void ERF::solve_with_terrain_mlmg (int lev, const Box& subdomain, MultiFab& rhs,
     // A region one cell wide in x or y is solved as two-dimensional, as solve_with_mlmg does,
     // but only where that direction is periodic: MLTerrainPoisson then drops the face fluxes
     // and the terrain cross terms in it, which are zero only when the one cell is its own
-    // periodic neighbour (its two node columns are the same).  Across a wall, inflow or
+    // periodic neighbor (its two node columns are the same).  Across a wall, inflow or
     // outflow face they are not, so such a region keeps all three directions.
     LPInfo info;
     if (sub_lo.x == sub_hi.x && is_per[0]) {

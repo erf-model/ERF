@@ -480,7 +480,7 @@ ERF::sum_energy_quantities (double time)
                                                                 Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Mixing ratios of vapour, of all liquid (cloud and rain) and of all ice (cloud
+            // Mixing ratios of vapor, of all liquid (cloud and rain) and of all ice (cloud
             // ice, snow, graupel); the state holds rho_d times each species
             Real Qv = zero, Ql = zero, Qi = zero;
             if (is_moist) { GetMoistureVars(i, j, k, cons_arr, Qv, Ql, Qi, moist_idx); }
@@ -491,11 +491,11 @@ ERF::sum_energy_quantities (double time)
             Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
-            // Height of the cell centre
+            // Height of the cell center
             Real zval = (z_arr) ? z_arr(i,j,k) : prob_lo[2] + (Real(k) + myhalf)*dx[2];
 
             // Internal energy with constant heat capacities (Romps 2008, J. Atmos. Sci. 65,
-            // 3779), measured from liquid water at the triple point: vapour carries
+            // 3779), measured from liquid water at the triple point: vapor carries
             // E0v = L_v - R_v T_trip, ice -E0s with E0s = L_f. The latent heats this
             // implies follow Kirchhoff's law, e.g. L_v(T) = L_v + (c_pv - c_l)(T - T_trip).
             Real Cv   = Cp_d - R_d;

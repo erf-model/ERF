@@ -35,7 +35,7 @@ amrex::Vector<int> column_bands (const amrex::BoxArray& ba);
  * @param[in]     ncomp      number of components to fill
  * @param[in]     klo_band   lowest z index of the band about to be integrated
  * @param[in]     lateral_ng lateral width of the filled slabs; its z entry must be zero
- * @param[in]     geom       geometry of the level (lateral periodicity is honoured)
+ * @param[in]     geom       geometry of the level (lateral periodicity is honored)
  */
 void fill_below_band (amrex::MultiFab& mf, int icomp, int ncomp, int klo_band,
                       const amrex::IntVect& lateral_ng, const amrex::Geometry& geom);

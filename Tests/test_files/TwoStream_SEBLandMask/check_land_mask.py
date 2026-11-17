@@ -90,7 +90,7 @@ def main():
                         help='301.5 (950/1000)^(R_d/c_p), from the first line of '
                              'input_sounding [K]')
     # 1e-4 is 0.03 K, or 33 Pa of surface pressure. The run is 5e-6 away: its surface
-    # pressure is 1.6 Pa below 950 hPa (README). A cell-centre pressure in place of the
+    # pressure is 1.6 Pa below 950 hPa (README). A cell-center pressure in place of the
     # surface pressure would be 8e-4 away.
     parser.add_argument('--sea-temp-rtol', type=float, default=1.0e-4)
     parser.add_argument('--start-rtol', type=float, default=1.0e-6,

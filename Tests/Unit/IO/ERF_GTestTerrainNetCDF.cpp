@@ -114,7 +114,7 @@ write_wps_terrain_file ()
     // of the projections the reader supports (1 Lambert, 2 polar, 3 Mercator):
     // projection 6 (latitude/longitude) is deliberately rejected because WPS
     // writes DX/DY in degrees for it, while everything downstream consumes them
-    // as metres.  Lambert additionally requires TRUELAT2 alongside TRUELAT1.
+    // as meters.  Lambert additionally requires TRUELAT2 alongside TRUELAT1.
     file.put_attr("MAP_PROJ", std::vector<int>{1});
     file.put_attr("CEN_LAT", std::vector<double>{40.0});
     file.put_attr("CEN_LON", std::vector<double>{-105.0});

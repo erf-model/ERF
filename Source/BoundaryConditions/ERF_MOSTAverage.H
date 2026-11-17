@@ -702,7 +702,7 @@ protected:
     // Default values
     //--------------------------------------------
     // There is no stored default reference height.  When most.zref is unset every
-    // mesh uses the centre of the first cell above the wall: a single height on a
+    // mesh uses the center of the first cell above the wall: a single height on a
     // flat or EB mesh, and on a terrain-fitted mesh a height that varies by column
     // and is filled column by column by the lookup routines (erf-model/ERF#4935).
 

@@ -14,7 +14,7 @@
 #include "ERF_TerminalVelocity.H"
 #include "ERF_SuperDropletPCMassChange.H"
 
-// Unit test for ERF's ice vapour-deposition growth and habit prediction
+// Unit test for ERF's ice vapor-deposition growth and habit prediction
 // (Source/Particles/ERF_SuperDropletPCMassChange.H). It marches a single ice
 // crystal through 10 min of growth at constant temperature and water saturation
 // -- the Takahashi et al. (1991) chamber condition -- by replaying exactly the

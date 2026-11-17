@@ -351,7 +351,7 @@ private:
     amrex::Real m_lat_cons;
     amrex::Real m_lon_cons;
 
-    // Holds output from KOKKOS views used in the datalog: cell-centred profiles, and the
+    // Holds output from KOKKOS views used in the datalog: cell-centered profiles, and the
     // fluxes on the surface and top-of-atmosphere faces (one cell thick in z)
     amrex::MultiFab datalog_mf;
     amrex::MultiFab datalog_bdy_mf;
@@ -365,7 +365,7 @@ private:
     static constexpr int n_flux_sets_optional = 2;
     static constexpr int max_datalog_flux     = n_flux_per_set * (n_flux_sets_base + n_flux_sets_optional);
 
-    // Cell-centred components that are not fluxes: height, heating rates (4) and mu0
+    // Cell-centered components that are not fluxes: height, heating rates (4) and mu0
     static constexpr int n_datalog_nonflux = 6;
 
     // Number of flux fields in the datalog for the enabled diagnostics
@@ -375,7 +375,7 @@ private:
         return n_flux_per_set * (n_flux_sets_base + n_opt);
     }
 
-    // Cell-centred datalog components: the non-flux fields and the fluxes
+    // Cell-centered datalog components: the non-flux fields and the fluxes
     int nDatalogComp () const { return n_datalog_nonflux + nDatalogFluxComp(); }
 
     // Layout of datalog_bdy_mf: fluxes on the surface face, fluxes on the top face, then the

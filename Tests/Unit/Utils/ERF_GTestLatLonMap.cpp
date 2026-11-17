@@ -110,7 +110,7 @@ TEST(LatLonMap, MeasuresTheGridRotation)
 
 TEST(LatLonMap, PlacesAPointOnAGridAcrossTheAntimeridian)
 {
-    // 40 x 40 cells of 0.005 degrees in longitude centred on 180 E, given as a
+    // 40 x 40 cells of 0.005 degrees in longitude centered on 180 E, given as a
     // WRF file gives them: 179.9 ... 180 and then -179.995 ... -179.9
     const amrex::Box dom(amrex::IntVect(0,0,0), amrex::IntVect(39,39,0));
     amrex::FArrayBox fab(dom, 2, amrex::The_Pinned_Arena());
@@ -212,7 +212,7 @@ TEST(EarthRelativeWind, RotatesAndGivesTheMeteorologicalDirection)
 // The rotation the 2D plotfile uses (fill_grid_rotation, one value per mass point on
 // the level's own boxes) must be the rotation the stations and the nudging use
 // (grid_rotation_from_latlon on the whole array), at every point and in particular
-// at the box seams, where the centred difference reads a neighbouring box.
+// at the box seams, where the centered difference reads a neighboring box.
 TEST(LatLonMap, FillsTheGridRotationOnEveryBoxAsAtOnePoint)
 {
     const amrex::Box dom(amrex::IntVect(0,0,0), amrex::IntVect(39,39,0));
@@ -271,7 +271,7 @@ TEST(LatLonMap, FillsTheGridRotationOnEveryBoxAsAtOnePoint)
     EXPECT_NEAR(s.min(0), std::sin(alpha), Real(1.0e-3));
 }
 
-// On a refined level the boxes cover only a patch of the domain. A neighbour across
+// On a refined level the boxes cover only a patch of the domain. A neighbor across
 // the edge of the patch, inside the domain, is held only in a ghost cell of lat/lon
 // (ERF fills them from the coarser level). The rotation at the patch edge must use
 // it, not stop at the patch: it must equal the rotation from the whole array.

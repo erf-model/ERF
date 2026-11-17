@@ -59,7 +59,7 @@ class SuperDropletPC : public ERFPC
             }
         }
 
-        /*! \brief Set vapour species material */
+        /*! \brief Set vapor species material */
         AMREX_FORCE_INLINE
         virtual void setSpeciesMaterial ( const Species::Name& a_name )
         {
@@ -76,7 +76,7 @@ class SuperDropletPC : public ERFPC
             for (auto& name : a_names) { setSpeciesMaterial(name); }
         }
 
-        /*! \brief Get vapour material */
+        /*! \brief Get vapor material */
         AMREX_FORCE_INLINE
         virtual const MaterialProperties& getSpeciesMaterial (const Species::Name& a_name) const
         {
@@ -459,14 +459,14 @@ class SuperDropletPC : public ERFPC
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
         bool m_density_scaling; /*!< Scale initial number density with air density */
-        bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
+        bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapor */
         bool m_prescribed_advection; /*!< move particles with prescribed vertical velocity */
         amrex::Real m_prescribed_w = 0.0; /*!< constant prescribed updraft [m/s]; 0 -> sinusoidal pulse */
         bool m_split_merge_amr = false; /*!< split/merge particles across AMR level boundaries */
         bool m_variable_dz = false; /*!< cells differ in physical thickness (stretched or terrain-fitted mesh) */
 
-        int m_num_species; /*!< Number of vapour/condensate species */
-        std::vector<std::unique_ptr<MaterialProperties>> m_species_mat; /*!< Vapour/condensate material */
+        int m_num_species; /*!< Number of vapor/condensate species */
+        std::vector<std::unique_ptr<MaterialProperties>> m_species_mat; /*!< Vapor/condensate material */
         int m_num_aerosols; /*!< Number of aerosols */
         std::vector<std::unique_ptr<MaterialProperties>> m_aerosol_mat; /*!< Aerosol materials */
 

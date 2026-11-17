@@ -202,7 +202,7 @@ public:
     // needs this to know whether the SWrad/LWrad lanes it would hand an ocean
     // model carry real values or just zeros: passing zeros is worse than passing
     // nothing, because the ocean model then suppresses its own radiative forcing
-    // in favour of them.
+    // in favor of them.
     //
     // Note this is a configuration predicate, not a data-validity one. rad_fluxes
     // is allocated and zero-filled as soon as solverChoice.rad_type != None, so
@@ -245,12 +245,12 @@ public:
     void GetFillableAtmosToOceanLanes (bool state_contract,
                                        amrex::Vector<int>& can_fill) const;
 
-    // Every lane is remapped from ERF's level-0 cell centres to REMORA's rho points with
+    // Every lane is remapped from ERF's level-0 cell centers to REMORA's rho points with
     // the one set of weights weight_mf/index_mf the driver builds for that pair of grids.
     // The vectors (Uwind/Vwind and tau_x/tau_y) are sent as their eastward and northward
     // components, turned from the grid axes with the grid orientation from lat_m/lon_m,
     // so that the ocean can turn them to its own axes; the stress is averaged from the
-    // faces to the cell centres first.
+    // faces to the cell centers first.
     // dst_mskr is REMORA's wet/dry mask (1 = wet, 0 = land) on the rho layout, applied
     // to the scalar lanes (Patm, Tair, cloud) and to the flux lanes, tau_x/tau_y
     // included, but deliberately NOT to Uwind/Vwind, so the wind lanes carry live
@@ -996,7 +996,7 @@ public:
     void init_from_input_sounding (int lev);
 
     /**
-     * The input sounding sampled at the cell centres of level lev. Level 0 is
+     * The input sounding sampled at the cell centers of level lev. Level 0 is
      * input_sounding_data itself; a finer level gets its own copy, resampled at
      * geom[lev] / zlevels_stag[lev], so that its profile index k is its own cell k
      * and no fine cell blends in the surface line of the sounding.
@@ -1004,7 +1004,7 @@ public:
     const InputSoundingData& sounding_at_level (int lev);
 
     /**
-     * The large-scale forcing profiles interpolated to the cell centres of level lev.
+     * The large-scale forcing profiles interpolated to the cell centers of level lev.
      * Level 0 is lsf itself; a finer level gets its own copy, interpolated at
      * geom[lev] / zlevels_stag[lev] against sounding_at_level(lev), so that its profile
      * index k is its own cell k.
@@ -1562,10 +1562,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
     // Struct for working with the sounding data we take as an input. Its profiles are
-    // sampled at the level-0 cell centres; use sounding_at_level for any other level.
+    // sampled at the level-0 cell centers; use sounding_at_level for any other level.
     InputSoundingData input_sounding_data;
 
-    // The sounding sampled at the cell centres of each level > 0, built on first use
+    // The sounding sampled at the cell centers of each level > 0, built on first use
     // from input_sounding_data (index 0 is unused)
     amrex::Vector<std::unique_ptr<InputSoundingData>> input_sounding_data_fine;
 
@@ -1941,8 +1941,8 @@ private:
     // written by the immersed scalar forcing, read as the TKE buoyancy flux on the wall face
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_hfx;
     // kinematic wall moisture flux -u* q* of the fraction-stress law in the wall cell (zero elsewhere;
-    // allocated with a moisture model that carries water vapour), written by the immersed scalar
-    // forcing, read as the water vapour flux on the wall face (qfx1_z: the moist TKE buoyancy, the output)
+    // allocated with a moisture model that carries water vapor), written by the immersed scalar
+    // forcing, read as the water vapor flux on the wall face (qfx1_z: the moist TKE buoyancy, the output)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_qfx;
     // wall value of the k-eqn TKE in the wall cell (erf.if_wall_tke; -1 elsewhere), written by the
     // immersed scalar forcing; with erf.if_wall_tke_time_factor = 1 the cell is held at it after
@@ -2372,7 +2372,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> column_kextent;
 
     // Masks of the coarse/fine ghost cells (1 there, 0 elsewhere) used by
-    // FillCoarseFineGhostsForImplicit: entry 0 is cell-centred with two ghost cells, entries
+    // FillCoarseFineGhostsForImplicit: entry 0 is cell-centered with two ghost cells, entries
     // 1-3 are on the x-, y- and z-faces with one ghost cell.  Built on first use
     // and rebuilt whenever the grids they were built on change.
     amrex::Vector<amrex::Array<std::unique_ptr<amrex::iMultiFab>,AMREX_SPACEDIM+1>> cf_implicit_mask;

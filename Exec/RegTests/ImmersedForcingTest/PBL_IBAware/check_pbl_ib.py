@@ -49,7 +49,7 @@ def main():
         zr, kr = column(on, 165, 165); zg, kg = column(on, 45, 45)
         fr = kr[zr > 40.0]; zfr = zr[zr > 40.0] - 40.0          # above the roof, local height
         # Shape of the profile against the local height: the roof column's,
-        # normalised by its own maximum, must follow the ground column's over
+        # normalized by its own maximum, must follow the ground column's over
         # the first six cells (the wall distance restarts at the roof). For a
         # flat profile (a neutral YSUNew) the peak position is meaningless and
         # only the shape is compared.

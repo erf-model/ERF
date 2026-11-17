@@ -5,8 +5,8 @@
 #   tower      over the hill top, 15 heights from 0 to 280 m
 #   far        far from the hill, 15 heights from 0 to 280 m
 #   high       over the hill top, 5 heights from 600 to 790 m, the highest above the top cell
-#              centre; above the ground (694 to 884 m) one is bracketed, two lie between the top
-#              cell centre and the 791.6 m top, and two above the top, which are missing
+#              center; above the ground (694 to 884 m) one is bracketed, two lie between the top
+#              cell center and the 791.6 m top, and two above the top, which are missing
 #   one        over the hill top at the single height 150 m
 #   across     in x at y = 40 m across the hill at z = 50 m, part of it below the ground
 # The CTest entry runs it as given (heights above sea level) and with erf.sample_line_z_agl = 1

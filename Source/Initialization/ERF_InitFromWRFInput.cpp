@@ -2644,7 +2644,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
         // a non-periodic face FillBoundary cannot replace them.
         //
         // Intersecting with the domain keeps the halo cells that lie inside it, which
-        // FillBoundary does fill from a neighbouring box, and clamps only the ones
+        // FillBoundary does fill from a neighboring box, and clamps only the ones
         // outside it onto the nearest real column.
         const Box  zbx  = amrex::grow(mfi.validbox(), z_phys_cc->nGrowVect()) & subdomain;
         const auto z_lo = lbound(zbx);
