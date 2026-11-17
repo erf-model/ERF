@@ -55,16 +55,9 @@ ERF::write_1D_profiles (double time)
         }
 
         // The stresses and SFS fluxes exist only with molecular diffusion or a turbulence
-        // closure; without them there is no stress log to write
+        // closure; without them there is no stress log to write (InitData_post says so once).
+        // This is the same on every rank, so skipping the reductions below is too.
         const bool have_stress = (Tau[0][TauType::tau11] != nullptr);
-        if (NumDataLogs() > 3 && !have_stress) {
-            static bool warned = false;
-            if (!warned) {
-                amrex::Print() << "WARNING: erf.data_log names a fourth (stress) log, but there is no molecular"
-                               << " diffusion or turbulence closure at level 0, so it stays empty" << std::endl;
-                warned = true;
-            }
-        }
 
         if (NumDataLogs() > 3 && time > zero && have_stress) {
             derive_stress_profiles(h_avg_tau11, h_avg_tau12, h_avg_tau13,

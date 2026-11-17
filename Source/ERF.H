@@ -1995,6 +1995,9 @@ private:
     static int last_plot2d_file_step_2;
     static int last_check_file_step;
 
+    // Despite the names, the *_time trackers (and last_subvol_time, last_fire_plot_time)
+    // hold the time the NEXT output with a period is due: writeNow() fires once the time
+    // reaches it (less 0.1*dt), and each write then adds one period
     static double last_plot3d_file_time_1;
     static double last_plot3d_file_time_2;
     static double last_plot2d_file_time_1;

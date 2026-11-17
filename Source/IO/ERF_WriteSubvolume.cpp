@@ -179,6 +179,14 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
         amrex::Abort("WriteSubvolume:Box requested is larger than the existing domain");
     }
 
+    // The fields are copied from the valid cells of this level, so its grids must cover the
+    // box (always true at level 0; a refined level may cover only part of the domain)
+    if (!grids[lev_for_sub].contains(bx))
+    {
+        amrex::Abort("WriteSubvolume:Box requested is not covered by the grids of level " +
+                     std::to_string(lev_for_sub) + ", whose resolution it matches");
+    }
+
     Vector<int> cs(AMREX_SPACEDIM);
     int count = pp.countval("chunk_size");
     if (count > 0) {

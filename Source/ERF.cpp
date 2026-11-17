@@ -164,6 +164,8 @@ ERF::Evolve ()
 #ifdef ERF_USE_FIRE
     if (m_fire_coupler && istep[0] == 0 && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
         m_fire_coupler->engine().write_plotfile(m_fire_plot_file, cur_time, istep[0]);
+        // the next fire plot is one period on, as for the other initial outputs
+        if (m_fire_plot_per > zero) {last_fire_plot_time += m_fire_plot_per;}
         if (m_fire_coupler->params().fire_debug) {
             amrex::Print() << "[FIRE] Initial fire output written at time 0" << std::endl;
         }
@@ -2513,6 +2515,13 @@ ERF::InitData_post ()
         for (int i = 0; i < num_datalogs; i++) {
             setRecordDataInfo(i,datalogname[i]);
         }
+        // The fourth (stress) log needs the stresses and SFS fluxes, which exist only with
+        // molecular diffusion or a turbulence closure at level 0; the 1D profile writers
+        // leave it empty otherwise
+        if (num_datalogs > 3 && Tau[0][TauType::tau11] == nullptr) {
+            amrex::Print() << "WARNING: erf.data_log names a fourth (stress) log, but there is no molecular"
+                           << " diffusion or turbulence closure at level 0, so it stays empty" << std::endl;
+        }
     }
 
     if (pp.contains("der_data_log"))
@@ -3560,11 +3569,11 @@ ERF::restart ()
     // (a checkpoint written on schedule can carry a time just below k * per); setting them
     // to the last boundary instead wrote an unscheduled output at the first step.
     double cur_time = t_new[0];
-    auto next_time = [&] (double per) {
-        return (std::floor((cur_time + 0.1*dt[0])/per) + 1.0) * per;
-    };
     auto last_time = [&] (double per) {
-        return std::floor(cur_time/per) * per;
+        return std::floor((cur_time + 0.1*dt[0])/per) * per;
+    };
+    auto next_time = [&] (double per) {
+        return last_time(per) + per;
     };
     if (m_check_per > zero) {last_check_file_time = next_time(m_check_per);}
 #ifdef ERF_USE_FIRE
