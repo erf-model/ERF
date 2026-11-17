@@ -26,24 +26,32 @@ mpiexec -n 1 ../../Exec/ERF3d.<...>.ex inputs_oneway \
 
 ## What is non-default about the configuration
 
-Three settings in `inputs_oneway` depart from ERF's MYNN defaults, and all
-three are needed to reproduce P07.  They are commented in place; briefly:
+Three groups of settings in `inputs_oneway` depart from ERF's MYNN defaults.
+They are commented in place; briefly:
 
 | setting | value | why |
 |---|---|---|
 | `pbl_mynn_{A1,A2,B1,B2,C1}` | MY82 constants | COAMPS uses Mellor--Yamada (1982), not Nakanishi--Niino |
 | `pbl_mynn_{C2,C3,C5}` | 0 | NN09 extensions; zeroing them recovers the MY82 stability functions |
 | `pbl_mynn_Lt_alpha` | 0.10 | the MY82 value, not NN09's 0.23 |
-| `pbl_mynn_Lt_taper_exp` | 1.35 | boundary-layer-depth taper on `l_T` (see below) |
-
-The taper matters most.  Without it the MYNN master length scale saturates once
-`kappa*z` exceeds `l_T` and stays flat to the inversion, giving a flat-topped
-eddy viscosity; P07's falls steeply above about 150 m.  **The exponent 1.35 was
-calibrated against their Fig. 8a and is not independently derived.**
+| `pbl_mynn_surface_lm` | true | surface-layer length scale alone in the first cell, so the first-cell TKE approaches the MY82 surface value instead of dipping |
 
 `erf.prob_name = Perlin07` selects this case: it sets the same initial TKE
 profile as the `WPS` problem and additionally supplies the uniform potential
-temperature tendency used for the radiative cooling, which `WPS` does not.
+temperature tendency (`prob.advection_heating_rate`) that stands in for the
+large-scale subsidence and advection P07's domain omits, which `WPS` does not.
+P07 use +1 K/day to offset their radiation's average cooling; we use
++0.68 K/day, the daily-mean mixed-layer cooling RRTMGP gives here in July
+(SW +0.97, LW -1.65 K/day).  With +1 K/day on top of RRTMGP the layer is net
+heated, the surface layer goes stable and the boundary layer stalls near 300 m.  Radiation is computed with RRTMGP (`erf.radiation_model = RRTMGP`);
+set `erf.rrtmgp_file_path` to the directory holding the RRTMGP data files.
+The radiation starts at `2007-07-01 12:00:00` UTC, i.e. 0400 LST as in P07;
+P07 give no date, only "summertime" conditions off Oregon.
+
+The SST is an absolute temperature (`erf.most.abs_surf_temp`), as P07 plot it,
+and the sounding starts at 1015 hPa.  P07 plot SST in K/degC against potential
+temperature, so with a 1000 hPa surface the SST would be about 1 K too warm
+in theta and the mixed layer would settle near 287 K instead of P07's 286 K.
 
 Two further points that are easy to get wrong:
 
@@ -55,17 +63,8 @@ Two further points that are easy to get wrong:
 
 ## Known discrepancies against P07
 
-Documented in the validation section of the paper, and summarized here so the
-numbers are not lost:
-
-* eddy viscosity agrees to within 15% from 50 to 400 m; peak 4.3 m2/s at 95 m
-  against their 4.7 at 100 m;
-* turbulent kinetic energy is good near the surface (within 9% to 100 m) but
-  decays too fast above, reaching -58% at 350 m;
-* the mixed layer is 0.45--0.7 K warmer than theirs, traceable to the use of
-  constant rather than stability-dependent surface exchange coefficients;
-* the boundary layer is shallower (420 m against 475 m) and is still deepening
-  at 72 h.
+The discrepancies previously listed here were measured with an earlier
+configuration and need to be regenerated for the current `inputs_oneway`.
 
 ## Scripts
 
@@ -74,15 +73,16 @@ All take plotfile or run-directory arguments and need `yt`, `numpy` and
 
 | script | what it does |
 |---|---|
-| `make_paper_figure.py` | The six-panel validation figure for the paper: theta, u, v, TKE, K_m and L_m against height, overlaid on values pixel-traced from P07's Figs. 7 and 8.  Writes `perlin_validation.pdf/.png`.  Takes a run directory, default `run_taper1.35`; run it from this directory. |
+| `make_paper_figure.py` | The six-panel validation figure for the paper: theta, u, v, TKE, K_m and L_m against height, overlaid on values pixel-traced from P07's Figs. 7 and 8.  Writes `perlin_validation.pdf/.png`.  Takes a run directory, default `run_oneway`; run it from this directory. |
 | `compare_perlin.py` | Quicker exploratory version of the same comparison for one or more plotfiles, plus a one-line summary table (peak K_m, boundary layer depth, surface fluxes).  `compare_perlin.py <plt> [<plt> ...] --labels a,b` |
 | `mynn_diag.py` | Recomputes the MYNN length scales (`l_S`, `l_T`, `l_B`), the stability functions and `K_m` offline from a plotfile column, exactly as `ERF_ComputeDiffusivityMYNN25.cpp` does, and compares against what ERF stored.  Used to verify the scheme is evaluating NN09 faithfully; reproduces ERF to 0.5%.  `mynn_diag.py <plt>` |
-| `heat_budget.py` | Mixed-layer heat budget (storage, surface flux, flux through the control-volume top, radiative sink) plus an entrainment diagnostic.  Closes to 0.2--0.4 W/m2.  Expects run directories named `run_<case>` containing `plt72000` and `plt86400`.  `heat_budget.py <case> [<case> ...]` |
+| `heat_budget.py` | Mixed-layer heat budget below 900 m: storage, surface sensible flux, flux through the column top, the large-scale heating (read from each run's `job_info`) and the RRTMGP heating (from the `qsrc_sw`/`qsrc_lw` plot variables), plus an entrainment diagnostic.  The radiation and surface flux are time-averaged over every plotfile in the interval, so write plotfiles hourly (`erf.plot_int_1 = 1200`); the residual is then a few W/m2.  `heat_budget.py <run_dir> [...] [--t0 plt57600 --t1 plt86400]` |
 | `PlotPlts.py` | Pre-existing general-purpose profile plotter for u, v and `Kmv` from one or more plotfiles.  Note it labels `Kmv` as K_mv although the stored quantity is `rho*K`. |
 
 `mynn_diag.py` and `heat_budget.py` assume the `bulk_coeff` surface layer with
-the coefficients in `inputs_oneway`; both take `--Cd/--Ch/--Cq` or equivalent
-if those are changed.
+the coefficients and the 287.0 K absolute SST in `inputs_oneway`.  If those
+change, `mynn_diag.py` takes `--Cd/--Ch/--Cq/--surf_temp`; in `heat_budget.py`
+edit `CD, CH, CQ` and `SST` at the top of the file.
 
 ## Other inputs files here
 

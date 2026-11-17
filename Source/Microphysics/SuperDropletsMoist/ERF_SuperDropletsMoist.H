@@ -182,6 +182,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                  amrex::MultiFab&,
                                  const amrex::Vector<MFPtr>&) override;
 
+        /*! \brief diagnostics of the state of all levels at a step; files at multiples of the interval */
+        virtual void Diagnostics (const int&,
+                                  const amrex::Real&,
+                                  const amrex::Vector<MFPtr>&,
+                                  const int) override;
+
         void Advance ( const amrex::Real&, const SolverChoice& ) override
         {
             amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
@@ -504,6 +510,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         amrex::Real m_Cp; /*!< specific heat at constant pressure for dry air */
         amrex::Real m_rdOcp;
         amrex::Vector<CompressibilityType> m_compressibility_type;
+        bool m_variable_dz = false; /*!< cells differ in physical thickness (stretched or terrain-fitted mesh) */
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
         amrex::Real m_rime_ratio; /*!< rime mass ratio to be considered graupel */
 

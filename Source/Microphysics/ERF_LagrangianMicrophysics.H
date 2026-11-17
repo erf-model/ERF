@@ -114,6 +114,15 @@ public:
         m_moist_model->AverageDownMicroVars(finest_level);
     }
 
+    /*! \brief diagnostics of the state of all levels at a step */
+    void Diagnostics (const int& step, /*!< step of the state */
+                      const amrex::Real& time, /*!< time of the state */
+                      const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd, /*!< terrain */
+                      const int file_name_digits /*!< minimum digits of the step in file names */) override
+    {
+        m_moist_model->Diagnostics(step, time, z_phys_nd, file_name_digits);
+    }
+
     void Update_Diagnostic_State_Lev (const int& lev, amrex::MultiFab& cons,
                                       const amrex::MultiFab& z) override
     {

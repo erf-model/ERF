@@ -1411,6 +1411,134 @@ void run_none_policy ()
     EXPECT_EQ(max_abs_face(t, 0), Real(0.0));
 }
 
+erf_sbm::ParticleMixingConfig parsed_config (const std::string& name,
+                                             const Real kh = Real(0.0),
+                                             const Real kv = Real(0.0))
+{
+    erf_sbm::ParticleMixingConfig config;
+    std::string reason;
+    EXPECT_TRUE(erf_sbm::make_particle_mixing_config(name, kh, kv, config, reason)) << reason;
+    return config;
+}
+
+TurbChoice les (const LESType type)
+{
+    TurbChoice turbulence;
+    turbulence.les_type = type;
+    return turbulence;
+}
+
+void run_config_parsing ()
+{
+    const auto reference = parsed_config("ConstantReference", Real(0.25), Real(0.125));
+    EXPECT_EQ(reference.policy, erf_sbm::ParticleMixingPolicy::ConstantReference);
+    EXPECT_EQ(reference.reference_kh, Real(0.25));
+    EXPECT_EQ(reference.reference_kv, Real(0.125));
+    EXPECT_EQ(parsed_config("HostPassiveScalar").policy,
+              erf_sbm::ParticleMixingPolicy::HostPassiveScalar);
+
+    erf_sbm::ParticleMixingConfig config;
+    std::string reason;
+    EXPECT_FALSE(erf_sbm::make_particle_mixing_config("Eddy", Real(0.0), Real(0.0), config, reason));
+    EXPECT_NE(reason.find("not 'Eddy'"), std::string::npos) << reason;
+    // Coefficients given to any other policy are a configuration error, not ignored.
+    for (const char* name : {"None", "HostPassiveScalar"}) {
+        EXPECT_FALSE(erf_sbm::make_particle_mixing_config(name, Real(0.0), Real(1.0e-3),
+                                                          config, reason)) << name;
+        EXPECT_NE(reason.find("only to ConstantReference"), std::string::npos) << reason;
+    }
+    EXPECT_FALSE(erf_sbm::make_particle_mixing_config("ConstantReference", Real(-1.0), Real(0.0),
+                                                      config, reason));
+    EXPECT_NE(reason.find("finite and nonnegative"), std::string::npos) << reason;
+}
+
+void run_host_validation ()
+{
+    const auto none = parsed_config("None");
+    const auto host = parsed_config("HostPassiveScalar");
+    const auto reference = parsed_config("ConstantReference", Real(0.1), Real(0.05));
+    std::string reason;
+    const auto accepts = [&] (const erf_sbm::ParticleMixingConfig& config,
+                              const std::vector<TurbChoice>& turbulence,
+                              const MeshType mesh = MeshType::ConstantDz,
+                              const int max_level = 0,
+                              const MolecDiffType molecular = MolecDiffType::None) {
+        return erf_sbm::validate_particle_mixing_host(config, turbulence, molecular, mesh,
+                                                      max_level, reason);
+    };
+    const auto rejects = [&] (const bool accepted, const std::string& fragment) {
+        EXPECT_FALSE(accepted) << fragment;
+        EXPECT_NE(reason.find(fragment), std::string::npos) << reason;
+    };
+    const std::vector<TurbChoice> quiet{les(LESType::None)};
+    const std::vector<TurbChoice> smagorinsky{les(LESType::Smagorinsky)};
+    const std::vector<TurbChoice> deardorff{les(LESType::Deardorff)};
+
+    EXPECT_TRUE(accepts(none, quiet)) << reason;
+    // None adds nothing, so it constrains neither the mesh nor the levels.
+    EXPECT_TRUE(accepts(none, {les(LESType::None), les(LESType::None)},
+                        MeshType::VariableDz, 1)) << reason;
+    EXPECT_TRUE(accepts(host, smagorinsky)) << reason;
+    EXPECT_TRUE(accepts(host, deardorff, MeshType::StretchedDz)) << reason;
+    EXPECT_TRUE(accepts(reference, quiet, MeshType::StretchedDz)) << reason;
+
+    rejects(accepts(none, smagorinsky),
+            "SBM particle mixing None does not mix the spectrum with ERF's LES closure");
+    rejects(accepts(reference, deardorff),
+            "SBM particle mixing ConstantReference does not mix the spectrum");
+    rejects(accepts(host, quiet), "requires erf.les_type = Smagorinsky or Deardorff");
+    auto smag2d = les(LESType::Smagorinsky);
+    smag2d.smag2d = true;
+    rejects(accepts(host, {smag2d}), "does not support erf.les_type = Smagorinsky2D (level 0)");
+    rejects(accepts(host, {les(LESType::Smagorinsky), les(LESType::None)}, MeshType::ConstantDz, 1),
+            "Smagorinsky or Deardorff on every level (level 1)");
+    rejects(accepts(host, {les(LESType::Smagorinsky), les(LESType::Deardorff)},
+                    MeshType::ConstantDz, 1),
+            "the same erf.les_type on every level");
+
+    auto pbl = les(LESType::None);
+    pbl.pbl_type = PBLType::MYNN25;
+    for (const auto& config : {none, host, reference}) {
+        rejects(accepts(config, {pbl}), "SBM does not support a PBL closure (erf.pbl_type = MYNN25 (level 0))");
+        rejects(accepts(config, quiet, MeshType::ConstantDz, 0, MolecDiffType::Constant),
+                "SBM does not support molecular diffusion");
+    }
+    auto rans = les(LESType::None);
+    rans.rans_type = RANSType::kEqn;
+    rejects(accepts(none, {rans}), "SBM does not support a RANS closure");
+
+    rejects(accepts(host, smagorinsky, MeshType::VariableDz), "terrain-fitted (VariableDz)");
+    rejects(accepts(reference, quiet, MeshType::VariableDz), "terrain-fitted (VariableDz)");
+    rejects(accepts(host, {les(LESType::Smagorinsky), les(LESType::Smagorinsky)},
+                    MeshType::ConstantDz, 1),
+            "SBM particle mixing HostPassiveScalar is not yet qualified with AMR");
+    rejects(accepts(reference, {les(LESType::None), les(LESType::None)}, MeshType::ConstantDz, 1),
+            "SBM particle mixing ConstantReference is not yet qualified with AMR");
+}
+
+void run_boundary_validation ()
+{
+    using erf_sbm::AdvectionFaceKind;
+    const auto none = parsed_config("None");
+    const auto host = parsed_config("HostPassiveScalar");
+    std::string reason;
+    erf_sbm::SBMPhysicalBoundaryConfig faces;
+    EXPECT_TRUE(erf_sbm::validate_particle_mixing_boundaries(host, faces, reason)) << reason;
+    faces.kind[2] = AdvectionFaceKind::ImpermeableWall;
+    faces.kind[5] = AdvectionFaceKind::ImpermeableWall;
+    EXPECT_TRUE(erf_sbm::validate_particle_mixing_boundaries(host, faces, reason)) << reason;
+    for (const auto kind : {AdvectionFaceKind::AdvectiveOutflow,
+                            AdvectionFaceKind::PrescribedInflow}) {
+        auto open = faces;
+        open.kind[3] = kind;
+        EXPECT_TRUE(erf_sbm::validate_particle_mixing_boundaries(none, open, reason)) << reason;
+        EXPECT_FALSE(erf_sbm::validate_particle_mixing_boundaries(host, open, reason));
+        EXPECT_NE(reason.find("periodic and wall faces only, not the " +
+                              std::string(erf_sbm::face_kind_name(kind)) + " face xhi"),
+                  std::string::npos) << reason;
+    }
+}
+
 } // namespace
 
 TEST(AuxiliaryDiffusion, NGridTransmissibilityMatchesHostDiffusion) { run_ngrid_parity(); }
@@ -1442,3 +1570,6 @@ TEST(SBMParticleMixing, InvalidCoefficientsFailClosed) { run_invalid_coefficient
 TEST(SBMParticleMixing, TerrainAndPeriodicStretchedGeometryAreRejected) { run_geometry_rejections(); }
 TEST(SBMParticleMixing, NonePolicyHasNoTransmissibility) { run_none_policy(); }
 TEST(SBMParticleMixing, SharedCoefficientPreservesEveryBinGroup) { run_group_cone(); }
+TEST(SBMParticleMixing, ConfigurationParsingFailsClosed) { run_config_parsing(); }
+TEST(SBMParticleMixing, HostClosureAndMeshValidation) { run_host_validation(); }
+TEST(SBMParticleMixing, MixingAllowsOnlyPeriodicAndWallFaces) { run_boundary_validation(); }

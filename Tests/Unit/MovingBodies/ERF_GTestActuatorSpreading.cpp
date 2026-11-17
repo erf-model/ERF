@@ -661,7 +661,7 @@ TEST(ActuatorSpreading, AColumnSplitInZGivesTheFullColumnsAnswerBitForBit)
     run(column, &none, n_column);
     ASSERT_EQ(n_table.size(), n_column.size());
     for (std::size_t q = 0; q < n_table.size(); ++q) { EXPECT_EQ(n_table[q], n_column[q]) << "norm " << q; }
-    long nonzero = 0, faces = 0;
+    amrex::Long nonzero = 0, faces = 0;
     for (int dir = 0; dir < 3; ++dir) {
         const amrex::MultiFab& a = (dir == 0) ? table.sx : (dir == 1) ? table.sy : table.sz;
         const amrex::MultiFab& b = (dir == 0) ? column.sx : (dir == 1) ? column.sy : column.sz;
@@ -758,7 +758,7 @@ TEST(ActuatorSpreading, BatchedKernelsMatchThePointByPointReference)
         s.sy.setVal(0.0);
         s.sz.setVal(0.0);
         std::vector<Real> norm;
-        long before = buf.kernel_launches;
+        amrex::Long before = buf.kernel_launches;
         erf_actuator::spread_partial_norms(p_pos, p_eps, s.znd.get(), s.detj.get(), s.geom, s.sx, norm, nullptr, &buf);
         EXPECT_LE(buf.kernel_launches - before, 3 * nlocal);
         amrex::ParallelDescriptor::ReduceRealSum(norm.data(), static_cast<int>(norm.size()));
@@ -853,11 +853,11 @@ TEST(ActuatorSpreading, TheHostScatterIsTheFaceByFacePassBitForBit)
             buf.force_face_major = (s == &by_face);
             erf_actuator::add_scaled_kernels(pos, scale, epsv, s->znd.get(), s->detj.get(), s->geom, s->sx, s->sy, s->sz, nullptr, &buf);
             // the face-by-face pass launches a kernel per box and face grid it reaches; the host scatter none
-            long launches = buf.kernel_launches;
+            amrex::Long launches = buf.kernel_launches;
             amrex::ParallelDescriptor::ReduceLongSum(launches);
             if (s == &scatter) { EXPECT_EQ(launches, 0); } else { EXPECT_GT(launches, 0); }
         }
-        long changed = 0;
+        amrex::Long changed = 0;
         for (int dir = 0; dir < 3; ++dir) {
             const amrex::MultiFab& a = (dir == 0) ? scatter.sx : (dir == 1) ? scatter.sy : scatter.sz;
             const amrex::MultiFab& b = (dir == 0) ? by_face.sx : (dir == 1) ? by_face.sy : by_face.sz;

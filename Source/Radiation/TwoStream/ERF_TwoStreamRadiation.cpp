@@ -14,6 +14,7 @@
 #include <ERF_SimplifiedSEB.H>
 #include <ERF_SurfaceMoisture.H>
 #include <ERF_SEBTurbulentFlux.H>
+#include <ERF_SEBLandMask.H>
 #include <ERF_OrbCosZenith.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -267,8 +268,12 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_shaded_step.resize(nlevs_max, -1);
     m_has_cover.resize(nlevs_max, 0);
     m_seb_updated.resize(nlevs_max, 0);
+    m_water_message.resize(nlevs_max, -1);
     m_flux_diag.resize(nlevs_max);
     m_diag.resize(nlevs_max);
+    m_precip.resize(nlevs_max);
+    m_hydro.resize(nlevs_max);
+    m_snow.resize(nlevs_max);
 }
 
 void
@@ -346,6 +351,12 @@ TwoStreamRadiation::define_level (int lev,
         } else {
             m_moisture[lev].reset();
         }
+        // The precipitation rate of the step, and the hydrology's running totals (each a
+        // no-op when it is off).
+        m_precip.define_level(lev, rad_choice, ba2d, dm);
+        m_hydro.define_level(lev, rad_choice, ba2d, dm, ng_sfc);
+        // The snow water equivalent and its running totals (a no-op when it is off).
+        m_snow.define_level(lev, rad_choice, ba2d, dm, ng_sfc);
     }
 
     // The land-model forcing (see the members). It holds the lsm_undefined sentinel until a
@@ -389,6 +400,8 @@ TwoStreamRadiation::define_level (int lev,
     m_shaded_step[lev] = -1;
     m_has_cover[lev] = 0;
     m_seb_updated[lev] = 0;
+    // The level may have new grids: look at its land mask again.
+    m_water_message[lev] = -1;
     m_flux_diag[lev] = FluxDiag{};
 }
 
@@ -710,6 +723,15 @@ TwoStreamRadiation::write_checkpoint (int lev, const std::string& checkpointname
         VisMF::Write(*m_q_sfc[lev],
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QSfc"));
     }
+    // The deep state evolves only with erf.radiation.seb_deep_prognostic_enable.
+    if (m_rad->seb_deep_prognostic_enable && m_t_deep[lev] && m_q_deep[lev]) {
+        VisMF::Write(*m_t_deep[lev],
+                     MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_TDeep"));
+        VisMF::Write(*m_q_deep[lev],
+                     MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QDeep"));
+    }
+    m_hydro.write_checkpoint(lev, checkpointname);
+    m_snow.write_checkpoint(lev, checkpointname);
 }
 
 void
@@ -738,6 +760,83 @@ TwoStreamRadiation::read_checkpoint (int lev, const std::string& restart_chkfile
         erf_checkpoint::read_checkpoint_multifab(*m_q_sfc[lev], qsfc_name, 0, 0, 1,
                                                  m_q_sfc[lev]->nGrowVect(), true, period);
     }
+    // A checkpoint written without the deep reservoir has no deep state: the defaults stand.
+    if (m_rad->seb_deep_prognostic_enable) {
+        MultiFab* deep[] = {m_t_deep[lev].get(), m_q_deep[lev].get()};
+        const char* deep_names[] = {"TwoStream_TDeep", "TwoStream_QDeep"};
+        for (int n = 0; n < 2; ++n) {
+            const std::string name =
+                MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", deep_names[n]);
+            if (deep[n] && amrex::FileExists(name + "_H")) {
+                erf_checkpoint::read_checkpoint_multifab(*deep[n], name, 0, 0, 1,
+                                                         deep[n]->nGrowVect(), true, period);
+            } else if (deep[n] && lev == 0) {
+                amrex::Print() << "NOTE: the checkpoint has no " << deep_names[n]
+                               << "; erf.radiation.seb_t_deep_default and seb_q_deep_default "
+                                  "start the deep reservoir\n";
+            }
+        }
+    }
+    m_hydro.read_checkpoint(lev, restart_chkfile, period);
+    m_snow.read_checkpoint(lev, restart_chkfile, period);
+}
+
+Vector<MultiFab*>
+TwoStreamRadiation::seb_prognostic_fields (int lev)
+{
+    Vector<MultiFab*> out;
+    if (!seb_prognostic_active() || lev >= static_cast<int>(m_t_sfc.size())) { return out; }
+    out.push_back(m_t_sfc[lev].get());
+    out.push_back(m_q_sfc[lev].get());
+    if (m_rad->seb_deep_prognostic_enable) {
+        out.push_back(m_t_deep[lev].get());
+        out.push_back(m_q_deep[lev].get());
+    }
+    if (m_hydro.totals(lev)) { out.push_back(m_hydro.totals(lev)); }
+    if (m_snow.defined(lev)) {
+        out.push_back(m_snow.swe(lev));
+        out.push_back(m_snow.totals(lev));
+    }
+    return out;
+}
+
+void
+TwoStreamRadiation::hydrology_begin_step (int lev, const SurfacePrecipAccumulationSources& sources,
+                                          int klo)
+{
+    if (!active() || m_rad->seb_precipitation_source == SEBPrecipitationSource::None) { return; }
+    m_precip.begin_step(lev, sources, klo);
+}
+
+void
+TwoStreamRadiation::hydrology_end_step (int lev, const SurfacePrecipAccumulationSources& sources,
+                                        int klo, Real dt)
+{
+    if (!active() || m_rad->seb_precipitation_source == SEBPrecipitationSource::None) { return; }
+    m_precip.end_step(lev, sources, klo, dt);
+}
+
+ForceRestoreSoil
+TwoStreamRadiation::force_restore_soil (int lev) const
+{
+    ForceRestoreSoil v;
+    if (!seb_prognostic_active() || lev < 0 || lev >= static_cast<int>(m_t_sfc.size()) ||
+        !m_q_sfc[lev]) {
+        return v;
+    }
+    const RadChoice& rc = *m_rad;
+    v.q_sfc  = m_q_sfc[lev].get();
+    v.q_deep = m_q_deep[lev].get();
+    v.t_sfc  = m_t_sfc[lev].get();
+    v.rain_rate = m_precip.rate(lev);
+    v.d_s  = rc.seb_moisture_layer_depth_m;
+    v.deep = rc.seb_deep_prognostic_enable;
+    v.d_2  = v.deep ? rc.seb_deep_layer_depth_m : Real(0.0);
+    v.porosity = (rc.seb_soil_porosity > 0.0) ? rc.seb_soil_porosity
+               : (rc.seb_soil_type != 0 ? noahmp_soil_params(rc.seb_soil_type)->smc_max : Real(-1.0));
+    v.fc   = rc.seb_soil_moisture_fc;
+    v.wilt = rc.seb_soil_moisture_wilt;
+    return v;
 }
 
 void
@@ -760,7 +859,8 @@ TwoStreamRadiation::advance (int lev,
                              const MultiFab* lat_m,
                              const MultiFab* lon_m,
                              double epoch_time,
-                             bool have_datetime)
+                             bool have_datetime,
+                             const iMultiFab* land_mask)
 {
     BL_PROFILE("TwoStreamRadiation::advance()");
 
@@ -839,6 +939,29 @@ TwoStreamRadiation::advance (int lev,
     // into a no-op: the surface energy balance returns to level 0 only while the tests,
     // docs and PR all still claim otherwise. Keep this form.
     const bool seb_active = rad_choice.seb_enable;
+    // The land mask counts only for the balance: a water column (mask 0) is not soil.
+    // The mask is read by the local index of the state's boxes, as the 2D fields are.
+    // How the mask is read is in ERF_SEBLandMask.H; balance_mask is nullptr with no balance.
+    const iMultiFab* const balance_mask = seb_active ? land_mask : nullptr;
+    if (balance_mask != nullptr) {
+        AMREX_ALWAYS_ASSERT(m_alb_sw[lev]);
+        seb_assert_land_mask_layout(balance_mask, *m_alb_sw[lev], "TwoStreamRadiation::advance");
+        // A message only, once per set of grids (one reduction and one collective). The
+        // kernels below read the mask as it is at each sweep, and ERF reads it again for
+        // the average-down and the fill of a new level; none of them uses this flag.
+        if (m_water_message[lev] < 0) {
+            m_water_message[lev] = seb_land_mask_has_water(balance_mask) ? 1 : 0;
+            if (m_water_message[lev] == 1) {
+                // Say so once: the keys of the balance are read, but it does not run there.
+                amrex::Print() << "TwoStreamRadiation: level " << lev
+                               << " has water columns in its land mask. The force-restore "
+                               << "balance does not run on them; their longwave boundary is "
+                               << (t_surf != nullptr
+                                   ? "the surface layer's surface temperature.\n"
+                                   : "erf.rad_t_sfc (there is no surface layer at the lower boundary).\n");
+            }
+        }
+    }
     // The force-restore state is only the longwave boundary when no external
     // surface-temperature provider owns that boundary on this level. The
     // canonical radiation input covers SurfaceModel providers such as SLM;
@@ -987,6 +1110,22 @@ TwoStreamRadiation::advance (int lev,
 
         if (seb_active) {
             fill_or_copy_seb_field(m_alb_sw[lev].get(), lsm, lev, lsm_broadband_albedo_name, rad_choice.surface_albedo_sw);
+            // With the snow layer, the albedo of each column is the blend of the snow-free
+            // value just written and the snow albedo (Douville et al. 1995, Eq. 8).
+            if (rad_choice.seb_snow_enable && m_snow.defined(lev)) {
+                // The sweep below takes a land-surface model's albedo before this field;
+                // the snow would then melt under an albedo that does not see it.
+                if ((noahmp_active && lsm_has_field(lsm, lev, lsm_broadband_albedo_name)) ||
+                    (radiation_inputs.size() > 2 && radiation_inputs[2] != nullptr)) {
+                    amrex::Abort("erf.radiation.seb_snow_enable acts on the two-stream surface "
+                                 "albedo, but a land-surface model supplies the albedo here; turn "
+                                 "it off with a land-surface model");
+                }
+                // No snow lies on a building footprint, or on water.
+                m_snow.apply_albedo(lev, *m_alb_sw[lev], ForceRestoreSnow::params(rad_choice),
+                                    has_building_cover(lev) ? m_footprint[lev].get() : nullptr,
+                                    balance_mask);
+            }
             fill_or_copy_seb_field(m_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
 
             // In prognostic mode, do not seed this state from an LSM field.
@@ -1037,9 +1176,12 @@ TwoStreamRadiation::advance (int lev,
             // No LSM exposes a deep-soil temperature or moisture in kg/kg by
             // name (Noah-MP's smstav / smstot are soil-moisture availability
             // and total column water), so the reservoir values are the
-            // scalar defaults.
-            m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
-            m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
+            // scalar defaults. With erf.radiation.seb_deep_prognostic_enable they evolve
+            // (ERF_ForceRestoreHydrology.H) and are left alone here.
+            if (!rad_choice.seb_deep_prognostic_enable) {
+                m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
+                m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
+            }
         }
 
         // The column sweep integrates the whole atmospheric column in one
@@ -1173,6 +1315,10 @@ TwoStreamRadiation::advance (int lev,
                     has_surface_layer = true;
                 }
             }
+            // The balance's skin is a soil temperature. Over water (land mask 0) it is
+            // not offered, so the column falls through to the surface layer's sea surface
+            // temperature, then to the scalar fallback.
+            const SEBLandMaskView skin_mask = seb_land_mask_view(has_seb_t_sfc ? balance_mask : nullptr, mfi);
 
             // Per-column latitude and longitude for the calendar sun (only
             // the WRF and metgrid initialisations fill them; otherwise the
@@ -1364,7 +1510,7 @@ TwoStreamRadiation::advance (int lev,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
                         has_hetero_emiss_lw, &hetero_emiss_lw_arr,
                         has_lsm_t_sfc, &lsm_t_sfc_arr,
-                        has_seb_t_sfc, &seb_t_sfc_arr,
+                        has_seb_t_sfc && !skin_mask.water(i, j), &seb_t_sfc_arr,
                         has_surface_layer, &surface_layer_theta_arr,
                         has_latlon, &lat_arr, &lon_arr,
                         write_fluxes ? &rad_flux_clear_arr : nullptr,
@@ -1404,7 +1550,7 @@ TwoStreamRadiation::advance (int lev,
                             has_hetero_alb_sw, &hetero_alb_sw_arr,
                             has_hetero_emiss_lw, &hetero_emiss_lw_arr,
                             has_lsm_t_sfc, &lsm_t_sfc_arr,
-                            has_seb_t_sfc, &seb_t_sfc_arr,
+                            has_seb_t_sfc && !skin_mask.water(i, j), &seb_t_sfc_arr,
                             has_surface_layer, &surface_layer_theta_arr,
                             has_latlon, &lat_arr, &lon_arr,
                             write_fluxes ? &rad_flux_cloudy_arr : nullptr,
@@ -1666,6 +1812,8 @@ TwoStreamRadiation::advance (int lev,
                 const bool skip_footprints = cover_seb;
                 Array4<const amrex::Real> foot_arr;
                 if (skip_footprints) { foot_arr = m_footprint[lev]->const_array(mfi); }
+                // Nor is a water column (land mask 0).
+                const SEBLandMaskView lmask = seb_land_mask_view(balance_mask, mfi);
 
                 // Count columns and compute residuals
                 amrex::Long n_cols_box = 0;
@@ -1680,7 +1828,8 @@ TwoStreamRadiation::advance (int lev,
 
                 seb_reduce_ops.eval(xy_box, seb_reduce_data,
                     [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> SEBReduceTuple {
-                        if (skip_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) {
+                        if ((skip_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) ||
+                            lmask.water(i, j)) {
                             return {amrex::Real(0.0), amrex::Real(0.0), amrex::Long(0)};
                         }
                         amrex::Real sw_net = sw_flux_arr(i, j, 0);
@@ -1764,6 +1913,13 @@ TwoStreamRadiation::advance (int lev,
                     const bool hold_footprints = cover_seb;
                     Array4<const amrex::Real> foot_arr;
                     if (hold_footprints) { foot_arr = m_footprint[lev]->const_array(mfi); }
+                    // Under snow the upper bound of T_s waits for the snow step below: the
+                    // heat above it melts snow first (ERF_ForceRestoreSnow.H).
+                    const bool melt_first = rad_choice.seb_snow_enable && m_snow.defined(lev);
+                    Array4<const amrex::Real> swe_arr;
+                    if (melt_first) { swe_arr = m_snow.swe(lev)->const_array(mfi); }
+                    // So does a water column (land mask 0): the update is a soil's.
+                    const SEBLandMaskView lmask = seb_land_mask_view(balance_mask, mfi);
                     // Count columns and prepare for reductions
                     amrex::Long n_cols_box = 0;
                     amrex::Real t_s_sum_box = 0.0;
@@ -1787,7 +1943,8 @@ TwoStreamRadiation::advance (int lev,
                             q_min=rad_choice.seb_prognostic_q_min,
                             q_max=rad_choice.seb_prognostic_q_max]
                             AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
-                            if (hold_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) {
+                            if ((hold_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) ||
+                                lmask.water(i, j)) {
                                 constexpr amrex::Real lowest = std::numeric_limits<amrex::Real>::lowest();
                                 return {amrex::Real(0.0), lowest, amrex::Real(0.0), lowest, amrex::Long(0)};
                             }
@@ -1817,7 +1974,8 @@ TwoStreamRadiation::advance (int lev,
                             amrex::Real q_s_new = q_s_old + dt_step * dq_s_dt;
 
                             // Clamp to valid ranges
-                            t_s_new = amrex::max(t_min, amrex::min(t_max, t_s_new));
+                            const bool under_snow = melt_first && swe_arr(i, j, 0) > amrex::Real(0.0);
+                            t_s_new = amrex::max(t_min, under_snow ? t_s_new : amrex::min(t_max, t_s_new));
                             q_s_new = amrex::max(q_min, amrex::min(q_max, q_s_new));
 
                             // Write back updated values (this modifies the device array)
@@ -1854,6 +2012,73 @@ TwoStreamRadiation::advance (int lev,
                                  ", step " + std::to_string(nstep));
                 }
 
+                // The force-restore hydrology (ERF_ForceRestoreHydrology.H): rain, runoff,
+                // the deep reservoir, drainage and the deep temperature, after the balance
+                // and on the same columns. A second pass so that with it off the balance's
+                // kernel and its answers are unchanged.
+                // The snow layer (ERF_ForceRestoreSnow.H), between the balance and the
+                // hydrology: it takes the frozen precipitation, lowers T_s where snow melts
+                // and leaves the melt water for the hydrology step below.
+                const bool snow_on = rad_choice.seb_snow_enable && m_snow.defined(lev);
+                if (snow_on) {
+                    amrex::Real t_s_sum_snow = 0.0;
+                    amrex::Real t_s_max_snow = -std::numeric_limits<amrex::Real>::max();
+                    const ForceRestoreSnow::StepSums ss = m_snow.step(
+                        lev, *m_t_sfc[lev], *m_lh_sfc[lev],
+                        cover_seb ? m_footprint[lev].get() : nullptr, dt_step,
+                        ForceRestoreSnow::params(rad_choice), m_precip.frozen(lev, dt_step),
+                        t_s_sum_snow, t_s_max_snow, balance_mask);
+                    // The melt changed T_s: the step's T_s statistics are those after it.
+                    t_s_sum = t_s_sum_snow;
+                    t_s_max_val = t_s_max_snow;
+                    // Counted in the step's own reduction.
+                    if (ss.bad_columns > 0) {
+                        amrex::Abort("TwoStreamRadiation: non-finite surface temperature, or "
+                                     "non-finite or negative snow water equivalent, after the force-restore snow step at level " +
+                                     std::to_string(lev) + ", step " + std::to_string(nstep));
+                    }
+                    if (rad_choice.verbosity >= 2 && ss.columns > 0) {
+                        const amrex::Real inv_n = amrex::Real(1.0) / static_cast<amrex::Real>(ss.columns);
+                        amrex::Print() << "Force-restore snow at level " << lev << ", step " << nstep
+                                       << " (column means, kg/m^2): snowfall = " << ss.snowfall * inv_n
+                                       << ", sublimation = " << ss.sublimation * inv_n
+                                       << ", melt = " << ss.melt * inv_n
+                                       << ", snow water equivalent = " << ss.swe * inv_n
+                                       << "; max column budget residual = " << ss.max_residual
+                                       << " kg/m^2\n";
+                    }
+                }
+
+                if (rad_choice.seb_hydrology_enabled()) {
+                    const ForceRestoreHydrology::StepSums hs = m_hydro.step(
+                        lev, *m_t_sfc[lev], *m_q_sfc[lev], *m_q_deep[lev], *m_t_deep[lev],
+                        *m_lh_sfc[lev], cover_seb ? m_footprint[lev].get() : nullptr,
+                        dt_step, ForceRestoreHydrology::params(rad_choice),
+                        m_precip.rain(lev, dt_step),
+                        snow_on ? m_snow.soil_water(lev) : nullptr,
+                        balance_mask);
+                    if (m_q_sfc[lev]->contains_nan(0, 1, 0) || m_q_deep[lev]->contains_nan(0, 1, 0) ||
+                        m_t_deep[lev]->contains_nan(0, 1, 0)) {
+                        amrex::Abort("TwoStreamRadiation: non-finite soil water or deep temperature "
+                                     "after the force-restore hydrology at level " + std::to_string(lev) +
+                                     ", step " + std::to_string(nstep));
+                    }
+                    if (rad_choice.verbosity >= 2 && hs.columns > 0) {
+                        const amrex::Real inv_n = amrex::Real(1.0) / static_cast<amrex::Real>(hs.columns);
+                        amrex::Print() << "Force-restore hydrology at level " << lev << ", step " << nstep
+                                       << " (column means, kg/m^2 this step): rain = " << hs.rain * inv_n
+                                       << ", evaporation = " << hs.evaporation * inv_n
+                                       << ", runoff = " << hs.runoff * inv_n
+                                       << ", drainage = " << hs.drainage * inv_n
+                                       << ", deficit = " << hs.deficit * inv_n
+                                       << "; max column budget residual = " << hs.max_residual
+                                       << " kg/m^2\n";
+                    }
+                }
+                // The steps above took the precipitation rate of this step: a step that
+                // follows without a new rate takes none.
+                m_precip.mark_used(lev);
+
                 {
                     amrex::Real sums[2] = {t_s_sum, q_s_sum};
                     ParallelDescriptor::ReduceRealSum(sums, 2);
@@ -1876,6 +2101,14 @@ TwoStreamRadiation::advance (int lev,
                     q_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
                 }
             } else {
+                // The hydrology acts on TwoStream's own state, which an external provider
+                // leaves unused: stop rather than silently drop the rain.
+                if (rad_choice.seb_hydrology_enabled()) {
+                    amrex::Abort("erf.radiation.seb_precipitation_source and "
+                                 "seb_deep_prognostic_enable act on the two-stream force-restore "
+                                 "state, but a land-surface model supplies the surface temperature "
+                                 "here; turn them off with a land-surface model");
+                }
                 // An external provider owns the boundary; leave the unused
                 // TwoStream state untouched and do not report it as active.
                 t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();

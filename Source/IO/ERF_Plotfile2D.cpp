@@ -490,6 +490,8 @@ ERF::FillPlot2DVars (int lev,
             wind10.sfuns            = surf_layer ? surf_layer->similarity_functions() : similarity_funs{};
             wind10.xvel = at_ground(&vars_new[lev][Vars::xvel]);
             wind10.yvel = at_ground(&vars_new[lev][Vars::yvel]);
+            wind10.current_x = surf_layer ? surf_layer->get_surface_current(lev, 0) : nullptr;
+            wind10.current_y = surf_layer ? surf_layer->get_surface_current(lev, 1) : nullptr;
             wind10.klo  = klo;
             // The grid orientation for the earth-relative components, as for the
             //    sampled u_east and v_north; without lat/lon the grid is aligned with east
@@ -615,6 +617,36 @@ ERF::FillPlot2DVars (int lev,
             0, -999);
         mf_comp++;
     } // ibseb_ground_wall_view
+
+    // The force-restore deep state and hydrology (ERF_ForceRestoreHydrology.H); -999 where
+    // the state does not exist (the deep state is the constant default unless
+    // erf.radiation.seb_deep_prognostic_enable; the hydrology fields need it on).
+    {
+        const bool ts = solverChoice.rad_type == RadiationType::TwoStream;
+        const MultiFab* totals = ts ? two_stream_rad.hydrology_totals(lev) : nullptr;
+        // The snow layer (ERF_ForceRestoreSnow.H): -999 without erf.radiation.seb_snow_enable.
+        const MultiFab* snow_swe = ts ? two_stream_rad.snow_swe(lev) : nullptr;
+        const MultiFab* snow_totals = ts ? two_stream_rad.snow_totals(lev) : nullptr;
+        const struct { const char* name; const MultiFab* src; int comp; } hydro_vars[] = {
+            {"seb_t_deep",         ts ? two_stream_rad.seb_t_deep(lev) : nullptr, 0},
+            {"seb_q_deep",         ts ? two_stream_rad.seb_q_deep(lev) : nullptr, 0},
+            {"seb_rain_rate",      ts ? two_stream_rad.hydrology_rain_rate(lev) : nullptr, 0},
+            {"seb_rain_total",     totals, ForceRestoreHydrology::Rain},
+            {"seb_runoff_total",   totals, ForceRestoreHydrology::Runoff},
+            {"seb_drainage_total", totals, ForceRestoreHydrology::Drainage},
+            {"seb_deficit_total",  totals, ForceRestoreHydrology::Deficit},
+            {"seb_snow_swe",       snow_swe, 0},
+            {"seb_snowfall_total", snow_totals, ForceRestoreSnow::Snowfall},
+            {"seb_snow_sublimation_total", snow_totals, ForceRestoreSnow::Sublimation},
+            {"seb_snow_melt_total", snow_totals, ForceRestoreSnow::Melt},
+        };
+        for (const auto& v : hydro_vars) {
+            if (containerHasElement(plot_var_names, v.name)) {
+                plotfile2d::fill_component_from_klevel_or_value(mf_dst, mf_comp, v.src, 0, -999, v.comp);
+                mf_comp++;
+            }
+        }
+    }
 
     if (containerHasElement(plot_var_names, "sens_flux")) {
         plotfile2d::fill_component_from_klevel_or_value(

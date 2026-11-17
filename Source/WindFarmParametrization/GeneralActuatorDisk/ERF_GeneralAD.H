@@ -22,6 +22,8 @@ public:
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
                   const amrex::MultiFab& mf_SMark,
+                  const amrex::MultiFab* z_phys_nd,
+                  const amrex::MultiFab* z_phys_cc,
                   const double& time) override;
 
     void compute_freestream_velocity (const amrex::MultiFab& cons_in,
@@ -32,7 +34,8 @@ public:
     void source_terms_cellcentered (const amrex::Geometry& geom,
                                     const amrex::MultiFab& cons_in,
                                     const amrex::MultiFab& mf_Smark,
-                                    amrex::MultiFab& mf_vars_generalAD);
+                                    amrex::MultiFab& mf_vars_generalAD,
+                                    const amrex::MultiFab* z_phys_cc);
 
     void update (const double& dt_advance,
                  amrex::MultiFab& cons_in,

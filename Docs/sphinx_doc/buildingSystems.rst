@@ -192,7 +192,7 @@ Set build variables in the ``GNUmakefile``:
         - FALSE
         - TRUE/FALSE
       * - ``FIRE_HOME``
-        - Fire engine directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_FIRE=TRUE``; see :ref:`sec:FireCoupling`)
+        - Fire engine directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_FIRE=TRUE``; for an engine repository that holds ERF as a submodule, see :ref:`sec:FireCoupling`)
         - (none)
         - paths
       * - ``USE_MOVING_BODIES``
@@ -593,7 +593,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - OFF
      - ON/OFF
    * - ``ERF_FIRE_ENGINE_DIRS``
-     - Fire engine directories to compile in, a CMake list, each with an ``ERFFireEngine.cmake`` (needs ``ERF_ENABLE_FIRE=ON``; see :ref:`sec:FireCoupling`)
+     - Fire engine directories to compile in, a CMake list, each with an ``ERFFireEngine.cmake`` (needs ``ERF_ENABLE_FIRE=ON``; set by an engine repository that holds ERF as a submodule, and left unset when that repository uses ERF as a library; see :ref:`sec:FireCoupling`)
      - (none)
      - paths
    * - ``ERF_ENABLE_MOVING_BODIES``
@@ -829,8 +829,11 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
 Building ERF from a Parent CMake Project
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A repository that keeps ERF as a git submodule, together with its own fire engine or
-structure model folders, can build ERF in two ways.
+A repository that holds a fire engine, dust model or structure model keeps ERF as a git
+submodule together with the model's folders. Such a repository can build ERF in three
+ways. The third, :ref:`sec:ERFAsLibrary`, is the recommended one: the
+repository builds its own executable and hands ERF no model directories.
+`FLARE <https://github.com/erf-model/FLARE>`_ builds this way.
 
 The first configures ERF itself and points the hook variables at the outer folders.
 `LSFIRE <https://github.com/erf-model/LSFIRE>`_ does this from its root, with ERF in
@@ -914,6 +917,8 @@ fail, to show that ``fcompare`` compares; and, with ``ERF_ENABLE_UNIT_TESTS=ON``
 the model's GoogleTest added through ``erf_structure_model_add_unit_tests``.
 The ``parent-project`` CI workflow builds it and runs the tests; its ``README.md`` gives
 the commands.
+
+.. _sec:ERFAsLibrary:
 
 ERF as a library
 ^^^^^^^^^^^^^^^^

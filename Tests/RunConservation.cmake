@@ -1,13 +1,14 @@
-# Run a multilevel deck and check that a conserved quantity has the same composite integral at
-# the start and the end of the run.  The integral is the one ERF prints every erf.sum_interval
-# steps (with erf.v >= 1) as "<QUANTITY> SL/ML = <single level> <multilevel>", for instance
-# QUANTITY = "MASS", "RHO SCALAR" or "RHO QTOTAL".  ERF pads the shorter names ("MASS       SL/ML"),
-# and the line must start with QUANTITY, so that "MASS" does not also match "PERT MASS".  The
-# multilevel value takes the fine data where it
-# exists and weights each cell by its volume, detJ / (m_x m_y), so it is the quantity the
-# discretization conserves on any mesh and with any refinement ratio.  The first and the last
-# value printed must agree to within DIGITS significant digits, give or take UNITS units of the
-# last of them; the deck must print the integral at the start of the run.
+# Run a deck and check that a conserved quantity has the same integral at the start and the
+# end of the run.  The integral is the one ERF prints every erf.sum_interval steps (with
+# erf.v >= 1): "<QUANTITY> SL/ML = <single level> <multilevel>" on several levels and
+# "<QUANTITY> = <value>" on one, for instance QUANTITY = "MASS", "RHO SCALAR" or "RHO QTOTAL".
+# ERF pads the shorter names ("MASS       SL/ML"), and the line must start with QUANTITY, so
+# that "MASS" does not also match "PERT MASS".  The multilevel value takes the fine data where
+# it exists and weights each cell by its volume, detJ / (m_x m_y), so it is the quantity the
+# discretization conserves on any mesh and with any refinement ratio; on one level the single
+# value is that same integral.  The first and the last value printed must agree to within
+# DIGITS significant digits, give or take UNITS units of the last of them; the deck must print
+# the integral at the start of the run.
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/CompareDataLogs.cmake")
@@ -47,19 +48,20 @@ if(NOT run_result EQUAL 0)
     message(FATAL_ERROR "RunConservation.cmake: simulation failed: ${run_result}")
 endif()
 
-file(STRINGS "${log}" lines REGEX "^ *${QUANTITY} +SL/ML = ")
+file(STRINGS "${log}" lines REGEX "^ *${QUANTITY} +(SL/ML +)?= ")
 list(LENGTH lines nlines)
 if(nlines LESS 2)
-    message(FATAL_ERROR "RunConservation.cmake: found ${nlines} lines \"${QUANTITY} SL/ML = ...\" "
-                        "in ${log}, need at least two (is the deck multilevel, with erf.v >= 1 "
+    message(FATAL_ERROR "RunConservation.cmake: found ${nlines} lines \"${QUANTITY} [SL/ML] = ...\" "
+                        "in ${log}, need at least two (does the deck have erf.v >= 1 "
                         "and erf.sum_interval > 0?)")
 endif()
 
 function(multilevel_integral line out_var)
-    if(NOT line MATCHES "^ *${QUANTITY} +SL/ML = +[^ ]+ +([-+0-9.eE]+)")
+    # The last value on the line: the multilevel one, or the only one on a single level
+    if(NOT line MATCHES "^ *${QUANTITY} +(SL/ML +)?= +([^ ]+ +)?([-+0-9.eE]+) *$")
         message(FATAL_ERROR "RunConservation.cmake: cannot read the integral from: ${line}")
     endif()
-    set(${out_var} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+    set(${out_var} "${CMAKE_MATCH_3}" PARENT_SCOPE)
 endfunction()
 
 list(GET lines 0 first_line)

@@ -244,7 +244,8 @@ SBMStateAdmission::Counters SBMStateAdmission::counters () const noexcept
 }
 
 std::string restart_schema (const SBMLayout& layout,
-                            const std::string& boundary_identity)
+                            const std::string& boundary_identity,
+                            const std::string& mixing_identity)
 {
     std::ostringstream schema;
     schema << "ERF-SBM-RESTART-v2\n"
@@ -260,13 +261,17 @@ std::string restart_schema (const SBMLayout& layout,
            << "synchronization=private-candidate-canonical-admission-v1\n"
            << "regrid=retained-copy-plus-carrier-relative-prolongation-v1\n"
            << boundary_identity << '\n';
+    if (!mixing_identity.empty()) {
+        schema << mixing_identity << '\n';
+    }
     return schema.str();
 }
 
 bool restart_schema_matches (const SBMLayout& layout, const std::string& persisted,
-                             const std::string& boundary_identity)
+                             const std::string& boundary_identity,
+                             const std::string& mixing_identity)
 {
-    return restart_schema(layout, boundary_identity) == persisted;
+    return restart_schema(layout, boundary_identity, mixing_identity) == persisted;
 }
 
 bool authoritative_state_admissible (const amrex::MultiFab& spectrum,

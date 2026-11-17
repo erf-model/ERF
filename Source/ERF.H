@@ -65,6 +65,7 @@
 #include <ERF_StationSampler.H>
 #include <ERF_ObsNudging.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_MassSource.H>
 #include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
 
@@ -83,6 +84,7 @@
 #endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
+#include "ERF_WRFSurfaceFields.H"
 #include "ERF_Plotfile2DCloudOptics.H"
 
 #ifdef ERF_USE_WINDFARM
@@ -121,6 +123,8 @@ class MultiBlockContainer;
 // Describes one component of a 2D plotfile; defined in
 // IO/ERF_Plotfile2DSampledLevel.H, which ERF.H does not need to include.
 namespace plotfile2d { struct Plotfile2DOutputDescriptor; }
+// Defined in IO/ERF_CheckpointSurfaceTemperature.H
+namespace erf_checkpoint_surface_temperature { struct SurfaceTemperatureMigrationPlan; }
 namespace erf_sbm {
 class SBMAMRFluxRegister;
 class SBMStateManager;
@@ -240,31 +244,31 @@ public:
     void GetFillableAtmosToOceanLanes (bool state_contract,
                                        amrex::Vector<int>& can_fill) const;
 
-    // weight_mf/index_mf are keyed by WeightFamily slot order
-    // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
-    // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
-    // lane below picks the pair matching its own destination stagger.
-    // dst_mskr/dst_msku/dst_mskv are REMORA wet/dry masks (1 = wet, 0 = land)
-    // on the rho/u-face/v-face destination layouts. dst_msku/dst_mskv are applied
-    // to the TauX/TauY lanes; dst_mskr is applied to the rho-centred *scalar* lanes
-    // (Patm, Tair, cloud, and the scalar flux lanes) but deliberately NOT to
-    // Uwind/Vwind, which are also rho-centred - so the wind lanes carry live
-    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there.
-    // REMORA re-masks on its own side, so this asymmetry is currently harmless.
-    // Pass nullptr to skip masking.
+    // Every lane is remapped from ERF's level-0 cell centres to REMORA's rho points with
+    // the one set of weights weight_mf/index_mf the driver builds for that pair of grids.
+    // The vectors (Uwind/Vwind and tau_x/tau_y) are sent as their eastward and northward
+    // components, turned from the grid axes with the grid orientation from lat_m/lon_m,
+    // so that the ocean can turn them to its own axes; the stress is averaged from the
+    // faces to the cell centres first.
+    // dst_mskr is REMORA's wet/dry mask (1 = wet, 0 = land) on the rho layout, applied
+    // to the scalar lanes (Patm, Tair, cloud) and to the flux lanes, tau_x/tau_y
+    // included, but deliberately NOT to Uwind/Vwind, so the wind lanes carry live
+    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there. REMORA
+    // re-masks on its own side, so this asymmetry is currently harmless. Pass nullptr to
+    // skip masking.
     void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
-                                const amrex::Vector<const amrex::MultiFab*>& weight_mf,
-                                const amrex::Vector<const amrex::iMultiFab*>& index_mf,
+                                const amrex::MultiFab& weight_mf,
+                                const amrex::iMultiFab& index_mf,
                                 int max_stencil_size,
-                                const amrex::MultiFab* dst_mskr = nullptr,
-                                const amrex::MultiFab* dst_msku = nullptr,
-                                const amrex::MultiFab* dst_mskv = nullptr);
-    // Apply ocean-model sea-surface temperature to the ERF lower boundary.
+                                const amrex::MultiFab* dst_mskr = nullptr);
+    // Apply ocean-model sea-surface temperature, and with erf.use_coupled_currents the
+    // surface current, to the ERF lower boundary.
     //
-    // state[0] carries SST in Kelvin on the layout reported by
+    // state[0] carries SST in Kelvin, and state[1] and state[2] the eastward and
+    // northward surface current in m/s, on the layout reported by
     // GetOceanToAtmosSurfaceLayout. erf_coverage is the per-cell coverage flag on
     // that same layout: nonzero where the driver's remap found at least one
-    // ocean donor for that ERF cell.
+    // ocean donor for that ERF cell. A cell without one is at rest.
     //
     // Coverage is a contract, not a hint. Where erf_coverage is zero the ocean
     // supplied nothing and state[0] holds the remap's zero fill, which is
@@ -1175,6 +1179,7 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm (int lev);
+    void fill_windfarm_markers (int lev);
     void advance_windfarm (const amrex::Geometry& a_geom,
                            const double& dt_advance,
                            amrex::MultiFab& cons_in,
@@ -1184,6 +1189,8 @@ public:
                            amrex::MultiFab& mf_vars_windfarm,
                            const amrex::MultiFab& mf_Nturb,
                            const amrex::MultiFab& mf_SMark,
+                           const amrex::MultiFab* z_phys_nd,
+                           const amrex::MultiFab* z_phys_cc,
                            const double& time);
 #endif
 
@@ -1218,6 +1225,15 @@ public:
     // checkpoint that predates precip_accum. Public because it launches a GPU lambda.
     void convert_legacy_precip_accumulations (int lev);
 
+    // Convert the SST and TSK of a level read from a checkpoint that holds them as
+    // potential temperature to absolute temperature, as planned from the provenance of the
+    // checkpoint; psfc_recovered flags, per level, a recovered wrfinput surface pressure.
+    // Public because it launches a GPU lambda.
+    void convert_legacy_surface_temperature (
+        int lev,
+        const erf_checkpoint_surface_temperature::SurfaceTemperatureMigrationPlan& plan,
+        amrex::Vector<int>& psfc_recovered);
+
     // Automatic inflow perturbation update on a nested level.
     // Public because it launches a GPU lambda.
     void turbPert_update_automatic (int lev, double time);
@@ -1247,8 +1263,26 @@ public:
     std::unique_ptr<amrex::MultiFab>  m_coupled_sst;
     std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
 
+    // The orientation of the level-0 grid (cosine and sine of the angle of its x axis
+    // from east) on ba2d[0], from lat_m and lon_m, for turning the vectors the coupler
+    // exchanges between the grid axes and east/north. Made by SetCouplerGridRotation, and
+    // made again when level 0's layout changes; null without lat/lon, where the grid is
+    // taken to be aligned with east.
+    std::unique_ptr<amrex::MultiFab> m_coupler_cos_alpha;
+    std::unique_ptr<amrex::MultiFab> m_coupler_sin_alpha;
+    bool m_warned_coupler_no_latlon = false;
+    void SetCouplerGridRotation ();
+    // The coupler's last eastward and northward surface current and its coverage, on the
+    // layout of GetOceanToAtmosSurfaceLayout, made again when that changes. The
+    // SurfaceLayer borrows them, and sets the current from them again when level 0 is
+    // remade.
+    std::unique_ptr<amrex::MultiFab>  m_coupled_current_east;
+    std::unique_ptr<amrex::MultiFab>  m_coupled_current_north;
+    std::unique_ptr<amrex::iMultiFab> m_coupled_current_valid;
+
     // One-shot latch so a misconfigured deck says so once rather than every step.
     bool m_warned_coupled_sst_declined = false;
+    bool m_warned_coupled_current_declined = false;
     // The coupled-SST diagnostics run on the first ApplyOceanSurfaceState call,
     // then only at erf.v >= 2.
     bool m_checked_coupled_sst = false;
@@ -1257,6 +1291,23 @@ public:
     amrex::Real m_warned_coupled_sst_min = amrex::Real(260.0);
     amrex::Real m_warned_coupled_sst_max = amrex::Real(320.0);
     amrex::Long m_warned_coupled_sst_nan = 0;
+
+    // The atmos->ocean rain lane is a rate, but the microphysics keeps only a
+    // cumulative surface accumulation, so PackAtmosphericStates differences it
+    // against the snapshot below. Level 0 only, on ba2d[0]:
+    //   m_a2o_precip_accum  total liquid-equivalent accumulation [kg m^-2] at
+    //                       m_a2o_precip_time (ERF's t_new[0], not the driver's clock)
+    //   m_a2o_precip_rate   mean rate between the last two snapshots [kg m^-2 s^-1]
+    // EvolveOneStep allocates them before its first step, so the first rate
+    // covers this run's first step, on a cold start and on a restart alike.
+    std::unique_ptr<amrex::MultiFab> m_a2o_precip_accum;
+    std::unique_ptr<amrex::MultiFab> m_a2o_precip_rate;
+    amrex::Real m_a2o_precip_time = amrex::Real(0.0);
+    // Whether the level-0 microphysics keeps any surface precipitation accumulator
+    [[nodiscard]] bool HasA2OPrecipSource () const;
+    // The total liquid-equivalent surface accumulation [kg m^-2] per column, on ba2d[0].
+    // Public because nvcc rejects extended __device__ lambdas in private members.
+    void SampleA2OPrecipAccumulation (amrex::MultiFab& accum_2d) const;
 
 private:
 
@@ -1461,8 +1512,9 @@ private:
     // Check that this level's wrflowinp file has the same times as level 0's
     void check_own_low_file_times (int lev);
 
-    // Re-read the surface pressure of a level > 0 from its own init file (it is not checkpointed)
-    void read_psfc_from_own_init_file (int lev);
+    // Read local PSFC regions from a level's first WRFInput file for legacy checkpoint
+    // temperature migration; this is not an input to ongoing SST/TSK updates.
+    bool read_psfc_from_own_init_file (int lev, bool allow_uncovered);
 
     // The full WRF file box in ERF's global index space, including all ancestor nest offsets;
     // optionally return the requested refined file's parent-grid ratio
@@ -1482,6 +1534,13 @@ private:
     // of which are mass-point values, so a consumer that wants the mass point
     // can use these directly.
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
+
+    // The land and soil fields of the wrfinput file that no land model takes (LAI, VEGFRA,
+    // TMN, ZNT, ALBEDO, ALBBCK, SEAICE, SNOW, SNOWH, TSLB, SMOIS, ZS, DZS), as read at the initial
+    // time. Filled by init_from_wrfinput when the two-stream force-restore balance runs
+    // without a land model; empty otherwise. Written to the checkpoint and read back on a
+    // restart; carried onto the new grids by RemakeLevel.
+    WRFSurfaceFields wrf_surface_fields;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
@@ -1541,6 +1600,7 @@ private:
     amrex::Vector<amrex::Vector<amrex::Box>> boxes_at_level; //      the boxes specified at each level by tagging criteria
 
     amrex::Vector<int> istep;      // which step?
+    int m_restart_step = -1;       // level-0 step of the checkpoint we restarted from (-1: none)
     amrex::Vector<int> nsubsteps;  // how many substeps on each level?
 
     // One entry per level: set when that level has just been built by the
@@ -1948,6 +2008,9 @@ private:
     static int last_plot2d_file_step_2;
     static int last_check_file_step;
 
+    // Despite the names, the *_time trackers (and last_subvol_time, last_fire_plot_time)
+    // hold the time the NEXT output with a period is due: writeNow() fires once the time
+    // reaches it (less 0.1*dt), and each write then adds one period
     static double last_plot3d_file_time_1;
     static double last_plot3d_file_time_2;
     static double last_plot2d_file_time_1;
@@ -2392,6 +2455,9 @@ private:
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
+
+    /// A localized source of gas (erf.mass_source.*); nullptr unless one is given
+    std::unique_ptr<MassSource> m_mass_source = nullptr;
 
 #ifdef ERF_USE_FIRE
     /// The fire coupling (atmosphere side) and the engine it owns (erf.fire.engine)

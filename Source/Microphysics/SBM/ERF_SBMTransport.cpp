@@ -233,6 +233,143 @@ physical_face_slab (const amrex::Box& face_valid, const amrex::Box& domain,
     return slab;
 }
 
+// Low-order particle mixing of one chunk from the limiter-trial base:
+// low += -T_f (z_R - z_L).
+void
+add_low_order_mixing (erf_auxiliary::MappedFaceFluxRate& low,
+                      erf_auxiliary::MappedFaceFluxRate& scratch,
+                      const erf_auxiliary::MappedFaceTransmissibility& transmissibility,
+                      const amrex::Geometry& geometry,
+                      const MultiFab& base_intensive,
+                      const std::vector<int>& components)
+{
+    std::string diagnostic;
+    if (!erf_auxiliary::BuildLowOrderDiffusionRate(scratch, transmissibility, geometry,
+                                                   base_intensive, components, diagnostic)) {
+        amrex::Abort("SBM low-order particle mixing: " + diagnostic);
+    }
+    const int ncomp = static_cast<int>(components.size());
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        MultiFab::Add(low.dir(dir), scratch.dir(dir), 0, 0, ncomp, 0);
+    }
+}
+
+// ERF's own N/S scalar diffusion of one chunk's stage-input intensive state,
+// added to the high-order rates; physical faces stay without transfer.
+void
+add_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& high,
+                       erf_auxiliary::MappedFaceFluxRate& scratch,
+                       const ParticleMixingConfig& config,
+                       const SBMStageMixingInputs& inputs,
+                       const amrex::BCRec* bc,
+                       const amrex::Geometry& geometry,
+                       const MultiFab& input_intensive,
+                       const MultiFab& input_conserved,
+                       const std::vector<int>& components)
+{
+    erf_auxiliary::MappedDiffusionCoefficients coefficients;
+    std::string diagnostic;
+    if (!particle_mixing_coefficients(config, coefficients, diagnostic)) {
+        amrex::Abort("SBM high-order particle mixing: " + diagnostic);
+    }
+    const auto& metrics = inputs.metrics;
+    const bool stretched = metrics.mesh == erf_auxiliary::DiffusionMesh::StretchedDz;
+    const amrex::Box& domain = geometry.Domain();
+    const auto dx_inv = geometry.InvCellSizeArray();
+    const int ncomp = static_cast<int>(components.size());
+    const auto& h = coefficients.horizontal;
+    const auto& v = coefficients.vertical;
+    // The native builder takes one coefficient set for every face, so
+    // distinct horizontal and vertical sets take one pass each.
+    const bool one_pass = h.molecular_coeff == v.molecular_coeff &&
+                          h.eddy_h_comp == v.eddy_h_comp &&
+                          h.eddy_v_comp == v.eddy_v_comp;
+    struct Pass {
+        ScalarDiffusionCoefficients coefficients;
+        std::array<bool, AMREX_SPACEDIM> keep;
+    };
+    std::vector<Pass> passes;
+    if (one_pass) {
+        passes.push_back({h, {true, true, true}});
+    } else {
+        passes.push_back({v, {false, false, true}});
+        passes.push_back({h, {true, true, false}});
+    }
+    for (const auto& pass : passes) {
+        ScalarDiffusionFluxPolicy policy;
+        policy.coefficients = pass.coefficients;
+        policy.coefficient_mode = coefficients.mode;
+        // Untiled: the mapped transfers below rescale the face fluxes in place.
+        for (amrex::MFIter mfi(input_intensive, false); mfi.isValid(); ++mfi) {
+            const amrex::Box bx = mfi.validbox();
+            const auto xflux = scratch.dir(0).array(mfi);
+            const auto yflux = scratch.dir(1).array(mfi);
+            const auto zflux = scratch.dir(2).array(mfi);
+            const auto mf_ux = metrics.mf_ux->const_array(mfi);
+            const auto mf_uy = metrics.mf_uy->const_array(mfi);
+            const auto mf_vx = metrics.mf_vx->const_array(mfi);
+            const auto mf_vy = metrics.mf_vy->const_array(mfi);
+            const auto mf_mx = metrics.mf_mx->const_array(mfi);
+            const auto mf_my = metrics.mf_my->const_array(mfi);
+            for (int local = 0; local < ncomp; ++local) {
+                ScalarDiffusionFieldViews field;
+                field.scalar = input_intensive.const_array(mfi);
+                field.scalar_comp = components[static_cast<std::size_t>(local)];
+                field.density = input_conserved.const_array(mfi);
+                field.rho_comp = Rho_comp;
+                field.mu_turb = inputs.eddy_diffusivity != nullptr
+                                    ? inputs.eddy_diffusivity->const_array(mfi)
+                                    : amrex::Array4<const Real>{};
+                field.xflux = xflux;
+                field.yflux = yflux;
+                field.zflux = zflux;
+                field.flux_comp = local;
+                if (stretched) {
+                    BuildScalarDiffusionFluxes_S(
+                        bx, domain, field, policy, dx_inv[0], dx_inv[1],
+                        metrics.stretched_dz, domain.smallEnd(2), domain.bigEnd(2),
+                        mf_ux, mf_uy, mf_vx, mf_vy, bc, 0);
+                    BuildScalarDiffusionMappedTransfers_S(
+                        bx, xflux, local, yflux, local, zflux, local,
+                        xflux, local, yflux, local, zflux, local,
+                        metrics.ax->const_array(mfi), metrics.ay->const_array(mfi),
+                        mf_mx, mf_my);
+                } else {
+                    BuildScalarDiffusionFluxes_N(
+                        bx, domain, field, policy, dx_inv,
+                        amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                        mf_ux, mf_uy, mf_vx, mf_vy, bc, 0);
+                    BuildScalarDiffusionMappedTransfers_N(
+                        bx, xflux, local, yflux, local, zflux, local,
+                        xflux, local, yflux, local, zflux, local, mf_mx, mf_my);
+                }
+            }
+        }
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            if (!pass.keep[static_cast<std::size_t>(dir)]) { continue; }
+            const int lo = domain.smallEnd(dir);
+            const int hi = domain.bigEnd(dir);
+            const bool periodic = geometry.isPeriodic(dir);
+            for (amrex::MFIter mfi(high.dir(dir), amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const amrex::Box bx = mfi.tilebox();
+                const auto out = high.dir(dir).array(mfi);
+                const auto add = scratch.dir(dir).const_array(mfi);
+                amrex::ParallelFor(bx, ncomp,
+                    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                        const int index = dir == 0 ? i : (dir == 1 ? j : k);
+                        if (periodic || (index != lo && index != hi + 1)) {
+                            out(i, j, k, n) += add(i, j, k, n);
+                        }
+                    });
+            }
+            if (!high.dir(dir).is_finite(0, ncomp, 0)) {
+                amrex::Abort("SBM high-order particle mixing produced a nonfinite "
+                             "rate; check the stage-input density and eddy diffusivity");
+            }
+        }
+    }
+}
+
 // Fail before any state mutation when the host carrier contradicts a face:
 // a wall must carry nothing, an outflow face must not carry inward.
 void
@@ -1014,6 +1151,75 @@ face_correction (const erf_sbm::ConstraintDescriptor& descriptor,
     return -outward_sign * tau * dx_inv[dir] * g_flux;
 }
 
+// Magnitude of the low-order and correction terms one face adds to a
+// constraint: the scale of the rounding in the accepted state's constraint.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
+face_gross (const erf_sbm::ConstraintDescriptor& descriptor,
+            const erf_sbm::ConstraintTerm* terms,
+            const FaceArraySet& low,
+            const FaceArraySet& high,
+            const int i,
+            const int j,
+            const int k,
+            const int dir,
+            const int side,
+            const Real tau,
+            const GpuArray<Real, AMREX_SPACEDIM>& dx_inv) noexcept
+{
+    const int fi = i + (dir == 0 && side > 0 ? 1 : 0);
+    const int fj = j + (dir == 1 && side > 0 ? 1 : 0);
+    const int fk = k + (dir == 2 && side > 0 ? 1 : 0);
+    Real gross = Real(0.0);
+    for (int t = 0; t < descriptor.term_count; ++t) {
+        const auto& term = terms[descriptor.term_offset + t];
+        const Real l = low[dir](fi, fj, fk, term.component);
+        const Real h = high[dir](fi, fj, fk, term.component);
+        gross += amrex::Math::abs(term.coefficient) *
+                 (amrex::Math::abs(l) + amrex::Math::abs(h - l));
+    }
+    return tau * dx_inv[dir] * gross;
+}
+
+// face_gross for two weighted components: a carrier/property support bound or
+// the canonical reserve.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
+pair_face_gross (const int first,
+                 const int second,
+                 const Real first_coefficient,
+                 const Real second_coefficient,
+                 const FaceArraySet& low,
+                 const FaceArraySet& high,
+                 const int i,
+                 const int j,
+                 const int k,
+                 const int dir,
+                 const int side,
+                 const Real tau,
+                 const GpuArray<Real, AMREX_SPACEDIM>& dx_inv) noexcept
+{
+    const int fi = i + (dir == 0 && side > 0 ? 1 : 0);
+    const int fj = j + (dir == 1 && side > 0 ? 1 : 0);
+    const int fk = k + (dir == 2 && side > 0 ? 1 : 0);
+    const Real l1 = low[dir](fi, fj, fk, first);
+    const Real l2 = low[dir](fi, fj, fk, second);
+    const Real h1 = high[dir](fi, fj, fk, first);
+    const Real h2 = high[dir](fi, fj, fk, second);
+    const Real gross =
+        amrex::Math::abs(first_coefficient) * (amrex::Math::abs(l1) + amrex::Math::abs(h1 - l1)) +
+        amrex::Math::abs(second_coefficient) * (amrex::Math::abs(l2) + amrex::Math::abs(h2 - l2));
+    return tau * dx_inv[dir] * gross;
+}
+
+// The budget ratio of one cell and constraint. It keeps a roundoff margin, so
+// that a cell the limiter drains to its bound is not left an ulp beyond it.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
+budget_ratio (const Real margin, const Real adverse, const Real scale,
+              const Real roundoff) noexcept
+{
+    if (!(adverse > Real(0.0))) { return Real(1.0); }
+    return clamp_unit((margin - roundoff * scale) / adverse);
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
 canonical_reserve_face_correction (const int mass_component,
                                    const int number_component,
@@ -1286,6 +1492,10 @@ struct SBMTransport::LevelStorage
     erf_auxiliary::MappedFaceFluxRate accepted_rate;
     erf_auxiliary::MappedFaceFluxRate face_lambda;
     erf_auxiliary::MappedFaceFluxRate projected_rate;
+    // Particle mixing only: the low-order face exchange of the stage, and
+    // scratch for one chunk's diffusive face rates.
+    erf_auxiliary::MappedFaceTransmissibility transmissibility;
+    erf_auxiliary::MappedFaceFluxRate mixing_rate;
     erf_auxiliary::CompletedStepFluxLedger projected_ledger;
     erf_auxiliary::CompletedStepFluxLedger spectral_ledger;
     SBMAMRFluxRegister* interface_as_coarse{nullptr};
@@ -1677,6 +1887,55 @@ SBMTransport::restore_boundary_ledger (const SBMBoundaryLedger& ledger)
 }
 
 void
+SBMTransport::set_particle_mixing (const ParticleMixingConfig& config,
+                                   const erf_auxiliary::DiffusionMesh mesh)
+{
+    std::string reason;
+    if (!validate_particle_mixing_config(config, reason)) {
+        throw std::invalid_argument("SBM particle mixing: " + reason);
+    }
+    m_mixing = config;
+    m_mixing_mesh = mesh;
+    // Every physical face carries zero diffusive transfer, so the high-order
+    // builder needs no Dirichlet stencil there.
+    amrex::BCRec bc;
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        bc.setLo(dir, ERFBCType::foextrap);
+        bc.setHi(dir, ERFBCType::foextrap);
+    }
+    m_mixing_bc.resize(1);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, &bc, &bc + 1, m_mixing_bc.begin());
+}
+
+SBMStageMixingInputs
+make_stage_mixing_inputs (const SBMTransport& transport,
+                          const MultiFab* eddy_diffusivity,
+                          const amrex::Vector<std::unique_ptr<MultiFab>>& mapfac,
+                          const MultiFab* ax,
+                          const MultiFab* ay,
+                          const Real* stretched_dz)
+{
+    SBMStageMixingInputs inputs;
+    if (transport.particle_mixing().policy == ParticleMixingPolicy::HostPassiveScalar) {
+        inputs.eddy_diffusivity = eddy_diffusivity;
+    }
+    auto& metrics = inputs.metrics;
+    metrics.mesh = transport.mixing_mesh();
+    metrics.mf_ux = mapfac[MapFacType::u_x].get();
+    metrics.mf_uy = mapfac[MapFacType::u_y].get();
+    metrics.mf_vx = mapfac[MapFacType::v_x].get();
+    metrics.mf_vy = mapfac[MapFacType::v_y].get();
+    metrics.mf_mx = mapfac[MapFacType::m_x].get();
+    metrics.mf_my = mapfac[MapFacType::m_y].get();
+    if (metrics.mesh == erf_auxiliary::DiffusionMesh::StretchedDz) {
+        metrics.ax = ax;
+        metrics.ay = ay;
+        metrics.stretched_dz = stretched_dz;
+    }
+    return inputs;
+}
+
+void
 SBMTransport::set_amr_flux_registers (
     const int level, SBMAMRFluxRegister* as_coarse,
     SBMAMRFluxRegister* as_fine)
@@ -1778,7 +2037,8 @@ SBMTransport::advance_stage_from_host (
     const MultiFab& avg_xmom, const MultiFab& avg_ymom,
     const MultiFab& avg_zmom, const amrex::Geometry& geometry,
     const int qc_component, const int qr_component,
-    const SBMAMRStageParent* parent)
+    const SBMAMRStageParent* parent,
+    const SBMStageMixingInputs* mixing)
 {
     // Preserve ERF's semantic state roles at the integration boundary:
     // S_old anchors the step, S_new is the stage predictor, and S_data is the
@@ -1792,7 +2052,7 @@ SBMTransport::advance_stage_from_host (
     advance_stage(level, method, stage, step_old_time, input_time, target_time,
                   host_stage_interval, state_manager, S_old_cons, S_new_cons,
                   S_data_cons, avg_xmom, avg_ymom, avg_zmom, geometry,
-                  qc_component, qr_component, parent);
+                  qc_component, qr_component, parent, mixing);
 }
 
 void
@@ -1813,7 +2073,8 @@ SBMTransport::advance_stage (const int level,
                              const amrex::Geometry& geometry,
                              const int qc_component,
                              const int qr_component,
-                             const SBMAMRStageParent* parent)
+                             const SBMAMRStageParent* parent,
+                             const SBMStageMixingInputs* mixing)
 {
     AMREX_ALWAYS_ASSERT(is_defined(level));
     auto& data = *m_levels[static_cast<std::size_t>(level)];
@@ -1840,6 +2101,24 @@ SBMTransport::advance_stage (const int level,
         }
     }
     const bool physical_faces = !geometry.isAllPeriodic();
+    const bool mixing_active = mixes_particles();
+    if (mixing_active != (mixing != nullptr)) {
+        amrex::Abort(mixing_active
+            ? std::string("SBM particle mixing ") + particle_mixing_name(m_mixing.policy) +
+                  " received no stage mixing inputs"
+            : std::string("SBM transport received stage mixing inputs without a "
+                          "particle mixing policy"));
+    }
+    if (mixing_active) {
+        if (level > 0 || data.interface_as_coarse != nullptr ||
+            data.interface_as_fine != nullptr) {
+            amrex::Abort("SBM particle mixing is not yet qualified with AMR");
+        }
+        if (mixing->metrics.mesh != m_mixing_mesh) {
+            amrex::Abort("SBM particle mixing received metrics for another mesh than "
+                         "the one installed with its policy");
+        }
+    }
 
     erf_auxiliary::AuxiliaryStageRecipe recipe;
     std::string diagnostic;
@@ -2068,9 +2347,25 @@ SBMTransport::advance_stage (const int level,
     }
 
     // Check the donor outgoing-demand condition against the semantic limiter
-    // base before constructing any low-order face rates.
+    // base before constructing any low-order face rates.  Particle mixing adds
+    // its low-order exchange from the same base to the outgoing demand.
     const auto inv_dx = geometry.InvCellSizeArray();
     const Real tau = static_cast<Real>(recipe.limiter_trial_interval);
+    if (mixing_active) {
+        if (!data.transmissibility.is_defined()) {
+            data.transmissibility.define(data.measure.boxArray(),
+                                         data.measure.DistributionMap(), 1, 0);
+            data.mixing_rate.define(data.measure.boxArray(),
+                                    data.measure.DistributionMap(),
+                                    data.low_rate.nComp(), 0);
+        }
+        if (!build_particle_mixing_transmissibility(
+                m_mixing, geometry, mixing->metrics, trial_conserved, Rho_comp,
+                mixing->eddy_diffusivity, data.transmissibility, diagnostic)) {
+            amrex::Abort("SBM stage particle mixing at level " + std::to_string(level) +
+                         " stage " + std::to_string(stage) + ": " + diagnostic);
+        }
+    }
     data.outgoing_demand.setVal(Real(0.0));
     for (amrex::MFIter mfi(data.outgoing_demand, amrex::TilingIfNotGPU());
          mfi.isValid(); ++mfi) {
@@ -2082,6 +2377,24 @@ SBMTransport::advance_stage (const int level,
         const auto omega = data.measure.const_array(mfi);
         const auto out = data.outgoing_demand.array(mfi);
         const auto dx_inv = inv_dx;
+        if (mixing_active) {
+            const auto tx = data.transmissibility.dir(0).const_array(mfi);
+            const auto ty = data.transmissibility.dir(1).const_array(mfi);
+            const auto tz = data.transmissibility.dir(2).const_array(mfi);
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j,
+                                                        int k) noexcept {
+                out(i, j, k, 0) = tau *
+                    erf_auxiliary::MappedCombinedOutgoingDemandRate(
+                        fx(i + 1, j, k, 0), fx(i, j, k, 0),
+                        fy(i, j + 1, k, 0), fy(i, j, k, 0),
+                        fz(i, j, k + 1, 0), fz(i, j, k, 0),
+                        tx(i + 1, j, k, 0), tx(i, j, k, 0),
+                        ty(i, j + 1, k, 0), ty(i, j, k, 0),
+                        tz(i, j, k + 1, 0), tz(i, j, k, 0),
+                        omega(i, j, k, 0), rho(i, j, k, Rho_comp), dx_inv);
+            });
+            continue;
+        }
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j,
                                                     int k) noexcept {
             out(i, j, k, 0) = tau *
@@ -2098,9 +2411,15 @@ SBMTransport::advance_stage (const int level,
     if (!std::isfinite(max_outgoing) ||
         max_outgoing > Real(1.0) + cfl_tolerance) {
         std::ostringstream message;
-        message << "SBM M3 donor outgoing-demand condition failed: max="
+        message << (mixing_active
+                        ? "SBM combined advection-diffusion outgoing-demand condition failed: max="
+                        : "SBM M3 donor outgoing-demand condition failed: max=")
                 << max_outgoing << " tau=" << tau
                 << " (no SBM subcycling is performed)";
+        if (mixing_active && m_mixing.policy == ParticleMixingPolicy::HostPassiveScalar) {
+            message << "; the timestep estimate uses the previous step's eddy diffusivity "
+                       "(none on the first step), so lower erf.cfl or set erf.init_shrink";
+        }
         amrex::Abort(message.str());
     }
 
@@ -2242,6 +2561,16 @@ SBMTransport::advance_stage (const int level,
         if (physical_faces) {
             apply_physical_donor_band(data.high_rate, data.low_rate, geometry);
         }
+        // The donor band above covers advection only; the diffusive exchange
+        // is a two-point stencil that reads no physical ghost.
+        if (mixing_active) {
+            add_low_order_mixing(data.low_rate, data.mixing_rate, data.transmissibility,
+                                 geometry, data.base_intensive, chunk.components);
+            add_high_order_mixing(data.high_rate, data.mixing_rate, m_mixing, *mixing,
+                                  m_mixing_bc.data(), geometry,
+                                  data.physical_input_intensive, conserved_input,
+                                  chunk.components);
+        }
 
         data.invalid.setVal(Real(0.0));
         data.cell_ratios.setVal(Real(0.0));
@@ -2350,6 +2679,7 @@ SBMTransport::advance_stage (const int level,
                             scale += amrex::Math::abs(term.coefficient * value);
                         }
                         Real adverse = Real(0.0);
+                        Real gross = Real(0.0);
                         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
                             const Real left_delta = face_correction(
                                 descriptor, local_terms, low_faces, high_faces,
@@ -2359,6 +2689,10 @@ SBMTransport::advance_stage (const int level,
                                 i, j, k, dir, 1, tau, dx);
                             adverse += amrex::max(Real(0.0), -left_delta) +
                                        amrex::max(Real(0.0), -right_delta);
+                            gross += face_gross(descriptor, local_terms, low_faces,
+                                                high_faces, i, j, k, dir, -1, tau, dx) +
+                                     face_gross(descriptor, local_terms, low_faces,
+                                                high_faces, i, j, k, dir, 1, tau, dx);
                         }
                         if (!amrex::Math::isfinite(margin) ||
                             !amrex::Math::isfinite(adverse) ||
@@ -2366,9 +2700,7 @@ SBMTransport::advance_stage (const int level,
                             bad = 1;
                         }
                         ratios(i, j, k, ratio_offset + ci) =
-                            adverse > Real(0.0)
-                                ? clamp_unit(margin / adverse)
-                                : Real(1.0);
+                            budget_ratio(margin, adverse, scale + gross, roundoff);
                     }
 
                     for (int si = 0; si < support_count; ++si) {
@@ -2414,6 +2746,7 @@ SBMTransport::advance_stage (const int level,
                                 amrex::Math::abs(property) +
                                 amrex::Math::abs(slope * carrier);
                             Real adverse = Real(0.0);
+                            Real gross = Real(0.0);
                             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
                                 const Real left_delta =
                                     property_face_correction(
@@ -2425,6 +2758,12 @@ SBMTransport::advance_stage (const int level,
                                         dir, 1, tau, dx, slope, upper);
                                 adverse += amrex::max(Real(0.0), -left_delta) +
                                            amrex::max(Real(0.0), -right_delta);
+                                for (const int side_of_cell : {-1, 1}) {
+                                    gross += pair_face_gross(
+                                        support.property_local, support.carrier_local,
+                                        Real(1.0), slope, low_faces, high_faces, i, j, k,
+                                        dir, side_of_cell, tau, dx);
+                                }
                             }
                             if (!amrex::Math::isfinite(margin) ||
                                 !amrex::Math::isfinite(adverse) ||
@@ -2434,9 +2773,7 @@ SBMTransport::advance_stage (const int level,
                             const int ratio_component =
                                 ratio_offset + linear_count + 2 * si + side;
                             ratios(i, j, k, ratio_component) =
-                                adverse > Real(0.0)
-                                    ? clamp_unit(margin / adverse)
-                                    : Real(1.0);
+                                budget_ratio(margin, adverse, scale + gross, roundoff);
                         }
                     }
 
@@ -2450,6 +2787,7 @@ SBMTransport::advance_stage (const int level,
                             canonical_number_coefficient *
                                 hlow(i, j, k, canonical_number_local));
                         Real adverse = Real(0.0);
+                        Real gross = Real(0.0);
                         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
                             const Real left_delta =
                                 canonical_reserve_face_correction(
@@ -2467,7 +2805,19 @@ SBMTransport::advance_stage (const int level,
                                     high_faces, i, j, k, dir, 1, tau, dx);
                             adverse += amrex::max(Real(0.0), -left_delta) +
                                        amrex::max(Real(0.0), -right_delta);
+                            for (const int side_of_cell : {-1, 1}) {
+                                gross += pair_face_gross(
+                                    canonical_mass_local, canonical_number_local,
+                                    canonical_mass_coefficient,
+                                    canonical_number_coefficient, low_faces,
+                                    high_faces, i, j, k, dir, side_of_cell, tau, dx);
+                            }
                         }
+                        const Real reserve_scale =
+                            amrex::Math::abs(canonical_mass_coefficient *
+                                             hlow(i, j, k, canonical_mass_local)) +
+                            amrex::Math::abs(canonical_number_coefficient *
+                                             hlow(i, j, k, canonical_number_local));
                         const int ratio_component =
                             ratio_offset + linear_count + 2 * support_count;
                         if (!amrex::Math::isfinite(reserve) ||
@@ -2476,11 +2826,9 @@ SBMTransport::advance_stage (const int level,
                             ratios(i, j, k, ratio_component) = Real(0.0);
                         } else if (reserve <= Real(0.0)) {
                             ratios(i, j, k, ratio_component) = Real(0.0);
-                        } else if (adverse <= Real(0.0)) {
-                            ratios(i, j, k, ratio_component) = Real(1.0);
                         } else {
-                            ratios(i, j, k, ratio_component) =
-                                clamp_unit(reserve / adverse);
+                            ratios(i, j, k, ratio_component) = budget_ratio(
+                                reserve, adverse, reserve_scale + gross, roundoff);
                         }
                     }
                     if (bad != 0) {

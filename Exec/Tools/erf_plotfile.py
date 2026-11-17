@@ -67,6 +67,16 @@ def _read_cell_h(level_dir):
     return ncomp, ng, boxes, fabs
 
 
+def finest_level(plotfile):
+    """The finest level the plotfile holds (0 for a single level)."""
+    return _read_header(plotfile)["finest"]
+
+
+def level_boxes(plotfile, level):
+    """The grids of one level of a plotfile, as a list of (lo, hi) index triples."""
+    return _read_cell_h(os.path.join(plotfile, "Level_%d" % level))[2]
+
+
 def _read_fab(path, offset, ncomp):
     with open(path, "rb") as fh:
         fh.seek(offset)

@@ -66,14 +66,29 @@ Governing Equations
 |                                 | inverse relations inconsistent. See                      |                    |                  |
 |                                 | :ref:`GoverningEquations`.                               |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | 0, 1               | 0                |
-|                                 | with terrain-fitted coordinates: 0 for dp/dx with a      |                    |                  |
-|                                 | dp/dz correction, 1 for the gradient of the vertically   |                    |                  |
-|                                 | interpolated pressure (Klemp 2011)                       |                    |                  |
+| **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | ChainRule,         | ChainRule        |
+|                                 | with terrain-fitted coordinates: ChainRule for dp/dx     | HydrostaticHybrid  |                  |
+|                                 | along the coordinate surface with a dp/dz correction;    |                    |                  |
+|                                 | HydrostaticHybrid for the same with the hydrostatic part |                    |                  |
+|                                 | of the perturbational pressure carried to the height of  |                    |                  |
+|                                 | the face exactly, and only the non-hydrostatic remainder |                    |                  |
+|                                 | differenced. Used only in fully compressible runs;       |                    |                  |
+|                                 | anelastic and pseudo-incompressible runs take the        |                    |                  |
+|                                 | pressure gradient from the projection. The former        |                    |                  |
+|                                 | integer values 0 and 2 are still accepted, with a        |                    |                  |
+|                                 | warning. See :ref:`sec:HorizPGF`.                        |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.gradp_2nd_order_bndry**   | with gradp_type = ChainRule, take dp/dz at the bottom    | Boolean            | false            |
+|                                 | and top of the domain from the second-order one-sided    |                    |                  |
+|                                 | difference through the three nearest cells rather than   |                    |                  |
+|                                 | the first-order two-point one (only used in fully        |                    |                  |
+|                                 | compressible runs). See :ref:`sec:HorizPGF`.             |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_pert_pres_gradient**  | if true, the lateral pressure gradient in the momentum   | Boolean            | true             |
 |                                 | equation uses horizontal derivatives of the              |                    |                  |
 |                                 | perturbational pressure; if false, of the full pressure  |                    |                  |
+|                                 | (only used with gradp_type = ChainRule, and only in      |                    |                  |
+|                                 | fully compressible runs)                                 |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.transport_scalar**        | transport the passive scalar component                   | Boolean            | true             |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -1336,7 +1351,8 @@ generation.  The parameters documented there, rather than on this page, are
 * ``erf.file_name_digits``, ``erf.plot2d_file_1``, ``erf.plot2d_file_2``,
   ``erf.plot2d_int_1``, ``erf.plot2d_int_2``, ``erf.plot2d_per_1``, ``erf.plot2d_per_2``,
   ``erf.plot_face_vels``, ``erf.plot_file_1``, ``erf.plot_file_2``, ``erf.plot_int_1``,
-  ``erf.plot_int_2``, ``erf.plot_per_1``, ``erf.plot_per_2``, ``erf.plotfile2d_type``,
+  ``erf.plot_int_2``, ``erf.plot_per_1``, ``erf.plot_per_2``, ``erf.plot_file_on_restart``,
+  ``erf.plotfile2d_type``,
   ``erf.plotfile2d_type_1``, ``erf.plotfile2d_type_2``, ``erf.plotfile_type``,
   ``erf.plotfile_type_1``, ``erf.plotfile_type_2``, ``erf.subvol.dxdydz``,
   ``erf.subvol.chunk_size``, ``erf.subvol.nxnynz``, ``erf.subvol.origin``, ``erf.subvol_file``, ``erf.subvol_int``,
@@ -1539,7 +1555,8 @@ List of Parameters
 |                                     | diagnostics                                              |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.profile_rad_int**             | number of steps between writes of the radiation profile  | Integer            | -1 (not used)    |
-|                                     | log; read only in an RRTMGP build                        |                    |                  |
+|                                     | log ``erf.rad.datalog`` (RRTMGP and Simple models);      |                    |                  |
+|                                     | see :ref:`sec:RadiationDatalog`                          |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_lsm**                    | write the land-surface-model fields to the plotfile      | Boolean            | false            |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -1555,8 +1572,8 @@ List of Parameters
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.write_eb_surface**            | write the embedded-boundary surface as a separate file   | Boolean            | false            |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rad.datalog**                 | name of the log file to which radiation diagnostics are  | String             | None             |
-|                                     | written                                                  |                    |                  |
+| **erf.rad.datalog**                 | name of the log file to which radiation profiles are     | String             | None             |
+|                                     | written; see :ref:`sec:RadiationDatalog`                 |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 All profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
@@ -2731,14 +2748,11 @@ List of Parameters
 |                                          | pbl_mynn_config and may be overridden on its own.        |                    |                  |
 |                                          | Mellor-Yamada 1982 uses 0.1.                             |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_mynn_Lt_taper_exp**            | Exponent n in the optional boundary-layer-depth taper    | Real               | 0.0              |
-|                                          | of the ABL length scale, l_T -> l_T (1 - z/h)^n. Zero    |                    |                  |
-|                                          | disables the taper. Requires erf.most.pblh_calc to be    |                    |                  |
-|                                          | set, since it needs a diagnosed PBL height h.            |                    |                  |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.diffuse_QKE_3D**                   | Include horizontal turb. diffusion terms in QKE eqn.     | Boolean            | false            |
+| **erf.pbl_mynn_surface_lm**              | Use the surface-layer length scale l_S alone as the      | Boolean            | false            |
+|                                          | master length scale in the first cell (MYNN25 only),     |                    |                  |
+|                                          | matching the surface-layer shear its TKE production is   |                    |                  |
+|                                          | built from, instead of the 1/l sum with l_T and l_B.     |                    |                  |
+|                                          | The first-cell TKE then approaches B1^(2/3) u*^2 / 2.    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_force_over_water**         | Treat whole domain as over water for YSU PBL scheme      | Boolean            | false            |
 |                                          | regardless of LSM/other inputs                           |                    |                  |
@@ -2824,7 +2838,8 @@ List of Parameters
 |                                          | only when the PBL scheme carries TKE                     |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.diffuse_tke_3D**                   | apply three-dimensional numerical diffusion to the       | Boolean            | true             |
-|                                          | turbulent kinetic energy (per-level)                     |                    |                  |
+|                                          | turbulent kinetic energy (per-level); has an effect only |                    |                  |
+|                                          | when numerical diffusion is on (erf.num_diff_coeff > 0)  |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.init_tke_from_ustar**              | initialize the turbulent kinetic energy from the         | Boolean            | false            |
 |                                          | friction velocity (per-level); read only when a          |                    |                  |
@@ -3450,6 +3465,137 @@ function(s).
 Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
 with an ``erf.abl_geo_wind_table``.
 
+.. _sec:MassSourceInputs:
+
+Mass Source
+-----------
+
+A localized source of gas inside the domain, e.g. the release from a ruptured
+pipeline or a stack, can be added from the inputs without problem-specific code.
+The gas is injected at a total rate :math:`\dot m(t)` [kg/s], spread uniformly over
+the cells whose centres lie within ``erf.mass_source.radius`` of
+``erf.mass_source.center`` horizontally and less than ``erf.mass_source.height``
+above the local ground (the bottom of the terrain-fitted column). With :math:`V`
+the total physical volume of those cells on the composite grid (see below),
+including the terrain metric and the map factors, every source cell receives
+
+.. math::
+
+   S_\rho = \frac{\dot m(t)}{V}, \qquad
+   S_{\rho\theta} = S_\rho \, \theta_{src}, \qquad
+   S_{\rho s} = S_\rho \;\; \text{(when } \texttt{erf.mass_source.tracer} \text{ is true)},
+
+where :math:`\theta_{src}` is ``erf.mass_source.theta`` if given and otherwise the
+cell's own potential temperature, so that the injection on its own does not change
+the potential temperature. :math:`s` is the first passive scalar (plotted as ``rhoadv_0``
+and, divided by the density, as ``scalar``), which therefore holds the mass
+fraction of the released gas, provided the scalar starts at zero and nothing else
+(a problem setup, boundary planes) adds to it. No momentum is added: the gas enters
+at rest. In a periodic direction the region wraps around the domain.
+
+The gas has the properties of dry air: its molecular weight, :math:`c_p` and
+:math:`\gamma`. In a moist run it carries no water, so it dilutes the mixing ratios
+of the cells it enters. A gas that is denser than air at the same temperature, such
+as CO\ :sub:`2` (molecular weight 1.52 times that of air), therefore gets no buoyancy
+from its molecular weight; a density excess comes only from a low ``theta``. Setting
+:math:`\theta_{src} = \theta \, M_{air} / M_{gas}` (about 197 K for CO\ :sub:`2` in
+300 K air) gives the density of the mixture under adiabatic mixing, but the
+temperature of the gas is then not the physical one.
+
+The mass source requires ``erf.compressibility_type = FullyCompressible`` at every
+level, and ERF stops at start-up otherwise: the anelastic and pseudo-incompressible
+projections constrain the divergence of the velocity and would remove the injected
+mass. The source is added to the slow right-hand side of the density and
+:math:`\rho\theta`, which the acoustic substeps apply, and to the right-hand side of
+the scalar. The region is measured up from the bottom of the grid, so ERF also stops
+with ``erf.terrain_type`` = ``EB`` or ``ImmersedForcing`` (where the bottom of the
+grid can lie inside the terrain) and with ``MovingFittedMesh``. It stops as well if
+``center`` is outside the domain, if ``rate``, a rate in the table or ``theta`` is
+negative (a negative rate would be a sink), if an ``erf.mass_source`` input is
+misspelt (any key other than those below), if ``erf.mass_source`` inputs are given
+without ``rate`` or ``rate_file``, or if no cell centre on any level lies inside the
+region. The nearest cell centre can be :math:`\Delta x/\sqrt{2}` from ``center``
+horizontally (more with :math:`\Delta x \neq \Delta y`), and the lowest one half the
+lowest cell above the ground, so ``radius`` must exceed the first and ``height`` the
+second; a region a few cells across gives a better-resolved source. This last check
+is made at the first step, whatever the rate then, and whenever the grids change. If ``erf.transport_scalar`` is false the passive scalar is not
+evolved, so the tracer is not added, and ERF says so.
+
+With mesh refinement every level adds the same :math:`S_\rho` to its own cells in
+the region, and :math:`V` is the volume of the region on the composite grid: the
+source cells of each level that the next finer level does not cover. The composite
+injection rate is therefore :math:`\dot m` however the levels cut the region, and a
+level with no source cells adds nothing. :math:`V`, and the height of the ground
+under each column, are recomputed only when the grids change, and ERF prints
+:math:`V` and the source volume of each level then.
+
+The time of the rate table is the time since the start of the run (not counting
+``erf.start_time``). The source is evaluated at the times of the stages of each
+step, so a table whose corners fall on step boundaries is integrated exactly; one
+that ends at a non-zero rate between two steps can inject up to
+:math:`\dot m \, \Delta t / 2` more or less than the total ERF prints for it.
+
+Over a sharp-edged source region the scalar and :math:`\theta` are close to step
+functions, and non-monotone advection schemes for them (the default ``Upwind_3rd``,
+or ``Upwind_5th``) over- and undershoot at its edge. In a closed 1 km box with a
+100 m source, ``Upwind_3rd`` gave a mass fraction between -5.5e-5 and 0.030 at
+1.0e4 kg/s, but between -0.015 and 1.08 at 1.0e6 kg/s, where ``WENO5`` gave
+-2e-23 to 0.946 (the estimate :math:`1 - e^{-S t / \rho}` is 0.947). With ``theta``
+above the ambient value, :math:`\theta` likewise overshoots it (646 K for a 600 K
+source at 1.0e6 kg/s). Use a WENO scheme for ``erf.dryscal_horiz_adv_type`` and
+``erf.dryscal_vert_adv_type`` when the mass fraction approaches 1 or ``theta`` is far
+from the ambient value.
+
+The source is explicit in time. A strong source changes the density of its cells by
+:math:`S \Delta t / \rho` and their :math:`\rho\theta` by
+:math:`S \Delta t \, \theta_{src} / (\rho\theta)` in a step; keep these well below 1
+(about 0.1). A run at 1.0e6 kg/s with ``theta = 600`` and :math:`\Delta t` = 0.5 s,
+where the second is about 0.3, stopped with a negative density; at :math:`\Delta t`
+= 0.1 s it ran.
+
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                          | Definition                                               | Acceptable Values  | Default          |
++====================================+==========================================================+====================+==================+
+| **erf.mass_source.rate**           | constant total mass flow rate of the source [kg/s];      | Real >= 0          | None             |
+|                                    | giving this or ``rate_file`` turns the source on         |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.rate_file**      | text file of the time-varying mass flow rate: every line | String             | None             |
+|                                    | that is not blank or a comment (``#`` starts one) is two |                    |                  |
+|                                    | numbers, time [s] and rate [kg/s] (anything else stops   |                    |                  |
+|                                    | the run); times strictly increasing, rates >= 0, at      |                    |                  |
+|                                    | least two rows; linear in between and zero outside the   |                    |                  |
+|                                    | table,                                                   |                    |                  |
+|                                    | in the time since the start of the run. Give             |                    |                  |
+|                                    | either ``rate`` or ``rate_file``, not both               |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.center**         | horizontal position x y of the centre of the source [m], | 2 Reals            | required         |
+|                                    | inside the domain                                        |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.radius**         | horizontal radius of the source region [m]               | Real > 0           | required         |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.height**         | depth of the source region above the local ground [m]    | Real > 0           | required         |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.theta**          | potential temperature of the injected gas [K]            | Real > 0           | the cell's own   |
+|                                    |                                                          |                    | theta            |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mass_source.tracer**         | add the same source to the first passive scalar, so      | Boolean            | true             |
+|                                    | ``scalar`` is the mass fraction of the released gas      |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+For example, a release that ramps up to 14000 kg/s from a 50 m radius, 20 m deep
+region around the origin:
+
+::
+
+    erf.compressibility_type  = FullyCompressible
+    erf.mass_source.center    = 0.0 0.0
+    erf.mass_source.radius    = 50.0
+    erf.mass_source.height    = 20.0
+    erf.mass_source.rate_file = "release_rate.txt"
+
+At start-up ERF prints the source region, the theta of the injected gas and, for a
+rate table, its time span and the total mass it releases.
+
 
 
 .. _sec:LargeScaleForcingInputs:
@@ -3673,12 +3819,9 @@ List of Parameters
 |                             | the new time                                             |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_variable_beta_s** | with implicit substepping, use a beta_s that varies      | Boolean            | false            |
-|                             | on the w-faces, max(beta_s_min, min(beta_s_max,          |                    |                  |
-|                             | h_xi^2 + h_eta^2)), in place of ``erf.beta_s``           |                    |                  |
-+-----------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.beta_s_min**          | lower bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.1              |
-+-----------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.beta_s_max**          | upper bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.8              |
+|                             | on the w-faces with the terrain slope and the vertical   |                    |                  |
+|                             | acoustic Courant number, in place of ``erf.beta_s``      |                    |                  |
+|                             | (see :ref:`TimeAdvance`)                                 |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.beta_d**              | divergence damping coefficient used in the acoustic      | Real in [0, 1]     | 0.1              |
 |                             | substepping; how far (rho theta) is projected forward    |                    |                  |
@@ -4648,7 +4791,8 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.pot_surf_temp**            | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
 |                                       | value selects the surface-temperature formulation.       |                     |                  |
-|                                       | **Required** when ``flux_type`` = ``bulk_coeff`` (the    |                     |                  |
+|                                       | This or ``erf.most.abs_surf_temp`` is **Required** when  |                     |                  |
+|                                       | ``flux_type`` = ``bulk_coeff`` (the                      |                     |                  |
 |                                       | surface value of the ``Ch`` form); with                  |                     |                  |
 |                                       | ``erf.most.surf_temp_flux`` it is still read but no      |                     |                  |
 |                                       | longer sets the heat flux                                |                     |                  |
@@ -4658,7 +4802,7 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | pressure diagnosed from the lowest cell; z-low face      |                     |                  |
 |                                       | only, not with EB terrain, SST/TSK input,                |                     |                  |
 |                                       | ``erf.most.use_sfc_fluxes``, ``erf.most.use_sfc_sst``    |                     |                  |
-|                                       | or custom/rico/bulk_coeff fluxes                         |                     |                  |
+|                                       | or custom/rico fluxes                                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp**                | deprecated spelling of ``erf.most.pot_surf_temp``; at    | Real > 0            | -1.0 (not set)   |
 |                                       | most one of the three may be given, and a value that is  |                     |                  |
@@ -4776,6 +4920,14 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.ignore_sst**               | use the skin temperature rather than the sea-surface     | Boolean             | false            |
 |                                       | temperature from the input data                          |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.surface_current**          | uniform velocity [m/s] of the water surface along the    | 2 Reals             | None             |
+|                                       | grid's x and y, such as an ocean current; the surface    |                     |                  |
+|                                       | layer then uses the wind relative to it (see             |                     |                  |
+|                                       | :ref:`sec:MovingSurface`). All water moves, lakes        |                     |                  |
+|                                       | included, and land stays at rest. Requires a z-low       |                     |                  |
+|                                       | surface layer with water at the surface, and is not      |                     |                  |
+|                                       | supported with EB terrain                                |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_lsm_skin_temperature** | take the land model's skin temperature (SLM ``tsurf``,   | Boolean             | false            |
 |                                       | Noah-MP ``t_sfc``) as an absolute temperature and        |                     |                  |
 |                                       | convert it to potential temperature at the surface       |                     |                  |
@@ -4855,7 +5007,8 @@ List of Parameters
 | **erf.land_surface_model**  | Enables land surface energy and moisture fluxes          | None, SLM, NOAHMP  | None             |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.is_land**             | whether each AMR level is treated as land (1) or water   | 0, 1               | 1                |
-|                             | (0) (per-level)                                          |                    |                  |
+|                             | (0) (per-level). The two-stream force-restore balance    |                    |                  |
+|                             | (``erf.radiation.seb_enable``) runs on land columns only |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.lsm_nsoil**           | number of soil layers; must match ``NSOIL`` in the       | Integer >= 1       | 4                |
 |                             | Noah-MP namelist, and also sets how many                 |                    |                  |
@@ -4899,6 +5052,11 @@ List of Parameters
 |                          | temperature for some or all water cells; this must be    |                    |                  |
 |                          | set at problem definition time because the surface layer |                    |                  |
 |                          | uses it to select its temperature boundary treatment     |                    |                  |
++--------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_coupled_       | an external ocean coupler supplies the surface current,  | Boolean            | false            |
+| currents**               | and the surface layer takes the wind relative to it (see |                    |                  |
+|                          | :ref:`sec:MovingSurface`); may not be combined with      |                    |                  |
+|                          | ``erf.most.surface_current``                             |                    |                  |
 +--------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. note::
@@ -5023,7 +5181,7 @@ SBM inputs
 ----------
 
 The inputs below are read only when ``erf.moisture_model = SBM``. They
-configure the current liquid-spectrum advection capability;
+configure the current liquid-spectrum advection and mixing capability;
 see :ref:`sec:SpectralBinMicrophysics` for its scientific representation and
 execution restrictions.
 
@@ -5078,6 +5236,23 @@ execution restrictions.
      - :math:`N_{\mathrm{bins}}` values for 1M or
        :math:`2N_{\mathrm{bins}}` values for 2M
      - All zero
+   * - ``erf.sbm_fixture_initial_state_xhi``
+     - A second test state, as ``erf.sbm_fixture_initial_state``, for the
+       cells in the upper half of the domain in x.
+     - As ``erf.sbm_fixture_initial_state``
+     - None
+   * - ``erf.sbm_particle_mixing``
+     - Particle mixing policy. ``HostPassiveScalar`` mixes the spectrum with
+       ERF's Smagorinsky or Deardorff LES scalar eddy diffusivity;
+       ``ConstantReference`` with constant kinematic diffusivities. Single
+       level, constant- or stretched-z mesh, periodic and wall faces only.
+     - ``None``, ``ConstantReference``, ``HostPassiveScalar``
+     - ``None``
+   * - ``erf.sbm_particle_mixing_kh``, ``erf.sbm_particle_mixing_kv``
+     - Horizontal and vertical kinematic diffusivities [m^2 s^-1] of
+       ``ConstantReference``; any other policy rejects a nonzero value.
+     - Real :math:`\ge 0`
+     - ``0``
    * - ``erf.sbm_budget_check``
      - After every coarse step, check that the composite spectral inventory
        changed only by that step's accepted transfer through the physical
@@ -5169,8 +5344,19 @@ List of Parameters
 |                                       |                                                          |                    | kernel launch overhead.            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_write_fluxes**              | Write radiation fluxes to plotfiles                      | Boolean            | false                              |
+|                                       | named ``plt_rad_lev<L>_<step>``, one single-level        |                    |                                    |
+|                                       | plotfile per level; a fine-level file covers only that   |                    |                                    |
+|                                       | level's refined region.                                  |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling                          | Boolean            | true                               |
+| **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling with maximum-random      | Boolean            | true                               |
+|                                       | cloud overlap. If false, every layer with nonzero        |                    |                                    |
+|                                       | radiative cloud fraction is treated as overcast in all   |                    |                                    |
+|                                       | g-points (no partial cloudiness), with the in-cloud      |                    |                                    |
+|                                       | condensate (grid mean divided by cloud fraction) spread  |                    |                                    |
+|                                       | over the whole layer. That is exact for the binary (0 or |                    |                                    |
+|                                       | 1) cloud fraction ERF uses now, but would overstate the  |                    |                                    |
+|                                       | cloud optical depth by 1/(cloud fraction) for a          |                    |                                    |
+|                                       | fractional one.                                          |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_orbital_year**              | Fixed orbital year for zenith calcs                      | Integer            | < 0 uses timestamp year            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
@@ -5344,6 +5530,67 @@ components. See :ref:`sec:TopographicRadiation` for the equations and
 approximations, and :ref:`sec:Plotfile2DTopographicRadiation` for mask and flux
 outputs and a visualization example.
 
+.. _sec:RadiationDatalog:
+
+Radiation Profile Log
+---------------------
+
+When ``erf.rad.datalog`` names a file and ``erf.profile_rad_int`` is positive, the RRTMGP and
+Simple radiation models append planar-averaged profiles on level 0 to that file every
+``erf.profile_rad_int`` steps. A new file starts with a header of lines beginning with ``#``
+that names the columns. A run that appends to an existing file, such as a restart, does not
+write the header again.
+
+Each output is a block of ``nz + 2`` rows, where ``nz`` is the number of cells in z:
+
+#. the surface face, with ``z_agl`` = 0,
+
+#. the ``nz`` cell centers, from bottom to top,
+
+#. the top-of-atmosphere face.
+
+``z_agl`` is the height above ground, averaged over the plane. With terrain it is the average
+over columns of the height above the local surface. On the cell-center rows each flux is the
+average of its values on the lower and upper faces of the cell; on the two face rows the fluxes
+are the values on those faces. Heating rates exist only at cell centers and are written as
+``nan`` on the face rows, which ``numpy.loadtxt`` and gnuplot read as missing values.
+
+The RRTMGP log has the following columns:
+
+#. Time, ``time`` (s)
+
+#. Height above ground, ``z_agl`` (m)
+
+#. All-sky shortwave and longwave heating rates, ``sw_heating`` and ``lw_heating``, as
+   potential temperature tendencies (K/s)
+
+#. All-sky fluxes ``sw_flux_up``, ``sw_flux_dn``, ``sw_flux_dn_dir``, ``lw_flux_up`` and
+   ``lw_flux_dn`` (W/m\ :sup:`2`)
+
+#. Cosine of the solar zenith angle, ``mu0``; it does not vary with height
+
+#. Clear-sky shortwave and longwave heating rates, ``sw_clrsky_heating`` and
+   ``lw_clrsky_heating``, as potential temperature tendencies (K/s)
+
+#. Clear-sky fluxes ``sw_clrsky_flux_up``, ``sw_clrsky_flux_dn``, ``sw_clrsky_flux_dn_dir``,
+   ``lw_clrsky_flux_up`` and ``lw_clrsky_flux_dn`` (W/m\ :sup:`2`)
+
+#. Clean-sky fluxes ``sw_clnsky_flux_*`` and ``lw_clnsky_flux_*``, in the same order
+   (W/m\ :sup:`2`); 0 unless ``erf.rad_extra_clnsky_diag = true``
+
+#. Clean-clear-sky fluxes ``sw_clnclrsky_flux_*`` and ``lw_clnclrsky_flux_*``, in the same
+   order (W/m\ :sup:`2`); 0 unless ``erf.rad_extra_clnclrsky_diag = true``
+
+The Simple log has the following columns:
+
+#. Time, ``time`` (s)
+
+#. Height above ground, ``z_agl`` (m)
+
+#. Net upward longwave flux, ``lw_flux_net`` (W/m\ :sup:`2`)
+
+#. Longwave heating rate, ``lw_heating``, as a potential temperature tendency (K/s)
+
 
 Two-Stream Radiation Model
 ---------------------------
@@ -5375,6 +5622,62 @@ whose boxes do not span the domain in :math:`z`, since such a level takes its ra
 from its parent and never evolves a surface of its own. A fine level therefore starts from its parent's
 surface rather than resolving more surface structure than the coarse grid did. The fields are
 written with the 2D plotfile variables ``seb_t_sfc`` and ``seb_q_sfc``.
+
+The balance is a model of soil, so it follows the land mask (``erf.is_land``, or ``LANDMASK`` of a
+``wrfinput`` or metgrid file). A water column (mask 0) keeps its :math:`T_s` and :math:`q_s`, takes
+no rain, runoff or drainage, and is left out of the means and residuals the balance reports. A
+building's column (mask 2) is land. The sweep's longwave boundary on a water column is the surface
+layer's sea surface temperature, and without a z-low surface layer the scalar ``erf.rad_t_sfc``.
+The run prints one line for each level that has water columns, and names which of the two it uses.
+The line is printed once per set of grids. The balance, the average-down and the fill of a new
+level read the mask itself each time, so they follow a mask that changes during a run.
+``seb_t_sfc`` and ``seb_q_sfc`` on a water column are held values, not a state of the water: the
+values the column had at the start, at the restart, or when its level was built.
+
+With ``erf.radiation.seb_snow_enable`` a water column carries no snow, and its albedo stays the
+snow-free one. Rain and snow that fall on a water column enter none of the ``seb_*_total`` fields.
+The cover of ``erf.radiation.seb_snow_initial_swe_kg_m2`` is removed from a water column at the
+first step and is not booked in any total; the plotfile and checkpoint written before that step
+still show it there. The printed budget residuals are over land columns and stay closed. The
+shortwave albedo and the longwave emissivity of a water column are still the land values of the
+run; a water albedo is not part of the balance.
+
+Between levels, where either level has a water column, a coarse land column takes the mean of the
+fine land columns under it; a coarse land column over fine water only, and a coarse water column,
+keep their values. The totals in kg/m^2 of a coarse column on a shore are then per unit of land
+area. Whether a level has water is read from the masks at each average-down: one or two
+reductions per pair of levels and coarse step.
+
+A new fine level is filled from its parent. Where the parent column and its eight neighbours are
+all land, the fine columns are interpolated with slopes, as in a run with no water. Elsewhere no
+slope is used: the slope of a coarse land column on a shore would be formed with the held value of
+the water column next to it. There a fine land column over a coarse land column takes the parent's
+value. A fine land column over a coarse water column takes the mean of the land columns among the
+parent's eight neighbours. Neighbours beyond a domain wall are left out. On a regrid, the columns
+the level already had keep their own values; the fill is for the new columns. Two limits remain.
+A fine land column whose parent and all eight neighbours are water has no land value to take: it
+starts from the parent's held value, and the run prints the number of such columns for the level.
+A fine water column under a coarse land column starts
+with the land's values, including its snow and totals; the snow is removed at the first step, as
+above. Both arise only where a level has its own mask. With ``wrfinput`` a level with no file of
+its own takes its parent's mask, and the fill reads the mask after that: a fine column over a
+coarse water column is water and keeps the parent's held value, and none is counted. A
+``wrfinput`` level with its own file has its own ``LANDMASK``, and so has a metgrid level whose
+file holds ``LANDMASK``. Every other level, a metgrid level with no file or with a file that
+has no ``LANDMASK`` included, takes ``erf.is_land`` of its level (default 1), so a level 1 over
+a level 0 of water is land unless ``erf.is_land`` says otherwise.
+
+The WW3 coupling rewrites the land mask from the wave height at every step. A column that turns
+from water to land would resume the balance from the state it held as water, so a build with the
+WW3 coupling stops at the start when ``erf.radiation.seb_prognostic_enable`` is true.
+
+A run with no water column is unchanged. These runs change: a ``seb_enable`` run with
+``erf.is_land = 0`` on a level, a ``seb_enable`` run whose ``wrfinput`` or metgrid ``LANDMASK``
+has zeros, and a restart of such a run from a checkpoint written before this behaviour (the water
+columns then hold the soil values of that checkpoint). Before, the balance ran on those columns
+as soil. With ``erf.radiation.seb_prognostic_enable = false``, or with a land-surface model that
+owns the surface, only the reported residual changes. On a level that is water everywhere no
+column is in the balance, and the means in ``radiation_diag.dat`` are written as ``nan``.
 
 The balance removes the sensible and latent heat fluxes the ``zlo`` surface layer puts into the
 air (``erf.radiation.seb_turbulent_flux_source = surface_layer``, the default), where no
@@ -5595,8 +5898,8 @@ atmospheric cell), ``start_datetime`` and the
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_soil_moisture_fc**             | Field capacity [m³/m³]: at or above it the soil-water      | Real, wilt < fc <= | 0.329 (Noah-MP   |
 |                                                    | factor is 1 (potential evaporation without seb_soil_type). | 1                  | loam)            |
-|                                                    | Used only with seb_surface_layer_uses_moisture; giving it  |                    |                  |
-|                                                    | otherwise stops at start-up                                |                    |                  |
+|                                                    | Used only with seb_surface_layer_uses_moisture or          |                    |                  |
+|                                                    | seb_drainage_enable; giving it otherwise stops at start-up |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_soil_type**                    | Noah-MP soil category (STAS, as in NoahmpTable.TBL;        | Integer 1-19, 0 =  | 0                |
 |                                                    | ERF_NoahMPSoilTable.H). Sets the wilting point and field   | unset              |                  |
@@ -5605,9 +5908,10 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | soil's heat capacity and conductivity at seb_q_sfc_default |                    |                  |
 |                                                    | unless that is given, with seb_surface_layer_uses_moisture |                    |                  |
 |                                                    | the bare-soil resistance and pore-air humidity (vegetation |                    |                  |
-|                                                    | or not), and with seb_surface_layer_uses_skin the surface  |                    |                  |
+|                                                    | or not), with seb_surface_layer_uses_skin the surface      |                    |                  |
 |                                                    | layer's land roughness, f_veg Z0MVT + (1 - f_veg) Z0SOIL,  |                    |                  |
-|                                                    | unless erf.most.z0 is given. Not 14 (water)                |                    |                  |
+|                                                    | unless erf.most.z0 is given, and with the hydrology        |                    |                  |
+|                                                    | seb_soil_porosity (MAXSMC). Not 14 (water)                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_vegetation_type**              | Noah-MP land-use category (modified IGBP MODIS;            | Integer 1-20 but   | 0                |
 |                                                    | ERF_NoahMPVegetationTable.H). The vegetated fraction       | not 15-17, 0 =     |                  |
@@ -5655,20 +5959,25 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | soil water content [m³/m³] of the top                      |                    |                  |
 |                                                    | seb_moisture_layer_depth_m                                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_t_deep_default**               | Fallback SEB deep soil temperature [K]                     | Real               | 300.0            |
+| **erf.radiation.seb_t_deep_default**               | SEB deep soil temperature [K]: fixed, or with              | Real               | 300.0            |
+|                                                    | seb_deep_prognostic_enable its initial value               |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_q_deep_default**               | Deep soil moisture q_s restores to, in q_s's units. With   | Real [0,1]         | 0.0              |
 |                                                    | seb_surface_layer_uses_moisture a NOTE at start-up flags a |                    |                  |
 |                                                    | value below the wilting point (the default 0 dries the     |                    |                  |
-|                                                    | soil over seb_moisture_restore_timescale_s)                |                    |                  |
+|                                                    | soil over seb_moisture_restore_timescale_s). With          |                    |                  |
+|                                                    | seb_deep_prognostic_enable the initial column water        |                    |                  |
+|                                                    | content, at or below seb_soil_porosity                     |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_surface_heat_capacity**        | Effective surface heat capacity [J/(m²·K)]. With           | Real > 0; stops at | 2.0e4            |
 |                                                    | seb_soil_type and not given: sqrt(lambda c tau / pi) / 2   | start-up if not    |                  |
 |                                                    | of the soil's conductivity and heat capacity at            |                    |                  |
 |                                                    | seb_q_sfc_default over seb_restore_timescale_s (Deardorff) |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_restore_timescale_s**          | Force-restore timescale for surface temperature [s]        | Real > 0; stops at | 86400.0 (1 day)  |
-|                                                    |                                                            | start-up if not    |                  |
+| **erf.radiation.seb_restore_timescale_s**          | Force-restore timescale for surface temperature [s]. With  | Real > 0; stops at | 86400.0 (1 day)  |
+|                                                    | seb_deep_prognostic_enable also the relaxation time of     | start-up if not    |                  |
+|                                                    | seb_t_deep (Noilhan and Planton 1989, Eq. 6). The drainage |                    |                  |
+|                                                    | does not use it                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_moisture_layer_depth_m**       | Effective surface moisture layer depth [m]                 | Real > 0; stops at | 0.1              |
 |                                                    |                                                            | start-up if not    |                  |
@@ -5685,6 +5994,87 @@ atmospheric cell), ``start_datetime`` and the
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_q_max**             | Maximum clamping bound for prognostic surface moisture q_s | Real [0,1]         | 1.0              |
 |                                                    | (m³/m³ with seb_prognostic_enable)                         |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_precipitation_source**         | Rain into the force-restore surface layer (Noilhan and     | none |             | none             |
+|                                                    | Planton 1989, Eq. 11, with C1 = 1 as the balance's         | microphysics       |                  |
+|                                                    | evaporation uses): none, or microphysics (the change over  |                    |                  |
+|                                                    | each step of the scheme's surface precipitation            |                    |                  |
+|                                                    | accumulation, as liquid water). Water above                |                    |                  |
+|                                                    | seb_soil_porosity runs off. Needs seb_prognostic_enable, a |                    |                  |
+|                                                    | porosity, and a microphysics scheme with surface           |                    |                  |
+|                                                    | precipitation; stops at start-up otherwise, and with       |                    |                  |
+|                                                    | erf.land_surface_model = SLM or NOAHMP                     |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_soil_porosity**                | Porosity w_sat [m³/m³]; water above it runs off. Needed    | Real in (0, 1]; >  | none             |
+|                                                    | with seb_precipitation_source or                           | fc with drainage;  |                  |
+|                                                    | seb_deep_prognostic_enable unless seb_soil_type gives it   | stops at start-up  |                  |
+|                                                    | (Noah-MP MAXSMC; giving both stops at start-up). Must be   | if not             |                  |
+|                                                    | at or above seb_q_sfc_default and, with the deep           |                    |                  |
+|                                                    | reservoir, seb_q_deep_default. With rain, must be at or    |                    |                  |
+|                                                    | below seb_prognostic_q_max, so the q_s cap does not remove |                    |                  |
+|                                                    | rain uncounted                                             |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_deep_prognostic_enable**       | seb_q_deep becomes the mean water content of a soil column | Boolean            | false            |
+|                                                    | seb_deep_layer_depth_m deep, gaining rain and losing       |                    |                  |
+|                                                    | evaporation (Noilhan and Planton 1989, Eq. 12), and        |                    |                  |
+|                                                    | seb_t_deep relaxes toward T_s over seb_restore_timescale_s |                    |                  |
+|                                                    | (their Eq. 6). Both are checkpointed. Needs                |                    |                  |
+|                                                    | seb_prognostic_enable and a porosity; stops at start-up    |                    |                  |
+|                                                    | with erf.land_surface_model = SLM or NOAHMP. false keeps   |                    |                  |
+|                                                    | both at their defaults                                     |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_deep_layer_depth_m**           | Depth d_2 [m] of the soil column, which contains the       | Real > seb_moistur | 1.0              |
+|                                                    | surface layer. Giving it without                           | e_layer_depth_m;   |                  |
+|                                                    | seb_deep_prognostic_enable stops at start-up               | stops at start-up  |                  |
+|                                                    |                                                            | if not             |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_drainage_enable**              | Gravitational drainage of the column toward field capacity | Boolean            | false            |
+|                                                    | (Mahfouf and Noilhan 1996, Eq. 4) at the rate C_3 / (1     |                    |                  |
+|                                                    | day), the period of their Table 1, integrated exactly over |                    |                  |
+|                                                    | the step. Needs seb_deep_prognostic_enable,                |                    |                  |
+|                                                    | seb_drainage_c3_m and a field capacity                     |                    |                  |
+|                                                    | (seb_soil_moisture_fc or seb_soil_type); stops at start-up |                    |                  |
+|                                                    | otherwise                                                  |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_drainage_c3_m**                | C_3 d_2 [m] (Mahfouf and Noilhan 1996, Eq. 16; their Table | Real > 0; stops at | none             |
+|                                                    | 1 lists C_3 at d_2 = 1 m, from 0.098 to 1.705 by soil      | start-up if not    |                  |
+|                                                    | texture). The step uses C_3 = seb_drainage_c3_m /          |                    |                  |
+|                                                    | seb_deep_layer_depth_m. Required with seb_drainage_enable; |                    |                  |
+|                                                    | giving it otherwise stops at start-up                      |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_enable**                  | One bulk snow layer on the force-restore surface: the ISBA | Boolean            | false            |
+|                                                    | snow routine as in Douville et al. (1995), Sec. 2.1, for   |                    |                  |
+|                                                    | bare ground. Frozen surface precipitation (snow, graupel,  |                    |                  |
+|                                                    | hail) builds a snow water equivalent, and the hydrology    |                    |                  |
+|                                                    | then takes the rain only. Snow raises the surface albedo   |                    |                  |
+|                                                    | (their Eq. 8), sublimates, and melts where the balance     |                    |                  |
+|                                                    | takes T_s above 273.16 K (their Eq. 12), which holds T_s   |                    |                  |
+|                                                    | at 273.16 K while snow remains; the melt water enters the  |                    |                  |
+|                                                    | soil as rain. Under snow, seb_prognostic_t_max_k bounds    |                    |                  |
+|                                                    | T_s after the melt, so heat above it melts snow first.     |                    |                  |
+|                                                    | Checkpointed. Needs seb_prognostic_enable,                 |                    |                  |
+|                                                    | seb_use_radiation_fluxes and seb_precipitation_source =    |                    |                  |
+|                                                    | microphysics, no surface_albedo_sw_diffuse, no             |                    |                  |
+|                                                    | seb_vegetation_type, no land-surface model, and            |                    |                  |
+|                                                    | seb_prognostic_t_min_k at or below 273.16; stops           |                    |                  |
+|                                                    | otherwise. With a scheme that has no snow, graupel or hail |                    |                  |
+|                                                    | accumulation (Kessler) no snow falls, and the run prints a |                    |                  |
+|                                                    | note. false: no snow, results unchanged                    |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_initial_swe_kg_m2**       | Snow water equivalent at the start [kg/m^2], every column  | Real >= 0; stops   | 0.0              |
+|                                                    | and level; a restart takes the snow from the checkpoint.   | at start-up if not |                  |
+|                                                    | Giving it without seb_snow_enable stops at start-up.       |                    |                  |
+|                                                    | A water column loses it at the first step (land mask,      |                    |                  |
+|                                                    | above)                                                     |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_albedo**                  | Snow albedo (Douville et al. 1995, Eq. 8: 0.70, constant). | Real in [0, 1];    | 0.70             |
+|                                                    | Giving it without seb_snow_enable stops at start-up        | stops at start-up  |                  |
+|                                                    |                                                            | if not             |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_snow_critical_swe_kg_m2**      | Critical snow water equivalent W_crn [kg/m^2] of the snow  | Real > 0; stops at | 10.0             |
+|                                                    | cover fraction W_n / (W_n + W_crn) (Douville et al. 1995,  | start-up if not    |                  |
+|                                                    | Eq. 7: 10 mm). Giving it without seb_snow_enable stops at  |                    |                  |
+|                                                    | start-up                                                   |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Diagnostics Control Parameters**                 |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
@@ -6181,12 +6571,13 @@ ERF prints which of the three modes it selected, together with the STL file
 name and the scale, center and reverse-normal values, when it builds the EB
 geometry.
 
-Internally the STL mesh is handled by the ``BuildingsIF`` implicit function
+Internally the STL mesh is handled by the host-side ``BuildingsIF`` owner
 (``Source/EB/ERF_EBIFBuildings.H``), which uses the AMReX ``STLtools``
 infrastructure with bounding-volume-hierarchy acceleration.  At construction it
 samples the signed distance to the mesh onto the finest-level grid, computing
 the samples in parallel across ranks and then replicating the result so that
-each rank can evaluate the implicit function locally, including on the GPU.
+each rank can evaluate the implicit function locally, including on the GPU,
+through its ``BuildingsLevelsetIF`` evaluator.
 Evaluation is a trilinear interpolation of that sampled field, so the building
 geometry is resolved at the finest level's cell size; points outside the sampled
 region are treated as fluid.  Very large or highly detailed meshes will
@@ -6406,7 +6797,7 @@ Equation Set
 * :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.use_gravity``
 * :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.compressibility_type``,
   ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,
-  ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
+  ``erf.gradp_2nd_order_bndry``, ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
 * :ref:`Time Step <inputs-time-step>` -- ``erf.timestepping_type``
 * :ref:`Initialization <inputs-initialization>` -- ``erf.project_initial_velocity``
 

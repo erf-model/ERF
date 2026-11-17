@@ -77,6 +77,7 @@ auxiliary_host_integrator (const SolverChoice& solverChoice, const int level)
  * @param[in   ] detJ     Jacobian of the metric transformation at start of time step (= 1 if use_terrain is false)
  * @param[in   ] detJ_new Jacobian of the metric transformation at new RK stage time (= 1 if use_terrain is false)
  * @param[in   ] mapfac map factors
+ * @param[in   ] physbnd_mask EB only: mask of the physical-boundary ghost cells of the cell-centered variables
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  */
@@ -127,6 +128,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Gpu::DeviceVector<Real>& stretched_dz_d,
                         Vector<std::unique_ptr<MultiFab>>& mapfac,
                         const eb_& ebfact,
+                        const iMultiFab& physbnd_mask,
 #ifdef ERF_USE_EAMXX_SHOC
                         SHOCInterface* eamxx_shoc_lev,
 #endif
@@ -323,12 +325,20 @@ void erf_slow_rhs_post (int level, int finest_level,
         const MultiFab& stage_cons_anchor = S_old[IntVars::cons];
         const MultiFab& stage_cons_input = S_new[IntVars::cons];
         MultiFab& stage_cons_target = S_data[IntVars::cons];
+        erf_sbm::SBMStageMixingInputs sbm_mixing_inputs;
+        const erf_sbm::SBMStageMixingInputs* sbm_mixing = nullptr;
+        if (sbm_transport->mixes_particles()) {
+            sbm_mixing_inputs = erf_sbm::make_stage_mixing_inputs(
+                *sbm_transport, eddyDiffs, mapfac, ax.get(), ay.get(),
+                stretched_dz_d.data());
+            sbm_mixing = &sbm_mixing_inputs;
+        }
         sbm_transport->advance_stage_from_host(
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
             *sbm_state_manager, stage_cons_anchor, stage_cons_input,
             stage_cons_target, avg_xmom, avg_ymom, avg_zmom, geom,
             solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr,
-            sbm_parent_stage);
+            sbm_parent_stage, sbm_mixing);
     }
 
     // *************************************************************************
@@ -343,13 +353,7 @@ void erf_slow_rhs_post (int level, int finest_level,
       int start_comp;
       int   num_comp;
 
-      // Cell-centered masks for EB (used for flux interpolation)
-      iMultiFab physbnd_mask;
       bool already_on_centroids = false;
-      if (l_use_eb) {
-          physbnd_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-          physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
-      }
 
       // NOTE: this loop must NOT be tiled.  It both reads and writes S_new[cons]:
       //   - the diffusion and PBL source routines below read new_cons with stencils

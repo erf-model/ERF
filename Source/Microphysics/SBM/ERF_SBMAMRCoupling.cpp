@@ -100,6 +100,11 @@ ERF::configure_sbm_physical_boundaries ()
         m_bc_extdir_vals[cons_bc_comp(solverChoice.moisture_indices.qr)][ori] = rho_in * compact.qr;
         config.inflow_z[static_cast<std::size_t>(face)] = std::move(z);
     }
+    std::string mixing_reason;
+    if (!erf_sbm::validate_particle_mixing_boundaries(sbm_transport->particle_mixing(),
+                                                      config, mixing_reason)) {
+        Abort(mixing_reason);
+    }
     sbm_transport->set_physical_boundaries(config);
 }
 

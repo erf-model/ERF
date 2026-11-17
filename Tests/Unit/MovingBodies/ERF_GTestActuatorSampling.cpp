@@ -1205,7 +1205,7 @@ TEST(ActuatorSampling, KeptBuffersGiveTheSameAnswersAndOneKernelPerBox)
     for (const std::vector<Real>* pts : {&many, &few, &many}) {
         std::vector<Real> vel_kept, vel_own;
         std::vector<int> cnt_kept, cnt_own;
-        const long before = buf.kernel_launches;
+        const amrex::Long before = buf.kernel_launches;
         erf_actuator::sample_velocity_local(f.u, f.v, f.w, f.znd.get(), f.geom, *pts, vel_kept, cnt_kept, &buf);
         EXPECT_EQ(buf.kernel_launches - before, nlocal);
         erf_actuator::sample_velocity_local(f.u, f.v, f.w, f.znd.get(), f.geom, *pts, vel_own, cnt_own);

@@ -5,7 +5,7 @@ name: Lint
 # their run: blocks; shellcheck also covers the helper scripts under
 # .github/workflows. Cache helper tests use mocked registry commands; workflow
 # contracts check matrix tags, restore/save settings, and publication guards.
-# Mypy checks the cache driver and both implementations of the transport interface.
+# Mypy checks the cache transports and PR cleanup script.
 # These checks do not compile ERF.
 on:
   push:
@@ -58,7 +58,7 @@ jobs:
         run: |
           python3 -m venv "${RUNNER_TEMP}/cache-checks"
           "${RUNNER_TEMP}/cache-checks/bin/python" -m pip install -r .github/tests/requirements.txt
-      - name: Type-check GHCR cache transports
+      - name: Type-check Python CI helpers
         run: '"${RUNNER_TEMP}/cache-checks/bin/python" -m mypy --config-file .github/tests/mypy.ini'
       - name: Check GHCR workflow contracts
         run: |

@@ -4,7 +4,8 @@
 # problem is allowed to stay (and only it: a level-0 mean is not taken for level 1), the
 # largest of several subdomains' divergences is the reference, and a log without solves on
 # the level, or with a solve that starts from a negligible divergence or an 'after' line
-# without a 'before' line, says nothing (exit 2).
+# without a 'before' line, says nothing (exit 2).  A solve that starts from no divergence at
+# all (a flow at rest at initialization) is left out.
 # -DX= defines X as empty, so test for a value, not for DEFINED
 foreach(arg PYTHON_EXE CHECKER WORKING_DIRECTORY)
     if("${${arg}}" STREQUAL "")
@@ -27,6 +28,8 @@ foreach(case
         "mean_and_more|${b1}@ Subtracting -4.0e-07 from rhs in subdomain 0@Max/L2 norm of divergence after  solve at level 1 : 4.5e-06 3.9e-05 and volume-weighted sum -223.9|1|1"
         "no_level1|${b0}@${a0}|1|2"
         "negligible_before|Max/L2 norm of divergence before solve in subdomain 0 at level 1 : 1.0e-9 1.0e-8 and volume-weighted sum 0.0@Max/L2 norm of divergence after  solve at level 1 : 1.0e-15 1.0e-14 and volume-weighted sum 0.0|1|2"
+        "rest_then_converged|Max/L2 norm of divergence before solve in subdomain 0 at level 1 : 0 0 and volume-weighted sum 0@Max/L2 norm of divergence after  solve at level 1 : 0 0 and volume-weighted sum 0@${b1}@Max/L2 norm of divergence after  solve at level 1 : 3.9e-06 1.0e-05 and volume-weighted sum 0.0|1|0"
+        "rest_only|Max/L2 norm of divergence before solve in subdomain 0 at level 1 : 0 0 and volume-weighted sum 0@Max/L2 norm of divergence after  solve at level 1 : 0 0 and volume-weighted sum 0|1|2"
         "after_without_before|Max/L2 norm of divergence after  solve at level 1 : 1.0e-9 1.0e-8 and volume-weighted sum 0.0|1|2"
         "mean_within_limit|${b1}@ Subtracting -4.0e-10 from rhs in subdomain 0@Max/L2 norm of divergence after  solve at level 1 : 4.01e-10 3.9e-08 and volume-weighted sum -0.2|1|0|--max-mean 1.0e-9"
         "mean_above_limit|${b1}@ Subtracting -4.0e-07 from rhs in subdomain 0@Max/L2 norm of divergence after  solve at level 1 : 4.01e-07 3.9e-05 and volume-weighted sum -223.9|1|1|--max-mean 1.0e-9")

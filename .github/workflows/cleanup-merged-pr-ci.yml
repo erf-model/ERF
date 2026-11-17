@@ -1,0 +1,32 @@
+name: Clean up obsolete PR CI
+
+# No path filters: every merge can leave obsolete PR jobs behind.
+on:
+  push:
+    branches: [development]
+
+permissions:
+  contents: read
+
+# Finish the active sweep and keep only the newest pending sweep.
+concurrency:
+  group: cleanup-merged-pr-ci-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    if: github.repository == 'erf-model/ERF'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Cancel obsolete PR CI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/cleanup_closed_pr_ci.py

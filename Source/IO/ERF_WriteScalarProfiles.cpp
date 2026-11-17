@@ -338,10 +338,10 @@ ERF::sum_derived_quantities (double time)
                                     static_cast<Real>(t_new[0]), nullptr, lev);
     }
 
-    // Copy the MF holding 1/2(u^2 + v^2 + w^2) into the MF that will hold 1/2 rho (u^2 + v^2 + w^2)d
+    // Copy the MF holding (u^2 + v^2 + w^2) into the MF that will hold rho (u^2 + v^2 + w^2)
     MultiFab::Copy(r_wted_magvelsq, unwted_magvelsq, 0, 0, 1, 0);
 
-    // Multiply the MF holding 1/2(u^2 + v^2 + w^2) by rho to get  1/2 rho (u^2 + v^2 + w^2)
+    // Multiply the MF holding (u^2 + v^2 + w^2) by rho to get rho (u^2 + v^2 + w^2)
     MultiFab::Multiply(r_wted_magvelsq, vars_new[lev][Vars::cons], 0, 0, 1, 0);
 
     // Copy the MF holding (rho theta) into "theta_mf"
@@ -404,10 +404,11 @@ ERF::sum_derived_quantities (double time)
 
         if (time == zero_d) {
             data_log_der << std::setw(datwidth) << "          time";
-            data_log_der << std::setw(datwidth) << "        ke_den";
+            // the columns are <|u|^2>, <rho |u|^2>, the enstrophy and <theta> (no factor 1/2)
             data_log_der << std::setw(datwidth) << "         velsq";
+            data_log_der << std::setw(datwidth) << "     rho_velsq";
             data_log_der << std::setw(datwidth) << "     enstrophy";
-            data_log_der << std::setw(datwidth) << "    int_energy";
+            data_log_der << std::setw(datwidth) << "         theta";
             data_log_der << std::endl;
         }
         data_log_der << std::setw(datwidth) << std::setprecision(timeprecision) << time;

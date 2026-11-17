@@ -137,7 +137,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                                                      xvel_arr,yvel_arr,
                                                      mf_u,mf_v,z_phys_nd,dxInv);
                     }
-                } else if (bc_ptr_w[0].lo(0) == ERFBCType::foextrap) {
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::foextrap ||
+                           bc_ptr_w[0].lo(0) == ERFBCType::ext_dir_upwind) {  // outflow part of an inflow_outflow face
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
                 } else if (bc_ptr_w[0].lo(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
@@ -145,6 +146,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
                 } else if (bc_ptr_w[0].lo(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
+                } else if (bc_ptr_w[0].lo(0) == ERFBCType::hoextrap) {
+                    Real d = static_cast<Real>(dom_lo.x - i);
+                    dest_arr(i,j,k) = (one + d)*dest_arr(dom_lo.x,j,k) - d*dest_arr(dom_lo.x+1,j,k);
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -159,7 +163,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                                                      xvel_arr,yvel_arr,
                                                      mf_u,mf_v,z_phys_nd,dxInv);
                     }
-                } else if (bc_ptr_w[0].hi(0) == ERFBCType::foextrap) {
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::foextrap ||
+                           bc_ptr_w[0].hi(0) == ERFBCType::ext_dir_upwind) {  // outflow part of an inflow_outflow face
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
                 } else if (bc_ptr_w[0].hi(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
@@ -167,6 +172,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
                 } else if (bc_ptr_w[0].hi(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
+                } else if (bc_ptr_w[0].hi(0) == ERFBCType::hoextrap) {
+                    Real d = static_cast<Real>(i - dom_hi.x);
+                    dest_arr(i,j,k) = (one + d)*dest_arr(dom_hi.x,j,k) - d*dest_arr(dom_hi.x-1,j,k);
                 }
             }
         );
@@ -191,7 +199,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                                                      xvel_arr,yvel_arr,
                                                      mf_u,mf_v,z_phys_nd,dxInv);
                     }
-                } else if (bc_ptr_w[0].lo(1) == ERFBCType::foextrap) {
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::foextrap ||
+                           bc_ptr_w[0].lo(1) == ERFBCType::ext_dir_upwind) {  // outflow part of an inflow_outflow face
                     dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
                 } else if (bc_ptr_w[0].lo(1) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
@@ -199,6 +208,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) =  dest_arr(i,jflip,k);
                 } else if (bc_ptr_w[0].lo(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
+                } else if (bc_ptr_w[0].lo(1) == ERFBCType::hoextrap) {
+                    Real d = static_cast<Real>(dom_lo.y - j);
+                    dest_arr(i,j,k) = (one + d)*dest_arr(i,dom_lo.y,k) - d*dest_arr(i,dom_lo.y+1,k);
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -213,7 +225,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                                                      xvel_arr,yvel_arr,
                                                      mf_u,mf_v,z_phys_nd,dxInv);
                     }
-                } else if (bc_ptr_w[0].hi(1) == ERFBCType::foextrap) {
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::foextrap ||
+                           bc_ptr_w[0].hi(1) == ERFBCType::ext_dir_upwind) {  // outflow part of an inflow_outflow face
                     dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
                 } else if (bc_ptr_w[0].hi(1) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
@@ -221,6 +234,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     dest_arr(i,j,k) =  dest_arr(i,jflip,k);
                 } else if (bc_ptr_w[0].hi(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
+                } else if (bc_ptr_w[0].hi(1) == ERFBCType::hoextrap) {
+                    Real d = static_cast<Real>(j - dom_hi.y);
+                    dest_arr(i,j,k) = (one + d)*dest_arr(i,dom_hi.y,k) - d*dest_arr(i,dom_hi.y-1,k);
                 }
             });
     }

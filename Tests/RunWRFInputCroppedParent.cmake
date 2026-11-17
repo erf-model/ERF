@@ -37,7 +37,9 @@ if(NOT status EQUAL 0)
 endif()
 file(READ "${RUN_DIR}/restart.log" restart_log)
 if(NOT restart_log MATCHES "Restart from native checkpoint chk00000" OR
-   NOT restart_log MATCHES "Reading  PSFC" OR
    NOT restart_log MATCHES "Reading time slice 0 from wrflowinp_d03")
-  message(FATAL_ERROR "Restart did not exercise the level-2 wrflow and PSFC re-read path")
+  message(FATAL_ERROR "Restart did not exercise the level-2 wrflow forcing path")
+endif()
+if(restart_log MATCHES "Reading  PSFC")
+  message(FATAL_ERROR "Restart still reads PSFC for the removed SST/TSK update argument")
 endif()

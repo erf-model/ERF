@@ -189,12 +189,6 @@ public:
       }
 
       if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
-        query_one_or_per_level(
-          pp, "pbl_mynn_Lt_taper_exp", pbl_mynn.Lt_taper_exp, lev, max_level);
-        if (pbl_mynn.Lt_taper_exp < 0) {
-            amrex::Error("erf.pbl_mynn_Lt_taper_exp must be >= 0 "
-                         "(0 disables the taper)");
-        }
         // NN09 (the default) uses Lt_alpha = 0.23 and a 1/l sum for the master
         // length scale; Chen2021 uses Lt_alpha = 0.10 and a 1/l^2 sum.
         query_one_or_per_level_enum_case_insensitive(
@@ -238,6 +232,13 @@ public:
         // SQ = SQfac*SM, so its bound is tied to SHmax and SQfac; the default member
         // initializer was evaluated before either could be overridden here.
         pbl_mynn.SQmax = pbl_mynn.SQfac * pbl_mynn.SHmax;
+
+        // Surface-layer length scale alone in the first cell (see MYNNLevel25::surface_lm).
+        query_one_or_per_level(
+          pp, "pbl_mynn_surface_lm", pbl_mynn.surface_lm, lev, max_level);
+        if (pbl_mynn.surface_lm && pbl_type != PBLType::MYNN25) {
+            amrex::Abort("erf.pbl_mynn_surface_lm is only implemented for erf.pbl_type = MYNN25");
+        }
 
       } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
         query_one_or_per_level(
@@ -739,8 +740,6 @@ public:
     }
 
     if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
-      amrex::Print() << "    pbl_mynn_Lt_taper_exp : "
-                     << pbl_mynn.Lt_taper_exp << std::endl;
       amrex::Print() << "    pbl_mynn_config : "
                      << amrex::getEnumNameString(pbl_mynn.config) << std::endl;
       amrex::Print() << "    pbl_mynn_Lt_alpha : " << pbl_mynn.Lt_alpha << std::endl;
@@ -753,6 +752,7 @@ public:
       amrex::Print() << "    pbl_mynn_C3 : " << pbl_mynn.C3 << std::endl;
       amrex::Print() << "    pbl_mynn_C4 : " << pbl_mynn.C4 << std::endl;
       amrex::Print() << "    pbl_mynn_C5 : " << pbl_mynn.C5 << std::endl;
+      amrex::Print() << "    pbl_mynn_surface_lm : " << pbl_mynn.surface_lm << std::endl;
     } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
       amrex::Print() << "    pbl_ysu_coriolis_freq              : "
                      << pbl_ysu_coriolis_freq << std::endl;

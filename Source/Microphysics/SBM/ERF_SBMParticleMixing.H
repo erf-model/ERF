@@ -3,12 +3,14 @@
 
 #include "ERF_AuxiliaryDiffusion.H"
 #include "ERF_DataStruct.H"
+#include "ERF_SBMPhysicalBoundary.H"
 
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
 
 #include <string>
+#include <vector>
 
 namespace erf_sbm {
 
@@ -44,6 +46,35 @@ struct ParticleMixingConfig
 
 [[nodiscard]] bool validate_particle_mixing_config (const ParticleMixingConfig& config,
                                                     std::string& reason);
+
+/** The policy named by erf.sbm_particle_mixing and its reference diffusivities. */
+[[nodiscard]] bool make_particle_mixing_config (const std::string& name,
+                                                amrex::Real reference_kh,
+                                                amrex::Real reference_kv,
+                                                ParticleMixingConfig& config,
+                                                std::string& reason);
+
+/**
+ * The ERF configuration a policy is qualified with: no molecular, PBL or RANS
+ * diffusion; ERF turbulence only as the same Smagorinsky or Deardorff LES on
+ * every level, and only with HostPassiveScalar, which requires it; one level;
+ * and a constant- or stretched-dz mesh.
+ */
+[[nodiscard]] bool validate_particle_mixing_host (const ParticleMixingConfig& config,
+                                                  const std::vector<TurbChoice>& turbulence,
+                                                  MolecDiffType molecular,
+                                                  MeshType mesh,
+                                                  int max_level,
+                                                  std::string& reason);
+
+/** Mixing is qualified with periodic and wall faces only. */
+[[nodiscard]] bool validate_particle_mixing_boundaries (
+    const ParticleMixingConfig& config,
+    const SBMPhysicalBoundaryConfig& boundaries,
+    std::string& reason);
+
+/** Restart-schema lines of a mixing policy; empty for None. */
+[[nodiscard]] std::string particle_mixing_schema (const ParticleMixingConfig& config);
 
 /** The host coefficient semantics of a mixing policy other than None. */
 [[nodiscard]] bool particle_mixing_coefficients (

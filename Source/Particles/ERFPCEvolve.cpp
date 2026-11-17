@@ -333,17 +333,23 @@ void ERFPC::ComputeTemperature (const MultiFab&                  a_ucons,
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
-    // Compute temperature
+    // Compute temperature, including one ghost cell: the CIC stencil of a particle within half
+    // a cell of the bottom, of a non-periodic side or of the edge of a fine level reads it
+    // (#5196).  The ghost cells of the state hold the end-of-dycore state (domain BCs and
+    // coarse/fine interpolation applied after the final RK stage); they do not include the
+    // post-dycore updates (microphysics, land surface, urban), which touch valid cells only, so
+    // there T lags by at most those increments.  A ghost cell with no density is left at zero.
     MultiFab T_mf(a_ucons.boxArray(), a_ucons.DistributionMap(), 1, a_ucons.nGrowVect());
-    T_mf.setVal(0.0);
+    T_mf.setVal(zero);
     for ( MFIter mfi(a_ucons); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
+        const Box box3d = mfi.growntilebox(1);
         auto states_array = a_ucons.const_array(mfi);
         auto tabs_array  = T_mf.array(mfi);
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
-                                                  states_array(i,j,k,RhoTheta_comp));
+            const Real rho = states_array(i,j,k,Rho_comp);
+            tabs_array(i,j,k) = (rho > zero) ? getTgivenRandRTh(rho, states_array(i,j,k,RhoTheta_comp))
+                                             : zero;
         });
     }
     T_mf.FillBoundary(geom.periodicity());

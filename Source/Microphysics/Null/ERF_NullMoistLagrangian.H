@@ -54,6 +54,12 @@ public:
     /*! \brief average down moisture multifabs from finest_level to 0 */
     virtual void AverageDownMicroVars (const int /*finest_level*/) {}
 
+    /*! \brief diagnostics of the state of all levels at a step */
+    virtual void Diagnostics (const int&, /* step */
+                              const amrex::Real&, /* time */
+                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&, /* terrain */
+                              const int /* file name digits */) {}
+
     virtual bool Qstate_Is_Diagnostic (int /*q*/) const { return false; }
 
     virtual void Update_Diagnostic_State (amrex::MultiFab&, const amrex::MultiFab&) {}
