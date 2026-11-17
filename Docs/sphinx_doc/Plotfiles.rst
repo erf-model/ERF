@@ -141,6 +141,12 @@ parser accepts one schedule value or one value per region. With several regions,
 a single value applies only to the first region; supply one value per region to
 schedule every region.
 
+On a restart, ``erf.plot_file_on_restart`` (Boolean, default ``true``) writes the
+configured 3D and 2D plotfiles and subvolumes at the restart time, whether or not
+that time is on their schedules. Set it to ``false`` to write nothing until the
+next scheduled output. Either way, each stream then continues on its own schedule:
+every ``*_int_*`` steps, or at the next multiple of ``*_per_*``.
+
 Configuring 3D output
 =====================
 
