@@ -56,6 +56,8 @@ ERF::configure_sbm_physical_boundaries ()
         if (!erf_sbm::map_erf_boundary(phys_bc_type[ori], kind, reason)) {
             Abort("SBM physical boundary " + name + " is not supported: " + reason);
         }
+        config.diffusion[static_cast<std::size_t>(face)] =
+            erf_sbm::map_erf_diffusion(phys_bc_type[ori]);
         ParmParse pp_prefixed(pp_prefix + "." + name);
         ParmParse pp_plain(name);
         ParmParse* pp_face = pp_prefixed.contains("sbm_inflow_z") ? &pp_prefixed

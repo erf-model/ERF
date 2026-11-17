@@ -77,7 +77,7 @@ make_layout (const erf_sbm::MomentMode mode, const bool with_property)
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
-enum class Profile { Smooth, Step, Uniform };
+enum class Profile { Smooth, Step, Uniform, Empty };
 
 struct Options
 {
@@ -93,7 +93,13 @@ struct Options
     bool variable_maps{false};
     bool varying_density{false};
     Real carrier_x{0};
+    // The x carrier falls linearly from carrier_x at xhi to -carrier_x at xlo.
+    bool carrier_ramp{false};
     Profile profile{Profile::Smooth};
+    // x is bounded by an inflow face at xlo, with this diffusive kind, and an
+    // outflow face at xhi.
+    bool inflow_x{false};
+    erf_auxiliary::DiffusionFaceKind xlo_diffusion{erf_auxiliary::DiffusionFaceKind::Dirichlet};
 };
 
 struct Run
@@ -112,6 +118,7 @@ struct Run
     amrex::Gpu::DeviceVector<Real> dz;
     MultiFab xmom, ymom, zmom;
     erf_sbm::SBMStageMixingInputs inputs;
+    std::vector<Real> inflow_z;
 
     [[nodiscard]] const erf_sbm::SBMStageMixingInputs* mixing () const
     {
@@ -205,6 +212,8 @@ void fill_spectrum (MultiFab& spectrum, const MultiFab& rho, const erf_sbm::SBML
             } else if (profile == Profile::Step) {
                 upper = walls ? z > Real(0.5) : x > Real(0.5);
                 factor = upper ? Real(0.1) : Real(1.0);
+            } else if (profile == Profile::Empty) {
+                factor = Real(0.0);
             }
             const Real density = r(i, j, k, Rho_comp);
             for (int bin = 0; bin < 2; ++bin) {
@@ -221,6 +230,24 @@ void fill_spectrum (MultiFab& spectrum, const MultiFab& rho, const erf_sbm::SBML
     }
 }
 
+// A canonical, admissible inflow spectrum z = U / rho_d: 1.2 times the
+// uniform profile's number, with its bin means and attached fraction.
+std::vector<Real> inflow_state (const erf_sbm::SBMLayout& layout)
+{
+    const auto& population = layout.populations().front();
+    const bool two_moment = population.moment_mode == erf_sbm::MomentMode::TwoMoment;
+    const int property0 = layout.ncomp() > (two_moment ? 4 : 2) ? layout.property_offset(0) : -1;
+    std::vector<Real> z(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    for (int bin = 0; bin < 2; ++bin) {
+        const Real number = Real(1.2) * Real(0.01) * (Real(1.0) + Real(0.5) * Real(bin));
+        z[static_cast<std::size_t>(population.mass_offset + bin)] =
+            number * (bin == 0 ? Real(0.3) : Real(0.75));
+        if (two_moment) { z[static_cast<std::size_t>(population.number_offset + bin)] = number; }
+        if (property0 >= 0) { z[static_cast<std::size_t>(property0 + bin)] = Real(0.25) * number; }
+    }
+    return z;
+}
+
 std::unique_ptr<Run>
 make_run (const Options& options)
 {
@@ -229,7 +256,7 @@ make_run (const Options& options)
     const bool walls = options.walls || options.stretched;
     const Box domain(IntVect(0), IntVect(nx - 1, ny - 1, nz - 1));
     const amrex::RealBox real_box({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
-    const int periodic[AMREX_SPACEDIM] = {1, 1, walls ? 0 : 1};
+    const int periodic[AMREX_SPACEDIM] = {options.inflow_x ? 0 : 1, 1, walls ? 0 : 1};
     run->geom = Geometry(domain, &real_box, amrex::CoordSys::cartesian, periodic);
     run->ba = BoxArray(domain);
     run->ba.maxSize(4);
@@ -251,10 +278,19 @@ make_run (const Options& options)
             config, options.stretched ? erf_auxiliary::DiffusionMesh::StretchedDz
                                       : erf_auxiliary::DiffusionMesh::ConstantDz);
     }
-    if (walls) {
+    if (walls || options.inflow_x) {
         erf_sbm::SBMPhysicalBoundaryConfig boundaries;
-        boundaries.kind[2] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
-        boundaries.kind[5] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+        if (walls) {
+            boundaries.kind[2] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+            boundaries.kind[5] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+        }
+        if (options.inflow_x) {
+            run->inflow_z = inflow_state(run->state->layout());
+            boundaries.kind[0] = erf_sbm::AdvectionFaceKind::PrescribedInflow;
+            boundaries.inflow_z[0] = run->inflow_z;
+            boundaries.diffusion[0] = options.xlo_diffusion;
+            boundaries.kind[3] = erf_sbm::AdvectionFaceKind::AdvectiveOutflow;
+        }
         run->transport->set_physical_boundaries(boundaries);
     }
 
@@ -300,6 +336,15 @@ make_run (const Options& options)
     run->ymom.define(amrex::convert(ba, IntVect(0, 1, 0)), dm, 1, 0);
     run->zmom.define(amrex::convert(ba, IntVect(0, 0, 1)), dm, 1, 0);
     run->xmom.setVal(options.carrier_x);
+    if (options.carrier_ramp) {
+        const Real c = options.carrier_x;
+        for (amrex::MFIter mfi(run->xmom); mfi.isValid(); ++mfi) {
+            const auto a = run->xmom.array(mfi);
+            amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                a(i, j, k, 0) = c * (Real(2 * i) / Real(nx) - Real(1.0));
+            });
+        }
+    }
     run->ymom.setVal(Real(0.0));
     run->zmom.setVal(Real(0.0));
 
@@ -375,8 +420,58 @@ Real mapped_inventory (const MultiFab& state, const MultiFab& measure, const int
     return product.sum(0);
 }
 
+// The host's diffusive transfer through an open xlo face, written out from
+// ERF's stencils rather than its builders: on an N grid the one-sided
+// (-8/3, 3, -1/3) gradient against the face value, on a stretched grid the
+// two-point gradient against it with the face area. Added to the edge cells'
+// tendency, with the zero-carrier test runs in mind.
+void add_inflow_face_tendency (const Run& run, const MultiFab& z, MultiFab& tendency)
+{
+    const int ncomp = z.nComp();
+    amrex::Gpu::DeviceVector<Real> inflow(run.inflow_z.size());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, run.inflow_z.begin(), run.inflow_z.end(),
+                     inflow.begin());
+    const Real* z_in = inflow.data();
+    const bool stretched = run.options.stretched;
+    const bool kinematic = run.options.policy == ParticleMixingPolicy::ConstantReference;
+    const Real kh = run.options.kh;
+    const Real dx_inv = run.geom.InvCellSizeArray()[0];
+    const auto& metrics = run.inputs.metrics;
+    for (amrex::MFIter mfi(tendency); mfi.isValid(); ++mfi) {
+        Box edge = mfi.validbox();
+        if (edge.smallEnd(0) != 0) { continue; }
+        edge.setBig(0, 0);
+        const auto out = tendency.array(mfi);
+        const auto zv = z.const_array(mfi);
+        const auto rho = run.rho.const_array(mfi);
+        const auto eddy = run.eddy.const_array(mfi);
+        const auto ux = metrics.mf_ux->const_array(mfi);
+        const auto uy = metrics.mf_uy->const_array(mfi);
+        const auto area = run.ax.const_array(mfi);
+        const auto omega = run.transport->static_measure(0).const_array(mfi);
+        amrex::ParallelFor(edge, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+            const Real coeff = kinematic
+                ? kh * Real(0.5) * (rho(i - 1, j, k, Rho_comp) + rho(i, j, k, Rho_comp))
+                : Real(0.5) * (eddy(i - 1, j, k, EddyDiff::Scalar_h) +
+                               eddy(i, j, k, EddyDiff::Scalar_h));
+            Real flux;
+            if (stretched) {
+                flux = -coeff * ux(i, j, 0) * dx_inv * (zv(i, j, k, n) - z_in[n]) /
+                       uy(i, j, 0) * area(i, j, k);
+            } else {
+                const Real grad = -(Real(8.0) / Real(3.0)) * z_in[n] + Real(3.0) * zv(i, j, k, n) -
+                                  (Real(1.0) / Real(3.0)) * zv(i + 1, j, k, n);
+                flux = -coeff * grad * dx_inv * ux(i, j, 0) / uy(i, j, 0);
+            }
+            out(i, j, k, n) += dx_inv * flux / omega(i, j, k, 0);
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+}
+
 // dU/dt of the M5a two-point operator on z = U / rho: an oracle independent
 // of the native diffusion builders that form the transport's high-order rate.
+// An open inflow face adds the host's boundary transfer.
 void two_point_tendency (const Run& run, const MultiFab& state, MultiFab& tendency)
 {
     const int ncomp = state.nComp();
@@ -407,6 +502,10 @@ void two_point_tendency (const Run& run, const MultiFab& state, MultiFab& tenden
     for (int n = 0; n < ncomp; ++n) {
         erf_auxiliary::ApplyMappedFluxTendency(rate, n, run.transport->static_measure(0), 0,
                                                tendency, n, run.geom.InvCellSizeArray());
+    }
+    if (run.options.inflow_x &&
+        run.options.xlo_diffusion != erf_auxiliary::DiffusionFaceKind::Closed) {
+        add_inflow_face_tendency(run, z, tendency);
     }
 }
 
@@ -763,6 +862,136 @@ void run_grouped_properties ()
     }
 }
 
+// Diffusion through an open inflow face, with the limiter inactive,
+// reproduces the host's boundary stencil with each integrator's stages.
+void run_inflow_recovery ()
+{
+    Options n_grid;
+    n_grid.inflow_x = true;
+    n_grid.variable_maps = true;
+    n_grid.varying_density = true;
+    expect_recovers_host_diffusion(n_grid, HostIntegrator::CompressibleRK3);
+    n_grid.xlo_diffusion = erf_auxiliary::DiffusionFaceKind::DirichletWhereInward;
+    n_grid.mode = erf_sbm::MomentMode::TwoMoment;
+    expect_recovers_host_diffusion(n_grid, HostIntegrator::AnelasticMidPoint);
+
+    Options s_grid;
+    s_grid.inflow_x = true;
+    s_grid.policy = ParticleMixingPolicy::ConstantReference;
+    s_grid.kh = Real(0.02);
+    s_grid.kv = Real(0.004);
+    s_grid.stretched = true;
+    s_grid.varying_density = true;
+    expect_recovers_host_diffusion(s_grid, HostIntegrator::AnelasticHeun);
+}
+
+// Into an empty domain at rest, the edge cells take the host's one-sided
+// boundary stencil, 8/3 K z_in dx_inv^2 per unit time, and not the low-order
+// exchange over half the cell, 2 K z_in dx_inv^2: the ghost beyond an open
+// face carries no budget that could limit the face.
+void run_inflow_one_sided ()
+{
+    Options options;
+    options.inflow_x = true;
+    options.policy = ParticleMixingPolicy::ConstantReference;
+    options.kh = Real(0.01);
+    options.kv = Real(0.01);
+    options.variable_maps = false;
+    options.profile = Profile::Empty;
+    auto run = make_run(options);
+    const Real tau = Real(0.01);
+    begin_step(*run, 0.0);
+    stage(*run, HostIntegrator::AnelasticHeun, 0, 0.0, 0.0, tau, tau);
+    const Real dx_inv = Real(nx);
+    const int ncomp = run->spectrum().nComp();
+    amrex::Gpu::DeviceVector<Real> expected_edge(static_cast<std::size_t>(ncomp));
+    std::vector<Real> host(static_cast<std::size_t>(ncomp));
+    for (int n = 0; n < ncomp; ++n) {
+        host[static_cast<std::size_t>(n)] = tau * (Real(8.0) / Real(3.0)) * options.kh *
+                                            run->inflow_z[static_cast<std::size_t>(n)] *
+                                            dx_inv * dx_inv;
+    }
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, host.begin(), host.end(), expected_edge.begin());
+    MultiFab expected(run->ba, run->dm, ncomp, 0);
+    const Real* edge = expected_edge.data();
+    for (amrex::MFIter mfi(expected); mfi.isValid(); ++mfi) {
+        const auto a = expected.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), ncomp,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                a(i, j, k, n) = i == 0 ? edge[n] : Real(0.0);
+            });
+    }
+    const Real scale = *std::max_element(host.begin(), host.end());
+    EXPECT_LE(difference(run->spectrum(), expected), Real(64.0) * eps() * scale);
+}
+
+// Diffusion alone carries material through the inflow face, and the ledger
+// records it: the inventory gains exactly what the xlo face recorded inward.
+// The outflow face is closed to mixing and records nothing.
+void run_inflow_ledger ()
+{
+    Options options;
+    options.inflow_x = true;
+    options.policy = ParticleMixingPolicy::ConstantReference;
+    options.kh = Real(0.02);
+    options.kv = Real(0.01);
+    options.profile = Profile::Uniform;
+    options.mode = erf_sbm::MomentMode::TwoMoment;
+    options.attached_property = true;
+    auto run = make_run(options);
+    const auto initial = copy_of(run->spectrum());
+    double t = 0.0;
+    for (int step = 0; step < 3; ++step) {
+        t = step_once(*run, HostIntegrator::CompressibleRK3, t, 0.02);
+        std::string diagnostic;
+        EXPECT_TRUE(erf_sbm::authoritative_state_admissible(run->spectrum(),
+                                                            run->state->layout(), 0, &diagnostic))
+            << "step " << step << ": " << diagnostic;
+    }
+    const auto& ledger = run->transport->boundary_ledger();
+    const int ncomp = initial->nComp();
+    // The ledger holds physical amounts: the inventory with the cell volume.
+    const Real volume = Real(1.0) / Real(nx * ny * nz);
+    for (int n = 0; n < ncomp; ++n) {
+        const Real before =
+            volume * mapped_inventory(*initial, run->transport->static_measure(0), n);
+        const Real after =
+            volume * mapped_inventory(run->spectrum(), run->transport->static_measure(0), n);
+        const double xlo = ledger.outward[static_cast<std::size_t>(0 * ncomp + n)];
+        const double xhi = ledger.outward[static_cast<std::size_t>(3 * ncomp + n)];
+        EXPECT_NE(xlo, 0.0) << "component " << n;
+        EXPECT_NEAR(after - before, -xlo, Real(256.0) * eps() * before) << "component " << n;
+        EXPECT_EQ(xhi, 0.0) << "component " << n;
+        EXPECT_EQ(ledger.gross[static_cast<std::size_t>(3 * ncomp + n)], 0.0) << "component " << n;
+    }
+}
+
+// Where the carrier leaves through an inflow_outflow face, the face is closed
+// to mixing, as a closed face is; an inflow face exchanges there too.
+void run_inflow_outflow_masks_outward_faces ()
+{
+    Options options;
+    options.inflow_x = true;
+    options.policy = ParticleMixingPolicy::ConstantReference;
+    options.kh = Real(0.02);
+    options.kv = Real(0.01);
+    options.carrier_x = Real(0.5);
+    options.carrier_ramp = true;
+    options.profile = Profile::Smooth;
+    options.xlo_diffusion = erf_auxiliary::DiffusionFaceKind::DirichletWhereInward;
+    auto inward_only = make_run(options);
+    options.xlo_diffusion = erf_auxiliary::DiffusionFaceKind::Closed;
+    auto closed = make_run(options);
+    options.xlo_diffusion = erf_auxiliary::DiffusionFaceKind::Dirichlet;
+    auto open = make_run(options);
+    for (auto* run : {inward_only.get(), closed.get(), open.get()}) {
+        advance(*run, HostIntegrator::CompressibleRK3, Real(0.02), 2);
+    }
+    EXPECT_EQ(difference(inward_only->spectrum(), closed->spectrum()), Real(0.0));
+    EXPECT_GT(difference(open->spectrum(), closed->spectrum()),
+              Real(1.0e-6) * closed->spectrum().norm0(0, closed->spectrum().nComp(), IntVect(0)));
+}
+
 void run_missing_inputs ()
 {
     auto run = make_run(Options{});
@@ -816,6 +1045,13 @@ TEST(SBMMixingTransport, WallsCloseTheInventoryWithoutBoundaryTransfer) { run_wa
 TEST(SBMMixingTransport, GroupedPropertiesStayAdmissibleAndConserved)
 {
     run_grouped_properties();
+}
+TEST(SBMMixingTransport, InflowFaceRecoversHostDiffusion) { run_inflow_recovery(); }
+TEST(SBMMixingTransport, InflowFaceTakesTheOneSidedHostStencil) { run_inflow_one_sided(); }
+TEST(SBMMixingTransport, DiffusionThroughAnInflowFaceClosesTheLedger) { run_inflow_ledger(); }
+TEST(SBMMixingTransport, InflowOutflowFaceClosesWhereTheCarrierLeaves)
+{
+    run_inflow_outflow_masks_outward_faces();
 }
 TEST(SBMMixingTransport, MixingWithoutStageInputsAborts)
 {

@@ -2,6 +2,8 @@
 #include "ERF_SBMCanonicalIdentity.H"
 #include "ERF_IndexDefines.H"
 
+#include <AMReX_iMultiFab.H>
+
 #include <cmath>
 
 namespace erf_sbm {
@@ -95,7 +97,6 @@ validate_particle_mixing_host (const ParticleMixingConfig& config,
                                const std::vector<TurbChoice>& turbulence,
                                const MolecDiffType molecular,
                                const MeshType mesh,
-                               const int max_level,
                                std::string& reason)
 {
     if (!validate_particle_mixing_config(config, reason)) { return false; }
@@ -148,13 +149,7 @@ validate_particle_mixing_host (const ParticleMixingConfig& config,
     }
     if (config.policy == ParticleMixingPolicy::None) { return true; }
     erf_auxiliary::DiffusionMesh diffusion_mesh = erf_auxiliary::DiffusionMesh::ConstantDz;
-    if (!particle_mixing_mesh(mesh, diffusion_mesh, reason)) { return false; }
-    if (max_level > 0) {
-        reason = "SBM particle mixing " + policy + " is not yet qualified with AMR "
-                 "(amr.max_level > 0)";
-        return false;
-    }
-    return true;
+    return particle_mixing_mesh(mesh, diffusion_mesh, reason);
 }
 
 bool
@@ -163,13 +158,24 @@ validate_particle_mixing_boundaries (const ParticleMixingConfig& config,
                                      std::string& reason)
 {
     reason.clear();
-    if (config.policy == ParticleMixingPolicy::None) { return true; }
     for (int face = 0; face < physical_face_count; ++face) {
         const auto kind = boundaries.kind[static_cast<std::size_t>(face)];
-        if (kind != AdvectionFaceKind::Periodic && kind != AdvectionFaceKind::ImpermeableWall) {
+        const auto diffusion = boundaries.diffusion[static_cast<std::size_t>(face)];
+        if (diffusion != erf_auxiliary::DiffusionFaceKind::Closed &&
+            kind != AdvectionFaceKind::PrescribedInflow) {
+            reason = std::string("SBM particle mixing can exchange only through an inflow "
+                                 "face, not the ") + face_kind_name(kind) + " face " +
+                     face_name(face);
+            return false;
+        }
+    }
+    if (config.policy == ParticleMixingPolicy::None) { return true; }
+    for (const int face : {2, 2 + AMREX_SPACEDIM}) {
+        if (boundaries.diffusion[static_cast<std::size_t>(face)] ==
+            erf_auxiliary::DiffusionFaceKind::DirichletWhereInward) {
             reason = std::string("SBM particle mixing ") + particle_mixing_name(config.policy) +
-                     " is qualified with periodic and wall faces only, not the " +
-                     face_kind_name(kind) + " face " + face_name(face);
+                     " does not support an inflow_outflow " + face_name(face) +
+                     " face: ERF's vertical scalar diffusion has no inward-only rule to follow";
             return false;
         }
     }
@@ -181,6 +187,24 @@ particle_mixing_schema (const ParticleMixingConfig& config)
 {
     if (config.policy == ParticleMixingPolicy::None) { return {}; }
     return config.identity() + "\ndiffusion=two-point-low-host-high-group-fct-v1";
+}
+
+std::string
+particle_mixing_schema (const ParticleMixingConfig& config,
+                        const SBMPhysicalBoundaryConfig& boundaries)
+{
+    std::string schema = particle_mixing_schema(config);
+    if (schema.empty() || !boundaries.has_inflow_or_outflow_face()) { return schema; }
+    schema += "\nboundary-diffusion=open-faces-v1";
+    for (const int face : {0, 3, 1, 4, 2, 5}) {
+        const auto kind = boundaries.kind[static_cast<std::size_t>(face)];
+        if (kind == AdvectionFaceKind::Periodic || kind == AdvectionFaceKind::ImpermeableWall) {
+            continue;
+        }
+        schema += std::string(";") + face_name(face) + '=' +
+                  diffusion_face_kind_name(boundaries.diffusion[static_cast<std::size_t>(face)]);
+    }
+    return schema;
 }
 
 bool
@@ -245,6 +269,23 @@ build_particle_mixing_transmissibility (
     erf_auxiliary::MappedFaceTransmissibility& transmissibility,
     std::string& diagnostic)
 {
+    return build_particle_mixing_transmissibility(
+        config, geom, metrics, density, density_component, eddy_diffusivity,
+        erf_auxiliary::MappedDiffusionBoundary{}, transmissibility, diagnostic);
+}
+
+bool
+build_particle_mixing_transmissibility (
+    const ParticleMixingConfig& config,
+    const amrex::Geometry& geom,
+    const erf_auxiliary::MappedDiffusionMetrics& metrics,
+    const amrex::MultiFab& density,
+    const int density_component,
+    const amrex::MultiFab* eddy_diffusivity,
+    const erf_auxiliary::MappedDiffusionBoundary& boundary,
+    erf_auxiliary::MappedFaceTransmissibility& transmissibility,
+    std::string& diagnostic)
+{
     if (!validate_particle_mixing_config(config, diagnostic)) { return false; }
     if (config.policy == ParticleMixingPolicy::None) {
         if (!transmissibility.is_defined() || transmissibility.nComp() != 1) {
@@ -258,12 +299,81 @@ build_particle_mixing_transmissibility (
     if (!particle_mixing_coefficients(config, coefficients, diagnostic)) { return false; }
     if (!erf_auxiliary::BuildMappedDiffusionTransmissibility(
             transmissibility, geom, metrics, coefficients, density, density_component,
-            eddy_diffusivity, diagnostic)) {
+            eddy_diffusivity, boundary, diagnostic)) {
         diagnostic = std::string("SBM particle mixing ") +
                      particle_mixing_name(config.policy) + ": " + diagnostic;
         return false;
     }
     return true;
+}
+
+erf_auxiliary::MappedDiffusionBoundary
+particle_mixing_boundary (const SBMPhysicalBoundaryConfig& boundaries,
+                          const std::array<const amrex::MultiFab*, AMREX_SPACEDIM>& carrier)
+{
+    erf_auxiliary::MappedDiffusionBoundary boundary;
+    boundary.kind = boundaries.diffusion;
+    boundary.carrier = carrier;
+    return boundary;
+}
+
+void
+fill_particle_mixing_density_ghosts (
+    amrex::MultiFab& density,
+    const int component,
+    const amrex::Geometry& geom,
+    const SBMPhysicalBoundaryConfig& boundaries,
+    const std::array<amrex::Real, physical_face_count>& face_density)
+{
+    AMREX_ALWAYS_ASSERT(density.nGrowVect().allGE(amrex::IntVect(1)));
+    density.FillBoundary(component, 1, geom.periodicity());
+    constexpr int is_covered = 0;
+    constexpr int is_notcovered = 1;
+    constexpr int is_physbnd = 2;
+    constexpr int is_interior = 3;
+    amrex::iMultiFab mask(density.boxArray(), density.DistributionMap(), 1, 1);
+    mask.BuildMask(geom.Domain(), geom.periodicity(), is_covered, is_notcovered,
+                   is_physbnd, is_interior);
+    const amrex::Box& domain = geom.Domain();
+    amrex::GpuArray<int, physical_face_count> open{};
+    amrex::GpuArray<amrex::Real, physical_face_count> values{};
+    for (int face = 0; face < physical_face_count; ++face) {
+        open[face] = boundaries.diffusion[static_cast<std::size_t>(face)] !=
+                     erf_auxiliary::DiffusionFaceKind::Closed ? 1 : 0;
+        values[face] = face_density[static_cast<std::size_t>(face)];
+    }
+    for (amrex::MFIter mfi(density, false); mfi.isValid(); ++mfi) {
+        const amrex::Box valid = mfi.validbox();
+        const auto rho = density.array(mfi);
+        const auto m = mask.const_array(mfi);
+        const auto vlo = amrex::lbound(valid);
+        const auto vhi = amrex::ubound(valid);
+        const auto dlo = amrex::lbound(domain);
+        const auto dhi = amrex::ubound(domain);
+        const auto open_faces = open;
+        const auto face_values = values;
+        amrex::ParallelFor(amrex::grow(valid, 1), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const int kind = m(i, j, k);
+            if (kind == is_interior || kind == is_covered) { return; }
+            if (kind == is_physbnd) {
+                // The inflow density of the first open face the ghost lies beyond.
+                const int index[3] = {i, j, k};
+                const int lo[3] = {dlo.x, dlo.y, dlo.z};
+                const int hi[3] = {dhi.x, dhi.y, dhi.z};
+                for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                    const int face = index[dir] < lo[dir] ? dir
+                                   : (index[dir] > hi[dir] ? dir + AMREX_SPACEDIM : -1);
+                    if (face >= 0 && open_faces[face] != 0) {
+                        rho(i, j, k, component) = face_values[face];
+                        return;
+                    }
+                }
+            }
+            rho(i, j, k, component) = rho(amrex::min(amrex::max(i, vlo.x), vhi.x),
+                                          amrex::min(amrex::max(j, vlo.y), vhi.y),
+                                          amrex::min(amrex::max(k, vlo.z), vhi.z), component);
+        });
+    }
 }
 
 } // namespace erf_sbm

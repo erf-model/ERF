@@ -509,6 +509,233 @@ void run_physical_faces ()
     EXPECT_NE(diagnostic.find("nonfinite"), std::string::npos) << diagnostic;
 }
 
+// The fields make_fields writes, at any index: an open face reads its ghost.
+struct FieldFormulas
+{
+    Real nx, ny;
+    Real rho (const int i, const int j, const int k) const
+    {
+        return Real(1.1) + Real(0.15) * std::sin(two_pi * Real(i) / nx) +
+               Real(0.08) * std::cos(two_pi * Real(j) / ny) + Real(0.03) * Real(k);
+    }
+    Real eddy (const int c, const int i, const int j, const int k) const
+    {
+        return Real(0.4) + Real(0.05) * Real(c) + Real(0.1) * std::sin(two_pi * Real(i + c) / nx) +
+               Real(0.07) * std::cos(two_pi * Real(j) / ny) + Real(0.02) * Real(k);
+    }
+    Real z (const int c, const int i, const int j, const int k) const
+    {
+        return Real(0.5) + Real(0.3) * std::sin(two_pi * Real(i) / nx + Real(c)) *
+                   std::cos(two_pi * Real(j) / ny) +
+               Real(0.1) * Real(k) + Real(0.05) * Real(c);
+    }
+};
+
+// Positive (outward at the high face) on even cells of the face, negative on odd.
+Real carrier_value (const int i, const int j, const int k)
+{
+    return (i + j + k) % 2 == 0 ? Real(0.3) : Real(-0.2);
+}
+
+// An open domain face exchanges over half the edge cell with the host face
+// coefficient of the ghost and edge cells; an inward-only face closes where
+// the carrier is outward. x faces on an N grid, z faces on a stretched one.
+void expect_open_faces (const bool stretched)
+{
+    GridOptions options;
+    options.cells = IntVect(6, 5, 4);
+    options.max_grid = 3;
+    options.periodic = stretched ? std::array<int, 3>{1, 1, 0} : std::array<int, 3>{0, 1, 1};
+    options.stretched = stretched;
+    const auto g = make_grid(options);
+    const auto f = make_fields(*g, 1);
+    const int dir = stretched ? 2 : 0;
+    MappedFaceFluxRate carrier;
+    carrier.define(g->ba, g->dm, 1, 0);
+    for (amrex::MFIter mfi(carrier.dir(dir)); mfi.isValid(); ++mfi) {
+        const auto a = carrier.dir(dir).array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            a(i, j, k, 0) = (i + j + k) % 2 == 0 ? Real(0.3) : Real(-0.2);
+        });
+    }
+    MappedDiffusionBoundary boundary;
+    boundary.kind[static_cast<std::size_t>(dir)] = DiffusionFaceKind::Dirichlet;
+    boundary.kind[static_cast<std::size_t>(dir + AMREX_SPACEDIM)] =
+        DiffusionFaceKind::DirichletWhereInward;
+    boundary.carrier[static_cast<std::size_t>(dir)] = &carrier.dir(dir);
+
+    const FieldFormulas formula{Real(options.cells[0]), Real(options.cells[1])};
+    const int n = options.cells[dir];
+    const auto inv = g->dx_inv();
+    for (const bool kinematic : {false, true}) {
+        const auto c = kinematic ? kinematic_coefficients(Real(0.37), Real(0.37))
+                                 : host_scalar_coefficients();
+        auto t = std::make_unique<MappedFaceTransmissibility>();
+        t->define(g->ba, g->dm, 1, 0);
+        std::string diagnostic;
+        ASSERT_TRUE(BuildMappedDiffusionTransmissibility(*t, g->geom, g->metrics(), c, f->rho, 0,
+                                                         &f->eddy, boundary, diagnostic))
+            << diagnostic;
+        const auto rate = build_rate(*g, *t, f->z, {0});
+        const int eddy_comp = stretched ? EddyDiff::Scalar_v : EddyDiff::Scalar_h;
+        int open_cells = 0;
+        int closed_cells = 0;
+        for (const int face : {0, n}) {
+            for (int a = 0; a < options.cells[dir == 0 ? 1 : 0]; ++a) {
+                for (int b = 0; b < options.cells[dir == 2 ? 1 : 2]; ++b) {
+                    const IntVect iv = dir == 0 ? IntVect(face, a, b) : IntVect(a, b, face);
+                    const IntVect edge = iv - (face == 0 ? IntVect(0) : IntVect::TheDimensionVector(dir));
+                    const IntVect ghost = face == 0 ? iv - IntVect::TheDimensionVector(dir) : iv;
+                    const auto avg = [&] (auto value) {
+                        return Real(0.5) * (value(ghost) + value(edge));
+                    };
+                    const Real coeff = kinematic
+                        ? Real(0.37) * avg([&] (const IntVect& v) { return formula.rho(v[0], v[1], v[2]); })
+                        : avg([&] (const IntVect& v) { return formula.eddy(eddy_comp, v[0], v[1], v[2]); });
+                    Real expected;
+                    if (stretched) {
+                        const Real dz = g->dz_host[static_cast<std::size_t>(edge[2])];
+                        expected = coeff * Real(2.0) / dz /
+                                   (value_at(g->mf_mx, 0, IntVect(a, b, 0)) *
+                                    value_at(g->mf_my, 0, IntVect(a, b, 0)));
+                    } else {
+                        expected = coeff * Real(2.0) * inv[0] *
+                                   value_at(g->mf_ux, 0, IntVect(face, a, 0)) /
+                                   value_at(g->mf_uy, 0, IntVect(face, a, 0));
+                    }
+                    const bool open = face == 0 || carrier_value(iv[0], iv[1], iv[2]) <= Real(0.0);
+                    const Real got = value_at(t->dir(dir), 0, iv);
+                    if (!open) {
+                        EXPECT_EQ(got, Real(0.0)) << iv;
+                        EXPECT_EQ(value_at(rate->dir(dir), 0, iv), Real(0.0)) << iv;
+                        ++closed_cells;
+                        continue;
+                    }
+                    ++open_cells;
+                    EXPECT_NEAR(got, expected, Real(16.0) * eps() * expected) << iv;
+                    // The low-order rate exchanges with the ghost value, which is
+                    // the value held on the face.
+                    const Real dz_value = formula.z(0, iv[0], iv[1], iv[2]) -
+                        formula.z(0, iv[0] - (dir == 0), iv[1], iv[2] - (dir == 2));
+                    EXPECT_NEAR(value_at(rate->dir(dir), 0, iv), -got * dz_value,
+                                Real(64.0) * eps() * std::abs(got));
+                }
+            }
+        }
+        EXPECT_GT(open_cells, 0);
+        EXPECT_GT(closed_cells, 0);
+    }
+}
+
+void run_open_faces () { expect_open_faces(false); expect_open_faces(true); }
+
+// The validation reads ghost cells beyond open faces only, and an inward-only
+// face cannot judge its carrier without one.
+void run_open_face_validation ()
+{
+    GridOptions options;
+    options.cells = IntVect(6, 5, 4);
+    options.max_grid = 3;
+    options.periodic = {0, 1, 1};
+    const auto g = make_grid(options);
+    const auto f = make_fields(*g, 1);
+    for (amrex::MFIter mfi(f->eddy); mfi.isValid(); ++mfi) {
+        const auto a = f->eddy.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (i == -1 && j == 2 && k == 1) {
+                a(i, j, k, EddyDiff::Scalar_h) = std::numeric_limits<Real>::quiet_NaN();
+            }
+        });
+    }
+    MappedFaceTransmissibility t;
+    t.define(g->ba, g->dm, 1, 0);
+    std::string diagnostic;
+    MappedDiffusionBoundary boundary;
+    EXPECT_TRUE(BuildMappedDiffusionTransmissibility(t, g->geom, g->metrics(),
+                                                     host_scalar_coefficients(), f->rho, 0,
+                                                     &f->eddy, boundary, diagnostic))
+        << diagnostic;
+    boundary.kind[0] = DiffusionFaceKind::Dirichlet;
+    EXPECT_FALSE(BuildMappedDiffusionTransmissibility(t, g->geom, g->metrics(),
+                                                      host_scalar_coefficients(), f->rho, 0,
+                                                      &f->eddy, boundary, diagnostic));
+    EXPECT_NE(diagnostic.find("1 invalid reads"), std::string::npos) << diagnostic;
+
+    boundary = {};
+    boundary.kind[AMREX_SPACEDIM] = DiffusionFaceKind::DirichletWhereInward;
+    EXPECT_FALSE(BuildMappedDiffusionTransmissibility(t, g->geom, g->metrics(),
+                                                      host_scalar_coefficients(), f->rho, 0,
+                                                      &f->eddy, boundary, diagnostic));
+    EXPECT_NE(diagnostic.find("requires the dry-air carrier"), std::string::npos) << diagnostic;
+}
+
+// A level covering part of an x-bounded domain: box A spans the inflow face,
+// box B only part of y, and the rest of the domain lies beyond a coarse/fine
+// boundary. Ghosts take the inflow density beyond the open face, their
+// periodic or same-level images, and otherwise the nearest valid cell.
+void run_estimate_density_ghosts ()
+{
+    const Box domain(IntVect(0), IntVect(7, 5, 4));
+    const amrex::RealBox real_box({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
+    const int periodic[AMREX_SPACEDIM] = {0, 1, 1};
+    const Geometry geom(domain, &real_box, amrex::CoordSys::cartesian, periodic);
+    amrex::BoxList boxes;
+    boxes.push_back(Box(IntVect(0, 0, 0), IntVect(3, 5, 4)));
+    boxes.push_back(Box(IntVect(4, 0, 0), IntVect(5, 2, 4)));
+    const BoxArray ba(std::move(boxes));
+    const DistributionMapping dm(ba);
+    MultiFab rho(ba, dm, 1, 1);
+    rho.setVal(std::numeric_limits<Real>::quiet_NaN());
+    const auto value = [] AMREX_GPU_HOST_DEVICE (int i, int j, int k) noexcept {
+        return Real(1.0) + Real(0.1) * Real(i) + Real(0.01) * Real(j) + Real(0.001) * Real(k);
+    };
+    for (amrex::MFIter mfi(rho); mfi.isValid(); ++mfi) {
+        const auto a = rho.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            a(i, j, k, 0) = value(i, j, k);
+        });
+    }
+    erf_sbm::SBMPhysicalBoundaryConfig faces;
+    faces.kind[0] = erf_sbm::AdvectionFaceKind::PrescribedInflow;
+    faces.kind[3] = erf_sbm::AdvectionFaceKind::AdvectiveOutflow;
+    faces.diffusion[0] = DiffusionFaceKind::Dirichlet;
+    std::array<Real, erf_sbm::physical_face_count> face_density{};
+    face_density[0] = Real(7.0);
+    face_density[3] = Real(9.0);
+    erf_sbm::fill_particle_mixing_density_ghosts(rho, 0, geom, faces, face_density);
+
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<int> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    for (amrex::MFIter mfi(rho); mfi.isValid(); ++mfi) {
+        const Box valid = mfi.validbox();
+        const auto lo = amrex::lbound(valid);
+        const auto hi = amrex::ubound(valid);
+        const auto a = rho.const_array(mfi);
+        reduce_op.eval(mfi.fabbox(), reduce_data,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> ReduceTuple {
+                Real expected;
+                const int jw = (j + 6) % 6;
+                const int kw = (k + 5) % 5;
+                const bool in_a = i >= 0 && i <= 3;
+                const bool in_b = i >= 4 && i <= 5 && jw <= 2;
+                if (i < 0) {
+                    expected = Real(7.0);
+                } else if (in_a || in_b) {
+                    expected = value(i, jw, kw);
+                } else {
+                    expected = value(amrex::min(amrex::max(i, lo.x), hi.x),
+                                     amrex::min(amrex::max(j, lo.y), hi.y),
+                                     amrex::min(amrex::max(k, lo.z), hi.z));
+                }
+                return {a(i, j, k, 0) == expected ? 0 : 1};
+            });
+    }
+    int mismatches = amrex::get<0>(reduce_data.value(reduce_op));
+    amrex::ParallelAllReduce::Sum(mismatches, amrex::ParallelContext::CommunicatorSub());
+    EXPECT_EQ(mismatches, 0);
+}
+
 void run_zero_coefficient_identity ()
 {
     const auto g = make_grid(GridOptions{});
@@ -1461,10 +1688,9 @@ void run_host_validation ()
     const auto accepts = [&] (const erf_sbm::ParticleMixingConfig& config,
                               const std::vector<TurbChoice>& turbulence,
                               const MeshType mesh = MeshType::ConstantDz,
-                              const int max_level = 0,
                               const MolecDiffType molecular = MolecDiffType::None) {
         return erf_sbm::validate_particle_mixing_host(config, turbulence, molecular, mesh,
-                                                      max_level, reason);
+                                                      reason);
     };
     const auto rejects = [&] (const bool accepted, const std::string& fragment) {
         EXPECT_FALSE(accepted) << fragment;
@@ -1477,7 +1703,7 @@ void run_host_validation ()
     EXPECT_TRUE(accepts(none, quiet)) << reason;
     // None adds nothing, so it constrains neither the mesh nor the levels.
     EXPECT_TRUE(accepts(none, {les(LESType::None), les(LESType::None)},
-                        MeshType::VariableDz, 1)) << reason;
+                        MeshType::VariableDz)) << reason;
     EXPECT_TRUE(accepts(host, smagorinsky)) << reason;
     EXPECT_TRUE(accepts(host, deardorff, MeshType::StretchedDz)) << reason;
     EXPECT_TRUE(accepts(reference, quiet, MeshType::StretchedDz)) << reason;
@@ -1490,17 +1716,16 @@ void run_host_validation ()
     auto smag2d = les(LESType::Smagorinsky);
     smag2d.smag2d = true;
     rejects(accepts(host, {smag2d}), "does not support erf.les_type = Smagorinsky2D (level 0)");
-    rejects(accepts(host, {les(LESType::Smagorinsky), les(LESType::None)}, MeshType::ConstantDz, 1),
+    rejects(accepts(host, {les(LESType::Smagorinsky), les(LESType::None)}),
             "Smagorinsky or Deardorff on every level (level 1)");
-    rejects(accepts(host, {les(LESType::Smagorinsky), les(LESType::Deardorff)},
-                    MeshType::ConstantDz, 1),
+    rejects(accepts(host, {les(LESType::Smagorinsky), les(LESType::Deardorff)}),
             "the same erf.les_type on every level");
 
     auto pbl = les(LESType::None);
     pbl.pbl_type = PBLType::MYNN25;
     for (const auto& config : {none, host, reference}) {
         rejects(accepts(config, {pbl}), "SBM does not support a PBL closure (erf.pbl_type = MYNN25 (level 0))");
-        rejects(accepts(config, quiet, MeshType::ConstantDz, 0, MolecDiffType::Constant),
+        rejects(accepts(config, quiet, MeshType::ConstantDz, MolecDiffType::Constant),
                 "SBM does not support molecular diffusion");
     }
     auto rans = les(LESType::None);
@@ -1509,15 +1734,14 @@ void run_host_validation ()
 
     rejects(accepts(host, smagorinsky, MeshType::VariableDz), "terrain-fitted (VariableDz)");
     rejects(accepts(reference, quiet, MeshType::VariableDz), "terrain-fitted (VariableDz)");
-    rejects(accepts(host, {les(LESType::Smagorinsky), les(LESType::Smagorinsky)},
-                    MeshType::ConstantDz, 1),
-            "SBM particle mixing HostPassiveScalar is not yet qualified with AMR");
-    rejects(accepts(reference, {les(LESType::None), les(LESType::None)}, MeshType::ConstantDz, 1),
-            "SBM particle mixing ConstantReference is not yet qualified with AMR");
+    // Two levels: SBM's own AMR envelope bounds the levels, not the mixing policy.
+    EXPECT_TRUE(accepts(host, {les(LESType::Smagorinsky), les(LESType::Smagorinsky)})) << reason;
+    EXPECT_TRUE(accepts(reference, {les(LESType::None), les(LESType::None)})) << reason;
 }
 
 void run_boundary_validation ()
 {
+    using erf_auxiliary::DiffusionFaceKind;
     using erf_sbm::AdvectionFaceKind;
     const auto none = parsed_config("None");
     const auto host = parsed_config("HostPassiveScalar");
@@ -1527,15 +1751,43 @@ void run_boundary_validation ()
     faces.kind[2] = AdvectionFaceKind::ImpermeableWall;
     faces.kind[5] = AdvectionFaceKind::ImpermeableWall;
     EXPECT_TRUE(erf_sbm::validate_particle_mixing_boundaries(host, faces, reason)) << reason;
-    for (const auto kind : {AdvectionFaceKind::AdvectiveOutflow,
-                            AdvectionFaceKind::PrescribedInflow}) {
-        auto open = faces;
-        open.kind[3] = kind;
+
+    // Outflow and inflow faces, open or closed to mixing, on x.
+    auto open = faces;
+    open.kind[0] = AdvectionFaceKind::PrescribedInflow;
+    open.kind[3] = AdvectionFaceKind::AdvectiveOutflow;
+    for (const auto diffusion : {DiffusionFaceKind::Closed, DiffusionFaceKind::Dirichlet,
+                                 DiffusionFaceKind::DirichletWhereInward}) {
+        open.diffusion[0] = diffusion;
         EXPECT_TRUE(erf_sbm::validate_particle_mixing_boundaries(none, open, reason)) << reason;
-        EXPECT_FALSE(erf_sbm::validate_particle_mixing_boundaries(host, open, reason));
-        EXPECT_NE(reason.find("periodic and wall faces only, not the " +
-                              std::string(erf_sbm::face_kind_name(kind)) + " face xhi"),
-                  std::string::npos) << reason;
+        EXPECT_TRUE(erf_sbm::validate_particle_mixing_boundaries(host, open, reason)) << reason;
+    }
+
+    // Only an inflow face holds a spectrum to exchange with.
+    auto outflow_open = open;
+    outflow_open.diffusion[3] = DiffusionFaceKind::Dirichlet;
+    EXPECT_FALSE(erf_sbm::validate_particle_mixing_boundaries(none, outflow_open, reason));
+    EXPECT_NE(reason.find("only through an inflow face, not the outflow face xhi"),
+              std::string::npos) << reason;
+
+    // ERF's vertical scalar diffusion has no inward-only rule.
+    auto vertical = faces;
+    vertical.kind[2] = AdvectionFaceKind::PrescribedInflow;
+    vertical.diffusion[2] = DiffusionFaceKind::DirichletWhereInward;
+    EXPECT_TRUE(erf_sbm::validate_particle_mixing_boundaries(none, vertical, reason)) << reason;
+    EXPECT_FALSE(erf_sbm::validate_particle_mixing_boundaries(host, vertical, reason));
+    EXPECT_NE(reason.find("does not support an inflow_outflow zlo face"), std::string::npos)
+        << reason;
+    vertical.diffusion[2] = DiffusionFaceKind::Dirichlet;
+    EXPECT_TRUE(erf_sbm::validate_particle_mixing_boundaries(host, vertical, reason)) << reason;
+
+    // ERF's boundary types map onto the faces' mixing semantics.
+    EXPECT_EQ(erf_sbm::map_erf_diffusion(ERF_BC::inflow), DiffusionFaceKind::Dirichlet);
+    EXPECT_EQ(erf_sbm::map_erf_diffusion(ERF_BC::inflow_outflow),
+              DiffusionFaceKind::DirichletWhereInward);
+    for (const auto bc : {ERF_BC::outflow, ERF_BC::ho_outflow, ERF_BC::slip_wall,
+                          ERF_BC::no_slip_wall, ERF_BC::surface_layer, ERF_BC::periodic}) {
+        EXPECT_EQ(erf_sbm::map_erf_diffusion(bc), DiffusionFaceKind::Closed);
     }
 }
 
@@ -1544,6 +1796,9 @@ void run_boundary_validation ()
 TEST(AuxiliaryDiffusion, NGridTransmissibilityMatchesHostDiffusion) { run_ngrid_parity(); }
 TEST(AuxiliaryDiffusion, StretchedGridTransmissibilityMatchesHostDiffusion) { run_stretched_parity(); }
 TEST(AuxiliaryDiffusion, PhysicalFacesCarryNoDiffusiveTransfer) { run_physical_faces(); }
+TEST(AuxiliaryDiffusion, OpenFacesExchangeOverHalfTheEdgeCell) { run_open_faces(); }
+TEST(AuxiliaryDiffusion, OpenFacesValidateTheirGhostsAndCarrier) { run_open_face_validation(); }
+TEST(SBMParticleMixing, EstimateDensityGhostsFollowTheStage) { run_estimate_density_ghosts(); }
 TEST(AuxiliaryDiffusion, ZeroCoefficientIsTheIdentity) { run_zero_coefficient_identity(); }
 TEST(AuxiliaryDiffusion, ExchangeConservesInventory)
 {
@@ -1572,4 +1827,4 @@ TEST(SBMParticleMixing, NonePolicyHasNoTransmissibility) { run_none_policy(); }
 TEST(SBMParticleMixing, SharedCoefficientPreservesEveryBinGroup) { run_group_cone(); }
 TEST(SBMParticleMixing, ConfigurationParsingFailsClosed) { run_config_parsing(); }
 TEST(SBMParticleMixing, HostClosureAndMeshValidation) { run_host_validation(); }
-TEST(SBMParticleMixing, MixingAllowsOnlyPeriodicAndWallFaces) { run_boundary_validation(); }
+TEST(SBMParticleMixing, MixingFacesFollowERFScalarDiffusion) { run_boundary_validation(); }

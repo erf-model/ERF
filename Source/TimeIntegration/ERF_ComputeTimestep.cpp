@@ -752,14 +752,28 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             const auto inputs = erf_sbm::make_stage_mixing_inputs(
                 *sbm_transport, eddyDiffs_lev[level].get(), mapfac[level],
                 ax[level].get(), ay[level].get(), stretched_dz_d[level].data());
+            // The ghost cells the transmissibility reads, as a stage sees them:
+            // the inflow density beyond an open face, and (approximately) the
+            // nearest valid cell at a coarse/fine boundary.
+            const auto& boundaries = sbm_transport->physical_boundaries();
+            std::array<Real, erf_sbm::physical_face_count> face_density{};
+            for (OrientationIter oit; oit; ++oit) {
+                face_density[static_cast<std::size_t>(int(oit()))] =
+                    m_bc_extdir_vals[BCVars::Rho_bc_comp][oit()];
+            }
             MultiFab density(cell_ba, cell_dm, 1, 1);
             MultiFab::Copy(density, S_new, Rho_comp, 0, 1, 0);
-            density.FillBoundary(geom[level].periodicity());
+            erf_sbm::fill_particle_mixing_density_ghosts(density, 0, geom[level], boundaries,
+                                                         face_density);
             erf_auxiliary::MappedFaceTransmissibility transmissibility;
             transmissibility.define(cell_ba, cell_dm, 1, 0);
+            const auto mixing_boundary = erf_sbm::particle_mixing_boundary(
+                boundaries, {&mapped_carrier.dir(0), &mapped_carrier.dir(1),
+                             &mapped_carrier.dir(2)});
             if (!erf_sbm::build_particle_mixing_transmissibility(
                     sbm_transport->particle_mixing(), geom[level], inputs.metrics,
-                    density, 0, inputs.eddy_diffusivity, transmissibility, sbm_diagnostic)) {
+                    density, 0, inputs.eddy_diffusivity, mixing_boundary, transmissibility,
+                    sbm_diagnostic)) {
                 Abort("SBM particle mixing timestep estimate: " + sbm_diagnostic);
             }
             rate_ok = erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
@@ -775,24 +789,29 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                          : "SBM M3 current donor-rate estimate: ") +
                   sbm_diagnostic);
         }
+        double adaptive_sbm_dt = std::numeric_limits<double>::infinity();
         if (max_sbm_outgoing_rate > Real(0.0)) {
-            double adaptive_sbm_dt =
-                static_cast<double>(amrex::min(cfl, Real(1.0)) /
-                                    max_sbm_outgoing_rate);
-            // The eddy diffusivity is not checkpointed: on the first step after a
-            // restart do not let dt grow past the checkpointed step.
-            const bool lagged_coefficients =
-                sbm_mixing && sbm_transport->particle_mixing().policy ==
-                                  erf_sbm::ParticleMixingPolicy::HostPassiveScalar;
-            if (lagged_coefficients && diffusive_first_call && !restart_chkfile.empty() &&
-                istep[level] > 0) {
-                adaptive_sbm_dt = std::min(adaptive_sbm_dt, dt[level]);
-            }
+            adaptive_sbm_dt = static_cast<double>(amrex::min(cfl, Real(1.0)) /
+                                                  max_sbm_outgoing_rate);
+        }
+        // The eddy diffusivity is not checkpointed: on the first step after a
+        // restart do not let dt grow past the checkpointed step. This holds with
+        // no rate too: a flow at rest has none until the step computes its
+        // coefficients.
+        const bool lagged_coefficients =
+            sbm_mixing && sbm_transport->particle_mixing().policy ==
+                              erf_sbm::ParticleMixingPolicy::HostPassiveScalar;
+        if (lagged_coefficients && diffusive_first_call && !restart_chkfile.empty() &&
+            istep[level] > 0) {
+            adaptive_sbm_dt = std::min(adaptive_sbm_dt, dt[level]);
+        }
+        if (adaptive_sbm_dt < std::numeric_limits<double>::infinity()) {
             estdt_comp_T = std::min(estdt_comp_T, adaptive_sbm_dt);
             estdt_comp_N = std::min(estdt_comp_N, adaptive_sbm_dt);
             estdt_lowM_T = std::min(estdt_lowM_T, adaptive_sbm_dt);
             estdt_lowM_N = std::min(estdt_lowM_N, adaptive_sbm_dt);
-
+        }
+        if (max_sbm_outgoing_rate > Real(0.0)) {
             double hard_sbm_dt = std::numeric_limits<double>::infinity();
             if (erf_auxiliary::FixedDtExceedsMappedDonorLimit(
                     static_cast<double>(fixed_dt[level]),

@@ -1,12 +1,14 @@
 #ifndef ERF_AUXILIARY_DIFFUSION_H_
 #define ERF_AUXILIARY_DIFFUSION_H_
 
+#include "ERF_AuxiliaryDiffusionFace.H"
 #include "ERF_AuxiliaryMappedTransport.H"
 #include "ERF_ScalarDiffusion.H"
 
 #include <AMReX_Geometry.H>
 #include <AMReX_GpuQualifiers.H>
 
+#include <array>
 #include <string>
 #include <vector>
 
@@ -73,9 +75,40 @@ bool BuildMappedDiffusionTransmissibility (
     std::string& diagnostic);
 
 /**
+ * Diffusive kind of each domain face, indexed by amrex::Orientation (Closed
+ * by default; periodic directions ignore it), and the dry-air carrier of each
+ * direction on the transmissibility's face layout, which a
+ * DirichletWhereInward face reads for its sign.
+ */
+struct MappedDiffusionBoundary
+{
+    std::array<DiffusionFaceKind, 2 * AMREX_SPACEDIM> kind{};
+    std::array<const amrex::MultiFab*, AMREX_SPACEDIM> carrier{};
+};
+
+/**
+ * As above, with open domain faces. Where a face is open, T_f is the host
+ * face coefficient, read from the ghost and the edge cell, over half the edge
+ * cell: the distance from its centre to the face, which holds the ghost
+ * value. Where it is closed, T_f is zero. The validation also reads the ghost
+ * cells beyond open faces.
+ */
+bool BuildMappedDiffusionTransmissibility (
+    MappedFaceTransmissibility& transmissibility,
+    const amrex::Geometry& geom,
+    const MappedDiffusionMetrics& metrics,
+    const MappedDiffusionCoefficients& coefficients,
+    const amrex::MultiFab& density,
+    int density_component,
+    const amrex::MultiFab* eddy_diffusivity,
+    const MappedDiffusionBoundary& boundary,
+    std::string& diagnostic);
+
+/**
  * Low-order diffusive face rates -T_f (z_R - z_L) of the selected intensive
- * components; rate slot n holds component components[n]. Fails, with a
- * diagnostic, if any rate is nonfinite.
+ * components; rate slot n holds component components[n]. A domain face with
+ * T_f = 0 carries nothing and reads no ghost; an open one exchanges with the
+ * ghost value. Fails, with a diagnostic, if any rate is nonfinite.
  */
 bool BuildLowOrderDiffusionRate (
     MappedFaceFluxRate& rate,
