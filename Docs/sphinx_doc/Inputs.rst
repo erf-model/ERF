@@ -2710,14 +2710,16 @@ List of Parameters
 +==========================================+==========================================================+====================+==================+
 | **erf.pbl_type**                         | Name of PBL Scheme to be used                            | "None", "MYNN25",  | "None"           |
 |                                          |                                                          | "MYNNEDMF", "MYJ", |                  |
-|                                          |                                                          | "YSU", "YSUNew",   |                  |
-|                                          |                                                          | "MRF",             |                  |
+|                                          |                                                          | "YSU", "MRF",      |                  |
 |                                          |                                                          | "NATIVE_SHOC",     |                  |
 |                                          |                                                          | "EAMXX_SHOC";      |                  |
 |                                          |                                                          | legacy "SHOC" is   |                  |
 |                                          |                                                          | deprecated and     |                  |
 |                                          |                                                          | maps to            |                  |
-|                                          |                                                          | "EAMXX_SHOC"       |                  |
+|                                          |                                                          | "EAMXX_SHOC";      |                  |
+|                                          |                                                          | legacy "YSUNew" is |                  |
+|                                          |                                                          | deprecated and     |                  |
+|                                          |                                                          | maps to "YSU"      |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.tke_min**                          | Minimum initial TKE used when a prognostic-TKE closure   | Real               | 1.e-6            |
 |                                          | is active                                                |                    |                  |
@@ -2757,29 +2759,24 @@ List of Parameters
 |                                          | built from, instead of the 1/l sum with l_T and l_B.     |                    |                  |
 |                                          | The first-cell TKE then approaches B1^(2/3) u*^2 / 2.    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_ysu_force_over_water**         | Treat whole domain as over water for YSU PBL scheme      | Boolean            | false            |
-|                                          | regardless of LSM/other inputs                           |                    |                  |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_land_Ribcr**               | Over land critical Richardson number for YSU PBL Scheme  | Real               | 0.25             |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_ysu_unst_Ribcr**               | Unstable critical Richardson number for YSU PBL Scheme   | Real               | 0.0              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_coriolis_freq**            | Coriolis frq. used for YSU PBL Scheme (1e-4 in WRF)      | Real               | 1.0e-4           |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_use_consistent_coriolis**  | Ignore above param and use the value from ERF coriolis   | Boolean            | false            |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.enable_ysu_countergradient**       | YSUNew only: apply the nonlocal countergradient          | Boolean            | true             |
+| **erf.enable_ysu_countergradient**       | YSU only: apply the nonlocal countergradient             | Boolean            | true             |
 |                                          | corrections to heat, moisture and momentum (HGAMT,       |                    |                  |
 |                                          | HGAMQ, HGAMU, HGAMV); false gives strict HND06 mixing    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.enable_ysu_entrainment**           | YSUNew only: add the entrainment diffusivity at the      | Boolean            | true             |
+| **erf.enable_ysu_entrainment**           | YSU only: add the entrainment diffusivity at the         | Boolean            | true             |
 |                                          | first cell above the PBL top (HND06 A9-A13)              |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.ysu_moistvars**                    | YSUNew only: give moisture its own diffusivity, from the | Boolean            | false            |
+| **erf.ysu_moistvars**                    | YSU only: give moisture its own diffusivity, from the    | Boolean            | false            |
 |                                          | moisture Prandtl number, and add the entrainment term to |                    |                  |
 |                                          | it; false uses the heat diffusivity for moisture         |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.enable_ysu_rad_tend_limiter**      | YSUNew only: replace a non-finite radiative tendency at  | Boolean            | false            |
+| **erf.enable_ysu_rad_tend_limiter**      | YSU only: replace a non-finite radiative tendency at     | Boolean            | false            |
 |                                          | cloud top by zero and bound it before the top-down       |                    |                  |
 |                                          | mixing velocity is formed from it                        |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2789,7 +2786,7 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_Ribcr**                    | Over land critical Richardson number for MRF PBL Scheme  | Real               | 0.5              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_ib_aware**                     | MRF and YSUNew only: treat the first fluid cell above an | Boolean            | false            |
+| **erf.pbl_ib_aware**                     | MRF and YSU only: treat the first fluid cell above an    | Boolean            | false            |
 |                                          | immersed solid column (buildings or terrain by immersed  |                    |                  |
 |                                          | forcing) as that column's surface: heights, the bulk     |                    |                  |
 |                                          | Richardson depth and the K profile measured from it,     |                    |                  |
@@ -2849,8 +2846,8 @@ List of Parameters
 |                                          | TKE-carrying closure is active                           |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
-Note that both PBL schemes must be used in conjunction with a MOST boundary condition
-at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
+Note that the PBL schemes must be used in conjunction with a MOST boundary condition
+at the surface (Zlo) boundary.
 
 If the PBL scheme is activated, it determines the turbulent diffusivity in the vertical
 direction. If an LES model is also specified, it determines only the horizontal turbulent
@@ -4790,7 +4787,9 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.pblh_calc**                | which scheme diagnoses the PBL height used by the *w*\*  | none, MYNN25,       | none             |
 |                                       | correction                                               | MYNNEDMF, YSU,      |                  |
-|                                       |                                                          | YSUNew, MRF         |                  |
+|                                       |                                                          | MRF (YSUNew is a    |                  |
+|                                       |                                                          | deprecated name for |                  |
+|                                       |                                                          | YSU)                |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.pot_surf_temp**            | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
 |                                       | value selects the surface-temperature formulation.       |                     |                  |
@@ -4858,7 +4857,7 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.qnse_am**,                 | QNSE coefficients a_m, b_m (momentum) and a_h, b_h       | Real, finite;       | 2.5, 0.2,        |
 | **erf.most.qnse_bm**,                 | (heat); read only with ``erf.most.stable_functions =     | b_m > 0, b_h > 0,   | 2.5, 0.2         |
 | **erf.most.qnse_ah**,                 | qnse`` (given otherwise, the run stops). The defaults    | a_m > b_m,          |                  |
-| **erf.most.qnse_bh**                  | are those of the MRF and YSUNew ``erf.qnse_*`` keys,     | a_h > b_h           |                  |
+| **erf.most.qnse_bh**                  | are those of the MRF and YSU ``erf.qnse_*`` keys,        | a_h > b_h           |                  |
 |                                       | which the surface layer does not read (a warning is      |                     |                  |
 |                                       | printed when the two disagree); equal heat and momentum  |                     |                  |
 |                                       | values give a turbulent Prandtl number of 1              |                     |                  |

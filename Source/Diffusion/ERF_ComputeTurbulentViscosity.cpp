@@ -1037,25 +1037,19 @@ void ComputeTurbulentViscosity (double dt,
                                    use_terrain_fitted_coords, use_moisture,
                                    level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
                                    solverChoice.moisture_indices);
-    } else if (turbChoice.pbl_type == PBLType::YSU) {
-        ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
-                              geom, turbChoice, SurfLayer,
-                              use_terrain_fitted_coords, use_moisture,
-                              level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
-                              solverChoice.moisture_indices);
     } else if (turbChoice.pbl_type == PBLType::MRF) {
         ComputeDiffusivityMRF(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
                               solverChoice.moisture_indices, terrain_blank, Q_fire_atm);
-    } else if (turbChoice.pbl_type == PBLType::YSUNew) {
-        ComputeDiffusivityYSUNew(xvel, yvel, cons_in, eddyViscosity,
-                                 geom, turbChoice, SurfLayer,
-                                 use_terrain_fitted_coords, use_moisture,
-                                 level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
-                                 solverChoice.moisture_indices,
-                                 qheating_rates, terrain_blank);
+    } else if (turbChoice.pbl_type == PBLType::YSU) {
+        ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
+                              geom, turbChoice, SurfLayer,
+                              use_terrain_fitted_coords, use_moisture,
+                              level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
+                              solverChoice.moisture_indices,
+                              qheating_rates, terrain_blank);
     } else if (turbChoice.uses_shoc_family()) {
         // NOTE: Nothing to do here. The SHOC class handles setting the vertical
         //       components of eddyDiffs in slow RHS pre.

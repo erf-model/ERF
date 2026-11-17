@@ -180,7 +180,13 @@ public:
       } else if (pblh_string == "mrf") {
           pblh_type = PBLHeightCalcType::MRF;
       } else if (pblh_string == "ysunew") {
-          pblh_type = PBLHeightCalcType::YSUNew;
+          // The former YSUNew is now the only YSU; the name is still accepted
+          static bool warned_ysunew = false;
+          if (!warned_ysunew && amrex::ParallelDescriptor::IOProcessor()) {
+              amrex::Warning(m_pp_prefix + ".most.pblh_calc = YSUNew is deprecated; it is now YSU");
+          }
+          warned_ysunew = true;
+          pblh_type = PBLHeightCalcType::YSU;
       } else {
           amrex::Abort("Undefined PBLH calc type!");
       }
@@ -2111,7 +2117,7 @@ public:
     WAVE_COUPLED
   };
 
-  enum struct PBLHeightCalcType { None, MYNN25, YSU, MRF, YSUNew };
+  enum struct PBLHeightCalcType { None, MYNN25, YSU, MRF };
 
   FluxCalcType flux_type{FluxCalcType::MOENG};
   ThetaCalcType theta_type{ThetaCalcType::ADIABATIC};

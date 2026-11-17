@@ -1814,14 +1814,20 @@ set(TEST_FILES_DIR RANS_WallDist_Regrid)
 add_test_field_bounds(RANS_WallDist_NewLevel "plt00002" walldist 7.99 1008.01 MIN_HI 8.01)
 unset(TEST_FILES_DIR)
 # A column whose bulk Richardson number never reaches Ribcr takes the top of the scan, capped
-# at 0.9 z(khi) = 907.2 m; YSUNew and MRF gave it the 16 m floor (erf-model/ERF#4458)
+# at 0.9 z(khi) = 907.2 m; YSU and MRF gave it the 16 m floor (erf-model/ERF#4458)
 add_test_field_bounds(PBL_NoCrossing_YSUNew "plt2d00002" pblh 907.1 907.3)
 add_test_field_bounds(PBL_NoCrossing_MRF    "plt2d00002" pblh 907.1 907.3)
-# YSUNew columns whose surface cell is already above Ribcr take the 16 m floor, and the others
+# YSU columns whose surface cell is already above Ribcr take the 16 m floor, and the others
 # 907.2 m; the interpolation divided 0 by 0 there and the run stopped at the floating-point trap.
 # Both ends are required, so the test also fails where no trap fires (#4458)
 add_test_field_bounds(PBL_SurfaceCrossing_YSUNew "plt2d00002" pblh 15.99 907.3
                       MIN_HI 16.01 MAX_LO 907.1)
+# Keys read only by the original YSU, which the former YSUNew replaced: they must stop the
+# run rather than be ignored
+add_test_abort(PBL_YSU_RemovedKey ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_NoCrossing_YSUNew
+               PBL_NoCrossing_YSUNew.i
+               "erf.pbl_ysu_unst_Ribcr has been removed along with the original YSU scheme"
+               "erf.pbl_ysu_unst_Ribcr=0.0")
 # k-eqn RANS canopy terms in a uniform, fully forested box: one step of the wind (drag with
 # density) and of k (wake production, short-circuit sink, length cap, implicit dissipation)
 # against the closed-form stage solution in the deck. The wall at the bottom (needed for the
@@ -2628,15 +2634,15 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # scheme; the deck is set up so they differ from column to column.
   add_test_tiling_parity(ABL_MRF_Tiling      ABL_MRF_Tiling "00010" "00010"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
+  # YSU through its deprecated input names (erf.pbl_type = YSUNew, erf.most.pblh_calc =
+  # YSUNew), which are kept as aliases of YSU
   add_test_tiling_parity(ABL_YSUNew_Tiling   ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
-  # Legacy YSU aborts in unstable conditions, so cool the surface. A stronger
+  # YSU over a cooled surface, for the stable branch of its profile. A stronger
   # cooling than -0.02 with the 5 m/s wind passes the stable fold of the
   # prescribed-flux MOST problem, where the surface layer then applies a weaker
   # flux than prescribed (see "Limits on the similarity solution" in SurfaceLayer.rst).
-  # It covers the full-column assert only: legacy YSU never calls set_pblh, so
-  # pblh is left out of the 2D plotfile rather than compared as a constant.
   add_test_tiling_parity(ABL_YSU_Tiling      ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.most.surf_temp_flux=-0.02 'erf.plot2d_vars_1=u_star t_star Olen'"
       VARYING_3D "Lturb Kmv" VARYING_2D "u_star")
@@ -2658,22 +2664,22 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # The PBLH smoothing stencil reads a column its own tile does not own, so it
   # needs its own coverage: with the stencil reading off the end of the array the
   # MRF deck differed by 24.5 m in Lturb (12%) between the tiled and untiled runs.
-  # MRF and YSUNew size and fill that halo separately, so both are registered.
+  # MRF and YSU size and fill that halo separately, so both are registered.
   add_test_tiling_parity(ABL_MRF_Tiling_Smooth    ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(ABL_YSUNew_Tiling_Smooth ABL_MRF_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew erf.enable_pblh_smoothing=true"
+      RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
-  # The immersed-boundary-aware MRF and YSUNew (erf.pbl_ib_aware) build their
+  # The immersed-boundary-aware MRF and YSU (erf.pbl_ib_aware) build their
   # per-column surface and work arrays on the tile work box; a cube by
   # immersed forcing makes them differ from column to column.
   add_test_tiling_parity(PBL_IBAware_MRF_Tiling    PBL_IBAware_Tiling "00010" "00010"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSUNew"
+      RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
-  # YSUNew with PBL-height smoothing over a neutral ground (erf-model/ERF#4479).
+  # YSU with PBL-height smoothing over a neutral ground (erf-model/ERF#4479).
   # The surface heat flux is round-off whose sign follows the decomposition, and
   # the stability flag took its sign: on this deck Khv beside the cube differed by
   # 9 % between one box and 8 x 8 tiles, and x_velocity by 4e-8 with 16 boxes. Tiles must split x as well as y to change

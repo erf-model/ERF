@@ -3423,7 +3423,7 @@ SurfaceLayer::update_pblh (const int& lev,
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
         compute_pblh(lev, vars, z_phys_cc, estimator, moisture_indices);
-    } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF || pblh_type == PBLHeightCalcType::YSUNew)
+    } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF)
     {
         //amrex::Error("YSU/MRF PBLH calc not implemented yet");
         // PBLH for MRF/YSU is computed inside ComputeDiffusivityMRF
@@ -3432,7 +3432,7 @@ SurfaceLayer::update_pblh (const int& lev,
 }
 
 /**
- * Store the PBL height a PBL scheme (MRF, YSU, YSUNew) has diagnosed.
+ * Store the PBL height a PBL scheme (MRF, YSU) has diagnosed.
  *
  * pblh_in has no ghost cells, so the ghost cells of pblh are filled here: those that
  * another grid of this level or a periodic image holds by fill_planar_boundary; those at a

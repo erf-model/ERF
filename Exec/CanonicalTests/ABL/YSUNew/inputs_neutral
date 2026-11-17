@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-# Neutral Atmospheric Boundary Layer Test Case - YSUNew Scheme
+# Neutral Atmospheric Boundary Layer Test Case - YSU Scheme
 # 
 # Neutral conditions characterized by:
 #   - Zero surface heat flux (adiabatic surface)
@@ -7,10 +7,10 @@
 #   - Shear-driven turbulence from mean wind
 #   - PBL height governed by wind shear: h ~ u*/f
 #
-# This case tests YSUNew performance in neutral stability where:
+# This case tests YSU performance in neutral stability where:
 # - Countergradient corrections (HGAMT) should have minimal effect
 # - Diffusivity driven by wind shear rather than buoyancy
-# - Suitable for validating base YSUNew physics
+# - Suitable for validating base YSU physics
 
 erf.prob_name = "ABL"
 
@@ -71,8 +71,8 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_YSUNew_neutral"
 
-# PBL CONFIGURATION - YSUNew (neutral case)
-erf.pbl_type = "YSUNew"
+# PBL CONFIGURATION - YSU (neutral case)
+erf.pbl_type = "YSU"
 erf.enable_ysu_countergradient = false
 erf.enable_ysu_entrainment = false
 erf.ysu_moistvars = false
