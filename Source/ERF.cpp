@@ -1463,16 +1463,10 @@ ERF::InitData_post ()
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
+        // With an input sounding, initRayleigh_at_level takes ubar, vbar and thetabar
+        // from it, at start-up and whenever a regrid remakes or creates a level
         for (int lev = 0; lev <= finest_level; lev++) {
             initRayleigh_at_level(lev);
-        }
-        if (solverChoice.init_type == InitType::Input_Sounding)
-        {
-            // Overwrite ubar, vbar, and thetabar with input profiles;
-            // wbar is assumed to be zero Note: the tau coefficient set by
-            // prob->erf_init_rayleigh() is still used
-            bool restarting = (!restart_chkfile.empty());
-            setRayleighRefFromSounding(restarting);
         }
     }
 

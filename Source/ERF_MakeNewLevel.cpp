@@ -1060,6 +1060,12 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         initRayleigh_at_level(lev);
     }
 
+    // The input-sponge profiles of this (new) level; the input sponge file is already read
+    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge) {
+        initSponge_at_level(lev);
+        setSpongeRef_at_level(lev);
+    }
+
     if (sbm_state_manager) {
         init_sbm_level_from_coarse(lev, time, ba, dm);
     }
@@ -1787,6 +1793,14 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
         initRayleigh_at_level(lev);
+    }
+
+    // The input-sponge profiles of this level, at the heights of its new grids (once they
+    // exist: a level-0 regrid on restart comes before InitData_post sets them up)
+    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge &&
+        static_cast<int>(h_sponge_ptrs.size()) > lev &&
+        static_cast<int>(h_sponge_ptrs[lev].size()) == Sponge::nvars_sponge) {
+        setSpongeRef_at_level(lev);
     }
 
     if (sbm_state_manager) {
