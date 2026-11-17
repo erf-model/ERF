@@ -306,6 +306,8 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
                     << ", mean=" << m_mass_species_mean[i]
                     << ", max=" << m_mass_species_max[i];
             AMREX_ALWAYS_ASSERT(m_mass_species_min[i] >= zero);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_mass_species_min[i] > zero || !sampledMultiplicity(),
+                "A sampled exponential species needs a positive min_mass");
             AMREX_ALWAYS_ASSERT(m_mass_species_max[i] >= m_mass_species_min[i]);
             AMREX_ALWAYS_ASSERT(    (m_mass_species_mean[i] >= m_mass_species_min[i])
                                  && (m_mass_species_mean[i] <= m_mass_species_max[i]) );

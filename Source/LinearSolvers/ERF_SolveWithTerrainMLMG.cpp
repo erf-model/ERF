@@ -24,8 +24,8 @@ using namespace amrex;
  * it is an Outflow or Open face (a lateral one only without real boundary conditions), as in
  * get_fft_bc; a direction is periodic only if the region spans it.  A region that reaches one
  * end of a periodic direction only is given a Neumann face there (coarse cells lie across
- * it), where get_fft_bc says periodic and the FFT preconditioner stops; project_momenta stops
- * a level whose regions meet across a periodic boundary.
+ * it), as get_fft_bc does; project_momenta stops a level whose regions meet across a
+ * periodic boundary.
  *
  * @param lev Level index for the solve
  * @param subdomain Box over which the solve is performed

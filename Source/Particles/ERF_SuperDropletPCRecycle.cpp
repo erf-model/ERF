@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <random>
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_SuperDropletPC.H"
@@ -160,16 +161,23 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 #endif
             {
                 Vector<Real> multiplicity_h(np, zero_d);
+                Vector<SDSampledWeight> weight_h(sampled_multiplicity ? np : 0);
+                Vector<Real> weight_i(sampled_multiplicity ? np : 0);
+                const Real ndv = init_r.m_numdens * cell_volume;
                 for (int i = 0; i < ctx.num_aerosols; i++) {
                     Vector<Real> aerosol_mass_h;
                     if (sampled_multiplicity) {
+                        std::fill(weight_i.begin(), weight_i.end(), zero_d);
                         init_r.getAerosolDistribution( aerosol_mass_h,
-                                                       multiplicity_h,
+                                                       weight_i,
                                                        cell_volume,
                                                        i,
                                                        np,
                                                        m_aerosol_mat[i]->m_density,
                                                        m_rndeng );
+                        for (int n = 0; n < np; n++) {
+                            weight_h[n].add(init_r.m_aerosol_init_type[i], weight_i[n], ndv);
+                        }
                     } else {
                         init_r.getAerosolDistribution( aerosol_mass_h,
                                                        i,
@@ -183,12 +191,22 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                                aerosol_mass_d.begin() + (i*np) );
                 }
                 if (sampled_multiplicity) {
+                    for (int n = 0; n < np; n++) {
+                        multiplicity_h[n] = weight_h[n].value();
+                    }
                     // compute multiplicity scale
                     ParticleReal mult_sum = zero_d;
                     for (int ctr=0; ctr < multiplicity_h.size(); ctr++) {
                         mult_sum += multiplicity_h[ctr];
                     }
-                    mult_scale = np * mult_avg / mult_sum;
+                    Real scale = one_d;
+                    if (SD_sampled_scale(Real(mult_sum), np * mult_avg, scale)) {
+                        mult_scale = scale;
+                    } else {
+                        // weights too small to scale: every sample gets the average
+                        std::fill(multiplicity_h.begin(), multiplicity_h.end(), one_d);
+                        mult_scale = mult_avg;
+                    }
                     // copy to GPU
                     Gpu::copy( Gpu::hostToDevice,
                                multiplicity_h.begin(),

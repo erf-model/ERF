@@ -2132,15 +2132,16 @@ ERF::InitData_post ()
                     if (ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low) {
                         // Initialize tke(x,y,z) as a function of u*(x,y)
                         if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
-                            Real qkefac = one;
+                            Real tkefac = one;
                             if (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25 ||
                                 solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF)
                             {
                                 // https://github.com/NCAR/MYNN-EDMF/blob/90f36c25259ec1960b24325f5b29ac7c5adeac73/module_bl_mynnedmf.F90#L1325-L1333
+                                // WRF mym_initialize: qke(kts) = 1.5*ust^2*(b1*pmz)^(2/3); ERF carries TKE = qke/2
                                 const Real B1 = solverChoice.turbChoice[lev].pbl_mynn.B1;
-                                qkefac = Real(1.5) * std::pow(B1, two/three);
+                                tkefac = myhalf * Real(1.5) * std::pow(B1, two/three);
                             }
-                            m_SurfaceLayer[ori]->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], qkefac);
+                            m_SurfaceLayer[ori]->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], tkefac);
                         }
                     }
                 }
@@ -3616,6 +3617,12 @@ ERF::init_only (int lev, double elapsed_time)
 
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
+
+        // Impose the physical bc's on the base state, as initHSE and restart do: the
+        // sounding fills only the valid cells and (by its column integration) the first
+        // lateral ghost, so without this a non-periodic lateral boundary leaves the base
+        // state's ghosts differing from what a restart rebuilds there
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 
         // The base state has been initialized by integrating vertically
         // through the sounding for ideal (like WRF) or isentropic approaches
