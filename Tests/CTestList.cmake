@@ -2319,7 +2319,8 @@ add_test_box_parity(IsentropicVortexAdvecting_WENO7_BoxParity IsentropicVortexAd
     SPLIT_OPTIONS "amr.max_grid_size_x=24 amr.max_grid_size_y=24 amr.max_grid_size_z=64"
     FCOMPARE_RTOL "0.0"
     FCOMPARE_ATOL "0.0")
-add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
+# 6th-order numerical diffusion is deactivated (erf.num_diff_coeff > 0 aborts)
+# add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
 add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
 
