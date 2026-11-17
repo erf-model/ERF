@@ -27,6 +27,10 @@ REQUIRED_JOBS = {
 }
 SAVE_GUARD = ("always() && github.event_name != 'pull_request' && "
               "github.ref_name == github.event.repository.default_branch")
+GNUMAKE_SAVE_GUARD = ("success() && github.event_name != 'pull_request' && "
+                      "github.ref_name == github.event.repository.default_branch && "
+                      "steps.gnumake-base.outcome == 'success' && "
+                      "steps.gnumake-structure.outcome == 'success'")
 KEY_SETUP = r'''printf 'CCACHE_TRUNK_KEY=%s\n' "$TRUNK_KEY" >> "$GITHUB_ENV"'''
 EXPRESSION = re.compile(r"\$\{\{(.*?)\}\}", re.DOTALL)
 PR_AXIS = re.compile(
@@ -134,7 +138,7 @@ def is_cache(step):
     return uses.startswith("./") and uses.endswith("/.github/actions/ccache-trunk")
 
 
-def cache_steps(workflow, job):
+def cache_steps(workflow, job, save_guard=SAVE_GUARD):
     """Require the standard restore/save pair and trusted publishing policy."""
     steps = job.get("steps", [])
     calls = [(i, s) for i, s in enumerate(steps) if is_cache(s)]
@@ -142,8 +146,8 @@ def cache_steps(workflow, job):
             "expected exactly one restore followed by one save")
     restore, save = (s for _, s in calls)
     require(not restore.get("if"), "restore must be unconditional")
-    require(condition(save.get("if", "")) == condition(SAVE_GUARD),
-            f"save must use the trusted publication guard: {SAVE_GUARD}")
+    require(condition(save.get("if", "")) == condition(save_guard),
+            f"save must use the trusted publication guard: {save_guard}")
     permissions = job.get("permissions", workflow.get("permissions", {}))
     require(isinstance(permissions, dict) and permissions.get("packages") == "write",
             "publishing job needs packages: write")
@@ -239,7 +243,9 @@ def check_workflows(workflows, defaults):
                     continue
                 label = f"{name}:{job_id}"
                 try:
-                    cache_steps(workflow, job)
+                    save_guard = (GNUMAKE_SAVE_GUARD if (name, job_id) == ("gcc.yml", "gnumake")
+                                  else SAVE_GUARD)
+                    cache_steps(workflow, job, save_guard)
                     events = workflow.get("on", {})
                     events = [events] if isinstance(events, str) else events
                     require(events and set(events) <= {"push", "pull_request", "workflow_dispatch"},
