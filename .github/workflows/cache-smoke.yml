@@ -28,7 +28,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Configure smoke test
@@ -55,7 +55,7 @@ jobs:
           }
           Expand-Archive $archive -DestinationPath $env:RUNNER_TEMP
           "$env:RUNNER_TEMP\ccache-4.10.2-windows-x86_64" | Out-File -FilePath $env:GITHUB_PATH -Append
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         if: runner.os == 'Windows'
       - name: Run helper tests
         run: '"$SMOKE_PYTHON" -m unittest discover -s .github/actions/ccache-trunk -p "test_*.py" -v'
@@ -126,7 +126,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Restore with read-only token
