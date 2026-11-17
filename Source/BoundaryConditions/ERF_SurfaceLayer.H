@@ -2285,7 +2285,7 @@ private:
   amrex::Vector<const amrex::MultiFab*>  m_coupled_current_sin_lev;
   // The coupler's grid orientation on the layout fill_surface_current reads, ghost cells
   // filled, per level; remade only when the orientation or that layout changes, since the
-  // coupler calls with the same orientation every step
+  // coupler passes the same orientation on every call
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_coupled_rotation_lev;
   amrex::Vector<const amrex::MultiFab*>  m_coupled_rotation_src_lev;
   amrex::Vector<amrex::BoxArray>            m_coupled_rotation_src_ba_lev;
