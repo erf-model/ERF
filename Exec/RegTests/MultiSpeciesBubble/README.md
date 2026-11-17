@@ -2,7 +2,7 @@
 
 Bryan and Fritsch (2002) moist rising-bubble benchmark, run with the super-droplet
 (`SuperDroplets`) microphysics to exercise its multi-species capability. Each species is
-an independent population of super-droplets condensing from its own water-vapour field;
+an independent population of super-droplets condensing from its own water-vapor field;
 the second species (`agua`) duplicates the physics of the first (`water`) so that the one-
 and two-species runs can be compared directly. The domain is 20 x 0.4 x 10 km on a
 200 x 4 x 100 grid (effectively two-dimensional).

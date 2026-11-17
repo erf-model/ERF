@@ -652,7 +652,7 @@ For momentum, each stage removes the implicit fraction of the correction stress
 the new one. On the faces inside the domain and at coarse/fine boundaries, the two use the same
 face coefficient and the same :math:`h_\zeta` (the edge value by which the strain kernel divides
 :math:`\partial u/\partial \zeta`). With different values the split would change the operator
-whatever the time step, wherever :math:`h_\zeta` varies non-linearly between neighbouring
+whatever the time step, wherever :math:`h_\zeta` varies non-linearly between neighboring
 columns, as on curved terrain that decays with height. The split is not exact at a no-slip wall
 (the correction stress uses a one-sided three-point :math:`\partial u/\partial z`, the solve the
 two-point wall difference) and to first order in the density with ``erf.molec_diff_type = ConstantAlpha`` (the solve uses the predicted density).
@@ -826,7 +826,7 @@ taken along the coordinate surfaces with the chain rule. For example,
    S_{11} = m_x \left( \frac{\partial u}{\partial \xi} - h_\xi \frac{\partial u}{\partial z} \right),
 
 where :math:`h_\xi = \partial z / \partial \xi` and :math:`h_\eta = \partial z / \partial \eta` are the
-terrain slopes. The cell-centred :math:`\partial u / \partial z` in :math:`S_{11}` is the average
+terrain slopes. The cell-centered :math:`\partial u / \partial z` in :math:`S_{11}` is the average
 over the four :math:`x`-:math:`z` edges of the cell, so it uses the cell's own faces
 :math:`i` and :math:`i+1`; :math:`\partial v / \partial z` in :math:`S_{22}` likewise uses the faces
 :math:`j` and :math:`j+1`.
@@ -871,7 +871,7 @@ expansion-rate term, on steep curved terrain (largest :math:`h \Delta x/\Delta z
 four or eight cells' wavelength, in 2-D and 3-D) found:
 
 - with :math:`\nu_h/\nu_v \gtrsim 100`, directions that gain energy; the largest transient growth
-  in the cases analysed was 1.9 in amplitude;
+  in the cases analyzed was 1.9 in amplitude;
 - in every case, every eigenvalue with a negative real part, so no mode of the semi-discrete
   operator (without the expansion-rate term) grows;
 - with the projected terms on :math:`\nu_v`, as before #4214, the same terrain had growing modes.
@@ -899,7 +899,7 @@ with :math:`\nu_h \ne \nu_v` change most:
   PBL scheme, where the PBL mixes only in the vertical.
 
 Runs with :math:`\nu_h = \nu_v` (isotropic Smagorinsky or Deardorff, the k-equation closures)
-change less, where the viscosity varies between neighbouring cells, because the average of
+change less, where the viscosity varies between neighboring cells, because the average of
 :math:`\nu S` differs from the product of the averages. Runs with only a molecular viscosity
 (``ComputeStressConsVisc_T``) change through the :math:`\partial u / \partial z` correction, and
 all three, with the implicit vertical solve on (the default), also through the exact implicit split
@@ -928,7 +928,7 @@ every face inside the domain and subtracted from the explicit flux on the same f
 difference between the two stays explicit. That difference is small for smooth fields on a uniform
 slope, but not where the slope or the viscosity changes from cell to cell, and not at the grid scale:
 the averaged form does not see a :math:`2\Delta z` wave, so there the explicit part is the whole
-compact term with the opposite sign, cancelled within the stage by the implicit solve. The option
+compact term with the opposite sign, canceled within the stage by the implicit solve. The option
 therefore needs the implicit solve in every Runge-Kutta stage (``erf.vert_implicit_fac`` positive in
 all three); in a stage without it the whole averaged metric term is explicit.
 

@@ -13,7 +13,7 @@ ceiling, since zi is about 1 km).
 | item | value |
 | --- | --- |
 | domain | 2560 x 2560 x 2000 m |
-| grid | 8 x 8 x 100, dz = 20 m, first cell centre 10 m |
+| grid | 8 x 8 x 100, dz = 20 m, first cell center 10 m |
 | time step | 2 s fixed, anelastic with FFT (K/rho reaches 40 m^2/s, the explicit limit at 5 s) |
 | closure | `erf.rans_type = kEqn`, AL01 defaults, `dirichlet_k = true` |
 | physics run | 4 h (7200 steps), about 2 min on 2 ranks |
@@ -40,7 +40,7 @@ and with explicit vertical diffusion, once with the k-eqn closure and once
 with Deardorff. The buoyancy production of k averages the fluxes of the
 theta diffusion at the two faces of each cell, which are the full fluxes
 whether that diffusion is explicit or implicit, so the two runs differ only
-by the time discretisation of the diffusion. The largest planar-mean KE
+by the time discretization of the diffusion. The largest planar-mean KE
 difference, relative to the largest KE, must stay below 1e-4 (k-eqn) and
 3e-4 (Deardorff); it is about 1.1e-5 and 5.1e-5. When the buoyancy term read
 the face flux scaled by the explicit fraction instead, which vanishes with

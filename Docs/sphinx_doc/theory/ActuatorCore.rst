@@ -29,7 +29,7 @@ of ``z_phys_nd`` on a stretched or terrain-following mesh (``face_height`` in
 ``ERF_ActuatorGeometry.H``, shared with the spreader so that both see the same
 face positions). A field linear in ``x``, ``y`` and the physical height is
 therefore reproduced exactly, on every mesh type. Every MPI rank samples the
-points whose containing cell lies in one of its boxes, reading neighbours from
+points whose containing cell lies in one of its boxes, reading neighbors from
 the ghost cells (the velocity fields need one filled ghost cell, and
 ``z_phys_nd`` one filled ghost node), and the
 values are summed across ranks, so the result does not depend on the domain
@@ -38,9 +38,9 @@ outside the domain, or one found by no rank or by more than one, aborts the
 run with its coordinates: the caller owns the points and must keep them inside
 the domain.
 
-``sample_cell_scalar`` does the same for one component of a cell-centred field
-(bilinear between the four cell centres around the point, linear in the
-physical height between the two cell centres that bracket it in the column).
+``sample_cell_scalar`` does the same for one component of a cell-centered field
+(bilinear between the four cell centers around the point, linear in the
+physical height between the two cell centers that bracket it in the column).
 ``terrain_heights`` returns the height of the terrain surface under each
 point: the ``k = 0`` node plane of ``z_phys_nd``, bilinear between the four
 nodes around the point's ``(x, y)``, or the domain's lower ``z`` on a
@@ -49,7 +49,7 @@ the ground and to measure clearances.
 
 ``points_covered_by`` tells whether every point, with the cells within a given
 reach around it, lies inside the union of boxes of a level: the sampler needs
-the neighbouring cells and the spreader the kernel's reach, and on a refined
+the neighboring cells and the spreader the kernel's reach, and on a refined
 level that is not the whole domain. Periodic directions wrap; the first point
 outside is named. Its ``CoverZ`` argument says how the vertical is checked: by
 the cells within reach of the point's own height (``Reach``, a flat uniform
@@ -67,7 +67,7 @@ footprints once (``CoverageGrids``) and passes them instead of the ``BoxArray``.
 
 ``region_touches_grids`` answers the opposite question for a caller that must
 stay clear of a level: whether the level's boxes may hold a cell of a region
-given in metres. In a periodic direction every image of the region counts. A
+given in meters. In a periodic direction every image of the region counts. A
 region that overlaps a cell of the level is never missed; one that only meets a
 cell at a face may not count. On a stretched or terrain-following mesh it takes
 the level's table of node heights from ``mesh_z_levels``: for each node level,
@@ -92,9 +92,9 @@ Force spreading and momentum source
 -----------------------------------
 
 ``spread_forces`` carries the force each point exerts on the fluid onto ERF's
-face-centred momentum sources with a 3-D Gaussian kernel of width ``epsilon``
-(in metres; one width for every point, or one per point), cut off beyond three
-widths. The kernel is normalised discretely
+face-centered momentum sources with a 3-D Gaussian kernel of width ``epsilon``
+(in meters; one width for every point, or one per point), cut off beyond three
+widths. The kernel is normalized discretely
 on each staggered grid, with the face volumes (``dx dy dz detJ`` on a
 terrain-following mesh, from ``face_volume``), so the source integrates back to
 the point force exactly for every point and component, whatever the resolution
@@ -108,15 +108,15 @@ mesh the faces within ``3 epsilon`` in physical height are not known from the
 index, so the search runs, within the horizontal reach, over the cells whose
 node heights anywhere on the level can lie within that height range. Every rank accumulates the faces its boxes own,
 each physical face once however the boxes share their boundary faces, and the
-normalisations are summed across ranks, so the result does not depend on the
+normalizations are summed across ranks, so the result does not depend on the
 domain decomposition. The sources are set, not added to, on every valid face;
 faces on a non-periodic domain boundary get no source. ``integrate_source``
-returns the integral of a face-centred source over the mesh, which the
+returns the integral of a face-centered source over the mesh, which the
 regression tests of a body model compare with the force it carries.
 
 .. note::
 
-   **Why the normalisation is discrete.** Actuator codes in the AMR-Wind and
+   **Why the normalization is discrete.** Actuator codes in the AMR-Wind and
    SOWFA lineage divide each point's force by the analytic Gaussian volume,
    ``epsilon^3 pi^(3/2)``, and then sum the kernel over the cells. The sum over
    cell volumes equals that analytic volume only when the kernel lies wholly
@@ -130,20 +130,20 @@ regression tests of a body model compare with the force it carries.
    * with ``epsilon`` below about one cell the cell sum of a Gaussian differs
      from its integral (by Poisson summation the worst case in one direction is
      ``2 exp(-pi^2 (epsilon/dx)^2)``: 3e-4 of the force in 3-D at
-     ``epsilon = dx``, several per cent at ``0.7 dx``, tens of per cent at
+     ``epsilon = dx``, several percent at ``0.7 dx``, tens of percent at
      ``0.5 dx``), and the error changes sign with the point's position in the
      cell; the usual ``epsilon >= 2 dx`` rule of the actuator-line literature
      is about the smoothness of the body force, not this sum;
    * on a stretched or terrain-following mesh the cell volumes vary across the
-     kernel, which no constant can account for (about 0.1 per cent of the
-     force for a resolved kernel on a mesh stretched by 10 per cent per cell;
-     up to 5 per cent if one cell's volume stands for all).
+     kernel, which no constant can account for (about 0.1 percent of the
+     force for a resolved kernel on a mesh stretched by 10 percent per cell;
+     up to 5 percent if one cell's volume stands for all).
 
-   The ground cut is the large one. Note that the renormalised kernel of a
+   The ground cut is the large one. Note that the renormalized kernel of a
    point cut by the ground is applied above the point: its centroid moves up
    by ``0.39 epsilon`` for a point ``0.3 epsilon`` above the ground. The
-   cut-off at three widths drops 0.044 per cent of the mass, which the
-   normalisation puts back inside, narrowing the kernel by 0.13 per cent.
+   cut-off at three widths drops 0.044 percent of the mass, which the
+   normalization puts back inside, narrowing the kernel by 0.13 percent.
 
    The symptoms are a wake deficit slightly too weak, a force felt by the flow
    that depends on the grid spacing and on how low the body sits, and momentum
@@ -152,10 +152,10 @@ regression tests of a body model compare with the force it carries.
    integrated source equals the force exactly in every case.
 
 ``spread_forces`` works in two passes, which are also available on their own.
-``spread_partial_norms`` returns, for each point, the part of its normalisation
+``spread_partial_norms`` returns, for each point, the part of its normalization
 (the sum of the kernel weight times the face volume) over the faces this rank's
 boxes own, with no reduction. ``add_scaled_kernels`` adds each point's force,
-divided by its whole normalisation, times the kernel weight to the faces of
+divided by its whole normalization, times the kernel weight to the faces of
 this rank's boxes. ``spread_forces`` sums the parts over the ranks between
 the two; a body model whose ranks hold different points sums them over the
 ranks a point reaches. ``add_spread_forces`` is ``spread_forces`` without the
@@ -176,13 +176,13 @@ factors.
 
 A body model works on one level, which it chooses, and keeps its points with
 the kernel's reach (three widths) on that level's grids, checked with
-``points_covered_by`` at start-up and after every regrid: the normalisation
+``points_covered_by`` at start-up and after every regrid: the normalization
 runs over the faces of one level, so on a refined level whose patch cuts a
 kernel the whole force would land in the covered part. The level that samples
 is the level that spreads.
 
 The spreader adds its terms in a fixed order, without atomic adds: the
-normalisation of a point over a rank's boxes in box order, then over the ranks;
+normalization of a point over a rank's boxes in box order, then over the ranks;
 the source at a face point by point. The source therefore does not change from
 run to run on a GPU, as it does not on a CPU.
 
@@ -194,8 +194,8 @@ The sampler and the spreader work in the physical heights of a fitted mesh
 the kernel follow the terrain without further change. A body model that
 places its base at a height above the ground adds the terrain height from
 ``terrain_heights`` once at start-up; each vertical wake line stops at the
-ground under its own centre, which the body model takes from
-``terrain_heights`` at the line centres (one ground height per downstream
+ground under its own center, which the body model takes from
+``terrain_heights`` at the line centers (one ground height per downstream
 distance); a single ground height is the hub's, and on terrain rising
 downstream a line's lowest points would then lie inside the ground, where the
 sampler stops the run naming them.
@@ -205,7 +205,7 @@ Wake sampling lines
 
 ``WakeLines`` puts sampling lines behind one body: at each requested distance,
 in units of the body's diameter along the horizontal projection of the body's
-axis through its centre (a wake follows the wind at the body's height, and a
+axis through its center (a wake follows the wind at the body's height, and a
 tilted axis would otherwise carry the far lines into the ground), one
 horizontal line normal to that direction and one vertical line, each of
 ``num_points`` points spanning ``half_width`` diameters either side of the

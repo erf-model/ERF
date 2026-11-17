@@ -128,7 +128,7 @@ and with slip walls, so it runs in every build.
 | `InflowProfile_ThetaAboveGround_FlagOff` | `check_theta_flag_off.py`: the same deck with the flag off must start theta at physical heights (median error at least 0.5 K, max at least 4 K), so the first test cannot pass without the flag |
 
 The reference in both checkers is the sounding as ERF stores it: resampled onto the
-ground, the flat mesh's cell-centre heights and the top, then interpolated
+ground, the flat mesh's cell-center heights and the top, then interpolated
 linearly. Compared with the exact piecewise-linear sounding, that resampling rounds
 the inversion base by up to 0.5 K in the cell next to it, with the flag on or off.
 

@@ -1,6 +1,6 @@
 # SineMassFlux
 
-A column with prescribed Eulerian-transported water vapour that condenses and forms cloud
+A column with prescribed Eulerian-transported water vapor that condenses and forms cloud
 and rain, following the Shipway and Hill (2012) kinematic warm-rain driver.
 
 ## References

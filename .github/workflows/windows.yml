@@ -29,6 +29,9 @@ on:
       - '.github/actions/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # Development pushes finish the active run and keep only the newest pending commit.
 # PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
@@ -70,7 +73,7 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         submodules: true
         persist-credentials: false
@@ -102,7 +105,7 @@ jobs:
     - name: Restore legacy Actions cache
       if: steps.ghcr-cache.outputs.hit != 'true'
       continue-on-error: true
-      uses: actions/cache/restore@v6
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}\ccache
         key: ccache-${{ github.workflow }}-${{ github.job }}-mpi-${{ matrix.mpi }}-${{ matrix.mesh_precision }}-${{ matrix.particles }}-git-${{ github.sha }}
@@ -124,7 +127,7 @@ jobs:
         & "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -help | Select-Object -First 1
 
     - name: Set up the MSVC environment
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
     - name: Configure Project and Generate Build System
       shell: pwsh
@@ -286,7 +289,7 @@ jobs:
 
     - name: Upload the executable
       if: matrix.mpi == 'ON'
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ERF-win64-${{ env.BUILD_TYPE }}-mpi-${{ matrix.mpi }}-mesh-${{ matrix.mesh_precision }}-particles-${{ matrix.particles }}-${{ matrix.particles_precision }}
         path: |

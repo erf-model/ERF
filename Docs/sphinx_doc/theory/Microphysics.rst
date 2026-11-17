@@ -1327,7 +1327,7 @@ All SDM parameters use the prefix ``super_droplets_moisture``:
      - Enable particle recycling at boundaries
    * - ``species``
      - ``H2O``
-     - List of vapour/condensate species
+     - List of vapor/condensate species
    * - ``aerosols``
      - (none)
      - List of aerosol species

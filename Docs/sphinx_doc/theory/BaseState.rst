@@ -310,7 +310,7 @@ follow.
   :math:`\rho^\prime` is a linear function of :math:`z` and :math:`p^\prime` is its
   hydrostatic integral, the same profile in both columns, the computed horizontal
   gradient vanishes identically, whatever the terrain slope.  This is the
-  finite-difference analogue of the local hydrostatic reconstruction of
+  finite-difference analog of the local hydrostatic reconstruction of
   `Botta, Klein, Langenberg & Lützenkirchen (2004)`_, with :math:`\rho^\prime` playing
   the role of their locally assumed entropy profile.
 - **It is consistent in non-hydrostatic flow.**  Substituting the definition of

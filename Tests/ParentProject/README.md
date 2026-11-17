@@ -64,7 +64,7 @@ order u/c. The test passes when:
 
 ERF's own `Structures_ExampleModel` test checks the same values in the standalone
 build, on 2 MPI ranks. The parent test runs on one rank (MPI is off unless the parent
-turns it on), so it checks the build, not the parallel force normalisation. Like
+turns it on), so it checks the build, not the parallel force normalization. Like
 `Structures_ExampleModel`, it is registered only with `ERF_PRECISION=DOUBLE`.
 
 The two tests registered through the helpers pass when:

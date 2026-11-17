@@ -16,7 +16,7 @@ python3 plot_isolated.py ibseb_day.csv faces/day --plotfile plt100800    # write
 
 A 40 m cube, an exact box on cell faces (`eb2.geometry = box`), of 30 cm concrete (k = 1.5 W/m/K, rho c_p = 2e6 J/m3/K, ten
 layers, albedo 0.25, emissivity 0.92, 295 K inside, faces and slabs
-starting at the air temperature) at the centre of a
+starting at the air temperature) at the center of a
 320 m periodic domain on a 10 m grid, in a 3 m/s westerly, neutral at
 300 K, with a MOST ground (z0 = 0.1 m) held at 300 K. Boulder on the June
 solstice, from midnight solar time for 24 hours: clear sky from the

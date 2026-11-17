@@ -25,7 +25,7 @@ the angle from its lat/lon arrays instead, so the comparison is independent.
 - `Tests/check_2d_earth_winds.py`: every cell of the 2D fields against the 3D
   `x_velocity`/`y_velocity` rotated by the closed-form angle (0.003 rad of the wind).
 
-## Data and acknowledgements
+## Data and acknowledgments
 
 The case needs one file that is not in the repository: `wrfinput_d01`, a WRF real.exe
 (V4.8.0) initial-condition file for 2024-08-05 00 UTC on a 100 x 100 x 79 grid at 25 km

@@ -43,7 +43,7 @@ fitted mesh, are not needed.
 
 ## Checks
 
-Wall distance (both modes; the field is set at initialisation):
+Wall distance (both modes; the field is set at initialization):
 
 | check | target | tolerance |
 | --- | --- | --- |
