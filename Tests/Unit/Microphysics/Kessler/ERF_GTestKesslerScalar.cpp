@@ -377,6 +377,25 @@ TEST(KesslerScalar, TerminalVelocity_ZeroRainGivesZeroFlux)
     EXPECT_NEAR(flux, amrex::Real(0.0), exact_zero_or_near_zero_tol());
 }
 
+// Motivation (#5193): the reference helpers share the kessler_vt_* constants with
+// kessler_terminal_velocity, so they cannot catch a wrong value. Pin the values,
+// and the fall speed at one state, with literals from Klemp & Wilhelmson (1978)
+// as used by WRF module_mp_kessler.F. With the transposed exponent 0.1346 the
+// fall speed below would be 5.7027 m/s.
+TEST(KesslerScalar, TerminalVelocity_PinnedCoefficients)
+{
+    EXPECT_EQ(kessler_vt_coeff, amrex::Real(36.34));
+    EXPECT_EQ(kessler_vt_rho_to_cgs, amrex::Real(0.001));
+    EXPECT_EQ(kessler_vt_exponent, amrex::Real(0.1364));
+    EXPECT_EQ(kessler_vt_rho0, amrex::Real(1.16));
+    EXPECT_EQ(kessler_vt_density_exponent, amrex::Real(-0.5));
+
+    // 36.34 * (0.001 * 1.2 * 1.0e-3)^0.1364 * (1.2 / 1.16)^(-1/2), evaluated in double.
+    const amrex::Real expected = amrex::Real(5.564467580979174);
+    const amrex::Real velocity = kessler_terminal_velocity(amrex::Real(1.2), amrex::Real(1.0e-3));
+    EXPECT_NEAR(velocity, expected, backend_math_abs_tol(expected));
+}
+
 // Motivation: Terminal velocity should be nondecreasing in rain water for
 // fixed positive density. This protects a basic physical monotonicity contract.
 TEST(KesslerScalar, TerminalVelocity_MonotoneInQp)
