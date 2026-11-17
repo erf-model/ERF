@@ -114,9 +114,13 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         // average multiplicity
         Real mult_avg = zero;
+        // split/merge tag: this level's, or level 0's when a super-droplet density sets the
+        // multiplicity (as for initial super-droplets)
+        int recycle_tag = a_lev + 1;
         if (m_variable_dz) {
             const auto init_counts = initCellCountsHost();
             mult_avg = SD_init_multiplicity(init_counts.data(), static_cast<int>(init_counts.size()), cell_volume);
+            for (const auto& c : init_counts) { if (c.sd_density >= 0) { recycle_tag = 1; } }
         } else {
             // number of super-droplets per cell
             const int num_sd_per_cell = m_num_sd_per_cell;
@@ -285,8 +289,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                     ctx.num_species, ctx.num_aerosols, ptrs.sp_sol_arr, ptrs.ae_sol_arr,
                     ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs, ptrs.sp_rho_arr, ptrs.ae_rho_arr);
 
-                // pending (vz holds the height) until placed, which flips the sign to this level's split/merge tag
-                ptrs.active_ptr[i] = -(a_lev + 1);
+                // pending (vz holds the height) until placed, which flips the sign to the split/merge tag
+                ptrs.active_ptr[i] = -recycle_tag;
 
                 // add to count
                 Gpu::Atomic::Add(np_recycle_ptr, Long(1));
