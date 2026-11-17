@@ -21,7 +21,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_MakeNewLevel {
 
 //
 // Fill the running sum of a time average on a level whose grids were just built.
@@ -63,6 +63,7 @@ fill_time_average_sum (MultiFab& new_sum, const MultiFab* old_sum, double fine_c
 }
 
 } // namespace
+using namespace erf_detail_MakeNewLevel;
 
 /**
  * Build the EB factories of level lev on the grids (ba, dm), with EB terrain or immersed
@@ -547,7 +548,8 @@ save_qmoist_restart_vars (const Vector<MultiFab*>& qmoist_lev, const std::vector
 // Fill an accumulator rebuilt by micro->Init on new grids: cells the old grids covered keep
 // their old value, and the rest take the coarse level's value (piecewise constant).  The
 // accumulators live in the bottom layer of cells, so only that layer is filled from coarse.
-static void
+namespace erf_detail_MakeNewLevel {
+void
 fill_qmoist_restart_var (MultiFab& dst, const MultiFab* old_mf, const MultiFab* crse_mf,
                          const Geometry& crse_geom, const Geometry& fine_geom, const IntVect& ratio)
 {
@@ -579,6 +581,8 @@ fill_qmoist_restart_var (MultiFab& dst, const MultiFab* old_mf, const MultiFab* 
     if (old_mf != nullptr) { dst.ParallelCopy(*old_mf, 0, 0, ncomp); }
     dst.FillBoundary(fine_geom.periodicity());
 }
+} // namespace erf_detail_MakeNewLevel
+using namespace erf_detail_MakeNewLevel;
 
 // Make a new level using provided BoxArray and DistributionMapping and
 // fill with interpolated coarse level data (overrides the pure virtual function in AmrCore)
@@ -2043,7 +2047,7 @@ ERF::make_lsm_at_level (int lev, bool from_regrid,
     }
 }
 
-namespace {
+namespace erf_detail_MakeNewLevel {
 /**
  * Set the thin-body flux mask to 0 on the listed faces.  The mask lives in the default
  * arena, which is device memory on GPU builds, so the faces are copied to the device and
@@ -2076,6 +2080,7 @@ mask_thin_body_faces (iMultiFab& imask, const Vector<IntVect>& faces, int dir, c
     Gpu::synchronize();
 }
 } // namespace
+using namespace erf_detail_MakeNewLevel;
 
 void
 ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)

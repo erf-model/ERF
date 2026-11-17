@@ -18,8 +18,7 @@
 
 #include <limits>
 
-namespace
-{
+namespace erf_detail_to_REMORA {
 // Contract slot indices, in driver active-view order (mirrors
 // ERFRemoraCouplingContract.H; repeated to avoid a driver->submodule include).
 constexpr int iUwind = 0, iVwind = 1, iPatm = 2, iRH = 3, iTair = 4;
@@ -264,6 +263,7 @@ ApplyConservativeRemap (const amrex::MultiFab& src,
     }
 }
 }
+using namespace erf_detail_to_REMORA;
 
 double
 ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)

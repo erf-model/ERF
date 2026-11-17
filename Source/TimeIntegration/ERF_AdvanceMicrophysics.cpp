@@ -3,7 +3,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_AdvanceMicrophysics {
 
 /**
  * The inflow through the top of a fine level's patches for one Advance of length dt_fine
@@ -118,6 +118,7 @@ register_sed_fluxes (YAFluxRegister& fr, bool as_crse, const SedimentationFlux& 
 }
 
 } // namespace
+using namespace erf_detail_AdvanceMicrophysics;
 
 void ERF::advance_microphysics (int lev,
                                 MultiFab& cons,

@@ -13,8 +13,7 @@ using namespace amrex;
 namespace plotfile2d
 {
 
-namespace
-{
+namespace erf_detail_Plotfile2DInterpolator {
 
 struct SampledEarthWind
 {
@@ -154,6 +153,7 @@ SampledBracket find_sampled_bracket (SampledCoordinate coordinate,
 }
 
 } // namespace
+using namespace erf_detail_Plotfile2DInterpolator;
 
 void
 fill_sampled_level_component (MultiFab& dst,

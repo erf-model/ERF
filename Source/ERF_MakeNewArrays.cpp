@@ -21,7 +21,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_MakeNewArrays {
 
 // Smoothly varying test map factors, valid and ghost cells, at the MultiFab's own locations.
 // NOTE: a free function, since nvcc does not allow an extended (__device__) lambda inside a
@@ -46,6 +46,7 @@ set_test_mapfactor (MultiFab& mf, const Geometry& geom, const Real amp)
 }
 
 } // namespace
+using namespace erf_detail_MakeNewArrays;
 
 void
 ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,

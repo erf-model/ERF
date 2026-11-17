@@ -8,7 +8,7 @@
 #include <cmath>
 
 namespace erf_auxiliary {
-namespace {
+namespace erf_detail_AuxiliaryDiffusion {
 
 using amrex::Array4;
 using amrex::Box;
@@ -171,6 +171,7 @@ bool same_face_layout (const MultiFab& face, const MultiFab* field)
 }
 
 } // namespace
+using namespace erf_detail_AuxiliaryDiffusion;
 
 bool BuildMappedDiffusionTransmissibility (
     MappedFaceTransmissibility& transmissibility,

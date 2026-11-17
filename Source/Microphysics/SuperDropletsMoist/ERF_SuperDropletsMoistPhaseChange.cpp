@@ -6,7 +6,8 @@
 using namespace amrex;
 
 /*! \brief Compute saturation ratio */
-static void saturation_ratio (MultiFab& a_sr,
+namespace erf_detail_SuperDropletsMoistPhaseChange {
+void saturation_ratio (MultiFab& a_sr,
                               const MultiFab& a_qv,
                               const MultiFab& a_temperature,
                               const MultiFab& a_pressure,
@@ -23,6 +24,8 @@ static void saturation_ratio (MultiFab& a_sr,
     }
     a_sr.FillBoundary();
 }
+} // namespace erf_detail_SuperDropletsMoistPhaseChange
+using namespace erf_detail_SuperDropletsMoistPhaseChange;
 
 /*! Compute phase change for a timestep */
 void SuperDropletsMoist::phaseChange ( const Real& a_dt,
