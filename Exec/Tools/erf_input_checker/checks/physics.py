@@ -139,14 +139,18 @@ class TurbulenceChecker(Checker):
                 self.warn(key, "ignored: no moisture model is active")
             if key.startswith("erf.dycore") and v.lower().startswith("weno") and self.ctx.terrain.lower() == "eb":
                 self.error(key, "WENO momentum advection is not allowed with erf.terrain_type = EB")
-        h = (self.str_("erf.dycore_horiz_adv_type", "Upwind_3rd") or "").lower()
         nd = self.real("erf.num_diff_coeff", 0.0)
         if nd is not None and nd != 0:
             self.error("erf.num_diff_coeff", "sixth-order numerical diffusion is currently deactivated; ERF aborts if this is nonzero",
                        "Remove erf.num_diff_coeff or set it to 0.")
-        if h.startswith("centered"):
-            self.advise("erf.dycore_horiz_adv_type", "%s has no upwinding and may be noisy or unstable" % h,
-                        "Consider an upwind scheme (Upwind_5th horizontal, Upwind_3rd vertical is the WRF-like choice).")
+        for key in ("erf.dycore_horiz_adv_type", "erf.dycore_vert_adv_type", "erf.dryscal_horiz_adv_type",
+                    "erf.dryscal_vert_adv_type", "erf.moistscal_horiz_adv_type", "erf.moistscal_vert_adv_type"):
+            if key.startswith("erf.moistscal") and not moist:
+                continue
+            v = (self.str_(key) or "").lower()
+            if v.startswith("centered"):
+                self.advise(key, "%s has no upwinding and may be noisy or unstable" % v,
+                            "Consider an upwind scheme (Upwind_5th horizontal, Upwind_3rd vertical is the WRF-like choice).")
         for key in ("erf.dycore_horiz_upw_frac", "erf.dycore_vert_upw_frac", "erf.dryscal_horiz_upw_frac",
                     "erf.dryscal_vert_upw_frac", "erf.moistscal_horiz_upw_frac", "erf.moistscal_vert_upw_frac"):
             if d.has(key):

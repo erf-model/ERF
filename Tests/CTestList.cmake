@@ -2319,7 +2319,7 @@ add_test_box_parity(IsentropicVortexAdvecting_WENO7_BoxParity IsentropicVortexAd
     SPLIT_OPTIONS "amr.max_grid_size_x=24 amr.max_grid_size_y=24 amr.max_grid_size_z=64"
     FCOMPARE_RTOL "0.0"
     FCOMPARE_ATOL "0.0")
-# 6th-order numerical diffusion is deactivated (erf.num_diff_coeff > 0 aborts)
+# 6th-order numerical diffusion is deactivated (a nonzero erf.num_diff_coeff aborts; see IVA_NumDiff_Deactivated)
 # add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
 add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
@@ -2988,6 +2988,9 @@ if(NOT WIN32)
                  AnelasticWallDiffusion_X.i "prob.axis must be 0, 1 or 2" "prob.axis=3")
   add_test_abort(ScalarAdvDiff_ZeroRadius ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU
                  ScalarAdvectionUniformU.i "prob.rad_0 must be > 0 for prob.prob_type = 11, 12 and 13" "prob.rad_0=0")
+  # 6th-order numerical diffusion is deactivated: a nonzero erf.num_diff_coeff stops (#5246)
+  add_test_abort(IVA_NumDiff_Deactivated ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IVA_NumDiff
+                 IVA_NumDiff.i "erf.num_diff_coeff must be 0" "")
 endif()
 
 # A moist run's temperature planes need the qv planes to be converted back to theta: reading

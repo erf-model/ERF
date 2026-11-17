@@ -1863,22 +1863,14 @@ struct SolverChoice {
 
         // Use numerical diffusion?
         // The 6th-order numerical diffusion is deactivated until its known issues are resolved;
-        // a nonzero coefficient aborts rather than being silently ignored.
+        // a nonzero coefficient aborts rather than being silently ignored. To restore it, bring
+        // back the [0, 1] range check, use_num_diff = (num_diff_coeff > 0) and the 2^-6 scaling
+        // of num_diff_coeff that this block had before erf-model/ERF#5246.
         pp.queryAdd("num_diff_coeff",num_diff_coeff);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_diff_coeff == zero,
-            "erf.num_diff_coeff > 0 is not supported: the 6th-order numerical diffusion is currently "
+            "erf.num_diff_coeff must be 0: the 6th-order numerical diffusion is currently "
             "deactivated. Remove erf.num_diff_coeff or set it to 0.");
         use_num_diff = false;
-        /*
-        AMREX_ASSERT_WITH_MESSAGE(( (num_diff_coeff >= zero) && (num_diff_coeff <= one) ),
-                                  "Numerical diffusion coefficient must be between 0 & one");
-        use_num_diff = (num_diff_coeff > 0);
-        if (use_num_diff) {
-            amrex::Print() << "6th-order numerical diffusion turned on with coefficient = "
-                << num_diff_coeff << std::endl;
-            num_diff_coeff *= amrex::Math::powi<-6>(two);
-        }
-        */
 
             advChoice.init_params(pp_prefix);
 
