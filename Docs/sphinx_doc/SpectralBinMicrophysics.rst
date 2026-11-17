@@ -909,8 +909,8 @@ below it. The margin applies with or without mixing. A nearly empty cell whose
 margin to a bound is within that roundoff of the material passing through it
 takes the low-order update on its faces.
 
-On terrain-fitted grids ERF's centred cross-diffusion stencil is
-not positive: a single diagonal neighbour gives an empty cell a negative
+On terrain-fitted grids ERF's centered cross-diffusion stencil is
+not positive: a single diagonal neighbor gives an empty cell a negative
 tendency. No low-order operator is yet qualified there.
 
 Numerical reconstruction for resolved spectral advection

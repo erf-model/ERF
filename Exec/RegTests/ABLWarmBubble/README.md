@@ -19,7 +19,7 @@ moves and the surface heat stays in the bottom cell.
 
 | Deck | What it runs |
 |------|--------------|
-| `inputs_base` | shared settings; on its own it sets the bubble centre and radii without `prob.bubble_dT` |
+| `inputs_base` | shared settings; on its own it sets the bubble center and radii without `prob.bubble_dT` |
 | `inputs` | compressible run with the bubble and the imposed flux |
 | `inputs_anelastic` | the same with `erf.anelastic = 1` (FFT Poisson solve; registered only in an FFT build) |
 | `inputs_keys_without_dT` | start-up check: must stop because `prob.bubble_dT` is not set |

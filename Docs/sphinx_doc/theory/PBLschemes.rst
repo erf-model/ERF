@@ -352,7 +352,7 @@ PBL height and turbulent structure
 
 Native SHOC diagnoses planetary boundary layer height from a bulk-Richardson
 criterion, with an additional convective correction for unstable surface
-forcing. Native SHOC ``pblh`` is reported in metres above local ground (AGL).
+forcing. Native SHOC ``pblh`` is reported in meters above local ground (AGL).
 It is not an absolute geometric height.
 
 The diagnosed PBL depth also enters the native surface second-moment scaling
@@ -895,9 +895,9 @@ stable boundary layer tests (GABLS cases).
 6. Scale-Aware PBL-LES Blending
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Motivation:** In the grey-zone grid spacing (100–1000 m), mesoscale-calibrated PBL schemes like MRF
+**Motivation:** In the gray-zone grid spacing (100–1000 m), mesoscale-calibrated PBL schemes like MRF
 overestimate vertical diffusivity, leading to excessively strong mixing. Two corrections are applied
-together to smoothly reduce K_h at fine resolution while maintaining full PBL behaviour at coarse scales.
+together to smoothly reduce K_h at fine resolution while maintaining full PBL behavior at coarse scales.
 
 **Blending Factor (Boutle et al. 2014):**
 
@@ -951,7 +951,7 @@ mixing ratios.
 **Parameters:**
 
 - ``pbl_blend_length`` (Real): Boutle blending length [m]. Default: 0.0 (disabled).
-  Set > 0 to enable blending. Typical: 750 m for grey-zone applications.
+  Set > 0 to enable blending. Typical: 750 m for gray-zone applications.
 - ``pbl_blend_cs`` (Real): Smagorinsky coefficient for K_h ceiling. Default: 0.17.
 - ``pbl_blend_c_max`` (Real): Power-law ceiling coefficient [m^(2/3) s⁻¹]. Default: 0.1.
 - ``pbl_blend_use_smag`` (bool): Use Smagorinsky ceiling when strain rate available.
@@ -1405,7 +1405,7 @@ first fluid cell :math:`k_s` to the top cell :math:`k_{hi}`, as WRF does (``bl_y
   This includes a crossing at the top cell :math:`k_{hi}`.
 - The first cell's :math:`{\rm Rib}` only seeds the lower end of the first interval. If it and the next
   level are both at or above :math:`{\rm Rib_{cr}}`, :math:`h` is the floor :math:`h_{min}` (WRF's
-  ``brint = 0``): the height of the first cell's centre on a flat mesh, or of its top face on a
+  ``brint = 0``): the height of the first cell's center on a flat mesh, or of its top face on a
   terrain-fitted mesh, and at least 10 m.
 - If :math:`{\rm Rib}` stays below :math:`{\rm Rib_{cr}}` up to :math:`k_{hi}`, :math:`h` is the top of the scan,
   :math:`z_{k_{hi}}` (WRF's ``brint = 1``).
