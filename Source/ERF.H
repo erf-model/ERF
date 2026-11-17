@@ -2542,8 +2542,10 @@ private:
                 case AdvType::Centered_6th:
                 case AdvType::Upwind_5th:
                 case AdvType::Weno_5:
-                case AdvType::Weno_5Z:
-                case AdvType::Weno_7:  return 3;
+                case AdvType::Weno_5Z: return 3;
+                // WENO7 and WENO_Z7 read i-4..i+3, so the momentum fluxes reach four
+                // cells beyond the faces of a tile in the velocities
+                case AdvType::Weno_7:
                 case AdvType::Weno_7Z: return 4;
                 default:               return 2;
             }
