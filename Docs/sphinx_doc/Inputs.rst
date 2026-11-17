@@ -2754,10 +2754,6 @@ List of Parameters
 |                                          | built from, instead of the 1/l sum with l_T and l_B.     |                    |                  |
 |                                          | The first-cell TKE then approaches B1^(2/3) u*^2 / 2.    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.diffuse_QKE_3D**                   | Include horizontal turb. diffusion terms in QKE eqn.     | Boolean            | false            |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_force_over_water**         | Treat whole domain as over water for YSU PBL scheme      | Boolean            | false            |
 |                                          | regardless of LSM/other inputs                           |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2842,7 +2838,8 @@ List of Parameters
 |                                          | only when the PBL scheme carries TKE                     |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.diffuse_tke_3D**                   | apply three-dimensional numerical diffusion to the       | Boolean            | true             |
-|                                          | turbulent kinetic energy (per-level)                     |                    |                  |
+|                                          | turbulent kinetic energy (per-level); has an effect only |                    |                  |
+|                                          | when numerical diffusion is on (erf.num_diff_coeff > 0)  |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.init_tke_from_ustar**              | initialize the turbulent kinetic energy from the         | Boolean            | false            |
 |                                          | friction velocity (per-level); read only when a          |                    |                  |
