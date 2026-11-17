@@ -38,6 +38,8 @@
     Real qvfac = pert_deltaQV * std::exp(myhalf) / pert_ref_height;
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
+    // with a fixed density the Rho perturbation is not applied (ERF_InitCustomPertState.cpp)
+    const bool fixed_rho = (sc.fixed_density[lev] == 1);
 
     const Real rdOcp   = sc.rdOcp;
 
@@ -101,7 +103,7 @@
             const Real damp = std::exp(-myhalf * zl * zl);
 
             Real rhoold = state(i,j,k,Rho_comp);
-            Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
+            Real rhonew = fixed_rho ? rhoold : rhoold + state_pert(i,j,k,Rho_comp);
 
             Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
             Real qvnew = qvold + qvfac * damp * z_agl * std::cos(dval * (x - xc));
