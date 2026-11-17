@@ -14,6 +14,82 @@
 
 namespace erf_surface_temperature {
 
+/** Error returned while diagnosing pressure at a surface from an atmospheric cell. */
+enum struct SurfacePressureError : int {
+    none = 0,
+    bad_density,
+    bad_rho_theta,
+    no_moisture_comp,
+    bad_rho_qv,
+    bad_qv,
+    bad_delta_z,
+    bad_pressure
+};
+
+/** A validated surface pressure and the vapor mixing ratio used to diagnose it. */
+struct SurfacePressureResult {
+    amrex::Real pressure = amrex::Real(0.0);
+    amrex::Real qv = amrex::Real(0.0);
+    SurfacePressureError error = SurfacePressureError::none;
+};
+
+/**
+ * Diagnose pressure at a boundary face from the adjacent atmospheric cell.
+ *
+ * The state pressure is diagnosed at the cell centre. Adding rho*g*delta_z
+ * gives the pressure at the boundary face, where delta_z is the signed
+ * distance from the face to the cell centre. The moisture component is read
+ * only when moisture is enabled and present.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+SurfacePressureResult
+diagnose_surface_pressure (const amrex::Real rho,
+                           const amrex::Real rho_theta,
+                           const amrex::Real rho_qv,
+                           const bool moist,
+                           const bool have_rho_qv,
+                           const amrex::Real delta_z)
+{
+    SurfacePressureResult result{};
+    if (!amrex::Math::isfinite(rho) || rho <= amrex::Real(0.0)) {
+        result.error = SurfacePressureError::bad_density;
+        return result;
+    }
+    if (!amrex::Math::isfinite(rho_theta) || rho_theta <= amrex::Real(0.0)) {
+        result.error = SurfacePressureError::bad_rho_theta;
+        return result;
+    }
+    if (!amrex::Math::isfinite(delta_z)) {
+        result.error = SurfacePressureError::bad_delta_z;
+        return result;
+    }
+    if (moist) {
+        if (!have_rho_qv) {
+            result.error = SurfacePressureError::no_moisture_comp;
+            return result;
+        }
+        if (!amrex::Math::isfinite(rho_qv)) {
+            result.error = SurfacePressureError::bad_rho_qv;
+            return result;
+        }
+        result.qv = rho_qv / rho;
+        if (!amrex::Math::isfinite(result.qv)) {
+            result.error = SurfacePressureError::bad_qv;
+            return result;
+        }
+        // Advection can produce finite negative undershoots. Treat them as dry for this
+        // thermodynamic diagnostic; the prognostic rho_qv field is left untouched.
+        result.qv = amrex::max(result.qv, amrex::Real(0.0));
+    }
+    result.pressure = getPgivenRTh(rho_theta, result.qv) +
+                      rho * CONST_GRAV * delta_z;
+    if (!amrex::Math::isfinite(result.pressure) ||
+        result.pressure <= amrex::Real(0.0)) {
+        result.error = SurfacePressureError::bad_pressure;
+    }
+    return result;
+}
+
 /**
  * Pressure at a boundary face from the adjacent atmospheric cell state.
  *
@@ -94,6 +170,50 @@ temperature_to_theta (const amrex::Real temperature,
 }
 
 /**
+ * The field a cell of the lower boundary takes its surface temperature from, when the
+ * level has an SST (SurfaceLayer::fill_tsurf_with_sst_and_tsk)
+ */
+enum struct SurfaceTemperatureSource : int {
+    tsk,        ///< the skin temperature, TSK
+    sst,        ///< the sea-surface temperature, SST
+    prescribed  ///< the prescribed land surface potential temperature (most.pot_surf_temp)
+};
+
+/**
+ * Whether the surface layer ignores the SST of a level: when asked to (most.ignore_sst),
+ * and whenever the level has TSK, which carries the SST over water (update_sst_tsk) and so
+ * supplies every cell (make_SurfaceLayer_at_level).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool
+sst_ignored (const bool ignore_sst_requested, const bool have_tsk)
+{
+    return ignore_sst_requested || have_tsk;
+}
+
+/**
+ * Which field supplies the surface temperature of a cell: TSK over land, and over water
+ * where the SST is ignored, if the level has TSK; else the SST over water and the
+ * prescribed temperature over land.
+ *
+ * @param is_land    whether the cell is land: a nonzero land mask, or no land mask at all
+ * @param have_tsk   whether the level has TSK
+ * @param ignore_sst whether the surface layer ignores the SST (sst_ignored)
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+SurfaceTemperatureSource
+surface_temperature_source (const bool is_land, const bool have_tsk, const bool ignore_sst)
+{
+    if (have_tsk && (is_land || ignore_sst)) {
+        return SurfaceTemperatureSource::tsk;
+    }
+    if (!is_land) {
+        return SurfaceTemperatureSource::sst;
+    }
+    return SurfaceTemperatureSource::prescribed;
+}
+
+/**
  * Why a surface conversion could not be made, in the order the kernels test for it.
  *
  * Every kernel that converts between the atmospheric state and a surface temperature or
@@ -105,9 +225,11 @@ temperature_to_theta (const amrex::Real temperature,
 enum struct ConversionError : int {
     none = 0,
     bad_density,
+    bad_rho_theta,
     no_moisture_comp,
     bad_rho_qv,
     bad_qv,
+    bad_delta_z,
     bad_theta_to_temperature,
     bad_temperature_to_theta,
     bad_pressure,
@@ -115,6 +237,22 @@ enum struct ConversionError : int {
     bad_q_air,
     bad_q_surf
 };
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+ConversionError
+conversion_error (const SurfacePressureError error)
+{
+    switch (error) {
+    case SurfacePressureError::bad_density:       return ConversionError::bad_density;
+    case SurfacePressureError::bad_rho_theta:     return ConversionError::bad_rho_theta;
+    case SurfacePressureError::no_moisture_comp:  return ConversionError::no_moisture_comp;
+    case SurfacePressureError::bad_rho_qv:        return ConversionError::bad_rho_qv;
+    case SurfacePressureError::bad_qv:            return ConversionError::bad_qv;
+    case SurfacePressureError::bad_delta_z:       return ConversionError::bad_delta_z;
+    case SurfacePressureError::bad_pressure:      return ConversionError::bad_pressure;
+    default:                                      return ConversionError::none;
+    }
+}
 
 /**
  * The first failing cell on this rank, the state that produced it, and how many cells
@@ -131,6 +269,7 @@ struct ConversionFailure
     int code       = static_cast<int>(ConversionError::none);
     int count      = 0;
     int halo_count = 0;
+    int skip_qsat  = 0;  ///< a prior temperature failure makes qsat unsafe for this update
     int i = 0, j = 0, k = 0;
     amrex::Real rho       = amrex::Real(0.0);
     amrex::Real rho_theta = amrex::Real(0.0);
@@ -191,19 +330,47 @@ record_conversion_failure (ConversionFailure* fail,
     fail->q_air     = q_air;
 }
 
+/** Diagnose pressure and append a structured diagnostic if the state is unusable. */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+SurfacePressureResult
+diagnose_and_record_surface_pressure (ConversionFailure* fail,
+                                      const bool fatal,
+                                      const int i, const int j, const int k,
+                                      const amrex::Real rho,
+                                      const amrex::Real rho_theta,
+                                      const amrex::Real rho_qv,
+                                      const bool moist,
+                                      const bool have_rho_qv,
+                                      const amrex::Real delta_z,
+                                      const amrex::Real surface_temperature = amrex::Real(0.0))
+{
+    const auto result = diagnose_surface_pressure(rho, rho_theta, rho_qv, moist,
+                                                   have_rho_qv, delta_z);
+    if (result.error != SurfacePressureError::none) {
+        record_conversion_failure(fail, fatal, conversion_error(result.error),
+                                  i, j, k, rho, rho_theta, rho_qv,
+                                  surface_temperature, result.pressure, delta_z);
+    }
+    return result;
+}
+
 AMREX_FORCE_INLINE
 const char*
 conversion_error_text (const ConversionError code)
 {
     switch (code) {
     case ConversionError::bad_density:
-        return "the density or (rho theta) of the state cell is not usable";
+        return "the density of the state cell is not usable";
+    case ConversionError::bad_rho_theta:
+        return "the (rho theta) of the state cell is not usable";
     case ConversionError::no_moisture_comp:
         return "the state carries no water vapor component to convert";
     case ConversionError::bad_rho_qv:
         return "the (rho qv) of the state cell is not usable";
     case ConversionError::bad_qv:
         return "the water vapor mixing ratio derived from the state cell is not usable";
+    case ConversionError::bad_delta_z:
+        return "the geometry-derived boundary-to-cell height difference is not finite";
     case ConversionError::bad_theta_to_temperature:
         return "the surface potential temperature could not be converted to absolute temperature";
     case ConversionError::bad_temperature_to_theta:
@@ -254,6 +421,7 @@ abort_on_conversion_failure (const char* who,
                                 code == ConversionError::bad_q_surf);
         const bool has_surface = (is_conversion ||
                                   code == ConversionError::bad_pressure ||
+                                  code == ConversionError::bad_delta_z ||
                                   code == ConversionError::bad_skin_temperature ||
                                   code == ConversionError::bad_q_surf);
         const bool has_q_air = (code == ConversionError::bad_q_air ||
