@@ -102,17 +102,10 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     const GpuArray<int,AMREX_SPACEDIM*2> th_file = m_th_file_face;
     GpuArray<int,6>  rho_is_extdir;
     GpuArray<Real,6> rho_extdir_val;
-    for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-        const int dir  = ori % AMREX_SPACEDIM;
-        const bool low = (ori < AMREX_SPACEDIM);
-        const int rho_type = low ? m_domain_bcs_type[BCVars::Rho_bc_comp].lo(dir)
-                                 : m_domain_bcs_type[BCVars::Rho_bc_comp].hi(dir);
-        const Real rho_val = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
-        // ext_dir_upwind: the ghost takes rho_in where the face flows in, which is the only
-        // place a Dirichlet theta is applied on such a face
-        rho_is_extdir[ori]  = ((rho_type == ERFBCType::ext_dir || rho_type == ERFBCType::ext_dir_upwind)
-                               && rho_val > zero) ? 1 : 0;
-        rho_extdir_val[ori] = rho_val;
+    for (OrientationIter oit; oit; ++oit) {
+        const Orientation ori = oit();
+        rho_is_extdir[ori]  = face_rho_is_extdir(ori) ? 1 : 0;
+        rho_extdir_val[ori] = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
     }
     // Not covered: a density ingested from boundary planes (Rho typed ext_dir_ingested) varies
     // over the face, so a primitive theta file on that face is still converted with the first

@@ -74,7 +74,7 @@ ERFPhysBCFunct_u::impose_inflow_profile_xvel (const Array4<Real>& dest_arr,
 
             // The loop box carries one more ghost than the velocity arrays (and is nodal
             // where they are cell centred), so clamp the upwind read to the array read,
-            // as the lateral fills do
+            // as the lateral fills do (kk is clamped to the domain only: it also sets zq)
             const auto ulo = lbound(xvel_arr), uhi = ubound(xvel_arr);
             const auto vlo = lbound(yvel_arr), vhi = ubound(yvel_arr);
 
@@ -82,8 +82,8 @@ ERFPhysBCFunct_u::impose_inflow_profile_xvel (const Array4<Real>& dest_arr,
             {
                 const int kk = amrex::max(dom_lo.z, amrex::min(k, dom_hi.z));
                 if (upwind) {
-                    const Real un = (dir == 0) ? xvel_arr(iface, amrex::Clamp(j,ulo.y,uhi.y), kk)
-                                               : yvel_arr(amrex::Clamp(i,vlo.x,vhi.x), jface, kk);
+                    const Real un = (dir == 0) ? xvel_arr(iface, amrex::Clamp(j,ulo.y,uhi.y), amrex::Clamp(kk,ulo.z,uhi.z))
+                                               : yvel_arr(amrex::Clamp(i,vlo.x,vhi.x), jface, amrex::Clamp(kk,vlo.z,vhi.z));
                     if (low ? (un < Real(0.0)) : (un > Real(0.0))) { return; }
                 }
                 Real zq;
@@ -148,7 +148,7 @@ ERFPhysBCFunct_v::impose_inflow_profile_yvel (const Array4<Real>& dest_arr,
 
             // The loop box carries one more ghost than the velocity arrays (and is nodal
             // where they are cell centred), so clamp the upwind read to the array read,
-            // as the lateral fills do
+            // as the lateral fills do (kk is clamped to the domain only: it also sets zq)
             const auto ulo = lbound(xvel_arr), uhi = ubound(xvel_arr);
             const auto vlo = lbound(yvel_arr), vhi = ubound(yvel_arr);
 
@@ -156,8 +156,8 @@ ERFPhysBCFunct_v::impose_inflow_profile_yvel (const Array4<Real>& dest_arr,
             {
                 const int kk = amrex::max(dom_lo.z, amrex::min(k, dom_hi.z));
                 if (upwind) {
-                    const Real un = (dir == 0) ? xvel_arr(iface, amrex::Clamp(j,ulo.y,uhi.y), kk)
-                                               : yvel_arr(amrex::Clamp(i,vlo.x,vhi.x), jface, kk);
+                    const Real un = (dir == 0) ? xvel_arr(iface, amrex::Clamp(j,ulo.y,uhi.y), amrex::Clamp(kk,ulo.z,uhi.z))
+                                               : yvel_arr(amrex::Clamp(i,vlo.x,vhi.x), jface, amrex::Clamp(kk,vlo.z,vhi.z));
                     if (low ? (un < Real(0.0)) : (un > Real(0.0))) { return; }
                 }
                 Real zq;
@@ -203,11 +203,8 @@ ERFPhysBCFunct_cons::impose_inflow_profile_cons (const Array4<Real>& dest_arr,
             // tabulated value, with rho the density the ghost cell carries: <face>.density
             // when it is given (the lateral fill has put it in the Rho ghosts), otherwise
             // the adjacent interior cell's, from which density is then extrapolated
-            const int  rho_t   = ori.isLow() ? m_domain_bcs_type[BCVars::Rho_bc_comp].lo(dir)
-                                             : m_domain_bcs_type[BCVars::Rho_bc_comp].hi(dir);
-            const Real rho_val = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
-            const bool rho_is_extdir = (rho_t == ERFBCType::ext_dir || rho_t == ERFBCType::ext_dir_upwind)
-                                       && rho_val > Real(0.0);
+            const bool rho_is_extdir = face_rho_is_extdir(ori);
+            const Real rho_val       = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
             for (const int comp : {RhoTheta_comp, RhoKE_comp}) {
                 if (comp < icomp || comp >= icomp + ncomp) { continue; }
                 const bool is_ke = (comp == RhoKE_comp);
@@ -234,7 +231,7 @@ ERFPhysBCFunct_cons::impose_inflow_profile_cons (const Array4<Real>& dest_arr,
                 const int iface = low ? dom_lo.x : dom_hi.x+1;
                 const int jcol  = low ? dom_lo.y : dom_hi.y;
                 const int jface = low ? dom_lo.y : dom_hi.y+1;
-                // clamp the upwind read to the velocity arrays (ii/jj are clamped to the domain only)
+                // clamp the upwind read to the velocity arrays (ii/jj/kk are clamped to the domain only)
                 const auto ulo = lbound(xvel_arr), uhi = ubound(xvel_arr);
                 const auto vlo = lbound(yvel_arr), vhi = ubound(yvel_arr);
 
@@ -244,8 +241,8 @@ ERFPhysBCFunct_cons::impose_inflow_profile_cons (const Array4<Real>& dest_arr,
                     const int ii = (dir == 0) ? icol : amrex::max(dom_lo.x, amrex::min(i, dom_hi.x));
                     const int jj = (dir == 1) ? jcol : amrex::max(dom_lo.y, amrex::min(j, dom_hi.y));
                     if (upwind) {
-                        const Real un = (dir == 0) ? xvel_arr(iface, amrex::Clamp(jj,ulo.y,uhi.y), kk)
-                                                   : yvel_arr(amrex::Clamp(ii,vlo.x,vhi.x), jface, kk);
+                        const Real un = (dir == 0) ? xvel_arr(iface, amrex::Clamp(jj,ulo.y,uhi.y), amrex::Clamp(kk,ulo.z,uhi.z))
+                                                   : yvel_arr(amrex::Clamp(ii,vlo.x,vhi.x), jface, amrex::Clamp(kk,vlo.z,vhi.z));
                         if (low ? (un < Real(0.0)) : (un > Real(0.0))) { return; }
                     }
                     const Real zq = (terrain) ? height_above_ground(z_nd, ii, ii+1, jj, jj+1, kk, dom_lo.z)

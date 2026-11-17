@@ -147,7 +147,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 } else if (bc_ptr_w[0].lo(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
                 } else if (bc_ptr_w[0].lo(0) == ERFBCType::hoextrap) {
-                    Real d = dom_lo.x - i;
+                    Real d = static_cast<Real>(dom_lo.x - i);
                     dest_arr(i,j,k) = (one + d)*dest_arr(dom_lo.x,j,k) - d*dest_arr(dom_lo.x+1,j,k);
                 }
             },
@@ -173,7 +173,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 } else if (bc_ptr_w[0].hi(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(iflip,j,k);
                 } else if (bc_ptr_w[0].hi(0) == ERFBCType::hoextrap) {
-                    Real d = i - dom_hi.x;
+                    Real d = static_cast<Real>(i - dom_hi.x);
                     dest_arr(i,j,k) = (one + d)*dest_arr(dom_hi.x,j,k) - d*dest_arr(dom_hi.x-1,j,k);
                 }
             }
@@ -209,7 +209,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 } else if (bc_ptr_w[0].lo(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
                 } else if (bc_ptr_w[0].lo(1) == ERFBCType::hoextrap) {
-                    Real d = dom_lo.y - j;
+                    Real d = static_cast<Real>(dom_lo.y - j);
                     dest_arr(i,j,k) = (one + d)*dest_arr(i,dom_lo.y,k) - d*dest_arr(i,dom_lo.y+1,k);
                 }
             },
@@ -235,7 +235,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 } else if (bc_ptr_w[0].hi(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
                 } else if (bc_ptr_w[0].hi(1) == ERFBCType::hoextrap) {
-                    Real d = j - dom_hi.y;
+                    Real d = static_cast<Real>(j - dom_hi.y);
                     dest_arr(i,j,k) = (one + d)*dest_arr(i,dom_hi.y,k) - d*dest_arr(i,dom_hi.y-1,k);
                 }
             });
