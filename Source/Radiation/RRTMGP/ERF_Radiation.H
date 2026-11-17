@@ -66,23 +66,24 @@ public:
           const amrex::BoxArray& ba,
           amrex::MultiFab* cons_in) override
     {
-        // Check for nested patches: fine levels that don't reach the model top
-        // These need special handling since radiation requires complete atmospheric columns
-        int klo = geom.Domain().smallEnd(2);
-        int khi = geom.Domain().bigEnd(2);
-
-        // Detect nested patches: a nested fine level doesn't span the full domain vertically.
-        // Use ba.minimalBox() which gives the bounding box of all grids on this level.
-        // If that box doesn't reach the domain top or bottom, it's a nested patch.
-        amrex::Box minimal_box = ba.minimalBox();
-        bool is_nested_patch = (minimal_box.smallEnd(2) > klo) || (minimal_box.bigEnd(2) < khi);
+        // Detect nested patches: a fine level on which some box does not span the domain
+        // vertically, so no sweep is possible and the heating is interpolated from the parent.
+        // rad_boxes_span_column is the same test ERF::rad_level_needs_interpolation applies.
+        // A level 0 that fails it is rejected when its grids are built
+        // (ERF::check_rad_level_grids), since it has no parent to interpolate from.
+        bool is_nested_patch = !rad_boxes_span_column(ba, geom.Domain());
 
         // Update the nested patch flag - must be set/cleared on every Init call
         // so that levels that stop being nested after regrid will resume radiation computation
         m_is_nested_patch = is_nested_patch;
 
-        // Skip radiation on nested patches - heating rates will be interpolated from coarser level
+        // Skip radiation on nested patches - heating rates will be interpolated from coarser level.
+        // Clear the column layout first, so nothing left from an earlier grid indexes this one.
         if (is_nested_patch) {
+            m_nlay = 0;
+            m_ncol = 0;
+            m_ncol_chunk = 0;
+            m_col_offsets.clear();
             return;
         }
 
@@ -103,11 +104,9 @@ public:
         m_col_offsets.resize(int(ba.size()));
         for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
             const amrex::Box& vbx = mfi.validbox();
-            // This assertion catches true vertical MPI decomposition (individual boxes that don't
-            // span the full domain height). The nested patch case is handled above by returning early.
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
-                                             (khi == vbx.bigEnd(2)),
-                                             "Vertical decomposition with radiation is not allowed.");
+            // Every box spans the column: a level where one does not returned above
+            AMREX_ASSERT(vbx.smallEnd(2) == geom.Domain().smallEnd(2) &&
+                         vbx.bigEnd(2)   == geom.Domain().bigEnd(2));
             int nx = vbx.length(0);
             int ny = vbx.length(1);
             m_col_offsets[mfi.index()] = m_ncol;
@@ -265,12 +264,6 @@ public:
         return m_lsm_output_names;
     }
 
-    // Check if this is a nested patch (doesn't reach model top)
-    bool is_nested_patch () const override
-    {
-        return m_is_nested_patch;
-    }
-
     // Populate datalog structures
     void
     populateDatalogMF ();
@@ -289,7 +282,7 @@ private:
     bool m_is_nested_patch = false;
 
     // Grid level
-    int m_lev;
+    int m_lev = -1;
 
     // Step number
     int m_step;

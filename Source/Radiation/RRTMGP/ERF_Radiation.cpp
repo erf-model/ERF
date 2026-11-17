@@ -87,7 +87,10 @@ Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
 {
     // Note that Kokkos is now initialized in main.cpp
-    m_lev   = lev;
+
+    // Stored now, not only in set_grids, so it is valid from construction on
+    m_lev = lev;
+
     m_rdOcp = sc.rdOcp;
 
     // Check if we have a valid moisture model

@@ -80,17 +80,17 @@ public:
      * horizontal BoxArray and fill them with the scalar defaults. A no-op
      * unless rad_choice.rad_type == TwoStream.
      *
-     * Also enforces the model's one grid requirement: every box of @p ba must
-     * span @p domain in z, because the column sweep applies the
-     * top-of-atmosphere and surface boundary conditions at the ends of a box.
-     * Aborting here means a bad refinement patch is rejected when the level is
-     * built (including on regrid), not at the first radiation call.
+     * The column sweep needs every box of @p ba to span @p domain in z,
+     * because it applies the top-of-atmosphere and surface boundary
+     * conditions at the ends of a box. A fine level that does not takes its
+     * fields from its parent; a level 0 that does not is rejected before this
+     * is called (ERF::check_rad_level_grids), and is only asserted here.
      *
      * @param lev        level
      * @param rad_choice the model's inputs
      * @param ba2d       horizontal BoxArray the 2D surface fields live on
      * @param dm         distribution mapping shared with the level's state
-     * @param ba         the level's 3D BoxArray, checked for the z span
+     * @param ba         the level's 3D BoxArray (z span asserted on level 0)
      * @param domain     the level's domain Box
      * @param supply_land_forcing allocate the downwelling SW, downwelling LW and
      *                   cos(zenith) fields the sweep fills for a land-surface model
