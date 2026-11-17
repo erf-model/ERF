@@ -368,8 +368,10 @@ void make_mom_sources (int level,
         // 1. Add Coriolis forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
-            if(solverChoice.init_type == InitType::HindCast) {
-                const Array4<const Real>& latlon_arr = (*forecast_state_at_lev)[4].array(mfi);
+            // The hindcast latitude is there only with erf.hindcast_lateral_forcing (the callers
+            // pass nullptr otherwise); without it, fall through to the variable or constant latitude
+            if (solverChoice.init_type == InitType::HindCast && forecast_state_at_lev != nullptr) {
+                const Array4<const Real>& latlon_arr = (*forecast_state_at_lev)[4].const_array(mfi);
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
