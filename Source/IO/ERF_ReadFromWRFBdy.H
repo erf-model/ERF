@@ -65,8 +65,6 @@ update_sst_tsk (const int lev,
                 std::unique_ptr<SurfaceLayer>& SurfLayer,
                 const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo,
                 const amrex::MultiFab& cons,
-                const amrex::MultiFab& mf_PSFC_lev,
-                const amrex::Real rdOcp,
                 std::unique_ptr<amrex::iMultiFab>& lmask,
                 const bool use_moist);
 
