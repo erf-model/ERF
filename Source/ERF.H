@@ -1,6 +1,7 @@
 #ifndef ERF_H_
 #define ERF_H_
 
+#include <algorithm>
 #include <string>
 #include <cstdint>
 #include <limits>
@@ -123,6 +124,8 @@ class MultiBlockContainer;
 // Describes one component of a 2D plotfile; defined in
 // IO/ERF_Plotfile2DSampledLevel.H, which ERF.H does not need to include.
 namespace plotfile2d { struct Plotfile2DOutputDescriptor; }
+// Defined in IO/ERF_CheckpointSurfaceTemperature.H
+namespace erf_checkpoint_surface_temperature { struct SurfaceTemperatureMigrationPlan; }
 namespace erf_sbm {
 class SBMAMRFluxRegister;
 class SBMStateManager;
@@ -590,6 +593,12 @@ public:
     //! column -- and so takes its radiation fields by interpolation from its parent.
     [[nodiscard]] bool rad_level_needs_interpolation (int lev) const;
 
+    //! Check a level's grids against radiation's need for whole columns when the level is
+    //! built: abort on a level 0 that is split in z, and warn on a fine level whose grids
+    //! reach both domain ends but are cut in z, since its radiation is then interpolated
+    //! from the parent.
+    void check_rad_level_grids (int lev, const amrex::BoxArray& ba);
+
     //! Fill a newly built level's two-stream SEB state from its parent
     void fill_seb_from_coarse (int lev);
 
@@ -609,6 +618,10 @@ public:
     //! Per level: the "takes its radiation from its parent, no skin coupling" warning
     //! of set_surface_layer_skin has been printed since the level last coupled
     amrex::Vector<int> m_skin_uncoupled_warned;
+
+    //! Per level: check_rad_level_grids has warned that the level's grids reach both domain
+    //! ends but are cut in z, since the level last stopped being so
+    amrex::Vector<int> m_rad_cut_in_z_warned;
 
     //! The zlo surface layer's applied heat and moisture fluxes for the two-stream
     //! surface energy balance's H and LE, or nullptr where it applies none
@@ -1223,6 +1236,15 @@ public:
     // checkpoint that predates precip_accum. Public because it launches a GPU lambda.
     void convert_legacy_precip_accumulations (int lev);
 
+    // Convert the SST and TSK of a level read from a checkpoint that holds them as
+    // potential temperature to absolute temperature, as planned from the provenance of the
+    // checkpoint; psfc_recovered flags, per level, a recovered wrfinput surface pressure.
+    // Public because it launches a GPU lambda.
+    void convert_legacy_surface_temperature (
+        int lev,
+        const erf_checkpoint_surface_temperature::SurfaceTemperatureMigrationPlan& plan,
+        amrex::Vector<int>& psfc_recovered);
+
     // Automatic inflow perturbation update on a nested level.
     // Public because it launches a GPU lambda.
     void turbPert_update_automatic (int lev, double time);
@@ -1429,14 +1451,20 @@ private:
     //! Initialize Rayleigh damping profiles at a level
     void initRayleigh_at_level (const int& lev);
 
-    //! Initialize sponge profiles
+    //! Initialize sponge profiles at every level that exists
     void initSponge ();
 
-    //! Set Rayleigh mean profiles from input sounding
-    void setRayleighRefFromSounding (bool restarting);
+    //! Allocate the sponge profiles at a level
+    void initSponge_at_level (int lev);
 
-    //! Set sponge mean profiles from input sounding
+    //! Set Rayleigh mean profiles at a level from the input sounding
+    void setRayleighRefFromSounding_at_level (int lev);
+
+    //! Set sponge mean profiles from the input sponge file at every level that exists
     void setSpongeRefFromSounding (bool restarting);
+
+    //! Set sponge mean profiles at a level from the input sponge file (already read)
+    void setSpongeRef_at_level (int lev);
 
     // a wrapper for estTimeStep()
     void ComputeDt (int step = -1, double cur_time_d = 0.0);
@@ -1501,8 +1529,9 @@ private:
     // Check that this level's wrflowinp file has the same times as level 0's
     void check_own_low_file_times (int lev);
 
-    // Re-read the surface pressure of a level > 0 from its own init file (it is not checkpointed)
-    void read_psfc_from_own_init_file (int lev);
+    // Read local PSFC regions from a level's first WRFInput file for legacy checkpoint
+    // temperature migration; this is not an input to ongoing SST/TSK updates.
+    bool read_psfc_from_own_init_file (int lev, bool allow_uncovered);
 
     // The full WRF file box in ERF's global index space, including all ancestor nest offsets;
     // optionally return the requested refined file's parent-grid ratio
@@ -1588,6 +1617,7 @@ private:
     amrex::Vector<amrex::Vector<amrex::Box>> boxes_at_level; //      the boxes specified at each level by tagging criteria
 
     amrex::Vector<int> istep;      // which step?
+    int m_restart_step = -1;       // level-0 step of the checkpoint we restarted from (-1: none)
     amrex::Vector<int> nsubsteps;  // how many substeps on each level?
 
     // One entry per level: set when that level has just been built by the
@@ -1995,6 +2025,9 @@ private:
     static int last_plot2d_file_step_2;
     static int last_check_file_step;
 
+    // Despite the names, the *_time trackers (and last_subvol_time, last_fire_plot_time)
+    // hold the time the NEXT output with a period is due: writeNow() fires once the time
+    // reaches it (less 0.1*dt), and each write then adds one period
     static double last_plot3d_file_time_1;
     static double last_plot3d_file_time_2;
     static double last_plot2d_file_time_1;
@@ -2530,54 +2563,28 @@ private:
             return ngrow;
         }
 
-        if (
-             (sc.advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
-          || (sc.advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
-          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-          || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
-          || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
-        { ngrow = 3; }
-        else if (
-             (sc.advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
-          || (sc.advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
-          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-          || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
-          || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
-        { ngrow = 3; }
-        else if (
-              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_5)
-           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_5)
-           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
-           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
-           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
-           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5) )
-        { ngrow = 3; }
-        else if (
-              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_5Z)
-           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_5Z)
-           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
-           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z)
-           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
-           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z) )
-        { ngrow = 3; }
-        else if (
-              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_7)
-           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_7)
-           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7)
-           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7)
-           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7)
-           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7) )
-        { ngrow = 3; }
-        else if (
-              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_7Z)
-           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_7Z)
-           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7Z)
-           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7Z)
-           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7Z)
-           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7Z) )
-        { ngrow = 4; }
+        // Ghost cells each advection scheme needs; the largest over the six scheme choices
+        // (dycore, dry and moist scalars, each horizontal and vertical) is taken, so no
+        // choice can be missed and a wider scheme is never masked by a narrower one
+        auto adv_ghost_cells = [] (AdvType t) {
+            switch (t) {
+                case AdvType::Centered_6th:
+                case AdvType::Upwind_5th:
+                case AdvType::Weno_5:
+                case AdvType::Weno_5Z: return 3;
+                // WENO7 and WENO_Z7 read i-4..i+3, so the momentum fluxes reach four
+                // cells beyond the faces of a tile in the velocities
+                case AdvType::Weno_7:
+                case AdvType::Weno_7Z: return 4;
+                default:               return 2;
+            }
+        };
+        const auto& ac = sc.advChoice;
+        for (const AdvType t : {ac.dycore_horiz_adv_type,    ac.dycore_vert_adv_type,
+                                ac.dryscal_horiz_adv_type,   ac.dryscal_vert_adv_type,
+                                ac.moistscal_horiz_adv_type, ac.moistscal_vert_adv_type}) {
+            ngrow = std::max(ngrow, adv_ghost_cells(t));
+        }
 
         return ngrow;
     }

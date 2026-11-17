@@ -1769,6 +1769,14 @@ add_test_field_bounds(BndryPlanes_MoistTemperature "plt00050" theta 299.999 300.
 set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP BndryPlanesMoist)
 # Input sponge with a refined patch that does not reach the domain top: ran outside the patch's boxes at start-up
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
+# The same patch made by a regrid at t = 2 instead of at start-up: the new level had no sponge
+# profiles, and its first advance read an empty vector (erf-model/ERF#5143).  By step 8 the
+# start-up adjustment reaches 8.61 m/s, so the upper bound is looser than InputSponge_FinePatch's
+add_test_field_bounds(InputSponge_NewLevel "plt00008" x_velocity 5.9 9.0)
+# Rayleigh damping toward an input sounding on a level that a regrid remakes at t = 10: its
+# targets were reset to the problem defaults (300 K, U = V = 0), and theta in the damping layer
+# was relaxed toward 300 K instead of the sounding's 309 to 310 K (erf-model/ERF#5142)
+add_test_column_bounds(RegridKeepsRayleighSounding "plt00100" 900.0 "theta" "308.5" "310.5")
 # Anelastic EB cylinder through the bottom wall on two levels: w below the wall was never filled
 # on level 1, and its first step diverged (erf-model/ERF#4876)
 add_test_field_bounds(EB_SquareCylinder_AnelasticAMR "plt00004" x_velocity -0.5 3.0)
@@ -2302,6 +2310,15 @@ add_test_r(DensityCurrent_detJ2_MT           ""  "erf_exec" "plt00010")
 add_test_r(EkmanSpiral                       ""  "erf_exec" "plt00010")
 add_test_r(IsentropicVortexStationary        ""  "erf_exec" "plt00010")
 add_test_r(IsentropicVortexAdvecting         ""  "erf_exec" "plt00010")
+# WENO7 momentum advection on one box and on 2 x 2 boxes must agree exactly: its stencil reads
+# the velocities four cells out, and with only three ghost cells a box edge read outside the
+# velocity array and the answer depended on the decomposition (erf-model/ERF#5161)
+add_test_box_parity(IsentropicVortexAdvecting_WENO7_BoxParity IsentropicVortexAdvecting "plt00010"
+    COMMON_OPTIONS "erf.dycore_horiz_adv_type=WENO7 erf.dryscal_horiz_adv_type=WENO7"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=24 amr.max_grid_size_y=24 amr.max_grid_size_z=64"
+    FCOMPARE_RTOL "0.0"
+    FCOMPARE_ATOL "0.0")
 add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
 add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
@@ -2727,10 +2744,11 @@ endif()
 endif()
 # Kessler rain over a uniform, laterally periodic layer, with the fine box moved at t = 30 s:
 # a regrid must keep the surface rain accumulator.  The centre column of the 2D plotfile lies
-# in the new fine box.  It accumulates 5.2e-4 mm by t = 60 s (5.0e-4 on the coarse level, which
-# resolves the layer less finely); rebuilt as zero at the regrid, it reaches only 3.9e-4.
+# in the new fine box.  It accumulates 5.11e-4 mm by t = 60 s (5.11e-4 on the coarse level too);
+# rebuilt as zero at the regrid, it reaches only 3.80e-4.  Values with the 0.1364 Kessler
+# fall-speed exponent (#5193).
 add_test_column_bounds(RegridKeepsPrecipAccum "plt2d00120" 0 "precip_rain_accum"
-    "0.00051" "0.00053")
+    "0.00050" "0.00052")
 # Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
 # one plane directory per output step and a time.dat of "step time" rows -- must come out of a
 # run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads
@@ -4935,7 +4953,7 @@ endif()
 # A small, generated three-level WRF case. The middle ERF patch starts six
 # level-1 cells inside d02, so placing d03 relative to that patch shifts its
 # global position. Check both the level-2 box and a coordinate-coded field,
-# then restart with per-level wrflow files to re-read the nest box and PSFC.
+# then restart with per-level wrflow files to re-read the nest box and forcing slices.
 if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
   execute_process(COMMAND "${ERF_TEST_PYTHON}" -c "import netCDF4, numpy"
                   RESULT_VARIABLE _wrf_nested_python_status
@@ -5021,6 +5039,29 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     add_test_wrfinput_nest(WRFInput_Abort_NestOutsideParent
         "erf.crop.in_box_lo_indices=32 24 0"
         "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
+
+    # Restart checkpoints from before the surface-temperature contract, holding SST and
+    # TSK as potential temperature. The writing run's init type (job_info, or the explicit
+    # legacy assertion) selects the pressure policy: level 0 WRFInput uses its first init
+    # file, fine-level recovery is approximate after regridding, and Metgrid migration uses
+    # restarted ground pressure or parent ground pressure for aloft-only coverage. Unknown
+    # or unrecoverable provenance and invalid active values abort. A later fine-level init
+    # file causes an abort only if it may have started and pressure provenance is ambiguous.
+    # The fixture also checks land SST placeholders and version-2 direct restoration.
+    set(TEST_NAME WRFInput_LegacySurfaceTemperature)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND "${CMAKE_COMMAND}"
+      "-DPYTHON=${ERF_TEST_PYTHON}"
+      "-DTEST_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DRUN_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DERF_EXECUTABLE=${TEST_EXE}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/RunWRFInputLegacySurfaceTemperature.cmake")
+    set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 600 PROCESSORS 1
+      WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
+      LABELS "regression;wrfinput"
+      ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run.log;${CURRENT_TEST_BINARY_DIR}/run.err")
+    unset(TEST_NAME)
 
     # The land and soil fields of a wrfinput file with the two-stream force-restore balance and
     # no land model. make_wrfinput.py makes every field vary in both horizontal directions and
@@ -5120,7 +5161,7 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           "restart WRFInput_SurfaceFields_Restart_MPI.log" "max_step=0" 3)
     endif()
   else()
-    message(STATUS "Skipping WRFInput_CroppedParent and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
+    message(STATUS "Skipping WRFInput_CroppedParent, WRFInput_LegacySurfaceTemperature, and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
   endif()
 endif()
 

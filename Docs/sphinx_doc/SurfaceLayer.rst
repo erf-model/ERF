@@ -349,7 +349,7 @@ scales from the wind, so it is consistent with the moving surface.
 Only water moves. A face of the lowest cells takes the current where the cells on both sides
 of it are water (land mask 0), and is at rest over land and buildings. A water cell on the
 coast therefore has one face at rest across the coastline, and where the surface layer works at
-cell centres, averaging the two faces of the cell, it sees half the current along that
+cell centers, averaging the two faces of the cell, it sees half the current along that
 direction. A current set with ``erf.most.surface_current`` is uniform and takes no account of
 where the water is: lakes and rivers in the land mask move with it as well as the sea, so it is
 meant for idealized domains and domains whose only water is the ocean. A surface with no water is an error, since the
@@ -357,7 +357,7 @@ current would do nothing; idealized cases are all land unless ``erf.is_land = 0`
 is applied at the z-low face on every level, and is not supported with EB terrain.
 
 With ``erf.use_coupled_currents`` an ocean coupler supplies the current instead, as eastward
-and northward components at the cell centres of the level-0 surface, through
+and northward components at the cell centers of the level-0 surface, through
 ``ERF::ApplyOceanSurfaceState``. They are turned to the grid axes with the grid orientation
 from the latitude and longitude (a grid without them is taken to be aligned with east) and
 averaged to the faces. A face takes the current where the cells on both sides of it are water
@@ -564,8 +564,9 @@ specified in the SurfaceLayer potential-temperature convention, while
 ``erf.most.abs_surf_temp`` (with ``erf.most.surf_heating_rate`` then a rate of change of
 the absolute temperature) is converted every step with the same diagnosed surface
 pressure. ``erf.most.surf_temp`` is the deprecated spelling of ``erf.most.pot_surf_temp``. SST and
-skin-temperature data from WRFInput, wrflowinp, and Metgrid are normalized to
-that same convention at ingestion; coupled SST is converted when it enters
+skin-temperature data from WRFInput, wrflowinp, and Metgrid are kept as absolute
+temperature and converted the same way, with the current diagnosed surface pressure,
+each time the SurfaceLayer uses them; coupled SST is converted when it enters
 the SurfaceLayer, while Noah-MP's absolute ``t_sfc`` remains owned by the
 radiation path and is not adopted as the SurfaceLayer field.
 

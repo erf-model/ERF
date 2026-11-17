@@ -7,8 +7,7 @@
 
 using namespace amrex;
 
-namespace
-{
+namespace erf_detail_ShocMoments {
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_min_tke () noexcept { return 4.0e-4_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_large_neg () noexcept { return -99999999.99_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_w3clip () noexcept { return 1.2_rt; }
@@ -244,6 +243,7 @@ namespace
         });
     }
 }
+using namespace erf_detail_ShocMoments;
 
 void
 ShocMoments::calc_var_or_covar (const ShocColumnData& col,

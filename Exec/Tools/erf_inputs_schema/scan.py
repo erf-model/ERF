@@ -226,8 +226,119 @@ def identifier_keys(name, text, all_files):
     return sorted(set(out)) if len(set(out)) <= 4 else []
 
 
+LITERAL = re.compile(r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])\'')
+KEY_PARAMETER = r"(?:const\s+)?(?:std::string(?:_view)?|char|auto)(?:\s+const)?\s*(?:&&?|\*)?\s*%s\s*(?:=.*)?"
+
+
+def blank_literals(text):
+    """text with the inside of every "..." and '.' literal replaced by spaces, offsets kept. Brackets and calls found
+    in it are code, not message text (an Abort("... {") in a lambda body does not move the end of the body)."""
+    out = list(text)
+    for m in LITERAL.finditer(text):
+        out[m.start() + 1:m.end() - 1] = " " * (m.end() - m.start() - 2)
+    return "".join(out)
+
+
+def _close(blank, i):
+    """Index of the bracket that closes the ( [ or { at i of a blank_literals text; -1 when it is not closed."""
+    pairs, stack = {"(": ")", "[": "]", "{": "}"}, []
+    for j in range(i, len(blank)):
+        c = blank[j]
+        if c in pairs:
+            stack.append(pairs[c])
+        elif stack and c == stack[-1]:
+            stack.pop()
+            if not stack:
+                return j
+    return -1
+
+
+def _block_end(blank, pos):
+    """Index of the } that closes the block holding pos; the end of the text when there is none."""
+    depth = 0
+    for j in range(pos, len(blank)):
+        if blank[j] == "{":
+            depth += 1
+        elif blank[j] == "}":
+            if depth == 0:
+                return j
+            depth -= 1
+    return len(blank)
+
+
+def _arguments(text, blank, lo, hi):
+    """text[lo:hi] split at the commas that are outside brackets and literals."""
+    parts, start, j = [], lo, lo
+    while j < hi:
+        if blank[j] in "([{":
+            end = _close(blank, j)
+            j = hi if end < 0 else end
+        elif blank[j] == ",":
+            parts.append(text[start:j].strip())
+            start = j + 1
+        j += 1
+    return parts + [text[start:hi].strip()]
+
+
+def lambdas(text, blank):
+    """(name, parameters, body start, body end) of each `name = [captures](parameters) ... {body}` in text."""
+    out = []
+    for m in re.finditer(r"\b(\w+)\s*=\s*(?=\[)", blank):
+        captures_end = _close(blank, m.end())
+        opened = re.compile(r"\s*\(").match(blank, captures_end + 1) if captures_end >= 0 else None
+        parameters_end = _close(blank, opened.end() - 1) if opened else -1
+        if parameters_end < 0:
+            continue
+        # mutable, noexcept(...), -> type may stand between the parameters and the body
+        body = re.compile(r"(?:[^;{}()]|\([^()]*\))*\{").match(blank, parameters_end + 1)
+        body_end = _close(blank, body.end() - 1) if body else -1
+        if body_end >= 0:
+            out.append((m.group(1), _arguments(text, blank, opened.end(), parameters_end), body.end() - 1, body_end))
+    return out
+
+
+def lambda_parameter_keys(name, text, blank, found, pos, depth=0):
+    """For a read at pos of a key name that is a parameter of the lambda around it (ERF_SLM.cpp: get_layer_prop takes
+    `const std::string& name` and reads pp.query(name.c_str(), ...)): (keys, missed). keys are the literals passed for
+    that parameter at each call of the lambda, from the end of its body to the end of the block that defines it. A
+    call may also pass a variable assigned a literal in this file, a choice between literals, or a parameter of
+    another such lambda. missed holds (position, lambda name) of each call whose argument names no key. None when pos
+    is in no lambda with such a parameter; found is lambdas(text, blank)."""
+    for fn, parameters, start, end in sorted((f for f in found if f[2] < pos < f[3]), key=lambda f: -f[2]):
+        index = next((i for i, p in enumerate(parameters) if re.fullmatch(KEY_PARAMETER % name, p, re.S)), None)
+        if index is None:
+            continue                                         # the innermost lambda with this parameter decides
+        keys, missed = [], []
+        for call in re.finditer(r"(?<![\w.>:])" + fn + r"\s*\(", blank[:_block_end(blank, end + 1)]):
+            close = _close(blank, call.end() - 1)
+            if call.start() <= end or close < 0:
+                continue
+            args = _arguments(text, blank, call.end(), close)
+            arg = args[index] if index < len(args) else ""
+            got = []
+            if re.fullmatch(r"\w+", arg) and depth < 4:
+                outer = lambda_parameter_keys(arg, text, blank, found, call.start(), depth + 1)
+                if outer is not None:
+                    got, more = outer
+                    missed += more
+                    if got or more:
+                        keys += got
+                        continue
+                for expr in re.findall(r"(?:const\s+)?" + DECL + arg + r"\s*=(?!=)\s*([^;]+);", text):
+                    got += literal_keys(expr)
+            elif "+" not in blank[call.end():close]:
+                got = literal_keys(arg)                      # "k", std::string("k"), flag ? "a" : "b"
+            keys += got
+            if not got:
+                missed.append((call.start(), fn))
+        return sorted(set(keys)), missed
+    return None
+
+
 class FileScan:
-    """One source file's queries: (key, fact, conditions, method, target) hits and unresolved ParmParse reads."""
+    """One source file's queries: (key, fact, conditions, method, target) hits and unresolved ParmParse reads:
+    `file:line var.key` for a prefix that is not resolved, `file:line fn()` for a call of a reading lambda fn whose
+    key name is not resolved (lambda_parameter_keys)."""
 
     def __init__(self, path, rel, enum_names, global_decls, erf_side, all_files):
         self.rel, self.enum_names, self.global_decls = rel, enum_names, global_decls
@@ -251,6 +362,9 @@ class FileScan:
             self.offsets.append(self.offsets[-1] + len(line) + 1)
         self.decls = self._pp_decls()
         self.families_hit = set()                          # FAMILIES keys a declaration here matched
+        self.blank = blank_literals(self.text)
+        self.lambdas = lambdas(self.text, self.blank) if "= [" in self.text or "=[" in self.text else []
+        self.missed_calls = set()                          # (line, lambda): a call whose key name is not a literal
 
     def line_of(self, pos):
         return next(i for i in range(len(self.offsets) - 1) if self.offsets[i + 1] > pos)
@@ -311,10 +425,16 @@ class FileScan:
         kinds = self.global_decls.get(name, set())
         return next(iter(kinds)) if len(kinds) == 1 else "unknown"
 
-    def names(self, arg):
+    def names(self, arg, pos):
         if arg.startswith('"'):
             return re.findall(r'"([^"]+)"', arg)
-        return identifier_keys(arg.split(".")[0], self.text, self.all_files)
+        name = arg.split(".")[0]
+        through_lambda = lambda_parameter_keys(name, self.text, self.blank, self.lambdas, pos)
+        if through_lambda is None:
+            return identifier_keys(name, self.text, self.all_files)
+        keys, missed = through_lambda
+        self.missed_calls |= {(self.line_of(at), fn) for at, fn in missed}
+        return keys
 
     def calls(self):
         """(position, ParmParse variable, method, key, target expression, per_level, extra) for every read."""
@@ -328,9 +448,11 @@ class FileScan:
                 if "sloppy" in method:                   # query_enum_sloppy(key, var, "_"): the ignored characters
                     ignores = re.match(r'\s*"([^"]*)"', self.text[m.end():])
                     extra["ignores"] = ignores.group(1) if ignores else None
-                out += [(m.start(), m.group(1), method, key, m.group(4), False, extra) for key in self.names(m.group(3))]
+                keys = self.names(m.group(3), m.start())
+                out += [(m.start(), m.group(1), method, key, m.group(4), False, extra) for key in keys]
         for m in re.finditer(r"\b(\w+)\s*\.\s*(contains|countval)\s*\(\s*" + key_rx + r"\s*\)", self.text):
-            out += [(m.start(), m.group(1), m.group(2), key, None, False, {}) for key in self.names(m.group(3))]
+            keys = self.names(m.group(3), m.start())
+            out += [(m.start(), m.group(1), m.group(2), key, None, False, {}) for key in keys]
         for m in re.finditer(r'\bquery_one_or_per_level(\w*)\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*,\s*([^,)]+)', self.text):
             method = "query_enum_case_insensitive" if "enum_case_insensitive" in m.group(1) else "query"
             out.append((m.start(), m.group(2), method, m.group(3), m.group(4), True, {}))
@@ -433,6 +555,7 @@ class FileScan:
                         "default_origin": "none"}
             for p in pfx:
                 hits.append((f"{p}.{key}" if p else key, fact, self.conds[line], method, target))
+        unresolved += [f"{self.rel}:{line + 1} {fn}()" for line, fn in sorted(self.missed_calls)]
         return hits, unresolved
 
     @property

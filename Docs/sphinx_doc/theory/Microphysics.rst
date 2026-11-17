@@ -278,10 +278,16 @@ where the ventilation factor :math:`C = 1.6 + 124.9(\overline{\rho}q_r)^{0.2046}
 Terminal fall velocity of rain
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The terminal fall velocity of rain is given by
+The terminal fall velocity of rain is given by (Klemp and Wilhelmson, 1978)
 
 .. math::
-    w_{t} = 3634(\overline{\rho}q_r)^{0.1346}\Bigg(\cfrac{\overline{\rho}}{\rho_0}\Bigg)^{-\frac{1}{2}}~\text{[cm/s]}
+    w_{t} = 3634(\overline{\rho}q_r)^{0.1364}\Bigg(\cfrac{\overline{\rho}}{\rho_0}\Bigg)^{-\frac{1}{2}}~\text{[cm/s]},
+
+where :math:`\overline{\rho}` is in g/cm\ :sup:`3` in the first factor and
+:math:`\rho_0 = 1.16` kg/m\ :sup:`3`. ERF evaluates the same formula in SI units
+(``kessler_terminal_velocity`` in ``ERF_KesslerUtils.H``), as WRF does:
+:math:`w_t = 36.34\,(0.001\,\overline{\rho}q_r)^{0.1364}(\overline{\rho}/1.16)^{-1/2}` m/s
+with :math:`\overline{\rho}` in kg/m\ :sup:`3`.
 
 .. raw:: latex
 
@@ -1313,7 +1319,7 @@ All SDM parameters use the prefix ``super_droplets_moisture``:
      - Enable particle recycling at boundaries
    * - ``species``
      - ``H2O``
-     - List of vapour/condensate species
+     - List of vapor/condensate species
    * - ``aerosols``
      - (none)
      - List of aerosol species

@@ -211,7 +211,7 @@ rather than by the particle container, but use the same prefix.
 +=================================================+==========================================================+==================================================+=====================================+
 | **species**                                     | additional condensate species carried besides water, and | List of species names                            | none                                |
 |                                                 | ice when cold processes are on.  Naming a species that   |                                                  |                                     |
-|                                                 | is already modelled aborts the run, and at most five     |                                                  |                                     |
+|                                                 | is already modeled aborts the run, and at most five     |                                                  |                                     |
 |                                                 | extra species may be given                               |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **aerosols**                                    | aerosol materials carried by the super-droplets          | List of species names                            | none                                |
@@ -346,7 +346,7 @@ Particle population and motion
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | Parameter                                       | Definition                                               | Acceptable Values                                | Default                             |
 +=================================================+==========================================================+==================================================+=====================================+
-| **nucleate_particles**                          | create new super-droplets from the vapour field          | Boolean                                          | false                               |
+| **nucleate_particles**                          | create new super-droplets from the vapor field          | Boolean                                          | false                               |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **density_scaling**                             | scale the initial number density with the local air      | Boolean                                          | false                               |
 |                                                 | density                                                  |                                                  |                                     |
@@ -425,7 +425,7 @@ key under ``super_droplets_moisture``; otherwise that common value is used.
 | **particle_box_lo**, **particle_box_hi**        | corners of the seeded box; read when                     | 3 Reals                                          | domain corners                      |
 |                                                 | ``initial_distribution_type`` = ``uniform``              |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **particle_bubble_center**,                     | centre and radii of the seeded bubble; read when         | 3 Reals                                          | none                                |
+| **particle_bubble_center**,                     | center and radii of the seeded bubble; read when         | 3 Reals                                          | none                                |
 | **particle_bubble_radius**                      | ``initial_distribution_type`` = ``bubble``               |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **initial_number_density**                      | number density of real droplets represented              | Real > 0                                         | none                                |
@@ -445,7 +445,7 @@ Each material has its own size or mass distribution. For example,
 super-droplet. Other supported distributions are ``mass_exponential``,
 ``radius_log_normal``, and ``radius_lognormal_autorange``. Their parameters use
 the same prefix with ``min_mass``, ``max_mass``, ``min_radius``, ``mean_radius``,
-or ``max_radius`` in place of ``mean_mass``, as appropriate. Radii are in metres.
+or ``max_radius`` in place of ``mean_mass``, as appropriate. Radii are in meters.
 For log-normal radii, specify either ``initial_species_std_radius_<species>``
 (the standard deviation of log radius) or
 ``initial_species_geomstd_radius_<species>`` (the geometric standard deviation),

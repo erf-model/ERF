@@ -27,7 +27,7 @@ python3 ../../check_geowind_profile.py plt00001
 ## Expected results
 
 Over the first step the only force on the fluid at rest is the geostrophic one, so
-`v = f dt Ug(z)` at every cell centre; the neglected terms are of relative size
+`v = f dt Ug(z)` at every cell center; the neglected terms are of relative size
 `(f dt)^2 = 1e-8`. The check passes below 1e-6 on both levels (1e-4 in a single-precision build); the
 code gives 1.7e-9.
 Before the fix, level 1 read level 0's z levels, past their end on a level refined in

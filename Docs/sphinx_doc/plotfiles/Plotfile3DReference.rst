@@ -725,7 +725,7 @@ energy balance is on (``erf.ibseb.enable = true``); without it the names are
 dropped from the stream silently. Each is the mean over the wall faces that
 touch the cell (up to three at an outside corner, six in a one-cell slot) and
 zero where the cell touches none, so they are face diagnostics scattered onto
-cells rather than cell-centred fields.
+cells rather than cell-centered fields.
 
 The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
 moisture scheme provides the corresponding rain, snow, or graupel component.
@@ -1078,7 +1078,7 @@ available.
      - Native SHOC meaning
    * - ``pblh``
      - m
-     - Native SHOC ``pblh`` is reported in metres above local ground (AGL).
+     - Native SHOC ``pblh`` is reported in meters above local ground (AGL).
    * - ``shoc_cldfrac``
      - 1
      - Subgrid cloud fraction diagnosed by the native SHOC PDF.

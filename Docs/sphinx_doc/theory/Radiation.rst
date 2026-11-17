@@ -409,8 +409,8 @@ for one physical surface, so ERF keeps them consistent in three places:
 - **A new level starts from its parent.** ``t_sfc`` and ``q_sfc`` are interpolated from the
   coarse level when a level is created, so a fine level begins from the surface its parent has
   already reached rather than from ``erf.rad_t_sfc``. Where the parent column or one of its
-  eight neighbours is a water column of the land mask, no slope is used, and a fine land column
-  over a coarse water column takes the mean of the neighbouring coarse land columns.
+  eight neighbors is a water column of the land mask, no slope is used, and a fine land column
+  over a coarse water column takes the mean of the neighboring coarse land columns.
 - **Fine levels are averaged down.** After the finer levels advance, their surface state is
   averaged onto the coarse level, exactly as the atmospheric state is. Where either level has
   a water column of the land mask, the mean is over the fine land columns, and a coarse water
@@ -606,7 +606,7 @@ It evaporates from the air in its pores, at Noah-MP's relative humidity
 with the soil's saturated matric potential :math:`\psi_\text{sat}` (SATPSI) and Noah-MP's
 :math:`g` and :math:`R_v`. :math:`\text{RH}_g` is near 1 in moist soil and near 0 at the wilting
 point (about 0.005 for silty clay loam at 325 K), so bare soil there hardly evaporates and,
-when :math:`\text{RH}_g q_\text{sat} < q_\text{air}`, takes up vapour (LE < 0), as in Noah-MP.
+when :math:`\text{RH}_g q_\text{sat} < q_\text{air}`, takes up vapor (LE < 0), as in Noah-MP.
 
 *Limitation:* :math:`q_s` is a single top layer. The canopy's soil-water factor and all of LE,
 transpiration included, act on it, where Noah-MP draws transpiration from the root zone
@@ -787,7 +787,7 @@ balance.
 where :math:`D` is the drainage, :math:`R` the runoff, and :math:`S` the deficit: the water an
 evaporation took that the column did not hold, recorded when :math:`q_{\text{deep}}` would go
 below zero. The latent heat flux is not limited by :math:`q_{\text{deep}}`, so a non-zero
-deficit is water the coupled system did not conserve: the atmosphere received vapour the soil did
+deficit is water the coupled system did not conserve: the atmosphere received vapor the soil did
 not hold. The running totals of rain, runoff, drainage and deficit [kg m\ :sup:`-2`] are
 checkpointed and written to the 2D plotfile (``seb_rain_total`` and the others), with
 ``seb_rain_rate``, ``seb_q_deep`` and ``seb_t_deep``. With ``erf.radiation.v >= 2`` each step
@@ -1049,7 +1049,7 @@ instantaneous value
 
 where :math:`f` is the fraction of the UTC day elapsed, so that solar noon at a site falls at
 :math:`2\pi f + \lambda = \pi`. The latitude and longitude are the grid's own ``lat_m`` and
-``lon_m`` fields when a WRF or metgrid initialisation filled them, and ``erf.rad_cons_lat`` and
+``lon_m`` fields when a WRF or metgrid initialization filled them, and ``erf.rad_cons_lat`` and
 ``erf.rad_cons_lon`` otherwise. When :math:`\cos(\theta_z) \le 0` the sun is below the horizon and
 the direct-beam contribution is zero. The top-of-atmosphere irradiance is
 ``erf.fixed_total_solar_irradiance`` when set, else :math:`1360.9\, e` W/m² (RRTMGP's reference

@@ -305,7 +305,7 @@ read_base_state_params_from_wrfinput (const std::string& fname,
     ParallelDescriptor::Bcast(&P_STRAT,1,ParallelDescriptor::IOProcessorNumber());
 }
 
-namespace {
+namespace erf_detail_InitFromWRFInput {
 
 /**
  * @brief Domain-mean layer thickness of the file's vertical grid, level by level.
@@ -429,7 +429,25 @@ wrf_max_first_layer_thickness (const MultiFab& mf_PH,
     return dz0_max;
 }
 
+/** Replace PSFC values in the requested covered region with the reference pressure. */
+void
+replace_covered_psfc_with_p0 (MultiFab& mf_PSFC, const Box& region, Real p0)
+{
+    for (MFIter mfi(mf_PSFC, false); mfi.isValid(); ++mfi) {
+        const Box covered = mfi.fabbox() & region;
+        if (covered.ok()) {
+            const auto psfc_arr = mf_PSFC.array(mfi);
+            ParallelFor(covered, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                psfc_arr(i,j,k) = p0;
+            });
+        }
+    }
+    Gpu::streamSynchronize();
+}
+
 } // namespace
+using namespace erf_detail_InitFromWRFInput;
 
 /**
  * ERF function that initializes data from a WRF dataset
@@ -453,6 +471,23 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     // coarser level to interpolate from; at level 0 there would be nothing to fill it with.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(read_atmos_state || lev > 0,
         "init_from_wrfinput: the atmospheric state can only be left to the caller at lev > 0");
+
+    // The vertical remap below starts each column search at the domain bottom, so in a
+    // level 0 split in z it would read outside the fabs of every box above the bottom one
+    // (the base-state rebalance would then abort on the same boxes).  The wrfbdy conversion
+    // makes the same assumption.  Fail before anything is read.
+    if (lev == 0) {
+        const Box& dom = geom[0].Domain();
+        const BoxArray& ba = vars_new[0][Vars::cons].boxArray();
+        for (int ib = 0; ib < ba.size(); ++ib) {
+            if (ba[ib].smallEnd(2) != dom.smallEnd(2) || ba[ib].bigEnd(2) != dom.bigEnd(2)) {
+                Abort("init_from_wrfinput requires every level-0 grid to span the full domain "
+                      "height; keep amr.no_box_split_dir = 2 (the ERF default) instead of " +
+                      std::to_string(no_box_split_dir) + ", or set amr.max_grid_size_z >= the "
+                      "full vertical domain extent.");
+            }
+        }
+    }
 
     bool use_moist = (solverChoice.moisture_type != MoistureType::None) && read_atmos_state;
     bool use_lsm   = (solverChoice.lsm_type != LandSurfaceType::None);
@@ -635,8 +670,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
     bool compute_terrain_here = true;
 
-    const Real l_rdOcp = solverChoice.rdOcp;
-
     // **************************************************************************
     // Each rank reads from the file only the part of each field that its own grids
     // need, so that no rank (not even the I/O rank) ever holds a whole field.  The
@@ -699,9 +732,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         // fields.  A WRF nest carries the full eta column of its parent, so its k indices are
         // already those of the domain: there is no vertical shift at any level, also when
         // the refined region does not start at the bottom of the domain.
-        IntVect shift_by(0);
-        shift_by[0] = global_file_box.smallEnd(0) - subdomain_to_read.smallEnd(0);
-        shift_by[1] = global_file_box.smallEnd(1) - subdomain_to_read.smallEnd(1);
+        const IntVect shift_by = erf_wrfinput::file_to_erf_shift(
+            global_file_box, subdomain_to_read);
 
         Box subdomain_to_fill = boxes_at_level[lev][idx];
         Print() << "Box to fill " << subdomain_to_fill << "\n";
@@ -756,8 +788,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
             if (success) {
                 // The box the whole variable covers, in this level's index space
-                Box var_box(file_box);
-                var_box.shift(shift_by);
+                Box var_box = erf_wrfinput::file_box_to_erf(file_box, shift_by);
                 file_nz = var_box.length(2);
 
 
@@ -1237,37 +1268,37 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               }
           }
 
-          // Initialize SST
+          // Initialize SST.  Kept as the absolute temperature [K] of the file: the
+          // surface layer converts it to potential temperature with the current
+          // surface pressure each time it fills t_surf.
           if ( var_name == "SST" ) {
               sst_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(sst_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = sst_lev[lev][0]->array(mfi);
                   const Array4<const Real>& src_arr = var_fab.const_array();
-                  const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
                   ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      dst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
                   });
               }
               (sst_lev[lev][0])->FillBoundary(geom[lev].periodicity());
           }
 
-          // Initialize TSK
+          // Initialize TSK, as the SST above: absolute temperature [K]
           if ( var_name == "TSK" ) {
               tsk_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(tsk_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = tsk_lev[lev][0]->array(mfi);
                   const Array4<const Real>& src_arr = var_fab.const_array();
-                  const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
                   ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      dst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
                   });
               }
               (tsk_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
@@ -1963,6 +1994,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             const Box& vbx     = mfi.validbox();
             const int  khi_src = amrex::min(khi, vbx.bigEnd(2));
 
+            //
+            // Likewise the searches start at the bottom of this box, not of the domain: a
+            // nest may start above k = 0 (a shallow nest whose grids start at k = 2), and
+            // below its grids mf_PH, mf_PHB and cons_tmp hold nothing, so a search from
+            // the domain bottom read outside their FABs.  A WRF nest carries the full eta
+            // column, so layer k of the file is cell k here and the column from klo_src up
+            // is the one the remap needs.  For a box that starts at k = 0 this is klo.
+            //
+            const int  klo_src = vbx.smallEnd(2);
+
             const Array4<      Real>& cons_arr = lev_new[Vars::cons].array(mfi);
             const Array4<      Real>& xvel_arr = lev_new[Vars::xvel].array(mfi);
             const Array4<      Real>& yvel_arr = lev_new[Vars::yvel].array(mfi);
@@ -1979,7 +2020,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int kstart = klo;
+                int kstart = klo_src;
                 Real z_dst = z_cc_arr(i,j,k);
                 Real z_lo_src = Real(0.5) *
                     ( ph_arr(i,j,kstart  ) + phb_arr(i,j,kstart  ) +
@@ -2039,11 +2080,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     const bool below = (z_dst < z_first);
 
                     // Two nearest source levels, and which of them is nearest to z_dst
-                    const int ks = (below) ? klo        : khi_src - 1;
-                    const int ke = (below) ? klo + 1    : khi_src;
+                    const int ks = (below) ? klo_src     : khi_src - 1;
+                    const int ke = (below) ? klo_src + 1 : khi_src;
                     const int kn = (below) ? ks         : ke;
 
-                    if (ke > ks && ks >= klo && ke <= khi_src) {
+                    if (ke > ks && ks >= klo_src && ke <= khi_src) {
                         remap_flag_arr(i,j,k) = (below) ? ((k == klo) ? one : three) : two;
 
                         const Real z_s = Real(0.5) * ( ph_arr(i,j,ks  ) + phb_arr(i,j,ks  ) +
@@ -2088,7 +2129,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 int ii  = std::max(std::min(i  ,imax),imin);
                 int iim = std::max(std::min(i-1,imax),imin);
 
-                int kstart = klo;
+                int kstart = klo_src;
                 Real z_dst = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
                                           + z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1) );
                 Real z_lo_src = Real(0.25) *
@@ -2151,7 +2192,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 int jj  = std::max(std::min(j  ,jmax),jmin);
                 int jjm = std::max(std::min(j-1,jmax),jmin);
 
-                int kstart = klo;
+                int kstart = klo_src;
                 Real z_dst = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
                                           + z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1) );
                 Real z_lo_src = Real(0.25) *
@@ -2502,8 +2543,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                            sst_lev[lev], tsk_lev[lev],
                            m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
-                           lev_new[Vars::cons], *mf_PSFC[lev],
-                           l_rdOcp, lmask_lev[lev][0], use_moist);
+                           lev_new[Vars::cons], lmask_lev[lev][0], use_moist);
         }
     } // lev == 0 && nc_low_file exists
 
@@ -2696,20 +2736,24 @@ init_base_state_from_wrfinput (const Box& subdomain,
             // patch simply do not exist at this level; they are covered by the parent.
             //
             // klo is a different matter: each column is seeded from the analytic profile
-            // in its lowest cell and then marched upward, so a box whose klo is in the
-            // interior would restart the discrete integration there and put a kink in
-            // p_0 at the box boundary.  (With amr.refine_grid_layout_z = 0, which is the
-            // ERF default set in main.cpp, grids are never chopped in z and this holds.)
+            // in the lowest cell of the region and then marched upward, so every box must
+            // start there.  A box that starts higher is either stacked on another box of
+            // this level (grids split in z; amr.no_box_split_dir = 2, the default, rules
+            // that out) or a separate patch that starts at a different k from the lowest
+            // one on this level.
             //
             // NOTE: TileNoZ() above guarantees that klo/khi are the *box's* z extent
             //       rather than a tile's, so each column is integrated exactly once.
             //
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(klo == k_dom_lo,
-                                             "init_base_state_from_wrfinput requires boxes that "
-                                             "reach the bottom of the region being initialized: "
-                                             "each column is seeded there and integrated upward. "
-                                             "Set amr.max_grid_size_z large enough that the grids "
-                                             "are not decomposed in z.");
+                                             "init_base_state_from_wrfinput requires every grid "
+                                             "of a level to start at the same k, the lowest on "
+                                             "that level: each column is seeded there and "
+                                             "integrated upward.  A grid starting higher is "
+                                             "either split from one below it in z (keep "
+                                             "amr.no_box_split_dir = 2, the default) or a patch "
+                                             "that starts at a different k from another patch "
+                                             "on the level (start them at the same k).");
             bx.makeSlab(2,klo);
 
             const Array4<Real>&  r_hse_arr = r_hse.array(mfi);
@@ -2829,15 +2873,58 @@ ERF::rebuild_base_state_from_wrfinput (int lev, MultiFab& base_state_mf)
     // mf_PB / mf_ALB are unused by the routine (the base state is built entirely from the
     // six reference parameters and z_phys_cc), so there is nothing to hand it here.
     //
-    // We pass the level's Domain rather than boxes_at_level[lev][0] because the only thing
-    // the routine takes from this box is the k index at which each column starts, and the
-    // two agree there; the Domain is also always available, whereas boxes_at_level[lev] is
-    // only populated when the refinement was specified as an explicit box.
+    // The routine takes two things from the region box.  One is the k index at which each
+    // column starts: it seeds the column from the analytic profile in that cell and
+    // integrates upward.  That is the bottom of this level's grids, not of its Domain: a
+    // nest may start above k = 0 (e.g. a shallow nest whose grids start at k = 2), and
+    // its columns are then seeded in their own lowest cell.  The routine still requires
+    // every grid to reach that bottom, i.e. that the grids are not split in z.  The other
+    // is the clamp on the height lookup for the ghost cells (z_phys_cc is not filled
+    // outside the region), so the ghost cells below such a nest get the profile at the
+    // height of its lowest cell; they are replaced below.
+    const Box& domain = geom[lev].Domain();
+    Box region = domain;
+    region.setSmall(2, base_state_mf.boxArray().minimalBox().smallEnd(2));
     MultiFab dummy_PB;
-    init_base_state_from_wrfinput(geom[lev].Domain(), solverChoice.rdOcp,
+    init_base_state_from_wrfinput(region, solverChoice.rdOcp,
                                   p_hse, pi_hse, th_hse, qv_hse, r_hse,
                                   dummy_PB, nullptr, z_phys_cc[lev].get(),
                                   wrf_bsp);
+
+    //
+    // Below a nest that starts above k = 0, the ghost cells lie inside the domain, so
+    // physbcs_base does not fill them, and the profile above put them at the height of the
+    // nest's lowest cell: p_0 there is off by about rho_0 g dz.  make_gradp_pert reads them
+    // (p(k-1) at the nest's lowest cell, where that is not the domain bottom).  Give them
+    // the parent's base state, interpolated as interp_base_state_from_coarse does for a
+    // level without a file of its own.  A nest that starts at k = 0 is untouched.
+    //
+    const int klo_region = region.smallEnd(2);
+    if (lev > 0 && klo_region > domain.smallEnd(2))
+    {
+        const int ncomp = base_state_mf.nComp();
+        MultiFab crse_fill(base_state_mf.boxArray(), base_state_mf.DistributionMap(),
+                           ncomp, base_state_mf.nGrowVect());
+        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
+        InterpFromCoarseLevel(crse_fill, crse_fill.nGrowVect(),
+                              IntVect(0,0,0), // only cells inside the domain are wanted
+                              base_state[lev-1], 0, 0, ncomp,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+
+        for (MFIter mfi(base_state_mf); mfi.isValid(); ++mfi) {
+            Box below = amrex::grow(mfi.validbox(), base_state_mf.nGrowVect()) & domain;
+            below.setBig(2, klo_region-1);
+            if (!below.ok()) { continue; }
+            const Array4<Real      >& dst = base_state_mf.array(mfi);
+            const Array4<Real const>& src = crse_fill.const_array(mfi);
+            ParallelFor(below, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                dst(i,j,k,n) = src(i,j,k,n);
+            });
+        }
+    }
 
     // FillBoundary to populate the internal ghost cells (no averaging in above call)
      r_hse.FillBoundary(geom[lev].periodicity());
@@ -3334,8 +3421,7 @@ init_terrain_from_wrfinput (int /*lev*/,
  * A level made by refinement, with no init file of its own, is left to Interp2DArrays.
  *
  * @param[in] lev        level (> 0)
- * @param[in] restarting true when restarting from a checkpoint: slice 0 was read from it, and
- *                       the surface pressure, which is not checkpointed, is re-read
+ * @param[in] restarting true when restarting from a checkpoint; slice 0 was read from it
  */
 void
 ERF::init_fine_low_slices (int lev, bool restarting)
@@ -3351,8 +3437,6 @@ ERF::init_fine_low_slices (int lev, bool restarting)
     if (has_own_low_file(lev))
     {
         check_own_low_file_times(lev);
-        if (restarting) { read_psfc_from_own_init_file(lev); }
-
         sst_lev[lev].resize(ntimes);
         tsk_lev[lev].resize(ntimes);
 
@@ -3408,8 +3492,7 @@ ERF::read_own_low_slice (int lev, int itime, std::unique_ptr<SurfaceLayer>& Surf
     const bool use_moist = (solverChoice.moisture_type != MoistureType::None);
     update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                    sst_lev[lev], tsk_lev[lev], SurfLayer, low_data,
-                   vars_new[lev][Vars::cons], *mf_PSFC[lev],
-                   solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+                   vars_new[lev][Vars::cons], lmask_lev[lev][0], use_moist);
 }
 
 /**
@@ -3437,41 +3520,121 @@ ERF::check_own_low_file_times (int lev)
 }
 
 /**
- * Re-read the surface pressure of a level > 0 from its own init file, on its nest box as
- * init_from_wrfinput reads it.  The surface pressure is not checkpointed, and update_sst_tsk
- * needs it to convert the sea surface temperature.
+ * Read only the local PSFC region needed on this rank, with the same file-to-ERF mapping and
+ * local-region read used by init_from_wrfinput.  If a recovered parent pressure already fills
+ * part of a regridded fine level, this file overlays the cells in its footprint; cells outside
+ * it retain the parent value.  Without that parent, every valid cell must be covered by the file.
  *
- * @param[in] lev level (> 0) with a single init file of its own
+ * @param[in] lev level with an init file of its own
+ * @return whether every covered valid PSFC value from the file was zero and replaced by p_0
  */
-void
-ERF::read_psfc_from_own_init_file (int lev)
+bool
+ERF::read_psfc_from_own_init_file (int lev, bool allow_uncovered)
 {
-    AMREX_ALWAYS_ASSERT(lev > 0 && nc_init_file[lev].size() == 1);
+    AMREX_ALWAYS_ASSERT(!nc_init_file[lev].empty());
+    AMREX_ALWAYS_ASSERT(mf_PSFC[lev]);
 
-    int ratio;
-    Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][0], ratio);
+    Box subdomain_to_read;
+    const Box erf_file_box = wrfinput_file_box(lev, 0, nullptr, &subdomain_to_read);
+    Box psfc_file_box;
+    if (!wrfinput_var_box(subdomain_to_read, nc_init_file[lev][0], "PSFC", psfc_file_box)) {
+        Abort("read_psfc_from_own_init_file: " + nc_init_file[lev][0] +
+              " has no PSFC variable");
+    }
 
-    FArrayBox fab_from_file;
-    int success, use_theta_m;
-    read_from_wrfinput(lev, subdomain_to_read, nc_init_file[lev][0], fab_from_file, "PSFC",
-                       geom[lev], use_theta_m, success);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(success, "read_psfc_from_own_init_file: no PSFC in the init file");
+    const IntVect shift = erf_wrfinput::file_to_erf_shift(erf_file_box, subdomain_to_read);
+    const Box psfc_erf_box = erf_wrfinput::file_box_to_erf(psfc_file_box, shift);
 
-    // Put it on the nest box, as init_from_wrfinput does
-    const Box box2d = nest_box_from_own_init_file(lev);
-    AMREX_ALWAYS_ASSERT(fab_from_file.box().length(0) == box2d.length(0) &&
-                        fab_from_file.box().length(1) == box2d.length(1));
-    fab_from_file.shift(box2d.smallEnd() - fab_from_file.box().smallEnd());
-
-    FArrayBox var_fab(box2d, 1, The_Pinned_Arena());
-    var_fab.template copy<RunOn::Host>(fab_from_file, 0, 0, 1);
-
+    IntVect ng = mf_PSFC[lev]->nGrowVect();
+    ng[2] = 0;
+    Vector<Box> local_erf_regions;
+    Vector<Box> local_valid_regions;
+    Vector<int> local_fab_indices;
     for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
-        (*mf_PSFC[lev])[mfi].template copy<RunOn::Device>(var_fab, 0, 0, 1);
+        const Box valid = mfi.validbox();
+        if (!allow_uncovered && !psfc_erf_box.contains(valid)) {
+            std::ostringstream os;
+            os << "read_psfc_from_own_init_file: required PSFC region " << valid
+               << " at level " << lev << " is outside the file footprint " << psfc_erf_box
+               << " in " << nc_init_file[lev][0];
+            Abort(os.str());
+        }
+        const Box valid_from_file = valid & psfc_erf_box;
+        Box needed = amrex::grow(valid, ng) & psfc_erf_box;
+        if (needed.ok()) {
+            local_erf_regions.push_back(needed);
+            local_valid_regions.push_back(valid_from_file);
+            local_fab_indices.push_back(mfi.index());
+        }
     }
-    if (mf_PSFC[lev]->max(0) == zero) {
-        mf_PSFC[lev]->setVal(p_0);
+
+    int max_readers = 256;
+    ParmParse pp("erf");
+    pp.query("wrfinput_max_readers", max_readers);
+    int max_regions = static_cast<int>(local_erf_regions.size());
+    ParallelDescriptor::ReduceIntMax(max_regions);
+    int local_has_valid_file_data = 0;
+    int local_has_nonzero_file_data = 0;
+    for (int iregion = 0; iregion < max_regions; ++iregion) {
+        // All ranks make the same number of calls because read_region_from_wrfinput has
+        // collective reader throttling. Ranks without a region in this slot pass an empty
+        // box, and each rank reads only the region of one of its own grids.
+        Box file_region = psfc_file_box;
+        if (iregion < static_cast<int>(local_erf_regions.size())) {
+            file_region = local_erf_regions[iregion];
+            file_region.shift(-shift);
+        } else {
+            file_region.setBig(0, file_region.smallEnd(0)-1);
+        }
+        FArrayBox psfc_from_file;
+        read_region_from_wrfinput(nc_init_file[lev][0], "PSFC", psfc_file_box,
+                                  file_region, psfc_from_file, max_readers);
+        if (psfc_from_file.box().ok()) {
+            Box valid_file_region;
+            if (iregion < static_cast<int>(local_valid_regions.size())) {
+                valid_file_region = local_valid_regions[iregion];
+                valid_file_region.shift(-shift);
+            }
+            if (valid_file_region.ok()) {
+                local_has_valid_file_data = 1;
+                const auto file_arr = psfc_from_file.const_array();
+                for (BoxIterator bit(valid_file_region); bit.ok(); ++bit) {
+                    if (file_arr(bit(), 0) != zero) {
+                        // Negative, NaN and infinite values also prevent the exact all-zero
+                        // fallback; the normal pressure validation must reject them.
+                        local_has_nonzero_file_data = 1;
+                    }
+                }
+            }
+            psfc_from_file.shift(shift);
+            FArrayBox& psfc_fab = (*mf_PSFC[lev])[local_fab_indices[iregion]];
+            const Box copy_box = psfc_fab.box() & psfc_from_file.box();
+            if (copy_box.ok()) {
+                psfc_fab.template copy<RunOn::Device>(
+                    psfc_from_file, copy_box, 0, copy_box, 0, 1);
+                // read_region_from_wrfinput allocates this source in the pinned host arena
+                // on GPU builds. Keep it alive until the asynchronous host-to-device copy
+                // has consumed it, before this FArrayBox is destroyed or the arena reuses it.
+                Gpu::streamSynchronize();
+            }
+        }
     }
+
+    // Apply one fallback decision across all covered valid PSFC samples for this model
+    // level, excluding uncovered parent-seeded cells and avoiding a per-grid fallback.
+    // This deliberately requires every covered sample to be exactly zero; unlike the
+    // cold-start max==0 check, negative or non-finite samples cannot be masked by it.
+    ParallelDescriptor::ReduceIntMax(local_has_valid_file_data);
+    ParallelDescriptor::ReduceIntMax(local_has_nonzero_file_data);
+    const bool all_zero_psfc = local_has_valid_file_data != 0 &&
+                               local_has_nonzero_file_data == 0;
+    if (all_zero_psfc) {
+        replace_covered_psfc_with_p0(*mf_PSFC[lev], psfc_erf_box, p_0);
+        Print() << "PSFC in " << nc_init_file[lev][0]
+                << " is all zero on the covered level-" << lev
+                << " domain; replacing its covered cells with p_0\n";
+    }
+    return all_zero_psfc;
 }
 
 /** Return a WRF file's box in the global ERF index space.  WRF's I/J_PARENT_START

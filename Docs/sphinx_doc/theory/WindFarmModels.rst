@@ -428,7 +428,7 @@ The following are the inputs required for wind farm simulations.
         36.0171171171 -99.0168 1
         35.7828828829 -98.9705333333 1
 
-   - For the x-y format, an example is as below. Each line specifies the x and y coordinates of the wind turbine location in metres
+   - For the x-y format, an example is as below. Each line specifies the x and y coordinates of the wind turbine location in meters
 
      .. code-block:: cpp
 

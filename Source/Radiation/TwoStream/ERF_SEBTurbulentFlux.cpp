@@ -6,7 +6,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_SEBTurbulentFlux {
 
 // Overwrite the valid cells of dst where src (plus add, when given) holds a valid
 // land-surface value with scale * src + add; leave the others as they are.
@@ -45,6 +45,7 @@ overwrite_valid_land_surface_cells (MultiFab& dst,
 }
 
 } // namespace
+using namespace erf_detail_SEBTurbulentFlux;
 
 void
 fill_seb_field_from_land_surface (MultiFab& seb_field,

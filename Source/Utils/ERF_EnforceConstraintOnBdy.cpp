@@ -8,8 +8,7 @@
 
 using namespace amrex;
 
-namespace
-{
+namespace erf_detail_EnforceConstraintOnBdy {
 /**
  * @brief Scale the normal boundary velocity by the base state density.
  *
@@ -153,6 +152,7 @@ correct_bdy_outflow_on_face (FArrayBox& bdy_fab,
     });
 }
 }
+using namespace erf_detail_EnforceConstraintOnBdy;
 
 void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xhi,
                                  FArrayBox& bdy_data_ylo, FArrayBox& bdy_data_yhi,

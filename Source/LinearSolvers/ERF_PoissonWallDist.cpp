@@ -36,7 +36,8 @@ surface_slab (const MultiFab& z_nd, int klo)
  *
  * @param znd_surf Surface slab filled by fill_surface_nodes
  */
-static void
+namespace erf_detail_PoissonWallDist {
+void
 assert_surface_gathered (const MultiFab& znd_surf)
 {
     Real znd_max = ReduceMax(znd_surf, znd_surf.nGrowVect(),
@@ -52,6 +53,8 @@ assert_surface_gathered (const MultiFab& znd_surf)
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(znd_max < Real(0.5) * bogus_large_value,
         "poisson_wall_dist: the surface nodes were not gathered onto every box");
 }
+} // namespace erf_detail_PoissonWallDist
+using namespace erf_detail_PoissonWallDist;
 
 /**
  * The RANS wall distance at this level: the distance to the bottom wall from

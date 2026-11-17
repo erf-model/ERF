@@ -6,7 +6,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_TopographicShading {
 constexpr Real missing = Real(-1.e30);
 
 // Fill only the part covered by this ancestor. Iterating ancestors from coarse
@@ -35,6 +35,7 @@ IntVect horizontal_ratio (const Geometry& coarse, const Geometry& fine)
                    fine.Domain().length(1)/coarse.Domain().length(1), 1);
 }
 }
+using namespace erf_detail_TopographicShading;
 
 void TopographicShadingChoice::read (const std::string& prefix, const RRTMGPSolarChoice& solar)
 {

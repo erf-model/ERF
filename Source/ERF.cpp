@@ -164,6 +164,8 @@ ERF::Evolve ()
 #ifdef ERF_USE_FIRE
     if (m_fire_coupler && istep[0] == 0 && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
         m_fire_coupler->engine().write_plotfile(m_fire_plot_file, cur_time, istep[0]);
+        // the next fire plot is one period on, as for the other initial outputs
+        if (m_fire_plot_per > zero) {last_fire_plot_time += m_fire_plot_per;}
         if (m_fire_coupler->params().fire_debug) {
             amrex::Print() << "[FIRE] Initial fire output written at time 0" << std::endl;
         }
@@ -426,9 +428,9 @@ ERF::ResetIntervalMeans ()
 // different horizontal regions has a bounding box reaching both domain ends while no single
 // box holds a column.
 //
-// RRTMGP records its own predicate at Init and it stays authoritative for that model. The
-// two-stream model has no IRadiation object -- reading rad[] would dereference a null
-// pointer -- so derive it from the grids.
+// Every model uses this same per-box test, rad_boxes_span_column (RRTMGP and RadiationSimple
+// in their Init, the two-stream solver in its advance), so derive it from the grids here. That
+// also covers the two-stream model, which has no IRadiation object to ask.
 //
 // This lives here, rather than as a lambda in one caller, because three places have to
 // agree about it: advance_radiation (which routes such a level through
@@ -438,13 +440,58 @@ bool
 ERF::rad_level_needs_interpolation (int lev) const
 {
     if (lev <= 0) { return false; }
-    if (solverChoice.rad_uses_interface() && rad[lev]) { return rad[lev]->is_nested_patch(); }
+    return !rad_boxes_span_column(grids[lev], geom[lev].Domain());
+}
+
+// Called from init_stuff, so on every level build (from scratch, from coarse, and regrid) and
+// before any radiation model sees the grids, which makes it the one place every model rejects
+// a level 0 split in z.
+//
+// A fine level that fails the per-box test takes coarse radiation. That is intended for a
+// partial-height patch, but a level whose boxes together reach both the ground and the top --
+// full-height boxes chopped in z by max_grid_size, or full-column boxes beside partial ones --
+// could have been swept, so say so rather than let it take coarse radiation unnoticed. Warned
+// once per level each time it starts to be interpolated, so a regrid that turns another
+// layout into one is reported too.
+void
+ERF::check_rad_level_grids (int lev, const BoxArray& ba)
+{
+    if (solverChoice.rad_type == RadiationType::None) { return; }
+
     const Box& dom = geom[lev].Domain();
-    for (int ibox = 0; ibox < grids[lev].size(); ++ibox) {
-        const Box& b = grids[lev][ibox];
-        if (b.smallEnd(2) != dom.smallEnd(2) || b.bigEnd(2) != dom.bigEnd(2)) { return true; }
+    const bool spans = rad_boxes_span_column(ba, dom);
+
+    if (lev == 0) {
+        if (!spans) {
+            amrex::Abort("Radiation cannot run on a level 0 whose grids are decomposed in z: "
+                         "a box there holds only part of a column, and level 0 has no parent "
+                         "to interpolate from. Set amr.max_grid_size_z to at least the number "
+                         "of cells in z, or leave amr.no_box_split_dir at its default of 2 so "
+                         "grids are never split in z.");
+        }
+        return;
     }
-    return false;
+
+    if (lev >= static_cast<int>(m_rad_cut_in_z_warned.size())) {
+        m_rad_cut_in_z_warned.resize(lev + 1, 0);
+    }
+    const Box bbox = ba.minimalBox();
+    const bool cut_in_z = !spans && bbox.smallEnd(2) == dom.smallEnd(2)
+                                 && bbox.bigEnd(2)   == dom.bigEnd(2);
+    if (cut_in_z) {
+        if (!m_rad_cut_in_z_warned[lev]) {
+            Print() << "WARNING: level " << lev << " has grids reaching both the bottom and the "
+                       "top of the domain, but not every box spans the column (grids split in z, "
+                       "e.g. by amr.max_grid_size, or full-column boxes beside partial-height "
+                       "ones). Radiation cannot sweep it, so its radiation is interpolated from "
+                       "level " << lev - 1 << ". To compute it on this level, set "
+                       "amr.max_grid_size_z there to at least its number of cells in z, or "
+                       "leave amr.no_box_split_dir at its default of 2.\n";
+            m_rad_cut_in_z_warned[lev] = 1;
+        }
+    } else {
+        m_rad_cut_in_z_warned[lev] = 0;
+    }
 }
 
 // Two-way coupling of the two-stream surface energy balance with the zlo surface layer
@@ -1287,30 +1334,10 @@ ERF::InitData_post ()
             {
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
-                // Need to read PSFC
-                FArrayBox NC_fab_var_file;
-                for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
-                    int success, use_theta_m;
-                    read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][0],
-                                       NC_fab_var_file, "PSFC", geom[lev],
-                                       use_theta_m, success);
-                    auto& var_fab = NC_fab_var_file;
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                    for ( MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi )
-                    {
-                        FArrayBox &cur_fab = (*mf_PSFC[lev])[mfi];
-                        cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
-                    }
-                    var_fab.clear();
-                }
-
                 update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
-                               vars_new[lev][Vars::cons], *mf_PSFC[lev],
-                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+                               vars_new[lev][Vars::cons], lmask_lev[lev][0], use_moist);
             } // itime
 
             // The finer levels that read their own init files, coarsest first
@@ -1461,16 +1488,10 @@ ERF::InitData_post ()
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
+        // With an input sounding, initRayleigh_at_level takes ubar, vbar and thetabar
+        // from it, at start-up and whenever a regrid remakes or creates a level
         for (int lev = 0; lev <= finest_level; lev++) {
             initRayleigh_at_level(lev);
-        }
-        if (solverChoice.init_type == InitType::Input_Sounding)
-        {
-            // Overwrite ubar, vbar, and thetabar with input profiles;
-            // wbar is assumed to be zero Note: the tau coefficient set by
-            // prob->erf_init_rayleigh() is still used
-            bool restarting = (!restart_chkfile.empty());
-            setRayleighRefFromSounding(restarting);
         }
     }
 
@@ -2238,7 +2259,12 @@ ERF::InitData_post ()
         // level-0 steps, and the fire takes one step per step of its own level.
         int fire_steps_per_coarse_step = 1;
         for (int l = 1; l <= fire_lev; ++l) { fire_steps_per_coarse_step *= nsubsteps[l]; }
-        m_fire_coupler->engine().start_run(stop_time, max_step, fire_steps_per_coarse_step);
+        // stop_time is on the absolute clock (it includes start_time, an epoch time with
+        // start_datetime); the engine counts elapsed time, so give it the run's length
+        const amrex::Real fire_stop = (stop_time < std::numeric_limits<double>::max())
+                                    ? static_cast<amrex::Real>(stop_time - start_time)
+                                    : std::numeric_limits<amrex::Real>::max();
+        m_fire_coupler->engine().start_run(fire_stop, max_step, fire_steps_per_coarse_step);
 
         if (restart_chkfile != "") {
             // the engine's state, then the coupling's lagged fluxes
@@ -2512,6 +2538,13 @@ ERF::InitData_post ()
         pp.queryarr("data_log",datalogname,0,num_datalogs);
         for (int i = 0; i < num_datalogs; i++) {
             setRecordDataInfo(i,datalogname[i]);
+        }
+        // The fourth (stress) log needs the stresses and SFS fluxes, which exist only with
+        // molecular diffusion or a turbulence closure at level 0; the 1D profile writers
+        // leave it empty otherwise
+        if (num_datalogs > 3 && Tau[0][TauType::tau11] == nullptr) {
+            amrex::Print() << "WARNING: erf.data_log names a fourth (stress) log, but there is no molecular"
+                           << " diffusion or turbulence closure at level 0, so it stays empty" << std::endl;
         }
     }
 
@@ -2970,9 +3003,8 @@ ERF::interp_mapfac_from_coarse (int lev)
 // leaves it uninitialized; only init_from_wrfinput -- which requires an init file at
 // *this* level -- ever fills it.  A level created by tagging therefore never had a
 // surface pressure at all, and a level that did read a file lost it at the next regrid.
-// update_sst_tsk uses it to convert the sea surface temperature from the wrflowinp file
-// into a potential temperature for the surface layer, and the active land-surface model
-// consumes it as well.
+// A restart from a checkpoint that holds the SST and TSK as potential temperature
+// converts them back with it (convert_legacy_surface_temperature).
 //
 void
 ERF::interp_psfc_from_coarse (int lev)
@@ -2996,14 +3028,15 @@ ERF::interp_psfc_from_coarse (int lev)
 
     //
     // Do NOT fill the fine ghost cells outside the domain: nothing reads those cells --
-    // update_sst_tsk clamps its PSFC index into the domain.
+    // the conversion of the SST and TSK clamps its PSFC index into the valid box.
     //
     // The coarse ghost cells are another matter.  PSFC is copied out of the file over the
     // intersection with the domain, so the coarse ghost cells beyond a domain face hold
     // nothing, and the slope stencil of the interpolater reads them wherever the fine
     // level, with its ghost cells, comes within one coarse cell of that face.  They take
     // the nearest column inside the domain first (seb_extend_halo, which also calls
-    // FillBoundary).
+    // FillBoundary). During legacy restart migration, the coarse pressure ghosts have
+    // also been prepared before this routine runs.
     //
     seb_extend_halo(*mf_PSFC[lev-1], geom[lev-1]);
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
@@ -3555,20 +3588,36 @@ ERF::restart ()
     initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
 #endif
 
+    // The period trackers hold the next time an output is due (see writeNow).  Put each
+    // on the next k * per after the restart time, with the 0.1*dt tolerance writeNow uses
+    // (a checkpoint written on schedule can carry a time just below k * per); setting them
+    // to the last boundary instead wrote an unscheduled output at the first step.
     double cur_time = t_new[0];
-    if (m_check_per    > zero) {last_check_file_time    = std::floor(cur_time/m_check_per   ) * m_check_per;}
-    if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
-    if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
-    if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
-    if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+    auto last_time = [&] (double per) {
+        return std::floor((cur_time + 0.1*dt[0])/per) * per;
+    };
+    auto next_time = [&] (double per) {
+        return last_time(per) + per;
+    };
+    if (m_check_per > zero) {last_check_file_time = next_time(m_check_per);}
 #ifdef ERF_USE_FIRE
-    // the fire plot clock is realigned like the others, so a restart keeps the
-    // k * fire_plot_per instants instead of writing at its first step
-    if (m_fire_plot_per > zero) {last_fire_plot_time = std::floor(cur_time/m_fire_plot_per) * m_fire_plot_per;}
+    // no restart-time fire plot moves this clock on, so it goes to the next instant too
+    if (m_fire_plot_per > zero) {last_fire_plot_time = next_time(m_fire_plot_per);}
 #endif
 
+    // With erf.plot_file_on_restart the plot and subvolume files are written at restart
+    // (InitData_post), which then adds one period to these trackers, so they start from
+    // the last boundary; without it nothing does, so they go to the next one
+    auto plot_time = [&] (double per) {
+        return plot_file_on_restart ? last_time(per) : next_time(per);
+    };
+    if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = plot_time(m_plot2d_per_1);}
+    if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = plot_time(m_plot2d_per_2);}
+    if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = plot_time(m_plot3d_per_1);}
+    if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = plot_time(m_plot3d_per_2);}
+
     for (int i = 0; i < m_subvol_per.size(); i++) {
-        if (m_subvol_per[i] > zero) {last_subvol_time[i] = std::floor(cur_time/m_subvol_per[i]) * m_subvol_per[i];}
+        if (m_subvol_per[i] > zero) {last_subvol_time[i] = plot_time(m_subvol_per[i]);}
     }
 
     if (m_check_int    > zero) {last_check_file_step    = istep[0];}
@@ -4055,6 +4104,10 @@ ERF::ReadParameters ()
         pp.queryAdd("plot2d_int_2" , m_plot2d_int_2);
         pp.queryAdd("plot2d_per_1",  m_plot2d_per_1);
         pp.queryAdd("plot2d_per_2",  m_plot2d_per_2);
+
+        // Write the 3D/2D plotfiles and subvolumes at the restart time (they then resume
+        // their schedules); off, a restart writes nothing until the next scheduled output
+        pp.queryAdd("plot_file_on_restart", plot_file_on_restart);
 
         // Abort on an invalid cloud-optics setting now, not at the first Plot2D write
         cloud_optics_parameters = plotfile2d::parse_cloud_optics_parameters();
