@@ -1755,6 +1755,9 @@ add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
+# Where the flow leaves through an inflow_outflow face its ghost cells are foextrap (#5136);
+# left unfilled, they held bogus_large_value after a restart, so a restarted run differed
+add_test_restart_parity(InflowOutflow_OutflowFaceRestart InflowOutflowOutflowFace 15 30)
 
 # Boundary planes from a moist run: the temperature planes hold the moist temperature, and the
 # reader converts them back to theta with the qv planes.  A uniform moist state (theta 300 K,
