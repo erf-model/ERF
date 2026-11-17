@@ -471,6 +471,23 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(read_atmos_state || lev > 0,
         "init_from_wrfinput: the atmospheric state can only be left to the caller at lev > 0");
 
+    // The vertical remap below starts each column search at the domain bottom, so in a
+    // level 0 split in z it would read outside the fabs of every box above the bottom one
+    // (the base-state rebalance would then abort on the same boxes).  The wrfbdy conversion
+    // makes the same assumption.  Fail before anything is read.
+    if (lev == 0) {
+        const Box& dom = geom[0].Domain();
+        const BoxArray& ba = vars_new[0][Vars::cons].boxArray();
+        for (int ib = 0; ib < ba.size(); ++ib) {
+            if (ba[ib].smallEnd(2) != dom.smallEnd(2) || ba[ib].bigEnd(2) != dom.bigEnd(2)) {
+                Abort("init_from_wrfinput requires every level-0 grid to span the full domain "
+                      "height; keep amr.no_box_split_dir = 2 (the ERF default) instead of " +
+                      std::to_string(no_box_split_dir) + ", or set amr.max_grid_size_z >= the "
+                      "full vertical domain extent.");
+            }
+        }
+    }
+
     bool use_moist = (solverChoice.moisture_type != MoistureType::None) && read_atmos_state;
     bool use_lsm   = (solverChoice.lsm_type != LandSurfaceType::None);
 
