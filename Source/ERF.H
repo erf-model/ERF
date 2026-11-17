@@ -1,6 +1,7 @@
 #ifndef ERF_H_
 #define ERF_H_
 
+#include <algorithm>
 #include <string>
 #include <cstdint>
 #include <limits>

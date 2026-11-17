@@ -2302,6 +2302,15 @@ add_test_r(DensityCurrent_detJ2_MT           ""  "erf_exec" "plt00010")
 add_test_r(EkmanSpiral                       ""  "erf_exec" "plt00010")
 add_test_r(IsentropicVortexStationary        ""  "erf_exec" "plt00010")
 add_test_r(IsentropicVortexAdvecting         ""  "erf_exec" "plt00010")
+# WENO7 momentum advection on one box and on 2 x 2 boxes must agree exactly: its stencil reads
+# the velocities four cells out, and with only three ghost cells a box edge read outside the
+# velocity array and the answer depended on the decomposition (erf-model/ERF#5161)
+add_test_box_parity(IsentropicVortexAdvecting_WENO7_BoxParity IsentropicVortexAdvecting "plt00010"
+    COMMON_OPTIONS "erf.dycore_horiz_adv_type=WENO7 erf.dryscal_horiz_adv_type=WENO7"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=24 amr.max_grid_size_y=24 amr.max_grid_size_z=64"
+    FCOMPARE_RTOL "0.0"
+    FCOMPARE_ATOL "0.0")
 add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
 add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
