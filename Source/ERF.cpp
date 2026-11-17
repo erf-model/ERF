@@ -1289,30 +1289,10 @@ ERF::InitData_post ()
             {
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
-                // Need to read PSFC
-                FArrayBox NC_fab_var_file;
-                for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
-                    int success, use_theta_m;
-                    read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][0],
-                                       NC_fab_var_file, "PSFC", geom[lev],
-                                       use_theta_m, success);
-                    auto& var_fab = NC_fab_var_file;
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                    for ( MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi )
-                    {
-                        FArrayBox &cur_fab = (*mf_PSFC[lev])[mfi];
-                        cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
-                    }
-                    var_fab.clear();
-                }
-
                 update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
-                               vars_new[lev][Vars::cons], *mf_PSFC[lev],
-                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+                               vars_new[lev][Vars::cons], lmask_lev[lev][0], use_moist);
             } // itime
 
             // The finer levels that read their own init files, coarsest first
@@ -2984,9 +2964,8 @@ ERF::interp_mapfac_from_coarse (int lev)
 // leaves it uninitialized; only init_from_wrfinput -- which requires an init file at
 // *this* level -- ever fills it.  A level created by tagging therefore never had a
 // surface pressure at all, and a level that did read a file lost it at the next regrid.
-// update_sst_tsk uses it to convert the sea surface temperature from the wrflowinp file
-// into a potential temperature for the surface layer, and the active land-surface model
-// consumes it as well.
+// A restart from a checkpoint that holds the SST and TSK as potential temperature
+// converts them back with it (convert_legacy_surface_temperature).
 //
 void
 ERF::interp_psfc_from_coarse (int lev)
@@ -3010,14 +2989,15 @@ ERF::interp_psfc_from_coarse (int lev)
 
     //
     // Do NOT fill the fine ghost cells outside the domain: nothing reads those cells --
-    // update_sst_tsk clamps its PSFC index into the domain.
+    // the conversion of the SST and TSK clamps its PSFC index into the valid box.
     //
     // The coarse ghost cells are another matter.  PSFC is copied out of the file over the
     // intersection with the domain, so the coarse ghost cells beyond a domain face hold
     // nothing, and the slope stencil of the interpolater reads them wherever the fine
     // level, with its ghost cells, comes within one coarse cell of that face.  They take
     // the nearest column inside the domain first (seb_extend_halo, which also calls
-    // FillBoundary).
+    // FillBoundary). During legacy restart migration, the coarse pressure ghosts have
+    // also been prepared before this routine runs.
     //
     seb_extend_halo(*mf_PSFC[lev-1], geom[lev-1]);
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),

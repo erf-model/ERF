@@ -4935,7 +4935,7 @@ endif()
 # A small, generated three-level WRF case. The middle ERF patch starts six
 # level-1 cells inside d02, so placing d03 relative to that patch shifts its
 # global position. Check both the level-2 box and a coordinate-coded field,
-# then restart with per-level wrflow files to re-read the nest box and PSFC.
+# then restart with per-level wrflow files to re-read the nest box and forcing slices.
 if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
   execute_process(COMMAND "${ERF_TEST_PYTHON}" -c "import netCDF4, numpy"
                   RESULT_VARIABLE _wrf_nested_python_status
@@ -5021,6 +5021,29 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     add_test_wrfinput_nest(WRFInput_Abort_NestOutsideParent
         "erf.crop.in_box_lo_indices=32 24 0"
         "The level-2 region of wrfinput_d03 does not fit inside the level-1 grids" "")
+
+    # Restart checkpoints from before the surface-temperature contract, holding SST and
+    # TSK as potential temperature. The writing run's init type (job_info, or the explicit
+    # legacy assertion) selects the pressure policy: level 0 WRFInput uses its first init
+    # file, fine-level recovery is approximate after regridding, and Metgrid migration uses
+    # restarted ground pressure or parent ground pressure for aloft-only coverage. Unknown
+    # or unrecoverable provenance and invalid active values abort. A later fine-level init
+    # file causes an abort only if it may have started and pressure provenance is ambiguous.
+    # The fixture also checks land SST placeholders and version-2 direct restoration.
+    set(TEST_NAME WRFInput_LegacySurfaceTemperature)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND "${CMAKE_COMMAND}"
+      "-DPYTHON=${ERF_TEST_PYTHON}"
+      "-DTEST_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DRUN_DIR=${CURRENT_TEST_BINARY_DIR}"
+      "-DERF_EXECUTABLE=${TEST_EXE}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/RunWRFInputLegacySurfaceTemperature.cmake")
+    set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 600 PROCESSORS 1
+      WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
+      LABELS "regression;wrfinput"
+      ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run.log;${CURRENT_TEST_BINARY_DIR}/run.err")
+    unset(TEST_NAME)
 
     # The land and soil fields of a wrfinput file with the two-stream force-restore balance and
     # no land model. make_wrfinput.py makes every field vary in both horizontal directions and
@@ -5120,7 +5143,7 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           "restart WRFInput_SurfaceFields_Restart_MPI.log" "max_step=0" 3)
     endif()
   else()
-    message(STATUS "Skipping WRFInput_CroppedParent and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
+    message(STATUS "Skipping WRFInput_CroppedParent, WRFInput_LegacySurfaceTemperature, and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
   endif()
 endif()
 
