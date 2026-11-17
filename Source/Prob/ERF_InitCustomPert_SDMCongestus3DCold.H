@@ -88,7 +88,12 @@
             Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
 
-            state_pert(i, j, k, Rho_comp) = rhonew - rho;
+            // a fixed density drops the Rho perturbation, so rho*theta carries it
+            if (fixed_rho) {
+                state_pert(i, j, k, RhoTheta_comp) += rho * theta_new - rhotheta;
+            } else {
+                state_pert(i, j, k, Rho_comp) = rhonew - rho;
+            }
         }
 
         // rho*qv follows the new density so qv is held when only T is perturbed
