@@ -2744,10 +2744,11 @@ endif()
 endif()
 # Kessler rain over a uniform, laterally periodic layer, with the fine box moved at t = 30 s:
 # a regrid must keep the surface rain accumulator.  The centre column of the 2D plotfile lies
-# in the new fine box.  It accumulates 5.2e-4 mm by t = 60 s (5.0e-4 on the coarse level, which
-# resolves the layer less finely); rebuilt as zero at the regrid, it reaches only 3.9e-4.
+# in the new fine box.  It accumulates 5.11e-4 mm by t = 60 s (5.11e-4 on the coarse level too);
+# rebuilt as zero at the regrid, it reaches only 3.80e-4.  Values with the 0.1364 Kessler
+# fall-speed exponent (#5193).
 add_test_column_bounds(RegridKeepsPrecipAccum "plt2d00120" 0 "precip_rain_accum"
-    "0.00051" "0.00053")
+    "0.00050" "0.00052")
 # Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
 # one plane directory per output step and a time.dat of "step time" rows -- must come out of a
 # run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads
