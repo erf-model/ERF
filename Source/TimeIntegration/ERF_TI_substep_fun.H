@@ -26,7 +26,8 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         // beta_s = -one : fully explicit
         // beta_s =  one : fully implicit
         // With erf.use_variable_beta_s, beta_s instead varies on the w-faces with the terrain
-        //    slope (see make_fast_coeffs); the substeps take it from fast_coeffs either way
+        //    slope and the vertical acoustic Courant number (see make_fast_coeffs); the substeps
+        //    take it from fast_coeffs either way
         Real beta_s;
         bool l_variable_beta_s;
         if (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep) {
@@ -153,9 +154,8 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
                              (l_moving_mesh ? detJ_cc_new[level] : detJ_cc[level]), dtau, beta_s,
-                             z_phys_nd[level].get(),
-                             l_variable_beta_s, solverChoice.beta_s_min, solverChoice.beta_s_max,
-                             phys_bc_type);
+                             z_phys_cc[level].get(), z_phys_nd[level].get(),
+                             l_variable_beta_s, phys_bc_type);
         }
 
         bool l_rayleigh_implicit = solverChoice.rayleigh_implicit_w(level);
