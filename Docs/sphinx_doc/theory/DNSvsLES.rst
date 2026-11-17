@@ -212,7 +212,7 @@ and the SFS heat flux is
    \tau_{\theta i} = -K_H \frac{\partial\theta}{\partial x_i}.
 
 The RHS terms of the TKE transport equation correspond to advection, shear production, buoyant production, diffusion, and dissipation.
-In the buoyant production the vertical flux :math:`\tau_{\theta w}` at the cell centre is the average of the fluxes of the
+In the buoyant production the vertical flux :math:`\tau_{\theta w}` at the cell center is the average of the fluxes of the
 :math:`\theta` diffusion at the two vertical faces of the cell, in every cell; at the bottom of the domain the face flux is the
 surface-layer flux when a surface layer is used. These face fluxes carry the stretched-mesh spacing and are the full fluxes whether
 the vertical diffusion of :math:`\theta` is explicit or implicit, so the source does not depend on that choice. On a terrain-fitted

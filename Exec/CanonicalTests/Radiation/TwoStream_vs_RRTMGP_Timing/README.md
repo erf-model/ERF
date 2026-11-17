@@ -60,7 +60,7 @@ simple average:
   work. It matters: RRTMGP reads roughly 45 MB of lookup tables on its first
   call, which inflates a naive average by about 150 ms.
 - The two-stream solver is invoked twice per step, at `pre_dycore` and
-  `post_dycore`, while RRTMGP runs once. Normalising by the profiler's own
+  `post_dycore`, while RRTMGP runs once. Normalizing by the profiler's own
   call count rather than by step count keeps that from skewing the result.
 - Each measurement is repeated and the minimum taken, since the minimum is the
   least noisy estimator of a compute cost on a shared machine.

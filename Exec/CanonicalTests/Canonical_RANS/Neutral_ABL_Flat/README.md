@@ -12,7 +12,7 @@ across ranks.
 | item | value |
 | --- | --- |
 | domain | 2560 x 2560 x 1000 m |
-| grid | 8 x 8 x 64, dz = 15.625 m, first cell centre 7.8 m |
+| grid | 8 x 8 x 64, dz = 15.625 m, first cell center 7.8 m |
 | time step | 5 s fixed, anelastic with FFT |
 | closure | `erf.rans_type = kEqn`, AL01 defaults, `sigma_k = 1` |
 | wall k | `erf.dirichlet_k = true` (AL01 Eq. 16) |
@@ -40,7 +40,7 @@ Smoke (`--smoke`, the CTest entry, 40 steps):
 | --- | --- | --- |
 | all planar-averaged fields finite | yes | exact |
 | min KE, Kmv, diss | >= 0 | exact |
-| wall distance vs cell-centre height above `geometry.prob_lo[2]` | equal | 1e-8 m |
+| wall distance vs cell-center height above `geometry.prob_lo[2]` | equal | 1e-8 m |
 | Lturb in the three lowest cells vs the capped kappa (z + z0) | equal | 0.1 % |
 | max Lturb | <= max_geom_lscale (30 m) | 1e-9 m |
 | diss vs Cmu0^3 rho k^1.5 / Lturb (AL01 Eq. 19), interior cells | equal | 5 % |

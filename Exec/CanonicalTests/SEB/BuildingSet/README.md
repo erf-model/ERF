@@ -65,7 +65,7 @@ height-map set needs (`Exec/RegTests/ImmersedForcingTest/PartialCells`).
   0.2 K although one sits north of the slab and one on its own.
 - **View fractions.** The slab's east wall sees 28 percent building, the
   cube's west wall 48 percent (the taller slab fills its view), the far
-  block's walls 18 percent (their own rim and the periodic neighbours).
+  block's walls 18 percent (their own rim and the periodic neighbors).
 - **The wall function.** The convective scale is 0.12 to 0.74 m/s on the
   268 sunlit faces at 11:00, and 96 percent of the roofs are unstable with
   their own Obukhov length by then; a few shaded rim roofs run stable.
