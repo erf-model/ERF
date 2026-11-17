@@ -99,6 +99,7 @@ groundFillFromCoarse (amrex::MultiFab& a_fine, const amrex::MultiFab& a_crse, co
     }
     if (bl.isEmpty()) { return; }
     amrex::MultiFab tmp(amrex::BoxArray(std::move(bl)), amrex::DistributionMapping(std::move(pmap)), 1, 0);
+    tmp.setVal(0.0);
     tmp.ParallelCopy(a_crse, a_ccomp, 0, 1);
     const amrex::IntVect rr = a_rr;
     for (amrex::MFIter mfi(tmp); mfi.isValid(); ++mfi) {

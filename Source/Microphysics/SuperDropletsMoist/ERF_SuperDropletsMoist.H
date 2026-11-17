@@ -208,6 +208,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Initialize m_mic_fab_vars for a non-zero AMR level */
         void InitLevel (const int a_lev, const amrex::MultiFab& a_cons_vars) override;
 
+        /*! \brief Drop the fields of a level that a regrid removes */
+        void ClearLevel (const int a_lev) override;
+
         /*! \brief Advance for one timestep
          * \param[in] dt Timestep
          * \param[in] iteration Current iteration number

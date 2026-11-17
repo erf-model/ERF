@@ -114,6 +114,12 @@ public:
         m_moist_model->AverageDownMicroVars(finest_level);
     }
 
+    /*! \brief drop the fields of a level that a regrid removes */
+    void ClearLevel (const int lev) override
+    {
+        m_moist_model->ClearLevel(lev);
+    }
+
     /*! \brief diagnostics of the state of all levels at a step */
     void Diagnostics (const int& step, /*!< step of the state */
                       const amrex::Real& time, /*!< time of the state */

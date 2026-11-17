@@ -39,7 +39,8 @@ void SuperDropletsMoist::EnsureMicFabVars (const int a_lev, const MultiFab& a_co
     if (need_recreate) {
         // The species and aerosol ground accumulations are totals since the start of the run,
         // which ERF does not keep for us: keep the old ones where the old grids were, and give
-        // the other ground cells of a fine level their share of the coarse total under them.
+        // the other ground cells of a fine level their share of the coarse total under them
+        // (which, with two-way coupling, holds the fine totals since the sync before a regrid).
         const std::vector<int> accum = groundMassAccumIdx();
         std::vector<std::shared_ptr<MultiFab>> old_accum(accum.size());
         for (std::size_t n = 0; n < accum.size(); ++n) {
@@ -47,24 +48,15 @@ void SuperDropletsMoist::EnsureMicFabVars (const int a_lev, const MultiFab& a_co
                 old_accum[n] = m_mic_fab_vars[a_lev][accum[n]];
             }
         }
-        const bool from_coarse = (a_lev > 0) && (a_lev-1 < static_cast<int>(m_mic_fab_vars.size()))
+        // before the container joins the AMR hierarchy (start-up, restart) every total is zero
+        const bool from_coarse = (a_lev > 0) && m_super_droplets && (a_lev <= m_super_droplets->maxLevel())
+                              && (a_lev-1 < static_cast<int>(m_mic_fab_vars.size()))
                               && !m_mic_fab_vars[a_lev-1].empty();
         const IntVect rr = from_coarse ? refRatioBelow(a_lev) : IntVect(1);
         auto coarse = [&] (int v) -> MultiFab* {
             return (from_coarse && v < static_cast<int>(m_mic_fab_vars[a_lev-1].size()))
                  ? m_mic_fab_vars[a_lev-1][v].get() : nullptr;
         };
-
-        // the coarse level first gets the totals under the old fine grids
-        std::unique_ptr<GroundAverageDown> ground;
-        for (std::size_t n = 0; n < accum.size(); ++n) {
-            if (!old_accum[n] || !coarse(accum[n])) { continue; }
-            if (!ground) {
-                ground = std::make_unique<GroundAverageDown>(old_accum[n]->boxArray(), old_accum[n]->DistributionMap(),
-                                                             rr, groundK(a_lev), groundK(a_lev-1));
-            }
-            ground->apply(*old_accum[n], *coarse(accum[n]), Real(1));
-        }
 
         m_mic_fab_vars[a_lev].resize(num_vars);
         for (int i = 0; i < num_vars; i++) {
@@ -94,8 +86,15 @@ int SuperDropletsMoist::groundK (const int a_lev) const
 
 IntVect SuperDropletsMoist::refRatioBelow (const int a_lev) const
 {
-    return (m_super_droplets && a_lev <= m_super_droplets->numLevels())
+    // before the container joins the AMR hierarchy its ParGDB holds level 0 only
+    return (m_super_droplets && a_lev >= 1 && a_lev <= m_super_droplets->maxLevel())
          ? m_super_droplets->GetParGDB()->refRatio(a_lev-1) : IntVect(2);
+}
+
+void SuperDropletsMoist::ClearLevel (const int a_lev)
+{
+    // a level made again later must not find these fields as its old ones
+    if (a_lev < static_cast<int>(m_mic_fab_vars.size())) { m_mic_fab_vars[a_lev].clear(); }
 }
 
 std::vector<int> SuperDropletsMoist::groundMassAccumIdx () const
