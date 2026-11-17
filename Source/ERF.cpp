@@ -428,9 +428,9 @@ ERF::ResetIntervalMeans ()
 // different horizontal regions has a bounding box reaching both domain ends while no single
 // box holds a column.
 //
-// RRTMGP records its own predicate at Init and it stays authoritative for that model. The
-// two-stream model has no IRadiation object -- reading rad[] would dereference a null
-// pointer -- so derive it from the grids.
+// Every model uses this same per-box test (RRTMGP and RadiationSimple in their Init, the
+// two-stream solver in its advance), so derive it from the grids here. That also covers the
+// two-stream model, which has no IRadiation object to ask.
 //
 // This lives here, rather than as a lambda in one caller, because three places have to
 // agree about it: advance_radiation (which routes such a level through
@@ -440,7 +440,6 @@ bool
 ERF::rad_level_needs_interpolation (int lev) const
 {
     if (lev <= 0) { return false; }
-    if (solverChoice.rad_uses_interface() && rad[lev]) { return rad[lev]->is_nested_patch(); }
     const Box& dom = geom[lev].Domain();
     for (int ibox = 0; ibox < grids[lev].size(); ++ibox) {
         const Box& b = grids[lev][ibox];

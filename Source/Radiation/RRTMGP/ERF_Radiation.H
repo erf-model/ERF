@@ -71,11 +71,22 @@ public:
         int klo = geom.Domain().smallEnd(2);
         int khi = geom.Domain().bigEnd(2);
 
-        // Detect nested patches: a nested fine level doesn't span the full domain vertically.
-        // Use ba.minimalBox() which gives the bounding box of all grids on this level.
-        // If that box doesn't reach the domain top or bottom, it's a nested patch.
-        amrex::Box minimal_box = ba.minimalBox();
-        bool is_nested_patch = (minimal_box.smallEnd(2) > klo) || (minimal_box.bigEnd(2) < khi);
+        // Detect nested patches: a fine level on which some box does not span the domain
+        // vertically. The column sweep needs a whole column inside ONE box, so test each box
+        // rather than the level's bounding box -- a level with a full-column box and a box
+        // aloft elsewhere has a bounding box reaching both domain ends while not every box
+        // holds a column. Same test as RadiationSimple and TwoStream.
+        bool is_nested_patch = false;
+        for (int ib = 0; ib < ba.size(); ++ib) {
+            if (ba[ib].smallEnd(2) != klo || ba[ib].bigEnd(2) != khi) {
+                is_nested_patch = true;
+                break;
+            }
+        }
+
+        // Level 0 has no parent to interpolate from, so a z-split there cannot be skipped
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(is_nested_patch && m_lev == 0),
+            "RRTMGP: every level-0 box must span the domain in z (do not split grids in z)");
 
         // Update the nested patch flag - must be set/cleared on every Init call
         // so that levels that stop being nested after regrid will resume radiation computation
@@ -94,8 +105,7 @@ public:
         m_col_offsets.resize(int(ba.size()));
         for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
             const amrex::Box& vbx = mfi.validbox();
-            // This assertion catches true vertical MPI decomposition (individual boxes that don't
-            // span the full domain height). The nested patch case is handled above by returning early.
+            // Cannot fire: any box that does not span the column was caught above.
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
                                              (khi == vbx.bigEnd(2)),
                                              "Vertical decomposition with radiation is not allowed.");
