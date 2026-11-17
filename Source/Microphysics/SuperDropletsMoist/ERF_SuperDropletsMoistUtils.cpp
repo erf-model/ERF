@@ -1,5 +1,6 @@
 #include "ERF_SuperDropletsMoist.H"
 #include "ERF_EOS.H"
+#include "ERF_GroundAverageDown.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_MicrophysicsUtils.H"
 
@@ -387,47 +388,6 @@ void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars,
     Copy_State_to_Micro(a_cons_vars, base_state);
 }
 
-/*! \brief Restrict a ground accumulation from the bottom layer of the fine level
- *  to the bottom layer of the coarse level, as a_scale times the fine sum */
-static void averageDownGround (const MultiFab& a_fine, MultiFab& a_crse, const IntVect& a_rr,
-                               const int a_kf, const int a_kc, const Real a_scale)
-{
-    const BoxArray& fba = a_fine.boxArray();
-    BoxList bl;
-    Vector<int> fine_box, pmap;
-    for (int ib = 0; ib < fba.size(); ++ib) {
-        if (fba[ib].smallEnd(2) != a_kf) { continue; }
-        Box s = coarsen(fba[ib], a_rr);
-        s.setRange(2, a_kc);
-        bl.push_back(s);
-        fine_box.push_back(ib);
-        pmap.push_back(a_fine.DistributionMap()[ib]);
-    }
-    if (!bl.isEmpty()) {
-        const BoxArray cba(std::move(bl));
-        const DistributionMapping cdm(std::move(pmap));
-        MultiFab tmp(cba, cdm, 1, 0);
-        for (MFIter mfi(tmp); mfi.isValid(); ++mfi) {
-            const auto f = a_fine.const_array(fine_box[mfi.index()]);
-            const auto c = tmp.array(mfi);
-            const IntVect rr = a_rr;
-            const int kf = a_kf;
-            const Real scale = a_scale;
-            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int ic, int jc, int kc) noexcept
-            {
-                Real sum = 0.0;
-                for (int j = jc*rr[1]; j < (jc+1)*rr[1]; ++j) {
-                    for (int i = ic*rr[0]; i < (ic+1)*rr[0]; ++i) {
-                        sum += f(i,j,kf);
-                    }
-                }
-                c(ic,jc,kc) = scale * sum;
-            });
-        }
-        a_crse.ParallelCopy(tmp, 0, 0, 1);
-    }
-}
-
 /*! \brief Average down moisture multifabs from the finest level down to 0
  *
  * For each level pair (lev, lev-1) from finest_level down to 1, restrict
@@ -468,14 +428,22 @@ void SuperDropletsMoist::AverageDownMicroVars (const int finest_level)
             if (v < n) { ground_scale[v] = Real(1); }
         }
 
+        // the ground layer of a level, as the accumulations take it
+        auto k_ground = [&] (int l) {
+            return (m_super_droplets && l < m_super_droplets->numLevels())
+                 ? m_super_droplets->Geom(l).Domain().smallEnd(2) : m_geom.Domain().smallEnd(2);
+        };
+        std::unique_ptr<GroundAverageDown> ground;
+
         for (int v = 0; v < n; ++v) {
             if (!m_mic_fab_vars[lev][v] || !m_mic_fab_vars[lev-1][v]) continue;
             if (ground_scale[v] > Real(0)) {
-                AMREX_ALWAYS_ASSERT(m_super_droplets != nullptr);
-                averageDownGround( *m_mic_fab_vars[lev][v], *m_mic_fab_vars[lev-1][v], rr,
-                                   m_super_droplets->Geom(lev).Domain().smallEnd(2),
-                                   m_super_droplets->Geom(lev-1).Domain().smallEnd(2),
-                                   ground_scale[v] );
+                if (!ground) {
+                    ground = std::make_unique<GroundAverageDown>(
+                        m_mic_fab_vars[lev][v]->boxArray(), m_mic_fab_vars[lev][v]->DistributionMap(),
+                        rr, k_ground(lev), k_ground(lev-1));
+                }
+                ground->apply(*m_mic_fab_vars[lev][v], *m_mic_fab_vars[lev-1][v], ground_scale[v]);
                 continue;
             }
             average_down( *m_mic_fab_vars[lev][v],
