@@ -68,10 +68,14 @@ ERF::initRayleigh_at_level (const int& lev)
     // With an input sounding, ubar, vbar and thetabar come from it (wbar is zero); the
     // damping coefficient set by erf_init_rayleigh is still used.  Doing it here, rather
     // than once at start-up, keeps the sounding on a level a regrid remakes or creates.
-    // (A level remade on restart before the sounding is reloaded keeps the defaults until
-    // InitData_post sets every level again.)
-    if (solverChoice.init_type == InitType::Input_Sounding &&
-        !input_sounding_data.z_inp_sound.empty() && !input_sounding_data.z_inp_sound[0].empty()) {
+    // Every caller (InitData_post, and RemakeLevel / MakeNewLevelFromCoarse, which run only
+    // from regrid after InitData_post) comes after the sounding is loaded, so a missing
+    // sounding is an error rather than a level to leave with the problem defaults.
+    if (solverChoice.init_type == InitType::Input_Sounding) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!input_sounding_data.z_inp_sound.empty() &&
+                                         !input_sounding_data.z_inp_sound[0].empty(),
+            "initRayleigh_at_level: the input sounding must be loaded before the Rayleigh "
+            "reference profiles are set");
         setRayleighRefFromSounding_at_level(lev);
     }
 
@@ -86,20 +90,24 @@ ERF::initRayleigh_at_level (const int& lev)
 
 /**
  * Sets the Rayleigh Damping reference profiles at one level from the input sounding
- * (sounding 0), at the cell-centre heights of that level.  Called from
- * initRayleigh_at_level, before the profiles are copied to the device.  The sounding is
- * already loaded: at start-up by init_only, on a restart by MakeNewLevelFromScratch.
+ * (sounding 0), at the cell-centre heights of that level.  The sounding is the one
+ * sampled at this level's own cell centres (sounding_at_level), as for the level's
+ * initial state, so that the damping targets are the profile the level starts from.
+ * Called from initRayleigh_at_level, before the profiles are copied to the device.  The
+ * sounding is already loaded: at start-up by init_only, on a restart by
+ * MakeNewLevelFromScratch.
  *
  * @param[in] lev Level whose reference profiles to set
  */
 void
 ERF::setRayleighRefFromSounding_at_level (int lev)
 {
-    const Real* z_inp_sound     = input_sounding_data.z_inp_sound[0].dataPtr();
-    const Real* U_inp_sound     = input_sounding_data.U_inp_sound[0].dataPtr();
-    const Real* V_inp_sound     = input_sounding_data.V_inp_sound[0].dataPtr();
-    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound[0].dataPtr();
-    const int   inp_sound_size  = input_sounding_data.size(0);
+    const InputSoundingData& snd = sounding_at_level(lev);
+    const Real* z_inp_sound     = snd.z_inp_sound[0].dataPtr();
+    const Real* U_inp_sound     = snd.U_inp_sound[0].dataPtr();
+    const Real* V_inp_sound     = snd.V_inp_sound[0].dataPtr();
+    const Real* theta_inp_sound = snd.theta_inp_sound[0].dataPtr();
+    const int   inp_sound_size  = snd.size(0);
 
     const int Nz = geom[lev].Domain().length(2);
     for (int k = 0; k < Nz; k++)

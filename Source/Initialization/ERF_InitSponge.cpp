@@ -51,11 +51,9 @@ ERF::initSponge ()
 void
 ERF::initSponge_at_level (int lev)
 {
-    // A level made while the initial grids are built comes before initSponge sizes these
-    if (static_cast<int>(h_sponge_ptrs.size()) <= lev) {
-        h_sponge_ptrs.resize(max_level+1);
-        d_sponge_ptrs.resize(max_level+1);
-    }
+    // initSponge sizes these for every possible level before any level is set up here
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(h_sponge_ptrs.size()) > lev,
+        "initSponge_at_level: initSponge must size the sponge vectors first");
 
     // These have 2 components: ubar, vbar
     h_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
@@ -102,9 +100,10 @@ ERF::setSpongeRefFromSounding (bool restarting)
 void
 ERF::setSpongeRef_at_level (int lev)
 {
-    // Before the file is read (a level remade on restart before InitData_post), there is
-    // nothing to set; InitData_post then sets every level
-    if (input_sponge_data.size() == 0) { return; }
+    // Every caller comes after the file is read: InitData_post, and a regrid after it
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(input_sponge_data.size() > 0,
+        "setSpongeRef_at_level: the input sponge file must be read before the sponge "
+        "profiles are set");
 
     const Real* z_inp_sponge     = input_sponge_data.z_inp_sponge.dataPtr();
     const Real* U_inp_sponge     = input_sponge_data.U_inp_sponge.dataPtr();

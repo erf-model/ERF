@@ -1795,11 +1795,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         initRayleigh_at_level(lev);
     }
 
-    // The input-sponge profiles of this level, at the heights of its new grids (once they
-    // exist: a level-0 regrid on restart comes before InitData_post sets them up)
-    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge &&
-        static_cast<int>(h_sponge_ptrs.size()) > lev &&
-        static_cast<int>(h_sponge_ptrs[lev].size()) == Sponge::nvars_sponge) {
+    // The input-sponge profiles of this level, at the heights of its new grids.  RemakeLevel
+    // runs only from regrid, after InitData_post has allocated them for every existing level
+    // (a level-0 regrid on restart goes through MakeNewLevelFromScratch instead)
+    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(h_sponge_ptrs.size()) > lev &&
+                                         static_cast<int>(h_sponge_ptrs[lev].size()) == Sponge::nvars_sponge,
+            "RemakeLevel: the input-sponge profiles must be allocated before a regrid");
         setSpongeRef_at_level(lev);
     }
 
