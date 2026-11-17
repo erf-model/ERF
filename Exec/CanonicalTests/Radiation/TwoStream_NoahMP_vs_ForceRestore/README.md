@@ -89,7 +89,7 @@ vs force-restore:
 | LE [W/m²] | -4.1 vs -3.4 | -3.8 vs -3.2 |
 | PBL height [m] | 1477 vs 1406 | 1809 vs 1713 |
 
-At the wilting point both bare soils take up a little vapour (LE of -3 to -4 W/m²): the
+At the wilting point both bare soils take up a little vapor (LE of -3 to -4 W/m²): the
 pore air is nearly dry (relative humidity about 0.005), so the bare-soil evaporation follows
 Noah-MP's pore-air humidity, not only its resistance.
 

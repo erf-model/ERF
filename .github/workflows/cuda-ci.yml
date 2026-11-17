@@ -31,6 +31,9 @@ on:
       - '.github/actions/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # Development pushes finish the active run and keep only the newest pending commit.
 # PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
@@ -71,7 +74,7 @@ jobs:
             cuda_pkg: 12-2
             cuda_arch: "8.0"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -94,7 +97,7 @@ jobs:
       - name: Restore legacy Actions cache
         if: steps.ghcr-cache.outputs.hit != 'true'
         continue-on-error: true
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ccache
           key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}

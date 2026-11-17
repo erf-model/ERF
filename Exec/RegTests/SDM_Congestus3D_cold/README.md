@@ -31,7 +31,7 @@ sounding) to drive a set of single-process ice-microphysics verification columns
 Single-process tests in a prescribed (kinematic) 1D column, each with its own sounding:
 
 - `inputs_SDM_ice_sublimation` - monodisperse ice injected at the top of an isothermal
-  (-15 C), subsaturated-over-ice column falls and loses mass by vapour diffusion.
+  (-15 C), subsaturated-over-ice column falls and loses mass by vapor diffusion.
 - `inputs_SDM_ice_melting` - low-density ice flakes injected at the 0 C top fall into warmer
   air and melt, with the mixed-phase terminal velocity blending from ice to water.
 - `inputs_SDM_ice_freezing` - supercooled droplets carrying an insoluble INP, injected at the

@@ -7,7 +7,7 @@ Checks the constant mass-flux control in `make_mom_sources` (`erf.const_massflux
 with `amrex.fpe_trap_invalid = 1`.
 
 Without a mass flux the cross-sectional areas of the control are zero. The control
-divides by them only when they are positive, but an optimised build may divide first
+divides by them only when they are positive, but an optimized build may divide first
 and test the area afterwards. The 0/0 then trips the invalid-operation trap, although
 the result is not used. Before the fix, Apple clang Release and RelWithDebInfo builds
 stopped with SIGILL at step 1 (the code came in with erf-model/ERF#4749). Builds that
