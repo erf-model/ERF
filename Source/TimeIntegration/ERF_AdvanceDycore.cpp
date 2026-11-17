@@ -92,6 +92,8 @@ void ERF::advance_dycore (int level,
     Vector<Real*> d_sponge_ptrs_at_lev;
     if (SpongeChoice::sponge_type == SpongeType::Input_Sponge)
     {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(d_sponge_ptrs[level].size() == Sponge::nvars_sponge,
+                                         "input_sponge profiles were not set up at this level");
         d_sponge_ptrs_at_lev.resize(Sponge::nvars_sponge);
         d_sponge_ptrs_at_lev[Sponge::ubar_sponge]  =  d_sponge_ptrs[level][Sponge::ubar_sponge].data();
         d_sponge_ptrs_at_lev[Sponge::vbar_sponge]  =  d_sponge_ptrs[level][Sponge::vbar_sponge].data();

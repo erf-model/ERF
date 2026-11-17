@@ -1,6 +1,7 @@
 #ifndef ERF_H_
 #define ERF_H_
 
+#include <algorithm>
 #include <string>
 #include <cstdint>
 #include <limits>
@@ -1450,14 +1451,20 @@ private:
     //! Initialize Rayleigh damping profiles at a level
     void initRayleigh_at_level (const int& lev);
 
-    //! Initialize sponge profiles
+    //! Initialize sponge profiles at every level that exists
     void initSponge ();
 
-    //! Set Rayleigh mean profiles from input sounding
-    void setRayleighRefFromSounding (bool restarting);
+    //! Allocate the sponge profiles at a level
+    void initSponge_at_level (int lev);
 
-    //! Set sponge mean profiles from input sounding
+    //! Set Rayleigh mean profiles at a level from the input sounding
+    void setRayleighRefFromSounding_at_level (int lev);
+
+    //! Set sponge mean profiles from the input sponge file at every level that exists
     void setSpongeRefFromSounding (bool restarting);
+
+    //! Set sponge mean profiles at a level from the input sponge file (already read)
+    void setSpongeRef_at_level (int lev);
 
     // a wrapper for estTimeStep()
     void ComputeDt (int step = -1, double cur_time_d = 0.0);
@@ -2556,54 +2563,28 @@ private:
             return ngrow;
         }
 
-        if (
-             (sc.advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
-          || (sc.advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
-          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-          || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
-          || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
-        { ngrow = 3; }
-        else if (
-             (sc.advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
-          || (sc.advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
-          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-          || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
-          || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
-        { ngrow = 3; }
-        else if (
-              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_5)
-           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_5)
-           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
-           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
-           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
-           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5) )
-        { ngrow = 3; }
-        else if (
-              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_5Z)
-           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_5Z)
-           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
-           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z)
-           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
-           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z) )
-        { ngrow = 3; }
-        else if (
-              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_7)
-           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_7)
-           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7)
-           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7)
-           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7)
-           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7) )
-        { ngrow = 3; }
-        else if (
-              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_7Z)
-           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_7Z)
-           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7Z)
-           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7Z)
-           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7Z)
-           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7Z) )
-        { ngrow = 4; }
+        // Ghost cells each advection scheme needs; the largest over the six scheme choices
+        // (dycore, dry and moist scalars, each horizontal and vertical) is taken, so no
+        // choice can be missed and a wider scheme is never masked by a narrower one
+        auto adv_ghost_cells = [] (AdvType t) {
+            switch (t) {
+                case AdvType::Centered_6th:
+                case AdvType::Upwind_5th:
+                case AdvType::Weno_5:
+                case AdvType::Weno_5Z: return 3;
+                // WENO7 and WENO_Z7 read i-4..i+3, so the momentum fluxes reach four
+                // cells beyond the faces of a tile in the velocities
+                case AdvType::Weno_7:
+                case AdvType::Weno_7Z: return 4;
+                default:               return 2;
+            }
+        };
+        const auto& ac = sc.advChoice;
+        for (const AdvType t : {ac.dycore_horiz_adv_type,    ac.dycore_vert_adv_type,
+                                ac.dryscal_horiz_adv_type,   ac.dryscal_vert_adv_type,
+                                ac.moistscal_horiz_adv_type, ac.moistscal_vert_adv_type}) {
+            ngrow = std::max(ngrow, adv_ghost_cells(t));
+        }
 
         return ngrow;
     }
