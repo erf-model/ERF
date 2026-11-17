@@ -164,11 +164,11 @@ Radiation::Radiation (const int& lev,
     // The O3 default is a single near-surface value applied to every layer, which
     // is far too low in the stratosphere; warn so deep runs do not use it silently
     if (!pp.queryAdd("o3vmr", m_o3vmr) && lev == 0) {
-        std::ostringstream o3_str; o3_str << m_o3vmr[0];
-        amrex::Warning("erf.o3vmr is not set: using " + o3_str.str() +
-                       " at every layer. This near-surface value underestimates ozone"
-                       " (and shortwave heating) aloft; set erf.o3vmr to a profile for"
-                       " domains that reach the stratosphere.");
+        // amrex::Warning prints on every rank, so print once from the I/O rank instead
+        amrex::Print() << "WARNING: erf.o3vmr is not set: using " << m_o3vmr[0]
+                       << " at every layer. This near-surface value underestimates ozone"
+                          " (and shortwave heating) aloft; set erf.o3vmr to a profile for"
+                          " domains that reach the stratosphere.\n";
     }
     pp.queryAdd("n2ovmr", m_n2ovmr);
     pp.queryAdd("covmr" , m_covmr );
