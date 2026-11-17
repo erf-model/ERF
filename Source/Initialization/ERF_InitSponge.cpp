@@ -29,7 +29,7 @@ ERF::input_sponge (int lev)
 
 /**
  * Initialization function for host and device vectors
- * used to store the effects of sponge Damping.
+ * used to store the effects of sponge Damping, at every level that exists.
  */
 void
 ERF::initSponge ()
@@ -37,26 +37,40 @@ ERF::initSponge ()
     h_sponge_ptrs.resize(max_level+1);
     d_sponge_ptrs.resize(max_level+1);
 
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        // These have 2 components: ubar, vbar
-        h_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
-        d_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
+    for (int lev = 0; lev <= finest_level; lev++) {
+        initSponge_at_level(lev);
+    }
+}
 
-        const int zlen_sponge = geom[lev].Domain().length(2);
+/**
+ * Allocate the sponge profiles (ubar, vbar) at one level.  Called for every level at
+ * start-up, and for a level a regrid creates later (MakeNewLevelFromCoarse).
+ *
+ * @param[in] lev Level whose profiles to allocate
+ */
+void
+ERF::initSponge_at_level (int lev)
+{
+    // initSponge sizes these for every possible level before any level is set up here
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(h_sponge_ptrs.size()) > lev,
+        "initSponge_at_level: initSponge must size the sponge vectors first");
 
-        // Allocate space for these 1D vectors
-        for (int n = 0; n < Sponge::nvars_sponge; n++) {
-            h_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
-            d_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
-        }
+    // These have 2 components: ubar, vbar
+    h_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
+    d_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
 
+    const int zlen_sponge = geom[lev].Domain().length(2);
+
+    // Allocate space for these 1D vectors
+    for (int n = 0; n < Sponge::nvars_sponge; n++) {
+        h_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
+        d_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
     }
 }
 
 /**
  * Sets the sponge damping averaged quantities from an
- * externally supplied input sponge data file.
+ * externally supplied input sponge data file, at every level that exists.
  *
  * @param[in] restarting Boolean parameter that indicates whether
                          we are currently restarting from a checkpoint file.
@@ -71,42 +85,59 @@ ERF::setSpongeRefFromSounding (bool restarting)
         input_sponge_data.read_from_file(geom[0], zlevels_stag[0]);
     }
 
+    for (int lev = 0; lev <= finest_level; lev++) {
+        setSpongeRef_at_level(lev);
+    }
+}
+
+/**
+ * Sets the sponge profiles at one level from the input sponge data, which must already
+ * have been read (this does not read the file).  Called for every level at start-up, and
+ * for a level a regrid creates or remakes.
+ *
+ * @param[in] lev Level whose profiles to set
+ */
+void
+ERF::setSpongeRef_at_level (int lev)
+{
+    // Every caller comes after the file is read: InitData_post, and a regrid after it
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(input_sponge_data.size() > 0,
+        "setSpongeRef_at_level: the input sponge file must be read before the sponge "
+        "profiles are set");
+
     const Real* z_inp_sponge     = input_sponge_data.z_inp_sponge.dataPtr();
     const Real* U_inp_sponge     = input_sponge_data.U_inp_sponge.dataPtr();
     const Real* V_inp_sponge     = input_sponge_data.V_inp_sponge.dataPtr();
     const int   inp_sponge_size  = input_sponge_data.size();
 
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        const int khi = geom[lev].Domain().bigEnd()[2];
-        Vector<Real> zcc(khi+1);
+    const int khi = geom[lev].Domain().bigEnd()[2];
+    Vector<Real> zcc(khi+1);
 
-        if (z_phys_cc[lev]) {
-            // use_terrain=1
-            // calculate the damping strength based on the max height at each k
-            // A k that no grid of this level holds (a refined region that does not reach the
-            // top) has no cells to damp; it gets the nominal height, so its profile entry is
-            // still a value of the input sponge
-            reduce_to_max_per_height(zcc, z_phys_cc[lev], zlevels_stag[lev]);
-        } else {
-            const auto *const prob_lo = geom[lev].ProbLo();
-            const auto *const dx = geom[lev].CellSize();
-            for (int k = 0; k <= khi; k++)
-            {
-                zcc[k] = prob_lo[2] + (k+myhalf) * dx[2];
-            }
-        }
-
+    if (z_phys_cc[lev]) {
+        // use_terrain=1
+        // calculate the damping strength based on the max height at each k
+        // A k that no grid of this level holds (a refined region that does not reach the
+        // top) has no cells to damp; it gets the nominal height, so its profile entry is
+        // still a value of the input sponge
+        reduce_to_max_per_height(zcc, z_phys_cc[lev], zlevels_stag[lev]);
+    } else {
+        const auto *const prob_lo = geom[lev].ProbLo();
+        const auto *const dx = geom[lev].CellSize();
         for (int k = 0; k <= khi; k++)
         {
-            h_sponge_ptrs[lev][Sponge::ubar_sponge][k] = interpolate_1d(z_inp_sponge, U_inp_sponge, zcc[k], inp_sponge_size);
-            h_sponge_ptrs[lev][Sponge::vbar_sponge][k] = interpolate_1d(z_inp_sponge, V_inp_sponge, zcc[k], inp_sponge_size);
+            zcc[k] = prob_lo[2] + (k+myhalf) * dx[2];
         }
-
-        // Copy from host version to device version
-        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::ubar_sponge].begin(), h_sponge_ptrs[lev][Sponge::ubar_sponge].end(),
-                         d_sponge_ptrs[lev][Sponge::ubar_sponge].begin());
-        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::vbar_sponge].begin(), h_sponge_ptrs[lev][Sponge::vbar_sponge].end(),
-                         d_sponge_ptrs[lev][Sponge::vbar_sponge].begin());
     }
+
+    for (int k = 0; k <= khi; k++)
+    {
+        h_sponge_ptrs[lev][Sponge::ubar_sponge][k] = interpolate_1d(z_inp_sponge, U_inp_sponge, zcc[k], inp_sponge_size);
+        h_sponge_ptrs[lev][Sponge::vbar_sponge][k] = interpolate_1d(z_inp_sponge, V_inp_sponge, zcc[k], inp_sponge_size);
+    }
+
+    // Copy from host version to device version
+    Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::ubar_sponge].begin(), h_sponge_ptrs[lev][Sponge::ubar_sponge].end(),
+                     d_sponge_ptrs[lev][Sponge::ubar_sponge].begin());
+    Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::vbar_sponge].begin(), h_sponge_ptrs[lev][Sponge::vbar_sponge].end(),
+                     d_sponge_ptrs[lev][Sponge::vbar_sponge].begin());
 }
