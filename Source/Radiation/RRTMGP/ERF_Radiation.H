@@ -89,6 +89,15 @@ public:
         // Reset vector of offsets for columnar data
         m_nlay = geom.Domain().length(2);
 
+        // Check the O3 profile here, where nlay is first known for this level,
+        // rather than at the first radiation update
+        if (m_o3vmr.size() != 1 && int(m_o3vmr.size()) != m_nlay) {
+            amrex::Abort("erf.o3vmr has " + std::to_string(m_o3vmr.size()) +
+                         " values, but level " + std::to_string(m_lev) + " has " +
+                         std::to_string(m_nlay) + " vertical cells: give one value, or one" +
+                         " value per vertical cell of every level that runs radiation.");
+        }
+
         m_ncol = 0;
         m_col_offsets.clear();
         m_col_offsets.resize(int(ba.size()));
@@ -404,7 +413,8 @@ private:
 
     // Prescribed greenhouse gas surface concentrations in moles / moles air
     amrex::Real m_co2vmr = amrex::Real(388.717e-6);
-    amrex::Vector<amrex::Real> m_o3vmr;
+    // One value applies to the whole column; otherwise one value per layer (nlay)
+    amrex::Vector<amrex::Real> m_o3vmr{amrex::Real(3.0e-8)};
     amrex::Real m_n2ovmr = amrex::Real(323.141e-9);
     amrex::Real m_covmr  = amrex::Real(1.0e-7);
     amrex::Real m_ch4vmr = amrex::Real(1807.851e-9);

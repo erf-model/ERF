@@ -87,6 +87,7 @@ Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
 {
     // Note that Kokkos is now initialized in main.cpp
+    m_lev   = lev;
     m_rdOcp = sc.rdOcp;
 
     // Check if we have a valid moisture model
@@ -160,9 +161,15 @@ Radiation::Radiation (const int& lev,
 
     // Get prescribed surface values of greenhouse gases
     pp.queryAdd("co2vmr", m_co2vmr);
-    pp.queryarr("o3vmr" , m_o3vmr );
-    // Default to a single (column-invariant) value if no O3 profile is given
-    if (m_o3vmr.empty()) { m_o3vmr.push_back(amrex::Real(3.0e-8)); }
+    // The O3 default is a single near-surface value applied to every layer, which
+    // is far too low in the stratosphere; warn so deep runs do not use it silently
+    if (!pp.queryAdd("o3vmr", m_o3vmr) && lev == 0) {
+        std::ostringstream o3_str; o3_str << m_o3vmr[0];
+        amrex::Warning("erf.o3vmr is not set: using " + o3_str.str() +
+                       " at every layer. This near-surface value underestimates ozone"
+                       " (and shortwave heating) aloft; set erf.o3vmr to a profile for"
+                       " domains that reach the stratosphere.");
+    }
     pp.queryAdd("n2ovmr", m_n2ovmr);
     pp.queryAdd("covmr" , m_covmr );
     pp.queryAdd("ch4vmr", m_ch4vmr);
@@ -351,7 +358,7 @@ Radiation::alloc_buffers ()
     // 1d size (1 or nlay)
     m_o3_size = m_o3vmr.size();
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(((m_o3_size==1) || (m_o3_size==m_nlay)),
-                                     "O3 VMR array must be length 1 or nlay");
+                                     "erf.o3vmr must have 1 or nlay values");
     Real* o3vmr_p = m_o3vmr.data();
     o3_lay = real1d_k("o3_lay", m_o3_size);
     realHost1d_k o3_lay_h("o3_lay_h", m_o3_size);
