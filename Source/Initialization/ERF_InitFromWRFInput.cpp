@@ -429,6 +429,23 @@ wrf_max_first_layer_thickness (const MultiFab& mf_PH,
     return dz0_max;
 }
 
+/** Replace PSFC values in the requested covered region with the reference pressure. */
+void
+replace_covered_psfc_with_p0 (MultiFab& mf_PSFC, const Box& region, Real p0)
+{
+    for (MFIter mfi(mf_PSFC, false); mfi.isValid(); ++mfi) {
+        const Box covered = mfi.fabbox() & region;
+        if (covered.ok()) {
+            const auto psfc_arr = mf_PSFC.array(mfi);
+            ParallelFor(covered, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                psfc_arr(i,j,k) = p0;
+            });
+        }
+    }
+    Gpu::streamSynchronize();
+}
+
 } // namespace
 using namespace erf_detail_InitFromWRFInput;
 
@@ -3542,17 +3559,7 @@ ERF::read_psfc_from_own_init_file (int lev, bool allow_uncovered)
     const bool all_zero_psfc = local_has_valid_file_data != 0 &&
                                local_has_nonzero_file_data == 0;
     if (all_zero_psfc) {
-        for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
-            const Box covered = mfi.fabbox() & psfc_erf_box;
-            if (covered.ok()) {
-                const auto psfc_arr = mf_PSFC[lev]->array(mfi);
-                ParallelFor(covered, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    psfc_arr(i,j,k) = p_0;
-                });
-            }
-        }
-        Gpu::streamSynchronize();
+        replace_covered_psfc_with_p0(*mf_PSFC[lev], psfc_erf_box, p_0);
         Print() << "PSFC in " << nc_init_file[lev][0]
                 << " is all zero on the covered level-" << lev
                 << " domain; replacing its covered cells with p_0\n";
