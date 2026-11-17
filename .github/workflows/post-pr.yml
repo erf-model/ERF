@@ -10,6 +10,8 @@ on:
 # here is to trigger the workflow_run workflow that does have the right
 # permission, cancel-stale-ci.yml, to cancel whatever the PR left running.
 
+permissions: {}
+
 jobs:
   noop:
     runs-on: ubuntu-22.04

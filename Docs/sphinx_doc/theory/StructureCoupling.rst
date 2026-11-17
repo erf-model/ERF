@@ -87,7 +87,7 @@ and its checkpoint data.
        infinite.
    * - ``add_momentum_sources()``
      - At every Runge-Kutta stage of the model's level: the model adds its force
-       on the air [N/m\ :sup:`3`] to the face-centred momentum sources. The source
+       on the air [N/m\ :sup:`3`] to the face-centered momentum sources. The source
        is held fixed over the step. ERF applies no mask to it: the model keeps
        its kernels clear of embedded boundaries, immersed terrain and buildings.
    * - ``write_checkpoint()``
@@ -286,7 +286,7 @@ Test
 
 ``Structures_ExampleModel`` runs the example model in a periodic box of still air
 with no gravity, friction or Coriolis force, on two ranks, with a step of 0.25 s. A point at the box
-centre pushes on the air with :math:`F_x = 50` N. With periodic sides and slip
+center pushes on the air with :math:`F_x = 50` N. With periodic sides and slip
 walls, nothing else changes the air's x-momentum, so after :math:`t = 4` s
 
 .. math::

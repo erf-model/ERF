@@ -36,6 +36,9 @@ on:
       - '.github/workflows/parent-project.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-parent-project
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
@@ -48,7 +51,7 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
 
@@ -60,7 +63,7 @@ jobs:
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
     - name: Cache
-      uses: actions/cache@v6
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/ccache
         key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
