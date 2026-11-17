@@ -85,7 +85,9 @@ class WorkflowTests(unittest.TestCase):
     def test_gnumake_cache_covers_both_builds_and_preserves_smoke(self):
         job = self.workflows["gcc.yml"]["jobs"]["gnumake"]
         self.assertEqual(job["if"], "github.event_name != 'pull_request'")
-        self.assertEqual(job["env"]["CCACHE_COMPILERCHECK"], "%compiler% --version")
+        self.assertEqual(job["env"]["CCACHE_COMPILERCHECK"],
+                         "%compiler% --version; %compiler% --showme:version; "
+                         "%compiler% --showme:command; %compiler% --showme:compile")
         self.assertEqual(job["env"]["CCACHE_BASEDIR"], "${{ github.workspace }}")
         self.assertEqual(job["env"]["CCACHE_DIR"], "/home/runner/.cache/ccache-gnumake")
         steps = job["steps"]
@@ -100,10 +102,15 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(builds[1][1]["shell"], "bash")
         self.assertIn("mpiexec -n 2", builds[1][1]["run"])
         self.assertIn('grep -q "structure_example_fx"', builds[1][1]["run"])
+        identity_test = next(i for i, s in enumerate(steps)
+                             if s.get("name") == "Test MPI wrapper cache identity")
+        self.assertEqual(steps[identity_test]["run"],
+                         "bash .github/tests/test_gnumake_ccache_identity.sh")
         initialize = next(i for i, s in enumerate(steps)
                           if s.get("name") == "Initialize compiler cache statistics")
         prune = next(i for i, s in enumerate(steps)
                      if s.get("name") == "Prune and report compiler cache")
+        self.assertLess(identity_test, calls[0][0])
         self.assertLess(calls[0][0], initialize)
         self.assertLess(initialize, builds[0][0])
         self.assertLess(builds[-1][0], prune)

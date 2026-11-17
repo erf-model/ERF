@@ -269,8 +269,8 @@ jobs:
       CCACHE_TRUNK_KEY: ubuntu-22.04-x64-gcc-openmpi-gnumake-double-base-structure
       CCACHE_DIR: /home/runner/.cache/ccache-gnumake
       CCACHE_BASEDIR: ${{ github.workspace }}
-      # mpicxx is a wrapper; include the version it reports in compiler identity.
-      CCACHE_COMPILERCHECK: '%compiler% --version'
+      # Include the Open MPI wrapper's effective compiler and compile flags.
+      CCACHE_COMPILERCHECK: '%compiler% --version; %compiler% --showme:version; %compiler% --showme:command; %compiler% --showme:compile'
       CCACHE_COMPRESS: '1'
       CCACHE_COMPRESSLEVEL: '10'
     steps:
@@ -285,6 +285,9 @@ jobs:
 
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+
+    - name: Test MPI wrapper cache identity
+      run: bash .github/tests/test_gnumake_ccache_identity.sh
 
     - name: Restore Cache
       uses: ./.github/actions/ccache-trunk
