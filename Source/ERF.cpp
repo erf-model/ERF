@@ -4081,6 +4081,10 @@ ERF::ReadParameters ()
         pp.queryAdd("plot2d_per_1",  m_plot2d_per_1);
         pp.queryAdd("plot2d_per_2",  m_plot2d_per_2);
 
+        // Write the 3D/2D plotfiles and subvolumes at the restart time (they then resume
+        // their schedules); off, a restart writes nothing until the next scheduled output
+        pp.queryAdd("plot_file_on_restart", plot_file_on_restart);
+
         // Abort on an invalid cloud-optics setting now, not at the first Plot2D write
         cloud_optics_parameters = plotfile2d::parse_cloud_optics_parameters();
 
