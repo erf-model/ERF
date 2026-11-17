@@ -17,6 +17,19 @@
        models that pass it where a Real is expected (e.g. std::min(Real, step.dt)) need
        a static_cast<amrex::Real>, and plug-ins must be rebuilt (#5085)
 
+    -- The surface layer stores and interpolates SST/TSK in K, then converts them to
+       potential temperature with current local model surface pressure (#5123). Checkpoints
+       use surface_temperature_contract 2; older potential-temperature arrays are migrated
+       using checkpoint init provenance. WRFInput migration reads local PSFC regions, with
+       parent pressure filling fine-level gaps. Fine-level migration is approximate where
+       RemakeLevel may have replaced values with parent-interpolated potential temperature:
+       checkpoints do not record per-cell source provenance, and pressure conversion does
+       not commute with spatial interpolation. Metgrid version-1 migration uses diagnosed
+       ground pressure on ground-touching boxes and parent ground pressure for aloft-only
+       boxes; the original input pressure is unavailable. These limits are reported on
+       restart. Markerless Metgrid checkpoints remain supported, unused placeholders are
+       preserved, and invalid active values fail with a diagnostic.
+
 #26.11
     -- Implicit diffusion for all moist scalars (#4936)
 
