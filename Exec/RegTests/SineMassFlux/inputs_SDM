@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-# Super-droplet column of Beydoun et al. (2026), Figure 1: the kinematic warm-rain case of
-# Shipway and Hill (2012), set up as in PySDM for the comparison of condensation
+# Super-droplet column rebuilt from Figure 1 of Beydoun et al. (2026), whose deck is not
+# available: the kinematic warm-rain case of Shipway and Hill (2012), set up as in PySDM
 erf.prob_name = "SinusoidalMassFlux"
 
 stop_time = 3600   #  1 hour
