@@ -1117,6 +1117,25 @@ public:
   void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
 
   /**
+   * The column picker for the surface pressure of a surface cell at a level, which
+   * depends on the domain and its periodicity only (see SurfacePressureColumn).
+   *
+   * @param[in] lev level index
+   */
+  [[nodiscard]] erf_surface_temperature::SurfacePressureColumn
+  surface_pressure_column (const int& lev) const
+  {
+      const amrex::Box& dom = m_geom[lev].Domain();
+      erf_surface_temperature::SurfacePressureColumn column{};
+      for (int dir = 0; dir < 2; ++dir) {
+          column.dom_lo[dir]   = dom.smallEnd(dir);
+          column.dom_hi[dir]   = dom.bigEnd(dir);
+          column.periodic[dir] = m_geom[lev].isPeriodic(dir);
+      }
+      return column;
+  }
+
+  /**
    * Sum a planar field over the valid cells of the surface, counting each surface cell once.
    *
    * On a level whose grids are split in the surface-normal direction the planar BoxArray holds
