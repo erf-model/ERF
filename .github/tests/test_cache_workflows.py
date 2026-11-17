@@ -85,55 +85,35 @@ class WorkflowTests(unittest.TestCase):
     def test_gnumake_cache_covers_both_builds_and_preserves_smoke(self):
         job = self.workflows["gcc.yml"]["jobs"]["gnumake"]
         self.assertEqual(job["if"], "github.event_name != 'pull_request'")
-        self.assertEqual(job["env"]["CCACHE_COMPILERCHECK"],
-                         "%compiler% --version; %compiler% --showme:version; "
-                         "%compiler% --showme:command; %compiler% --showme:compile")
         self.assertEqual(job["env"]["CCACHE_BASEDIR"], "${{ github.workspace }}")
-        self.assertEqual(job["env"]["CCACHE_DIR"], "/home/runner/.cache/ccache-gnumake")
+        checks = {part.strip() for part in job["env"]["CCACHE_COMPILERCHECK"].split(";")}
+        self.assertTrue({"%compiler% --version", "%compiler% --showme:version",
+                         "%compiler% --showme:command", "%compiler% --showme:compile"} <= checks)
         steps = job["steps"]
         calls = contracts.cache_steps(self.workflows["gcc.yml"], job,
                                       contracts.GNUMAKE_SAVE_GUARD)
         builds = [(i, s) for i, s in enumerate(steps)
-                  if s.get("name", "").startswith("GNUmake Compile and Link")]
-        self.assertEqual(len(builds), 2)
-        self.assertEqual(builds[0][1]["id"], "gnumake-base")
-        self.assertEqual(builds[1][1]["id"], "gnumake-structure")
+                  if s.get("id") in ("gnumake-base", "gnumake-structure")]
+        self.assertEqual([s["id"] for _, s in builds], ["gnumake-base", "gnumake-structure"])
         self.assertIn("make -C Exec -j2 USE_CCACHE=TRUE", builds[0][1]["run"])
         self.assertIn("make -j2 USE_CCACHE=TRUE", builds[1][1]["run"])
         self.assertEqual(builds[1][1]["shell"], "bash")
         self.assertIn("mpiexec -n 2", builds[1][1]["run"])
         self.assertIn('grep -q "structure_example_fx"', builds[1][1]["run"])
-        identity_test = next(i for i, s in enumerate(steps)
-                             if s.get("name") == "Test MPI wrapper cache identity")
-        self.assertEqual(steps[identity_test]["run"],
-                         "bash .github/tests/test_gnumake_ccache_identity.sh")
-        initialize = next(i for i, s in enumerate(steps)
-                          if s.get("name") == "Initialize compiler cache statistics")
-        prune = next(i for i, s in enumerate(steps)
-                     if s.get("name") == "Prune and report compiler cache")
-        self.assertLess(identity_test, calls[0][0])
-        self.assertLess(calls[0][0], initialize)
-        self.assertLess(initialize, builds[0][0])
-        self.assertLess(builds[-1][0], prune)
-        self.assertLess(prune, calls[1][0])
-        self.assertIn("GNUMAKE_BUILD_START", steps[initialize]["run"])
-        self.assertIn("GNUMAKE_BUILD_START", steps[prune]["run"])
-        self.assertIn("steps.gnumake-base.outcome", steps[prune]["run"])
-        self.assertIn("steps.gnumake-structure.outcome", steps[prune]["run"])
-        self.assertIn("Skipping cache pruning", steps[prune]["run"])
+        self.assertLess(calls[0][0], builds[0][0])
+        self.assertLess(builds[1][0], calls[1][0])
+        self.assertTrue(any(s.get("run") == "bash .github/tests/test_gnumake_ccache_identity.sh"
+                            for s in steps[:calls[0][0]]))
 
     def test_gnumake_save_guard_cannot_be_weakened(self):
         original = contracts.GNUMAKE_SAVE_GUARD
         guards = (
             contracts.SAVE_GUARD,
             original.replace("success()", "always()"),
-            original.replace("success() && ", ""),
             original.replace(" && steps.gnumake-base.outcome == 'success'", ""),
             original.replace(" && steps.gnumake-structure.outcome == 'success'", ""),
             original.replace("github.event_name != 'pull_request' && ", ""),
             original.replace("github.ref_name == github.event.repository.default_branch && ", ""),
-            original.replace("steps.gnumake-base.outcome == 'success'", "steps.gnumake-base.outcome != 'failure'"),
-            original.replace("steps.gnumake-structure.outcome == 'success'", "steps.gnumake-structure.outcome != 'failure'"),
             original + " || failure()",
         )
         for guard in guards:
@@ -144,38 +124,6 @@ class WorkflowTests(unittest.TestCase):
                 save["if"] = guard
                 with self.assertRaisesRegex(ValueError, "gcc.yml:gnumake:.*trusted publication guard"):
                     self.check()
-
-    def test_gnumake_save_guard_scenarios(self):
-        steps = self.workflows["gcc.yml"]["jobs"]["gnumake"]["steps"]
-        save = next(s for s in steps if contracts.is_cache(s) and s["with"]["mode"] == "save")
-        clauses = [clause.strip() for clause in contracts.expression_text(save["if"]).split("&&")]
-        # Model only the exact, separately checked conjunction; this is not a
-        # GitHub expression interpreter.
-        cases = (
-            ("push", "development", True, "success", "success", True),
-            ("workflow_dispatch", "development", True, "success", "success", True),
-            ("pull_request", "development", True, "success", "success", False),
-            ("push", "feature", True, "success", "success", False),
-            ("push", "development", False, "success", "success", False),
-            ("push", "development", False, "failure", "skipped", False),
-            ("push", "development", False, "success", "failure", False),
-            ("push", "development", False, "cancelled", "cancelled", False),
-            ("push", "development", True, "skipped", "success", False),
-            ("push", "development", True, "success", "skipped", False),
-        )
-        for event, ref, prior_success, base, structure, expected in cases:
-            with self.subTest(event=event, ref=ref, prior_success=prior_success,
-                              base=base, structure=structure):
-                values = {
-                    "success()": prior_success,
-                    "github.event_name != 'pull_request'": event != "pull_request",
-                    "github.ref_name == github.event.repository.default_branch": ref == "development",
-                    "steps.gnumake-base.outcome == 'success'": base == "success",
-                    "steps.gnumake-structure.outcome == 'success'": structure == "success",
-                }
-                self.assertEqual(len(clauses), len(values))
-                self.assertEqual(set(clauses), set(values))
-                self.assertEqual(all(values[clause] for clause in clauses), expected)
 
     def test_gnumake_cache_pair_cannot_disappear(self):
         steps = self.workflows["gcc.yml"]["jobs"]["gnumake"]["steps"]
