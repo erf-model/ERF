@@ -36,6 +36,9 @@ on:
       - '.github/workflows/parent-project.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-parent-project
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}

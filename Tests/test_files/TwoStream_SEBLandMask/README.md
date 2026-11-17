@@ -8,7 +8,7 @@ water, is left out of the means, and gives the radiation sweep the surface layer
 surface temperature as its longwave boundary. Before the change the balance ran on every
 column, so water was updated as soil and the sweep used that skin over water.
 
-An idealised run has one mask value per level (`erf.is_land`), so the case runs one deck
+An idealized run has one mask value per level (`erf.is_land`), so the case runs one deck
 all land, all water, and with two levels: water on level 0 and a level 1 of land over its
 western half. The third run checks the average-down of the balance's fields between the
 levels, which is over land columns: the level 0 water columns under level 1 keep their
