@@ -598,8 +598,9 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         for (int ib = 0; ib < ba.size(); ++ib) {
             if (ba[ib].smallEnd(2) != dom.smallEnd(2) || ba[ib].bigEnd(2) != dom.bigEnd(2)) {
                 Abort("erf.use_real_bcs requires every level-0 grid to span the full domain height; "
-                      "remove amr.no_box_split_dir = -1, or set amr.max_grid_size_z to at least "
-                      "amr.n_cell in z");
+                      "keep amr.no_box_split_dir = 2 (the ERF default), or set "
+                      "amr.max_grid_size_z >= the full vertical domain extent.  On restart the "
+                      "checkpoint's grids are kept, so also set erf.regrid_level_0_on_restart = 1.");
             }
         }
     }
