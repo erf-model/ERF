@@ -597,6 +597,14 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
     private:
 
+        /*! \brief Index of the ground layer of a level, as the accumulations take it */
+        int groundK (const int a_lev) const;
+
+        /*! \brief Refinement ratio between a level and the next coarser one */
+        amrex::IntVect refRatioBelow (const int a_lev) const;
+
+        /*! \brief Field indices of the species and aerosol ground accumulations (masses per cell) */
+        std::vector<int> groundMassAccumIdx () const;
 };
 
 #endif

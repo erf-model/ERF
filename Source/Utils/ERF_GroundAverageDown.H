@@ -75,4 +75,46 @@ private:
     amrex::MultiFab m_tmp;
 };
 
+/**
+ * The reverse of GroundAverageDown: each ground cell of a_fine (component a_fcomp) gets a_scale
+ * times the coarse ground cell of a_crse (component a_ccomp) it lies over -- 1/(rr[0]*rr[1]) for
+ * an amount per cell, which keeps the amount under each coarse cell.  a_crse must cover the fine
+ * ground boxes, coarsened.
+ */
+inline void
+groundFillFromCoarse (amrex::MultiFab& a_fine, const amrex::MultiFab& a_crse, const amrex::IntVect& a_rr,
+                      const int a_kf, const int a_kc, const amrex::Real a_scale,
+                      const int a_fcomp = 0, const int a_ccomp = 0)
+{
+    const amrex::BoxArray& fba = a_fine.boxArray();
+    amrex::BoxList bl;
+    amrex::Vector<int> fine_box, pmap;
+    for (int ib = 0; ib < fba.size(); ++ib) {
+        if (fba[ib].smallEnd(2) != a_kf) { continue; }
+        amrex::Box s = amrex::coarsen(fba[ib], a_rr);
+        s.setRange(2, a_kc);
+        bl.push_back(s);
+        fine_box.push_back(ib);
+        pmap.push_back(a_fine.DistributionMap()[ib]);
+    }
+    if (bl.isEmpty()) { return; }
+    amrex::MultiFab tmp(amrex::BoxArray(std::move(bl)), amrex::DistributionMapping(std::move(pmap)), 1, 0);
+    tmp.ParallelCopy(a_crse, a_ccomp, 0, 1);
+    const amrex::IntVect rr = a_rr;
+    for (amrex::MFIter mfi(tmp); mfi.isValid(); ++mfi) {
+        const int ib = fine_box[mfi.index()];
+        const auto c = tmp.const_array(mfi);
+        const auto f = a_fine.array(ib, a_fcomp);
+        amrex::Box gbx = fba[ib];
+        gbx.setRange(2, a_kf);
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // floor division: the coarse cell over fine cell (i, j)
+            const int ic = (i >= 0) ? i / rr[0] : -((-i - 1) / rr[0]) - 1;
+            const int jc = (j >= 0) ? j / rr[1] : -((-j - 1) / rr[1]) - 1;
+            f(i,j,k) = a_scale * c(ic,jc,a_kc);
+        });
+    }
+}
+
 #endif

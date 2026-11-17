@@ -126,11 +126,11 @@ fine-level averages in covered coarse cells. The ground accumulations
 ``rain_accum``, ``snow_accum`` and ``precip_accum`` are checkpointed on every
 level and kept when the grids of a level change. The per-species and
 per-aerosol ground accumulations (``accum_<species>``, ``accum_<aerosol>``) are
-not: they start again from zero after a restart, and so do those of a fine
-level, and of the coarse cells it covers, when its grids change. Turbulent
-diffusivities, including ``Kmv``, are not checkpointed. They can be zero in the
-initial restart plotfile until the next turbulence update, even when the
-conserved state has been restored correctly.
+kept when the grids of a level change, a new fine cell taking an equal share of
+the coarse total under it, but they are not checkpointed: they start again from
+zero after a restart. Turbulent diffusivities, including ``Kmv``, are not
+checkpointed. They can be zero in the initial restart plotfile until the next
+turbulence update, even when the conserved state has been restored correctly.
 
 For additional species, cloud-in-cell projection uses only cells on the
 particle's level that are not covered by finer grids. The retained weights are
