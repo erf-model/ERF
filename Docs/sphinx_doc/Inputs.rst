@@ -1528,7 +1528,7 @@ List of Parameters
 |                                     | the total mass rho_d (1 + q_t) [kg/m3] and the total     | (the first of up   |                  |
 |                                     | energy [J/m3], every erf.sum_interval steps or           | to four is         |                  |
 |                                     | erf.sum_period seconds when erf.v > 0. q_t sums the      | written)           |                  |
-|                                     | vapor, liquid (cloud, rain) and ice mixing ratios. The  |                    |                  |
+|                                     | vapor, liquid (cloud, rain) and ice mixing ratios. The   |                    |                  |
 |                                     | energy is a diagnostic definition (Romps 2008):          |                    |                  |
 |                                     | internal energy with constant heat capacities, from      |                    |                  |
 |                                     | liquid water at the triple point, plus kinetic and       |                    |                  |
@@ -2576,9 +2576,9 @@ List of Parameters
 |                                        | (per-level)                                              |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rans_moist_buoyancy**            | k-equation RANS with a moisture model that carries water | Boolean            | false            |
-|                                        | vapor: TKE buoyancy production from the virtual         |                    |                  |
+|                                        | vapor: TKE buoyancy production from the virtual          |                    |                  |
 |                                        | potential temperature flux, g/theta_v0 [(1 + epsv qv)    |                    |                  |
-|                                        | <w'theta'> + epsv theta <w'qv'>] (water vapor only, no  |                    |                  |
+|                                        | <w'theta'> + epsv theta <w'qv'>] (water vapor only, no   |                    |                  |
 |                                        | cloud-water or saturated form; theta_v0 is               |                    |                  |
 |                                        | ``erf.theta_ref`` or the local theta_v); false keeps the |                    |                  |
 |                                        | dry g/theta_0 <w'theta'>; one value for the hierarchy is |                    |                  |
@@ -4385,13 +4385,13 @@ building combinations.
 |                                   | temperature forcing from it                              |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_surf_moist_flux**        | fraction_stress with a moisture model that carries water | Real in            | 0 (none)         |
-|                                   | vapor: kinematic surface moisture flux [kg/kg m/s] of   | [-0.01, 0.01]      |                  |
+|                                   | vapor: kinematic surface moisture flux [kg/kg m/s] of    | [-0.01, 0.01]      |                  |
 |                                   | the immersed terrain (q* = -F_q/u*, as                   |                    |                  |
 |                                   | ``erf.most.surf_moist_flux`` on flat ground), applied in |                    |                  |
 |                                   | the wall cell; not with ``erf.if_surf_moist``            |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_surf_moist**             | fraction_stress with a moisture model that carries water | Real in [0, 0.1]   | -1 (none)        |
-|                                   | vapor: surface water vapor mixing ratio [kg/kg] of the |                    |                  |
+|                                   | vapor: surface water vapor mixing ratio [kg/kg] of the   |                    |                  |
 |                                   | immersed terrain (q* from the wall cell and the cell     |                    |                  |
 |                                   | above, mixed by the solid fraction as theta* is, as      |                    |                  |
 |                                   | ``erf.most.surf_moist`` on flat ground), applied in the  |                    |                  |
@@ -6652,10 +6652,10 @@ besides.
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 | **erf.fire.fire_atm_feedback**                 | Multiplier on the injected fluxes; 0 is one-way coupling   | Real >= 0                      | 1.0                    |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fire.inject_latent**                     | Inject the latent flux into the vapor equation when       | Boolean                        | true                   |
+| **erf.fire.inject_latent**                     | Inject the latent flux into the vapor equation when        | Boolean                        | true                   |
 |                                                | moisture is active                                         |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fire.source_mode**                       | Replace the theta and vapor source slots or add to the    | "overwrite", "add"             | "overwrite"            |
+| **erf.fire.source_mode**                       | Replace the theta and vapor source slots or add to the     | "overwrite", "add"             | "overwrite"            |
 |                                                | rebuilt stage source. Left at the default with another     |                                |                        |
 |                                                | theta source on the fire level (radiation, Rayleigh        |                                |                        |
 |                                                | damping of T, custom forcing or subsidence, slow-step      |                                |                        |

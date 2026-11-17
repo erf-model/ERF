@@ -204,7 +204,7 @@ rather than by the particle container, but use the same prefix.
 +=================================================+==========================================================+==================================================+=====================================+
 | **species**                                     | additional condensate species carried besides water, and | List of species names                            | none                                |
 |                                                 | ice when cold processes are on.  Naming a species that   |                                                  |                                     |
-|                                                 | is already modeled aborts the run, and at most five     |                                                  |                                     |
+|                                                 | is already modeled aborts the run, and at most five      |                                                  |                                     |
 |                                                 | extra species may be given                               |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **aerosols**                                    | aerosol materials carried by the super-droplets          | List of species names                            | none                                |
@@ -338,7 +338,7 @@ Particle population and motion
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | Parameter                                       | Definition                                               | Acceptable Values                                | Default                             |
 +=================================================+==========================================================+==================================================+=====================================+
-| **nucleate_particles**                          | create new super-droplets from the vapor field          | Boolean                                          | false                               |
+| **nucleate_particles**                          | create new super-droplets from the vapor field           | Boolean                                          | false                               |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **density_scaling**                             | scale the initial number density with the local air      | Boolean                                          | false                               |
 |                                                 | density                                                  |                                                  |                                     |
