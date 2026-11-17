@@ -161,6 +161,8 @@ Radiation::Radiation (const int& lev,
     // Get prescribed surface values of greenhouse gases
     pp.queryAdd("co2vmr", m_co2vmr);
     pp.queryarr("o3vmr" , m_o3vmr );
+    // Default to a single (column-invariant) value if no O3 profile is given
+    if (m_o3vmr.empty()) { m_o3vmr.push_back(amrex::Real(3.0e-8)); }
     pp.queryAdd("n2ovmr", m_n2ovmr);
     pp.queryAdd("covmr" , m_covmr );
     pp.queryAdd("ch4vmr", m_ch4vmr);
