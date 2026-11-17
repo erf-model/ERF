@@ -418,7 +418,9 @@ Available tests include
 
 -  ``value_less``: :math:`field <= threshold`
 
--  ``adjacent_difference_greater``: :math:`max( | \text{difference between any nearest-neighbor cell} | ) >= threshold`
+-  ``adjacent_difference_greater``: :math:`max( | \text{difference between any nearest-neighbor cell} | ) >= threshold`,
+   over the face neighbors that are cells of the same level: a cell on a domain face or on the
+   boundary with a coarser level is compared only with its neighbors inside the level
 
 This example adds three user-named criteria –
 hi\_rho: cells with density greater than 1 on level 0, and greater than 2 on level 1 and higher;

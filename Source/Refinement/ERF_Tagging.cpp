@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <memory>
 
 #include <ERF.H>
 #include <ERF_Derive.H>
@@ -280,6 +281,11 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     const auto dx      = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
 
+    // For an adjacent-difference test: 1 in the valid cells of this level and in the ghost
+    //    cells another box of this level covers, 0 in the ghost cells outside the domain or
+    //    across a coarse/fine boundary, which hold no data of this level.  Built at most once.
+    std::unique_ptr<iMultiFab> same_level_nbr;
+
     for (auto& crit : ref_criteria)
     {
         // Move the box if the inputs file asks for it
@@ -317,6 +323,22 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             compute_tag_field(levc, cond.field, time, mf, tags);
 
             const auto test        = cond.test;
+            if (test == TagCondition::Test::AdjacentDifferenceGreater) {
+                // Several fields fill only the valid cells; give the ghost cells that another
+                //    box of this level covers its values, and compare only against neighbours
+                //    that are data of this level, so a cell on a box face, a domain face or a
+                //    coarse/fine boundary is not compared against the zeroed ghosts, and the
+                //    tags do not depend on how the level is split into boxes
+                mf.FillBoundary(geom[levc].periodicity());
+                if (!same_level_nbr) {
+                    same_level_nbr = std::make_unique<iMultiFab>(grids[levc], dmap[levc], 1, 1);
+                    same_level_nbr->setVal(0);
+                    same_level_nbr->setVal(1, 0);
+                    same_level_nbr->FillBoundary(geom[levc].periodicity());
+                }
+            }
+            auto const& nbr_ma = (same_level_nbr) ? same_level_nbr->const_arrays()
+                                                  : MultiArray4<int const>{};
             const Real threshold   = cond.threshold(levc);
             const bool require_all = crit.require_all;
 
@@ -331,10 +353,17 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 } else if (test == TagCondition::Test::Less) {
                     pass = (dat(i,j,k) <= threshold);
                 } else {
-                    // Largest difference from any of the six face neighbors
-                    const Real d = amrex::max(std::abs(dat(i+1,j,k) - dat(i,j,k)), std::abs(dat(i,j,k) - dat(i-1,j,k)),
-                                              std::abs(dat(i,j+1,k) - dat(i,j,k)), std::abs(dat(i,j,k) - dat(i,j-1,k)),
-                                              std::abs(dat(i,j,k+1) - dat(i,j,k)), std::abs(dat(i,j,k) - dat(i,j,k-1)));
+                    // Largest difference from any of the six face neighbors that hold data
+                    //    of this level
+                    auto const& nbr = nbr_ma[bi];
+                    const Real c = dat(i,j,k);
+                    Real d = Real(0.0);
+                    if (nbr(i+1,j,k)) { d = amrex::max(d, std::abs(dat(i+1,j,k) - c)); }
+                    if (nbr(i-1,j,k)) { d = amrex::max(d, std::abs(dat(i-1,j,k) - c)); }
+                    if (nbr(i,j+1,k)) { d = amrex::max(d, std::abs(dat(i,j+1,k) - c)); }
+                    if (nbr(i,j-1,k)) { d = amrex::max(d, std::abs(dat(i,j-1,k) - c)); }
+                    if (nbr(i,j,k+1)) { d = amrex::max(d, std::abs(dat(i,j,k+1) - c)); }
+                    if (nbr(i,j,k-1)) { d = amrex::max(d, std::abs(dat(i,j,k-1) - c)); }
                     pass = (d >= threshold);
                 }
                 int& m = mask_ma[bi](i,j,k);
