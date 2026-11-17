@@ -10,7 +10,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_ForestDrag {
 
 constexpr int lad_quadrature_points = 100;
 
@@ -109,6 +109,7 @@ warn_if_forest_grid_does_not_cover_targets (const MultiFab& target_field,
 }
 
 } // namespace
+using namespace erf_detail_ForestDrag;
 
 /*
   Constructor to get the forest parameters:

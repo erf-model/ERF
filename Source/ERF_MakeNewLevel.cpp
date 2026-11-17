@@ -21,7 +21,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_MakeNewLevel {
 
 //
 // Fill the running sum of a time average on a level whose grids were just built.
@@ -63,6 +63,7 @@ fill_time_average_sum (MultiFab& new_sum, const MultiFab* old_sum, double fine_c
 }
 
 } // namespace
+using namespace erf_detail_MakeNewLevel;
 
 /**
  * Build the EB factories of level lev on the grids (ba, dm), with EB terrain or immersed
@@ -547,7 +548,8 @@ save_qmoist_restart_vars (const Vector<MultiFab*>& qmoist_lev, const std::vector
 // Fill an accumulator rebuilt by micro->Init on new grids: cells the old grids covered keep
 // their old value, and the rest take the coarse level's value (piecewise constant).  The
 // accumulators live in the bottom layer of cells, so only that layer is filled from coarse.
-static void
+namespace erf_detail_MakeNewLevel {
+void
 fill_qmoist_restart_var (MultiFab& dst, const MultiFab* old_mf, const MultiFab* crse_mf,
                          const Geometry& crse_geom, const Geometry& fine_geom, const IntVect& ratio)
 {
@@ -579,6 +581,8 @@ fill_qmoist_restart_var (MultiFab& dst, const MultiFab* old_mf, const MultiFab* 
     if (old_mf != nullptr) { dst.ParallelCopy(*old_mf, 0, 0, ncomp); }
     dst.FillBoundary(fine_geom.periodicity());
 }
+} // namespace erf_detail_MakeNewLevel
+using namespace erf_detail_MakeNewLevel;
 
 // Make a new level using provided BoxArray and DistributionMapping and
 // fill with interpolated coarse level data (overrides the pure virtual function in AmrCore)
@@ -1058,6 +1062,12 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
         initRayleigh_at_level(lev);
+    }
+
+    // The input-sponge profiles of this (new) level; the input sponge file is already read
+    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge) {
+        initSponge_at_level(lev);
+        setSpongeRef_at_level(lev);
     }
 
     if (sbm_state_manager) {
@@ -1789,6 +1799,16 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         initRayleigh_at_level(lev);
     }
 
+    // The input-sponge profiles of this level, at the heights of its new grids.  RemakeLevel
+    // runs only from regrid, after InitData_post has allocated them for every existing level
+    // (a level-0 regrid on restart goes through MakeNewLevelFromScratch instead)
+    if (solverChoice.spongeChoice.sponge_type == SpongeType::Input_Sponge) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(h_sponge_ptrs.size()) > lev &&
+                                         static_cast<int>(h_sponge_ptrs[lev].size()) == Sponge::nvars_sponge,
+            "RemakeLevel: the input-sponge profiles must be allocated before a regrid");
+        setSpongeRef_at_level(lev);
+    }
+
     if (sbm_state_manager) {
         remake_sbm_level(lev, time, ba, dm);
     }
@@ -2027,7 +2047,7 @@ ERF::make_lsm_at_level (int lev, bool from_regrid,
     }
 }
 
-namespace {
+namespace erf_detail_MakeNewLevel {
 /**
  * Set the thin-body flux mask to 0 on the listed faces.  The mask lives in the default
  * arena, which is device memory on GPU builds, so the faces are copied to the device and
@@ -2060,6 +2080,7 @@ mask_thin_body_faces (iMultiFab& imask, const Vector<IntVect>& faces, int dir, c
     Gpu::synchronize();
 }
 } // namespace
+using namespace erf_detail_MakeNewLevel;
 
 void
 ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)

@@ -14,7 +14,7 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
-namespace {
+namespace erf_detail_ReadFromMetgrid {
 
 void
 canonicalize_metgrid_missing_values (const std::string& fname,
@@ -80,6 +80,7 @@ canonicalize_metgrid_missing_values (const std::string& fname,
 }
 
 } // namespace
+using namespace erf_detail_ReadFromMetgrid;
 
 Box
 read_subdomain_from_metgrid (int /*lev*/, const std::string& fname, int& ratio, int& klo, int& khi)

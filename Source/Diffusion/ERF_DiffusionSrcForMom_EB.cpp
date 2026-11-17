@@ -81,7 +81,7 @@ void compute_tangent_vectors (Real nx, Real ny, Real nz,
     }
 }
 
-namespace {
+namespace erf_detail_DiffusionSrcForMom_EB {
 
 /**
  * Compute the EB wall contribution for one staggered momentum component.
@@ -329,6 +329,7 @@ void launch_eb_wall_correction (
 }
 
 } // namespace
+using namespace erf_detail_DiffusionSrcForMom_EB;
 
 /**
  * Function for computing the momentum RHS for diffusion operator without terrain.

@@ -3278,8 +3278,13 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
 
 
 
+            // When SHOC owns condensation, activation only moves number, as in
+            // Morrison; the vapor-to-cloud mass and its heating would count
+            // SHOC's condensation twice. Number is then only activated where
+            // SHOC has made cloud water, so nc never runs ahead of qc.
+            const bool do_cond = m_do_cond;
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (rhw_arr(i,j,k) > Real(1.0)) {
+                if (rhw_arr(i,j,k) > Real(1.0) && (do_cond || qc_arr(i,j,k) > Real(qmin))) {
                     const Real ratio = rhw_arr(i,j,k) / Real(satmax);
                     const Real fraction = amrex::min(Real(1.0),
                         std::exp(std::log(ratio) * Real(actk)));
@@ -3300,12 +3305,14 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                     act_fraction_arr(i,j,k) = fraction;
                     act_raw_arr(i,j,k) = ncact_raw;
                     act_cap_arr(i,j,k) = ncact_cap;
-                    pcact_arr(i,j,k) = pcact;
-                    qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcact * dtcld, Real(0.0));
-                    qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcact * dtcld, Real(0.0));
                     nn_arr(i,j,k) = amrex::max(nn_arr(i,j,k) - ncact * dtcld, Real(0.0));
                     nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k) + ncact * dtcld, Real(0.0));
-                    t_arr(i,j,k) += pcact * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
+                    if (do_cond) {
+                        pcact_arr(i,j,k) = pcact;
+                        qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcact * dtcld, Real(0.0));
+                        qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcact * dtcld, Real(0.0));
+                        t_arr(i,j,k) += pcact * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
+                    }
                 }
 
                 const Real tr = ttp / t_arr(i,j,k);
@@ -3315,29 +3322,45 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 qsw = Real(ep2) * qsw / (p_arr(i,j,k) - qsw);
                 qsw = amrex::max(qsw, Real(qmin));
                 qsatw_arr(i,j,k) = qsw;
-
-                work1_arr(i,j,k,0) = wdm6_conden(
-                    t_arr(i,j,k), qv_arr(i,j,k), qsw, xl_arr(i,j,k), cpm_arr(i,j,k),
-                    Real(qmin), Real(rv));
-                work2_arr(i,j,k) = qc_arr(i,j,k) + work1_arr(i,j,k,0);
-
-                Real pcond = amrex::min(
-                    amrex::max(work1_arr(i,j,k,0) / dtcld, Real(0.0)),
-                    amrex::max(qv_arr(i,j,k), Real(0.0)) / dtcld);
-                if (qc_arr(i,j,k) > Real(0.0) && work1_arr(i,j,k,0) < Real(0.0)) {
-                    pcond = amrex::max(work1_arr(i,j,k,0), -qc_arr(i,j,k)) / dtcld;
-                }
-                pcond_arr(i,j,k) = pcond;
-
-                if (pcond == -qc_arr(i,j,k) / dtcld) {
-                    nn_arr(i,j,k) += nc_arr(i,j,k);
-                    nc_arr(i,j,k) = Real(0.0);
-                }
-
-                qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcond * dtcld, Real(0.0));
-                qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcond * dtcld, Real(0.0));
-                t_arr(i,j,k) += pcond * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
             });
+
+            // Saturation adjustment is skipped when SHOC owns condensation, as
+            // in WSM6 and Morrison. qsatw_arr above is still needed by the other
+            // kernels, and pcond_arr stays at the zero set in Step 3.
+            if (m_do_cond) {
+                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    work1_arr(i,j,k,0) = wdm6_conden(
+                        t_arr(i,j,k), qv_arr(i,j,k), qsatw_arr(i,j,k), xl_arr(i,j,k), cpm_arr(i,j,k),
+                        Real(qmin), Real(rv));
+                    work2_arr(i,j,k) = qc_arr(i,j,k) + work1_arr(i,j,k,0);
+
+                    Real pcond = amrex::min(
+                        amrex::max(work1_arr(i,j,k,0) / dtcld, Real(0.0)),
+                        amrex::max(qv_arr(i,j,k), Real(0.0)) / dtcld);
+                    if (qc_arr(i,j,k) > Real(0.0) && work1_arr(i,j,k,0) < Real(0.0)) {
+                        pcond = amrex::max(work1_arr(i,j,k,0), -qc_arr(i,j,k)) / dtcld;
+                    }
+                    pcond_arr(i,j,k) = pcond;
+
+                    if (pcond == -qc_arr(i,j,k) / dtcld) {
+                        nn_arr(i,j,k) += nc_arr(i,j,k);
+                        nc_arr(i,j,k) = Real(0.0);
+                    }
+
+                    qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcond * dtcld, Real(0.0));
+                    qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcond * dtcld, Real(0.0));
+                    t_arr(i,j,k) += pcond * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
+                });
+            } else {
+                // Without the adjustment above, droplets whose cloud water SHOC
+                // has evaporated would never return their number to the CCN pool.
+                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (qc_arr(i,j,k) <= Real(qmin)) {
+                        nn_arr(i,j,k) += nc_arr(i,j,k);
+                        nc_arr(i,j,k) = Real(0.0);
+                    }
+                });
+            }
 
 
             const Real g17_pidnc = pi_wdm6_loc * Real(denr) / Real(6.0);

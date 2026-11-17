@@ -12,8 +12,7 @@
 
 using namespace amrex;
 
-namespace
-{
+namespace erf_detail_ShocImplicit {
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_zvir () noexcept { return 0.61_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_u_ws_min () noexcept { return 1.0_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_ksrf_min () noexcept { return 1.0e-4_rt; }
@@ -79,6 +78,7 @@ namespace
         return amrex::max(zt(ic,k,0) - zt(ic,k-1,0), 1.0e-12_rt);
     }
 }
+using namespace erf_detail_ShocImplicit;
 
 void
 ShocImplicit::cache_baseline_state (ShocColumnData& col)

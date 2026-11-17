@@ -11,7 +11,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_SurfaceLayer {
 
 /**
  * The column of a box nearest (i,j).  A planar surface field whose source carries no
@@ -156,6 +156,7 @@ fill_face_current (MultiFab& current, int dir, const iMultiFab* lmask,
 }
 
 } // namespace
+using namespace erf_detail_SurfaceLayer;
 
 void
 SurfaceLayer::set_immersed_surface_params (const int& lev)

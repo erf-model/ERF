@@ -1769,6 +1769,14 @@ add_test_field_bounds(BndryPlanes_MoistTemperature "plt00050" theta 299.999 300.
 set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP BndryPlanesMoist)
 # Input sponge with a refined patch that does not reach the domain top: ran outside the patch's boxes at start-up
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
+# The same patch made by a regrid at t = 2 instead of at start-up: the new level had no sponge
+# profiles, and its first advance read an empty vector (erf-model/ERF#5143).  By step 8 the
+# start-up adjustment reaches 8.61 m/s, so the upper bound is looser than InputSponge_FinePatch's
+add_test_field_bounds(InputSponge_NewLevel "plt00008" x_velocity 5.9 9.0)
+# Rayleigh damping toward an input sounding on a level that a regrid remakes at t = 10: its
+# targets were reset to the problem defaults (300 K, U = V = 0), and theta in the damping layer
+# was relaxed toward 300 K instead of the sounding's 309 to 310 K (erf-model/ERF#5142)
+add_test_column_bounds(RegridKeepsRayleighSounding "plt00100" 900.0 "theta" "308.5" "310.5")
 # Anelastic EB cylinder through the bottom wall on two levels: w below the wall was never filled
 # on level 1, and its first step diverged (erf-model/ERF#4876)
 add_test_field_bounds(EB_SquareCylinder_AnelasticAMR "plt00004" x_velocity -0.5 3.0)
@@ -2302,6 +2310,15 @@ add_test_r(DensityCurrent_detJ2_MT           ""  "erf_exec" "plt00010")
 add_test_r(EkmanSpiral                       ""  "erf_exec" "plt00010")
 add_test_r(IsentropicVortexStationary        ""  "erf_exec" "plt00010")
 add_test_r(IsentropicVortexAdvecting         ""  "erf_exec" "plt00010")
+# WENO7 momentum advection on one box and on 2 x 2 boxes must agree exactly: its stencil reads
+# the velocities four cells out, and with only three ghost cells a box edge read outside the
+# velocity array and the answer depended on the decomposition (erf-model/ERF#5161)
+add_test_box_parity(IsentropicVortexAdvecting_WENO7_BoxParity IsentropicVortexAdvecting "plt00010"
+    COMMON_OPTIONS "erf.dycore_horiz_adv_type=WENO7 erf.dryscal_horiz_adv_type=WENO7"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=24 amr.max_grid_size_y=24 amr.max_grid_size_z=64"
+    FCOMPARE_RTOL "0.0"
+    FCOMPARE_ATOL "0.0")
 add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
 add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
@@ -2727,10 +2744,11 @@ endif()
 endif()
 # Kessler rain over a uniform, laterally periodic layer, with the fine box moved at t = 30 s:
 # a regrid must keep the surface rain accumulator.  The centre column of the 2D plotfile lies
-# in the new fine box.  It accumulates 5.2e-4 mm by t = 60 s (5.0e-4 on the coarse level, which
-# resolves the layer less finely); rebuilt as zero at the regrid, it reaches only 3.9e-4.
+# in the new fine box.  It accumulates 5.11e-4 mm by t = 60 s (5.11e-4 on the coarse level too);
+# rebuilt as zero at the regrid, it reaches only 3.80e-4.  Values with the 0.1364 Kessler
+# fall-speed exponent (#5193).
 add_test_column_bounds(RegridKeepsPrecipAccum "plt2d00120" 0 "precip_rain_accum"
-    "0.00051" "0.00053")
+    "0.00050" "0.00052")
 # Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
 # one plane directory per output step and a time.dat of "step time" rows -- must come out of a
 # run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads
