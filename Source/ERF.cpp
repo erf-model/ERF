@@ -164,6 +164,8 @@ ERF::Evolve ()
 #ifdef ERF_USE_FIRE
     if (m_fire_coupler && istep[0] == 0 && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
         m_fire_coupler->engine().write_plotfile(m_fire_plot_file, cur_time, istep[0]);
+        // the next fire plot is one period on, as for the other initial outputs
+        if (m_fire_plot_per > zero) {last_fire_plot_time += m_fire_plot_per;}
         if (m_fire_coupler->params().fire_debug) {
             amrex::Print() << "[FIRE] Initial fire output written at time 0" << std::endl;
         }
@@ -2112,15 +2114,16 @@ ERF::InitData_post ()
                     if (ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low) {
                         // Initialize tke(x,y,z) as a function of u*(x,y)
                         if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
-                            Real qkefac = one;
+                            Real tkefac = one;
                             if (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25 ||
                                 solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF)
                             {
                                 // https://github.com/NCAR/MYNN-EDMF/blob/90f36c25259ec1960b24325f5b29ac7c5adeac73/module_bl_mynnedmf.F90#L1325-L1333
+                                // WRF mym_initialize: qke(kts) = 1.5*ust^2*(b1*pmz)^(2/3); ERF carries TKE = qke/2
                                 const Real B1 = solverChoice.turbChoice[lev].pbl_mynn.B1;
-                                qkefac = Real(1.5) * std::pow(B1, two/three);
+                                tkefac = myhalf * Real(1.5) * std::pow(B1, two/three);
                             }
-                            m_SurfaceLayer[ori]->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], qkefac);
+                            m_SurfaceLayer[ori]->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], tkefac);
                         }
                     }
                 }
@@ -2491,6 +2494,13 @@ ERF::InitData_post ()
         pp.queryarr("data_log",datalogname,0,num_datalogs);
         for (int i = 0; i < num_datalogs; i++) {
             setRecordDataInfo(i,datalogname[i]);
+        }
+        // The fourth (stress) log needs the stresses and SFS fluxes, which exist only with
+        // molecular diffusion or a turbulence closure at level 0; the 1D profile writers
+        // leave it empty otherwise
+        if (num_datalogs > 3 && Tau[0][TauType::tau11] == nullptr) {
+            amrex::Print() << "WARNING: erf.data_log names a fourth (stress) log, but there is no molecular"
+                           << " diffusion or turbulence closure at level 0, so it stays empty" << std::endl;
         }
     }
 
@@ -3534,20 +3544,36 @@ ERF::restart ()
     initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
 #endif
 
+    // The period trackers hold the next time an output is due (see writeNow).  Put each
+    // on the next k * per after the restart time, with the 0.1*dt tolerance writeNow uses
+    // (a checkpoint written on schedule can carry a time just below k * per); setting them
+    // to the last boundary instead wrote an unscheduled output at the first step.
     double cur_time = t_new[0];
-    if (m_check_per    > zero) {last_check_file_time    = std::floor(cur_time/m_check_per   ) * m_check_per;}
-    if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
-    if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
-    if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
-    if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+    auto last_time = [&] (double per) {
+        return std::floor((cur_time + 0.1*dt[0])/per) * per;
+    };
+    auto next_time = [&] (double per) {
+        return last_time(per) + per;
+    };
+    if (m_check_per > zero) {last_check_file_time = next_time(m_check_per);}
 #ifdef ERF_USE_FIRE
-    // the fire plot clock is realigned like the others, so a restart keeps the
-    // k * fire_plot_per instants instead of writing at its first step
-    if (m_fire_plot_per > zero) {last_fire_plot_time = std::floor(cur_time/m_fire_plot_per) * m_fire_plot_per;}
+    // no restart-time fire plot moves this clock on, so it goes to the next instant too
+    if (m_fire_plot_per > zero) {last_fire_plot_time = next_time(m_fire_plot_per);}
 #endif
 
+    // With erf.plot_file_on_restart the plot and subvolume files are written at restart
+    // (InitData_post), which then adds one period to these trackers, so they start from
+    // the last boundary; without it nothing does, so they go to the next one
+    auto plot_time = [&] (double per) {
+        return plot_file_on_restart ? last_time(per) : next_time(per);
+    };
+    if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = plot_time(m_plot2d_per_1);}
+    if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = plot_time(m_plot2d_per_2);}
+    if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = plot_time(m_plot3d_per_1);}
+    if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = plot_time(m_plot3d_per_2);}
+
     for (int i = 0; i < m_subvol_per.size(); i++) {
-        if (m_subvol_per[i] > zero) {last_subvol_time[i] = std::floor(cur_time/m_subvol_per[i]) * m_subvol_per[i];}
+        if (m_subvol_per[i] > zero) {last_subvol_time[i] = plot_time(m_subvol_per[i]);}
     }
 
     if (m_check_int    > zero) {last_check_file_step    = istep[0];}
@@ -3596,6 +3622,12 @@ ERF::init_only (int lev, double elapsed_time)
 
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
+
+        // Impose the physical bc's on the base state, as initHSE and restart do: the
+        // sounding fills only the valid cells and (by its column integration) the first
+        // lateral ghost, so without this a non-periodic lateral boundary leaves the base
+        // state's ghosts differing from what a restart rebuilds there
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 
         // The base state has been initialized by integrating vertically
         // through the sounding for ideal (like WRF) or isentropic approaches
@@ -4028,6 +4060,10 @@ ERF::ReadParameters ()
         pp.queryAdd("plot2d_int_2" , m_plot2d_int_2);
         pp.queryAdd("plot2d_per_1",  m_plot2d_per_1);
         pp.queryAdd("plot2d_per_2",  m_plot2d_per_2);
+
+        // Write the 3D/2D plotfiles and subvolumes at the restart time (they then resume
+        // their schedules); off, a restart writes nothing until the next scheduled output
+        pp.queryAdd("plot_file_on_restart", plot_file_on_restart);
 
         // Abort on an invalid cloud-optics setting now, not at the first Plot2D write
         cloud_optics_parameters = plotfile2d::parse_cloud_optics_parameters();

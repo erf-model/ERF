@@ -359,7 +359,7 @@
                          Hfx3_EB, fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
-                         mapfac[level], get_eb(level),
+                         mapfac[level], get_eb(level), physbnd_mask,
 #ifdef ERF_USE_EAMXX_SHOC
                          eamxx_shoc_interface[level].get(),
 #endif

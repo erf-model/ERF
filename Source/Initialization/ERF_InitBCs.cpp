@@ -383,6 +383,24 @@ void ERF::init_bcs ()
         }
     }
 
+    // The projection treats the bottom as a Neumann face for phi (ImposeBCsOnPhi, and the zero
+    // flux through the bottom face in solve_with_fft), while get_fft_bc would give the solvers a
+    // Dirichlet face at an Outflow/Open bottom, so the two would disagree.
+    {
+        const std::string& zlo_type = domain_bc_type[Orientation(2,Orientation::low)];
+        bool uses_projection = false;
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible ||
+                solverChoice.project_initial_velocity[lev] == 1) {
+                uses_projection = true;
+            }
+        }
+        if (uses_projection && (zlo_type == "Outflow" || zlo_type == "Open")) {
+            Abort("zlo.type = " + zlo_type + " is not supported with a projection (erf.compressibility_type "
+                  "Anelastic or PseudoIncompressible, or erf.project_initial_velocity = 1)");
+        }
+    }
+
     bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
                      solverChoice.turbChoice[max_level].dirichlet_k == true);
     if (keqn_dir) {
@@ -769,8 +787,9 @@ void ERF::init_bcs ()
     }
 
     // Terrain-following inflow profiles prescribe theta and tke where their
-    // tables have them (rho times the tabulated value); density stays
-    // extrapolated from the interior
+    // tables have them (rho times the tabulated value); density comes from
+    // <face>.density when it is given, and is otherwise extrapolated from the
+    // interior
     for (OrientationIter oit; oit; ++oit) {
         const Orientation ori = oit();
         const auto& prof = m_inflow_profiles[ori];

@@ -309,12 +309,14 @@ MakeAdvectiveProjectionWeights (const amrex::MultiFab& den_div, const amrex::Mul
 
 /*
  * Compute lateral boundary mass influx/outflux from base-state-density-weighted
- * boundary normal velocities.
+ * boundary normal velocities.  mask_x/mask_y are owner masks of area_vec[0]/[1]
+ * (amrex::OwnerMask), so a face shared by two boxes is counted once.
  */
 void
 compute_influx_outflux_bdy (amrex::FArrayBox& bdy_data_xlo, amrex::FArrayBox& bdy_data_xhi,
                             amrex::FArrayBox& bdy_data_ylo, amrex::FArrayBox& bdy_data_yhi,
                             amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                            const amrex::iMultiFab& mask_x, const amrex::iMultiFab& mask_y,
                             const amrex::Geometry& geom,
                             amrex::Real& influx, amrex::Real& outflux,
                             const int n);

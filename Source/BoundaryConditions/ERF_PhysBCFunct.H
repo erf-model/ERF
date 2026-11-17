@@ -168,6 +168,21 @@ public:
                                    int icomp, int ncomp, const double time,
                                    bool do_terrain_adjustment = true);
 
+    /**
+     * True when the face prescribes the ghost density (<face>.density on an inflow or
+     * inflow_outflow face), so that a primitive value set there (a theta file, an inflow
+     * profile) is converted with that density rather than the interior one.  On an
+     * inflow_outflow face it holds where the flow enters, which is the only place such a
+     * value is applied.
+     */
+    bool face_rho_is_extdir (const amrex::Orientation& ori) const {
+        const int dir = ori.coordDir();
+        const int t   = ori.isLow() ? m_domain_bcs_type[BCVars::Rho_bc_comp].lo(dir)
+                                    : m_domain_bcs_type[BCVars::Rho_bc_comp].hi(dir);
+        return (t == ERFBCType::ext_dir || t == ERFBCType::ext_dir_upwind)
+               && m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] > amrex::Real(0.0);
+    }
+
 private:
     int                  m_lev;
     amrex::Geometry      m_geom;

@@ -672,6 +672,13 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     init_zphys(lev, time);
     update_terrain_arrays(lev);
 
+#ifdef ERF_USE_WINDFARM
+    // Nturb, SMark and vars_windfarm were just allocated on the new grids by init_stuff (#5164)
+    if (solverChoice.windfarm_type != WindFarmType::None) {
+        fill_windfarm_markers(lev);
+    }
+#endif
+
     //
     // Make sure that detJ is the average of the data on a finer level if there is one
     //     *and* if there is two-way coupling
@@ -1304,6 +1311,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
+
+#ifdef ERF_USE_WINDFARM
+    // Nturb, SMark and vars_windfarm were just allocated on the new grids by init_stuff (#5164)
+    if (solverChoice.windfarm_type != WindFarmType::None) {
+        fill_windfarm_markers(lev);
+    }
+#endif
 
     // ********************************************************************************************
     // Make sure that detJ is the average of the data on a finer level if there is one
@@ -2013,6 +2027,40 @@ ERF::make_lsm_at_level (int lev, bool from_regrid,
     }
 }
 
+namespace {
+/**
+ * Set the thin-body flux mask to 0 on the listed faces.  The mask lives in the default
+ * arena, which is device memory on GPU builds, so the faces are copied to the device and
+ * set in a kernel; the diagnostic print loops over the host list and reads no device memory.
+ */
+void
+mask_thin_body_faces (iMultiFab& imask, const Vector<IntVect>& faces, int dir, const char* name)
+{
+    if (faces.empty()) { return; }
+    const int nf = static_cast<int>(faces.size());
+    Gpu::DeviceVector<IntVect> d_faces(nf);
+    Gpu::copy(Gpu::hostToDevice, faces.begin(), faces.end(), d_faces.begin());
+    const IntVect* f = d_faces.data();
+    for (MFIter mfi(imask, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Array4<int> const& imask_arr = imask.array(mfi);
+        const Box fbx = mfi.nodaltilebox(dir);
+        ParallelFor(nf, [=] AMREX_GPU_DEVICE (int iv) noexcept
+        {
+            if (fbx.contains(f[iv])) { imask_arr(f[iv]) = 0; }
+        });
+        for (const auto& faceidx : faces) {
+            if (fbx.contains(faceidx)) {
+                amrex::AllPrint() << "  mask " << name << " at " << faceidx << std::endl;
+            }
+        }
+    }
+    // The MFIter may have launched on several streams; wait for all of them before d_faces
+    // goes out of scope (a one-time setup, so a device-wide sync costs nothing)
+    Gpu::synchronize();
+}
+} // namespace
+
 void
 ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
 {
@@ -2038,24 +2086,7 @@ ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
         thin_xforce[lev]->setVal(0.0);
         xflux_imask[lev] = std::make_unique<iMultiFab>(ba_xf,dm,1,0);
         xflux_imask[lev]->setVal(1);
-        for ( MFIter mfi(*xflux_imask[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            Array4<int> const& imask_arr = xflux_imask[lev]->array(mfi);
-            //Array4<int> const& imask_cell_arr = overset_imask[lev]->array(mfi);
-            Box xbx = mfi.nodaltilebox(0);
-            for (int iv=0; iv < solverChoice.advChoice.zero_xflux.size(); ++iv) {
-                const auto& faceidx = solverChoice.advChoice.zero_xflux[iv];
-                if ((faceidx[0] >= xbx.smallEnd(0)) && (faceidx[0] <= xbx.bigEnd(0)) &&
-                    (faceidx[1] >= xbx.smallEnd(1)) && (faceidx[1] <= xbx.bigEnd(1)) &&
-                    (faceidx[2] >= xbx.smallEnd(2)) && (faceidx[2] <= xbx.bigEnd(2)))
-                {
-                    imask_arr(faceidx[0],faceidx[1],faceidx[2]) = 0;
-                    //imask_cell_arr(faceidx[0],faceidx[1],faceidx[2]) = 0;
-                    //imask_cell_arr(faceidx[0]-1,faceidx[1],faceidx[2]) = 0;
-                    amrex::AllPrint() << "  mask xface at " << faceidx << std::endl;
-                }
-            }
-        }
+        mask_thin_body_faces(*xflux_imask[lev], solverChoice.advChoice.zero_xflux, 0, "xface");
     } else {
         thin_xforce[lev] = nullptr;
         xflux_imask[lev] = nullptr;
@@ -2070,24 +2101,7 @@ ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
         thin_yforce[lev]->setVal(0.0);
         yflux_imask[lev] = std::make_unique<iMultiFab>(ba_yf,dm,1,0);
         yflux_imask[lev]->setVal(1);
-        for ( MFIter mfi(*yflux_imask[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            Array4<int> const& imask_arr = yflux_imask[lev]->array(mfi);
-            //Array4<int> const& imask_cell_arr = overset_imask[lev]->array(mfi);
-            Box ybx = mfi.nodaltilebox(1);
-            for (int iv=0; iv < solverChoice.advChoice.zero_yflux.size(); ++iv) {
-                const auto& faceidx = solverChoice.advChoice.zero_yflux[iv];
-                if ((faceidx[0] >= ybx.smallEnd(0)) && (faceidx[0] <= ybx.bigEnd(0)) &&
-                    (faceidx[1] >= ybx.smallEnd(1)) && (faceidx[1] <= ybx.bigEnd(1)) &&
-                    (faceidx[2] >= ybx.smallEnd(2)) && (faceidx[2] <= ybx.bigEnd(2)))
-                {
-                    imask_arr(faceidx[0],faceidx[1],faceidx[2]) = 0;
-                    //imask_cell_arr(faceidx[0],faceidx[1],faceidx[2]) = 0;
-                    //imask_cell_arr(faceidx[0],faceidx[1]-1,faceidx[2]) = 0;
-                    amrex::AllPrint() << "  mask yface at " << faceidx << std::endl;
-                }
-            }
-        }
+        mask_thin_body_faces(*yflux_imask[lev], solverChoice.advChoice.zero_yflux, 1, "yface");
     } else {
         thin_yforce[lev] = nullptr;
         yflux_imask[lev] = nullptr;
@@ -2102,24 +2116,7 @@ ERF::init_thin_body (int lev, const BoxArray& ba, const DistributionMapping& dm)
         thin_zforce[lev]->setVal(0.0);
         zflux_imask[lev] = std::make_unique<iMultiFab>(ba_zf,dm,1,0);
         zflux_imask[lev]->setVal(1);
-        for ( MFIter mfi(*zflux_imask[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            Array4<int> const& imask_arr = zflux_imask[lev]->array(mfi);
-            //Array4<int> const& imask_cell_arr = overset_imask[lev]->array(mfi);
-            Box zbx = mfi.nodaltilebox(2);
-            for (int iv=0; iv < solverChoice.advChoice.zero_zflux.size(); ++iv) {
-                const auto& faceidx = solverChoice.advChoice.zero_zflux[iv];
-                if ((faceidx[0] >= zbx.smallEnd(0)) && (faceidx[0] <= zbx.bigEnd(0)) &&
-                    (faceidx[1] >= zbx.smallEnd(1)) && (faceidx[1] <= zbx.bigEnd(1)) &&
-                    (faceidx[2] >= zbx.smallEnd(2)) && (faceidx[2] <= zbx.bigEnd(2)))
-                {
-                    imask_arr(faceidx[0],faceidx[1],faceidx[2]) = 0;
-                    //imask_cell_arr(faceidx[0],faceidx[1],faceidx[2]) = 0;
-                    //imask_cell_arr(faceidx[0],faceidx[1],faceidx[2]-1) = 0;
-                    amrex::AllPrint() << "  mask zface at " << faceidx << std::endl;
-                }
-            }
-        }
+        mask_thin_body_faces(*zflux_imask[lev], solverChoice.advChoice.zero_zflux, 2, "zface");
     } else {
         thin_zforce[lev] = nullptr;
         zflux_imask[lev] = nullptr;

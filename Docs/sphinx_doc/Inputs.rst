@@ -1351,7 +1351,8 @@ generation.  The parameters documented there, rather than on this page, are
 * ``erf.file_name_digits``, ``erf.plot2d_file_1``, ``erf.plot2d_file_2``,
   ``erf.plot2d_int_1``, ``erf.plot2d_int_2``, ``erf.plot2d_per_1``, ``erf.plot2d_per_2``,
   ``erf.plot_face_vels``, ``erf.plot_file_1``, ``erf.plot_file_2``, ``erf.plot_int_1``,
-  ``erf.plot_int_2``, ``erf.plot_per_1``, ``erf.plot_per_2``, ``erf.plotfile2d_type``,
+  ``erf.plot_int_2``, ``erf.plot_per_1``, ``erf.plot_per_2``, ``erf.plot_file_on_restart``,
+  ``erf.plotfile2d_type``,
   ``erf.plotfile2d_type_1``, ``erf.plotfile2d_type_2``, ``erf.plotfile_type``,
   ``erf.plotfile_type_1``, ``erf.plotfile_type_2``, ``erf.subvol.dxdydz``,
   ``erf.subvol.chunk_size``, ``erf.subvol.nxnynz``, ``erf.subvol.origin``, ``erf.subvol_file``, ``erf.subvol_int``,
@@ -1554,7 +1555,8 @@ List of Parameters
 |                                     | diagnostics                                              |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.profile_rad_int**             | number of steps between writes of the radiation profile  | Integer            | -1 (not used)    |
-|                                     | log; read only in an RRTMGP build                        |                    |                  |
+|                                     | log ``erf.rad.datalog`` (RRTMGP and Simple models);      |                    |                  |
+|                                     | see :ref:`sec:RadiationDatalog`                          |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_lsm**                    | write the land-surface-model fields to the plotfile      | Boolean            | false            |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -1570,8 +1572,8 @@ List of Parameters
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.write_eb_surface**            | write the embedded-boundary surface as a separate file   | Boolean            | false            |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rad.datalog**                 | name of the log file to which radiation diagnostics are  | String             | None             |
-|                                     | written                                                  |                    |                  |
+| **erf.rad.datalog**                 | name of the log file to which radiation profiles are     | String             | None             |
+|                                     | written; see :ref:`sec:RadiationDatalog`                 |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 All profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
@@ -2752,10 +2754,6 @@ List of Parameters
 |                                          | built from, instead of the 1/l sum with l_T and l_B.     |                    |                  |
 |                                          | The first-cell TKE then approaches B1^(2/3) u*^2 / 2.    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.diffuse_QKE_3D**                   | Include horizontal turb. diffusion terms in QKE eqn.     | Boolean            | false            |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_force_over_water**         | Treat whole domain as over water for YSU PBL scheme      | Boolean            | false            |
 |                                          | regardless of LSM/other inputs                           |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2840,7 +2838,8 @@ List of Parameters
 |                                          | only when the PBL scheme carries TKE                     |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.diffuse_tke_3D**                   | apply three-dimensional numerical diffusion to the       | Boolean            | true             |
-|                                          | turbulent kinetic energy (per-level)                     |                    |                  |
+|                                          | turbulent kinetic energy (per-level); has an effect only |                    |                  |
+|                                          | when numerical diffusion is on (erf.num_diff_coeff > 0)  |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.init_tke_from_ustar**              | initialize the turbulent kinetic energy from the         | Boolean            | false            |
 |                                          | friction velocity (per-level); read only when a          |                    |                  |
@@ -3820,12 +3819,9 @@ List of Parameters
 |                             | the new time                                             |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_variable_beta_s** | with implicit substepping, use a beta_s that varies      | Boolean            | false            |
-|                             | on the w-faces, max(beta_s_min, min(beta_s_max,          |                    |                  |
-|                             | h_xi^2 + h_eta^2)), in place of ``erf.beta_s``           |                    |                  |
-+-----------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.beta_s_min**          | lower bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.1              |
-+-----------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.beta_s_max**          | upper bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.8              |
+|                             | on the w-faces with the terrain slope and the vertical   |                    |                  |
+|                             | acoustic Courant number, in place of ``erf.beta_s``      |                    |                  |
+|                             | (see :ref:`TimeAdvance`)                                 |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.beta_d**              | divergence damping coefficient used in the acoustic      | Real in [0, 1]     | 0.1              |
 |                             | substepping; how far (rho theta) is projected forward    |                    |                  |
@@ -5348,8 +5344,19 @@ List of Parameters
 |                                       |                                                          |                    | kernel launch overhead.            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_write_fluxes**              | Write radiation fluxes to plotfiles                      | Boolean            | false                              |
+|                                       | named ``plt_rad_lev<L>_<step>``, one single-level        |                    |                                    |
+|                                       | plotfile per level; a fine-level file covers only that   |                    |                                    |
+|                                       | level's refined region.                                  |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling                          | Boolean            | true                               |
+| **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling with maximum-random      | Boolean            | true                               |
+|                                       | cloud overlap. If false, every layer with nonzero        |                    |                                    |
+|                                       | radiative cloud fraction is treated as overcast in all   |                    |                                    |
+|                                       | g-points (no partial cloudiness), with the in-cloud      |                    |                                    |
+|                                       | condensate (grid mean divided by cloud fraction) spread  |                    |                                    |
+|                                       | over the whole layer. That is exact for the binary (0 or |                    |                                    |
+|                                       | 1) cloud fraction ERF uses now, but would overstate the  |                    |                                    |
+|                                       | cloud optical depth by 1/(cloud fraction) for a          |                    |                                    |
+|                                       | fractional one.                                          |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_orbital_year**              | Fixed orbital year for zenith calcs                      | Integer            | < 0 uses timestamp year            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
@@ -5522,6 +5529,67 @@ broadband shortwave; SLM receives corrected visible and near-infrared direct
 components. See :ref:`sec:TopographicRadiation` for the equations and
 approximations, and :ref:`sec:Plotfile2DTopographicRadiation` for mask and flux
 outputs and a visualization example.
+
+.. _sec:RadiationDatalog:
+
+Radiation Profile Log
+---------------------
+
+When ``erf.rad.datalog`` names a file and ``erf.profile_rad_int`` is positive, the RRTMGP and
+Simple radiation models append planar-averaged profiles on level 0 to that file every
+``erf.profile_rad_int`` steps. A new file starts with a header of lines beginning with ``#``
+that names the columns. A run that appends to an existing file, such as a restart, does not
+write the header again.
+
+Each output is a block of ``nz + 2`` rows, where ``nz`` is the number of cells in z:
+
+#. the surface face, with ``z_agl`` = 0,
+
+#. the ``nz`` cell centers, from bottom to top,
+
+#. the top-of-atmosphere face.
+
+``z_agl`` is the height above ground, averaged over the plane. With terrain it is the average
+over columns of the height above the local surface. On the cell-center rows each flux is the
+average of its values on the lower and upper faces of the cell; on the two face rows the fluxes
+are the values on those faces. Heating rates exist only at cell centers and are written as
+``nan`` on the face rows, which ``numpy.loadtxt`` and gnuplot read as missing values.
+
+The RRTMGP log has the following columns:
+
+#. Time, ``time`` (s)
+
+#. Height above ground, ``z_agl`` (m)
+
+#. All-sky shortwave and longwave heating rates, ``sw_heating`` and ``lw_heating``, as
+   potential temperature tendencies (K/s)
+
+#. All-sky fluxes ``sw_flux_up``, ``sw_flux_dn``, ``sw_flux_dn_dir``, ``lw_flux_up`` and
+   ``lw_flux_dn`` (W/m\ :sup:`2`)
+
+#. Cosine of the solar zenith angle, ``mu0``; it does not vary with height
+
+#. Clear-sky shortwave and longwave heating rates, ``sw_clrsky_heating`` and
+   ``lw_clrsky_heating``, as potential temperature tendencies (K/s)
+
+#. Clear-sky fluxes ``sw_clrsky_flux_up``, ``sw_clrsky_flux_dn``, ``sw_clrsky_flux_dn_dir``,
+   ``lw_clrsky_flux_up`` and ``lw_clrsky_flux_dn`` (W/m\ :sup:`2`)
+
+#. Clean-sky fluxes ``sw_clnsky_flux_*`` and ``lw_clnsky_flux_*``, in the same order
+   (W/m\ :sup:`2`); 0 unless ``erf.rad_extra_clnsky_diag = true``
+
+#. Clean-clear-sky fluxes ``sw_clnclrsky_flux_*`` and ``lw_clnclrsky_flux_*``, in the same
+   order (W/m\ :sup:`2`); 0 unless ``erf.rad_extra_clnclrsky_diag = true``
+
+The Simple log has the following columns:
+
+#. Time, ``time`` (s)
+
+#. Height above ground, ``z_agl`` (m)
+
+#. Net upward longwave flux, ``lw_flux_net`` (W/m\ :sup:`2`)
+
+#. Longwave heating rate, ``lw_heating``, as a potential temperature tendency (K/s)
 
 
 Two-Stream Radiation Model
@@ -6503,12 +6571,13 @@ ERF prints which of the three modes it selected, together with the STL file
 name and the scale, center and reverse-normal values, when it builds the EB
 geometry.
 
-Internally the STL mesh is handled by the ``BuildingsIF`` implicit function
+Internally the STL mesh is handled by the host-side ``BuildingsIF`` owner
 (``Source/EB/ERF_EBIFBuildings.H``), which uses the AMReX ``STLtools``
 infrastructure with bounding-volume-hierarchy acceleration.  At construction it
 samples the signed distance to the mesh onto the finest-level grid, computing
 the samples in parallel across ranks and then replicating the result so that
-each rank can evaluate the implicit function locally, including on the GPU.
+each rank can evaluate the implicit function locally, including on the GPU,
+through its ``BuildingsLevelsetIF`` evaluator.
 Evaluation is a trilinear interpolation of that sampled field, so the building
 geometry is resolved at the finest level's cell size; points outside the sampled
 region are treated as fluid.  Very large or highly detailed meshes will

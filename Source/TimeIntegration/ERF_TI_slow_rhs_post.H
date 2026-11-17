@@ -96,6 +96,7 @@
                           fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], get_eb(level),
+                          physbnd_mask[IntVars::cons],
 #ifdef ERF_USE_EAMXX_SHOC
                           eamxx_shoc_interface[level].get(),
 #endif

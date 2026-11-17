@@ -1451,6 +1451,7 @@ ERF::ReadCheckpointFile ()
             istep[i++] = std::stoi(word);
         }
     }
+    m_restart_step = istep[0];
 
     // read in array of dt
     std::getline(is, line);

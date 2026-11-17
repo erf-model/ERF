@@ -14,10 +14,14 @@ SimpleAD::advance (const Geometry& geom,
                    MultiFab& W_old,
                    const MultiFab& mf_Nturb,
                    const MultiFab& mf_SMark,
+                   const MultiFab* z_phys_nd,
+                   const MultiFab* z_phys_cc,
                    const double& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
+    // The simple actuator disk source does not depend on height
+    amrex::ignore_unused(z_phys_nd, z_phys_cc);
     compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
     source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_simpleAD);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);

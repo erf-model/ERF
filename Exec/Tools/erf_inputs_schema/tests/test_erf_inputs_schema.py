@@ -790,6 +790,94 @@ class RunTimePrefixTests(unittest.TestCase):
         self.assertEqual(found.get(("schema", "erf.notakey")), "WARNING")
 
 
+def lambda_tree(lambda_and_calls, before="", after=""):
+    """The schema of one file: f() declares ParmParse pp("slm") and holds the given lambda and its calls."""
+    return tree_keys_files({"Source/ERF_L.cpp": before + 'void f ()\n{\n    ParmParse pp("slm");\n    amrex::Real x;\n'
+                            + lambda_and_calls + '}\n' + after})
+
+
+def slm_keys(s, prefix="slm."):
+    return sorted(k[len(prefix):] for k in s["keys"] if k.startswith(prefix))
+
+
+class LambdaKeyNameTests(unittest.TestCase):
+    """A key name that is a parameter of a local lambda (erf-model/ERF#5067: get_layer_prop in ERF_SLM.cpp)."""
+
+    READ = '        pp.query(name.c_str(), x);\n'
+    SLM = ('    auto check = [](const std::string& name, const amrex::Real v)\n    {\n'
+           '        if (v < 0.0) { amrex::Abort("SLM: bad {" + name); }\n    };\n'
+           '    auto const get_layer_prop = [&pp, &check](\n'
+           '        const std::string& name, const int nz, amrex::Vector<amrex::Real>& prop,\n'
+           '        const std::optional<amrex::Real> lower = std::nullopt)\n    {\n'
+           '        int nval = pp.countval(name.c_str());\n'
+           '        if (nval == 1) {\n            amrex::Real tmp;\n            pp.query(name.c_str(), tmp);\n'
+           '        } else {\n            pp.queryarr(name.c_str(), prop);\n        }\n'
+           '        for (const amrex::Real v : prop) { check(name, v); }\n    };\n'
+           '    get_layer_prop("clay0", nz, clay0, 0.0);\n    get_layer_prop("sand0", nz, sand0, 0.0);\n'
+           '    get_layer_prop("sw0", nz, sw0);\n    get_layer_prop("st0", nz, st0);\n'
+           '    other_helper("not_a_key", nz);\n    obj.get_layer_prop("not_a_key");\n'
+           '    if (nudge) {\n        get_layer_prop("relax_hgt", nz, relax_hgt);\n    }\n')
+    SAME_NAME = ('void %s ()\n{\n    auto get_layer_prop = [](const std::string& label, int n) { return n; };\n'
+                 '    get_layer_prop("not_a_key", 3);\n}\n')
+
+    def test_a_read_through_a_lambda_parameter_takes_the_literals_of_the_lambda_calls(self):
+        # five calls (an assigned name may hold four); same-named lambdas in an earlier and a later function, a
+        # member call and another helper give no key; a brace in a message does not end a body
+        s = lambda_tree(self.SLM, before=self.SAME_NAME % "g", after=self.SAME_NAME % "h")
+        self.assertEqual(slm_keys(s), ["clay0", "relax_hgt", "sand0", "st0", "sw0"])
+        for key in ("slm.clay0", "slm.relax_hgt"):
+            self.assertEqual(s["keys"][key]["type"], "real_list")
+            self.assertFalse(s["keys"][key]["required"])
+            self.assertNotIn("type_conflict", s["keys"][key])
+        self.assertEqual(s["unresolved"], [])
+
+    def test_the_same_name_read_outside_the_lambda_is_not_taken_from_its_calls(self):
+        s = lambda_tree(self.SLM + '    ParmParse pq("other");\n    int n;\n    pq.query(name.c_str(), n);\n')
+        self.assertEqual(slm_keys(s, "other."), [])
+        self.assertEqual(len(slm_keys(s)), 5)
+
+    def test_a_brace_in_a_string_or_character_of_the_body_does_not_end_it(self):
+        for text in ('amrex::Print() << "}" << name;', 'amrex::Print() << "{";', "char c = '{';", "char c = '}';"):
+            s = lambda_tree('    auto rd = [&pp, &x](const std::string& name)\n    {\n        ' + text + '\n'
+                            + self.READ + '    };\n    rd("k1");\n')
+            self.assertEqual(slm_keys(s), ["k1"], text)
+
+    def test_the_innermost_lambda_with_the_parameter_decides(self):
+        s = lambda_tree('    auto outer = [&](const std::string& name)\n    {\n'
+                        '        auto inner = [&](const std::string& name)\n        {\n    ' + self.READ +
+                        '        };\n        inner("in1");\n    };\n    outer("out1");\n')
+        self.assertEqual(slm_keys(s), ["in1"])
+
+    def test_the_key_parameter_may_have_any_position_and_string_type(self):
+        for parameters, call in (("amrex::Real& v, const std::string& name", 'rd(x, "k1")'),
+                                 ("const char* name", 'rd("k1")'),
+                                 ("std::string const& name", 'rd("k1")'),
+                                 ("std::string_view name", 'rd("k1")'),
+                                 ("const std::string& name, std::function<void()> cb = {}", 'rd("k1")'),
+                                 ("const std::string& name, int n = g(1), amrex::Box b = {}", 'rd("k1", 2)')):
+            s = lambda_tree('    auto rd = [&pp, &t = tab[0]](' + parameters + ') mutable -> void\n    {\n'
+                            + self.READ + '    };\n    ' + call + ';\n')
+            self.assertEqual(slm_keys(s), ["k1"], parameters)
+
+    def test_a_call_may_pass_a_variable_a_choice_or_the_parameter_of_another_lambda(self):
+        s = lambda_tree('    auto rd = [&pp, &x](const std::string& name)\n    {\n' + self.READ + '    };\n'
+                        '    auto both = [&rd](const std::string& stem) { rd(stem); };\n'
+                        '    const std::string held = "k2";\n'
+                        '    rd("k1");\n    rd(held);\n    rd(std::string("k3"));\n    rd(flag ? "k4" : "k5");\n'
+                        '    both("k6");\n')
+        self.assertEqual(slm_keys(s), ["k1", "k2", "k3", "k4", "k5", "k6"])
+        self.assertEqual(s["unresolved"], [])
+
+    def test_a_call_whose_argument_names_no_key_is_listed_as_unresolved(self):
+        s = lambda_tree('    auto rd = [&pp, &x](const std::string& name)\n    {\n' + self.READ + '    };\n'
+                        '    rd("k1");\n    rd(base + "_x");\n    for (const auto& k : table) {\n        rd(k);\n    }\n')
+        self.assertEqual(slm_keys(s), ["k1"])
+        self.assertEqual(s["unresolved"], ["Source/ERF_L.cpp:10 rd()", "Source/ERF_L.cpp:12 rd()"])
+        found = check_schema(s, "slm.k1 = 1.0\nslm.k9 = 1.0\n")
+        self.assertNotIn(("schema", "slm.k1"), found)
+        self.assertEqual(found.get(("schema", "slm.k9")), "WARNING")
+
+
 class ProblemRefusalTests(unittest.TestCase):
     def test_a_refusal_in_problem_code_does_not_override_a_typed_read_elsewhere(self):
         # ERF_CloudChamber.H:1081 refuses <face>.velocity; ERF_InitBCs.cpp:142 reads it for every other problem

@@ -785,6 +785,17 @@ void ERF::advance_dycore (int level,
     MultiFab qt(grids[level], dmap[level], 1, (l_eb_terrain) ? 2 : 1);
     qt.setVal(0);
 
+    // With EB, masks of the physical-boundary ghost cells for the flux interpolation in
+    // erf_slow_rhs_pre and erf_slow_rhs_post.  They depend only on the grids and the domain,
+    // so they are built once here for every RK stage.
+    Vector<iMultiFab> physbnd_mask(IntVars::NumTypes);
+    if (l_eb_terrain) {
+        for (int i = 0; i < IntVars::NumTypes; ++i) {
+            physbnd_mask[i].define(state_old[i].boxArray(), state_old[i].DistributionMap(), 1, 1);
+            physbnd_mask[i].BuildMask(fine_geom.Domain(), fine_geom.periodicity(), 1, 1, 0, 1);
+        }
+    }
+
 #include "ERF_TI_no_substep_fun.H"
 #include "ERF_TI_substep_fun.H"
 #include "ERF_TI_slow_rhs_pre.H"

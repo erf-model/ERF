@@ -1179,6 +1179,7 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm (int lev);
+    void fill_windfarm_markers (int lev);
     void advance_windfarm (const amrex::Geometry& a_geom,
                            const double& dt_advance,
                            amrex::MultiFab& cons_in,
@@ -1188,6 +1189,8 @@ public:
                            amrex::MultiFab& mf_vars_windfarm,
                            const amrex::MultiFab& mf_Nturb,
                            const amrex::MultiFab& mf_SMark,
+                           const amrex::MultiFab* z_phys_nd,
+                           const amrex::MultiFab* z_phys_cc,
                            const double& time);
 #endif
 
@@ -1597,6 +1600,7 @@ private:
     amrex::Vector<amrex::Vector<amrex::Box>> boxes_at_level; //      the boxes specified at each level by tagging criteria
 
     amrex::Vector<int> istep;      // which step?
+    int m_restart_step = -1;       // level-0 step of the checkpoint we restarted from (-1: none)
     amrex::Vector<int> nsubsteps;  // how many substeps on each level?
 
     // One entry per level: set when that level has just been built by the
@@ -2004,6 +2008,9 @@ private:
     static int last_plot2d_file_step_2;
     static int last_check_file_step;
 
+    // Despite the names, the *_time trackers (and last_subvol_time, last_fire_plot_time)
+    // hold the time the NEXT output with a period is due: writeNow() fires once the time
+    // reaches it (less 0.1*dt), and each write then adds one period
     static double last_plot3d_file_time_1;
     static double last_plot3d_file_time_2;
     static double last_plot2d_file_time_1;
