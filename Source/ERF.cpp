@@ -3555,20 +3555,36 @@ ERF::restart ()
     initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
 #endif
 
+    // The period trackers hold the next time an output is due (see writeNow).  Put each
+    // on the next k * per after the restart time, with the 0.1*dt tolerance writeNow uses
+    // (a checkpoint written on schedule can carry a time just below k * per); setting them
+    // to the last boundary instead wrote an unscheduled output at the first step.
     double cur_time = t_new[0];
-    if (m_check_per    > zero) {last_check_file_time    = std::floor(cur_time/m_check_per   ) * m_check_per;}
-    if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
-    if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
-    if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
-    if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+    auto next_time = [&] (double per) {
+        return (std::floor((cur_time + 0.1*dt[0])/per) + 1.0) * per;
+    };
+    auto last_time = [&] (double per) {
+        return std::floor(cur_time/per) * per;
+    };
+    if (m_check_per > zero) {last_check_file_time = next_time(m_check_per);}
 #ifdef ERF_USE_FIRE
-    // the fire plot clock is realigned like the others, so a restart keeps the
-    // k * fire_plot_per instants instead of writing at its first step
-    if (m_fire_plot_per > zero) {last_fire_plot_time = std::floor(cur_time/m_fire_plot_per) * m_fire_plot_per;}
+    // no restart-time fire plot moves this clock on, so it goes to the next instant too
+    if (m_fire_plot_per > zero) {last_fire_plot_time = next_time(m_fire_plot_per);}
 #endif
 
+    // With erf.plot_file_on_restart the plot and subvolume files are written at restart
+    // (InitData_post), which then adds one period to these trackers, so they start from
+    // the last boundary; without it nothing does, so they go to the next one
+    auto plot_time = [&] (double per) {
+        return plot_file_on_restart ? last_time(per) : next_time(per);
+    };
+    if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = plot_time(m_plot2d_per_1);}
+    if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = plot_time(m_plot2d_per_2);}
+    if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = plot_time(m_plot3d_per_1);}
+    if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = plot_time(m_plot3d_per_2);}
+
     for (int i = 0; i < m_subvol_per.size(); i++) {
-        if (m_subvol_per[i] > zero) {last_subvol_time[i] = std::floor(cur_time/m_subvol_per[i]) * m_subvol_per[i];}
+        if (m_subvol_per[i] > zero) {last_subvol_time[i] = plot_time(m_subvol_per[i]);}
     }
 
     if (m_check_int    > zero) {last_check_file_step    = istep[0];}

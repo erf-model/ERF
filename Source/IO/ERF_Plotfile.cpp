@@ -442,14 +442,17 @@ ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratc
                 // todo - clean this up
                 const Box& bxcc= mfi.tilebox();
 
+                // Without terrain or lateral surface-layer BCs (or vertical implicit diffusion, for
+                // tau31/tau32) the transposed components are not stored: the stress is symmetric
+                // there and the momentum equations use tau12/tau13/tau23 in their place, so do too
                 const Array4<Real>& tau12 = (Tau[lev][TauType::tau12]) ? Tau[lev][TauType::tau12]->array(mfi) : Array4<Real>{};
-                const Array4<Real>& tau21 = (Tau[lev][TauType::tau21]) ? Tau[lev][TauType::tau21]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau21 = (Tau[lev][TauType::tau21]) ? Tau[lev][TauType::tau21]->array(mfi) : tau12;
 
                 const Array4<Real>& tau13 = (Tau[lev][TauType::tau13]) ? Tau[lev][TauType::tau13]->array(mfi) : Array4<Real>{};
-                const Array4<Real>& tau31 = (Tau[lev][TauType::tau31]) ? Tau[lev][TauType::tau31]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau31 = (Tau[lev][TauType::tau31]) ? Tau[lev][TauType::tau31]->array(mfi) : tau13;
 
                 const Array4<Real>& tau23 = (Tau[lev][TauType::tau23]) ? Tau[lev][TauType::tau23]->array(mfi) : Array4<Real>{};
-                const Array4<Real>& tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : tau23;
 
                 const Array4<Real>& tau_cc   = mf_cc_tau[lev].array(mfi);
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
