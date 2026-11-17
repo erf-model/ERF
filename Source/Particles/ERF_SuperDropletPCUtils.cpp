@@ -1150,6 +1150,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                 Gpu::DeviceVector<int> first_active_d(num_bins, -1);
                 auto* active_count = active_count_d.data();
                 auto* first_active = first_active_d.data();
+                const auto* active_tag = soa.GetIntData(active_idx).data();
 
                 amrex::ParallelFor(num_bins, [=] AMREX_GPU_DEVICE (int b) {
                     auto bstart = d_offsets[b];
@@ -1158,7 +1159,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     int first = -1;
                     for (auto k = bstart; k < bstop; k++) {
                         unsigned int idx = d_inds[k];
-                        if (pstruct[idx].id() > 0) {
+                        if (pstruct[idx].id() > 0 && active_tag[idx] > 0) {
                             count++;
                             // DenseBins order within a cell can vary on GPUs.
                             if (first < 0 || static_cast<int>(idx) < first) {
