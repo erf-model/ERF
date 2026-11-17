@@ -2283,6 +2283,20 @@ struct SolverChoice {
 
         pp.queryAdd("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
+        // The hindcast latitude comes with the lateral-forcing data; without it, Coriolis
+        // takes the variable or constant latitude instead, so say which
+        if (init_type == InitType::HindCast && use_coriolis && !hindcast_lateral_forcing) {
+            if (variable_coriolis) {
+                amrex::Print() << "WARNING: erf.init_type = hindcast without erf.hindcast_lateral_forcing:"
+                               << " Coriolis uses the variable latitude (erf.variable_coriolis)" << std::endl;
+            } else {
+                amrex::Print() << "WARNING: erf.init_type = hindcast without erf.hindcast_lateral_forcing:"
+                               << " Coriolis uses the constant erf.latitude"
+                               << (pp.contains("latitude") ? "" : ", which is not set (default 90 degrees)")
+                               << std::endl;
+            }
+        }
+
         if (hindcast_lateral_forcing) {
             pp.queryAdd("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
 

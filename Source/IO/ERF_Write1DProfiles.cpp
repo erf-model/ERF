@@ -658,7 +658,8 @@ ERF::WriteLinePlot (const std::string& filename,
     }
 
     // Full precision: a restart reads the storm-tracker histories back from these files
-    ofs << std::setprecision(std::numeric_limits<Real>::max_digits10) << std::scientific;
+    // (with std::scientific the precision counts the digits after the point)
+    ofs << std::setprecision(std::numeric_limits<Real>::max_digits10 - 1) << std::scientific;
     ofs << "# x y\n";
 
     for (const auto& p : points_xy) {

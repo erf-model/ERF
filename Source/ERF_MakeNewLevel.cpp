@@ -2036,6 +2036,7 @@ namespace {
 void
 mask_thin_body_faces (iMultiFab& imask, const Vector<IntVect>& faces, int dir, const char* name)
 {
+    if (faces.empty()) { return; }
     const int nf = static_cast<int>(faces.size());
     Gpu::DeviceVector<IntVect> d_faces(nf);
     Gpu::copy(Gpu::hostToDevice, faces.begin(), faces.end(), d_faces.begin());
@@ -2054,7 +2055,9 @@ mask_thin_body_faces (iMultiFab& imask, const Vector<IntVect>& faces, int dir, c
             }
         }
     }
-    Gpu::streamSynchronize(); // d_faces goes out of scope
+    // The MFIter may have launched on several streams; wait for all of them before d_faces
+    // goes out of scope (a one-time setup, so a device-wide sync costs nothing)
+    Gpu::synchronize();
 }
 } // namespace
 
