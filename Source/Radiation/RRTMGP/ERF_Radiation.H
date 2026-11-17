@@ -66,34 +66,24 @@ public:
           const amrex::BoxArray& ba,
           amrex::MultiFab* cons_in) override
     {
-        // Check for nested patches: fine levels that don't reach the model top
-        // These need special handling since radiation requires complete atmospheric columns
-        int klo = geom.Domain().smallEnd(2);
-        int khi = geom.Domain().bigEnd(2);
-
         // Detect nested patches: a fine level on which some box does not span the domain
-        // vertically. The column sweep needs a whole column inside ONE box, so test each box
-        // rather than the level's bounding box -- a level with a full-column box and a box
-        // aloft elsewhere has a bounding box reaching both domain ends while not every box
-        // holds a column. Same test as RadiationSimple and TwoStream.
-        bool is_nested_patch = false;
-        for (int ib = 0; ib < ba.size(); ++ib) {
-            if (ba[ib].smallEnd(2) != klo || ba[ib].bigEnd(2) != khi) {
-                is_nested_patch = true;
-                break;
-            }
-        }
-
-        // Level 0 has no parent to interpolate from, so a z-split there cannot be skipped
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(is_nested_patch && m_lev == 0),
-            "RRTMGP: every level-0 box must span the domain in z (do not split grids in z)");
+        // vertically, so no sweep is possible and the heating is interpolated from the parent.
+        // rad_boxes_span_column is the same test ERF::rad_level_needs_interpolation applies.
+        // A level 0 that fails it is rejected when its grids are built
+        // (ERF::check_rad_level_grids), since it has no parent to interpolate from.
+        bool is_nested_patch = !rad_boxes_span_column(ba, geom.Domain());
 
         // Update the nested patch flag - must be set/cleared on every Init call
         // so that levels that stop being nested after regrid will resume radiation computation
         m_is_nested_patch = is_nested_patch;
 
-        // Skip radiation on nested patches - heating rates will be interpolated from coarser level
+        // Skip radiation on nested patches - heating rates will be interpolated from coarser level.
+        // Clear the column layout first, so nothing left from an earlier grid indexes this one.
         if (is_nested_patch) {
+            m_nlay = 0;
+            m_ncol = 0;
+            m_ncol_chunk = 0;
+            m_col_offsets.clear();
             return;
         }
 
@@ -105,10 +95,9 @@ public:
         m_col_offsets.resize(int(ba.size()));
         for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
             const amrex::Box& vbx = mfi.validbox();
-            // Cannot fire: any box that does not span the column was caught above.
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
-                                             (khi == vbx.bigEnd(2)),
-                                             "Vertical decomposition with radiation is not allowed.");
+            // Every box spans the column: a level where one does not returned above
+            AMREX_ASSERT(vbx.smallEnd(2) == geom.Domain().smallEnd(2) &&
+                         vbx.bigEnd(2)   == geom.Domain().bigEnd(2));
             int nx = vbx.length(0);
             int ny = vbx.length(1);
             m_col_offsets[mfi.index()] = m_ncol;
@@ -266,12 +255,6 @@ public:
         return m_lsm_output_names;
     }
 
-    // Check if this is a nested patch (doesn't reach model top)
-    bool is_nested_patch () const override
-    {
-        return m_is_nested_patch;
-    }
-
     // Populate datalog structures
     void
     populateDatalogMF ();
@@ -290,7 +273,7 @@ private:
     bool m_is_nested_patch = false;
 
     // Grid level
-    int m_lev;
+    int m_lev = -1;
 
     // Step number
     int m_step;

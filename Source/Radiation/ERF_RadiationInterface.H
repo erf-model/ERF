@@ -9,6 +9,22 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ParmParse.H>
 
+// True when every box of ba spans dom in z. The radiation column sweeps need a whole column
+// inside ONE box, so this tests each box rather than the level's bounding box: a level with a
+// full-column box and a box aloft elsewhere has a bounding box reaching both domain ends while
+// not every box holds a column. The one definition of the test, shared by every radiation model
+// and by ERF::rad_level_needs_interpolation, so they cannot disagree about a level.
+inline bool
+rad_boxes_span_column (const amrex::BoxArray& ba, const amrex::Box& dom)
+{
+    for (int ib = 0; ib < ba.size(); ++ib) {
+        if (ba[ib].smallEnd(2) != dom.smallEnd(2) || ba[ib].bigEnd(2) != dom.bigEnd(2)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Basic interface class for wrapping different radiation models
 class IRadiation
 {
@@ -70,14 +86,6 @@ public:
     {
         amrex::Vector<std::string> empty = {" "};
         return empty;
-    }
-
-    // Check if this is a nested patch (doesn't reach model top)
-    virtual
-    bool
-    is_nested_patch () const
-    {
-        return false;  // Default: not a nested patch
     }
 
     void

@@ -428,9 +428,9 @@ ERF::ResetIntervalMeans ()
 // different horizontal regions has a bounding box reaching both domain ends while no single
 // box holds a column.
 //
-// Every model uses this same per-box test (RRTMGP and RadiationSimple in their Init, the
-// two-stream solver in its advance), so derive it from the grids here. That also covers the
-// two-stream model, which has no IRadiation object to ask.
+// Every model uses this same per-box test, rad_boxes_span_column (RRTMGP and RadiationSimple
+// in their Init, the two-stream solver in its advance), so derive it from the grids here. That
+// also covers the two-stream model, which has no IRadiation object to ask.
 //
 // This lives here, rather than as a lambda in one caller, because three places have to
 // agree about it: advance_radiation (which routes such a level through
@@ -440,12 +440,58 @@ bool
 ERF::rad_level_needs_interpolation (int lev) const
 {
     if (lev <= 0) { return false; }
+    return !rad_boxes_span_column(grids[lev], geom[lev].Domain());
+}
+
+// Called from init_stuff, so on every level build (from scratch, from coarse, and regrid) and
+// before any radiation model sees the grids, which makes it the one place every model rejects
+// a level 0 split in z.
+//
+// A fine level that fails the per-box test takes coarse radiation. That is intended for a
+// partial-height patch, but a level whose boxes together reach both the ground and the top --
+// full-height boxes chopped in z by max_grid_size, or full-column boxes beside partial ones --
+// could have been swept, so say so rather than let it take coarse radiation unnoticed. Warned
+// once per level each time it starts to be interpolated, so a regrid that turns another
+// layout into one is reported too.
+void
+ERF::check_rad_level_grids (int lev, const BoxArray& ba)
+{
+    if (solverChoice.rad_type == RadiationType::None) { return; }
+
     const Box& dom = geom[lev].Domain();
-    for (int ibox = 0; ibox < grids[lev].size(); ++ibox) {
-        const Box& b = grids[lev][ibox];
-        if (b.smallEnd(2) != dom.smallEnd(2) || b.bigEnd(2) != dom.bigEnd(2)) { return true; }
+    const bool spans = rad_boxes_span_column(ba, dom);
+
+    if (lev == 0) {
+        if (!spans) {
+            amrex::Abort("Radiation cannot run on a level 0 whose grids are decomposed in z: "
+                         "a box there holds only part of a column, and level 0 has no parent "
+                         "to interpolate from. Set amr.max_grid_size_z to at least the number "
+                         "of cells in z, or leave amr.no_box_split_dir at its default of 2 so "
+                         "grids are never split in z.");
+        }
+        return;
     }
-    return false;
+
+    if (lev >= static_cast<int>(m_rad_cut_in_z_warned.size())) {
+        m_rad_cut_in_z_warned.resize(lev + 1, 0);
+    }
+    const Box bbox = ba.minimalBox();
+    const bool cut_in_z = !spans && bbox.smallEnd(2) == dom.smallEnd(2)
+                                 && bbox.bigEnd(2)   == dom.bigEnd(2);
+    if (cut_in_z) {
+        if (!m_rad_cut_in_z_warned[lev]) {
+            Print() << "WARNING: level " << lev << " has grids reaching both the bottom and the "
+                       "top of the domain, but not every box spans the column (grids split in z, "
+                       "e.g. by amr.max_grid_size, or full-column boxes beside partial-height "
+                       "ones). Radiation cannot sweep it, so its radiation is interpolated from "
+                       "level " << lev - 1 << ". To compute it on this level, set "
+                       "amr.max_grid_size_z there to at least its number of cells in z, or "
+                       "leave amr.no_box_split_dir at its default of 2.\n";
+            m_rad_cut_in_z_warned[lev] = 1;
+        }
+    } else {
+        m_rad_cut_in_z_warned[lev] = 0;
+    }
 }
 
 // Two-way coupling of the two-stream surface energy balance with the zlo surface layer

@@ -592,6 +592,12 @@ public:
     //! column -- and so takes its radiation fields by interpolation from its parent.
     [[nodiscard]] bool rad_level_needs_interpolation (int lev) const;
 
+    //! Check a level's grids against radiation's need for whole columns when the level is
+    //! built: abort on a level 0 that is split in z, and warn on a fine level whose grids
+    //! reach both domain ends but are cut in z, since its radiation is then interpolated
+    //! from the parent.
+    void check_rad_level_grids (int lev, const amrex::BoxArray& ba);
+
     //! Fill a newly built level's two-stream SEB state from its parent
     void fill_seb_from_coarse (int lev);
 
@@ -611,6 +617,10 @@ public:
     //! Per level: the "takes its radiation from its parent, no skin coupling" warning
     //! of set_surface_layer_skin has been printed since the level last coupled
     amrex::Vector<int> m_skin_uncoupled_warned;
+
+    //! Per level: check_rad_level_grids has warned that the level's grids reach both domain
+    //! ends but are cut in z, since the level last stopped being so
+    amrex::Vector<int> m_rad_cut_in_z_warned;
 
     //! The zlo surface layer's applied heat and moisture fluxes for the two-stream
     //! surface energy balance's H and LE, or nullptr where it applies none

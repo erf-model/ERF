@@ -88,7 +88,7 @@ Radiation::Radiation (const int& lev,
 {
     // Note that Kokkos is now initialized in main.cpp
 
-    // Stored now, not only in set_grids: Init runs before the first Run and needs the level
+    // Stored now, not only in set_grids, so it is valid from construction on
     m_lev = lev;
 
     m_rdOcp = sc.rdOcp;
