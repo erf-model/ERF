@@ -122,10 +122,15 @@ vapor and latent-heat changes in the initial atmospheric state. These
 initialization operations are not repeated when restarting from a checkpoint.
 
 A restart restores the condensate fields from the checkpoint, including
-fine-level averages in covered coarse cells. Turbulent diffusivities, including
-``Kmv``, are not checkpointed. They can be zero in the initial restart plotfile
-until the next turbulence update, even when the conserved state has been
-restored correctly.
+fine-level averages in covered coarse cells. The ground accumulations
+``rain_accum``, ``snow_accum`` and ``precip_accum`` are checkpointed on every
+level and kept when the grids of a level change. The per-species and
+per-aerosol ground accumulations (``accum_<species>``, ``accum_<aerosol>``) are
+not: they start again from zero after a restart, and so do those of a fine
+level, and of the coarse cells it covers, when its grids change. Turbulent
+diffusivities, including ``Kmv``, are not checkpointed. They can be zero in the
+initial restart plotfile until the next turbulence update, even when the
+conserved state has been restored correctly.
 
 For additional species, cloud-in-cell projection uses only cells on the
 particle's level that are not covered by finer grids. The retained weights are
