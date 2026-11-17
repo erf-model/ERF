@@ -2132,13 +2132,13 @@ ERF::InitData_post ()
                     if (ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low) {
                         // Initialize tke(x,y,z) as a function of u*(x,y)
                         if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
-                            Real qkefac = one;
+                            Real tkefac = one;
                             if (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25 ||
                                 solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF)
                             {
                                 // https://github.com/NCAR/MYNN-EDMF/blob/90f36c25259ec1960b24325f5b29ac7c5adeac73/module_bl_mynnedmf.F90#L1325-L1333
                                 const Real B1 = solverChoice.turbChoice[lev].pbl_mynn.B1;
-                                qkefac = Real(1.5) * std::pow(B1, two/three);
+                                tkefac = myhalf * Real(1.5) * std::pow(B1, two/three);
                             }
                             m_SurfaceLayer[ori]->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], qkefac);
                         }
