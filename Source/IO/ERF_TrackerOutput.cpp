@@ -2,6 +2,7 @@
  * \file ERF_TrackerOutput.cpp
  */
 #include <iomanip>
+#include <limits>
 
 #include "ERF.H"
 #include "ERF_EOS.H"
@@ -136,6 +137,9 @@ ERF::WriteVTKPolyline (const std::string& filename,
     vtkfile << "Storm Track\n";
     vtkfile << "ASCII\n";
     vtkfile << "DATASET POLYDATA\n";
+
+    // Full precision: a restart reads the eye track back from this file
+    vtkfile << std::setprecision(std::numeric_limits<Real>::max_digits10);
 
     // Write points (Z=0 assumed)
     vtkfile << "POINTS " << num_points << " float\n";

@@ -2334,6 +2334,13 @@ struct SolverChoice {
                               " options in the inputs - erf.hurricane_eye_latitude and erf.hurricane_eye_longitude that gives an approximate"
                               " location of the eye in the initial condition");
             }
+            // With init_type = hindcast the tracker takes latitude and longitude from the
+            // forecast state, which exists only with lateral forcing
+            if (init_type == InitType::HindCast && !hindcast_lateral_forcing) {
+                amrex::Error("ERROR: 'erf.io_hurricane_eye_tracker' with erf.init_type = hindcast needs"
+                             " erf.hindcast_lateral_forcing = true: the tracker reads latitude and longitude"
+                             " from the forecast state, which only lateral forcing provides");
+            }
         }
 
         pp.queryAdd("is_init_for_ensemble", is_init_for_ensemble);

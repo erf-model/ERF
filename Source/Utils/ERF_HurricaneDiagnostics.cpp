@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <cctype>
 
 using namespace amrex;
 
@@ -500,130 +501,64 @@ ERF::ReadStormTrackerRestart ()
 
     const fs::path base_dir("Output_StormTracker");
 
-    // Nothing to do for a fresh run.
-    if (!fs::exists(base_dir)) {
-        return;
-    }
-    //
-    // Return the alphabetically last file in a directory.
-    // Since the filenames are zero-padded, this is also the newest output.
-    //
-    auto last_file = [](const fs::path& dir) -> fs::path
+    // The files are named by the step that wrote them (zero-padded, at the end of the
+    // stem).  A run that went on past the checkpoint we restart from may have left files
+    // at later steps; those hold positions this run discards, so take the newest file
+    // written at or before the checkpoint's step (by the time of this run's first tracker
+    // call istep has moved past it).
+    const int restart_step = (m_restart_step >= 0) ? m_restart_step : istep[0];
+    auto file_at_restart = [restart_step](const fs::path& dir) -> fs::path
     {
-        std::vector<fs::path> files;
-
+        fs::path best;
+        long best_step = -1;
+        if (!fs::is_directory(dir)) { return best; }
         for (const auto& entry : fs::directory_iterator(dir)) {
-            if (entry.is_regular_file()) {
-                files.push_back(entry.path());
+            if (!entry.is_regular_file()) { continue; }
+            const std::string stem = entry.path().stem().string();
+            std::size_t p = stem.size();
+            while (p > 0 && std::isdigit(static_cast<unsigned char>(stem[p-1]))) { --p; }
+            if (p == stem.size()) { continue; }
+            const long step = std::stol(stem.substr(p));
+            if (step <= restart_step && step > best_step) {
+                best_step = step;
+                best = entry.path();
             }
         }
-
-        if (files.empty()) {
-            return fs::path{};
-        }
-
-        std::sort(files.begin(), files.end());
-
-        return files.back();
+        return best;
     };
 
-    //==========================================================
-    // Read lat/lon file
-    //==========================================================
-
+    // Read a two-column file (one header line) into hist
+    auto read_columns = [] (const fs::path& file, Vector<std::array<Real,2>>& hist)
     {
-        fs::path file = last_file(base_dir / "latlon");
+        if (file.empty()) { return; }
+        std::ifstream ifs(file);
+        if (!ifs.is_open()) {
+            Abort("Could not open " + file.string());
+        }
+        std::string line;
+        std::getline(ifs, line); // header
+        Real val1, val2;
+        while (ifs >> val1 >> val2) {
+            hist.push_back({val1, val2});
+        }
+    };
 
+    // Every rank needs the histories, but one rank reads the files and broadcasts them
+    if (ParallelDescriptor::IOProcessor() && fs::exists(base_dir))
+    {
+        read_columns(file_at_restart(base_dir / "latlon"),         hurricane_eye_track_latlon);
+        read_columns(file_at_restart(base_dir / "maxvel"),         hurricane_maxvel_vs_time);
+        read_columns(file_at_restart(base_dir / "minpressure"),    hurricane_minpressure_vs_time);
+        read_columns(file_at_restart(base_dir / "surface_fluxes"), hurricane_surface_fluxes_vs_time);
+
+        // XY VTK file
+        const fs::path file = file_at_restart(base_dir / "xy");
         if (!file.empty())
         {
             std::ifstream ifs(file);
-
             if (!ifs.is_open()) {
                 Abort("Could not open " + file.string());
             }
-
-            std::string line;
-
-            // Skip the header line.
-            std::getline(ifs, line);
-
-            Real lat, lon;
-
-            while (ifs >> lat >> lon)
-            {
-                hurricane_eye_track_latlon.push_back({lat, lon});
-            }
-        }
-    }
-
-    //==========================================================
-    // Read maxvel tracker file
-    //==========================================================
-
-    {
-        fs::path file = last_file(base_dir / "maxvel");
-
-        if (!file.empty())
-        {
-            std::ifstream ifs(file);
-
-            if (!ifs.is_open()) {
-                Abort("Could not open " + file.string());
-            }
-
-            std::string line;
-
-            // Skip the header line.
-            std::getline(ifs, line);
-
-            amrex::Real val1, val2;
-
-            while (ifs >> val1 >> val2)
-            {
-                hurricane_maxvel_vs_time.push_back({val1, val2});
-            }
-        }
-    }
-
-    //==========================================================
-    // Read minpressure tracker file
-    //==========================================================
-
-    {
-        fs::path file = last_file(base_dir / "minpressure");
-
-        if (!file.empty())
-        {
-            std::ifstream ifs(file);
-
-            if (!ifs.is_open()) {
-                Abort("Could not open " + file.string());
-            }
-
-            std::string line;
-
-            // Skip the header line.
-            std::getline(ifs, line);
-
-            amrex::Real val1, val2;
-
-            while (ifs >> val1 >> val2)
-            {
-                hurricane_minpressure_vs_time.push_back({val1, val2});
-            }
-        }
-    }
-
-    //==========================================================
-    // Read XY VTK file
-    //==========================================================
-
-    {
-        fs::path file = last_file(base_dir / "xy");
-
-        if (!file.empty())
-        {
-            std::ifstream ifs(file);
             std::string line;
 
             // Skip the first four header lines.
@@ -631,11 +566,10 @@ ERF::ReadStormTrackerRestart ()
                 std::getline(ifs, line);
             }
 
-
             std::getline(ifs, line);
             std::istringstream iss(line);
             std::string keyword, datatype;
-            int npoints;
+            int npoints = 0;
 
             iss >> keyword >> npoints >> datatype;
             hurricane_eye_track_xy.reserve(npoints);
@@ -646,37 +580,29 @@ ERF::ReadStormTrackerRestart ()
                 ifs >> x >> y >> z;
                 hurricane_eye_track_xy.push_back({x, y});
             }
+            // WriteVTKPolyline writes a one-point track as two identical points
+            if (hurricane_eye_track_xy.size() == 2 &&
+                hurricane_eye_track_xy[0] == hurricane_eye_track_xy[1]) {
+                hurricane_eye_track_xy.pop_back();
+            }
         }
     }
 
-    //==========================================================
-    // Read surface fluxes tracker file
-    //==========================================================
-
+    auto bcast_hist = [] (Vector<std::array<Real,2>>& hist)
     {
-        fs::path file = last_file(base_dir / "surface_fluxes");
-
-        if (!file.empty())
-        {
-            std::ifstream ifs(file);
-
-            if (!ifs.is_open()) {
-                Abort("Could not open " + file.string());
-            }
-
-            std::string line;
-
-            // Skip the header line.
-            std::getline(ifs, line);
-
-            amrex::Real val1, val2;
-
-            while (ifs >> val1 >> val2)
-            {
-                hurricane_surface_fluxes_vs_time.push_back({val1, val2});
-            }
+        const int root = ParallelDescriptor::IOProcessorNumber();
+        int n = static_cast<int>(hist.size());
+        ParallelDescriptor::Bcast(&n, 1, root);
+        hist.resize(n);
+        if (n > 0) {
+            ParallelDescriptor::Bcast(hist[0].data(), 2*n, root);
         }
-    }
+    };
+    bcast_hist(hurricane_eye_track_xy);
+    bcast_hist(hurricane_eye_track_latlon);
+    bcast_hist(hurricane_maxvel_vs_time);
+    bcast_hist(hurricane_minpressure_vs_time);
+    bcast_hist(hurricane_surface_fluxes_vs_time);
 }
 
 /**
@@ -981,9 +907,11 @@ ERF::HurricaneEyeTracker (const SolverChoice& sc,
                                    hurricane_eye_j_glob,
                                    hurricane_eye_latitude,
                                    hurricane_eye_longitude);
-        is_start = false;
     } else {
-         if(!restart_chkfile.empty()) {
+        // After a restart, load the track history once, at the first call; later calls
+        // keep the history in memory (reloading it each time dropped the point the
+        // previous call added whenever a stale file from a later step sorted last)
+        if (is_start) {
             ReadStormTrackerRestart();
         }
         HurricaneEyeTrackerNotInitial(sc, geom[levc],
@@ -994,6 +922,7 @@ ERF::HurricaneEyeTracker (const SolverChoice& sc,
                                       hurricane_eye_latitude,
                                       hurricane_eye_longitude);
     }
+    is_start = false;
     HurricaneTrackerCircle();
 }
 #endif
