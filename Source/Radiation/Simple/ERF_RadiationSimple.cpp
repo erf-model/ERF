@@ -18,13 +18,7 @@ void RadiationSimple::Init (const amrex::Geometry& geom,
 
     // Set (or cleared) on every Init, so a level that spans the column again after a
     // regrid resumes the sweep.
-    m_partial_columns = false;
-    for (int ib = 0; ib < ba.size(); ++ib) {
-        if (ba[ib].smallEnd(2) != geom.Domain().smallEnd(2) || ba[ib].bigEnd(2) != geom.Domain().bigEnd(2)) {
-            m_partial_columns = true;
-            break;
-        }
-    }
+    m_partial_columns = !rad_boxes_span_column(ba, geom.Domain());
 
     DistributionMapping dm = cons_in->DistributionMap();
     deltaq.define(ba, dm, 1, 0);
@@ -71,9 +65,9 @@ void RadiationSimple::Run (int& level,
                            amrex::Real& /*calday*/)
 {
     if (m_partial_columns) {
-        // Level 0 has no parent to interpolate from: grids split in z are unsupported here.
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(level > 0,
-            "RadiationSimple: every level-0 box must span the domain in z (do not split grids in z)");
+        // A level 0 split in z is rejected when its grids are built (ERF::check_rad_level_grids)
+        AMREX_ASSERT(level > 0);
+        amrex::ignore_unused(level);
         return;
     }
 
