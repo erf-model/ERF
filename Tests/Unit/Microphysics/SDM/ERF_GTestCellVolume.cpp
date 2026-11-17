@@ -373,3 +373,17 @@ TEST(SDMCellVolume, PerBoxInjectionFollowsPhysicalCellVolume)
 {
     sdm_cv_injection_test(true);
 }
+
+// A cell's super-droplet count comes from a super-droplet density, or from the per-cell count
+// when none is set: an initialization without a density has -1, an injection without a rate 0.
+TEST(SDMCellVolume, DensityModeOfInitializationAndInjection)
+{
+    SDCellCounts c;
+    EXPECT_FALSE(c.densityMode());
+    c.sd_density = Real(0);
+    EXPECT_TRUE(c.densityMode());
+    c.inject = true;
+    EXPECT_FALSE(c.densityMode());
+    c.sd_density = Real(1.0e3);
+    EXPECT_TRUE(c.densityMode());
+}

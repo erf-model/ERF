@@ -120,7 +120,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         if (m_variable_dz) {
             const auto init_counts = initCellCountsHost();
             mult_avg = SD_init_multiplicity(init_counts.data(), static_cast<int>(init_counts.size()), cell_volume);
-            for (const auto& c : init_counts) { if (c.sd_density >= 0) { recycle_tag = 1; } }
+            for (const auto& c : init_counts) { if (c.densityMode()) { recycle_tag = 1; } }
         } else {
             // number of super-droplets per cell
             const int num_sd_per_cell = m_num_sd_per_cell;
