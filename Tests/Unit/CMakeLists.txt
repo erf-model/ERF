@@ -970,6 +970,11 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_HostTypes
     inputs_boundary_inflow_outflow nonzero
     "-DRUN_ARGS=${_sbm_mixing_open_constant}|xlo.type=inflow_outflow|xhi.type=ho_outflow")
+  # With an LES closure ERF diffuses its own scalars through the inflow_outflow
+  # face as well, on each of the deck's two boxes in x.
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_HostPassiveScalar
+    inputs_boundary_inflow_outflow nonzero ${_sbm_mixing_host}
+    "-DRUN_ARGS=${_sbm_mixing_open_deardorff}|xlo.type=inflow_outflow")
   add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_Stretched
     inputs_boundary_inflow_outflow nonzero
     "-DRUN_ARGS=${_sbm_mixing_open_constant}|erf.grid_stretching_ratio=1.1|erf.initial_dz=0.25")
