@@ -1769,6 +1769,14 @@ add_test_field_bounds(BndryPlanes_MoistTemperature "plt00050" theta 299.999 300.
 set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP BndryPlanesMoist)
 # Input sponge with a refined patch that does not reach the domain top: ran outside the patch's boxes at start-up
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
+# The same patch made by a regrid at t = 2 instead of at start-up: the new level had no sponge
+# profiles, and its first advance read an empty vector (erf-model/ERF#5143).  By step 8 the
+# start-up adjustment reaches 8.61 m/s, so the upper bound is looser than InputSponge_FinePatch's
+add_test_field_bounds(InputSponge_NewLevel "plt00008" x_velocity 5.9 9.0)
+# Rayleigh damping toward an input sounding on a level that a regrid remakes at t = 10: its
+# targets were reset to the problem defaults (300 K, U = V = 0), and theta in the damping layer
+# was relaxed toward 300 K instead of the sounding's 309 to 310 K (erf-model/ERF#5142)
+add_test_column_bounds(RegridKeepsRayleighSounding "plt00100" 900.0 "theta" "308.5" "310.5")
 # Anelastic EB cylinder through the bottom wall on two levels: w below the wall was never filled
 # on level 1, and its first step diverged (erf-model/ERF#4876)
 add_test_field_bounds(EB_SquareCylinder_AnelasticAMR "plt00004" x_velocity -0.5 3.0)
