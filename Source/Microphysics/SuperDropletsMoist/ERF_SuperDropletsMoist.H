@@ -282,7 +282,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         Get_Surface_Precip_Accumulation_Ptrs (const int& a_lev) const override
         {
             SurfacePrecipAccumulationSources sources;
-            if (a_lev >= 0 && a_lev < static_cast<int>(m_mic_fab_vars.size())) {
+            if (a_lev >= 0 && a_lev < static_cast<int>(m_mic_fab_vars.size()) && !m_mic_fab_vars[a_lev].empty()) {
                 sources.rain = { m_mic_fab_vars[a_lev][MicVar_SD::rain_accum].get(),
                                  amrex::Real(1.0) };
             }

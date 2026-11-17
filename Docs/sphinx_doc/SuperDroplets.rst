@@ -124,11 +124,14 @@ initialization operations are not repeated when restarting from a checkpoint.
 A restart restores the condensate fields from the checkpoint, including
 fine-level averages in covered coarse cells. The ground accumulations
 ``rain_accum``, ``snow_accum`` and ``precip_accum`` are checkpointed on every
-level and kept when the grids of a level change. The per-species and
-per-aerosol ground accumulations (``accum_<species>``, ``accum_<aerosol>``) are
-kept when the grids of a level change, a new fine cell taking an equal share of
-the coarse total under it, but they are not checkpointed: they start again from
-zero after a restart. Turbulent diffusivities, including ``Kmv``, are not
+level. They and the per-species and per-aerosol ground accumulations
+(``accum_<species>``, ``accum_<aerosol>``) are kept when the grids of a level
+change, a new fine cell taking the depth, or an equal share of the amount, of
+the coarse cell under it. With one-way coupling (``erf.coupling_type = OneWay``)
+the coarse level does not receive what reached the ground on a fine level, so
+that amount is lost where the fine level moves away or is removed. The
+per-species and per-aerosol accumulations are not checkpointed: they start again
+from zero after a restart. Turbulent diffusivities, including ``Kmv``, are not
 checkpointed. They can be zero in the initial restart plotfile until the next
 turbulence update, even when the conserved state has been restored correctly.
 
