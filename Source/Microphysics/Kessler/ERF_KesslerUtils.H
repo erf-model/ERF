@@ -32,6 +32,8 @@ struct KesslerFaceState {
 static constexpr amrex::Real kessler_sedimentation_cfl_max = myhalf;
 static constexpr amrex::Real kessler_water_depth_m_per_kg_m2 = amrex::Real(1.0) / rhor;
 static constexpr amrex::Real kessler_millimeters_per_meter = amrex::Real(1000.0);
+// Klemp & Wilhelmson (1978) rain fall-speed exponent, as in WRF module_mp_kessler.F and DCMIP2016 kessler.f90.
+static constexpr amrex::Real kessler_vt_exponent = amrex::Real(0.1364);
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int kessler_face_donor_k (const int k,
@@ -46,7 +48,7 @@ amrex::Real kessler_terminal_velocity (const amrex::Real rho,
 {
     // MUST MATCH: current AdvanceKessler terminal-velocity coefficients.
     return amrex::Real(36.34)
-        * std::pow(rho * amrex::Real(0.001) * qp, amrex::Real(0.1346))
+        * std::pow(rho * amrex::Real(0.001) * qp, kessler_vt_exponent)
         * std::pow(rho / amrex::Real(1.16), -myhalf);
 }
 

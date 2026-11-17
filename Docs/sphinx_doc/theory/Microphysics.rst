@@ -281,7 +281,7 @@ Terminal fall velocity of rain
 The terminal fall velocity of rain is given by
 
 .. math::
-    w_{t} = 3634(\overline{\rho}q_r)^{0.1346}\Bigg(\cfrac{\overline{\rho}}{\rho_0}\Bigg)^{-\frac{1}{2}}~\text{[cm/s]}
+    w_{t} = 3634(\overline{\rho}q_r)^{0.1364}\Bigg(\cfrac{\overline{\rho}}{\rho_0}\Bigg)^{-\frac{1}{2}}~\text{[cm/s]}
 
 .. raw:: latex
 
