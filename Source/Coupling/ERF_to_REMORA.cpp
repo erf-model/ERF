@@ -996,9 +996,9 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
             0, m_coupled_sst.get(), m_coupled_sst_valid.get());
     }
 
-    // Diagnostics only from here on. The driver calls this every ERF substep with
-    // the SST of the last exchange, and REMORA already checks that SST on its wet
-    // cells once per exchange, so run this on the first call and at erf.v >= 2 only.
+    // Diagnostics only from here on. The driver calls this once per exchange with
+    // that exchange's SST, which REMORA has already checked on its wet cells when
+    // it packed it, so run this on the first call and at erf.v >= 2 only.
     // verbose is a ParmParse value, so every rank returns together.
     if (m_checked_coupled_sst && verbose < 2) { return; }
     m_checked_coupled_sst = true;
