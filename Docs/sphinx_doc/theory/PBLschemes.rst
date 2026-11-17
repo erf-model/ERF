@@ -595,10 +595,15 @@ structures and coupling are provided through the EAMxx interface.
 
 The EAMxx interface additionally supports:
 
-* ``erf.shoc.apply_tms`` to apply its turbulent mountain stress contribution.
 * ``erf.shoc.check_flux_state`` to run its flux/state consistency check.
 
-These are EAMxx-interface controls. They are not active native-SHOC controls.
+This is an EAMxx-interface control. It is not an active native-SHOC control.
+
+``erf.shoc.apply_tms`` would apply EAMxx's turbulent mountain stress: form drag from
+subgrid orography, added on top of the surface-layer drag. ERF has no subgrid-orography
+statistics to build its coefficient from, so the option is not supported, and ``true``
+aborts in the EAMxx interface. The surface-layer drag already reaches SHOC through its
+surface momentum flux. Native SHOC reads the option but does not use it.
 
 References
 ~~~~~~~~~~

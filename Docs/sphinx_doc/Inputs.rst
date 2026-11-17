@@ -6344,8 +6344,10 @@ The following controls have a verified runtime effect in the optional
      - Acceptable Values
      - Default
    * - **erf.shoc.apply_tms**
-     - Apply the turbulent mountain stress contribution in the EAMxx SHOC interface
-     - true / false
+     - Apply the turbulent mountain stress contribution in the EAMxx SHOC interface.
+       Not supported: it needs a subgrid-orography drag coefficient, which ERF does
+       not provide, so ``true`` aborts. Native SHOC reads it but does not use it.
+     - false
      - false
    * - **erf.shoc.check_flux_state**
      - Run the EAMxx SHOC interface flux/state consistency check
