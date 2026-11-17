@@ -589,6 +589,21 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
+    // The conversion (vertical interpolation, hydrostatic rebalance, and the sum over ranks
+    // that assembles the boundary columns) assumes that every level-0 grid spans the whole
+    // column; a level 0 split in z would give it partial, partly undefined columns
+    if (do_conversion) {
+        const Box& dom = geom.Domain();
+        const BoxArray& ba = cons.boxArray();
+        for (int ib = 0; ib < ba.size(); ++ib) {
+            if (ba[ib].smallEnd(2) != dom.smallEnd(2) || ba[ib].bigEnd(2) != dom.bigEnd(2)) {
+                Abort("erf.use_real_bcs requires every level-0 grid to span the full domain height; "
+                      "remove amr.no_box_split_dir = -1, or set amr.max_grid_size_z to at least "
+                      "amr.n_cell in z");
+            }
+        }
+    }
+
     static bool printed_rebalance_status = false;
     if (!printed_rebalance_status) {
         amrex::Print() << "WRF input and boundary hydrostatic rebalance: "
