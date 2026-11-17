@@ -1,4 +1,5 @@
 #include <ERF_TwoStreamRadiation.H>
+#include <ERF_RadiationInterface.H>
 #include <ERF_RadStruct.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_PlotFileUtil.H>
@@ -298,25 +299,12 @@ TwoStreamRadiation::define_level (int lev,
     // and they all have the same consequence, that no box holds a column to sweep.
     //
     // Above level 0 that is not an error: ERF::advance_radiation interpolates the level's
-    // heating rates and fluxes from its parent, the route RRTMGP takes for a nested patch,
-    // and level_needs_interpolation() there applies this same per-box test so the two agree.
-    //
-    // On level 0 there is no parent to interpolate from, so it is fatal. Level 0 always
-    // covers the domain, which makes a box that does not span z there exactly the
-    // decomposed-in-z case -- and the remedies below are the ones that apply to it.
-    if (lev == 0) {
-        for (int ibox = 0; ibox < ba.size(); ++ibox) {
-            const Box& b = ba[ibox];
-            if (b.smallEnd(2) != domain.smallEnd(2) || b.bigEnd(2) != domain.bigEnd(2)) {
-                amrex::Abort("erf.radiation_model = TwoStream cannot run on a level 0 whose "
-                             "grids are decomposed in z: a box there holds only part of a "
-                             "column, and level 0 has no parent to interpolate from. Set "
-                             "amr.max_grid_size_z to at least the number of cells in z, or "
-                             "leave amr.no_box_split_dir at its default of 2 so grids are "
-                             "never split in z.");
-            }
-        }
-    }
+    // heating rates and fluxes from its parent, the route RRTMGP takes for a nested patch.
+    // On level 0 there is no parent to interpolate from, so it is fatal; ERF rejects such a
+    // level 0 for every radiation model when its grids are built (ERF::check_rad_level_grids,
+    // called just before this), so here it is only asserted.
+    AMREX_ASSERT(lev > 0 || rad_boxes_span_column(ba, domain));
+    amrex::ignore_unused(ba, domain);
 
     // 2D surface fields on the horizontal BoxArray, one ghost cell in x and y
     const IntVect ng_sfc{1,1,0};
@@ -871,17 +859,10 @@ TwoStreamRadiation::advance (int lev,
     // A level on which no box holds a whole column has nothing for the sweep or the surface
     // state to work on; ERF::advance_radiation interpolates its fields from the parent
     // instead. Returning here covers the post-dycore call too, which comes from ERF::Advance
-    // and does not test for it. Per box, and identical to level_needs_interpolation() there:
+    // and does not test for it. Same test (rad_boxes_span_column) as level_needs_interpolation():
     // if the two tests disagreed, one of them would try to sweep a level the other had
     // already interpolated.
-    if (lev > 0) {
-        const BoxArray& lev_ba = cons_old.boxArray();
-        const Box& dom = geom.Domain();
-        for (int ibox = 0; ibox < lev_ba.size(); ++ibox) {
-            const Box& b = lev_ba[ibox];
-            if (b.smallEnd(2) != dom.smallEnd(2) || b.bigEnd(2) != dom.bigEnd(2)) { return; }
-        }
-    }
+    if (lev > 0 && !rad_boxes_span_column(cons_old.boxArray(), geom.Domain())) { return; }
 
     // ---- Contract checks. Each of these would otherwise surface as a wrong
     // heating rate or an out-of-bounds read several routines away.
