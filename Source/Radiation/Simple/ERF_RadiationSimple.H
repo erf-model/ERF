@@ -58,11 +58,6 @@ public:
 
     virtual void WriteDataLog (const double &time) override;
 
-    // Run's column sweep needs every box to span the level's domain in z. A fine level that
-    // does not (a partial-height patch) skips the sweep and ERF interpolates its heating
-    // from the parent (ERF::rad_level_needs_interpolation), as for RRTMGP.
-    bool is_nested_patch () const override { return m_partial_columns; }
-
 private:
     bool m_have_qv = false;
     bool m_have_qc = false;
