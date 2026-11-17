@@ -810,7 +810,10 @@ Avoiding Decomposition in the Vertical Direction
 Many ERF workflows want each box to span the full vertical extent of the domain
 or of the refined region -- for example because a physics package operates on
 entire columns.  (Native SHOC requires this and will abort if any box is split
-in z.)  ERF is set up so that this is the default behavior, in both places where
+in z.  So do initialization from metgrid files, initialization from a wrfinput
+file at level 0, and the real lateral boundary conditions read from a wrfbdy
+file with **erf.use_real_bcs**, which need every level-0 grid to span the full
+height of the domain.)  ERF is set up so that this is the default behavior, in both places where
 grids are created.
 
 The simplest and strongest control is **amr.no_box_split_dir**, which names a
@@ -5380,7 +5383,11 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.co2vmr**                        | CO2 volume mixing ratio                                  | Real               | 388.717e-6                         |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.o3vmr**                         | O3 volume mixing ratio profile                           | Real or list       | From dataset if unset              |
+| **erf.o3vmr**                         | O3 volume mixing ratio: one value for the whole column,  | Real or list       | 3.0e-8 at every layer (a           |
+|                                       | or nlay values (one per layer), where nlay is the        |                    | near-surface value; a warning is   |
+|                                       | number of vertical cells of the level. A list must fit   |                    | printed when it is used)           |
+|                                       | every level that runs radiation: a list sized for level  |                    |                                    |
+|                                       | 0 aborts on a level refined in z                         |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.n2ovmr**                        | N2O volume mixing ratio                                  | Real               | 323.141e-9                         |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
@@ -5392,7 +5399,8 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.n2vmr**                         | N2 volume mixing ratio                                   | Real               | 0.7906                             |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_do_aerosol**                | Enable aerosol forcing in radiation                      | Boolean            | true                               |
+| **erf.rad_do_aerosol**                | Enable aerosol forcing in radiation (not yet supported;  | Boolean            | false                              |
+|                                       | true aborts)                                             |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_extra_clnclrsky_diag**      | Extra clean and clear-sky diagnostics                    | Boolean            | false                              |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
