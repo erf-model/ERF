@@ -29,6 +29,9 @@ on:
       - '.github/actions/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # Development pushes finish the active run and keep only the newest pending commit.
 # PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
@@ -299,6 +302,7 @@ jobs:
     name: ci-required
     if: ${{ !cancelled() }}
     needs: [library]
+    permissions: {}
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:

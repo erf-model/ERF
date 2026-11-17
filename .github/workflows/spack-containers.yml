@@ -26,7 +26,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: spack-containers-${{ github.ref }}
@@ -92,6 +91,9 @@ jobs:
   images:
     name: image ${{ matrix.image.tag }}
     needs: plan
+    permissions:
+      contents: read
+      packages: write
     # Must match the base image's Ubuntu release (glibc).
     runs-on: ubuntu-22.04
     timeout-minutes: 300
