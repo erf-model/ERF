@@ -748,6 +748,12 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
     }
     const bool run_wdm6_fort = !use_wdm6_cpp_answer;
 
+    // The Fortran bridge has no condensation switch, so it would saturation-adjust
+    // and activate on top of SHOC's own cloud macrophysics.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!run_wdm6_fort || m_do_cond,
+        "WDM6: the Fortran bridge (erf.use_wdm6_cpp_answer = false) cannot be combined with a "
+        "SHOC-family PBL, which owns condensation; set erf.use_wdm6_cpp_answer = true");
+
     // The Fortran bridge takes each box's k range as the whole column (the box top as the
     // model top, its bottom as the ground), so it needs boxes that do span it.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!run_wdm6_fort || m_columns.boxes_span_domain(),
@@ -3278,6 +3284,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
 
 
 
+            const bool do_cond = m_do_cond;
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 if (rhw_arr(i,j,k) > Real(1.0)) {
                     const Real ratio = rhw_arr(i,j,k) / Real(satmax);
@@ -3300,12 +3307,19 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                     act_fraction_arr(i,j,k) = fraction;
                     act_raw_arr(i,j,k) = ncact_raw;
                     act_cap_arr(i,j,k) = ncact_cap;
-                    pcact_arr(i,j,k) = pcact;
-                    qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcact * dtcld, Real(0.0));
-                    qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcact * dtcld, Real(0.0));
                     nn_arr(i,j,k) = amrex::max(nn_arr(i,j,k) - ncact * dtcld, Real(0.0));
                     nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k) + ncact * dtcld, Real(0.0));
-                    t_arr(i,j,k) += pcact * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
+                    // When SHOC owns condensation, activation only moves number,
+                    // as in Morrison; the vapor-to-cloud mass and its heating
+                    // would count SHOC's condensation twice.
+                    if (do_cond) {
+                        pcact_arr(i,j,k) = pcact;
+                        qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcact * dtcld, Real(0.0));
+                        qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcact * dtcld, Real(0.0));
+                        t_arr(i,j,k) += pcact * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
+                    } else {
+                        pcact_arr(i,j,k) = Real(0.0);
+                    }
                 }
 
                 const Real tr = ttp / t_arr(i,j,k);
@@ -3316,27 +3330,33 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 qsw = amrex::max(qsw, Real(qmin));
                 qsatw_arr(i,j,k) = qsw;
 
-                work1_arr(i,j,k,0) = wdm6_conden(
-                    t_arr(i,j,k), qv_arr(i,j,k), qsw, xl_arr(i,j,k), cpm_arr(i,j,k),
-                    Real(qmin), Real(rv));
-                work2_arr(i,j,k) = qc_arr(i,j,k) + work1_arr(i,j,k,0);
+                // Saturation adjustment is skipped when SHOC owns condensation,
+                // as in WSM6 and Morrison. qsatw_arr above is still needed by
+                // the other kernels.
+                Real pcond = Real(0.0);
+                if (do_cond) {
+                    work1_arr(i,j,k,0) = wdm6_conden(
+                        t_arr(i,j,k), qv_arr(i,j,k), qsw, xl_arr(i,j,k), cpm_arr(i,j,k),
+                        Real(qmin), Real(rv));
+                    work2_arr(i,j,k) = qc_arr(i,j,k) + work1_arr(i,j,k,0);
 
-                Real pcond = amrex::min(
-                    amrex::max(work1_arr(i,j,k,0) / dtcld, Real(0.0)),
-                    amrex::max(qv_arr(i,j,k), Real(0.0)) / dtcld);
-                if (qc_arr(i,j,k) > Real(0.0) && work1_arr(i,j,k,0) < Real(0.0)) {
-                    pcond = amrex::max(work1_arr(i,j,k,0), -qc_arr(i,j,k)) / dtcld;
+                    pcond = amrex::min(
+                        amrex::max(work1_arr(i,j,k,0) / dtcld, Real(0.0)),
+                        amrex::max(qv_arr(i,j,k), Real(0.0)) / dtcld);
+                    if (qc_arr(i,j,k) > Real(0.0) && work1_arr(i,j,k,0) < Real(0.0)) {
+                        pcond = amrex::max(work1_arr(i,j,k,0), -qc_arr(i,j,k)) / dtcld;
+                    }
+
+                    if (pcond == -qc_arr(i,j,k) / dtcld) {
+                        nn_arr(i,j,k) += nc_arr(i,j,k);
+                        nc_arr(i,j,k) = Real(0.0);
+                    }
+
+                    qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcond * dtcld, Real(0.0));
+                    qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcond * dtcld, Real(0.0));
+                    t_arr(i,j,k) += pcond * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
                 }
                 pcond_arr(i,j,k) = pcond;
-
-                if (pcond == -qc_arr(i,j,k) / dtcld) {
-                    nn_arr(i,j,k) += nc_arr(i,j,k);
-                    nc_arr(i,j,k) = Real(0.0);
-                }
-
-                qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcond * dtcld, Real(0.0));
-                qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcond * dtcld, Real(0.0));
-                t_arr(i,j,k) += pcond * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
             });
 
 
