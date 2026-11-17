@@ -60,12 +60,12 @@ void SuperDropletsMoist::readInputs ()
     m_with_ice = true;
     pp.queryAdd("include_cold_processes", m_with_ice);
 
-    // the initialization from a condensate density was removed
+    // uniform is the only initialization
     std::string init_type = "uniform";
     pp.query("distribution_type", init_type);
     if (init_type != "uniform") {
         amrex::Abort("super_droplets_moisture.distribution_type = " + init_type
-                     + " was removed; only uniform is available");
+                     + " is not available; only uniform is");
     }
 
     // minimum radius for rain

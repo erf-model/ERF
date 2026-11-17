@@ -219,8 +219,7 @@ rather than by the particle container, but use the same prefix.
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **include_cold_processes**                      | include ice; adds ice to the species list                | Boolean                                          | true                                |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **distribution_type**                           | initialization of the particles; the initialization from | uniform                                          | uniform                             |
-|                                                 | a condensate density was removed                         |                                                  |                                     |
+| **distribution_type**                           | initialization of the particles                          | uniform                                          | uniform                             |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **radius_raindrop**                             | radius [m] above which a drop is counted as rain rather  | Real > 0                                         | 4.0e-5                              |
 |                                                 | than cloud water                                         |                                                  |                                     |
