@@ -471,10 +471,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(read_atmos_state || lev > 0,
         "init_from_wrfinput: the atmospheric state can only be left to the caller at lev > 0");
 
-    // The vertical remap below starts each column search at the domain bottom, and the
-    // base-state rebalance seeds each box from its own lowest cell, so a level 0 split in z
-    // would read outside its fabs or stack independently seeded columns.  The wrfbdy
-    // conversion makes the same assumption.  Fail before anything is read.
+    // The vertical remap below starts each column search at the domain bottom, so in a
+    // level 0 split in z it would read outside the fabs of every box above the bottom one
+    // (the base-state rebalance would then abort on the same boxes).  The wrfbdy conversion
+    // makes the same assumption.  Fail before anything is read.
     if (lev == 0) {
         const Box& dom = geom[0].Domain();
         const BoxArray& ba = vars_new[0][Vars::cons].boxArray();
