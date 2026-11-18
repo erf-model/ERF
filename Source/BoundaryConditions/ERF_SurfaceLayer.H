@@ -180,7 +180,13 @@ public:
       } else if (pblh_string == "mrf") {
           pblh_type = PBLHeightCalcType::MRF;
       } else if (pblh_string == "ysunew") {
-          pblh_type = PBLHeightCalcType::YSUNew;
+          // The former YSUNew is now the only YSU; the name is still accepted
+          static bool warned_ysunew = false;
+          if (!warned_ysunew && amrex::ParallelDescriptor::IOProcessor()) {
+              amrex::Warning(m_pp_prefix + ".most.pblh_calc = YSUNew is deprecated; it is now YSU");
+          }
+          warned_ysunew = true;
+          pblh_type = PBLHeightCalcType::YSU;
       } else {
           amrex::Abort("Undefined PBLH calc type!");
       }
@@ -197,7 +203,8 @@ public:
       // convective velocity scale of ~1e50, which destroys the surface fluxes.
       if (m_include_wstar && (pblh_type == PBLHeightCalcType::None)) {
           amrex::Abort("erf.most.include_wstar requires a PBL height: set "
-                       "erf.most.pblh_calc (MYNN25 is the only scheme implemented)");
+                       "erf.most.pblh_calc to MYNN25 (or MYNNEDMF), or to YSU or MRF "
+                       "with the same erf.pbl_type");
       }
 
       if (m_surf_model) {
@@ -1109,25 +1116,6 @@ public:
    * @param[in,out] mf  planar MultiFab to fill
    */
   void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
-
-  /**
-   * The column picker for the surface pressure of a surface cell at a level, which
-   * depends on the domain and its periodicity only (see SurfacePressureColumn).
-   *
-   * @param[in] lev level index
-   */
-  [[nodiscard]] erf_surface_temperature::SurfacePressureColumn
-  surface_pressure_column (const int& lev) const
-  {
-      const amrex::Box& dom = m_geom[lev].Domain();
-      erf_surface_temperature::SurfacePressureColumn column{};
-      for (int dir = 0; dir < 2; ++dir) {
-          column.dom_lo[dir]   = dom.smallEnd(dir);
-          column.dom_hi[dir]   = dom.bigEnd(dir);
-          column.periodic[dir] = m_geom[lev].isPeriodic(dir);
-      }
-      return column;
-  }
 
   /**
    * Sum a planar field over the valid cells of the surface, counting each surface cell once.
@@ -2130,7 +2118,7 @@ public:
     WAVE_COUPLED
   };
 
-  enum struct PBLHeightCalcType { None, MYNN25, YSU, MRF, YSUNew };
+  enum struct PBLHeightCalcType { None, MYNN25, YSU, MRF };
 
   FluxCalcType flux_type{FluxCalcType::MOENG};
   ThetaCalcType theta_type{ThetaCalcType::ADIABATIC};

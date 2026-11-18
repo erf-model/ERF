@@ -1483,7 +1483,7 @@ ERF::FillPlot3DVars (int lev,
     // The boundary layer height in meters AGL.  Native SHOC carries its own
     // column-filled diagnostic; every other scheme gets it from the surface
     // layer, which diagnoses it whenever erf.most.pblh_calc is set (MYNN25
-    // computes it directly, MRF/YSU/YSUNew write theirs back via set_pblh).
+    // computes it directly, MRF/YSU write theirs back via set_pblh).
     // That field is two-dimensional, so broadcast it down each column.
     if (containerHasElement(plot_var_names, "pblh")) {
         const auto& surf_lay_zlo = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];

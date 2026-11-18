@@ -169,6 +169,18 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                     rho_in = zero_d;
                     amrex::Print() << "Using interior values to set conserved vars" << std::endl;
                 }
+                // Planes of theta, scalar, qv, qc or ke read without density are made
+                // conserved with this face's density, so it must be given (temperature
+                // without density stops already in ReadBndryPlanes)
+                if (input_bndry_planes && bc_type == "inflow" && ori.coordDir() < 2 && rho_in <= zero_d &&
+                    (m_r2d->ingested_theta() || m_r2d->ingested_scalar() || m_r2d->ingested_q1() ||
+                     m_r2d->ingested_q2()    || m_r2d->ingested_KE()) )
+                {
+                    Abort("erf.bndry_input_var_names reads a scalar (theta, scalar, qv, qc or ke) "
+                          "but not density, so " + pp_text + ".density must be given to convert "
+                          "it to conserved form; or add density to erf.bndry_input_var_names "
+                          "(and to the writer's erf.bndry_output_var_names)");
+                }
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
             }
 
@@ -881,12 +893,12 @@ void ERF::init_bcs ()
         const bool zlo_reads_unqualified =
             phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer &&
             (n_surface_layer_faces == 1 || has_surface_layer_inputs(pp_prefix));
-        // The MRF and YSUNew schemes carry their own QNSE switch and coefficients for the
+        // The MRF and YSU schemes carry their own QNSE switch and coefficients for the
         // stable functions of their profile (erf.enable_qnse_stable_functions, erf.qnse_*),
         // which the surface layer does not read: say so when the two choices disagree
         for (int lev = 0; lev <= max_level; ++lev) {
             const auto& tc = solverChoice.turbChoice[lev];
-            if (tc.pbl_type != PBLType::MRF && tc.pbl_type != PBLType::YSUNew) { continue; }
+            if (tc.pbl_type != PBLType::MRF && tc.pbl_type != PBLType::YSU) { continue; }
             const bool sl_qnse = (stable_functions == "qnse");
             if (tc.enable_qnse_stable_functions != sl_qnse) {
                 amrex::Warning("Level " + std::to_string(lev) + ": erf.enable_qnse_stable_functions = " +

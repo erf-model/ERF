@@ -273,17 +273,22 @@ struct SDCellCounts
     double par_total_old = 0;         /*!< injection: physical particles per m^3 before this step */
     amrex::Real frac_tol = 0;         /*!< injection: tolerance below 1 at which an accumulated particle is injected */
 
+    /*! True when a super-droplet density, not the per-cell count, sets the number of
+     *  super-droplets (an injection without a super-droplet rate has sd_density 0) */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool densityMode () const noexcept { return inject ? (sd_density > 0) : (sd_density >= 0); }
+
     /*! Number of super-droplets in the cell (0 when it receives no particles) */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int numSD (const amrex::Real a_dv) const noexcept
     {
         if (!inject) {
             if (numParticles(a_dv) <= 0) { return 0; }
-            return (sd_density >= 0) ? static_cast<int>(std::ceil(sd_density*a_dv)) : ppc;
+            return densityMode() ? static_cast<int>(std::ceil(sd_density*a_dv)) : ppc;
         }
         const amrex::Real num_par = numParticles(a_dv);
-        const int num_sd = (sd_density > 0) ? amrex::max(static_cast<int>(std::round(sd_density*a_dv)), 1)
-                                            : amrex::max(ppc, 1);
+        const int num_sd = densityMode() ? amrex::max(static_cast<int>(std::round(sd_density*a_dv)), 1)
+                                         : amrex::max(ppc, 1);
         return static_cast<int>(amrex::min(amrex::Real(num_sd), num_par));
     }
 

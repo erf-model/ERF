@@ -974,10 +974,9 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
         amrex::BoxArray ba;
         amrex::DistributionMapping dm;
         GetOceanToAtmosSurfaceLayout(ba, dm);
-        // No ghost cells: SurfaceLayer::fill_tsurf_with_coupled_sst clamps its sample
-        // index into the valid box, exactly as get_lsm_tsurf does for the LSM
-        // arrays, so ghosts here would never be read. t_surf's own ghosts are
-        // filled by the FillBoundary at the end of update_fluxes.
+        // No ghost cells: SurfaceLayer::fill_tsurf_with_coupled_sst copies the SST and its
+        // coverage into temporaries with the halo of t_surf, filled from the valid cells
+        // that own it, so ghosts here would never be read.
         m_coupled_sst       = std::make_unique<amrex::MultiFab> (ba, dm, 1, 0);
         m_coupled_sst_valid = std::make_unique<amrex::iMultiFab>(ba, dm, 1, 0);
     }

@@ -9,6 +9,7 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
 #include "ERF_PBLScaleAwareBlending.H"
+#include "ERF_PBLRibCrossing.H"
 
 using namespace amrex;
 
@@ -211,9 +212,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     ---------------------------------
     With the K-profile applied in every regime, this scheme inherits WRF MRF's
     over-mixing of stable boundary layers: on GABLS1 its peak K_m is roughly
-    2.1x YSUNew.  That is the behaviour Hong et al. (2006) set out to fix in YSU,
-    so stable cases that need the weaker mixing should use the YSUNew scheme
-    (erf.pbl_type = YSUNew).
+    2.1x YSU.  That is the behaviour Hong et al. (2006) set out to fix in YSU,
+    so stable cases that need the weaker mixing should use the YSU scheme
+    (erf.pbl_type = YSU).
 
     TESTING & VALIDATION:
     ---------------------
@@ -461,6 +462,10 @@ Real fire_kbfs_max      = Real(0);
             });
         }
 
+        // For the thickness of the first fluid cell in the PBL-height floor of both Rib passes
+        // (the same expression as in YSU, so the two floors are equal to the last bit)
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv_floor = geom.InvCellSizeArray();
+
         ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
@@ -518,14 +523,20 @@ Real fire_kbfs_max      = Real(0);
                 above_critical = (Rib >= Ribcr);
             }
 
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
+            // The floor is the top face of the column's first fluid cell (see pblh_floor),
+            // as in YSU: zl1 is the height of that cell's center above the local surface
+            // and dz1 its thickness, on every mesh type.
+            const Real zl1 = (use_terrain_fitted_coords)
+                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
+                           : myhalf * gdata.CellSize(2);
+            const Real dz1 = (use_terrain_fitted_coords)
+                           ? Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv_floor, z_nd_arr) / dxInv_floor[2]
+                           : gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : ((khi + myhalf) * gdata.CellSize(2) - zib);
             const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+            const Real pblh_min = pblh_floor(zl1, dz1);
 
             if (above_critical) {
                 Real pblh_interp;
@@ -743,14 +754,20 @@ Real fire_kbfs_max      = Real(0);
                 above_critical = (Rib >= Ribcr);
             }
 
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
+            // The floor is the top face of the column's first fluid cell (see pblh_floor),
+            // as in YSU: zl1 is the height of that cell's center above the local surface
+            // and dz1 its thickness, on every mesh type.
+            const Real zl1 = (use_terrain_fitted_coords)
+                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
+                           : myhalf * gdata.CellSize(2);
+            const Real dz1 = (use_terrain_fitted_coords)
+                           ? Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv_floor, z_nd_arr) / dxInv_floor[2]
+                           : gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : ((khi + myhalf) * gdata.CellSize(2) - zib);
             const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+            const Real pblh_min = pblh_floor(zl1, dz1);
 
             if (above_critical) {
                 Real pblh_interp;
@@ -812,7 +829,7 @@ Real fire_kbfs_max      = Real(0);
             const Box& tbx = mfi.tilebox();
             // The scheme measures its height from the top of an immersed column
             // (zib); the stored field is the absolute height above the domain
-            // bottom, the convention of YSUNew and of every consumer of
+            // bottom, the convention of YSU and of every consumer of
             // SurfaceLayer::get_pblh(). zib is zero without erf.pbl_ib_aware.
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 pblh_out(i, j, k) = pblh_corr_arr(i, j, 0) + zib_arr(i, j, 0);
@@ -1153,7 +1170,7 @@ Real fire_kbfs_max      = Real(0);
                 // The first-level offset ZL1 belongs to ZFAC alone: the linear factor
                 // is the full height above the surface, ZQ(I,K).  Subtracting zl1 from
                 // both drives K_m to exactly zero in the first fluid cell.
-                // ERF_ComputeDiffusivityYSUNew.cpp:1699-1720 splits them the same way.
+                // The YSU K profile (ERF_ComputeDiffusivityYSU.cpp, Step 5) splits them the same way.
                 //
                 // zval already measures height from the top of an immersed column (zib
                 // was subtracted where it was formed), so it is that height directly;
@@ -1163,10 +1180,11 @@ Real fire_kbfs_max      = Real(0);
                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                : ((ksrf + myhalf) * gdata.CellSize(2) - zib);
                 const Real pblh = pblh_corr_arr(i, j, 0);
-                // The Rib passes floor pblh at max(zl1, 10), so pblh - zl1 is exactly
-                // zero for any column whose height lands on that floor with a first
-                // layer thicker than 20 m -- and zval - zl1 is zero too at k == ksrf,
-                // making the quotient 0/0.  Guard it, as YSUNew does (line 1701).
+                // The Rib passes floor pblh at the top face of the first fluid cell
+                // (pblh_floor), half a cell above zl1, so pblh - zl1 is positive.  The
+                // lower bound below is kept as a guard, as in the YSU K profile; before
+                // the floor moved from zl1 to that face it kept 0/0 out of the first
+                // cell of a column on the floor.
                 const Real pblh_rel = amrex::max(pblh - zl1, Real(1.0e-4));
                 const Real zfac = amrex::max(Real(1) - (zval - zl1) / pblh_rel, Real(1.0e-8));
 

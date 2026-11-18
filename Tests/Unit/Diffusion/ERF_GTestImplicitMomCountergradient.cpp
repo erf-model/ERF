@@ -21,7 +21,7 @@ using namespace amrex;
 // momentum.  The top row left it out, at the domain top and at a coarse/fine boundary, and the
 // bottom row left out its lower face at a coarse/fine boundary (erf-model/ERF#4822).  The
 // missing flux acted as a momentum source in the top cell whenever gamma reached the domain
-// top, which YSUNew produces when the bulk Richardson number never crosses Ribcr (kpbl = khi).
+// top, which YSU produces when the bulk Richardson number never crosses Ribcr (kpbl = khi).
 
 namespace {
 

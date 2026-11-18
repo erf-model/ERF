@@ -1325,6 +1325,9 @@ The current providers expose the following families:
 * SuperDroplets generates ``qv_<species>``, ``qc_<species>``,
   ``qt_<species>``, ``sat_ratio_<species>``, and ``accum_<species>`` names for
   configured species, plus ``accum_<aerosol>`` names for configured aerosols.
+  The ``accum_`` fields are kept when the grids of a level change (with one-way
+  coupling, not where a fine level moves away or is removed), but not
+  checkpointed: they start again from zero after a restart.
 * Providers that inherit the empty ``NullMoist`` plot-name implementation add
   no scheme-specific names.
 

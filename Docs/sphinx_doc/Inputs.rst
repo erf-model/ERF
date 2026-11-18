@@ -1528,7 +1528,7 @@ List of Parameters
 |                                     | the total mass rho_d (1 + q_t) [kg/m3] and the total     | (the first of up   |                  |
 |                                     | energy [J/m3], every erf.sum_interval steps or           | to four is         |                  |
 |                                     | erf.sum_period seconds when erf.v > 0. q_t sums the      | written)           |                  |
-|                                     | vapor, liquid (cloud, rain) and ice mixing ratios. The  |                    |                  |
+|                                     | vapor, liquid (cloud, rain) and ice mixing ratios. The   |                    |                  |
 |                                     | energy is a diagnostic definition (Romps 2008):          |                    |                  |
 |                                     | internal energy with constant heat capacities, from      |                    |                  |
 |                                     | liquid water at the triple point, plus kinetic and       |                    |                  |
@@ -2494,9 +2494,6 @@ List of Parameters
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.Sc_t**                           | Turbulent Schmidt Number                                 | Real               | 1.0              |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.num_diff_coeff**                 | coefficient of the sixth-order numerical diffusion; 0    | Real in [0,1]      | 0.0              |
-|                                        | turns it off                                             |                    |                  |
-+----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.implicit_before_substep**        | if true, the vertical implicit diffusive solve is done   | Boolean            | true             |
 |                                        | before the acoustic substepping rather than after.       |                    |                  |
 |                                        | Forced to true if any level has no acoustic substepping  |                    |                  |
@@ -2576,9 +2573,9 @@ List of Parameters
 |                                        | (per-level)                                              |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rans_moist_buoyancy**            | k-equation RANS with a moisture model that carries water | Boolean            | false            |
-|                                        | vapor: TKE buoyancy production from the virtual         |                    |                  |
+|                                        | vapor: TKE buoyancy production from the virtual          |                    |                  |
 |                                        | potential temperature flux, g/theta_v0 [(1 + epsv qv)    |                    |                  |
-|                                        | <w'theta'> + epsv theta <w'qv'>] (water vapor only, no  |                    |                  |
+|                                        | <w'theta'> + epsv theta <w'qv'>] (water vapor only, no   |                    |                  |
 |                                        | cloud-water or saturated form; theta_v0 is               |                    |                  |
 |                                        | ``erf.theta_ref`` or the local theta_v); false keeps the |                    |                  |
 |                                        | dry g/theta_0 <w'theta'>; one value for the hierarchy is |                    |                  |
@@ -2590,6 +2587,12 @@ List of Parameters
 |                                        | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |
 |                                        | local surface projected on its normal (no linear solve)  |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+.. The 6th-order numerical diffusion is currently deactivated; restore this row when it is re-enabled.
+
+   | **erf.num_diff_coeff**                 | coefficient of the sixth-order numerical diffusion; 0    | Real in [0,1]      | 0.0              |
+   |                                        | turns it off                                             |                    |                  |
+   +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.
@@ -2710,14 +2713,16 @@ List of Parameters
 +==========================================+==========================================================+====================+==================+
 | **erf.pbl_type**                         | Name of PBL Scheme to be used                            | "None", "MYNN25",  | "None"           |
 |                                          |                                                          | "MYNNEDMF", "MYJ", |                  |
-|                                          |                                                          | "YSU", "YSUNew",   |                  |
-|                                          |                                                          | "MRF",             |                  |
+|                                          |                                                          | "YSU", "MRF",      |                  |
 |                                          |                                                          | "NATIVE_SHOC",     |                  |
 |                                          |                                                          | "EAMXX_SHOC";      |                  |
 |                                          |                                                          | legacy "SHOC" is   |                  |
 |                                          |                                                          | deprecated and     |                  |
 |                                          |                                                          | maps to            |                  |
-|                                          |                                                          | "EAMXX_SHOC"       |                  |
+|                                          |                                                          | "EAMXX_SHOC";      |                  |
+|                                          |                                                          | legacy "YSUNew" is |                  |
+|                                          |                                                          | deprecated and     |                  |
+|                                          |                                                          | maps to "YSU"      |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.tke_min**                          | Minimum initial TKE used when a prognostic-TKE closure   | Real               | 1.e-6            |
 |                                          | is active                                                |                    |                  |
@@ -2757,29 +2762,36 @@ List of Parameters
 |                                          | built from, instead of the 1/l sum with l_T and l_B.     |                    |                  |
 |                                          | The first-cell TKE then approaches B1^(2/3) u*^2 / 2.    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_ysu_force_over_water**         | Treat whole domain as over water for YSU PBL scheme      | Boolean            | false            |
-|                                          | regardless of LSM/other inputs                           |                    |                  |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_land_Ribcr**               | Over land critical Richardson number for YSU PBL Scheme  | Real               | 0.25             |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_ysu_unst_Ribcr**               | Unstable critical Richardson number for YSU PBL Scheme   | Real               | 0.0              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_coriolis_freq**            | Coriolis frq. used for YSU PBL Scheme (1e-4 in WRF)      | Real               | 1.0e-4           |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_use_consistent_coriolis**  | Ignore above param and use the value from ERF coriolis   | Boolean            | false            |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.enable_ysu_countergradient**       | YSUNew only: apply the nonlocal countergradient          | Boolean            | true             |
+| **erf.enable_ysu_countergradient**       | YSU only: apply the nonlocal countergradient             | Boolean            | true             |
 |                                          | corrections to heat, moisture and momentum (HGAMT,       |                    |                  |
 |                                          | HGAMQ, HGAMU, HGAMV); false gives strict HND06 mixing    |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.enable_ysu_entrainment**           | YSUNew only: add the entrainment diffusivity at the      | Boolean            | true             |
+| **erf.enable_ysu_entrainment**           | YSU only: add the entrainment diffusivity at the         | Boolean            | true             |
 |                                          | first cell above the PBL top (HND06 A9-A13)              |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.ysu_moistvars**                    | YSUNew only: give moisture its own diffusivity, from the | Boolean            | false            |
+| **erf.enable_ysu_cloud_pblh**            | YSU only, with a moisture model: raise the PBL-top cell  | Boolean            | true             |
+|                                          | index by one where the cloud water plus cloud ice in the |                    |                  |
+|                                          | PBL-top cell exceeds ``erf.ysu_qcloud_threshold``. The   |                    |                  |
+|                                          | PBL height in metres does not change. Applies whether    |                    |                  |
+|                                          | or not ``erf.enable_ysu_entrainment`` is set             |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.ysu_qcloud_threshold**             | YSU only: cloud water plus cloud ice [kg/kg] above which | Real               | 1.0e-4           |
+|                                          | a cell counts as cloudy, for                             |                    |                  |
+|                                          | ``erf.enable_ysu_cloud_pblh`` and for the cloud-top      |                    |                  |
+|                                          | search of ``erf.enable_ysu_topdown``; must not be        |                    |                  |
+|                                          | negative                                                 |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.ysu_moistvars**                    | YSU only: give moisture its own diffusivity, from the    | Boolean            | false            |
 |                                          | moisture Prandtl number, and add the entrainment term to |                    |                  |
 |                                          | it; false uses the heat diffusivity for moisture         |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.enable_ysu_rad_tend_limiter**      | YSUNew only: replace a non-finite radiative tendency at  | Boolean            | false            |
+| **erf.enable_ysu_rad_tend_limiter**      | YSU only: replace a non-finite radiative tendency at     | Boolean            | false            |
 |                                          | cloud top by zero and bound it before the top-down       |                    |                  |
 |                                          | mixing velocity is formed from it                        |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2789,7 +2801,7 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_Ribcr**                    | Over land critical Richardson number for MRF PBL Scheme  | Real               | 0.5              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_ib_aware**                     | MRF and YSUNew only: treat the first fluid cell above an | Boolean            | false            |
+| **erf.pbl_ib_aware**                     | MRF and YSU only: treat the first fluid cell above an    | Boolean            | false            |
 |                                          | immersed solid column (buildings or terrain by immersed  |                    |                  |
 |                                          | forcing) as that column's surface: heights, the bulk     |                    |                  |
 |                                          | Richardson depth and the K profile measured from it,     |                    |                  |
@@ -2840,17 +2852,20 @@ List of Parameters
 | **erf.advect_tke**                       | advect the turbulent kinetic energy (per-level); read    | Boolean            | true             |
 |                                          | only when the PBL scheme carries TKE                     |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.diffuse_tke_3D**                   | apply three-dimensional numerical diffusion to the       | Boolean            | true             |
-|                                          | turbulent kinetic energy (per-level); has an effect only |                    |                  |
-|                                          | when numerical diffusion is on (erf.num_diff_coeff > 0)  |                    |                  |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.init_tke_from_ustar**              | initialize the turbulent kinetic energy from the         | Boolean            | false            |
 |                                          | friction velocity (per-level); read only when a          |                    |                  |
 |                                          | TKE-carrying closure is active                           |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
-Note that both PBL schemes must be used in conjunction with a MOST boundary condition
-at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
+.. The 6th-order numerical diffusion is currently deactivated; restore this row when it is re-enabled.
+
+   | **erf.diffuse_tke_3D**                   | apply three-dimensional numerical diffusion to the       | Boolean            | true             |
+   |                                          | turbulent kinetic energy (per-level); has an effect only |                    |                  |
+   |                                          | when numerical diffusion is on (erf.num_diff_coeff > 0)  |                    |                  |
+   +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+Note that the PBL schemes must be used in conjunction with a MOST boundary condition
+at the surface (Zlo) boundary.
 
 If the PBL scheme is activated, it determines the turbulent diffusivity in the vertical
 direction. If an LES model is also specified, it determines only the horizontal turbulent
@@ -3791,6 +3806,14 @@ Notes
   that writes ``temperature`` must therefore also write ``qv``, and a run that reads
   ``temperature`` from planes that include ``qv`` must also read ``qv``; otherwise ERF stops.
   ``theta`` planes need no qv.
+- The planes of ``theta``, ``scalar``, ``qv``, ``qc`` and ``ke`` are multiplied by density on
+  reading.  If ``density`` is read too, its planes are used; otherwise (for example when the writer
+  did not list ``density``) the constant ``<face>.density`` of each inflow face (``xlo.density``
+  and so on) is used, and ERF stops if it is not given.  That constant is used at every height, so
+  it suits a face over which density varies little; otherwise write and read ``density``.
+  ``temperature`` planes always need ``density``, since theta is recovered from temperature
+  through the pressure; without it ERF stops.  Planes of ``velocity`` alone need no density.
+  None of this applies with ``erf.use_real_bcs``, where the planes are used as they are read.
 - A plane holds the domain's cells along its face only.  The ghost cells beside the face in the
   other horizontal direction (the corner ghosts) take the plane's value at the periodic image
   when that direction is periodic, as the interior cells across the seam do, and the nearest
@@ -4385,13 +4408,13 @@ building combinations.
 |                                   | temperature forcing from it                              |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_surf_moist_flux**        | fraction_stress with a moisture model that carries water | Real in            | 0 (none)         |
-|                                   | vapor: kinematic surface moisture flux [kg/kg m/s] of   | [-0.01, 0.01]      |                  |
+|                                   | vapor: kinematic surface moisture flux [kg/kg m/s] of    | [-0.01, 0.01]      |                  |
 |                                   | the immersed terrain (q* = -F_q/u*, as                   |                    |                  |
 |                                   | ``erf.most.surf_moist_flux`` on flat ground), applied in |                    |                  |
 |                                   | the wall cell; not with ``erf.if_surf_moist``            |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_surf_moist**             | fraction_stress with a moisture model that carries water | Real in [0, 0.1]   | -1 (none)        |
-|                                   | vapor: surface water vapor mixing ratio [kg/kg] of the |                    |                  |
+|                                   | vapor: surface water vapor mixing ratio [kg/kg] of the   |                    |                  |
 |                                   | immersed terrain (q* from the wall cell and the cell     |                    |                  |
 |                                   | above, mixed by the solid fraction as theta* is, as      |                    |                  |
 |                                   | ``erf.most.surf_moist`` on flat ground), applied in the  |                    |                  |
@@ -4789,8 +4812,10 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | ``erf.most.pblh_calc`` to be set                         |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.pblh_calc**                | which scheme diagnoses the PBL height used by the *w*\*  | none, MYNN25,       | none             |
-|                                       | correction                                               | MYNNEDMF, YSU,      |                  |
-|                                       |                                                          | YSUNew, MRF         |                  |
+|                                       | correction. YSU and MRF take the height from that PBL    | MYNNEDMF, YSU,      |                  |
+|                                       | scheme, so they require the same ``erf.pbl_type``        | MRF (YSUNew is a    |                  |
+|                                       |                                                          | deprecated name for |                  |
+|                                       |                                                          | YSU)                |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.pot_surf_temp**            | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
 |                                       | value selects the surface-temperature formulation.       |                     |                  |
@@ -4858,7 +4883,7 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.qnse_am**,                 | QNSE coefficients a_m, b_m (momentum) and a_h, b_h       | Real, finite;       | 2.5, 0.2,        |
 | **erf.most.qnse_bm**,                 | (heat); read only with ``erf.most.stable_functions =     | b_m > 0, b_h > 0,   | 2.5, 0.2         |
 | **erf.most.qnse_ah**,                 | qnse`` (given otherwise, the run stops). The defaults    | a_m > b_m,          |                  |
-| **erf.most.qnse_bh**                  | are those of the MRF and YSUNew ``erf.qnse_*`` keys,     | a_h > b_h           |                  |
+| **erf.most.qnse_bh**                  | are those of the MRF and YSU ``erf.qnse_*`` keys,        | a_h > b_h           |                  |
 |                                       | which the surface layer does not read (a warning is      |                     |                  |
 |                                       | printed when the two disagree); equal heat and momentum  |                     |                  |
 |                                       | values give a turbulent Prandtl number of 1              |                     |                  |
@@ -6652,10 +6677,10 @@ besides.
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 | **erf.fire.fire_atm_feedback**                 | Multiplier on the injected fluxes; 0 is one-way coupling   | Real >= 0                      | 1.0                    |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fire.inject_latent**                     | Inject the latent flux into the vapor equation when       | Boolean                        | true                   |
+| **erf.fire.inject_latent**                     | Inject the latent flux into the vapor equation when        | Boolean                        | true                   |
 |                                                | moisture is active                                         |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fire.source_mode**                       | Replace the theta and vapor source slots or add to the    | "overwrite", "add"             | "overwrite"            |
+| **erf.fire.source_mode**                       | Replace the theta and vapor source slots or add to the     | "overwrite", "add"             | "overwrite"            |
 |                                                | rebuilt stage source. Left at the default with another     |                                |                        |
 |                                                | theta source on the fire level (radiation, Rayleigh        |                                |                        |
 |                                                | damping of T, custom forcing or subsidence, slow-step      |                                |                        |
@@ -6859,10 +6884,13 @@ Coriolis and Large-Scale ABL Forcing
   ``erf.const_massflux_v``, ``erf.coriolis_3d``, ``erf.latitude``,
   ``erf.rotational_time_period``, ``erf.use_coriolis``, ``erf.variable_coriolis``
 
-Custom, Nudging and Numerical Diffusion Forcing
------------------------------------------------
+Custom and Nudging Forcing
+--------------------------
 
-* :ref:`Diffusive Physics <inputs-diffusive-physics>` -- ``erf.num_diff_coeff``
+.. The 6th-order numerical diffusion is currently deactivated.
+
+   * :ref:`Diffusive Physics <inputs-diffusive-physics>` -- ``erf.num_diff_coeff``
+
 * :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.add_custom_geostrophic_profile``,
   ``erf.add_custom_moisture_forcing``, ``erf.add_custom_rhotheta_forcing``,
   ``erf.add_custom_w_subsidence``, ``erf.add_do_mom_advection``,

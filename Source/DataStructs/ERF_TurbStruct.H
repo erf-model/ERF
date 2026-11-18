@@ -20,6 +20,9 @@ AMREX_ENUM(RANSType, None, kEqn);
 
 /**
  * @brief Planetary boundary-layer closure type.
+ *
+ * YSUNew and SHOC are input names only: TurbChoice::init_params maps them to YSU and
+ * EAMXX_SHOC, so no other code sees them.
  */
 AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, YSUNew, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
 
@@ -130,12 +133,12 @@ public:
 
     // Which LES closure?
     query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
-    // Immersed-boundary awareness of the MRF and YSUNew schemes (off by default):
+    // Immersed-boundary awareness of the MRF and YSU schemes (off by default):
     // the surface of a column with immersed solid cells is the first fluid cell
     // above them, heights and the boundary-layer depth are measured from it,
     // the eddy diffusivities are zero inside the solid, and the surface
     // scales over such a column come from a neutral log law at its top with
-    // the roughness pbl_ib_z0. Only MRF and YSUNew honor it.
+    // the roughness pbl_ib_z0. Only MRF and YSU honor it.
     query_one_or_per_level(pp, "pbl_ib_aware", pbl_ib_aware, lev, max_level);
     query_one_or_per_level(pp, "pbl_ib_z0",    pbl_ib_z0,    lev, max_level);
 
@@ -156,11 +159,20 @@ public:
     query_one_or_per_level_enum_case_insensitive(pp, "pbl_type", pbl_type, lev, max_level);
     if (pbl_type == PBLType::SHOC) {
       static bool warned_legacy_shoc = false;
-      if (!warned_legacy_shoc) {
+      if (!warned_legacy_shoc && amrex::ParallelDescriptor::IOProcessor()) {
         amrex::Warning("erf.pbl_type = SHOC is deprecated; use erf.pbl_type = EAMXX_SHOC");
-        warned_legacy_shoc = true;
       }
+      warned_legacy_shoc = true;
       pbl_type = PBLType::EAMXX_SHOC;
+    }
+    // The former YSUNew is now the only YSU; the name is still accepted
+    if (pbl_type == PBLType::YSUNew) {
+      static bool warned_ysunew = false;
+      if (!warned_ysunew && amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Warning("erf.pbl_type = YSUNew is deprecated; it is now erf.pbl_type = YSU");
+      }
+      warned_ysunew = true;
+      pbl_type = PBLType::YSU;
     }
 
     // Do some more stuff for PBL Modeling
@@ -240,19 +252,23 @@ public:
             amrex::Abort("erf.pbl_mynn_surface_lm is only implemented for erf.pbl_type = MYNN25");
         }
 
-      } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
+      } else if (pbl_type == PBLType::YSU) {
         query_one_or_per_level(
           pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysu_use_consistent_coriolis",
           pbl_ysu_use_consistent_coriolis, lev, max_level);
         query_one_or_per_level(
-          pp, "pbl_ysu_force_over_water", pbl_ysu_force_over_water, lev,
-          max_level);
-        query_one_or_per_level(
           pp, "pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr, lev, max_level);
-        query_one_or_per_level(
-          pp, "pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr, lev, max_level);
+        // Only the YSU that the former YSUNew replaced read these; catch them rather
+        // than ignoring them silently.
+        for (const char* removed : {"pbl_ysu_force_over_water", "pbl_ysu_unst_Ribcr"}) {
+            if (pp.contains(removed)) {
+                amrex::Abort(std::string("erf.") + removed + " has been removed along with "
+                             "the original YSU scheme; erf.pbl_type = YSU (formerly YSUNew) "
+                             "does not use it.");
+            }
+        }
         // YSU now uses theta_v at WRF's thvx sites and theta_l at its thlix
         // sites; catch the retired switch between them rather than ignoring it.
         if (pp.contains("enable_ysu_liquid_theta")) {
@@ -264,8 +280,16 @@ public:
         }
         query_one_or_per_level(
           pp, "enable_ysu_countergradient", enable_ysu_countergradient, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_terrain_pblh_floor", enable_ysu_terrain_pblh_floor, lev, max_level);
+        // The floor of the YSU PBL height is the top face of the first cell on
+        // every mesh type.  This switch selected it on terrain-fitted and
+        // stretched meshes (its default); constant-dz meshes, where the floor was
+        // the first cell center, now use it too (erf-model/ERF#5252).  Catch the
+        // retired switch rather than ignoring it.
+        if (pp.contains("enable_ysu_terrain_pblh_floor")) {
+            amrex::Abort("erf.enable_ysu_terrain_pblh_floor has been removed. The floor "
+                         "of the YSU PBL height is the top face of the first cell (at "
+                         "least 10 m) on every mesh type (erf-model/ERF#5252).");
+        }
         query_one_or_per_level(
           pp, "enable_ysu_sat_limiter", enable_ysu_sat_limiter, lev, max_level);
         query_one_or_per_level(
@@ -278,11 +302,14 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "ysu_qcloud_threshold", ysu_qcloud_threshold, lev, max_level);
+        // A negative threshold would count every cell as cloudy, clear air included
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ysu_qcloud_threshold >= amrex::Real(0.0),
+            "erf.ysu_qcloud_threshold must not be negative");
         query_one_or_per_level(
           pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
-        // Radiative tendency limiter (YSUNew-only)
+        // Radiative tendency limiter (YSU only)
         query_one_or_per_level(
           pp, "enable_ysu_rad_tend_limiter", enable_ysu_rad_tend_limiter, lev, max_level);
         query_one_or_per_level(
@@ -418,8 +445,11 @@ public:
         }
         // Advect QKE/TKE?
         query_one_or_per_level(pp, "advect_tke"    , advect_tke    , lev, max_level);
-        // Apply numerical diffusion to QKE/TKE?
-        query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
+        // Apply numerical diffusion to QKE/TKE? (no effect while the 6th-order numerical
+        // diffusion is deactivated, see erf.num_diff_coeff)
+        if (query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level) && lev == 0) {
+            amrex::Warning("erf.diffuse_tke_3D is ignored: the 6th-order numerical diffusion is currently deactivated");
+        }
     }
 
     // There is a default value of 1e-6 but the user can override the value here,
@@ -675,8 +705,6 @@ public:
       amrex::Print() << "    Using MYNNEDMF PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::YSU) {
       amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
-    } else if (pbl_type == PBLType::YSUNew) {
-      amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    Using MRF PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::EAMXX_SHOC) {
@@ -753,21 +781,15 @@ public:
       amrex::Print() << "    pbl_mynn_C4 : " << pbl_mynn.C4 << std::endl;
       amrex::Print() << "    pbl_mynn_C5 : " << pbl_mynn.C5 << std::endl;
       amrex::Print() << "    pbl_mynn_surface_lm : " << pbl_mynn.surface_lm << std::endl;
-    } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
+    } else if (pbl_type == PBLType::YSU) {
       amrex::Print() << "    pbl_ysu_coriolis_freq              : "
                      << pbl_ysu_coriolis_freq << std::endl;
       amrex::Print() << "    pbl_ysu_use_consistent_coriolis    : "
                      << pbl_ysu_use_consistent_coriolis << std::endl;
-      amrex::Print() << "    pbl_ysu_force_over_water           : "
-                     << pbl_ysu_force_over_water << std::endl;
       amrex::Print() << "    pbl_ysu_land_Ribcr                 : "
                      << pbl_ysu_land_Ribcr << std::endl;
-      amrex::Print() << "    pbl_ysu_unst_Ribcr                 : "
-                     << pbl_ysu_unst_Ribcr << std::endl;
       amrex::Print() << "    enable_ysu_countergradient         : "
                      << enable_ysu_countergradient << std::endl;
-      amrex::Print() << "    enable_ysu_terrain_pblh_floor      : "
-                     << enable_ysu_terrain_pblh_floor << std::endl;
       amrex::Print() << "    enable_ysu_sat_limiter             : "
                      << enable_ysu_sat_limiter << std::endl;
       amrex::Print() << "    enable_ysu_topdown                 : "
@@ -782,7 +804,7 @@ public:
                      << ysu_moistvars << std::endl;
       amrex::Print() << "    pbl_ysunew_highres_bounds          : "
                      << pbl_ysunew_highres_bounds << std::endl;
-      // Radiative tendency limiter/smoothing (YSUNew-only)
+      // Radiative tendency limiter/smoothing (YSU only)
       amrex::Print() << "    enable_ysu_rad_tend_limiter        : "
                      << enable_ysu_rad_tend_limiter << std::endl;
       amrex::Print() << "    ysu_rad_tend_limiter_magnitude     : "
@@ -1001,7 +1023,6 @@ public:
       return (pbl_type == PBLType::MYNN25)   ||
              (pbl_type == PBLType::MYNNEDMF) ||
              (pbl_type == PBLType::YSU)      ||
-             (pbl_type == PBLType::YSUNew)      ||
              (pbl_type == PBLType::MRF)       ||
              uses_shoc_family();
   }
@@ -1043,17 +1064,10 @@ public:
   bool pbl_ysu_use_consistent_coriolis =
     false; // ignore input pbl_ysu_coriolis_freq, take value from ERF coriolis
            // forcing instead
-  bool pbl_ysu_force_over_water =
-    false; // Force YSU to act as if it is over water regardless of other inputs
-           // (for testing)
   amrex::Real pbl_ysu_land_Ribcr =
     fourth; // Critical Bulk Richardson number of Land for stable conditions
-  amrex::Real pbl_ysu_unst_Ribcr =
-    zero; // Critical Bulk Richardson number for unstable conditions
   bool enable_ysu_countergradient =
     true; // if true, apply YSU-style HGAMT/HGAMQ/HGAMU/HGAMV countergradient correction
-  bool enable_ysu_terrain_pblh_floor =
-    true; // if true, apply terrain-following floor on PBL height
   bool enable_ysu_sat_limiter =
     false; // if true, apply saturation limiter to moisture countergradient
   bool enable_ysu_topdown =
@@ -1061,15 +1075,16 @@ public:
   bool enable_ysu_entrainment =
     true; // if true, enable entrainment layer parameterization
   bool enable_ysu_cloud_pblh =
-    true; // if true, enable cloud-based PBL height detection
+    true; // if true, raise the PBL-top cell index by one where that cell is cloudy;
+          // independent of enable_ysu_entrainment
   amrex::Real ysu_qcloud_threshold =
-    amrex::Real(1.0e-4); // Cloud liquid water threshold for YSUNew (kg/kg)
+    amrex::Real(1.0e-4); // Cloud water plus cloud ice threshold for YSU (kg/kg)
   bool ysu_moistvars = false; // if true, adds turbulence to moisture
   bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
-  // Radiative tendency limiter (YSUNew-only)
+  // Radiative tendency limiter (YSU only)
   bool enable_ysu_rad_tend_limiter = false; // if true, guard and bound the qheating_rates top-down forcing
   amrex::Real ysu_rad_tend_limiter_magnitude = amrex::Real(1.0); // Bound on the limited radiative tendency (K/s)
-  // Vogelezang & Holtslag (1996) shear correction and PBLH smoothing for YSU/YSUNew
+  // Vogelezang & Holtslag (1996) shear correction and PBLH smoothing for YSU
   bool enable_vh96_shear_correction = false; // if true, use VH96 shear correction term instead of ad-hoc floor
   amrex::Real vh96_shear_const_b = amrex::Real(100.0); // VH96 shear correction constant b
   bool enable_pblh_smoothing = false; // if true, apply spatial smoothing to diagnosed PBLH
@@ -1088,7 +1103,7 @@ public:
   amrex::Real pbl_blend_c_max    = amrex::Real(0.1);   ///< Power-law ceiling coeff [m^(2/3)/s].
   bool        pbl_blend_use_smag = true;               ///< Use Smagorinsky ceiling (else power-law).
   bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
-  bool        pbl_ib_aware = false;              // MRF / YSUNew: measure heights from the top of immersed solid columns
+  bool        pbl_ib_aware = false;              // MRF / YSU: measure heights from the top of immersed solid columns
   amrex::Real pbl_ib_z0    = amrex::Real(0.01);  // roughness [m] of the neutral log law at the top of an immersed column
   bool enable_mrf_cloud_adjustment = false; // if true, apply cloud-aware stability function adjustments in MRF scheme
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
@@ -1190,16 +1205,10 @@ public:
  * @brief Coriolis frequency used by YSU-family PBL schemes.
  * @var TurbChoice::pbl_ysu_use_consistent_coriolis
  * @brief Whether YSU uses the ERF Coriolis frequency.
- * @var TurbChoice::pbl_ysu_force_over_water
- * @brief Whether YSU is forced to use over-water behavior.
  * @var TurbChoice::pbl_ysu_land_Ribcr
  * @brief Critical bulk Richardson number over land for stable YSU conditions.
- * @var TurbChoice::pbl_ysu_unst_Ribcr
- * @brief Critical bulk Richardson number for unstable YSU conditions.
  * @var TurbChoice::enable_ysu_countergradient
  * @brief Whether YSU countergradient corrections are enabled.
- * @var TurbChoice::enable_ysu_terrain_pblh_floor
- * @brief Whether YSU applies a terrain-following PBL-height floor.
  * @var TurbChoice::enable_ysu_sat_limiter
  * @brief Whether YSU applies a saturation limiter to moisture countergradient terms.
  * @var TurbChoice::enable_ysu_topdown
@@ -1207,13 +1216,13 @@ public:
  * @var TurbChoice::enable_ysu_entrainment
  * @brief Whether YSU entrainment-layer parameterization is enabled.
  * @var TurbChoice::enable_ysu_cloud_pblh
- * @brief Whether YSU cloud-based PBL-height detection is enabled.
+ * @brief Whether the YSU PBL-top cell index is raised by one where that cell is cloudy.
  * @var TurbChoice::ysu_qcloud_threshold
- * @brief Cloud liquid water threshold for YSUNew [kg/kg].
+ * @brief Cloud water plus cloud ice threshold for YSU [kg/kg].
  * @var TurbChoice::ysu_moistvars
  * @brief Whether YSU applies turbulence to moisture variables.
  * @var TurbChoice::pbl_ysunew_highres_bounds
- * @brief Whether YSUNew applies high-resolution grid-dependent diffusivity bounds.
+ * @brief Whether YSU applies high-resolution grid-dependent diffusivity bounds.
  * @var TurbChoice::enable_vh96_shear_correction
  * @brief Whether Vogelezang & Holtslag (1996) shear-correction term is enabled.
  * @var TurbChoice::vh96_shear_const_b
@@ -1235,7 +1244,7 @@ public:
  * @var TurbChoice::enable_mrf_countergradient
  * @brief Whether MRF countergradient corrections are enabled.
  * @var TurbChoice::pbl_ib_aware
- * When true, the MRF and YSUNew schemes treat the first fluid cell above the
+ * When true, the MRF and YSU schemes treat the first fluid cell above the
  * immersed solid of a column (buildings or terrain by immersed forcing) as
  * that column's surface: the bulk Richardson heights, the boundary-layer
  * depth and the K profile are measured from it, the diffusivities vanish
@@ -1244,7 +1253,7 @@ public:
  * boundary-layer height both schemes store (pblh, Lturb) stays the absolute
  * height above the domain bottom; with enable_pblh_smoothing the stencil runs
  * on that absolute height, and the smoothed value is kept at or above each
- * column's own floor (half a cell above its surface, at least 10 m). Off by
+ * column's own floor (YSU: the top face of its first fluid cell, at least 10 m). Off by
  * default; without immersed cells the results are identical. Not supported
  * with terrain-fitted coordinates.
  * @var TurbChoice::pbl_ib_z0
