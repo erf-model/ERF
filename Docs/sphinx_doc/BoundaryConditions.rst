@@ -120,7 +120,8 @@ warmer or colder than the base state. Each of ``<face>.theta``, ``scalar``, ``qv
 ``KE`` that is given is multiplied by this density, on ``inflow`` and ``inflow_outflow`` faces
 alike.
 A face that gives any of them brings in 0 of every other conserved variable, as a compressible
-face with ``<face>.density`` does; a face that gives none of them takes them all from the interior.
+face with ``<face>.density`` does, except theta: a face that does not give ``<face>.theta`` takes
+it from the interior. A face that gives none of them takes them all from the interior.
 
 ``inflow_outflow`` is supported on x and y faces only; ERF stops if a z face has it.
 
