@@ -970,17 +970,6 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                     }
                 }
 
-                // Make sure that qv in the bdyfiles is >= 0
-                if (bdyVarType == WRFBdyVars::QV) {
-                    Real min_qv_xlo = read_fab(WRFBdyTypes::x_lo,bdyVarType).min<amrex::RunOn::Device>(0);
-                    Real min_qv_xhi = read_fab(WRFBdyTypes::x_hi,bdyVarType).min<amrex::RunOn::Device>(0);
-                    Real min_qv_ylo = read_fab(WRFBdyTypes::y_lo,bdyVarType).min<amrex::RunOn::Device>(0);
-                    Real min_qv_yhi = read_fab(WRFBdyTypes::y_hi,bdyVarType).min<amrex::RunOn::Device>(0);
-                    if (min_qv_xlo < zero) amrex::Warning("qv in bdy_data_xlo < 0");
-                    if (min_qv_xhi < zero) amrex::Warning("qv in bdy_data_xhi < 0");
-                    if (min_qv_ylo < zero) amrex::Warning("qv in bdy_data_ylo < 0");
-                    if (min_qv_yhi < zero) amrex::Warning("qv in bdy_data_yhi < 0");
-                }
             } // bdyVarType
         } // if ParalleDescriptor::IOProcessor()
     } // nc_var_names
@@ -1018,6 +1007,21 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                 bdy_data_ylo[itime-1][bdy_var], 0, 0, 1);
             read_fab(WRFBdyTypes::y_hi,bdy_var).template plus<RunOn::Device>(
                 bdy_data_yhi[itime-1][bdy_var], 0, 0, 1);
+        }
+    }
+
+    // Make sure that qv in the bdyfiles is >= 0.  This is checked here, once every side is
+    // filled and, on the last slice, after the tendencies have been turned back into values
+    // (the QVAPOR_BT* tendencies themselves may be negative).  Every rank holds the data.
+    if (ParallelDescriptor::IOProcessor()) {
+        const char* side_name[WRFBdyTypes::y_hi+1] = {"xlo", "xhi", "ylo", "yhi"};
+        for (int bdy_type = WRFBdyTypes::x_lo; bdy_type <= WRFBdyTypes::y_hi; ++bdy_type) {
+            const Real min_qv = read_fab(bdy_type,WRFBdyVars::QV).min<RunOn::Device>(0);
+            if (min_qv < zero) {
+                amrex::Warning("qv in the wrfbdy data on " + std::string(side_name[bdy_type]) +
+                               " at time slice " + std::to_string(itime) + " is negative (" +
+                               std::to_string(min_qv) + ")");
+            }
         }
     }
 
