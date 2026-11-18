@@ -3097,6 +3097,12 @@ if(NOT WIN32)
   # EB roughness input failures must be diagnosed on the host before filling the field.
   add_test_abort(EB_RoughnessFileMalformed ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
                  EB_SurfaceLayerActivation.i "expected exactly three numbers" "erf.most.roughness_file_name=roughness_malformed.txt")
+  add_test_abort(EB_RoughnessFileInvalidNumber ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "invalid number for z0" "erf.most.roughness_file_name=roughness_invalid_number.txt")
+  add_test_abort(EB_RoughnessFileOverflow ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "number out of range for z0" "erf.most.roughness_file_name=roughness_overflow.txt")
+  add_test_abort(EB_RoughnessFileUnderflow ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
+                 EB_SurfaceLayerActivation.i "number out of range for z0" "erf.most.roughness_file_name=roughness_underflow.txt")
   add_test_abort(EB_RoughnessFileNonfiniteCoordinate ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation
                  EB_SurfaceLayerActivation.i "x must be finite" "erf.most.roughness_file_name=roughness_nonfinite_coordinate.txt")
   add_test_abort(EB_RoughnessFileNonpositive ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SurfaceLayerActivation

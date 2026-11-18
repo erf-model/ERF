@@ -12,7 +12,9 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Wstar.H"
 #include <array>
-#include <charconv>
+#include <cerrno>
+#include <cfenv>
+#include <cstdlib>
 #include <iomanip>
 #include <limits>
 
@@ -84,22 +86,24 @@ read_eb_roughness (std::istream& file, const std::string& fname,
         }
         std::array<Real, 3> point{};
         for (int c = 0; c < 3; ++c) {
-            const char* first = tokens[c].data();
-            const char* last = first + tokens[c].size();
-            // from_chars accepts a leading minus; allow the usual leading plus too.
-            if (first != last && *first == '+') {
-                ++first;
-                if (first != last && *first == '-') {
-                    line_error(std::string("invalid number for ") + names[c]);
-                }
+            const char* first = tokens[c].c_str();
+            char* end = nullptr;
+            // strtod is available on older standard libraries. Suppress conversion
+            // exceptions so out-of-range input reports an error even with FPE traps.
+            std::fenv_t saved_env;
+            if (std::feholdexcept(&saved_env) != 0) {
+                line_error("could not suspend floating-point exceptions for input validation");
             }
-            double parsed = 0.0;
-            const auto result = std::from_chars(first, last, parsed);
-            if (result.ec == std::errc::result_out_of_range) {
-                line_error(std::string("number out of range for ") + names[c]);
-            }
-            if (result.ec != std::errc{} || result.ptr != last) {
+            errno = 0;
+            const double parsed = std::strtod(first, &end);
+            const int parse_errno = errno;
+            std::fesetenv(&saved_env);
+            if (end == first || *end != '\0') {
                 line_error(std::string("invalid number for ") + names[c]);
+            }
+            // Keep representable subnormal values; strtod may set ERANGE for them.
+            if (parse_errno == ERANGE && (parsed == 0.0 || !std::isfinite(parsed))) {
+                line_error(std::string("number out of range for ") + names[c]);
             }
             if (!std::isfinite(parsed) || (c == 2 && parsed <= 0.0)) {
                 line_error(std::string(names[c]) +
