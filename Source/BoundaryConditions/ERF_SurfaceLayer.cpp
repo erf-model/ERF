@@ -74,6 +74,13 @@ covers_columns (const Array4<const Real>& a, const Box& b)
  * outside a non-periodic domain the nearest one inside it, since the surface fields' ghost
  * cells there hold no data. The periodic ghost cells, ng deep, hold their images.
  *
+ * It also picks the column whose lowest state cell gives the surface pressure of a cell of
+ * a planar surface field, halo included.  The choice depends on the domain only, never on
+ * the box holding the cell, and the cell read lies in the domain or its periodic image: a
+ * valid cell of the box or a ghost cell of the state, filled by FillBoundary from another
+ * grid of the level or a periodic image, or at a coarse/fine boundary by FillPatch from the
+ * coarser level.
+ *
  * @param[in] geom geometry of the level
  * @param[in] ng   lateral ghost cells of the surface fields read
  */
@@ -824,6 +831,10 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_planar_boundary(lev, *t_star[lev]);
         fill_planar_boundary(lev, *q_star[lev]);
         fill_planar_boundary(lev, *olen[lev]);
+        // A Charnock, Donelan or wave-coupled roughness is iterated on the grown box, from
+        // the z0 stored there; without this its ghost cells kept each box's own value, which
+        // a restart (that refills them from the valid cells) does not reproduce
+        fill_planar_boundary(lev, z_0[lev]);
     } else {
         // The ordinary FillBoundary is unsafe for lateral walls: the
         // collapsed layout contains FABs from interior grids whose surface
@@ -843,6 +854,12 @@ SurfaceLayer::update_fluxes (const int& lev,
  * the split, the valid region of the uncomputed copies is filled as well.  With EB
  * terrain the fields are 3D and FillBoundary is well defined.
  *
+ * On a z face, the ghost cells beyond a non-periodic lateral edge are then given one value
+ * per cell, that of the grid holding the column they face (reconcile_outside_domain): next
+ * to a box seam two grids hold such a cell, and each producer fills its own copy from its
+ * own grid.  So these fields do not depend on the decomposition there, and a checkpoint,
+ * which keeps one copy, restarts from the same values.
+ *
  * @param[in]     lev Current level
  * @param[in,out] mf  Planar MultiFab to fill
  */
@@ -859,6 +876,7 @@ SurfaceLayer::fill_planar_boundary (const int& lev, MultiFab& mf)
         fill_lateral_surface_parameter_ghosts(lev, &mf);
     } else {
         m_planar_bndry[lev].fill(mf, m_geom[lev].periodicity());
+        m_planar_bndry[lev].reconcile_outside_domain(mf, m_geom[lev]);
     }
 }
 
@@ -2469,7 +2487,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     // component aborts below rather than reading past the components.
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
-    const auto column = surface_pressure_column(lev);
+    const NearestColumn column = surface_columns(m_geom[lev], t_surf[lev]->nGrowVect());
 
     // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
@@ -2483,7 +2501,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
             continue;
         }
 
-        // The halo takes the surface pressure of the column surface_pressure_column picks,
+        // The halo takes the surface pressure of the column surface_columns picks,
         // which does not depend on the box.  Its SST and TSK are its own: they are filled
         // on the grown box, as the valid cells are.
         const Box source_box = cons_in.boxArray()[mfi.index()];
@@ -2583,7 +2601,7 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
     const bool moist = use_moisture;
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
-    const auto column = surface_pressure_column(lev);
+    const NearestColumn column = surface_columns(m_geom[lev], t_surf[lev]->nGrowVect());
 
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -2614,8 +2632,15 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
         const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
                                             Array4<const Real> {};
 
+        // Only a cell of this box decides whether a conversion failure aborts; a halo
+        // cell, which reads the state of a column another box owns, is only reported
+        const Box vbx = mfi.validbox();
+        const int i_lo = vbx.smallEnd(0); const int i_hi = vbx.bigEnd(0);
+        const int j_lo = vbx.smallEnd(1); const int j_hi = vbx.bigEnd(1);
+
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            const bool authoritative = (i >= i_lo) && (i <= i_hi) && (j >= j_lo) && (j <= j_hi);
             const int li = column.i(i);
             const int lj = column.j(j);
             int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 0;
@@ -2629,7 +2654,7 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
                       Compute_Z_AtWFace(li,lj,klo,z_arr)
                     : myhalf*dz;
                 const auto pressure = erf_surface_temperature::diagnose_and_record_surface_pressure(
-                    fail, true, li, lj, klo, rho, rho_theta, rho_qv,
+                    fail, authoritative, li, lj, klo, rho, rho_theta, rho_qv,
                     moist, have_rho_qv, delta_z, sfc_sst);
                 if (pressure.error != erf_surface_temperature::SurfacePressureError::none) {
                     return;
@@ -2639,7 +2664,7 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
                         sfc_sst, pressure.pressure, rdOcp, theta)) {
                     t_surf_arr(i,j,k) = theta;
                 } else {
-                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
+                    erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
                         li, lj, klo, rho, rho_theta, rho_qv, sfc_sst,
                         pressure.pressure, delta_z);
                 }
@@ -2998,7 +3023,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     const bool moist = use_moisture;
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
-    const auto column = surface_pressure_column(lev);
+    const NearestColumn column = surface_columns(m_geom[lev], t_surf[lev]->nGrowVect());
 
     // Absent coverage information we must assume nothing is covered: silently
     // treating the whole field as valid is how an uncovered cell ends up holding
@@ -3008,7 +3033,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     // The coupled lane does not carry lateral ghost cells.  Give the SST and its coverage
     // the halo of t_surf, filled from the valid cells that own it (interior and periodic
     // images), so that the halo, like the valid region, reads the column that
-    // surface_pressure_column picks and not one that depends on the box.  Ghost cells
+    // surface_columns picks and not one that depends on the box.  Ghost cells
     // outside a non-periodic domain edge are left unfilled: that column is clamped into
     // the domain and never reads them.
     const IntVect ng_halo = t_surf[lev]->nGrowVect();
@@ -3043,8 +3068,15 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
         const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
                                             Array4<const Real> {};
 
+        // Only a cell of this box decides whether a conversion failure aborts; a halo
+        // cell, which reads the state of a column another box owns, is only reported
+        const Box vbx = mfi.validbox();
+        const int i_lo = vbx.smallEnd(0); const int i_hi = vbx.bigEnd(0);
+        const int j_lo = vbx.smallEnd(1); const int j_hi = vbx.bigEnd(1);
+
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            const bool authoritative = (i >= i_lo) && (i <= i_hi) && (j >= j_lo) && (j <= j_hi);
             const int li = column.i(i);
             const int lj = column.j(j);
             int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 1;
@@ -3062,7 +3094,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
                 : myhalf*dz;
             const Real t_abs = coupled_sst_arr(li,lj,donor_k);
             const auto pressure = erf_surface_temperature::diagnose_and_record_surface_pressure(
-                fail, true, li, lj, klo, rho, rho_theta, rho_qv,
+                fail, authoritative, li, lj, klo, rho, rho_theta, rho_qv,
                 moist, have_rho_qv, delta_z, t_abs);
             if (pressure.error != erf_surface_temperature::SurfacePressureError::none) {
                 return;
@@ -3072,7 +3104,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
                     t_abs, pressure.pressure, rdOcp, theta)) {
                 t_surf_arr(i,j,k) = theta;
             } else {
-                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
+                erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
                     li, lj, klo, rho, rho_theta, rho_qv, t_abs,
                     pressure.pressure, delta_z);
             }
@@ -3437,8 +3469,8 @@ SurfaceLayer::update_pblh (const int& lev,
  * coarse/fine boundary from the next coarser level (the same injection as
  * fill_pblh_from_coarser), so that they agree with the coarse state the other surface
  * fields there are computed from; those outside a non-periodic domain from the nearest
- * column of the domain (after fill_planar_boundary, so that a corner beside another grid
- * takes that grid's height); and the rest -- where the coarser level has no height yet --
+ * column of the domain (by fill_planar_boundary, or with EB after it, so that a corner
+ * beside another grid takes that grid's height); and the rest -- where the coarser level has no height yet --
  * from the nearest column of their own grid.
  *
  * @param[in] lev     Current level
@@ -3504,11 +3536,12 @@ SurfaceLayer::set_pblh (const int& lev, const amrex::MultiFab& pblh_in)
     }
     fill_planar_boundary(lev, dst);
 
-    // A ghost cell outside a non-periodic domain but beside another grid of this level (a
-    // corner) was left above with the nearest column of its own grid, which fill_planar_boundary
-    // does not overwrite; give it the nearest column of the domain, which is inside this fab and
-    // now holds the height of the grid that owns it
-    if (!per_x || !per_y) {
+    // With EB, a ghost cell outside a non-periodic domain but beside another grid of this level
+    // (a corner) was left above with the nearest column of its own grid, which the FillBoundary
+    // in fill_planar_boundary does not overwrite; give it the nearest column of the domain,
+    // which is inside this fab and now holds the height of the grid that owns it.  On a planar
+    // layout fill_planar_boundary has already given such a cell that value.
+    if (m_terrain_type == TerrainType::EB && (!per_x || !per_y)) {
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
