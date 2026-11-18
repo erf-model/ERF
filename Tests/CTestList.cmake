@@ -1808,6 +1808,11 @@ add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # profiles, and its first advance read an empty vector (erf-model/ERF#5143).  By step 8 the
 # start-up adjustment reaches 8.61 m/s, so the upper bound is looser than InputSponge_FinePatch's
 add_test_field_bounds(InputSponge_NewLevel "plt00008" x_velocity 5.9 9.0)
+# Custom rhotheta, moisture and subsidence forcing (a cut-down Bomex) on a level that a regrid
+# makes at t = 0.9 and remakes on larger grids at t = 2.1: the forcing was built only at
+# start-up, so the new level had null sources and the remade level kept them on its old grids
+# (erf-model/ERF#5151).  advance_dycore aborts if the forcing is not on the level's grids
+add_test_field_bounds(CustomForcing_RegridNewLevel "plt00010" theta 297.0 317.0)
 # Rayleigh damping toward an input sounding on a level that a regrid remakes at t = 10: its
 # targets were reset to the problem defaults (300 K, U = V = 0), and theta in the damping layer
 # was relaxed toward 300 K instead of the sounding's 309 to 310 K (erf-model/ERF#5142)

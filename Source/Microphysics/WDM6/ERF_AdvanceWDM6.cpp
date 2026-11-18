@@ -1488,9 +1488,12 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 for (int kk = khi; kk >= klo; --kk) {
                     work1_arr(i,j,kk,0) = work1_arr(i,j,kk,0) / delz_arr(i,j,kk);
                     workn_arr(i,j,kk) = workn_arr(i,j,kk) / delz_arr(i,j,kk);
-                    numdt_loc = amrex::max(static_cast<int>(amrex::max(work1_arr(i,j,kk,0),
-                                                                       workn_arr(i,j,kk)) * dtcld + Real(0.5)),
-                                           1);
+                    // Match the Fortran, numdt = max(nint(c + .5), 1) with c = courant, the rain Courant
+                    //    number: for c >= 0 that is floor(c) + 1, always more substeps than c, so
+                    //    no substep moves rain a whole cell.  Truncating c + 0.5 instead gives
+                    //    round(c), one substep too few when frac(c) < 0.5 (#5169)
+                    const Real courant = amrex::max(work1_arr(i,j,kk,0), workn_arr(i,j,kk)) * dtcld;
+                    numdt_loc = amrex::max(static_cast<int>(std::floor(courant)) + 1, 1);
                     if (numdt_loc >= mstep_loc) {
                         mstep_loc = numdt_loc;
                     }
