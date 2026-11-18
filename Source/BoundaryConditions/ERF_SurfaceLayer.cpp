@@ -3469,8 +3469,8 @@ SurfaceLayer::update_pblh (const int& lev,
  * coarse/fine boundary from the next coarser level (the same injection as
  * fill_pblh_from_coarser), so that they agree with the coarse state the other surface
  * fields there are computed from; those outside a non-periodic domain from the nearest
- * column of the domain (after fill_planar_boundary, so that a corner beside another grid
- * takes that grid's height); and the rest -- where the coarser level has no height yet --
+ * column of the domain (by fill_planar_boundary, or with EB after it, so that a corner
+ * beside another grid takes that grid's height); and the rest -- where the coarser level has no height yet --
  * from the nearest column of their own grid.
  *
  * @param[in] lev     Current level
@@ -3536,11 +3536,12 @@ SurfaceLayer::set_pblh (const int& lev, const amrex::MultiFab& pblh_in)
     }
     fill_planar_boundary(lev, dst);
 
-    // A ghost cell outside a non-periodic domain but beside another grid of this level (a
-    // corner) was left above with the nearest column of its own grid, which fill_planar_boundary
-    // does not overwrite; give it the nearest column of the domain, which is inside this fab and
-    // now holds the height of the grid that owns it
-    if (!per_x || !per_y) {
+    // With EB, a ghost cell outside a non-periodic domain but beside another grid of this level
+    // (a corner) was left above with the nearest column of its own grid, which the FillBoundary
+    // in fill_planar_boundary does not overwrite; give it the nearest column of the domain,
+    // which is inside this fab and now holds the height of the grid that owns it.  On a planar
+    // layout fill_planar_boundary has already given such a cell that value.
+    if (m_terrain_type == TerrainType::EB && (!per_x || !per_y)) {
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
