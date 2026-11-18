@@ -313,7 +313,10 @@ where :math:`w_*` is the (Deardorff) convective velocity scale and
 :math:`\beta=1.2` (Beljaars 1995, QJRMS). Because :math:`w_*` is computed from the
 boundary layer depth, ``erf.most.include_wstar`` requires ``erf.most.pblh_calc`` to
 name a PBL height scheme; leaving it at its default of ``none`` is an error, since no
-boundary layer depth would ever be diagnosed.
+boundary layer depth would ever be diagnosed. The surface layer diagnoses the
+``MYNN25`` height itself, but ``YSU`` and ``MRF`` take the height from the PBL scheme
+of the same name, so ``erf.most.pblh_calc = YSU`` or ``MRF`` requires the same
+``erf.pbl_type`` on every level; any other combination is an error.
 
 .. _sec:MovingSurface:
 

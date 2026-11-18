@@ -203,7 +203,8 @@ public:
       // convective velocity scale of ~1e50, which destroys the surface fluxes.
       if (m_include_wstar && (pblh_type == PBLHeightCalcType::None)) {
           amrex::Abort("erf.most.include_wstar requires a PBL height: set "
-                       "erf.most.pblh_calc (MYNN25 is the only scheme implemented)");
+                       "erf.most.pblh_calc to MYNN25 (or MYNNEDMF), or to YSU or MRF "
+                       "with the same erf.pbl_type");
       }
 
       if (m_surf_model) {

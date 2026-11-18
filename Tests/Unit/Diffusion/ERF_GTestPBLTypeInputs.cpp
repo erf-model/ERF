@@ -16,6 +16,9 @@ namespace {
 PBLType
 read_pbl_type (const std::string& prefix, const std::string& value)
 {
+    // YSU requires the surface_layer BC at zlo, which init_params reads
+    std::string zlo_type = "surface_layer";
+    amrex::ParmParse("zlo").queryAdd("type", zlo_type);
     amrex::ParmParse pp(prefix);
     pp.add("pbl_type", value);
     TurbChoice tc;

@@ -4786,8 +4786,8 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | ``erf.most.pblh_calc`` to be set                         |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.pblh_calc**                | which scheme diagnoses the PBL height used by the *w*\*  | none, MYNN25,       | none             |
-|                                       | correction                                               | MYNNEDMF, YSU,      |                  |
-|                                       |                                                          | MRF (YSUNew is a    |                  |
+|                                       | correction. YSU and MRF take the height from that PBL    | MYNNEDMF, YSU,      |                  |
+|                                       | scheme, so they require the same ``erf.pbl_type``        | MRF (YSUNew is a    |                  |
 |                                       |                                                          | deprecated name for |                  |
 |                                       |                                                          | YSU)                |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+

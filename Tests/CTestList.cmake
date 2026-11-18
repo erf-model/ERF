@@ -1815,19 +1815,25 @@ add_test_field_bounds(RANS_WallDist_NewLevel "plt00002" walldist 7.99 1008.01 MI
 unset(TEST_FILES_DIR)
 # A column whose bulk Richardson number never reaches Ribcr takes the top of the scan, capped
 # at 0.9 z(khi) = 907.2 m; YSU and MRF gave it the 16 m floor (erf-model/ERF#4458)
-add_test_field_bounds(PBL_NoCrossing_YSUNew "plt2d00002" pblh 907.1 907.3)
-add_test_field_bounds(PBL_NoCrossing_MRF    "plt2d00002" pblh 907.1 907.3)
+add_test_field_bounds(PBL_NoCrossing_YSU "plt2d00002" pblh 907.1 907.3)
+add_test_field_bounds(PBL_NoCrossing_MRF "plt2d00002" pblh 907.1 907.3)
 # YSU columns whose surface cell is already above Ribcr take the 16 m floor, and the others
 # 907.2 m; the interpolation divided 0 by 0 there and the run stopped at the floating-point trap.
 # Both ends are required, so the test also fails where no trap fires (#4458)
-add_test_field_bounds(PBL_SurfaceCrossing_YSUNew "plt2d00002" pblh 15.99 907.3
+add_test_field_bounds(PBL_SurfaceCrossing_YSU "plt2d00002" pblh 15.99 907.3
                       MIN_HI 16.01 MAX_LO 907.1)
 # Keys read only by the original YSU, which the former YSUNew replaced: they must stop the
 # run rather than be ignored
-add_test_abort(PBL_YSU_RemovedKey ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_NoCrossing_YSUNew
-               PBL_NoCrossing_YSUNew.i
+add_test_abort(PBL_YSU_RemovedKey ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_NoCrossing_YSU
+               PBL_NoCrossing_YSU.i
                "erf.pbl_ysu_unst_Ribcr has been removed along with the original YSU scheme"
                "erf.pbl_ysu_unst_Ribcr=0.0")
+# most.pblh_calc = YSU takes the PBL height from the YSU scheme: with another PBL scheme
+# the height used would not be the YSU one, and with none it keeps its bogus initial value
+add_test_abort(PBL_YSU_PblhCalcNeedsPBLType ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_NoCrossing_YSU
+               PBL_NoCrossing_YSU.i
+               "erf.most.pblh_calc = YSU takes its PBL height from erf.pbl_type = YSU"
+               "erf.pbl_type=MRF")
 # k-eqn RANS canopy terms in a uniform, fully forested box: one step of the wind (drag with
 # density) and of k (wake production, short-circuit sink, length cap, implicit dissipation)
 # against the closed-form stage solution in the deck. The wall at the bottom (needed for the
@@ -2644,8 +2650,8 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # prescribed-flux MOST problem, where the surface layer then applies a weaker
   # flux than prescribed (see "Limits on the similarity solution" in SurfaceLayer.rst).
   add_test_tiling_parity(ABL_YSU_Tiling      ABL_MRF_Tiling "00010" "00010"
-      RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.most.surf_temp_flux=-0.02 'erf.plot2d_vars_1=u_star t_star Olen'"
-      VARYING_3D "Lturb Kmv" VARYING_2D "u_star")
+      RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.most.surf_temp_flux=-0.02"
+      VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   # MYNN25 carries a prognostic TKE, and its source terms read the stage state with a
   # VERTICAL stencil: AddTurbKESources forms d(theta_v)/dz from k-1 and k+1 while
   # erf_slow_rhs_post writes that same state (new_cons = cur_cons) later in the same
@@ -2668,7 +2674,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(ABL_MRF_Tiling_Smooth    ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
-  add_test_tiling_parity(ABL_YSUNew_Tiling_Smooth ABL_MRF_Tiling "00010" "00010"
+  add_test_tiling_parity(ABL_YSU_Tiling_Smooth    ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
   # The immersed-boundary-aware MRF and YSU (erf.pbl_ib_aware) build their
@@ -2676,7 +2682,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # immersed forcing makes them differ from column to column.
   add_test_tiling_parity(PBL_IBAware_MRF_Tiling    PBL_IBAware_Tiling "00010" "00010"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
-  add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
+  add_test_tiling_parity(PBL_IBAware_YSU_Tiling    PBL_IBAware_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
   # YSU with PBL-height smoothing over a neutral ground (erf-model/ERF#4479).
