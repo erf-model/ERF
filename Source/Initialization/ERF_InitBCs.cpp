@@ -304,17 +304,17 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                 }
             }
 
-            // An anelastic face that gives any of these values brings in zero of every
+            // An anelastic face that gives any of these values brings in zero of every other
             // component it does not give, as a compressible face with <face>.density does;
-            // a face that gives none takes them all from the interior
+            // a face that gives none takes them all from the interior.  Theta is never set to
+            // zero: when it is not given it is extrapolated from the interior
             if (anelastic) {
                 bool any_given = false;
                 for (int n = BCVars::RhoTheta_bc_comp; n < NBCVAR_max; ++n) {
                     any_given = any_given || (m_bc_prim_given[n][ori] != 0);
                 }
                 if (any_given) {
-                    for (int n = BCVars::RhoTheta_bc_comp; n < NBCVAR_max; ++n) {
-                        if (n == BCVars::RhoTheta_bc_comp && th_read) { continue; }
+                    for (int n = BCVars::RhoKE_bc_comp; n < NBCVAR_max; ++n) {
                         if (m_bc_prim_given[n][ori] == 0) { set_inflow_value(n, zero_d); }
                     }
                 }

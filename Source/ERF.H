@@ -1333,6 +1333,9 @@ private:
 
     [[nodiscard]] bool has_surface_layer_inputs (const std::string& prefix) const;
 
+    // Build and fill the custom rhotheta, moisture and subsidence forcing of one level
+    void init_custom_forcing (int lev, amrex::Real time);
+
     // set covered coarse cells/faces to be the average of overlying fine cells/faces
     void AverageDown ();
 
@@ -1496,6 +1499,7 @@ private:
 
     static double start_bdy_time;
     static double final_bdy_time;
+    static bool   use_theta_m_bdy;
 
     static double start_low_time;
     static double final_low_time;
