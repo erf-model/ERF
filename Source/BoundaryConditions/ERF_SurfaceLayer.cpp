@@ -2469,6 +2469,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     // component aborts below rather than reading past the components.
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
+    const auto column = surface_pressure_column(lev);
 
     // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
@@ -2482,8 +2483,9 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
             continue;
         }
 
-        // The halo takes the surface pressure of the nearest valid column.  Its SST and
-        // TSK are its own: they are filled on the grown box, as the valid cells are.
+        // The halo takes the surface pressure of the column surface_pressure_column picks,
+        // which does not depend on the box.  Its SST and TSK are its own: they are filled
+        // on the grown box, as the valid cells are.
         const Box source_box = cons_in.boxArray()[mfi.index()];
         const int i_lo = source_box.smallEnd(0); const int i_hi = source_box.bigEnd(0);
         const int j_lo = source_box.smallEnd(1); const int j_hi = source_box.bigEnd(1);
@@ -2527,11 +2529,11 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
                 return;
             }
 
-            const int li = amrex::min(amrex::max(i, i_lo), i_hi);
-            const int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-            // A halo cell reads the state of a valid one, so only its own SST or TSK can
-            // fail where the valid cells do not: report it, but do not abort for it.
-            const bool authoritative = (i == li) && (j == lj);
+            const int li = column.i(i);
+            const int lj = column.j(j);
+            // A halo cell reads the state of a column some box owns, so only its own SST or
+            // TSK can fail where the valid cells do not: report it, but do not abort for it.
+            const bool authoritative = (i >= i_lo) && (i <= i_hi) && (j >= j_lo) && (j <= j_hi);
 
             // The state is checked before it is divided by, so that a bad state reaches
             // the diagnostic rather than a floating-point trap.
@@ -2581,6 +2583,7 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
     const bool moist = use_moisture;
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
+    const auto column = surface_pressure_column(lev);
 
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -2594,7 +2597,6 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
             continue;
         }
 
-        const Box source_box = cons_in.boxArray()[mfi.index()];
         gtbx &= t_surf[lev]->fabbox(mfi.index());
         gtbx &= cons_in.fabbox(mfi.index());
         if (z_phys_nd) {
@@ -2611,15 +2613,11 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
         const auto cons_arr = cons_in.const_array(mfi);
         const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
                                             Array4<const Real> {};
-        const int i_lo = source_box.smallEnd(0);
-        const int i_hi = source_box.bigEnd(0);
-        const int j_lo = source_box.smallEnd(1);
-        const int j_hi = source_box.bigEnd(1);
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            const int li = amrex::min(amrex::max(i, i_lo), i_hi);
-            const int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            const int li = column.i(i);
+            const int lj = column.j(j);
             int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 0;
             if (!is_land) {
                 const Real rho = cons_arr(li,lj,klo,Rho_comp);
@@ -3000,11 +2998,28 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     const bool moist = use_moisture;
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
+    const auto column = surface_pressure_column(lev);
 
     // Absent coverage information we must assume nothing is covered: silently
     // treating the whole field as valid is how an uncovered cell ends up holding
-    // the remap's zero fill.
-    const bool has_valid = (m_coupled_sst_valid_lev[lev] != nullptr);
+    // the remap's zero fill.  Every cell then keeps what the earlier producers wrote.
+    if (m_coupled_sst_valid_lev[lev] == nullptr) { return; }
+
+    // The coupled lane does not carry lateral ghost cells.  Give the SST and its coverage
+    // the halo of t_surf, filled from the valid cells that own it (interior and periodic
+    // images), so that the halo, like the valid region, reads the column that
+    // surface_pressure_column picks and not one that depends on the box.  Ghost cells
+    // outside a non-periodic domain edge are left unfilled: that column is clamped into
+    // the domain and never reads them.
+    const IntVect ng_halo = t_surf[lev]->nGrowVect();
+    MultiFab sst_halo(t_surf[lev]->boxArray(), t_surf[lev]->DistributionMap(), 1, ng_halo);
+    iMultiFab valid_halo(t_surf[lev]->boxArray(), t_surf[lev]->DistributionMap(), 1, ng_halo);
+    sst_halo.setVal(zero);
+    valid_halo.setVal(0);
+    sst_halo.ParallelCopy(*m_coupled_sst_lev[lev], 0, 0, 1, IntVect(0), ng_halo,
+                          m_geom[lev].periodicity());
+    valid_halo.ParallelCopy(*m_coupled_sst_valid_lev[lev], 0, 0, 1, IntVect(0), ng_halo,
+                            m_geom[lev].periodicity());
 
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -3015,44 +3030,27 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
             continue;
         }
 
-        // NOTE: the coupled lane does not carry lateral ghost cells, so clamp
-        //       into the physical source box exactly as the fallback path does.
-        //       FillBoundary in update_fluxes picks up the interior and
-        //       periodic directions.
-        const Box source_box = cons_in.boxArray()[mfi.index()];
-        const Box donor_box = m_coupled_sst_lev[lev]->boxArray()[mfi.index()];
-        const int source_i_lo = source_box.smallEnd(0);
-        const int source_i_hi = source_box.bigEnd(0);
-        const int source_j_lo = source_box.smallEnd(1);
-        const int source_j_hi = source_box.bigEnd(1);
-        const int donor_i_lo = donor_box.smallEnd(0);
-        const int donor_i_hi = donor_box.bigEnd(0);
-        const int donor_j_lo = donor_box.smallEnd(1);
-        const int donor_j_hi = donor_box.bigEnd(1);
-        const int donor_k = donor_box.smallEnd(2);
+        const int donor_k = t_surf[lev]->boxArray()[mfi.index()].smallEnd(2);
         gtbx &= t_surf[lev]->fabbox(mfi.index());
         if (gtbx.isEmpty()) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
-        const auto coupled_sst_arr = m_coupled_sst_lev[lev]->const_array(mfi);
-        auto const& valid_arr = has_valid ? m_coupled_sst_valid_lev[lev]->const_array(mfi)
-                                          : Array4<const int>{};
+        const auto coupled_sst_arr = sst_halo.const_array(mfi);
+        const auto valid_arr       = valid_halo.const_array(mfi);
         const auto cons_arr = cons_in.const_array(mfi);
         const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
                                             Array4<const Real> {};
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            const int li = amrex::min(amrex::max(i, source_i_lo), source_i_hi);
-            const int lj = amrex::min(amrex::max(j, source_j_lo), source_j_hi);
-            const int si = amrex::min(amrex::max(li, donor_i_lo), donor_i_hi);
-            const int sj = amrex::min(amrex::max(lj, donor_j_lo), donor_j_hi);
+            const int li = column.i(i);
+            const int lj = column.j(j);
             int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 1;
             if (is_land) { return; }
 
-            if (!has_valid || valid_arr(si,sj,donor_k) == 0) { return; }
+            if (valid_arr(li,lj,donor_k) == 0) { return; }
 
             const Real rho = cons_arr(li,lj,klo,Rho_comp);
             const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
@@ -3062,7 +3060,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
                 ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
                   Compute_Z_AtWFace(li,lj,klo,z_arr)
                 : myhalf*dz;
-            const Real t_abs = coupled_sst_arr(si,sj,donor_k);
+            const Real t_abs = coupled_sst_arr(li,lj,donor_k);
             const auto pressure = erf_surface_temperature::diagnose_and_record_surface_pressure(
                 fail, true, li, lj, klo, rho, rho_theta, rho_qv,
                 moist, have_rho_qv, delta_z, t_abs);
