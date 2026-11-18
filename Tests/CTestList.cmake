@@ -1830,14 +1830,25 @@ set(TEST_FILES_DIR RANS_WallDist_Regrid)
 add_test_field_bounds(RANS_WallDist_NewLevel "plt00002" walldist 7.99 1008.01 MIN_HI 8.01)
 unset(TEST_FILES_DIR)
 # A column whose bulk Richardson number never reaches Ribcr takes the top of the scan, capped
-# at 0.9 z(khi) = 907.2 m; YSU and MRF gave it the 16 m floor (erf-model/ERF#4458)
+# at 0.9 z(khi) = 907.2 m; YSU and MRF gave it the floor, 16 m then (erf-model/ERF#4458)
 add_test_field_bounds(PBL_NoCrossing_YSU "plt2d00002" pblh 907.1 907.3)
 add_test_field_bounds(PBL_NoCrossing_MRF "plt2d00002" pblh 907.1 907.3)
-# YSU columns whose surface cell is already above Ribcr take the 16 m floor, and the others
-# 907.2 m; the interpolation divided 0 by 0 there and the run stopped at the floating-point trap.
-# Both ends are required, so the test also fails where no trap fires (#4458)
-add_test_field_bounds(PBL_SurfaceCrossing_YSU "plt2d00002" pblh 15.99 907.3
-                      MIN_HI 16.01 MAX_LO 907.1)
+# YSU columns whose surface cell is already above Ribcr take the floor, the top face of the
+# first cell (32 m), and the others 907.2 m; the interpolation divided 0 by 0 there and the run
+# stopped at the floating-point trap.  Both ends are required, so the test also fails where no
+# trap fires (#4458).  The floor was the first cell center, 16 m, on this constant-dz mesh
+# before erf-model/ERF#5252
+add_test_field_bounds(PBL_SurfaceCrossing_YSU "plt2d00002" pblh 31.99 907.3
+                      MIN_HI 32.01 MAX_LO 907.1)
+# The same floor on other mesh types (#5252): a stretched mesh with ratio 1 has the same 32 m
+# levels and the same 32 m floor; a graded mesh with a 20 m first cell has a 20 m floor (the
+# mid-point of its first two cell centers is 20.14 m) and 0.9 z(khi) = 900.06 m
+set(TEST_FILES_DIR PBL_SurfaceCrossing_YSU)
+add_test_field_bounds(PBL_SurfaceCrossing_YSU_Stretched "plt2d00002" pblh 31.99 907.3
+                      MIN_HI 32.01 MAX_LO 907.1)
+add_test_field_bounds(PBL_SurfaceCrossing_YSU_Graded "plt2d00002" pblh 19.99 900.1
+                      MIN_HI 20.01 MAX_LO 900.0)
+unset(TEST_FILES_DIR)
 # YSU PBL height over a stable sounding (theta = 300 K + 0.01 K/m z, 5 m/s), on a constant-dz
 # mesh and on a stretched mesh with ratio 1 that has the same 32 m levels.  With the height in
 # the bulk Richardson number measured from the ground, Rib_k = g z_k (theta_k - theta_1) /
@@ -1880,6 +1891,12 @@ add_test_abort(PBL_YSU_RemovedKey ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_NoC
                PBL_NoCrossing_YSU.i
                "erf.pbl_ysu_unst_Ribcr has been removed along with the original YSU scheme"
                "erf.pbl_ysu_unst_Ribcr=0.0")
+# The switch between two forms of the YSU PBL-height floor is retired with the single floor
+# of erf-model/ERF#5252: it must stop the run rather than be ignored
+add_test_abort(PBL_YSU_RemovedFloorKey ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_NoCrossing_YSU
+               PBL_NoCrossing_YSU.i
+               "erf.enable_ysu_terrain_pblh_floor has been removed"
+               "erf.enable_ysu_terrain_pblh_floor=false")
 # most.pblh_calc = YSU takes the PBL height from the YSU scheme: with another PBL scheme
 # the height used would not be the YSU one, and with none it keeps its bogus initial value
 add_test_abort(PBL_YSU_PblhCalcNeedsPBLType ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_NoCrossing_YSU

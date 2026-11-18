@@ -1407,10 +1407,22 @@ first fluid cell :math:`k_s` to the top cell :math:`k_{hi}`, as WRF does (``bl_y
   This includes a crossing at the top cell :math:`k_{hi}`.
 - The first cell's :math:`{\rm Rib}` only seeds the lower end of the first interval. If it and the next
   level are both at or above :math:`{\rm Rib_{cr}}`, :math:`h` is the floor :math:`h_{min}` (WRF's
-  ``brint = 0``): the height of the first cell's center on a flat mesh, or of its top face on a
-  terrain-fitted mesh, and at least 10 m.
+  ``brint = 0``, where WRF takes the height of the first level).
 - If :math:`{\rm Rib}` stays below :math:`{\rm Rib_{cr}}` up to :math:`k_{hi}`, :math:`h` is the top of the scan,
   :math:`z_{k_{hi}}` (WRF's ``brint = 1``).
+
+The floor is the height of the top face of the column's first fluid cell, and at least 10 m:
+
+.. math::
+
+   h_{min} = \max\left(z_1 + \tfrac{1}{2}\,\Delta z_1,\ 10\ {\rm m}\right),
+
+with :math:`z_1` the height of the first cell's center and :math:`\Delta z_1` the cell's thickness. It is the
+same on constant-dz, stretched and terrain-fitted meshes. The top face of the first cell is the height below
+which WRF sets ``kpbl = 1`` (``zq(i,2)`` in ``bl_ysu.F90``); WRF does not bound :math:`h` itself, and
+reports the height of the first level, half a cell lower, in such a column. With :math:`h` at the floor the
+diffusivity profile is zero at the top face of the first cell, so that cell keeps the background diffusivity,
+and the profile grows continuously from there as :math:`h` rises.
 
 The result is then kept in :math:`[h_{min},\ h_{max}]` with :math:`h_{max} = 0.9\, z_{k_{hi}}`.
 The PBL top index is :math:`k_{hi}` in the no-crossing case. The K profile then reaches :math:`h`, and the
