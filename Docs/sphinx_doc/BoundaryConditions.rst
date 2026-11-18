@@ -106,6 +106,24 @@ xlo.density       = 1. sets the inflow density,
 xlo.theta         = 300. sets the inflow potential temperature,
 xlo.scalar        = 2. sets the inflow value of the advected scalar
 
+In a compressible run the face values of theta, scalar, qv, qc and KE are made conserved with
+``<face>.density``, and every conserved variable the face does not give enters with the value 0.
+Without ``<face>.density`` the face takes all its conserved variables from the interior, except a
+primitive theta from a ``dirichlet_file`` (see below), which is applied without it.
+
+In an anelastic or pseudo-incompressible run ``<face>.density`` must be omitted on every face
+(ERF stops if it is given), and the inflow density is that of the first interior cell at the same
+height. In an anelastic run this is the base-state density :math:`\rho_0(z)`, since the density
+is held at the base state. In a pseudo-incompressible run the density evolves, so the inflow
+density is the current interior density, which differs from :math:`\rho_0` where the flow is
+warmer or colder than the base state. Each of ``<face>.theta``, ``scalar``, ``qv``, ``qc`` and
+``KE`` that is given is multiplied by this density, on ``inflow`` and ``inflow_outflow`` faces
+alike.
+A face that gives any of them brings in 0 of every other conserved variable, as a compressible
+face with ``<face>.density`` does; a face that gives none of them takes them all from the interior.
+
+``inflow_outflow`` is supported on x and y faces only; ERF stops if a z face has it.
+
 Non-reflecting inflow
 ^^^^^^^^^^^^^^^^^^^^^
 
