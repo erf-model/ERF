@@ -44,8 +44,18 @@ ImplicitDiffForStateLU_N (const Box& bx,
                           const BCRec* bc_ptr,
                           const bool use_SurfLayer,
                           const Real implicit_fac,
-                          const bool use_mrf_countergradient)
+                          const bool use_mrf_countergradient,
+                          const Array4<const Real>& wall_face,
+                          const Array4<const Real>& wall_pin)
 {
+    // Fraction-stress immersed wall law: wall_face is zero on the bottom face of the wall cell of
+    // each column (z faces), which then carries no diffusive coupling. Empty when not in use.
+    const bool has_wall_face = static_cast<bool>(wall_face);
+    // ... and wall_pin (the TKE solve with erf.if_wall_tke_time_factor = 1) holds the wall value
+    // of the TKE where it is >= 0: that row is a Dirichlet row, like the pinned first cell of flat
+    // ground, and the row above sees it as a Dirichlet neighbour
+    const bool has_wall_pin = static_cast<bool>(wall_pin);
+
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
 
     Real dt = static_cast<Real>(dt_d);
@@ -131,16 +141,25 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 a_tmp      = zero;
                 if (!at_zlo) { a_tmp = -Fact * rhoAlpha_lo * dz_inv; }
                 c_tmp      = (pin_klo) ? zero : -Fact * rhoAlpha_hi * dz_inv;
+                if (has_wall_face) {
+                    a_tmp *= wall_face(i,j,klo);
+                    c_tmp *= wall_face(i,j,klo+1);
+                }
+                const bool pin_here_lo = has_wall_pin && (wall_pin(i,j,klo) >= zero);
+                if (pin_here_lo) { a_tmp = zero; c_tmp = zero; }
                 b_tmp      = cell_data(i,j,klo,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one;
 
                 RHS_a(i,j,klo) = cell_data(i,j,klo,n); // NOTE: this is rho*phi; solution is phi
-                if (!at_zlo) {
+                if (pin_here_lo) {
+                    // Dirichlet row: no flux terms
+                } else if (!at_zlo) {
                     // Coarse/fine boundary: close the system with the known value below
                     RHS_a(i,j,klo) -= a_tmp * (cell_data(i,j,klo-1,n) / cell_data(i,j,klo-1,Rho_comp));
                 } else if (pin_klo) {
                     // Dirichlet row: no flux terms
-                } else if (use_SurfLayer && scalar_zflux) {
+                } else if (use_SurfLayer && scalar_zflux && !(has_wall_face && wall_face(i,j,klo) == zero)) {
+                    // (a wall cell at klo takes its wall flux from the source, not from the surface layer)
                     RHS_a(i,j,klo) +=  Fact * scalar_zflux(i,j,klo); // NOTE: scalar_zflux = -K*d_z(\phi)
                 } else if (neumann_on_zlo) {
                     RHS_a(i,j,klo) += -Fact * rhoAlpha_lo * bc_neumann_vals[2]; // NOTE: N_val = d_z(\phi)
@@ -174,6 +193,12 @@ ImplicitDiffForStateLU_N (const Box& bx,
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv;
+                if (has_wall_face) {
+                    a_tmp *= wall_face(i,j,k);
+                    c_tmp *= wall_face(i,j,k+1);
+                }
+                const bool pin_here = has_wall_pin && (wall_pin(i,j,k) >= zero);
+                if (pin_here) { a_tmp = zero; c_tmp = zero; }
                 b_tmp      = cell_data(i,j,k,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
@@ -206,6 +231,10 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = zero;
                 if (!at_zhi) { c_tmp = -Fact * rhoAlpha_hi * dz_inv; }
+                if (has_wall_face) {
+                    a_tmp *= wall_face(i,j,khi);
+                    if (!at_zhi) { c_tmp *= wall_face(i,j,khi+1); }
+                }
                 b_tmp      = cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
@@ -295,8 +324,14 @@ ImplicitDiffForMomLU_N (const Box& bx,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer,
                         const Real implicit_fac,
-                        const bool use_ysu_mom_countergradient)
+                        const bool use_ysu_mom_countergradient,
+                        const Array4<const Real>& wall_face)
 {
+    // Fraction-stress immersed wall law: wall_face is zero on the bottom face of the wall cell
+    // of each face column (xz or yz edges), which then carries no diffusive coupling; the wall
+    // stress is a source term (ERF_ImmersedWallCell.H). Empty when not in use.
+    const bool has_wall_face = static_cast<bool>(wall_face);
+
     BL_PROFILE_VAR("ImplicitDiffForMom_N()",ImplicitDiffForMom_N);
 
     Real dt = static_cast<Real>(dt_d);
@@ -428,6 +463,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
 
               a_tmp = zero;
               c_tmp = -Fact * rhoAlpha_hi * dz_inv;
+              if (has_wall_face) { c_tmp *= wall_face(i,j,klo+1); }
 
               RHS_a(i,j,klo) = face_data(i,j,klo); // NOTE: this is momenta; solution is velocity
 
@@ -485,6 +521,8 @@ ImplicitDiffForMomLU_N (const Box& bx,
                   }
               }
 
+              // the bottom face of a wall cell at a coarse/fine boundary carries no coupling either
+              if (has_wall_face) { a_tmp *= wall_face(i,j,klo); }
               b_tmp      = rhoface - a_tmp - c_tmp;
               inv_b2_tmp = one;
 
@@ -502,6 +540,10 @@ ImplicitDiffForMomLU_N (const Box& bx,
 
               a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
               c_tmp      = -Fact * rhoAlpha_hi * dz_inv;
+              if (has_wall_face) {
+                  a_tmp *= wall_face(i,j,k);
+                  c_tmp *= wall_face(i,j,k+1);
+              }
               b_tmp      = rhoface - a_tmp - c_tmp;
               inv_b2_tmp = one/ (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
@@ -534,6 +576,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
 
               a_tmp = -Fact * rhoAlpha_lo * dz_inv;
               c_tmp = zero;
+              if (has_wall_face) { a_tmp *= wall_face(i,j,khi); }
 
               RHS_a(i,j,khi)  = face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,khi) += Fact * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi));
@@ -625,7 +668,8 @@ ImplicitDiffForMomLU_N (const Box& bx,
         const BCRec*, \
         const bool, \
         const Real, \
-        const bool);
+        const bool, \
+        const Array4<const Real>&);
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(0)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(1)
 #undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU

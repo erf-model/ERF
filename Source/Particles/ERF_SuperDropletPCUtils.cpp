@@ -321,7 +321,7 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
             return ai * num_par * species_mass;
-        });
+        }, a_idx != m_idx_w && a_idx != m_idx_i);
 }
 
 /*! Computes the cloud/rain mass density of the particles over a mesh */
@@ -833,6 +833,7 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
         auto* ae_sol_p = ptrs.ae_sol_arr;
         auto idx_w     = ctx.idx_water;
         auto rho_w     = ctx.rho_water;
+        auto* active_p = ptrs.active_ptr;
 
         int num_bins = bins.numBins();
 
@@ -848,12 +849,12 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
             IntVect iv = amrex::getParticleCell(pstruct_ptr[first_idx], plo, dxi, domain);
             if (!mask_arr(iv)) { return 0; }
 
-            // Per-cell adaptive radius range over live SDs.
+            // Per-cell adaptive radius range over live, active SDs.
             ParticleReal rmin_c = ParticleReal(-1);
             ParticleReal rmax_c = ParticleReal(-1);
             for (int k = 0; k < np_bin; k++) {
                 unsigned int idx = inds[bin_start + k];
-                if (pstruct_ptr[idx].id() <= 0) { continue; }
+                if (pstruct_ptr[idx].id() <= 0 || active_p[idx] <= 0) { continue; }
                 ParticleReal r = radius_p[idx];
                 if (r > ParticleReal(0)) {
                     if (rmin_c < ParticleReal(0) || r < rmin_c) { rmin_c = r; }
@@ -877,7 +878,7 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
                 int cnt = 0;
                 for (int k = 0; k < np_bin; k++) {
                     unsigned int idx = inds[bin_start + k];
-                    if (pstruct_ptr[idx].id() <= 0) { continue; }
+                    if (pstruct_ptr[idx].id() <= 0 || active_p[idx] <= 0) { continue; }
                     if (sdmRadiusBin(radius_p[idx], lnrmin, inv_lnr, n_rbin) == rb) { cnt++; }
                 }
                 if (cnt < 2) { continue; }
@@ -890,7 +891,7 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
                 int ns = 0, cyc = 0;
                 for (int k = 0; k < np_bin; k++) {
                     unsigned int idx = inds[bin_start + k];
-                    if (pstruct_ptr[idx].id() <= 0) { continue; }
+                    if (pstruct_ptr[idx].id() <= 0 || active_p[idx] <= 0) { continue; }
                     if (sdmRadiusBin(radius_p[idx], lnrmin, inv_lnr, n_rbin) != rb) { continue; }
                     if (ns < keep) { surv[ns++] = static_cast<int>(idx); continue; }
                     unsigned int h = static_cast<unsigned int>(surv[cyc % keep]); cyc++;
@@ -1149,6 +1150,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                 Gpu::DeviceVector<int> first_active_d(num_bins, -1);
                 auto* active_count = active_count_d.data();
                 auto* first_active = first_active_d.data();
+                const auto* active_tag = soa.GetIntData(active_idx).data();
 
                 amrex::ParallelFor(num_bins, [=] AMREX_GPU_DEVICE (int b) {
                     auto bstart = d_offsets[b];
@@ -1157,9 +1159,12 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     int first = -1;
                     for (auto k = bstart; k < bstop; k++) {
                         unsigned int idx = d_inds[k];
-                        if (pstruct[idx].id() > 0) {
+                        if (pstruct[idx].id() > 0 && active_tag[idx] > 0) {
                             count++;
-                            if (first < 0) { first = static_cast<int>(idx); }
+                            // DenseBins order within a cell can vary on GPUs.
+                            if (first < 0 || static_cast<int>(idx) < first) {
+                                first = static_cast<int>(idx);
+                            }
                         }
                     }
                     active_count[b] = count;
@@ -1300,6 +1305,34 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                 const auto local_blen = blen;
                 const auto local_blo  = box.smallEnd();
                 auto* inject_active = inject_soa.GetIntData(active_idx).data();
+                auto* inject_mult = inject_soa.GetRealData(mult_idx).data();
+
+                // Several empty cells may select the same donor. Split its
+                // multiplicity once across all copies, rather than creating mass.
+                Gpu::DeviceVector<int> donor_count_d(np, 0);
+                Gpu::DeviceVector<int> donor_piece_d(n_inject);
+                auto* donor_count = donor_count_d.data();
+                auto* donor_piece = donor_piece_d.data();
+                amrex::ParallelFor(n_inject, [=] AMREX_GPU_DEVICE (int i) {
+                    const int donor = compact_donor[i];
+                    Gpu::Atomic::AddNoRet(&donor_count[donor], 1);
+                    // A donor can serve only its six face neighbors. Rank those
+                    // target bins deterministically, not by atomic arrival order.
+                    const IntVect cell = getParticleCell(pstruct[donor], plo_f, dxi_f, domain_f);
+                    int piece = 1;
+                    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+                        for (int side = -1; side <= 1; side += 2) {
+                            IntVect neighbor = cell;
+                            neighbor[d] += side;
+                            if (!box.contains(neighbor)) { continue; }
+                            const IntVect local = neighbor - local_blo;
+                            const int b = local[0] + local_blen[0] *
+                                          (local[1] + local_blen[1] * local[2]);
+                            if (b < compact_bin[i] && donor_pidx[b] == donor) { ++piece; }
+                        }
+                    }
+                    donor_piece[i] = piece;
+                });
 
                 amrex::ParallelFor(n_inject, [=] AMREX_GPU_DEVICE (int i) {
                     inject_p[i].id()  = static_cast<int>(pid_start + i);
@@ -1315,14 +1348,36 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     inject_p[i].pos(2) = local_plo[2] + (cell_k + Real(0.5)) * local_dx[2];
 
                     inject_active[i] = flev_native;
+                    const ParticleReal xi = inject_mult[i];
+                    const int requested = donor_count[compact_donor[i]] + 1;
+                    const int pieces = xi >= ParticleReal(requested) ? requested
+                        : amrex::max(1, static_cast<int>(xi));
+                    if (donor_piece[i] < pieces) {
+                        inject_mult[i] = amrex::Math::floor(xi / ParticleReal(pieces));
+                    } else {
+                        inject_p[i].id() = -1;
+                        inject_active[i] = 0;
+                        inject_mult[i] = ParticleReal(0);
+                    }
                 });
-                Gpu::synchronize();
-
-                auto old_np = ptile.numParticles();
+                auto* orig_mult = soa.GetRealData(mult_idx).data();
+                amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+                    if (donor_count[i] == 0) { return; }
+                    const ParticleReal xi = orig_mult[i];
+                    const int requested = donor_count[i] + 1;
+                    const int pieces = xi >= ParticleReal(requested) ? requested
+                        : amrex::max(1, static_cast<int>(xi));
+                    const ParticleReal base = amrex::Math::floor(xi / ParticleReal(pieces));
+                    orig_mult[i] = xi - ParticleReal(pieces-1) * base;
+                });
+                Gpu::streamSynchronize();
+                const int old_np = static_cast<int>(ptile.numParticles());
                 ptile.resize(old_np + n_inject);
-                amrex::copyParticles(ptile, inject_tile, 0, old_np, n_inject);
+                const int n_added = amrex::filterParticles(
+                    ptile, inject_tile, KeepValidFilter(), 0, old_np, n_inject);
+                ptile.resize(old_np + n_added);
 
-                n_injected += n_inject;
+                n_injected += n_added;
             }
 
             ParallelDescriptor::ReduceLongSum(n_injected);
@@ -1413,12 +1468,12 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     return 0;
                 }
 
-                // Per-cell adaptive radius range over live SDs.
+                // Per-cell adaptive radius range over live, active SDs.
                 ParticleReal rmin_c = ParticleReal(-1);
                 ParticleReal rmax_c = ParticleReal(-1);
                 for (int k = 0; k < np_bin; k++) {
                     unsigned int idx = inds[bin_start + k];
-                    if (pstruct_ptr[idx].id() <= 0) { continue; }
+                    if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] <= 0) { continue; }
                     ParticleReal r = radius_p[idx];
                     if (r > ParticleReal(0)) {
                         if (rmin_c < ParticleReal(0) || r < rmin_c) { rmin_c = r; }

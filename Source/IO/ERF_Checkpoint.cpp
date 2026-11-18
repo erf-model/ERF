@@ -18,25 +18,33 @@
 #include "ERF_IntervalMeansCheckpoint.H"
 #include "ERF_CheckpointSurfaceTemperature.H"
 #include "ERF_CheckpointLsmData.H"
+#include "ERF_CheckpointLandmask.H"
+#include "ERF_PlanarBoundary.H"
 #include "ERF_ReadCheckpointMF.H"
+#include "ERF_SBMAMRFluxRegister.H"
+#include "ERF_SBMAMRTime.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMRestart.H"
 #include "ERF_SBMTransport.H"
+#include "ERF_SurfaceTemperature.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
+
+#ifdef ERF_USE_NETCDF
+double read_start_time_from_wrfinput (int lev, const std::string& fname);
+#endif
 
 namespace
 {
 
 bool provenance_warning_emitted = false;
 
-constexpr const char* surface_temperature_contract_file =
-    "surface_temperature_contract";
-
 void
 write_surface_temperature_contract (const std::string& checkpointname)
 {
-    const std::string filename = checkpointname + "/" + surface_temperature_contract_file;
+    const std::string filename = checkpointname + "/" +
+                                 erf_checkpoint_surface_temperature::contract_file_name;
     std::ofstream output(filename, std::ofstream::out |
                                    std::ofstream::trunc |
                                    std::ofstream::binary);
@@ -44,94 +52,6 @@ write_surface_temperature_contract (const std::string& checkpointname)
         amrex::FileOpenFailed(filename);
     }
     erf_checkpoint_surface_temperature::write_contract_version(output);
-}
-
-void
-validate_surface_temperature_contract (const std::string& checkpointname,
-                                       const int finest_level)
-{
-    const std::string marker_name = checkpointname + "/" + surface_temperature_contract_file;
-    const bool marker_present = amrex::FileExists(marker_name);
-
-    if (marker_present) {
-        amrex::Vector<char> marker_chars;
-        amrex::ParallelDescriptor::ReadAndBcastFile(marker_name, marker_chars);
-        std::istringstream marker_stream(std::string(marker_chars.dataPtr()),
-                                          std::istringstream::in);
-        int version = 0;
-        const auto status = erf_checkpoint_surface_temperature::read_contract_version(
-            marker_stream, version);
-        if (status == erf_checkpoint_surface_temperature::ContractReadStatus::Malformed) {
-            amrex::Abort("Malformed surface-temperature contract marker in '" + marker_name + "'");
-        }
-        if (status == erf_checkpoint_surface_temperature::ContractReadStatus::UnknownVersion) {
-            amrex::Abort("Unsupported surface-temperature contract version " +
-                         std::to_string(version) + " in '" + marker_name + "'");
-        }
-        return;
-    }
-
-    const int legacy_level = erf_checkpoint_surface_temperature::first_legacy_surface_temperature_level(
-        checkpointname, finest_level);
-    if (legacy_level < 0) {
-        return;
-    }
-
-    const std::string job_info_name = checkpointname + "/job_info";
-    erf_checkpoint_surface_temperature::LegacyInitType legacy_init_type =
-        erf_checkpoint_surface_temperature::LegacyInitType::Unknown;
-    if (amrex::FileExists(job_info_name)) {
-        amrex::Vector<char> job_info_chars;
-        amrex::ParallelDescriptor::ReadAndBcastFile(job_info_name, job_info_chars);
-        std::istringstream job_info_stream(std::string(job_info_chars.dataPtr()),
-                                            std::istringstream::in);
-        legacy_init_type =
-            erf_checkpoint_surface_temperature::parse_legacy_init_type_from_job_info(
-                job_info_stream);
-    }
-
-    if (legacy_init_type == erf_checkpoint_surface_temperature::LegacyInitType::Unknown) {
-        amrex::ParmParse pp_erf("erf");
-        constexpr const char* key = "legacy_surface_temperature_init_type";
-        if (pp_erf.countval(key) > 0) {
-            std::string asserted_source;
-            pp_erf.get(key, asserted_source);
-            const auto asserted_type =
-                erf_checkpoint_surface_temperature::parse_legacy_init_type_value(asserted_source);
-            if (asserted_type == erf_checkpoint_surface_temperature::LegacyInitType::Unknown) {
-                amrex::Abort("Invalid erf." + std::string(key) + " value '" + asserted_source +
-                             "'; accepted values are WRFInput and Metgrid (case-insensitive).");
-            }
-            legacy_init_type = asserted_type;
-            if (asserted_type == erf_checkpoint_surface_temperature::LegacyInitType::WRFInput) {
-                amrex::Print() << "WARNING: checkpoint '" << checkpointname
-                               << "' has no usable legacy surface-temperature provenance; "
-                               << "trusting the explicit erf." << key
-                               << " = WRFInput assertion.\n";
-            }
-        }
-    }
-
-    const auto compatibility =
-        erf_checkpoint_surface_temperature::classify_legacy_surface_temperature_checkpoint(
-            false, true, legacy_init_type);
-    if (compatibility ==
-        erf_checkpoint_surface_temperature::LegacySurfaceTemperatureCompatibility::UnsafeMetgrid) {
-        amrex::Abort("Legacy Metgrid checkpoint '" + checkpointname +
-                     "' contains SST_0/TSK_0 at AMR level " + std::to_string(legacy_level) +
-                     " without a surface-temperature contract marker; the legacy absolute-"
-                     "temperature arrays cannot be safely restored as the current potential-"
-                     "temperature representation.");
-    }
-    if (compatibility ==
-        erf_checkpoint_surface_temperature::LegacySurfaceTemperatureCompatibility::UnknownProvenance) {
-        amrex::Abort("Markerless checkpoint '" + checkpointname +
-                     "' contains SST_0/TSK_0 at AMR level " + std::to_string(legacy_level) +
-                     ", but the original initialization source cannot be established from checkpoint job_info. "
-                     "If and only if the old checkpoint was written from WRFInput, set "
-                     "erf.legacy_surface_temperature_init_type = WRFInput; legacy Metgrid arrays "
-                     "cannot be repaired from checkpoint contents.");
-    }
 }
 
 } // namespace
@@ -182,14 +102,43 @@ ERF::WriteCheckpointFile () const
     PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
 
     if (sbm_state_manager) {
+        // A checkpoint holds one accepted spectrum per level, so it may only be
+        // written at a synchronized instant with no partial step or reflux.
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            const bool at_level_time = sbm_state_manager->is_defined(lev) &&
+                sbm_state_manager->new_valid(lev) &&
+                erf_sbm::level_time_matches(sbm_state_manager->new_time(lev),
+                                            t_new[lev], dt[lev]);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                at_level_time && !sbm_state_manager->step_active(lev),
+                "SBM checkpoint requires a synchronized accepted spectrum on every level");
+        }
+        for (const auto& flux_register : sbm_amr_flux_regs) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                !flux_register || !flux_register->has_outstanding_amount(),
+                "SBM checkpoint requires every interface reflux amount to be consumed");
+        }
         const std::string schema_file = checkpointname + "/SBM_Schema";
+        const auto& boundaries = sbm_transport->physical_boundaries();
         if (ParallelDescriptor::IOProcessor()) {
             std::ofstream schema(schema_file, std::ofstream::out |
                                               std::ofstream::trunc |
                                               std::ofstream::binary);
             if (!schema.good()) FileOpenFailed(schema_file);
-            schema << erf_sbm::restart_schema(sbm_state_manager->layout());
+            schema << erf_sbm::restart_schema(sbm_state_manager->layout(),
+                                              boundaries.identity(),
+                                              erf_sbm::particle_mixing_schema(
+                                                  sbm_transport->particle_mixing()));
             if (!schema.good()) FileOpenFailed(schema_file);
+            if (!boundaries.all_periodic()) {
+                const std::string ledger_file = checkpointname + "/SBM_BoundaryLedger";
+                std::ofstream ledger(ledger_file, std::ofstream::out |
+                                                  std::ofstream::trunc |
+                                                  std::ofstream::binary);
+                if (!ledger.good()) FileOpenFailed(ledger_file);
+                ledger << sbm_transport->boundary_ledger().serialize();
+                if (!ledger.good()) FileOpenFailed(ledger_file);
+            }
         }
         ParallelDescriptor::Barrier();
     }
@@ -229,7 +178,8 @@ ERF::WriteCheckpointFile () const
        HeaderFile << ncomp_cons << "\n";
 
        // The passive-scalar block is compile-time (NSCALARS: the base scalar,
-       // plus smoke with ERF_USE_FIRE), so record it next to the header: a
+       // plus the dust scalars with ERF_ENABLE_DUST, plus smoke with
+       // ERF_USE_FIRE), so record it next to the header: a
        // reader built differently would otherwise shift every component after
        // it (and with a difference of one take the QKE backward-compatibility
        // path below).
@@ -420,7 +370,7 @@ ERF::WriteCheckpointFile () const
         MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
         VisMF::Write(zvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
-        if (solverChoice.anelastic[lev] == 1) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
             MultiFab ppinc(grids[lev],dmap[lev],1,0);
             MultiFab::Copy(ppinc,pp_inc[lev],0,0,1,0);
             VisMF::Write(ppinc, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PP_Inc"));
@@ -436,6 +386,21 @@ ERF::WriteCheckpointFile () const
             MultiFab gpz(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
             MultiFab::Copy(gpz,gradp[lev][GpVars::gpz],0,0,1,0);
             VisMF::Write(gpz, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpz"));
+        }
+
+        // Pseudo-incompressible: the upwind direction of the latest projection, with which the
+        // first stage after the restart advects the cell-centered scalars
+        if (pi_upw_dir[lev][0]) {
+            const char* names[AMREX_SPACEDIM] = {"PiUpwDirX", "PiUpwDirY", "PiUpwDirZ"};
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                VisMF::Write(*pi_upw_dir[lev][idim],
+                             MultiFabFileFullPrefix(lev, checkpointname, "Level_", names[idim]));
+            }
+        }
+        // ... and the non-advective tendency of (rho theta) of the latest stage, the Q of the
+        // constraint of the first projection after the restart
+        if (pi_src[lev]) {
+            VisMF::Write(*pi_src[lev], MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PiSrc"));
         }
 
         // Surface momentum and scalar fluxes handed to an ocean model in
@@ -799,11 +764,31 @@ ERF::WriteCheckpointFile () const
 #endif
     } // for lev
 
+     // The wrfinput land and soil fields that no land model takes (none for most runs)
+     wrf_surface_fields.write_checkpoint(checkpointname, finest_level+1);
+
 #ifdef ERF_USE_FIRE
     // The fire: the engine's state (FireEngine::write_checkpoint), then the
     // coupling's lagged fluxes, on the level the fire grid refines
     if (m_fire_coupler) {
         m_fire_coupler->write_checkpoint(checkpointname);
+    }
+#endif
+
+#ifdef ERF_USE_DUST
+    // The dust model's own state (DustModel::write_checkpoint), which
+    // DustModel::initialize reads back on a restart
+    if (m_dust_model) {
+        m_dust_model->write_checkpoint(checkpointname);
+    }
+#endif
+
+#ifdef ERF_USE_MOVING_BODIES
+    // The structure model's own state, under checkpointname/<model name>
+    if (m_structure_model) {
+        m_structure_model->write_checkpoint(checkpointname);
+        // and its source on its level, which the coarser levels take at their first step after a restart
+        write_structure_coarse_source_checkpoint(checkpointname);
     }
 #endif
 
@@ -1004,6 +989,328 @@ ERF::convert_legacy_precip_accumulations (int lev)
 }
 
 /**
+ * Convert the SST and TSK of a level read from a checkpoint that holds them as potential
+ * temperature (contract version 1, or WRFInput without a contract marker) to the absolute
+ * temperature they are now kept as, as plan_surface_temperature_migration decided from the
+ * provenance of the checkpoint (not from the init type of the restart).
+ *
+ * InputPressure, for a checkpoint written by a WRFInput run, uses the first init file's PSFC
+ * at level 0 and the own-file/parent pressure mapping in legacy_wrfinput_pressure_source at
+ * finer levels. mf_PSFC is allocated but not filled on restart; it is filled here so finer
+ * levels can inherit pressure and a level whose required pressure cannot be recovered aborts.
+ * Fine-level conversion is approximate if RemakeLevel replaced checkpoint temperatures with
+ * parent-interpolated potential temperature; the checkpoint carries no per-cell provenance.
+ *
+ * RestartPressure, for a checkpoint written by a Metgrid run, is approximate: the input
+ * pressure is absent. Ground-touching boxes use pressure diagnosed from their ground-state
+ * cells; aloft-only boxes use the parent level's ground pressure rather than an elevated
+ * stand-in. If the level is later regridded to the ground, its migrated kelvin field is kept
+ * and converted by the surface layer at the new local ground pressure.
+ *
+ * Either way, every cell that holds a finite, positive potential temperature is converted.
+ * The land mask, restored before this, decides where the surface layer takes each field, at
+ * a level with an SST; at one without, it takes neither (see
+ * cst::restart_surface_temperature_use).  A cell where it does not take the field, and that
+ * holds no temperature, such as a zero SST over land, is a placeholder, kept as it is.  The
+ * restart aborts on a valid cell where the surface layer takes the field that holds no
+ * finite, positive potential temperature, and on one that holds such a temperature but has
+ * no finite, positive surface pressure to convert it with.
+ *
+ * @param lev            AMR level whose SST and TSK were just read
+ * @param plan           how the SST and TSK of the checkpoint are migrated
+ * @param legacy_psfc_ready per level, whether pressure for legacy migration has been populated
+ *                          and validated
+ */
+void
+ERF::convert_legacy_surface_temperature (
+    int lev,
+    const erf_checkpoint_surface_temperature::SurfaceTemperatureMigrationPlan& plan,
+    Vector<int>& legacy_psfc_ready)
+{
+    namespace cst = erf_checkpoint_surface_temperature;
+
+    MultiFab* sst = (!sst_lev[lev].empty()) ? sst_lev[lev][0].get() : nullptr;
+    MultiFab* tsk = (!tsk_lev[lev].empty()) ? tsk_lev[lev][0].get() : nullptr;
+    const Real rdOcp = solverChoice.rdOcp;
+    const Periodicity period = geom[lev].periodicity();
+    const std::string level = std::to_string(lev);
+    const std::string recorded_by =
+        (plan.provenance.origin == cst::ProvenanceOrigin::JobInfo)
+            ? "its job_info records that "
+            : "erf." + std::string(cst::legacy_init_type_key) + " asserts that ";
+
+    // The surface pressure to convert them with
+    const MultiFab* p_sfc = nullptr;
+
+    if (plan.method == cst::SurfaceTemperatureMigration::InputPressure) {
+#ifdef ERF_USE_NETCDF
+        AMREX_ALWAYS_ASSERT(mf_PSFC[lev]);
+        const int num_own_init_files =
+            has_own_init_file(lev) ? static_cast<int>(nc_init_file[lev].size()) : 0;
+
+        // Whether an init file after the first, of a finer level that reads its own, had
+        // started by the time of the checkpoint, timed as ErrorEst times it, from the first
+        // init file of the coarser level: without one, it may have
+        bool later_init_file_started = false;
+        std::string started_file;
+        if (lev > 0 && num_own_init_files > 1 && (nc_low_file.empty() || has_own_low_file(lev))) {
+            later_init_file_started = true;
+            if (has_own_init_file(lev-1)) {
+                std::vector<double> start_times(num_own_init_files);
+                for (int i = 0; i < num_own_init_files; ++i) {
+                    start_times[i] = read_start_time_from_wrfinput(lev, nc_init_file[lev][i]);
+                }
+                const double coarser_start =
+                    read_start_time_from_wrfinput(lev-1, nc_init_file[lev-1][0]);
+                const int started =
+                    cst::first_started_later_init_file(start_times, coarser_start, t_new[lev-1]);
+                later_init_file_started = (started > 0);
+                if (later_init_file_started) {
+                    std::ostringstream os;
+                    os << nc_init_file[lev][started] << ", after the first, had started by "
+                       << "the time of the checkpoint (it starts at t = "
+                       << start_times[started] - coarser_start << " s at level " << lev-1
+                       << ", and the checkpoint is at t = " << t_new[lev-1] << " s)";
+                    started_file = os.str();
+                }
+            }
+        }
+        const auto source = cst::legacy_wrfinput_pressure_source(
+            lev, num_own_init_files, later_init_file_started, !nc_low_file.empty(),
+            has_own_low_file(lev), lev > 0 && legacy_psfc_ready[lev-1] != 0);
+
+        // Seed newly regridded cells and ghost regions from an available parent pressure.
+        // The file read below overlays its footprint, as init_from_wrfinput does for fields
+        // that were initialized partly from a parent and partly from a level's own file.
+        mf_PSFC[lev]->setVal(zero);
+        const bool parent_pressure_available = lev > 0 && legacy_psfc_ready[lev-1] != 0;
+        if (parent_pressure_available) {
+            interp_psfc_from_coarse(lev);
+        }
+        std::string from;
+        if (source == cst::LegacySurfacePressureSource::OwnInitFile) {
+            const bool used_p0_fallback =
+                read_psfc_from_own_init_file(lev, parent_pressure_available);
+            mf_PSFC[lev]->FillBoundary(period);
+            from = "the PSFC of " + nc_init_file[lev][0];
+            if (used_p0_fallback) {
+                from += " (all covered valid PSFC samples read for the level were zero; "
+                        "covered cells were replaced by p_0)";
+            }
+            if (lev > 0 && num_own_init_files > 1) {
+                from += ", the first of its " + std::to_string(num_own_init_files) +
+                        " init files: none of the others had started by the time of the "
+                        "checkpoint, so the run that wrote it read no other";
+            }
+        } else if (source == cst::LegacySurfacePressureSource::CoarserLevel) {
+            from = "the PSFC of level " + std::to_string(lev-1) +
+                   ", interpolated, as the level took its SST and TSK from that level";
+        }
+        if (source != cst::LegacySurfacePressureSource::Unavailable) {
+            cst::fill_outside_domain_from_nearest(*mf_PSFC[lev], geom[lev]);
+            legacy_psfc_ready[lev] = 1;
+        }
+
+        if (!sst && !tsk) { return; }
+        if (source == cst::LegacySurfacePressureSource::Unavailable) {
+            const std::string why =
+                (lev == 0) ? "erf.nc_init_file_0 names no file" :
+                !started_file.empty()
+                    ? "the level lists " + std::to_string(num_own_init_files) + " init files "
+                      "(erf.nc_init_file_" + level + "), and " + started_file + ": the "
+                      "run that wrote it may have read that file as well, or regridded the "
+                      "level for it, and the checkpoint does not record where the level's "
+                      "SST and TSK came from" :
+                later_init_file_started
+                    ? "the level lists " + std::to_string(num_own_init_files) + " init files "
+                      "(erf.nc_init_file_" + level + "), and level " + std::to_string(lev-1) +
+                      ", which lists none, cannot tell when they start"
+                    : "the level took them from level " + std::to_string(lev-1) +
+                      ", whose wrfinput surface pressure was not recovered";
+            Abort("Restart checkpoint " + restart_chkfile + " holds the SST and TSK as "
+                  "potential temperature, converted by a WRFInput run, but the surface "
+                  "pressure they were converted with at level " + level + " cannot be "
+                  "recovered: " + why + ". Restart from a checkpoint that holds them as "
+                  "absolute temperature (surface-temperature contract version 2), or start "
+                  "again from the wrfinput files.");
+        }
+        p_sfc = mf_PSFC[lev].get();
+        if (lev > 0) {
+            Warning("Restart checkpoint " + restart_chkfile + " has legacy WRFInput surface "
+                    "temperatures at level " + level + ". APPROXIMATE migration: " + from +
+                    " is the best available pressure source, but the checkpoint does not "
+                    "record whether RemakeLevel replaced some fine values with parent-interpolated "
+                    "potential temperature. Pressure-dependent conversion and spatial "
+                    "interpolation do not commute, so those cells cannot be recovered exactly.");
+        }
+        Print() << "Restart checkpoint " << restart_chkfile << " holds the SST and TSK as "
+                << "potential temperature, and " << recorded_by << "a WRFInput run converted "
+                << "them: pressure recovery at level " << lev << " with " << from << "\n";
+#else
+        amrex::ignore_unused(legacy_psfc_ready);
+        Abort("convert_legacy_surface_temperature: recovering the SST and TSK with the "
+              "wrfinput surface pressure needs a build with NetCDF");
+#endif
+    } else if (plan.method == cst::SurfaceTemperatureMigration::RestartPressure) {
+        AMREX_ALWAYS_ASSERT(mf_PSFC[lev]);
+
+        // Diagnose pressure only in boxes that contain the domain's ground plane.  Boxes
+        // aloft keep the pressure interpolated from the coarser level; their lowest cell is
+        // not a surface-pressure sample.
+        const int klo = geom[lev].Domain().smallEnd(2);
+        const Real dz = geom[lev].CellSize(2);
+        const MultiFab& cons = vars_new[lev][Vars::cons];
+        const bool moist = solverChoice.moisture_type != MoistureType::None;
+        const bool have_rho_qv = cons.nComp() > RhoQ1_comp;
+
+        mf_PSFC[lev]->setVal(zero);
+        if (lev > 0) {
+            if (legacy_psfc_ready[lev-1] == 0) {
+                Abort("Cannot prepare legacy Metgrid surface pressure at level " + level +
+                      ": pressure at parent level " + std::to_string(lev-1) +
+                      " was not populated. The restart cannot safely migrate the SST/TSK "
+                      "or prepare pressure for this aloft level.");
+            }
+            IntVect ng = mf_PSFC[lev]->nGrowVect(); ng[2] = 0;
+            const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+            InterpFromCoarseLevel(*mf_PSFC[lev], ng, IntVect(0,0,0),
+                                  *mf_PSFC[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev], rr2d, &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
+
+        BoxList ground_box_list;
+        Vector<int> ground_processors;
+        Vector<int> ground_source_indices;
+        const BoxArray& cons_ba = cons.boxArray();
+        Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+            d_pressure_fail(erf_surface_temperature::ConversionFailure{});
+        auto* pressure_fail = d_pressure_fail.dataPtr();
+        for (int ib = 0; ib < cons_ba.size(); ++ib) {
+            if (cons_ba[ib].smallEnd(2) != klo) { continue; }
+            Box ground_box = ba2d[lev][ib];
+            ground_box_list.push_back(ground_box);
+            ground_processors.push_back(cons.DistributionMap()[ib]);
+            ground_source_indices.push_back(ib);
+        }
+
+        if (!ground_box_list.isEmpty()) {
+            BoxArray ground_ba(std::move(ground_box_list));
+            DistributionMapping ground_dm(std::move(ground_processors));
+            MultiFab ground_pressure(ground_ba, ground_dm, 1, 0);
+            for (MFIter mfi(ground_pressure); mfi.isValid(); ++mfi) {
+                const int source_index = ground_source_indices[mfi.index()];
+                const auto p_arr    = ground_pressure.array(mfi);
+                const auto cons_arr = cons.const_array(source_index);
+                const auto z_arr    = (z_phys_nd[lev])
+                    ? z_phys_nd[lev]->const_array(source_index) : Array4<const Real>{};
+                const Box bx = mfi.validbox();
+                const int source_klo = klo;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    const Real rho = cons_arr(i,j,source_klo,Rho_comp);
+                    const Real rho_theta = cons_arr(i,j,source_klo,RhoTheta_comp);
+                    const Real rho_qv = (moist && have_rho_qv)
+                        ? cons_arr(i,j,source_klo,RhoQ1_comp) : Real(0.0);
+                    const Real delta_z = (z_arr)
+                        ? Compute_Z_AtCellCenter(i,j,source_klo,z_arr) -
+                          Compute_Z_AtWFace(i,j,source_klo,z_arr)
+                        : myhalf*dz;
+                    const auto ground_pressure =
+                        erf_surface_temperature::diagnose_surface_pressure(
+                            rho, rho_theta, rho_qv, moist, have_rho_qv, delta_z);
+                    if (ground_pressure.error !=
+                        erf_surface_temperature::SurfacePressureError::none) {
+                        erf_surface_temperature::record_conversion_failure(
+                            pressure_fail, true,
+                            erf_surface_temperature::conversion_error(ground_pressure.error),
+                            i, j, source_klo, rho, rho_theta, rho_qv, Real(0.0),
+                            ground_pressure.pressure, delta_z);
+                    } else {
+                        p_arr(i,j,k) = cst::restart_surface_pressure(
+                            true, ground_pressure.pressure, Real(0.0));
+                    }
+                });
+            }
+            mf_PSFC[lev]->ParallelCopy(ground_pressure, 0, 0, 1,
+                                       IntVect(0), IntVect(0), period);
+        }
+        Gpu::streamSynchronize();
+        erf_surface_temperature::abort_on_conversion_failure(
+            "legacy checkpoint surface-pressure recovery", lev,
+            d_pressure_fail.dataValue());
+        mf_PSFC[lev]->FillBoundary(period);
+        cst::fill_outside_domain_from_nearest(*mf_PSFC[lev], geom[lev]);
+
+        // Allocation alone does not make a pressure field ready. Check every valid cell
+        // after parent interpolation and any ground-state overwrite, before a descendant
+        // is allowed to interpolate from this level.
+        Gpu::DeviceScalar<int> d_bad_pressure(0);
+        auto* bad_pressure = d_bad_pressure.dataPtr();
+        for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
+            const auto pressure = mf_PSFC[lev]->const_array(mfi);
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (!amrex::Math::isfinite(pressure(i,j,k)) || pressure(i,j,k) <= Real(0.0)) {
+                    Gpu::Atomic::Exch(bad_pressure, 1);
+                }
+            });
+        }
+        int any_bad_pressure = d_bad_pressure.dataValue();
+        ParallelDescriptor::ReduceIntMax(any_bad_pressure);
+        if (any_bad_pressure != 0) {
+            Abort("Cannot prepare legacy Metgrid surface pressure at level " + level +
+                  ": one or more valid cells have no finite, positive parent or diagnosed "
+                  "ground pressure. The restart cannot safely migrate the SST/TSK.");
+        }
+        legacy_psfc_ready[lev] = 1;
+
+        // A level with no surface arrays still has to prepare pressure for an aloft child.
+        if (!sst && !tsk) { return; }
+
+        Warning("Restart checkpoint " + restart_chkfile + " holds the SST and TSK as potential "
+                "temperature, and " + recorded_by + "a Metgrid run converted them with the "
+                "surface pressure of its input, which a restart does not read. APPROXIMATE "
+                "migration at level " + level + ": where this level reaches the ground, use "
+                "the restarted ground-state pressure; where it is refined aloft, use the "
+                "coarser level's ground pressure. This is the best available pressure "
+                "policy, but the input pressure and any regrid history are absent from the "
+                "checkpoint, so the original absolute temperature cannot be recovered "
+                "exactly.");
+
+        p_sfc = mf_PSFC[lev].get();
+    } else {
+        return;
+    }
+
+    // Where the surface layer takes each of them, by the land mask restored before them.  It
+    // takes either only at a level with an SST (SurfaceLayer::update_fluxes).  A finer level
+    // without an SST of its own is given its parent's once the levels are restored
+    // (Interp2DArrays), so this level has one if it or any coarser level has one in the
+    // checkpoint.  With a wrflow file, a restart past its first interval may leave such a
+    // level without one (Interp2DArrays makes only the slices from then on); its TSK is then
+    // judged as taken, which it is not.
+    bool have_sst = false;
+    for (int l = 0; l <= lev; ++l) {
+        have_sst = have_sst || (!sst_lev[l].empty() && sst_lev[l][0]);
+    }
+    const iMultiFab* lmask = (!lmask_lev[lev].empty()) ? lmask_lev[lev][0].get() : nullptr;
+    const auto use = cst::restart_surface_temperature_use(lmask, have_sst, tsk != nullptr);
+    using Source = erf_surface_temperature::SurfaceTemperatureSource;
+    for (const auto& [field, source] : {std::pair<MultiFab*, Source>{sst, Source::sst},
+                                        std::pair<MultiFab*, Source>{tsk, Source::tsk}}) {
+        if (field) {
+            const auto fail = cst::potential_to_absolute_temperature(*field, source, use,
+                                                                     *p_sfc, rdOcp, period);
+            cst::abort_on_legacy_conversion_failure(
+                fail, source, "Restart checkpoint " + restart_chkfile + ": converting the " +
+                              cst::surface_field_name(source) + " at level " + level +
+                              " to absolute temperature");
+        }
+    }
+}
+
+/**
  * ERF function for reading data from a checkpoint file during restart.
  */
 void
@@ -1019,8 +1326,29 @@ ERF::ReadCheckpointFile ()
         Vector<char> schema_chars;
         ParallelDescriptor::ReadAndBcastFile(schema_file, schema_chars);
         const std::string persisted_schema(schema_chars.dataPtr());
-        if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema)) {
-            Abort("SBM restart schema does not exactly match the active spectral layout and M3 transport identity");
+        const auto& boundaries = sbm_transport->physical_boundaries();
+        if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema,
+                                             boundaries.identity(),
+                                             erf_sbm::particle_mixing_schema(
+                                                 sbm_transport->particle_mixing()))) {
+            Abort("SBM restart schema does not exactly match the active spectral layout, "
+                  "M3 transport, physical boundary identity and particle mixing");
+        }
+        if (!boundaries.all_periodic()) {
+            const std::string ledger_file = restart_chkfile + "/SBM_BoundaryLedger";
+            if (!FileExists(ledger_file)) {
+                Abort("SBM restart is missing its boundary ledger '" + ledger_file + "'");
+            }
+            Vector<char> ledger_chars;
+            ParallelDescriptor::ReadAndBcastFile(ledger_file, ledger_chars);
+            erf_sbm::SBMBoundaryLedger ledger;
+            std::string reason;
+            if (!erf_sbm::SBMBoundaryLedger::parse(std::string(ledger_chars.dataPtr()),
+                                                   sbm_state_manager->layout().ncomp(),
+                                                   ledger, reason)) {
+                Abort("SBM restart boundary ledger is invalid: " + reason);
+            }
+            sbm_transport->restore_boundary_ledger(ledger);
         }
     }
 
@@ -1073,7 +1401,26 @@ ERF::ReadCheckpointFile ()
     is >> finest_level;
     GotoNextLine(is);
 
-    validate_surface_temperature_contract(restart_chkfile, finest_level);
+    // How the SST and TSK of the checkpoint are brought to the absolute temperature they are
+    // now kept as, from what they hold and the init type that wrote them; decided before any
+    // data are read, so that a checkpoint that cannot be migrated is rejected at once
+#ifdef ERF_USE_NETCDF
+    const bool restart_reads_wrfinput = (solverChoice.init_type == InitType::WRFInput);
+#else
+    const bool restart_reads_wrfinput = false;
+#endif
+    const auto surface_temperature_plan =
+        erf_checkpoint_surface_temperature::plan_surface_temperature_migration(
+            erf_checkpoint_surface_temperature::read_surface_temperature_provenance(
+                restart_chkfile, finest_level),
+            restart_reads_wrfinput, restart_chkfile);
+    if (surface_temperature_plan.method ==
+        erf_checkpoint_surface_temperature::SurfaceTemperatureMigration::Reject) {
+        Abort(surface_temperature_plan.reason);
+    }
+    // Per level, whether pressure for legacy migration has been populated and validated.
+    // A Metgrid level without surface fields still prepares pressure for its descendants.
+    Vector<int> legacy_psfc_ready(finest_level+1, 0);
 
     // read the number of components
     // for each variable we store
@@ -1106,6 +1453,7 @@ ERF::ReadCheckpointFile ()
             istep[i++] = std::stoi(word);
         }
     }
+    m_restart_step = istep[0];
 
     // read in array of dt
     std::getline(is, line);
@@ -1249,22 +1597,11 @@ ERF::ReadCheckpointFile ()
             (regrid_level_0_on_restart || ba.size() < ParallelDescriptor::NProcs()))
         {
             //
-            // Coarsening before we split the grids ensures that each resulting
-            // grid will have an even number of cells in each direction.
+            // The grids a fresh start would build.  MakeBaseGrids keeps every box inside the
+            // domain when a direction has an odd number of cells (it then does not coarsen
+            // that direction before splitting), and it honours amr.no_box_split_dir.
             //
-            BoxArray new_ba(amrex::coarsen(Geom(0).Domain(),2));
-            //
-            // Now split up into list of grids within max_grid_size[0] limit.
-            //
-            new_ba.maxSize(max_grid_size[0]/2);
-            //
-            // Now refine these boxes back to level zero
-            //
-            new_ba.refine(2);
-
-            if (refine_grid_layout) {
-                ChopGrids(0, new_ba, ParallelDescriptor::NProcs());
-            }
+            BoxArray new_ba = MakeBaseGrids();
 
             if (new_ba != ba) {
                 ba_target = new_ba;
@@ -1414,7 +1751,8 @@ ERF::ReadCheckpointFile ()
 
     // The passive-scalar block of the writer (ScalarLayout): a different
     // NSCALARS means a build with or without the fire coupling's smoke scalar,
-    // whose components would be read shifted. Read on the IO rank and
+    // or with another number of dust scalars, whose components would be read
+    // shifted. Read on the IO rank and
     // broadcast, so every rank takes the same decision. A checkpoint without
     // the file was written before it was recorded, so with one passive scalar.
     {
@@ -1431,14 +1769,14 @@ ERF::ReadCheckpointFile ()
             ("Checkpoint " + restart_chkfile + " was written with " + std::to_string(nsc)
              + " passive scalar(s)" + (recorded ? "" : " (it records no scalar layout, so it predates the"
              " fire coupling's smoke scalar)") + " but this build has " + std::to_string(NSCALARS)
-             + " (ERF_USE_FIRE adds the smoke scalar); restart with a build configured like the one"
-             " that wrote it").c_str());
+             + " (ERF_USE_FIRE adds the smoke scalar, ERF_ENABLE_DUST adds ERF_NUM_DUST_SCALARS dust scalars);"
+             " restart with a build configured like the one that wrote it").c_str());
     }
 
     // NOTE: QKE was removed so this is for backward compatibility
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE((chk_ncomp_cons==ncomp_cons) || ((chk_ncomp_cons-1)==ncomp_cons),
         ("Checkpoint has " + std::to_string(chk_ncomp_cons) + " conserved components, this build "
-         + std::to_string(ncomp_cons) + ": was it written by a build with other modules (fire, moisture)?").c_str());
+         + std::to_string(ncomp_cons) + ": was it written by a build with other modules (fire, dust, moisture)?").c_str());
     //
     // See if we have a written separate file that tells how many components and how many ghost cells
     // we have of the base state
@@ -1537,7 +1875,7 @@ ERF::ReadCheckpointFile ()
         vars_new[lev][Vars::zvel].ParallelCopy(zvel,0,0,1,IntVect(0),IntVect(0));
         vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
 
-        if (solverChoice.anelastic[lev] == 1) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
             MultiFab ppinc(ba_chkfile[lev],dm_chkfile[lev],1,0);
             VisMF::Read(ppinc, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PP_Inc"));
             pp_inc[lev].ParallelCopy(ppinc,0,0,1,IntVect(0),IntVect(0));
@@ -1557,6 +1895,31 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(gpz, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpz"));
             gradp[lev][GpVars::gpz].ParallelCopy(gpz,0,0,1,IntVect(0),IntVect(0));
             gradp[lev][GpVars::gpz].FillBoundary(geom[lev].periodicity());
+        }
+
+        // Pseudo-incompressible: the upwind direction of the latest projection (see the write
+        // above).  A checkpoint without it leaves the direction zero, the centered blend, for the
+        // first stage, so (rho theta) can depart from rho0 theta0 by the upwind correction there.
+        if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible &&
+            solverChoice.terrain_type != TerrainType::EB) {
+            define_pi_upw_dir(lev);
+            const char* names[AMREX_SPACEDIM] = {"PiUpwDirX", "PiUpwDirY", "PiUpwDirZ"};
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                if (!read_checkpoint_mf_if_present(*pi_upw_dir[lev][idim],
+                                                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", names[idim]),
+                                                   lev, 0, 0, 1, IntVect(0), false)) {
+                    amrex::Print() << "WARNING: checkpoint has no " << names[idim] << " at level " << lev
+                                   << "; the pseudo-incompressible upwind direction starts centered" << std::endl;
+                }
+            }
+            pi_src[lev] = std::make_unique<MultiFab>(grids[lev], dmap[lev], 1, 0);
+            pi_src[lev]->setVal(zero);
+            if (!read_checkpoint_mf_if_present(*pi_src[lev],
+                                               MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PiSrc"),
+                                               lev, 0, 0, 1, IntVect(0), false)) {
+                amrex::Print() << "WARNING: checkpoint has no PiSrc at level " << lev
+                               << "; the first pseudo-incompressible projection takes Q = 0" << std::endl;
+            }
         }
 
         // Restore the surface fluxes an ocean model is driven by in flux-passing
@@ -1691,6 +2054,9 @@ ERF::ReadCheckpointFile ()
                 check_mesh_type(lev);
             }
 #endif
+        } else {
+            // z_phys_nd keeps the heights init_stuff gave it, but z_sfc_nd is made from it only here
+            update_zsfc_nd(lev);
         }
 
         // Level creation may initially see placeholder metric fields. Rebuild
@@ -1724,13 +2090,21 @@ ERF::ReadCheckpointFile ()
         std::vector<std::string> qmoist_names;
         micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
         int qmoist_nvar = static_cast<int>(qmoist_indices.size());
+        // a super-droplet checkpoint written before the accumulators were kept lacks them
+        const bool sdm = (solverChoice.moisture_type == MoistureType::SuperDroplets);
         bool precip_accum_missing = false;
         for (int var = 0; var < qmoist_nvar; var++) {
             const int ncomp  = 1;
             IntVect ng_moist = qmoist[lev][qmoist_indices[var]]->nGrowVect();
             const std::string qmoist_file =
                 amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", qmoist_names[var]);
-            if (qmoist_names[var] == "PrecipAccum") {
+            if (sdm) {
+                if (!read_checkpoint_mf_if_present(*(qmoist[lev][qmoist_indices[var]]), qmoist_file,
+                                                   lev, 0, 0, ncomp, ng_moist, /*src_ghosts=*/true)) {
+                    Warning("Restart checkpoint " + restart_chkfile + " has no " + qmoist_names[var]
+                            + " at level " + std::to_string(lev) + "; it starts from zero");
+                }
+            } else if (qmoist_names[var] == "PrecipAccum") {
                 // Checkpoints written before the precipitation total was kept separately
                 // have no such file; it is rebuilt from the others below
                 precip_accum_missing = !read_checkpoint_mf_if_present(*(qmoist[lev][qmoist_indices[var]]),
@@ -1891,6 +2265,45 @@ ERF::ReadCheckpointFile ()
 
         // NOTE: We read MOST data in ReadCheckpointFileMOST (see below)!
 
+        // See if we wrote out LMASK data.  It is restored before the SST and TSK, as it
+        // decides where the surface layer takes each of them.
+        std::string LMaskFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LMASK_0_H");
+        if (amrex::FileExists(LMaskFileName))
+        {
+            amrex::Print() << "Reading LMASK data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab lmask_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                //
+                // Read onto the checkpoint's grids and redistribute into this temporary, which
+                // is on the grids the run uses, so the conversion loop below can iterate over
+                // source and destination together.
+                //
+                read_checkpoint_mf(lmask_at_t,
+                                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                          "LMASK_" + std::to_string(nt)),
+                                   lev, 0, 0, 1, ng, /*src_ghosts=*/true);
+                for (MFIter mfi(lmask_at_t); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.growntilebox();
+                    Array4<int>  const& dst_arr = lmask_lev[lev][nt]->array(mfi);
+                    Array4<Real> const& src_arr = lmask_at_t.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dst_arr(i,j,k) = int(src_arr(i,j,k));
+                    });
+                }
+            }
+        } else {
+            lmask_lev[lev][0]->setVal(solverChoice.is_land[lev]);
+            lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        }
+
+        if (solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+            !immersed_forcing_active(lev)) {
+            erf_checkpoint_landmask::restore_coarse_building_landmask(*lmask_lev[lev][0]);
+        }
+
         // See if we wrote out SST data
         std::string FirstSSTFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SST_0_H");
         if (amrex::FileExists(FirstSSTFileName))
@@ -1923,37 +2336,13 @@ ERF::ReadCheckpointFile ()
             }
         }
 
-        // See if we wrote out LMASK data
-        std::string LMaskFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LMASK_0_H");
-        if (amrex::FileExists(LMaskFileName))
-        {
-            amrex::Print() << "Reading LMASK data" << std::endl;
-            int ntimes = 1;
-            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-            MultiFab lmask_at_t(ba2d[lev],dmap[lev],1,ng);
-            for (int nt(0); nt<ntimes; ++nt) {
-                //
-                // Read onto the checkpoint's grids and redistribute into this temporary, which
-                // is on the grids the run uses, so the conversion loop below can iterate over
-                // source and destination together.
-                //
-                read_checkpoint_mf(lmask_at_t,
-                                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
-                                                          "LMASK_" + std::to_string(nt)),
-                                   lev, 0, 0, 1, ng, /*src_ghosts=*/true);
-                for (MFIter mfi(lmask_at_t); mfi.isValid(); ++mfi) {
-                    const Box& bx = mfi.growntilebox();
-                    Array4<int>  const& dst_arr = lmask_lev[lev][nt]->array(mfi);
-                    Array4<Real> const& src_arr = lmask_at_t.array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                    {
-                        dst_arr(i,j,k) = int(src_arr(i,j,k));
-                    });
-                }
-            }
-        } else {
-            lmask_lev[lev][0]->setVal(solverChoice.is_land[lev]);
-            lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        // SST and TSK are kept as absolute temperature; an older checkpoint may hold them as
+        // potential temperature.  The land mask, restored above, decides where the surface
+        // layer takes each of them.
+        if (surface_temperature_plan.method !=
+            erf_checkpoint_surface_temperature::SurfaceTemperatureMigration::None) {
+            convert_legacy_surface_temperature(lev, surface_temperature_plan,
+                                               legacy_psfc_ready);
         }
 
         std::string LTypeFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LANDTYPE_0_H");
@@ -2078,6 +2467,17 @@ ERF::ReadCheckpointFile ()
         }
 #endif
     } // for lev
+
+    // The wrfinput land and soil fields that no land model takes: data of the initial time,
+    // restored onto this run's grids. A checkpoint written before they were stored leaves
+    // the holder empty.
+    {
+        IntVect ng_sfc = vars_new[0][Vars::cons].nGrowVect(); ng_sfc[2] = 0;
+        Vector<Periodicity> period(finest_level+1);
+        for (int lev = 0; lev <= finest_level; ++lev) { period[lev] = geom[lev].periodicity(); }
+        wrf_surface_fields.read_checkpoint(restart_chkfile, finest_level+1, ba2d, dmap,
+                                           ng_sfc, period, refRatio());
+    }
 
     // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the
     // substepping schedule survives restart. lsm.Init() during
@@ -2279,7 +2679,7 @@ ERF::ReadCheckpointFile ()
             bdy_data_yhi.resize(ntimes_erfbdy);
 
             // Determine which times we need based on current simulation time.
-            double time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            double time_since_start_bdy = t_new[0] + (start_time - start_bdy_time);
             int n_time_old = std::min(static_cast<int>(time_since_start_bdy / bdy_time_interval), ntimes_erfbdy-1);
             int n_time_new = n_time_old + 1;
 
@@ -2475,6 +2875,10 @@ ERF::ReadCheckpointFileSurfaceLayer ()
                         });
                     }
                 }
+
+                // Older checkpoints can contain initialization sentinels in
+                // immersed columns, which skip the usual MOST/LSM updates.
+                m_SurfaceLayer[ori]->set_immersed_surface_params(lev);
 
                 // The exponentially filtered averages.  We only mark the filter as initialized
                 // if every piece of its state came back, so that a partial restore degrades to

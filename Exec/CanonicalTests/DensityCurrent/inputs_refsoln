@@ -24,7 +24,7 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 # Straka et al 1993:
 #erf.fixed_dt       = 1.5625e-2 # [s]
-#erf.substepping_type = None
+#erf.timestepping_type = RK3_NoSubstepping
 
 erf.fixed_dt       = 0.25    # large time step [s] -- results in dt ratio = 6
 

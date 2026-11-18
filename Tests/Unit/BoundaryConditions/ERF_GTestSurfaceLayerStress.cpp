@@ -131,20 +131,6 @@ TEST(SurfaceLayerStress, XAndYComponentsUseIdenticalBranchAlgebra)
     x_result.high_kinematic_cache);
 }
 
-// Motivation: The tau23 fallback decision must depend on the tau23 MultiFab,
-// otherwise an absent tau13 field can incorrectly disable valid tau23 data.
-TEST(SurfaceLayerStress, Tau23ValidityUsesItsOwnHandle)
-{
-  const bool has_tau13 = false;
-  const bool has_tau23 = true;
-  EXPECT_FALSE(surface_layer_stress::lsm_flux_is_valid(
-    has_tau13, true, Real(-0.4), Real(9999.0)));
-  EXPECT_TRUE(surface_layer_stress::lsm_flux_is_valid(
-    has_tau23, true, Real(-0.4), Real(9999.0)));
-  EXPECT_FALSE(surface_layer_stress::lsm_flux_is_valid(
-    has_tau23, false, Real(-0.4), Real(9999.0)));
-}
-
 // Motivation: Fallback caches are reused on later calls. Storing a conservative
 // value in a kinematic field would multiply the reconstructed stress by rho.
 TEST(SurfaceLayerStress, ReusingFallbackCacheReconstructsMostStress)

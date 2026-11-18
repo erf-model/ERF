@@ -3,6 +3,7 @@
 
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_IndexType.H>
 #include <AMReX_MultiFab.H>
@@ -69,6 +70,28 @@ public:
     void fill (amrex::MultiFab& mf, const amrex::Periodicity& period);
 
     /**
+     * Give every copy of a ghost cell outside a non-periodic lateral domain edge the value
+     * of the surface copy that holds the column it faces.
+     *
+     * Where a box seam meets a non-periodic edge, the ghost cells beyond the edge next to
+     * the seam lie in the grown boxes of both neighbours, and no FillBoundary reconciles
+     * them: each box fills its copy from its own valid region.  A cell beyond the edge is
+     * here assigned to the surface copy whose valid region holds the cell's projection into
+     * the domain (its index clamped into the domain in each non-periodic direction), and that
+     * copy's value is written into every other copy, periodic images included.  The result
+     * then does not depend on the decomposition, and a checkpoint, which keeps one copy,
+     * restarts from the same values.  Only ghost cells beyond a non-periodic edge are
+     * written; interior, periodic and coarse/fine ghost cells are left as they are.
+     *
+     * Call it after fill(), on a cell-centered planar MultiFab; other index types are left
+     * as they are.
+     *
+     * @param[in,out] mf   planar MultiFab on the planar BoxArray given to define
+     * @param[in]     geom geometry of the level
+     */
+    void reconcile_outside_domain (amrex::MultiFab& mf, const amrex::Geometry& geom);
+
+    /**
      * Copy the computed surface copies of a planar MultiFab into a MultiFab without
      * duplicates.
      *
@@ -116,11 +139,61 @@ private:
         std::unique_ptr<amrex::MultiFab> mf;
     };
 
+    // The strips beyond the non-periodic domain edges that each surface copy owns, for
+    // one planar layout and number of lateral ghost cells
+    struct EdgeStrips
+    {
+        amrex::BoxArray planar_ba;
+        amrex::IntVect ngrow;
+        amrex::BoxArray ba;              // the strips, disjoint
+        amrex::DistributionMapping dm;   // each on the rank of its owner
+        amrex::Vector<int> owner;        // planar index of the surface copy owning each strip
+    };
+
+    const EdgeStrips& edge_strips (const amrex::MultiFab& mf, const amrex::Geometry& geom);
+
     int m_nplanar{0};                    // Number of boxes in the planar BoxArray
     amrex::BoxArray m_ba_sfc;            // Surface copies
     amrex::DistributionMapping m_dm_sfc; // Ranks owning them
     amrex::Vector<int> m_src_index;      // Their index in the planar BoxArray
     amrex::Vector<Buffer> m_buffers;     // Gather buffers
+    amrex::Vector<EdgeStrips> m_strips;  // Edge strips, per planar layout and ghost width
 };
+
+/**
+ * The ground plane of a field on a level's 3D grids, on one planar box per 3D box.
+ *
+ * Box ib of the result is the footprint of box ib of src, cut down to the plane k = klo in
+ * the index type of src (so a nodal-in-z field keeps the nodes klo and klo+1), on the rank
+ * of box ib.  It therefore lines up, box for box, with any MultiFab on the collapsed
+ * BoxArray (ba2d) and the level's DistributionMapping, and a kernel that reads src at klo
+ * can read it instead from any box, including one that starts above the ground.
+ *
+ * Each planar box first takes the lowest plane of its own 3D box, moved down to klo; the
+ * ground plane is then copied in from the boxes that hold it.  Where no box of the level
+ * reaches the ground (a refined level aloft), the planar box keeps that lowest plane: a
+ * finite stand-in, not the ground, which callers must not report as the ground.
+ *
+ * @param[in] src field on the level's 3D grids (any index type, any number of components)
+ * @param[in] klo index of the lowest cell of the domain
+ */
+std::unique_ptr<amrex::MultiFab>
+copy_ground_plane (const amrex::MultiFab& src, int klo);
+
+/**
+ * Finish a column sum computed box by box on a planar MultiFab.
+ *
+ * A column sum over a level's 3D grids, accumulated into the planar box of each 3D box,
+ * holds in each planar box only the part of the column inside its own 3D box.  When the
+ * 3D BoxArray is split in z, several planar boxes cover one column; this adds their parts
+ * and gives every one of them the whole sum.  A planar BoxArray without overlapping boxes
+ * is left as it is.
+ *
+ * @param[in,out] mf    planar MultiFab, one box per 3D box, cell-centered, no ghost cells used
+ * @param[in]     comp  first component holding a column sum
+ * @param[in]     ncomp number of components
+ */
+void
+sum_over_stacked_boxes (amrex::MultiFab& mf, int comp, int ncomp);
 
 #endif

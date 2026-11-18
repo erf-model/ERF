@@ -8,6 +8,7 @@
 #include "ERF_IBSEBSolar.H"
 #include "ERF_IBSEBSlab.H"
 #include "ERF_IBSEBBalance.H"
+#include "ERF_IBSEBWallFunction.H"
 #include <ERF_TwoStreamCanopyForcing.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
@@ -587,6 +588,16 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
         }
         upload(d_f_sky, fs); upload(d_f_ground, fg); upload(d_f_bldg, fb);
     }
+    fill(d_f_ground_lit,  nf, Real(0.0));
+    // No ground landings until build_ground_landings() has run.
+    fill(d_gnd_start,     nf + 1, 0);
+    fill(d_gnd_far,       nf, 0);
+    d_gnd_land.clear();
+    d_gnd_rays.clear();
+    d_roof_face.clear();
+    m_roof_fab_start.clear();
+    m_roof_faces_built = false;
+    m_landings_built = false;
     fill(d_shadow,        nf, Real(0.0));
     fill(d_SW_direct_in,  nf, Real(0.0));
     fill(d_SW_diffuse_in, nf, Real(0.0));
@@ -644,6 +655,8 @@ IBFaceSet::build_ray_map (const std::vector<const IBFaceSet*>& below)
     // The columns a ray at the floor can cross in x plus in y: what a walk is
     // followed for, however the patch is cut or wrapped.
     m_max_steps = static_cast<int>(std::min(Long(std::numeric_limits<int>::max() / 2), Long(halo[0]) + Long(halo[1])));
+    m_reach[0] = halo[0];
+    m_reach[1] = halo[1];
 
     // This rank's patch: its boxes grown by the halo. A halo wider than the
     // domain adds nothing beyond one domain width: where the direction is
@@ -692,6 +705,8 @@ IBFaceSet::build_ray_map (const std::vector<const IBFaceSet*>& below)
         pmap.push_back(all[n + 6]);
     }
     m_ray_patch.clear();
+    m_gnd_patch.clear();
+    m_gnd_patch_built = false;
     if (bl.isEmpty()) { return; }
     const BoxArray patch_ba(std::move(bl));
     const DistributionMapping patch_dm(pmap);
@@ -760,7 +775,7 @@ IBFaceSet::warn_fixed_sun_below_floor () const
     os << "erf.ibseb: the fixed sun stands " << elev << " deg above the horizon, below erf.ibseb.sun_min_elev_deg = "
        << m_params.sun_min_elev_deg << ", and the ray map of level " << m_lev << " does not span the domain: a building"
        " farther than " << m_halo[0] * m_dx[0] << " m in x or " << m_halo[1] * m_dx[1] << " m in y from a face casts no shadow"
-       " on it. Lower erf.ibseb.sun_min_elev_deg to the sun's elevation for exact shadows.";
+       " on it, nor on the ground beneath the face's column (erf.ibseb.two_stream_buildings). Lower erf.ibseb.sun_min_elev_deg to the sun's elevation for exact shadows.";
     if (ParallelDescriptor::IOProcessor()) { Warning(os.str().c_str()); }
 }
 
@@ -780,6 +795,8 @@ IBFaceSet::ray_map () const
     m.z_ground = m_z_ground;
     m.z_max = m_col_top_max;
     m.max_steps = m_max_steps;
+    m.reach_x = m_reach[0];
+    m.reach_y = m_reach[1];
     return m;
 }
 
@@ -900,10 +917,11 @@ IBFaceSet::compute_view_fractions ()
                 if (hit == ibseb::RAY_SKY) ++n_sky; else if (hit == ibseb::RAY_GROUND) ++n_gnd; else ++n_bld;
             }
         }
-        const Real inv = 1.0 / static_cast<Real>(n_az * n_el);
+        const Real inv = ibseb::hemisphere_ray_weight(n_az, n_el);
         pfs[f] = n_sky * inv; pfg[f] = n_gnd * inv; pfb[f] = n_bld * inv;
     });
     Gpu::streamSynchronize();
+    if (m_params.ground_view_shadow || m_params.ground_sky_view) { build_ground_landings(); }
 
     if (m_params.debug) {
         std::vector<Real> fs(m_nface), fg(m_nface), fb(m_nface);
@@ -919,6 +937,81 @@ IBFaceSet::compute_view_fractions ()
         Print() << "[IBSEB DEBUG] lev=" << m_lev << " view fractions: " << n_az * n_el
                 << " rays per face, mean f_sky=" << s[0] / nf_all << " f_ground=" << s[1] / nf_all
                 << " f_bldg=" << s[2] / nf_all << "\n";
+    }
+}
+
+/**
+ * Where every face's ground rays land (see the header). One pass over the rays of the
+ * view fractions writes one word per ray (ibseb::ray_landing_word()); on the host each
+ * face's words are sorted and the equal ones counted, which gives the distinct landing
+ * columns, the rays in each, and the rays to the far field. The faces go through in
+ * batches so the words of the pass never take more than about 16 MB.
+ */
+void
+IBFaceSet::build_ground_landings ()
+{
+    const int n_az = m_params.view_n_az, n_el = m_params.view_n_el;
+    const int n_rays = n_az * n_el;
+    const ibseb::RayMap rm = ray_map();
+    const int*  pd = d_dir.data();  const int* ps = d_side.data();
+    const int*  pi = d_i.data();    const int* pj = d_j.data();
+    const Real* pxf = d_xf.data();  const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
+    std::vector<int> start(static_cast<size_t>(m_nface) + 1, 0), far_rays(m_nface, 0), rays;
+    std::vector<unsigned int> land;
+    const int batch = amrex::max(1, (1 << 22) / n_rays);
+    Gpu::DeviceVector<unsigned int> d_word;
+    std::vector<unsigned int> word;
+    Long n_kept = 0;
+    for (int f0 = 0; f0 < m_nface; f0 += batch) {
+        const int nb = amrex::min(batch, m_nface - f0);
+        d_word.resize(static_cast<size_t>(nb) * n_rays);
+        unsigned int* pword = d_word.data();
+        ParallelFor(nb, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = f0 + m;
+            unsigned int* w = pword + static_cast<Long>(m) * n_rays;
+            for (int ie = 0; ie < n_el; ++ie) {
+                for (int ia = 0; ia < n_az; ++ia) {
+                    Real sx, sy, sz;
+                    ibseb::hemisphere_direction(pd[f], -ps[f], ia, ie, n_az, n_el, sx, sy, sz);
+                    w[ie * n_az + ia] = ibseb::ray_landing_word(pxf[f], pyf[f], pzf[f], sx, sy, sz, rm, pi[f], pj[f]);
+                }
+            }
+        });
+        Gpu::streamSynchronize();
+        word.resize(d_word.size());
+        Gpu::copy(Gpu::deviceToHost, d_word.begin(), d_word.end(), word.begin());
+        Gpu::streamSynchronize();
+        for (int m = 0; m < nb; ++m) {
+            const int f = f0 + m;
+            unsigned int* w = word.data() + static_cast<size_t>(m) * n_rays;
+            std::sort(w, w + n_rays);
+            for (int n = 0; n < n_rays; ++n) {
+                if (w[n] == ibseb::landing_none) { continue; }
+                if (w[n] == ibseb::landing_far) { ++far_rays[f]; continue; }
+                ++n_kept;
+                if (n > 0 && w[n] == w[n - 1]) { ++rays.back(); }
+                else { land.push_back(w[n]); rays.push_back(1); }
+            }
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(land.size() < static_cast<size_t>(std::numeric_limits<int>::max()),
+                "erf.ibseb.ground_view_shadow: more ground landings on one rank than an int counts;"
+                " lower erf.ibseb.view_n_az / view_n_el or use more ranks");
+            start[f + 1] = static_cast<int>(land.size());
+        }
+    }
+    upload(d_gnd_start, start);
+    upload(d_gnd_far, far_rays);
+    upload(d_gnd_land, land);
+    upload(d_gnd_rays, rays);
+    Gpu::streamSynchronize();
+    m_landings_built = true;
+
+    if (m_params.debug) {
+        Long sums[3] = {static_cast<Long>(land.size()), n_kept, 0};
+        for (int n = 0; n < m_nface; ++n) { sums[2] += far_rays[n]; }
+        ParallelDescriptor::ReduceLongSum(sums, 3);
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " ground view shadow: " << sums[1] << " ground rays land in "
+                << sums[0] << " columns kept (" << sums[0] * Long(sizeof(unsigned int) + sizeof(int)) << " bytes), "
+                << sums[2] << " ground rays to the far field\n";
     }
 }
 
@@ -1063,6 +1156,27 @@ IBFaceSet::check_canopy_layout (const MultiFab& cons, const TwoStreamCanopyView&
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ok,
         "erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
         "'s two-stream beam, cosine of the zenith or interface fluxes are not laid out on the level's grids");
+    // The ground's direct-beam albedo, read at index 0 in z of the face's column.
+    if (m_params.ground_view_shadow) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(canopy.ground_albedo_dir != nullptr,
+            "erf.ibseb.ground_view_shadow with erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
+            "'s two-stream view holds no direct-beam albedo of the ground");
+        const auto& alb = *canopy.ground_albedo_dir;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(alb.nComp() >= 2,
+            "erf.ibseb.ground_view_shadow with erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
+            "'s field of the columns' direct-beam albedo holds no second component (the interface each column starts on)");
+        bool ok_alb = alb.boxArray().size() == ba.size() && alb.DistributionMap() == dm;
+        for (int n = 0; ok_alb && n < static_cast<int>(ba.size()); ++n) {
+            const Box& a = alb.boxArray()[n];
+            for (int d = 0; d < 2; ++d) {
+                ok_alb = ok_alb && a.smallEnd(d) == ba[n].smallEnd(d) && a.bigEnd(d) == ba[n].bigEnd(d);
+            }
+            ok_alb = ok_alb && a.smallEnd(2) == 0;
+        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ok_alb,
+            "erf.ibseb.ground_view_shadow with erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
+            "'s direct-beam albedo of the ground is not laid out on the level's columns");
+    }
 }
 
 /**
@@ -1237,8 +1351,9 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
 {
     const Real z0   = m_params.z0_wall, z0h = m_params.z0h_wall;
     const bool stab = m_params.stability_correction;
+    const bool louis = stab && (m_params.stability_scheme == "louis");
     const bool conv = (m_params.convective_velocity == "deardorff");
-    const bool seed = stab && (olen_ground != nullptr) && (m_params.obukhov_seed == "ground");
+    const bool seed = stab && !louis && (olen_ground != nullptr) && (m_params.obukhov_seed == "ground");
     const bool use_pblh = conv && (pblh_ground != nullptr) && (m_params.z_i_mode == "pblh");
     const Real beta = m_params.beta_conv;
     const Real relax = m_params.obukhov_relax;
@@ -1296,7 +1411,21 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
             Real thstar = KAPPA * (th - th_skin) / lnh;
             Real lnh_eff = lnh;
             Real olen = 1.0e30;
-            if (stab && d == 2) {
+            if (louis && d == 2) {
+                // Roofs, Louis (1979): explicit factors on the bulk Richardson
+                // number between the skin and the cell centre, no iteration.
+                // u*^2 = (kappa U / ln(delta/z0))^2 F_m and u* theta* =
+                // kappa^2 U dtheta F_h / (ln(delta/z0) ln(delta/z0h)), so the
+                // neutral limit is the two log laws above; the heat law's
+                // effective logarithm carries both factors.
+                const Real Rib = CONST_GRAV / th * delta * (th - th_skin) / (Ut_eff * Ut_eff);
+                Real Fm = 1.0, Fh = 1.0;
+                ibseb::louis_factors(Rib, delta / z0, KAPPA * KAPPA / (lnm * lnm), Fm, Fh);
+                ustar   = KAPPA * Ut_eff * std::sqrt(Fm) / lnm;
+                lnh_eff = amrex::max(lnh * std::sqrt(Fm) / Fh, Real(0.1));
+                thstar  = KAPPA * (th - th_skin) / lnh_eff;
+                olen    = ustar * ustar * th / (KAPPA * CONST_GRAV * thstar + 1.0e-20);
+            } else if (stab && d == 2) {
                 // Roofs: the surface layer's similarity functions on the
                 // face's own Obukhov length, a few fixed-point passes, seeded
                 // from the ground's field at this column when available.
@@ -1379,29 +1508,15 @@ IBFaceSet::add_heat_flux_to_source (MultiFab& source, const MultiFab& cons,
 }
 
 /**
- * Shortwave of the current step. The sun and the irradiances are scalars
- * computed on the host from the provider inputs; the per-face work is one
- * kernel: incidence cosine, ray cast against the column tops, direct and
- * diffuse incident, absorbed.
- *
- * With sun_mode = fixed the direct-normal irradiance and the horizontal
- * diffuse are the inputs as given. With sun_mode = solar the sun follows the
- * site and time and the clear-sky formulas give both irradiances; with
- * sun_mode = two_stream the position and the top-of-atmosphere irradiance are
- * the two-stream radiation's (set_two_stream_sun()) and the same clear-sky
- * formulas give the irradiances. The sun below the horizon gives zero
- * everywhere.
- *
- * Diffuse on a face: ``f_sky * diffuse_h + f_ground * albedo_ground *
- * (direct_h + diffuse_h)``, the second term being the ground-reflected part,
- * with the direct on a horizontal surface ``direct_h = dni * cos z``. The
- * view fractions are the placeholders of build() until
- * compute_view_fractions() has run.
+ * The sun at @p time by erf.ibseb.sun_mode: its position and unit vector, and the
+ * clear-sky irradiances of the faces' own radiation. It changes nothing in the set, so
+ * the shortwave (compute_shortwave()) and the roofs' shadow (fill_roofs()) each ask for
+ * the sun of their own time. With sun_mode = two_stream the two-stream sun of that time
+ * must have been given (set_two_stream_sun()).
  */
-void
-IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
+IBFaceSet::SunState
+IBFaceSet::sun_at (Real time) const
 {
-    // ---- Sun and irradiances (host scalars) ----
     SunState s;
     if (m_params.sun_mode == "fixed") {
         s.zenith  = m_params.sun_zenith_deg  * PI / 180.0;
@@ -1411,9 +1526,7 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
         s.diffuse_h = (cz > 0.0) ? m_params.sw_diffuse : 0.0;
     } else if (m_params.sun_mode == "two_stream") {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ts_sun.set,
-            "erf.ibseb.sun_mode = two_stream: the two-stream sun was not given before the shortwave");
-        // Used once: the next shortwave needs the sun of its own time.
-        m_ts_sun.set = false;
+            "erf.ibseb.sun_mode = two_stream: the two-stream sun was not given before the shortwave or the roofs' shadow");
         const Real decl = m_ts_sun.decl;
         const Real ha   = m_ts_sun.hour_angle;
         s.zenith  = ibseb::solar_zenith(m_ts_sun.lat_deg, decl, ha);
@@ -1439,7 +1552,45 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
                                                  e0, m_params.sw_diffuse_coeff);
     }
     ibseb::sun_vector(s.zenith, s.azimuth, s.sx, s.sy, s.sz);
+    return s;
+}
+
+/**
+ * Shortwave of the current step. The sun and the irradiances are scalars
+ * computed on the host from the provider inputs; the per-face work is one
+ * kernel: incidence cosine, ray cast against the column tops, direct and
+ * diffuse incident, absorbed.
+ *
+ * With sun_mode = fixed the direct-normal irradiance and the horizontal
+ * diffuse are the inputs as given. With sun_mode = solar the sun follows the
+ * site and time and the clear-sky formulas give both irradiances; with
+ * sun_mode = two_stream the position and the top-of-atmosphere irradiance are
+ * the two-stream radiation's (set_two_stream_sun()) and the same clear-sky
+ * formulas give the irradiances. The sun below the horizon gives zero
+ * everywhere.
+ *
+ * Diffuse on a face: ``f_sky * diffuse_h + f_ground * albedo_ground *
+ * (direct_h + diffuse_h)``, the second term being the ground-reflected part,
+ * with the direct on a horizontal surface ``direct_h = dni * cos z``. With
+ * erf.ibseb.ground_view_shadow the ground reflects the beam through the sunlit
+ * part of the face's ground view only (ibseb::ground_view_lit(), kept in
+ * ``d_f_ground_lit``): ``f_sky * diffuse_h + albedo_ground * (f_ground *
+ * diffuse_h + f_ground_lit * direct_h)``, formed as the line above less
+ * ``(f_ground - f_ground_lit) * albedo_ground * direct_h``. The
+ * view fractions are the placeholders of build() until
+ * compute_view_fractions() has run.
+ */
+void
+IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
+{
+    // ---- Sun and irradiances (host scalars) ----
+    SunState s = sun_at(time);
+    // The two-stream sun is used once: the next shortwave needs the sun of its own time.
+    if (m_params.sun_mode == "two_stream") { m_ts_sun.set = false; }
     m_sun = s;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_params.ground_view_shadow || m_landings_built,
+        "erf.ibseb.ground_view_shadow: the shortwave needs the faces' ground landings; call"
+        " IBFaceSet::compute_view_fractions() first");
 
     if (m_params.radiation == "two_stream") {
         compute_shortwave_two_stream(canopy);
@@ -1458,6 +1609,13 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
     const Real* pfs = d_f_sky.data(); const Real* pfg = d_f_ground.data();
     Real* psh = d_shadow.data();  Real* pdir = d_SW_direct_in.data();
     Real* pdif = d_SW_diffuse_in.data();  Real* pabs = d_SW_abs.data();
+    // The sunlit part of each face's ground view (erf.ibseb.ground_view_shadow).
+    const bool lit_ground = m_params.ground_view_shadow;
+    const Real ray_weight = ibseb::hemisphere_ray_weight(m_params.view_n_az, m_params.view_n_el);
+    const int* pi = d_i.data();  const int* pj = d_j.data();
+    const int* pgs = d_gnd_start.data();  const int* pgf = d_gnd_far.data();
+    const unsigned int* pgl = d_gnd_land.data();  const int* pgr = d_gnd_rays.data();
+    Real* pfgl = d_f_ground_lit.data();
     ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
         // Outward normal: opposite to the side the solid is on.
         Real n[3] = {0.0, 0.0, 0.0};
@@ -1468,7 +1626,21 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
             shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, rm) ? 1.0 : 0.0;
             direct = dni * cosi * (1.0 - shadow);
         }
-        const Real diffuse = pfs[f] * dif_h + pfg[f] * alb_g * (dir_h + dif_h);
+        Real diffuse;
+        if (lit_ground) {
+            // One ray toward the sun from each column the face's ground rays land in,
+            // when there is a beam for the ground to reflect.
+            const Real fgl = (dir_h > 0.0)
+                           ? ibseb::ground_view_lit(pi[f], pj[f], pgf[f], pgl + pgs[f], pgr + pgs[f],
+                                                    pgs[f + 1] - pgs[f], ray_weight, sx, sy, sz, rm)
+                           : Real(0.0);
+            pfgl[f] = fgl;
+            // The uniform ground's light less the beam the shaded part does not reflect:
+            // a face that sees no shaded ground gets the former to the last bit.
+            diffuse = pfs[f] * dif_h + pfg[f] * alb_g * (dir_h + dif_h) - (pfg[f] - fgl) * alb_g * dir_h;
+        } else {
+            diffuse = pfs[f] * dif_h + pfg[f] * alb_g * (dir_h + dif_h);
+        }
         psh[f]  = shadow;
         pdir[f] = direct;
         pdif[f] = diffuse;
@@ -1490,7 +1662,10 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
  * interface, a wall's mean of its cell's two), the beam over the column's own
  * cosine of the zenith, on the face (shadowed by the same ray cast), the
  * diffuse light of the sky there through f_sky, and the ground's reflection,
- * the column's shortwave up at the face's height, through f_ground. One kernel per
+ * the column's shortwave up at the face's height, through f_ground. With
+ * erf.ibseb.ground_view_shadow the part of that shortwave up which is the ground's
+ * reflection of the beam (two_stream_ground_beam_share()) counts through the sunlit
+ * part of the face's ground view only (ibseb::ground_view_lit()). One kernel per
  * fab, reading the view's fields of the same local index.
  *
  * The faces' sun (sun_mode) and the sweep's are required to be one sun
@@ -1518,9 +1693,16 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
     Real* psh = d_shadow.data();  Real* pdir = d_SW_direct_in.data();
     Real* pdif = d_SW_diffuse_in.data();  Real* pabs = d_SW_abs.data();
 
+    // The sunlit part of each face's ground view (erf.ibseb.ground_view_shadow).
+    const bool lit_ground = m_params.ground_view_shadow;
+    const Real ray_weight = ibseb::hemisphere_ray_weight(m_params.view_n_az, m_params.view_n_el);
+    const int* pgs = d_gnd_start.data();  const int* pgf = d_gnd_far.data();
+    const unsigned int* pgl = d_gnd_land.data();  const int* pgr = d_gnd_rays.data();
+    Real* pfgl = d_f_ground_lit.data();
+
     if (!canopy.valid()) {
         ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
-            psh[f] = 0.0; pdir[f] = 0.0; pdif[f] = 0.0; pabs[f] = 0.0;
+            psh[f] = 0.0; pdir[f] = 0.0; pdif[f] = 0.0; pabs[f] = 0.0; pfgl[f] = 0.0;
         });
         Gpu::streamSynchronize();
         m_sun.dni = 0.0;
@@ -1543,6 +1725,7 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
         const auto beam = canopy.beam->const_array(mfi);
         const auto cosz = canopy.cos_zenith->const_array(mfi);
         const auto flux = canopy.fluxes->const_array(mfi);
+        const auto alb_g = lit_ground ? canopy.ground_albedo_dir->const_array(mfi) : Array4<const Real>{};
         reduce_op.eval(f1 - f0, reduce_data, [=] AMREX_GPU_DEVICE (int m) noexcept -> ReduceTuple {
             const int f = f0 + m;
             const Real cz = cosz(pi[f], pj[f], 0);
@@ -1557,7 +1740,29 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
                 shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, rm) ? 1.0 : 0.0;
                 direct = dni * cosi * (1.0 - shadow);
             }
-            const Real diffuse = pfs[f] * dif_h + pfg[f] * refl;
+            Real diffuse;
+            if (lit_ground) {
+                // One ray toward the sun from each column the face's ground rays land in,
+                // when the column brings a beam to its ground and the faces' sun, which
+                // casts the shadows, is above the horizon. The two suns may differ by the
+                // tolerance below, so at sunrise and sunset the column can have a beam
+                // while the faces' sun has none: no shadow is cast then and the ground
+                // view takes the whole reflection, as without the input.
+                // (The beam at the column's lower boundary: the ground, or the roof it starts on.)
+                const bool beam_up = ibseb::ground_view_beam_up(
+                    sz, beam(pi[f], pj[f], two_stream_column_base(pi[f], pj[f], alb_g)));
+                const Real fgl = beam_up
+                               ? ibseb::ground_view_lit(pi[f], pj[f], pgf[f], pgl + pgs[f], pgr + pgs[f],
+                                                        pgs[f + 1] - pgs[f], ray_weight, sx, sy, sz, rm)
+                               : Real(0.0);
+                pfgl[f] = fgl;
+                // The shaded part of the ground view loses the beam's share of the reflection.
+                const Real share = beam_up ? two_stream_ground_beam_share(pi[f], pj[f], k0, beam, flux, alb_g)
+                                           : Real(0.0);
+                diffuse = pfs[f] * dif_h + (pfg[f] - (pfg[f] - fgl) * share) * refl;
+            } else {
+                diffuse = pfs[f] * dif_h + pfg[f] * refl;
+            }
             psh[f]  = shadow;
             pdir[f] = direct;
             pdif[f] = diffuse;
@@ -1591,6 +1796,202 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
                 << " W/m2 mean diffuse_h=" << m_sun.diffuse_h << " W/m2 over the faces, largest sun gap "
                 << sun_gap << " in cos z\n";
     }
+}
+
+void
+IBFaceSet::compute_ground_shadow (MultiFab& shadow) const
+{
+    const Real sx = m_sun.sx, sy = m_sun.sy, sz = m_sun.sz;
+    // The rank's ray map holds every column of its boxes and the halo a ray from
+    // them can cross (build_ray_map()), so the walk from a ground centre needs no
+    // communication: the shadow field is on this level's boxes.
+    const ibseb::RayMap rm = ray_map();
+    const Real  z_ground = m_z_ground;
+    for (MFIter mfi(shadow); mfi.isValid(); ++mfi) {
+        const auto out = shadow.array(mfi);
+        ParallelFor(makeSlab(mfi.validbox(), 2, 0), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+            // The start of ibseb::ray_blocked_near(), so the faces' sunlit ground view and
+            // this shadow are one walk from one point.
+            out(i, j, 0) = ibseb::ray_blocked(rm.centre_x(i), rm.centre_y(j), z_ground, sx, sy, sz, rm) ? Real(1.0) : Real(0.0);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * The roof face of each column under a building (see the header). The roof faces are
+ * found once, on the host: the upward faces whose cell is the cell on their column's
+ * roof, listed fab by fab. Each call then runs one kernel per fab over that fab's roof
+ * faces only; a column has at most one upward face on a given cell, so no two faces
+ * write the same column.
+ */
+void
+IBFaceSet::fill_roofs (MultiFab& out, const iMultiFab& roof_cell, bool with_fixed, Real time)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(out.nComp() >= 5,
+        "erf.ibseb.two_stream_roofs: the field of the roofs holds fewer than five components");
+    const int nfab = static_cast<int>(m_fab_start.size()) - 1;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(out.local_size() == nfab && roof_cell.local_size() == nfab,
+        "erf.ibseb.two_stream_roofs: the field of the roofs holds another number of boxes than the faces' level");
+    if (!m_roof_faces_built) {
+        std::vector<int> hi(m_nface), hj(m_nface), hk(m_nface), hd(m_nface), hs(m_nface), list;
+        Gpu::copy(Gpu::deviceToHost, d_i.begin(), d_i.end(), hi.begin());
+        Gpu::copy(Gpu::deviceToHost, d_j.begin(), d_j.end(), hj.begin());
+        Gpu::copy(Gpu::deviceToHost, d_k.begin(), d_k.end(), hk.begin());
+        Gpu::copy(Gpu::deviceToHost, d_dir.begin(), d_dir.end(), hd.begin());
+        Gpu::copy(Gpu::deviceToHost, d_side.begin(), d_side.end(), hs.begin());
+        Gpu::streamSynchronize();
+        m_roof_fab_start.assign(static_cast<size_t>(nfab) + 1, 0);
+        for (MFIter mfi(roof_cell); mfi.isValid(); ++mfi) {
+            const int li = mfi.LocalIndex();
+            IArrayBox cell(mfi.validbox(), 1, The_Pinned_Arena());
+            Gpu::dtoh_memcpy(cell.dataPtr(), roof_cell[mfi].dataPtr(), cell.nBytes());
+            const auto rk = cell.const_array();
+            m_roof_fab_start[li] = static_cast<int>(list.size());
+            for (int f = m_fab_start[li]; f < m_fab_start[li + 1]; ++f) {
+                // An upward face (the solid below it) on the cell the column's roof carries.
+                if (hd[f] == 2 && hs[f] < 0 && hk[f] == rk(hi[f], hj[f], 0)) { list.push_back(f); }
+            }
+            m_roof_fab_start[li + 1] = static_cast<int>(list.size());
+        }
+        upload(d_roof_face, list);
+        Gpu::streamSynchronize();
+        m_roof_faces_built = true;
+    }
+    // The first fill of a field: zeros everywhere, then what does not change (that a roof
+    // stands there, its albedo, its emissivity). Every fill: what does change.
+    if (with_fixed) { out.setVal(0.0, 0, 5, 0); }
+    const int* prf = d_roof_face.data();
+    const int* pi = d_i.data();  const int* pj = d_j.data();
+    const Real* palb = d_albedo.data();  const Real* peps = d_emis.data();
+    const Real* pT = d_T_skin.data();
+    // The roof's shadow under the sun of the sweep's own time, not the sun the faces hold
+    // from their last shortwave (m_sun): that one is the previous step's with the two-stream
+    // columns and the start-up sun after a restart, and it is not in the checkpoint, so a
+    // moving sun would give a restarted run another shadow in its first step.
+    const ibseb::RayMap rm = ray_map();
+    const SunState sun_now = sun_at(time);
+    // The two-stream sun is used once here too: the faces' next shortwave is given its own.
+    if (m_params.sun_mode == "two_stream") { m_ts_sun.set = false; }
+    const Real sx = sun_now.sx, sy = sun_now.sy, sz = sun_now.sz;
+    const Real* pxf = d_xf.data();  const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
+    for (MFIter mfi(out); mfi.isValid(); ++mfi) {
+        const int r0 = m_roof_fab_start[mfi.LocalIndex()];
+        const int r1 = m_roof_fab_start[mfi.LocalIndex() + 1];
+        if (r1 == r0) { continue; }
+        const auto o = out.array(mfi);
+        ParallelFor(r1 - r0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = prf[r0 + m];
+            if (with_fixed) {
+                o(pi[f], pj[f], 0, 0) = Real(1.0);
+                o(pi[f], pj[f], 0, 1) = palb[f];
+                o(pi[f], pj[f], 0, 2) = peps[f];
+            }
+            o(pi[f], pj[f], 0, 3) = pT[f];
+            // The share of the beam that reaches the roof: none where a taller building
+            // shades it. With the sun down there is no beam and the share plays no part.
+            const bool shaded = sz > Real(0.0) && ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, rm);
+            o(pi[f], pj[f], 0, 4) = shaded ? Real(0.0) : Real(1.0);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * What the walls send to the ground of each column (see the header). One kernel over
+ * the faces adds each face's share to the columns its ground rays land in, on this
+ * rank's box of those columns (atomic adds: several faces land in one column); the
+ * boxes are then summed onto the level's columns.
+ */
+void
+IBFaceSet::compute_ground_walls (MultiFab& out, bool with_view)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_landings_built,
+        "erf.ibseb.ground_sky_view: the walls' share of the ground's view needs the faces' ground landings; call"
+        " IBFaceSet::compute_view_fractions() first");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(out.nComp() >= GW_NCOMP,
+        "erf.ibseb.ground_sky_view: the field of the walls' share holds fewer than three components");
+    // The share of the view is the geometry's: formed once per field.
+    const int c0 = with_view ? GW_VIEW : GW_SW;
+    const int nc = GW_NCOMP - c0;
+    out.setVal(0.0, c0, nc, 0);
+    const ibseb::RayMap rm = ray_map();
+    if (!m_gnd_patch_built) {
+        // The columns this rank's landings reach, as one box inside its patch of the ray
+        // map (a landing is a column of the patch, wrapped where the patch spans the
+        // domain): found on the host, once. Every rank's box, one each for the ranks that
+        // have landings, makes the layout the sums are sent from.
+        std::vector<int> mine;
+        if (m_nface > 0 && m_patch_box.ok()) {
+            std::vector<int> hi(m_nface), hj(m_nface), start(static_cast<size_t>(m_nface) + 1);
+            std::vector<unsigned int> land(d_gnd_land.size());
+            Gpu::copy(Gpu::deviceToHost, d_i.begin(), d_i.end(), hi.begin());
+            Gpu::copy(Gpu::deviceToHost, d_j.begin(), d_j.end(), hj.begin());
+            Gpu::copy(Gpu::deviceToHost, d_gnd_start.begin(), d_gnd_start.end(), start.begin());
+            Gpu::copy(Gpu::deviceToHost, d_gnd_land.begin(), d_gnd_land.end(), land.begin());
+            Gpu::streamSynchronize();
+            Box reached;
+            for (int f = 0; f < m_nface; ++f) {
+                for (int n = start[f]; n < start[f + 1]; ++n) {
+                    int di = 0, dj = 0;
+                    ibseb::unpack_landing(land[n], di, dj);
+                    int ci = hi[f] + di, cj = hj[f] + dj;
+                    if (!rm.locate(ci, cj)) { continue; }
+                    const Box col(IntVect(ci, cj, 0), IntVect(ci, cj, 0));
+                    if (reached.ok()) { reached.minBox(col); } else { reached = col; }
+                }
+            }
+            if (reached.ok()) {
+                mine = { reached.smallEnd(0), reached.smallEnd(1), reached.bigEnd(0), reached.bigEnd(1),
+                         ParallelDescriptor::MyProc() };
+            }
+        }
+        const std::vector<int> all = all_gather(mine);
+        BoxList bl;
+        Vector<int> pmap;
+        for (size_t n = 0; n + 5 <= all.size(); n += 5) {
+            bl.push_back(Box(IntVect(all[n], all[n + 1], 0), IntVect(all[n + 2], all[n + 3], 0)));
+            pmap.push_back(all[n + 4]);
+        }
+        m_gnd_patch.clear();
+        if (!bl.isEmpty()) { m_gnd_patch.define(BoxArray(std::move(bl)), DistributionMapping(pmap), GW_NCOMP, 0); }
+        m_gnd_patch_built = true;
+    }
+    // No rank's faces send anything to the ground: the field stays at zero.
+    if (m_gnd_patch.boxArray().empty()) { return; }
+    m_gnd_patch.setVal(0.0);
+    if (m_gnd_patch.local_size() > 0) {
+        const auto p = m_gnd_patch.array(m_gnd_patch.IndexArray()[0]);
+        const Real inv_ray = ibseb::hemisphere_ray_weight(m_params.view_n_az, m_params.view_n_el);
+        const Real inv_col = Real(1.0) / (m_dx[0] * m_dx[1]);
+        const Real sigma = ibseb::SIGMA_SB;
+        const int* pi = d_i.data();  const int* pj = d_j.data();
+        const int* pgs = d_gnd_start.data();  const int* pgr = d_gnd_rays.data();
+        const unsigned int* pgl = d_gnd_land.data();
+        const Real* parea = d_area.data();  const Real* palb = d_albedo.data();  const Real* peps = d_emis.data();
+        const Real* pdir = d_SW_direct_in.data();  const Real* pdif = d_SW_diffuse_in.data();
+        const Real* pT = d_T_skin.data();  const Real* plw = d_LW_down_in.data();
+        ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
+            if (pgs[f + 1] == pgs[f]) { return; }
+            // The face's radiosity: the shortwave it reflects and the longwave it emits and reflects.
+            const Real j_sw = palb[f] * (pdir[f] + pdif[f]);
+            const Real j_lw = peps[f] * sigma * pT[f] * pT[f] * pT[f] * pT[f] + (Real(1.0) - peps[f]) * plw[f];
+            const Real per_ray = parea[f] * inv_ray * inv_col;
+            for (int n = pgs[f]; n < pgs[f + 1]; ++n) {
+                int di = 0, dj = 0;
+                ibseb::unpack_landing(pgl[n], di, dj);
+                int ci = pi[f] + di, cj = pj[f] + dj;
+                // A kept landing is a column of the map (wrapped where the patch spans the domain).
+                if (!rm.locate(ci, cj)) { continue; }
+                const Real w = per_ray * static_cast<Real>(pgr[n]);
+                if (with_view) { HostDevice::Atomic::Add(&p(ci, cj, 0, GW_VIEW), w); }
+                HostDevice::Atomic::Add(&p(ci, cj, 0, GW_SW), w * j_sw);
+                HostDevice::Atomic::Add(&p(ci, cj, 0, GW_LW), w * j_lw);
+            }
+        });
+        Gpu::streamSynchronize();
+    }
+    out.ParallelAdd(m_gnd_patch, c0, c0, nc, IntVect(0), IntVect(0), m_geom.periodicity());
 }
 
 /**
@@ -1643,6 +2044,9 @@ IBFaceSet::dump_faces (const std::string& prefix) const
     const auto i = hosti(d_i), j = hosti(d_j), k = hosti(d_k), dir = hosti(d_dir), side = hosti(d_side), bid = hosti(d_bid);
     const auto xf = host(d_xf), yf = host(d_yf), zf = host(d_zf), area = host(d_area);
     const auto fs = host(d_f_sky), fg = host(d_f_ground), fb = host(d_f_bldg);
+    // The sunlit part of the ground view, a column only with erf.ibseb.ground_view_shadow.
+    const bool lit_ground = m_params.ground_view_shadow;
+    const auto fgl = lit_ground ? host(d_f_ground_lit) : std::vector<Real>{};
     const auto sh = host(d_shadow), sdir = host(d_SW_direct_in), sdif = host(d_SW_diffuse_in), sabs = host(d_SW_abs);
     const auto T = host(d_T_skin), Ta = host(d_T_air), lwin = host(d_LW_down_in), lwn = host(d_LW_net);
     const auto th = host(d_theta_air), rho = host(d_rho), Ut = host(d_U_tan), us = host(d_ustar), H = host(d_H);
@@ -1656,7 +2060,8 @@ IBFaceSet::dump_faces (const std::string& prefix) const
     Gpu::copy(Gpu::deviceToHost, d_T_slab.begin(), d_T_slab.end(), slab.begin());
     Gpu::streamSynchronize();
     std::ofstream f(prefix + ".rank" + std::to_string(ParallelDescriptor::MyProc()) + ".csv");
-    f << "i,j,k,dir,side,bid,x_m,y_m,z_m,area_m2,f_sky,f_ground,f_bldg,shadow,SW_direct_in,SW_diffuse_in,SW_abs,T_skin,T_air,LW_in,LW_net,"
+    f << "i,j,k,dir,side,bid,x_m,y_m,z_m,area_m2,f_sky,f_ground,f_bldg," << (lit_ground ? "f_ground_lit," : "")
+      << "shadow,SW_direct_in,SW_diffuse_in,SW_abs,T_skin,T_air,LW_in,LW_net,"
          "theta_air,rho,U_tan,ustar,H,mat,albedo,emissivity,k_therm,rho_cp,thickness,G,T_slab_top,T_slab_bottom,"
          "H_coeff,Q_ext,LE,LW_ext,resid,n_iter,w_star,Olen,z_i,h_bld";
     for (int l = 0; l < nl; ++l) { f << ",T_slab_" << l; }
@@ -1665,7 +2070,9 @@ IBFaceSet::dump_faces (const std::string& prefix) const
     for (int n = 0; n < nf; ++n) {
         f << i[n] << "," << j[n] << "," << k[n] << "," << dir[n] << "," << side[n] << "," << bid[n] << ","
           << xf[n] << "," << yf[n] << "," << zf[n] << "," << area[n] << ","
-          << fs[n] << "," << fg[n] << "," << fb[n] << "," << sh[n] << ","
+          << fs[n] << "," << fg[n] << "," << fb[n] << ",";
+        if (lit_ground) { f << fgl[n] << ","; }
+        f << sh[n] << ","
           << sdir[n] << "," << sdif[n] << "," << sabs[n] << "," << T[n] << ","
           << Ta[n] << "," << lwin[n] << "," << lwn[n] << ","
           << th[n] << "," << rho[n] << "," << Ut[n] << "," << us[n] << "," << H[n] << ","

@@ -11,6 +11,9 @@
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Utils.H"
+#ifdef ERF_USE_MOVING_BODIES
+#include "ERF_StructureModelRegistry.H"
+#endif
 #include <AMReX_buildInfo.H>
 
 using namespace amrex;
@@ -278,6 +281,36 @@ ERF::appendPlot3DVariables (const Vector<std::string>& plot_var_names,
     }
 #endif
 
+#ifdef ERF_USE_MOVING_BODIES
+    // The structure model's fields; filled after the fire's in FillPlot3DVars, in this order
+    if (m_structure_model) {
+        // Every name ERF and the other models provide, requested or not: a model name among
+        // them would be dropped here and still filled there
+        std::vector<std::string> taken(cons_names.begin(), cons_names.end());
+        taken.insert(taken.end(), derived_names.begin(), derived_names.end());
+        {
+            Vector<std::string> micro_names;
+            micro->GetPlotVarNames(micro_names);
+            taken.insert(taken.end(), micro_names.begin(), micro_names.end());
+        }
+#ifdef ERF_USE_PARTICLES
+        taken.insert(taken.end(), particle_mesh_plot_names.begin(), particle_mesh_plot_names.end());
+#endif
+#ifdef ERF_USE_FIRE
+        if (m_fire_coupler) {
+            for (const auto& n : m_fire_coupler->plot_var_names()) { taken.push_back(n); }
+        }
+#endif
+        check_structure_plot_names(*m_structure_model, taken);
+        for (const auto& plot_name : m_structure_model->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name) &&
+                !containerHasElement(tmp_plot_names, plot_name)) {
+                tmp_plot_names.push_back(plot_name);
+            }
+        }
+    }
+#endif
+
     for (int i = 0; i < tmp_plot_names.size(); i++) {
         if (!containerHasElement(a_plot_var_names, tmp_plot_names[i])) {
             a_plot_var_names.push_back(tmp_plot_names[i]);
@@ -353,7 +386,7 @@ ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratc
         FillPatchFineLevel(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                            &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
                           {&vars_new[lev][Vars::cons], &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                           base_state[lev], base_state[lev], fillset);
+                           fillset);
     }
 
     // Get qmoist pointers if using moisture
@@ -409,14 +442,17 @@ ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratc
                 // todo - clean this up
                 const Box& bxcc= mfi.tilebox();
 
-                const Array4<Real>& tau12 = (Tau[lev][TauType::tau12]) ? Tau[lev][TauType::tau12]->array(mfi) : Array4<Real>{};
-                const Array4<Real>& tau21 = (Tau[lev][TauType::tau21]) ? Tau[lev][TauType::tau21]->array(mfi) : Array4<Real>{};
+                // Without terrain or lateral surface-layer BCs (or vertical implicit diffusion, for
+                // tau31/tau32) the transposed components are not stored: the stress is symmetric
+                // there and the momentum equations use tau12/tau13/tau23 in their place, so do too
+                const Array4<Real>  tau12 = (Tau[lev][TauType::tau12]) ? Tau[lev][TauType::tau12]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau21 = (Tau[lev][TauType::tau21]) ? Tau[lev][TauType::tau21]->array(mfi) : tau12;
 
-                const Array4<Real>& tau13 = (Tau[lev][TauType::tau13]) ? Tau[lev][TauType::tau13]->array(mfi) : Array4<Real>{};
-                const Array4<Real>& tau31 = (Tau[lev][TauType::tau31]) ? Tau[lev][TauType::tau31]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau13 = (Tau[lev][TauType::tau13]) ? Tau[lev][TauType::tau13]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau31 = (Tau[lev][TauType::tau31]) ? Tau[lev][TauType::tau31]->array(mfi) : tau13;
 
-                const Array4<Real>& tau23 = (Tau[lev][TauType::tau23]) ? Tau[lev][TauType::tau23]->array(mfi) : Array4<Real>{};
-                const Array4<Real>& tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau23 = (Tau[lev][TauType::tau23]) ? Tau[lev][TauType::tau23]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : tau23;
 
                 const Array4<Real>& tau_cc   = mf_cc_tau[lev].array(mfi);
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -617,17 +653,19 @@ ERF::FillPlot3DVars (int lev,
     MultiFab pressure;
 
     const bool needs_pressure = erf_plotfile::plot3d_needs_pressure(plot_var_names);
-    if (solverChoice.anelastic[lev] == 0) {
+    if (solverChoice.compressibility_type[lev] == CompressibilityType::FullyCompressible) {
         if (needs_pressure) {
-            int ng = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
-                      containerHasElement(plot_var_names, "dpdz")) ? 1 : 0;
+            // The EB stencils in compute_gradp_xy reach up to three cells to each side
+            const bool needs_gradp = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
+                                      containerHasElement(plot_var_names, "dpdz"));
+            int ng = (needs_gradp) ? ((solverChoice.terrain_type == TerrainType::EB) ? 3 : 1) : 0;
 
             // Allocate space for pressure
             pressure.define(ba,dm,1,ng);
 
             if (ng > 0) {
                 // Default to p_hse as a way of filling ghost cells at domain boundaries
-                MultiFab::Copy(pressure,p_hse,0,0,1,1);
+                MultiFab::Copy(pressure,p_hse,0,0,1,ng);
             }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -695,7 +733,7 @@ ERF::FillPlot3DVars (int lev,
     //       defined in ERF.H
     // *****************************************************************************************
 
-    if (solverChoice.anelastic[lev]) {
+    if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
         if (containerHasElement(plot_var_names, "temp")) {
             MultiFab dmf(mf_dst, make_alias, mf_comp, 1);
             const Real rdOcp = solverChoice.rdOcp;
@@ -806,7 +844,7 @@ ERF::FillPlot3DVars (int lev,
 
     if (containerHasElement(plot_var_names, "pressure"))
     {
-        if (solverChoice.anelastic[lev] == 1) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
             MultiFab::Copy(mf_dst, p_hse, 0, mf_comp, 1, 0);
         } else {
             MultiFab::Copy(mf_dst, pressure, 0, mf_comp, 1, 0);
@@ -817,7 +855,7 @@ ERF::FillPlot3DVars (int lev,
 
     if (containerHasElement(plot_var_names, "pert_pres"))
     {
-        if (solverChoice.anelastic[lev] == 1) {
+        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
             MultiFab::Copy(mf_dst, pp_inc[lev], 0, mf_comp, 1, 0);
         } else {
             MultiFab::Copy(mf_dst, pressure, 0, mf_comp, 1, 0);
@@ -867,13 +905,21 @@ ERF::FillPlot3DVars (int lev,
 
         b.setVal(0.); // Need to initialize to zero because buoyancy not defined on faces at top and bottom of domain
         make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
-                      get_eb(lev), solverChoice.anelastic[lev]);
+                      get_eb(lev), solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic);
         MultiFab::Copy(mf_dst, b, 0, mf_comp, 1, 0);
         mf_comp ++;
     }
 
     if (containerHasElement(plot_var_names, "eq_pot_temp"))
     {
+        // Total water mixing ratio r_t (all moisture species, not just qv + qc)
+        MultiFab qt(mf_dst.boxArray(), mf_dst.DistributionMap(), 1, 0);
+        qt.setVal(0.);
+        int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+        if (solverChoice.moisture_type != MoistureType::None) {
+            make_qt(vars_new[lev][Vars::cons], qt, n_qstate_into_total);
+        }
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -883,21 +929,27 @@ ERF::FillPlot3DVars (int lev,
             const Array4<Real>& derdat  = mf_dst.array(mfi);
             const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
             const Array4<Real const>& p_arr = pressure.const_array(mfi);
+            const Array4<Real const>& qt_arr = qt.const_array(mfi);
             const int qv_comp = mi.qv;
-            const int qc_comp = mi.qc;
-            const bool anelastic = solverChoice.anelastic[lev];
+            const bool anelastic = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible;
             const Real rdOcp = solverChoice.rdOcp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 Real qv = (qv_comp >= 0) ? S_arr(i,j,k,qv_comp)/S_arr(i,j,k,Rho_comp) : zero;
-                Real qc = (qc_comp >= 0) ? S_arr(i,j,k,qc_comp)/S_arr(i,j,k,Rho_comp) : zero;
                 Real T = anelastic ?
                     getTgivenPandTh(p_arr(i,j,k), S_arr(i,j,k,RhoTheta_comp) /
                                     S_arr(i,j,k,Rho_comp), rdOcp) :
                     getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                Real fac = Cp_d + Cp_l*(qv + qc);
-                Real pv = erf_esatw(T)*Real(100.0);
+                Real fac = Cp_d + Cp_l*qt_arr(i,j,k);
+                // Dry-air partial pressure uses the actual vapor pressure, not e_sat
+                Real pv = p_arr(i,j,k) * qv / (RdoRv + qv);
+                // Relative-humidity factor H^(-r_v R_v / fac) of Emanuel (1994, eq. 4.5.11);
+                // H is capped at 1 (supersaturation) and floored so dry air gives exactly 1
+                Real e_sat = Real(100.0) * erf_esatw(T);
+                Real H = amrex::max(Real(1.e-10), amrex::min(Real(1.0), pv / e_sat));
 
-                derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0, -R_d/fac)*std::exp(L_v*qv/(fac*T)) ;
+                derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0, -R_d/fac)
+                                            *std::exp(-(qv*R_v/fac)*std::log(H))
+                                            *std::exp(L_v*qv/(fac*T)) ;
             });
         }
         mf_comp ++;
@@ -915,7 +967,7 @@ ERF::FillPlot3DVars (int lev,
             const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
             const Array4<Real const>& p_arr = pressure.const_array(mfi);
             const int qv_comp = mi.qv;
-            const bool anelastic = solverChoice.anelastic[lev];
+            const bool anelastic = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible;
             const Real rdOcp = solverChoice.rdOcp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -925,7 +977,7 @@ ERF::FillPlot3DVars (int lev,
                     getTgivenPandTh(p_arr(i,j,k), S_arr(i,j,k,RhoTheta_comp) /
                                     S_arr(i,j,k,Rho_comp), rdOcp) :
                     getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                const Real e_sat = Real(100.0) * erf_esatw_cc(T);
+                const Real e_sat = Real(100.0) * erf_esatw(T);
 
                 const Real P     = p_arr(i,j,k);
                 const Real e_act = P * qv / (RdoRv + qv);
@@ -981,7 +1033,7 @@ ERF::FillPlot3DVars (int lev,
     // These are based on computing gradient of full pressure
     // **********************************************************************************************
 
-    if (solverChoice.anelastic[lev] == 0) {
+    if (solverChoice.compressibility_type[lev] == CompressibilityType::FullyCompressible) {
         if ( (containerHasElement(plot_var_names, "dpdx")) ||
              (containerHasElement(plot_var_names, "dpdy")) ||
              (containerHasElement(plot_var_names, "dpdz")) ) {
@@ -996,7 +1048,7 @@ ERF::FillPlot3DVars (int lev,
         {
             const Box& bx = mfi.tilebox();
             const Array4<Real      >&   derdat  = mf_dst.array(mfi);
-            const Array4<Real const>&   gpx_arr = (solverChoice.anelastic[lev] == 1) ?
+            const Array4<Real const>&   gpx_arr = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ?
                   gradp[lev][GpVars::gpx].array(mfi) : gradp_temp[GpVars::gpx].array(mfi);
             // NOTE: gradp already carries the map factor, so we only average here
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -1011,7 +1063,7 @@ ERF::FillPlot3DVars (int lev,
         {
             const Box& bx = mfi.tilebox();
             const Array4<Real      >&   derdat  = mf_dst.array(mfi);
-            const Array4<Real const>&   gpy_arr = (solverChoice.anelastic[lev] == 1) ?
+            const Array4<Real const>&   gpy_arr = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ?
                   gradp[lev][GpVars::gpy].array(mfi) : gradp_temp[GpVars::gpy].array(mfi);
             // NOTE: gradp already carries the map factor, so we only average here
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -1026,7 +1078,7 @@ ERF::FillPlot3DVars (int lev,
         {
             const Box& bx = mfi.tilebox();
             const Array4<Real      >&  derdat  = mf_dst.array(mfi);
-            const Array4<Real const>&  gpz_arr = (solverChoice.anelastic[lev] == 1) ?
+            const Array4<Real const>&  gpz_arr = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) ?
                   gradp[lev][GpVars::gpz].array(mfi) : gradp_temp[GpVars::gpz].array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 derdat(i ,j ,k, mf_comp) = myhalf * (gpz_arr(i,j,k+1) + gpz_arr(i,j,k));
@@ -1431,7 +1483,7 @@ ERF::FillPlot3DVars (int lev,
     // The boundary layer height in meters AGL.  Native SHOC carries its own
     // column-filled diagnostic; every other scheme gets it from the surface
     // layer, which diagnoses it whenever erf.most.pblh_calc is set (MYNN25
-    // computes it directly, MRF/YSU/YSUNew write theirs back via set_pblh).
+    // computes it directly, MRF/YSU write theirs back via set_pblh).
     // That field is two-dimensional, so broadcast it down each column.
     if (containerHasElement(plot_var_names, "pblh")) {
         const auto& surf_lay_zlo = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
@@ -1629,7 +1681,7 @@ ERF::FillPlot3DVars (int lev,
 
         if (containerHasElement(plot_var_names, "qsat"))
         {
-            const bool anelastic = solverChoice.anelastic[lev];
+            const bool anelastic = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible;
             const Real rdOcp = solverChoice.rdOcp;
             const int qv_comp = mi.qv;
 #ifdef _OPENMP
@@ -1682,7 +1734,7 @@ ERF::FillPlot3DVars (int lev,
             if (containerHasElement(plot_var_names, "rel_humidity"))
             {
                 const Real rdOcp = solverChoice.rdOcp;
-                const bool anelastic = solverChoice.anelastic[lev];
+                const bool anelastic = solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible;
                 const int qv_comp = mi.qv;
                 for (MFIter mfi(mf_dst,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                     const Box& bx = mfi.tilebox();
@@ -1945,6 +1997,18 @@ ERF::FillPlot3DVars (int lev,
         for (const auto& plot_name : m_fire_coupler->plot_var_names()) {
             if (containerHasElement(plot_var_names, plot_name)) {
                 m_fire_coupler->fill_plot_var(plot_name, mf_dst, mf_comp, lev);
+                mf_comp += 1;
+            }
+        }
+    }
+#endif
+
+#ifdef ERF_USE_MOVING_BODIES
+    // Must match the order of appendPlot3DVariables (after the fire)
+    if (m_structure_model) {
+        for (const auto& plot_name : m_structure_model->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name)) {
+                m_structure_model->fill_plot_var(plot_name, lev, mf_dst, mf_comp);
                 mf_comp += 1;
             }
         }

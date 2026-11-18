@@ -16,7 +16,7 @@ amr.n_cell           =  32    32    320    # dx=dy=dz=50 m
 
 geometry.is_periodic = 1 1 0
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 
 erf.mg_v = 1
 erf.terrain_type = StaticFittedMesh

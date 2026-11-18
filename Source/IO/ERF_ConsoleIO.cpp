@@ -50,6 +50,11 @@ Required:
 
 Optional:
     param=value  : Overrides for parameters during runtime
+    --describe   : Human-readable build information (no input file required)
+    --describe-json : JSON build capabilities (no input file required)
+    --describe-yaml : YAML build capabilities (same fields as JSON)
+    --validate-input : check FILE and any param=value overrides without running;
+                       add --format=json or --format=yaml; exits 0 (ok), 2 (invalid), 3 (could not inspect)
 )doc" << std::endl;
 }
 

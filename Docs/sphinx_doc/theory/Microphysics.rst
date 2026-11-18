@@ -86,11 +86,12 @@ prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 Anelastic microphysics thermodynamics
 -------------------------------------
 
-ERF supplies the thermodynamic pressure needed by supported Eulerian
-microphysics schemes. No additional pressure field or scheme-specific pressure
-unit conversion is required in the input file.
+ERF supplies the thermodynamic pressure used by supported Eulerian
+microphysics schemes and by ``SuperDroplets``. The pressure and temperature
+relationships below apply to both types of schemes. No additional pressure
+field or scheme-specific pressure-unit conversion is required in the input file.
 
-On each anelastic AMR level (``erf.anelastic = 1``), pressure-dependent
+On each anelastic AMR level (``erf.compressibility_type`` not ``FullyCompressible``), pressure-dependent
 microphysics uses the hydrostatic base-state pressure at each cell. Let
 :math:`p_{\mathrm{base}}` denote this pressure and :math:`p_{\mathrm{ref}}`
 denote ERF's fixed reference pressure used in the definition of potential
@@ -114,15 +115,15 @@ calculations use the same hydrostatic base-state pressure consistently through
 the microphysics source step. Schemes that convert between temperature and
 potential temperature use that same pressure.
 
-On a compressible AMR level, the existing behavior is unchanged: ERF diagnoses
-local pressure and temperature from the prognostic state with the compressible
-equation of state. In a mixed hierarchy, this choice is made independently on
-each AMR level.
+On a compressible AMR level, ERF diagnoses local pressure and temperature from
+the prognostic state with the compressible equation of state. In a mixed
+hierarchy, ``erf.compressibility_type`` selects the dynamics and thermodynamic pressure
+source independently on each AMR level.
 
 The reference-pressure treatment applies to the Kessler family
 (``Kessler`` and ``Kessler_NoRain``), the SAM family (``SAM``, ``SAM_NoIce``,
 and ``SAM_NoPrecip_NoIce``), the Morrison family (``Morrison`` and
-``Morrison_NoIce``), ``WSM6``, and ``WDM6``. ``SatAdj`` already uses the
+``Morrison_NoIce``), ``WSM6``, and ``WDM6``. ``SatAdj`` also uses the
 anelastic base-state pressure. ``MoistNoCondensation`` does not have a
 pressure-dependent condensation source that requires this treatment.
 
@@ -132,12 +133,14 @@ specify only the usual model and dynamics options. For example:
 
 .. code-block:: text
 
-   erf.anelastic = 1
+   erf.compressibility_type = Anelastic
    erf.moisture_model = WSM6
 
-``erf.anelastic`` may also be specified per AMR level. ``SuperDroplets`` is not
-supported when any AMR level is anelastic; see
-:ref:`superdroplets-anelastic-compatibility`.
+``erf.compressibility_type`` may also be specified per AMR level. ``SuperDroplets`` uses
+pressure in Pa and diagnoses anelastic temperature from the same base-state
+pressure; see :ref:`superdroplets-anelastic-compatibility` for its thermodynamic
+and particle-process coupling, including the fixed inverse Exner factor for
+latent heating.
 
 Surface precipitation accumulations
 -----------------------------------
@@ -275,10 +278,16 @@ where the ventilation factor :math:`C = 1.6 + 124.9(\overline{\rho}q_r)^{0.2046}
 Terminal fall velocity of rain
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The terminal fall velocity of rain is given by
+The terminal fall velocity of rain is given by (Klemp and Wilhelmson, 1978)
 
 .. math::
-    w_{t} = 3634(\overline{\rho}q_r)^{0.1346}\Bigg(\cfrac{\overline{\rho}}{\rho_0}\Bigg)^{-\frac{1}{2}}~\text{[cm/s]}
+    w_{t} = 3634(\overline{\rho}q_r)^{0.1364}\Bigg(\cfrac{\overline{\rho}}{\rho_0}\Bigg)^{-\frac{1}{2}}~\text{[cm/s]},
+
+where :math:`\overline{\rho}` is in g/cm\ :sup:`3` in the first factor and
+:math:`\rho_0 = 1.16` kg/m\ :sup:`3`. ERF evaluates the same formula in SI units
+(``kessler_terminal_velocity`` in ``ERF_KesslerUtils.H``), as WRF does:
+:math:`w_t = 36.34\,(0.001\,\overline{\rho}q_r)^{0.1364}(\overline{\rho}/1.16)^{-1/2}` m/s
+with :math:`\overline{\rho}` in kg/m\ :sup:`3`.
 
 .. raw:: latex
 
@@ -853,7 +862,14 @@ and :math:`N_\text{SD}` is the number of super-droplets per cell (``particles_pe
 **Sampled multiplicity**: Multiplicities are sampled from the mass/radius distribution to better represent the underlying
 size distribution. The sampled multiplicities are scaled to ensure the total number of physical particles matches the specified
 number density. This approach can provide better statistical representation of the particle size distribution, especially for
-broad distributions.
+broad distributions. Each varying component (species or aerosol) of a super-droplet is sampled uniformly in the logarithm of its
+mass or radius, independently of the others, so the weight of the super-droplet is the product of the probability densities, in
+the logarithm, of its varying components at their sampled values; constant components weight it only when none varies. The weights are rescaled
+cell by cell, which widens the sampled distributions when a few super-droplets carry most of a cell's weight. With several
+varying components this happens sooner, more so for wide sampling ranges around narrow distributions: for a core radius sampled
+over :math:`0.5-15\,\mu\mathrm{m}` with geometric standard deviation 1.7 and a coating radius over
+:math:`1\,\mathrm{nm}-1\,\mu\mathrm{m}` with 1.5, the standard deviation of the logarithm of each radius is about 22% too large at
+16 super-droplets per cell, 4% at 64, and 2% at 128.
 
 Effective Radius and Total Mass
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -884,14 +900,6 @@ where:
 - :math:`m_{\text{sp},j}` is the mass of species j
 - :math:`N_\text{ae}` is the number of aerosol types
 - :math:`m_{\text{ae},j}` is the mass of aerosol type j
-
-Initialization from Condensate Density
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-An alternative initialization method (``distribution_type = condensate_density``) allows super-droplet attributes to
-be set from a prescribed condensate mass density field. In this case, the multiplicity of each super-droplet is varied randomly
-around the mean value, and the mass per physical particle is computed to match the local condensate density. The radius is then
-determined from the mass assuming spherical water droplets.
 
 Density Scaling
 ^^^^^^^^^^^^^^^
@@ -1293,7 +1301,7 @@ All SDM parameters use the prefix ``super_droplets_moisture``:
      - Enable/disable ice/snow/graupel formation (cold processes)
    * - ``distribution_type``
      - ``uniform``
-     - Initial distribution type (``uniform``, ``condensate_density``)
+     - Initial distribution type (``uniform`` only)
    * - ``radius_raindrop``
      - ``4.0e-5``
      - Minimum radius (m) to classify droplet as rain
@@ -1311,7 +1319,7 @@ All SDM parameters use the prefix ``super_droplets_moisture``:
      - Enable particle recycling at boundaries
    * - ``species``
      - ``H2O``
-     - List of vapour/condensate species
+     - List of vapor/condensate species
    * - ``aerosols``
      - (none)
      - List of aerosol species
@@ -1347,7 +1355,7 @@ All SDM parameters use the prefix ``super_droplets_moisture``:
      - Use prescribed vertical velocity
    * - ``coalescence_kernel``
      - ``sedimentation``
-     - Coalescence kernel type (``golovin``, ``sedimentation``, ``Longs``, ``Halls``)
+     - Coalescence kernel type (``golovin``, ``sedimentation``, ``Longs``, ``Halls``, ``geometric``: :math:`E_{coll} = 1`)
    * - ``terminal_velocity_model``
      - ``CloudRainShima`` (water), ``IceBohm`` (ice)
      - Terminal velocity formula. For water droplets: ``RogersYau``, ``AtlasUlbrich``, ``CloudRainShima``. For ice particles: ``IceBohm``. Can specify 1 value (applies to both) or 2 values (water, ice)
@@ -1457,7 +1465,7 @@ For each initialization region (indexed by ``N``) and each species/aerosol (``<N
      - Distribution type for species <NAME>: ``mass_constant``, ``mass_exponential``, ``radius_log_normal``, ``radius_lognormal_autorange``
    * - ``species_min_mass_<NAME>``
      - --
-     - Minimum mass (kg) for species <NAME>
+     - Minimum mass (kg) for species <NAME>; positive for ``mass_exponential`` with sampled multiplicity
    * - ``species_mean_mass_<NAME>``
      - --
      - Mean mass (kg) for species <NAME>

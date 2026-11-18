@@ -69,9 +69,9 @@ class WorkflowTests(unittest.TestCase):
 
     def test_repository_contracts(self):
         counts, tags = self.check()
-        # Inventory assertions, not limits imposed by the checker.
-        self.assertEqual(counts, {"push": 21, "pull_request": 9, "workflow_dispatch": 21})
-        self.assertEqual(len(tags), 23)
+        # Inventory includes job-level skips, including GNU Make on pull requests.
+        self.assertEqual(counts, {"push": 22, "pull_request": 10, "workflow_dispatch": 22})
+        self.assertEqual(len(tags), 24)
         self.assertIn("ubuntu-22.04-x64-gcc-mpich-double-particles-off", tags)
         for arch in ("x64", "arm64"):
             self.assertIn(f"macos-latest-{arch}-appleclang-openmpi-double-particles-on", tags)
@@ -153,8 +153,8 @@ class WorkflowTests(unittest.TestCase):
             self.check()
         duplicate["jobs"]["Build-And-Test"]["env"]["CCACHE_TRUNK_KEY"] += "-new"
         counts, tags = self.check()
-        self.assertEqual(counts["push"], 23)
-        self.assertEqual(len(tags), 25)
+        self.assertEqual(counts["push"], 24)
+        self.assertEqual(len(tags), 26)
 
     def test_restore_save_settings_match(self):
         for field, value in (("key", "different"), ("path", "~/different"), ("transport", "oras")):

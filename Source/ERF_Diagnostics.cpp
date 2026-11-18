@@ -15,7 +15,7 @@ ERF::compute_max_pressure_gradient_diagnostic (int lev)
 {
     // We don't require HSE when anelastic because the pressure gradient
     //    is computed from the Poisson solve
-    if (solverChoice.anelastic[lev]) return;
+    if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) return;
 
     auto& lev_new = vars_new[lev];
 
@@ -213,7 +213,7 @@ ERF::compute_max_pressure_gradient_diagnostic (int lev)
     }
     Print() << " " << std::endl;
 
-    if (!solverChoice.anelastic[lev]) {
+    if (solverChoice.compressibility_type[lev] == CompressibilityType::FullyCompressible) {
 
         // *******************************************************************************
         // Now compute for full (moist) pressure
@@ -308,7 +308,7 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
 {
     // When anelastic the pressure gradient comes from the projection, not from
     //    a perturbational pressure, so this diagnostic doesn't apply
-    if (solverChoice.anelastic[lev]) return;
+    if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) return;
 
     auto& lev_new = vars_new[lev];
 
@@ -327,22 +327,24 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
     lgradp[GpVars::gpz].define(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, 0);
     lgradp[GpVars::gpz].setVal(0.);
 
-    MultiFab p0(base_state[lev], make_alias, BaseState::p0_comp, 1);
-
-    make_gradp_pert(lev, solverChoice, geom[lev], lev_new, p0,
-                    *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
-                    get_eb(lev), lgradp);
-
-    // *******************************************************************************
-    // Compute the buoyancy term exactly as the dycore does
-    // *******************************************************************************
-
+    //
+    // NOTE: qt must be filled before make_gradp_pert because gradp_type HydrostaticHybrid forms
+    //       the perturbational density from it
+    //
     MultiFab qt(ba, dm, 1, 1);
     qt.setVal(0.);
     int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
     if (solverChoice.moisture_type != MoistureType::None) {
         make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
     }
+
+    make_gradp_pert(lev, solverChoice, geom[lev], lev_new, base_state[lev], qt,
+                    *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
+                    get_eb(lev), lgradp);
+
+    // *******************************************************************************
+    // Compute the buoyancy term exactly as the dycore does
+    // *******************************************************************************
 
     //
     // NOTE: we must fill one ghost cell of S_prim here because make_buoyancy
@@ -356,7 +358,7 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
     buoyancy.setVal(0.);
 
     make_buoyancy(lev, lev_new, S_prim, qt, buoyancy, geom[lev], solverChoice, base_state[lev],
-                  n_qstate_into_total, get_eb(lev), solverChoice.anelastic[lev]);
+                  n_qstate_into_total, get_eb(lev), solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic);
 
     // *******************************************************************************
     // Now form the combined term that appears in the z-momentum equation:

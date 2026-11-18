@@ -2,6 +2,17 @@
 
 cmake_minimum_required (VERSION 3.20 FATAL_ERROR)
 
+# A parent project that adds ERF with add_subdirectory may set ERF options as normal
+# variables before the call. Under CMP0126 OLD, the first configure lets each
+# set(... CACHE ...) below remove that variable, so the option takes its default
+# until the next configure. NEW keeps the parent's value. This concerns the options set
+# with set(... CACHE ...), such as ERF_STRUCTURE_MODEL_DIRS; option() already keeps a
+# normal variable (CMP0077). CMake 3.20 has no CMP0126, and there a parent passes those
+# options as cache variables; the internal AMReX needs CMake 3.25 in any case.
+if(POLICY CMP0126)
+  cmake_policy(SET CMP0126 NEW)
+endif()
+
 # Set main ERF context
 list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")
 
@@ -122,6 +133,8 @@ option(ERF_ENABLE_DOCUMENTATION "Build documentation" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
+option(ERF_ENABLE_SBM_AMR_QUALIFICATION
+  "Build an isolated internal executable for fixed two-level periodic SBM qualification" OFF)
 set(_erf_enable_unit_tests_default OFF)
 if(ERF_ENABLE_TESTS AND NOT ERF_ENABLE_REGRESSION_TESTS_ONLY)
   set(_erf_enable_unit_tests_default ON)
@@ -129,12 +142,15 @@ endif()
 option(ERF_ENABLE_UNIT_TESTS "Enable gtest-based unit tests" ${_erf_enable_unit_tests_default})
 if(ERF_ENABLE_REGRESSION_TESTS_ONLY)
   set(ERF_ENABLE_UNIT_TESTS OFF CACHE BOOL "Enable gtest-based unit tests" FORCE)
+  set(ERF_ENABLE_UNIT_TESTS OFF)   # also over a normal variable a parent project set (CMP0126 NEW)
 endif()
 option(ERF_USE_INTERNAL_AMREX "Add AMReX as subproject" ON)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
 option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
+option(ERF_EXCLUDE_PLOTFILE_TOOLS_FROM_ALL
+  "Skip bundled AMReX plotfile tools in the default build (compile-only CI)" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 set(ERF_PARTICLES_PRECISION "${ERF_PRECISION}" CACHE STRING "Particle floating point precision SINGLE or DOUBLE")
 
@@ -148,6 +164,7 @@ option(ERF_ENABLE_SHOC "Deprecated alias for ERF_ENABLE_EAMXX_SHOC" OFF)
 if(ERF_ENABLE_SHOC AND NOT ERF_ENABLE_EAMXX_SHOC)
   message(WARNING "ERF_ENABLE_SHOC is deprecated; use ERF_ENABLE_EAMXX_SHOC=ON")
   set(ERF_ENABLE_EAMXX_SHOC ON CACHE BOOL "Build EAMxx SHOC parameterization" FORCE)
+  set(ERF_ENABLE_EAMXX_SHOC ON)   # also over a normal variable a parent project set (CMP0126 NEW)
 endif()
 
 # The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so
@@ -193,6 +210,11 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
 option(ERF_ENABLE_FIRE "Enable the fire coupling (the atmosphere side; fire engines plug into it)" OFF)
 set(ERF_FIRE_ENGINE_DIRS "" CACHE STRING "Fire engine directories (each with ERFFireEngine.cmake) to compile in; needs ERF_ENABLE_FIRE")
+option(ERF_ENABLE_MOVING_BODIES "Enable the actuator core and the structure coupling for bodies in the flow (Source/MovingBodies)" OFF)
+set(ERF_STRUCTURE_MODEL_DIRS "" CACHE STRING "Structure model directories (each with ERFStructureModel.cmake) to compile in; needs ERF_ENABLE_MOVING_BODIES")
+option(ERF_ENABLE_DUST "Enable the dust coupling (the atmosphere side; dust models plug into it)" OFF)
+set(ERF_NUM_DUST_SCALARS "1" CACHE STRING "Number of passive scalars the dust coupling adds to the state; needs ERF_ENABLE_DUST")
+set(ERF_DUST_MODEL_DIRS "" CACHE STRING "Dust model directories (each with ERFDustModel.cmake) to compile in; needs ERF_ENABLE_DUST")
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
 option(ERF_ENABLE_WDM6_FORT "Enable WDM6 Fortran bridge calls" OFF)
 
@@ -208,7 +230,7 @@ endif()
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
 
 #Options for C++
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -251,6 +273,13 @@ if (${ERF_USE_INTERNAL_AMREX})
     list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
 
     add_subdirectory(${AMREX_SUBMOD_LOCATION})
+
+    # Compile-only CI does not run the regression tests that need these tools.
+    # Keep their targets available for explicit builds, including fcompare.
+    if(AMReX_PLOTFILE_TOOLS AND ERF_EXCLUDE_PLOTFILE_TOOLS_FROM_ALL)
+      set_property(DIRECTORY ${AMREX_SUBMOD_LOCATION}/Tools/Plotfile
+        PROPERTY EXCLUDE_FROM_ALL TRUE)
+    endif()
 
     # Print AMReX properties
     print_target_properties(amrex)
@@ -432,7 +461,7 @@ if(ERF_ENABLE_EKAT)
     set(Kokkos_ENABLE_SYCL_LAMBDA ON CACHE BOOL "kokkos enable sycl lambda")
   endif()
 
-  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD 20)
   set(EKAT_ENABLE_MPI ON CACHE BOOL "ekat enable mpi")
   set(EKAT_ENABLE_TESTS OFF CACHE BOOL "ekat enable tests")
   set(EKAT_ENABLE_KOKKOS ON CACHE BOOL "ekat enable kokkos")

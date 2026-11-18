@@ -109,6 +109,7 @@ diagnostic_category_to_string (DiagnosticCategory category) noexcept
     case DiagnosticCategory::Precipitation:    return "Precipitation";
     case DiagnosticCategory::ColumnIntegral:   return "ColumnIntegral";
     case DiagnosticCategory::LandSurface:      return "LandSurface";
+    case DiagnosticCategory::NearSurface:      return "NearSurface";
     case DiagnosticCategory::SampledLevel:     return "SampledLevel";
     }
 

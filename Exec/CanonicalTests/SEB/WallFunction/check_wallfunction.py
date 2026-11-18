@@ -4,6 +4,7 @@
     python3 check_wallfunction.py neutral   faces_neutral faces_deardorff
     python3 check_wallfunction.py deardorff faces_deardorff 0.5 1000.0 1.2
     python3 check_wallfunction.py stability faces_stability faces_deardorff 1000.0 1.2
+    python3 check_wallfunction.py louis     faces_louis faces_stability 1.2
     python3 check_wallfunction.py bulkri    run_bulkri.log faces_bulkri 95.0
 
 neutral:   a hot roof in calm air sheds almost nothing with the neutral log
@@ -19,6 +20,11 @@ stability: on the roofs the Obukhov length is negative and consistent with
            is what the wall function saw), and u* and H equal the log law
            with Dyer's psi_m and psi_h at delta / L (the code's functions),
            to 1e-6; the roof flux exceeds the run without the functions.
+louis:     on the roofs u*, H and L follow the Louis (1979) factors on the
+           bulk Richardson number from the previous step's skin, to 1e-6,
+           the walls stay on the log law, and the roof flux lies within a
+           factor of two of the iterated functions' run (a different
+           closure of the same physics, not the same numbers).
 bulkri:    the depth diagnosed on the capped sounding is the first cell
            centre above the inversion, and the roofs' depth in w* is that
            minus the roof height.
@@ -110,6 +116,38 @@ def main():
         ok &= report("u* and H from the log law with Dyer's psi_m, psi_h at delta/L on the roofs", e1 < 1e-6 and e2 < 1e-6, f"rel diff u* {e1:.1e}, H {e2:.1e}")
         ok &= report("roof flux above the run without the functions", d["H"][roof].mean() > b["H"][b["dir"] == 2].mean(),
                      f"with {d['H'][roof].mean():.1f} W/m2, without {b['H'][b['dir']==2].mean():.1f} W/m2")
+    elif mode == "louis":
+        prev, d = last_two(sys.argv[2]); b = last_two(sys.argv[3])[1]; beta = float(sys.argv[4])
+        roof = d["dir"] == 2
+        # The wall function saw the previous step's skin; theta_air and the
+        # wind are this dump's (the state it ran on).
+        th = d["theta_air"]; th_skin_old = prev["T_skin"] * th / d["T_air"]
+        Ueff = np.sqrt(d["U_tan"] ** 2 + (beta * d["w_star"]) ** 2)
+        delta = 5.0; lnm = np.log(delta / 0.01); lnh = np.log(delta / 0.001)
+        Rib = G / th * delta * (th - th_skin_old) / Ueff ** 2
+        a2 = (KAPPA / lnm) ** 2
+        s_ = np.sqrt(np.maximum(-Rib, 0.0) * delta / 0.01)
+        Fm = np.where(Rib < 0, 1 - 9.4 * Rib / (1 + 7.4 * a2 * 9.4 * s_), 1 / (1 + 4.7 * Rib) ** 2)
+        Fh = np.where(Rib < 0, 1 - 9.4 * Rib / (1 + 5.3 * a2 * 9.4 * s_), 1 / (1 + 4.7 * Rib) ** 2)
+        us = KAPPA * Ueff * np.sqrt(Fm) / lnm
+        lnh_eff = np.maximum(lnh * np.sqrt(Fm) / Fh, 0.1)
+        thstar_old = KAPPA * (th - th_skin_old) / lnh_eff
+        Lc = us * us * th / (KAPPA * G * thstar_old)
+        ok &= report("roof bulk Richardson number negative (hot roof in calm air)", (Rib[roof] < 0).all(), f"Ri_b in [{Rib[roof].min():.2f}, {Rib[roof].max():.2f}]")
+        e1 = np.abs(us[roof] - d["ustar"][roof]).max() / d["ustar"][roof].max()
+        eL = np.abs(Lc[roof] - d["Olen"][roof]).max() / np.abs(d["Olen"][roof]).max()
+        ok &= report("roof u* = kappa U sqrt(F_m) / ln(delta/z0) and L from u* and theta* (previous skin)", e1 < 1e-6 and eL < 1e-6, f"rel diff u* {e1:.1e}, L {eL:.1e}; F_m {Fm[roof].min():.2f}-{Fm[roof].max():.2f}, F_h {Fh[roof].min():.2f}-{Fh[roof].max():.2f}")
+        # The stored H is the balance's flux at the new skin through the same coefficient.
+        Hc = d["rho"] * CP * KAPPA * us / lnh_eff
+        th_skin_new = d["T_skin"] * th / d["T_air"]
+        H = Hc * (th_skin_new - th)
+        e2 = np.abs(H[roof] - d["H"][roof]).max() / np.abs(d["H"][roof]).max()
+        ok &= report("roof H = rho c_p kappa u* / ln_h,eff (theta_skin - theta_air) with ln_h,eff = ln(delta/z0h) sqrt(F_m) / F_h", e2 < 1e-6, f"rel diff {e2:.1e}")
+        usn, Hn = log_law(d, Ueff); walls = d["dir"] < 2
+        e3 = np.abs(usn[walls] - d["ustar"][walls]).max() / d["ustar"][walls].max()
+        ok &= report("walls stay on the log law", e3 < 1e-6, f"rel diff u* {e3:.1e}")
+        Hl, Hi = d["H"][roof].mean(), b["H"][b["dir"] == 2].mean()
+        ok &= report("roof flux within a factor of two of the iterated functions", 0.5 * Hi < Hl < 2.0 * Hi, f"Louis {Hl:.1f} W/m2, iterated {Hi:.1f} W/m2")
     elif mode == "bulkri":
         log = open(sys.argv[2]).read(); d = last_two(sys.argv[3])[1]; z_exp = float(sys.argv[4])
         zi = [float(m) for m in re.findall(r"mixed-layer depth for w\*: ([-\d.eE+]+) m", log)]

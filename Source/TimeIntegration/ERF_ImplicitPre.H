@@ -71,12 +71,9 @@
                     const Array4<const Real>& hfx_z = Hfx3->const_array(mfi);
                     const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
                                             && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
-                    // NOTE: Only ComputeDiffusivityYSUNew fills EddyDiff::HGAMU_v/HGAMV_v;
-                    //       the legacy PBLType::YSU never writes them.  Gating on YSU
-                    //       therefore both disabled the term where it is produced and read
-                    //       an unwritten component where it was not.
+                    // NOTE: ComputeDiffusivityYSU fills EddyDiff::HGAMU_v/HGAMV_v
                     const bool l_use_ysu_mom_cg = solverChoice.turbChoice[level].enable_ysu_countergradient
-                                               && (solverChoice.turbChoice[level].pbl_type == PBLType::YSUNew);
+                                               && (solverChoice.turbChoice[level].pbl_type == PBLType::YSU);
                     if (l_use_stretched_dz) {
                         if (l_do_implicit_theta) {
 
@@ -139,16 +136,23 @@
                                                      stage_dt, l_bc_neumann_vals_d, cell_data,
                                                      dxInv, hfx_z, mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                     l_use_mrf_cg);
+                                                     l_use_mrf_cg,
+                                                     (ib_wall_face33[level]) ? ib_wall_face33[level]->const_array(mfi)
+                                                                             : Array4<const Real>{});
                         }
                         if (l_do_implicit_mom) {
+                            // Fraction-stress immersed wall law: no coupling through the wall face
+                            const Array4<const Real> wall13 = (ib_wall_face13[level])
+                                ? ib_wall_face13[level]->const_array(mfi) : Array4<const Real>{};
+                            const Array4<const Real> wall23 = (ib_wall_face23[level])
+                                ? ib_wall_face23[level]->const_array(mfi) : Array4<const Real>{};
                             ImplicitDiffForMomLU_N<0>(tbx, fine_geom.Domain(), level, stage_dt,
                                                       col_kext,
                                                       cell_data, rho_u, tau13, tau13_corr,
                                                       dxInv,
                                                       mu_turb, solverChoice,
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg);
+                                                      l_use_ysu_mom_cg, wall13);
 
                             ImplicitDiffForMomLU_N<1>(tby, fine_geom.Domain(), level, stage_dt,
                                                       col_kext,
@@ -156,7 +160,7 @@
                                                       dxInv,
                                                       mu_turb, solverChoice,
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg);
+                                                      l_use_ysu_mom_cg, wall23);
                         }
                     }
                 } // mfi

@@ -26,11 +26,17 @@ directory layout and batch vs interactive runs is listed once below the tabs.
 
          module load craype-x86-milan
          module load PrgEnv-gnu
-         module load cudatoolkit/12.9
+         module load cudatoolkit
          module load craype-accel-nvidia80
-         module load cray-hdf5-parallel/1.14.3.1
-         module load cray-netcdf-hdf5parallel
+         module load cray-hdf5-parallel
+         module load cray-netcdf-hdf5parallel/4.9.2.3
          module load cray-fftw/3.3.10.8
+
+      Leave ``cudatoolkit`` and ``cray-mpich`` at their defaults: the machine profile uses the
+      default matched pair, and a version pinned here overrides it. ``cray-netcdf-hdf5parallel``
+      is pinned because 4.9.2.3 is the first one built against the default ``cray-mpich`` library;
+      the older default loads a second MPICH. Build and run with the same modules; the sbatch
+      example below sources the profile for that reason.
 
       .. code-block:: bash
 

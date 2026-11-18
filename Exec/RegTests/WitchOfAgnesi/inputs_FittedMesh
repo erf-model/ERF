@@ -31,7 +31,7 @@ zhi.type = "SlipWall"
 #zhi.theta_grad = 0.003
 
 # TIME STEP CONTROL
-erf.substepping_type  = None
+erf.timestepping_type = RK3_NoSubstepping
 # erf.fixed_mri_dt_ratio = 4
 #erf.fixed_dt           = 0.005
 erf.cfl = 0.5

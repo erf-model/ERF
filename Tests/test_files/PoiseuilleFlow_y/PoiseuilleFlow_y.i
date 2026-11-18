@@ -20,7 +20,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "NoSlipWall"
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.cfl                = 0.5     # cfl number for hyperbolic system
 
 # DIAGNOSTICS & VERBOSITY

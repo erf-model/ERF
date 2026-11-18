@@ -24,7 +24,7 @@ zhi.type = "SlipWall"
 erf.terrain_type = MovingFittedMesh   # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
-erf.substepping_type   = None
+erf.timestepping_type = RK3_NoSubstepping
 erf.fixed_dt           = 0.005
 
 # DIAGNOSTICS & VERBOSITY

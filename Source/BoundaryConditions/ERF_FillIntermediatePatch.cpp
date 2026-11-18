@@ -141,47 +141,6 @@ ERF::FillIntermediatePatch (int lev, double time_d,
         Vector<MultiFab*> fmf = {mfs_vel[Vars::cons],mfs_vel[Vars::cons]};
         Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::cons], vars_new[lev-1][Vars::cons]);
 
-        if (interpolation_type == StateInterpType::Perturbational)
-        {
-            if (icomp_cons+ncomp_cons > 1)
-            {
-                // Divide (rho theta) by rho to get theta
-                MultiFab::Divide(*mfs_vel[Vars::cons],*mfs_vel[Vars::cons],Rho_comp,RhoTheta_comp,1,IntVect{0});
-
-                // Subtract theta_0 from theta
-                MultiFab::Subtract(*mfs_vel[Vars::cons],base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
-
-                if (csel != TimeLevelSel::New) {
-                    MultiFab::Divide(vars_old[lev-1][Vars::cons], vars_old[lev-1][Vars::cons],
-                                     Rho_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
-                    MultiFab::Subtract(vars_old[lev-1][Vars::cons], base_state[lev-1],
-                                       BaseState::th0_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
-                }
-                if (csel != TimeLevelSel::Old) {
-                    MultiFab::Divide(vars_new[lev-1][Vars::cons], vars_new[lev-1][Vars::cons],
-                                     Rho_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
-                    MultiFab::Subtract(vars_new[lev-1][Vars::cons], base_state[lev-1],
-                                       BaseState::th0_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
-                }
-            }
-
-            // Subtract rho_0 from rho before we interpolate -- note we only subtract
-            //    on valid region of mf since the ghost cells will be filled below
-            if (icomp_cons == 0)
-            {
-                MultiFab::Subtract(*mfs_vel[Vars::cons],base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{0});
-
-                if (csel != TimeLevelSel::New) {
-                    MultiFab::Subtract(vars_old[lev-1][Vars::cons], base_state[lev-1],
-                                       BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
-                }
-                if (csel != TimeLevelSel::Old) {
-                    MultiFab::Subtract(vars_new[lev-1][Vars::cons], base_state[lev-1],
-                                       BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
-                }
-            }
-        } // interpolation_type == StateInterpType::Perturbational
-
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
         mapper = &cell_cons_interp;
         FillPatchTwoLevels(mf, IntVect{ng_cons}, IntVect(0,0,0),
@@ -189,59 +148,6 @@ ERF::FillIntermediatePatch (int lev, double time_d,
                            icomp_cons, icomp_cons, ncomp_cons, geom[lev-1], geom[lev],
                            refRatio(lev-1), mapper, domain_bcs_type,
                            icomp_cons);
-
-        if (interpolation_type == StateInterpType::Perturbational)
-        {
-            if (icomp_cons == 0)
-            {
-                // Restore the coarse values to what they were
-                if (csel != TimeLevelSel::New) {
-                    MultiFab::Add(vars_old[lev-1][Vars::cons], base_state[lev-1],
-                                  BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
-                }
-                if (csel != TimeLevelSel::Old) {
-                    MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
-                                  BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
-                }
-
-                // Set values in the cells outside the domain boundary so that we can do the Add
-                //     without worrying about uninitialized values outside the domain -- these
-                //     will be filled in the physbcs call
-                mf.setDomainBndry(bogus_large_value,Rho_comp,1,geom[lev]);
-
-                // Add rho_0 back to rho after we interpolate -- on all the valid + ghost region
-                MultiFab::Add(mf, base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{ng_cons});
-            }
-
-            if (icomp_cons+ncomp_cons > 1)
-            {
-                // Add theta_0 to theta
-                if (csel != TimeLevelSel::New) {
-                    MultiFab::Add(vars_old[lev-1][Vars::cons], base_state[lev-1],
-                                  BaseState::th0_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
-                    MultiFab::Multiply(vars_old[lev-1][Vars::cons], vars_old[lev-1][Vars::cons],
-                                       Rho_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
-                }
-                if (csel != TimeLevelSel::Old) {
-                    MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
-                                  BaseState::th0_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
-                    MultiFab::Multiply(vars_new[lev-1][Vars::cons], vars_new[lev-1][Vars::cons],
-                                       Rho_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
-                }
-
-                // Multiply theta by rho to get (rho theta)
-                MultiFab::Multiply(*mfs_vel[Vars::cons],*mfs_vel[Vars::cons],Rho_comp,RhoTheta_comp,1,IntVect{0});
-
-                // Add theta_0 to theta
-                MultiFab::Add(*mfs_vel[Vars::cons],base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
-
-                // Add theta_0 back to theta
-                MultiFab::Add(mf,base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,IntVect{ng_cons});
-
-                // Multiply (theta) by rho to get (rho theta)
-                MultiFab::Multiply(mf,mf,Rho_comp,RhoTheta_comp,1,IntVect{ng_cons});
-            }
-        } // interpolation_type == StateInterpType::Perturbational
 
         // Impose physical bc's on fine data (note time and 0 are not used)
         // Note that we do this after the FillPatch because imposing physical bc's on fine ghost
@@ -465,7 +371,6 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
 {
     BL_PROFILE("FillCoarseFineGhostsForImplicit()");
     AMREX_ALWAYS_ASSERT(lev > 0);
-    AMREX_ALWAYS_ASSERT(interpolation_type == StateInterpType::FullState);
 
     const TimeLevelSel csel = select_time_level(time_d, t_old[lev-1], t_new[lev-1]);
 
@@ -522,7 +427,8 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
         Vector<MultiFab*> fmf = {&tmp, &tmp};
         Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::cons], vars_new[lev-1][Vars::cons]);
 
-        // One fill per run of contiguous components, over the ghost cells any of them needs.
+        // Each run must be contiguous in both state and BC storage: passive scalars
+        // share one BC slot, while Q slots shift when NSCALARS > 1.
         // cell_cons_interp limits the slopes of each component separately, and the value it
         // gives a fine cell depends only on the coarse data around it, so this gives the same
         // result in each cell as one fill per component over all its ghost cells.
@@ -531,7 +437,7 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
         {
             IntVect ngf = (comps[i0] == Rho_comp) ? ng_rho : ng_solved;
             int i1 = i0 + 1;
-            while (i1 < ncomps && comps[i1] == comps[i1-1] + 1) {
+            while (i1 < ncomps && cons_bc_run_contiguous(comps[i1-1], comps[i1])) {
                 ngf.max((comps[i1] == Rho_comp) ? ng_rho : ng_solved);
                 ++i1;
             }
@@ -543,7 +449,7 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
                                time_rel, cmf, ctime, fmf, ftime,
                                scomp, scomp, ncomp, geom[lev-1], geom[lev],
                                refRatio(lev-1), &cell_cons_interp, domain_bcs_type,
-                               BCVars::cons_bc+scomp);
+                               cons_bc_comp(scomp));
             copy_cf_ghosts(cons, tmp, mask, scomp, ncomp, ngf);
 
             i0 = i1;

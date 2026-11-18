@@ -1,7 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "ABL"
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_fft   = true # for anelastic
 
 stop_time = 120000.0

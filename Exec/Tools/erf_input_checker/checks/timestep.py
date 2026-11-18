@@ -137,7 +137,7 @@ class CompressibleTimeStep(TimeStepChecker):
         if sub == "None":
             for key in ("erf.fixed_fast_dt", "erf.fixed_mri_dt_ratio", "erf.substepping_cfl"):
                 if d.has(key):
-                    self.warn(key, "ignored: erf.substepping_type = None has a single time step")
+                    self.warn(key, "ignored: erf.timestepping_type = RK3_NoSubstepping has a single time step")
             self._no_substep_cfl()
             return
         if self.fixed_dt and fast:
@@ -227,7 +227,7 @@ class CompressibleTimeStep(TimeStepChecker):
         acfl = self.fixed_dt * (c.options.umax + cs) / dmin
         if acfl > 1.0:
             self.warn("erf.fixed_dt", "acoustic CFL %.2f on the smallest cell (%g m) without substepping; the explicit step goes unstable above about 1" % (acfl, dmin),
-                      "Use erf.fixed_dt <= %.3g s, keep erf.substepping_type = Implicit, or use erf.cfl." % (0.8 * dmin / (c.options.umax + cs)))
+                      "Use erf.fixed_dt <= %.3g s, keep erf.timestepping_type = RK3_ImplicitSubstep, or use erf.cfl." % (0.8 * dmin / (c.options.umax + cs)))
         elif acfl > 0.8:
             self.advise("erf.fixed_dt", "acoustic CFL %.2f without substepping leaves little margin" % acfl)
         else:
@@ -270,7 +270,7 @@ class AnelasticTimeStep(TimeStepChecker):
     def run(self) -> None:
         self.common()
         c, d = self.ctx, self.deck
-        for key in ("erf.fixed_fast_dt", "erf.fixed_mri_dt_ratio", "erf.substepping_cfl", "erf.substepping_type"):
+        for key in ("erf.fixed_fast_dt", "erf.fixed_mri_dt_ratio", "erf.substepping_cfl"):
             if d.has(key):
                 self.warn(key, "ignored: the anelastic integrator has no acoustic substeps",
                           "Remove the key; it only suggests the deck was copied from a compressible case.")

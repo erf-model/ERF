@@ -51,7 +51,7 @@ different gravitational source terms for the same compressible state.
 Unless an approximation is part of the intended model formulation, the
 default type 1 retains the more complete density response.
 
-For ``erf.anelastic = 1``, ERF selects its dry or moist **anelastic** kernel
+For ``erf.compressibility_type`` not ``FullyCompressible``, ERF selects its dry or moist **anelastic** kernel
 irrespective of ``erf.buoyancy_type``. Internally, the option is stored as
 ``3`` at anelastic levels, but this does **not** select the compressible
 type-3 formula. The input accepts values 1--4 only; there is no type 5.

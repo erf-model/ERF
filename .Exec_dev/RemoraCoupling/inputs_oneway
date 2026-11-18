@@ -23,8 +23,8 @@ max_step = 86400
 
 # PROBLEM PARAMETERS (optional)
 # Perlin07 gives the same initial TKE profile as the WPS problem and, unlike
-# it, dispatches the uniform rhotheta tendency used for the radiative cooling
-# below.
+# it, dispatches the uniform rhotheta tendency used for the large-scale
+# heating below.
 erf.prob_name        = Perlin07
 prob.KE_0            = 0.4 # [m2/s2]
 prob.KE_decay_height = 250. # [m]
@@ -70,12 +70,15 @@ erf.most.Cq  = 0.0012 # qv    flux
 # NOTE: with erf.is_land = 0 the surface mixing ratio is overwritten every step
 # with the saturation value at the sea surface temperature, so most.surf_moist
 # is the land default only and has no effect here.
-erf.most.surf_temp  = 287.15
+# SST is an absolute temperature (P07 plot it in K/degC); ERF converts it to theta
+# with the current surface pressure.
+erf.most.abs_surf_temp = 287.0
 erf.most.surf_moist = .00802
 erf.most.z0         = 0.1
 erf.most.zref       = 10.0
 
-# The MYNN length-scale taper below needs a diagnosed boundary layer height.
+# Diagnose the boundary layer height so it can be written as the pblh plot
+# variable.
 erf.most.pblh_calc  = MYNN25
 
 # TIME STEP CONTROL
@@ -132,11 +135,11 @@ erf.pbl_mynn_C5 = 0.0
 #    Nakanishi-Niino value of 0.23.
 erf.pbl_mynn_Lt_alpha = 0.10
 
-# 3. A boundary-layer-depth taper, l_T -> l_T (1 - z/h)^n.  Without it the
-#    master length scale saturates and stays flat to the inversion, giving a
-#    flat-topped eddy viscosity; P07's falls steeply above ~150 m.  n = 1.35
-#    was calibrated against their Fig. 8a and is not independently derived.
-erf.pbl_mynn_Lt_taper_exp = 1.35
+# 3. The surface-layer length scale alone in the first cell, consistent with the
+#    surface-layer shear its TKE production uses.  Without it the 1/l sum with
+#    l_T and l_B makes L_m about 15% below kappa*z there, and the first-cell TKE
+#    dips below the second instead of approaching B1^(2/3) u*^2 / 2 as in P07.
+erf.pbl_mynn_surface_lm = true
 
 erf.use_coriolis = true
 erf.coriolis_3d = false
@@ -155,23 +158,26 @@ erf.rayleigh_damp_V = true
 erf.rayleigh_damp_W = true
 erf.rayleigh_damp_T = true
 
-# --- Radiative cooling ------------------------------------------------------
-# P07 add a uniform 1 C/day heating everywhere to stand in for the large-scale
-# subsidence and advection their idealized domain omits.  Without it the mixed
-# layer equilibrates with the fixed sea surface temperature and the surface
-# fluxes shut down.  1.1574074074e-5 K/s = -1 K/day.
+# --- Large-scale heating -----------------------------------------------------
+# P07 add a uniform 1 C/day heating "to compensate for the average atmospheric
+# radiative cooling in the absence of large-scale subsidence or advection".
+# We keep that intent but scale it to our radiation: with July RRTMGP the
+# daily-mean radiative cooling of the mixed layer is about 0.68 K/day (SW +0.97,
+# LW -1.65 K/day), so +0.68 K/day balances it.  P07's +1 K/day on top of RRTMGP
+# leaves the layer net heated (+0.3 K/day): the surface layer goes stable and the
+# boundary layer stalls near 300 m.  7.87e-6 K/s = +0.68 K/day.
 erf.add_custom_rhotheta_forcing        = true
 erf.custom_forcing_uses_primitive_vars = true
-prob.advection_heating_rate            = 1.1574074074e-5
+prob.advection_heating_rate            = 7.87e-6
 
 
 # RADIATION INPUTS
-start_datetime             = "2007-01-01 12:00:00" # UTC is 8 hrs ahead of PST
+start_datetime             = "2007-07-01 12:00:00" # 0400 LST (P07 start); P07 give no date, only "summertime"
 erf.radiation_model        = "RRTMGP"
 erf.rad_freq_in_steps      = 100
 erf.rad_cons_lat           =   44.0
 erf.rad_cons_lon           = -124.0
-erf.rad_t_sfc              = 287.15
+erf.rad_t_sfc              = 287.0
 erf.co2vmr                 = 0.00036
 erf.o3vmr                  = 3.0e-8
 erf.n2ovmr                 = 3.2e-7

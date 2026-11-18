@@ -295,6 +295,7 @@ NOAHMP::Init (const int& lev,
     amrex::ignore_unused(dt);
 
     m_lev   = lev;
+    m_interp_pending = true;
     m_geom  = geom;
     m_geom0 = geom0;
 

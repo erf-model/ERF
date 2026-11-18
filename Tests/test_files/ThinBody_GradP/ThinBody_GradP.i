@@ -2,14 +2,14 @@
 # Anelastic flow in a closed box with a thin immersed wall (zero x-flux faces), so the
 # projection goes through project_velocity_tb, with two corrector passes (erf.ncorr = 2).
 # Tests/check_thin_body_gradp.py compares the stored pressure gradient (dpdx/dpdy/dpdz,
-# the cell average of gradp) with centred differences of the stored pressure increment
+# the cell average of gradp) with centered differences of the stored pressure increment
 # (pert_pres, pp_inc): both are built from the same solves, so they must agree.
 erf.prob_name = "Flow in a Box"
 
 max_step = 2
 amrex.fpe_trap_invalid = 1
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.ncorr     = 2
 erf.init_type = Uniform
 

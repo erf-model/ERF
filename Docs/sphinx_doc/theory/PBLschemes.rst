@@ -352,7 +352,7 @@ PBL height and turbulent structure
 
 Native SHOC diagnoses planetary boundary layer height from a bulk-Richardson
 criterion, with an additional convective correction for unstable surface
-forcing. Native SHOC ``pblh`` is reported in metres above local ground (AGL).
+forcing. Native SHOC ``pblh`` is reported in meters above local ground (AGL).
 It is not an absolute geometric height.
 
 The diagnosed PBL depth also enters the native surface second-moment scaling
@@ -595,10 +595,15 @@ structures and coupling are provided through the EAMxx interface.
 
 The EAMxx interface additionally supports:
 
-* ``erf.shoc.apply_tms`` to apply its turbulent mountain stress contribution.
 * ``erf.shoc.check_flux_state`` to run its flux/state consistency check.
 
-These are EAMxx-interface controls. They are not active native-SHOC controls.
+This is an EAMxx-interface control. It is not an active native-SHOC control.
+
+``erf.shoc.apply_tms`` would apply EAMxx's turbulent mountain stress: form drag from
+subgrid orography, added on top of the surface-layer drag. ERF has no subgrid-orography
+statistics to build its coefficient from, so the option is not supported, and ``true``
+aborts in the EAMxx interface. The surface-layer drag already reaches SHOC through its
+surface momentum flux. Native SHOC reads the option but does not use it.
 
 References
 ~~~~~~~~~~
@@ -695,7 +700,7 @@ vertical solve that the A-stable integrators (MidPoint, RK3) do not damp.
    Using the profile in every regime also inherits WRF MRF's over-mixing of stable boundary
    layers: on GABLS1 the peak :math:`K_m` is about twice that of :ref:`YSU<YSUPBL>`.  This is the
    behaviour that Hong et al. (2006) addressed in YSU, so stable cases that need the weaker
-   mixing should set ``erf.pbl_type = YSUNew``.
+   mixing should set ``erf.pbl_type = YSU``.
 
 The turbulent diffusion coefficient in the free atmosphere is computed from the YSU model as the MRF
 expressions showed oscillations in the canonical stable boundary layer tests.
@@ -862,7 +867,7 @@ based on cloud water/ice content.
 
 **Enhancement:** Proper handling of moisture effects on buoyancy throughout the scheme.
 
-- Computes :math:`\theta_v = \theta(1 + 0.61 \cdot q_v)` at all levels
+- Computes the virtual potential temperature :math:`\theta_v` at all levels, including vapor buoyancy and condensate loading (see :ref:`MoistPotentialTemperatures`)
 - Used in Richardson number diagnosis: :math:`Rig = \frac{g}{\theta_v} \frac{d\theta_v}{dz} / (shear)^2`
 - Critical for accurate PBL height and convective strength
 
@@ -885,14 +890,14 @@ stable boundary layer tests (GABLS cases).
 
 - Hong, S. Y., Y. Noh, and J. Dudhia, 2006: A new vertical diffusion package with an explicit
   treatment of entrainment processes. *Monthly Weather Review*, 134, 2318-2341.
-  https://doi.org/10.1175/MWR3250.1
+  https://doi.org/10.1175/MWR3199.1
 
 6. Scale-Aware PBL-LES Blending
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Motivation:** In the grey-zone grid spacing (100–1000 m), mesoscale-calibrated PBL schemes like MRF
+**Motivation:** In the gray-zone grid spacing (100–1000 m), mesoscale-calibrated PBL schemes like MRF
 overestimate vertical diffusivity, leading to excessively strong mixing. Two corrections are applied
-together to smoothly reduce K_h at fine resolution while maintaining full PBL behaviour at coarse scales.
+together to smoothly reduce K_h at fine resolution while maintaining full PBL behavior at coarse scales.
 
 **Blending Factor (Boutle et al. 2014):**
 
@@ -946,7 +951,7 @@ mixing ratios.
 **Parameters:**
 
 - ``pbl_blend_length`` (Real): Boutle blending length [m]. Default: 0.0 (disabled).
-  Set > 0 to enable blending. Typical: 750 m for grey-zone applications.
+  Set > 0 to enable blending. Typical: 750 m for gray-zone applications.
 - ``pbl_blend_cs`` (Real): Smagorinsky coefficient for K_h ceiling. Default: 0.17.
 - ``pbl_blend_c_max`` (Real): Power-law ceiling coefficient [m^(2/3) s⁻¹]. Default: 0.1.
 - ``pbl_blend_use_smag`` (bool): Use Smagorinsky ceiling when strain rate available.
@@ -973,12 +978,35 @@ Two ABL tests in ``Exec/CanonicalTests/ABL/MRF_Enhancements/`` verify the implem
   https://doi.org/10.1175/MWR-D-13-00229.1
 - Beare, R.J., 2014: A length scale defining partially-stirred reactor-like mixing in atmospheric boundary layers. *Boundary-Layer Meteorology*, 153, 345–357.
   https://doi.org/10.1007/s10546-013-9881-3
-- Honnert, R., et al., 2011: A warming list of challenges for atmospheric modellers. *Journal of the Atmospheric Sciences*, 68, 2742–2764.
-  https://doi.org/10.1175/JAS-D-11-025.1
+- Honnert, R., V. Masson, and F. Couvreux, 2011: A diagnostic for evaluating the representation of turbulence in atmospheric models at the kilometric scale. *Journal of the Atmospheric Sciences*, 68, 3112–3131.
+  https://doi.org/10.1175/JAS-D-11-061.1
 - Smagorinsky, J., 1963: General circulation experiments with the primitive equations. *Monthly Weather Review*, 91, 99–164.
   https://doi.org/10.1175/1520-0493(1963)091<0099:GCEWTP>2.3.CO;2
 - Hong, S.-Y., and H.-L. Pan, 1996: Nonlocal boundary layer vertical diffusion in a medium-range forecast model. *Monthly Weather Review*, 124, 2322–2339.
   https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+
+7. Fire Coupling of the Velocity Scale
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In a build with the fire coupling (``ERF_ENABLE_FIRE``), ``erf.pbl_mrf_fire_thermal_excess = true``
+(default ``false``) lets the fire raise w\* in the K-profile amplitude of burning columns. It needs
+``erf.fire.enable = true`` with ``erf.fire.coupling_type = lagged`` or ``synchronous``, and acts on the
+fire grid's level only. The PBL height is left alone:
+
+.. math::
+
+   w_{*,fire} = \left( \frac{g}{\theta} \, (kbfs_{MOST} + kbfs_{fire}) \, h \right)^{1/3}, \qquad
+   w_{*,eff} = \max(w_{*,fire}, w_*) \quad \text{where } kbfs_{fire} > 0,
+
+with :math:`kbfs_{fire} = Q_{fire} / (\rho_{sfc} c_{p,d})` from the lagged fire heat flux,
+:math:`kbfs_{MOST} = -u_* \theta_*`, :math:`h` the corrected PBL height and :math:`w_*` the scale
+of the final pass. A column counts as burning when its fire heat flux exceeds
+``erf.mrf_fire_q_threshold`` (default 50 W/m\ :sup:`2`). Columns without fire keep :math:`w_*`, and
+HGAMT/HGAMQ always use the unboosted :math:`w_*`. The fire flux is kept out of the PBL-height
+corrector because a fire thermal excess would make the Richardson number negative through a neutral
+or shear-driven ABL and collapse the PBL height to its floor.
+
+The flux carries 5 ghost columns, so with the fire boost ``erf.pblh_smoothing_passes`` is at most 5.
 
 Older MRF Enhancements (Deprecated/Documented for Historical Completeness)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1217,6 +1245,19 @@ When enabled, the diffusivity bounds scale with local grid-spacing and density a
 - High-Resolution Bounds:
   :math:`K_{min} = 0.001 \times \Delta z \times \rho, K_{max} = 1000\ \text{m}^2/\text{s}`
 
+Passive Scalars
+^^^^^^^^^^^^^^^
+
+MRF sets the vertical diffusivity of the passive scalars (``rhoadv_0``, and the dust and
+smoke scalars when those couplings are built), ``EddyDiff::Scalar_v``, equal to the heat
+diffusivity, as for moisture: inside and above the PBL, with the same scale-aware blending
+and the same bounds. ``erf.pbl_mrf_Sc_t`` (default 0) sets a turbulent Schmidt number for
+them: with :math:`Sc_t > 0` their diffusivity is the heat one times
+:math:`Pr_t / Sc_t` (:math:`Pr_t` is ``erf.Pr_t``), the same for every passive scalar.
+Whether scalars should have different coefficients is erf-model/ERF#5080. Before this, MRF
+left ``Scalar_v`` at zero, so a run with MRF and no LES model did not mix the passive
+scalars vertically at all, and with an LES model alongside they took its vertical value.
+
 Combined Usage Examples
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1295,9 +1336,9 @@ Useful References
 YSU PBL Model
 -------------
 
-.. warning::
-
-   Implementation is in progress, this option is not yet supported
+``erf.pbl_type = YSU`` selects this scheme. It was named ``YSUNew`` while an earlier,
+incomplete YSU implementation existed; that implementation has been removed, and
+``YSUNew`` is still accepted as a deprecated name for ``YSU``.
 
 The Yonsei University (YSU) PBL model is another commonly use scheme in WRF. It includes nonlocal mixing with  contergradient diffusion within
 the PBL, and a local mixing treatment outside the PBL.
@@ -1334,6 +1375,8 @@ Richardson number equals the critical value, which is taken to be 0:
 
 where
 
+- :math:`z` is the height of the level above the ground, as WRF's ``za``, on every mesh type; with
+  ``erf.pbl_ib_aware`` it is measured from the top of the immersed solid in the column,
 - :math:`\theta_m` is the moist potential temperature,
 - :math:`\theta_{ma}` is the value at the lowest vertical cell in a column,
 - :math:`U = \sqrt{u^2 + v^2}` is the horizontal wind speed,
@@ -1356,7 +1399,7 @@ which is in turn used to provide an improved estimate of :math:`h`, which is the
 
 .. _ysu-pblh-scan:
 
-On the grid, YSUNew finds :math:`h` by scanning the bulk Richardson number of each column upward from its
+On the grid, YSU finds :math:`h` by scanning the bulk Richardson number of each column upward from its
 first fluid cell :math:`k_s` to the top cell :math:`k_{hi}`, as WRF does (``bl_ysu.F90``):
 
 - If :math:`{\rm Rib}` first reaches :math:`{\rm Rib_{cr}}` at a level :math:`k > k_s`, :math:`h` is interpolated
@@ -1364,10 +1407,22 @@ first fluid cell :math:`k_s` to the top cell :math:`k_{hi}`, as WRF does (``bl_y
   This includes a crossing at the top cell :math:`k_{hi}`.
 - The first cell's :math:`{\rm Rib}` only seeds the lower end of the first interval. If it and the next
   level are both at or above :math:`{\rm Rib_{cr}}`, :math:`h` is the floor :math:`h_{min}` (WRF's
-  ``brint = 0``): the height of the first cell's centre on a flat mesh, or of its top face on a
-  terrain-fitted mesh, and at least 10 m.
+  ``brint = 0``, where WRF takes the height of the first level).
 - If :math:`{\rm Rib}` stays below :math:`{\rm Rib_{cr}}` up to :math:`k_{hi}`, :math:`h` is the top of the scan,
   :math:`z_{k_{hi}}` (WRF's ``brint = 1``).
+
+The floor is the height of the top face of the column's first fluid cell, and at least 10 m:
+
+.. math::
+
+   h_{min} = \max\left(z_1 + \tfrac{1}{2}\,\Delta z_1,\ 10\ {\rm m}\right),
+
+with :math:`z_1` the height of the first cell's center and :math:`\Delta z_1` the cell's thickness. It is the
+same on constant-dz, stretched and terrain-fitted meshes. The top face of the first cell is the height below
+which WRF sets ``kpbl = 1`` (``zq(i,2)`` in ``bl_ysu.F90``); WRF does not bound :math:`h` itself, and
+reports the height of the first level, half a cell lower, in such a column. With :math:`h` at the floor the
+diffusivity profile is zero at the top face of the first cell, so that cell keeps the background diffusivity,
+and the profile grows continuously from there as :math:`h` rises.
 
 The result is then kept in :math:`[h_{min},\ h_{max}]` with :math:`h_{max} = 0.9\, z_{k_{hi}}`.
 The PBL top index is :math:`k_{hi}` in the no-crossing case. The K profile then reaches :math:`h`, and the
@@ -1377,14 +1432,30 @@ top cell of such a column.
 MRF uses the same treatment for a column with no crossing, in its first guess, its corrector and its
 zero-Ri extent (WRF ``module_bl_mrf.F``). Its PBL top index is then :math:`k_{hi}` as well, so the K profile
 and, with ``erf.enable_mrf_countergradient``, the countergradient terms reach :math:`h`. When the first two
-levels are both at or above :math:`{\rm Rib_{cr}}`, MRF takes the first level's height, as WRF does, rather
-than extrapolating above it.
+levels are both at or above :math:`{\rm Rib_{cr}}`, MRF does not extrapolate above the first level (WRF's
+``brint = 0``), and :math:`h` is the floor.
 
-Before erf-model/ERF#4458, both schemes gave a column with no crossing :math:`h_{min}`, and YSUNew also sent a
+MRF uses the same floor :math:`h_{min}` as YSU, on every mesh type. With ``erf.pbl_ib_aware`` MRF measures
+:math:`z_1` from the top of the immersed column and adds that column's height to the stored PBL height, so the
+stored floor is the top face of the first fluid cell in both schemes. When the top face sets the floor (a first
+cell at least 10 m thick), the PBL top index of an MRF column on the floor is :math:`k_s + 1`: only the first
+cell uses the K profile, and its shape factor
+:math:`1 - (z - z_1)/(h - z_1)` is 1 there for every :math:`h > z_1`. The floor therefore does not change the
+shape of the profile. It enters MRF through :math:`h/L` in the stability functions and the Prandtl number,
+through :math:`w_*`, and through the stored PBL height, which the surface layer and the turbulent length scale
+read. The countergradient terms are zero in such a column. When the 10 m minimum sets the floor (thinner first
+cells), the crossing can lie above the second level, and the index, the K profile and the countergradient terms
+follow that crossing; this case is the same as before. WRF's MRF (``module_bl_mrf.F``) does not bound :math:`h`. In such a column it takes the first
+level's height in its Rib scan, sets its PBL index to the first level, and uses the free-atmosphere diffusivity
+at every level; the height it returns for a stable column is the top face of the first layer (``ZQ(I,KL)``).
+Earlier, the MRF floor was the height of the first cell center (at least 10 m), half a cell below the YSU
+floor.
+
+Before erf-model/ERF#4458, both schemes gave a column with no crossing :math:`h_{min}`, and YSU also sent a
 crossing at :math:`k_{hi}` there. MRF also set its index to :math:`k_s + 1`, so only the first cell used the
 K profile.
 
-In ``YSUNew`` the sign of the surface virtual heat flux selects the form of the diffusivity inside the PBL. A column
+In ``YSU`` the sign of the surface virtual heat flux selects the form of the diffusivity inside the PBL. A column
 counts as stable when the flux is negative and as unstable or neutral otherwise, as WRF does with its surface bulk
 Richardson number (``sfcflg``). Over a neutral surface the flux is round-off. With a plane-averaged surface layer
 (the default ``erf.most.average_policy``) it comes from an averaged :math:`\theta` that differs from the surface value
@@ -1444,14 +1515,14 @@ The following references have informed the implementation of the MRF and YSU mod
 
 - The WRF Fortran source code for this `module <https://github.com/wrf-model/WRF/blob/a8eb846859cb39d0acfd1d3297ea9992ce66424a/phys/module_bl_ysu.F>`_ as of Dec. 2023. The ERF implementation supports the same physical models as this WRF implementation, with the exception of the ``ysu_topdown_pblmix = 1`` option from WF18, i.e. the implementation in ERF largely matches the PBL scheme described in H10.
 
-YSUNew Cloudy PBL Extensions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+YSU Cloudy PBL Extensions
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The YSUNew implementation includes extensions for handling cloud-topped boundary layers without requiring radiation coupling. These extensions are controlled by the ``enable_ysu_topdown`` flag and the ``use_moisture`` condition.
+The YSU implementation includes extensions for handling cloud-topped boundary layers without requiring radiation coupling. These extensions are controlled by the ``enable_ysu_topdown`` flag and the ``use_moisture`` condition.
 
 **Liquid Potential Temperature PBLH Extension**
 
-When enabled, an additional upward scan of the PBL height is performed using liquid potential temperature (:math:`\theta_{li}`) as the stability criterion. This extension allows detection of deeper cloud-topped boundary layers where the traditional bulk Richardson number criterion may underestimate the mixed layer depth. The scan uses an unstable threshold (zero Richardson number) to extend the PBL height upward through layers where cloud liquid water provides buoyancy support.
+When enabled, an additional upward scan of the PBL height is performed using the liquid-ice water potential temperature (:math:`\theta_{li}`, written :math:`\theta_l` in :ref:`MoistPotentialTemperatures`) as the stability criterion. This extension allows detection of deeper cloud-topped boundary layers where the traditional bulk Richardson number criterion may underestimate the mixed layer depth. The scan uses an unstable threshold (zero Richardson number) to extend the PBL height upward through layers where cloud liquid water provides buoyancy support.
 
 Configuration: ``enable_ysu_topdown = true``, ``use_moisture = true``
 
@@ -1460,3 +1531,15 @@ Configuration: ``enable_ysu_topdown = true``, ``use_moisture = true``
 When liquid water content plus ice content at the layer below PBL top exceeds a threshold (0.01 g/kg), an adjusted entrainment coefficient is computed using cloud buoyancy considerations. This correction replaces the clear-sky entrainment velocity with a value derived from the liquid-theta buoyancy jump, accounting for the reduced stability at cloud top. The entrainment efficiency is computed from cloud liquid water content and limited to 0.4. This path does not require radiation coupling; the calculation uses only surface buoyancy flux.
 
 Configuration: ``enable_ysu_topdown = true``, ``use_moisture = true``
+
+**Cloud at the PBL Top**
+
+Let :math:`k_{pbl}` be the PBL-top cell index: the cell where the bulk Richardson number first reaches its critical value, after the liquid potential temperature extension above. Where the cloud water plus cloud ice mixing ratio in that cell exceeds ``erf.ysu_qcloud_threshold`` (default :math:`10^{-4}` kg/kg), the index is raised by one cell, bounded by the top cell :math:`k_{hi}`:
+
+.. math::
+
+   k_{pbl} \leftarrow \min(k_{pbl} + 1,\, k_{hi}) \quad \text{if} \quad q_c(k_{pbl}) + q_i(k_{pbl}) > q_{thr}
+
+The height :math:`h` itself is not changed. The cloudy cell then takes the in-PBL diffusivity profile, the countergradient terms and the background diffusivity instead of the free-atmosphere values, and the entrainment diffusivity, if enabled, is added one cell higher. The entrainment diffusivity is computed first, from the index before the extension. The extension does not depend on ``erf.enable_ysu_entrainment``: it is applied with the entrainment term on or off.
+
+Configuration: ``enable_ysu_cloud_pblh = true``, ``use_moisture = true``

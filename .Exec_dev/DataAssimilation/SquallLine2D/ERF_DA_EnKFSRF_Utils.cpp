@@ -605,10 +605,22 @@ void
 compute_T_matrix (const Matrix& S_mat,
                   Matrix& T_mat)
 {
-    Matrix Sinv = S_mat.inverse();
-    // fill Sinv ...
+    // T = S^{-1/2} (symmetric square root), so that T*T^T = S^{-1} and T*1 = 1.
+    // A Cholesky factor of S^{-1} also gives T*T^T = S^{-1} but does not
+    // preserve the zero-mean property of the analysis perturbations.
+    T_mat = S_mat.inverse_sqrt_symmetric();
 
-    T_mat = Sinv.cholesky_lower();
+    // Sanity check: T*1 should equal 1 (S*1 = 1 because Y'*1 = 0)
+    const int n = T_mat.size();
+    Real max_dev = 0.0;
+    for (int i = 0; i < n; ++i) {
+        Real row_sum = 0.0;
+        for (int j = 0; j < n; ++j) {
+            row_sum += T_mat(i,j);
+        }
+        max_dev = std::max(max_dev, std::abs(row_sum - 1.0));
+    }
+    Print() << "compute_T_matrix: max |T*1 - 1| = " << max_dev << std::endl;
 }
 
 

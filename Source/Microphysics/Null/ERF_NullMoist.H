@@ -170,12 +170,12 @@ protected:
     void
     set_anelastic_reference_pressure_mode (const SolverChoice& sc)
     {
-        if (sc.anelastic.empty()) {
+        if (sc.compressibility_type.empty()) {
             m_use_anelastic_reference_pressure = false;
         } else {
             AMREX_ALWAYS_ASSERT(
-                m_level < static_cast<int>(sc.anelastic.size()));
-            m_use_anelastic_reference_pressure = (sc.anelastic[m_level] == 1);
+                m_level < static_cast<int>(sc.compressibility_type.size()));
+            m_use_anelastic_reference_pressure = (sc.compressibility_type[m_level] != CompressibilityType::FullyCompressible);
         }
     }
 

@@ -5,7 +5,7 @@ max_step = 10
 
 amrex.fpe_trap_invalid = 1
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 
 erf.init_type = Uniform
 

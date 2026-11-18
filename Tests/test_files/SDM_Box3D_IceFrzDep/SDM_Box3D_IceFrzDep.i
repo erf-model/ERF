@@ -17,7 +17,7 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.00001     # fixed time step [s]
-erf.substepping_type = "None"
+erf.timestepping_type = "RK3_NoSubstepping"
 
 # initialization type
 erf.init_type = "Uniform"

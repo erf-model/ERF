@@ -10,12 +10,14 @@
 
 #include <ERFPC.H>
 #include <ERF_TerrainConversion.H>
+#include <AMReX_MultiFabUtil.H>
 
 template<typename ValueFunc>
 void ERFPC::ERFPCParticleToMesh (amrex::MultiFab& a_mf,
                                  const amrex::MultiFab& a_z_phys_nd,
                                  int a_lev, int a_comp,
-                                 ValueFunc&& value_func) const
+                                 ValueFunc&& value_func,
+                                 bool composite) const
 {
     using namespace amrex;
 
@@ -37,6 +39,21 @@ void ERFPC::ERFPCParticleToMesh (amrex::MultiFab& a_mf,
     const int  k_lo   = domain.smallEnd(AMREX_SPACEDIM-1);
     const bool per_x  = geom.isPeriodic(0);
     const bool per_y  = geom.isPeriodic(1);
+    const bool per_z  = geom.isPeriodic(AMREX_SPACEDIM-1);
+
+    iMultiFab owned;
+    if (composite) {
+        owned.define(a_mf.boxArray(), a_mf.DistributionMap(), 1, IntVect(1));
+        owned.setVal(0);
+        if (a_lev < finestLevel()) {
+            iMultiFab exposed = makeFineMask(a_mf, ParticleBoxArray(a_lev+1),
+                                             GetParGDB()->refRatio(a_lev), 1, 0);
+            iMultiFab::Copy(owned, exposed, 0, 0, 1, 0);
+        } else {
+            owned.setVal(1, 0, 1, 0);
+        }
+        owned.FillBoundary(geom.periodicity());
+    }
 
     a_mf.setVal(0.0);
 
@@ -53,6 +70,7 @@ void ERFPC::ERFPCParticleToMesh (amrex::MultiFab& a_mf,
 
         auto rho     = a_mf[grid].array();
         auto zheight = a_z_phys_nd[grid].array();
+        const Array4<const int> valid = composite ? owned.const_array(grid) : Array4<const int>{};
 
         const auto ptd = ptile.getConstParticleTileData();
 
@@ -139,15 +157,30 @@ void ERFPC::ERFPCParticleToMesh (amrex::MultiFab& a_mf,
 
             // Per-corner node-averaged cell thickness for volume normalization.
             auto dz_cell = [=] AMREX_GPU_DEVICE (int ic, int jc, int kc) -> Real {
-                const Real dz = Real(0.25) * (
-                      zheight(ic  , jc  , kc+1) - zheight(ic  , jc  , kc)
-                    + zheight(ic+1, jc  , kc+1) - zheight(ic+1, jc  , kc)
-                    + zheight(ic  , jc+1, kc+1) - zheight(ic  , jc+1, kc)
-                    + zheight(ic+1, jc+1, kc+1) - zheight(ic+1, jc+1, kc) );
-                return dz;
+                return ERFParticleGeometry::cell_thickness(zheight, ic, jc, kc);
             };
 
             const Real inv_dxdy = Real(1.0) / (dx * dy);
+
+            // Restrict appended-species CIC to the owning level's composite
+            // cells. Renormalization preserves each particle's mass at walls
+            // and coarse/fine edges without creating another grid reservoir.
+            Real weight = Real(1);
+            if (composite) {
+                weight = Real(0);
+                for (int iz = 0; iz < 2; ++iz) {
+                    const int kc = iz ? kz_hi : kz_lo;
+                    const Real wz = iz ? wz_hi : wz_lo;
+                    for (int jy = 0; jy < 2; ++jy) {
+                        for (int jx = 0; jx < 2; ++jx) {
+                            if (valid(ix+jx, iy+jy, kc)) {
+                                weight += (jx ? wx1 : wx0) * (jy ? wy1 : wy0) * wz;
+                            }
+                        }
+                    }
+                }
+                AMREX_ALWAYS_ASSERT(weight > Real(0));
+            }
 
             auto deposit = [=] AMREX_GPU_DEVICE (int ic, int jc, int kc, Real w_horiz, Real w_z)
             {
@@ -158,18 +191,16 @@ void ERFPC::ERFPCParticleToMesh (amrex::MultiFab& a_mf,
                 // ghost nodes outside the domain are not filled), and 0/0 raises
                 // an invalid-operation FPE.
                 if (w_horiz == Real(0.0) || w_z == Real(0.0)) { return; }
+                if (composite && !valid(ic,jc,kc)) { return; }
 
-                // Clamp only for the dz lookup; still write to the ghost rho cell. In a
-                // periodic direction the exterior nodes hold the wrapped image, so the
-                // unclamped stencil already gives the thickness of the cell SumBoundary
-                // folds into; only the non-periodic exterior nodes need clamping.
+                // A corner outside a non-periodic boundary folds into the boundary cell; SumBoundary wraps periodic ones.
                 const int ic_dz = per_x ? ic : amrex::max(i_lo, amrex::min(i_hi, ic));
                 const int jc_dz = per_y ? jc : amrex::max(j_lo, amrex::min(j_hi, jc));
                 const int kc_dz = amrex::max(k_lo, amrex::min(k_max, kc));
                 const Real dz = dz_cell(ic_dz, jc_dz, kc_dz);
                 AMREX_ALWAYS_ASSERT(dz > Real(0.0));
-                const Real contrib = pval * w_horiz * w_z * inv_dxdy / dz;
-                Gpu::Atomic::AddNoRet(&rho(ic, jc, kc, a_comp), contrib);
+                const Real contrib = pval * w_horiz * w_z * inv_dxdy / (dz * weight);
+                Gpu::Atomic::AddNoRet(&rho(ic_dz, jc_dz, per_z ? kc : kc_dz, a_comp), contrib);
             };
 
             deposit(ix  , iy  , kz_lo, wx0*wy0, wz_lo);

@@ -5,7 +5,9 @@ on:
     branches: [development]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -18,7 +20,9 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -26,6 +30,9 @@ on:
       - '.github/workflows/cuda-ci.yml'
       - '.github/actions/**'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 # Development pushes finish the active run and keep only the newest pending commit.
 # PR cancellation and commit-specific manual groups stay unchanged.
@@ -67,7 +74,7 @@ jobs:
             cuda_pkg: 12-2
             cuda_arch: "8.0"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -90,7 +97,7 @@ jobs:
       - name: Restore legacy Actions cache
         if: steps.ghcr-cache.outputs.hit != 'true'
         continue-on-error: true
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ccache
           key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
@@ -98,6 +105,7 @@ jobs:
                ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-
       - name: Show disk space
         run: df -h
+      # Also builds the SDM ML-uphys diagnostics (build only, no tests).
       - name: Configure and build
         shell: bash
         run: |
@@ -120,9 +128,10 @@ jobs:
             -DERF_ENABLE_MPI:BOOL=ON \
             -DERF_ENABLE_CUDA:BOOL=ON \
             -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
-            -DERF_ENABLE_FIRE:BOOL=ON \
+            -DERF_ENABLE_MOVING_BODIES:BOOL=ON \
             -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
             -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
+            -DERF_ENABLE_ML_UPHYS_DIAGNOSTICS:BOOL=ON \
             -DERF_TEST_NRANKS:STRING=2 \
             -DERF_ENABLE_UNIT_TESTS:BOOL=ON .
           echo "Building with $(nproc) processes"
@@ -153,6 +162,10 @@ jobs:
         shell: bash
         run: |
           build_log="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt"
+          if [ ! -f "$build_log" ] || [ ! -r "$build_log" ]; then
+            echo "::error::Missing or unreadable build log: $build_log"
+            exit 1
+          fi
           diagnostics="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-diagnostics.txt"
           grep -Ei "warning:|warning #|error:|error #" "$build_log" \
             | grep -Ev "Submodules/(amrex|AMReX|googletest)" \

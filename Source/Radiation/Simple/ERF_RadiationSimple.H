@@ -49,21 +49,14 @@ public:
                       amrex::MultiFab* qheating_rates,
                       amrex::MultiFab* rad_fluxes,
                       amrex::MultiFab* z_phys,
+                      amrex::MultiFab* z_sfc,
                       amrex::MultiFab* lat,
                       amrex::MultiFab* lon,
-                      const bool updated_lsm,
+                      const bool force_update,
                       amrex::Real& declin,
                       amrex::Real& calday) override;
 
     virtual void WriteDataLog (const double &time) override;
-
-    // Run's column sweep needs every box to span the level's domain in z. A fine level that
-    // does not (a partial-height patch) skips the sweep and ERF interpolates its heating
-    // from the parent (ERF::rad_level_needs_interpolation), as for RRTMGP.
-    bool is_nested_patch () const override { return m_partial_columns; }
-
-    const amrex::MultiFab *get_radlwdn () { return radlwdn.get(); }
-    const amrex::MultiFab *get_radqrlw () { return radqrlw.get(); }
 
 private:
     bool m_have_qv = false;
@@ -78,9 +71,24 @@ private:
     bool m_partial_columns = false;
 
     amrex::MultiFab deltaq, flux;
-    std::unique_ptr<amrex::MultiFab> radlwdn;
-    std::unique_ptr<amrex::MultiFab> radqrlw;
 
+    // Holds output for the datalog: cell-centred profiles, and the net flux on the surface
+    // and top-of-atmosphere faces (one cell thick in z)
+    amrex::MultiFab datalog_mf;
+    amrex::MultiFab datalog_bdy_mf;
+
+    // Layout of datalog_mf: height above ground, net lw flux (averaged from the faces) and
+    // lw heating rate, all at cell centers
+    static constexpr int dl_z_comp       = 0;
+    static constexpr int dl_flux_comp    = 1;
+    static constexpr int dl_heating_comp = 2;
+    static constexpr int n_datalog_comp  = 3;
+
+    // Layout of datalog_bdy_mf: net lw flux on the surface and top faces, then the top-face height
+    static constexpr int bdy_sfc_comp       = 0;
+    static constexpr int bdy_toa_comp       = 1;
+    static constexpr int bdy_ztop_comp      = 2;
+    static constexpr int n_datalog_bdy_comp = 3;
 };
 
 #endif

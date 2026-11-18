@@ -9,6 +9,7 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
 #include "ERF_PBLScaleAwareBlending.H"
+#include "ERF_PBLRibCrossing.H"
 
 using namespace amrex;
 
@@ -27,6 +28,7 @@ using namespace amrex;
  * @param[in] level Current AMR level.
  * @param[in] bc_ptr Boundary condition records.
  * @param[in] z_phys_nd Nodal physical heights.
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Cell-centered physical heights.
  * @param[in] moisture_indices Indices for moisture variables.
  */
@@ -44,9 +46,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const std::unique_ptr<MultiFab>& z_sfc_nd,
                        const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices,
-                       const MultiFab* terrain_blank)
+                       const MultiFab* terrain_blank,
+                       const MultiFab* Q_fire_atm)
 {
     const StratType pbl_strat = turbChoice.pbl_strat_type;
     /*
@@ -69,7 +73,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
     - Hong, S. Y., Y. Noh, and J. Dudhia, 2006: A new vertical diffusion
       package with an explicit treatment of entrainment processes. Monthly
-      Weather Review, 134, 2318-2341. https://doi.org/10.1175/MWR3250.1
+      Weather Review, 134, 2318-2341. https://doi.org/10.1175/MWR3199.1
       (YSU scheme, used for free atmosphere mixing)
 
     CORE ALGORITHM (Hong & Pan 1996):
@@ -95,6 +99,19 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     4. Free Atmosphere Mixing via Richardson Number
        - Uses YSU stability functions (Hong et al. 2006)
        - Ri-dependent diffusivity above the PBL top only (module_bl_mrf.F L988 on)
+
+    FIRE COUPLING (ERF_USE_FIRE):
+    -----------------------------
+    Fire heat flux augments the convective velocity scale w* used in the
+    K-profile amplitude: K = rho * w*_eff * kappa * z * (1 - z/h)^2.
+    The PBLH itself (corrector) is NOT modified by fire, only w* is boosted.
+
+    w*_fire = (g/theta * kbfs_total * h_corr)^(1/3),  w*_eff = max(w*_fire, w*)
+
+    where kbfs_total = kbfs_MOST + Q_fire/(rho*Cp), w* is the Pass 4 velocity
+    scale and h_corr the final corrected PBLH. The boost is applied only in
+    columns where Q_fire exceeds mrf_fire_q_threshold
+    (erf.pbl_mrf_fire_thermal_excess = true); HGAMT/HGAMQ keep the unboosted w*.
 
     ENHANCEMENTS IN ERF IMPLEMENTATION:
     -----------------------------------
@@ -137,7 +154,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
        - Pr_t = φ_t/φ_m + const_b * κ * sf
        - Bounded: 0.5 ≤ Pr_t ≤ 4.0
        - Consistency with WRF: const_b = 7.8, sf = 0.1
-       - Reference: Hong et al. (2006), Equation A17
+       - Reference: Hong et al. (2006), Pr0 defined with Equation A4
 
     PARAMETER DEFAULTS (Matching WRF):
     -----------------------------------
@@ -195,9 +212,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     ---------------------------------
     With the K-profile applied in every regime, this scheme inherits WRF MRF's
     over-mixing of stable boundary layers: on GABLS1 its peak K_m is roughly
-    2.1x YSUNew.  That is the behaviour Hong et al. (2006) set out to fix in YSU,
-    so stable cases that need the weaker mixing should use the YSUNew scheme
-    (erf.pbl_type = YSUNew).
+    2.1x YSU.  That is the behaviour Hong et al. (2006) set out to fix in YSU,
+    so stable cases that need the weaker mixing should use the YSU scheme
+    (erf.pbl_type = YSU).
 
     TESTING & VALIDATION:
     ---------------------
@@ -262,6 +279,7 @@ if (ng_pblh > 1) {
     limit_by(SurfLayer->get_mac_avg(level, 4));
     limit_by(SurfLayer->get_lmask(level));
     limit_by((use_terrain_fitted_coords) ? z_phys_nd.get() : nullptr);
+    limit_by((use_terrain_fitted_coords) ? z_sfc_nd.get() : nullptr);
     if (ng_pblh > ng_avail) {
         amrex::Abort("erf.pblh_smoothing_passes = " + std::to_string(turbChoice.pblh_smoothing_passes)
                    + " needs " + std::to_string(ng_pblh) + " halo columns, but the fields the "
@@ -269,9 +287,28 @@ if (ng_pblh > 1) {
                    + "; reduce erf.pblh_smoothing_passes to at most " + std::to_string(ng_avail));
     }
 }
+// The fire heat flux (erf.pbl_mrf_fire_thermal_excess) is read in every column the
+// passes cover, the halo included, so it has to carry that many ghost columns.
+if (Q_fire_atm != nullptr && turbChoice.mrf_fire_thermal_excess) {
+    const int ng_fire = std::min(Q_fire_atm->nGrowVect()[0], Q_fire_atm->nGrowVect()[1]);
+    if (ng_fire < ng_pblh) {
+        amrex::Abort("erf.pbl_mrf_fire_thermal_excess reads the fire heat flux in "
+                   + std::to_string(ng_pblh) + " halo columns, but the flux carries only "
+                   + std::to_string(ng_fire) + "; reduce erf.pblh_smoothing_passes to at most "
+                   + std::to_string(ng_fire));
+    }
+}
+
+// Maxima over the level of the fire w* boost, printed once below
+const bool use_fire_correction = (Q_fire_atm != nullptr) && turbChoice.mrf_fire_thermal_excess;
+Real fire_pblh_max_pred = Real(0);
+Real fire_pblh_max_corr = Real(0);
+Real fire_wstar_max     = Real(0);
+Real fire_kbfs_max      = Real(0);
 
 #ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion()) \
+    reduction(max:fire_pblh_max_pred,fire_pblh_max_corr,fire_wstar_max,fire_kbfs_max)
 #endif
 
     for (MFIter mfi(eddyViscosity, TileNoZ()); mfi.isValid(); ++mfi) {
@@ -310,6 +347,7 @@ if (ng_pblh > 1) {
         FArrayBox hgamq_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
         FArrayBox wstar_fab(xybx_work, 1, The_Async_Arena());  // Convective velocity scale
         FArrayBox vpert_fab(xybx_work, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT
+        FArrayBox kbfs_fire_fab(xybx_work, 1, The_Async_Arena());  // Fire kinematic buoyancy flux [K m/s] per column
         FArrayBox pblh_floor_fab(xybx_work, 1, The_Async_Arena());  // Floor of the corrected height per column, reapplied after the smoothing
         const auto& pblh_pred_arr   = pbl_height_predictor.array();  // predictor (base t_layer_v)
         const auto& pblh_corr_arr   = pbl_height_corrector.array();  // corrector (VPERT-enhanced)
@@ -320,6 +358,7 @@ if (ng_pblh > 1) {
         const auto& hgamq_arr       = hgamq_fab.array();
         const auto& wstar_arr       = wstar_fab.array();
         const auto& vpert_arr       = vpert_fab.array();
+        const auto& kbfs_fire_arr   = kbfs_fire_fab.array();  // Fire kinematic buoyancy flux
 
         // Get some data in arrays
         const auto& cell_data = cons_in.const_array(mfi);
@@ -338,7 +377,15 @@ if (ng_pblh > 1) {
         // Only retrieve z_phys_nd array if terrain-fitted coordinates are in use
         const Array4<Real const> z_nd_arr = use_terrain_fitted_coords ? z_phys_nd->array(mfi)
                                                                       : Array4<Real const>{};
+        const Array4<Real const> z_sfc_arr = use_terrain_fitted_coords ? z_sfc_nd->const_array(mfi)
+                                                                       : Array4<Real const>{};
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
+
+        // Fire heat flux array and flags
+        const Array4<Real const> Q_fire_arr = use_fire_correction
+                                            ? Q_fire_atm->const_array(mfi)
+                                            : Array4<Real const>{};
+        const Real mrf_fire_q_thresh = turbChoice.mrf_fire_q_threshold;
 
         //
         // PASS 1 (PREDICTOR): Compute PBL height using base surface virtual temperature.
@@ -400,7 +447,7 @@ if (ng_pblh > 1) {
                     us_eff_arr(i, j, 0)  = amrex::max(KAPPA * ws_top / std::log(myhalf * dz_ib / z0_ib), Real(1.0e-3));
                     ts_eff_arr(i, j, 0)  = Real(0);
                     qs_eff_arr(i, j, 0)  = Real(0);
-                    ol_eff_arr(i, j, 0)  = Real(1.0e10);
+                    ol_eff_arr(i, j, 0)  = immersed_neutral_obukhov_length;
                     t10_eff_arr(i, j, 0) = cell_data(i, j, ks, RhoTheta_comp) / cell_data(i, j, ks, Rho_comp);
                     q10_eff_arr(i, j, 0) = (use_moisture && moisture_indices.qv >= 0)
                                          ? cell_data(i, j, ks, moisture_indices.qv) / cell_data(i, j, ks, Rho_comp) : Real(0);
@@ -414,6 +461,10 @@ if (ng_pblh > 1) {
                 }
             });
         }
+
+        // For the thickness of the first fluid cell in the PBL-height floor of both Rib passes
+        // (the same expression as in YSU, so the two floors are equal to the last bit)
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv_floor = geom.InvCellSizeArray();
 
         ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
@@ -429,7 +480,7 @@ if (ng_pblh > 1) {
 
             {
                 zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_sfc_arr, z_nd_arr)
                      : ((kpbl + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), Real(1.0));
@@ -455,7 +506,7 @@ if (ng_pblh > 1) {
                 kpbl += 1;
 
                 zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_sfc_arr, z_nd_arr)
                      : ((kpbl + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), Real(1.0));
@@ -472,14 +523,20 @@ if (ng_pblh > 1) {
                 above_critical = (Rib >= Ribcr);
             }
 
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
+            // The floor is the top face of the column's first fluid cell (see pblh_floor),
+            // as in YSU: zl1 is the height of that cell's center above the local surface
+            // and dz1 its thickness, on every mesh type.
+            const Real zl1 = (use_terrain_fitted_coords)
+                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
+                           : myhalf * gdata.CellSize(2);
+            const Real dz1 = (use_terrain_fitted_coords)
+                           ? Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv_floor, z_nd_arr) / dxInv_floor[2]
+                           : gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
-                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : ((khi + myhalf) * gdata.CellSize(2) - zib);
             const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+            const Real pblh_min = pblh_floor(zl1, dz1);
 
             if (above_critical) {
                 Real pblh_interp;
@@ -569,6 +626,21 @@ if (ng_pblh > 1) {
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
 
+            // Fire kinematic buoyancy flux [K m/s] for the w* boost in Pass 4,
+            // kbfs_fire = Q_fire / (rho_sfc * Cp_d). Fire does not enter the PBLH.
+            // (FLARE's value of Cp_d, kept so its fire runs do not change; ERF_Constants has 1004.5)
+            constexpr Real Cp_d_fire = Real(1004.64);
+            Real kbfs_fire = zero_d;
+            if (use_fire_correction && Q_fire_arr) {
+                const Real rho_sfc = cell_data(i, j, ksrf, Rho_comp);
+                const Real q_fire  = Q_fire_arr(i, j, 0);
+                if (q_fire > mrf_fire_q_thresh && rho_sfc > zero_d) {
+                    // max() keeps the division valid if it is evaluated speculatively
+                    kbfs_fire = q_fire / (amrex::max(rho_sfc, Real(1.0e-10)) * Cp_d_fire);
+                }
+            }
+            kbfs_fire_arr(i, j, 0) = kbfs_fire;
+
             bool SFCFLG = (obuk_val <= zero_d);
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
                              ? amrex::min(-const_b * us_eff_arr(i, j, 0) * ts_eff_arr(i, j, 0) / wstar, GAMCRT)
@@ -643,7 +715,7 @@ if (ng_pblh > 1) {
             Real zval, Rib;
             {
                 zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_sfc_arr, z_nd_arr)
                      : ((kpbl + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), one_d);
@@ -666,7 +738,7 @@ if (ng_pblh > 1) {
                 kpbl += 1;
 
                 zval = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_sfc_arr, z_nd_arr)
                      : ((kpbl + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), one_d);
@@ -682,14 +754,20 @@ if (ng_pblh > 1) {
                 above_critical = (Rib >= Ribcr);
             }
 
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
+            // The floor is the top face of the column's first fluid cell (see pblh_floor),
+            // as in YSU: zl1 is the height of that cell's center above the local surface
+            // and dz1 its thickness, on every mesh type.
+            const Real zl1 = (use_terrain_fitted_coords)
+                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
+                           : myhalf * gdata.CellSize(2);
+            const Real dz1 = (use_terrain_fitted_coords)
+                           ? Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv_floor, z_nd_arr) / dxInv_floor[2]
+                           : gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
-                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_nd_arr)
+                             ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : ((khi + myhalf) * gdata.CellSize(2) - zib);
             const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+            const Real pblh_min = pblh_floor(zl1, dz1);
 
             if (above_critical) {
                 Real pblh_interp;
@@ -751,7 +829,7 @@ if (ng_pblh > 1) {
             const Box& tbx = mfi.tilebox();
             // The scheme measures its height from the top of an immersed column
             // (zib); the stored field is the absolute height above the domain
-            // bottom, the convention of YSUNew and of every consumer of
+            // bottom, the convention of YSU and of every consumer of
             // SurfaceLayer::get_pblh(). zib is zero without erf.pbl_ib_aware.
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 pblh_out(i, j, k) = pblh_corr_arr(i, j, 0) + zib_arr(i, j, 0);
@@ -814,7 +892,19 @@ if (ng_pblh > 1) {
             //Real wstar = us_eff_arr(i, j, 0) / phiM_safe;
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
-            wstar_arr(i, j, 0) = wstar;
+
+            // Fire boost (Deardorff 1970): where Pass 2 found a fire flux, use the
+            // convective scale of the surface plus fire buoyancy flux over the
+            // corrected PBLH if it is larger. Fire only increases w*; HGAMT/HGAMQ
+            // below keep the unboosted w*. An immersed column (erf.pbl_ib_aware) takes
+            // its own surface scales, as the rest of the pass. Every input is valid for every column,
+            // so nothing traps if the arm is evaluated speculatively.
+            const Real kbfs_fire  = kbfs_fire_arr(i, j, 0);
+            const Real kbfs_total = amrex::max(-us_eff_arr(i, j, 0) * ts_eff_arr(i, j, 0) + kbfs_fire,
+                                               Real(0));
+            const Real wstar_fire = std::cbrt(CONST_GRAV / amrex::max(t10_eff_arr(i, j, 0), Real(1.0))
+                                              * kbfs_total * pblh_corr_arr(i, j, 0));
+            wstar_arr(i, j, 0) = (kbfs_fire > Real(0)) ? amrex::max(wstar_fire, wstar) : wstar;
             bool SFCFLG = (obuk_val <= Real(0));
             // WRF caps the heat countergradient at GAMCRT and then floors it at zero:
             //   HGAMT(I)=MIN(GAMFAC*HFX(I)/CPM(I),GAMCRT)   (module_bl_mrf.F L874)
@@ -892,7 +982,7 @@ if (ng_pblh > 1) {
             Real zval_zero, Rib_zero;
             {
                 zval_zero = (use_terrain_fitted_coords)
-                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
+                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_sfc_arr, z_nd_arr)
                           : ((kpbl_zero + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), one_d);
@@ -911,7 +1001,7 @@ if (ng_pblh > 1) {
             while (!above_critical_zero && ((kpbl_zero + 1) <= khi)) {
                 kpbl_zero += 1;
                 zval_zero = (use_terrain_fitted_coords)
-                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_nd_arr)
+                          ? Compute_Zrel_AtCellCenter(i, j, kpbl_zero, z_sfc_arr, z_nd_arr)
                           : ((kpbl_zero + myhalf) * gdata.CellSize(2) - zib);
                 const Real theta_v     = GetThetav(i, j, kpbl_zero, cell_data, moisture_indices);
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, ksrf, cell_data, moisture_indices), one_d);
@@ -936,6 +1026,14 @@ if (ng_pblh > 1) {
             }
         });
 
+        // Fire diagnostics, after the final corrector and the w* boost
+        if (use_fire_correction) {
+            fire_pblh_max_pred = amrex::max(fire_pblh_max_pred, pbl_height_predictor.max<RunOn::Device>(0));
+            fire_pblh_max_corr = amrex::max(fire_pblh_max_corr, pbl_height_corrector.max<RunOn::Device>(0));
+            fire_wstar_max     = amrex::max(fire_wstar_max,     wstar_fab.max<RunOn::Device>(0));
+            fire_kbfs_max      = amrex::max(fire_kbfs_max,      kbfs_fire_fab.max<RunOn::Device>(0));
+        }
+
         // -- Compute diffusion coefficients --
 
         const Array4<Real>& K_turb = eddyViscosity.array(mfi);
@@ -956,6 +1054,9 @@ if (ng_pblh > 1) {
         const amrex::Real l_blend_length = turbChoice.pbl_blend_length;
         const amrex::Real l_blend_cs     = turbChoice.pbl_blend_cs;
         const amrex::Real l_blend_cmax   = turbChoice.pbl_blend_c_max;
+        // The scalars' Schmidt number relative to Pr_t (erf.pbl_mrf_Sc_t; 0: as heat)
+        const amrex::Real scalar_Sc_t = turbChoice.pbl_mrf_Sc_t;
+        const amrex::Real Pr_t_in     = turbChoice.Pr_t;
         //const bool        l_use_smag_ceil= turbChoice.pbl_blend_use_smag;
         // dx: use horizontal spacing at this level (assume dx = dy for regular grids).
         const amrex::Real l_dx = geom.CellSize(0);
@@ -971,7 +1072,7 @@ if (ng_pblh > 1) {
             }
 
             const Real zval = (use_terrain_fitted_coords)
-                            ? Compute_Zrel_AtCellCenter(i, j, k, z_nd_arr)
+                            ? Compute_Zrel_AtCellCenter(i, j, k, z_sfc_arr, z_nd_arr)
                             : ((k + myhalf) * gdata.CellSize(2) - zib);
             const Real rho = cell_data(i, j, k, Rho_comp);
             // Guard: skip lateral ghost cells that may have uninitialized density.
@@ -983,6 +1084,7 @@ if (ng_pblh > 1) {
                 K_turb(i, j, k, EddyDiff::Mom_v)   = Real(0);
                 K_turb(i, j, k, EddyDiff::Theta_v) = Real(0);
                 K_turb(i, j, k, EddyDiff::Q_v)     = Real(0);
+                K_turb(i, j, k, EddyDiff::Scalar_v) = Real(0);
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = Real(0);
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = Real(0);
                 K_turb(i, j, k, EddyDiff::Turb_lengthscale) = Real(0);
@@ -1068,26 +1170,29 @@ if (ng_pblh > 1) {
                 // The first-level offset ZL1 belongs to ZFAC alone: the linear factor
                 // is the full height above the surface, ZQ(I,K).  Subtracting zl1 from
                 // both drives K_m to exactly zero in the first fluid cell.
-                // ERF_ComputeDiffusivityYSUNew.cpp:1699-1720 splits them the same way.
+                // The YSU K profile (ERF_ComputeDiffusivityYSU.cpp, Step 5) splits them the same way.
                 //
                 // zval already measures height from the top of an immersed column (zib
                 // was subtracted where it was formed), so it is that height directly;
                 // zl1 is zval evaluated at the column's first fluid cell, so zval - zl1
                 // is exactly zero there in both the terrain and the non-terrain path.
                 const Real zl1 = (use_terrain_fitted_coords)
-                               ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                               ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                : ((ksrf + myhalf) * gdata.CellSize(2) - zib);
                 const Real pblh = pblh_corr_arr(i, j, 0);
-                // The Rib passes floor pblh at max(zl1, 10), so pblh - zl1 is exactly
-                // zero for any column whose height lands on that floor with a first
-                // layer thicker than 20 m -- and zval - zl1 is zero too at k == ksrf,
-                // making the quotient 0/0.  Guard it, as YSUNew does (line 1701).
+                // The Rib passes floor pblh at the top face of the first fluid cell
+                // (pblh_floor), half a cell above zl1, so pblh - zl1 is positive.  The
+                // lower bound below is kept as a guard, as in the YSU K profile; before
+                // the floor moved from zl1 to that face it kept 0/0 out of the first
+                // cell of a column on the floor.
                 const Real pblh_rel = amrex::max(pblh - zl1, Real(1.0e-4));
                 const Real zfac = amrex::max(Real(1) - (zval - zl1) / pblh_rel, Real(1.0e-8));
 
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rho * wstar * KAPPA * zval * zfac * zfac;
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
                 K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                // The passive scalars (rhoadv_0, dust, smoke) mix as heat does
+                K_turb(i, j, k, EddyDiff::Scalar_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             } else if (k >= pbli_extent) {
                 // Free atmosphere above the PBL top.  This is the only branch left that
                 // reads resolved vertical gradients, but they are not evaluated anywhere
@@ -1141,6 +1246,7 @@ if (ng_pblh > 1) {
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr_mom;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
                 K_turb(i, j, k, EddyDiff::Q_v)     = K_turb(i, j, k, EddyDiff::Theta_v);
+                K_turb(i, j, k, EddyDiff::Scalar_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             }
 
             // Scale-aware blending for grey-zone resolution (Boutle et al. 2014).
@@ -1163,6 +1269,11 @@ if (ng_pblh > 1) {
 
                 K_turb(i, j, k, EddyDiff::Q_v) = rho * pbl_kh_blend_and_cap(
                     K_turb(i, j, k, EddyDiff::Q_v) * rho_inv,
+                    l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
+                    amrex::Real(-1.0), false);
+
+                K_turb(i, j, k, EddyDiff::Scalar_v) = rho * pbl_kh_blend_and_cap(
+                    K_turb(i, j, k, EddyDiff::Scalar_v) * rho_inv,
                     l_dx, l_blend_length, l_blend_cs, l_blend_cmax,
                     amrex::Real(-1.0), false);
             }
@@ -1189,6 +1300,13 @@ if (ng_pblh > 1) {
                 std::min(K_turb(i, j, k, EddyDiff::Theta_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Q_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
+            K_turb(i, j, k, EddyDiff::Scalar_v) = std::max(
+                std::min(K_turb(i, j, k, EddyDiff::Scalar_v), rhoKmax), rhoKmin);
+            // erf.pbl_mrf_Sc_t: the scalars' turbulent Schmidt number, relative to the
+            // Prandtl number erf.Pr_t; unset (0), they mix as heat does
+            if (scalar_Sc_t > Real(0)) {
+                K_turb(i, j, k, EddyDiff::Scalar_v) *= Pr_t_in / scalar_Sc_t;
+            }
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0) + zib;   // absolute height, as stored
 
             // IMPORTANT — units convention for HGAMT_v / HGAMQ_v:
@@ -1221,17 +1339,30 @@ if (ng_pblh > 1) {
             K_turb(i, j, klo-1, EddyDiff::Mom_v  ) = K_turb(i, j, klo, EddyDiff::Mom_v  );
             K_turb(i, j, klo-1, EddyDiff::Theta_v) = K_turb(i, j, klo, EddyDiff::Theta_v);
             K_turb(i, j, klo-1, EddyDiff::Q_v    ) = K_turb(i, j, klo, EddyDiff::Q_v    );
+            K_turb(i, j, klo-1, EddyDiff::Scalar_v) = K_turb(i, j, klo, EddyDiff::Scalar_v);
             K_turb(i, j, klo-1, EddyDiff::HGAMT_v) = K_turb(i, j, klo, EddyDiff::HGAMT_v);
             K_turb(i, j, klo-1, EddyDiff::HGAMQ_v) = K_turb(i, j, klo, EddyDiff::HGAMQ_v);
             K_turb(i, j, klo-1, EddyDiff::Turb_lengthscale) = K_turb(i, j, klo, EddyDiff::Turb_lengthscale);
             K_turb(i, j, khi+1, EddyDiff::Mom_v  ) = K_turb(i, j, khi, EddyDiff::Mom_v  );
             K_turb(i, j, khi+1, EddyDiff::Theta_v) = K_turb(i, j, khi, EddyDiff::Theta_v);
             K_turb(i, j, khi+1, EddyDiff::Q_v    ) = K_turb(i, j, khi, EddyDiff::Q_v    );
+            K_turb(i, j, khi+1, EddyDiff::Scalar_v) = K_turb(i, j, khi, EddyDiff::Scalar_v);
             K_turb(i, j, khi+1, EddyDiff::HGAMT_v) = K_turb(i, j, khi, EddyDiff::HGAMT_v);
             K_turb(i, j, khi+1, EddyDiff::HGAMQ_v) = K_turb(i, j, khi, EddyDiff::HGAMQ_v);
             K_turb(i, j, khi+1, EddyDiff::Turb_lengthscale) = K_turb(i, j, khi, EddyDiff::Turb_lengthscale);
         });
     }// mfi
+
+    if (use_fire_correction) {
+        ParallelDescriptor::ReduceRealMax({fire_pblh_max_pred, fire_pblh_max_corr,
+                                           fire_wstar_max, fire_kbfs_max});
+        amrex::Print() << "[MRF FIRE] level " << level << " fire w* boost"
+                       << "  pblh_predictor_max=" << fire_pblh_max_pred << " m"
+                       << "  pblh_corrector_max=" << fire_pblh_max_corr << " m"
+                       << "  wstar_max=" << fire_wstar_max << " m/s"
+                       << "  kbfs_fire_max=" << fire_kbfs_max << " K m/s\n";
+    }
+
     // Write MRF-computed PBLH back into SurfaceLayer so Beljaars correction
     // and diagnostics can use it, and update_pblh no longer aborts for MRF type.
     SurfLayer->set_pblh(level, pblh_mf);

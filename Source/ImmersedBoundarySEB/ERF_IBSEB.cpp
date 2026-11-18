@@ -6,14 +6,17 @@
  * holds the places ERF calls into it:
  *  - init_ibseb() from ERF::InitData_post(), after the immersed forcing has
  *    built the blanking on a fresh start or a restart, with its start-up
- *    checks ibseb_check_refined_levels(), ibseb_check_sun_matches_two_stream()
- *    and ibseb_check_two_stream_provider();
+ *    checks ibseb_check_refined_levels(), ibseb_check_sun_matches_two_stream(),
+ *    ibseb_check_two_stream_provider() and ibseb_check_two_stream_buildings();
+ *    with the two-stream radiation it also has the columns see the buildings
+ *    (erf.ibseb.two_stream_buildings, TwoStreamRadiation::set_building_cover());
  *  - ibseb_advance() from ERF::Advance(), per level and step, which with
  *    erf.ibseb.sun_mode = two_stream hands the faces the two-stream sun of
  *    the step first (ibseb_set_two_stream_sun(), as init_ibseb() does). It
  *    runs at the start of the step, or with erf.ibseb.radiation = two_stream
  *    after the step's radiation (ibseb_after_radiation()), whose column sweep
- *    the faces then take;
+ *    the faces then take; either way before the two-stream ground balance's update
+ *    after the dycore, which takes the buildings' shadow on the ground it gives;
  *  - ibseb_write_checkpoint() from ERF::WriteCheckpointFile(), per level;
  *  - ibseb_report() from ERF::post_timestep().
  * The inputs are parsed in ERF::ReadParameters() into ``ERF::ibseb_params``.
@@ -49,7 +52,20 @@ using namespace amrex;
 void
 ERF::init_ibseb ()
 {
-    if (!ibseb_params.enable) { return; }
+    if (!ibseb_params.enable) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!ibseb_params.two_stream_roofs,
+            "erf.ibseb.two_stream_roofs = true needs erf.ibseb.enable = true: the roofs the columns start on are the"
+            " immersed-boundary balance's faces");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!ibseb_params.ground_sky_view,
+            "erf.ibseb.ground_sky_view = true needs erf.ibseb.enable = true: the walls that send to the ground are the"
+            " immersed-boundary balance's faces");
+        if (ibseb_params.two_stream_buildings_given) {
+            Print() << "WARNING: erf.ibseb.two_stream_buildings is given but erf.ibseb.enable is off, so it is"
+                       " ignored: the two-stream columns see the buildings only through the immersed-boundary"
+                       " balance.\n";
+        }
+        return;
+    }
     if (solverChoice.buildings_type != BuildingsType::ImmersedForcing) {
         Abort("erf.ibseb.enable needs erf.buildings_type = ImmersedForcing");
     }
@@ -82,6 +98,7 @@ ERF::init_ibseb ()
     ibseb_check_refined_levels();
     ibseb_check_sun_matches_two_stream();
     ibseb_check_two_stream_provider();
+    ibseb_check_two_stream_buildings();
     m_ibseb.resize(finest_level + 1);
     for (int lev = 0; lev <= finest_level; ++lev) {
         m_ibseb[lev] = std::make_unique<IBFaceSet>(ibseb_params, lev, solverChoice.moisture_indices.qv);
@@ -120,7 +137,25 @@ ERF::init_ibseb ()
                   " erf.interp_atmos_from_coarse or use erf.ibseb.radiation = prescribed");
         }
         if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()) {
-            two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface());
+            two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface(), ibseb_params.ground_view_shadow);
+        }
+        // The columns see the buildings: their solid cells and footprints from the blanking,
+        // and every step the shadow on the ground (ibseb_advance()). Every level, faces or
+        // not: a refined level without buildings of its own is still shaded by those
+        // outside it (add_outside_occluders() above).
+        if (ibseb_two_stream_buildings()) {
+            two_stream_rad.set_building_cover(lev, *terrain_blanking[lev], geom[lev].Domain(),
+                                              ibseb_params.ground_sky_view, ibseb_params.two_stream_roofs);
+            if (ibseb_params.two_stream_roofs && !two_stream_rad.starts_on_roofs(lev)) {
+                Print() << "NOTE: erf.ibseb.two_stream_roofs: level " << lev << " does not sweep its own columns: it"
+                           " takes its heating rates and fluxes from the level below, whose columns start on"
+                           " that level's roofs.\n";
+            }
+            if (ibseb_params.ground_sky_view && !two_stream_rad.takes_ground_walls(lev)) {
+                Print() << "NOTE: erf.ibseb.ground_sky_view: level " << lev << " has no ground balance on its own"
+                           " two-stream sweep (its radiation comes from the level below), so its ground takes"
+                           " nothing from the walls.\n";
+            }
         }
         // The face records of the checkpoint (IBFaceSet::read_state() checks
         // the layer count, the domain and the faces against this level and
@@ -160,7 +195,16 @@ ERF::init_ibseb ()
         }
         ibseb_set_two_stream_sun(lev, t_new[lev]);
         m_ibseb[lev]->compute_shortwave(t_new[lev]);
+        // The buildings' shadow on the ground under this sun, for the plotfile written now
+        // (the first step gives it again for its own sun).
+        if (solverChoice.rad_type == RadiationType::TwoStream) {
+            if (MultiFab* shadow = two_stream_rad.ground_shadow_for_step(lev, istep[lev])) {
+                m_ibseb[lev]->compute_ground_shadow(*shadow);
+            }
+        }
         m_ibseb[lev]->compute_longwave(vars_new[lev][Vars::cons]);
+        // What the walls send to the ground, for the plotfile written now.
+        ibseb_give_ground_walls(lev);
         m_ibseb[lev]->compute_sensible(vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
                                        vars_new[lev][Vars::yvel], vars_new[lev][Vars::zvel], solverChoice.c_p);
         if (!state_file.empty()) { m_ibseb[lev]->read_state(state_file); }
@@ -414,8 +458,114 @@ ERF::ibseb_check_two_stream_provider () const
 }
 
 /**
+ * Start-up checks of erf.ibseb.two_stream_buildings (called by init_ibseb()).
+ *
+ * The input acts only on the two-stream radiation: given without it, the run stops,
+ * or warns when erf.radiation_model names another model. With it on, two notes:
+ * a land-surface model keeps its own ground, which nothing here masks or shades;
+ * and a ground balance on the fixed erf.radiation.seb_sw_flux_default (without
+ * erf.radiation.seb_use_radiation_fluxes) has no beam to take off the shaded ground,
+ * so only its footprints are held.
+ */
+void
+ERF::ibseb_check_two_stream_buildings () const
+{
+    const IBSEBParams& p = ibseb_params;
+    // erf.ibseb.two_stream_roofs changes the two-stream columns under the buildings, which
+    // the columns must see: without these it would do nothing, so the run stops.
+    // A land-surface model takes the radiation at the ground of every column, and the
+    // ground under a roof gets none, so that combination stops too.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !p.two_stream_roofs || (solverChoice.rad_type == RadiationType::TwoStream && p.two_stream_buildings &&
+                                solverChoice.lsm_type == LandSurfaceType::None),
+        "erf.ibseb.two_stream_roofs = true needs erf.radiation_model = TwoStream and erf.ibseb.two_stream_buildings = true,"
+        " and no land-surface model");
+    // erf.ibseb.ground_sky_view changes the two-stream ground balance on the sweep's
+    // fluxes, where the ground takes the buildings' shadow: without one of these it
+    // would do nothing, so the run stops.
+    if (p.ground_sky_view) {
+        const RadChoice& rc = solverChoice.radChoice;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            solverChoice.rad_type == RadiationType::TwoStream && p.two_stream_buildings && p.radiation == "two_stream" &&
+            rc.seb_enable && rc.seb_use_radiation_fluxes && rc.sw_enabled && rc.lw_enabled &&
+            solverChoice.lsm_type == LandSurfaceType::None,
+            "erf.ibseb.ground_sky_view = true needs erf.radiation_model = TwoStream, erf.ibseb.two_stream_buildings = true,"
+            " erf.ibseb.radiation = two_stream, erf.radiation.seb_enable = true, erf.radiation.seb_use_radiation_fluxes = true,"
+            " erf.radiation.sw_enabled = true, erf.radiation.lw_enabled = true and no land-surface model");
+    }
+    if (solverChoice.rad_type != RadiationType::TwoStream) {
+        if (p.two_stream_buildings_given) {
+            ParmParse pp_erf("erf");
+            const std::string what = "erf.ibseb.two_stream_buildings acts only on the two-stream radiation"
+                                     " (erf.radiation_model = TwoStream)";
+            if (pp_erf.contains("radiation_model")) {
+                Print() << "WARNING: " << what << "; the deck names another radiation model (or None), so it is ignored.\n";
+            } else {
+                Abort(what + ", and the deck sets no erf.radiation_model; remove it or set the model");
+            }
+        }
+        return;
+    }
+    if (!p.two_stream_buildings) { return; }
+    const RadChoice& rc = solverChoice.radChoice;
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        Print() << "WARNING: erf.ibseb.two_stream_buildings: the land-surface model keeps its own ground,"
+                   " which the buildings neither cover nor shade.\n";
+    }
+    if (rc.seb_enable && !rc.seb_use_radiation_fluxes) {
+        Print() << "NOTE: erf.ibseb.two_stream_buildings: the two-stream ground balance takes the fixed"
+                   " erf.radiation.seb_sw_flux_default (erf.radiation.seb_use_radiation_fluxes is off), so"
+                   " there is no beam to take off the ground the buildings shade; only the ground under"
+                   " the buildings is held.\n";
+    }
+    if (rc.seb_enable && rc.seb_use_radiation_fluxes && !rc.sw_enabled) {
+        Print() << "NOTE: erf.ibseb.two_stream_buildings: the shortwave is off (erf.radiation.sw_enabled), so"
+                   " there is no beam to take off the ground the buildings shade and no shadow is cast; only"
+                   " the ground under the buildings is held.\n";
+    }
+}
+
+/**
+ * erf.ibseb.two_stream_roofs: before the two-stream sweep of @p lev, hand it the roof
+ * face of each column under a building, as the faces hold it now (a no-op where the
+ * columns do not start on roofs). The roofs' shadow is cast under the sun at the time of
+ * that sweep (the start of the step), so it is the same in a restarted run.
+ */
+void
+ERF::ibseb_give_roofs (int lev)
+{
+    if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
+    if (solverChoice.rad_type != RadiationType::TwoStream) { return; }
+    const iMultiFab* roof_cell = two_stream_rad.roof_cell(lev);
+    if (roof_cell == nullptr) { return; }
+    // What does not change (that a roof stands there, its albedo and emissivity) with the first field only.
+    const bool first = !two_stream_rad.roofs_given(lev);
+    if (MultiFab* roofs = two_stream_rad.roofs_for_step(lev, istep[lev])) {
+        // The sweep that follows is at the start of the step (ERF::advance_radiation()).
+        ibseb_set_two_stream_sun(lev, t_old[lev]);
+        m_ibseb[lev]->fill_roofs(*roofs, *roof_cell, first, t_old[lev]);
+    }
+}
+
+/**
+ * erf.ibseb.ground_sky_view: have the faces of @p lev form what the walls send to the
+ * ground this step and hand it to the two-stream ground balance (a no-op where that
+ * balance takes none). The walls' share of the view depends on the geometry alone and
+ * is formed with the first field only.
+ */
+void
+ERF::ibseb_give_ground_walls (int lev)
+{
+    if (solverChoice.rad_type != RadiationType::TwoStream) { return; }
+    const bool first = (two_stream_rad.ground_walls(lev) == nullptr);
+    if (MultiFab* to_ground = two_stream_rad.ground_walls_for_step(lev, istep[lev])) {
+        m_ibseb[lev]->compute_ground_walls(*to_ground, first);
+    }
+}
+
+/**
  * Hand one level's face set the two-stream sun at a time, for its next
- * shortwave (erf.ibseb.sun_mode = two_stream; a no-op otherwise): the
+ * shortwave or roofs' shadow (erf.ibseb.sun_mode = two_stream; a no-op otherwise): the
  * declination, the distance factor and the calendar day from the start date
  * through two_stream_sun_date(), the shared routine of the two-stream sweep;
  * the hour angle of the same orbital formula (ibseb::orbital_hour_angle()) at
@@ -424,7 +574,7 @@ ERF::ibseb_check_two_stream_provider () const
  * factor.
  *
  * @param[in] lev   Level whose face set takes the sun.
- * @param[in] time  Simulation time [s] of the shortwave that follows.
+ * @param[in] time  Simulation time [s] of the shortwave, or of the roofs' shadow, that follows.
  */
 void
 ERF::ibseb_set_two_stream_sun (int lev, Real time)
@@ -488,7 +638,17 @@ ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
     }
     ibseb_set_two_stream_sun(lev, time);
     m_ibseb[lev]->compute_shortwave(time, canopy);
+    // The buildings' shadow on the ground of this step, under the sun just placed, for the
+    // two-stream ground balance's update after the dycore (erf.ibseb.two_stream_buildings).
+    if (solverChoice.rad_type == RadiationType::TwoStream) {
+        if (MultiFab* shadow = two_stream_rad.ground_shadow_for_step(lev, istep[lev])) {
+            m_ibseb[lev]->compute_ground_shadow(*shadow);
+        }
+    }
     m_ibseb[lev]->compute_longwave(cons, canopy);
+    // What the walls send to the ground this step, from the shortwave and longwave just
+    // placed and the faces' skin temperature at the start of the step (erf.ibseb.ground_sky_view).
+    ibseb_give_ground_walls(lev);
     // The ground surface layer's fields and the mixed-layer depth
     // for the wall function beyond neutral (all null / zero unless asked).
     const MultiFab* olen2d = nullptr;
@@ -498,7 +658,9 @@ ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
     // here is the ground beneath the buildings, so take zlo; a surface layer on a
     // lateral or upper wall says nothing about the stability of this column.
     const auto& ground_sl = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
-    if (ground_sl && ibseb_params.stability_correction) { olen2d = ground_sl->get_olen(lev); }
+    if (ground_sl && ibseb_params.stability_correction && ibseb_params.stability_scheme == "iterative") {
+        olen2d = ground_sl->get_olen(lev);   // seed of the iteration; the Louis factors need none
+    }
     if (ibseb_params.convective_velocity == "deardorff") {
         if (ground_sl && ground_sl->computes_pblh() && ibseb_params.z_i_mode == "pblh") {
             pblh2d = ground_sl->get_pblh(lev);

@@ -496,7 +496,12 @@ Real compute_F_for_temp_in_zone (const Real T_b, const Real p_b, const Real q_t,
     Real q_v = vapor_mixing_ratio(p_b, T_b, RH, use_empirical, which_zone);
     Real p_s = compute_saturation_pressure(T_b, use_empirical);
     Real p_v = compute_vapor_pressure(p_s, RH);
-    return eq_pot_temp - T_b*std::pow((p_b - p_v)/p_0, -R_d/fac)*std::exp(L_v*q_v/(fac*T_b));
+    // Relative-humidity factor H^(-r_v R_v / fac) of Emanuel (1994, eq. 4.5.11);
+    // exactly 1 in saturated zones (RH = 1)
+    Real H = amrex::max(Real(1.e-10), amrex::min(Real(1.0), RH));
+    return eq_pot_temp - T_b*std::pow((p_b - p_v)/p_0, -R_d/fac)
+                       *std::exp(-(q_v*R_v/fac)*std::log(H))
+                       *std::exp(L_v*q_v/(fac*T_b));
 }
 
 AMREX_FORCE_INLINE

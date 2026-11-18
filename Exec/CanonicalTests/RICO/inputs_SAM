@@ -96,6 +96,6 @@ prob.advection_moisture_rate  = -1.2E-8
 prob.moisture_source_cutoff   = 300.0
 
 prob.wbar_sub_max    = -0.0065
-prob.wbar_cutoff_max = 1500.0
+prob.wbar_cutoff_max = 2260.0
 
 prob.custom_TKE      = true

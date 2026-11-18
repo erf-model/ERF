@@ -22,6 +22,8 @@ public:
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
                   const amrex::MultiFab& mf_SMark,
+                  const amrex::MultiFab* z_phys_nd,
+                  const amrex::MultiFab* z_phys_cc,
                   const double& time) override;
 
     void compute_freestream_velocity (const amrex::MultiFab& cons_in,

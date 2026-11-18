@@ -10,7 +10,7 @@
  * This class declares every FireEngine method a new fire model provides and
  * says what ERF hands it and expects back. Nothing here has a body, no input
  * selects it and nothing creates one, so it adds no code to ERF. The stand-in
- * engine of the FireCoupler unit tests (Tests/Unit/Fire/ERF_GTestFireCoupler.cpp)
+ * engine of the FireCoupler unit tests (erf-model/FLARE: Tests/Unit/Fire/ERF_GTestFireCoupler.cpp)
  * is the smallest engine that works.
  *
  * To start a new engine:
@@ -28,7 +28,7 @@
  *     (ERF_FireEngineRegistry.H), and give the engine directory a
  *     Make.package (GNU make, FIRE_HOME) and an ERFFireEngine.cmake defining
  *     erf_fire_engine_add(target) (CMake, ERF_FIRE_ENGINE_DIRS).
- *     Tests/FireEngineExample is a complete engine directory to copy.
+ *     erf-model/FLARE's Tests/FireEngineExample is a complete engine directory to copy.
  *  4. Run the FireCoupler unit tests with the new engine in place of their
  *     stand-in, and a restart of a coupled run against a straight run: the
  *     atmosphere and fire plotfiles must agree at zero tolerance.
@@ -76,6 +76,11 @@ public:
      * depends on stop_time or max_step (output schedules, a check that the
      * ignition happens before the run ends). On a restart, read_checkpoint()
      * comes after this.
+     *
+     * stop_time is the elapsed time at which the run stops [s], on the clock the
+     * engine's step times use (ERF's stop_time less start_time), and
+     * numeric_limits<amrex::Real>::max() when no stop time is set. max_step counts
+     * level-0 steps and is numeric_limits<int>::max() when unset (never negative).
      */
     void start_run (amrex::Real stop_time, int max_step, int steps_per_coarse_step) override;   // optional
 

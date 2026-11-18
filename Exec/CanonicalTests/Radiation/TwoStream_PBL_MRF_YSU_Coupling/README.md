@@ -1,20 +1,20 @@
-# YSUNew Radiation Coupling Regtest
+# YSU Radiation Coupling Regtest
 
 ## Overview
 
-This regtest validates implementation: **YSUNew PBL Coupling with Radiative Tendency Limiter**.
+This regtest validates implementation: **YSU PBL Coupling with Radiative Tendency Limiter**.
 
 ### Key Features Validated
 
-1. **YSUNew Model Selection**: Confirms YSUNew (not MRF) is selected and active
-2. **Radiation-to-PBL Coupling**: Validates qheating_rates from TwoStream radiation are coupled to YSUNew top-down mixing
+1. **YSU Model Selection**: Confirms YSU (not MRF) is selected and active
+2. **Radiation-to-PBL Coupling**: Validates qheating_rates from TwoStream radiation are coupled to YSU top-down mixing
 3. **Radiative Tendency Limiter**: Tests optional finite guards and magnitude bounds on radiative heating tendency
 4. **Diagnostics Output**: Confirms radiation diagnostics accumulate every timestep
 5. **Backward Compatibility**: Feature-off (default) preserves the feature-off baseline behavior
 
 ## Test Configuration
 
-- **PBL Model**: YSUNew
+- **PBL Model**: YSU
 - **Radiation Type**: TwoStream (SW + LW, non-isothermal)
 - **Domain**: 3000×3000×1024 m, 8×8×64 grid
 - **Runtime**: 2.5 seconds, fixed dt=0.5s
@@ -26,7 +26,7 @@ This regtest validates implementation: **YSUNew PBL Coupling with Radiative Tend
 
 ### `inputs`
 Main configuration file. Key parameters:
-- `erf.pbl_type = "YSUNew"` — Select YSUNew PBL
+- `erf.pbl_type = "YSU"` — Select YSU PBL
 - `erf.enable_ysu_topdown = true` — Enable top-down mixing (LW radiation coupling)
 - `erf.enable_ysu_rad_tend_limiter = false` — Limiter disabled by default (baseline test)
 - `erf.ysu_rad_tend_limiter_magnitude = 1.0` — Bounds parameter [K/s]
@@ -80,7 +80,7 @@ With `enable_ysu_rad_tend_limiter = false` (default):
 
 ### Documentation
 - `Source/DataStructs/ERF_TurbStruct.H` — Parameter definitions
-- `Source/PBL/ERF_ComputeDiffusivityYSUNew.cpp` — Limiter implementation
+- `Source/PBL/ERF_ComputeDiffusivityYSU.cpp` — Limiter implementation
 
 ### Regtest Patterns (Reference Cases)
 - `TwoStream_RhoTheta_Coupling/` — Radiation coupling wiring validation
@@ -89,6 +89,6 @@ With `enable_ysu_rad_tend_limiter = false` (default):
 
 ## Notes
 
-- **MRF Untouched**: implementation is YSUNew-only; no changes to MRF code
+- **MRF Untouched**: implementation is YSU-only; no changes to MRF code
 - **No Compilation Required**: Regtest can be visually validated against source; full execution requires build
 - **GPU Safe**: The limiter uses AMReX GPU-safe patterns

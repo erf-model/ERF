@@ -5,7 +5,9 @@ on:
     branches: [development]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -16,7 +18,9 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -24,6 +28,9 @@ on:
       - '.github/workflows/gcc.yml'
       - '.github/actions/**'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 # Development pushes finish the active run and keep only the newest pending commit.
 # PR cancellation and commit-specific manual groups stay unchanged.
@@ -61,7 +68,7 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         submodules: true
         persist-credentials: false
@@ -85,13 +92,15 @@ jobs:
     - name: Restore legacy Actions cache
       if: steps.ghcr-cache.outputs.hit != 'true'
       continue-on-error: true
-      uses: actions/cache/restore@v6
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/ccache
         key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-${{ matrix.particles }}-git-${{ github.sha }}
         restore-keys: |
              ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-${{ matrix.particles }}-git-
 
+    # The SINGLE leg also builds the SDM ML-uphys diagnostics; it runs no gold-file tests,
+    # only the focused SINGLE steps below.
     - name: Configure Project and Generate Build System
       run: |
         cmake \
@@ -108,6 +117,7 @@ jobs:
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
           -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
+          -DERF_ENABLE_ML_UPHYS_DIAGNOSTICS:BOOL=${{ matrix.mesh_precision == 'SINGLE' && 'ON' || 'OFF' }} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
@@ -115,6 +125,7 @@ jobs:
           ${{github.workspace}};
 
     - name: Compile and Link
+      shell: bash
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
@@ -145,33 +156,17 @@ jobs:
 
     - name: Report
       run: |
-        grep -Ei "warning:|error:" ${{runner.workspace}}/build-output.txt \
+        build_log="${{runner.workspace}}/build-output.txt"
+        if [ ! -f "$build_log" ] || [ ! -r "$build_log" ]; then
+          echo "::error::Missing or unreadable build log: $build_log"
+          exit 1
+        fi
+        grep -Ei "warning:|error:" "$build_log" \
           | grep -Ev "Submodules/(amrex|AMReX|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
         cat ${{runner.workspace}}/build-output-warnings.txt
         return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
-        exit ${return}
-
-    - name: GNUmake Compile and Link
-      # Merge tier only: a second, uncached full compile that checks the Makefile build, not the code.
-      if: github.event_name != 'pull_request' && matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
-      run: |
-        make -C Exec -j2 USE_NETCDF=FALSE USE_PARTICLES=FALSE
-
-    - name: GNUmake Compile and Link with an out-of-tree fire engine
-      # Merge tier only: ERF plus the example fire engine directory, built from a
-      # directory outside the ERF tree as a fire-model repository would build it.
-      if: github.event_name != 'pull_request' && matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
-      run: |
-        mkdir -p ${{runner.temp}}/fire_build
-        cd ${{runner.temp}}/fire_build
-        printf 'ERF_HOME = %s\nFIRE_HOME = %s/Tests/FireEngineExample\nUSE_FIRE = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
-          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
-        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
-        make -j2
-        cp ${{github.workspace}}/Tests/FireEngineExample/inputs_fire_example ${{github.workspace}}/Tests/FireEngineExample/input_sounding .
-        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_fire_example max_step=4 erf.check_int=-1 | tee run.log
-        grep -q "fire_phi" plt00004/Header
+        test "${return}" -eq 0
 
     - name: Check Unit Test Registration
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
@@ -215,6 +210,20 @@ jobs:
               --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
+    # The SDM diagnostics restart check, in the leg that builds the ML-uphys diagnostics.
+    - name: Run SINGLE SDM Diagnostics Test
+      if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
+      run: |
+        ctest -R '^SDM_DiagnosticsRestart$' --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    # One step of a deck with buildings, for its EB build in single precision (#5006).
+    - name: Run SINGLE EB Build Tests
+      if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
+      run: |
+        ctest -L eb_build --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
     - name: Run Parallel Tests
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
@@ -244,12 +253,99 @@ jobs:
     # Backtrace.0 file for details", so keep those files when a step has failed.
     - name: Upload backtraces from failed tests
       if: failure()
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: backtraces-gcc-mesh-${{matrix.mesh_precision}}-particles-${{matrix.particles}}-${{matrix.particles_precision}}
         path: ${{runner.workspace}}/ERF/build/Tests/**/Backtrace.*
         if-no-files-found: ignore
         retention-days: 14
+
+  gnumake:
+    name: GNU Make - Mesh DOUBLE Particles OFF DOUBLE
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      CCACHE_TRUNK_KEY: ubuntu-22.04-x64-gcc-openmpi-gnumake-double-base-structure
+      CCACHE_DIR: /home/runner/.cache/ccache-gnumake
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      # Include the Open MPI wrapper's effective compiler and compile flags.
+      CCACHE_COMPILERCHECK: '%compiler% --version; %compiler% --showme:version; %compiler% --showme:command; %compiler% --showme:compile'
+      CCACHE_COMPRESS: '1'
+      CCACHE_COMPRESSLEVEL: '10'
+    steps:
+
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        submodules: true
+        persist-credentials: false
+
+    - name: Install Dependencies
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies.sh
+
+    - name: Install CCache
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+
+    - name: Restore Cache
+      uses: ./.github/actions/ccache-trunk
+      with:
+        mode: restore
+        key: ${{ env.CCACHE_TRUNK_KEY }}
+        path: ${{ env.CCACHE_DIR }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Initialize compiler cache statistics
+      run: |
+        ccache -z
+        echo "GNUMAKE_BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
+
+    - name: GNUmake Compile and Link
+      id: gnumake-base
+      run: |
+        make -C Exec -j2 USE_CCACHE=TRUE USE_NETCDF=FALSE USE_PARTICLES=FALSE
+
+    - name: GNUmake Compile and Link with an out-of-tree structure model
+      id: gnumake-structure
+      shell: bash
+      run: |
+        mkdir -p ${{runner.temp}}/structure_build
+        cd ${{runner.temp}}/structure_build
+        printf 'ERF_HOME = %s\nSTRUCTURE_HOME = %s/Tests/StructureModelExample\nUSE_MOVING_BODIES = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
+          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
+        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
+        make -j2 USE_CCACHE=TRUE
+        cp ${{github.workspace}}/Tests/StructureModelExample/inputs_structure_example .
+        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_structure_example max_step=8 erf.check_int=-1 | tee run.log
+        grep -q "structure_example_fx" plt00008/Header
+
+    - name: Prune and report compiler cache
+      if: always() && env.GNUMAKE_BUILD_START != ''
+      run: |
+        # Preserve the other configuration's entries if a build did not complete.
+        if [[ "${{ steps.gnumake-base.outcome }}" == success && "${{ steps.gnumake-structure.outcome }}" == success ]]; then
+          ccache --evict-older-than "$(( $(date +%s) - GNUMAKE_BUILD_START + 120 ))s"
+        else
+          echo 'Skipping cache pruning because both builds did not succeed.'
+        fi
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Save Cache
+      if: >-
+        ${{ success() && github.event_name != 'pull_request' &&
+            github.ref_name == github.event.repository.default_branch &&
+            steps.gnumake-base.outcome == 'success' &&
+            steps.gnumake-structure.outcome == 'success' }}
+      uses: ./.github/actions/ccache-trunk
+      with:
+        mode: save
+        key: ${{ env.CCACHE_TRUNK_KEY }}
+        path: ${{ env.CCACHE_DIR }}
+        token: ${{ secrets.GITHUB_TOKEN }}
 
   # Single stable required status check. Branch protection previously pinned the
   # individual matrix job names ("GNU@9.3 C++17 Release - Particles OFF"), which silently
@@ -258,8 +354,9 @@ jobs:
   # the matrix can be reshaped without touching branch protection again.
   ci-required:
     name: ci-required
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [library]
+    permissions: {}
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:

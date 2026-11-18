@@ -13,7 +13,9 @@ set(_run_dir "${TEST_ROOT}/sbm_expected_failure_${_run_id}")
 file(MAKE_DIRECTORY "${_run_dir}")
 set(_command "${ERF_EXECUTABLE}" "${INPUT_FILE}")
 if(DEFINED OVERRIDE AND NOT "${OVERRIDE}" STREQUAL "")
-  list(APPEND _command "${OVERRIDE}")
+  # OVERRIDE may hold several space-separated inputs overrides
+  separate_arguments(_overrides UNIX_COMMAND "${OVERRIDE}")
+  list(APPEND _command ${_overrides})
 endif()
 list(APPEND _command "amrex.call_addr2line=0")
 

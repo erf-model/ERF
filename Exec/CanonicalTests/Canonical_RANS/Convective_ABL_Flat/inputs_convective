@@ -6,7 +6,7 @@
 # the horizontal grid is coarse on purpose.
 erf.prob_name = "ABL"
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_fft   = true
 
 stop_time = 14400.0   # 4 h physics run; CTest overrides max_step
@@ -17,7 +17,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent = 2560   2560   2000
-amr.n_cell           =    8      8    100     # dz = 20 m, first cell centre 10 m
+amr.n_cell           =    8      8    100     # dz = 20 m, first cell center 10 m
 amr.max_grid_size    = 100
 amr.blocking_factor  = 4
 

@@ -282,6 +282,35 @@ TEST(Plotfile3DSelection, AerosolAndIceNumberDoNotAlias)
     EXPECT_EQ(morrison.moisture_indices.comp_for_var("ni"), RhoQ8_comp);
 }
 
+// Motivation: The dust scalars (ERF_ENABLE_DUST) sit right after the base
+// scalar and before smoke, so a dust build keeps FLARE's checkpoint layout;
+// every raw state name, dust included, must map back to its own component.
+TEST(Plotfile3DSelection, RawStateNamesFollowTheScalarLayout)
+{
+    EXPECT_EQ(NSCALARS, 1 + NSCALARS_DUST + NSCALARS_SMOKE);
+    EXPECT_EQ(RhoQ1_comp, RhoScalar_comp + NSCALARS);
+#if (NSCALARS_DUST > 0)
+    EXPECT_EQ(RhoDust_comp, RhoScalar_comp + 1);
+#endif
+#ifdef ERF_USE_FIRE
+    EXPECT_EQ(RhoSmoke_comp, RhoScalar_comp + 1 + NSCALARS_DUST);
+#endif
+
+    const auto names = erf_plotfile::plot3d_conserved_state_names();
+    ASSERT_EQ(static_cast<int>(names.size()), NDRY + NSCALARS + NMOIST_max);
+    for (int n = 0; n < static_cast<int>(names.size()); ++n) {
+        EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index(names[n]), n) << names[n];
+    }
+#if (NSCALARS_DUST == 1)
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoadv_dust"), RhoDust_comp);
+#elif (NSCALARS_DUST > 1)
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoadv_dust_1"), RhoDust_comp + 1);
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoadv_dust"), -1);
+#else
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoadv_dust"), -1);
+#endif
+}
+
 // Motivation: Raw rhoQ requests are gated by the moisture map, while the dry
 // components remain bounded by the allocated state width.
 TEST(Plotfile3DSelection, RawStateNamesUseTheMoistureMapAboveRhoQ1)

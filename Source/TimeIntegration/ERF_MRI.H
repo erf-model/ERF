@@ -50,9 +50,9 @@ private:
     int anelastic = -1;
 
     /**
-    * \brief Which two-stage scheme the anelastic integrator uses
+    * \brief Which two-stage scheme the anelastic integrator uses (RK2 or MidPoint)
     */
-    AnelasticType anelastic_type = AnelasticType::RK2;
+    TimesteppingType timestepping_type = TimesteppingType::RK2;
 
    /**
     * \brief How many components in the cell-centered MultiFab (-1 until setNcompCons is called)
@@ -151,12 +151,12 @@ public:
     }
 
     /**
-     * @brief Set which two-stage scheme the anelastic integrator uses.
-     * @param[in] _anelastic_type AnelasticType::RK2 or AnelasticType::MidPoint.
+     * @brief Set the level's time integrator; the anelastic integrator uses RK2 or MidPoint.
+     * @param[in] _timestepping_type The level's TimesteppingType.
      */
-    void setAnelasticType (AnelasticType _anelastic_type = AnelasticType::RK2)
+    void setTimesteppingType (TimesteppingType _timestepping_type = TimesteppingType::RK2)
     {
-        anelastic_type = _anelastic_type;
+        timestepping_type = _timestepping_type;
     }
 
     /**
@@ -377,8 +377,9 @@ public:
             // Evaluate F_slow(S_stage) only for the slow variables
             // Note that we are using the current stage versions (in S_new) of the slow variables
             //      (because we didn't update the slow variables in the substepping)
-            //       but we are using the "new" versions (in S_sum) of the velocities
-            //      (because we did    update the fast variables in the substepping)
+            //      and the momenta slow_rhs_pre set from the same stage, plus the average of
+            //      the acoustic substep updates when substepping, to advect them
+            //      (the mass fluxes that advance rho over the stage)
             // ****************************************************
             slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
           } // nrk
@@ -388,7 +389,7 @@ public:
             //
             // SSP-RK2 (Heun): both stages advance a full timestep from S^n, and the
             //     second stage averages the slow source with the one from the first,
-            //     which erf_slow_rhs_{pre,post} do when (anelastic_type == RK2 && nrk == 1).
+            //     which erf_slow_rhs_{pre,post} do when (timestepping_type == RK2 && nrk == 1).
             //
             // MidPoint: the first stage advances only a half timestep,
             //     S^*   = S^n + (dt/2) F(S^n)
@@ -396,7 +397,7 @@ public:
             //     and the second stage takes no average. The vertical diffusion
             //     is second order in time with a tridiagonal solve in the first
             //     stage only and none in the second.
-            const bool l_midpoint = (anelastic_type == AnelasticType::MidPoint);
+            const bool l_midpoint = (timestepping_type == TimesteppingType::MidPoint);
 
             for (int nrk = 0; nrk < 2; nrk++)
             {
@@ -415,9 +416,8 @@ public:
                 // ****************************************************
                 // Evaluate F_slow(S_stage) only for the slow variables
                 // Note that we are using the current stage versions (in S_new) of the slow variables
-                //      (because we didn't update the slow variables in the substepping)
-                //       but we are using the "new" versions (in S_sum) of the velocities
-                //      (because we did    update the fast variables in the substepping)
+                //      and the momenta slow_rhs_pre took from the same stage to advect them;
+                //      S_sum holds the projected state at the end of the stage
                 // ****************************************************
                 slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
             } // nrk

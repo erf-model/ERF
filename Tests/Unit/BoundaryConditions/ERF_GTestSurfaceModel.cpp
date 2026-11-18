@@ -163,7 +163,8 @@ TEST(SurfaceModel, InitializesOutputsAndDefaultWeights)
     EXPECT_EQ(fixture.model->get_tstar(0)->nComp(), 1);
     EXPECT_EQ(fixture.model->get_qstar(0)->nComp(), 1);
     EXPECT_EQ(fixture.model->get_tsurf(0)->max(0), Real(300.0));
-    EXPECT_EQ(fixture.model->get_ustar(0)->max(0), Real(0.0));
+    // No provider has written u* yet, so it holds the sentinel that sends SurfaceLayer to MOST
+    EXPECT_EQ(fixture.model->get_ustar(0)->max(0), lsm_undefined);
     EXPECT_EQ(fixture.model->get_wavg_factors(0)->max(SurfaceModelType::LAND), Real(1.0));
     EXPECT_EQ(fixture.model->get_wavg_factors(0)->max(SurfaceModelType::URBAN), Real(0.0));
 }
@@ -260,11 +261,12 @@ TEST(SurfaceModel, UnconfiguredProviderFieldsAreSkipped)
 
     fixture.model->calculate_weight_average(0, nullptr);
 
-    EXPECT_EQ(fixture.model->get_ustar(0)->max(0), Real(0.0));
-    EXPECT_EQ(fixture.model->get_ustar(0)->max(1), Real(0.0));
-    EXPECT_EQ(fixture.model->get_tstar(0)->max(0), Real(0.0));
-    EXPECT_EQ(fixture.model->get_qstar(0)->max(0), Real(0.0));
-    EXPECT_EQ(fixture.model->get_tsurf(0)->max(0), Real(0.0));
+    // A field the provider does not supply is left undefined, not zero
+    EXPECT_EQ(fixture.model->get_ustar(0)->max(0), lsm_undefined);
+    EXPECT_EQ(fixture.model->get_ustar(0)->max(1), lsm_undefined);
+    EXPECT_EQ(fixture.model->get_tstar(0)->max(0), lsm_undefined);
+    EXPECT_EQ(fixture.model->get_qstar(0)->max(0), lsm_undefined);
+    EXPECT_EQ(fixture.model->get_tsurf(0)->max(0), lsm_undefined);
 }
 
 TEST(SurfaceModel, SingleEnabledModelUsesFullSurfaceWithoutFraction)
@@ -620,6 +622,29 @@ TEST(SurfaceModel, CheckpointRoundTripPreservesSyntheticState)
     EXPECT_EQ(reader.model->get_field("mapped")->max(0),
               writer.model->get_field("mapped")->max(0));
 
+}
+
+// Motivation: a column takes the LSM fluxes only where all four exist and are valid, so a
+// missing or undefined stress sends the whole column to MOST rather than only that flux.
+TEST(SurfaceFluxView, ValidNeedsAllFourFluxes)
+{
+    Real t_flux = Real(0.1);
+    Real q_flux = Real(1.e-5);
+    Real tau13  = Real(-0.2);
+    Real tau23  = Real(0.3);
+    Real undef  = lsm_undefined;
+    auto view = [] (Real& x) {
+        return amrex::Array4<const Real>(&x, amrex::Dim3{0,0,0}, amrex::Dim3{1,1,1}, 1);
+    };
+
+    SurfaceFluxView flux{view(tau13), view(tau23), view(t_flux), view(q_flux)};
+    EXPECT_TRUE(flux.valid(0, 0));
+
+    flux.tau23 = amrex::Array4<const Real>{};
+    EXPECT_FALSE(flux.valid(0, 0));
+
+    flux.tau23 = view(undef);
+    EXPECT_FALSE(flux.valid(0, 0));
 }
 
 } // namespace

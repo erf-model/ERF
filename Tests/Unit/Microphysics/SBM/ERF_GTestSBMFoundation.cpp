@@ -7,6 +7,7 @@
 #include <AMReX_VisMF.H>
 
 #include "ERF_SBMConstraintGroups.H"
+#include "ERF_SBMAMRTime.H"
 #include "ERF_SBMBulkProjection.H"
 #include "ERF_SBMFixtureValidation.H"
 #include "ERF_SBMOwnership.H"
@@ -545,6 +546,44 @@ TEST(SBMFoundation, StateManagerRotatesTimedViewsByStorageSwap)
     EXPECT_DOUBLE_EQ(manager.old_time(0), 0.75);
     EXPECT_FALSE(manager.new_valid(0));
     EXPECT_NE(&manager.old_state(0), &manager.new_target_storage(0));
+}
+
+TEST(SBMFoundation, BeginStepAcceptsOnlyBoundedERFFineSubstepRounding)
+{
+    const auto layout = make_layout();
+    const BoxArray boxes = make_boxes();
+    const DistributionMapping mapping(boxes);
+    constexpr double coarse_begin = 0.1;
+    constexpr double coarse_dt = 0.1;
+    constexpr int fine_substeps = 3;
+    const double fine_dt = coarse_dt / static_cast<double>(fine_substeps);
+    erf_sbm::SBMStateManager manager(layout, 1);
+    ASSERT_NO_THROW(manager.define(0, boxes, mapping, coarse_begin));
+    std::string diagnostic;
+
+    // Reproduce ERF::timeStep's q*dt fine starts and the preceding
+    // Advance's fine_start+dt target for the first two substeps.
+    ASSERT_TRUE(manager.begin_step(0, coarse_begin, diagnostic, fine_dt))
+        << diagnostic;
+    const double first_end = coarse_begin + fine_dt;
+    ASSERT_TRUE(manager.accept_stage_target(0, first_end, true, diagnostic))
+        << diagnostic;
+    const double second_begin = coarse_begin + fine_dt;
+    ASSERT_TRUE(manager.begin_step(0, second_begin, diagnostic, fine_dt))
+        << diagnostic;
+    const double second_end = second_begin + fine_dt;
+    ASSERT_TRUE(manager.accept_stage_target(0, second_end, true, diagnostic))
+        << diagnostic;
+    const double third_begin = coarse_begin + 2.0 * fine_dt;
+    ASSERT_NE(manager.new_time(0), third_begin);
+    EXPECT_FALSE(manager.begin_step(0, third_begin, diagnostic));
+    EXPECT_TRUE(erf_sbm::semantic_time_matches(
+        manager.new_time(0), third_begin, fine_dt));
+    EXPECT_FALSE(erf_sbm::semantic_time_matches(
+        manager.new_time(0), third_begin + fine_dt, fine_dt));
+    ASSERT_TRUE(manager.begin_step(0, third_begin, diagnostic, fine_dt))
+        << diagnostic;
+    EXPECT_DOUBLE_EQ(manager.old_time(0), third_begin);
 }
 
 TEST(SBMFoundation, RestartSchemaAndSpectrumRoundTripAreExact)

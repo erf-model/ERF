@@ -54,6 +54,19 @@ public:
     /*! \brief average down moisture multifabs from finest_level to 0 */
     virtual void AverageDownMicroVars (const int /*finest_level*/) {}
 
+    /*! \brief drop the fields of a level that a regrid removes */
+    virtual void ClearLevel (const int /*lev*/) {}
+
+    /*! \brief diagnostics of the state of all levels at a step */
+    virtual void Diagnostics (const int&, /* step */
+                              const amrex::Real&, /* time */
+                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&, /* terrain */
+                              const int /* file name digits */) {}
+
+    virtual bool Qstate_Is_Diagnostic (int /*q*/) const { return false; }
+
+    virtual void Update_Diagnostic_State (amrex::MultiFab&, const amrex::MultiFab&) {}
+
     void Advance ( const amrex::Real&, const SolverChoice& ) override
     {
         amrex::Abort("Do not use this advance() for Lagrangian microphysics.");

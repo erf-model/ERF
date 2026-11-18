@@ -323,7 +323,7 @@ with an example also in ``Exec/RegTests/TurbulentInflow/``:
 .. _sec:UniformCPMRefresh:
 
 Uniform refresh for CPM and CPM_W
---------------------------------
+---------------------------------
 
 ``erf.perturbation_uniform_refresh = true`` is the default for CPM and CPM_W.
 All perturbation boxes on a level draw new random values together, using one
@@ -396,7 +396,7 @@ For an idealized case, the defaults can be written explicitly as::
           erf.perturbation_refresh_wind_period = 600.0
 
 Automatic perturbations on LES nests
------------------------------------
+------------------------------------
 
 Set ``erf.perturbation_auto = true`` to obtain the active inflow edges and
 advective wind scale from each nest's immediate parent, and the height limit
@@ -540,7 +540,7 @@ diagnostic, or from native SHOC's PBL-height diagnostic. When the bottom surface
 layer has no explicit ``most.pblh_calc`` input, automatic mode supplies
 ``MYNN25``. The MYNN diagnostic always uses heights above local ground,
 including its near-surface temperature scan
-and TKE blending. YSU, YSUNew and MRF write their scheme's height to the surface
+and TKE blending. YSU and MRF write their scheme's height to the surface
 layer as they advance. An explicit ``most.pblh_calc`` setting is respected in
 the bottom face's input namespace; it must provide a valid height on the
 selected ancestor. The MYNN25 diagnostic can run on LES fields: it combines

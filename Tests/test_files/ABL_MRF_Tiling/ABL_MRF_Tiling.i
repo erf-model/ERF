@@ -3,8 +3,8 @@
 # runs this deck with fabarray.mfiter_tile_size = 1024000 8 8 (the AMReX CPU
 # default, so each 16-cell-wide box is split into two tiles in y) and again with
 # tiling off, and requires identical plotfiles.  Do not set mfiter_tile_size
-# here: the script supplies it.  The same deck runs YSUNew, and legacy YSU with
-# a cooled surface (it aborts in unstable conditions), through RUNTIME_OPTIONS.
+# here: the script supplies it.  The same deck runs YSU, also with a cooled
+# surface and with PBL-height smoothing, through RUNTIME_OPTIONS.
 erf.prob_name = "ABL"
 
 max_step = 10

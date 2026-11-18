@@ -22,7 +22,7 @@ What you need
 Run these commands from the root of an ERF checkout. You need:
 
 - CMake 3.20 or newer;
-- a C++17 compiler;
+- a C++20 compiler;
 - the ERF source tree;
 - the repository submodules.
 

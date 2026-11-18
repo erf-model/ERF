@@ -26,16 +26,24 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         // beta_s = -one : fully explicit
         // beta_s =  one : fully implicit
         // With erf.use_variable_beta_s, beta_s instead varies on the w-faces with the terrain
-        //    slope (see make_fast_coeffs); the substeps take it from fast_coeffs either way
+        //    slope and the vertical acoustic Courant number (see make_fast_coeffs); the substeps
+        //    take it from fast_coeffs either way
         Real beta_s;
         bool l_variable_beta_s;
-        if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
+        if (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep) {
             beta_s = solverChoice.beta_s;
             l_variable_beta_s = solverChoice.use_variable_beta_s;
         } else { // Fully explicit
             beta_s = -one_d;
             l_variable_beta_s = false;
         }
+
+        // On a moving fitted mesh the w equation is divided by the face volume at the end of the
+        // sub-step, so the face metric of the vertical pressure gradient and the volume dividing the
+        // vertical flux divergence in the implicit solve are both those of the new mesh.  The lateral
+        // pressure gradients take their metrics from the mesh at the start of the sub-step, and the
+        // change of the metric terms since the stage time acts on the complete stage pressure
+        const bool l_moving_mesh = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -115,7 +123,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             base_to_use = MultiFab(base_state[level], make_alias, 0, BaseState::num_comps);
         }
 
-        make_mom_sources(old_substep_time, dtau, Svec_to_use,
+        make_mom_sources(level, old_substep_time, dtau, Svec_to_use,
                          z_phys_nd[level].get(), z_phys_cc[level].get(), stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
@@ -145,12 +153,12 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
-                             detJ_cc[level], dtau, beta_s, z_phys_nd[level].get(),
-                             l_variable_beta_s, solverChoice.beta_s_min, solverChoice.beta_s_max,
-                             phys_bc_type);
+                             (l_moving_mesh ? detJ_cc_new[level] : detJ_cc[level]), dtau, beta_s,
+                             z_phys_cc[level].get(), z_phys_nd[level].get(),
+                             l_variable_beta_s, phys_bc_type);
         }
 
-        bool l_rayleigh_implicit = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);
+        bool l_rayleigh_implicit = solverChoice.rayleigh_implicit_w(level);
         Real l_damp_coef         = solverChoice.dampingChoice.rayleigh_dampcoef;
 
         // The coarse/fine face fluxes of the last RK stage (ERF_CFFluxHistory.cpp): a coarse
@@ -162,7 +170,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         const bool cf_terrain = (solverChoice.mesh_type == MeshType::VariableDz);
         // This is the last RK stage, whose fluxes are the step's, under either coupling
         // (cf_flux_history_active excludes the anelastic levels)
-        const bool cf_stage   = (nrk == 2);
+        const bool cf_stage   = (StageFluxWeight(solverChoice, level, nrk) > Real(0));
         const bool cf_record  = cf_stage && cf_flux_history_active(level);
         const bool cf_impose  = cf_stage && (level > 0) && cf_flux_history_active(level-1);
         if (cf_record) {
@@ -191,10 +199,21 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             cf_fluxes.tgt_w = &H.tgt_w;
         }
 
+        // Lateral walls: faces through which no mass passes. The substeps keep the
+        // normal momentum there at its stage value (a lateral surface layer sets the normal
+        // velocity to zero, as a slip wall does)
+        auto is_wall = [&] (int ori) {
+            const ERF_BC bc = phys_bc_type[ori];
+            return bc == ERF_BC::slip_wall || bc == ERF_BC::no_slip_wall || bc == ERF_BC::symmetry ||
+                   bc == ERF_BC::surface_layer;
+        };
+        const GpuArray<bool,4> lateral_walls{is_wall(Orientation::xlo()), is_wall(Orientation::xhi()),
+                                             is_wall(Orientation::ylo()), is_wall(Orientation::yhi())};
+
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             erf_substep_MT(fast_step, nrk, level, finest_level,
-                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, p_stage, fast_coeffs,
                            S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom,
@@ -205,7 +224,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                           solverChoice.beta_d);
+                           solverChoice.beta_d, lateral_walls);
 
         } else if (cf_terrain) {
 
@@ -218,7 +237,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                          solverChoice.beta_d, cf_fluxes);
+                          solverChoice.beta_d, cf_fluxes, lateral_walls);
 
         } else {
 
@@ -230,7 +249,8 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                           solverChoice.beta_d, cf_fluxes);
+                           solverChoice.beta_d, cf_fluxes,
+                           (l_reflux) ? momentum_reflux_pressure(level) : nullptr, lateral_walls);
         }
 
         // The vertical quantity at the start and end of the substep: Omega, recorded by the

@@ -31,6 +31,7 @@ ComputeTurbulentViscosity (double dt,
                            const amrex::Geometry& geom,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                           const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                            const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                            const SolverChoice& solverChoice,
                            std::unique_ptr<SurfaceLayer>& SurfLayer,
@@ -43,7 +44,8 @@ ComputeTurbulentViscosity (double dt,
                            bool vert_only = false,
                            const amrex::MultiFab* qheating_rates = nullptr,
                            const amrex::MultiFab* terrain_blank = nullptr,
-                           const amrex::MultiFab* forest_drag = nullptr);
+                           const amrex::MultiFab* forest_drag = nullptr,
+                           const amrex::MultiFab* Q_fire_atm = nullptr);
 
 /** Compute LES turbulent viscosity and dissipation.
  *
@@ -65,6 +67,34 @@ ComputeTurbulentViscosityLES (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& T
                               const MoistureComponentIndices& moisture_indices,
                               const amrex::MultiFab* xvel = nullptr,
                               const amrex::MultiFab* yvel = nullptr);
+
+/**
+ * Compute the RANS eddy viscosity, length scale and dissipation (k-eqn, Axell & Liungman 2001).
+ * ib_blank is the solid fraction of the fraction-stress immersed wall law (else nullptr), and
+ * flat_wall_diss (erf.if_flat_wall_dissipation) makes its partial wall cells dissipate with the
+ * length of flat ground's first cell. Declared here for the unit tests; ComputeTurbulentViscosity
+ * is the caller in the code.
+ */
+void
+ComputeTurbulentViscosityRANS (int level,
+                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                               const amrex::MultiFab& cons_in,
+                               const amrex::MultiFab& wdist,
+                               amrex::MultiFab& eddyViscosity,
+                               amrex::MultiFab& Diss,
+                               const amrex::Geometry& geom,
+                               bool use_terrain_fitted_coords,
+                               const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                               const TurbChoice& turbChoice,
+                               const amrex::Real const_grav,
+                               std::unique_ptr<SurfaceLayer>& SurfLayer,
+                               const amrex::MultiFab* z_0,
+                               const CanopyTurbulence& canopy,
+                               const amrex::MultiFab* forest_drag,
+                               const amrex::MultiFab* ib_blank = nullptr,
+                               bool flat_wall_diss = false,
+                               amrex::Real ib_small_volfrac = amrex::Real(0.005),
+                               amrex::Real ib_z0 = amrex::Real(0.0));
 
 /** Compute LES turbulent viscosity and heat fluxes for embedded-boundary cells. */
 void

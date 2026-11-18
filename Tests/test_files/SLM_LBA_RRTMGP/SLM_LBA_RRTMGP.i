@@ -24,7 +24,7 @@ erf.use_Ri_correction = 0
 erf.mg_v = 1
 erf.terrain_type = StaticFittedMesh
 erf.flat_terrain = true
-#erf.anelastic = 1
+#erf.compressibility_type = Anelastic
 #erf.use_fft = 1
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)

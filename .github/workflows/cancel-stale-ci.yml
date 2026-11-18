@@ -31,6 +31,9 @@ on:
     types:
       - requested
 
+permissions:
+  contents: read
+
 jobs:
   CancelStaleCI:
     name: Cancel stale CI runs
@@ -42,7 +45,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Cancel runs this PR no longer needs
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const trigger = context.payload.workflow_run;
@@ -96,7 +99,9 @@ jobs:
               '.github/workflows/gcc-rrtmgp.yml',
               '.github/workflows/gcc.yml',
               '.github/workflows/hip.yml',
+              '.github/workflows/lint.yml',
               '.github/workflows/macos.yml',
+              '.github/workflows/parent-project.yml',
               '.github/workflows/style.yml',
               '.github/workflows/sycl.yml',
               '.github/workflows/windows.yml',

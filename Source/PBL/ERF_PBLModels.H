@@ -31,6 +31,7 @@
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
  */
 void
@@ -48,6 +49,7 @@ ComputeDiffusivityMYJ (double dt,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices);
 
@@ -67,6 +69,7 @@ ComputeDiffusivityMYJ (double dt,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
  */
 void
@@ -83,6 +86,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
                           const amrex::BCRec* bc_ptr,
                           bool /*vert_only*/,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                          const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices);
 
@@ -102,6 +106,7 @@ ComputeDiffusivityMYNN25 (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
  */
 void
@@ -118,43 +123,10 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
                             const amrex::BCRec* bc_ptr,
                             bool /*vert_only*/,
                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                            const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                             const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                             const MoistureComponentIndices& moisture_indices);
 
-/**
- * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
- * Yonsei University PBL scheme
- *
- * @param[in] xvel Velocity in x-dir
- * @param[in] yvel Velocity in y-dir
- * @param[in] cons_in Cell center conserved quantities
- * @param[out] eddyViscosity Holds turbulent viscosity
- * @param[in] geom Problem geometry
- * @param[in] turbChoice Container with turbulence parameters
- * @param[in] SurfLayer Pointer to Monin-Obukhov class if instantiated
- * @param[in] use_moisture If we have microphysics enabled
- * @param[in] level Current level
- * @param[in] bc_ptr Pointer to array with boundary condition info
- * @param[in] vert_only Only compute vertical eddy diffusivities
- * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
- * @param[in] z_phys_cc Physical location of cell centers
- */
-void
-ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
-                       const amrex::MultiFab& yvel,
-                       const amrex::MultiFab& cons_in,
-                       amrex::MultiFab& eddyViscosity,
-                       const amrex::Geometry& geom,
-                       const TurbChoice& turbChoice,
-                       std::unique_ptr<SurfaceLayer>& SurfLayer,
-                       bool use_terrain_fitted_coords,
-                       bool use_moisture,
-                       int level,
-                       const amrex::BCRec* bc_ptr,
-                       bool /*vert_only*/,
-                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                       const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-                       const MoistureComponentIndices& moisture_indices);
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
  * Medium Range Forecast (MRF) boundary layer scheme based on Hong and Pan (1996).
@@ -174,7 +146,10 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
  * @param[in] bc_ptr Pointer to array with boundary condition info
  * @param[in] vert_only Only compute vertical eddy diffusivities
  * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ * @param[in] z_sfc_nd  Nodal heights of the bottom of the domain
  * @param[in] z_phys_cc Physical location of cell centers
+ * @param[in] terrain_blank Immersed solid fraction, or null
+ * @param[in] Q_fire_atm Lagged fire heat flux [W/m2] for the w* boost (erf.pbl_mrf_fire_thermal_excess), or null
  */
 void
 ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
@@ -190,16 +165,18 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices,
-                       const amrex::MultiFab* terrain_blank = nullptr);
+                       const amrex::MultiFab* terrain_blank = nullptr,
+                       const amrex::MultiFab* Q_fire_atm = nullptr);
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
  * WRF Yonsei University (YSU) PBL scheme.
  *
  * Based on:
- *   Hong, Noh &amp; Dudhia (2006), MWR, https://doi.org/10.1175/MWR3250.1
+ *   Hong, Noh & Dudhia (2006), MWR, https://doi.org/10.1175/MWR3199.1
  *   Hong (2010), QJRMS, https://doi.org/10.1002/qj.665
  *
  * Features: three-pass bulk-Richardson PBLH diagnosis, nonlocal
@@ -219,28 +196,30 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
  * @param[in]  bc_ptr  boundary condition array
  * @param[in]  vert_only  compute vertical diffusivity only
  * @param[in]  z_phys_nd  physical node heights (terrain)
+ * @param[in]  z_sfc_nd   Nodal heights of the bottom of the domain
  * @param[in]  z_phys_cc  physical cell-center heights
  * @param[in]  moisture_indices  component index mapping for moisture variables
  * @param[in]  qheating_rates  radiation heating rates (SW, LW components); optional
  */
 void
-ComputeDiffusivityYSUNew (const amrex::MultiFab& xvel,
-                          const amrex::MultiFab& yvel,
-                          const amrex::MultiFab& cons_in,
-                          amrex::MultiFab& eddyViscosity,
-                          const amrex::Geometry& geom,
-                          const TurbChoice& turbChoice,
-                          std::unique_ptr<SurfaceLayer>& SurfLayer,
-                          bool use_terrain_fitted_coords,
-                          bool use_moisture,
-                          int level,
-                          const amrex::BCRec* bc_ptr,
-                          bool /*vert_only*/,
-                          const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                          const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-                          const MoistureComponentIndices& moisture_indices,
-                          const amrex::MultiFab* qheating_rates = nullptr,
-                          const amrex::MultiFab* terrain_blank = nullptr);
+ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
+                       const amrex::MultiFab& yvel,
+                       const amrex::MultiFab& cons_in,
+                       amrex::MultiFab& eddyViscosity,
+                       const amrex::Geometry& geom,
+                       const TurbChoice& turbChoice,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
+                       bool use_terrain_fitted_coords,
+                       bool use_moisture,
+                       int level,
+                       const amrex::BCRec* bc_ptr,
+                       bool /*vert_only*/,
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_sfc_nd,
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                       const MoistureComponentIndices& moisture_indices,
+                       const amrex::MultiFab* qheating_rates = nullptr,
+                       const amrex::MultiFab* terrain_blank = nullptr);
 
 /**
  * Function for computing vertical derivatives for use in PBL model
@@ -373,6 +352,7 @@ struct PBLSurfaceLayerGradient
     amrex::Real tstar_v {zero};  ///< virtual temperature scale
     amrex::Real zval    {zero};  ///< height of the cell center above the surface
     amrex::Real zeta    {zero};  ///< stability coordinate z/L
+    similarity_funs sfuns{};     ///< the surface layer's similarity functions (most.stable_functions)
 };
 
 /**
@@ -430,7 +410,7 @@ ApplySurfaceLayerGradientsPBL (const PBLSurfaceLayerGradient& sl,
                                amrex::Real& dudz,
                                amrex::Real& dvdz)
 {
-    const similarity_funs sfuns{};
+    const similarity_funs& sfuns = sl.sfuns;
     const amrex::Real inv_kappa_z = one / (KAPPA * sl.zval);
     dudz     = sl.u_star  * sfuns.calc_phi_m(sl.zeta) * inv_kappa_z;
     dvdz     = zero;
@@ -455,6 +435,7 @@ ApplySurfaceLayerGradientsPBL (const PBLSurfaceLayerGradient& sl,
  * @param[in] hfx_z rho<w'theta'> on z-faces; the surface-layer heat flux at the zlo face
  * @param[in] qfx1_z rho<w'qv'> on z-faces; the surface-layer moisture flux at the zlo face
  * @param[in] surface_layer_on_zlo a SurfaceLayer supplies the fluxes through the zlo face
+ * @param[in] sfuns similarity functions of the surface layer on the zlo face (most.stable_functions)
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -480,7 +461,8 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& tau23,
                        const amrex::Array4<const amrex::Real>& hfx_z,
                        const amrex::Array4<const amrex::Real>& qfx1_z,
-                       bool surface_layer_on_zlo)
+                       bool surface_layer_on_zlo,
+                       const similarity_funs& sfuns)
 {
     amrex::Real source_term = zero;
 
@@ -552,8 +534,7 @@ ComputeQKESourceTerms (int i, int j, int k,
             zeta = z1 / l_obukhov;
         }
 
-        // phi_m, the companion of the psi_m that SurfaceLayer uses
-        const similarity_funs sfuns{};
+        // phi_m, the companion of the psi_m that SurfaceLayer uses (sfuns: most.stable_functions)
         const amrex::Real phi_m = sfuns.calc_phi_m(zeta);
 
         // ---- Production terms, at the cell center ----

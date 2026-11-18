@@ -1,4 +1,4 @@
-// Unit tests for the bulk Richardson number scan that sets the YSUNew PBL height
+// Unit tests for the bulk Richardson number scan that sets the YSU PBL height
 // (find_rib_crossing, ERF_PBLRibCrossing.H; erf-model/ERF#4458), on synthetic columns
 // whose answer is known in closed form:
 //  * Rib linear in height on a stretched column: the interpolated height is Ribcr / slope
@@ -229,4 +229,23 @@ TEST(PBLRibCrossing, DeviceKernel)
     EXPECT_EQ(kp[0], 5);
     EXPECT_EQ(kp[1], khi);
     EXPECT_EQ(kp[2], khi);
+}
+
+// The floor of the YSU and MRF PBL heights is the top face of the column's first fluid cell, and at
+// least 10 m, whatever the mesh type (erf-model/ERF#5252 for YSU).  zl1 is the height of the first
+// cell center and dz1 the cell's thickness.
+TEST(PBLRibCrossing, FloorIsFirstCellTopFace)
+{
+    // 32 m cells from the ground: the top face is at 32 m (the cell center is at 16 m)
+    EXPECT_EQ(pblh_floor(Real(16.0), Real(32.0)), Real(32.0));
+    // 10 m cells above three immersed cells: first fluid cell center 35 m, top face 40 m
+    EXPECT_EQ(pblh_floor(Real(35.0), Real(10.0)), Real(40.0));
+    // a graded column, 20 m first cell and 20.57 m second: the top face is at 20 m, not at
+    // the mid-point of the two cell centers (20.14 m)
+    EXPECT_EQ(pblh_floor(Real(10.0), Real(20.0)), Real(20.0));
+    // a 4 m first cell: the 10 m minimum applies
+    EXPECT_EQ(pblh_floor(Real(2.0), Real(4.0)), Real(10.0));
+    // the floor is above the first level, so the K profile's depth pblh - zl1 is positive
+    EXPECT_GT(pblh_floor(Real(16.0), Real(32.0)), Real(16.0));
+    EXPECT_GT(pblh_floor(Real(100.0), Real(200.0)), Real(100.0));
 }

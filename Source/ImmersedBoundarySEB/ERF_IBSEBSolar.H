@@ -226,6 +226,7 @@ struct RayMap
     amrex::Real z_ground = 0.0;         ///< Ground height [m]
     amrex::Real z_max = 0.0;            ///< Tallest column the map holds [m]; a ray above it meets nothing
     int  max_steps = 0;                 ///< Columns a ray at the map's floor elevation crosses before it clears z_max (the halo's reach in x plus y)
+    int  reach_x = 0, reach_y = 0;      ///< The halo's reach in x and in y, in columns, before the domain cap: every patch holds that many columns around its rank's boxes (or stops at a closed domain edge, or wraps)
 
     /** Whether the map holds column ``(ci, cj)`` (wrapped into the patch where the patch spans the domain). */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -249,6 +250,12 @@ struct RayMap
         const int kt = top(ci, cj, top.begin[2]);
         return (kt < 0) ? z_ground : z_ground + (kt + 1) * dz;
     }
+
+    /** Centre of column ``ci`` in x (``cj`` in y) [m]; the column is counted from the domain's low corner and may lie outside it. */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real centre_x (int ci) const noexcept { return x_lo + (static_cast<amrex::Real>(ci - ilo) + amrex::Real(0.5)) * dx; }
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real centre_y (int cj) const noexcept { return y_lo + (static_cast<amrex::Real>(cj - jlo) + amrex::Real(0.5)) * dy; }
 };
 
 /**
@@ -287,7 +294,22 @@ inline amrex::Real hemisphere_min_sz (int n_az, int n_el)
 }
 
 /**
- * Whether the ray from a face toward the sun hits a building.
+ * Weight of one ray of the hemisphere sampling, ``1 / (n_az n_el)``: a count of rays
+ * times it is a view fraction. The one expression for the view fractions and for the
+ * sunlit ground view (ground_view_lit()), so that equal counts give equal fractions
+ * to the last bit in either precision.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real hemisphere_ray_weight (int n_az, int n_el) noexcept
+{
+    const amrex::Real w = 1.0 / static_cast<amrex::Real>(n_az * n_el);
+    return w;
+}
+
+/**
+ * Whether the ray from a point toward the sun hits a building: the one walk of
+ * ray_blocked() (a face, or the centre of a column's ground) and of ray_blocked_near()
+ * (the ground a face sees).
  *
  * Buildings are the column tops of the rank's ray map (RayMap), so a ray is
  * blocked wherever its height on entering a column is below that column's
@@ -303,11 +325,17 @@ inline amrex::Real hemisphere_min_sz (int n_az, int n_el)
  * column, whose top is below the face (no overhangs), and a roof starts a
  * hair above its own top.
  *
- * @return true when blocked (the face is in shadow).
+ * With ``windowed`` the walk also stops, unblocked, at the first column farther than the
+ * map's reach (``reach_x``, ``reach_y``) from a reference column; ``(oi, oj)`` is the
+ * offset of the start's column from that reference, in columns, and is carried along
+ * the walk without wrapping.
+ *
+ * @return true when blocked (the start is in shadow).
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
-                  amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m)
+bool ray_blocked_walk (amrex::Real x0, amrex::Real y0, amrex::Real z0,
+                       amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m,
+                       bool windowed, int oi, int oj)
 {
     if (sz <= 0.0) return true;              // sun at or below the horizon
     if (z0 >= m.z_max) return false;         // nothing stands this high
@@ -334,17 +362,56 @@ bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
     const amrex::Real steps = amrex::min(t_max * (std::abs(sx) / dx + std::abs(sy) / dy), amrex::Real(m.max_steps));
     const int max_iter = static_cast<int>(amrex::min(amrex::Real(1.0e9), steps)) + 8;
     for (int it = 0; it < max_iter; ++it) {
+        // Beyond the reach of the reference column: open, sunlit ground.
+        if (windowed && (std::abs(oi) > m.reach_x || std::abs(oj) > m.reach_y)) return false;
         // Column (ci, cj) with the ray entering at height z.
         if (!m.locate(ci, cj)) return false;
         if (z + eps < m.column_top(ci, cj)) return true;
         // Step to the next column.
         amrex::Real t;
-        if (tmx < tmy) { t = tmx; tmx += tdx; ci += stepx; }
-        else           { t = tmy; tmy += tdy; cj += stepy; }
+        if (tmx < tmy) { t = tmx; tmx += tdx; ci += stepx; oi += stepx; }
+        else           { t = tmy; tmy += tdy; cj += stepy; oj += stepy; }
         z = z0 + t0 * sz + t * sz;
         if (z >= m.z_max) return false;
     }
     return false;
+}
+
+/**
+ * Whether the ray from a face, or from the centre of a column's ground, toward the sun
+ * hits a building (ray_blocked_walk() over all the map holds).
+ *
+ * @return true when blocked (the face, or the ground, is in shadow).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
+                  amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m)
+{
+    return ray_blocked_walk(x0, y0, z0, sx, sy, sz, m, false, 0, 0);
+}
+
+/**
+ * ray_blocked() for the ground a face sees (the sunlit part of a face's ground view,
+ * ground_view_lit()): the same walk (ray_blocked_walk()) from the same start as the
+ * ground's own shadow (IBFaceSet::compute_ground_shadow()), the centre of the ground of
+ * column ``(ci0, cj0)``, kept within the map's reach (``reach_x``, ``reach_y``) of the
+ * face's own column ``(ci_ref, cj_ref)``; the columns are counted without wrapping.
+ * Every rank's patch holds that window around each of its faces (its boxes grown by
+ * the reach, a closed domain edge or the wrap-round apart), so the answer is the same
+ * however the level is cut into boxes and ranks: a building farther from the face than
+ * the reach casts no shadow in that face's view, and ground farther than that is
+ * sunlit, open ground. For a ray that stays in the window the result is the ground
+ * shadow of that column.
+ *
+ * @return true when blocked (the column's ground is in shadow).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool ray_blocked_near (int ci0, int cj0,
+                       amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m,
+                       int ci_ref, int cj_ref)
+{
+    return ray_blocked_walk(m.centre_x(ci0), m.centre_y(cj0), m.z_ground, sx, sy, sz, m,
+                            true, ci0 - ci_ref, cj0 - cj_ref);
 }
 
 /// What a ray from a face ends on.
@@ -366,28 +433,37 @@ enum RayHit : int { RAY_SKY = 0, RAY_GROUND = 1, RAY_BUILDING = 2 };
  * counts as sky for a rising ray and as ground for a falling one: the far
  * field is open ground. Where the map spans a periodic direction the ray
  * wraps round instead.
+ *
+ * For a ray that reaches the ground inside the map, ``landed`` is set and
+ * ``(li, lj)`` is the column it lands in, counted without wrapping (so the
+ * distance from the start is kept where the map wraps). A ray that ends on the
+ * ground by leaving the map, or by running out of steps, has not landed: it
+ * went to the open ground of the far field.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
-             amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m)
+int ray_hit_landing (amrex::Real x0, amrex::Real y0, amrex::Real z0,
+                     amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m,
+                     bool& landed, int& li, int& lj)
 {
+    landed = false; li = 0; lj = 0;
     const amrex::Real dx = m.dx, dy = m.dy;
     const amrex::Real eps = 1.0e-6 * amrex::min(dx, dy);
     if (sz > 0.0 && z0 >= m.z_max) return RAY_SKY;
     const amrex::Real t0 = 1.0e-3 * amrex::min(dx, dy);
     amrex::Real x = x0 + t0 * sx, y = y0 + t0 * sy, z = z0 + t0 * sz;
-    int ci = m.ilo + static_cast<int>(std::floor((x - m.x_lo) / dx));
-    int cj = m.jlo + static_cast<int>(std::floor((y - m.y_lo) / dy));
+    // The column the ray is in, counted without wrapping.
+    int ui = m.ilo + static_cast<int>(std::floor((x - m.x_lo) / dx));
+    int uj = m.jlo + static_cast<int>(std::floor((y - m.y_lo) / dy));
     const int stepx = (sx > 0.0) ? 1 : ((sx < 0.0) ? -1 : 0);
     const int stepy = (sy > 0.0) ? 1 : ((sy < 0.0) ? -1 : 0);
     const amrex::Real big = 1.0e30;
     const amrex::Real tdx = (stepx != 0) ? dx / std::abs(sx) : big;
     const amrex::Real tdy = (stepy != 0) ? dy / std::abs(sy) : big;
     amrex::Real tmx = big, tmy = big;
-    if (stepx > 0)      tmx = ((m.x_lo + (ci - m.ilo + 1) * dx) - x) / sx;
-    else if (stepx < 0) tmx = ((m.x_lo + (ci - m.ilo) * dx) - x) / sx;
-    if (stepy > 0)      tmy = ((m.y_lo + (cj - m.jlo + 1) * dy) - y) / sy;
-    else if (stepy < 0) tmy = ((m.y_lo + (cj - m.jlo) * dy) - y) / sy;
+    if (stepx > 0)      tmx = ((m.x_lo + (ui - m.ilo + 1) * dx) - x) / sx;
+    else if (stepx < 0) tmx = ((m.x_lo + (ui - m.ilo) * dx) - x) / sx;
+    if (stepy > 0)      tmy = ((m.y_lo + (uj - m.jlo + 1) * dy) - y) / sy;
+    else if (stepy < 0) tmy = ((m.y_lo + (uj - m.jlo) * dy) - y) / sy;
     if (stepx == 0 && stepy == 0) {          // vertical ray
         if (sz > 0.0) return RAY_SKY;
         // straight down from a wall face never happens (the face is vertical);
@@ -405,6 +481,7 @@ int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
                             : amrex::min(t_max * (std::abs(sx) / dx + std::abs(sy) / dy), amrex::Real(m.max_steps));
     const int max_iter = static_cast<int>(amrex::min(amrex::Real(1.0e9), steps)) + 8;
     for (int it = 0; it < max_iter; ++it) {
+        int ci = ui, cj = uj;
         if (!m.locate(ci, cj)) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
         const amrex::Real top = m.column_top(ci, cj);
         const bool solid = (top > m.z_ground + eps);
@@ -415,14 +492,24 @@ int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
         } else {
             if (solid && z + eps < top) return RAY_BUILDING;     // entered below the top
             if (solid && z_out < top - eps) return RAY_BUILDING; // descends into it
-            if (z_out <= m.z_ground + eps) return RAY_GROUND;
+            if (z_out <= m.z_ground + eps) { landed = true; li = ui; lj = uj; return RAY_GROUND; }
         }
-        if (tmx < tmy) { tmx += tdx; ci += stepx; }
-        else           { tmy += tdy; cj += stepy; }
+        if (tmx < tmy) { tmx += tdx; ui += stepx; }
+        else           { tmy += tdy; uj += stepy; }
         z = z_out;
         if (sz > 0.0 && z >= m.z_max) return RAY_SKY;
     }
     return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
+}
+
+/** Where a ray from a face ends (ray_hit_landing() without the landing column). */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
+             amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m)
+{
+    bool landed = false;
+    int li = 0, lj = 0;
+    return ray_hit_landing(x0, y0, z0, sx, sy, sz, m, landed, li, lj);
 }
 
 /**
@@ -450,6 +537,109 @@ void hemisphere_direction (int dir, int nsign, int ia, int ie, int n_az, int n_e
     sx = cn * n[0] + ct * t1[0] + st * t2[0];
     sy = cn * n[1] + ct * t1[1] + st * t2[1];
     sz = cn * n[2] + ct * t1[2] + st * t2[2];
+}
+
+/**
+ * Where a ground ray of a face lands, as kept for erf.ibseb.ground_view_shadow: the
+ * landing column's offset from the column of the face's fluid cell, in x and in y,
+ * 16 bits each. An offset beyond the map's reach, or beyond what 16 bits hold, is not
+ * kept: that ground is the open, sunlit ground of the far field (landing_kept()).
+ * A kept landing's word is never below 65536, which leaves the two words below for the
+ * rays that are not kept (ray_landing_word()).
+ */
+constexpr int landing_offset_max = 32767;
+constexpr unsigned int landing_none = 0U;  ///< The ray does not end on the ground
+constexpr unsigned int landing_far  = 1U;  ///< The ray ends on the far field's open ground
+
+/** Whether a landing ``(di, dj)`` columns from the face is kept (see pack_landing()). */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool landing_kept (int di, int dj, const RayMap& m) noexcept
+{
+    const int rx = (m.reach_x < landing_offset_max) ? m.reach_x : landing_offset_max;
+    const int ry = (m.reach_y < landing_offset_max) ? m.reach_y : landing_offset_max;
+    return std::abs(di) <= rx && std::abs(dj) <= ry;
+}
+
+/** A kept landing's offsets ``(di, dj)`` in one word. */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+unsigned int pack_landing (int di, int dj) noexcept
+{
+    return (static_cast<unsigned int>(di + 32768) << 16) | static_cast<unsigned int>(dj + 32768);
+}
+
+/** The offsets of a word of pack_landing(). */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void unpack_landing (unsigned int w, int& di, int& dj) noexcept
+{
+    di = static_cast<int>(w >> 16) - 32768;
+    dj = static_cast<int>(w & 0xFFFFu) - 32768;
+}
+
+/**
+ * Where one hemisphere ray of a face ends, as one word: a kept landing (pack_landing()),
+ * ``landing_far`` for a ray that ends on the ground of the far field, ``landing_none``
+ * for a ray that ends on the sky or a building.
+ *
+ * @param ci_f, cj_f the column of the face's fluid cell
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+unsigned int ray_landing_word (amrex::Real x0, amrex::Real y0, amrex::Real z0,
+                               amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m,
+                               int ci_f, int cj_f)
+{
+    bool landed = false;
+    int li = 0, lj = 0;
+    if (ray_hit_landing(x0, y0, z0, sx, sy, sz, m, landed, li, lj) != RAY_GROUND) { return landing_none; }
+    if (landed && landing_kept(li - ci_f, lj - cj_f, m)) { return pack_landing(li - ci_f, lj - cj_f); }
+    return landing_far;
+}
+
+/**
+ * Whether the ground reflects a beam that buildings can shade (erf.ibseb.ground_view_shadow
+ * with the two-stream columns): the sun that casts the shadows (the faces', ``sz`` the
+ * sine of its elevation) is above the horizon and the column brings a direct beam
+ * ``beam_ground`` to its ground. The one condition for the sunlit ground view and for
+ * the beam's share of the reflection, so neither is taken without the other.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool ground_view_beam_up (amrex::Real sz, amrex::Real beam_ground) noexcept
+{
+    return sz > 0.0 && beam_ground > 0.0;
+}
+
+/**
+ * The sunlit part of a face's view of the ground (erf.ibseb.ground_view_shadow): of
+ * the hemisphere rays of the view fractions that end on the ground, the share that
+ * ends on ground the sun reaches, over all the rays (so the result never exceeds the
+ * ground view fraction). The landings ``land[0 .. n_land)`` are the distinct columns
+ * the face's ground rays land in and ``rays[0 .. n_land)`` the number of rays that land
+ * in each (IBFaceSet::build_ground_landings(), kept once: the geometry is static). Each
+ * column takes the shadow at the centre of its ground, cast toward the sun
+ * ``(sx, sy, sz)`` by the walk of the ground's own shadow
+ * (IBFaceSet::compute_ground_shadow()), within the map's reach of the face's column
+ * ``(ci_f, cj_f)`` (ray_blocked_near()): one walk per column, whatever the number of
+ * rays that land in it. The ``n_far`` rays that reach the ground beyond that reach, or
+ * by leaving the map, land on the open ground of the far field, which is sunlit. With
+ * the sun at or below the horizon nothing is sunlit.
+ *
+ * @param ci_f, cj_f the column of the face's fluid cell
+ * @param inv        the weight of one ray (hemisphere_ray_weight())
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real ground_view_lit (int ci_f, int cj_f, int n_far, const unsigned int* land, const int* rays, int n_land,
+                             amrex::Real inv, amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m)
+{
+    if (sz <= 0.0) { return 0.0; }
+    int n_lit = n_far;
+    for (int n = 0; n < n_land; ++n) {
+        int di = 0, dj = 0;
+        unpack_landing(land[n], di, dj);
+        if (!ray_blocked_near(ci_f + di, cj_f + dj, sx, sy, sz, m, ci_f, cj_f)) { n_lit += rays[n]; }
+    }
+    // The count times the weight of a ray, as the view fractions are formed
+    // (IBFaceSet::compute_view_fractions()): a ground view that is all sunlit then
+    // equals the ground view fraction to the last bit.
+    return n_lit * inv;
 }
 
 } // namespace ibseb

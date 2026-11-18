@@ -53,8 +53,6 @@ erf.dynamic_viscosity = 87.108013935 # kg/(m-s)
 erf.alpha_T           = 0.0
 erf.alpha_C           = 0.0
 
-erf.init_type = ""
-
 erf.c_p    = 1004.0
 
 # PROBLEM PARAMETERS (optional)

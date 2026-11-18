@@ -2,7 +2,7 @@
 #
 # Observation nudging over a hill on a terrain-fitted mesh.
 #
-# A 5 m/s westerly crosses a 100 m hill centred at x = 800 m.  A met mast on
+# A 5 m/s westerly crosses a 100 m hill centered at x = 800 m.  A met mast on
 # the upwind slope and a lidar on the lee slope stand 100 m from the summit,
 # where the ground is 53 m up, so a height measured from z = 0 instead of from
 # the ground would put their measurements 53 m (five vertical radii) away from

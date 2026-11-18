@@ -33,7 +33,7 @@ prob.L                   = 300.0
 # ANELASTIC; ON A TERRAIN-FITTED MESH THE PROJECTION IS FFT-PRECONDITIONED GMRES.
 # erf.use_fft is not set: it is not read on this mesh, and a
 # build without FFT stops on it at start-up.
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.mg_v      = 1
 
 # TIME STEP CONTROL

@@ -4,8 +4,9 @@ Standard library only, so the regression check scripts run on a bare CI
 runner. Returns planar (x-y) averages of cell-centred fields as a function
 of the vertical index, plus the cell-centre heights of a flat mesh.
 
-Limitations: one AMR level, double precision, native byte order as written
-in the FAB headers (little endian on every platform ERF is tested on).
+Limitations: one AMR level, except read_fields, which reads any one level of
+a multi-level plotfile. Single/double precision and byte order are read from
+the FAB headers.
 """
 
 import array
@@ -27,14 +28,14 @@ def _read_header(plotfile):
     prob_lo = [float(v) for v in next(it).split()]
     prob_hi = [float(v) for v in next(it).split()]
     next(it)                          # ref ratios (an empty line when finest == 0)
-    dom = next(it)                    # "((0,0,0) (nx-1,ny-1,nz-1) (0,0,0))"
-    lo, hi = re.findall(r"\(([-\d,]+)\)", dom)[:2]
-    lo = [int(v) for v in lo.split(",")]
-    hi = [int(v) for v in hi.split(",")]
+    dom = next(it)                    # "((0,0,0) (nx-1,ny-1,nz-1) (0,0,0))", one per level
+    corners = [[int(v) for v in c.split(",")] for c in re.findall(r"\(([-\d,]+)\)", dom)]
+    domains = [(corners[3 * n], corners[3 * n + 1]) for n in range(len(corners) // 3)]
+    lo, hi = domains[0]
     next(it)                          # step numbers
     dx = [float(v) for v in next(it).split()]
     return dict(names=names, ndim=ndim, time=time, finest=finest,
-                prob_lo=prob_lo, prob_hi=prob_hi, lo=lo, hi=hi, dx=dx)
+                prob_lo=prob_lo, prob_hi=prob_hi, lo=lo, hi=hi, dx=dx, domains=domains)
 
 
 def _read_cell_h(level_dir):
@@ -66,6 +67,16 @@ def _read_cell_h(level_dir):
     return ncomp, ng, boxes, fabs
 
 
+def finest_level(plotfile):
+    """The finest level the plotfile holds (0 for a single level)."""
+    return _read_header(plotfile)["finest"]
+
+
+def level_boxes(plotfile, level):
+    """The grids of one level of a plotfile, as a list of (lo, hi) index triples."""
+    return _read_cell_h(os.path.join(plotfile, "Level_%d" % level))[2]
+
+
 def _read_fab(path, offset, ncomp):
     with open(path, "rb") as fh:
         fh.seek(offset)
@@ -74,11 +85,12 @@ def _read_fab(path, offset, ncomp):
             header += fh.read(1)
         htxt = header.decode()
         # FAB ((8, (64 11 52 0 1 12 0 1023)),(8, (1 2 3 4 5 6 7 8)))((lo) (hi) (0)) ncomp
-        nbytes = int(re.search(r"FAB \(\((\d+)", htxt).group(1))
         # AMReX byte-order descriptor: "(1 2 ... 8)" is big endian,
         # "(8 7 ... 1)" is little endian (native on x86 and Apple silicon).
-        order = re.search(r"\(\d+, \(([\d ]+)\)\)\)\(", htxt).group(1).split()
-        little = order[0] == "8"
+        descriptor = re.search(r"\((\d+), \(([\d ]+)\)\)\)\(", htxt)
+        nbytes = int(descriptor.group(1))
+        order = descriptor.group(2).split()
+        little = order[0] == str(nbytes)
         lo, hi = re.findall(r"\(([-\d,]+)\)", htxt.split(")))")[1])[:2]
         lo = [int(v) for v in lo.split(",")]
         hi = [int(v) for v in hi.split(",")]
@@ -141,11 +153,12 @@ def read_surf_hist(path):
     return dict(zip(header, last))
 
 
-def read_fields(plotfile, fields):
-    """Full 3D cell data of the named fields on a single-level plotfile.
+def read_fields(plotfile, fields, level=0):
+    """Full 3D cell data of the named fields on one level of a plotfile.
 
     Returns (hdr, data) where data[field][i][j][k] is a nested list over the
-    whole domain (0-based from the domain's low corner). Meant for the small
+    whole domain of the level (0-based from the domain's low corner); on a
+    refined level the cells outside its grids are 0. Meant for the small
     canonical grids; it is pure Python.
     """
     hdr = _read_header(plotfile)
@@ -154,10 +167,10 @@ def read_fields(plotfile, fields):
         if f not in names:
             raise KeyError("field %s not in plotfile (have: %s)" % (f, ", ".join(names)))
     comps = [names.index(f) for f in fields]
-    lo, hi = hdr["lo"], hdr["hi"]
+    lo, hi = hdr["domains"][level]
     nx, ny, nz = [hi[d] - lo[d] + 1 for d in range(3)]
     out = {f: [[[0.0] * nz for _ in range(ny)] for _ in range(nx)] for f in fields}
-    level_dir = os.path.join(plotfile, "Level_0")
+    level_dir = os.path.join(plotfile, "Level_%d" % level)
     ncomp, ng, boxes, fabs = _read_cell_h(level_dir)
     for (blo, bhi), (fname, off) in zip(boxes, fabs):
         flo, fhi, data = _read_fab(os.path.join(level_dir, fname), off, ncomp)
@@ -174,4 +187,3 @@ def read_fields(plotfile, fields):
                     for i in range(blo[0], bhi[0] + 1):
                         arr[i - lo[0]][j - lo[1]][k - lo[2]] = data[row + (i - flo[0])]
     return hdr, out
-

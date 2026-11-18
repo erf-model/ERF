@@ -30,6 +30,17 @@ The following problems are currently tested in the CI:
 | AnelasticWallDiffusion_X/Y/Z  | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | rotated stationary linear-theta |
 |                               |          |          |          |            |       | wall-diffusion tests            |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ImmersedLES2LevAverageDown    | 16 8  20 | Periodic | Periodic | NoSlipWall | None  | two-level immersed LES; coarse  |
+| (and _Plain)                  |          |          |          | SlipWall   |       | cells vs fluid-mass fine average|
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ImmersedLES2LevHeatBalance    | 16 8  20 | Periodic | Periodic | NoSlipWall | None  | two-level immersed LES, patch   |
+| (and _Freeze, _LogLaw)        |          |          |          | SlipWall   |       | edges cross the surface; mean   |
+|                               |          |          |          |            |       | theta holds (implicit proj.)    |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ImmersedForm7Equivalence      | 8 8 50   | Periodic | Periodic | MOST       | None  | neutral k-eqn ABL: fraction-    |
+| (and _Legacy)                 | 8 8 52   |          |          | SlipWall   |       | stress law over a face-aligned  |
+|                               |          |          |          |            |       | immersed plane vs flat ground   |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | CouetteFlow_x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous                   |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (u = 2)               |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
@@ -42,6 +53,10 @@ The following problems are currently tested in the CI:
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | MoistDiffusion_ImplicitCF     | 4 4 32   | Periodic | Periodic | SlipWall   | None  | as CouetteFlow_ImplicitCF, for  |
 |                               |          |          |          | SlipWall   |       | the implicit moisture solve     |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| TwoWay_FourLevels_PartialDepth| 40 28 40 | Periodic | Periodic | SlipWall   | None  | four levels, two-way coupling;  |
+|                               |          |          |          | SlipWall   |       | levels 1 and 2 are made from    |
+|                               |          |          |          |            |       | scratch twice (iterate_grids)   |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity                        |
 |                               |          | Outflow  |          | SlipWall   |       |                                 |
@@ -530,6 +545,30 @@ Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_
 
 .. _`Tests/test_files/MoistDiffusion_ImplicitCF`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MoistDiffusion_ImplicitCF
 
+Four levels made from scratch twice, with two-way coupling
+----------------------------------------------------------
+
+A uniform anelastic flow on four levels (``amr.ref_ratio_vect = 2 2 1`` on each), every refined
+level stopping below the domain top, with two-way coupling.  With ``amr.iterate_grids`` (the
+default) AMReX builds the levels one at a time and then regenerates them all from level 0 once the
+finest level exists; levels 1 and 2 grow by the proper-nesting buffer in that pass and are made
+from scratch a second time, while level 3 sits well inside level 2 and is not.  When level 2 is
+made again it has to rebuild the flux register on its interface with level 3, which was built from
+its first grids, and fill its own ghost cells, which the second tagging pass would otherwise fill
+from a level 1 whose ghost cells are still empty
+(`erf-model/ERF#4988 <https://github.com/erf-model/ERF/issues/4988>`_).  The test requires the run
+log to show that second pass (level 2 made from scratch twice, level 3 once) and the uniform flow to
+stay uniform on every level over three steps (``plt00000`` against ``plt00003``).  A register left
+on the old grids stops the first step with an assertion in ``getAdvFluxReg``; without the ghost
+fill the initial state is several m/s from uniform and the multigrid pressure solve fails in the
+second step.
+
+Test Location: `Tests/test_files/TwoWay_FourLevels_PartialDepth`_
+
+.. _`Tests/test_files/TwoWay_FourLevels_PartialDepth`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TwoWay_FourLevels_PartialDepth
+
+Problem Location: ``Exec/CanonicalTests/ABL``
+
 Poiseuille Flow (x-direction)
 -----------------------------
 
@@ -629,7 +668,7 @@ no gold file; label ``restart-parity``). Every run has a time limit of its own,
 so a restart whose first step never finishes fails with a message. Until
 September 2026 the restart path handed the microphysics its minimum cell
 height only on terrain-fitted meshes; on a constant-dz mesh the sedimentation
-substep count of the first restarted step was computed from an uninitialised
+substep count of the first restarted step was computed from an uninitialized
 value and the step never finished. Only the schemes that size their
 sedimentation substeps from that height are affected, namely Kessler
 (``ERF_Kessler.cpp``) and SAM (``ERF_PrecipFall.cpp``, ``ERF_IceFall.cpp``);
@@ -707,15 +746,18 @@ Test Location: `Tests/test_files/Closure_BoxParity`_
 
 Conservation across coarse/fine boundaries
 ------------------------------------------
-The ``Conservation_*`` tests (label ``conservation``, no gold file) run a two-level deck with
-two-way coupling in a closed domain: slip walls in z, periodic in x and y. They require the
-composite integral of a scalar to be the same at the start and the end of the run
-(``Tests/RunConservation.cmake``). The integral is the one ERF prints every step with
-``erf.sum_interval = 1`` (``RHO SCALAR SL/ML`` or ``RHO QTOTAL SL/ML``, see
-``erf.sum_interval`` in :ref:`Inputs <examples-of-usage-9>`). It weights each cell by
-:math:`\det J/(m_x m_y)` and masks the covered cells, so it is the quantity the discretization
-conserves on any mesh and with any refinement ratio. The two values must agree to 12
-significant digits in double precision and to 5 in single precision.
+The ``Conservation_*`` tests (label ``conservation``, no gold file) run a closed domain and
+require an integral that ERF prints every step with ``erf.sum_interval = 1`` to be the same at the
+start and the end of the run (``Tests/RunConservation.cmake``; see ``erf.sum_interval`` in
+:ref:`Inputs <examples-of-usage-9>`). Most run a two-level deck with two-way coupling, slip walls
+in z and periodic in x and y, and check the composite integral of a scalar (``RHO SCALAR SL/ML``
+or ``RHO QTOTAL SL/ML``); the ``Conservation_TerrainSlipWall_*`` and
+``Conservation_SlipWall*_Flat`` tests below run one level and check ``MASS``. The integral weights
+each cell by :math:`\det J/(m_x m_y)` and masks the covered cells, so it is the quantity the
+discretization conserves on any mesh and with any refinement ratio. The two values must agree to
+12 significant digits in double precision and to 5 in single precision (the
+``Conservation_TerrainSlipWall_*`` and ``Conservation_SlipWall*_Flat`` tests are registered in
+double precision only).
 
 That holds only if the reflux at the coarse/fine faces includes the diffusive fluxes, both the
 explicit ones and the implicit part of the vertical ones (erf-model/ERF#4323). Before that fix
@@ -754,9 +796,62 @@ here. It goes through the same functions as that of moisture.
 EB runs do not reflux diffusive fluxes, and ERF warns when two-way coupling is used with EB and
 diffusion.
 
-Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/ScalarDiffusion_Reflux`_
+The ``Conservation_TerrainSlipWall_*`` tests run the ``TerrainSlipWall_Mass`` deck on one level:
+a closed, fully compressible 1 km x 1 km x 500 m box (slip walls on all six faces) over terrain
+that slopes into its walls, where a 10 K warm bubble sets up a flow for 40 steps, and require
+the domain mass not to change. ``RidgeX`` has a ridge in x (a Witch of Agnesi 100 m high with a
+half-width of 150 m, still about 8 m high and sloping at the x walls), ``RidgeY`` the same ridge
+in y, and ``Hill`` a radial hill. Over terrain that slopes normal to a wall, the terrain term of
+the horizontal pressure gradient is not zero on the wall face; until the acoustic substeps kept
+the normal momentum on wall faces at its stage value (zero on a slip wall), they carried mass
+through the walls (3e-11 to 1e-10 relative in these runs), which the boundary fill only hid by
+resetting the momentum after each substep.
+
+``Conservation_SlipWallTheta_Flat`` and ``Conservation_SlipWallRayleigh_Flat`` run the same deck
+without terrain. The first gives ``theta = 290`` on the four side walls, against about 300 K
+inside: the ghost cells of (rho theta) are then not an even reflection, so the pressure gradient
+on the wall faces is not zero even on a flat mesh. The second damps u and v toward the 5 / 3 m/s
+wind of ``input_sounding_wind`` with fast Rayleigh damping, which is not zero on a wall face
+where u = 0. Until the substep without terrain also kept the wall faces at their stage value,
+the mass changed by 2.7e-8 and 4.1e-6 relative in these runs.
+
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_,
+`Tests/test_files/ScalarDiffusion_Reflux`_, `Tests/test_files/TerrainSlipWall_Mass`_
 
 .. _`Tests/test_files/ScalarDiffusion_Reflux`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion_Reflux
+
+.. _`Tests/test_files/TerrainSlipWall_Mass`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TerrainSlipWall_Mass
+
+Mass Source
+-----------
+The ``MassSource_*`` tests (with Python, not Windows) check the localized mass source
+(:ref:`sec:MassSourceInputs`). The ``MassSource`` deck injects a constant 1.0e4 kg/s, with the
+tracer on, from the cells within 100 m of the center of a closed 1 km x 1 km x 500 m box (slip
+walls on all six faces) and less than 100 m above the ground, for 20 fully compressible steps.
+Nothing enters or leaves, so ``Tests/check_mass_source.py`` requires the domain mass ERF prints
+to grow by the mass injected and the tracer integral, zero at the start, to equal it, both to
+1e-9 relative in double precision; where a theta is given it also requires the
+:math:`\rho\theta` integral to grow by theta times the mass injected.
+
+- ``Flat`` runs the deck as it stands (and checks :math:`\rho\theta` with the uniform 300 K).
+- ``Hill`` runs over a cos\ :sup:`4` hill 100 m high and 800 m across on the terrain-fitted mesh
+  (so the source volume includes the terrain metric; the hill is flat where it meets the walls).
+- ``Stretched`` runs on a stretched mesh (``erf.initial_dz = 10``, ratio 1.1).
+- ``SplitZ`` splits the grids in z (without acoustic substepping), so some boxes do not reach
+  the ground.
+- ``RateTable`` reads a table that ramps to 1.0e4 kg/s over 5 s and holds it to 8 s (55000 kg),
+  which only a source evaluated at the right stage times integrates exactly.
+- ``Theta`` injects at ``erf.mass_source.theta = 280``, and ``NoTracer`` with the tracer off,
+  where the scalar integral must stay zero.
+- ``AMR``, ``AMR_Away``, ``AMR_Aloft`` and ``AMR_Cut`` refine a patch, coupled two-way, that
+  holds the whole source region, none of it, the column above it but not the region, and half
+  of it; the composite mass must grow by the mass injected in each.
+
+``MassSource_Anelastic_Abort`` requires ERF to stop at start-up when the deck is run anelastic.
+
+Test Location: `Tests/test_files/MassSource`_
+
+.. _`Tests/test_files/MassSource`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MassSource
 
 Terrain Poisson operator at Neumann faces
 -----------------------------------------

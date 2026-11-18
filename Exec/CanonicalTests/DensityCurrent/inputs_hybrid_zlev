@@ -10,7 +10,7 @@ amr.blocking_factor_y = 1
 amr.blocking_factor_z = 16
 
 # Compressible at level 0, anelastic at level 1
-erf.anelastic   = 0 1
+erf.compressibility_type = FullyCompressible Anelastic
 erf.use_fft = true
 erf.mg_v = 1
 

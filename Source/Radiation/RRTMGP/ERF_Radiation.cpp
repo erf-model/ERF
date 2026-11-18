@@ -14,6 +14,7 @@
 
 #include <cmath>
 #include <filesystem>
+#include <limits>
 #include "ERF_Constants.H"
 #include <sstream>
 
@@ -86,6 +87,10 @@ Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
 {
     // Note that Kokkos is now initialized in main.cpp
+
+    // Stored now, not only in set_grids, so it is valid from construction on
+    m_lev = lev;
+
     m_rdOcp = sc.rdOcp;
 
     // Check if we have a valid moisture model
@@ -104,8 +109,13 @@ Radiation::Radiation (const int& lev,
     // Must specify a surface temp (LSM can overwrite)
     pp.get("rad_t_sfc", m_rad_t_sfc);
 
-    // Radiation timestep, as a number of atm steps
-    pp.queryAdd("rad_freq_in_steps", m_rad_freq_in_steps);
+    // SolverChoice reads the sun, site and update interval once for RRTMGP
+    // and the optional topographic surface correction.
+    const auto& solar = sc.rrtmgpSolarChoice;
+    m_rad_freq_in_steps = solar.radiation_interval;
+    m_lat_cons = solar.latitude;
+    m_lon_cons = solar.longitude;
+    m_fixed_solar_zenith_angle = solar.fixed_mu;
 
     // Get nvar if specified
     pp.queryAdd("rad_nvar", m_rad_nvar);
@@ -141,35 +151,12 @@ Radiation::Radiation (const int& lev,
     pp.queryAdd("rad_orbital_obliquity"   , m_orbital_obliq);
     pp.queryAdd("rad_orbital_mvelp"       , m_orbital_mvelp);
 
-    // Get a constant lat/lon for idealized simulations
-    pp.queryAdd("rad_cons_lat", m_lat_cons);
-    pp.queryAdd("rad_cons_lon", m_lon_cons);
-
-    // Both models read these keys and feed them to the same cos-zenith formula in the
-    // same units, so apply the range checks RadChoice::init_params already applies.
-    if (!std::isfinite(m_lat_cons) || m_lat_cons < Real(-90.0) || m_lat_cons > Real(90.0)) {
-        amrex::Abort("erf.rad_cons_lat = " + std::to_string(m_lat_cons) +
-                     " must lie in [-90, 90] degrees.");
-    }
-    if (!std::isfinite(m_lon_cons) || m_lon_cons < Real(-180.0) || m_lon_cons > Real(180.0)) {
-        amrex::Abort("erf.rad_cons_lon = " + std::to_string(m_lon_cons) +
-                     " must lie in [-180, 180] degrees.");
-    }
-
     // Value for prescribing an invariant solar constant (i.e. total solar irradiance at
     // TOA).  Used for idealized experiments such as RCE. Disabled when value is less than zero
     pp.queryAdd("fixed_total_solar_irradiance", m_fixed_total_solar_irradiance);
 
-    // Determine whether or not we are using a fixed solar zenith angle (positive value)
-    pp.queryAdd("fixed_solar_zenith_angle", m_fixed_solar_zenith_angle);
-
-    // The same checks the two-stream model applies to these shared inputs
-    // (RadChoice::init_params): the fixed zenith input is a cosine, and the
-    // surface temperature must be a temperature.
-    if (m_fixed_solar_zenith_angle > Real(1.0)) {
-        amrex::Abort("erf.fixed_solar_zenith_angle = " + std::to_string(m_fixed_solar_zenith_angle) +
-                     " is the cosine of the solar zenith angle and cannot exceed 1; 60 degrees is 0.5.");
-    }
+    // The solar-input range checks live in RRTMGPSolarChoice::read. Surface
+    // temperature is still read and validated by this interface.
     if (!std::isfinite(m_rad_t_sfc) || m_rad_t_sfc <= Real(0.0)) {
         amrex::Abort("erf.rad_t_sfc = " + std::to_string(m_rad_t_sfc) +
                      " must be a positive temperature [K].");
@@ -177,7 +164,15 @@ Radiation::Radiation (const int& lev,
 
     // Get prescribed surface values of greenhouse gases
     pp.queryAdd("co2vmr", m_co2vmr);
-    pp.queryarr("o3vmr" , m_o3vmr );
+    // The O3 default is a single near-surface value applied to every layer, which
+    // is far too low in the stratosphere; warn so deep runs do not use it silently
+    if (!pp.queryAdd("o3vmr", m_o3vmr) && lev == 0) {
+        // amrex::Warning prints on every rank, so print once from the I/O rank instead
+        amrex::Print() << "WARNING: erf.o3vmr is not set: using " << m_o3vmr[0]
+                       << " at every layer. This near-surface value underestimates ozone"
+                          " (and shortwave heating) aloft; set erf.o3vmr to a profile for"
+                          " domains that reach the stratosphere.\n";
+    }
     pp.queryAdd("n2ovmr", m_n2ovmr);
     pp.queryAdd("covmr" , m_covmr );
     pp.queryAdd("ch4vmr", m_ch4vmr);
@@ -272,9 +267,10 @@ Radiation::set_grids (int& level,
                       MultiFab* qheating_rates,
                       MultiFab* rad_fluxes,
                       MultiFab* z_phys,
+                      MultiFab* z_sfc,
                       MultiFab* lat,
                       MultiFab* lon,
-                      const bool /*updated_lsm*/)
+                      const bool force_update)
 
 {
     // Set data members that may change
@@ -287,6 +283,7 @@ Radiation::set_grids (int& level,
     m_qheating_rates = qheating_rates;
     m_rad_fluxes     = rad_fluxes;
     m_z_phys         = z_phys;
+    m_z_sfc          = z_sfc;
     m_lat            = lat;
     m_lon            = lon;
 
@@ -305,8 +302,10 @@ Radiation::set_grids (int& level,
     }
 
     // Only allocate and proceed if we are going to update radiation
-    m_update_rad = false;
-    if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) ); }
+    m_update_rad = force_update;
+    if (m_rad_freq_in_steps > 0) {
+        m_update_rad = m_update_rad || (m_step == 0) || (m_step % m_rad_freq_in_steps == 0);
+    }
 
     if (m_update_rad) {
         // Call to Init() has set the dimensions: ncol & nlay
@@ -322,10 +321,20 @@ Radiation::set_grids (int& level,
         // while indexing m_col_offsets and m_qheating_rates.
         if (datalog_int > 0) {
             bool needs_define = ( (datalog_mf.boxArray()        != cons_in->boxArray()) ||
-                                  (datalog_mf.DistributionMap() != cons_in->DistributionMap()) );
+                                  (datalog_mf.DistributionMap() != cons_in->DistributionMap()) ||
+                                  (datalog_mf.nComp()           != nDatalogComp()) ||
+                                  (datalog_bdy_mf.nComp()       != nDatalogBdyComp()) );
             if (needs_define) {
-                datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), 25, 0);
+                datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), nDatalogComp(), 0);
                 datalog_mf.setVal(0.0);
+
+                // Every box spans the full column (asserted in Init()), so collapsing each one to a
+                // single cell in z keeps the same box ordering and lets populateDatalogMF() share one MFIter
+                BoxList bl_bdy = cons_in->boxArray().boxList();
+                for (auto& b : bl_bdy) { b.setRange(2, 0, 1); }
+                datalog_bdy_mf.define(BoxArray(std::move(bl_bdy)), cons_in->DistributionMap(),
+                                      nDatalogBdyComp(), 0);
+                datalog_bdy_mf.setVal(0.0);
             }
         }
     }
@@ -352,7 +361,7 @@ Radiation::alloc_buffers ()
     // 1d size (1 or nlay)
     m_o3_size = m_o3vmr.size();
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(((m_o3_size==1) || (m_o3_size==m_nlay)),
-                                     "O3 VMR array must be length 1 or nlay");
+                                     "erf.o3vmr must have 1 or nlay values");
     Real* o3vmr_p = m_o3vmr.data();
     o3_lay = real1d_k("o3_lay", m_o3_size);
     realHost1d_k o3_lay_h("o3_lay_h", m_o3_size);
@@ -673,6 +682,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             qv_lay_tab(icol,ilay) = qv;
             qc_lay_tab(icol,ilay) = qc;
             qi_lay_tab(icol,ilay) = qi;
+            // NOTE: Binary (all-or-nothing) cloud fraction, consistent with saturation adjustment and suited to
+            //       resolved clouds; with it erf.rad_do_subcol_sampling has no effect (see #5212)
             cldfrac_tot_tab(icol,ilay) = ((qc+qi)>Real(0.)) ? Real(1.) : Real(0.);
 
             // NOTE: These are populated in 'mixing_ratio_to_cloud_mass'
@@ -751,6 +762,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                 const Array4<const Real>& cons_arr = m_cons_in->const_array(mfi);
                 const Array4<const Real>& z_arr = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                                Array4<const Real>{};
+                const Array4<const Real>& zsfc_arr = (m_z_phys) ? m_z_sfc->const_array(mfi) :
+                                                                  Array4<const Real>{};
                 const Array4<const int>& lmask_arr   = (lmask)   ? lmask->const_array(mfi) :
                                                                    Array4<const int> {};
                 const Array4<const Real>& tsurf_arr  = (t_surf) ? t_surf->const_array(mfi) :
@@ -790,7 +803,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                 cons_arr(i,j,k_surface,RhoTheta_comp),
                                 moist ? std::max(cons_arr(i,j,k_surface,RhoQ1_comp) /
                                                  cons_arr(i,j,k_surface,Rho_comp), Real(0.)) : Real(0.),
-                                z_arr ? Compute_Zrel_AtCellCenter(i,j,k_surface,z_arr) : Real(0.5)*dz),
+                                z_arr ? Compute_Zrel_AtCellCenter(i,j,k_surface,zsfc_arr,z_arr) : Real(0.5)*dz),
                             rdOcp,
                             rrtmgp_default_val,
                             rrtmgp_to_fill(icol));
@@ -955,7 +968,7 @@ Radiation::write_rrtmgp_fluxes ()
    }
 
 
-   std::string plotfilename = amrex::Concatenate("plt_rad", m_step, 5);
+   std::string plotfilename = amrex::Concatenate("plt_rad_lev" + std::to_string(m_lev) + "_", m_step, 5);
    Vector<std::string> flux_names = {"sw_flux_up", "sw_flux_dn", "sw_flux_dir",
                                      "lw_flux_up", "lw_flux_dn"};
    WriteSingleLevelPlotfile(plotfilename, mf_flux, flux_names, m_geom, static_cast<Real>(m_time), m_step);
@@ -1006,8 +1019,30 @@ void Radiation::populateDatalogMF ()
 
     Table1D<Real>              mu0_tab(mu0.data(),              {0}, {static_cast<int>(mu0.extent(0))});
 
+    // Layer pressure, to convert the clear-sky heating rates to potential temperature tendencies
+    Table2D<Real,Order::C> p_lay_tab(p_lay.data(), {0,0}, {static_cast<int>(p_lay.extent(0)),static_cast<int>(p_lay.extent(1))});
+    const Real rdOcp = m_rdOcp;
+
     auto extra_clnsky_diag    = m_extra_clnsky_diag;
     auto extra_clnclrsky_diag = m_extra_clnclrsky_diag;
+
+    Real dz = m_geom.CellSize(2);
+    const int ktop = m_geom.Domain().bigEnd(2);
+
+    // Local copies of the layout constants for the kernel. The per-cell flux arrays are sized
+    // by max_datalog_flux, so the enabled flux count must fit in them.
+    constexpr int max_flux = max_datalog_flux;
+    constexpr int nset     = n_flux_per_set;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nDatalogFluxComp() <= max_flux,
+                                     "RRTMGP datalog flux count exceeds max_datalog_flux");
+
+    // Every write goes through a guard, so a count that does not match the allocation never
+    // indexes past the end; it raises this flag instead, which the host checks after the loop
+    // since device-side asserts are compiled out of release GPU builds
+    const int ncomp = datalog_mf.nComp();
+    const int nflux = nDatalogFluxComp();
+    Gpu::Buffer<int> d_err({0});
+    int* err = d_err.data();
 
     for (MFIter mfi(datalog_mf); mfi.isValid(); ++mfi) {
         const auto& vbx      = mfi.validbox();
@@ -1016,189 +1051,241 @@ void Radiation::populateDatalogMF ()
         const int jmin       = vbx.smallEnd(1);
         const int offset     = m_col_offsets[mfi.index()];
         const Array4<Real>& dst_arr = datalog_mf.array(mfi);
+        const Array4<Real>& bdy_arr = datalog_bdy_mf.array(mfi);
         const Array4<Real>&   q_arr = m_qheating_rates->array(mfi);
+        // Heights above ground need both the node heights and the surface heights
+        const bool has_z = (m_z_phys != nullptr) && (m_z_sfc != nullptr);
+        const Array4<const Real>& z_arr    = (has_z) ? m_z_phys->const_array(mfi) :
+                                                       Array4<const Real>{};
+        const Array4<const Real>& zsfc_arr = (has_z) ? m_z_sfc->const_array(mfi) :
+                                                       Array4<const Real>{};
+
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilay] 0-based
             const int icol = (j-jmin)*nx + (i-imin) + offset;
             const int ilay = k;
 
-            dst_arr(i,j,k,0) = q_arr(i, j, k, 0);
-            dst_arr(i,j,k,1) = q_arr(i, j, k, 1);
+            // Fluxes on the lower (flo) and upper (fhi) faces of this layer, in datalog order:
+            // all-sky, clear-sky, then the optional clean-sky and clean-clear-sky sets
+            Real flo[max_flux];
+            Real fhi[max_flux];
+            int nf = 0;
+            auto add_flux = [&] (const Table2D<Real,Order::C>& tab)
+            {
+                if (nf < max_flux) {
+                    flo[nf] = tab(icol,ilay);
+                    fhi[nf] = tab(icol,ilay+1);
+                }
+                ++nf;
+            };
 
-            // SW and LW fluxes
-            dst_arr(i,j,k,2) = sw_flux_up_tab(icol,ilay);
-            dst_arr(i,j,k,3) = sw_flux_dn_tab(icol,ilay);
-            dst_arr(i,j,k,4) = sw_flux_dn_dir_tab(icol,ilay);
-            dst_arr(i,j,k,5) = lw_flux_up_tab(icol,ilay);
-            dst_arr(i,j,k,6) = lw_flux_dn_tab(icol,ilay);
+            add_flux(sw_flux_up_tab);
+            add_flux(sw_flux_dn_tab);
+            add_flux(sw_flux_dn_dir_tab);
+            add_flux(lw_flux_up_tab);
+            add_flux(lw_flux_dn_tab);
+
+            add_flux(sw_clrsky_flux_up_tab);
+            add_flux(sw_clrsky_flux_dn_tab);
+            add_flux(sw_clrsky_flux_dn_dir_tab);
+            add_flux(lw_clrsky_flux_up_tab);
+            add_flux(lw_clrsky_flux_dn_tab);
+
+            if (extra_clnsky_diag) {
+                add_flux(sw_clnsky_flux_up_tab);
+                add_flux(sw_clnsky_flux_dn_tab);
+                add_flux(sw_clnsky_flux_dn_dir_tab);
+                add_flux(lw_clnsky_flux_up_tab);
+                add_flux(lw_clnsky_flux_dn_tab);
+            }
+
+            if (extra_clnclrsky_diag) {
+                add_flux(sw_clnclrsky_flux_up_tab);
+                add_flux(sw_clnclrsky_flux_dn_tab);
+                add_flux(sw_clnclrsky_flux_dn_dir_tab);
+                add_flux(lw_clnclrsky_flux_up_tab);
+                add_flux(lw_clnclrsky_flux_dn_tab);
+            }
+
+            const int nf_set = amrex::min(nf, nflux);
+
+            int idx = 0;
+            auto put = [&] (Real val)
+            {
+                if (idx < ncomp) { dst_arr(i,j,k,idx) = val; }
+                ++idx;
+            };
+
+            // Height above ground level at cell center
+            put( (z_arr) ? Compute_Zrel_AtCellCenter(i,j,k,zsfc_arr,z_arr) : (k + myhalf)*dz );
+
+            // Heating rates
+            put( q_arr(i, j, k, 0) );
+            put( q_arr(i, j, k, 1) );
+
+            // All-sky fluxes, averaged from the faces to the cell center
+            for (int n = 0; n < nset && n < nf_set; ++n) { put( myhalf * (flo[n] + fhi[n]) ); }
 
             // Cosine zenith angle
-            dst_arr(i,j,k,7) = mu0_tab(icol);
+            put( mu0_tab(icol) );
 
-            // Clear sky heating rates and fluxes:
-            dst_arr(i,j,k,8) = sw_clrsky_heating_tab(icol, ilay);
-            dst_arr(i,j,k,9) = lw_clrsky_heating_tab(icol, ilay);
+            // Clear sky heating rates, converted from dT/dt to dTheta/dt to match the
+            // all-sky rates, which kokkos_buffers_to_mf() has already converted
+            const Real iexner = rrtmgp::inverse_exner(Real(p_lay_tab(icol,ilay)), rdOcp);
+            put( sw_clrsky_heating_tab(icol, ilay) * iexner );
+            put( lw_clrsky_heating_tab(icol, ilay) * iexner );
 
-            dst_arr(i,j,k,10) = sw_clrsky_flux_up_tab(icol,ilay);
-            dst_arr(i,j,k,11) = sw_clrsky_flux_dn_tab(icol,ilay);
-            dst_arr(i,j,k,12) = sw_clrsky_flux_dn_dir_tab(icol,ilay);
-            dst_arr(i,j,k,13) = lw_clrsky_flux_up_tab(icol,ilay);
-            dst_arr(i,j,k,14) = lw_clrsky_flux_dn_tab(icol,ilay);
+            // Clear, clean and clean-clear sky fluxes, averaged to the cell center
+            for (int n = nset; n < nf_set; ++n) { put( myhalf * (flo[n] + fhi[n]) ); }
 
-            // Clean sky fluxes:
-            if (extra_clnsky_diag) {
-                dst_arr(i,j,k,15) = sw_clnsky_flux_up_tab(icol,ilay);
-                dst_arr(i,j,k,16) = sw_clnsky_flux_dn_tab(icol,ilay);
-                dst_arr(i,j,k,17) = sw_clnsky_flux_dn_dir_tab(icol,ilay);
-                dst_arr(i,j,k,18) = lw_clnsky_flux_up_tab(icol,ilay);
-                dst_arr(i,j,k,19) = lw_clnsky_flux_dn_tab(icol,ilay);
+            // Fluxes on the surface and top-of-atmosphere faces, and the top-face height
+            if (k == 0) {
+                for (int n = 0; n < nf_set; ++n) { bdy_arr(i,j,0,bdySfcComp(n)) = flo[n]; }
+            }
+            if (k == ktop) {
+                for (int n = 0; n < nf_set; ++n) { bdy_arr(i,j,0,bdyToaComp(n,nflux)) = fhi[n]; }
+                bdy_arr(i,j,0,bdyZtopComp(nflux)) = (z_arr) ?
+                    fourth*( z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) )
+                  - fourth*( zsfc_arr(i,j,0) + zsfc_arr(i+1,j,0) + zsfc_arr(i,j+1,0) + zsfc_arr(i+1,j+1,0) )
+                  : (k + 1)*dz;
             }
 
-            // Clean-clear sky fluxes:
-            if (extra_clnclrsky_diag) {
-                dst_arr(i,j,k,20) = sw_clnclrsky_flux_up_tab(icol,ilay);
-                dst_arr(i,j,k,21) = sw_clnclrsky_flux_dn_tab(icol,ilay);
-                dst_arr(i,j,k,22) = sw_clnclrsky_flux_dn_dir_tab(icol,ilay);
-                dst_arr(i,j,k,23) = lw_clnclrsky_flux_up_tab(icol,ilay);
-                dst_arr(i,j,k,24) = lw_clnclrsky_flux_dn_tab(icol,ilay);
-            }
+            // The write counts must match the components allocated in set_grids
+            if (idx != ncomp || nf != nflux) { *err = 1; }
         });
-   }
+    }
+
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(*(d_err.copyToHost()) == 0,
+                                     "RRTMGP datalog write count does not match the datalog allocation");
 }
 
 void Radiation::WriteDataLog (const double &time)
 {
-    constexpr int datwidth = 14;
-    constexpr int datprecision = 9;
-    constexpr int timeprecision = 13;
+    // Columns after time, in file order. The datalog_mf components follow this order with the
+    // disabled sets left out, and the flux columns also index the fluxes in datalog_bdy_mf.
+    enum class Kind { Height, Heating, Mu0, Flux };
+    struct Column { const char* name; Kind kind; bool enabled; };
+    const bool cln    = m_extra_clnsky_diag;
+    const bool clnclr = m_extra_clnclrsky_diag;
+    const Vector<Column> cols = {
+        {"z_agl"                 , Kind::Height , true  },
+        {"sw_heating"            , Kind::Heating, true  },
+        {"lw_heating"            , Kind::Heating, true  },
+        {"sw_flux_up"            , Kind::Flux   , true  },
+        {"sw_flux_dn"            , Kind::Flux   , true  },
+        {"sw_flux_dn_dir"        , Kind::Flux   , true  },
+        {"lw_flux_up"            , Kind::Flux   , true  },
+        {"lw_flux_dn"            , Kind::Flux   , true  },
+        {"mu0"                   , Kind::Mu0    , true  },
+        {"sw_clrsky_heating"     , Kind::Heating, true  },
+        {"lw_clrsky_heating"     , Kind::Heating, true  },
+        {"sw_clrsky_flux_up"     , Kind::Flux   , true  },
+        {"sw_clrsky_flux_dn"     , Kind::Flux   , true  },
+        {"sw_clrsky_flux_dn_dir" , Kind::Flux   , true  },
+        {"lw_clrsky_flux_up"     , Kind::Flux   , true  },
+        {"lw_clrsky_flux_dn"     , Kind::Flux   , true  },
+        {"sw_clnsky_flux_up"     , Kind::Flux   , cln   },
+        {"sw_clnsky_flux_dn"     , Kind::Flux   , cln   },
+        {"sw_clnsky_flux_dn_dir" , Kind::Flux   , cln   },
+        {"lw_clnsky_flux_up"     , Kind::Flux   , cln   },
+        {"lw_clnsky_flux_dn"     , Kind::Flux   , cln   },
+        {"sw_clnclrsky_flux_up"    , Kind::Flux , clnclr},
+        {"sw_clnclrsky_flux_dn"    , Kind::Flux , clnclr},
+        {"sw_clnclrsky_flux_dn_dir", Kind::Flux , clnclr},
+        {"lw_clnclrsky_flux_up"    , Kind::Flux , clnclr},
+        {"lw_clnclrsky_flux_dn"    , Kind::Flux , clnclr}
+    };
+    const int ncols = static_cast<int>(cols.size());
 
-    Gpu::HostVector<Real> h_avg_radqrsw, h_avg_radqrlw, h_avg_sw_up, h_avg_sw_dn, h_avg_sw_dn_dir, h_avg_lw_up, h_avg_lw_dn, h_avg_zenith;
-    // Clear sky
-    Gpu::HostVector<Real> h_avg_radqrcsw, h_avg_radqrclw, h_avg_sw_clr_up, h_avg_sw_clr_dn, h_avg_sw_clr_dn_dir, h_avg_lw_clr_up, h_avg_lw_clr_dn;
-    // Clean sky
-    Gpu::HostVector<Real> h_avg_sw_cln_up, h_avg_sw_cln_dn, h_avg_sw_cln_dn_dir, h_avg_lw_cln_up, h_avg_lw_cln_dn;
-    // Clean clear sky
-    Gpu::HostVector<Real> h_avg_sw_clnclr_up, h_avg_sw_clnclr_dn, h_avg_sw_clnclr_dn_dir, h_avg_lw_clnclr_up, h_avg_lw_clnclr_dn;
-
+    // Map each enabled column to its datalog_mf component and, for fluxes, its flux index
+    Vector<int> cc_comp(ncols, -1);
+    Vector<int> flux_comp(ncols, -1);
+    int icc   = 0;
+    int iflux = 0;
+    for (int c = 0; c < ncols; ++c) {
+        if (cols[c].enabled) {
+            cc_comp[c] = icc++;
+            if (cols[c].kind == Kind::Flux) { flux_comp[c] = iflux++; }
+        }
+    }
+    const int nflux = nDatalogFluxComp();
+    AMREX_ALWAYS_ASSERT(icc == datalog_mf.nComp() && iflux == nflux &&
+                        datalog_bdy_mf.nComp() == nDatalogBdyComp());
 
     auto domain = m_geom.Domain();
-    h_avg_radqrsw    = sumToLine(datalog_mf, 0, 1, domain, 2);
-    h_avg_radqrlw    = sumToLine(datalog_mf, 1, 1, domain, 2);
-    h_avg_sw_up      = sumToLine(datalog_mf, 2, 1, domain, 2);
-    h_avg_sw_dn      = sumToLine(datalog_mf, 3, 1, domain, 2);
-    h_avg_sw_dn_dir  = sumToLine(datalog_mf, 4, 1, domain, 2);
-    h_avg_lw_up      = sumToLine(datalog_mf, 5, 1, domain, 2);
-    h_avg_lw_dn      = sumToLine(datalog_mf, 6, 1, domain, 2);
-    h_avg_zenith     = sumToLine(datalog_mf, 7, 1, domain, 2);
+    const Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+    const int nz = domain.length(2);
 
-    h_avg_radqrcsw       = sumToLine(datalog_mf, 8, 1, domain, 2);
-    h_avg_radqrclw       = sumToLine(datalog_mf, 9, 1, domain, 2);
-    h_avg_sw_clr_up      = sumToLine(datalog_mf, 10, 1, domain, 2);
-    h_avg_sw_clr_dn      = sumToLine(datalog_mf, 11, 1, domain, 2);
-    h_avg_sw_clr_dn_dir  = sumToLine(datalog_mf, 12, 1, domain, 2);
-    h_avg_lw_clr_up      = sumToLine(datalog_mf, 13, 1, domain, 2);
-    h_avg_lw_clr_dn      = sumToLine(datalog_mf, 14, 1, domain, 2);
-
-    if (m_extra_clnsky_diag) {
-        h_avg_sw_cln_up      = sumToLine(datalog_mf, 15, 1, domain, 2);
-        h_avg_sw_cln_dn      = sumToLine(datalog_mf, 16, 1, domain, 2);
-        h_avg_sw_cln_dn_dir  = sumToLine(datalog_mf, 17, 1, domain, 2);
-        h_avg_lw_cln_up      = sumToLine(datalog_mf, 18, 1, domain, 2);
-        h_avg_lw_cln_dn      = sumToLine(datalog_mf, 19, 1, domain, 2);
+    // Planar averages of the cell-centred profiles
+    Vector<Gpu::HostVector<Real>> cc_avg(icc);
+    for (int n = 0; n < icc; ++n) {
+        cc_avg[n] = sumToLine(datalog_mf, n, 1, domain, 2);
+        for (auto& val : cc_avg[n]) { val /= area_z; }
     }
 
-    if (m_extra_clnclrsky_diag) {
-        h_avg_sw_clnclr_up      = sumToLine(datalog_mf, 20, 1, domain, 2);
-        h_avg_sw_clnclr_dn      = sumToLine(datalog_mf, 21, 1, domain, 2);
-        h_avg_sw_clnclr_dn_dir  = sumToLine(datalog_mf, 22, 1, domain, 2);
-        h_avg_lw_clnclr_up      = sumToLine(datalog_mf, 23, 1, domain, 2);
-        h_avg_lw_clnclr_dn      = sumToLine(datalog_mf, 24, 1, domain, 2);
-    }
-
-    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
-    int nz = domain.length(2);
-    for (int k = 0; k < nz; k++) {
-        h_avg_radqrsw[k] /= area_z;
-        h_avg_radqrlw[k] /= area_z;
-        h_avg_sw_up[k] /= area_z;
-        h_avg_sw_dn[k] /= area_z;
-        h_avg_sw_dn_dir[k] /= area_z;
-        h_avg_lw_up[k] /= area_z;
-        h_avg_lw_dn[k] /= area_z;
-        h_avg_zenith[k] /= area_z;
-
-        h_avg_radqrcsw[k] /= area_z;
-        h_avg_radqrclw[k] /= area_z;
-        h_avg_sw_clr_up[k] /= area_z;
-        h_avg_sw_clr_dn[k] /= area_z;
-        h_avg_sw_clr_dn_dir[k] /= area_z;
-        h_avg_lw_clr_up[k] /= area_z;
-        h_avg_lw_clr_dn[k] /= area_z;
-    }
-
-    if (m_extra_clnsky_diag) {
-        for (int k = 0; k < nz; k++) {
-            h_avg_sw_cln_up[k] /= area_z;
-            h_avg_sw_cln_dn[k] /= area_z;
-            h_avg_sw_cln_dn_dir[k] /= area_z;
-            h_avg_lw_cln_up[k] /= area_z;
-            h_avg_lw_cln_dn[k] /= area_z;
-        }
-    }
-
-    if (m_extra_clnclrsky_diag) {
-        for (int k = 0; k < nz; k++) {
-            h_avg_sw_clnclr_up[k] /= area_z;
-            h_avg_sw_clnclr_dn[k] /= area_z;
-            h_avg_sw_clnclr_dn_dir[k] /= area_z;
-            h_avg_lw_clnclr_up[k] /= area_z;
-            h_avg_lw_clnclr_dn[k] /= area_z;
-        }
-    }
+    // Planar averages of the surface and top-of-atmosphere values
+    Vector<Real> bdy_avg(datalog_bdy_mf.nComp());
+    for (int n = 0; n < datalog_bdy_mf.nComp(); ++n) { bdy_avg[n] = datalog_bdy_mf.sum(n, true); }
+    ParallelDescriptor::ReduceRealSum(bdy_avg.data(), static_cast<int>(bdy_avg.size()));
+    for (auto& val : bdy_avg) { val /= area_z; }
 
     if (ParallelDescriptor::IOProcessor()) {
         std::ostream& log = *datalog;
         if (log.good()) {
-
-            for (int k = 0; k < nz; k++)
-            {
-                Real z = k * m_geom.CellSize(2);
-                log << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                    << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                    << h_avg_radqrsw[k]   << " " << h_avg_radqrlw[k]       << " " << h_avg_sw_up[k] << " "
-                    << h_avg_sw_dn[k]     << " " << h_avg_sw_dn_dir[k]     << " " << h_avg_lw_up[k] << " "
-                    << h_avg_lw_dn[k]     << " " << h_avg_zenith[k]        << " "
-                    << h_avg_radqrcsw[k]  << " " << h_avg_radqrclw[k]      << " " << h_avg_sw_clr_up[k] << " "
-                    << h_avg_sw_clr_dn[k] << " " << h_avg_sw_clr_dn_dir[k] << " " << h_avg_lw_clr_up[k] << " "
-                    << h_avg_lw_clr_dn[k] << " ";
-                    if (m_extra_clnsky_diag) {
-                        log << h_avg_sw_cln_up[k] << " " << h_avg_sw_cln_dn[k] << " " << h_avg_sw_cln_dn_dir[k] << " "
-                            << h_avg_lw_cln_up[k] << " " << h_avg_lw_cln_dn[k] << " ";
-                    } else {
-                        log << zero << " " << zero << " " << zero << " " << zero << " " << zero << " ";
-                    }
-
-                    if (m_extra_clnclrsky_diag) {
-                        log << h_avg_sw_clnclr_up[k] << " " << h_avg_sw_clnclr_dn[k] << " " << h_avg_sw_clnclr_dn_dir[k] << " "
-                            << h_avg_lw_clnclr_up[k] << " " << h_avg_lw_clnclr_dn[k] << std::endl;
-                    } else {
-                        log << zero << " " << zero << " " << zero << " " << zero << " " << zero << std::endl;
-                    }
+            // The log is opened in append mode, so only a new file gets the header
+            log.seekp(0, std::ios::end);
+            if (log.tellp() == 0) {
+                log << "# Planar averages; each output is a block of nz+2 rows: the surface face,\n"
+                    << "# the nz cell centers, then the top-of-atmosphere face. z_agl is the height\n"
+                    << "# above ground. Heating rates exist only at cell centers and are nan on the\n"
+                    << "# face rows. Disabled clean-sky and clean-clear-sky columns are 0.\n"
+                    << "# time";
+                for (const auto& col : cols) { log << " " << col.name; }
+                log << std::endl;
             }
-            // Write top face values
-            Real z = nz * m_geom.CellSize(2);
-            log << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                << zero << " " << zero << " " << zero << " " << zero << " " << zero << " " << zero << " "
-                << zero << " " << zero << " "
-                << zero << " " << zero << " " << zero << " " << zero << " " << zero << " " << zero << " "
-                << zero << " "
-                << zero << " " << zero << " " << zero << " " << zero << " " << zero << " "
-                << zero << " " << zero << " " << zero << " " << zero << " " << zero
-                << std::endl;
-        }
-    }
+
+            const Real nan = std::numeric_limits<Real>::quiet_NaN();
+
+            // Row -1 is the surface face, rows 0..nz-1 the cell centers, row nz the top face
+            for (int row = -1; row <= nz; ++row)
+            {
+                const bool is_face = (row < 0) || (row == nz);
+                const bool is_top  = (row == nz);
+
+                log << std::setw(datalog_width) << std::setprecision(datalog_time_precision) << time
+                    << std::setprecision(datalog_precision);
+                for (int c = 0; c < ncols; ++c) {
+                    Real val = zero;
+                    if (cols[c].enabled) {
+                        if (!is_face) {
+                            val = cc_avg[cc_comp[c]][row];
+                        } else {
+                            switch (cols[c].kind) {
+                                case Kind::Height:
+                                    val = (is_top) ? bdy_avg[bdyZtopComp(nflux)] : zero;
+                                    break;
+                                case Kind::Heating:
+                                    val = nan;
+                                    break;
+                                case Kind::Mu0:
+                                    val = cc_avg[cc_comp[c]][0];
+                                    break;
+                                case Kind::Flux:
+                                    val = bdy_avg[(is_top) ? bdyToaComp(flux_comp[c], nflux)
+                                                           : bdySfcComp(flux_comp[c])];
+                                    break;
+                            }
+                        }
+                    }
+                    log << " ";
+                    if (c == 0) { log << std::setw(datalog_width); }
+                    log << val;
+                }
+                log << std::endl;
+            } // for row
+        } // log is good
+    } // IOProc
 }
 
 void
@@ -1501,7 +1588,8 @@ Radiation::run_impl ()
                             lw_clnsky_flux_up_c, lw_clnsky_flux_dn_c,
                             sw_bnd_flux_up_c, sw_bnd_flux_dn_c, sw_bnd_flux_dir_c,
                             lw_bnd_flux_up_c, lw_bnd_flux_dn_c,
-                            eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
+                            eccf, m_do_subcol_sampling,
+                            m_extra_clnclrsky_diag, m_extra_clnsky_diag);
 
         // Compute heating rates for this chunk
         rrtmgp::compute_heating_rate(sw_flux_up_c, sw_flux_dn_c, r_lay_c, z_del_c, sw_heating_c);

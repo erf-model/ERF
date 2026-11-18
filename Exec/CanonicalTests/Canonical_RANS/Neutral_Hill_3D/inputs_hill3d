@@ -7,7 +7,7 @@
 # speed-up against the axisymmetric estimate of about 1.6 h/L.
 erf.prob_name = "ABL"
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_fft   = true
 
 stop_time = 14400.0   # 4 h physics run (9600 steps); CTest overrides max_step
@@ -29,7 +29,7 @@ amr.blocking_factor  = 4
 
 geometry.is_periodic = 1 1 0
 
-# TERRAIN: axisymmetric Witch of Agnesi hill centred in the domain
+# TERRAIN: axisymmetric Witch of Agnesi hill centered in the domain
 erf.terrain_type         = StaticFittedMesh
 erf.terrain_smoothing    = 0        # basic terrain following
 erf.wall_dist_type       = terrain_height   # height above the surface on its normal; "poisson" is the Tucker (2003) solve

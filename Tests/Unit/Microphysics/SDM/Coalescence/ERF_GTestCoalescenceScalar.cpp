@@ -7,7 +7,8 @@ using namespace coalescence_test;
 // Motivation: ERF's super-droplet collisions use the kernels in
 // Source/Particles/ERF_SuperDropletPCCoalescence.H (CollisionKernel). This checks
 // the Golovin additive form, the symmetry / non-negativity / zero-at-no-shear /
-// monotonicity of the sedimentation, Long, Hall and Brownian kernels, and the
+// monotonicity of the sedimentation, Long, Hall and Brownian kernels, the exact
+// form of the geometric kernel, and the
 // bounds and cutoffs of the Beard-Grover and Erfani-Mitchell riming efficiencies
 // -- all on the host.
 TEST(CoalescenceScalar, KernelPropertiesHoldOnHost)

@@ -1,6 +1,6 @@
 # ImmersedForcingTest/PBL_IBAware
 
-Regression test for `erf.pbl_ib_aware`: the MRF and YSUNew boundary-layer
+Regression test for `erf.pbl_ib_aware`: the MRF and YSU boundary-layer
 schemes measuring height from the top of an immersed building instead of
 the terrain surface.
 
@@ -20,7 +20,7 @@ inside the building.
 
 ## The switch
 
-With `erf.pbl_ib_aware = true` (MRF and YSUNew only; the other schemes are
+With `erf.pbl_ib_aware = true` (MRF and YSU only; the other schemes are
 untouched) each column's surface is its first fluid cell above the
 immersed solid, found from the blanking every step: every height in the
 Richardson diagnosis and the K profile is measured from it, the
@@ -40,7 +40,7 @@ with the switch on:
    solid cell.
 2. The roof column's profile against height above the roof follows the
    open-ground column's against height above the ground: the same shape,
-   and the same peak height (15 m for MRF; YSUNew is flat in this neutral
+   and the same peak height (15 m for MRF; YSU is flat in this neutral
    case and only the shape is compared). The wall distance restarts at
    the roof.
 3. The first cell above the roof is within a factor five of the first
@@ -50,7 +50,7 @@ with the switch on:
 The runs with the switch off are reported, not asserted: on this case MRF
 completes with the viscosity NaN over most of the domain (the ground
 surface layer evaluates u* and L on cells inside the building and the
-NaN spreads), and YSUNew drives the density negative at its second step.
+NaN spreads), and YSU drives the density negative at its second step.
 That is the defect the switch removes; without immersed cells both
 schemes are untouched. MRF also has an invalid floating-point operation
 at its neutral start with or without a building, so its decks run with

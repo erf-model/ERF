@@ -17,13 +17,8 @@
 /* forward declaration */
 class ERFPC;
 
-/*! \brief Eulerian microphysics interface
- *
- * One key difference from #EulerianMicrophysics is that only the base AMR
- * level has the moisture model. Thus, for higher AMR levels, the microphysics
- * interface need not do anything. The number of conserved state variables for
- * moisture (RhoQ1, RhoQ2, ...) are the same for all AMR levels; however, for
- * levels other than the base, they just contain and evolve zeros. */
+/*! \brief Lagrangian microphysics interface sharing a particle container
+ * across AMR levels, with per-level Eulerian coupling fields. */
 class LagrangianMicrophysics : public Microphysics {
 
 public:
@@ -77,7 +72,7 @@ public:
                      amrex::MultiFab& cons_in, /*!< Conserved state variable */
                      const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd /*!< terrain */) override
     {
-        if (lev > 0) return;
+        m_moist_model->SetCurrentLevel(lev);
         m_moist_model->FinishInit( lev, cons_in, z_phys_nd );
     }
 
@@ -119,6 +114,28 @@ public:
         m_moist_model->AverageDownMicroVars(finest_level);
     }
 
+    /*! \brief drop the fields of a level that a regrid removes */
+    void ClearLevel (const int lev) override
+    {
+        m_moist_model->ClearLevel(lev);
+    }
+
+    /*! \brief diagnostics of the state of all levels at a step */
+    void Diagnostics (const int& step, /*!< step of the state */
+                      const amrex::Real& time, /*!< time of the state */
+                      const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd, /*!< terrain */
+                      const int file_name_digits /*!< minimum digits of the step in file names */) override
+    {
+        m_moist_model->Diagnostics(step, time, z_phys_nd, file_name_digits);
+    }
+
+    void Update_Diagnostic_State_Lev (const int& lev, amrex::MultiFab& cons,
+                                      const amrex::MultiFab& z) override
+    {
+        m_moist_model->SetCurrentLevel(lev);
+        m_moist_model->Update_Diagnostic_State(cons, z);
+    }
+
     /*! \brief get pointer to a moisture variable */
     amrex::MultiFab* Get_Qmoist_Ptr (const int& lev, /*!< AMR level */
                                      const int& varIdx /*!< moisture variable index */) override
@@ -149,6 +166,11 @@ public:
     int Get_Qstate_NonMoist_Size () override
     {
         return m_moist_model->Qstate_NonMoist_Size();
+    }
+
+    bool Qstate_Is_Diagnostic (int q) const override
+    {
+        return m_moist_model->Qstate_Is_Diagnostic(q);
     }
 
     SurfacePrecipAccumulationSources
@@ -184,17 +206,12 @@ public:
 
     /*! \brief get the indices and names of moisture model variables for restart
                at a given level */
-    void Get_Qmoist_Restart_Vars ( const int a_lev, /*!< level */
+    void Get_Qmoist_Restart_Vars ( const int /*a_lev*/, /*!< level */
                                    const SolverChoice& a_sc, /*!< Solver choice object */
                                    std::vector<int>& a_idx, /*!< indices */
                                    std::vector<std::string>& a_names /*!< names */ ) const override
     {
-        if (a_lev == 0) {
-            m_moist_model->Qmoist_Restart_Vars( a_sc, a_idx, a_names );
-        } else {
-            a_idx.clear();
-            a_names.clear();
-        }
+        m_moist_model->Qmoist_Restart_Vars( a_sc, a_idx, a_names );
     }
 
     /*! \brief Returns a list of additional plot variable names */

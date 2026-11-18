@@ -329,7 +329,8 @@ SolverChoice make_scheme_choice (const MoistureType moisture_type,
     sc.c_p = Cp_d;
     sc.rdOcp = kRdOcp;
     sc.moisture_type = moisture_type;
-    sc.anelastic = {anelastic ? 1 : 0};
+    sc.compressibility_type = {anelastic ? CompressibilityType::Anelastic
+                                       : CompressibilityType::FullyCompressible};
     sc.use_eamxx_shoc = false;
     sc.use_native_shoc = false;
     sc.ave_plane = 2;
@@ -645,16 +646,4 @@ TEST(AnelasticMicrophysicsWiring, SAMHeterogeneousPlaneUsesDiagnosedTemperature)
         erf_gammafff((Real(5.0) + b_grau) / two));
 
     expect_coefficients_near(sam.CoefficientRowAt(0), expected);
-}
-
-// Motivation: The invalid SuperDroplets/anelastic combination must be
-// recognized before the simulation reaches a compressible-only source path.
-TEST(AnelasticMicrophysicsWiring, SuperDropletsAnelasticConfigurationIsInvalid)
-{
-    EXPECT_TRUE(anelastic_superdroplets_configuration_invalid(
-        MoistureType::SuperDroplets, true));
-    EXPECT_FALSE(anelastic_superdroplets_configuration_invalid(
-        MoistureType::SuperDroplets, false));
-    EXPECT_FALSE(anelastic_superdroplets_configuration_invalid(
-        MoistureType::SAM, true));
 }

@@ -84,7 +84,8 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
                 } else if (bc_ptr[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) >= zero) {
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
-                } else if (bc_ptr[0].lo(0) == ERFBCType::foextrap) {
+                } else if (bc_ptr[0].lo(0) == ERFBCType::foextrap ||
+                           bc_ptr[0].lo(0) == ERFBCType::ext_dir_upwind) {  // outflow part of an inflow_outflow face
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
                 } else if (bc_ptr[0].lo(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
@@ -119,7 +120,8 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
                 } else if (bc_ptr[0].hi(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) <= zero) {
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
-                } else if (bc_ptr[0].hi(0) == ERFBCType::foextrap) {
+                } else if (bc_ptr[0].hi(0) == ERFBCType::foextrap ||
+                           bc_ptr[0].hi(0) == ERFBCType::ext_dir_upwind) {  // outflow part of an inflow_outflow face
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x+1,j,k);
                 } else if (bc_ptr[0].hi(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x+1,j,k);
@@ -161,7 +163,8 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][1];
                 } else if (bc_ptr[0].lo(1) == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_lo.y,Clamp(k,yvel_lo.z,yvel_hi.z)) >= zero) {
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][1];
-                } else if (bc_ptr[0].lo(1) == ERFBCType::foextrap) {
+                } else if (bc_ptr[0].lo(1) == ERFBCType::foextrap ||
+                           bc_ptr[0].lo(1) == ERFBCType::ext_dir_upwind) {  // outflow part of an inflow_outflow face
                     dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
                 } else if (bc_ptr[0].lo(1) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
@@ -180,7 +183,8 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][4];
                 } else if (bc_ptr[0].hi(1) == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_hi.y+1,Clamp(k,yvel_lo.z,yvel_hi.z)) <= zero) {
                     dest_arr(i,j,k) = (xvel_bc_ptr) ? xvel_bc_ptr[k] : l_bc_extdir_vals_d[0][4];
-                } else if (bc_ptr[0].hi(1) == ERFBCType::foextrap) {
+                } else if (bc_ptr[0].hi(1) == ERFBCType::foextrap ||
+                           bc_ptr[0].hi(1) == ERFBCType::ext_dir_upwind) {  // outflow part of an inflow_outflow face
                     dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
                 } else if (bc_ptr[0].hi(1) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);

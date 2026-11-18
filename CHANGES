@@ -1,3 +1,76 @@
+#26.12
+    -- The YSU PBL-height floor is the top face of the first fluid cell (at least 10 m)
+       on every mesh type. Terrain-fitted and stretched meshes keep their answers at the
+       default inputs. On constant-dz meshes the floor moves from dz/2 to dz, so pblh and
+       the terms that scale with it change in columns that sit on the floor.
+       erf.enable_ysu_terrain_pblh_floor is removed; a deck that sets it stops (#5254)
+
+    -- The MRF PBL-height floor is the same as the YSU one: the top face of the first fluid
+       cell (at least 10 m) on every mesh type. It was the first cell center (at least
+       10 m). pblh and the turbulent length scale change in MRF columns that sit on the
+       floor, and in their neighbours with erf.enable_pblh_smoothing. The other fields
+       change there when the surface heat flux is not zero. Readers of the stored pblh
+       (erf.ibseb.z_i_mode = pblh, the depth of the nest perturbations) see the new
+       value. Decks with a first cell of 10 m or less keep their answers (#5258)
+
+    -- WRF nests at level 2 and above are placed relative to the whole parent file, not to
+       the parent's ERF region, so a deck with three or more levels that crops level 1 and
+       was tuned to the old placement now refines a different region (#4992). Such a nest
+       must fit inside the cropped parent region (ERF aborts otherwise), and a nest that
+       starts above the bottom of the domain now takes the file's layers at their own
+       heights (#4995)
+
+    -- Two-stream radiation sees the immersed-boundary buildings: no heating in solid
+       cells, the ground under a footprint held, the shaded ground without the direct
+       beam. On by default with erf.ibseb.enable; erf.ibseb.two_stream_buildings = false
+       keeps the previous answers (#5004)
+
+    -- Structure models are told the level's step, the stop time, max_step and whether a
+       level is fully compressible at initialize(), and get a finalize() call at the end
+       of the run. StructureStep::dt is now double: in single precision, out-of-tree
+       models that pass it where a Real is expected (e.g. std::min(Real, step.dt)) need
+       a static_cast<amrex::Real>, and plug-ins must be rebuilt (#5085)
+
+    -- The surface layer stores and interpolates SST/TSK in K, then converts them to
+       potential temperature with current local model surface pressure (#5123). Checkpoints
+       use surface_temperature_contract 2; older potential-temperature arrays are migrated
+       using checkpoint init provenance. WRFInput migration reads local PSFC regions, with
+       parent pressure filling fine-level gaps. Fine-level migration is approximate where
+       RemakeLevel may have replaced values with parent-interpolated potential temperature:
+       checkpoints do not record per-cell source provenance, and pressure conversion does
+       not commute with spatial interpolation. Metgrid version-1 migration uses diagnosed
+       ground pressure on ground-touching boxes and parent ground pressure for aloft-only
+       boxes; the original input pressure is unavailable. These limits are reported on
+       restart. Markerless Metgrid checkpoints remain supported, unused placeholders are
+       preserved, and invalid active values fail with a diagnostic.
+
+    -- There is now one YSU PBL scheme: erf.pbl_type = YSU selects the scheme formerly
+       called YSUNew, and the original YSU, which was incomplete (it aborted in unstable
+       conditions), has been removed. A run that set erf.pbl_type = YSU gets different
+       answers. YSUNew is still accepted, with a deprecation warning, for erf.pbl_type and
+       erf.most.pblh_calc, and gives the same answers as before. erf.pbl_ysu_force_over_water
+       and erf.pbl_ysu_unst_Ribcr, which only the original YSU read, now abort if set.
+       With YSU a static refinement box must now span the whole column, as with the other
+       PBL schemes: a YSUNew run whose refinement boxes did not, which was allowed before,
+       now aborts.
+
+    -- erf.most.pblh_calc = YSU or MRF now aborts unless erf.pbl_type is the same scheme
+       on every level. Those PBL heights come from the PBL scheme, so with any other
+       erf.pbl_type the height kept its initial bogus value.
+
+#26.11
+    -- Implicit diffusion for all moist scalars (#4936)
+
+    -- Anelastic interpolate omega/ (m_x * m_y) bug fix (#4922)
+
+    -- Include map factors in CFL estimate (#4880)
+
+    -- Variable beta implicit vertical solve (#4377)
+
+    -- Terrain diffusion rotation bug fix (#4231)
+
+    -- SLM model added (#4095)
+
 #26.09
     -- Surface Layer restart w/ input_sounding fix (#3956)
 

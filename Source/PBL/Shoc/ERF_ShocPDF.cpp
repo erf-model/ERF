@@ -11,8 +11,7 @@
 
 using namespace amrex;
 
-namespace
-{
+namespace erf_detail_ShocPDF {
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_thl_tol () noexcept { return 1.0e-2_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_rt_tol () noexcept { return 1.0e-4_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_w_tol_sqd () noexcept { return 4.0e-4_rt; }
@@ -276,6 +275,7 @@ namespace
                      - (1.0_rt / epsterm) * shoc_base_temp()) * wqls;
     }
 }
+using namespace erf_detail_ShocPDF;
 
 void
 ShocPDF::diagnose_pdf (ShocColumnData& col,

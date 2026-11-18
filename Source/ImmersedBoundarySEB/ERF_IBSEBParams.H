@@ -78,6 +78,25 @@ struct IBSEBParams
     amrex::Real albedo_ground     = 0.2;    ///< Ground albedo for the reflected diffuse term
     amrex::Real emissivity        = 0.9;    ///< Face longwave emissivity
     amrex::Real emissivity_ground = 0.95;   ///< Ground emissivity for the ground term
+    // The direct beam the ground reflects onto a face. false: the ground a face sees is
+    // sunlit everywhere, so the face takes the reflected beam through its whole ground
+    // view fraction (a wall in a building's shadow still sees sunlit ground at its foot).
+    // true: the face takes it through the sunlit part of its ground view only: each of
+    // its view rays that ends on the ground takes the buildings' shadow at the centre of
+    // the column it lands in, cast toward the step's sun as the shadow on the faces and
+    // on the ground is (ibseb::ground_view_lit()). The diffuse light the ground reflects
+    // is not changed. One ray cast per ground ray of every face each step the sun is up.
+    bool        ground_view_shadow = false;
+    /// The two-stream ground balance beside the buildings (needs two_stream_buildings and a ground
+    /// balance on the sweep's fluxes): the ground keeps the sky's diffuse light and longwave through
+    /// the part of its view the walls leave open, and takes the walls' reflected light and longwave
+    /// through the rest. false: the ground sees the whole sky and nothing of the walls.
+    bool        ground_sky_view = false;
+    /// The two-stream columns under the buildings (needs two_stream_buildings): a column under a
+    /// building starts on the building's roof, with the roof face's albedo, emissivity and skin
+    /// temperature, in place of the held ground under the building seen through the building's
+    /// cells. false: the columns pass through the buildings down to that ground.
+    bool        two_stream_roofs = false;
 
     // ---- View fractions and longwave ----------------------------------------
     // Rays per face of the cosine-weighted hemisphere sampled once at
@@ -93,6 +112,18 @@ struct IBSEBParams
     // longwave up at the same height (the ground's emission and its reflection
     // of the sky, seen through the air in between).
     std::string lw_mode           = "gray";
+
+    // ---- The two-stream columns and the buildings ------------------------------
+    // With erf.radiation_model = TwoStream, the columns see the buildings
+    // (TwoStreamRadiation::set_building_cover()): no heating in a building's solid
+    // cells; the two-stream ground balance (erf.radiation.seb_enable) holds its state
+    // under a building's footprint and leaves it out of its means; and, with the
+    // sweep's shortwave on the ground (erf.radiation.seb_use_radiation_fluxes), the
+    // open ground the buildings shade loses the direct beam, by the faces' ray cast
+    // (IBFaceSet::compute_ground_shadow()). false keeps the columns blind to the
+    // buildings, as before this input, for comparison.
+    bool        two_stream_buildings = true;
+    bool        two_stream_buildings_given = false;  ///< Whether the deck sets it (start-up checks)
     amrex::Real lw_down           = 300.0;  ///< fixed: sky longwave [W/m2]
     amrex::Real sky_emissivity    = 0.83;   ///< gray: effective clear-sky emissivity
     amrex::Real T_ground          = 300.0;  ///< Ground temperature for the ground term [K]
@@ -102,12 +133,16 @@ struct IBSEBParams
     // cell: u* from the tangential wind at half a cell from the wall with the
     // roughness length z0_wall, theta* from the skin-to-air difference with
     // z0h_wall; H = rho c_p u* theta* (positive out of the face). Neutral on
-    // every face unless stability_correction is set, which applies the
-    // surface layer's similarity functions on roofs. couple_heat = false
+    // every face unless stability_correction is set, which corrects the
+    // roofs for stability with stability_scheme: "iterative" (the surface
+    // layer's similarity functions on the face's own Obukhov length) or
+    // "louis" (Louis 1979 explicit factors on the bulk Richardson number).
+    // couple_heat = false
     // diagnoses H without adding it to the temperature equation.
     amrex::Real z0_wall           = 0.01;   ///< Momentum roughness of the faces [m]
     amrex::Real z0h_wall          = 0.001;  ///< Heat roughness of the faces [m]
     bool        stability_correction = false;
+    std::string stability_scheme  = "iterative";  ///< "iterative" or "louis" (with stability_correction)
     bool        couple_heat       = true;   ///< Add the face flux to the temperature equation
 
     // ---- Ground heat flux and materials -------------------------------------
@@ -200,15 +235,21 @@ struct IBSEBParams
         pp.query("albedo_ground",    albedo_ground);
         pp.query("emissivity",       emissivity);
         pp.query("emissivity_ground", emissivity_ground);
+        pp.query("ground_view_shadow", ground_view_shadow);
+        pp.query("ground_sky_view", ground_sky_view);
+        pp.query("two_stream_roofs", two_stream_roofs);
         pp.query("view_n_az",        view_n_az);
         pp.query("view_n_el",        view_n_el);
         pp.query("lw_mode",          lw_mode);
+        two_stream_buildings_given = pp.contains("two_stream_buildings");
+        pp.query("two_stream_buildings", two_stream_buildings);
         pp.query("lw_down",          lw_down);
         pp.query("sky_emissivity",   sky_emissivity);
         pp.query("T_ground",         T_ground);
         pp.query("z0_wall",          z0_wall);
         pp.query("z0h_wall",         z0h_wall);
         pp.query("stability_correction", stability_correction);
+        pp.query("stability_scheme", stability_scheme);
         pp.query("couple_heat",      couple_heat);
         pp.query("material_file",    material_file);
         pp.query("material_default", material_default);
@@ -328,6 +369,15 @@ struct IBSEBParams
             }
             if (beta_conv <= 0.0 || z_i <= 0.0 || ri_crit <= 0.0) { amrex::Abort("erf.ibseb.beta_conv, z_i and ri_crit must be positive"); }
             if (obukhov_relax <= 0.0 || obukhov_relax > 1.0) { amrex::Abort("erf.ibseb.obukhov_relax must be in (0, 1]"); }
+            if (stability_scheme != "iterative" && stability_scheme != "louis") {
+                amrex::Abort("erf.ibseb.stability_scheme must be \"iterative\" or \"louis\"");
+            }
+            if (pp.contains("stability_scheme") && !stability_correction) {
+                amrex::Abort("erf.ibseb.stability_scheme selects the roofs' stability correction; set erf.ibseb.stability_correction = true or remove it");
+            }
+            if (stability_scheme == "louis" && (pp.contains("obukhov_seed") || pp.contains("obukhov_relax"))) {
+                amrex::Abort("erf.ibseb.obukhov_seed and obukhov_relax belong to stability_scheme = \"iterative\"; remove them with \"louis\"");
+            }
         }
     }
 };

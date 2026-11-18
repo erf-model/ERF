@@ -35,7 +35,8 @@ void make_gradp_pert (int level,
                       const SolverChoice& solverChoice,
                       const amrex::Geometry& geom,
                       amrex::Vector<amrex::MultiFab>& S_data,
-                      const amrex::MultiFab& p0,
+                      const amrex::MultiFab& base_state,
+                      const amrex::MultiFab& qt,
                       const amrex::MultiFab& z_phys_nd,
                       const amrex::MultiFab& z_phys_cc,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
@@ -66,13 +67,13 @@ void compute_gradp_z (const amrex::MultiFab& p,
                       amrex::Vector<amrex::MultiFab>& gradp,
                       const SolverChoice& solverChoice);
 
-void compute_gradp_interpz (const amrex::MultiFab& p,
-                            const amrex::Geometry& geom,
-                            const amrex::MultiFab& z_phys_nd,
-                            const amrex::MultiFab& z_phys_cc,
-                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
-                            amrex::Vector<amrex::MultiFab>& gradp,
-                            const SolverChoice& solverChoice);
+void compute_gradp_hse (const amrex::MultiFab& p,
+                        const amrex::MultiFab& rhopert,
+                        const amrex::Geometry& geom,
+                        const amrex::MultiFab& z_phys_cc,
+                        amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                        amrex::Vector<amrex::MultiFab>& gradp,
+                        const SolverChoice& solverChoice);
 
 void make_sources (int level, int nrk,
                    double dt, double time,
@@ -99,7 +100,10 @@ void make_sources (int level, int nrk,
                    const amrex::Table1D<amrex::Real> t_plane_avg,
                    const amrex::MultiFab* forest_drag,
                    const amrex::MultiFab* cons_old,
-                   bool is_slow_step);
+                   bool is_slow_step,
+                   amrex::MultiFab* ib_wall_hfx = nullptr,
+                   amrex::MultiFab* ib_wall_ktarget = nullptr,
+                   amrex::MultiFab* ib_wall_qfx = nullptr);
 
 #if defined(ERF_USE_NETCDF)
 /**
@@ -109,7 +113,8 @@ void make_sources (int level, int nrk,
  * @param[in,out] source Source terms to be updated.
  * @param[in] n_qstate Number of moisture species.
  * @param[in] dt Time step.
- * @param[in] old_stage_time_total Total time at current stage.
+ * @param[in] elapsed_time Current stage time, measured from the start of the run.
+ * @param[in] start_time Epoch time of the start of the run.
  * @param[in] start_bdy_time Start time for boundary data.
  * @param[in] final_bdy_time Final time for boundary data.
  * @param[in] bdy_time_interval Interval between boundary data files.
@@ -131,7 +136,8 @@ add_moist_nudging_terms (const amrex::MultiFab& S_data,
                                amrex::MultiFab& source,
                          const int n_qstate,
                          const double& dt,
-                         const double& old_stage_time_total,
+                         const double& elapsed_time,
+                         const double& start_time,
                          const double& start_bdy_time,
                          const double& final_bdy_time,
                          const double& bdy_time_interval,
@@ -150,7 +156,8 @@ add_moist_nudging_terms (const amrex::MultiFab& S_data,
                          const int bdy_moist_nudge_type);
 #endif
 
-void make_mom_sources (double time,
+void make_mom_sources (int level,
+                       double time,
                        double dt,
                        const amrex::Vector<amrex::MultiFab>& S_data,
                        const amrex::MultiFab* z_phys_nd,
@@ -196,50 +203,6 @@ void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             std::unique_ptr<amrex::MultiFab>& thin_xforce_lev,
                             std::unique_ptr<amrex::MultiFab>& thin_yforce_lev,
                             std::unique_ptr<amrex::MultiFab>& thin_zforce_lev);
-
-#if defined(ERF_USE_NETCDF)
-/**
- * Set the right-hand side for moist variables.
- *
- * @param[in] geom Grid geometry.
- * @param[in] tbx Local box.
- * @param[in] new_cons Current conservative variables.
- * @param[in,out] cell_rhs Right-hand side to be updated.
- * @param[in] n_qstate Number of moisture species.
- * @param[in] time Current simulation time.
- * @param[in] dt Time step.
- * @param[in] start_bdy_time Start time for boundary data.
- * @param[in] final_bdy_time Final time for boundary data.
- * @param[in] bdy_time_interval Interval between boundary data files.
- * @param[in] nudge_factor Nudging strength factor.
- * @param[in] width Nudging width.
- * @param[in] domain Global domain box.
- * @param[in] bdy_data_xlo Boundary data for x-low face.
- * @param[in] bdy_data_xhi Boundary data for x-high face.
- * @param[in] bdy_data_ylo Boundary data for y-low face.
- * @param[in] bdy_data_yhi Boundary data for y-high face.
- * @param[in] m_r2d Pointer to boundary plane reader.
- */
-void
-moist_set_rhs (const amrex::Geometry& geom,
-               const amrex::Box& tbx,
-               const amrex::Array4<amrex::Real const>& new_cons,
-               const amrex::Array4<amrex::Real      >& cell_rhs,
-               const int n_qstate,
-               const double& time,
-               const double& dt,
-               const double& start_bdy_time,
-               const double& final_bdy_time,
-               const double& bdy_time_interval,
-               const amrex::Real& nudge_factor,
-               const int width,
-               const amrex::Box& domain,
-               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-               std::unique_ptr<ReadBndryPlanes>& m_r2d);
-#endif
 
 void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                               const amrex::Geometry geom,

@@ -10,14 +10,23 @@ using namespace amrex;
 /*! \brief Define the super-droplet moisture model parameters from provided inputs
  *
  * This function initializes basic model parameters from the solver choices object.
- * Currently it only sets the specific heat capacity (Cp) from the solver choices.
  *
  * \param[in] a_sc Solver choices containing model configuration parameters
  */
 void SuperDropletsMoist::Define (SolverChoice& a_sc)
 {
     BL_PROFILE("SuperDropletsMoist::Define()");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(a_sc.c_p) && a_sc.c_p > Real(0),
+                                     "SDM requires finite positive c_p");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(a_sc.rdOcp == R_d / a_sc.c_p &&
+                                     std::isfinite(a_sc.rdOcp) && a_sc.rdOcp > Real(0),
+                                     "SDM requires rdOcp = R_d/c_p");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!a_sc.compressibility_type.empty(),
+                                     "SDM requires per-level compressibility configuration");
     m_Cp = a_sc.c_p;
+    m_rdOcp = a_sc.rdOcp;
+    m_compressibility_type = a_sc.compressibility_type;
+    m_variable_dz = (a_sc.mesh_type != MeshType::ConstantDz);
 }
 
 /*! \brief Read model configuration parameters from input file
@@ -25,7 +34,6 @@ void SuperDropletsMoist::Define (SolverChoice& a_sc)
  * This function reads all configuration parameters for the SuperDropletsMoist
  * model from the input file. Parameters include:
  * - Model flags (phase change, advection, coalescence)
- * - Initial distribution type
  * - Rain threshold radius
  * - Model modes (kinematic mode, dimensionality)
  * - Particle recycling options
@@ -52,9 +60,13 @@ void SuperDropletsMoist::readInputs ()
     m_with_ice = true;
     pp.queryAdd("include_cold_processes", m_with_ice);
 
-    // initial distribution type
-    m_init_type = SDMoistInit::uniform;
-    pp.queryAdd("distribution_type", m_init_type);
+    // uniform is the only initialization
+    std::string init_type = "uniform";
+    pp.query("distribution_type", init_type);
+    if (init_type != "uniform") {
+        amrex::Abort("super_droplets_moisture.distribution_type = " + init_type
+                     + " is not available; only uniform is");
+    }
 
     // minimum radius for rain
     m_r_rain = Real(4.0e-5); // 40 micrometers
@@ -202,6 +214,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
                                             m_aerosols,
                                             m_dt,
                                             m_name );
+    m_super_droplets->setVariableDz(m_variable_dz);
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
@@ -229,11 +242,8 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
 /*! \brief Initialize particles in the super-droplet moisture model
  *
  * If this is not a restart run, this function initializes the particles
- * in the particle container for the super-droplets. The initialization
- * depends on the configured initialization type:
- * - For condensate_density: Initially creates particles with uniform distribution,
- *   which will be updated later during FinishInit() based on condensate density
- * - For other types: Initializes particles directly with the configured distribution
+ * in the particle container for the super-droplets from the configured
+ * size distributions.
  *
  * \param[in] a_z_phys_nd MultiFab containing terrain height information
  */
@@ -243,12 +253,10 @@ void SuperDropletsMoist::InitParticles ( const int a_lev, MFPtr& a_z_phys_nd )
 
     m_super_droplets->InitializeParticles(a_lev, zero, a_z_phys_nd);
 
-    if (m_init_type != SDMoistInit::condensate_density) {
-        amrex::Print() << "Initialized "
-                       << m_super_droplets->NumberOfParticlesAtLevel(a_lev)
-                       << " super-droplets at level " << a_lev
-                       << " in super-droplets moisture model.\n";
-    }
+    amrex::Print() << "Initialized "
+                   << m_super_droplets->NumberOfParticlesAtLevel(a_lev)
+                   << " super-droplets at level " << a_lev
+                   << " in super-droplets moisture model.\n";
 }
 
 /*! \brief Restart particles in the super-droplet moisture model from checkpoint file
@@ -271,6 +279,7 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::
 
     m_super_droplets->Restart(a_fname, m_name);
     m_super_droplets->Redistribute();
+    m_restarted_particles = true;
 
     amrex::Print() << "Restarted "
                    << m_super_droplets->NumSuperDroplets()
@@ -284,89 +293,95 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::
  * This function finalizes initialization steps that depend on conserved state
  * variables that were not available during Init(). It performs:
  * 1. Particle density scaling based on air density
- * 2. For condensate_density initialization type: sets particle attributes from condensate density
- * 3. For other initialization types: optionally performs initial phase change relaxation
- * 4. Computes cloud/rain water and total water content for all species
- * 5. Updates the rhoq2 component in conserved variables with computed cloud water
- * 6. Runs initial diagnostics for superdroplets
+ * 2. Optionally performs initial phase change relaxation
+ * 3. Computes cloud/rain water and total water content for all species
+ * 4. Updates the rhoq2 component in conserved variables with computed cloud water
+ * 5. Runs initial diagnostics for superdroplets
  *
- * \param[in] a_lev Unused AMR level parameter
+ * \param[in] a_lev AMR level
  * \param[in,out] a_cons_vars Conserved variables MultiFab to be updated
  * \param[in] a_z_phys_nd Vector of MultiFabs containing terrain information
  */
-void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
+void SuperDropletsMoist::FinishInit (const int& a_lev,
                                      MultiFab& a_cons_vars,
                                      const Vector<MFPtr>& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::FinishInit()");
-    const int lev = 0; // FinishInit is called for level 0 only
-    m_super_droplets->DensityScaling(*(m_mic_fab_vars[lev][MicVar_SD::rho]));
-
-    if (m_init_type == SDMoistInit::condensate_density) {
-
-        /* initial super-droplets attributes computed from condensate mass density */
-        MultiFab rho_c ( m_mic_fab_vars[lev][MicVar_SD::q_c]->boxArray(),
-                         m_mic_fab_vars[lev][MicVar_SD::q_c]->DistributionMap(),
-                         1,
-                         m_mic_fab_vars[lev][MicVar_SD::q_c]->nGrowVect() );
-        MultiFab::Copy( rho_c, *m_mic_fab_vars[lev][MicVar_SD::q_c], 0, 0, 1, rho_c.nGrowVect() );
-        ratioToDensity(rho_c);
-
-        m_super_droplets->SetAttributes(rho_c);
-        amrex::Print() << "Initialized "
-                       << m_super_droplets->NumSuperDroplets()
-                       << " super-droplets representing "
-                       << m_super_droplets->TotalNumberOfParticles()
-                       << " particles in super-droplets moisture model.\n";
-
-    } else {
-
-        /* call the phase change function so that the super-droplets "relax" to their
-         * physical size corresponding to the initial flow */
-        if (m_flag_phase_change && m_init_phase_change) {
-            phaseChange(m_init_phase_change_time, a_z_phys_nd, lev);
+    const int lev = a_lev;
+    if (lev == 0 && !m_restarted_particles) {
+        // All native flow fields are available before this call. Finish local
+        // particle attributes on every level before redistribution can move them.
+        for (int k = 0; k <= m_super_droplets->finestLevel(); ++k) {
+            m_super_droplets->DensityScaling(*m_mic_fab_vars[k][MicVar_SD::rho], k);
         }
+        SetCurrentLevel(lev);
+    }
+    if (lev == 0) {
+        // Restart setup may also change the grids after particles were read.
+        // Establish ownership before any projection or initial relaxation.
+        m_super_droplets->Redistribute();
+        if (!m_restarted_particles) {
+            m_super_droplets->SplitMergeAtLevelBoundary();
+        }
+    }
+
+    const bool relax = !m_restarted_particles &&
+                       m_flag_phase_change && m_init_phase_change;
+    if (relax) {
+        phaseChange(m_init_phase_change_time, a_z_phys_nd, lev);
     }
 
     computeQcQrWater(*a_z_phys_nd[lev]);
     computeQiQgQsWater(*a_z_phys_nd[lev]);
     computeQtWater();
 
-    for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
-        const auto& box = mfi.tilebox();
-        auto states_arr = a_cons_vars.array(mfi);
-        auto q_c_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->array(mfi);
-        auto q_r_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->array(mfi);
-        auto q_i_arr = m_mic_fab_vars[lev][MicVar_SD::q_i]->array(mfi);
-        auto q_g_arr = m_mic_fab_vars[lev][MicVar_SD::q_g]->array(mfi);
-        auto q_s_arr = m_mic_fab_vars[lev][MicVar_SD::q_s]->array(mfi);
-        ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
-            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_i_arr(i,j,k);
-            states_arr(i,j,k,RhoQ4_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
-            states_arr(i,j,k,RhoQ5_comp) = states_arr(i,j,k,Rho_comp)*q_s_arr(i,j,k);
-            states_arr(i,j,k,RhoQ6_comp) = states_arr(i,j,k,Rho_comp)*q_g_arr(i,j,k);
-        });
-    }
-
-    computeQcSpecies(*a_z_phys_nd[lev]);
-    computeQtSpecies();
-
-    for (int is = m_istart_sp; is < m_num_species; is++) {
+    // Restart state already includes fine averages in covered coarse cells.
+    // A masked local particle projection must not replace that checkpoint data.
+    if (!m_restarted_particles) {
         for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
             const auto& box = mfi.tilebox();
             auto states_arr = a_cons_vars.array(mfi);
-            auto q_c_arr = m_mic_fab_vars[lev][s_qc_idx(is,m_istart_sp)]->array(mfi);
-            auto qc_comp = q_qc_idx(is,m_istart_sp);
+            auto q_c_arr = m_mic_fab_vars[lev][MicVar_SD::q_c]->array(mfi);
+            auto q_r_arr = m_mic_fab_vars[lev][MicVar_SD::q_r]->array(mfi);
+            auto q_i_arr = m_mic_fab_vars[lev][MicVar_SD::q_i]->array(mfi);
+            auto q_g_arr = m_mic_fab_vars[lev][MicVar_SD::q_g]->array(mfi);
+            auto q_s_arr = m_mic_fab_vars[lev][MicVar_SD::q_s]->array(mfi);
             ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                states_arr(i,j,k,qc_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
+                states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
+                states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_i_arr(i,j,k);
+                states_arr(i,j,k,RhoQ4_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
+                states_arr(i,j,k,RhoQ5_comp) = states_arr(i,j,k,Rho_comp)*q_s_arr(i,j,k);
+                states_arr(i,j,k,RhoQ6_comp) = states_arr(i,j,k,Rho_comp)*q_g_arr(i,j,k);
             });
         }
     }
 
-    m_super_droplets->Diagnostics(-1, lev, zero, (m_diagnostics_iter>0));
+    // Appended condensate is a projection on every level, including before
+    // the first step; fine-level state cannot wait for the first Advance.
+    computeQcSpecies(*a_z_phys_nd[lev]);
+    computeQtSpecies();
+
+    if (!m_restarted_particles) {
+        for (int is = m_istart_sp; is < m_num_species; is++) {
+            for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
+                const auto& box = mfi.tilebox();
+                auto states_arr = a_cons_vars.array(mfi);
+                auto q_c_arr = m_mic_fab_vars[lev][s_qc_idx(is,m_istart_sp)]->array(mfi);
+                auto qc_comp = q_qc_idx(is,m_istart_sp);
+                ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    states_arr(i,j,k,qc_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
+                });
+            }
+        }
+    }
+
+    // Relaxation changes particle mass, vapor and latent heat together. Keep
+    // that exchange in the initial conserved state, not just its condensate.
+    if (relax && !m_kinematic_mode) {
+        Copy_Micro_to_State(a_cons_vars);
+    }
 
     return;
 }

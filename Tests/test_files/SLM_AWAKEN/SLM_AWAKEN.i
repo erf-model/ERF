@@ -34,7 +34,6 @@ zhi.type        = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt = 1
 erf.substepping_cfl = 0.5
-erf.substepping_type = "Implicit"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass

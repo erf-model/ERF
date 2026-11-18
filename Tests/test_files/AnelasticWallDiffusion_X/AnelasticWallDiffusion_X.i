@@ -1,6 +1,6 @@
 erf.prob_name = "Anelastic Wall Diffusion"
 erf.init_type = Uniform
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.use_gravity = false
 erf.vert_implicit = false
 erf.molec_diff_type = "ConstantAlpha"

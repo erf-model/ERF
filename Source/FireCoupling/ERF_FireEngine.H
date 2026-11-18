@@ -168,8 +168,11 @@ public:
     /**
      * @brief Start-up after initialize(), once the run's end is known
      *
-     * @param[in] stop_time              ERF's stop_time [s] (numeric_limits max when unset)
-     * @param[in] max_step               ERF's max_step, counting level-0 steps (negative when unset)
+     * @param[in] stop_time              Elapsed time at which the run stops [s], on the clock the
+     *                                   engine's step times use (ERF's stop_time less start_time);
+     *                                   numeric_limits<amrex::Real>::max() when no stop time is set
+     * @param[in] max_step               ERF's max_step, counting level-0 steps;
+     *                                   numeric_limits<int>::max() when unset (never negative)
      * @param[in] steps_per_coarse_step  Steps of the fire grid's level per level-0 step
      */
     virtual void start_run (amrex::Real stop_time, int max_step, int steps_per_coarse_step)

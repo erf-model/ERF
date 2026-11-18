@@ -92,11 +92,41 @@ struct HeightTable
  * @param[in] fname    file name
  * @param[in] is_usgs  USGS layout
  * @param[in] prob_lo, prob_hi  domain extent, for the coverage check
+ * @param[in] require_domain_coverage  false for local building patches; all other checks remain
+ * @param[in] periodic  whether x and y are periodic; the table is then made periodic in that
+ *                      direction (MakeTablePeriodic) after it has been checked
  */
 const HeightTable&
 ReadHeightTable (const std::string& fname, bool is_usgs,
                  const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_lo,
-                 const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_hi);
+                 const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_hi,
+                 bool require_domain_coverage = true,
+                 const amrex::Array<bool,2>& periodic = {false, false});
+
+/**
+ * Make an ERF-format height table periodic in each direction where periodic[d] is true, so
+ * that the terrain is the same on the two faces of the domain in that direction:
+ *  - a table with points on both faces (to 1e-3 of the table spacing) must hold the same
+ *    heights on the two faces, to 1e-6 of the largest |height| (at least 1e-6 m);
+ *  - a table with points on one face only is extended to the other face with the heights of
+ *    the face it has (a table with one height per node starting at prob_lo, say, gets the
+ *    heights at prob_lo again at prob_hi).
+ * A direction with a single value is constant and needs nothing.  A table with points on
+ * neither face is left as it is, with a note.
+ * Returns the problem (heights that differ on the two faces), or an empty string; note
+ * describes what was done, or is empty if nothing was.
+ *
+ * @param[in,out] t   table (must pass TableProblem with the domain coverage check)
+ * @param[in] prob_lo, prob_hi  domain extent
+ * @param[in] periodic  whether x and y are periodic
+ * @param[out] note   what was done to the table, for the start-up output
+ */
+std::string
+MakeTablePeriodic (HeightTable& t,
+                   const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_lo,
+                   const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_hi,
+                   const amrex::Array<bool,2>& periodic,
+                   std::string& note);
 
 /**
  * The first problem found in a height table, or an empty string if there is none.
@@ -110,11 +140,14 @@ ReadHeightTable (const std::string& fname, bool is_usgs,
  * rounded coordinates.  Beyond the table the reader only extends the heights from its
  * edge: linearly before the first point, and (ERF format) by holding the last value
  * after the last point; USGS extends linearly at both ends.
+ * Setting require_domain_coverage to false skips only the coverage check, for building
+ * files that describe a local patch. Coordinate ordering and all format checks still apply.
  *
  * @param[in] is_usgs  USGS layout (x varies fastest, one x per point)
  * @param[in] nx, ny   table size
  * @param[in] x, y, z  table coordinates and heights
  * @param[in] prob_lo, prob_hi  domain extent
+ * @param[in] require_domain_coverage  whether the table must cover the domain
  */
 std::string
 TableProblem (bool is_usgs, int nx, int ny,
@@ -122,7 +155,8 @@ TableProblem (bool is_usgs, int nx, int ny,
               const amrex::Vector<amrex::Real>& y,
               const amrex::Vector<amrex::Real>& z,
               const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_lo,
-              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_hi);
+              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_hi,
+              bool require_domain_coverage = true);
 
 /**
  * Text describing a valid height table: its size and extent, the order its heights are

@@ -5,7 +5,9 @@ on:
     branches: [development]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -16,7 +18,9 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - '**'
+      - '!Build/spack/**'
       - '!Docs/**'
+      - '!paper/**'
       - '!**.md'
       - '!**.rst'
       - '!license.txt'
@@ -24,6 +28,9 @@ on:
       - '.github/workflows/macos.yml'
       - '.github/actions/**'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 # Development pushes finish the active run and keep only the newest pending commit.
 # PR cancellation and commit-specific manual groups stay unchanged.
@@ -60,7 +67,7 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         submodules: true
         persist-credentials: false
@@ -87,7 +94,7 @@ jobs:
     - name: Restore legacy Actions cache
       if: steps.ghcr-cache.outputs.hit != 'true'
       continue-on-error: true
-      uses: actions/cache/restore@v6
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/Library/Caches/ccache
         key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
@@ -117,6 +124,7 @@ jobs:
           ${{github.workspace}};
 
     - name: Compile and Link
+      shell: bash
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
@@ -148,12 +156,17 @@ jobs:
 
     - name: Report
       run: |
-        grep -Ei "warning:|error:" ${{runner.workspace}}/build-output.txt \
+        build_log="${{runner.workspace}}/build-output.txt"
+        if [ ! -f "$build_log" ] || [ ! -r "$build_log" ]; then
+          echo "::error::Missing or unreadable build log: $build_log"
+          exit 1
+        fi
+        grep -Ei "warning:|error:" "$build_log" \
           | grep -Ev "Submodules/(amrex|AMReX|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
         cat ${{runner.workspace}}/build-output-warnings.txt
         return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
-        exit ${return}
+        test "${return}" -eq 0
 
     - name: Check Unit Test Registration
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
@@ -185,7 +198,7 @@ jobs:
     # Backtrace.0 file for details", so keep those files when a step has failed.
     - name: Upload backtraces from failed tests
       if: failure()
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: backtraces-macos-mesh-${{matrix.mesh_precision}}-particles-${{matrix.particles}}-${{matrix.particles_precision}}
         path: ${{runner.workspace}}/ERF/build/Tests/**/Backtrace.*

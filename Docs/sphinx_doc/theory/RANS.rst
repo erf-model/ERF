@@ -14,7 +14,7 @@ and PBL schemes: the one-equation :math:`k` model of Axell and Liungman
 prognostic and the turbulent length scale :math:`l` is algebraic, built from
 the distance to the ground and the local stratification. The model is
 meant for coarse grids on which the boundary layer is not resolved, i.e.
-horizontal spacings of tens of metres and up, where the closure carries
+horizontal spacings of tens of meters and up, where the closure carries
 the whole turbulent transport. The regression cases in
 ``Exec/CanonicalTests/Canonical_RANS`` exercise it on flat ground (neutral,
 stable and convective) and over 2D and 3D hills.
@@ -58,7 +58,7 @@ the form of the limiter in the SST model. :math:`\nu_t'` keeps the ratio
 diffusivity (heat, scalars, moisture, :math:`k`) is built from the capped
 :math:`\nu_t`, so all of them are capped by the same factor; so is the
 shear production of :math:`k`, which uses the capped viscosity. :math:`S`
-is the cell-centred average of the face and edge strains of the velocity at
+is the cell-centered average of the face and edge strains of the velocity at
 the start of the step, the same average the Smagorinsky closure uses. The
 production of :math:`k` recomputes the strain at every Runge-Kutta stage, so
 within a step the capped stress :math:`\nu_t S = C_r k` holds for the
@@ -126,13 +126,31 @@ integrates for LES,
 
 with the shear production :math:`P_s = 2 \rho \nu_t S_{ij} S_{ij}`, the
 buoyancy production :math:`P_b = (g / \theta_0) \, \overline{w' \theta'}`
-from the modelled heat flux :math:`-\rho \nu_t' \, \partial \theta / \partial z`
+from the modeled heat flux :math:`-\rho \nu_t' \, \partial \theta / \partial z`
 (AL01 Eq. 15, dry air; :math:`\theta_0` is ``erf.theta_ref`` or the local
 :math:`\theta`), and the dissipation (AL01 Eq. 19)
 
 .. math::
 
    \varepsilon = (c_\mu^0)^3 \, \frac{k^{3/2}}{l}, \qquad c_\mu^0 = 0.5562.
+
+With a moisture model, ``erf.rans_moist_buoyancy = true`` (off by default) makes
+the buoyancy production the flux of the virtual potential temperature of
+unsaturated air, :math:`\theta_v = \theta (1 + \epsilon_v q_v)` with
+:math:`\epsilon_v = R_v/R_d - 1 = 0.608`,
+
+.. math::
+
+   P_b = \frac{g}{\theta_{v0}} \left[ (1 + \epsilon_v q_v) \, \overline{w' \theta'}
+         + \epsilon_v \theta \, \overline{w' q_v'} \right],
+
+from the modeled heat and water-vapor fluxes of the same stage (the surface fluxes
+of the surface layer or of the immersed wall law on the bottom face); :math:`\theta_{v0}`
+is ``erf.theta_ref`` when that is set, else the local :math:`\theta_v`. Water vapor
+only: the cloud-water flux term and the saturated form are not included. The option
+is the k-equation closure's; the Deardorff LES shares the TKE source and keeps the dry
+form. Pair it with ``erf.thermal_stratification = thetav`` so the buoyancy length scale
+below uses the same :math:`\theta_v`.
 
 The proportionality constant :math:`(c_\mu^0)^3` is what makes the
 logarithmic law hold in a constant-stress layer (AL01 Sect. 4.1). The
@@ -144,7 +162,7 @@ the plotfile ``diss`` holds :math:`\rho \varepsilon` from the start of the
 last step. A floor ``erf.tke_floor`` (default: machine epsilon on
 :math:`\rho k`) bounds :math:`k` from below.
 
-The heat flux in :math:`P_b` at the cell centre is the average of the
+The heat flux in :math:`P_b` at the cell center is the average of the
 fluxes of the :math:`\theta` diffusion at the two vertical faces of the
 cell, in every cell; at the bottom of the domain the face flux is the
 surface-layer flux when a surface layer is used. These are the full face
@@ -275,7 +293,7 @@ equilibrium value of AL01 Eq. 16,
 
 with :math:`u_*` and the buoyancy flux :math:`B = -(g/\theta_0) u_* \theta_*`
 from the surface-layer model and :math:`d_1` the distance of the cell
-centre to the ground; only a destabilising flux enters. The value is set
+center to the ground; only a destabilizing flux enters. The value is set
 at the start of each step and held through every Runge-Kutta stage,
 including the implicit vertical diffusion solve, and the ghost cell
 below the wall carries the same value so no diffusive flux of :math:`k`
@@ -292,7 +310,7 @@ Wall distance
 -------------
 
 On a flat or vertically stretched mesh the distance :math:`d` is the
-height of the cell centre above the ground, :math:`z - z_{lo}`, where
+height of the cell center above the ground, :math:`z - z_{lo}`, where
 :math:`z_{lo}` is ``geometry.prob_lo[2]``. On a terrain-fitted mesh two
 choices are offered through ``erf.wall_dist_type``:
 
@@ -301,12 +319,12 @@ choices are offered through ``erf.wall_dist_type``:
   :math:`\nabla^2 \phi = -1` is solved in terrain-following coordinates
   with :math:`\phi = 0` on the ground and zero normal gradient elsewhere,
   and :math:`d = -|\nabla \phi| + (|\nabla \phi|^2 + 2 \phi)^{1/2}`. The
-  gradient is formed at cell centres from centred differences with the
-  cell-centre metrics. On the canonical hills the mean error against the
+  gradient is formed at cell centers from centered differences with the
+  cell-center metrics. On the canonical hills the mean error against the
   exact distance is about 1 %, with the largest errors, 5 to 10 %, in
   the first cells over a convex crest.
 
-* ``terrain_height``: the height of the cell centre above the local
+* ``terrain_height``: the height of the cell center above the local
   surface, projected on the surface normal,
   :math:`d = (z - z_s) / (1 + h_\xi^2 + h_\eta^2)^{1/2}` with
   :math:`h_\xi, h_\eta` the terrain slopes. It is exact on a plane, within
@@ -315,15 +333,31 @@ choices are offered through ``erf.wall_dist_type``:
   no linear solve. It cannot see side walls or overhangs, which the
   Poisson distance can.
 
+With terrain immersed forcing (``erf.terrain_type = ImmersedForcing``) the
+mesh is flat, and with the legacy wall law the distance is the height above
+the bottom of the domain, inside the solid, whatever ``erf.wall_dist_type``
+says. With the fraction-stress wall law (``erf.if_wall_form = fraction_stress``,
+see :ref:`Forcings <Forcings>`) the distance is measured from the surface the
+wall law uses, :math:`h = z_{bot} + \beta \Delta z` of the wall cell, with the
+wall cell at its fluid centroid :math:`(1 - \beta)\Delta z / 2` above it and
+every other cell at :math:`|z - h|`, so the length scale and the wall law see
+the same geometry; ``erf.wall_dist_type`` then does not apply. The distance is
+vertical (the wall law is), and a column without solid keeps the bottom of the
+domain as its wall. On a refined level a box need not hold the whole column:
+where a box does not see the surface of a column (it lies wholly inside the
+solid, or above the surface without reaching the bottom of the domain) the
+distance is measured from the wall height of the coarser level.
+
 The distance is available as the plot variable ``walldist``. It is
-computed at initialisation, also on a restart, and again on every level
+computed at initialization, also on a restart, and again on every level
 that a regrid adds or remakes.
 
 Limitations
 -----------
 
-* The buoyancy production and :math:`N^2` are dry: no virtual or
-  liquid-water potential temperature.
+* The buoyancy production is dry unless ``erf.rans_moist_buoyancy`` is set,
+  and then water vapor only (no cloud-water flux, no saturated form);
+  :math:`N^2` follows ``erf.thermal_stratification``.
 * All levels must use the closure; a hybrid RANS-LES set-up is refused.
 * Embedded and thin-body boundaries are not supported by the Poisson wall
   distance.
@@ -359,9 +393,11 @@ Inputs
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.tke_floor**                      | floor on :math:`k` [m\ :sup:`2`/s\ :sup:`2`]               | 0 (epsilon)      |
 +----------------------------------------+------------------------------------------------------------+------------------+
-| **erf.implicit_tke_dissipation**       | linearised implicit dissipation                            | false            |
+| **erf.implicit_tke_dissipation**       | linearized implicit dissipation                            | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.rans_consistent_diffusivities**  | heat, scalar and moisture diffusivities from :math:`c_\mu'`| false            |
++----------------------------------------+------------------------------------------------------------+------------------+
+| **erf.rans_moist_buoyancy**            | :math:`P_b` from the virtual potential temperature flux    | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.rans_lscale_from_pblh**          | cap :math:`l_g` at :math:`\kappa 0.1 z_i`                  | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+

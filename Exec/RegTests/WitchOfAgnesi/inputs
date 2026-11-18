@@ -41,7 +41,7 @@ erf.use_xhi_sponge_damping = true
 erf.xhi_sponge_start = 50000.0
 
 # TIME STEP CONTROL
-#erf.substepping_type  = None
+#erf.timestepping_type = RK3_NoSubstepping
 erf.fixed_mri_dt_ratio = 4
 erf.fixed_dt           = 0.06
 

@@ -36,6 +36,19 @@ WDM6::Init (const MultiFab& cons_in,
     pp.queryAdd("hail_opt", hail_opt_in);  // default 0 = graupel
     m_hail_opt = (hail_opt_in == 1);
 
+#ifdef ERF_USE_WDM6_FORT
+    // The Fortran bridge has no condensation switch, so it would saturation-adjust
+    // and activate on top of SHOC's own cloud macrophysics.
+    {
+        bool use_wdm6_cpp_answer = false;
+        amrex::ParmParse pp_erf("erf");
+        pp_erf.queryAdd("use_wdm6_cpp_answer", use_wdm6_cpp_answer);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_wdm6_cpp_answer || m_do_cond,
+            "WDM6: the Fortran bridge (erf.use_wdm6_cpp_answer = false) cannot be combined with a "
+            "SHOC-family PBL, which owns condensation; set erf.use_wdm6_cpp_answer = true");
+    }
+#endif
+
     amrex::Print() << "WDM6 Initialization: CCN0 = " << m_ccn0 << " #/m^3"
                    << ", hail_opt = " << (m_hail_opt ? 1 : 0)
                    << (m_hail_opt ? " (hail)" : " (graupel)") << "\n";

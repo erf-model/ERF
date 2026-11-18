@@ -179,6 +179,14 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
         amrex::Abort("WriteSubvolume:Box requested is larger than the existing domain");
     }
 
+    // The fields are copied from the valid cells of this level, so its grids must cover the
+    // box (always true at level 0; a refined level may cover only part of the domain)
+    if (!grids[lev_for_sub].contains(bx))
+    {
+        amrex::Abort("WriteSubvolume:Box requested is not covered by the grids of level " +
+                     std::to_string(lev_for_sub) + ", whose resolution it matches");
+    }
+
     Vector<int> cs(AMREX_SPACEDIM);
     int count = pp.countval("chunk_size");
     if (count > 0) {
@@ -211,7 +219,12 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     // First, copy any of the conserved state variables into the output plotfile
     for (int i = 0; i < cons_names.size(); ++i) {
         if (containerHasElement(subvol_var_names, cons_names[i])) {
-            mf.ParallelCopy(vars_new[lev_for_sub][Vars::cons],i,mf_comp,1,1,0);
+            // the component behind the name, rather than its place in the name list
+            const int cons_comp = erf_plotfile::plot3d_conserved_component_index(cons_names[i]);
+            AMREX_ALWAYS_ASSERT(cons_comp >= 0 && cons_comp < vars_new[lev_for_sub][Vars::cons].nComp());
+            // valid cells only: the subvolume lies inside the domain, so every output cell is a
+            // valid source cell, and a ghost cell of a neighbouring box may be out of date
+            mf.ParallelCopy(vars_new[lev_for_sub][Vars::cons],cons_comp,mf_comp,1,0,0);
             mf_comp++;
         }
     }

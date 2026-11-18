@@ -29,6 +29,9 @@ class eb_aux_
     //! Destroy the auxiliary EB factory; the owned geometry is released by its unique_ptrs.
     ~eb_aux_ () = default;
 
+    //! Release the geometry of the last define(), as for a level that no longer exists.
+    void clear ();
+
     /**
      * \brief Define face-centered EB geometry for one staggered direction.
      *

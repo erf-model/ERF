@@ -1,0 +1,17 @@
+# ABLWarmBubble: the two WRF idealized-fire start-up options of the ABL setup,
+# checked by check_warm_bubble.py against closed forms.
+#
+#  - A warm bubble (prob.bubble_*), theta' = bubble_dT cos^2(pi r / 2), on a
+#    vertically stretched mesh, where each cell's height z_phys differs from a
+#    uniform (k + 1/2) dz. The compressible bubble is made at constant pressure,
+#    as WRF makes it: the check finds theta' at every cell, a density deficit
+#    rho_hse theta / (theta + theta') and no pressure pulse.
+#  - A bulk_coeff surface layer with an imposed kinematic heat flux
+#    (erf.most.surf_temp_flux, WRF's isfflx = 0 with tke_heat_flux) and no Ch:
+#    on this closed domain the heat content grows by rho_s F A t exactly.
+#
+# Calm, no diffusion inside the domain, a short run (0.5 s): the bubble barely
+# moves, and the surface heat stays in the bottom cell.
+FILE = inputs_base
+
+prob.bubble_dT = 0.5

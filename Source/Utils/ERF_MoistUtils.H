@@ -53,6 +53,25 @@ void GetMoistureVars (int i, int j, int k,
 }
 
 /**
+ * Extract water vapor and the cloud condensate alone: cloud liquid qc and cloud ice qi, without
+ * the precipitating species (rain, snow, graupel) that GetMoistureVars adds in
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+void GetCloudMoistureVars (int i, int j, int k,
+                           const amrex::Array4<amrex::Real const>& cell_data,
+                           amrex::Real& qv,
+                           amrex::Real& qc_liquid,
+                           amrex::Real& qc_ice,
+                           const MoistureComponentIndices& moisture_indices)
+{
+    const amrex::Real rho = cell_data(i,j,k,Rho_comp);
+    qv        = (moisture_indices.qv >= 0) ? cell_data(i,j,k,moisture_indices.qv) / rho : zero;
+    qc_liquid = (moisture_indices.qc >= 0) ? cell_data(i,j,k,moisture_indices.qc) / rho : zero;
+    qc_ice    = (moisture_indices.qi >= 0) ? cell_data(i,j,k,moisture_indices.qi) / rho : zero;
+}
+
+/**
  * Compute virtual potential temperature with moisture loading effects
  */
 AMREX_GPU_DEVICE
@@ -84,46 +103,24 @@ amrex::Real GetThetav (const int& i, const int& j, const int& k,
 }
 
 /**
- * Compute liquid-water virtual potential temperature
- * theta_vl = theta * (1 + 0.61*qv - ql - qi)
- * where ql = qc (cloud liquid) and qi = qi (cloud ice)
- * This accounts for condensate loading in the virtual temperature effect
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real GetThetavl (int i, int j, int k,
-                        const amrex::Array4<amrex::Real const>& cell_data,
-                        const MoistureComponentIndices& moisture_indices)
-{
-    const amrex::Real rho   = cell_data(i, j, k, Rho_comp);
-    const amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / rho;
-
-    amrex::Real qv = zero, qc = zero, qi = zero;
-    if (moisture_indices.qv >= 0)
-        qv = cell_data(i, j, k, moisture_indices.qv) / rho;
-    if (moisture_indices.qc >= 0)
-        qc = cell_data(i, j, k, moisture_indices.qc) / rho;
-    if (moisture_indices.qi >= 0)
-        qi = cell_data(i, j, k, moisture_indices.qi) / rho;
-
-    return theta * (one + epsv * qv - qc - qi);
-}
-
-
-/**
- * Compute linearized liquid-water potential temperature
+ * Compute linearized liquid-ice water potential temperature,
+ * theta_l = theta - (theta / T) (L_v q_c + L_s q_i) / c_p
+ * from the cloud liquid q_c and cloud ice q_i (WRF's thlix in YSU)
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real ComputeLiquidWaterPotentialTemperature (const amrex::Real& theta,
                                                     const amrex::Real& T,
-                                                    const amrex::Real& qc_liquid)
+                                                    const amrex::Real& qc_liquid,
+                                                    const amrex::Real& qc_ice)
 {
-    return theta - (theta / T) * (L_v / Cp_d) * qc_liquid;
+    return theta - (theta / T) * (L_v * qc_liquid + lsub * qc_ice) / Cp_d;
 }
 
 /**
- * Wrapper around ComputeLiquidWaterPotentialTemperature
+ * Wrapper around ComputeLiquidWaterPotentialTemperature.  theta_l is the variable conserved under
+ * reversible condensation, so it uses the cloud condensate only: precipitation falls out of the
+ * parcel and does not enter the latent-heat term (erf-model/ERF#4892)
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -132,7 +129,7 @@ amrex::Real GetThetal (const int& i, const int& j, const int& k,
                        const MoistureComponentIndices& moisture_indices)
 {
     amrex::Real qv, qcl, qci;
-    GetMoistureVars(i, j, k, cell_data, qv, qcl, qci, moisture_indices);
+    GetCloudMoistureVars(i, j, k, cell_data, qv, qcl, qci, moisture_indices);
 
     amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / cell_data(i, j, k, Rho_comp);
 
@@ -140,87 +137,7 @@ amrex::Real GetThetal (const int& i, const int& j, const int& k,
                                      cell_data(i, j, k, RhoTheta_comp),
                                      qv);
 
-    return ComputeLiquidWaterPotentialTemperature(theta, T, qcl);
-}
-
-
-/**
- * Compute moist stratification accounting for conditional instability
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real ComputeMoistStratification (const int& i, const int& j, const int& k,
-                                        const amrex::Array4<amrex::Real const>& cell_data,
-                                        const amrex::Real& dzInv,
-                                        const amrex::Real& abs_g,
-                                        const amrex::Real& inv_theta0,
-                                        const MoistureComponentIndices& moisture_indices)
-{
-    // Get moisture variables partitioned into phases
-    amrex::Real qv, qc_liquid, qc_ice;
-    GetMoistureVars(i, j, k, cell_data, qv, qc_liquid, qc_ice, moisture_indices);
-
-    // Compute virtual potential temperature gradient
-    amrex::Real theta_v_upper = GetThetav(i, j, k+1, cell_data, moisture_indices);
-    amrex::Real theta_v_lower = GetThetav(i, j, k-1, cell_data, moisture_indices);
-
-    amrex::Real dthetav_dz = myhalf * (theta_v_upper - theta_v_lower) * dzInv;
-    amrex::Real stratification = abs_g * dthetav_dz * inv_theta0;
-
-    // Apply conditional instability correction
-    amrex::Real total_condensate = qc_liquid + qc_ice;
-    if (total_condensate > 1e-8) {
-        amrex::Real T_current = getTgivenRandRTh(cell_data(i,j,k,Rho_comp),
-                                                 cell_data(i,j,k,RhoTheta_comp), qv);
-
-        // Phase-weighted effective latent heat
-        amrex::Real liquid_fraction = qc_liquid / (total_condensate + amrex::Real(1e-12));
-        amrex::Real ice_fraction = one - liquid_fraction;
-        amrex::Real L_eff = liquid_fraction * L_v + ice_fraction * (L_v + lat_ice);
-
-        // Phase-weighted saturation mixing ratio
-        amrex::Real qsat_liquid = zero, qsat_ice = zero;
-        amrex::Real pres_current = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp), qv) * amrex::Real(0.01);
-
-        erf_qsatw(T_current, pres_current, qsat_liquid);
-        erf_qsati(T_current, pres_current, qsat_ice);
-
-        amrex::Real qsat_eff = liquid_fraction * qsat_liquid + ice_fraction * qsat_ice;
-
-        // Moist adiabatic lapse rate correction
-        amrex::Real gamma_moist_factor = (one + L_eff*qsat_eff/(R_d*T_current)) /
-                                         (one + L_eff*L_eff*qsat_eff/(Cp_d*R_v*T_current*T_current));
-
-        stratification *= gamma_moist_factor;
-    }
-
-    return stratification;
-}
-
-/**
- * Compute stratification for Smagorinsky scheme (moist or dry)
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real ComputeStratificationForSmagorinsky (const int& i, const int& j, const int& k,
-                                                 const amrex::Array4<amrex::Real const>& cell_data,
-                                                 const amrex::Real& dzInv,
-                                                 const amrex::Real& abs_g,
-                                                 const amrex::Real& inv_theta0,
-                                                 const bool& use_moisture,
-                                                 const int& rho_qv_comp,
-                                                 const MoistureComponentIndices& moisture_indices)
-{
-    if (use_moisture && (rho_qv_comp >= 0)) {
-        // Moist stratification with virtual temperature and conditional instability
-        return ComputeMoistStratification(i, j, k, cell_data, dzInv, abs_g, inv_theta0, moisture_indices);
-    } else {
-        // Dry stratification (original approach)
-        amrex::Real theta_hi = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
-        amrex::Real theta_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
-        amrex::Real dtheta_dz = myhalf * (theta_hi - theta_lo) * dzInv;
-        return abs_g * dtheta_dz * inv_theta0;
-    }
+    return ComputeLiquidWaterPotentialTemperature(theta, T, qcl, qci);
 }
 
 #endif

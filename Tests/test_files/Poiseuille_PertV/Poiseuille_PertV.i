@@ -8,7 +8,7 @@ erf.prob_name = "Poiseuille flow"
 max_step = 0
 amrex.fpe_trap_invalid = 1
 
-erf.anelastic = 1
+erf.compressibility_type = Anelastic
 erf.init_type = uniform
 
 fabarray.mfiter_tile_size = 1024 1024 1024

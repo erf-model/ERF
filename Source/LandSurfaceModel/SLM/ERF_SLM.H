@@ -623,6 +623,10 @@ public:
 
     void fluxes_canopy (const amrex::MFIter &mfi);
 
+    // Stop the run if a vegetated land cell's canopy is at or below freezing, which SLM
+    // does not treat (erf-model/ERF#4467).
+    void check_canopy_above_freezing (const char* when) const;
+
     void solve_ground_skin_temperature (const amrex::MFIter &mfi);
 
     void soil_water (const amrex::MFIter &mfi);
@@ -769,6 +773,7 @@ private:
 
     amrex::Real z0_soil = 0.01; // baresoil roughness length (m)
     static constexpr amrex::Real tfriz = 273.15;
+    bool m_initial_canopy_checked = false; // the first AdvanceSLM checks the initial canopy
     amrex::Real mws_mx0 = 50.0; // maximum puddle water storage (mm)
 
     static constexpr amrex::Real epsv = 0.61;

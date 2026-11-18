@@ -11,7 +11,7 @@ amr.blocking_factor_x = 16
 amr.blocking_factor_y = 1
 amr.blocking_factor_z = 16
 
-erf.anelastic   = 0
+erf.compressibility_type = FullyCompressible
 erf.check_file  = chk
 erf.plot_file_1 = plt
 

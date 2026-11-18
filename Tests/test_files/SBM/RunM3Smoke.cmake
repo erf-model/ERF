@@ -15,7 +15,8 @@ if(NOT DEFINED EXPECTED_CORE_VALUES)
   set(EXPECTED_CORE_VALUES
     "1.00000000000000000e+00,2.99999999999999886e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,3.00000000000000008e-06,6.99999999999999989e-06,")
 endif()
-# Extra passive scalars (the fire coupling's smoke, with ERF_ENABLE_FIRE) sit
+# Extra passive scalars (the dust coupling's dust scalars, with ERF_ENABLE_DUST,
+# and the fire coupling's smoke, with ERF_ENABLE_FIRE) sit
 # right after RhoScalar_comp (the 4th component) and are zero in these decks, so
 # each one present in the build adds one zero there, in the minimum and in the
 # maximum vector.
@@ -58,7 +59,7 @@ file(MAKE_DIRECTORY "${_run_dir}")
 
 function(run_erf description)
   execute_process(
-    COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}" ${ARGN}
+    COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}" ${RUN_ARGS} ${ARGN}
     WORKING_DIRECTORY "${_run_dir}"
     RESULT_VARIABLE _result
     OUTPUT_VARIABLE _stdout
@@ -67,6 +68,7 @@ function(run_erf description)
     message(FATAL_ERROR
       "${description} failed (exit ${_result}).\nstdout:\n${_stdout}\nstderr:\n${_stderr}")
   endif()
+  set(_run_stdout "${_stdout}" PARENT_SCOPE)
 endfunction()
 
 function(assert_header_vector header_file expected_csv field_name vector_kind)
@@ -238,6 +240,13 @@ function(assert_checkpoint checkpoint)
 endfunction()
 
 run_erf("Initial SBM M3 run")
+if(DEFINED EXPECTED_STDOUT)
+  string(FIND "${_run_stdout}" "${EXPECTED_STDOUT}" _stdout_found)
+  if(_stdout_found EQUAL -1)
+    message(FATAL_ERROR
+      "Initial SBM M3 run did not print '${EXPECTED_STDOUT}'.\nstdout:\n${_run_stdout}")
+  endif()
+endif()
 assert_checkpoint("sbm_smoke_chk00001")
 
 if(DEFINED EXPECT_SECOND_CHECKPOINT AND EXPECT_SECOND_CHECKPOINT)

@@ -17,7 +17,7 @@ geometry.is_periodic = 1 1 1
 
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.0002     # fixed time step [s]
-erf.substepping_type = "None"
+erf.timestepping_type = "RK3_NoSubstepping"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

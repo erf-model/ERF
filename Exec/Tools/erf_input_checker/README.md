@@ -26,10 +26,10 @@ those problems from the deck alone:
 |------|------|
 | `../check_erf_inputs.py` | command line: globs, options, exit code, `--self-test` |
 | `deck.py` | ParmParse-compatible parser; `Deck` with typed getters, duplicates, file resolution |
-| `context.py` | facts shared by the checkers: cell sizes, levels, anelastic or compressible, idealised or real-data, periodicity |
+| `context.py` | facts shared by the checkers: cell sizes, levels, anelastic or compressible, idealized or real-data, periodicity |
 | `findings.py` | `Finding`, `Severity`, `Report` (text and JSON) |
 | `checker.py` | `Checker` base class, registry, `run_all_checks` |
-| `checks/keys.py` | duplicate keys, retired keys and values, misspelt or wrongly cased keys (ParmParse keys are case-sensitive; compared with the Sphinx docs and the strings read in `Source/`), `FILE =` found only beside the deck |
+| `checks/keys.py` | duplicate keys, retired keys and values, misspelled or wrongly cased keys (ParmParse keys are case-sensitive; compared with the Sphinx docs and the strings read in `Source/`), `FILE =` found only beside the deck |
 | `checks/domain.py` | required keys, cell counts, cell sizes, aspect ratio |
 | `checks/grid.py` | blocking factor and `max_grid_size` rules AMReX enforces, odd and uneven boxes, vertical decomposition, boxes per rank |
 | `checks/refinement.py` | indicators, boxes, ratios, coupling |
@@ -39,7 +39,7 @@ those problems from the deck alone:
 | `checks/physics.py` | turbulence closures, advection schemes, forcing and damping, moisture, terrain and stretching; enum names read from `Source/DataStructs` (`AMREX_ENUM`), exact case where ERF compares strings |
 | `checks/output.py` | plotfiles, checkpoints, restarts |
 | `checks/files.py` | every file the deck names: exists, and when present its contents against the deck (wrfinput, wrfbdy, wrflow, met_em, terrain, soundings, tables) |
-| `selftest.py` | 109 cases, each a deck that must trip a check and a sibling that must not |
+| `selftest.py` | 121 cases, each a deck that must trip a check and a sibling that must not |
 
 ## How to run
 
@@ -64,7 +64,7 @@ python3 Exec/Tools/check_erf_inputs.py --self-test
 | `--docs PATH` | auto | `Inputs.rst` location when run outside the repository |
 
 Run it from inside the repository so the Sphinx pages and `Source/` are
-found; the misspelt-key check is skipped otherwise.
+found; the misspelled-key check is skipped otherwise.
 
 ## Real-data and external files
 
@@ -72,8 +72,7 @@ When the deck names a file that is present, its contents are compared with the
 deck. wrfinput: staggered dimensions against `amr.n_cell`, `DX * n` against the
 domain extent, `bottom_top` against `n_cell` z, `SIMULATION_START_DATE` against
 `start_datetime`. wrfbdy: `bdy_width` above `erf.real_width`, evenly spaced
-time stamps, data span against `stop_time`, the cloud fields that
-`erf.use_wrf_bdy_qc_qi` needs. wrflow: SST present, grid against `n_cell`.
+time stamps, data span against `stop_time`. wrflow: SST present, grid against `n_cell`.
 Terrain text, USGS and NetCDF files: shape, increasing coordinates, coverage of
 the domain (ERF stops when the table ends more than one spacing inside the
 domain). Soundings: columns, increasing heights, top against the domain top,
@@ -84,7 +83,7 @@ only the existence of the file is checked.
 ## Expected results
 
 A clean deck prints INFO lines only and the script exits 0. The self-test
-exits 0 with `self-test: 109 cases passed`; CTest runs it as
+exits 0 with `self-test: 112 cases passed`; CTest runs it as
 `InputsChecker_SelfTest`. Over the repository's decks (`Exec/RegTests`,
 `Tests/test_files`, `Exec/CanonicalTests`, 729 files) the first run on
 2026-10-23 reported 24 decks with errors, most of them external files that the

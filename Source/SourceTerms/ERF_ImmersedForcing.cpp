@@ -3,6 +3,8 @@
 #include "ERF_TI_slow_headers.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_ImmersedWallStability.H"
+#include "ERF_ImmersedWallCell.H"
+#include "ERF_ImmersedBuildingMasks.H"
 
 using namespace amrex;
 
@@ -22,6 +24,7 @@ using namespace amrex;
  * @param[in] stability_correction Whether to apply stability corrections.
  * @param[in] wind_floor Wind-speed floor [m/s] behind the friction velocity of the stability estimate (erf.if_stability_wind_floor).
  * @param[in] psi_cap_factor Cap on psi_m as a fraction of ln(z/z0) (erf.if_psi_cap_factor).
+ * @param[in] sfuns Similarity functions of the wall law (erf.most.stable_functions).
  * @return Target velocity component.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -38,7 +41,8 @@ compute_if_most_target_vel (
     const amrex::Real Olen_in,
     const bool        stability_correction,
     const amrex::Real wind_floor,
-    const amrex::Real psi_cap_factor
+    const amrex::Real psi_cap_factor,
+    const similarity_funs& sfuns
 )
 {
     const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
@@ -55,8 +59,7 @@ compute_if_most_target_vel (
                : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta_face / (KAPPA * CONST_GRAV * tflux + tiny), Real(1.5) * delta);
     Real zeta  = ib_stability::bounded_zeta(Real(1.5) * delta, Olen);
 
-    // similarity functions
-    similarity_funs sfuns;
+    // similarity functions (sfuns: erf.most.stable_functions)
     if (stability_correction){
         psi_m          = sfuns.calc_psi_m(zeta);
         psi_h          = sfuns.calc_psi_h(zeta);
@@ -99,9 +102,11 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    const bool l_drag = !solverChoice.if_implicit_projection;
 
-    // MOST parameters
-    similarity_funs sfuns;
+    // MOST parameters (the similarity functions from erf.most.stable_functions)
+    const similarity_funs sfuns = solverChoice.most_sfuns;
     const Real ggg        = CONST_GRAV;
     const Real kappa      = KAPPA;
     const Real z0                 = solverChoice.if_z0;
@@ -141,7 +146,9 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
 
         const Real rho_xface = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
 
-        if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
+        // With erf.if_implicit_projection a fully solid face is held by the drag in the projection
+        // (the explicit path zeroes it after the projection instead), so the wall law is not applied there
+        if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most && (l_drag || t_blank < one)) { // force to MOST value
             // calculate tangential velocity one cell above
             const Real ux2r = u(i, j, k+1) ;
             const Real uy2r = fourth * ( v(i, j  , k+1) + v(i-1, j  , k+1)
@@ -183,7 +190,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
             const Real lambda = (1-t_blank) * CdM * U_s; // affine relaxation rate toward MOST target [1/s]
             const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
             xmom_src_arr(i, j, k) -= fac_local * rho_xface * bc_forcing_x; // if Vf low, force more strongly to MOST. If high, less forcing.
-        } else {
+        } else if (l_drag) {
             const Real lambda = t_blank * CdM * windspeed; // linear drag rate [1/s]
             const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
             xmom_src_arr(i, j, k) -= fac_local * rho_xface * ux;
@@ -217,9 +224,11 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    const bool l_drag = !solverChoice.if_implicit_projection;
 
-    // MOST parameters
-    similarity_funs sfuns;
+    // MOST parameters (the similarity functions from erf.most.stable_functions)
+    const similarity_funs sfuns = solverChoice.most_sfuns;
     const Real ggg        = CONST_GRAV;
     const Real kappa      = KAPPA;
     const Real z0                 = solverChoice.if_z0;
@@ -258,7 +267,9 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
 
         const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
 
-        if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
+        // With erf.if_implicit_projection a fully solid face is held by the drag in the projection
+        // (the explicit path zeroes it after the projection instead), so the wall law is not applied there
+        if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most && (l_drag || t_blank < one)) { // force to MOST value
             // calculate tangential velocity one cell above
             const Real ux2r = fourth * ( u(i  , j  , k+1) + u(i  , j-1, k+1)
                                + u(i+1, j  , k+1) + u(i+1, j-1, k+1) );
@@ -300,13 +311,308 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
             const Real lambda = (1 - t_blank) * CdM * U_s; // affine relaxation rate toward MOST target [1/s]
             const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
             ymom_src_arr(i, j, k) -= fac_local * rho_yface * bc_forcing_y; // if Vf low, force more strongly to MOST. If high, less forcing.
-        } else {
+        } else if (l_drag) {
             const Real lambda = t_blank * CdM * windspeed; // linear drag rate [1/s]
             const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
             ymom_src_arr(i, j, k) -= fac_local * rho_yface * uy;
         }
     });
 }
+
+/**
+ * Surface condition of the fraction-stress wall law from the erf.if_* inputs at this time: a given
+ * Obukhov length, a given heat flux, a given surface temperature (erf.if_init_surf_temp, changing
+ * at erf.if_surf_heating_rate, which is stored in K/s), or none (neutral); and, with a moisture
+ * model that carries water vapour, a given moisture flux (erf.if_surf_moist_flux), a given surface
+ * mixing ratio (erf.if_surf_moist) or none, the Obukhov length then formed from theta_v and
+ * theta_v*. The inputs guarantee that at most one of each is set.
+ */
+static ib_wall::WallCond
+make_wall_cond (const SolverChoice& sc, const Real time)
+{
+    ib_wall::WallCond c;
+    c.sfuns = sc.most_sfuns; // erf.most.stable_functions
+    c.moist = (sc.moisture_indices.qv != MoistureComponentIndices::absent);
+    if (sc.if_surf_moist_flux != zero) {
+        c.moist_type = ib_wall::WallCond::moist_flux;
+        c.qflux = sc.if_surf_moist_flux;
+    } else if (sc.if_surf_moist >= zero) {
+        c.moist_type = ib_wall::WallCond::surface_moist;
+        c.q_s = sc.if_surf_moist;
+    }
+    if (sc.if_Olen_in != Real(1e-8)) {
+        c.type = ib_wall::WallCond::obukhov;
+        c.Linv = one / sc.if_Olen_in;
+    } else if (sc.if_surf_temp_flux != Real(1e-8)) {
+        c.type = ib_wall::WallCond::heat_flux;
+        c.q = sc.if_surf_temp_flux;
+    } else if (sc.if_init_surf_temp > zero) {
+        c.type = ib_wall::WallCond::surface_temp;
+        c.theta_s = sc.if_init_surf_temp + sc.if_surf_heating_rate * time;
+    }
+    return c;
+}
+
+namespace {
+
+/// Solid fraction on a face column at level kk, clamped to the domain in k, fluid below small
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_face_beta (const Array4<const Real>& tb, const Array4<const Real>& tb_face,
+                   int i, int j, int kk, int io, int jo, int klo, int khi, Real small) noexcept
+{
+    const int kc = amrex::min(amrex::max(kk, klo), khi);
+    const Real b = (tb_face) ? tb_face(i, j, kc) : myhalf * (tb(i, j, kc) + tb(i-io, j-jo, kc));
+    return (b < small) ? zero : b;
+}
+
+/// Solid fraction of a cell column at level kk, clamped to the domain in k, fluid below small
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_cell_beta (const Array4<const Real>& tb, int i, int j, int kk, int klo, int khi, Real small) noexcept
+{
+    const Real b = tb(i, j, amrex::min(amrex::max(kk, klo), khi));
+    return (b < small) ? zero : b;
+}
+
+/// Horizontal speed on a face of direction dir at level kk (the cross component averaged to it)
+template <int dir>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_face_speed (const Array4<const Real>& u, const Array4<const Real>& v, int i, int j, int kk) noexcept
+{
+    const Real un = (dir == 0) ? u(i, j, kk) : v(i, j, kk);
+    const Real uc = (dir == 0) ? fourth * ( v(i, j, kk) + v(i-1, j, kk) + v(i, j+1, kk) + v(i-1, j+1, kk) )
+                               : fourth * ( u(i, j, kk) + u(i+1, j, kk) + u(i, j-1, kk) + u(i+1, j-1, kk) );
+    return std::sqrt(un * un + uc * uc);
+}
+
+/// Potential temperature on a face of direction dir at level kk
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_face_theta (const Array4<const Real>& cell_data, int i, int j, int kk, int io, int jo) noexcept
+{
+    return myhalf * ( cell_data(i,j,kk,RhoTheta_comp) / cell_data(i,j,kk,Rho_comp)
+                    + cell_data(i-io,j-jo,kk,RhoTheta_comp) / cell_data(i-io,j-jo,kk,Rho_comp) );
+}
+
+/// Mixing ratio of conserved component comp on a face of direction dir at level kk (zero for comp < 0)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_face_q (const Array4<const Real>& cell_data, int comp, int i, int j, int kk, int io, int jo) noexcept
+{
+    return (comp < 0) ? zero
+         : myhalf * ( cell_data(i,j,kk,comp) / cell_data(i,j,kk,Rho_comp)
+                    + cell_data(i-io,j-jo,kk,comp) / cell_data(i-io,j-jo,kk,Rho_comp) );
+}
+
+} // namespace
+
+/**
+ * Fraction-stress wall law (erf.if_wall_form = fraction_stress) for a horizontal momentum
+ * component, see ERF_ImmersedWallCell.H: the wall stress in the wall cell of each face column,
+ * the drag of the terrain kernels elsewhere (solid cells, and partial cells under the wall cell).
+ * dir = 0 forces x-momentum, dir = 1 y-momentum.
+ */
+template <int dir>
+void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
+                                                    const Array4<const Real>& u,
+                                                    const Array4<const Real>& v,
+                                                    const Array4<const Real>& w,
+                                                    const Array4<const Real>& cell_data,
+                                                    const Array4<const Real>& t_blank_arr,
+                                                    const Array4<const Real>& t_blank_face_arr,
+                                                    const Array4<      Real>& mom_src_arr,
+                                                    const Geometry& geom,
+                                                    const SolverChoice& solverChoice,
+                                                    const Real dt,
+                                                    const Real time)
+{
+    const Real* dx_arr = geom.CellSize();
+    const Real dx_x = dx_arr[0];
+    const Real dx_y = dx_arr[1];
+    const Real dz   = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
+    const Real alpha_m = solverChoice.if_Cd_momentum;
+    const Real z0      = solverChoice.if_z0;
+    const bool l_implicit_drag = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    const bool l_drag = !solverChoice.if_implicit_projection;
+    const Real tiny  = std::numeric_limits<Real>::epsilon();
+    const Real small = solverChoice.if_small_volfrac;
+    const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
+    // water vapour on the face (zero without a moisture model), for q* and the virtual Obukhov
+    // length of the wall state, as the scalar kernel forms them
+    const int qv_comp = cond.moist ? solverChoice.moisture_indices.qv : -1;
+    constexpr int io = (dir == 0) ? 1 : 0;
+    constexpr int jo = (dir == 1) ? 1 : 0;
+    const int klo = geom.Domain().smallEnd(2);
+    const int khi = geom.Domain().bigEnd(2);
+
+    ParallelFor(tb, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        // solid fraction on this face column, as the terrain kernels read it, with the column
+        // ends clamped to the domain as make_ib_wall_face_masks does
+        const Real b_km1 = if_face_beta(t_blank_arr, t_blank_face_arr, i, j, k-1, io, jo, klo, khi, small);
+        const Real b_k   = if_face_beta(t_blank_arr, t_blank_face_arr, i, j, k,   io, jo, klo, khi, small);
+        const Real b_kp1 = if_face_beta(t_blank_arr, t_blank_face_arr, i, j, k+1, io, jo, klo, khi, small);
+        const Real rho_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-io,j-jo,k,Rho_comp) );
+        const Real un = (dir == 0) ? u(i, j, k) : v(i, j, k);
+
+        if (ib_wall::is_wall_cell(b_km1, b_k, b_kp1, small)) {
+            const Real ut     = if_face_speed<dir>(u, v, i, j, k);
+            const Real ut_ref = if_face_speed<dir>(u, v, i, j, k+1);
+            const ib_wall::WallState ws = ib_wall::wall_state(ut, ut_ref,
+                                                              if_face_theta(cell_data, i, j, k,   io, jo),
+                                                              if_face_theta(cell_data, i, j, k+1, io, jo),
+                                                              if_face_q(cell_data, qv_comp, i, j, k,   io, jo),
+                                                              if_face_q(cell_data, qv_comp, i, j, k+1, io, jo),
+                                                              ib_wall::wall_beta(b_k, small), dz, z0, cond);
+            mom_src_arr(i, j, k) -= ib_wall::stress_rate(ws.ustar, ut, dz, dt) * rho_face * un;
+        } else if (l_drag) {
+            const Real wz = (dir == 0) ? fourth * ( w(i, j, k) + w(i-1, j, k) + w(i, j, k+1) + w(i-1, j, k+1) )
+                                       : fourth * ( w(i, j, k) + w(i, j-1, k) + w(i, j, k+1) + w(i, j-1, k+1) );
+            const Real uh = if_face_speed<dir>(u, v, i, j, k);
+            const Real windspeed = std::sqrt(uh * uh + wz * wz);
+            const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dz, one/three);
+            const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+            const Real lambda = b_k * CdM * windspeed;   // linear drag rate [1/s]; zero in fluid cells
+            const Real fac_local = l_implicit_drag ? lambda / (one + lambda*dt) : lambda;
+            mom_src_arr(i, j, k) -= fac_local * rho_face * un;
+        }
+    });
+}
+
+void ImmersedForcingTerrain_Xmom_FractionStress (const Box& tbx,
+                                                 const Array4<const Real>& u,
+                                                 const Array4<const Real>& v,
+                                                 const Array4<const Real>& w,
+                                                 const Array4<const Real>& cell_data,
+                                                 const Array4<const Real>& t_blank_arr,
+                                                 const Array4<const Real>& t_blank_xface_arr,
+                                                 const Array4<      Real>& xmom_src_arr,
+                                                 const Geometry& geom,
+                                                 const SolverChoice& solverChoice,
+                                                 const Real fac,
+                                                 const Real time)
+{
+    ImmersedForcingTerrain_HorizMom_FractionStress<0>(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
+                                                      xmom_src_arr, geom, solverChoice, fac, time);
+}
+
+void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
+                                                 const Array4<const Real>& u,
+                                                 const Array4<const Real>& v,
+                                                 const Array4<const Real>& w,
+                                                 const Array4<const Real>& cell_data,
+                                                 const Array4<const Real>& t_blank_arr,
+                                                 const Array4<const Real>& t_blank_yface_arr,
+                                                 const Array4<      Real>& ymom_src_arr,
+                                                 const Geometry& geom,
+                                                 const SolverChoice& solverChoice,
+                                                 const Real fac,
+                                                 const Real time)
+{
+    ImmersedForcingTerrain_HorizMom_FractionStress<1>(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
+                                                      ymom_src_arr, geom, solverChoice, fac, time);
+}
+
+/**
+ * Fraction-stress wall law for the scalars (erf.if_wall_form = fraction_stress), see
+ * ERF_ImmersedWallCell.H: the wall heat flux -u* theta* in the wall cell of each column, with the
+ * u* and theta* of the momentum law, and the relaxation of fully immersed cells to the planar
+ * average of the legacy kernel. The kinematic wall flux -u* theta* is stored in wall_hfx at the
+ * wall cell (zero elsewhere), for the TKE buoyancy on the wall face; with wall_tke the wall value
+ * of the TKE is stored in wall_ktarget at the wall cell (-1 elsewhere), and a time factor of 1
+ * leaves the pin to erf_slow_rhs_post and the implicit TKE solve. With a moisture model the wall
+ * moisture flux -u* q* of the surface moisture condition (erf.if_surf_moist_flux or
+ * erf.if_surf_moist; q* = 0 without one) goes to the water vapour of the wall cell and is stored
+ * in wall_qfx (zero elsewhere); with wall_tke_moist (erf.rans_moist_buoyancy) the wall TKE's
+ * buoyancy uses theta_v* and theta_v, as flat ground's erf.dirichlet_k does under the same key.
+ */
+void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
+                                                   const Array4<const Real>& u,
+                                                   const Array4<const Real>& v,
+                                                   const Array4<const Real>& cell_data,
+                                                   const Array4<const Real>& t_blank_arr,
+                                                   const Array4<      Real>& cell_src,
+                                                   const Array4<      Real>& wall_hfx,
+                                                   const Array4<      Real>& wall_ktarget,
+                                                   const Geometry& geom,
+                                                   const SolverChoice& solverChoice,
+                                                   const Table1D<Real>& r_avg,
+                                                   const Table1D<Real>& t_avg,
+                                                   const Real dt,
+                                                   const Real time,
+                                                   const bool wall_tke,
+                                                   const Real Cmu0,
+                                                   const Array4<      Real>& wall_qfx,
+                                                   const bool wall_tke_moist)
+{
+    const Real* dx_arr = geom.CellSize();
+    const Real dz = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
+    const Real tke_time_factor = solverChoice.if_wall_tke_time_factor;
+    // a time factor of 1 pins the wall cell at the wall value after every stage (erf_slow_rhs_post
+    // and the implicit TKE solve read wall_ktarget), as erf.dirichlet_k does on flat ground;
+    // larger factors relax toward it here as a source
+    const bool tke_pin = (tke_time_factor <= one);
+    const Real drag_coefficient = solverChoice.if_Cd_scalar / std::pow(dx_arr[0]*dx_arr[1]*dz, one/three);
+    const Real z0    = solverChoice.if_z0;
+    const Real small = solverChoice.if_small_volfrac;
+    const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
+    const int klo = geom.Domain().smallEnd(2);
+    const int khi = geom.Domain().bigEnd(2);
+    const bool have_avg = (r_avg && t_avg);
+    // water vapour component of the conserved state (-1 without a moisture model that carries it)
+    const int qv_comp = cond.moist ? solverChoice.moisture_indices.qv : -1;
+    const bool moist_cond = (qv_comp >= 0) && (cond.moist_type != ib_wall::WallCond::moist_none);
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        const Real b_k = if_cell_beta(t_blank_arr, i, j, k, klo, khi, small);
+        if (wall_hfx) { wall_hfx(i, j, k) = zero; }
+        if (wall_qfx) { wall_qfx(i, j, k) = zero; }
+        if (wall_ktarget) { wall_ktarget(i, j, k) = -one; }   // no wall value: not a wall cell
+
+        if (ib_wall::is_wall_cell(if_cell_beta(t_blank_arr, i, j, k-1, klo, khi, small), b_k,
+                                  if_cell_beta(t_blank_arr, i, j, k+1, klo, khi, small), small)) {
+            // horizontal speed at the cell centres of the wall cell and the cell above
+            const Real uc0 = myhalf * (u(i, j, k)   + u(i+1, j, k));
+            const Real vc0 = myhalf * (v(i, j, k)   + v(i, j+1, k));
+            const Real uc1 = myhalf * (u(i, j, k+1) + u(i+1, j, k+1));
+            const Real vc1 = myhalf * (v(i, j, k+1) + v(i, j+1, k+1));
+            const Real rho       = cell_data(i, j, k,   Rho_comp);
+            const Real theta     = cell_data(i, j, k,   RhoTheta_comp) / rho;
+            const Real theta_ref = cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp);
+            // water vapour of the wall cell and the cell above (zero without a moisture model)
+            const Real q     = (qv_comp >= 0) ? cell_data(i, j, k,   qv_comp) / rho : zero;
+            const Real q_ref = (qv_comp >= 0) ? cell_data(i, j, k+1, qv_comp) / cell_data(i, j, k+1, Rho_comp) : zero;
+            const ib_wall::WallState ws = ib_wall::wall_state(std::sqrt(uc0*uc0 + vc0*vc0), std::sqrt(uc1*uc1 + vc1*vc1),
+                                                              theta, theta_ref, q, q_ref,
+                                                              ib_wall::wall_beta(b_k, small), dz, z0, cond);
+            cell_src(i, j, k, RhoTheta_comp) += rho * ib_wall::heat_source(ws, theta, cond, dz, dt);
+            if (wall_hfx) { wall_hfx(i, j, k) = -ws.ustar * ws.thetastar; }
+            if (moist_cond) {
+                cell_src(i, j, k, qv_comp) += rho * ib_wall::moist_source(ws, q, cond, dz, dt);
+            }
+            if (wall_qfx) { wall_qfx(i, j, k) = -ws.ustar * ws.qstar; }
+            if (wall_tke) {
+                // under erf.rans_moist_buoyancy the buoyancy of the wall value is the virtual one
+                const Real k_wall = (wall_tke_moist && cond.moist)
+                    ? ib_wall::wall_tke(ws, ib_wall::wall_beta(b_k, small), dz, z0, Cmu0,
+                                        ib_wall::virtual_thetastar(ws, theta, q), ib_wall::virtual_theta(theta, q))
+                    : ib_wall::wall_tke(ws, ib_wall::wall_beta(b_k, small), dz, z0, theta, Cmu0);
+                if (wall_ktarget) { wall_ktarget(i, j, k) = k_wall; }
+                if (!tke_pin) {
+                    // relax the wall-cell TKE toward its wall value over tke_time_factor steps
+                    const Real k_now  = cell_data(i, j, k, RhoKE_comp) / rho;
+                    cell_src(i, j, k, RhoKE_comp) += rho * (k_wall - k_now) / (tke_time_factor * dt);
+                }
+            }
+        } else if (b_k == one && have_avg) {
+            // fully immersed cells: relax to the planar average, as the legacy kernel does
+            const Real rho_avg   = r_avg(k);
+            const Real theta_avg = t_avg(k) / rho_avg;
+            cell_src(i, j, k, Rho_comp)      -= drag_coefficient * (cell_data(i,j,k,Rho_comp) - rho_avg);
+            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * (cell_data(i,j,k,RhoTheta_comp) - rho_avg * theta_avg);
+        }
+    });
+}
+
 
 /**
  * Apply terrain immersed forcing to Z-momentum
@@ -333,6 +639,8 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    const bool l_drag = !solverChoice.if_implicit_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
@@ -359,12 +667,15 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
         const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
         const Real lambda = t_blank * CdM * windspeed; // linear drag rate [1/s]
         const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
-        zmom_src_arr(i, j, k) -= fac_local * rho_zface * uz;
+        if (l_drag) { zmom_src_arr(i, j, k) -= fac_local * rho_zface * uz; }
     });
 }
 
 /**
  * Apply buildings immersed forcing to X-momentum
+ *
+ * is_slow_step: whether the forcing is being applied on the slow step (the drag is then
+ * limited) rather than in the acoustic substeps
  */
 void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                     const Array4<const Real>& u,
@@ -377,7 +688,8 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                     const Array4<      Real>& xmom_src_arr,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
-                                    const Real fac)
+                                    const Real fac,
+                                    bool is_slow_step)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -397,15 +709,17 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     const Real psi_cap_factor          = solverChoice.if_psi_cap_factor;
     const bool l_use_most              = solverChoice.if_use_most;
     const bool l_stability_correction  = solverChoice.if_stability_correction;
+    const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
     // To limit stiffness of drag when using anelastic
     const Real ws_floor           = solverChoice.if_ws_floor;
     const Real damp_alpha         = solverChoice.if_damp_alpha;
     // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
+    // projection (ERF::make_if_projection_sigma), not here
+    const bool l_ip               = solverChoice.if_implicit_projection;
 
-    const bool is_slow_step = true;  // This is determined by calling context
-    const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
@@ -421,18 +735,9 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
-    // Blanking of an x-face (i, j, k): with the snap, from the two cells it
-    // joins (solid when either is), so both builds give the same staircase;
-    // otherwise the face-centred fraction when the build has it, else the
-    // mean of the two cells.
-    auto fb = [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> amrex::Real {
-        if (l_snap) { return amrex::max(snapb(t_blank_arr(i, j, k)), snapb(t_blank_arr(i-1, j, k))); }
-        return (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k)
-                                   : myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
-    };
+    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // implicit projection reads them
+    const int dom_klo = geom.Domain().smallEnd(2);
 
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -447,26 +752,18 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real rho_xface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
         const Real theta_xface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
 
-        // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
-        Real t_blank_raw       = fb(i, j, k);
-        const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        const if_bld::HorizFace fc = if_bld::horiz_face<0>(t_blank_arr, t_blank_xface_arr, i, j, k, dom_klo, l_snap, small_volfrac);
+        const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
         // takes the full log-law target; the partial-cell weight (1 - t_blank)
         // of compute_if_most_target_vel() would make it zero (a no-slip
         // staircase), so the snap path passes a zero blanking to it.
         const Real t_blank_law = l_snap ? zero : t_blank;
-
-        Real t_blank_below_raw = (k == 0) ? zero : fb(i, j, k-1);
-        const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
-
-        Real t_blank_above_raw = fb(i, j, k+1);
-        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
-
-        Real t_blank_north_raw = fb(i, j+1, k);
-        const Real t_blank_north = (t_blank_north_raw < small_volfrac) ? zero : t_blank_north_raw;
-
-        Real t_blank_south_raw = fb(i, j-1, k);
-        const Real t_blank_south = (t_blank_south_raw < small_volfrac) ? zero : t_blank_south_raw;
+        const Real t_blank_below = fc.below;
+        const Real t_blank_above = fc.above;
+        const Real t_blank_south = fc.lo;
+        const Real t_blank_north = fc.hi;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -474,18 +771,26 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
         // row it lies in.
-        const bool normal_face = l_snap && (snapb(t_blank_arr(i, j, k)) != snapb(t_blank_arr(i-1, j, k)));
+        const bool normal_face = fc.normal;
 
         // With the snap every solid face has t_blank = 1: a roof face lies in
         // the top solid row (t_blank <= t_blank_below, the face above fluid),
         // and a face carrying a wall law is not also an interior face.
-        const Real roof_mask     = (!normal_face && t_blank > zero && (l_snap ? t_blank <= t_blank_below : t_blank < t_blank_below) && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
-        const Real south_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most) ? one : zero; // south wall cell
-        const Real north_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most) ? one : zero; // north wall cell
-        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
-        const Real most_mask     = roof_mask + south_mask + north_mask; // cells getting MOST treatment
-        const Real east_west_mask = (t_blank > zero && t_blank < one && l_use_most && most_mask == zero) ? one : zero; // partial cells not covered by MOST (east/west walls)
-        const Real interior_mask = (t_blank == 1.0 && !(l_snap && most_mask > zero)) ? one : zero; // interior cell
+        // roof, south/north wall law, partial-wall and interior drag (ERF_ImmersedBuildingMasks.H)
+        if_bld::HorizMasks mk = if_bld::horiz_masks(t_blank, t_blank_below, t_blank_above, t_blank_south, t_blank_north,
+                                                    normal_face, l_use_most, l_snap);
+        // erf.if_implicit_projection: the linear drag is in the projection, and a face the explicit
+        // path would zero after the projection (solid on both sides) is held there, with no wall law
+        if (l_ip) {
+            mk.wall = zero; mk.side = zero; mk.interior = zero;
+            if (fc.raw == one) { mk.roof = zero; mk.lo = zero; mk.hi = zero; }
+        }
+        const Real roof_mask      = mk.roof;
+        const Real south_mask     = mk.lo;
+        const Real north_mask     = mk.hi;
+        const Real wall_mask      = mk.wall;
+        const Real east_west_mask = mk.side;
+        const Real interior_mask  = mk.interior;
 
         Real drag             = zero;
         Real u1_cellaway      = zero;
@@ -502,7 +807,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                            + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
             rho_xface_inside    =  myhalf * (cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp));
             theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_x * roof_mask * rho_xface * CdM * U_s;
         }
@@ -514,7 +819,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                            + w(i, j-1, k+1) + w(i-1, j-1, k+1) ) ;
             rho_xface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i-1,j+1,k, RhoTheta_comp))) / rho_xface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_x * south_mask * rho_xface * CdM * U_s;
         }
@@ -526,7 +831,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                            + w(i, j+1, k+1) + w(i-1, j+1, k+1) ) ;
             rho_xface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_xface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_x * north_mask * rho_xface * CdM * U_s;
         }
@@ -547,7 +852,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                        + (wall_mask + east_west_mask) * t_blank * windspeed
                                        + interior_mask * windspeed );
             xmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
-        } else if (is_slow_step && !use_ImmersedForcing_fast) {
+        } else if (is_slow_step) {
             // limit drag term for anelastic for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(ux), ws_floor); // aims to prevent oscillations around 0.
@@ -564,6 +869,9 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
 
 /**
  * Apply buildings immersed forcing to Y-momentum
+ *
+ * is_slow_step: whether the forcing is being applied on the slow step (the drag is then
+ * limited) rather than in the acoustic substeps
  */
 void ImmersedForcingBuildings_Ymom (const Box& tby,
                                     const Array4<const Real>& u,
@@ -576,7 +884,8 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                     const Array4<      Real>& ymom_src_arr,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
-                                    const Real fac)
+                                    const Real fac,
+                                    bool is_slow_step)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -596,15 +905,17 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     const Real psi_cap_factor          = solverChoice.if_psi_cap_factor;
     const bool l_use_most              = solverChoice.if_use_most;
     const bool l_stability_correction  = solverChoice.if_stability_correction;
+    const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
     // To limit stiffness of drag when using anelastic
     const Real ws_floor           = solverChoice.if_ws_floor;
     const Real damp_alpha         = solverChoice.if_damp_alpha;
     // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
+    // projection (ERF::make_if_projection_sigma), not here
+    const bool l_ip               = solverChoice.if_implicit_projection;
 
-    const bool is_slow_step = true;  // This is determined by calling context
-    const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
@@ -620,18 +931,9 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
-    // Blanking of a y-face (i, j, k): with the snap, from the two cells it
-    // joins (solid when either is), so both builds give the same staircase;
-    // otherwise the face-centred fraction when the build has it, else the
-    // mean of the two cells.
-    auto fb = [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> amrex::Real {
-        if (l_snap) { return amrex::max(snapb(t_blank_arr(i, j, k)), snapb(t_blank_arr(i, j-1, k))); }
-        return (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k)
-                                   : myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
-    };
+    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // implicit projection reads them
+    const int dom_klo = geom.Domain().smallEnd(2);
 
 
     ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -646,26 +948,18 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         const Real rho_yface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
         const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k,RhoTheta_comp))) / rho_yface;
 
-        // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
-        Real t_blank_raw       = fb(i, j, k);
-        const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        const if_bld::HorizFace fc = if_bld::horiz_face<1>(t_blank_arr, t_blank_yface_arr, i, j, k, dom_klo, l_snap, small_volfrac);
+        const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
         // takes the full log-law target; the partial-cell weight (1 - t_blank)
         // of compute_if_most_target_vel() would make it zero (a no-slip
         // staircase), so the snap path passes a zero blanking to it.
         const Real t_blank_law = l_snap ? zero : t_blank;
-
-        Real t_blank_below_raw = (k == 0) ? zero : fb(i, j, k-1);
-        const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
-
-        Real t_blank_above_raw = fb(i, j, k+1);
-        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
-
-        Real t_blank_east_raw  = fb(i+1, j, k);
-        const Real t_blank_east = (t_blank_east_raw < small_volfrac) ? zero : t_blank_east_raw;
-
-        Real t_blank_west_raw  = fb(i-1, j, k);
-        const Real t_blank_west = (t_blank_west_raw < small_volfrac) ? zero : t_blank_west_raw;
+        const Real t_blank_below = fc.below;
+        const Real t_blank_above = fc.above;
+        const Real t_blank_west  = fc.lo;
+        const Real t_blank_east  = fc.hi;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -673,17 +967,24 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
         // row it lies in.
-        const bool normal_face = l_snap && (snapb(t_blank_arr(i, j, k)) != snapb(t_blank_arr(i, j-1, k)));
+        const bool normal_face = fc.normal;
 
         // As in the x-momentum: with the snap a roof face lies in the top
         // solid row and a wall-law face is not also an interior face.
-        const Real roof_mask     = (!normal_face && t_blank > zero && (l_snap ? t_blank <= t_blank_below : t_blank < t_blank_below) && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
-        const Real west_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most) ? one : zero; // west wall cell
-        const Real east_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most) ? one : zero; // east wall cell
-        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
-        const Real most_mask     = roof_mask + west_mask + east_mask; // cells getting MOST treatment
-        const Real north_south_mask = (t_blank > zero && t_blank < one && l_use_most && most_mask == zero) ? one : zero; // partial cells not covered by MOST (north/south walls)
-        const Real interior_mask = (t_blank == 1.0 && !(l_snap && most_mask > zero)) ? one : zero; // interior cell
+        // roof, west/east wall law, partial-wall and interior drag (ERF_ImmersedBuildingMasks.H)
+        if_bld::HorizMasks mk = if_bld::horiz_masks(t_blank, t_blank_below, t_blank_above, t_blank_west, t_blank_east,
+                                                    normal_face, l_use_most, l_snap);
+        // erf.if_implicit_projection: as in the x-momentum
+        if (l_ip) {
+            mk.wall = zero; mk.side = zero; mk.interior = zero;
+            if (fc.raw == one) { mk.roof = zero; mk.lo = zero; mk.hi = zero; }
+        }
+        const Real roof_mask        = mk.roof;
+        const Real west_mask        = mk.lo;
+        const Real east_mask        = mk.hi;
+        const Real wall_mask        = mk.wall;
+        const Real north_south_mask = mk.side;
+        const Real interior_mask    = mk.interior;
 
         Real drag             = zero;
         Real u1_cellaway      = zero;
@@ -700,7 +1001,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
             u2_cellaway         = v(i, j, k+1);
             rho_yface_inside    = myhalf * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_yface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_y * roof_mask * rho_yface * CdM * U_s;
         }
@@ -712,7 +1013,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                            + w(i-1, j  , k+1) + w(i-1, j-1, k+1) );
             rho_yface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j-1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_y * west_mask * rho_yface * CdM * U_s;
         }
@@ -724,7 +1025,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                            + w(i+1, j  , k+1) + w(i+1, j-1, k+1) );
             rho_yface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_y * east_mask * rho_yface * CdM * U_s;
         }
@@ -745,7 +1046,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                        + (wall_mask + north_south_mask) * t_blank * windspeed
                                        + interior_mask * windspeed );
             ymom_src_arr(i,j,k) -= drag / (one + lambda*dt);
-        } else if (is_slow_step && !use_ImmersedForcing_fast) {
+        } else if (is_slow_step) {
             // limit drag term for anelastic for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uy), ws_floor); // aims to prevent oscillations around 0.
@@ -762,6 +1063,9 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
 
 /**
  * Apply buildings immersed forcing to Z-momentum
+ *
+ * is_slow_step: whether the forcing is being applied on the slow step (the drag is then
+ * limited) rather than in the acoustic substeps
  */
 void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                     const Array4<const Real>& u,
@@ -774,7 +1078,8 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                     const Array4<      Real>& zmom_src_arr,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
-                                    const Real fac)
+                                    const Real fac,
+                                    bool is_slow_step)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -794,15 +1099,17 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     const Real psi_cap_factor          = solverChoice.if_psi_cap_factor;
     const bool l_use_most              = solverChoice.if_use_most;
     const bool l_stability_correction  = solverChoice.if_stability_correction;
+    const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
     // To limit stiffness of drag when using anelastic
     const Real ws_floor           = solverChoice.if_ws_floor;
     const Real damp_alpha         = solverChoice.if_damp_alpha;
     // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
+    // projection (ERF::make_if_projection_sigma), not here
+    const bool l_ip               = solverChoice.if_implicit_projection;
 
-    const bool is_slow_step = true;  // This is determined by calling context
-    const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
@@ -818,18 +1125,8 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
-    // Blanking of a z-face (i, j, k): with the snap, from the two cells it
-    // joins (solid when either is), so both builds give the same staircase;
-    // otherwise the face-centred fraction when the build has it, else the
-    // mean of the two cells.
-    auto fb = [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> amrex::Real {
-        if (l_snap) { return amrex::max(snapb(t_blank_arr(i, j, k)), snapb(t_blank_arr(i, j, k-1))); }
-        return (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k)
-                                   : myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-    };
+    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // implicit projection reads them
 
 
     ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -844,29 +1141,19 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real rho_zface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
         const Real theta_zface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i,j,k-1,RhoTheta_comp))) / rho_zface;
 
-        // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
-        Real t_blank_raw       = fb(i, j, k);
-        const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        const if_bld::VertFace fc = if_bld::vert_face(t_blank_arr, t_blank_zface_arr, i, j, k, l_snap, small_volfrac);
+        const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
         // takes the full log-law target; the partial-cell weight (1 - t_blank)
         // of compute_if_most_target_vel() would make it zero (a no-slip
         // staircase), so the snap path passes a zero blanking to it.
         const Real t_blank_law = l_snap ? zero : t_blank;
-
-        Real t_blank_above_raw = fb(i, j, k+1);
-        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
-
-        Real t_blank_north_raw = fb(i, j+1, k);
-        const Real t_blank_north = (t_blank_north_raw < small_volfrac) ? zero : t_blank_north_raw;
-
-        Real t_blank_south_raw = fb(i, j-1, k);
-        const Real t_blank_south = (t_blank_south_raw < small_volfrac) ? zero : t_blank_south_raw;
-
-        Real t_blank_east_raw  = fb(i+1, j, k);
-        const Real t_blank_east = (t_blank_east_raw < small_volfrac) ? zero : t_blank_east_raw;
-
-        Real t_blank_west_raw  = fb(i-1, j, k);
-        const Real t_blank_west = (t_blank_west_raw < small_volfrac) ? zero : t_blank_west_raw;
+        const Real t_blank_above = fc.above;
+        const Real t_blank_south = fc.south;
+        const Real t_blank_north = fc.north;
+        const Real t_blank_west  = fc.west;
+        const Real t_blank_east  = fc.east;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -874,17 +1161,24 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
         // row it lies in.
-        const bool normal_face = l_snap && (snapb(t_blank_arr(i, j, k)) != snapb(t_blank_arr(i, j, k-1)));
+        const bool normal_face = fc.normal;
 
-        const Real south_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most && k >= 1) ? one : zero; // south wall cell
-        const Real north_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most && k >= 1) ? one : zero; // north wall cell
-        const Real west_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most && k >= 1) ? one : zero; // west wall cell
-        const Real east_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most && k >= 1) ? one : zero; // east wall cell
-        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
-        const Real roof_mask     = (!normal_face && t_blank > zero && t_blank_above == zero && l_use_most) ? one : zero; // roof cell (horizontal surface) - uses simple drag
-        // With the snap a face carrying a wall law or the roof drag is not also an interior face.
-        const Real most_mask     = south_mask + north_mask + west_mask + east_mask + roof_mask;
-        const Real interior_mask = (t_blank == 1.0 && !(l_snap && most_mask > zero)) ? one : zero; // interior cell
+        // wall law on the four sides, partial-wall, roof and interior drag (ERF_ImmersedBuildingMasks.H);
+        // with the snap a face carrying a wall law or the roof drag is not also an interior face
+        if_bld::VertMasks mk = if_bld::vert_masks(t_blank, t_blank_above, t_blank_south, t_blank_north,
+                                                  t_blank_west, t_blank_east, k >= 1, normal_face, l_use_most, l_snap);
+        // erf.if_implicit_projection: as in the x-momentum
+        if (l_ip) {
+            mk.wall = zero; mk.roof = zero; mk.interior = zero;
+            if (fc.raw == one) { mk.south = zero; mk.north = zero; mk.west = zero; mk.east = zero; }
+        }
+        const Real south_mask    = mk.south;
+        const Real north_mask    = mk.north;
+        const Real west_mask     = mk.west;
+        const Real east_mask     = mk.east;
+        const Real wall_mask     = mk.wall;
+        const Real roof_mask     = mk.roof;
+        const Real interior_mask = mk.interior;
 
         Real drag             = zero;
         Real u1_cellaway      = zero;
@@ -901,7 +1195,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i, j-1, k);
             rho_zface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j+1,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i,j+1,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * south_mask * rho_zface * CdM * U_s;
         }
@@ -913,7 +1207,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i, j+1, k);
             rho_zface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * north_mask * rho_zface * CdM * U_s;
         }
@@ -925,7 +1219,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i-1, j, k);
             rho_zface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * west_mask * rho_zface * CdM * U_s;
         }
@@ -937,7 +1231,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i+1, j, k);
             rho_zface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction, stab_wind_floor, psi_cap_factor, sfuns);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * east_mask * rho_zface * CdM * U_s;
         }
@@ -958,7 +1252,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                        + (wall_mask + roof_mask) * t_blank * windspeed
                                        + interior_mask * windspeed );
             zmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
-        } else if (is_slow_step && !use_ImmersedForcing_fast) {
+        } else if (is_slow_step) {
             // limit drag term for anelastic for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uz), ws_floor); // aims to prevent oscillations around 0.
@@ -1001,8 +1295,8 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
     const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s              = one; // unit velocity scale
 
-    // MOST parameters
-    similarity_funs sfuns;
+    // MOST parameters (the similarity functions from erf.most.stable_functions)
+    const similarity_funs sfuns = solverChoice.most_sfuns;
     const Real ggg                = CONST_GRAV;
     const Real kappa              = KAPPA;
     const Real z0                 = solverChoice.if_z0;
@@ -1014,6 +1308,9 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
 
     const Real Olen_in            = solverChoice.if_Olen_in;
     const Real stab_wind_floor    = solverChoice.if_stability_wind_floor;
+    // erf.if_stability_correction (off by default): the similarity functions of the temperature
+    // kernels, as of the momentum kernels; off, the log law (erf-model/ERF#4931)
+    const bool l_stability_correction = solverChoice.if_stability_correction;
 
     ParallelFor(bx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -1053,10 +1350,12 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 const Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
                 const Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
-                // similarity functions
-                psi_m          = sfuns.calc_psi_m(zeta);
-                psi_h          = sfuns.calc_psi_h(zeta);
-                psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                // similarity functions (off by default: the plain log law, as in the momentum kernels)
+                if (l_stability_correction) {
+                    psi_m          = sfuns.calc_psi_m(zeta);
+                    psi_h          = sfuns.calc_psi_h(zeta);
+                    psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                }
                 ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
 
                 // prevent some unphysical math
@@ -1064,8 +1363,11 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 // caps of ln(z / z0): erf.if_psi_cap_factor stays off the temperature forcing, whose
                 // theta* comes from an L not made consistent with u* (the legacy law, kept as it is;
                 // the fraction-stress law of erf-model/ERF#4134 forms them consistently)
-                psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
-                psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
+                // (with the flag off psi_h is zero and stays so; a cap of ln(z / z0) <= 0, for z0 >= z, is not applied)
+                if (l_stability_correction) {
+                    psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
+                    psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
+                }
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
@@ -1085,10 +1387,11 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 const Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
                 const Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
-                // similarity functions; psi_h capped at ln(z / z0) as on the other temperature branches
-                const Real psi_m          = sfuns.calc_psi_m(zeta);
-                const Real psi_h          = ib_stability::capped_psi(sfuns.calc_psi_h(zeta), myhalf * dx_z, z0, one);
-                const Real psi_h_neighbor = ib_stability::capped_psi(sfuns.calc_psi_h(zeta_neighbor), Real(1.5) * dx_z, z0, one);
+                // similarity functions (off by default: the log law, theta* from the given L); psi_h
+                // capped at ln(z / z0) as on the other temperature branches
+                const Real psi_m          = l_stability_correction ? sfuns.calc_psi_m(zeta) : zero;
+                const Real psi_h          = l_stability_correction ? ib_stability::capped_psi(sfuns.calc_psi_h(zeta), myhalf * dx_z, z0, one) : zero;
+                const Real psi_h_neighbor = l_stability_correction ? ib_stability::capped_psi(sfuns.calc_psi_h(zeta_neighbor), Real(1.5) * dx_z, z0, one) : zero;
                 // psi_m at 0.5 dz against ln(1.5 dz / z0) can cancel; u* is held in [0, 2] m/s as on the
                 // other branches. In unstable air psi_h >= psi_m and psi_h grows with |zeta|, so wherever
                 // psi_m reaches ln(1.5 dz / z0) both psi_h caps above bind, the two log brackets close
@@ -1155,8 +1458,8 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
     const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s              = one; // unit velocity scale
 
-    // MOST parameters
-    similarity_funs sfuns;
+    // MOST parameters (the similarity functions from erf.most.stable_functions)
+    const similarity_funs sfuns = solverChoice.most_sfuns;
     const Real ggg                = CONST_GRAV;
     const Real kappa              = KAPPA;
     const Real z0                 = solverChoice.if_z0;
@@ -1164,6 +1467,9 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
     const Real init_surf_temp     = solverChoice.if_init_surf_temp;
     const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
     const Real stab_wind_floor    = solverChoice.if_stability_wind_floor;
+    // erf.if_stability_correction (off by default): the similarity functions of the temperature
+    // kernels, as of the momentum kernels; off, the log law (erf-model/ERF#4931)
+    const bool l_stability_correction = solverChoice.if_stability_correction;
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -1253,10 +1559,12 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                     Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
                     Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
-                    // similarity functions
-                    psi_m          = sfuns.calc_psi_m(zeta);
-                    psi_h          = sfuns.calc_psi_h(zeta);
-                    psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                    // similarity functions (off by default: the plain log law, as in the momentum kernels)
+                    if (l_stability_correction) {
+                        psi_m          = sfuns.calc_psi_m(zeta);
+                        psi_h          = sfuns.calc_psi_h(zeta);
+                        psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                    }
                     ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
                 }
 
@@ -1265,8 +1573,11 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 // caps of ln(z / z0): erf.if_psi_cap_factor stays off the temperature forcing, whose
                 // theta* comes from an L not made consistent with u* (the legacy law, kept as it is;
                 // the fraction-stress law of erf-model/ERF#4134 forms them consistently)
-                psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
-                psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
+                // (with the flag off psi_h is zero and stays so; a cap of ln(z / z0) <= 0, for z0 >= z, is not applied)
+                if (l_stability_correction) {
+                    psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
+                    psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
+                }
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
@@ -1346,18 +1657,23 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                     Real zeta          = ib_stability::bounded_zeta(myhalf * delta, Olen);
                     Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * delta, Olen);
 
-                    // similarity functions
-                    psi_m          = sfuns.calc_psi_m(zeta);
-                    psi_h          = sfuns.calc_psi_h(zeta);
-                    psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                    // similarity functions (off by default: the plain log law, as in the momentum kernels)
+                    if (l_stability_correction) {
+                        psi_m          = sfuns.calc_psi_m(zeta);
+                        psi_h          = sfuns.calc_psi_h(zeta);
+                        psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                    }
                     ustar = tan_wspd * kappa / (std::log((1.5) * delta / z0) - psi_m);
                 }
 
                 // prevent some unphysical math
                 ustar = ib_stability::clamped_ustar(ustar);
                 // caps of ln(z / z0), as above (erf-model/ERF#4134)
-                psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * delta, z0, one);
-                psi_h = ib_stability::capped_psi(psi_h, myhalf * delta, z0, one);
+                // (with the flag off psi_h is zero and stays so; a cap of ln(z / z0) <= 0, for z0 >= z, is not applied)
+                if (l_stability_correction) {
+                    psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * delta, z0, one);
+                    psi_h = ib_stability::capped_psi(psi_h, myhalf * delta, z0, one);
+                }
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);

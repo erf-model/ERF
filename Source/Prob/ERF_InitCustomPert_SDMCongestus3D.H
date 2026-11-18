@@ -23,8 +23,10 @@
     Real pert_deltaT = zero; pp_prob.query("pert_deltaT", pert_deltaT);
     Real pert_deltaQV = zero; pp_prob.query("pert_deltaQV", pert_deltaQV);
 
-    Real pert_periods_T = zero; pp_prob.query("pert_periods_T", pert_periods_T);
-    Real pert_periods_QV = zero; pp_prob.query("pert_periods_QV", pert_periods_QV);
+    // The periods default to 5, as pert_periods_U/V do: a zero period would make
+    //    cos(cval*(x-xc)) identically one, a uniform bias rather than a zero-mean wave
+    Real pert_periods_T = amrex::Real(5.0); pp_prob.query("pert_periods_T", pert_periods_T);
+    Real pert_periods_QV = amrex::Real(5.0); pp_prob.query("pert_periods_QV", pert_periods_QV);
 
     Real prob_lo_x = geomdata.ProbLo(0);
     Real prob_hi_x = geomdata.ProbHi(0);
@@ -36,6 +38,8 @@
     Real qvfac = pert_deltaQV * std::exp(myhalf) / pert_ref_height;
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
+    // with a fixed density the Rho perturbation is not applied (ERF_InitCustomPertState.cpp)
+    const bool fixed_rho = (sc.fixed_density[lev] == 1);
 
     const Real rdOcp   = sc.rdOcp;
 
@@ -89,21 +93,26 @@
             Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
 
-            state_pert(i, j, k, Rho_comp) = rhonew - rho;
-            state_pert(i, j, k, RhoTheta_comp) = zero;
+            // a fixed density drops the Rho perturbation, so rho*theta carries it
+            if (fixed_rho) {
+                state_pert(i, j, k, RhoTheta_comp) += rho * theta_new - rhotheta;
+            } else {
+                state_pert(i, j, k, Rho_comp) = rhonew - rho;
+            }
         }
 
-        if (use_moisture && pert_deltaQV != zero)
+        // rho*qv follows the new density so qv is held when only T is perturbed
+        if (use_moisture && (pert_deltaT != zero || pert_deltaQV != zero))
         {
             const Real zl = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
 
             Real rhoold = state(i,j,k,Rho_comp);
-            Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
+            Real rhonew = fixed_rho ? rhoold : rhoold + state_pert(i,j,k,Rho_comp);
 
             Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
             Real qvnew = qvold + qvfac * damp * z_agl * std::cos(dval * (x - xc));
 
-            state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
+            state_pert(i, j, k, RhoQ1_comp) += rhonew * qvnew - rhoold * qvold;
         }
     });

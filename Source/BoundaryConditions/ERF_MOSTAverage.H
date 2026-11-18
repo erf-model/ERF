@@ -103,6 +103,23 @@ public:
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim);
 
     /**
+     * Average these horizontal velocities instead of the level's own, until the next
+     * update_field_ptrs or make_MOSTAverage_at_level, which point the averages back at the
+     * level's own. They must have the level's boxes, ghost cells included, cut at the top
+     * no lower than max_k_read: each box keeps its lower end, and a box wholly above
+     * max_k_read may keep a single plane, which is never read.
+     *
+     * @param[in] lev  level index
+     * @param[in] xvel x-velocity to average
+     * @param[in] yvel y-velocity to average
+     */
+    void set_velocity_field_ptrs (const int& lev, amrex::MultiFab* xvel, amrex::MultiFab* yvel)
+    {
+        m_fields[lev][0] = xvel;
+        m_fields[lev][1] = yvel;
+    }
+
+    /**
      * Update the rotated fields.
      *
      * @param[in] lev level index
@@ -329,6 +346,17 @@ public:
     [[nodiscard]] amrex::MultiFab* get_zref (const int& lev) const { return m_zref[lev].get(); }
 
     /**
+     * Return the field the averages read.
+     *
+     * @param[in] lev  level index
+     * @param[in] comp 0 x-velocity, 1 y-velocity, 2 z-velocity, 3 theta, 4 qv, 5 qr
+     */
+    [[nodiscard]] const amrex::MultiFab* get_field_ptr (const int& lev, const int& comp) const
+    {
+        return m_fields[lev][comp];
+    }
+
+    /**
      * Return the k-index iMultiFab.
      *
      * @param[in] lev level index
@@ -399,38 +427,41 @@ public:
     }
 
     /**
-     * Function to compute trilinear interpolation with terrain.
+     * Find the vertical position, in cell units, of a point for trilinear_interp_T:
+     * floor(zval) is the upper of the two cells whose centers bracket the point, and
+     * the interpolation reads that cell and the one below it.
      *
-     * @param[in] xp X-position
-     * @param[in] yp Y-position
-     * @param[in] zp Z-position
-     * @param[out] interp_vals Values interpolated
-     * @param[in] interp_array Array to interpolate on
-     * @param[in] z_arr Physical heights
-     * @param[in] plo Problem lower bounds
-     * @param[in] dxi Inverse cell size array
-     * @param[in] interp_comp Number of components to interpolate
+     * @param[in]  xp    X-position
+     * @param[in]  yp    Y-position
+     * @param[in]  zp    Z-position
+     * @param[in]  z_arr Physical heights
+     * @param[in]  plo   Problem lower bounds
+     * @param[in]  dxi   Inverse cell size array
+     * @param[out] ireal x-position in cell units
+     * @param[out] jreal y-position in cell units
+     * @param[out] zval  z-position in cell units
+     * @return whether the column holds the point
      */
     AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void trilinear_interp_T (const amrex::Real& xp,
-                                    const amrex::Real& yp,
-                                    const amrex::Real& zp,
-                                    amrex::Real* interp_vals,
-                                    amrex::Array4<amrex::Real const> const& interp_array,
-                                    amrex::Array4<amrex::Real const> const& z_arr,
-                                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
-                                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
-                                    const int interp_comp)
+    static bool find_interp_height_T (const amrex::Real& xp,
+                                      const amrex::Real& yp,
+                                      const amrex::Real& zp,
+                                      amrex::Array4<amrex::Real const> const& z_arr,
+                                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
+                                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
+                                      amrex::Real& ireal,
+                                      amrex::Real& jreal,
+                                      amrex::Real& zval)
     {
         // Search to get z/k
         bool found = false;
         int kmax   = ubound(z_arr).z;
-        amrex::Real zval     = zero;
+        zval       = zero;
         amrex::Real z_target = zp;
 
         // Map position to i,j (must be same mapping in cpp file)
-        amrex::Real ireal = (xp - plo[0]) * dxi[0];
-        amrex::Real jreal = (yp - plo[1]) * dxi[1];
+        ireal = (xp - plo[0]) * dxi[0];
+        jreal = (yp - plo[1]) * dxi[1];
         int i_new = (int) (ireal - myhalf);
         int j_new = (int) (jreal - myhalf);
 
@@ -470,6 +501,36 @@ public:
                 break;
             }
         }
+
+        return found;
+    }
+
+    /**
+     * Function to compute trilinear interpolation with terrain.
+     *
+     * @param[in] xp X-position
+     * @param[in] yp Y-position
+     * @param[in] zp Z-position
+     * @param[out] interp_vals Values interpolated
+     * @param[in] interp_array Array to interpolate on
+     * @param[in] z_arr Physical heights
+     * @param[in] plo Problem lower bounds
+     * @param[in] dxi Inverse cell size array
+     * @param[in] interp_comp Number of components to interpolate
+     */
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
+    static void trilinear_interp_T (const amrex::Real& xp,
+                                    const amrex::Real& yp,
+                                    const amrex::Real& zp,
+                                    amrex::Real* interp_vals,
+                                    amrex::Array4<amrex::Real const> const& interp_array,
+                                    amrex::Array4<amrex::Real const> const& z_arr,
+                                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
+                                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
+                                    const int interp_comp)
+    {
+        amrex::Real ireal, jreal, zval;
+        const bool found = find_interp_height_T(xp, yp, zp, z_arr, plo, dxi, ireal, jreal, zval);
 
         amrex::ignore_unused(found);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
@@ -522,6 +583,25 @@ public:
     [[nodiscard]] amrex::IntVect get_ng_fill (const int& lev) const;
 
     /**
+     * Return the highest k at which the averages on the z-low face read the horizontal
+     * velocities on this level: the reference index plus the radius, or with
+     * interpolation the upper of the two cells around each sample point. The bound is
+     * global over the level.
+     *
+     * @param[in] lev level index
+     */
+    [[nodiscard]] int max_k_read (const int& lev) const;
+
+    /**
+     * Return whether max_k_read can change after the level is made: the interpolation
+     * searches the current heights, which move with a moving mesh.
+     */
+    [[nodiscard]] bool max_k_read_can_change () const
+    {
+        return m_interp && (m_terrain_type == TerrainType::MovingFittedMesh);
+    }
+
+    /**
      * Fill the ghost cells of one planar average, and the valid region of its
      * uncomputed copies when the 3D BoxArray is split in z (see PlanarBoundary).
      *
@@ -529,6 +609,14 @@ public:
      * @param[in,out] mf  planar average to fill
      */
     void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
+
+    /**
+     * Copy the reference heights of the wall-owning planar boxes onto every planar
+     * box of the level and check that no column is left at the sentinel.
+     *
+     * @param[in] lev Current level
+     */
+    void fill_zref_planar (const int& lev);
 
     /**
      * Fill the ghost cells of one average that cannot be computed from the field
@@ -613,10 +701,13 @@ protected:
 
     // Default values
     //--------------------------------------------
-    const amrex::Real zref_default = amrex::Real(10.0);
+    // There is no stored default reference height.  When most.zref is unset every
+    // mesh uses the centre of the first cell above the wall: a single height on a
+    // flat or EB mesh, and on a terrain-fitted mesh a height that varies by column
+    // and is filled column by column by the lookup routines (erf-model/ERF#4935).
 
-    // Sentinel used to detect whether most.zref was set by the user.  zref_default
-    // is itself a legal user value, so "was it specified" cannot be read off the
+    // Sentinel used to detect whether most.zref was set by the user.  Any positive
+    // value is a legal user value, so "was it specified" cannot be read off the
     // value unless we probe with something unreachable first.  For lateral and
     // z-high faces, most.zref is a wall-relative distance; z-low retains its
     // legacy absolute-coordinate convention. See the parse sites in

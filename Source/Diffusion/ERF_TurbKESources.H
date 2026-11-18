@@ -121,6 +121,17 @@ AddTurbKESources (const amrex::Box& bx, const amrex::Box& domain,
         // The source reads hfx_z at k+1: the z-faces of bx must be in hfx_z
         AMREX_ASSERT(hfx_z.contains(bx.smallEnd(0), bx.smallEnd(1), bx.smallEnd(2)) &&
                      hfx_z.contains(bx.bigEnd(0),   bx.bigEnd(1),   bx.bigEnd(2)+1));
+        // Moist buoyancy of the k-eqn RANS (erf.rans_moist_buoyancy, kEqn levels only): the
+        // water vapour flux qfx1_z of this stage (the RhoQ1 call in erf_slow_rhs_post, which
+        // writes every z-face of its valid box as the theta call does) and the vapour of the cell
+        const bool l_moist_buoy = turbChoice.rans_moist_buoyancy && (turbChoice.rans_type == RANSType::kEqn);
+        const int  l_qv_prim    = solverChoice.moisture_indices.qv - 1;   // PrimQ1_comp = RhoQ1_comp - 1
+        if (l_moist_buoy) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qfx1_z && l_qv_prim >= 0,
+                "erf.rans_moist_buoyancy needs the water vapour flux (a moisture model that carries qv)");
+            AMREX_ASSERT(qfx1_z.contains(bx.smallEnd(0), bx.smallEnd(1), bx.smallEnd(2)) &&
+                         qfx1_z.contains(bx.bigEnd(0),   bx.bigEnd(1),   bx.bigEnd(2)+1));
+        }
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Add Buoyancy Source
@@ -128,19 +139,31 @@ AddTurbKESources (const amrex::Box& bx, const amrex::Box& domain,
             // such that for dtheta/dz < 0, there is a positive (upward) heat
             // flux; the TKE buoyancy production is then
             //   B = g/theta_0 * tau_{theta,w}
-            // for a dry atmosphere.
-            // TODO: To account for moisture, the Brunt-Vaisala frequency,
-            //   N^2 = g[1/theta * dtheta/dz + ...]
-            // **should** be a function of the water vapor and total water
-            // mixing ratios, depending on whether conditions are saturated or
-            // not (see the WRF model description, Skamarock et al 2019).
+            // for a dry atmosphere, and with erf.rans_moist_buoyancy
+            //   B = g/theta_v0 * [(1 + epsv qv) tau_{theta,w} + epsv theta tau_{qv,w}],
+            // the flux of the virtual potential temperature theta (1 + epsv qv) of
+            // unsaturated air (water vapour only: no cloud-water flux term, and no
+            // saturated form; cf. the WRF model description, Skamarock et al 2019).
+            // theta_v0 is erf.theta_ref when that is set, else the cell's theta_v.
             // NOTE: reads hfx_z at k+1, one face above bx; Hfx3 is z-nodal and
             //       the theta diffusion writes every face of its valid box, top included.
             const amrex::Real hfx_cc = amrex::Real(0.5) * ( hfx_z(i,j,k) + hfx_z(i,j,k+1) );
-            amrex::Real buoyancy_src = l_abs_g * l_inv_theta0 * hfx_cc;
-            if (!use_ref_theta) {
-                // l_inv_theta0 == 1, divide by actual theta
-                buoyancy_src /= cell_prim(i,j,k,PrimTheta_comp);
+            amrex::Real buoyancy_src;
+            if (l_moist_buoy) {
+                const amrex::Real qv     = cell_prim(i,j,k,l_qv_prim);
+                const amrex::Real th     = cell_prim(i,j,k,PrimTheta_comp);
+                const amrex::Real qfx_cc = amrex::Real(0.5) * ( qfx1_z(i,j,k) + qfx1_z(i,j,k+1) );
+                buoyancy_src = l_abs_g * l_inv_theta0 * ((one + epsv * qv) * hfx_cc + epsv * th * qfx_cc);
+                if (!use_ref_theta) {
+                    // l_inv_theta0 == 1, divide by the actual theta_v
+                    buoyancy_src /= th * (one + epsv * qv);
+                }
+            } else {
+                buoyancy_src = l_abs_g * l_inv_theta0 * hfx_cc;
+                if (!use_ref_theta) {
+                    // l_inv_theta0 == 1, divide by actual theta
+                    buoyancy_src /= cell_prim(i,j,k,PrimTheta_comp);
+                }
             }
             cell_rhs(i,j,k,qty_index) += buoyancy_src;
 
@@ -169,6 +192,9 @@ AddTurbKESources (const amrex::Box& bx, const amrex::Box& domain,
         // the surface stresses and scalar fluxes that are actually applied to the
         // momentum, heat and moisture equations instead.
         const bool l_surface_layer_on_zlo = SurfLayer_zlo;
+        // SurfLayer is indexed by face, not by level
+        const similarity_funs l_sfuns = SurfLayer_zlo ?
+            SurfLayer[amrex::Orientation::zlo()]->similarity_functions() : similarity_funs{};
 
         amrex::ParallelFor(bx,[=,moist_indices=solverChoice.moisture_indices] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -190,7 +216,7 @@ AddTurbKESources (const amrex::Box& bx, const amrex::Box& domain,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                                                   tau13, tau23, hfx_z, qfx1_z,
-                                                                  l_surface_layer_on_zlo);
+                                                                  l_surface_layer_on_zlo, l_sfuns);
         });
     }
 }

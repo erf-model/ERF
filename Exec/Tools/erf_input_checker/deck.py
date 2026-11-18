@@ -155,7 +155,8 @@ def _to_int(s: str, key: str) -> int:
 
 
 def _to_real(s: str, key: str) -> float:
-    # ParmParse accepts Fortran-style exponents such as 1.d-3
+    # ParmParse rejects Fortran-style exponents such as 1.d-3, and checks/schema.py reports them; read here as a
+    # real so that the numeric checks still see the value
     t = re.sub(r"[dD]([+-]?\d)", r"e\1", s)
     try:
         return float(t)

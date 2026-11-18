@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the immersed-boundary awareness of the MRF and YSUNew schemes.
+"""Check the immersed-boundary awareness of the MRF and YSU schemes.
 
     python3 check_pbl_ib.py scheme plt_mrf_on00200 [plt_mrf_off00200 | none] run_mrf_off.log
     python3 check_pbl_ib.py flat   plt_flat_off00200 plt_flat_on00200
@@ -10,7 +10,7 @@ scheme: the run with the switch on must be finite everywhere with zero
   the open-ground column's as a function of height above the ground (the
   wall distance restarts at the roof); the first fluid cell above the roof
   must be within a factor five of the ground's first cell. The run with
-  the switch off is reported: on this case it either fails (YSUNew drives
+  the switch off is reported: on this case it either fails (YSU drives
   the density negative at the second step) or fills the domain with NaN
   (MRF), because the ground surface layer evaluates u* and L on cells
   inside the building; that is the defect the switch removes.
@@ -49,9 +49,9 @@ def main():
         zr, kr = column(on, 165, 165); zg, kg = column(on, 45, 45)
         fr = kr[zr > 40.0]; zfr = zr[zr > 40.0] - 40.0          # above the roof, local height
         # Shape of the profile against the local height: the roof column's,
-        # normalised by its own maximum, must follow the ground column's over
+        # normalized by its own maximum, must follow the ground column's over
         # the first six cells (the wall distance restarts at the roof). For a
-        # flat profile (a neutral YSUNew) the peak position is meaningless and
+        # flat profile (a neutral YSU) the peak position is meaningless and
         # only the shape is compared.
         n = 6; sr = fr[:n] / fr[:n].max(); sg = kg[:n] / kg[:n].max()
         flat = (kg[:n].max() / max(kg[:n].min(), 1e-12)) < 1.2

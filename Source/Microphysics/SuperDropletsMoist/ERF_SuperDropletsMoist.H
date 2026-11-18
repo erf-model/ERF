@@ -9,6 +9,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFabUtil.H>
+#include "ERF_EOS.H"
 #include "ERF_NullMoistLagrangian.H"
 #include "ERF_SuperDropletPC.H"
 
@@ -52,6 +53,16 @@ namespace MicVar_SD_Aerosols {
         accum = 0,  /*!< Ground accumulation */
         NumVars
     };
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sdm_theta_per_temperature (amrex::Real theta, amrex::Real temperature,
+                                      amrex::Real pressure, amrex::Real rdOcp,
+                                      bool use_base) noexcept
+{
+    // Theta changes between processes, but temperature is lagged within a substep.
+    return use_base ? getThgivenTandP(amrex::Real(1), pressure, rdOcp)
+                    : theta / temperature;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -115,12 +126,6 @@ static int a_accum_idx (const int a_ns, /*!< number of nonmoist species */
             +   MicVar_SD_Aerosols::accum;
 }
 
-/*! \brief List of super-droplet moisture model initializations */
-AMREX_ENUM(SDMoistInit,
-    uniform,
-    condensate_density
-);
-
 AMREX_ENUM(SDMSimulationDim,
     one_d_z, two_d_xz, two_d_yz, three_d
 );
@@ -141,6 +146,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             m_qstate_nonmoist_size = -1; // sentinel; readInputs() sets the actual count before construction returns
             m_name = "super_droplets_moisture";
             m_idx_w = -1;
+            m_idx_i = -1;
+            m_super_droplets = nullptr;
             m_num_species = 0;
             m_num_aerosols = 0;
             readInputs();
@@ -171,6 +178,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                  amrex::MultiFab&,
                                  const amrex::Vector<MFPtr>&) override;
 
+        /*! \brief diagnostics of the state of all levels at a step; files at multiples of the interval */
+        virtual void Diagnostics (const int&,
+                                  const amrex::Real&,
+                                  const amrex::Vector<MFPtr>&,
+                                  const int) override;
+
         void Advance ( const amrex::Real&, const SolverChoice& ) override
         {
             amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
@@ -195,6 +208,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Initialize m_mic_fab_vars for a non-zero AMR level */
         void InitLevel (const int a_lev, const amrex::MultiFab& a_cons_vars) override;
 
+        /*! \brief Drop the fields of a level that a regrid removes */
+        void ClearLevel (const int a_lev) override;
+
         /*! \brief Advance for one timestep
          * \param[in] dt Timestep
          * \param[in] iteration Current iteration number
@@ -217,6 +233,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          */
         virtual void Update_Micro_Vars (amrex::MultiFab& a_cons_vars) override;
 
+        void Update_Micro_Vars (amrex::MultiFab& a_cons_vars,
+                               const amrex::MultiFab* base_state) override;
+
         /*! \brief Update state variables from microphysics variables
          * \param[in,out] a_cons_vars Conservative variables multifab to update
          * \param[in] a_z_phys_nd Terrain heights (nodal)
@@ -231,6 +250,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          * \param[in] a_state State multifab to copy from
          */
         virtual void Copy_State_to_Micro (const amrex::MultiFab& a_state) override;
+
+        void Copy_State_to_Micro (const amrex::MultiFab& a_state,
+                                  const amrex::MultiFab* base_state);
 
         /*! \brief Copy moisture model vars to state from member multifabs
          * \param[out] a_state State multifab to copy to
@@ -260,11 +282,21 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         Get_Surface_Precip_Accumulation_Ptrs (const int& a_lev) const override
         {
             SurfacePrecipAccumulationSources sources;
-            if (a_lev >= 0 && a_lev < static_cast<int>(m_mic_fab_vars.size())) {
+            if (a_lev >= 0 && a_lev < static_cast<int>(m_mic_fab_vars.size()) && !m_mic_fab_vars[a_lev].empty()) {
                 sources.rain = { m_mic_fab_vars[a_lev][MicVar_SD::rain_accum].get(),
                                  amrex::Real(1.0) };
             }
             return sources;
+        }
+
+        /*! \brief qmoist indices and names of the accumulators a restart or regrid keeps */
+        void Qmoist_Restart_Vars (const SolverChoice& a_sc,
+                                  std::vector<int>& a_idx,
+                                  std::vector<std::string>& a_names) const override
+        {
+            const auto& mi = a_sc.moisture_indices;
+            a_idx   = {mi.rain_accum, mi.snow_accum, mi.precip_accum};
+            a_names = {"RainAccum", "SnowAccum", "PrecipAccum"};
         }
 
         /*! \brief returns number of moist conserved variables */
@@ -285,6 +317,16 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             AMREX_ALWAYS_ASSERT(m_qstate_nonmoist_size >= 0);
             return m_qstate_nonmoist_size;
         }
+
+        bool Qstate_Is_Diagnostic (int q) const override
+        {
+            // Water slots participate in the existing total-water handoff.
+            // Appended condensate, unlike appended vapor, is deposited from particles.
+            // This Q-relative pairing matches q_qv_idx/q_qc_idx below.
+            return q >= m_qstate_moist_size && (q - m_qstate_moist_size) % 2 == 1;
+        }
+
+        void Update_Diagnostic_State (amrex::MultiFab&, const amrex::MultiFab&) override;
 
         /*! \brief returns pointer to super-droplets particle container */
         inline virtual ERFPC* getParticleContainer () override
@@ -462,23 +504,32 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
     protected:
 
+        bool uses_anelastic_reference_pressure (int lev) const
+        {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                lev >= 0 && lev < static_cast<int>(m_compressibility_type.size()),
+                "SDM thermodynamics requires a configured AMR level");
+            return m_compressibility_type[lev] != CompressibilityType::FullyCompressible;
+        }
+
         bool m_flag_phase_change;   /*!< Enable/disable phase changes */
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
 
         amrex::Real m_Cp; /*!< specific heat at constant pressure for dry air */
+        amrex::Real m_rdOcp;
+        amrex::Vector<CompressibilityType> m_compressibility_type;
+        bool m_variable_dz = false; /*!< cells differ in physical thickness (stretched or terrain-fitted mesh) */
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
         amrex::Real m_rime_ratio; /*!< rime mass ratio to be considered graupel */
 
         /*! let initial superdroplets "relax" to a physically-appropriate size? */
         bool m_init_phase_change;
+        bool m_restarted_particles = false;
         /*! time (in seconds) of initial relaxation */
         amrex::Real m_init_phase_change_time;
 
         int m_diagnostics_iter; /*!< number of iterations between computing diagnostics */
-
-        /*! initialization type */
-        SDMoistInit m_init_type;
 
         /*! name of model and its particle container */
         std::string m_name;
@@ -527,7 +578,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! species index of water */
         int m_idx_w;
 
-        /*! species index of ice */
+        /*! species index of ice; -1 without cold processes */
         int m_idx_i;
 
         /*! starting index of non-moisture species */
@@ -549,6 +600,14 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
     private:
 
+        /*! \brief Index of the ground layer of a level, as the accumulations take it */
+        int groundK (const int a_lev) const;
+
+        /*! \brief Refinement ratio between a level and the next coarser one */
+        amrex::IntVect refRatioBelow (const int a_lev) const;
+
+        /*! \brief Field indices of the species and aerosol ground accumulations (masses per cell) */
+        std::vector<int> groundMassAccumIdx () const;
 };
 
 #endif

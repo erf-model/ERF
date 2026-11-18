@@ -40,7 +40,8 @@ Anelastic Advance
 ---------------------
 
 When solving the anelastic rather than fully compressible equations, ERF supports
-a 2nd order Runge-Kutta method and the 2nd order midpoint method (both with no substepping):
+a 2nd order Runge-Kutta method and the 2nd order midpoint method (both with no substepping).
+The midpoint method is the default; set ``erf.timestepping_type = RK2`` for the Runge-Kutta method.
 
 The 2nd order Runge-Kutta method solves
 
@@ -63,6 +64,43 @@ The midpoint stages are given by:
   \mathbf{S}^{*}   &=& \mathbf{S}^n + \frac{\Delta t}{2} f(\mathbf{S}^n)
 
   \mathbf{S}^{n+1} &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^{*})
+
+.. _ScalarAdvectionMomenta:
+
+Momenta that Advect the Scalars
+-------------------------------
+
+In every Runge-Kutta stage the slow scalars (turbulent kinetic energy, moisture and passive
+scalars) are advected with face momenta in the form :math:`a_x \rho u / m_{u,y}`,
+:math:`a_y \rho v / m_{v,x}` and :math:`a_z \Omega / (m_x m_y)`, where
+:math:`a_x, a_y, a_z` are the face areas, :math:`\Omega` is the momentum normal to the
+coordinate surfaces (:math:`\rho w` without terrain), and with an embedded boundary the area
+fractions are applied to the fluxes instead.  Which momenta these are depends on the
+integrator:
+
+- **Compressible, no substepping:** the momenta of the stage state :math:`\mathbf{S}^n`,
+  :math:`\mathbf{S}^{*}` or :math:`\mathbf{S}^{**}`.  These are the momenta that advect
+  :math:`\rho` and :math:`\rho \theta` in the same stage.
+- **Compressible, with acoustic substepping:** the momenta of the stage state plus the
+  average over the acoustic substeps of the perturbation momenta, with the vertical
+  off-centering :math:`\beta_1, \beta_2` described below.  This is the mass flux that
+  advances :math:`\rho` over the stage.
+- **Anelastic, RK2:** :math:`(\rho \mathbf{u})^n` in the first stage and
+  :math:`(\rho \mathbf{u})^{*}` in the second, the same momenta that advect
+  :math:`\rho \theta`.  Each pairs a scalar with momenta from the same state, as the averaged
+  update :math:`\frac{\Delta t}{2} ( f(\mathbf{S}^{n}) + f(\mathbf{S}^{*}) )` requires.
+- **Anelastic, MidPoint:** :math:`(\rho \mathbf{u})^n` in the first (half) stage and
+  :math:`(\rho \mathbf{u})^{*} = (\rho \mathbf{u})^{n+1/2}` in the second, again the same
+  momenta that advect :math:`\rho \theta`.
+
+In the anelastic cases the momenta are projected at the end of each stage, so the momenta at
+the start of the next stage or step are divergence-free and a uniform scalar stays uniform.
+The pairing is the same with and without an embedded boundary.  With an embedded boundary the
+state redistribution in the cut cells is added to this update as a change to the stage's
+right-hand side, with the stage's weight (one half in the second RK2 stage), so the averaged RK2
+update is kept (erf-model/ERF#4876).  Using the momenta from the end
+of a stage instead, ahead of the scalar by about half a step, makes the scalars only first
+order accurate in time when the wind varies (erf-model/ERF#4870).
 
 .. _AcousticSubstep:
 
@@ -163,18 +201,51 @@ This may be controlled with the ``erf.beta_s`` parameter.
 
 Over steep terrain more off-centering may be needed.  With ``erf.use_variable_beta_s = true``,
 :math:`\beta_s` is instead defined on each :math:`w`-face from the slopes of the coordinate
-surface there,
+surface and the vertical acoustic Courant number there.  With
 
 .. math::
 
-   \beta_s = \max\left(\beta_{s,min}, \min\left(\beta_{s,max}, h_\xi^2 + h_\eta^2\right)\right),
+   \sigma^2 = \max\left(h_\xi^2 + h_\eta^2, \, 2 \times 10^{-6}\right), \qquad
+   b = \frac{\sigma^2}{2 + \sigma^2}, \qquad
+   Z = \frac{2 c_s \delta \tau}{\Delta z}, \qquad
+   Z_{crit} = \frac{2 \sqrt{1 + \sigma^2}}{\sigma^2 \, (1 + b) / 2},
 
-with :math:`\beta_{s,min}` and :math:`\beta_{s,max}` set by ``erf.beta_s_min`` (default 0.1)
-and ``erf.beta_s_max`` (default 0.8).  The vertical flux on a face is then weighted by
+where :math:`c_s = \sqrt{\gamma p / \rho}` is the sound speed (evaluated with the dry
+:math:`\gamma`, also with moisture) and :math:`\Delta z` the vertical grid spacing at the face,
+we take
+
+.. math::
+
+   \beta_s = b + w(s) \left[ \min\left(\sigma^2, 1\right) - b \right], \qquad
+   w(s) = s^2 (3 - 2 s), \qquad
+   s = \min\left(\max\left(\frac{Z - \alpha Z_{crit}}{(1 - \alpha) Z_{crit}}, \, 0\right), \, 1\right),
+
+with :math:`\alpha = 0.5`.
+
+The low-:math:`Z` value :math:`b` follows the low-dissipation branch of the maximum
+amplification factor, i.e. the stability limit of the weak, propagating instability at small
+:math:`Z`, and the high-:math:`Z` value :math:`\min(\sigma^2, 1)` the high-dissipation branch,
+which controls the strong, non-propagating instability at large :math:`Z`.  :math:`Z_{crit}` is
+where the low-dissipation branch ceases to apply; it is evaluated with :math:`\beta_2` taken from
+the low-:math:`Z` value :math:`b`.  Rather than switching between the two branches at
+:math:`Z_{crit}`, which would make :math:`\beta_s` jump by about a factor of two between faces,
+stages or substeps, the smoothstep weight :math:`w` blends them over
+:math:`Z \in [\alpha Z_{crit}, Z_{crit}]`: :math:`\beta_s = b` for :math:`Z \le \alpha Z_{crit}`
+and :math:`\beta_s = \min(\sigma^2, 1)` for :math:`Z \ge Z_{crit}`.
+
+Note that no upper cap is applied to :math:`\beta_s`: on faces with :math:`\sigma^2 \ge 1` and
+:math:`Z \ge Z_{crit}` (e.g. :math:`Z_{crit} \approx 4.2` for :math:`\sigma^2 = 1`), we get
+:math:`\beta_s = 1`, i.e. a fully implicit, first-order and strongly damping, vertical acoustic
+update on those faces.
+
+The vertical flux on a face is then weighted by
 :math:`\beta_1` and :math:`\beta_2` of that face, and the :math:`W^{\prime \prime}` equation on a
 face by :math:`\beta_2` of that face, so that the entries of the tridiagonal system for the face
 :math:`k` carry :math:`\beta_2` of face :math:`k` times :math:`\beta_2` of face :math:`k-1`,
-:math:`k` or :math:`k+1`.  Without terrain, :math:`\beta_s = \beta_{s,min}` everywhere.
+:math:`k` or :math:`k+1`.  Without terrain, :math:`\sigma^2` takes its floor value, so that
+:math:`Z_{crit} \approx 2 \times 10^6` and :math:`\beta_s \approx 10^{-6}`, i.e. essentially no
+off-centering, everywhere.  Over flat terrain, turning on ``erf.use_variable_beta_s`` therefore
+gives less acoustic damping than the default constant :math:`\beta_s = 0.1`.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.

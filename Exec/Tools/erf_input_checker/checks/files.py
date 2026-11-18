@@ -8,8 +8,7 @@ its contents are compared with the deck:
   dimensions against amr.n_cell, DX*(nx-1) against the domain extent,
   bottom_top against n_cell z, SIMULATION_START_DATE against start_datetime;
 * wrfbdy (erf.nc_bdy_file): time stamps evenly spaced, the stored boundary
-  width above erf.real_width, the span against stop_time, the variables that
-  erf.use_wrf_bdy_qc_qi needs;
+  width above erf.real_width, the span against stop_time;
 * wrflow (erf.nc_low_file): time stamps and the SST field;
 * met_em (init_type = Metgrid): DX/DY against the domain;
 * terrain text / USGS / NetCDF files: shape and coverage of the domain;
@@ -256,8 +255,6 @@ class ExternalFilesChecker(Checker):
         self._start_date(key, h.attrs.get("SIMULATION_START_DATE"))
         if "HGT" in h.vars and c.terrain.lower() == "none":
             self.advise("erf.terrain_type", "the wrfinput file carries terrain (HGT) but the deck runs on a flat mesh")
-        if self.bool_("erf.use_wrf_bdy_qc_qi", False):
-            pass  # checked on the bdy file
 
     def _metgrid(self) -> None:
         c = self.ctx
@@ -306,11 +303,6 @@ class ExternalFilesChecker(Checker):
         if rw is not None and rw >= width:
             self.error("erf.real_width", "= %d must be below the boundary width %d stored in wrfbdy; ERF stops" % (rw, width),
                        "Set erf.real_width = %d or less." % (width - 1))
-        if self.bool_("erf.use_wrf_bdy_qc_qi", False):
-            need = [v for v in ("QCLOUD_BXS", "QICE_BXS") if v not in h.vars]
-            if need:
-                self.error("erf.use_wrf_bdy_qc_qi", "wrfbdy lacks %s; ERF stops" % ", ".join(need),
-                           "Regenerate wrfbdy with cloud fields, or set the key false.")
         nxs = h.dims.get("west_east_stag") or (h.dims.get("west_east", 0) + 1)
         nys = h.dims.get("south_north_stag") or (h.dims.get("south_north", 0) + 1)
         if c.n_cell and nxs and nys and (c.n_cell[0] != nxs - 1 or c.n_cell[1] != nys - 1):

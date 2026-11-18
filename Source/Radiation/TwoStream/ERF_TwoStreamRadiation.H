@@ -7,6 +7,7 @@
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
@@ -15,6 +16,9 @@
 #include <ERF_LandSurface.H>
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamCanopyForcing.H>
+#include <ERF_ForceRestoreHydrologyState.H>
+#include <ERF_ForceRestoreSnowState.H>
+#include <ERF_SurfacePrecipitation.H>
 
 /**
  * @brief The two-stream radiation model (erf.radiation_model = TwoStream).
@@ -39,7 +43,14 @@
  *  - supply_canopy_forcing(...) once, when the building faces of the
  *    immersed-boundary balance take their radiation from the sweep
  *    (erf.ibseb.radiation = two_stream), and canopy_forcing(...) after each sweep;
- *  - write_checkpoint / read_checkpoint for the prognostic surface state.
+ *  - set_building_cover(...) once, when the columns are to see the buildings of the
+ *    immersed-boundary balance (erf.ibseb.two_stream_buildings), and
+ *    ground_shadow_for_step(...) every step, for the balance to fill with the
+ *    buildings' shadow on the ground;
+ *  - write_checkpoint / read_checkpoint for the prognostic surface state;
+ *  - with the force-restore hydrology (RadChoice::seb_hydrology_enabled()),
+ *    hydrology_begin_step(...) at the start of each step of a level and
+ *    hydrology_end_step(...) before its post-dycore call, which give the rain of the step.
  *
  * The heating-rate MultiFab itself stays in ERF, since RRTMGP writes the
  * same 2-component (SW, LW) array and the RhoTheta source term and the
@@ -69,17 +80,17 @@ public:
      * horizontal BoxArray and fill them with the scalar defaults. A no-op
      * unless rad_choice.rad_type == TwoStream.
      *
-     * Also enforces the model's one grid requirement: every box of @p ba must
-     * span @p domain in z, because the column sweep applies the
-     * top-of-atmosphere and surface boundary conditions at the ends of a box.
-     * Aborting here means a bad refinement patch is rejected when the level is
-     * built (including on regrid), not at the first radiation call.
+     * The column sweep needs every box of @p ba to span @p domain in z,
+     * because it applies the top-of-atmosphere and surface boundary
+     * conditions at the ends of a box. A fine level that does not takes its
+     * fields from its parent; a level 0 that does not is rejected before this
+     * is called (ERF::check_rad_level_grids), and is only asserted here.
      *
      * @param lev        level
      * @param rad_choice the model's inputs
      * @param ba2d       horizontal BoxArray the 2D surface fields live on
      * @param dm         distribution mapping shared with the level's state
-     * @param ba         the level's 3D BoxArray, checked for the z span
+     * @param ba         the level's 3D BoxArray (z span asserted on level 0)
      * @param domain     the level's domain Box
      * @param supply_land_forcing allocate the downwelling SW, downwelling LW and
      *                   cos(zenith) fields the sweep fills for a land-surface model
@@ -137,6 +148,15 @@ public:
      * @param have_datetime true when start_datetime (or a WRF/metgrid start
      *                   date) fixed the calendar; without it a dynamic sun
      *                   cannot be placed and the call aborts
+     * @param land_mask  the level's land mask (ERF::lmask_lev: 0 water, 1 land, 2 a
+     *                   building's column), one 2D box at k = 0 for each box of the
+     *                   state, or nullptr (every column is land). The force-restore
+     *                   balance is a model of soil, so a water column (mask 0) is not
+     *                   its ground: its state is held (the snow layer's water is set to
+     *                   zero), it is left out of the balance's
+     *                   means and of the hydrology, and the sweep takes its surface
+     *                   temperature from @p t_surf (the surface layer's sea surface
+     *                   temperature) and not from the balance's skin.
      */
     void advance (int lev,
                   int nstep,
@@ -157,7 +177,8 @@ public:
                   const amrex::MultiFab* lat_m,
                   const amrex::MultiFab* lon_m,
                   double epoch_time,
-                  bool have_datetime);
+                  bool have_datetime,
+                  const amrex::iMultiFab* land_mask = nullptr);
 
     /**
      * @brief The prognostic surface state of one level, or nullptr when the SEB is
@@ -203,6 +224,57 @@ public:
      * on the valid cells; the halo is not filled.
      */
     [[nodiscard]] const amrex::MultiFab* seb_surface_moisture (int lev);
+
+    /**
+     * @brief Every field of the force-restore state of @p lev that evolves and so must
+     * survive a regrid, be filled from the coarse level on a new level and be averaged
+     * down: t_sfc and q_sfc; with erf.radiation.seb_deep_prognostic_enable, t_deep and
+     * q_deep; with the hydrology, its running totals (several components); with the snow
+     * layer, its water equivalent and totals. Empty when the
+     * state is not evolved. Each is a 2D field (k = 0) on the level's horizontal grids.
+     */
+    [[nodiscard]] amrex::Vector<amrex::MultiFab*> seb_prognostic_fields (int lev);
+
+    /**
+     * @brief Store the surface precipitation accumulation of @p lev at the start of its
+     * step (ERF::Advance, before the dycore and microphysics). A no-op without
+     * erf.radiation.seb_precipitation_source = microphysics.
+     */
+    void hydrology_begin_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo);
+
+    /**
+     * @brief The rain rate of the step of @p lev just taken, from the accumulation now and
+     * the one hydrology_begin_step stored; called before the post-dycore advance. A no-op
+     * without erf.radiation.seb_precipitation_source = microphysics.
+     */
+    void hydrology_end_step (int lev, const SurfacePrecipAccumulationSources& sources, int klo,
+                             amrex::Real dt);
+
+    /**
+     * @brief The force-restore soil of @p lev, read-only (see ForceRestoreSoil), or an empty
+     * view (every pointer nullptr) when the force-restore state is not evolved there.
+     */
+    [[nodiscard]] ForceRestoreSoil force_restore_soil (int lev) const;
+
+    /** @brief The deep temperature [K] and column water content of @p lev, or nullptr. Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* seb_t_deep (int lev) const {
+        return (active() && m_rad->seb_enable && lev < static_cast<int>(m_t_deep.size())) ? m_t_deep[lev].get() : nullptr;
+    }
+    [[nodiscard]] const amrex::MultiFab* seb_q_deep (int lev) const {
+        return (active() && m_rad->seb_enable && lev < static_cast<int>(m_q_deep.size())) ? m_q_deep[lev].get() : nullptr;
+    }
+
+    /** @brief The hydrology's rain rate of the last step [kg/m^2/s], in component 0 (nullptr without seb_precipitation_source) and running totals [kg/m^2] (nullptr without the hydrology). Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* hydrology_rain_rate (int lev) const {
+        return m_precip.rate(lev);
+    }
+    [[nodiscard]] const amrex::MultiFab* hydrology_totals (int lev) {
+        return m_hydro.totals(lev);
+    }
+
+    /** @brief The snow water equivalent [kg/m^2] and the snow layer's running totals (ForceRestoreSnow::Total components) [kg/m^2]; nullptr without erf.radiation.seb_snow_enable. Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* snow_swe (int lev) { return m_snow.swe(lev); }
+    [[nodiscard]] const amrex::MultiFab* snow_totals (int lev) { return m_snow.totals(lev); }
 
     /** @brief True when the force-restore state is being evolved and so needs transferring. */
     [[nodiscard]] bool seb_prognostic_active () const {
@@ -256,8 +328,11 @@ public:
      *              columns reach @p m_top
      * @param m_top highest interface the faces read (IBFaceSet::top_sample_interface()),
      *              in [0, number of cells in z]
+     * @param ground_albedo also keep the direct-beam albedo the sweep gives each column's
+     *              ground (one more 2D field, TwoStreamCanopyView::ground_albedo_dir), for
+     *              the faces of erf.ibseb.ground_view_shadow; without it that pointer is null
      */
-    void supply_canopy_forcing (int lev, int m_top);
+    void supply_canopy_forcing (int lev, int m_top, bool ground_albedo = false);
 
     /** @brief True when supply_canopy_forcing() was called for @p lev since its last define_level(). */
     [[nodiscard]] bool supplies_canopy_forcing (int lev) const noexcept {
@@ -276,8 +351,153 @@ public:
         if (supplies_canopy_forcing(lev) && m_canopy_step[lev] == nstep) {
             v.beam = m_canopy[lev].get();
             v.cos_zenith = m_canopy_cosz[lev].get();
+            v.ground_albedo_dir = m_canopy_alb[lev].get();
         }
         return v;
+    }
+
+    /**
+     * @brief Have the columns of @p lev see the buildings of the immersed-boundary
+     * balance (erf.ibseb.two_stream_buildings). From now on, on this level:
+     *  - the sweep writes no heating rate in a solid cell (blanking at or above 0.5):
+     *    the light a building's cells would absorb is the roof's and the walls',
+     *    which the balance takes at their own heights;
+     *  - the ground balance (seb_enable) leaves a column whose bottom cell is solid,
+     *    a building's footprint, alone: its state is held, it absorbs no shortwave and
+     *    it is left out of the balance's means;
+     *  - with the shortwave from the sweep (seb_use_radiation_fluxes, shortwave on) on a
+     *    level that sweeps its own columns, the open ground loses the direct beam where
+     *    the field of ground_shadow_for_step() says a building shades it, at the update
+     *    after the dycore.
+     * Copies what it needs from @p blanking (the solid cells up to the tallest building,
+     * 4 bytes a cell, and the footprints), so the field may change or go afterwards.
+     * Call after define_level(); a later define_level() of the level drops it.
+     *
+     * @param lev      level, which must have been defined
+     * @param blanking the level's cell-centred blanking (ERF::terrain_blanking), on the
+     *                 state's grids: 0 in the air, 1 inside a building
+     * @param domain   the level's domain Box; its bottom cell is the ground's
+     * @param take_ground_walls also take, at the update after the dycore, what the walls
+     *                 send to the open ground (erf.ibseb.ground_sky_view, the field of
+     *                 ground_walls_for_step()): only where the ground takes the shadow
+     *                 and the longwave is on (takes_ground_walls())
+     */
+    void set_building_cover (int lev, const amrex::MultiFab& blanking, const amrex::Box& domain,
+                             bool take_ground_walls = false, bool start_on_roofs = false);
+
+    /// Components of the field of roofs_for_step().
+    enum Roof : int { ROOF_SET = 0, ROOF_ALBEDO = 1, ROOF_EMISSIVITY = 2, ROOF_TEMPERATURE = 3, ROOF_LIT = 4, ROOF_NCOMP = 5 };
+
+    /**
+     * @brief True when the columns of @p lev under a building start on its roof
+     * (erf.ibseb.two_stream_roofs; set_building_cover() with start_on_roofs, on a level
+     * that sweeps its own columns): the one condition for the fields and for the sweep.
+     */
+    [[nodiscard]] bool starts_on_roofs (int lev) const noexcept {
+        return lev >= 0 && lev < static_cast<int>(m_roof.size()) && m_roof[lev] != nullptr;
+    }
+
+    /**
+     * @brief For each column of @p lev, the first cell above the building that stands on
+     * its ground (the cell on the roof), or the bottom cell on open ground (2D: i,j);
+     * nullptr unless starts_on_roofs(). A cell above the level's top means the building
+     * fills the column. Solid cells above an air gap (an overhang) are not a roof here:
+     * under an overhang above open ground the cell is the bottom cell, and under an
+     * overhang above a lower roof it is the cell on that lower roof.
+     */
+    [[nodiscard]] const amrex::iMultiFab* roof_cell (int lev) const noexcept {
+        return starts_on_roofs(lev) ? m_roof_k[lev].get() : nullptr;
+    }
+
+    /**
+     * @brief The field the immersed-boundary balance fills, before the sweep of step
+     * @p nstep, with the roof face of each column under a building (2D: i,j; ROOF_SET 1
+     * where a roof face stands on roof_cell(), then its albedo, emissivity, skin
+     * temperature and the share of the beam that reaches it), or nullptr unless
+     * starts_on_roofs(). Marks the field as that step's:
+     * the sweep stops unless the roofs are of its own step. Where ROOF_SET is 0 the
+     * column keeps the ground as its lower boundary.
+     */
+    [[nodiscard]] amrex::MultiFab* roofs_for_step (int lev, int nstep);
+
+    /** @brief True once roofs_for_step() has been called for @p lev since its building cover was set. */
+    [[nodiscard]] bool roofs_given (int lev) const noexcept {
+        return starts_on_roofs(lev) && m_roof_step[lev] >= 0;
+    }
+
+    /** @brief True when the ground balance of @p lev takes what the walls send it (see set_building_cover()): the one condition for the field, what the sweep keeps for it, and the shortwave and longwave terms. */
+    [[nodiscard]] bool takes_ground_walls (int lev) const noexcept {
+        return lev >= 0 && lev < static_cast<int>(m_ground_walls.size()) && m_ground_walls[lev] != nullptr;
+    }
+
+    /** @brief True when set_building_cover() was called for @p lev since its last define_level(). */
+    [[nodiscard]] bool has_building_cover (int lev) const noexcept {
+        return lev >= 0 && lev < static_cast<int>(m_has_cover.size()) && m_has_cover[lev] != 0;
+    }
+
+    /**
+     * @brief The field the immersed-boundary balance fills with the buildings' shadow
+     * on the ground of @p lev for step @p nstep (1 where the ray from the ground toward
+     * the sun meets a building, 0 where the sun reaches it; 2D: i,j), or nullptr when the
+     * level's ground balance takes no shadow (no building cover; no balance on the sweep's
+     * shortwave, or the shortwave off; or a level whose rates come from its parent). Marks
+     * the field as that step's: the update after the dycore stops unless the shadow is of
+     * the step its sweep ran in.
+     */
+    [[nodiscard]] amrex::MultiFab* ground_shadow_for_step (int lev, int nstep);
+
+    /**
+     * @brief The field the immersed-boundary balance fills with what the walls send to
+     * the ground of @p lev for step @p nstep (IBFaceSet::compute_ground_walls(): the
+     * walls' share of the ground's view, their reflected shortwave and their longwave
+     * arriving on the ground, W/m^2), or nullptr when the level's ground balance takes
+     * none (takes_ground_walls()). Marks the
+     * field as that step's. At the update after the dycore the open ground then keeps
+     * its absorbed diffuse shortwave and the sky's longwave through the part of its
+     * view the walls leave open, and takes the walls' through the rest:
+     *   SW += (1 - alb_dif) SW_walls - v (SW - SW_beam),   LW += emis (LW_walls - v LW_down),
+     * with v the walls' share (two_stream_ground_wall_terms()).
+     */
+    [[nodiscard]] amrex::MultiFab* ground_walls_for_step (int lev, int nstep);
+
+    /** @brief What the walls sent to the ground of @p lev last (see ground_walls_for_step()), or nullptr before any or when the level takes none. Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* ground_walls (int lev) const noexcept {
+        return (lev >= 0 && lev < static_cast<int>(m_ground_walls.size()) && m_walls_step[lev] >= 0)
+             ? m_ground_walls[lev].get() : nullptr;
+    }
+
+    /**
+     * @brief The net longwave [W/m^2] the ground balance of @p lev used at its last update
+     * after the dycore (with the walls' longwave of erf.ibseb.ground_sky_view); nullptr as
+     * for seb_sw_net(). Read-only: for output.
+     */
+    [[nodiscard]] const amrex::MultiFab* seb_lw_net (int lev) const {
+        return (active() && m_rad->seb_enable && lev < static_cast<int>(m_lw_flux_sfc.size()) && m_seb_updated[lev] != 0)
+             ? m_lw_flux_sfc[lev].get() : nullptr;
+    }
+
+    /** @brief The ground's shadow last given for @p lev (see ground_shadow_for_step()), or nullptr before one is given or when the level takes none. Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* ground_shadow (int lev) const noexcept {
+        return (lev >= 0 && lev < static_cast<int>(m_ground_shadow.size()) && m_shadow_step[lev] >= 0)
+             ? m_ground_shadow[lev].get() : nullptr;
+    }
+
+    /**
+     * @brief Set the heating rates of @p lev to zero in the solid cells of its building
+     * cover (a no-op without one): for a level whose rates come from its parent by
+     * interpolation, where no sweep of its own masks them.
+     */
+    void mask_building_heating (int lev, amrex::MultiFab& qheating) const;
+
+    /**
+     * @brief The net shortwave [W/m^2] the ground balance of @p lev used at its last update
+     * after the dycore, with the building cover's footprints and shadow applied; nullptr
+     * when the SEB is off, before the level's first such update after a sweep (the initial
+     * plotfile, the one a restart writes), or on a level that does not sweep. Read-only: for output.
+     */
+    [[nodiscard]] const amrex::MultiFab* seb_sw_net (int lev) const {
+        return (active() && m_rad->seb_enable && lev < static_cast<int>(m_sw_flux_sfc.size()) && m_seb_updated[lev] != 0)
+             ? m_sw_flux_sfc[lev].get() : nullptr;
     }
 
     /** @brief Write the prognostic surface state of one level (SEB on). */
@@ -343,6 +563,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_sfc;       // surface moisture, prognostic (see RadChoice::seb_q_sfc_default)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_t_deep;      // deep-soil temperature [K]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture q_s restores to
+    // (both constant at their defaults unless erf.radiation.seb_deep_prognostic_enable)
+    ForceRestorePrecipRate m_precip;                                // rain and snowfall of the step (ERF_ForceRestorePrecipRate.H)
+    ForceRestoreHydrology m_hydro;                                  // rain, runoff, drainage (ERF_ForceRestoreHydrologyState.H)
+    ForceRestoreSnow m_snow;                                        // snow water equivalent (ERF_ForceRestoreSnowState.H)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_moisture;    // seb_surface_moisture (seb_surface_layer_uses_moisture)
 
     // What the sweep hands to a land-surface model (2D: i,j), allocated when
@@ -358,8 +582,45 @@ private:
     // (-1 before any).
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_canopy;       // the beam, interfaces 0 .. m_top
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_canopy_cosz;  // cos z, floored at zero (2D)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_canopy_alb;   // the ground's direct-beam albedo of the sweep (2D)
     amrex::Vector<int> m_canopy_m;
     amrex::Vector<int> m_canopy_step;
+
+    // The buildings as the columns see them (see set_building_cover): whether the level
+    // has them, the solid cells (the state's boxes cut at the tallest building, no ghost
+    // cells), the footprints (2D: 1 where the bottom cell is solid), the shadow on the
+    // ground the balance gave for step
+    // m_shadow_step, and the absorbed direct beam at the ground of the sweep of step
+    // m_sweep_step (2D, written only with a ground balance taking the sweep's
+    // shortwave). m_shaded_step is the sweep whose beam the update after the dycore
+    // has already taken off the shaded ground, so a second call cannot take it twice.
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_solid;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_footprint;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_ground_shadow;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_sw_beam_sfc;
+    // erf.ibseb.ground_sky_view: what the walls send to the ground (ground_walls_for_step(),
+    // three components) of step m_walls_step, and what the sweep keeps for it per column
+    // (2D): the longwave down at the ground, the ground's diffuse absorptance 1 - alb_dif,
+    // and its longwave emissivity.
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_ground_walls;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_ground_keep;
+    amrex::Vector<int> m_walls_step;
+    // erf.ibseb.two_stream_roofs: the cell on the roof of each column (roof_cell()) and the
+    // roof faces the balance gave for step m_roof_step (roofs_for_step()).
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_roof_k;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  m_roof;
+    amrex::Vector<int> m_roof_step;
+    amrex::Vector<int> m_shadow_step;
+    amrex::Vector<int> m_sweep_step;
+    amrex::Vector<int> m_shaded_step;
+    amrex::Vector<int> m_has_cover;
+    // Whether the ground balance of the level has updated after a sweep (seb_sw_net()).
+    amrex::Vector<int> m_seb_updated;
+    // Whether advance() has looked at the level's land mask for its one message about
+    // water columns: 1 water was found and reported, 0 none was found, -1 not looked at
+    // yet (set by define_level(): the level may have new grids). A message only: every
+    // decision reads the mask itself (ERF_SEBLandMask.H).
+    amrex::Vector<int> m_water_message;
 
     amrex::Vector<FluxDiag> m_flux_diag;
 };

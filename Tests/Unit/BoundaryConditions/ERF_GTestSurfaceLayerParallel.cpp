@@ -3,6 +3,8 @@
 #include "../ERF_GTestAssertions.H"
 #include "../ERF_GTestTempDir.H"
 
+#include <AMReX_BoxIterator.H>
+
 #include <gtest/gtest.h>
 
 #include <array>
@@ -115,7 +117,7 @@ void set_quadratic_node_heights (MultiFab& z_phys_nd)
 }
 
 // Donor SST ramp T(i,j) = 280 + i + j/4, so a value exchanged from a
-// neighbouring valid FAB is distinguishable from a locally clamped one.
+// neighboring valid FAB is distinguishable from a locally clamped one.
 void set_coupled_sst_ramp (MultiFab& coupled_sst)
 {
     for (MFIter mfi(coupled_sst, false); mfi.isValid(); ++mfi) {
@@ -140,6 +142,27 @@ void set_abs_surf_temp_column_state (MultiFab& cons, const Real gdz, const Real 
             amrex::ignore_unused(j);
             cons_arr(i,j,k,Rho_comp) = test_rho;
             const Real p_cell = Real(0.9) * p_0 - Real(100.0) * static_cast<Real>(i) - gdz;
+            cons_arr(i,j,k,RhoTheta_comp) = (k == 0)
+                ? (p_0 / R_d) * std::pow(p_cell / p_0, Real(1.0) / Gamma)
+                : rho_theta_aloft;
+            cons_arr(i,j,k,RhoQ1_comp) = Real(0.0);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+// As set_abs_surf_temp_column_state, with the pressure of the lowest cell ramped in j as well,
+// 0.9 p_0 - 100 i - 50 j - gdz, so a halo cell that takes a column from its own box rather
+// than from the domain is told apart in both directions
+void set_ij_column_state (MultiFab& cons, const Real gdz, const Real rho_theta_aloft)
+{
+    for (MFIter mfi(cons, false); mfi.isValid(); ++mfi) {
+        auto cons_arr = cons.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            cons_arr(i,j,k,Rho_comp) = test_rho;
+            const Real p_cell = Real(0.9) * p_0 - Real(100.0) * static_cast<Real>(i)
+                              - Real(50.0) * static_cast<Real>(j) - gdz;
             cons_arr(i,j,k,RhoTheta_comp) = (k == 0)
                 ? (p_0 / R_d) * std::pow(p_cell / p_0, Real(1.0) / Gamma)
                 : rho_theta_aloft;
@@ -528,6 +551,49 @@ TEST(SurfaceLayerParallel, AbsoluteSurfaceTemperatureUsesPhysicalSurfaceCopyOnZS
     pp.remove("most.surf_heating_rate");
 }
 
+// Motivation: the SST of wrfinput and wrflowinp is converted with the pressure of the
+// lowest cell of each column.  On z-split grids the planar FABs of the boxes aloft must
+// receive the result computed from the physical surface copy.  The pressure varies
+// along x, so a copy taken from the wrong column fails, and the cells aloft hold a
+// different pressure, so a copy converted from its own state fails.
+TEST(SurfaceLayerParallel, LowerBoundarySstUsesPhysicalSurfaceCopyOnZSplitGrids)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_lowbdy_sst_zsplit";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    fields.sst_data.push_back(std::make_unique<MultiFab>(
+        collapse_z(fields.ba), fields.dm, 1,
+        IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0))));
+    fields.sst_data[0]->setVal(Real(290.0));
+    const Real dz_half = myhalf * fields.geom.CellSize(2);
+    // Pressure at the surface below column i; aloft cells are set far from it
+    auto surface_pressure = [] (const int i) {
+        return Real(0.9) * p_0 - Real(100.0) * static_cast<Real>(i);
+    };
+    const Real rho_theta_aloft =
+        (p_0 / R_d) * std::pow(Real(0.5), Real(1.0) / Gamma);
+    set_abs_surf_temp_column_state(fields.cons, test_rho * CONST_GRAV * dz_half,
+                                   rho_theta_aloft);
+
+    auto layer = fields.prepare_layer(face, active_face(face), prefix);
+
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    for (int ibox = 0; ibox < t_surf->boxArray().size(); ++ibox) {
+        const Box& box = t_surf->boxArray()[ibox];
+        for (const IntVect& point : {box.smallEnd(), box.bigEnd()}) {
+            const Real expected_theta = Real(290.0) *
+                std::pow(p_0 / surface_pressure(point[0]), RdoCp);
+            EXPECT_NEAR(global_fab_value(*t_surf, ibox, point, false), expected_theta,
+                        halo_tolerance(expected_theta))
+                << "box " << ibox << " point " << point;
+        }
+    }
+}
+
 // Motivation: coupled SST has water-only precedence over the fallback on a
 // z-split grid. A water column must use the covered coupled temperature,
 // convert it with the lowest-cell pressure, and copy that absolute-temperature
@@ -672,8 +738,118 @@ TEST(SurfaceLayerParallel, CoupledSstNonuniformInternalGhostUsesNeighbor)
     EXPECT_EQ(duplicate_copies, 2);
 }
 
+// Motivation: where a box seam meets a nonperiodic domain edge, two boxes hold the same
+// halo cell outside the domain, and no exchange reconciles their copies. Clamping into
+// each box's own valid region gave the two copies the donor and pressure of different
+// columns, which a restart (whose checkpoint read collapses the copies) cannot reproduce.
+// Every copy must take the column clamped into the domain.
+TEST(SurfaceLayerParallel, CoupledSstEdgeHaloAtBoxSeamIsBoxIndependent)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_coupled_sst_seam";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, false, "", true);
+
+    set_coupled_sst_ramp(*fields.coupled_sst);
+    fields.coupled_valid->setVal(1);
+    Gpu::streamSynchronize();
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real factor = std::pow(p_0 / pressure, RdoCp);
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    const int ilo = fields.domain.smallEnd(0);
+    const int jlo = fields.domain.smallEnd(1);
+    const int jhi = fields.domain.bigEnd(1);
+    int seam_copies = 0;
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != ilo ||
+            source.smallEnd(2) != fields.domain.smallEnd(2)) { continue; }
+        const Box& target = t_surf->boxArray()[ibox];
+        for (int j = target.smallEnd(1) - 1; j <= target.bigEnd(1) + 1; ++j) {
+            const IntVect edge(AMREX_D_DECL(ilo - 1, j, target.smallEnd(2)));
+            const int jc = amrex::min(amrex::max(j, jlo), jhi);
+            const Real expected = (Real(280.0) + static_cast<Real>(ilo) +
+                                   Real(0.25) * static_cast<Real>(jc)) * factor;
+            EXPECT_NEAR(global_fab_value(*t_surf, ibox, edge, true),
+                        expected, halo_tolerance(expected))
+                << "box " << ibox << " halo cell " << edge;
+            const bool seam = (j < target.smallEnd(1) || j > target.bigEnd(1)) &&
+                              j >= jlo && j <= jhi;
+            if (seam) { ++seam_copies; }
+        }
+    }
+    EXPECT_GT(seam_copies, 0);
+}
+
+// Motivation: where a box seam meets a non-periodic edge, the halo cells beyond the edge
+// next to the seam are held by both boxes, and the absolute-surface-temperature producer
+// fills each copy from the nearest column of its own box.  fill_planar_boundary must then
+// give every copy the value of the box that holds the column the cell faces (#5245 review),
+// so that the field does not depend on the decomposition and a checkpoint, which keeps one
+// copy, restarts from the same values.  The surface pressure varies in i and j, so a copy
+// taken from the wrong column fails in either direction; the grids are split in x, y and z,
+// so seams, domain corners and the duplicate copies aloft are all checked.
+TEST(SurfaceLayerParallel, EdgeHaloCopiesAtBoxSeamsAgree)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_edge_halo_seam";
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    const Real dz_half = myhalf * fields.geom.CellSize(2);
+    const Real rho_theta_aloft = (p_0 / R_d) * std::pow(Real(0.5), Real(1.0) / Gamma);
+    set_ij_column_state(fields.cons, test_rho * CONST_GRAV * dz_half, rho_theta_aloft);
+
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, false);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr, fields.no_walldist, 20);
+
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    const IntVect ng = t_surf->nGrowVect();
+    ASSERT_GT(ng[0], 0);
+    ASSERT_GT(ng[1], 0);
+    const Box& dom = fields.domain;
+    int outside = 0;
+    int seam_copies = 0;
+    for (int ibox = 0; ibox < t_surf->boxArray().size(); ++ibox) {
+        const Box vbx = t_surf->boxArray()[ibox];
+        const Box gbx = amrex::grow(vbx, IntVect(AMREX_D_DECL(ng[0], ng[1], 0)));
+        for (BoxIterator bit(gbx); bit.ok(); ++bit) {
+            const IntVect p = bit();
+            const bool beyond = p[0] < dom.smallEnd(0) || p[0] > dom.bigEnd(0) ||
+                                p[1] < dom.smallEnd(1) || p[1] > dom.bigEnd(1);
+            if (!beyond) { continue; }
+            ++outside;
+            const int ic = amrex::min(amrex::max(p[0], dom.smallEnd(0)), dom.bigEnd(0));
+            const int jc = amrex::min(amrex::max(p[1], dom.smallEnd(1)), dom.bigEnd(1));
+            // the column lies beyond the box's own valid region: the copy the producer
+            // filled from its own grid differed here
+            if (ic < vbx.smallEnd(0) || ic > vbx.bigEnd(0) ||
+                jc < vbx.smallEnd(1) || jc > vbx.bigEnd(1)) { ++seam_copies; }
+            const Real p_s = Real(0.9) * p_0 - Real(100.0) * static_cast<Real>(ic)
+                           - Real(50.0) * static_cast<Real>(jc);
+            const Real expected = Real(290.0) * std::pow(p_0 / p_s, RdoCp);
+            EXPECT_NEAR(global_fab_value(*t_surf, ibox, p, true), expected,
+                        halo_tolerance(expected))
+                << "box " << ibox << " halo cell " << p;
+        }
+    }
+    EXPECT_GT(outside, 0);
+    EXPECT_GT(seam_copies, 0);
+}
+
 // Motivation: the z-high qsat boundary is located at the upper W face, not at
-// the cell centre or the ground. Its pressure correction must therefore use
+// the cell center or the ground. Its pressure correction must therefore use
 // the local signed distance z_cc-z_upper, and the result must agree on every
 // duplicate planar copy of a z-split layout.
 TEST(SurfaceLayerParallel, QsurfZHighUsesLocalSignedFacePressureOnZSplitGrids)
@@ -776,7 +952,7 @@ namespace {
 
 // theta = 300 K in the two lowest cells and 302 K above, rho = 1, no TKE, over every cell of every
 // box including ghost cells.  With dz = 1 m the MYNN25 estimator puts the PBL height where theta_v
-// reaches min + 1.25 K between the cell centres at 1.5 m and 2.5 m: 1.5 + 1.25/2 = 2.125 m.
+// reaches min + 1.25 K between the cell centers at 1.5 m and 2.5 m: 1.5 + 1.25/2 = 2.125 m.
 //
 // k_jump moves the jump: theta = 302 K from cell k_jump up, and the height is k_jump + 0.125 m.
 void set_theta_jump (MultiFab& cons, const int k_jump = 2)
@@ -793,7 +969,7 @@ void set_theta_jump (MultiFab& cons, const int k_jump = 2)
     Gpu::streamSynchronize();
 }
 
-// The same jump of 2 K in theta_v made by water vapour alone: theta = 300 K everywhere, and qv
+// The same jump of 2 K in theta_v made by water vapor alone: theta = 300 K everywhere, and qv
 // steps from zero to 2 / (300 epsv) at k = 2.  The estimator only sees it if it is handed qv.
 void set_vapour_jump (MultiFab& cons)
 {
@@ -1013,7 +1189,7 @@ TEST(SurfaceLayerParallel, PBLHeightIsZeroOnGridsEntirelyAloft)
 }
 
 // The columns hold only the components the estimator reads.  A jump in theta_v that water
-// vapour alone makes is found on grids split in z only if the moisture species are among them.
+// vapor alone makes is found on grids split in z only if the moisture species are among them.
 TEST(SurfaceLayerParallel, PBLHeightSeesMoistureOnZSplitGrids)
 {
     ScopedSurfaceLayerParams params("unit_surface_layer_zsplit_pblh");

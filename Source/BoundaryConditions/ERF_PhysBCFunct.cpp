@@ -145,6 +145,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
                 if (!m_use_real_bcs) {
                     // We send a box with ghost cells in the lateral directions only
                     impose_lateral_cons_bcs(cons_arr,velx_arr,vely_arr,cbx1,domain,icomp,ncomp,nghost,time);
+                    impose_inflow_profile_cons(cons_arr,velx_arr,vely_arr,z_nd_arr,cbx1,domain,icomp,ncomp);
                 }
 
                 // We send the full FAB box with ghost cells
@@ -235,6 +236,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
                 if (!gdomainx.contains(xbx1) && !m_use_real_bcs) {
                     impose_lateral_xvel_bcs(dest_arr,velx_arr,vely_arr,xbx1,domain,bccomp,time);
+                    impose_inflow_profile_xvel(dest_arr,velx_arr,vely_arr,z_nd_arr,xbx1,domain,bccomp);
                 }
 
                 impose_vertical_xvel_bcs(dest_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
@@ -323,6 +325,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
                 if (!m_use_real_bcs) {
                     impose_lateral_yvel_bcs(dest_arr,velx_arr,vely_arr,ybx1,domain,bccomp,time);
+                    impose_inflow_profile_yvel(dest_arr,velx_arr,vely_arr,z_nd_arr,ybx1,domain,bccomp);
                 }
 
                 impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,dxInv,bccomp,time);
@@ -433,6 +436,32 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
                 impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,mf_u,mf_v,
                                          z_nd_arr,dxInv,bccomp_u, bccomp_v, bccomp_w, m_terrain_type, time);
+            }
+
+            //
+            // The faces beyond the bottom and top boundary faces are not set above, so
+            //    give them the value on the boundary face.  Nothing else fills them: on
+            //    a level > 0 FillPatchTwoLevels does not fill outside the domain, and
+            //    ERF::Advance has set them to bogus_large_value.  The EB wall slopes
+            //    read w at k = -1 where the EB meets the bottom boundary (issue #4876).
+            //
+            if (!m_geom.isPeriodic(2)) {
+                Array4<Real> const& velz_arr = mf.array(mfi);
+                Box gbx = mfi.fabbox() & surroundingNodes(bx,2).grow(nghost);
+                const int klo = domain.smallEnd(2);
+                const int khi = domain.bigEnd(2)+1;
+                if (gbx.smallEnd(2) < klo) {
+                    Box bx_zlo(gbx); bx_zlo.setBig(2,klo-1);
+                    ParallelFor(bx_zlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        velz_arr(i,j,k) = velz_arr(i,j,klo);
+                    });
+                }
+                if (gbx.bigEnd(2) > khi) {
+                    Box bx_zhi(gbx); bx_zhi.setSmall(2,khi+1);
+                    ParallelFor(bx_zhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        velz_arr(i,j,k) = velz_arr(i,j,khi);
+                    });
+                }
             }
         } // MFIter
     } // OpenMP

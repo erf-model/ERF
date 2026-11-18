@@ -21,6 +21,33 @@
 
 using namespace amrex;
 
+namespace erf_detail_MakeNewArrays {
+
+// Smoothly varying test map factors, valid and ghost cells, at the MultiFab's own locations.
+// NOTE: a free function, since nvcc does not allow an extended (__device__) lambda inside a
+//       member function with private or protected access, such as ERF::init_stuff
+void
+set_test_mapfactor (MultiFab& mf, const Geometry& geom, const Real amp)
+{
+    const auto dx  = geom.CellSizeArray();
+    const auto plo = geom.ProbLoArray();
+    const auto phi = geom.ProbHiArray();
+    const IntVect nodal = mf.ixType().toIntVect();
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const Array4<Real> m_arr = mf.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int ii, int jj, int kk) noexcept
+        {
+            const Real x = plo[0] + (ii + (nodal[0] ? Real(0) : Real(0.5))) * dx[0];
+            const Real y = plo[1] + (jj + (nodal[1] ? Real(0) : Real(0.5))) * dx[1];
+            m_arr(ii,jj,kk) = Real(1) + amp * std::sin(Real(2)*PI*(x-plo[0])/(phi[0]-plo[0]))
+                                            * std::cos(Real(2)*PI*(y-plo[1])/(phi[1]-plo[1]));
+        });
+    }
+}
+
+} // namespace
+using namespace erf_detail_MakeNewArrays;
+
 void
 ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
                  Vector<MultiFab>& lev_new, Vector<MultiFab>& lev_old,
@@ -103,15 +130,20 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
         terrain_blanking[lev]->setVal(one);
 
-#if USE_FC_FACTORY
-        // Face-centered terrain blanking for momentum forcing
-        terrain_blanking_xface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,ngrow);
-        terrain_blanking_yface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,ngrow);
-        terrain_blanking_zface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,ngrow);
-        terrain_blanking_xface[lev]->setVal(one);
-        terrain_blanking_yface[lev]->setVal(one);
-        terrain_blanking_zface[lev]->setVal(one);
-#endif
+        if (use_native_fc_factories()) {
+            // Face-centered terrain blanking for momentum forcing
+            terrain_blanking_xface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,ngrow);
+            terrain_blanking_yface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,ngrow);
+            terrain_blanking_zface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,ngrow);
+            terrain_blanking_xface[lev]->setVal(one);
+            terrain_blanking_yface[lev]->setVal(one);
+            terrain_blanking_zface[lev]->setVal(one);
+        } else {
+            // Null face masks select the existing cell-centered average in the forcing kernels.
+            terrain_blanking_xface[lev].reset();
+            terrain_blanking_yface[lev].reset();
+            terrain_blanking_zface[lev].reset();
+        }
 
         // Initialize planar average storage for immersed forcing
         // Sized to match PlaneAverage output with ghost cells, using same indexing as subsidence
@@ -195,22 +227,20 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // kind of domain decomposition in the vertical (at level 0 or above)
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-    if (solverChoice.terrain_type == TerrainType::EB) {
-        lev_new[Vars::zvel].setVal(zero);
-        lev_old[Vars::zvel].setVal(zero);
-    }
+    lev_new[Vars::zvel].setVal(initial_velocity);
+    lev_old[Vars::zvel].setVal(initial_velocity);
 
     gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(zero);
     gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(zero);
     gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp[lev][GpVars::gpz].setVal(zero);
 
-    if ( (solverChoice.anelastic[lev] == 1) || (solverChoice.project_initial_velocity[lev] == 1) ) {
+    if ( (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) || (solverChoice.project_initial_velocity[lev] == 1) ) {
         pp_inc[lev].define(ba, dm, 1, 1);
         pp_inc[lev].setVal(zero);
     }
 
     // We use this in the fast substepping only
-    if (solverChoice.anelastic[lev] == 0) {
+    if (solverChoice.compressibility_type[lev] == CompressibilityType::FullyCompressible) {
         lagged_delta_rt[lev].define(ba, dm, 1, 1);
         lagged_delta_rt[lev].setVal(zero);
     }
@@ -368,6 +398,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
         for (int i = 3; i < mapfac[lev].size(); i++) {
             mapfac[lev][i]->setVal(fourth);
+        }
+    } else if (solverChoice.test_mapfactor_amp != zero && lev == 0) {
+        // Smoothly varying map factors on level 0 alone, valid and ghost cells, evaluated at each
+        // MultiFab's own locations (cell centers, x-faces or y-faces); finer levels interpolate them
+        for (int i = 0; i < mapfac[lev].size(); i++) {
+            set_test_mapfactor(*mapfac[lev][i], geom[lev], solverChoice.test_mapfactor_amp);
         }
     } else {
         for (int i = 0; i < mapfac[lev].size(); i++) {
@@ -539,6 +575,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         rad_fluxes[lev]->setVal(zero);
     }
 
+    if (solverChoice.topographicChoice.active()) {
+        topographic_radiation.define_level(lev, ba2d[lev], dm, geom[lev]);
+    }
+
+    // Every radiation model needs whole columns; check this level's grids before any of them
+    // sees them
+    check_rad_level_grids(lev, ba);
+
     // Two-stream radiation: the model owns its 2D surface and SEB fields.
     if (solverChoice.rad_type == RadiationType::TwoStream)
     {
@@ -598,7 +642,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
 #ifdef ERF_USE_FFT
-    if ( ( (solverChoice.anelastic[lev] == 1)               || (solverChoice.project_initial_velocity[lev] == 1) ) &&
+    if ( ( (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible)               || (solverChoice.project_initial_velocity[lev] == 1) ) &&
          ( (solverChoice.mesh_type == MeshType::ConstantDz) || (solverChoice.mesh_type == MeshType::StretchedDz) ) ) {
         build_fft_solvers(lev);
     }
@@ -695,6 +739,7 @@ ERF::make_flux_register (int lev)
 {
     if (solverChoice.coupling_type != CouplingType::TwoWay || lev == 0) {
         advflux_reg[lev].reset();
+        make_sbm_flux_register(lev);
         return;
     }
     int ncomp_reflux = vars_new[0][Vars::cons].nComp();
@@ -702,6 +747,7 @@ ERF::make_flux_register (int lev)
                                                         dmap[lev] ,  dmap[lev-1],
                                                         geom[lev] ,  geom[lev-1],
                                                         ref_ratio[lev-1], lev, ncomp_reflux);
+    make_sbm_flux_register(lev);
 }
 
 void
@@ -963,7 +1009,8 @@ ERF::init_zphys (int lev, double elapsed_time)
 
         make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type,
                                    fine_terrain,
-                                   (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
+                                   (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr,
+                                   (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
@@ -1023,21 +1070,33 @@ ERF::init_zphys (int lev, double elapsed_time)
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         make_terrain_blanking(lev);
+        check_if_cf_mismatch(lev);
+        const bool forcing_active = immersed_forcing_active(lev);
 
-        init_immersed_forcing(lev); // needed for real cases
+        // Keep imported WRFInput/Metgrid winds in immersed cells at startup.
+        // Where active, momentum forcing relaxes the winds during time stepping
+        // instead of replacing them abruptly during initialization.
+        if (forcing_active &&
+            solverChoice.init_type != InitType::WRFInput &&
+            solverChoice.init_type != InitType::Metgrid) {
+            init_immersed_forcing(lev);
+        }
 
-        // buildings are landmask = 2
-        for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
-            const Box& bx2d = mfi.growntilebox();
-            auto lmask_arr = lmask_lev[lev][0]->array(mfi);
-            const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
+        // Mark immersed solids as landmask = 2 only where their forcing is active.
+        // Immersed terrain has no resolution cutoff.
+        if (forcing_active) {
+            for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
+                const Box& bx2d = mfi.growntilebox();
+                auto lmask_arr = lmask_lev[lev][0]->array(mfi);
+                const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
 
-            amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                // Use k=0 for the terrain_blanking field
-                if (t_blank_arr(i, j, 0) > 0.0) {
-                    lmask_arr(i, j, k) = 2;
-                }
-            });
+                amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    // Use k=0 for the terrain_blanking field
+                    if (t_blank_arr(i, j, 0) > 0.0) {
+                        lmask_arr(i, j, k) = 2;
+                    }
+                });
+            }
         }
     }
 
@@ -1085,6 +1144,11 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
                                      1, temp_zphys_nd->nGrowVect());
                 // Ghost nodes included: the transform corrects the ghost columns too
                 MultiFab::Copy(z_phys_interp, *temp_zphys_nd, 0, 0, 1, temp_zphys_nd->nGrowVect());
+            }
+
+            // As in init_zphys, every mode except Interpolate builds on the terrain at the
+            //    fine resolution rather than the surface interpolated from the coarse level
+            if (fine_terrain != FineTerrain::Interpolate) {
                 fill_terrain_surface(lev, *temp_zphys_nd, time);
             }
 
@@ -1092,7 +1156,8 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
             //    and also fills values of z_phys_nd outside the domain
             make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type,
                                        fine_terrain,
-                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
+                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr,
+                                       (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 
         } // lev > 0
 
@@ -1141,6 +1206,7 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         // This assumes we have already remade the EBGeometry
         make_terrain_blanking(lev);
+        check_if_cf_mismatch(lev);
     }
 
     // Compute the min dz and pass to the micro model
@@ -1153,13 +1219,25 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
  * fraction, with fractions below eb2.small_volfrac (almost fluid cells) set to zero in the valid
  * cells and in the ghost cells FillBoundary fills; with the face-centred factories, the same on
  * the faces. A fresh start, a regrid and a restart all build it here, so a restarted run forces
- * the same cells as the run it continues.
+ * the same cells as the run it continues. On levels coarser than the building cutoff, all
+ * allocated masks are zero.
  *
  * @param lev Integer specifying the level
  */
 void
 ERF::make_terrain_blanking (int lev)
 {
+    // Keep allocated masks empty on levels where building forcing is disabled.
+    // IBSEB, plotfiles, and IB-aware PBL schemes still read these masks.
+    if (solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+        !immersed_forcing_active(lev)) {
+        terrain_blanking[lev]->setVal(zero);
+        if (terrain_blanking_xface[lev]) { terrain_blanking_xface[lev]->setVal(zero); }
+        if (terrain_blanking_yface[lev]) { terrain_blanking_yface[lev]->setVal(zero); }
+        if (terrain_blanking_zface[lev]) { terrain_blanking_zface[lev]->setVal(zero); }
+        return;
+    }
+
     // eb2.small_volfrac, read once in SolverChoice before the EB build, so the blanking, the EB
     // and the forcing kernels share it
     const Real small_volfrac = solverChoice.if_small_volfrac;
@@ -1182,6 +1260,8 @@ ERF::make_terrain_blanking (int lev)
     terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
 
 #if USE_FC_FACTORY
+    if (!use_native_fc_factories()) { return; }
+
     // Face-centered terrain blanking from face-centered EB volume fractions
     terrain_blanking_xface[lev]->setVal(one);
     terrain_blanking_yface[lev]->setVal(one);
@@ -1234,6 +1314,8 @@ ERF::update_terrain_arrays (int lev)
 {
     if (SolverChoice::mesh_type == MeshType::StretchedDz ||
         SolverChoice::mesh_type == MeshType::VariableDz) {
+        // Every path that builds or rebuilds z_phys_nd (new level, regrid, restart) comes here
+        validate_flat_top(lev, geom[lev], *z_phys_nd[lev]);
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
@@ -1243,6 +1325,32 @@ ERF::update_terrain_arrays (int lev)
             const MultiFab& volfrac = ebfact.getVolFrac();
             detJ_cc[lev] = std::make_unique<MultiFab>(volfrac, amrex::make_alias, 0, volfrac.nComp());
         }
+    }
+    update_zsfc_nd(lev);
+}
+
+/**
+ * (Re)build z_sfc_nd[lev], the height of the bottom of the domain at each node, from
+ * z_phys_nd[lev]. A box that does not reach the bottom interpolates it from the coarser
+ * level, so z_sfc_nd[lev-1] must be current when this is called for lev > 0.
+ *
+ * @param[in] lev level of refinement
+ */
+void
+ERF::update_zsfc_nd (int lev)
+{
+    BoxArray ba2d_nd(ba2d[lev]);
+    ba2d_nd.surroundingNodes(0); ba2d_nd.surroundingNodes(1);
+    // As many ghost cells in x and y as z_phys_nd, since the PBL schemes work on grown boxes
+    const IntVect ng(z_phys_nd[lev]->nGrowVect()[0], z_phys_nd[lev]->nGrowVect()[1], 0);
+    if (!z_sfc_nd[lev] || z_sfc_nd[lev]->boxArray() != ba2d_nd ||
+        z_sfc_nd[lev]->DistributionMap() != dmap[lev] || z_sfc_nd[lev]->nGrowVect() != ng) {
+        z_sfc_nd[lev] = std::make_unique<MultiFab>(ba2d_nd, dmap[lev], 1, ng);
+    }
+    if (lev > 0) {
+        make_zsfc_nd(geom[lev], *z_phys_nd[lev], *z_sfc_nd[lev], z_sfc_nd[lev-1].get(), ref_ratio[lev-1]);
+    } else {
+        make_zsfc_nd(geom[lev], *z_phys_nd[lev], *z_sfc_nd[lev]);
     }
 }
 
@@ -1262,9 +1370,9 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, vel_mf.nGrow())); // zmom
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<Vector<MultiFab> > >(int_state);
-    mri_integrator_mem[lev]->setNoSubstepping((solverChoice.substepping_type[lev] == SubsteppingType::None));
-    mri_integrator_mem[lev]->setAnelastic(solverChoice.anelastic[lev]);
-    mri_integrator_mem[lev]->setAnelasticType(solverChoice.anelastic_type[lev]);
+    mri_integrator_mem[lev]->setNoSubstepping((solverChoice.timestepping_type[lev] != TimesteppingType::RK3_ImplicitSubstep));
+    mri_integrator_mem[lev]->setAnelastic(solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
+    mri_integrator_mem[lev]->setTimesteppingType(solverChoice.timestepping_type[lev]);
     mri_integrator_mem[lev]->setNcompCons(ncomp_cons);
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
 }
@@ -1299,8 +1407,46 @@ ERF::make_physbcs (int lev)
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             l_use_real_bcs, zvel_bc_data[lev].data());
-    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
-                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
-                                                               (solverChoice.mesh_type != MeshType::ConstantDz),
-                                                               solverChoice.rdOcp, solverChoice.gravity);
+    // the terrain-following inflow profiles of the lateral faces (xlo.inflow_profile)
+    physbcs_cons[lev]->set_inflow_profiles(&m_inflow_profiles);
+    physbcs_u[lev]->set_inflow_profiles(&m_inflow_profiles);
+    physbcs_v[lev]->set_inflow_profiles(&m_inflow_profiles);
+    const bool moving_mesh = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    auto make_base_bcs = [&] (std::unique_ptr<MultiFab>& z_nd) {
+        return std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_nd,
+                                                      moving_mesh,
+                                                      (solverChoice.mesh_type != MeshType::ConstantDz),
+                                                      solverChoice.rdOcp, solverChoice.gravity);
+    };
+    physbcs_base[lev] = make_base_bcs(z_phys_nd[lev]);
+    // The base state a moving mesh advances is on the mesh at the end of the stage
+    physbcs_base_new[lev] = (moving_mesh) ? make_base_bcs(z_phys_nd_new[lev]) : nullptr;
+}
+
+/**
+ * Warn where a lateral coarse/fine boundary of level lev crosses the immersed surface so that the
+ * two levels describe it differently (erf.if_cf_mismatch_warning): the surface on a coarse cell's
+ * mid-plane leaves the coarse cell half solid over fine cells that are all solid and all fluid,
+ * and the two levels then see different walls along the coarse/fine faces. Counts the coarse
+ * cells along those faces whose fine solid fractions spread by at least the threshold (0 turns
+ * the check off). Called once the level's blanking exists.
+ *
+ * @param lev Level index (nothing to check on level 0)
+ */
+void
+ERF::check_if_cf_mismatch (int lev)
+{
+    const Real warn = solverChoice.if_cf_mismatch_warning;
+    if (lev < 1 || !(warn > zero) || !terrain_blanking[lev]) { return; }
+    const auto [nflagged, worst] = if_cf_surface_mismatch(*terrain_blanking[lev], grids[lev],
+                                                          grids[lev-1], dmap[lev-1], geom[lev-1],
+                                                          refRatio(lev-1), warn);
+    if (nflagged > 0) {
+        amrex::Print() << "WARNING: immersed forcing, level " << lev << ": " << nflagged
+                       << " coarse cells along the lateral coarse/fine faces hold fine cells whose solid "
+                       << "fractions spread by " << warn << " or more (largest spread " << worst
+                       << "); the levels describe the surface differently there, and the coarse/fine "
+                       << "fill errors are largest there (erf.if_cf_mismatch_warning, 0 turns this off)."
+                       << std::endl;
+    }
 }
