@@ -15,7 +15,7 @@
 
 // The buildings' shadow on the ground for the two-stream ground balance
 // (erf.ibseb.two_stream_buildings): IBFaceSet::compute_ground_shadow() casts the ray from
-// the centre of every column's ground toward the sun of the last compute_shortwave()
+// the center of every column's ground toward the sun of the last compute_shortwave()
 // through the faces' column map. Here the expected shadow comes from intersecting that
 // ray with every solid column as a box (the slab method), the periodic images included,
 // not from the code's column walk. A tower against the high-x edge throws its shadow
@@ -42,7 +42,7 @@ void fill_blanking (amrex::MultiFab& b, const amrex::Geometry& geom, const std::
     b.FillBoundary(geom.periodicity());
 }
 
-// Expected shadow of column (i, j): the ray from its ground centre along s meets the box
+// Expected shadow of column (i, j): the ray from its ground center along s meets the box
 // [x, x + dx] x [y, y + dy] x [0, top] of a solid column (the column map's model of a
 // building: solid from the ground to its top), or of one of its periodic images, below
 // the top on entry. A column under a building is in shadow.

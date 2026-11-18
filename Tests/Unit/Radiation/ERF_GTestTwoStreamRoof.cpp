@@ -284,7 +284,7 @@ TEST(TwoStreamRoof, FluxesAtTheRoofAreTheRoofs)
 TEST(TwoStreamRoof, HeightsAreStillMeasuredFromTheGround)
 {
     using amrex::Real;
-    // A cloud between 450 and 650 m: layers 4, 5 and 6 of 100 m (centres at 450, 550, 650 m).
+    // A cloud between 450 and 650 m: layers 4, 5 and 6 of 100 m (centers at 450, 550, 650 m).
     RadChoice rad = roof_choice();
     rad.tau_profile_type = TauProfileType::CloudLayer;
     rad.cloud_base_height_m = Real(400.0);

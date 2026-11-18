@@ -120,7 +120,7 @@ amrex::Real max_change_from_placeholder (const amrex::MultiFab& mf)
     return change;
 }
 
-// Give every surface copy its own constant, so that neighbouring surface boxes disagree at
+// Give every surface copy its own constant, so that neighboring surface boxes disagree at
 // any face they share.  Component n is offset by n.  Returns the constants, indexed as
 // surface_boxes(), so that a caller can say which box a filled value came from.
 amrex::Vector<amrex::Real> set_distinct_surface_copies (amrex::MultiFab& mf,
@@ -166,7 +166,7 @@ int owning_surface_box (const amrex::BoxArray& ba_sfc, const amrex::IntVect& ixt
 
 // Largest |value - the owning surface box's constant| over the valid region and ghost cells
 // of every copy on every rank.  Non-zero means some copy disagrees with the owner, which is
-// what a shared face supplied by the wrong neighbour looks like.
+// what a shared face supplied by the wrong neighbor looks like.
 amrex::Real max_error_against_owner (const amrex::MultiFab& mf,
                                      const PlanarBoundary& bndry,
                                      const amrex::Vector<amrex::Real>& vals,

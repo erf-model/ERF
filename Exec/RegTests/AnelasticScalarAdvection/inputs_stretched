@@ -43,5 +43,5 @@ prob.T_0   = 300.0
 prob.A_0   = 1.0
 prob.U_0   = 10.0
 prob.V_0   = 0.0
-prob.rad_0 = 0.25         # blob radius 250 m, centred at x = y = 500 m, uniform in z
+prob.rad_0 = 0.25         # blob radius 250 m, centered at x = y = 500 m, uniform in z
 prob.prob_type = 11

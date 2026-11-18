@@ -6,7 +6,7 @@
 # (MakeNewLevelFromCoarse); at t = 2.5 s patch A ends and patch B, elsewhere, begins, so the
 # regrid after step 3 moves level 1 (RemakeLevel).  Each makes level 1 on new grids, which
 # resets walldist to bogus_large_value.  The CTest entry bounds walldist in the final
-# plotfile over both levels: half a cell (8 m on level 1) to the top cell centre of level 0;
+# plotfile over both levels: half a cell (8 m on level 1) to the top cell center of level 0;
 # RANS_WallDist_NewLevel.i stops after step 2 and checks the level added from level 0.
 
 erf.prob_name = "ABL"

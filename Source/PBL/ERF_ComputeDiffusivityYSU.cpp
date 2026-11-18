@@ -694,30 +694,20 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             const Real t_layer_v = t_layer * (one + epsv * moisture_fraction);
             */
 
-            const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
-                                         ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                                         : zib;
-
-            // Compute bounds for pblh clamping
-            const Real z_sfc = (use_terrain_fitted_coords)
-                              ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                              : zib;
-            const Real dz_terrain = (use_terrain_fitted_coords)
-                                   ? (Compute_Zrel_AtCellCenter(i, j, ksrf + 1, z_sfc_arr, z_nd_arr) - z_sfc)
-                                   : dz;
+            // Compute bounds for pblh clamping.  The floor is the top face of the column's
+            // first fluid cell (see pblh_floor): zl1 is the height of that cell's center
+            // and dz1 its thickness, on every mesh type.
+            const Real zl1 = (use_terrain_fitted_coords)
+                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
+                           : zib + myhalf * dz;
+            const Real dz1 = (use_terrain_fitted_coords)
+                           ? Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv, z_nd_arr) / dz_inv
+                           : dz;
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : (khi + myhalf) * dz;
             const Real pblh_max = Real(0.9) * z_max;
-
-            amrex::Real pblh_min;
-            if (turbChoice.enable_ysu_terrain_pblh_floor && use_terrain_fitted_coords) {
-                const amrex::Real met_h_klo = Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv, z_nd_arr);
-                const amrex::Real dz0 = met_h_klo / dz_inv;
-                pblh_min = amrex::max(z_sfc_col + Real(0.5)*dz0, Real(10.0));
-            } else {
-                pblh_min = amrex::max(z_sfc + Real(0.5) * dz_terrain, Real(10.0));
-            }
+            const Real pblh_min = pblh_floor(zl1, dz1);
 
             // Scan rib_enhan_arr from the surface cell up (GAP 9: WRF bl_ysu.F90 lines 620-621
             // seed the scan with the surface bulk Ri, so ksrf is checked first) and interpolate
@@ -1092,29 +1082,19 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 }
             }
 
-            // Compute bounds
-            const Real z_sfc = (use_terrain_fitted_coords)
-                              ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                              : zib;
-            const Real dz_terrain = (use_terrain_fitted_coords)
-                                   ? (Compute_Zrel_AtCellCenter(i, j, ksrf + 1, z_sfc_arr, z_nd_arr) - z_sfc)
-                                   : dz;
+            // Compute bounds, as in the first corrector pass: the floor is the top face of
+            // the column's first fluid cell (see pblh_floor) on every mesh type.
+            const Real zl1 = (use_terrain_fitted_coords)
+                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
+                           : zib + myhalf * dz;
+            const Real dz1 = (use_terrain_fitted_coords)
+                           ? Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv, z_nd_arr) / dz_inv
+                           : dz;
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : (khi + myhalf) * dz;
             const Real pblh_max = Real(0.9) * z_max;
-
-            amrex::Real pblh_min;
-            if (turbChoice.enable_ysu_terrain_pblh_floor && use_terrain_fitted_coords) {
-                const amrex::Real met_h_klo = Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv, z_nd_arr);
-                const amrex::Real dz0 = met_h_klo / dz_inv;
-                const amrex::Real z_sfc_col = (use_terrain_fitted_coords)
-                                             ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                                             : zib;
-                pblh_min = amrex::max(z_sfc_col + Real(0.5)*dz0, Real(10.0));
-            } else {
-                pblh_min = amrex::max(z_sfc + Real(0.5) * dz_terrain, Real(10.0));
-            }
+            const Real pblh_min = pblh_floor(zl1, dz1);
             pblh_floor_arr(i, j, 0) = pblh_min;
 
             // Rescan the updated rib_enhan_arr from the surface cell up, as in the first
@@ -1142,8 +1122,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                          turbChoice.pblh_smoothing_weight,
                          turbChoice.pblh_smoothing_passes,
                          geom.Domain(), geom.periodicity());
-        // The smoothed height stays at or above the column's own floor (half
-        // a cell above its surface, at least 10 m): beside lower neighbours a
+        // The smoothed height stays at or above the column's own floor (the top
+        // face of its first fluid cell, at least 10 m): beside lower neighbours a
         // column over a building (erf.pbl_ib_aware) would otherwise be handed
         // a height below its first cell, and the K profile a negative depth.
         ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {

@@ -12,7 +12,7 @@
 # and divides the result by the implicit dissipation factor:
 #   k_s = [k0 e^-x + (P / c)(1 - e^-x)] / (1 + dt_s Cmu0^3 k0^0.5 / L),
 # x = c dt_s, P = beta_p f |u_s|^3, c = beta_d f |u_s|, and the dissipation uses
-# k0 = 0.500001 (prob.KE_0 plus erf.tke_min = 1e-6, added at initialisation) as the
+# k0 = 0.500001 (prob.KE_0 plus erf.tke_min = 1e-6, added at initialization) as the
 # closure is evaluated once per step. One step gives u = 4.8780542453793183 and
 # k = 1.0110471279453457. The bottom wall, which the RANS wall distance needs,
 # reaches three cells in one step; Tests/CTestList.cmake checks z >= 45 m.

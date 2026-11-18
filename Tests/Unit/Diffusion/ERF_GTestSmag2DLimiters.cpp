@@ -6,7 +6,7 @@
 //    deformation threshold max(10/Delta_h, 1e-3), with the cap active and inactive and in WRF's
 //    order (cap, then slope);
 //  * the momentum and scalar diffusive rates against hand-computed values, the explicit
-//    fraction of the partly implicit stages (every stage bounded or not), and the neighbourhood bound (NeighbourhoodMax,
+//    fraction of the partly implicit stages (every stage bounded or not), and the neighborhood bound (NeighbourhoodMax,
 //    NeighbourhoodMinPositive, CellDiffusiveRates) on coefficients that vary between cells,
 //    with molecular diffusivities on their own and added to the eddy ones;
 //  * ComputeTurbulentViscosityLES on a tilted terrain-fitted mesh: K_h is limited before the
@@ -231,7 +231,7 @@ TEST(Smag2DLimiters, NeighbourhoodBoundCoversVaryingCoefficients)
     // The cell-local estimate max(K/rho) = 10 misses it ...
     const Real local = std::max(KA/rA, KB/rB);
     EXPECT_LT(local, std::abs(lambda) / Real(4));
-    // ... the neighbourhood bound does not, for either cell.  Each cell's 3x3x3 neighbourhood
+    // ... the neighborhood bound does not, for either cell.  Each cell's 3x3x3 neighborhood
     // alternates A and B in x (periodic line), and is uniform in y and z.
     for (int centre = 0; centre < 2; ++centre) {
         std::vector<Real> K(27), rho(27);
@@ -263,7 +263,7 @@ TEST(Smag2DLimiters, NeighbourhoodBoundCoversVaryingCoefficients)
 
 TEST(Smag2DLimiters, CellRatesUseTheNeighbourhood)
 {
-    // The cell routine the time-step reduction calls: a large diffusivity in one neighbour, or
+    // The cell routine the time-step reduction calls: a large diffusivity in one neighbor, or
     // a small density in one, must set the rate, component by component; a covered cell
     // (rho = 0) gives zero.  Flat 50 m cells, 1 km spacing.
     const int nk = EddyDiff::NumDiffs;
@@ -285,8 +285,8 @@ TEST(Smag2DLimiters, CellRatesUseTheNeighbourhood)
     auto rates = [&] (Real& rm, Real& rs) {
         CellDiffusiveRates(0, 0, 0, sa, ka, za, Real(1), Real(1), dxinv, set, rm, rs);
     };
-    // a spike in one corner neighbour: (1,1,1) is index 26 of each component's 27 cells,
-    // (-1,-1,-1) index 0, so both ends of every neighbourhood loop are exercised
+    // a spike in one corner neighbor: (1,1,1) is index 26 of each component's 27 cells,
+    // (-1,-1,-1) index 0, so both ends of every neighborhood loop are exercised
     auto put = [&] (int comp, int corner, Real v) {
         K[static_cast<std::size_t>(corner + 27*comp)] = v;
     };
@@ -294,7 +294,7 @@ TEST(Smag2DLimiters, CellRatesUseTheNeighbourhood)
     rates(rm0, rs0);
     EXPECT_NEAR(rm0, MomentumDiffusiveRate(Real(1), Real(1), Real(1), a, a, Real(0), dz2, Real(1)),
                 rm0*rel_tol());
-    // each component's neighbour value must reach the rate
+    // each component's neighbor value must reach the rate
     struct Case { int comp; bool mom; Real expect; };
     const Case cases[] = {
         {EddyDiff::Mom_h,    true,  MomentumDiffusiveRate(Real(1), Real(1e4), Real(1), a, a, Real(0), dz2, Real(1))},
@@ -330,7 +330,7 @@ TEST(Smag2DLimiters, CellRatesUseTheNeighbourhood)
         EXPECT_EQ(rs_spk, rs_imp);
     }
     set.e_th = Real(1);
-    // a low density in one neighbour scales every rate by 1/rho_min (either corner)
+    // a low density in one neighbor scales every rate by 1/rho_min (either corner)
     Real rm, rs;
     for (const int corner : {26, 0}) {
         rho[corner] = Real(0.1);

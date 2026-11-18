@@ -35,7 +35,7 @@ constexpr int NX = 8, NY = 6, NZ = 6;
 constexpr Real DX = Real(80.0), DY = Real(60.0), DZ = Real(40.0);
 constexpr Real ZTOP = NZ * DZ;
 
-// A hill off the centre on a tilted plane: the terrain slopes, in x and in y, at every
+// A hill off the center on a tilted plane: the terrain slopes, in x and in y, at every
 // lateral face of the region
 AMREX_GPU_HOST_DEVICE inline Real terrain (Real x, Real y, Real hmax)
 {

@@ -14,11 +14,11 @@
 
 // Motivation (erf-model/ERF#4390): a finer level that takes its land state from a coarser one
 // interpolated the land fields across the coastline, so the slope of a coastal land cell was
-// set partly by its water neighbour (soil wetness 1 over water in SLM) and the fine cells inside
+// set partly by its water neighbor (soil wetness 1 over water in SLM) and the fine cells inside
 // it got a spurious land/water gradient. TypedConsLinear interpolates land from land and
 // water from water only, as WRF's masked nest interpolation does. It must keep each coarse
-// cell's mean, leave every cell whose neighbours are all of its own type exactly as
-// cell_cons_interp has it, and give no slope toward a neighbour outside the domain.
+// cell's mean, leave every cell whose neighbors are all of its own type exactly as
+// cell_cons_interp has it, and give no slope toward a neighbor outside the domain.
 
 using namespace amrex;
 
@@ -166,7 +166,7 @@ TEST(TypedInterp, KeepsCoarseMeansAndMatchesCellConsAwayFromTheCoast)
             for (int iff = 0; iff < ratio[0]; ++iff) {
                 const int i = ic*ratio[0] + iff, j = jc*ratio[1] + jf;
                 sum += at(masked, i, j);
-                // all x neighbours of the same type (y is uniform in type): exactly cell_cons_interp
+                // all x neighbors of the same type (y is uniform in type): exactly cell_cons_interp
                 if (coarse_is_water(ic-1) == coarse_is_water(ic) &&
                     coarse_is_water(ic+1) == coarse_is_water(ic)) {
                     EXPECT_EQ(at(masked, i, j), at(plain, i, j)) << "i=" << i << " j=" << j;
@@ -318,7 +318,7 @@ TEST(TypedInterp, PackedFieldsMatchTheirSingleFieldInterpolation)
 
 // Motivation: SLM interpolates a flux it has not computed yet (lsm_undefined) on land, where
 // SurfaceLayer falls back to MOST. Typed by land/water alone, such a cell would lend its
-// neighbours a slope toward the sentinel and be blended with them; as a type of its own (land/
+// neighbors a slope toward the sentinel and be blended with them; as a type of its own (land/
 // water type + 2) the sentinel comes through exactly and the land around it takes no slope
 // toward it. The packed interface takes the field and its indicator as built by the caller.
 TEST(TypedInterp, SentinelOnLandIsATypeOfItsOwn)

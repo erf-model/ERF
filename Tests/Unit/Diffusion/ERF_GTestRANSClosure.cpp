@@ -287,7 +287,7 @@ TEST(RANSClosure, RealizabilityCapZeroStrainAndTinyK)
 }
 
 // The strain magnitude the cap divides by: S = sqrt(2 ComputeSmnSmn), the
-// cell-centred average of the face/edge strains the kernel reads.
+// cell-centered average of the face/edge strains the kernel reads.
 namespace {
 
 // Fill the six strain arrays of a one-cell box from the given uniform values

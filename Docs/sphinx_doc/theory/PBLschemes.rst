@@ -1407,10 +1407,22 @@ first fluid cell :math:`k_s` to the top cell :math:`k_{hi}`, as WRF does (``bl_y
   This includes a crossing at the top cell :math:`k_{hi}`.
 - The first cell's :math:`{\rm Rib}` only seeds the lower end of the first interval. If it and the next
   level are both at or above :math:`{\rm Rib_{cr}}`, :math:`h` is the floor :math:`h_{min}` (WRF's
-  ``brint = 0``): the height of the first cell's center on a flat mesh, or of its top face on a
-  terrain-fitted mesh, and at least 10 m.
+  ``brint = 0``, where WRF takes the height of the first level).
 - If :math:`{\rm Rib}` stays below :math:`{\rm Rib_{cr}}` up to :math:`k_{hi}`, :math:`h` is the top of the scan,
   :math:`z_{k_{hi}}` (WRF's ``brint = 1``).
+
+The floor is the height of the top face of the column's first fluid cell, and at least 10 m:
+
+.. math::
+
+   h_{min} = \max\left(z_1 + \tfrac{1}{2}\,\Delta z_1,\ 10\ {\rm m}\right),
+
+with :math:`z_1` the height of the first cell's center and :math:`\Delta z_1` the cell's thickness. It is the
+same on constant-dz, stretched and terrain-fitted meshes. The top face of the first cell is the height below
+which WRF sets ``kpbl = 1`` (``zq(i,2)`` in ``bl_ysu.F90``); WRF does not bound :math:`h` itself, and
+reports the height of the first level, half a cell lower, in such a column. With :math:`h` at the floor the
+diffusivity profile is zero at the top face of the first cell, so that cell keeps the background diffusivity,
+and the profile grows continuously from there as :math:`h` rises.
 
 The result is then kept in :math:`[h_{min},\ h_{max}]` with :math:`h_{max} = 0.9\, z_{k_{hi}}`.
 The PBL top index is :math:`k_{hi}` in the no-crossing case. The K profile then reaches :math:`h`, and the
@@ -1420,8 +1432,24 @@ top cell of such a column.
 MRF uses the same treatment for a column with no crossing, in its first guess, its corrector and its
 zero-Ri extent (WRF ``module_bl_mrf.F``). Its PBL top index is then :math:`k_{hi}` as well, so the K profile
 and, with ``erf.enable_mrf_countergradient``, the countergradient terms reach :math:`h`. When the first two
-levels are both at or above :math:`{\rm Rib_{cr}}`, MRF takes the first level's height, as WRF does, rather
-than extrapolating above it.
+levels are both at or above :math:`{\rm Rib_{cr}}`, MRF does not extrapolate above the first level (WRF's
+``brint = 0``), and :math:`h` is the floor.
+
+MRF uses the same floor :math:`h_{min}` as YSU, on every mesh type. With ``erf.pbl_ib_aware`` MRF measures
+:math:`z_1` from the top of the immersed column and adds that column's height to the stored PBL height, so the
+stored floor is the top face of the first fluid cell in both schemes. When the top face sets the floor (a first
+cell at least 10 m thick), the PBL top index of an MRF column on the floor is :math:`k_s + 1`: only the first
+cell uses the K profile, and its shape factor
+:math:`1 - (z - z_1)/(h - z_1)` is 1 there for every :math:`h > z_1`. The floor therefore does not change the
+shape of the profile. It enters MRF through :math:`h/L` in the stability functions and the Prandtl number,
+through :math:`w_*`, and through the stored PBL height, which the surface layer and the turbulent length scale
+read. The countergradient terms are zero in such a column. When the 10 m minimum sets the floor (thinner first
+cells), the crossing can lie above the second level, and the index, the K profile and the countergradient terms
+follow that crossing; this case is the same as before. WRF's MRF (``module_bl_mrf.F``) does not bound :math:`h`. In such a column it takes the first
+level's height in its Rib scan, sets its PBL index to the first level, and uses the free-atmosphere diffusivity
+at every level; the height it returns for a stable column is the top face of the first layer (``ZQ(I,KL)``).
+Earlier, the MRF floor was the height of the first cell center (at least 10 m), half a cell below the YSU
+floor.
 
 Before erf-model/ERF#4458, both schemes gave a column with no crossing :math:`h_{min}`, and YSU also sent a
 crossing at :math:`k_{hi}` there. MRF also set its index to :math:`k_s + 1`, so only the first cell used the

@@ -50,7 +50,7 @@ def check_thick_log(log, k, rho_cp, dT, dt):
 def check_thick_bottom(prefix, k, rho_cp, dT, L, n, t_end):
     d = load(prefix)
     alpha = k / rho_cp; dz = L / n
-    # Bottom-layer centre sits dz/2 above the interior boundary. Semi-infinite
+    # Bottom-layer center sits dz/2 above the interior boundary. Semi-infinite
     # solution for a step dT at the boundary: T(x, t) = T_skin - dT erfc(x / (2 sqrt(alpha t))).
     from math import erfc, sqrt
     x = dz / 2
@@ -70,7 +70,7 @@ def check_thin(prefix, k, L, dT):
     err = np.abs(d["G"] - G_exp).max() / G_exp
     ok = err < 0.01
     print(f"  thin slab at steady state: G = k dT / L = {G_exp:.1f} W/m2, got {d['G'].min():.1f}-{d['G'].max():.1f} -> {'PASS' if ok else 'FAIL'}")
-    # Linear profile: top and bottom layer centres at L/8 and 7L/8 from the skin
+    # Linear profile: top and bottom layer centers at L/8 and 7L/8 from the skin
     n = 4; T_top = 320.0 - dT * (0.5 / n); T_bot = 320.0 - dT * ((n - 0.5) / n)
     ok2 = np.abs(d["T_slab_top"] - T_top).max() < 0.02 and np.abs(d["T_slab_bottom"] - T_bot).max() < 0.02
     print(f"  linear profile: top layer {T_top:.2f} K, bottom {T_bot:.2f} K -> {'PASS' if ok2 else 'FAIL'}")

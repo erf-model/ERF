@@ -2,7 +2,7 @@
 // the point's force exactly on every component, on a uniform mesh, on a terrain-following mesh
 // with its cell volumes, when the kernel is cut off by the ground, across a periodic boundary,
 // for several points at once, and however the domain is split; the source is zero beyond the
-// kernel's reach; over a hill taller than the kernel's reach the source is centred on the point
+// kernel's reach; over a hill taller than the kernel's reach the source is centered on the point
 // (the faces are found by their physical heights, not their index times dz); each point is spread
 // with its own kernel width; and a non-finite position or force, or a width that is not positive,
 // aborts, naming the point. The two passes on their own (spread_partial_norms, add_scaled_kernels) give
@@ -205,15 +205,15 @@ TEST(ActuatorSpreading, PointForceIntegratesBackOverTerrain)
     m.hill = 100.0;
     Sources s(m, true);
     const Real eps = 2.0 * m.dx();
-    // over the hill's flank, where neighbouring columns have different volumes
+    // over the hill's flank, where neighboring columns have different volumes
     const std::vector<Real> pos = xyz(0.2 * m.Lx, 0.3 * m.Ly, 0.4 * m.H);
     const std::vector<Real> force = xyz(-1.5e6, 2.0e5, 4.0e4);
     expect_total(s.spread(pos, force, eps), {{force[0], force[1], force[2]}}, abs_sum(force));
 }
 
-// The face volumes are half of each neighbouring cell's dx dy dz detJ: with a detJ that varies in
+// The face volumes are half of each neighboring cell's dx dy dz detJ: with a detJ that varies in
 // k as well as in x and y, the source summed with the test's own face volumes equals the force.
-// integrate_source is not used here, so a wrong neighbour in face_volume (the cell above instead
+// integrate_source is not used here, so a wrong neighbor in face_volume (the cell above instead
 // of the cell below a z face, a single cell instead of the average) would not cancel out.
 TEST(ActuatorSpreading, TerrainVolumesAreTheFaceAveragesOfDetJ)
 {
@@ -434,7 +434,7 @@ TEST(ActuatorSpreading, EachPointIsSpreadWithItsOwnWidth)
     m.max_grid = {{16, 24, 48}};   // six boxes: the kernels cross box faces, and two ranks both own some
     Sources s(m, false);
     const std::array<Real,2> px{{247.0, 727.0}}, eps{{40.0, 80.0}}, fx{{-3.0e5, 2.0e5}};
-    const Real py = 473.0, pz = 483.0;   // off the cell centres and faces
+    const Real py = 473.0, pz = 483.0;   // off the cell centers and faces
     std::vector<Real> pos, force;
     for (int p = 0; p < 2; ++p) {
         pos.insert(pos.end(), {px[p], py, pz});
@@ -461,7 +461,7 @@ TEST(ActuatorSpreading, EachPointIsSpreadWithItsOwnWidth)
     constexpr double cut = 0.0025077;
     for (int p = 0; p < 2; ++p) {
         SCOPED_TRACE("point " + std::to_string(p) + ", width " + std::to_string(eps[p]) + " m");
-        // the spreader's own normalisation is a sum over some 7 000 faces in Real: 1e-4 in single precision
+        // the spreader's own normalization is a sum over some 7 000 faces in Real: 1e-4 in single precision
         const double tol_total = (sizeof(Real) == 8) ? double(rel_tol) : 1.0e-4;
         EXPECT_NEAR(sums[3*p], fx[p], tol_total * std::abs(fx[p]));
         const double want = 0.5 * eps[p] * eps[p] * (1.0 - cut);
@@ -619,7 +619,7 @@ TEST(ActuatorSpreading, AColumnSplitInZGivesTheFullColumnsAnswerBitForBit)
     Mesh m;
     m.hill = 60.0;
     m.nz = 40;
-    m.H = 2000.0;                 // 50 m cells: a kernel reaches a few hundred metres of the column
+    m.H = 2000.0;                 // 50 m cells: a kernel reaches a few hundred meters of the column
     m.max_grid = {{24, 12, 10}};  // four boxes up each column, three of them aloft
     const Real eps = 1.5 * m.dx();
     // near the ground, mid-height and near the top, each with a kernel a few cells tall

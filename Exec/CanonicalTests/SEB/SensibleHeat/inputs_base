@@ -1,5 +1,5 @@
 # Immersed-boundary surface energy balance: sensible heat
-# through a wall function on every face. A 40 m cube at the centre of a
+# through a wall function on every face. A 40 m cube at the center of a
 # 640 m periodic domain on a 5 m grid in a uniform 8 m/s wind at 300 K, with
 # the cube's faces held at 320 K (nothing evolves the skin temperature yet).
 # No sun, no Coriolis, no damping, adiabatic no-slip ground, so the only heat

@@ -280,8 +280,16 @@ public:
         }
         query_one_or_per_level(
           pp, "enable_ysu_countergradient", enable_ysu_countergradient, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_terrain_pblh_floor", enable_ysu_terrain_pblh_floor, lev, max_level);
+        // The floor of the YSU PBL height is the top face of the first cell on
+        // every mesh type.  This switch selected it on terrain-fitted and
+        // stretched meshes (its default); constant-dz meshes, where the floor was
+        // the first cell center, now use it too (erf-model/ERF#5252).  Catch the
+        // retired switch rather than ignoring it.
+        if (pp.contains("enable_ysu_terrain_pblh_floor")) {
+            amrex::Abort("erf.enable_ysu_terrain_pblh_floor has been removed. The floor "
+                         "of the YSU PBL height is the top face of the first cell (at "
+                         "least 10 m) on every mesh type (erf-model/ERF#5252).");
+        }
         query_one_or_per_level(
           pp, "enable_ysu_sat_limiter", enable_ysu_sat_limiter, lev, max_level);
         query_one_or_per_level(
@@ -782,8 +790,6 @@ public:
                      << pbl_ysu_land_Ribcr << std::endl;
       amrex::Print() << "    enable_ysu_countergradient         : "
                      << enable_ysu_countergradient << std::endl;
-      amrex::Print() << "    enable_ysu_terrain_pblh_floor      : "
-                     << enable_ysu_terrain_pblh_floor << std::endl;
       amrex::Print() << "    enable_ysu_sat_limiter             : "
                      << enable_ysu_sat_limiter << std::endl;
       amrex::Print() << "    enable_ysu_topdown                 : "
@@ -1062,8 +1068,6 @@ public:
     fourth; // Critical Bulk Richardson number of Land for stable conditions
   bool enable_ysu_countergradient =
     true; // if true, apply YSU-style HGAMT/HGAMQ/HGAMU/HGAMV countergradient correction
-  bool enable_ysu_terrain_pblh_floor =
-    true; // if true, apply terrain-following floor on PBL height
   bool enable_ysu_sat_limiter =
     false; // if true, apply saturation limiter to moisture countergradient
   bool enable_ysu_topdown =
@@ -1205,8 +1209,6 @@ public:
  * @brief Critical bulk Richardson number over land for stable YSU conditions.
  * @var TurbChoice::enable_ysu_countergradient
  * @brief Whether YSU countergradient corrections are enabled.
- * @var TurbChoice::enable_ysu_terrain_pblh_floor
- * @brief Whether YSU applies a terrain-following PBL-height floor.
  * @var TurbChoice::enable_ysu_sat_limiter
  * @brief Whether YSU applies a saturation limiter to moisture countergradient terms.
  * @var TurbChoice::enable_ysu_topdown
@@ -1251,7 +1253,7 @@ public:
  * boundary-layer height both schemes store (pblh, Lturb) stays the absolute
  * height above the domain bottom; with enable_pblh_smoothing the stencil runs
  * on that absolute height, and the smoothed value is kept at or above each
- * column's own floor (half a cell above its surface, at least 10 m). Off by
+ * column's own floor (YSU: the top face of its first fluid cell, at least 10 m). Off by
  * default; without immersed cells the results are identical. Not supported
  * with terrain-fitted coordinates.
  * @var TurbChoice::pbl_ib_z0
