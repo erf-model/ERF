@@ -821,8 +821,11 @@ init_which_terrain_grid (int lev,
                 Real z_sfc     = z_arr(ii,jj,k0);
                 Real z_lev_sfc = z_lev[k0];
 
-                z_arr(i,j,k) = ( (z_sfc - z_lev_sfc) * z_top +
-                                 (z_top - z_sfc    ) * z     ) / (z_top - z_lev_sfc);
+                // Written so that no product feeds a sum: a compiler that contracts to fused
+                //    multiply-adds (gcc on arm64, or with FMA enabled) could otherwise round
+                //    the two products differently in its vectorized and scalar loops, and then
+                //    two boxes would give a node they share different heights (#5237)
+                z_arr(i,j,k) = z + (z_sfc - z_lev_sfc) * (z_top - z) / (z_top - z_lev_sfc);
             });
         } // mfi
 
