@@ -23,8 +23,9 @@
 using namespace amrex;
 
 namespace {
-// Write one-component nodal MultiFabs (one per level) as VTK point data into the folder dir:
-// dir/L<lev>_B<box>.vti per box (ImageData, raw binary Float32), indexed by dir/<vtm_name>.vtm.
+// Write one-component nodal MultiFabs (one per level) as VTK point data:
+// dir/L<lev>_B<box>.vti per box (ImageData, raw binary Float32), indexed by <vtm_name>.vtm,
+// which is written next to dir (in dir's parent directory).
 // dir must not contain "plt" in its name: ParaView hands any such directory to its
 // AMReX plotfile reader, which crashes on it.
 // Assumes uniform spacing in every direction.
@@ -33,6 +34,8 @@ WriteNodalVTK (const std::string& dir, const std::string& vtm_name, const std::s
                const Vector<MultiFab>& mf, const Vector<Geometry>& geom)
 {
     UtilCreateCleanDirectory(dir, true);
+    const std::string parent   = dir.substr(0, dir.find_last_of('/') + 1);
+    const std::string dir_base = dir.substr(parent.size());
 
     auto piece_file = [] (int lev, int box) {
         return "L" + std::to_string(lev) + "_B" + std::to_string(box) + ".vti";
@@ -79,14 +82,14 @@ WriteNodalVTK (const std::string& dir, const std::string& vtm_name, const std::s
     }
 
     if (ParallelDescriptor::IOProcessor()) {
-        std::ofstream ofs(dir + "/" + vtm_name + ".vtm");
+        std::ofstream ofs(parent + vtm_name + ".vtm");
         ofs << "<?xml version=\"1.0\"?>\n"
             << "<VTKFile type=\"vtkMultiBlockDataSet\" version=\"1.0\" byte_order=\"LittleEndian\">\n"
             << "<vtkMultiBlockDataSet>\n";
         for (int lev = 0; lev < mf.size(); ++lev) {
             ofs << "<Block index=\"" << lev << "\" name=\"Level_" << lev << "\">\n";
             for (int b = 0; b < mf[lev].boxArray().size(); ++b) {
-                ofs << "<DataSet index=\"" << b << "\" file=\"" << piece_file(lev, b) << "\"/>\n";
+                ofs << "<DataSet index=\"" << b << "\" file=\"" << dir_base << "/" << piece_file(lev, b) << "\"/>\n";
             }
             ofs << "</Block>\n";
         }
@@ -2247,13 +2250,13 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #endif
 
     if (plot_levelset && plotfile_type != PlotFileType::None) {
-        // e.g. plt00001 -> levelset00001/plt00001_levelset.vtm
+        // e.g. plt00001 -> plt00001_levelset.vtm + levelset00001/L<lev>_B<box>.vti
         const std::string& prefix = (which == 1) ? plot3d_file_1 : plot3d_file_2;
         const std::string ls_dir = prefix.substr(0, prefix.find_last_of('/') + 1)
                                  + ((which == 1) ? "levelset" : "levelset_2_")
                                  + plotfilename.substr(prefix.size());
         const std::string vtm_name = plotfilename.substr(plotfilename.find_last_of('/') + 1) + "_levelset";
-        Print() << "Writing nodal EB level set " << ls_dir << "/" << vtm_name << ".vtm" << std::endl;
+        Print() << "Writing nodal EB level set " << vtm_name << ".vtm (data in " << ls_dir << ")" << std::endl;
         WriteNodalVTK(ls_dir, vtm_name, "levelset", mf_ls, geom);
     }
 
