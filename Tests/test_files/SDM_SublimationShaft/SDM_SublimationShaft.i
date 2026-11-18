@@ -1,7 +1,7 @@
 # ------------------  1D SUBLIMATION SHAFT (ctest)  ----------------------------
 # Monodisperse solid-ice spheres (D = 0.35 mm) are seeded through a prescribed,
 # frozen, isothermal (T = -15 C), subsaturated-over-ice (RH_i = 82%) column. They fall
-# under gravity and lose mass by vapour diffusion (MassChange_SV). A short run exercises
+# under gravity and lose mass by vapor diffusion (MassChange_SV). A short run exercises
 # the sublimation routine; the final plotfile is compared to the gold.
 # Deterministic: monodisperse, deterministic placement, fixed RNG seed.
 

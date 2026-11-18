@@ -41,7 +41,7 @@ amr.max_level = 0
 zlo.type = "surface_layer"
 zhi.type = "SlipWall"
 erf.most.z0   = 0.1
-# Above the first cell centre (dz = 31.25 m, so 15.6 m); MOSTAverage requires it.
+# Above the first cell center (dz = 31.25 m, so 15.6 m); MOSTAverage requires it.
 erf.most.zref = 20.0
 
 erf.fixed_dt = 1.0

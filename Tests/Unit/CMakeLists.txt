@@ -185,7 +185,7 @@ target_sources(${erf_exe_name}
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
     # Motivation: terrain-fitted momentum diffusion must apply K_h to the projected horizontal
-    # stresses of the zeta-face flux and take the cell-centred du/dz from the cell's own faces
+    # stresses of the zeta-face flux and take the cell-centered du/dz from the cell's own faces
     # (erf-model/ERF#4214), so the operator is exact for bilinear fields and dissipates energy.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainStress.cpp
     # Motivation: erf.implicit_terrain_metric must put K_h times the terrain-metric factor into
@@ -211,7 +211,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     # Motivation: a Noah-MP 2 m tile with zero weight must not reject the bundle, and a
-    # station must leave -999 neighbours out of its interpolation rather than average them.
+    # station must leave -999 neighbors out of its interpolation rather than average them.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceMissingValues.cpp
     # Motivation: the stable-side z/L in the 2 m profile must stay bounded for a very
     # small positive Obukhov length.
@@ -250,7 +250,7 @@ target_sources(${erf_exe_name}
     # Motivation (erf-model/ERF#4887): the building kernels and the implicit projection read each
     # face and its masks through one header; with erf.if_implicit_projection the kernels keep the
     # wall law only, and the drag they drop must equal, face by face, the weight the projection
-    # applies (checked with and without the snap and the face-centred blanking).
+    # applies (checked with and without the snap and the face-centered blanking).
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedBuildingMasks.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedBuildingImplicit.cpp
     # Motivation: a refined level's buildings must keep level 0's numbers for the
@@ -261,7 +261,7 @@ target_sources(${erf_exe_name}
     # column map with a halo sized for the shallowest ray, instead of a map of the whole
     # domain on every rank (erf-model/ERF#4020): a ray that leaves the patch is in open
     # country, a patch spanning a periodic domain wraps round, the buildings are
-    # labelled across boxes and periodic seams in one numbering whatever the
+    # labeled across boxes and periodic seams in one numbering whatever the
     # decomposition, and a refined level sees the buildings of the level below.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBRayMap.cpp
     # Motivation: with erf.ibseb.radiation = two_stream every face must read its own column
@@ -269,7 +269,7 @@ target_sources(${erf_exe_name}
     # boxes whose columns all differ.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBTwoStreamFaces.cpp
     # Motivation: the building faces took the air temperature and the Exner function of
-    # their fluid cell without its water vapour (erf-model/ERF#4481); they now match the
+    # their fluid cell without its water vapor (erf-model/ERF#4481); they now match the
     # two-stream column's equation of state for the same moist cell.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBMoistAir.cpp
     # Motivation: with erf.ibseb.two_stream_buildings the ground balance takes the beam
@@ -1384,7 +1384,7 @@ if(ERF_ENABLE_MPI)
     # The coefficient check and the rate maximum reduce over the ranks: check them across ranks
     target_sources(${erf_parallel_exe_name} PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMParticleMixing.cpp
-      # Mixing reads neighbours across box and rank boundaries in every stage
+      # Mixing reads neighbors across box and rank boundaries in every stage
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMMixingTransport.cpp
     )
   endif()

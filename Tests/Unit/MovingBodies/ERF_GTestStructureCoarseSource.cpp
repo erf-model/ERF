@@ -35,7 +35,7 @@ using amrex::Real;
 
 constexpr Real Lx = 1600.0, Ly = 1200.0, H = 800.0;
 
-// A basic terrain-following hill: detJ of a column is (H - h) / H, at the column's centre
+// A basic terrain-following hill: detJ of a column is (H - h) / H, at the column's center
 Real hill (Real x, Real y)
 {
     constexpr Real pi = 3.14159265358979323846;

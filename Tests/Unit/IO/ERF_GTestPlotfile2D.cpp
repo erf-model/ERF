@@ -426,7 +426,7 @@ TEST(Plotfile2DWaterPath, NearSurfaceAvailabilityIsSchemeAware)
 }
 
 // Motivation: The unified 2 m fields come from Noah-MP's native 2 m fields or,
-// without them, from the surface layer, so they must not be labelled as needing
+// without them, from the surface layer, so they must not be labeled as needing
 // a land model, while Noah-MP's own 2 m tiles remain land-surface fields.
 TEST(Plotfile2D, Unified2mFieldsAreNearSurfaceNotLandSurface)
 {

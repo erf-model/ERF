@@ -95,7 +95,7 @@ bool hits_building (const double p[3], const double s[3], double t_end, const st
 
 // The expected sunlit part of the ground view of a face at (xf, yf, zf): of its
 // hemisphere rays, those that reach the ground before a building and land in a column
-// whose centre the sun reaches.
+// whose center the sun reaches.
 void expected_ground_view (int dir, int side, double xf, double yf, double zf, int n_az, int n_el,
                            const double sun[3], const std::vector<Cells>& solid, int nx, int ny, double d, double dz,
                            int n_img, double& f_ground, double& f_lit)
@@ -136,7 +136,7 @@ void sun_vector (double zenith_deg, double azimuth_deg, double s[3])
 // the element's normal, f_ground_lit = (h / sqrt(h^2 + L^2)) / 2, of f_ground = 1 / 2. The
 // west side sees only sunlit ground. The domain is closed in x: beyond it the ground is
 // open and sunlit, as the formula has it. A second sun, lower, would throw a shadow of
-// 44 m: the shadow is taken at the centres of the columns, so the same four columns are
+// 44 m: the shadow is taken at the centers of the columns, so the same four columns are
 // shaded and the answer is that of L = 40 m; a shadow taken at the points where the rays
 // land would differ by 0.018 at 35 m.
 TEST(IBSEBGroundViewShadow, LongWallClosedForm)
@@ -229,7 +229,7 @@ TEST(IBSEBGroundViewShadow, BuildingSetAgainstTheGeometry)
         params.sw_direct_normal = dni;
         params.sw_diffuse = dif;
         params.albedo_ground = alb_g;
-        // Ten azimuths: none at 45 degrees from the axes, where a ray from the centre of a
+        // Ten azimuths: none at 45 degrees from the axes, where a ray from the center of a
         // face at height 25 m would land exactly on the line between two columns.
         params.view_n_az = 10;
         params.view_n_el = 6;
@@ -476,7 +476,7 @@ TEST(IBSEBGroundViewShadow, ShadowWalkKeepsToTheReachOfTheFace)
     HandMap h(0, 39, 40, false, 12);
     h.tower(30);
     const ibseb::RayMap& m = h.m;
-    // The sun in the east at 45 degrees: from the centre of column 22 the ray enters the
+    // The sun in the east at 45 degrees: from the center of column 22 the ray enters the
     // tower's column 75 m on, at a height of 75 m, below its top.
     const Real s = std::sqrt(Real(0.5));
     EXPECT_TRUE(ibseb::ray_blocked(Real(225.0), Real(15.0), Real(0.0), s, Real(0.0), s, m));
@@ -492,7 +492,7 @@ TEST(IBSEBGroundViewShadow, ShadowWalkKeepsToTheReachOfTheFace)
 
 // The ground a face sees takes the shadow by the walk of the ground's own shadow, from the
 // same point: inside the reach of the face, ray_blocked_near() is ray_blocked() from the
-// centre of the column's ground, for suns along the street, across it, on the diagonal
+// center of the column's ground, for suns along the street, across it, on the diagonal
 // of the columns (the ray leaves each column through its corner) and low.
 TEST(IBSEBGroundViewShadow, ShadowWalkIsTheGroundShadowsWalk)
 {
@@ -544,7 +544,7 @@ TEST(IBSEBGroundViewShadow, SameAnswerOnAPatchAndOnTheWholeDomain)
         h->tower(27, 0);
     }
     // The sun in the east, 10 degrees up: the block's shadow covers columns 22 to 26, and
-    // from the centre of column 45 the ray to the sun enters the tower at 85 at 70 m.
+    // from the center of column 45 the ray to the sun enters the tower at 85 at 70 m.
     const Real zen = Real(80.0) * amrex::Math::pi<Real>() / Real(180.0);
     const Real sx = std::sin(zen), sy = 0.0, sz = std::cos(zen);
     EXPECT_TRUE(ibseb::ray_blocked(Real(455.0), Real(15.0), Real(0.0), sx, sy, sz, whole.m));
