@@ -1777,6 +1777,8 @@ add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
 add_test_field_bounds(AnelasticInflowStratified "plt00100" theta 300.99 301.01)
 add_test_field_bounds(AnelasticInflowOutflowStratified "plt00100" theta 300.99 301.01)
 add_test_field_bounds(AnelasticInflowOutflowThetaFile "plt00100" theta 300.99 301.01)
+# A face that gives a scalar but no theta takes theta from the interior
+add_test_field_bounds(AnelasticInflowScalarOnly "plt00100" theta 299.99 300.01)
 # ... and stop on a <face>.density, on scalar planes read without density planes, and on an
 # inflow_outflow z face, which the vertical fills do not handle
 set(_anel_inflow_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticInflowStratified)
