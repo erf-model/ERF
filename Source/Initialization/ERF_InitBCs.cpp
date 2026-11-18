@@ -169,14 +169,15 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                     rho_in = zero_d;
                     amrex::Print() << "Using interior values to set conserved vars" << std::endl;
                 }
-                // Planes of theta, temperature, scalar, qv, qc or ke read without density
-                // are made conserved with this face's density, so it must be given
+                // Planes of theta, scalar, qv, qc or ke read without density are made
+                // conserved with this face's density, so it must be given (temperature
+                // without density stops already in ReadBndryPlanes)
                 if (input_bndry_planes && bc_type == "inflow" && ori.coordDir() < 2 && rho_in <= zero_d &&
                     (m_r2d->ingested_theta() || m_r2d->ingested_scalar() || m_r2d->ingested_q1() ||
                      m_r2d->ingested_q2()    || m_r2d->ingested_KE()) )
                 {
-                    Abort("erf.bndry_input_var_names reads a scalar (theta, temperature, scalar, qv, qc "
-                          "or ke) but not density, so " + pp_text + ".density must be given to convert "
+                    Abort("erf.bndry_input_var_names reads a scalar (theta, scalar, qv, qc or ke) "
+                          "but not density, so " + pp_text + ".density must be given to convert "
                           "it to conserved form; or add density to erf.bndry_input_var_names "
                           "(and to the writer's erf.bndry_output_var_names)");
                 }

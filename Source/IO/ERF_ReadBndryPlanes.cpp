@@ -277,6 +277,15 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
                         << "ingested faces, the extra ones (such as dust or smoke) included" << std::endl;
             }
         }
+        // Theta is recovered from a temperature plane through the pressure, rho R_d T, so it
+        // needs the density the writer had; a constant face density would bias theta by
+        // (rho/rho_bc)^(R_d/c_p) wherever the two differ
+        if (is_temperature_read && !is_density_read && !m_use_real_bcs) {
+            Abort("erf.bndry_input_var_names reads temperature but not density: theta cannot be "
+                  "recovered from temperature without the density planes.  Add density to "
+                  "erf.bndry_input_var_names (and to the writer's erf.bndry_output_var_names), "
+                  "or write and read theta instead of temperature");
+        }
     }
 
     // time.dat will be in the same folder as the time series of data
