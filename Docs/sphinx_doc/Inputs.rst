@@ -2775,6 +2775,18 @@ List of Parameters
 | **erf.enable_ysu_entrainment**           | YSU only: add the entrainment diffusivity at the         | Boolean            | true             |
 |                                          | first cell above the PBL top (HND06 A9-A13)              |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_ysu_cloud_pblh**            | YSU only, with a moisture model: raise the PBL-top cell  | Boolean            | true             |
+|                                          | index by one where the cloud water plus cloud ice in the |                    |                  |
+|                                          | PBL-top cell exceeds ``erf.ysu_qcloud_threshold``. The   |                    |                  |
+|                                          | PBL height in metres does not change. Applies whether    |                    |                  |
+|                                          | or not ``erf.enable_ysu_entrainment`` is set             |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.ysu_qcloud_threshold**             | YSU only: cloud water plus cloud ice [kg/kg] above which | Real               | 1.0e-4           |
+|                                          | a cell counts as cloudy, for                             |                    |                  |
+|                                          | ``erf.enable_ysu_cloud_pblh`` and for the cloud-top      |                    |                  |
+|                                          | search of ``erf.enable_ysu_topdown``; must not be        |                    |                  |
+|                                          | negative                                                 |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.ysu_moistvars**                    | YSU only: give moisture its own diffusivity, from the    | Boolean            | false            |
 |                                          | moisture Prandtl number, and add the entrainment term to |                    |                  |
 |                                          | it; false uses the heat diffusivity for moisture         |                    |                  |

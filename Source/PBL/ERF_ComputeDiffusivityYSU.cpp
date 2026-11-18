@@ -1372,9 +1372,18 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 }
 
                 entr_arr(i,j,0) = amrex::min(K_entr_final, K_cap);
+            });
 
-                // Cloud PBLH extension: check for cloud at PBL top cell and extend if present
-                if (enable_ysu_cloud_pblh && use_moisture) {
+            // Cloud PBLH extension: check for cloud at PBL top cell and extend if present.
+            // This is a kernel of its own, after the entrainment kernel: the entrainment
+            // diffusivity above is computed from the index before the extension, and the
+            // extension applies whether or not erf.enable_ysu_entrainment is set. Inside
+            // the entrainment kernel it was skipped by that kernel's early returns
+            // (erf-model/ERF#5191). A column with no Ribcr crossing already has
+            // kpbl = khi = izmax, so the extension leaves it unchanged.
+            if (enable_ysu_cloud_pblh && use_moisture) {
+                ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+                {
                     const int kpbl_current = pbli_arr(i, j, 0);
 
                     // Check for cloud condensate at PBL top cell
@@ -1388,8 +1397,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                     if ((qc_kpbl + qi_kpbl) > ysu_qcloud_threshold) {
                         pbli_arr(i, j, 0) = amrex::min(kpbl_current + 1, izmax);
                     }
-                }
-            });
+                });
+            }
         }
 
         // Compute K_down for top-down cloud-driven mixing (H10 Eq. 11)
