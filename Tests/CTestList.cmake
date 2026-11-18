@@ -1822,6 +1822,19 @@ add_test_field_bounds(PBL_NoCrossing_MRF "plt2d00002" pblh 907.1 907.3)
 # Both ends are required, so the test also fails where no trap fires (#4458)
 add_test_field_bounds(PBL_SurfaceCrossing_YSU "plt2d00002" pblh 15.99 907.3
                       MIN_HI 16.01 MAX_LO 907.1)
+# YSU PBL height over a stable sounding (theta = 300 K + 0.01 K/m z, 5 m/s), on a constant-dz
+# mesh and on a stretched mesh with ratio 1 that has the same 32 m levels.  With the height in
+# the bulk Richardson number measured from the ground, Rib_k = g z_k (theta_k - theta_1) /
+# (|U|^2 theta_1) crosses Ribcr = 0.25 at 146.3 m on both.  Before erf-model/ERF#5167 the
+# stretched mesh measured z_k from the first cell center and gave 153.6 m
+add_test_field_bounds(PBL_RibHeight_YSU "plt2d00002" pblh 146.0 146.6)
+set(TEST_FILES_DIR PBL_RibHeight_YSU)
+add_test_field_bounds(PBL_RibHeight_YSU_Stretched "plt2d00002" pblh 146.0 146.6)
+# The same over a heated surface (0.2 K m/s), where the first guess feeds the corrector:
+# 230.5 m on both meshes; 233.6 m before the fix, and 229.0 m with only the corrector fixed
+add_test_field_bounds(PBL_RibHeight_YSU_Heated "plt2d00002" pblh 230.0 231.0)
+add_test_field_bounds(PBL_RibHeight_YSU_Heated_Stretched "plt2d00002" pblh 230.0 231.0)
+unset(TEST_FILES_DIR)
 # Keys read only by the original YSU, which the former YSUNew replaced: they must stop the
 # run rather than be ignored
 add_test_abort(PBL_YSU_RemovedKey ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_NoCrossing_YSU

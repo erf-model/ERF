@@ -1375,6 +1375,8 @@ Richardson number equals the critical value, which is taken to be 0:
 
 where
 
+- :math:`z` is the height of the level above the ground, as WRF's ``za``, on every mesh type; with
+  ``erf.pbl_ib_aware`` it is measured from the top of the immersed solid in the column,
 - :math:`\theta_m` is the moist potential temperature,
 - :math:`\theta_{ma}` is the value at the lowest vertical cell in a column,
 - :math:`U = \sqrt{u^2 + v^2}` is the horizontal wind speed,

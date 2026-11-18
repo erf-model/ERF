@@ -419,8 +419,10 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
           const amrex::Real t_layer_v = t_layer * (one + epsv * q_frac);
           // On first call, vpert_arr is initialized to zero
           const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
-          const amrex::Real z_sfc     = (use_terrain_fitted_coords)
-                                      ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_sfc_arr,z_nd_arr) : zib;
+          // Rib uses the height above the ground (WRF za). zib is the column's immersed
+          // surface with erf.pbl_ib_aware and zero otherwise; that option is off on
+          // terrain-fitted meshes, where Compute_Zrel_AtCellCenter already measures from the ground
+          const amrex::Real z_sfc     = zib;
           const amrex::Real zval      = (use_terrain_fitted_coords)
                                       ? Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr)
                                       : (k + myhalf) * dz;
@@ -1044,8 +1046,10 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
           const amrex::Real t_layer_v = t_layer * (one + epsv * q_frac);
           // Now vpert_arr contains the computed thermal perturbation from the corrector pass
           const amrex::Real t_enh     = t_layer_v + vpert_arr(i,j,0);
-          const amrex::Real z_sfc     = (use_terrain_fitted_coords)
-                                      ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_sfc_arr,z_nd_arr) : zib;
+          // Rib uses the height above the ground (WRF za). zib is the column's immersed
+          // surface with erf.pbl_ib_aware and zero otherwise; that option is off on
+          // terrain-fitted meshes, where Compute_Zrel_AtCellCenter already measures from the ground
+          const amrex::Real z_sfc     = zib;
           const amrex::Real zval      = (use_terrain_fitted_coords)
                                       ? Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr)
                                       : (k + myhalf) * dz;
@@ -1188,9 +1192,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                                    : amrex::max(ws2_raw, amrex::Real(1.0));
 
                     // Elevation at level kk
-                    const Real z_sfc = (use_terrain_fitted_coords)
-                                     ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                                     : zib;
+                    // Height above the ground, as in the Rib kernels above
+                    const Real z_sfc = zib;
                     const Real zval_kk = (use_terrain_fitted_coords)
                                        ? Compute_Zrel_AtCellCenter(i, j, kk, z_sfc_arr, z_nd_arr)
                                        : (kk + myhalf) * dz;
@@ -1427,8 +1430,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 const amrex::Real zval  = (use_terrain_fitted_coords)
                                         ? Compute_Zrel_AtCellCenter(i,j,k,z_sfc_arr,z_nd_arr)
                                         : (k + myhalf) * dz;
-                const amrex::Real z_sfc = (use_terrain_fitted_coords)
-                                        ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_sfc_arr,z_nd_arr) : zib;
+                // Heights above the ground: on terrain-fitted meshes zval and pblh already are
+                const amrex::Real z_sfc = zib;
                 const amrex::Real zrel  = zval - z_sfc;
                 const amrex::Real pblh_rel = amrex::max(pblh - z_sfc, amrex::Real(1.0e-4));
 
@@ -1702,12 +1705,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                     // zq(k+1) in WRF = cell center + dz/2
                     const Real zq_kp1 = zval + myhalf * dz_terrain;
 
-                    // Step 2: Get surface height and first-level height (zl1)
-                    /*
-                    const Real z_sfc = (use_terrain_fitted_coords)
-                                     ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                                     : zib;
-                    */
+                    // Step 2: Get the first-level height (zl1)
                     const Real zl1 = (use_terrain_fitted_coords)
                                    ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                    : (ksrf + myhalf) * dz;
