@@ -422,6 +422,8 @@ ERF::ERF_shared ()
 
     rhotheta_src.resize(nlevs_max);
     rhoqt_src.resize(nlevs_max);
+    h_w_subsid.resize(nlevs_max);
+    d_w_subsid.resize(nlevs_max);
 
     // NOTE: size canopy model before readparams (if file exists, we construct)
     m_forest_drag.resize(nlevs_max);

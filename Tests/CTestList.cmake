@@ -1791,6 +1791,25 @@ add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
+# Anelastic inflow faces give theta without <face>.density: it is made conserved with the
+# base-state density at each height of a stratified column, on an Inflow face, on an
+# inflow_outflow face, and from a dirichlet_file on an inflow_outflow face (#5256)
+add_test_field_bounds(AnelasticInflowStratified "plt00100" theta 300.99 301.01)
+add_test_field_bounds(AnelasticInflowOutflowStratified "plt00100" theta 300.99 301.01)
+add_test_field_bounds(AnelasticInflowOutflowThetaFile "plt00100" theta 300.99 301.01)
+# A face that gives a scalar but no theta takes theta from the interior
+add_test_field_bounds(AnelasticInflowScalarOnly "plt00100" theta 299.99 300.01)
+# ... and stop on a <face>.density, on scalar planes read without density planes, and on an
+# inflow_outflow z face, which the vertical fills do not handle
+set(_anel_inflow_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticInflowStratified)
+add_test_abort(AnelasticInflow_FaceDensity ${_anel_inflow_dir} AnelasticInflowStratified.i
+               "xlo.density must be omitted in anelastic" "xlo.density=1.0")
+add_test_abort(AnelasticInflow_PlanesWithoutDensity ${_anel_inflow_dir} AnelasticInflowStratified.i
+               "but not density in an anelastic run"
+               "erf.input_bndry_planes=1 erf.bndry_file=NoSuchPlanes 'erf.bndry_input_var_names=velocity theta'")
+add_test_abort(InflowOutflow_ZFace ${_anel_inflow_dir} AnelasticInflowStratified.i
+               "inflow_outflow is supported on x and y faces only"
+               "zhi.type=inflow_outflow 'zhi.velocity=0 0 0'")
 # Where the flow leaves through an inflow_outflow face its ghost cells are foextrap (#5136);
 # left unfilled, they held bogus_large_value after a restart, so a restarted run differed
 add_test_restart_parity(InflowOutflow_OutflowFaceRestart InflowOutflowOutflowFace 15 30)
@@ -1809,6 +1828,11 @@ add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # profiles, and its first advance read an empty vector (erf-model/ERF#5143).  By step 8 the
 # start-up adjustment reaches 8.61 m/s, so the upper bound is looser than InputSponge_FinePatch's
 add_test_field_bounds(InputSponge_NewLevel "plt00008" x_velocity 5.9 9.0)
+# Custom rhotheta, moisture and subsidence forcing (a cut-down Bomex) on a level that a regrid
+# makes at t = 0.9 and remakes on larger grids at t = 2.1: the forcing was built only at
+# start-up, so the new level had null sources and the remade level kept them on its old grids
+# (erf-model/ERF#5151).  advance_dycore aborts if the forcing is not on the level's grids
+add_test_field_bounds(CustomForcing_RegridNewLevel "plt00010" theta 297.0 317.0)
 # Rayleigh damping toward an input sounding on a level that a regrid remakes at t = 10: its
 # targets were reset to the problem defaults (300 K, U = V = 0), and theta in the damping layer
 # was relaxed toward 300 K instead of the sounding's 309 to 310 K (erf-model/ERF#5142)
@@ -2555,6 +2579,20 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   add_test_tagging(Tagging_MovingBox_TwoIntervals ""
       "max_step=7 erf.regrid_int=1 erf.plot_int_1=7 amr.max_level=1 erf.refinement_indicators=crit erf.crit.field_name=density erf.crit.value_greater=0 'erf.crit.in_box_lo=-2000 0' 'erf.crit.in_box_hi=2000 100' 'erf.crit.move_start_time=0 3' 'erf.crit.move_stop_time=2 5' 'erf.crit.move_speed_x=400 -200' 'erf.crit.move_speed_y=0 0'"
       "00007" "--cond density ge 0 --box -1600 2400 0 100")
+  # adjacent_difference_greater on theta, which is computed only on the cells of the level: with
+  # amr.max_grid_size = 16 level 0 is split in x and z, and the bubble crosses the box faces at
+  # x = 0. A cell on a box face must be compared with the neighboring box's cell, a cell on a
+  # non-periodic domain face with nothing beyond it, and in y with its periodic image.  Before
+  # #5222 every box face and domain face was tagged, against the zeroed ghost cells (#5183)
+  add_test_tagging(Tagging_AdjacentDifference_Theta "amr.max_level=0"
+      "amr.max_level=1 amr.max_grid_size=16 erf.refinement_indicators=crit erf.crit.field_name=theta erf.crit.adjacent_difference_greater=1.0"
+      "00000" "--cond theta adj 1.0 --periodic 0 1 0")
+  # The same on density, whose ghost cells hold the FillPatched state; this deck's boundary
+  # conditions repeat the cell next to the boundary, so the expected tags are the same as for a
+  # field computed only on the cells of the level
+  add_test_tagging(Tagging_AdjacentDifference_Density "amr.max_level=0"
+      "amr.max_level=1 amr.max_grid_size=16 erf.refinement_indicators=crit erf.crit.field_name=density erf.crit.adjacent_difference_greater=0.02"
+      "00000" "--cond density adj 0.02 --periodic 0 1 0")
 endif()
 add_test_r(Terrain2Lev_STF_interp           ""  "erf_exec" "plt00010")
 add_test_r(Terrain2Lev_STF_transform         ""  "erf_exec" "plt00010")

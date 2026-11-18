@@ -58,6 +58,7 @@ double ERF::stop_time     = std::numeric_limits<double>::max();
 #ifdef ERF_USE_NETCDF
 double ERF::start_bdy_time     =  0.0;
 double ERF::final_bdy_time     = -1.0;
+bool   ERF::use_theta_m_bdy    = false;
 
 double ERF::start_low_time     =  0.0;
 double ERF::final_low_time     = -1.0;
@@ -1284,7 +1285,7 @@ ERF::InitData_post ()
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                                       start_bdy_time, final_bdy_time);
+                                                       start_bdy_time, final_bdy_time, use_theta_m_bdy);
 
             double time_since_start_bdy = t_new[0] + (start_time - start_bdy_time);
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
@@ -1299,7 +1300,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             }
 
@@ -1312,7 +1313,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             } // itime
         } // use_real_bcs
@@ -1379,26 +1380,10 @@ ERF::InitData_post ()
         m_r2d->read_input_files(t_new[0]+start_time,dt_dummy,m_bc_extdir_vals);
     }
 
-    if (solverChoice.custom_rhotheta_forcing)
-    {
-        rhotheta_src.resize(max_level+1);
-        for (int lev = 0; lev <= finest_level; lev++) {
-            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
-            for (auto& b : bl_src) {
-                if (!solverChoice.spatial_rhotheta_forcing)
-                {
-                    // source is only defined in Z
-                    b.setRange(0, 0, 1);
-                    b.setRange(1, 0, 1);
-                }
-            }
-            BoxArray ba_src(std::move(bl_src));
-            rhotheta_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
-            rhotheta_src[lev]->setVal(0.);
-            prob->update_rhotheta_sources(t_new[0],
-                                          rhotheta_src[lev].get(),
-                                          geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
-        }
+    // The custom rhotheta, moisture and subsidence forcing of each level; a level made or
+    //    remade later by a regrid builds its own (MakeNewLevelFromCoarse, RemakeLevel)
+    for (int lev = 0; lev <= finest_level; lev++) {
+        init_custom_forcing(lev, t_new[0]);
     }
 
     if (solverChoice.have_geo_wind_profile)
@@ -1435,42 +1420,6 @@ ERF::InitData_post ()
                                       geom[lev],
                                       zlevels_stag[lev]);
             }
-        }
-    }
-
-    if (solverChoice.custom_moisture_forcing)
-    {
-        rhoqt_src.resize(max_level+1);
-        for (int lev = 0; lev <= finest_level; lev++) {
-            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
-            for (auto& b : bl_src) {
-                if (!solverChoice.spatial_moisture_forcing)
-                {
-                    // source is only defined in Z
-                    b.setRange(0, 0, 1);
-                    b.setRange(1, 0, 1);
-                }
-            }
-            BoxArray ba_src(std::move(bl_src));
-            rhoqt_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
-            rhoqt_src[lev]->setVal(0.);
-            prob->update_rhoqt_sources(t_new[0],
-                                       rhoqt_src[lev].get(),
-                                       geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
-        }
-    }
-
-    if (solverChoice.custom_w_subsidence)
-    {
-        h_w_subsid.resize(max_level+1, Vector<Real>(0));
-        d_w_subsid.resize(max_level+1, Gpu::DeviceVector<Real>(0));
-        for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
-            h_w_subsid[lev].resize(domlen, 0.0_rt);
-            d_w_subsid[lev].resize(domlen, 0.0_rt);
-            prob->update_w_subsidence(t_new[0],
-                                      h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
-                                      geom[lev], z_phys_nd[lev], zlevels_stag[lev]);
         }
     }
 
@@ -5345,4 +5294,64 @@ ERF::use_eb_surface_layer () const
 {
     return solverChoice.terrain_type == TerrainType::EB &&
            solverChoice.ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer;
+}
+
+/**
+ * Build the custom rhotheta, moisture and subsidence forcing of one level on its current grids,
+ * and fill it at the given time.  Called for every level in InitData_post, and for a level made
+ * or remade by a regrid: the forcing sources live on the level's BoxArray and
+ * DistributionMapping, and SHOC reads the subsidence profile before advance_dycore updates it.
+ *
+ * The geostrophic profile instead is sized for every level up to max_level in InitData_post and
+ * filled in a new level's first advance_dycore.  That cannot work here: the sources need the
+ * level's grids, and the subsidence profile is read by SHOC before advance_dycore and may read
+ * the level's base_state.
+ *
+ * On return the host and device subsidence profiles have length domain length + 1 and hold
+ * whatever update_w_subsidence wrote, zero where it wrote nothing.
+ *
+ * @param[in] lev  level
+ * @param[in] time time at which the forcing is evaluated
+ */
+void
+ERF::init_custom_forcing (int lev, Real time)
+{
+    // The source is only defined in z unless it is spatial
+    auto source_ba = [&] (bool spatial) {
+        BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
+        if (!spatial) {
+            for (auto& b : bl_src) {
+                b.setRange(0, 0, 1);
+                b.setRange(1, 0, 1);
+            }
+        }
+        return BoxArray(std::move(bl_src));
+    };
+
+    if (solverChoice.custom_rhotheta_forcing) {
+        rhotheta_src[lev] = std::make_unique<MultiFab>(source_ba(solverChoice.spatial_rhotheta_forcing),
+                                                       vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+        rhotheta_src[lev]->setVal(0.);
+        prob->update_rhotheta_sources(time, rhotheta_src[lev].get(),
+                                      geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
+    }
+
+    if (solverChoice.custom_moisture_forcing) {
+        rhoqt_src[lev] = std::make_unique<MultiFab>(source_ba(solverChoice.spatial_moisture_forcing),
+                                                    vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+        rhoqt_src[lev]->setVal(0.);
+        prob->update_rhoqt_sources(time, rhoqt_src[lev].get(),
+                                   geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
+    }
+
+    if (solverChoice.custom_w_subsidence) {
+        const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
+        h_w_subsid[lev].assign(domlen, 0.0_rt);
+        // Zero the device copy too: on a remake resize alone would keep the old profile
+        d_w_subsid[lev].resize(domlen);
+        Gpu::copy(Gpu::hostToDevice, h_w_subsid[lev].begin(), h_w_subsid[lev].end(),
+                  d_w_subsid[lev].begin());
+        prob->update_w_subsidence(time, h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
+                                  geom[lev], z_phys_nd[lev], zlevels_stag[lev]);
+    }
 }
