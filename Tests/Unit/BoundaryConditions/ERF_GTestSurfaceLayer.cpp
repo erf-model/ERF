@@ -2627,7 +2627,7 @@ TEST(SurfaceLayer, WstarIgnoresUndiagnosedPblh)
 
 // Motivation (#4295): the PBL schemes hand over their height without ghost cells, and a
 // lateral ghost cell left at the placeholder gave w* ~ 1e50 in the column next to it.  Every
-// ghost cell must end up with a diagnosed height: the neighboring grid's where there is one,
+// ghost cell must end up with a diagnosed height: the neighbouring grid's where there is one,
 // and the edge of the domain's outside it.
 TEST(SurfaceLayer, SetPblhFillsEveryGhostCell)
 {
@@ -2803,7 +2803,7 @@ TEST(SurfaceLayer, ConstantSurfaceCurrentMovesOnlyWater)
     EXPECT_EQ(mf_value(cy, IntVect(4, 3, k)), Real(0.0));   // over land
 }
 
-// A coupled current arrives as east and north components at the cell centers; the faces take
+// A coupled current arrives as east and north components at the cell centres; the faces take
 // it on the grid axes where the cells on both sides are water and covered by the ocean.
 TEST(SurfaceLayer, CoupledSurfaceCurrentIsTurnedToTheGridOverCoveredWater)
 {

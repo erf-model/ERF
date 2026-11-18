@@ -23,7 +23,7 @@
 // kept its drag the solid faces would be dragged twice; if it dropped the wall law the walls would
 // lose their log-law target. The last test checks that the drag the kernels drop is, face by
 // face, the weight the projection reads through ERF_ImmersedBuildingMasks.H, with and without the
-// snap of the partial cells and with and without face-centered blanking.
+// snap of the partial cells and with and without face-centred blanking.
 
 using namespace amrex;
 
@@ -68,7 +68,7 @@ AMREX_GPU_HOST_DEVICE inline Real building_beta (int i, int j, int k)
     return fx * fy * fz;
 }
 
-// A face-centered blanking that differs from the mean of the two cells: the exact solid fraction of
+// A face-centred blanking that differs from the mean of the two cells: the exact solid fraction of
 // the face of the box (x from 25 to 55 m, y from 20 to 45 m, z up to 35 m), so a face at the edge
 // of a half cell is open where the cell mean is a quarter, and the south wall face is solid
 AMREX_GPU_HOST_DEVICE inline Real building_face_beta (int i, int j, int k, int dir)
@@ -212,7 +212,7 @@ SolverChoice make_choice (bool implicit_projection, bool use_most)
 }
 
 // The classes of faces of the building above, from the kernels' conditions (dir 0: lo/hi are the
-// south/north neighbors). law: the wall law alone (a horizontal wall-law face carries no linear
+// south/north neighbours). law: the wall law alone (a horizontal wall-law face carries no linear
 // drag); law_and_drag: a z-face on the roof row that carries a side wall law and the blanked roof
 // drag together; unforced: a partial z-face under MOST with neither (not a side, not under fluid),
 // which the kernels leave alone on both paths
@@ -357,7 +357,7 @@ TEST(ImmersedBuildingImplicit, KernelsAddNothingWithoutTheWallLaw)
 // the projection reads through the shared header times rho CdM |u| u_n (the kernels' explicit
 // drag with erf.if_implicit_drag = false and the forcing on the substep, so no limiter and no
 // point-implicit rescale), and a face with raw blanking 1 loses the wall law too. Four readings
-// of the blanking: with and without the snap, with and without face-centered arrays.
+// of the blanking: with and without the snap, with and without face-centred arrays.
 TEST(ImmersedBuildingImplicit, DroppedDragIsTheProjectionWeightOnEveryFace)
 {
     const Mesh m = make_mesh();
