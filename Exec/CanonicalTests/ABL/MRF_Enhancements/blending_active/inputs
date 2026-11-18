@@ -1,4 +1,4 @@
-# MRF scale-aware blending active at grey-zone resolution.
+# MRF scale-aware blending active at gray-zone resolution.
 #
 # Domain: 3000x3000x1024 m, 8x8x64 cells -> dx = 375 m.
 # pbl_blend_length = 750 m.

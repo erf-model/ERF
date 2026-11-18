@@ -95,7 +95,7 @@ The slow time step can be explicitly fixed using erf.fixed\_dt. The relationship
 
 The spatial discretization of advective fluxes heavily impacts both numerical stability and the resolution of turbulent features. The erf.dycore\_horiz\_adv\_type and erf.dycore\_vert\_adv\_type parameters assign the spatial differencing schemes for dynamical core variables. Available schemes range from basic Centered\_2nd and Upwind\_3rd to sophisticated weighted essentially non-oscillatory (WENO) variants such as WENO3, WENO5, WENOZ5, and WENOMZQ3.
 
-If high-order central differencing (e.g., Centered\_6th) is selected, the lack of inherent upwinding mandates the application of explicit numerical diffusion to prevent non-physical high-frequency noise from destabilizing the domain. This is achieved by applying a diffusion coefficient erf.num_diff_coeff \= 0.05.
+If high-order central differencing (e.g., Centered\_6th) is selected, the lack of inherent upwinding leaves non-physical high-frequency noise undamped. The 6th-order numerical diffusion (erf.num\_diff\_coeff) is currently deactivated, and ERF aborts if it is set to a nonzero value, so an upwind scheme (e.g., Upwind\_5th horizontal, Upwind\_3rd vertical) is the recommended remedy.
 
 ### **3.2 Buoyancy Formulations (erf.buoyancy\_type)**
 
@@ -271,8 +271,8 @@ Atmospheric solvers exhibit intricate operational fragility. ERF failure modalit
 ### **6.4 Numerical Instability and High-Frequency Noise**
 
 * **Symptom**: The simulation does not crash mathematically (no NaNs), but visualizations reveal severe, non-physical numerical noise propagating through the free atmosphere.  
-* **Trigger**: The user has configured a high-order central differencing scheme (e.g., erf.dycore\_horiz\_adv\_type \= "Centered\_6th") without supplying requisite numerical diffusion to damp grid-scale oscillations.  
-* **Resolution**: Instruct the user to inject artificial diffusion by setting erf.num_diff_coeff \= 0.05. Alternatively, recommend switching to an inherently dissipative upwind scheme (e.g., "Upwind\_5th").
+* **Trigger**: The user has configured a high-order central differencing scheme (e.g., erf.dycore\_horiz\_adv\_type \= "Centered\_6th") with nothing to damp grid-scale oscillations.  
+* **Resolution**: Recommend switching to an inherently dissipative upwind scheme (e.g., "Upwind\_5th"). Do not suggest erf.num\_diff\_coeff: the 6th-order numerical diffusion is currently deactivated and ERF aborts if it is nonzero.
 
 ## **7\) Evidence Requirements (what to ask the user for)**
 

@@ -3,7 +3,7 @@
 # The flat.i moist ABL over an immersed plane on the cell face z = 0, two dry solid rows (0 g/kg)
 # below it, with the same surface fluxes through the fraction-stress wall law (erf.if_surf_temp_flux
 # and erf.if_surf_moist_flux); otherwise as flat.i (see its header). The wall moisture flux -u* q*
-# goes to the water vapour of the wall cell, the Obukhov length is formed from theta_v and theta_v*
+# goes to the water vapor of the wall cell, the Obukhov length is formed from theta_v and theta_v*
 # and the moist TKE buoyancy reads the wall moisture flux on the wall face, so the profiles over
 # the plane match flat ground. Tests/RunImmersedFlatEquivalence.cmake runs both decks and compares
 # the horizontally averaged profiles with Tests/ImmersedFlatEquivalenceCheck.cpp.

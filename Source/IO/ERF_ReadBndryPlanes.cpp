@@ -277,6 +277,15 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
                         << "ingested faces, the extra ones (such as dust or smoke) included" << std::endl;
             }
         }
+        // Theta is recovered from a temperature plane through the pressure, rho R_d T, so it
+        // needs the density the writer had; a constant face density would bias theta by
+        // (rho/rho_bc)^(R_d/c_p) wherever the two differ
+        if (is_temperature_read && !is_density_read && !m_use_real_bcs) {
+            Abort("erf.bndry_input_var_names reads temperature but not density: theta cannot be "
+                  "recovered from temperature without the density planes.  Add density to "
+                  "erf.bndry_input_var_names (and to the writer's erf.bndry_output_var_names), "
+                  "or write and read theta instead of temperature");
+        }
     }
 
     // time.dat will be in the same folder as the time series of data
@@ -494,16 +503,20 @@ void ReadBndryPlanes::read_file (const int idx,
         }
     }
 
-    // Read density for primitive to conserved conversions
-    std::string filenamer = MultiFabFileFullPrefix(lev, chkname1, level_prefix, "density");
+    // Read density for primitive to conserved conversions.  Only when density is read: the
+    // writer writes only the variables it lists, so the planes may hold no density, and then
+    // the conversions below use the erf.<face>.density BC value instead.
     BndryRegister bndry_r(ba, dm, m_in_rad, m_out_rad, m_extent_rad, 1);
     bndry_r.setVal(bogus_large_value);
-    for (OrientationIter oit; oit != nullptr; ++oit) {
-          auto ori = oit();
-          if (ori.coordDir() < 2) {
-              std::string facenamer = Concatenate(filenamer + '_', ori, 1);
-              bndry_r[ori].read(facenamer);
-          }
+    if (n_for_density >= 0) {
+        std::string filenamer = MultiFabFileFullPrefix(lev, chkname1, level_prefix, "density");
+        for (OrientationIter oit; oit != nullptr; ++oit) {
+              auto ori = oit();
+              if (ori.coordDir() < 2) {
+                  std::string facenamer = Concatenate(filenamer + '_', ori, 1);
+                  bndry_r[ori].read(facenamer);
+              }
+        }
     }
 
     // A moist writer computes the temperature plane with qv (erf_dermoisttemp), so the conversion
@@ -649,7 +662,7 @@ void ReadBndryPlanes::read_file (const int idx,
                                             bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                    }
-                } else if (!ingested_density()) {
+                } else {
                   if (var_name == "temperature") {
                     ParallelFor(
                         bx_ghost, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -723,7 +736,7 @@ void ReadBndryPlanes::read_file (const int idx,
                                                 bndry_read_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2], 0));
                             });
                     }
-                } else if (!ingested_density()) {
+                } else {
                     if (var_name == "temperature") {
                         ParallelFor(
                             bx_int, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {

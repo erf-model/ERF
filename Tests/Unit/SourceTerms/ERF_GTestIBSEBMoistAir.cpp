@@ -23,12 +23,12 @@
 #include "ERF_TwoStreamColumn.H"
 
 // The building faces read the air temperature and the Exner function of their fluid cell
-// from the state. With a moisture model these take the cell's water vapour through the
+// from the state. With a moisture model these take the cell's water vapor through the
 // equation of state, as the two-stream column does (get_qv_from_state()); without one they
-// take none (erf-model/ERF#4481). The density, potential temperature and vapour differ in
+// take none (erf-model/ERF#4481). The density, potential temperature and vapor differ in
 // every cell and the level is split into four boxes, so a face that read another cell, or
-// left out the vapour, would get another number. The column next to the block's west wall
-// holds a small negative vapour (an advection undershoot), which both read as zero.
+// left out the vapor, would get another number. The column next to the block's west wall
+// holds a small negative vapor (an advection undershoot), which both read as zero.
 
 namespace {
 
@@ -123,7 +123,7 @@ void check_faces (const std::string& lw_mode, bool moist, int& n_faces, Real& ma
     const DistributionMapping dm(ba);
     MultiFab blank(ba, dm, 1, 1);
     fill_blanking(blank, geom);
-    // Without a moisture model the state has no vapour component at all.
+    // Without a moisture model the state has no vapor component at all.
     MultiFab cons(ba, dm, moist ? RhoQ2_comp + 1 : RhoTheta_comp + 1, 0);
     fill_state(cons, moist);
     MultiFab xvel(convert(ba, IntVect(1, 0, 0)), dm, 1, 0); xvel.setVal(2.0);
@@ -192,8 +192,8 @@ TEST(IBSEBMoistAir, GrayLongwaveTakesTheVapour)
 {
     int n = 0, n_clip = 0; Real dT = 0.0;
     check_faces("gray", true, n, dT, n_clip);
-    // Not vacuous: many faces, a vapour that moves the air temperature by kelvins, and
-    // faces on the column whose vapour is negative.
+    // Not vacuous: many faces, a vapor that moves the air temperature by kelvins, and
+    // faces on the column whose vapor is negative.
     EXPECT_GT(n, 30);
     EXPECT_GT(dT, Real(1.0));
     EXPECT_GT(n_clip, 2);
@@ -208,7 +208,7 @@ TEST(IBSEBMoistAir, TwoStreamLongwaveTakesTheVapour)
     EXPECT_GT(n_clip, 2);
 }
 
-// No moisture model: the state has no vapour component, and the faces must not read one.
+// No moisture model: the state has no vapor component, and the faces must not read one.
 TEST(IBSEBMoistAir, DryStateHasNoVapour)
 {
     int n = 0, n_clip = 0; Real dT = 0.0;

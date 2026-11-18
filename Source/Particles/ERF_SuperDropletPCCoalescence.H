@@ -51,6 +51,36 @@ struct CollisionKernel
         return b * (X_1 + X_2);
     }
 
+    /*! \brief Relative speed of two particles for the gravitational kernels: the radial
+     *         component (the full relative speed for coincident pairs) or the full relative speed */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT relativeSpeed ( const RT* const a_v1,
+                       const RT* const a_v2,
+                       const RT* const a_x1,
+                       const RT* const a_x2,
+                       const SDKernelRelativeVelocityType a_vel_type ) const noexcept
+    {
+        RT dv = 0;
+        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
+            RT dr = 0, dv2 = 0;
+            for (int d = 0; d < SPACEDIM; d++) {
+                const RT ddv = a_v1[d]-a_v2[d];
+                const RT ddx = a_x1[d]-a_x2[d];
+                dv  += ddv*ddx;
+                dr  += ddx*ddx;
+                dv2 += ddv*ddv;
+            }
+            // radial component; fall back to the full relative speed for coincident pairs
+            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
+        } else {
+            for (int d = 0; d < SPACEDIM; d++) {
+                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+            }
+            dv = std::sqrt(dv);
+        }
+        return dv;
+    }
+
     /* The following code is adapted from SCALE-SDM:
      * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief Calculate collision kernel for gravitational sedimentation
@@ -80,26 +110,23 @@ struct CollisionKernel
         auto p = std::min(a_r1,a_r2) / std::max(a_r1,a_r2);
         auto E = RT(0.5)*p*p / ((RT(1.0)+p)*(RT(1.0)+p));
 
-        RT dv = 0;
-        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
-            RT dr = 0, dv2 = 0;
-            for (int d = 0; d < SPACEDIM; d++) {
-                const RT ddv = a_v1[d]-a_v2[d];
-                const RT ddx = a_x1[d]-a_x2[d];
-                dv  += ddv*ddx;
-                dr  += ddx*ddx;
-                dv2 += ddv*ddv;
-            }
-            // radial component; fall back to the full relative speed for coincident pairs
-            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
-        } else {
-            for (int d = 0; d < SPACEDIM; d++) {
-                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
-            }
-            dv = std::sqrt(dv);
-        }
+        const RT dv = relativeSpeed(a_v1, a_v2, a_x1, a_x2, a_vel_type);
 
         return PI*(a_r1+a_r2)*(a_r1+a_r2)*E*dv;
+    }
+
+    /*! \brief Geometric kernel: the sedimentation kernel with collision efficiency 1,
+     *         pi (r1+r2)^2 |v1-v2|, as PySDM's Geometric() */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT geometric ( const RT a_r1,
+                   const RT a_r2,
+                   const RT* const a_v1,
+                   const RT* const a_v2,
+                   const RT* const a_x1,
+                   const RT* const a_x2,
+                   const SDKernelRelativeVelocityType a_vel_type ) const noexcept
+    {
+        return PI*(a_r1+a_r2)*(a_r1+a_r2)*relativeSpeed(a_v1, a_v2, a_x1, a_x2, a_vel_type);
     }
 
     /* The following code is adapted from SCALE-SDM:
@@ -141,24 +168,7 @@ struct CollisionKernel
         }
         c_rate *= (PI*sumr*sumr);
 
-        RT dv = 0;
-        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
-            RT dr = 0, dv2 = 0;
-            for (int d = 0; d < SPACEDIM; d++) {
-                const RT ddv = a_v1[d]-a_v2[d];
-                const RT ddx = a_x1[d]-a_x2[d];
-                dv  += ddv*ddx;
-                dr  += ddx*ddx;
-                dv2 += ddv*ddv;
-            }
-            // radial component; fall back to the full relative speed for coincident pairs
-            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
-        } else {
-            for (int d = 0; d < SPACEDIM; d++) {
-                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
-            }
-            dv = std::sqrt(dv);
-        }
+        const RT dv = relativeSpeed(a_v1, a_v2, a_x1, a_x2, a_vel_type);
 
         return c_rate*dv;
     }
@@ -333,24 +343,7 @@ struct CollisionKernel
         }
         c_rate *= (PI*sumr*sumr);
 
-        RT dv = 0;
-        if (a_vel_type == SDKernelRelativeVelocityType::radial_velocity) {
-            RT dr = 0, dv2 = 0;
-            for (int d = 0; d < SPACEDIM; d++) {
-                const RT ddv = a_v1[d]-a_v2[d];
-                const RT ddx = a_x1[d]-a_x2[d];
-                dv  += ddv*ddx;
-                dr  += ddx*ddx;
-                dv2 += ddv*ddv;
-            }
-            // radial component; fall back to the full relative speed for coincident pairs
-            dv = (dr > RT(0)) ? std::abs(dv) / std::sqrt(dr) : std::sqrt(dv2);
-        } else {
-            for (int d = 0; d < SPACEDIM; d++) {
-                dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
-            }
-            dv = std::sqrt(dv);
-        }
+        const RT dv = relativeSpeed(a_v1, a_v2, a_x1, a_x2, a_vel_type);
 
         return c_rate*dv;
     }

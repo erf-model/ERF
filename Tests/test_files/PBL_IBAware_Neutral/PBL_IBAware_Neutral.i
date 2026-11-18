@@ -1,6 +1,6 @@
-# Decomposition parity of YSUNew with PBL-height smoothing over a neutral
+# Decomposition parity of YSU with PBL-height smoothing over a neutral
 # surface (erf-model/ERF#4479), based on inputs_base of
-# Exec/RegTests/ImmersedForcingTest/PBL_IBAware (one 32 x 32 box, YSUNew,
+# Exec/RegTests/ImmersedForcingTest/PBL_IBAware (one 32 x 32 box, YSU,
 # 10 steps, 2D output added), run tiled and untiled by
 # Tests/RunTilingParity.cmake and on one box and on 16 by
 # Tests/RunBoxParity.cmake. The ground is neutral (300 K under a 300 K
@@ -50,7 +50,7 @@ eb2.small_volfrac = 0.005
 erf.if_use_most = true
 erf.if_z0 = 0.01
 erf.use_coriolis = false
-erf.pbl_type = YSUNew
+erf.pbl_type = YSU
 erf.pbl_ib_aware = true
 erf.pbl_ib_z0 = 0.01
 erf.enable_pblh_smoothing = true

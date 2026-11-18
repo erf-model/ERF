@@ -19,7 +19,7 @@ using namespace amrex;
 // with K_h != K_v.  erf-model/ERF#4214 reported two defects:
 //   1. the zeta-face stresses tau13/tau23 applied K_v (Mom_v) to the projected
 //      horizontal stresses h*S11, h*S12 (non-symmetric, anti-diffusive when K_h h^2 > 2 K_v);
-//   2. the cell-centred du/dz (dv/dz) in the S11 (S22) metric term used the faces
+//   2. the cell-centered du/dz (dv/dz) in the S11 (S22) metric term used the faces
 //      i-1 and i (j-1 and j) instead of i and i+1 (j and j+1).
 // The exact-answer test catches both; the energy test catches the first.
 
@@ -49,7 +49,7 @@ window (Real s, Real m, Real L) noexcept
   return t*t;
 }
 
-// Bilinear velocity field in index-space coordinates (metres):
+// Bilinear velocity field in index-space coordinates (meters):
 //   u = a0 x + a1 y + a2 zeta + a3 x zeta,  v = b0 x + b1 y + b2 zeta + b3 y zeta,  w = c3 * window
 struct Coeffs {
   Real a[4];
@@ -190,7 +190,7 @@ struct TerrainStressCase
 
   // Smoothly non-uniform K_h and K_v (varying in x, y and zeta, so that averages over different
   // cells differ) and map factors: m_x and m_y are different smooth functions of position, each
-  // evaluated where its array lives (cell centre, u face, v face), so that any mix-up between
+  // evaluated where its array lives (cell center, u face, v face), so that any mix-up between
   // the six map-factor arrays changes the answer
   void vary_kv_and_map_factors ()
   {
@@ -200,7 +200,7 @@ struct TerrainStressCase
       mu(i,j,k,EddyDiff::Mom_h) = lKh * (Real(0.6) + Real(0.4)*std::sin(Real(1.1)*Real(i) + Real(0.3)*Real(j) + Real(0.8)*Real(k)));
       mu(i,j,k,EddyDiff::Mom_v) = lKv * (Real(0.75) + Real(0.25)*std::sin(Real(0.9)*Real(i) + Real(0.7)*Real(j) + Real(0.5)*Real(k)));
     });
-    // positions in cell units: cell centre (i+1/2, j+1/2), u face (i, j+1/2), v face (i+1/2, j)
+    // positions in cell units: cell center (i+1/2, j+1/2), u face (i, j+1/2), v face (i+1/2, j)
     const Real ox[3] = {Real(0.5), Real(0.0), Real(0.5)}, oy[3] = {Real(0.5), Real(0.5), Real(0.0)};
     FArrayBox* fx[3] = {&mf_mx, &mf_ux, &mf_vx};
     FArrayBox* fy[3] = {&mf_my, &mf_uy, &mf_vy};
@@ -506,7 +506,7 @@ const Coeffs bilinear_coeffs{ {Real(1.e-3), Real(-2.e-3), Real(0.02), Real(1.e-5
 // velocity, every second-order stencil is exact, so the stresses must equal the closed form
 //   tau11 = -2 K_h S11,  tau13 = -(2 K_v S13 - 2 K_h (h_xi S11 + h_eta S12))  (and tau22, tau23).
 // The old K_v projection is off by 2 (K_h - K_v) h S11 (~0.8 here); the old one-cell
-// offset in the cell-centred du/dz is off by K_h h^2 a3 dx (~0.01 in tau13, 0.0048 in tau11).
+// offset in the cell-centered du/dz is off by K_h h^2 a3 dx (~0.01 in tau13, 0.0048 in tau11).
 // Bottom, top and interior tau13/tau23 blocks are all checked.
 TEST(TerrainStress, ExactStressesOnTiltedMeshWithAnisotropicK)
 {
@@ -529,7 +529,7 @@ TEST(TerrainStress, ExactStressesOnTiltedMeshWithAnisotropicK)
   const Real tol = tol_for_scale(Real(1.0));
   int n11 = 0, n13 = 0, n23 = 0;
 
-  // tau11, tau22 at cell centres (valid cells)
+  // tau11, tau22 at cell centers (valid cells)
   LoopOnCpu(c.valid, [&] (int i, int j, int k) {
     const Real x = (Real(i)+Real(0.5))*c.dx, y = (Real(j)+Real(0.5))*c.dy, zeta = (Real(k)+Real(0.5))*c.dz;
     EXPECT_NEAR(t11(i,j,k), -Real(2.0)*Kh*ex.S11(x,zeta), tol) << "tau11 at " << i << " " << j << " " << k;
@@ -566,7 +566,7 @@ TEST(TerrainStress, ExactStressesOnTiltedMeshWithAnisotropicK)
 // Motivation (#4214, defect 1): the discrete operator must dissipate kinetic energy for
 // constant K and any velocity. With compact-support fields summation by parts gives
 //   sum(u . RHS) = -[2 K_h sum(S11^2 + S22^2 + 2 S12^2) + K_v (...)] <= 0
-// only when the zeta flux uses K_h on the projected terms (and the cell-centred du/dz is the
+// only when the zeta flux uses K_h on the projected terms (and the cell-centered du/dz is the
 // average of the four edges around the cell). The first two modes are the oblique waves the
 // old K_v form anti-diffuses (dx u / dz u ~ (K_h+K_v) h / (2 K_h), K_h h^2 = 16 > 2 K_v):
 // rate/scale is -0.195 with the fix and +0.040 with the K_v form for both.
@@ -605,7 +605,7 @@ TEST(TerrainStress, ConstantKOperatorDissipatesEnergyOnSlopes)
 // ground, so the zeta flux must dissipate energy for variable K_h as well.  Summation by parts
 // gives -[2 sum K_h(S11^2 + ...) + ...] <= 0 exactly when the projected terms average the
 // K_h-weighted stresses (K_h S11 at the cells, K_h S12 at the edges) to the zeta edge, the
-// transpose of the cell-centred metric term in tau11.
+// transpose of the cell-centered metric term in tau11.
 TEST(TerrainStress, VariableKOperatorDissipatesEnergyOnSlopes)
 {
   const Real sx = Real(0.4), sy = Real(-0.4), Kh = Real(100.0), Kv = Real(1.0);
@@ -898,7 +898,7 @@ TEST(TerrainStress, CurvedSlopeOperatorHasNoGrowingMode)
 // strain kernel uses -- the split changes the operator whatever the time step.  With the
 // correction taken from the kernels, one stage must therefore return the state unchanged, on
 // curved terrain that decays with height (h_zeta varies non-linearly along the column's
-// neighbours), with and without the terrain-metric term, with K_h, K_v and the map factors
+// neighbors), with and without the terrain-metric term, with K_h, K_v and the map factors
 // varying from cell to cell, and with the column starting at the domain bottom or two cells up
 // (the coarse/fine bottom row).  The ext_dir wall and surface-layer rows are not covered: the
 // wall uses a different stencil on the two sides, and the surface layer prescribes the flux.
@@ -1039,7 +1039,7 @@ Mat solve_dense (Mat m, Mat b, int n)
   }
   return b;
 }
-// Spectral radius from ||G^(2^s)||^(1/2^s) (Frobenius norm, renormalised each squaring)
+// Spectral radius from ||G^(2^s)||^(1/2^s) (Frobenius norm, renormalized each squaring)
 double spectral_radius (Mat g, int n)
 {
   double logn = 0.0, scale = 1.0;

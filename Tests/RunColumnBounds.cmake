@@ -1,10 +1,15 @@
-# Run one ERF deck and require, in the vertical column through the centre of the domain, every
+# Run one ERF deck and require, in the vertical column through the center of the domain, every
 # cell at or above Z_MIN to lie within [LO, HI] for each listed plotfile variable.  Cells below
 # Z_MIN are skipped, so a deck can keep a wall at the bottom (the RANS wall distance needs one)
 # while the check covers only the cells its influence has not reached.
 # Arguments (-D): MPIEXEC, MPIEXEC_NUMPROC_FLAG, MPIEXEC_PREFLAGS, NRANKS, TEST_EXE, INPUT,
 # WORKING_DIRECTORY, FEXTRACT, PLTFILE, Z_MIN, VARIABLES, LOS, HIS (the last three are
 # comma-separated lists of the same length; a ';' would split the add_test argument).
+# Optional: Z_MAX skips the cells above it as well, so that a check can single out one cell
+# or one layer of the column; N_CELLS is the number of cells the check must cover, so that a
+# change of the grid cannot widen or narrow it without notice; OPTIONS is a space-separated
+# list of inputs appended to the command line, so that several tests can run one deck with
+# different settings.
 cmake_minimum_required(VERSION 3.20)
 include(${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake)
 
@@ -36,11 +41,20 @@ erf_mpi_launcher_command(_launch_one
     PREFLAGS "${MPIEXEC_PREFLAGS}"
     CONTEXT "RunColumnBounds.cmake")
 
+separate_arguments(run_options UNIX_COMMAND "${OPTIONS}")
+set(range_text "at or above z = ${Z_MIN}")
+if(NOT "${Z_MAX}" STREQUAL "")
+    if(Z_MAX LESS Z_MIN)
+        message(FATAL_ERROR "RunColumnBounds.cmake: Z_MAX = ${Z_MAX} is below Z_MIN = ${Z_MIN}")
+    endif()
+    set(range_text "with z in [${Z_MIN}, ${Z_MAX}]")
+endif()
+
 # a plotfile left by an earlier run must not satisfy the check
 file(REMOVE_RECURSE "${WORKING_DIRECTORY}/${PLTFILE}")
 
 execute_process(
-    COMMAND ${_launch} ${TEST_EXE} ${INPUT}
+    COMMAND ${_launch} ${TEST_EXE} ${INPUT} ${run_options}
     WORKING_DIRECTORY ${WORKING_DIRECTORY}
     OUTPUT_FILE ${WORKING_DIRECTORY}/simulation.log
     ERROR_FILE  ${WORKING_DIRECTORY}/simulation.log
@@ -78,6 +92,9 @@ foreach(line IN LISTS lines)
     if(z LESS Z_MIN)
         continue()
     endif()
+    if(NOT "${Z_MAX}" STREQUAL "" AND z GREATER Z_MAX)
+        continue()
+    endif()
     math(EXPR last "${n_vars} - 1")
     foreach(iv RANGE ${last})
         math(EXPR icol "${iv} + 1")
@@ -93,6 +110,9 @@ foreach(line IN LISTS lines)
     math(EXPR n_checked "${n_checked} + 1")
 endforeach()
 if(n_checked EQUAL 0)
-    message(FATAL_ERROR "RunColumnBounds.cmake: no cell at or above z = ${Z_MIN} in ${column_file}")
+    message(FATAL_ERROR "RunColumnBounds.cmake: no cell ${range_text} in ${column_file}")
 endif()
-message(STATUS "RunColumnBounds.cmake: ${n_checked} cells at or above z = ${Z_MIN} within bounds for ${VARIABLES}")
+if(NOT "${N_CELLS}" STREQUAL "" AND NOT n_checked EQUAL N_CELLS)
+    message(FATAL_ERROR "RunColumnBounds.cmake: ${n_checked} cells ${range_text} in ${column_file}, expected ${N_CELLS}")
+endif()
+message(STATUS "RunColumnBounds.cmake: ${n_checked} cells ${range_text} within bounds for ${VARIABLES}")

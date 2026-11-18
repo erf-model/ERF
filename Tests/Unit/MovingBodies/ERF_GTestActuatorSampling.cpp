@@ -98,7 +98,7 @@ struct Fields {
     MeshSpec spec;
     LinearField lin;
 
-    // build the mesh and fill the face velocities with the linear field at the face centres;
+    // build the mesh and fill the face velocities with the linear field at the face centers;
     // uniform_dz leaves z_phys_nd null so the sampler takes the nominal heights
     Fields (const MeshSpec& m, bool uniform_dz)
         : spec(m)
@@ -168,7 +168,7 @@ struct Fields {
 };
 
 // Points inside cells, on cell faces, on the terrain-following mesh's lowest and highest
-// centres, and at the hub-height of a rotor: all inside the domain.
+// centers, and at the hub-height of a rotor: all inside the domain.
 std::vector<Real> test_points (const MeshSpec& m)
 {
     std::vector<Real> pos;
@@ -216,11 +216,11 @@ TEST(ActuatorSampling, ExactForLinearFieldOverTerrain)
 
 // The same points sampled with the domain in one box and split into several boxes agree with
 // the analytic field, so a point on or near a box face is found once and read through the
-// ghost cells rather than from a neighbour's valid data.
-// sample_cell_scalar: bilinear between the four cell centres and linear in the physical height
-// between the two centres that bracket the point, so a field linear in x, y and z_phys is exact on
-// a terrain-following mesh (cell-centre heights the mean of the cell's eight nodes); below the
-// first and above the last centre the nearest pair extrapolates, which a linear field does not notice
+// ghost cells rather than from a neighbor's valid data.
+// sample_cell_scalar: bilinear between the four cell centers and linear in the physical height
+// between the two centers that bracket the point, so a field linear in x, y and z_phys is exact on
+// a terrain-following mesh (cell-center heights the mean of the cell's eight nodes); below the
+// first and above the last center the nearest pair extrapolates, which a linear field does not notice
 TEST(ActuatorSampling, CellScalarIsExactForALinearFieldOverTerrain)
 {
     MeshSpec m;
@@ -241,7 +241,7 @@ TEST(ActuatorSampling, CellScalarIsExactForALinearFieldOverTerrain)
         });
     }
     std::vector<Real> pos = test_points(m);
-    pos.push_back(0.3 * m.Lx); pos.push_back(0.7 * m.Ly); pos.push_back(0.9995 * m.H);   // above the last centre
+    pos.push_back(0.3 * m.Lx); pos.push_back(0.7 * m.Ly); pos.push_back(0.9995 * m.H);   // above the last center
     std::vector<Real> val;
     erf_actuator::sample_cell_scalar(s, 1, f.znd.get(), f.geom, pos, val);
     ASSERT_EQ(val.size(), pos.size() / 3);
@@ -885,7 +885,7 @@ TEST(ActuatorSampling, TerrainHeightIsTheBilinearNodeSurface)
     for (int i : {0, 3, 7, m.nx}) { for (int j : {0, 4, m.ny}) {
         pos.insert(pos.end(), {i * m.dx(), j * m.dy(), 999.0}); expect.push_back(m.z_node(i, j, 0));
     } }
-    // at a cell centre and at general points: bilinear between the four nodes
+    // at a cell center and at general points: bilinear between the four nodes
     auto bilin = [&](Real x, Real y) {
         const int i = static_cast<int>(std::floor(x / m.dx())), j = static_cast<int>(std::floor(y / m.dy()));
         const Real wx = x / m.dx() - i, wy = y / m.dy() - j;
@@ -1023,7 +1023,7 @@ TEST(ActuatorSampling, ColumnCellsAcceptAColumnBesideADeepCanyonAndRefuseOneAbov
 // and top, the cell holding the height is on the level in every cell column next to the node column. On a
 // level whose boxes span the same cells in every column (at the ground, aloft, part of the domain across),
 // over this gentle hill, the per-column check gives exactly that; on one whose boxes stop at different
-// heights in neighbouring columns it never covers a point the cells do not. The answers do not depend on
+// heights in neighboring columns it never covers a point the cells do not. The answers do not depend on
 // how the level is cut into boxes.
 TEST(ActuatorSampling, ColumnCellsAreTheCellsThemselvesAndNeverFewer)
 {
@@ -1151,7 +1151,7 @@ TEST(ActuatorSampling, CoverageOnGridsBuiltOnceIsCoverageOnGridsBuiltEachTime)
     amrex::BoxArray ba(bl);
     ba.maxSize(amrex::IntVect(7, 5, 3));
     const erf_actuator::CoverageGrids grids(ba, geom);
-    // the grids themselves: the cell-centred boxes, and each flattened onto the bottom layer, built here apart
+    // the grids themselves: the cell-centered boxes, and each flattened onto the bottom layer, built here apart
     ASSERT_EQ(grids.cells.size(), ba.size());
     ASSERT_EQ(grids.footprints.size(), ba.size());
     for (int b = 0; b < static_cast<int>(ba.size()); ++b) {

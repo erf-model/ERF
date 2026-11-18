@@ -1,14 +1,14 @@
-# Two-Stream Radiation: YSUNew PBL Coupling with Radiative Tendency Limiter
+# Two-Stream Radiation: YSU PBL Coupling with Radiative Tendency Limiter
 #
 # This test exercises enhancements:
-#   1. YSUNew (not MRF) is selected as PBL model
-#   2. Radiative tendency limiter is available for YSUNew
-#   3. qheating_rates from radiation are coupled to YSUNew top-down mixing
+#   1. YSU (not MRF) is selected as PBL model
+#   2. Radiative tendency limiter is available for YSU
+#   3. qheating_rates from radiation are coupled to YSU top-down mixing
 #
 # Key differences from
-#   - PBL model: MRF → YSUNew
-# - New parameters for YSUNew radiation coupling
-#   - Validation of YSUNew + radiation wiring consistency
+#   - PBL model: MRF → YSU
+# - New parameters for YSU radiation coupling
+#   - Validation of YSU + radiation wiring consistency
 #
 erf.prob_name = "ABL"
 
@@ -49,7 +49,7 @@ erf.profile_int = 10
 
 # PLOTFILES
 # Include the per-level radiation heating-rate diagnostic fields
-# so the YSUNew top-down coupling can be visually/numerically inspected if desired.
+# so the YSU top-down coupling can be visually/numerically inspected if desired.
 erf.plot_file_1     = plt_ysu_coupling      # prefix of plotfile name
 erf.plot_int_1      = 5                     # number of timesteps between plotfiles
 erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qsrc_sw qsrc_lw
@@ -67,12 +67,11 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 
 
-# PBL CONFIGURATION - YSUNew
-erf.pbl_type = "YSUNew"
+# PBL CONFIGURATION - YSU
+erf.pbl_type = "YSU"
 
-# YSUNew PBL PARAMETERS
+# YSU PBL PARAMETERS
 erf.enable_ysu_countergradient     = true      # Apply countergradient flux corrections
-erf.enable_ysu_terrain_pblh_floor  = true      # Terrain-following PBLH floor
 erf.enable_ysu_sat_limiter         = false     # Saturation limiter for moisture countergradient
 erf.enable_ysu_topdown             = true      # Enable top-down mixing (LRAD-driven)
 erf.enable_ysu_entrainment         = true      # Entrainment layer parameterization
@@ -82,7 +81,7 @@ erf.pbl_ysu_land_Ribcr             = 0.25     # Critical Bulk Richardson number 
 erf.ysu_qcloud_threshold           = 1.0e-4   # Cloud liquid water threshold (kg/kg)
 erf.ysu_moistvars                  = false    # Turbulence on moisture variables
 
-# YSUNew Radiative Tendency Limiter
+# YSU Radiative Tendency Limiter
 # Disabled by default to preserve the feature-off baseline behavior
 erf.enable_ysu_rad_tend_limiter    = false    # if true, apply finite guards and bounds to qheating_rates
 erf.ysu_rad_tend_limiter_magnitude = 1.0      # Magnitude bound on radiative tendency (K/s)
@@ -102,7 +101,7 @@ erf.input_sounding_file = "input_sounding_ysu"
 # Non-isothermal (isothermal_test defaults to false) so LW heating is
 # genuinely computed via the two-stream sweeps rather than forced to zero
 # by the isothermal override -- this exercises the real per-level LW
-# heating-rate computation coupled to YSUNew PBL model.
+# heating-rate computation coupled to YSU PBL model.
 erf.radiation_model = "TwoStream"
 erf.rad_t_sfc = 300.0    # surface temperature [K] where no LSM or surface layer supplies one (shared with RRTMGP)
 erf.radiation.sw_enabled = true

@@ -208,8 +208,8 @@ struct WallColumn
   }
 
   // The tridiagonal system the solve should build, written out independently: rho u_k -
-  // DT/dz_k (F_{k+1/2} - F_{k-1/2}) = rhs_k with F = MU du/dz, centred between the cell
-  // centres inside the column and from the Lagrange quadratic through the wall value and
+  // DT/dz_k (F_{k+1/2} - F_{k-1/2}) = rhs_k with F = MU du/dz, centered between the cell
+  // centers inside the column and from the Lagrange quadratic through the wall value and
   // the first two cells at each wall
   std::vector<double> reference (const std::vector<double>& u, const std::vector<double>& src) const
   {
@@ -266,7 +266,7 @@ stretched_levels ()
 
 // Motivation: on a uniform mesh the coefficients must be the ComputeStrain_N stencil
 // (-8/3, 3, -1/3), and on any mesh they must be the slope at the wall of the quadratic
-// through the wall value and the first two cell centres.
+// through the wall value and the first two cell centers.
 TEST(ImplicitWallStencil, CoefficientsAreTheSecondOrderOneSidedGradient)
 {
   const WallGradCoeffs u = WallGradientCoeffs(Real(1.0), Real(1.0));

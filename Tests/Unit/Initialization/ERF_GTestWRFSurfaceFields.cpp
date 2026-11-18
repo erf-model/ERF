@@ -663,7 +663,7 @@ TEST(WRFSurfaceFields, RemakeTakesTheNewColumnsFromTheCoarserLevel)
     EXPECT_TRUE(a->boxArray() == nba);
     EXPECT_EQ(a->nGrowVect(), T.ng);
     ASSERT_EQ(t->nComp(), TwoLevels::nlay);
-    // Sets: a ghost cell of one box is a valid cell of its neighbour
+    // Sets: a ghost cell of one box is a valid cell of its neighbor
     std::set<std::pair<int,int>> n_own;
     std::set<std::pair<int,int>> ncrse;
     for_each_cell(*a, [&] (int i, int j, int, Real v) {

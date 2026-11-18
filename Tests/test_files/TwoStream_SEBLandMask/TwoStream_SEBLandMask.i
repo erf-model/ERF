@@ -8,7 +8,7 @@
 # surface temperature.
 #
 # RunTwoStreamSEBLandMask.cmake runs this deck with erf.is_land = 1 and = 0
-# (an idealised run has one mask value per level), and a third time with two levels,
+# (an idealized run has one mask value per level), and a third time with two levels,
 # water on level 0 and a level 1 of land over its western half. check_land_mask.py asserts
 #   1. water: seb_t_sfc and seb_q_sfc stay at their starting values at every step;
 #   2. land: seb_t_sfc moves (so check 1 is not a run in which nothing evolves);

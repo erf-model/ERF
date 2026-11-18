@@ -16,7 +16,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent = 2560   2560   1000
-amr.n_cell           =    8      8     64     # dz = 15.625 m, first cell centre 7.8 m
+amr.n_cell           =    8      8     64     # dz = 15.625 m, first cell center 7.8 m
 amr.max_grid_size    = 64
 amr.blocking_factor  = 4
 

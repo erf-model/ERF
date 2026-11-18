@@ -1,6 +1,6 @@
 // Two host-side rules that keep a missing surface value from reaching output as a number:
 // the Noah-MP 2 m tile bundle ignores a tile with zero weight, and the station sampler
-// leaves missing neighbours out of its bilinear interpolation.
+// leaves missing neighbors out of its bilinear interpolation.
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -75,8 +75,8 @@ TEST(NearSurfaceDiagnostics, NativeBundleStillRejectsWeightedInvalidTile)
     EXPECT_NEAR(mixed.temperature, 285.0, tolerance(285.0));
 }
 
-// Motivation: a missing (-999) neighbour with a small weight must not shift a 2 m
-// station value; missing neighbours must be left out, not averaged in.
+// Motivation: a missing (-999) neighbor with a small weight must not shift a 2 m
+// station value; missing neighbors must be left out, not averaged in.
 TEST(StationSampler, BilinearSkipsMissingNeighbours)
 {
     const Real missing = Real(-999.0);
@@ -87,24 +87,24 @@ TEST(StationSampler, BilinearSkipsMissingNeighbours)
                 plain_bilinear(270.0, 271.0, 272.0, 273.0, wx, wy),
                 tolerance(272.0));
 
-    // One missing neighbour: the others are renormalised
+    // One missing neighbor: the others are renormalized
     const Real w10 = wx*(Real(1.0)-wy), w01 = (Real(1.0)-wx)*wy, w11 = wx*wy;
     const Real expected = (w10*271.0 + w01*272.0 + w11*273.0) / (w10 + w01 + w11);
     EXPECT_NEAR(station_bilinear_skip_missing(missing, 271.0, 272.0, 273.0, wx, wy, missing),
                 expected, tolerance(expected));
 
-    // A nearly-zero-weight missing neighbour no longer pulls the value toward -999
+    // A nearly-zero-weight missing neighbor no longer pulls the value toward -999
     const Real near_one = Real(1.0) - Real(1.0e-4);
     const Real value = station_bilinear_skip_missing(270.0, 270.0, 270.0, missing,
                                                      near_one, near_one, missing);
     EXPECT_NEAR(value, 270.0, tolerance(270.0));
 
-    // A non-finite neighbour is treated as missing
+    // A non-finite neighbor is treated as missing
     EXPECT_NEAR(station_bilinear_skip_missing(270.0, std::numeric_limits<Real>::quiet_NaN(),
                                               270.0, 270.0, wx, wy, missing),
                 270.0, tolerance(270.0));
 
-    // Missing only when every neighbour with weight is missing; zero-weight values do not count
+    // Missing only when every neighbor with weight is missing; zero-weight values do not count
     EXPECT_EQ(station_bilinear_skip_missing(missing, missing, missing, missing, wx, wy, missing),
               missing);
     EXPECT_EQ(station_bilinear_skip_missing(missing, 271.0, 272.0, 273.0,
