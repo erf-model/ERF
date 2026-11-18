@@ -857,10 +857,11 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_boundary_budget_test(SBM_Boundary_Walls_AnelasticMidPoint inputs_boundary_walls zero
     "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_1M_Compressible
-    inputs_boundary_inflow_outflow nonzero)
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=xlo.density=1.0")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_2M_Compressible
     inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=${_sbm_boundary_2m}|xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0.8e12 1.0e12 6.0e12 2.0e12")
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_boundary_2m}|xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0.8e12 1.0e12 6.0e12 2.0e12")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_AnelasticHeun
     inputs_boundary_inflow_outflow nonzero
     "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=RK2")
@@ -869,67 +870,69 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_HostTypes
     inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=xlo.type=inflow_outflow|xhi.type=ho_outflow")
+    "-DRUN_ARGS=xlo.density=1.0|xlo.type=inflow_outflow|xhi.type=ho_outflow")
   add_sbm_boundary_budget_test(SBM_Boundary_OutflowOnly inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=xlo.sbm_inflow_z=0 0 0 0")
+    "-DRUN_ARGS=xlo.density=1.0|xlo.sbm_inflow_z=0 0 0 0")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_Stretched
     inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=erf.grid_stretching_ratio=1.1|erf.initial_dz=0.25")
+    "-DRUN_ARGS=xlo.density=1.0|erf.grid_stretching_ratio=1.1|erf.initial_dz=0.25")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_StaticTerrain
-    inputs_boundary_static_terrain nonzero)
+    inputs_boundary_static_terrain nonzero
+    "-DRUN_ARGS=xlo.density=1.0")
   # A front entering an empty domain binds the limiter, which drains cells to
   # zero; without its roundoff margin a drained cell rounds below zero.
   add_sbm_boundary_budget_test(SBM_Boundary_InflowFront_LimiterBinds
     inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=erf.sbm_fixture_initial_state=0 0 0 0|max_step=8")
+    "-DRUN_ARGS=xlo.density=1.0|erf.sbm_fixture_initial_state=0 0 0 0|max_step=8")
   # The qualification build's executable accepts only its own two-level decks.
   if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
     add_sbm_boundary_budget_test(SBM_Boundary_AMR_Outflow_Compressible
-      inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2)
+      inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2
+      "-DRUN_ARGS=xlo.density=1.0")
     add_sbm_boundary_budget_test(SBM_Boundary_AMR_Outflow_AnelasticMidPoint
       inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2
       "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
     add_sbm_boundary_budget_test(SBM_Boundary_AMR_Inflow_Compressible
       inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2
-      "-DRUN_ARGS=erf.box1.in_box_lo=0.0 0.25 0.0|erf.box1.in_box_hi=0.375 0.75 0.375|erf.box1.move_speed_x=0")
+      "-DRUN_ARGS=xlo.density=1.0|erf.box1.in_box_lo=0.0 0.25 0.0|erf.box1.in_box_hi=0.375 0.75 0.375|erf.box1.move_speed_x=0")
   endif()
 
   add_sbm_expected_failure_test(SBM_Boundary_Reject_ReverseOutflow
     inputs_boundary_inflow_outflow
     "SBM advective outflow xhi received an inward dry-air carrier"
-    "-DOVERRIDE=prob.U_0=-0.8 xlo.velocity=-0.8 0.6 0.0")
+    "-DOVERRIDE=prob.U_0=-0.8 xlo.velocity=-0.8 0.6 0.0 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_MissingInflow
     inputs_boundary_inflow_outflow
     "SBM prescribed inflow at xhi requires xhi.sbm_inflow_z"
-    "-DOVERRIDE=xhi.type=Inflow xhi.velocity=0.8 0.6 0.0 xhi.density=1.0 xhi.theta=300.0")
+    "-DOVERRIDE=xhi.type=Inflow xhi.velocity=0.8 0.6 0.0 xhi.density=1.0 xhi.theta=300.0 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_CompactInflow
     inputs_boundary_inflow_outflow
     "SBM owns compact qc/qr: xlo.qc cannot define or override a spectral inflow"
-    "-DOVERRIDE=xlo.qc=1.e-6")
+    "-DOVERRIDE=xlo.qc=1.e-6 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_IncompleteInflow
     inputs_boundary_inflow_outflow
     "SBM inflow spectrum xlo.sbm_inflow_z is not admissible: it has 2 values"
-    "-DOVERRIDE=xlo.sbm_inflow_z=4.e-6 3.e-6")
+    "-DOVERRIDE=xlo.sbm_inflow_z=4.e-6 3.e-6 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_IncompleteTwoMomentGroup
     inputs_boundary_inflow_outflow
     "SBM inflow spectrum xlo.sbm_inflow_z is not admissible: population 0 bin 0 is not canonical"
-    "-DOVERRIDE=erf.sbm_moment_mode=2 erf.sbm_edges=1.0e-18 2.0e-18 4.0e-18 8.0e-18 1.6e-17 erf.sbm_fixture_initial_state=1.5e-6 6.0e-6 1.8e-5 4.8e-5 1.0e12 2.0e12 3.0e12 4.0e12 xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0 1.0e12 6.0e12 2.0e12")
+    "-DOVERRIDE=erf.sbm_moment_mode=2 erf.sbm_edges=1.0e-18 2.0e-18 4.0e-18 8.0e-18 1.6e-17 erf.sbm_fixture_initial_state=1.5e-6 6.0e-6 1.8e-5 4.8e-5 1.0e12 2.0e12 3.0e12 4.0e12 xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0 1.0e12 6.0e12 2.0e12 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_InflowOnWall
     inputs_boundary_inflow_outflow
     "zlo.sbm_inflow_z is set but zlo is not an inflow boundary"
-    "-DOVERRIDE=zlo.sbm_inflow_z=4.e-6 3.e-6 2.e-6 1.e-6")
+    "-DOVERRIDE=zlo.sbm_inflow_z=4.e-6 3.e-6 2.e-6 1.e-6 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_Open
     inputs_boundary_inflow_outflow
     "SBM physical boundary xhi is not supported: open boundaries"
-    "-DOVERRIDE=xhi.type=Open")
+    "-DOVERRIDE=xhi.type=Open xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_Symmetry
     inputs_boundary_inflow_outflow
     "SBM physical boundary zlo is not supported: ERF does not hold the normal dry-air carrier"
-    "-DOVERRIDE=zlo.type=Symmetry zhi.type=Symmetry")
+    "-DOVERRIDE=zlo.type=Symmetry zhi.type=Symmetry xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_BoundaryPlanes
     inputs_boundary_inflow_outflow
     "SBM does not support erf.input_bndry_planes"
-    "-DOVERRIDE=erf.input_bndry_planes=1")
+    "-DOVERRIDE=erf.input_bndry_planes=1 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Budget_Reject_WithoutSBM
     inputs_boundary_walls
     "erf.sbm_budget_check requires erf.moisture_model = SBM"
@@ -1001,7 +1004,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   endif()
   add_sbm_expected_failure_test(SBM_Mixing_Reject_InflowOutflow inputs_boundary_inflow_outflow
     "SBM particle mixing HostPassiveScalar is qualified with periodic and wall faces only, not the"
-    "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
+    "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Mixing_Stage_Combined_CFL inputs_mixing_walls
     "SBM combined advection-diffusion outgoing-demand condition failed"
     "-DOVERRIDE=erf.sbm_test_donor_cfl_fault=true")
@@ -1131,14 +1134,17 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
         TIMEOUT 300)
     endfunction()
     add_sbm_boundary_restart_test(SBM_Boundary_Restart_Equivalence
-      inputs_boundary_inflow_outflow equivalence -DEXPECTED_FINAL_LEVELS=1)
+      inputs_boundary_inflow_outflow equivalence -DEXPECTED_FINAL_LEVELS=1
+      "-DRUN_ARGS=xlo.density=1.0")
     add_sbm_boundary_restart_test(SBM_Boundary_Restart_ChangedInflow
       inputs_boundary_inflow_outflow changed_restart_inputs
+      "-DRUN_ARGS=xlo.density=1.0"
       "-DRESTART_ARGS=xlo.sbm_inflow_z=4.e-6 3.e-6 2.e-6 2.e-6"
       "-DEXPECTED_DIAGNOSTIC=SBM restart schema does not exactly match")
     if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
       add_sbm_boundary_restart_test(SBM_Boundary_AMR_Restart_Equivalence_Compressible
-        inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2)
+        inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2
+        "-DRUN_ARGS=xlo.density=1.0")
       add_sbm_boundary_restart_test(SBM_Boundary_AMR_Restart_Equivalence_AnelasticMidPoint
         inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2 -DANELASTIC=MidPoint)
     endif()
