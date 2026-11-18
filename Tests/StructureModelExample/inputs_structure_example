@@ -1,6 +1,6 @@
 # The example structure model (ERF_StructureModelExample.cpp) in a small periodic
 # box of still air with no gravity, friction or Coriolis: one point at the box
-# centre pushes on the air with 50 N along x, spread with the actuator core's
+# center pushes on the air with 50 N along x, spread with the actuator core's
 # Gaussian kernel. It checks the out-of-tree model plumbing: the registry, the
 # advance and momentum-source calls (the impulse they give the air over each step),
 # the model's fields in the

@@ -40,7 +40,7 @@ TEST(BndryPlaneIndex, ANonPeriodicDirectionTakesTheNearestCell)
 }
 
 // plane_index places a fine index among the level-0 plane indices (a plane of 4 cells, 0..3, at
-// ratio 2 below): the two neighbours to blend and the weight on the second, with the neighbours
+// ratio 2 below): the two neighbors to blend and the weight on the second, with the neighbors
 // wrapped across a periodic seam and clamped otherwise
 namespace {
 void expect_plane_index (const PlaneIndex& p, int lo, int hi, double w)
@@ -62,8 +62,8 @@ TEST(BndryPlaneIndex, AtLevelZeroAPlaneIndexIsTheCellItselfWithNoWeight)
     }
 }
 
-// The plane holds cell-centred values (the writer averages the face velocities to cell
-// centres), so at level 0 node j lies halfway between plane cells j - 1 and j
+// The plane holds cell-centered values (the writer averages the face velocities to cell
+// centers), so at level 0 node j lies halfway between plane cells j - 1 and j
 TEST(BndryPlaneIndex, AtLevelZeroANodeAveragesTheTwoPlaneCellsItSeparates)
 {
     for (int j = -3; j < 7; ++j) {
@@ -77,8 +77,8 @@ TEST(BndryPlaneIndex, AtLevelZeroANodeAveragesTheTwoPlaneCellsItSeparates)
 }
 
 // A velocity linear along the face, v = a + b y, written as the writer does (the average of
-// the two faces of each cell, so plane cell j holds v at its centre (j + 1/2) dy), is read
-// back exactly at every node between the first and last plane cell centres (beyond them the
+// the two faces of each cell, so plane cell j holds v at its center (j + 1/2) dy), is read
+// back exactly at every node between the first and last plane cell centers (beyond them the
 // plane is clamped); the old nodal reading was half a cell off, b dy / 2
 TEST(BndryPlaneIndex, ALinearFaceVelocityIsRecoveredAtTheNodes)
 {
@@ -112,10 +112,10 @@ TEST(BndryPlaneIndex, AFineCellAcrossAPeriodicSeamBlendsTheCellsEitherSideOfIt)
 TEST(BndryPlaneIndex, AFineNodeAcrossAPeriodicSeamBlendsTheCellsEitherSideOfIt)
 {
     // fine node 8 is coarse node 4, the periodic image of node 0: the face between coarse
-    // cell 3 and its periodic neighbour, coarse cell 0
+    // cell 3 and its periodic neighbor, coarse cell 0
     expect_plane_index(plane_index(8, 2, true, 0, 3, true), 3, 0, 0.5);
     expect_plane_index(plane_index(0, 2, true, 0, 3, true), 3, 0, 0.5);
-    // fine node 7 is the centre of coarse cell 3; fine node -1 the centre of its image
+    // fine node 7 is the center of coarse cell 3; fine node -1 the center of its image
     expect_plane_index(plane_index(7, 2, true, 0, 3, true), 3, 0, 0.0);
     expect_plane_index(plane_index(-1, 2, true, 0, 3, true), 3, 0, 0.0);
 }

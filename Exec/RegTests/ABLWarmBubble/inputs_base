@@ -1,5 +1,5 @@
 # ABLWarmBubble: settings shared by the decks in this folder (see inputs for the
-# case). This file alone sets the bubble centre and radii without prob.bubble_dT,
+# case). This file alone sets the bubble center and radii without prob.bubble_dT,
 # which must stop the run at start-up (inputs_keys_without_dT).
 geometry.prob_lo     =   0.0   0.0   0.0
 geometry.prob_hi     = 320.0 320.0 116.00666947929889   # 12 levels from 4 m stretched by 1.15

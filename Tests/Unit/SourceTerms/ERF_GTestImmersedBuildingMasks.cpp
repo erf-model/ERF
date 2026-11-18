@@ -52,7 +52,7 @@ TEST(ImmersedBuildingMasks, WithoutSnapSolidFacesAreInteriorAndPartialFacesCarry
     EXPECT_EQ(south.side, zero);
     EXPECT_EQ(south.linear(half), zero);
 
-    // a partial face with solid on both neighbouring sides and no fluid above: not a wall-law
+    // a partial face with solid on both neighboring sides and no fluid above: not a wall-law
     // face, so it gets the partial-wall drag weighted by its blanking (the east/west walls of
     // the x-momentum)
     auto side = if_bld::horiz_masks(half, half, half, half, half, false, true, false);

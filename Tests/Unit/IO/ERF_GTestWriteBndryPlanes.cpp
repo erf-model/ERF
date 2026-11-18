@@ -5,7 +5,7 @@
 // the later ones, which the restart writes again; rows that cannot belong to the run being
 // continued (not increasing, later than the restart, or at the restart step at another time) end
 // the kept rows. A fresh start keeps none. The CTests
-// ABL_BndryPlanes_* check the same behaviour end to end against a run without a restart.
+// ABL_BndryPlanes_* check the same behavior end to end against a run without a restart.
 
 #include <gtest/gtest.h>
 
