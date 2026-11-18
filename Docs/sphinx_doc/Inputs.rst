@@ -616,8 +616,9 @@ List of Parameters
 | **erf.<indicator>.value_less**                   | tag cells where the field falls below this value, one    | List of Reals      | None                 |
 |                                                  | value per level                                          |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
-| **erf.<indicator>.adjacent_difference_greater**  | tag cells where the difference between adjacent values   | List of Reals      | None                 |
-|                                                  | exceeds this, one value per level                        |                    |                      |
+| **erf.<indicator>.adjacent_difference_greater**  | tag cells where the largest difference from the six face | List of Reals      | None                 |
+|                                                  | neighbors is at least this, one value per level; which   |                    |                      |
+|                                                  | neighbors count is described in :ref:`MeshRefinement`    |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.conditions**                   | names of several conditions the indicator tests          | List of Strings    | None                 |
 |                                                  | together; each is given by **field_name** and one of the |                    |                      |

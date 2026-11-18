@@ -284,8 +284,9 @@ public:
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
-    // Fill mf (one component, one ghost cell) at level levc with the refinement field named field
-    void compute_tag_field (int levc, const std::string& field, amrex::Real time,
+    // Fill mf (one component, one ghost cell) at level levc with the refinement field named
+    //    field; returns whether its ghost cells were filled too
+    bool compute_tag_field (int levc, const std::string& field, amrex::Real time,
                             amrex::MultiFab& mf, amrex::TagBoxArray& tags);
 
     // Tag cells in a given box
