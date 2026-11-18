@@ -1848,6 +1848,14 @@ add_test_field_bounds(PBL_SurfaceCrossing_YSU_Stretched "plt2d00002" pblh 31.99 
                       MIN_HI 32.01 MAX_LO 907.1)
 add_test_field_bounds(PBL_SurfaceCrossing_YSU_Graded "plt2d00002" pblh 19.99 900.1
                       MIN_HI 20.01 MAX_LO 900.0)
+# MRF has the same floor on the same three meshes.  Its floor was the first cell center
+# (at least 10 m) before: the minimum was 16 m, 16 m and 11.8 m here
+add_test_field_bounds(PBL_SurfaceCrossing_MRF "plt2d00002" pblh 31.99 907.3
+                      MIN_HI 32.01 MAX_LO 907.1)
+add_test_field_bounds(PBL_SurfaceCrossing_MRF_Stretched "plt2d00002" pblh 31.99 907.3
+                      MIN_HI 32.01 MAX_LO 907.1)
+add_test_field_bounds(PBL_SurfaceCrossing_MRF_Graded "plt2d00002" pblh 19.99 900.1
+                      MIN_HI 20.01 MAX_LO 900.0)
 unset(TEST_FILES_DIR)
 # YSU PBL height over a stable sounding (theta = 300 K + 0.01 K/m z, 5 m/s), on a constant-dz
 # mesh and on a stretched mesh with ratio 1 that has the same 32 m levels.  With the height in

@@ -695,7 +695,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             */
 
             // Compute bounds for pblh clamping.  The floor is the top face of the column's
-            // first fluid cell (see ysu_pblh_floor): zl1 is the height of that cell's center
+            // first fluid cell (see pblh_floor): zl1 is the height of that cell's center
             // and dz1 its thickness, on every mesh type.
             const Real zl1 = (use_terrain_fitted_coords)
                            ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
@@ -707,7 +707,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : (khi + myhalf) * dz;
             const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = ysu_pblh_floor(zl1, dz1);
+            const Real pblh_min = pblh_floor(zl1, dz1);
 
             // Scan rib_enhan_arr from the surface cell up (GAP 9: WRF bl_ysu.F90 lines 620-621
             // seed the scan with the surface bulk Ri, so ksrf is checked first) and interpolate
@@ -1083,7 +1083,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             }
 
             // Compute bounds, as in the first corrector pass: the floor is the top face of
-            // the column's first fluid cell (see ysu_pblh_floor) on every mesh type.
+            // the column's first fluid cell (see pblh_floor) on every mesh type.
             const Real zl1 = (use_terrain_fitted_coords)
                            ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                            : zib + myhalf * dz;
@@ -1094,7 +1094,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : (khi + myhalf) * dz;
             const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = ysu_pblh_floor(zl1, dz1);
+            const Real pblh_min = pblh_floor(zl1, dz1);
             pblh_floor_arr(i, j, 0) = pblh_min;
 
             // Rescan the updated rib_enhan_arr from the surface cell up, as in the first
