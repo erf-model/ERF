@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <cmath>
-#include <limits>
 #include <map>
 #include <memory>
 
@@ -17,7 +16,6 @@ struct SDMCellTotal
 {
     int count = 0;
     ParticleReal mult = 0;
-    ParticleReal condensate = 0;
 };
 
 const Box sdm_cv_domain (IntVect(0), IntVect(AMREX_D_DECL(1,1,3)));
@@ -48,8 +46,8 @@ Vector<std::unique_ptr<MultiFab>> sdm_cv_heights (const BoxArray& ba, const Dist
     return z_nd;
 }
 
-// Number, multiplicity and condensate (mass less the aerosol mass a_dry) per cell
-std::map<int, SDMCellTotal> sdm_cv_totals (SuperDropletPC& pc, ParticleReal a_dry = 0)
+// Number and multiplicity per cell
+std::map<int, SDMCellTotal> sdm_cv_totals (SuperDropletPC& pc)
 {
     std::map<int, SDMCellTotal> totals;
     for (SuperDropletPC::ParIterType pti(pc, 0); pti.isValid(); ++pti) {
@@ -61,10 +59,8 @@ std::map<int, SDMCellTotal> sdm_cv_totals (SuperDropletPC& pc, ParticleReal a_dr
         const auto& soa = tile.GetStructOfArrays();
         const auto& xi = soa.GetRealData(static_cast<int>(SDPCDefn::SuperDropletsRealIdx::ncomps)
                                         + SDPCDefn::SuperDropletsRealIdxSoA_RT::multiplicity);
-        const auto& m = soa.GetRealData(SDPCDefn::SuperDropletsRealIdx::mass);
-        Vector<ParticleReal> mult(np), mass(np);
+        Vector<ParticleReal> mult(np);
         Gpu::copy(Gpu::deviceToHost, xi.begin(), xi.end(), mult.begin());
-        Gpu::copy(Gpu::deviceToHost, m.begin(), m.end(), mass.begin());
         for (int n = 0; n < np; ++n) {
             if (particles[n].id() <= 0) { continue; }
             const int i = static_cast<int>(std::floor(particles[n].pos(0)));
@@ -73,7 +69,6 @@ std::map<int, SDMCellTotal> sdm_cv_totals (SuperDropletPC& pc, ParticleReal a_dr
             auto& t = totals[i + 2*(j + 2*k)];
             t.count += 1;
             t.mult += mult[n];
-            t.condensate += mult[n] * (mass[n] - a_dry);
         }
     }
     return totals;
@@ -135,17 +130,6 @@ void sdm_cv_initialization_test ()
         EXPECT_EQ(t.mult, ParticleReal(100*vol));
     }
 
-    // the condensate of each cell is its density times its volume
-    MultiFab condensate(ba, dm, 1, 0);
-    condensate.setVal(Real(1.e-3));
-    pc.SetAttributes(condensate, *z_nd[0], 0);
-    totals = sdm_cv_totals(pc, ParticleReal(1.e-19));
-    for (const auto& [cell, t] : totals) {
-        const Real expected = Real(1.e-3) * sdm_cv_dz(cell/4);
-        EXPECT_NEAR(t.condensate, expected,
-                    Real(64)*Real(std::numeric_limits<ParticleReal>::epsilon())*expected);
-    }
-
     // super-droplets that entered through an open boundary take the initial multiplicity of their cell
     sdm_cv_set(pc, -1, ParticleReal(-1));
     pc.setInflowMultiplicity(z_nd);
@@ -184,8 +168,7 @@ void sdm_cv_created_counts_test ()
     const DistributionMapping dm(ba);
     auto z_nd = sdm_cv_heights(ba, dm);
 
-    // a second initialization without particles creates no super-droplets, so the
-    // condensate of a cell is split over those of the first one only
+    // a second initialization without particles creates no super-droplets
     {
         const std::string name = "sdm_cell_volume_two_inits";
         ParmParse pp(name);
@@ -204,16 +187,10 @@ void sdm_cv_created_counts_test ()
         pc.setVariableDz(true);
         pc.InitializeParticles(0, 0, z_nd[0]);
 
-        MultiFab condensate(ba, dm, 1, 0);
-        condensate.setVal(Real(1.e-3));
-        pc.SetAttributes(condensate, *z_nd[0], 0);
-        const auto totals = sdm_cv_totals(pc, ParticleReal(1.e-19));
+        const auto totals = sdm_cv_totals(pc);
         ASSERT_EQ(static_cast<int>(totals.size()), 16);
         for (const auto& [cell, t] : totals) {
-            const Real expected = Real(1.e-3) * sdm_cv_dz(cell/4);
             EXPECT_EQ(t.count, 4);
-            EXPECT_NEAR(t.condensate, expected,
-                        Real(64)*Real(std::numeric_limits<ParticleReal>::epsilon())*expected);
         }
     }
 
@@ -349,7 +326,7 @@ void sdm_cv_injection_test (bool a_perbox)
     }
 }
 
-// Motivation: On a stretched mesh the initial super-droplets, their condensate, and the
+// Motivation: On a stretched mesh the initial super-droplets and the
 // multiplicity of super-droplets entering through an open boundary must follow each
 // cell's physical volume; with the computational volume the thin layers hold twice and
 // the thick layers two thirds of the specified number density.
@@ -365,9 +342,9 @@ TEST(SDMCellVolume, ZeroDensityAddsNothing)
     sdm_cv_zero_density_test();
 }
 
-// Motivation: A cell's condensate must be split over the super-droplets that exist in it,
-// not over those of an initialization without particles, and no super-droplet may get a
-// zero multiplicity where a cell has fewer particles than super-droplets.
+// Motivation: An initialization without particles must create no super-droplets, and no
+// super-droplet may get a zero multiplicity where a cell has fewer particles than
+// super-droplets.
 TEST(SDMCellVolume, CountsFollowCreatedSuperDroplets)
 {
     sdm_cv_created_counts_test();
@@ -395,4 +372,18 @@ TEST(SDMCellVolume, PerCellInjectionFollowsPhysicalCellVolume)
 TEST(SDMCellVolume, PerBoxInjectionFollowsPhysicalCellVolume)
 {
     sdm_cv_injection_test(true);
+}
+
+// A cell's super-droplet count comes from a super-droplet density, or from the per-cell count
+// when none is set: an initialization without a density has -1, an injection without a rate 0.
+TEST(SDMCellVolume, DensityModeOfInitializationAndInjection)
+{
+    SDCellCounts c;
+    EXPECT_FALSE(c.densityMode());
+    c.sd_density = Real(0);
+    EXPECT_TRUE(c.densityMode());
+    c.inject = true;
+    EXPECT_FALSE(c.densityMode());
+    c.sd_density = Real(1.0e3);
+    EXPECT_TRUE(c.densityMode());
 }

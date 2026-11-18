@@ -3,7 +3,7 @@
 # The flat.i moist ABL over an immersed plane on the cell face z = 0, two dry solid rows (0 g/kg)
 # below it, with the same surface values through the fraction-stress wall law (erf.if_init_surf_temp
 # and erf.if_surf_moist); otherwise as flat.i (see its header). The wall moisture flux -u* q* of the
-# surface mixing ratio (a decay toward it, integrated exactly) goes to the water vapour of the wall
+# surface mixing ratio (a decay toward it, integrated exactly) goes to the water vapor of the wall
 # cell, so the profiles over the plane match flat ground. Tests/RunImmersedFlatEquivalence.cmake runs
 # both decks and compares the horizontally averaged profiles with Tests/ImmersedFlatEquivalenceCheck.cpp.
 #
@@ -83,7 +83,7 @@ erf.if_implicit_drag  = true
 erf.if_wall_form      = fraction_stress
 erf.if_wall_tke       = true
 erf.if_init_surf_temp = 301.0     # surface potential temperature [K], as flat.i's erf.most.pot_surf_temp
-erf.if_surf_moist     = 0.008     # surface water vapour mixing ratio [kg/kg], as flat.i's erf.most.surf_moist
+erf.if_surf_moist     = 0.008     # surface water vapor mixing ratio [kg/kg], as flat.i's erf.most.surf_moist
 eb2.cover_multiple_cuts = 1
 erf.theta_ref       = 300.0
 

@@ -668,7 +668,7 @@ no gold file; label ``restart-parity``). Every run has a time limit of its own,
 so a restart whose first step never finishes fails with a message. Until
 September 2026 the restart path handed the microphysics its minimum cell
 height only on terrain-fitted meshes; on a constant-dz mesh the sedimentation
-substep count of the first restarted step was computed from an uninitialised
+substep count of the first restarted step was computed from an uninitialized
 value and the step never finished. Only the schemes that size their
 sedimentation substeps from that height are affected, namely Kessler
 (``ERF_Kessler.cpp``) and SAM (``ERF_PrecipFall.cpp``, ``ERF_IceFall.cpp``);
@@ -826,7 +826,7 @@ Mass Source
 -----------
 The ``MassSource_*`` tests (with Python, not Windows) check the localized mass source
 (:ref:`sec:MassSourceInputs`). The ``MassSource`` deck injects a constant 1.0e4 kg/s, with the
-tracer on, from the cells within 100 m of the centre of a closed 1 km x 1 km x 500 m box (slip
+tracer on, from the cells within 100 m of the center of a closed 1 km x 1 km x 500 m box (slip
 walls on all six faces) and less than 100 m above the ground, for 20 fully compressible steps.
 Nothing enters or leaves, so ``Tests/check_mass_source.py`` requires the domain mass ERF prints
 to grow by the mass injected and the tracer integral, zero at the start, to equal it, both to

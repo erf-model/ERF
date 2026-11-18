@@ -34,7 +34,7 @@ The cloud fraction of each layer is (see `Docs/sphinx_doc/theory/Radiation.rst`,
 cf = min(1, clamp((RH - rh_min) / (rh_max - rh_min), 0, 1) + min(1, qc / qc_scale))
 ```
 
-RH = qv / qsat, with qsat from the Magnus saturation vapour pressure over liquid
+RH = qv / qsat, with qsat from the Magnus saturation vapor pressure over liquid
 water. Inside the cloud band the layer optical depth gains `cf * cloud_tau_per_layer`.
 
 ## Files

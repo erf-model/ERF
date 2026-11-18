@@ -117,11 +117,11 @@ erf.radiation.seb_soil_type           = 0       # A Noah-MP soil category, 1-19 
 # vegetation type, with the aerodynamic resistance r_a of the surface layer's moisture flux
 # (Jimenez psi_h, limited as its kernel); Noah's big-leaf Jarvis canopy resistance r_c on the
 # parameters of Noah-MP's option 2 (RS, RGL, HS, TOPT, RSMAX of the category), the leaf
-# area index, the net shortwave the balance holds over (1 - albedo), T_s, the vapour
+# area index, the net shortwave the balance holds over (1 - albedo), T_s, the vapor
 # deficit and beta_soil; and Noah-MP's bare-soil resistance r_soil (option 1, Sakaguchi and
 # Zeng) on seb_soil_type, with the pore air's relative humidity RH_g = exp(psi g / (R_v T_s)),
 # psi = -SATPSI (q_s / theta_sat)^-b: near 0 at the wilting point, where the bare soil does
-# not evaporate (it may take up vapour).
+# not evaporate (it may take up vapor).
 # q_s is one top layer: transpiration drains it too, where Noah-MP uses the root zone.
 erf.radiation.seb_vegetation_type     = 0       # A Noah-MP land-use category, 1-20 except 15-17 (snow and ice, barren, water: no vegetation; stops at start-up) (modified IGBP MODIS), or 0 for bare soil (f_veg = 0). Default 0.
 erf.radiation.seb_vegetation_fraction = 1.0     # Vegetated fraction f_veg, in [0, 1]. Only with seb_vegetation_type (stops at start-up otherwise). Default 1.

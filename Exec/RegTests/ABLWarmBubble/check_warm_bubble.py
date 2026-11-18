@@ -46,7 +46,7 @@ _KEYS = {"prob.bubble_dT": "DT_B", "prob.bubble_x_c": "XC", "prob.bubble_y_c": "
          "prob.bubble_z_c": "ZC", "prob.bubble_x_r": "XR", "prob.bubble_y_r": "YR",
          "prob.bubble_z_r": "ZR", "erf.most.surf_temp_flux": "FLUX"}
 
-TOL_THETA = 2.0e-3       # K; the bubble moves by millimetres in 0.5 s
+TOL_THETA = 2.0e-3       # K; the bubble moves by millimeters in 0.5 s
 TOL_RHO = 2.0e-5         # relative; 5e-6 from the surface heating in 0.5 s
 TOL_PRES = 5.0           # Pa; 0.5 Pa measured, 14 Pa for a fixed-density bubble
 TOL_BUDGET = 0.02        # relative to the expected heat gain

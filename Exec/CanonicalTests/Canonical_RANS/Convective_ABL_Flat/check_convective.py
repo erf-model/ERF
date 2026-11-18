@@ -71,7 +71,7 @@ def main(argv):
         # mixed-layer warming against the encroachment estimate F t / zi
         rep.check("mixed-layer warming / (F t / zi)", (mean - 300.0) / (SURF_FLUX * t / zi), 1.0, 0.30)
 
-        # AL01 wall value with the destabilising term: k >= u*^2 / Cmu0^2
+        # AL01 wall value with the destabilizing term: k >= u*^2 / Cmu0^2
         rep.check("KE(k=0)/u*^2 >= 1/Cmu0^2", p["KE"][0] / ustar ** 2, 1.0 / rc.CMU0 ** 2 * 0.99, 0.0, "min")
 
         # convective TKE: positive through the mixed layer and small above zi

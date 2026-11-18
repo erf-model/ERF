@@ -32,7 +32,7 @@ fill_vertical_coordinates (amrex::MultiFab& field, amrex::Real offset)
 }
 
 // Drag and frontal-area fields of the patches in rows, on a 16^3 box of 62.5 m
-// cells (cell centres at (k + 1/2) 62.5 m above a flat ground at z = 0).
+// cells (cell centers at (k + 1/2) 62.5 m above a flat ground at z = 0).
 struct DiscreteForestFields
 {
     amrex::MultiFab drag;
@@ -186,12 +186,12 @@ TEST(ForestDrag, OverlappingDiscretePatchesAddTheirDrag)
               tol * ab.frontal_area.norm0(0, 0, false));
 }
 
-// erf-model/ERF#4541: a type-2 patch whose top is exactly at a cell centre. The
+// erf-model/ERF#4541: a type-2 patch whose top is exactly at a cell center. The
 // profile tends to zero at the tree top; before the fix that cell divided by
 // hf - z = 0 and gave NaN drag (sqrt(inf) * exp(-inf)).
 TEST(ForestDrag, TypeTwoTreeTopAtCellCentreHasZeroDrag)
 {
-    // Cell centres are at 31.25, 93.75, 156.25 m: the top is the k = 1 centre
+    // Cell centers are at 31.25, 93.75, 156.25 m: the top is the k = 1 center
     const auto f = discrete_forest_fields("2 500 500 93.75 400 0.2 2.0 0.4\n",
                                           "erf_unit_forest_tree_top");
 
@@ -207,7 +207,7 @@ TEST(ForestDrag, TypeTwoTreeTopAtCellCentreHasZeroDrag)
             all_finite = all_finite && std::isfinite(static_cast<double>(drag(i, j, k)))
                                     && std::isfinite(static_cast<double>(area(i, j, k)));
         });
-        // Column at the patch centre, x = y = 500 m (between cells 7 and 8)
+        // Column at the patch center, x = y = 500 m (between cells 7 and 8)
         drag_below = drag(7, 7, 0);
         drag_top   = drag(7, 7, 1);
         area_top   = area(7, 7, 1);

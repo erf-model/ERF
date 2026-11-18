@@ -9,7 +9,7 @@
 # The danger is the average-down. Averaging that frozen field onto level 0 would pin the
 # coarse surface under the patch at its level-creation value, so the longwave boundary
 # condition there stops responding to the surface energy balance -- a regression against
-# the old level-0-only behaviour. post_timestep therefore skips the transfer for a level
+# the old level-0-only behavior. post_timestep therefore skips the transfer for a level
 # that does not sweep (ERF::rad_level_needs_interpolation).
 #
 # This is the complement of TwoStream_PrognosticSEBMultiLevel, whose

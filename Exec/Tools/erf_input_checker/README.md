@@ -30,10 +30,10 @@ those problems from the deck alone:
 |------|------|
 | `../check_erf_inputs.py` | command line: globs, options, exit code, `--self-test` |
 | `deck.py` | ParmParse-compatible parser; `Deck` with typed getters, duplicates, file resolution |
-| `context.py` | facts shared by the checkers: cell sizes, levels, anelastic or compressible, idealised or real-data, periodicity |
+| `context.py` | facts shared by the checkers: cell sizes, levels, anelastic or compressible, idealized or real-data, periodicity |
 | `findings.py` | `Finding`, `Severity`, `Report` (text and JSON) |
 | `checker.py` | `Checker` base class, registry, `run_all_checks` |
-| `checks/keys.py` | duplicate keys, a `#` glued to a value word (ParmParse keeps it in the value), retired keys and values, misspelt or wrongly cased keys (ParmParse keys are case-sensitive; compared with the Sphinx docs and the strings read in `Source/`), `FILE =` found only beside the deck |
+| `checks/keys.py` | duplicate keys, a `#` glued to a value word (ParmParse keeps it in the value), retired keys and values, misspelled or wrongly cased keys (ParmParse keys are case-sensitive; compared with the Sphinx docs and the strings read in `Source/`), `FILE =` found only beside the deck |
 | `checks/domain.py` | required keys, cell counts, cell sizes, aspect ratio |
 | `checks/grid.py` | blocking factor and `max_grid_size` rules AMReX enforces, odd and uneven boxes, vertical decomposition, boxes per rank |
 | `checks/refinement.py` | indicators, boxes, several conditions per indicator (`erf.<indicator>.conditions`, `combine`), ratios, coupling |
@@ -69,7 +69,7 @@ python3 Exec/Tools/check_erf_inputs.py --self-test
 | `--docs PATH` | auto | `Inputs.rst` location when run outside the repository |
 
 Run it from inside the repository so the Sphinx pages and `Source/` are
-found; the misspelt-key check is skipped otherwise.
+found; the misspelled-key check is skipped otherwise.
 
 ## Real-data and external files
 

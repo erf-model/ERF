@@ -116,7 +116,7 @@ fill_fitted_mesh (amrex::MultiFab& znd, const amrex::Geometry& geom, Real a, Rea
     }
 }
 
-// The cell-centred blanking of immersed terrain: solid (1) below k = kb, half
+// The cell-centered blanking of immersed terrain: solid (1) below k = kb, half
 // at kb, fluid above
 void
 fill_blank (amrex::MultiFab& blank, int kb)
@@ -130,7 +130,7 @@ fill_blank (amrex::MultiFab& blank, int kb)
     }
 }
 
-// The inputs of a run with one station at the centre of the test domain
+// The inputs of a run with one station at the center of the test domain
 void
 set_inputs (const std::string& file, Real rh, Real rz, Real tau)
 {
@@ -519,7 +519,7 @@ TEST(ObsNudgingSources, SitOnTheStaggeredPositions)
     const std::string scratch_file = (erf_gtest_temp_path("erf_unit_obs_nudging_faces").string() + ".txt");
     // A station 100 m wide at (400, 400): each component's weight depends on
     // where its face is, u at (i dx, (j+1/2) dy), v at ((i+1/2) dx, j dy), w and
-    // theta at the cell centre column
+    // theta at the cell center column
     write_file(scratch_file, profile_file);
     set_inputs(scratch_file, Real(100.0), Real(25.0), Real(10.0));
 
@@ -554,7 +554,7 @@ TEST(ObsNudgingSources, MeasureHeightsFromTheBottomOfAFittedMesh)
     // let one rewrite the file the other was reading. Made on every rank.
     const std::string scratch_file = (erf_gtest_temp_path("erf_unit_obs_nudging_fitted").string() + ".txt");
     // A profile only between 0 and 50 m above the ground, which slopes up in x
-    // (h = 20 + 0.1 x), and a vertical radius of 5 m: cells whose centre is
+    // (h = 20 + 0.1 x), and a vertical radius of 5 m: cells whose center is
     // more than a few radii above 50 m above the ground are not nudged
     write_file(scratch_file,
                "time z u v\n0 0 2 0\n0 50 2 0\n");
@@ -578,7 +578,7 @@ TEST(ObsNudgingSources, MeasureHeightsFromTheBottomOfAFittedMesh)
         const Real x = Real(100.0)*i;
         const Real ground = Real(20.0) + Real(0.1)*x;
         for (int k = 0; k <= 7; ++k) {
-            // The x-face centre is at ground + (k + 1/2) dz above the ground
+            // The x-face center is at ground + (k + 1/2) dz above the ground
             const Real h = (Real(k) + Real(0.5))*dz;
             const Real d = amrex::max(h - Real(50.0), Real(0.0));
             const Real q = d*d/Real(25.0);

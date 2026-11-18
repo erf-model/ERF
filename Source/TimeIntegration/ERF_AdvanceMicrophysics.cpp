@@ -1,9 +1,10 @@
 #include <ERF.H>
 #include "ERF_SBMStateManager.H"
+#include "ERF_GroundAverageDown.H"
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_AdvanceMicrophysics {
 
 /**
  * The inflow through the top of a fine level's patches for one Advance of length dt_fine
@@ -118,6 +119,7 @@ register_sed_fluxes (YAFluxRegister& fr, bool as_crse, const SedimentationFlux& 
 }
 
 } // namespace
+using namespace erf_detail_AdvanceMicrophysics;
 
 void ERF::advance_microphysics (int lev,
                                 MultiFab& cons,
@@ -221,46 +223,15 @@ ERF::average_down_precip_accumulators (int lev)
     // on the ground.
     if (!micro || !micro->Get_Sed_Flux(lev+1)) { return; }
 
-    const BoxArray& fba = grids[lev+1];
-    const int kf_ground = geom[lev+1].Domain().smallEnd(2);
-    const int kc_ground = geom[lev].Domain().smallEnd(2);
     const IntVect rr = ref_ratio[lev];
-
-    // The ground cells under each fine box that stands on the ground, as coarse cells
-    BoxList bl;
-    Vector<int> fine_box, pmap;
-    for (int ib = 0; ib < fba.size(); ++ib) {
-        if (fba[ib].smallEnd(2) != kf_ground) { continue; }
-        Box s = coarsen(fba[ib], rr);
-        s.setRange(2, kc_ground);
-        bl.push_back(s);
-        fine_box.push_back(ib);
-        pmap.push_back(dmap[lev+1][ib]);
-    }
-    if (bl.isEmpty()) { return; }
-    const BoxArray cba(std::move(bl));
-    const DistributionMapping cdm(std::move(pmap));
-    MultiFab avg(cba, cdm, 1, 0);
+    GroundAverageDown ground(grids[lev+1], dmap[lev+1], rr,
+                             geom[lev+1].Domain().smallEnd(2), geom[lev].Domain().smallEnd(2));
 
     const Real inv_area = Real(1) / static_cast<Real>(rr[0] * rr[1]);
     for (int n = 0; n < micro->Get_Qmoist_Size(lev+1); ++n) {
         const MultiFab* fine = micro->Get_Qmoist_Ptr(lev+1, n);
         MultiFab* crse = micro->Get_Qmoist_Ptr(lev, n);
         if (!fine || !crse) { continue; }
-        for (MFIter mfi(avg); mfi.isValid(); ++mfi) {
-            const auto f = fine->const_array(fine_box[mfi.index()]);
-            const auto a = avg.array(mfi);
-            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int ic, int jc, int kc) noexcept
-            {
-                Real sum = 0.0;
-                for (int j = jc*rr[1]; j < (jc+1)*rr[1]; ++j) {
-                    for (int i = ic*rr[0]; i < (ic+1)*rr[0]; ++i) {
-                        sum += f(i,j,kf_ground);
-                    }
-                }
-                a(ic,jc,kc) = sum * inv_area;
-            });
-        }
-        crse->ParallelCopy(avg, 0, 0, 1);
+        ground.apply(*fine, *crse, inv_area);
     }
 }

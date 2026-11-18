@@ -1,3 +1,5 @@
+# NOTE: 6th-order numerical diffusion is currently deactivated, so erf.num_diff_coeff is
+# commented out below (a nonzero value aborts) and this runs as a plain ABL case.
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "ABL"
 
@@ -46,7 +48,7 @@ erf.Ce        = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
 erf.Ce_wall   = 3.9  # To account for "wall effects"
 erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
 
-erf.num_diff_coeff = 0.5
+# erf.num_diff_coeff = 0.5
 
 erf.init_type = "uniform"
 

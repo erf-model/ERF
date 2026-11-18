@@ -75,6 +75,13 @@ SHOCInterface::SHOCInterface (const int& lev,
 
     // Set to default but allow us to change it through the inputs file
     pp.queryAdd("apply_tms", apply_tms);
+    // EAMxx's turbulent mountain stress is form drag from subgrid orography, added on top of
+    // the surface-layer drag.  ERF has no subgrid-orography statistics to build its
+    // coefficient from, and a coefficient backed out of the surface-layer stress only adds
+    // that same drag a second time (erf-model/ERF#5192).
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!apply_tms,
+        "erf.shoc.apply_tms needs a subgrid-orography drag coefficient, which ERF does not "
+        "provide; the surface-layer drag already reaches SHOC through its surface momentum flux");
     pp.queryAdd("check_flux_state", check_flux_state);
     pp.queryAdd("extra_shoc_diags", extra_shoc_diags);
     pp.queryAdd("column_conservation_check", column_conservation_check);
@@ -475,13 +482,11 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 // No unit conversion to W/m^2 (ERF_ShocInterface.H L224)
                 surf_sens_flux_d(icol)   = hfx3_arr(ii,jj,k);
                 surf_evap_d(icol)        = (moist) ? qfx3_arr(ii,jj,k) : Real(0.);
-                // EAMxx TMS expects rho * Cd * |U| [kg/(m^2 s)]. Back it out
-                // from the conservative surface-stress and wind magnitudes.
-                Real wsp = std::sqrt( horiz_wind_d(icol,0,ilay)[0]*horiz_wind_d(icol,0,ilay)[0]
-                               + horiz_wind_d(icol,1,ilay)[0]*horiz_wind_d(icol,1,ilay)[0] );
-                Real stress_mag = std::sqrt( surf_mom_flux_d(icol,0)*surf_mom_flux_d(icol,0)
-                                           + surf_mom_flux_d(icol,1)*surf_mom_flux_d(icol,1) );
-                surf_drag_coeff_tms_d(icol) = (wsp > Real(1.0e-8)) ? stress_mag / wsp : Real(0.);
+                // EAMxx TMS expects rho * Cd_tms * |U| [kg/(m^2 s)] from subgrid
+                // orography, which ERF does not have.  It must not be backed out of
+                // the surface-layer stress: that stress is already surf_mom_flux, so
+                // the TMS term would add the same drag again (erf-model/ERF#5192).
+                surf_drag_coeff_tms_d(icol) = Real(0.);
             }
             T_mid_d(icol,ilay)          = getTgivenRandRTh(r, rt, qv);
             qv_d(icol,ilay)             = qv;

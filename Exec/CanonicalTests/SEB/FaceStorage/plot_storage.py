@@ -34,7 +34,7 @@ def main():
     solid = mask >= 0.5
     if not solid.any():
         raise SystemExit("no solid cells in terrain_IB_mask; nothing to plot")
-    # ERF plotfiles carry no unit metadata: code lengths are metres.
+    # ERF plotfiles carry no unit metadata: code lengths are meters.
     xs, ys, zs = (ad["boxlib", c].in_units("code_length").value for c in ("x", "y", "z"))
     xc, yc = float(xs[solid].mean()), float(ys[solid].mean())
     ztop = float(zs[solid].max())
@@ -46,7 +46,7 @@ def main():
     def slice_plot(axis, field, coord, fname, cmap, title, log=False, contour_mask=True, zlim=None):
         p = yt.SlicePlot(ds, axis, ("boxlib", field), center=center_for(axis, coord))
         p.set_axes_unit("code_length")
-        p.set_origin("native")          # absolute coordinates, not domain-centred
+        p.set_origin("native")          # absolute coordinates, not domain-centered
         h, v = {"x": ("y", "z"), "y": ("x", "z"), "z": ("x", "y")}[axis]
         if axis == "y":
             # yt draws a y-normal slice as (z, x); swap to (x, z). The labels
@@ -76,7 +76,7 @@ def main():
                f"terrain_IB_mask at z = {z_slice:.0f} m", contour_mask=False)
     slice_plot("z", "ibseb_nfaces", z_slice, "nfaces_z.png", "viridis",
                f"ibseb_nfaces (wall faces per cell) at z = {z_slice:.0f} m")
-    # Colour scale over the face values only (zero means "no face here").
+    # Color scale over the face values only (zero means "no face here").
     ts = ad["boxlib", "ibseb_tskin"].value
     tv = ts[ts > 0]
     tlim = (float(tv.min()) - 1.0, float(tv.max()) + 1.0) if tv.size else None

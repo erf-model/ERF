@@ -31,7 +31,7 @@ amr.blocking_factor  = 1        # ny = 1
 
 geometry.is_periodic = 1 1 0
 
-# TERRAIN: Witch of Agnesi ridge centred in x
+# TERRAIN: Witch of Agnesi ridge centered in x
 erf.terrain_type         = StaticFittedMesh
 erf.terrain_smoothing    = 0        # basic terrain following
 erf.wall_dist_type       = terrain_height   # height above the surface on its normal; "poisson" is the Tucker (2003) solve

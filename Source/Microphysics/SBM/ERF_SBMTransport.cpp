@@ -36,7 +36,7 @@
 #include <utility>
 
 namespace erf_sbm {
-namespace {
+namespace erf_detail_SBMTransport {
 
 using amrex::Array4;
 using amrex::GpuArray;
@@ -1470,6 +1470,7 @@ sample_probe_face_rates (const SBMAMRStageGhostProbe* probe,
 }
 
 } // namespace
+using namespace erf_detail_SBMTransport;
 
 struct SBMTransport::LevelStorage
 {

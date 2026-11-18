@@ -69,6 +69,36 @@ void ERF::advance_dycore (int level,
     MultiFab* r0  = &r_hse;
     MultiFab* p0  = &p_hse;
 
+    // The custom forcing must have been built on this level's current grids (init_custom_forcing,
+    //    called at start-up and whenever a regrid makes or remakes the level)
+    auto built_on_this_level = [&] (const std::unique_ptr<MultiFab>& src, bool spatial) {
+        const MultiFab& cons = state_old[IntVars::cons];
+        if (!src || src->size() != cons.size() || !(src->DistributionMap() == cons.DistributionMap())) {
+            return false;
+        }
+        if (spatial) { return src->boxArray() == cons.boxArray(); }
+        // A source defined only in z spans the z range of each of the level's boxes
+        for (int i = 0; i < cons.size(); ++i) {
+            const Box& bs = src->boxArray()[i];
+            const Box& bc = cons.boxArray()[i];
+            if (bs.smallEnd(2) != bc.smallEnd(2) || bs.bigEnd(2) != bc.bigEnd(2)) { return false; }
+        }
+        return true;
+    };
+    if (solverChoice.custom_rhotheta_forcing) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(built_on_this_level(rhotheta_src[level], solverChoice.spatial_rhotheta_forcing),
+                                         "custom rhotheta forcing is not built on this level's grids");
+    }
+    if (solverChoice.custom_moisture_forcing) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(built_on_this_level(rhoqt_src[level], solverChoice.spatial_moisture_forcing),
+                                         "custom moisture forcing is not built on this level's grids");
+    }
+    if (solverChoice.custom_w_subsidence) {
+        const auto domlen = static_cast<std::size_t>(domain.length(2) + 1);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(h_w_subsid[level].size() == domlen && d_w_subsid[level].size() == domlen,
+                                         "custom w subsidence profile is not built on this level");
+    }
+
     MultiFab* rhotheta_src_ptr = solverChoice.custom_rhotheta_forcing ? rhotheta_src[level].get() : nullptr;
     MultiFab* rhoqt_src_ptr    = solverChoice.custom_moisture_forcing ? rhoqt_src[level].get()   : nullptr;
     Real* dptr_wbar_sub        = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
@@ -92,6 +122,8 @@ void ERF::advance_dycore (int level,
     Vector<Real*> d_sponge_ptrs_at_lev;
     if (SpongeChoice::sponge_type == SpongeType::Input_Sponge)
     {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(d_sponge_ptrs[level].size() == Sponge::nvars_sponge,
+                                         "input_sponge profiles were not set up at this level");
         d_sponge_ptrs_at_lev.resize(Sponge::nvars_sponge);
         d_sponge_ptrs_at_lev[Sponge::ubar_sponge]  =  d_sponge_ptrs[level][Sponge::ubar_sponge].data();
         d_sponge_ptrs_at_lev[Sponge::vbar_sponge]  =  d_sponge_ptrs[level][Sponge::vbar_sponge].data();

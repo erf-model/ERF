@@ -31,8 +31,8 @@ constexpr int test_velocity_ng = 2;
 constexpr int test_primitive_z_ng = 1;
 
 // Independent qsat oracle for the flat fixture. Horizontal faces use the
-// adjacent cell-centre pressure; the vertical faces use the signed distance
-// from the cell centre to their boundary face.
+// adjacent cell-center pressure; the vertical faces use the signed distance
+// from the cell center to their boundary face.
 inline Real
 expected_surface_pressure (const Geometry& geom, const Orientation face,
                            const Real delta_z_override = std::numeric_limits<Real>::quiet_NaN())

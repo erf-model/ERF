@@ -29,7 +29,7 @@ namespace coalescence_test {
 
 using Kernel = CollisionKernel<amrex::Real, AMREX_SPACEDIM>;
 
-constexpr int kNumMetrics = 20;
+constexpr int kNumMetrics = 21;
 constexpr amrex::Real kTol = amrex::Real(1.0e-6);
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -99,6 +99,10 @@ amrex::Real coalescence_metric (const int i) noexcept
     case 12: // collision efficiency E = K / (pi (r1+r2)^2 |dv|) stays within [0, 1.05]
         return band_violation(ck.Halls(r1, r2, va, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity)/geom, amrex::Real(0.0), amrex::Real(1.05));
 
+    // --- Geometric kernel (collision efficiency 1) ---
+    case 19: // exact form pi (r1+r2)^2 |dv|
+        return std::abs(ck.geometric(r1, r2, va, vb, xz, xz, SDKernelRelativeVelocityType::absolute_velocity) - geom)/geom;
+
     // --- Riming collision efficiencies ---
     case 13: // Beard-Grover (1974) efficiency in [0,1]
         return band_violation(ck.BeardGrover1974(amrex::Real(0.5), amrex::Real(100.0), amrex::Real(1.0)),
@@ -145,6 +149,7 @@ inline std::string metric_label (const int i)
     case 10: return "Hall: zero at |dv| = 0";
     case 11: return "Hall: symmetric";
     case 12: return "Hall: efficiency in [0,1.05]";
+    case 19: return "geometric: exact form";
     case 13: return "Beard-Grover: efficiency in [0,1]";
     case 14: return "Erfani-Mitchell plate: cutoff below Re=1";
     case 15: return "Erfani-Mitchell plate: bounded efficiency";

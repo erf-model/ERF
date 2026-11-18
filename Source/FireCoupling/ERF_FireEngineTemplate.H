@@ -76,6 +76,11 @@ public:
      * depends on stop_time or max_step (output schedules, a check that the
      * ignition happens before the run ends). On a restart, read_checkpoint()
      * comes after this.
+     *
+     * stop_time is the elapsed time at which the run stops [s], on the clock the
+     * engine's step times use (ERF's stop_time less start_time), and
+     * numeric_limits<amrex::Real>::max() when no stop time is set. max_step counts
+     * level-0 steps and is numeric_limits<int>::max() when unset (never negative).
      */
     void start_run (amrex::Real stop_time, int max_step, int steps_per_coarse_step) override;   // optional
 

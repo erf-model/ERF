@@ -23,7 +23,7 @@ constexpr amrex::Real kRate  = amrex::Real(-1.157e-8);              // 1/s at z 
 constexpr int kNz = 40;                                              // dz = 100 m
 constexpr amrex::Real kDz = amrex::Real(100.0);
 
-// The source on a 1 x 1 x 40 column with cell centres at 50, 150, ..., 3950 m
+// The source on a 1 x 1 x 40 column with cell centers at 50, 150, ..., 3950 m
 std::vector<amrex::Real> source_column ()
 {
     const amrex::Box domain(amrex::IntVect(0,0,0), amrex::IntVect(0,0,kNz-1));

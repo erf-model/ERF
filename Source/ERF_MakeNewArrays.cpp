@@ -21,7 +21,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_MakeNewArrays {
 
 // Smoothly varying test map factors, valid and ghost cells, at the MultiFab's own locations.
 // NOTE: a free function, since nvcc does not allow an extended (__device__) lambda inside a
@@ -46,6 +46,7 @@ set_test_mapfactor (MultiFab& mf, const Geometry& geom, const Real amp)
 }
 
 } // namespace
+using namespace erf_detail_MakeNewArrays;
 
 void
 ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
@@ -574,6 +575,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.topographicChoice.active()) {
         topographic_radiation.define_level(lev, ba2d[lev], dm, geom[lev]);
     }
+
+    // Every radiation model needs whole columns; check this level's grids before any of them
+    // sees them
+    check_rad_level_grids(lev, ba);
 
     // Two-stream radiation: the model owns its 2D surface and SEB fields.
     if (solverChoice.rad_type == RadiationType::TwoStream)

@@ -98,7 +98,7 @@ wrfinput_dim_type (const std::string& NC_name)
  * @param lev Level of the file
  * @param fname Name of the wrfinput file
  * @param geom Geometry of the level
- * @param use_theta_m Set on all ranks from the file's USE_THETA_M attribute
+ * @param use_theta_m Set on all ranks from the file's USE_THETA_M attribute (0 if absent)
  */
 void
 check_wrfinput_geometry (int lev,
@@ -116,7 +116,13 @@ check_wrfinput_geometry (int lev,
             std::vector<int> attr;
             ncf.get_attr("WEST-EAST_GRID_DIMENSION", attr);   NC_nx = attr[0];
             ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); NC_ny = attr[0];
-            ncf.get_attr("USE_THETA_M", attr);                use_theta_m = attr[0];
+            // WRF writes USE_THETA_M from v4.0 on; older files carry dry potential temperature
+            if (ncf.has_attr("USE_THETA_M")) {
+                ncf.get_attr("USE_THETA_M", attr);            use_theta_m = attr[0];
+            } else {
+                use_theta_m = 0;
+                Print() << "wrfinput has no USE_THETA_M attribute; assuming dry potential temperature" << std::endl;
+            }
         }
         { // Global Attributes (Real)
             std::vector<Real> attr;

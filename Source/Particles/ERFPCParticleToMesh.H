@@ -39,6 +39,7 @@ void ERFPC::ERFPCParticleToMesh (amrex::MultiFab& a_mf,
     const int  k_lo   = domain.smallEnd(AMREX_SPACEDIM-1);
     const bool per_x  = geom.isPeriodic(0);
     const bool per_y  = geom.isPeriodic(1);
+    const bool per_z  = geom.isPeriodic(AMREX_SPACEDIM-1);
 
     iMultiFab owned;
     if (composite) {
@@ -192,17 +193,14 @@ void ERFPC::ERFPCParticleToMesh (amrex::MultiFab& a_mf,
                 if (w_horiz == Real(0.0) || w_z == Real(0.0)) { return; }
                 if (composite && !valid(ic,jc,kc)) { return; }
 
-                // Clamp only for the dz lookup; still write to the ghost rho cell. In a
-                // periodic direction the exterior nodes hold the wrapped image, so the
-                // unclamped stencil already gives the thickness of the cell SumBoundary
-                // folds into; only the non-periodic exterior nodes need clamping.
+                // A corner outside a non-periodic boundary folds into the boundary cell; SumBoundary wraps periodic ones.
                 const int ic_dz = per_x ? ic : amrex::max(i_lo, amrex::min(i_hi, ic));
                 const int jc_dz = per_y ? jc : amrex::max(j_lo, amrex::min(j_hi, jc));
                 const int kc_dz = amrex::max(k_lo, amrex::min(k_max, kc));
                 const Real dz = dz_cell(ic_dz, jc_dz, kc_dz);
                 AMREX_ALWAYS_ASSERT(dz > Real(0.0));
                 const Real contrib = pval * w_horiz * w_z * inv_dxdy / (dz * weight);
-                Gpu::Atomic::AddNoRet(&rho(ic, jc, kc, a_comp), contrib);
+                Gpu::Atomic::AddNoRet(&rho(ic_dz, jc_dz, per_z ? kc : kc_dz, a_comp), contrib);
             };
 
             deposit(ix  , iy  , kz_lo, wx0*wy0, wz_lo);

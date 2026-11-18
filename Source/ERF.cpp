@@ -58,6 +58,7 @@ double ERF::stop_time     = std::numeric_limits<double>::max();
 #ifdef ERF_USE_NETCDF
 double ERF::start_bdy_time     =  0.0;
 double ERF::final_bdy_time     = -1.0;
+bool   ERF::use_theta_m_bdy    = false;
 
 double ERF::start_low_time     =  0.0;
 double ERF::final_low_time     = -1.0;
@@ -428,9 +429,9 @@ ERF::ResetIntervalMeans ()
 // different horizontal regions has a bounding box reaching both domain ends while no single
 // box holds a column.
 //
-// RRTMGP records its own predicate at Init and it stays authoritative for that model. The
-// two-stream model has no IRadiation object -- reading rad[] would dereference a null
-// pointer -- so derive it from the grids.
+// Every model uses this same per-box test, rad_boxes_span_column (RRTMGP and RadiationSimple
+// in their Init, the two-stream solver in its advance), so derive it from the grids here. That
+// also covers the two-stream model, which has no IRadiation object to ask.
 //
 // This lives here, rather than as a lambda in one caller, because three places have to
 // agree about it: advance_radiation (which routes such a level through
@@ -440,13 +441,58 @@ bool
 ERF::rad_level_needs_interpolation (int lev) const
 {
     if (lev <= 0) { return false; }
-    if (solverChoice.rad_uses_interface() && rad[lev]) { return rad[lev]->is_nested_patch(); }
+    return !rad_boxes_span_column(grids[lev], geom[lev].Domain());
+}
+
+// Called from init_stuff, so on every level build (from scratch, from coarse, and regrid) and
+// before any radiation model sees the grids, which makes it the one place every model rejects
+// a level 0 split in z.
+//
+// A fine level that fails the per-box test takes coarse radiation. That is intended for a
+// partial-height patch, but a level whose boxes together reach both the ground and the top --
+// full-height boxes chopped in z by max_grid_size, or full-column boxes beside partial ones --
+// could have been swept, so say so rather than let it take coarse radiation unnoticed. Warned
+// once per level each time it starts to be interpolated, so a regrid that turns another
+// layout into one is reported too.
+void
+ERF::check_rad_level_grids (int lev, const BoxArray& ba)
+{
+    if (solverChoice.rad_type == RadiationType::None) { return; }
+
     const Box& dom = geom[lev].Domain();
-    for (int ibox = 0; ibox < grids[lev].size(); ++ibox) {
-        const Box& b = grids[lev][ibox];
-        if (b.smallEnd(2) != dom.smallEnd(2) || b.bigEnd(2) != dom.bigEnd(2)) { return true; }
+    const bool spans = rad_boxes_span_column(ba, dom);
+
+    if (lev == 0) {
+        if (!spans) {
+            amrex::Abort("Radiation cannot run on a level 0 whose grids are decomposed in z: "
+                         "a box there holds only part of a column, and level 0 has no parent "
+                         "to interpolate from. Set amr.max_grid_size_z to at least the number "
+                         "of cells in z, or leave amr.no_box_split_dir at its default of 2 so "
+                         "grids are never split in z.");
+        }
+        return;
     }
-    return false;
+
+    if (lev >= static_cast<int>(m_rad_cut_in_z_warned.size())) {
+        m_rad_cut_in_z_warned.resize(lev + 1, 0);
+    }
+    const Box bbox = ba.minimalBox();
+    const bool cut_in_z = !spans && bbox.smallEnd(2) == dom.smallEnd(2)
+                                 && bbox.bigEnd(2)   == dom.bigEnd(2);
+    if (cut_in_z) {
+        if (!m_rad_cut_in_z_warned[lev]) {
+            Print() << "WARNING: level " << lev << " has grids reaching both the bottom and the "
+                       "top of the domain, but not every box spans the column (grids split in z, "
+                       "e.g. by amr.max_grid_size, or full-column boxes beside partial-height "
+                       "ones). Radiation cannot sweep it, so its radiation is interpolated from "
+                       "level " << lev - 1 << ". To compute it on this level, set "
+                       "amr.max_grid_size_z there to at least its number of cells in z, or "
+                       "leave amr.no_box_split_dir at its default of 2.\n";
+            m_rad_cut_in_z_warned[lev] = 1;
+        }
+    } else {
+        m_rad_cut_in_z_warned[lev] = 0;
+    }
 }
 
 // Two-way coupling of the two-stream surface energy balance with the zlo surface layer
@@ -1239,7 +1285,7 @@ ERF::InitData_post ()
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                                       start_bdy_time, final_bdy_time);
+                                                       start_bdy_time, final_bdy_time, use_theta_m_bdy);
 
             double time_since_start_bdy = t_new[0] + (start_time - start_bdy_time);
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
@@ -1254,7 +1300,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             }
 
@@ -1267,7 +1313,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             } // itime
         } // use_real_bcs
@@ -1334,26 +1380,10 @@ ERF::InitData_post ()
         m_r2d->read_input_files(t_new[0]+start_time,dt_dummy,m_bc_extdir_vals);
     }
 
-    if (solverChoice.custom_rhotheta_forcing)
-    {
-        rhotheta_src.resize(max_level+1);
-        for (int lev = 0; lev <= finest_level; lev++) {
-            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
-            for (auto& b : bl_src) {
-                if (!solverChoice.spatial_rhotheta_forcing)
-                {
-                    // source is only defined in Z
-                    b.setRange(0, 0, 1);
-                    b.setRange(1, 0, 1);
-                }
-            }
-            BoxArray ba_src(std::move(bl_src));
-            rhotheta_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
-            rhotheta_src[lev]->setVal(0.);
-            prob->update_rhotheta_sources(t_new[0],
-                                          rhotheta_src[lev].get(),
-                                          geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
-        }
+    // The custom rhotheta, moisture and subsidence forcing of each level; a level made or
+    //    remade later by a regrid builds its own (MakeNewLevelFromCoarse, RemakeLevel)
+    for (int lev = 0; lev <= finest_level; lev++) {
+        init_custom_forcing(lev, t_new[0]);
     }
 
     if (solverChoice.have_geo_wind_profile)
@@ -1393,42 +1423,6 @@ ERF::InitData_post ()
         }
     }
 
-    if (solverChoice.custom_moisture_forcing)
-    {
-        rhoqt_src.resize(max_level+1);
-        for (int lev = 0; lev <= finest_level; lev++) {
-            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
-            for (auto& b : bl_src) {
-                if (!solverChoice.spatial_moisture_forcing)
-                {
-                    // source is only defined in Z
-                    b.setRange(0, 0, 1);
-                    b.setRange(1, 0, 1);
-                }
-            }
-            BoxArray ba_src(std::move(bl_src));
-            rhoqt_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
-            rhoqt_src[lev]->setVal(0.);
-            prob->update_rhoqt_sources(t_new[0],
-                                       rhoqt_src[lev].get(),
-                                       geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
-        }
-    }
-
-    if (solverChoice.custom_w_subsidence)
-    {
-        h_w_subsid.resize(max_level+1, Vector<Real>(0));
-        d_w_subsid.resize(max_level+1, Gpu::DeviceVector<Real>(0));
-        for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
-            h_w_subsid[lev].resize(domlen, 0.0_rt);
-            d_w_subsid[lev].resize(domlen, 0.0_rt);
-            prob->update_w_subsidence(t_new[0],
-                                      h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
-                                      geom[lev], z_phys_nd[lev], zlevels_stag[lev]);
-        }
-    }
-
     if (solverChoice.large_scale_forcing)
     {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.nudging_from_input_sounding || lsf.tau_lsf > 0.0,
@@ -1443,16 +1437,10 @@ ERF::InitData_post ()
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
+        // With an input sounding, initRayleigh_at_level takes ubar, vbar and thetabar
+        // from it, at start-up and whenever a regrid remakes or creates a level
         for (int lev = 0; lev <= finest_level; lev++) {
             initRayleigh_at_level(lev);
-        }
-        if (solverChoice.init_type == InitType::Input_Sounding)
-        {
-            // Overwrite ubar, vbar, and thetabar with input profiles;
-            // wbar is assumed to be zero Note: the tau coefficient set by
-            // prob->erf_init_rayleigh() is still used
-            bool restarting = (!restart_chkfile.empty());
-            setRayleighRefFromSounding(restarting);
         }
     }
 
@@ -2052,6 +2040,25 @@ ERF::InitData_post ()
                 }
             }
 
+            // The surface layer computes the MYNN25 PBL height itself, but the YSU and MRF
+            // heights come from those PBL schemes (set_pblh). With any other erf.pbl_type the
+            // PBL height would keep its initial bogus_large_value, which the w* correction
+            // turns into a velocity scale of ~1e50.
+            const auto pblh_type = m_SurfaceLayer[ori]->pblh_type;
+            if (pblh_type == SurfaceLayer::PBLHeightCalcType::YSU ||
+                pblh_type == SurfaceLayer::PBLHeightCalcType::MRF) {
+                const PBLType needed = (pblh_type == SurfaceLayer::PBLHeightCalcType::YSU)
+                                     ? PBLType::YSU : PBLType::MRF;
+                for (const auto& tc : solverChoice.turbChoice) {
+                    if (tc.pbl_type != needed) {
+                        Abort("erf.most.pblh_calc = " + std::string(amrex::getEnumNameString(needed)) +
+                              " takes its PBL height from erf.pbl_type = " +
+                              std::string(amrex::getEnumNameString(needed)) +
+                              ", but erf.pbl_type = " + std::string(amrex::getEnumNameString(tc.pbl_type)));
+                    }
+                }
+            }
+
             // If initializing from an input_sounding, make sure the surface layer
             // is using the same surface conditions
             // Note: do this only if using a single face on zlo, otherwise this will overwrite user specified wall values
@@ -2220,7 +2227,12 @@ ERF::InitData_post ()
         // level-0 steps, and the fire takes one step per step of its own level.
         int fire_steps_per_coarse_step = 1;
         for (int l = 1; l <= fire_lev; ++l) { fire_steps_per_coarse_step *= nsubsteps[l]; }
-        m_fire_coupler->engine().start_run(stop_time, max_step, fire_steps_per_coarse_step);
+        // stop_time is on the absolute clock (it includes start_time, an epoch time with
+        // start_datetime); the engine counts elapsed time, so give it the run's length
+        const amrex::Real fire_stop = (stop_time < std::numeric_limits<double>::max())
+                                    ? static_cast<amrex::Real>(stop_time - start_time)
+                                    : std::numeric_limits<amrex::Real>::max();
+        m_fire_coupler->engine().start_run(fire_stop, max_step, fire_steps_per_coarse_step);
 
         if (restart_chkfile != "") {
             // the engine's state, then the coupling's lagged fluxes
@@ -5273,4 +5285,64 @@ ERF::has_surface_layer_inputs (const std::string& prefix) const
         }
     }
     return false;
+}
+
+/**
+ * Build the custom rhotheta, moisture and subsidence forcing of one level on its current grids,
+ * and fill it at the given time.  Called for every level in InitData_post, and for a level made
+ * or remade by a regrid: the forcing sources live on the level's BoxArray and
+ * DistributionMapping, and SHOC reads the subsidence profile before advance_dycore updates it.
+ *
+ * The geostrophic profile instead is sized for every level up to max_level in InitData_post and
+ * filled in a new level's first advance_dycore.  That cannot work here: the sources need the
+ * level's grids, and the subsidence profile is read by SHOC before advance_dycore and may read
+ * the level's base_state.
+ *
+ * On return the host and device subsidence profiles have length domain length + 1 and hold
+ * whatever update_w_subsidence wrote, zero where it wrote nothing.
+ *
+ * @param[in] lev  level
+ * @param[in] time time at which the forcing is evaluated
+ */
+void
+ERF::init_custom_forcing (int lev, Real time)
+{
+    // The source is only defined in z unless it is spatial
+    auto source_ba = [&] (bool spatial) {
+        BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
+        if (!spatial) {
+            for (auto& b : bl_src) {
+                b.setRange(0, 0, 1);
+                b.setRange(1, 0, 1);
+            }
+        }
+        return BoxArray(std::move(bl_src));
+    };
+
+    if (solverChoice.custom_rhotheta_forcing) {
+        rhotheta_src[lev] = std::make_unique<MultiFab>(source_ba(solverChoice.spatial_rhotheta_forcing),
+                                                       vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+        rhotheta_src[lev]->setVal(0.);
+        prob->update_rhotheta_sources(time, rhotheta_src[lev].get(),
+                                      geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
+    }
+
+    if (solverChoice.custom_moisture_forcing) {
+        rhoqt_src[lev] = std::make_unique<MultiFab>(source_ba(solverChoice.spatial_moisture_forcing),
+                                                    vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+        rhoqt_src[lev]->setVal(0.);
+        prob->update_rhoqt_sources(time, rhoqt_src[lev].get(),
+                                   geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
+    }
+
+    if (solverChoice.custom_w_subsidence) {
+        const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
+        h_w_subsid[lev].assign(domlen, 0.0_rt);
+        // Zero the device copy too: on a remake resize alone would keep the old profile
+        d_w_subsid[lev].resize(domlen);
+        Gpu::copy(Gpu::hostToDevice, h_w_subsid[lev].begin(), h_w_subsid[lev].end(),
+                  d_w_subsid[lev].begin());
+        prob->update_w_subsidence(time, h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
+                                  geom[lev], z_phys_nd[lev], zlevels_stag[lev]);
+    }
 }

@@ -11,7 +11,7 @@
 #     multiplicity ~ rate / eff_sd_rate = 100
 #
 #  The scatter draws its cells from a deterministic seed advanced identically on
-#  every rank; with constant aerosol mass and cell-centred placement the result
+#  every rank; with constant aerosol mass and cell-centered placement the result
 #  is identical for 1, 2, and 4 ranks.
 # =============================================================================
 

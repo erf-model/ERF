@@ -46,7 +46,8 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
                         double& start_bdy_time,
-                        double& final_bdy_time)
+                        double& final_bdy_time,
+                        bool& use_theta_m_bdy)
 {
     Print() << "Loading boundary data from NetCDF file " << std::endl;
 
@@ -116,12 +117,29 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
         final_bdy_time = static_cast<double>(epochTimes[ntimes-1]) + timeInterval;
         Print() << "  start_bdy_time " << start_bdy_time << std::endl;
         Print() << "  final_bdy_time " << final_bdy_time << std::endl;
+
+        // WRF writes USE_THETA_M from v4.0 on; older files carry dry potential temperature
+        auto ncf = ncutils::NCFile::open(nc_bdy_file, NC_CLOBBER | NC_NETCDF4);
+        if (ncf.has_attr("USE_THETA_M")) {
+            std::vector<int> attr;
+            ncf.get_attr("USE_THETA_M", attr);
+            use_theta_m_bdy = static_cast<bool>(attr[0]);
+        } else {
+            use_theta_m_bdy = false;
+            Print() << "  wrfbdy has no USE_THETA_M attribute; assuming dry potential temperature" << std::endl;
+        }
+        ncf.close();
+        Print() << "  wrfbdy contains moist potential temperature: " << use_theta_m_bdy << std::endl;
     }
 
     ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
     ParallelDescriptor::Bcast(&final_bdy_time,1,ioproc);
     ParallelDescriptor::Bcast(&ntimes,1,ioproc);
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
+    // No MPI typemap for bool, so broadcast as int
+    int use_theta_m_int = static_cast<int>(use_theta_m_bdy);
+    ParallelDescriptor::Bcast(&use_theta_m_int,1,ioproc);
+    use_theta_m_bdy = static_cast<bool>(use_theta_m_int);
 
     // Our outermost loop is time
     bdy_data_xlo.resize(ntimes+1);
@@ -148,6 +166,7 @@ convert_wrfbdy_data (const int itime,
                      const iMultiFab* mask_v,
                      const iMultiFab* mask_c,
                      const bool& use_moist,
+                     const bool& use_theta_m_bdy,
                      const bool rebalance_wrf_state)
 {
     // PH, MU, and PC are inputs to conversion, not vertically interpolated
@@ -355,7 +374,8 @@ convert_wrfbdy_data (const int itime,
             }
         });
 
-        // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
+        // Convert perturbational pot. temp. to full dry pot. temp. (Th_d); when the file
+        // carries moist pot. temp. (USE_THETA_M), also remove the (1 + Rv/Rd qv) factor
         const Real wrf_theta_ref = Real(300.);
         ParallelFor(bx_th, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -363,7 +383,8 @@ convert_wrfbdy_data (const int itime,
                 Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
                 Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy_Th   = bdy_th_arr(i,j,k) / xmu_mult + wrf_theta_ref;
-                Real qv_fac       = (one + RvoRd * bdy_qv_arr(i,j,k) / xmu_mult);
+                Real qv_fac       = (use_theta_m_bdy) ? (one + RvoRd * bdy_qv_arr(i,j,k) / xmu_mult)
+                                                      : one;
                 new_bdy_Th       /= qv_fac;
                 bdy_th_tmp(i,j,k) = new_bdy_Th;
             }
@@ -582,12 +603,29 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               Array<MultiFab*, AMREX_SPACEDIM>& area_vec,
                               const Geometry& geom,
                               const bool& use_moist,
+                              const bool& use_theta_m_bdy,
                               const bool rebalance_wrf_state,
                               const Vector<BCRec>& domain_bcs_type_h,
                               int real_width, double bdy_time_interval,
                               bool is_anelastic, bool do_conversion)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+
+    // The conversion (vertical interpolation, hydrostatic rebalance, and the sum over ranks
+    // that assembles the boundary columns) assumes that every level-0 grid spans the whole
+    // column; a level 0 split in z would give it partial, partly undefined columns
+    if (do_conversion) {
+        const Box& dom = geom.Domain();
+        const BoxArray& ba = cons.boxArray();
+        for (int ib = 0; ib < ba.size(); ++ib) {
+            if (ba[ib].smallEnd(2) != dom.smallEnd(2) || ba[ib].bigEnd(2) != dom.bigEnd(2)) {
+                Abort("erf.use_real_bcs requires every level-0 grid to span the full domain height; "
+                      "keep amr.no_box_split_dir = 2 (the ERF default), or set "
+                      "amr.max_grid_size_z >= the full vertical domain extent.  On restart the "
+                      "checkpoint's grids are kept, so also set erf.regrid_level_0_on_restart = 1.");
+            }
+        }
+    }
 
     static bool printed_rebalance_status = false;
     if (!printed_rebalance_status) {
@@ -613,7 +651,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                                      wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                                      z_phys_cc, z_phys_nd,
                                      xvel, yvel, cons, rho0, area_vec, geom,
-                                     use_moist, rebalance_wrf_state, domain_bcs_type_h,
+                                     use_moist, use_theta_m_bdy, rebalance_wrf_state, domain_bcs_type_h,
                                      real_width, bdy_time_interval,
                                      is_anelastic, false);
     }
@@ -954,17 +992,6 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                     }
                 }
 
-                // Make sure that qv in the bdyfiles is >= 0
-                if (bdyVarType == WRFBdyVars::QV) {
-                    Real min_qv_xlo = read_fab(WRFBdyTypes::x_lo,bdyVarType).min<amrex::RunOn::Device>(0);
-                    Real min_qv_xhi = read_fab(WRFBdyTypes::x_hi,bdyVarType).min<amrex::RunOn::Device>(0);
-                    Real min_qv_ylo = read_fab(WRFBdyTypes::y_lo,bdyVarType).min<amrex::RunOn::Device>(0);
-                    Real min_qv_yhi = read_fab(WRFBdyTypes::y_hi,bdyVarType).min<amrex::RunOn::Device>(0);
-                    if (min_qv_xlo < zero) amrex::Warning("qv in bdy_data_xlo < 0");
-                    if (min_qv_xhi < zero) amrex::Warning("qv in bdy_data_xhi < 0");
-                    if (min_qv_ylo < zero) amrex::Warning("qv in bdy_data_ylo < 0");
-                    if (min_qv_yhi < zero) amrex::Warning("qv in bdy_data_yhi < 0");
-                }
             } // bdyVarType
         } // if ParalleDescriptor::IOProcessor()
     } // nc_var_names
@@ -1005,6 +1032,21 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         }
     }
 
+    // Make sure that qv in the bdyfiles is >= 0.  This is checked here, once every side is
+    // filled and, on the last slice, after the tendencies have been turned back into values
+    // (the QVAPOR_BT* tendencies themselves may be negative).  Every rank holds the data.
+    if (ParallelDescriptor::IOProcessor()) {
+        const char* side_name[WRFBdyTypes::y_hi+1] = {"xlo", "xhi", "ylo", "yhi"};
+        for (int bdy_type = WRFBdyTypes::x_lo; bdy_type <= WRFBdyTypes::y_hi; ++bdy_type) {
+            const Real min_qv = read_fab(bdy_type,WRFBdyVars::QV).min<RunOn::Device>(0);
+            if (min_qv < zero) {
+                amrex::Warning("qv in the wrfbdy data on " + std::string(side_name[bdy_type]) +
+                               " at time slice " + std::to_string(itime) + " is negative (" +
+                               std::to_string(min_qv) + ")");
+            }
+        }
+    }
+
     if (do_conversion)
     {
         // Owner masks for parallel reduce sum
@@ -1017,44 +1059,44 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                                 z_phys_cc, z_phys_nd,
                                 mask_u.get(), mask_v.get(), mask_c.get(),
-                                use_moist, rebalance_wrf_state);
+                                use_moist, use_theta_m_bdy, rebalance_wrf_state);
             convert_wrfbdy_data(itime-1, domain, bdy_data_xhi,
                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                                 z_phys_cc, z_phys_nd,
                                 mask_u.get(), mask_v.get(), mask_c.get(),
-                                use_moist, rebalance_wrf_state);
+                                use_moist, use_theta_m_bdy, rebalance_wrf_state);
             convert_wrfbdy_data(itime-1, domain, bdy_data_ylo,
                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                                 z_phys_cc, z_phys_nd,
                                 mask_u.get(), mask_v.get(), mask_c.get(),
-                                use_moist, rebalance_wrf_state);
+                                use_moist, use_theta_m_bdy, rebalance_wrf_state);
             convert_wrfbdy_data(itime-1, domain, bdy_data_yhi,
                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                                 z_phys_cc, z_phys_nd,
                                 mask_u.get(), mask_v.get(), mask_c.get(),
-                                use_moist, rebalance_wrf_state);
+                                use_moist, use_theta_m_bdy, rebalance_wrf_state);
         }
 
         convert_wrfbdy_data(itime, domain, bdy_data_xlo,
                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                             z_phys_cc, z_phys_nd,
                             mask_u.get(), mask_v.get(), mask_c.get(),
-                            use_moist, rebalance_wrf_state);
+                            use_moist, use_theta_m_bdy, rebalance_wrf_state);
         convert_wrfbdy_data(itime, domain, bdy_data_xhi,
                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                             z_phys_cc, z_phys_nd,
                             mask_u.get(), mask_v.get(), mask_c.get(),
-                            use_moist, rebalance_wrf_state);
+                            use_moist, use_theta_m_bdy, rebalance_wrf_state);
         convert_wrfbdy_data(itime, domain, bdy_data_ylo,
                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                             z_phys_cc, z_phys_nd,
                             mask_u.get(), mask_v.get(), mask_c.get(),
-                            use_moist, rebalance_wrf_state);
+                            use_moist, use_theta_m_bdy, rebalance_wrf_state);
         convert_wrfbdy_data(itime, domain, bdy_data_yhi,
                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
                             z_phys_cc, z_phys_nd,
                             mask_u.get(), mask_v.get(), mask_c.get(),
-                            use_moist, rebalance_wrf_state);
+                            use_moist, use_theta_m_bdy, rebalance_wrf_state);
 
         if (is_anelastic) {
             if (do_tendency) {

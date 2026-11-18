@@ -2,7 +2,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_AdvanceLSM {
 
 void update_slm_precipitation (MultiFab& precip,
                                const SurfacePrecipAccumulationSources& sources,
@@ -46,6 +46,7 @@ void update_slm_precipitation (MultiFab& precip,
 }
 
 }
+using namespace erf_detail_AdvanceLSM;
 
 void ERF::advance_lsm (int lev,
                        MultiFab& cons_in,

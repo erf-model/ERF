@@ -112,7 +112,7 @@ The stable side can instead take the quasi-normal scale elimination (QNSE) form 
 with separate coefficients for momentum and heat (``erf.most.qnse_am``, ``erf.most.qnse_bm``,
 ``erf.most.qnse_ah``, ``erf.most.qnse_bh``). The QNSE theory gives eddy viscosities and
 diffusivities as functions of the Richardson number; the rational form in :math:`\zeta` and the
-default coefficients, 2.5 and 0.2 for both momentum and heat, are those of ERF's MRF and YSUNew
+default coefficients, 2.5 and 0.2 for both momentum and heat, are those of ERF's MRF and YSU
 schemes (``erf.qnse_*`` with ``erf.enable_qnse_stable_functions``), not values quoted from the
 paper. The form changes the whole stable side, not only its tail: near neutral
 :math:`\Phi \approx 1 + (a - b)\,\zeta`, a slope of 2.3 with the defaults against the
@@ -125,7 +125,7 @@ as :math:`a = 5.2`, :math:`b = 0.2` keeps the Businger-Dyer slope near neutral w
 :math:`\Phi_h = \Phi_m` and the turbulent Prandtl number is 1 on the stable side, as with
 Businger-Dyer; a stability-dependent Prandtl number, the distinguishing feature of QNSE, needs
 heat coefficients of its own. The surface-layer keys are separate from the PBL schemes' keys, which
-the surface layer does not read; ERF prints a warning at start-up when an MRF or YSUNew run sets
+the surface layer does not read; ERF prints a warning at start-up when an MRF or YSU run sets
 the two differently. The 2 m and 10 m diagnostics hold :math:`\zeta` at 1 with Businger-Dyer and
 at the kernels' bound of 100 with QNSE, whose fold can lie above 1, so that they evaluate the
 profile at the :math:`\zeta` of the flux.
@@ -313,7 +313,10 @@ where :math:`w_*` is the (Deardorff) convective velocity scale and
 :math:`\beta=1.2` (Beljaars 1995, QJRMS). Because :math:`w_*` is computed from the
 boundary layer depth, ``erf.most.include_wstar`` requires ``erf.most.pblh_calc`` to
 name a PBL height scheme; leaving it at its default of ``none`` is an error, since no
-boundary layer depth would ever be diagnosed.
+boundary layer depth would ever be diagnosed. The surface layer diagnoses the
+``MYNN25`` height itself, but ``YSU`` and ``MRF`` take the height from the PBL scheme
+of the same name, so ``erf.most.pblh_calc = YSU`` or ``MRF`` requires the same
+``erf.pbl_type`` on every level; any other combination is an error.
 
 .. _sec:MovingSurface:
 
@@ -349,7 +352,7 @@ scales from the wind, so it is consistent with the moving surface.
 Only water moves. A face of the lowest cells takes the current where the cells on both sides
 of it are water (land mask 0), and is at rest over land and buildings. A water cell on the
 coast therefore has one face at rest across the coastline, and where the surface layer works at
-cell centres, averaging the two faces of the cell, it sees half the current along that
+cell centers, averaging the two faces of the cell, it sees half the current along that
 direction. A current set with ``erf.most.surface_current`` is uniform and takes no account of
 where the water is: lakes and rivers in the land mask move with it as well as the sea, so it is
 meant for idealized domains and domains whose only water is the ocean. A surface with no water is an error, since the
@@ -357,7 +360,7 @@ current would do nothing; idealized cases are all land unless ``erf.is_land = 0`
 is applied at the z-low face on every level, and is not supported with EB terrain.
 
 With ``erf.use_coupled_currents`` an ocean coupler supplies the current instead, as eastward
-and northward components at the cell centres of the level-0 surface, through
+and northward components at the cell centers of the level-0 surface, through
 ``ERF::ApplyOceanSurfaceState``. They are turned to the grid axes with the grid orientation
 from the latitude and longitude (a grid without them is taken to be aligned with east) and
 averaged to the faces. A face takes the current where the cells on both sides of it are water

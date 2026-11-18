@@ -35,7 +35,7 @@ def find_ncgen():
 # ---------------------------------------------------------------------------
 NX = 41          # number of x points  (matches 40-cell domain nodes: 0..2000 step 50)
 NY = 41          # number of y points
-DX = 50.0        # metres
+DX = 50.0        # meters
 DY = 50.0
 
 cx = (NX - 1) * DX / 2.0   # 1000 m

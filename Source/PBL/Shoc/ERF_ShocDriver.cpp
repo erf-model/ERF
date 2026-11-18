@@ -29,8 +29,7 @@ shoc_boxarray_spans_full_height (const BoxArray& ba, const Box& domain)
     return true;
 }
 
-namespace
-{
+namespace erf_detail_ShocDriver {
     constexpr int k_shoc_vertical_diff_comp = EddyDiff::Mom_v;
     constexpr int k_shoc_vertical_diff_count = EddyDiff::Q_v - EddyDiff::Mom_v + 1;
 
@@ -303,6 +302,7 @@ namespace
         }
     }
 }
+using namespace erf_detail_ShocDriver;
 
 ShocDriver::ShocDriver (int lev, const SolverChoice& solver_choice)
     : m_lev(lev),

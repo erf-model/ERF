@@ -22,7 +22,7 @@ python3 ../../check_thin_body_gradp.py plt00002
 
 ## Expected results
 
-The cell average of the two face gradients around a cell is the centred difference
+The cell average of the two face gradients around a cell is the centered difference
 of the cell values, so in every interior cell `dpdx` equals
 `(pert_pres(i+1) - pert_pres(i-1)) / (2 dx)`, and the same in y and z. The check
 passes when the largest mismatch is below 1e-8 of the largest gradient; the fixed

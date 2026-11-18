@@ -208,7 +208,7 @@ struct MaskRun
 };
 
 // The temperature the sweep forms from the surface layer's potential temperature, with the
-// surface pressure of the lowest cell: the cell-centre pressure taken half a cell down.
+// surface pressure of the lowest cell: the cell-center pressure taken half a cell down.
 Real sea_temperature ()
 {
     const Real rho = Real(1.0);
@@ -634,7 +634,7 @@ TEST(TwoStreamLandMask, FillOfANewLevelTakesLandValues)
     ParallelDescriptor::ReduceLongSum(n_none);
 
     const Real tol = Real(64) * real_eps;
-    // Parent (1,4) and its eight neighbours are land: the interpolation with slopes, which
+    // Parent (1,4) and its eight neighbors are land: the interpolation with slopes, which
     // is exact for a linear field: 100 + 3 (0.75) + 7 (3.75) = 128.5 at the fine column (2,8).
     EXPECT_EQ(value_at(c.fine, IntVect(2, 8, 0), 0), value_at(slopes, IntVect(2, 8, 0), 0));
     EXPECT_NEAR(value_at(c.fine, IntVect(2, 8, 0), 0), Real(128.5), Real(128.5) * tol);
@@ -643,16 +643,16 @@ TEST(TwoStreamLandMask, FillOfANewLevelTakesLandValues)
     EXPECT_EQ(value_at(c.fine, IntVect(8, 4, 0), 0), Real(126.0));
     EXPECT_EQ(value_at(c.fine, IntVect(9, 5, 0), 0), Real(126.0));
     EXPECT_EQ(value_at(c.fine, IntVect(9, 5, 0), 1), Real(-126.0));
-    // Parent (5,2) is water. Its land neighbours (4,1), (5,1), (6,1), (4,2), (4,3) hold
+    // Parent (5,2) is water. Its land neighbors (4,1), (5,1), (6,1), (4,2), (4,3) hold
     // 119, 122, 125, 126, 133: the mean is 125, not the held -999.
     EXPECT_NEAR(value_at(c.fine, IntVect(11, 4, 0), 0), Real(125.0), Real(125.0) * tol);
     EXPECT_NEAR(value_at(c.fine, IntVect(11, 5, 0), 1), Real(-125.0), Real(125.0) * tol);
     // The fine water column (10,4) over the same parent keeps the parent's held value.
     EXPECT_EQ(value_at(c.fine, IntVect(10, 4, 0), 0), Real(-999.0));
     // Parent (7,2) is water at the wall: the columns beyond the wall are left out. Its land
-    // neighbours (6,1), (7,1) hold 125 and 128: the mean is 126.5.
+    // neighbors (6,1), (7,1) hold 125 and 128: the mean is 126.5.
     EXPECT_NEAR(value_at(c.fine, IntVect(15, 4, 0), 0), Real(126.5), Real(126.5) * tol);
-    // Parents (6,3) and (7,3) are water with no land neighbour: the held value, and the
+    // Parents (6,3) and (7,3) are water with no land neighbor: the held value, and the
     // fine land columns over them are counted: 8 less the fine water column (12,6).
     EXPECT_EQ(value_at(c.fine, IntVect(13, 7, 0), 0), Real(-999.0));
     EXPECT_EQ(value_at(c.fine, IntVect(14, 6, 0), 1), Real(999.0));

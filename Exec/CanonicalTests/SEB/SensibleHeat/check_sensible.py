@@ -70,7 +70,7 @@ def check_formula(prefix, z0, z0h, cp):
 
 def check_budget(log, plt_diag, plt_couple, dt, cp):
     H = [float(re.search(r"H_total_W=([-\d.eE+]+)", l).group(1)) for l in open(log) if "H_total_W=" in l]
-    # One [IBSEB] line per step from post_timestep plus the one at initialisation;
+    # One [IBSEB] line per step from post_timestep plus the one at initialization;
     # the flux applied during step n is the one computed at its start.
     Q_faces = sum(H[:-1]) * dt
     a = read_plotfile(plt_diag); b = read_plotfile(plt_couple)

@@ -43,7 +43,7 @@ Real beta_of (int k, Real dz, Real h)
     return amrex::min(Real(1.), amrex::max(Real(0.), (h - k*dz) / dz));
 }
 
-// Density at the centre of cell k of height dz, falling with height
+// Density at the center of cell k of height dz, falling with height
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real rho_of (int k, Real dz)
 {

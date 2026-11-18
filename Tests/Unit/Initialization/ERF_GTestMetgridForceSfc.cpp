@@ -12,7 +12,7 @@
 // linkage under nvcc
 namespace metgrid_force_sfc_test {
 
-// ERF levels: nodes 100, 180, 260, ... m, so the cell centres are 140, 220, 300, ... m
+// ERF levels: nodes 100, 180, 260, ... m, so the cell centers are 140, 220, 300, ... m
 constexpr int kNewCells = 12;
 
 #ifdef AMREX_USE_FLOAT
@@ -80,7 +80,7 @@ std::vector<amrex::Real> interpolate (const std::vector<amrex::Real>& orig_z, in
 }
 
 // Origin levels above the surface: 250 m lies between the second (220 m) and the third
-// (300 m) ERF cell centre, which is where the two branches used to disagree
+// (300 m) ERF cell center, which is where the two branches used to disagree
 const std::vector<amrex::Real> kAbove = {amrex::Real(250.0), amrex::Real(400.0), amrex::Real(600.0),
                                          amrex::Real(900.0), amrex::Real(1300.0), amrex::Real(1800.0)};
 
@@ -104,8 +104,8 @@ std::vector<amrex::Real> column_with_below_sfc ()
 using namespace metgrid_force_sfc_test;
 
 // Motivation: erf.metgrid_force_sfc_k = N uses the origin surface through N ERF levels, so
-// origin levels between the surface and the centre of ERF level N-1 (0-based) are dropped, as
-// in WRF's vert_interp. Here N = 2: the 250 m level lies above the 220 m centre of level 1 and
+// origin levels between the surface and the center of ERF level N-1 (0-based) are dropped, as
+// in WRF's vert_interp. Here N = 2: the 250 m level lies above the 220 m center of level 1 and
 // must be kept, so level 1 is interpolated between the surface (100 m) and 250 m. The branch
 // for a column whose surface is the lowest origin level compared with level N instead and
 // dropped the 250 m level (erf-model/ERF#4607).
@@ -145,7 +145,7 @@ TEST(MetgridForceSfc, RetainSfcTakesTheSurfaceValue)
 // extrapolated from those below them.
 TEST(MetgridForceSfc, UsesTheTopOriginLevel)
 {
-    // The top ERF cell centre, 1020 m, lies between the two highest origin levels
+    // The top ERF cell center, 1020 m, lies between the two highest origin levels
     const std::vector<amrex::Real> z = {kSfc, amrex::Real(300.0), amrex::Real(600.0), amrex::Real(1100.0)};
     const auto v = interpolate(z, 0, /*retain_sfc=*/false, /*extra_top=*/false);
     const amrex::Real z_top = amrex::Real(1020.0);

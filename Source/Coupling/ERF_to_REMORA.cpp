@@ -18,8 +18,7 @@
 
 #include <limits>
 
-namespace
-{
+namespace erf_detail_to_REMORA {
 // Contract slot indices, in driver active-view order (mirrors
 // ERFRemoraCouplingContract.H; repeated to avoid a driver->submodule include).
 constexpr int iUwind = 0, iVwind = 1, iPatm = 2, iRH = 3, iTair = 4;
@@ -264,6 +263,7 @@ ApplyConservativeRemap (const amrex::MultiFab& src,
     }
 }
 }
+using namespace erf_detail_to_REMORA;
 
 double
 ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
@@ -974,10 +974,9 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
         amrex::BoxArray ba;
         amrex::DistributionMapping dm;
         GetOceanToAtmosSurfaceLayout(ba, dm);
-        // No ghost cells: SurfaceLayer::fill_tsurf_with_coupled_sst clamps its sample
-        // index into the valid box, exactly as get_lsm_tsurf does for the LSM
-        // arrays, so ghosts here would never be read. t_surf's own ghosts are
-        // filled by the FillBoundary at the end of update_fluxes.
+        // No ghost cells: SurfaceLayer::fill_tsurf_with_coupled_sst copies the SST and its
+        // coverage into temporaries with the halo of t_surf, filled from the valid cells
+        // that own it, so ghosts here would never be read.
         m_coupled_sst       = std::make_unique<amrex::MultiFab> (ba, dm, 1, 0);
         m_coupled_sst_valid = std::make_unique<amrex::iMultiFab>(ba, dm, 1, 0);
     }
@@ -996,9 +995,9 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
             0, m_coupled_sst.get(), m_coupled_sst_valid.get());
     }
 
-    // Diagnostics only from here on. The driver calls this every ERF substep with
-    // the SST of the last exchange, and REMORA already checks that SST on its wet
-    // cells once per exchange, so run this on the first call and at erf.v >= 2 only.
+    // Diagnostics only from here on. The driver calls this once per exchange with
+    // that exchange's SST, which REMORA has already checked on its wet cells when
+    // it packed it, so run this on the first call and at erf.v >= 2 only.
     // verbose is a ParmParse value, so every rank returns together.
     if (m_checked_coupled_sst && verbose < 2) { return; }
     m_checked_coupled_sst = true;

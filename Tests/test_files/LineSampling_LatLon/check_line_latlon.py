@@ -39,7 +39,7 @@ def main():
             raise SystemExit(f"the log does not report {line[:-3]} {snap} m from its hi end")
         print(f"{line[:-3]}: hi end {float(match[0].group(1)):.1f} m across the line")
 
-    # erf.sample_line_latlon: the column at the centre of cell (10,20), and its log written
+    # erf.sample_line_latlon: the column at the center of cell (10,20), and its log written
     match = re.search(r"erf\.sample_line_latlon line 0 at .* \(x=([0-9.eE+-]+) y=([0-9.eE+-]+)\)", log)
     if not match or abs(float(match.group(1)) - 10500.0) > 1.0 or abs(float(match.group(2)) - 20500.0) > 1.0:
         raise SystemExit("erf.sample_line_latlon was not placed at the centre of cell (10,20): " +

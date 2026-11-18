@@ -25,7 +25,7 @@ using namespace amrex;
 
 namespace erf_actuator {
 
-namespace {
+namespace erf_detail_ActuatorSampling {
 
 // The layout the samplers rely on: a field read through the MFIter of `ref` must share its
 // distribution and cell boxes and have `ngrow` ghost cells (host-side check).
@@ -80,6 +80,7 @@ Real sample_component (int dir, Array4<Real const> const& f, Real x, Real y, Rea
 }
 
 } // namespace
+using namespace erf_detail_ActuatorSampling;
 
 // The point list must be the same on every rank: the reductions below are collective, so a rank
 // with another count (or none while the others have points) would hang or mis-sum. Checked
@@ -249,7 +250,7 @@ sample_velocity (const MultiFab& U, const MultiFab& V, const MultiFab& W,
     }
 }
 
-namespace {
+namespace erf_detail_ActuatorSampling {
 
 // height of the centre of cell (i,j,k): the mean of its bottom and top face heights
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -275,6 +276,7 @@ Real centre_column_value (Array4<Real const> const& f, int comp, int i, int j, i
 }
 
 } // namespace
+using namespace erf_detail_ActuatorSampling;
 
 void
 sample_cell_scalar (const MultiFab& mf, int comp, const MultiFab* z_phys_nd, const Geometry& geom,
@@ -449,7 +451,7 @@ terrain_heights (const MultiFab* z_phys_nd, const Geometry& geom, const std::vec
     }
 }
 
-namespace {
+namespace erf_detail_ActuatorSampling {
 
 // The table of this rank's boxes: each node level's lowest and highest height, and the cells the boxes
 // hold. One kernel entry per node level of a box, which goes over that level's nodes and then makes one
@@ -500,6 +502,7 @@ node_level_table (const MultiFab& z_phys_nd, const Geometry& geom, ZBounds& b)
 }
 
 } // namespace
+using namespace erf_detail_ActuatorSampling;
 
 ZBounds
 mesh_z_bounds (const MultiFab& z_phys_nd, const Geometry& geom, bool over_all_ranks)
@@ -573,7 +576,7 @@ LevelHeights::get (const MultiFab& z_phys_nd, const Geometry& geom, bool rebuild
     return m_zb;
 }
 
-namespace {
+namespace erf_detail_ActuatorSampling {
 
 // Per direction across, the node index ranges of the cells a region touches, from its low (b[0], b[1])
 // and high (b[3], b[4]) ends in metres: one range, or two in a periodic direction whose range crosses
@@ -616,8 +619,9 @@ horizontal_node_ranges (const Real* b, const Geometry& geom, std::array<std::vec
 }
 
 } // namespace
+using namespace erf_detail_ActuatorSampling;
 
-namespace {
+namespace erf_detail_ActuatorSampling {
 
 // one piece of the work of column_cell_ranges: point p over the node columns i0..i1 x j0..j1 of box b
 struct ColumnWork
@@ -626,6 +630,7 @@ struct ColumnWork
 };
 
 } // namespace
+using namespace erf_detail_ActuatorSampling;
 
 void
 column_cell_ranges (const MultiFab& z_phys_nd, const Geometry& geom, const std::vector<Real>& pos,

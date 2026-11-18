@@ -218,7 +218,7 @@ public:
 
     void fill_plot_var (const std::string& name, int lev, MultiFab& dst, int comp) const override
     {
-        // The face source averaged to the cell centres; zero before the first step
+        // The face source averaged to the cell centers; zero before the first step
         // and on every level but the one the source was spread on
         const int dir = (name == "structure_example_fx") ? 0 : (name == "structure_example_fy") ? 1 : 2;
         const MultiFab& src = (dir == 0) ? m_src_x : (dir == 1) ? m_src_y : m_src_z;

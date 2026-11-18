@@ -795,7 +795,9 @@ The inflow spectrum gives every layout component per kilogram of dry air,
 in the component order of ``erf.sbm_fixture_initial_state``: liquid-water
 mass (kg/kg), and in two-moment mode droplet number (1/kg). It must be
 complete, canonical for its representation, and admissible for every bin
-group. ``<face>.density`` must be given, and ERF sets the compact ``qc`` and
+group. In a compressible run ``<face>.density`` must be given; in an anelastic
+or pseudo-incompressible run it must be omitted, and the inflow density is taken
+from the interior. ERF sets the compact ``qc`` and
 ``qr`` boundary values from the projection of the inflow spectrum;
 ``<face>.qc`` is rejected, since a compact value can neither define nor
 override a spectrum. Inflow data on any other kind of face is rejected.
@@ -909,8 +911,8 @@ below it. The margin applies with or without mixing. A nearly empty cell whose
 margin to a bound is within that roundoff of the material passing through it
 takes the low-order update on its faces.
 
-On terrain-fitted grids ERF's centred cross-diffusion stencil is
-not positive: a single diagonal neighbour gives an empty cell a negative
+On terrain-fitted grids ERF's centered cross-diffusion stencil is
+not positive: a single diagonal neighbor gives an empty cell a negative
 tendency. No low-order operator is yet qualified there.
 
 Numerical reconstruction for resolved spectral advection
@@ -1173,8 +1175,9 @@ roundoff bound (see :ref:`sec:SBMBoundaries`). Requires
 The constant spectrum entering through an ``Inflow`` or ``inflow_outflow``
 face, where ``<face>`` is ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo`` or
 ``zhi`` (with or without the ``erf.`` prefix, as for the face's ``type``).
-It is required on every such face and rejected on any other, and the face
-must also give ``<face>.density``.
+It is required on every such face and rejected on any other. In a compressible
+run the face must also give ``<face>.density``; in an anelastic or
+pseudo-incompressible run it must not.
 
 .. _sec:SBMRestrictions:
 

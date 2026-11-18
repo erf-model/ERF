@@ -1,5 +1,5 @@
 FILE = inputs_base
 
-erf.pbl_type = "YSUNew"
+erf.pbl_type = "YSU"
 erf.pbl_ib_aware = true
 erf.plot_file_1 = plt_ysunew_on

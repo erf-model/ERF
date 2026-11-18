@@ -135,7 +135,7 @@ def main():
           f"{len(bcols) - len(bad_on)} of {len(bcols)} building columns at emissivity sigma T_roof^4 with the input "
           f"({olr_on[bcols[0]]:.3f} W/m2), {len(bcols) - len(bad_off)} at the held ground's without ({olr_off[bcols[0]]:.3f} W/m2)")
 
-    # 3b. Under the absorbing sky: the grey column of the layers above the roof. The air's
+    # 3b. Under the absorbing sky: the gray column of the layers above the roof. The air's
     # temperatures are those the wall faces report (a straight line in the height here).
     air = [(k[2], f["T_air"]) for k, f in dump1["scattering_on"].items() if k[3] != 2]
     kbar, tbar = sum(k for k, _ in air) / len(air), sum(t for _, t in air) / len(air)
@@ -150,7 +150,7 @@ def main():
         if abs(olr_abs[c] - up[-1]) > lw_tol * up[-1]:
             bad_lw.append(c)
         sample = up[-1]
-    # This sky hides the surface from the top (the two runs differ there by millimetres of a
+    # This sky hides the surface from the top (the two runs differ there by millimeters of a
     # W/m2), so the roof is also checked from close by: a wall that rises above a lower roof
     # takes, through its sky and ground views, the longwave coming down and going up in
     # the roof's column at its own height.

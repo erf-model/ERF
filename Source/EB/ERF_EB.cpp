@@ -25,7 +25,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_EB {
 
 #ifdef AMREX_USE_GPU
 int
@@ -51,6 +51,7 @@ fill_cut_cell_list (Box const& bx, Array4<EBCellFlag const> const& flag,
 #endif
 
 } // namespace
+using namespace erf_detail_EB;
 
 eb_::~eb_ ()
 {

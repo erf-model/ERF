@@ -6,10 +6,10 @@
 #   erf.sample_point        = 10 20 3   25 5 6                               (k = 3, 6)
 #   erf.sample_point_real   = 10500 20500 560   25500 5500 700               (k = 4, 5)
 #   erf.sample_point_real   = 10500 20500 50    25500 5500 200, above ground (k = 0, 5)
-#   erf.sample_point_latlon = the two cell centres, 250 and 200 above ground (k = 3, 5)
+#   erf.sample_point_latlon = the two cell centers, 250 and 200 above ground (k = 3, 5)
 # check_sample_point.py requires each point's log to hold the conserved state of the expected
 # cell of the full-depth columns col_a and col_b, placed by erf.sample_line_latlon at the same
-# cell centres. The boxes are 16 x 16, so the points are on different boxes.
+# cell centers. The boxes are 16 x 16, so the points are on different boxes.
 max_step = 2
 start_datetime = "2026-01-01 00:00:00"
 geometry.prob_extent = 32000.0 32000.0 800.0
