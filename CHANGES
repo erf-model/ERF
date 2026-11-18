@@ -30,6 +30,20 @@
        restart. Markerless Metgrid checkpoints remain supported, unused placeholders are
        preserved, and invalid active values fail with a diagnostic.
 
+    -- There is now one YSU PBL scheme: erf.pbl_type = YSU selects the scheme formerly
+       called YSUNew, and the original YSU, which was incomplete (it aborted in unstable
+       conditions), has been removed. A run that set erf.pbl_type = YSU gets different
+       answers. YSUNew is still accepted, with a deprecation warning, for erf.pbl_type and
+       erf.most.pblh_calc, and gives the same answers as before. erf.pbl_ysu_force_over_water
+       and erf.pbl_ysu_unst_Ribcr, which only the original YSU read, now abort if set.
+       With YSU a static refinement box must now span the whole column, as with the other
+       PBL schemes: a YSUNew run whose refinement boxes did not, which was allowed before,
+       now aborts.
+
+    -- erf.most.pblh_calc = YSU or MRF now aborts unless erf.pbl_type is the same scheme
+       on every level. Those PBL heights come from the PBL scheme, so with any other
+       erf.pbl_type the height kept its initial bogus value.
+
 #26.11
     -- Implicit diffusion for all moist scalars (#4936)
 

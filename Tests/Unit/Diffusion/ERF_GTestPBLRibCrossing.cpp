@@ -1,4 +1,4 @@
-// Unit tests for the bulk Richardson number scan that sets the YSUNew PBL height
+// Unit tests for the bulk Richardson number scan that sets the YSU PBL height
 // (find_rib_crossing, ERF_PBLRibCrossing.H; erf-model/ERF#4458), on synthetic columns
 // whose answer is known in closed form:
 //  * Rib linear in height on a stretched column: the interpolated height is Ribcr / slope

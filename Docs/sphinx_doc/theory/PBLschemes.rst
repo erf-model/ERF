@@ -700,7 +700,7 @@ vertical solve that the A-stable integrators (MidPoint, RK3) do not damp.
    Using the profile in every regime also inherits WRF MRF's over-mixing of stable boundary
    layers: on GABLS1 the peak :math:`K_m` is about twice that of :ref:`YSU<YSUPBL>`.  This is the
    behaviour that Hong et al. (2006) addressed in YSU, so stable cases that need the weaker
-   mixing should set ``erf.pbl_type = YSUNew``.
+   mixing should set ``erf.pbl_type = YSU``.
 
 The turbulent diffusion coefficient in the free atmosphere is computed from the YSU model as the MRF
 expressions showed oscillations in the canonical stable boundary layer tests.
@@ -1336,9 +1336,9 @@ Useful References
 YSU PBL Model
 -------------
 
-.. warning::
-
-   Implementation is in progress, this option is not yet supported
+``erf.pbl_type = YSU`` selects this scheme. It was named ``YSUNew`` while an earlier,
+incomplete YSU implementation existed; that implementation has been removed, and
+``YSUNew`` is still accepted as a deprecated name for ``YSU``.
 
 The Yonsei University (YSU) PBL model is another commonly use scheme in WRF. It includes nonlocal mixing with  contergradient diffusion within
 the PBL, and a local mixing treatment outside the PBL.
@@ -1397,7 +1397,7 @@ which is in turn used to provide an improved estimate of :math:`h`, which is the
 
 .. _ysu-pblh-scan:
 
-On the grid, YSUNew finds :math:`h` by scanning the bulk Richardson number of each column upward from its
+On the grid, YSU finds :math:`h` by scanning the bulk Richardson number of each column upward from its
 first fluid cell :math:`k_s` to the top cell :math:`k_{hi}`, as WRF does (``bl_ysu.F90``):
 
 - If :math:`{\rm Rib}` first reaches :math:`{\rm Rib_{cr}}` at a level :math:`k > k_s`, :math:`h` is interpolated
@@ -1421,11 +1421,11 @@ and, with ``erf.enable_mrf_countergradient``, the countergradient terms reach :m
 levels are both at or above :math:`{\rm Rib_{cr}}`, MRF takes the first level's height, as WRF does, rather
 than extrapolating above it.
 
-Before erf-model/ERF#4458, both schemes gave a column with no crossing :math:`h_{min}`, and YSUNew also sent a
+Before erf-model/ERF#4458, both schemes gave a column with no crossing :math:`h_{min}`, and YSU also sent a
 crossing at :math:`k_{hi}` there. MRF also set its index to :math:`k_s + 1`, so only the first cell used the
 K profile.
 
-In ``YSUNew`` the sign of the surface virtual heat flux selects the form of the diffusivity inside the PBL. A column
+In ``YSU`` the sign of the surface virtual heat flux selects the form of the diffusivity inside the PBL. A column
 counts as stable when the flux is negative and as unstable or neutral otherwise, as WRF does with its surface bulk
 Richardson number (``sfcflg``). Over a neutral surface the flux is round-off. With a plane-averaged surface layer
 (the default ``erf.most.average_policy``) it comes from an averaged :math:`\theta` that differs from the surface value
@@ -1485,10 +1485,10 @@ The following references have informed the implementation of the MRF and YSU mod
 
 - The WRF Fortran source code for this `module <https://github.com/wrf-model/WRF/blob/a8eb846859cb39d0acfd1d3297ea9992ce66424a/phys/module_bl_ysu.F>`_ as of Dec. 2023. The ERF implementation supports the same physical models as this WRF implementation, with the exception of the ``ysu_topdown_pblmix = 1`` option from WF18, i.e. the implementation in ERF largely matches the PBL scheme described in H10.
 
-YSUNew Cloudy PBL Extensions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+YSU Cloudy PBL Extensions
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The YSUNew implementation includes extensions for handling cloud-topped boundary layers without requiring radiation coupling. These extensions are controlled by the ``enable_ysu_topdown`` flag and the ``use_moisture`` condition.
+The YSU implementation includes extensions for handling cloud-topped boundary layers without requiring radiation coupling. These extensions are controlled by the ``enable_ysu_topdown`` flag and the ``use_moisture`` condition.
 
 **Liquid Potential Temperature PBLH Extension**
 

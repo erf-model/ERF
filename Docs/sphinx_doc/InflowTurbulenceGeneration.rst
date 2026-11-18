@@ -540,7 +540,7 @@ diagnostic, or from native SHOC's PBL-height diagnostic. When the bottom surface
 layer has no explicit ``most.pblh_calc`` input, automatic mode supplies
 ``MYNN25``. The MYNN diagnostic always uses heights above local ground,
 including its near-surface temperature scan
-and TKE blending. YSU, YSUNew and MRF write their scheme's height to the surface
+and TKE blending. YSU and MRF write their scheme's height to the surface
 layer as they advance. An explicit ``most.pblh_calc`` setting is respected in
 the bottom face's input namespace; it must provide a valid height on the
 selected ancestor. The MYNN25 diagnostic can run on LES fields: it combines

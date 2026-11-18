@@ -259,7 +259,7 @@ ComputeDiffusivityMYJ (double dt,
                     const Real theta  = cell_data(i,j,k,RhoTheta_comp) / rho;
                     const Real qv     = (moisture_indices.qv >= 0) ?
                                         cell_data(i,j,k,moisture_indices.qv) / rho : zero;
-                    const Real l_min  = Real(1.0e-10); // same floor on |L| as MRF and YSUNew
+                    const Real l_min  = Real(1.0e-10); // same floor on |L| as MRF and YSU
                     const Real l_obuk = std::copysign(std::max(std::fabs(l_obuk_arr(i,j,0)),l_min),l_obuk_arr(i,j,0));
                     PBLSurfaceLayerGradient sl;
                     sl.u_star  = u_star_arr(i,j,0);

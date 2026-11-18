@@ -1,11 +1,11 @@
-# YSUNew PBL Model – Test Cases
+# YSU PBL Model – Test Cases
 
-This directory contains test cases for the YSUNew (Yang-Seng-Ueno New) PBL model as
+This directory contains test cases for the YSU (Yang-Seng-Ueno New) PBL model as
 implemented in ERF, covering neutral, unstable, stable, and moist atmospheric boundary layer conditions.
 
 ## Overview
 
-The YSUNew scheme is an enhanced version of the YSU scheme with improved treatment of:
+The YSU scheme is an enhanced version of the YSU scheme with improved treatment of:
 - Countergradient fluxes (HGAMT/HGAMQ) for unstable conditions
 - Entrainment effects at PBL top
 - Moisture effects on turbulent mixing
@@ -18,7 +18,7 @@ The YSUNew scheme is an enhanced version of the YSU scheme with improved treatme
 **Physical scenario:** Stable conditions with strong surface cooling and statically stable stratification.
 
 **Key parameters:**
-- `erf.pbl_type = YSUNew`
+- `erf.pbl_type = YSU`
 - `erf.pbl_ysu_land_Ribcr = 0.25`
 - `erf.enable_ysu_countergradient = false` (not applicable in stable conditions)
 - `erf.enable_ysu_entrainment = false` (weak entrainment in stable layer)
@@ -50,7 +50,7 @@ The YSUNew scheme is an enhanced version of the YSU scheme with improved treatme
 **Physical scenario:** Unstable conditions with strong surface heating, buoyancy-driven convection, and rapid PBL growth.
 
 **Key parameters:**
-- `erf.pbl_type = YSUNew`
+- `erf.pbl_type = YSU`
 - `erf.pbl_ysu_land_Ribcr = 0.25`
 - `erf.enable_ysu_countergradient = true` (critical for accurate PBL height)
 - `erf.enable_ysu_entrainment = true` (important for convective PBL top)
@@ -84,7 +84,7 @@ The YSUNew scheme is an enhanced version of the YSU scheme with improved treatme
 **Physical scenario:** Neutral conditions with zero surface heat flux and uniform potential temperature. Shear-driven turbulence dominates.
 
 **Key parameters:**
-- `erf.pbl_type = YSUNew`
+- `erf.pbl_type = YSU`
 - `erf.enable_ysu_countergradient = false` (not relevant for neutral conditions)
 - `erf.enable_ysu_entrainment = false`
 - `erf.most.pot_surf_temp = 300.0 K`
@@ -117,7 +117,7 @@ The YSUNew scheme is an enhanced version of the YSU scheme with improved treatme
 **Physical scenario:** Moist unstable conditions with high lower-tropospheric moisture content. Latent heating effects amplify buoyancy-driven convection.
 
 **Key parameters:**
-- `erf.pbl_type = YSUNew`
+- `erf.pbl_type = YSU`
 - `erf.enable_ysu_countergradient = true`
 - `erf.enable_ysu_entrainment = true`
 - `erf.pbl_ysunew_phifac = 8.0`
