@@ -728,6 +728,8 @@ void SuperDropletPC::Coalescence ( int   a_lev,
                         k_val = ckernel.Longs(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j,x_i,x_j,kernel_rel_vel);
                     } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
                         k_val = ckernel.Halls(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j,x_i,x_j,kernel_rel_vel);
+                    } else if (kernel_choice == SDCoalescenceKernelType::geometric) {
+                        k_val = ckernel.geometric(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j,x_i,x_j,kernel_rel_vel);
                     }
 
                     if (k_val < 0.0) {

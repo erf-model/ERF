@@ -221,13 +221,10 @@
         // unchanged, so RhoQ1 has to be rescaled to track the new density --
         // otherwise qv = RhoQ1/rho drifts and drags the pressure along with it.
         //
-        // This deliberately differs from ERF_InitCustomPert_SDMCongestus3D.H, which
-        // assigns state_pert(RhoTheta_comp) = 0 at this point: that would discard
-        // any random perturbation written by the T_0_Pert_Mag branch above.  Leaving
-        // RhoTheta_comp alone is equivalent whenever T_0_Pert_Mag == 0 (state_pert is
-        // zero-initialized by the caller) and non-destructive when it is not -- but
-        // setting both knobs does perturb rho*theta, and the result is then no
-        // longer isobaric.
+        // ERF_InitCustomPert_SDMCongestus3D.H does the same.  Leaving RhoTheta_comp
+        // alone keeps any random perturbation written by the T_0_Pert_Mag branch
+        // above -- but setting both knobs does perturb rho*theta, and the result is
+        // then no longer isobaric.
         if (add_sinusoidal_T) {
             const Real zl   = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
