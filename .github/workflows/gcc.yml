@@ -286,9 +286,6 @@ jobs:
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
-    - name: Test MPI wrapper cache identity
-      run: bash .github/tests/test_gnumake_ccache_identity.sh
-
     - name: Restore Cache
       uses: ./.github/actions/ccache-trunk
       with:

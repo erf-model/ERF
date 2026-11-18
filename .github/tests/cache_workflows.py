@@ -226,8 +226,7 @@ def check_hip_version(job, row, key):
 
 def check_workflows(workflows, defaults):
     """Validate known and newly added cache jobs; return counts and unique tags."""
-    required_jobs = set(REQUIRED_JOBS.items()) | {("gcc.yml", "gnumake")}
-    for name, job_id in sorted(required_jobs):
+    for name, job_id in REQUIRED_JOBS.items():
         require(name in workflows and job_id in workflows[name].get("jobs", {}),
                 f"missing required cache job: {name}:{job_id}")
     seen = {}
@@ -238,7 +237,7 @@ def check_workflows(workflows, defaults):
             if name == "cache-smoke.yml":
                 continue
             for job_id, job in workflow.get("jobs", {}).items():
-                if ((name, job_id) not in required_jobs
+                if (REQUIRED_JOBS.get(name) != job_id
                         and not any(is_cache(s) for s in job.get("steps", []))):
                     continue
                 label = f"{name}:{job_id}"

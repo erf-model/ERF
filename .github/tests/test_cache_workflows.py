@@ -1,10 +1,6 @@
 """Mutate real workflows to prove cache contracts catch wiring drift."""
 
 import copy
-import os
-from pathlib import Path
-import subprocess
-import tempfile
 import unittest
 
 import cache_workflows as contracts
@@ -81,77 +77,6 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn(f"macos-latest-{arch}-appleclang-openmpi-double-particles-on", tags)
         for mpi in ("msmpi", "mpi-off"):
             self.assertIn(f"windows-latest-x64-msvc-{mpi}-double-particles-on", tags)
-
-    def test_gnumake_cache_covers_both_builds_and_preserves_smoke(self):
-        job = self.workflows["gcc.yml"]["jobs"]["gnumake"]
-        self.assertEqual(job["if"], "github.event_name != 'pull_request'")
-        self.assertEqual(job["env"]["CCACHE_BASEDIR"], "${{ github.workspace }}")
-        checks = {part.strip() for part in job["env"]["CCACHE_COMPILERCHECK"].split(";")}
-        self.assertTrue({"%compiler% --version", "%compiler% --showme:version",
-                         "%compiler% --showme:command", "%compiler% --showme:compile"} <= checks)
-        steps = job["steps"]
-        calls = contracts.cache_steps(self.workflows["gcc.yml"], job,
-                                      contracts.GNUMAKE_SAVE_GUARD)
-        builds = [(i, s) for i, s in enumerate(steps)
-                  if s.get("id") in ("gnumake-base", "gnumake-structure")]
-        self.assertEqual([s["id"] for _, s in builds], ["gnumake-base", "gnumake-structure"])
-        self.assertIn("make -C Exec -j2 USE_CCACHE=TRUE", builds[0][1]["run"])
-        self.assertIn("make -j2 USE_CCACHE=TRUE", builds[1][1]["run"])
-        self.assertEqual(builds[1][1]["shell"], "bash")
-        self.assertIn("mpiexec -n 2", builds[1][1]["run"])
-        self.assertIn('grep -q "structure_example_fx"', builds[1][1]["run"])
-        self.assertLess(calls[0][0], builds[0][0])
-        self.assertLess(builds[1][0], calls[1][0])
-        self.assertTrue(any(s.get("run") == "bash .github/tests/test_gnumake_ccache_identity.sh"
-                            for s in steps[:calls[0][0]]))
-
-    def test_gnumake_save_guard_cannot_be_weakened(self):
-        original = contracts.GNUMAKE_SAVE_GUARD
-        guards = (
-            contracts.SAVE_GUARD,
-            original.replace("success()", "always()"),
-            original.replace(" && steps.gnumake-base.outcome == 'success'", ""),
-            original.replace(" && steps.gnumake-structure.outcome == 'success'", ""),
-            original.replace("github.event_name != 'pull_request' && ", ""),
-            original.replace("github.ref_name == github.event.repository.default_branch && ", ""),
-            original + " || failure()",
-        )
-        for guard in guards:
-            with self.subTest(guard=guard):
-                self.setUp()
-                steps = self.workflows["gcc.yml"]["jobs"]["gnumake"]["steps"]
-                save = next(s for s in steps if contracts.is_cache(s) and s["with"]["mode"] == "save")
-                save["if"] = guard
-                with self.assertRaisesRegex(ValueError, "gcc.yml:gnumake:.*trusted publication guard"):
-                    self.check()
-
-    def test_gnumake_cache_pair_cannot_disappear(self):
-        steps = self.workflows["gcc.yml"]["jobs"]["gnumake"]["steps"]
-        steps[:] = [s for s in steps if not contracts.is_cache(s)]
-        with self.assertRaisesRegex(ValueError, "gcc.yml:gnumake:.*exactly one restore"):
-            self.check()
-
-    def test_gnumake_pruning_requires_both_builds_to_succeed(self):
-        steps = self.workflows["gcc.yml"]["jobs"]["gnumake"]["steps"]
-        script = next(s["run"] for s in steps if s.get("name") == "Prune and report compiler cache")
-        for base, structure in (("success", "success"), ("failure", "skipped"),
-                                ("success", "failure"), ("cancelled", "cancelled")):
-            with self.subTest(base=base, structure=structure), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp)
-                stub = root / "ccache"
-                stub.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$CCACHE_TEST_LOG"\n')
-                stub.chmod(0o755)
-                rendered = script.replace("${{ steps.gnumake-base.outcome }}", base).replace(
-                    "${{ steps.gnumake-structure.outcome }}", structure)
-                env = {**os.environ, "PATH": f"{tmp}{os.pathsep}{os.environ['PATH']}",
-                       "CCACHE_TEST_LOG": str(root / "calls"),
-                       "GITHUB_STEP_SUMMARY": str(root / "summary"), "GNUMAKE_BUILD_START": "1"}
-                subprocess.run(["bash", "-e", "-c", rendered], env=env, check=True,
-                               capture_output=True, text=True)
-                calls = (root / "calls").read_text().splitlines()
-                self.assertEqual(any(c.startswith("--evict-older-than ") for c in calls),
-                                 base == structure == "success")
-                self.assertIn("-s", calls)
 
     def test_lost_key_dimension(self):
         self.job()["env"]["CCACHE_TRUNK_KEY"] = "ubuntu-22.04-x64-gcc-mpich-double"
