@@ -1,6 +1,6 @@
 // Warm bubble of the ABL problem (prob.bubble_*), checked against the closed form
 // theta' = bubble_dT cos^2(pi r / 2) on a stretched, tilted mesh, where the
-// cell-centre height z_cc differs from (k + 1/2) dz in every cell.
+// cell-center height z_cc differs from (k + 1/2) dz in every cell.
 //
 // The bubble is WRF's idealized-fire start-up bubble (module_initialize_fire.F):
 // theta is raised at constant pressure and the density recomputed. Under a
@@ -30,7 +30,7 @@ namespace {
 constexpr int n_cells = 16;
 constexpr Real dxy = Real(10.0);
 
-// Bubble used by every test, off the domain centre and with three different radii
+// Bubble used by every test, off the domain center and with three different radii
 constexpr Real b_dT = Real(0.5);
 constexpr Real b_xc = Real(80.0);
 constexpr Real b_yc = Real(75.0);
@@ -46,7 +46,7 @@ Real node_height (int i, int /*j*/, int k)
     return Real(2.0) * Real(k) + Real(0.25) * Real(k) * Real(k) + Real(0.5) * Real(i);
 }
 
-// Cell-centre height of the mesh above, as the mean of the cell's eight nodes
+// Cell-center height of the mesh above, as the mean of the cell's eight nodes
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real cell_height (int i, int j, int k)
 {
@@ -267,7 +267,7 @@ tol (Real scale)
 // cell's own height z_cc, at unchanged pressure (a density deficit, as WRF
 // recomputes alt from the unchanged p). The first form of this option raised
 // rho*theta at fixed density, which leaves theta right but raises the pressure
-// by gamma*dT/theta (0.23 % = 230 Pa at the centre) and starts the run with an
+// by gamma*dT/theta (0.23 % = 230 Pa at the center) and starts the run with an
 // acoustic pulse and no buoyancy; it fails the pressure check by 2.2e-3. A bubble
 // placed on (k + 1/2) dz instead of z_cc fails the theta check by 0.36 K.
 TEST(ABLWarmBubble, CompressibleBubbleIsIsobaricAndMatchesClosedForm)

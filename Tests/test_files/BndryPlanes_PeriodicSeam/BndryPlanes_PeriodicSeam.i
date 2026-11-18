@@ -4,7 +4,7 @@
 # the seam do; development's near-side fill changed y_velocity by 2.7 % of its norm after
 # 10 steps (6.6 % on the canonical ABL inputs_write / inputs_read pair). The velocity components
 # nodal along a face are read between the two plane cells either side of the node, which the plane
-# holds at cell centres (1.7 % in y_velocity here). The reader's last
+# holds at cell centers (1.7 % in y_velocity here). The reader's last
 # plotfile is compared with the gold, which records the new fill, not a physical answer: the
 # reader's 512 m window is not a period of the writer's 1024 m field, so neither fill is "the"
 # value at the seam; the BndryPlaneIndex gtests carry the check of the index arithmetic.

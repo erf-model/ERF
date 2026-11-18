@@ -67,7 +67,7 @@ void set_precedence_values (amrex::MultiFab& mf, const amrex::Box& left, const a
 
 // Subtract from mf what fill_below_band should have left, and store the difference in err.
 // Below the upper box: a cell inside a box below takes that box's value even where it is also
-// a ghost cell of its neighbour; a ghost cell of a box below takes the ghost value; a cell with
+// a ghost cell of its neighbor; a ghost cell of a box below takes the ghost value; a cell with
 // no box below keeps the upper box's value; the upper box's own cells and the boxes below are
 // untouched.
 void subtract_precedence_expected (const amrex::MultiFab& mf, amrex::MultiFab& err,
@@ -174,7 +174,7 @@ struct Column
     std::unique_ptr<amrex::MultiFab> z_cc;
 };
 
-// Cell-centre heights, and a density that stands in for the one interpolated from a coarser
+// Cell-center heights, and a density that stands in for the one interpolated from a coarser
 // level: out of balance and varying in every direction, so where an integration starts matters
 Column make_column (const amrex::BoxArray& ba)
 {

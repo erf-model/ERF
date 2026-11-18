@@ -76,7 +76,7 @@ struct CanopyResult
 
 // One sweep of a two-column level with the beam kept up to interface m_top, read at column
 // (1, 0). The atmosphere absorbs and scatters, and the cloudy evaluation has a cloud over the
-// middle two layers (centres at 1.5 and 2.5 km).
+// middle two layers (centers at 1.5 and 2.5 km).
 CanopyResult run_canopy (amrex::Real cloud_fraction, int m_top, bool sw_enabled, bool ground_albedo = true)
 {
     using namespace amrex;

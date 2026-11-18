@@ -2,7 +2,7 @@
 #
 # A localized mass source (erf.mass_source) in a closed box: slip walls on all six faces, so
 # nothing enters or leaves.  The source injects a constant 1.0e4 kg/s
-# from the cells within 100 m of the centre and less than 100 m above the ground, with the
+# from the cells within 100 m of the center and less than 100 m above the ground, with the
 # tracer on.  The domain mass ERF prints ("MASS") must therefore grow by exactly 1.0e4 kg/s
 # times the elapsed time, and the tracer mass ("RHO SCALAR"), zero at the start, must equal it
 # (Tests/check_mass_source.py).  Tests/CTestList.cmake runs it flat, over a hill, on a

@@ -860,7 +860,7 @@ TEST(TwoStreamColumn, InterfaceFluxesMatchTheSurfaceAndTopDiagnostics)
 
 // Motivation: a SurfaceLayer value is potential temperature, while the
 // longwave boundary emits absolute temperature. The conversion must use the
-// physical surface pressure, not the uncorrected cell-centre pressure.
+// physical surface pressure, not the uncorrected cell-center pressure.
 TEST(TwoStreamColumn, SurfaceLayerPotentialTemperatureIsConvertedBeforeEmission)
 {
     // The surface layer hands the sweep a potential temperature (MOST works in
@@ -957,7 +957,7 @@ TEST(TwoStreamColumn, MassModelLayerOpticsAreExtinctionWeighted)
     EXPECT_NEAR(tau, path * (rc.lw_kabs_dry + rc.lw_kabs_vapor * qv + rc.lw_kabs_cloud * qc), 1.0e-12);
     EXPECT_EQ(omega, 0.0);
 
-    // Per-layer model: unchanged behaviour (fixed tau, input scattering props).
+    // Per-layer model: unchanged behavior (fixed tau, input scattering props).
     rc.tau_model = TauModel::PerLayer;
     rc.single_scattering_albedo = 0.3;
     rc.asymmetry_factor = 0.5;
@@ -1000,7 +1000,7 @@ TEST(TwoStreamColumn, MassModelCloudWaterBrightensTheColumn)
 }
 
 // Motivation: the layer thickness on a non-uniform grid was the
-// centre-to-centre spacing, with the top layer copying the one below, so
+// center-to-center spacing, with the top layer copying the one below, so
 // the mass path rho dz did not add up to the column. With the thickness
 // taken between the interfaces of z_phys_nd, a constant-density column has
 // the same total optical depth however it is layered, and the mass model
@@ -1104,7 +1104,7 @@ TEST(TwoStreamColumn, CloudFractionLiquidWaterTermIsAThreshold)
     EXPECT_NEAR(diagnose_cloud_fraction_from_rh_qc(0.9, 5.0e-4, 0.8, 1.0, 1.0e-3), 1.0, 1.0e-12);
 }
 
-// Motivation (erf-model/ERF#4456): the Magnus saturation vapour pressure
+// Motivation (erf-model/ERF#4456): the Magnus saturation vapor pressure
 // used T - b with T in kelvin where the Celsius form needs (T - T0) + b,
 // so e_sat was hundreds of times too large above freezing and RH clamped
 // to 1 for any moist cell. A parcel at half saturation must give RH = 0.5.

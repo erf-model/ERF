@@ -570,11 +570,11 @@ void fill_columns (MultiFab& u, const amrex::GpuArray<Real, nx>& v, const Real d
 
 // Where the limiter binds, the accepted rates fall back to the low-order
 // exchange of the trial base. On x columns the anchor holds an empty cell h
-// between neighbours p and q in a field of ones, and the stage input, at twice
-// the density, a spike B in h with the same neighbours. With D the low-order
+// between neighbors p and q in a field of ones, and the stage input, at twice
+// the density, a spike B in h with the same neighbors. With D the low-order
 // exchange weight (anchor density) and Dh = 2 D the high-order one (input
 // density), the limiter drains h exactly with r = D (p + q) / (Dh (2B - p - q)
-// + D (p + q)), and the neighbours receive closed-form amounts that change if
+// + D (p + q)), and the neighbors receive closed-form amounts that change if
 // the exchange were left out or taken at the input density.
 void run_limited_cells_keep_low_order_exchange ()
 {
@@ -597,7 +597,7 @@ void run_limited_cells_keep_low_order_exchange ()
     fill_columns(run->state->new_state_for_initialization(0), v, Real(1.0));
     const Real scale = run->spectrum().max(0);
 
-    // D = tau t_x from the oracle: a unit column at h gives t_x to each neighbour.
+    // D = tau t_x from the oracle: a unit column at h gives t_x to each neighbor.
     amrex::GpuArray<Real, nx> unit;
     for (int i = 0; i < nx; ++i) { unit[i] = i == h ? Real(1.0) : Real(0.0); }
     MultiFab delta(run->ba, run->dm, run->spectrum().nComp(), 0);

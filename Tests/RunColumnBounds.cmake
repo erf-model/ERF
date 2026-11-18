@@ -1,4 +1,4 @@
-# Run one ERF deck and require, in the vertical column through the centre of the domain, every
+# Run one ERF deck and require, in the vertical column through the center of the domain, every
 # cell at or above Z_MIN to lie within [LO, HI] for each listed plotfile variable.  Cells below
 # Z_MIN are skipped, so a deck can keep a wall at the bottom (the RANS wall distance needs one)
 # while the check covers only the cells its influence has not reached.

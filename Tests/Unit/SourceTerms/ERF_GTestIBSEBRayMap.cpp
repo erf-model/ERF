@@ -98,7 +98,7 @@ TEST(IBSEBRayMap, HaloIsTheReachOfTheShallowestRay)
     // 140 m over 5 m cells for a sun 30 deg up: 140 / tan(30) = 242.5 m = 48.5 cells,
     // ceil(48.5) + 1 = 50 with the starting column.
     EXPECT_EQ(ibseb::ray_halo_cells(140.0, 5.0, std::sin(30.0 * PI / 180.0)), 50);
-    // Nothing built: one cell, for the solid neighbour of a face.
+    // Nothing built: one cell, for the solid neighbor of a face.
     EXPECT_EQ(ibseb::ray_halo_cells(0.0, 5.0, 0.5), 1);
     // A level ray reaches for ever; the caller caps it at the domain.
     EXPECT_GT(ibseb::ray_halo_cells(10.0, 5.0, 0.0), 1000000);
@@ -179,7 +179,7 @@ TEST(IBSEBRayMap, APatchSpanningThePeriodicDomainWrapsRound)
 
 // Three blocks on a 16 x 16 periodic level of four 8 x 8 boxes: A runs across
 // the box edge at i = 8, B across the periodic seam in y (rows 15 and 0), C
-// sits alone. The labelling must give three buildings, numbered in scan
+// sits alone. The labeling must give three buildings, numbered in scan
 // order of their first column (C at (2, 12), A at (6, 2), B at (12, 0): C 1,
 // A 2, B 3), with every face carrying its building's id, and the same on one
 // box as on four.
@@ -204,7 +204,7 @@ TEST(IBSEBRayMap, BuildingsAreLabelledAcrossBoxesAndSeams)
         const auto i = host(f->d_i), j = host(f->d_j), bid = host(f->d_bid), dir = host(f->d_dir), side = host(f->d_side);
         int nA = 0, nB = 0, nC = 0;
         for (size_t n = 0; n < i.size(); ++n) {
-            // The solid neighbour of the face.
+            // The solid neighbor of the face.
             int si = i[n], sj = j[n];
             if (dir[n] == 0) { si += side[n]; } else if (dir[n] == 1) { sj += side[n]; }
             sj = (sj + 16) % 16;

@@ -9,7 +9,7 @@
 
 #include "ERF_ParFunctions.H"
 
-// Motivation: the input sponge takes, for every k of a level, the largest cell-centre height at
+// Motivation: the input sponge takes, for every k of a level, the largest cell-center height at
 // that k (reduce_to_max_per_height over z_phys_cc).  The reduction read every k from every box,
 // so a box that does not span the column -- a refined patch near the ground, or grids split in
 // z -- was read outside its data: garbage heights, or a crash.  Each box must contribute only
@@ -61,7 +61,7 @@ make_field (const BoxArray& ba)
 
 // Boxes that stop at k = 3 of an 8-cell column, the left one shorter: k = 0..3 get the exact
 // maximum over the boxes that hold them, k = 4..7 are not covered and get the nominal height
-// of the cell centre.
+// of the cell center.
 TEST(ReduceToMaxPerHeight, BoxesShorterThanTheColumn)
 {
     BoxList bl;

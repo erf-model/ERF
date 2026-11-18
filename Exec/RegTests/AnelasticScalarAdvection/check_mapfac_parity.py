@@ -62,7 +62,7 @@ def main(argv):
     if abs(ta - tc) > 1e-6 * max(1.0, tc):
         print("the two plotfiles are at different times: %g and %g s" % (ta, tc))
         return 1
-    # blob centre starts at the domain centre; the analytic centroid in cells
+    # blob center starts at the domain center; the analytic centroid in cells
     ex = (0.5 * nx + U * tc * MF / (L / nx)) % nx
     ey = (0.5 * ny + V * tc * MF / (L / ny)) % ny
     failed = 0

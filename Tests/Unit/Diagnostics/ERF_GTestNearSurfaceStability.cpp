@@ -26,7 +26,7 @@ MostState state_with (Real roughness, Real obukhov_length)
 
 } // namespace
 
-// Motivation: with z0 at its floor and L of a few centimetres, the unbounded
+// Motivation: with z0 at its floor and L of a few centimeters, the unbounded
 // stable correction gave a 2 m temperature of several hundred K.
 TEST(NearSurfaceStability, TinyPositiveObukhovLengthGivesABoundedFactor)
 {

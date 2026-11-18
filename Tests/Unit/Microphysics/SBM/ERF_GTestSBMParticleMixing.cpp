@@ -906,8 +906,8 @@ void run_refinement (const bool stretched)
     EXPECT_GE(order_fine, Real(1.8));
 }
 
-// ERF's centred terrain-fitted stencil on affine terrain z = zeta + s x gives
-// an empty cell a negative tendency from one diagonal neighbour.
+// ERF's centered terrain-fitted stencil on affine terrain z = zeta + s x gives
+// an empty cell a negative tendency from one diagonal neighbor.
 void run_terrain_counterexample ()
 {
     constexpr Real slope = Real(0.5);

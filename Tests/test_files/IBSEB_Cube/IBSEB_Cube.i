@@ -3,7 +3,7 @@
 # fixed sun for 40 steps, with the prognostic skin, the slab and the heat
 # flux into the air. The plotfile carries the per-cell face diagnostics.
 # Immersed-boundary surface energy balance: the prognostic
-# skin temperature. A 40 m cube at the centre of a 320 m periodic domain on
+# skin temperature. A 40 m cube at the center of a 320 m periodic domain on
 # a 10 m grid (small, so the sunrise deck runs in minutes) in a 3 m/s wind at 300 K. Every step the balance
 #   SW_abs + eps Q_ext + LW_net - H - LE - G = 0
 # is solved on every face for the skin temperature, consistently with the
@@ -45,7 +45,7 @@ erf.buildings_type = ImmersedForcing
 erf.buildings_file_name = cube_40m_10m_32x32.txt
 erf.immersed_forcing_substep = true
 eb2.small_volfrac = 0.005
-# The roof (z = 40 m) lies on a plane of the grid refined by 2 that the face-centred
+# The roof (z = 40 m) lies on a plane of the grid refined by 2 that the face-centered
 # EB factories are built on; in single precision that gives one face with more than
 # two cuts (erf-model/ERF#5006). In double precision there are none, so this changes nothing.
 eb2.cover_multiple_cuts = 1

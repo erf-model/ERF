@@ -1,5 +1,5 @@
 # Canonical case: the surface energy balance of an isolated building over a
-# day. A 40 m concrete cube (an exact box) at the centre of a 320 m periodic
+# day. A 40 m concrete cube (an exact box) at the center of a 320 m periodic
 # domain on a 10 m grid in a 3 m/s westerly, neutral at 300 K, at Boulder on the June
 # solstice, from midnight solar time for 24 hours. Clear sky from the
 # prescribed provider (Bird direct beam, Liu-Jordan diffuse), gray sky

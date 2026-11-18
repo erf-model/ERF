@@ -1,4 +1,4 @@
-# Terrain-following inflow profile (xlo.inflow_profile) over idealised terrain
+# Terrain-following inflow profile (xlo.inflow_profile) over idealized terrain
 # with ground on the inflow face. The CTest cases choose the terrain file and
 # the profile source at run time; README.md describes them. As written, this
 # deck is the raised plateau with the log-law profile.

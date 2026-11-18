@@ -171,7 +171,7 @@ amrex::Real condensation_metric (const int i) noexcept
     // --- Koehler curvature (Kelvin) and solute (Raoult) terms ---
     case 3: // at S = 1 a small pure droplet evaporates from curvature alone
         return nonneg( drsqdt_at(amrex::Real(5.0e-7), amrex::Real(1.0), a_curv, zero, zero, kT));
-    case 4: // at S = 1 solute alone drives growth (vapour-pressure lowering)
+    case 4: // at S = 1 solute alone drives growth (vapor-pressure lowering)
         return nonneg(-drsqdt_at(amrex::Real(5.0e-7), amrex::Real(1.0), zero, b_sol, kNs, kT));
     case 5: { // a haze droplet sits in equilibrium at S = S_eq (RHS ~ 0)
         const amrex::Real r_eq = amrex::Real(3.0e-7);

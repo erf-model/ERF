@@ -75,7 +75,7 @@ TOL_UNIFORM = 1.0e-3
 # the sampled wind must be told apart from the next cell's by far more than TOL_LOGLAW
 MIN_SENSITIVITY = 50.0 * TOL_LOGLAW
 
-# name, runtime options, expected zref [m], height of the neighbouring cell center [m]
+# name, runtime options, expected zref [m], height of the neighboring cell center [m]
 CASES = [
     ("fitted_plane",       [],                                                      5.0, 15.5),
     ("fitted_interp",      ["erf.terrain_type=StaticFittedMesh"],                   5.0, 15.5),
@@ -314,7 +314,7 @@ def main():
     failures = []
     new = {}
 
-    # The test only detects a wrong pairing if the neighbouring cell's wind differs
+    # The test only detects a wrong pairing if the neighboring cell's wind differs
     for name, _, zexp, znext in CASES:
         sens = abs(loglaw(znext, zexp) - loglaw(zexp, zexp)) / loglaw(zexp, zexp)
         if sens < MIN_SENSITIVITY:
@@ -352,7 +352,7 @@ def main():
     if hill_sens < MIN_SENSITIVITY:
         failures.append("ridge: sounding too uniform, the second cell's wind changes u* by only %.1e"
                         % hill_sens)
-    # the first-cell wind of each column as ERF initialises it, and the expected u*(0):
+    # the first-cell wind of each column as ERF initializes it, and the expected u*(0):
     # plane averaging takes the mean wind, local averaging each column's own
     winds = column_winds(snd)
     umean = sum(winds) / len(winds)

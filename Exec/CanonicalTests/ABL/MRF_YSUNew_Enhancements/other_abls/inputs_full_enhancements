@@ -57,7 +57,7 @@ erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_MRF_full_enhancements"
 
 # PBL CONFIGURATION - MRF with full WRF-style enhancements
-# Matches WRF module_bl_mrf.F behaviour:
+# Matches WRF module_bl_mrf.F behavior:
 #   - HGAMT/HGAMQ countergradient correction for PBL height finding
 #   - Moisture diffusivity with Prq ~ Prt (no cloud modulation)
 # Reference: https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F

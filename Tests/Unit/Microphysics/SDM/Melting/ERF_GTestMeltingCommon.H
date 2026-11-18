@@ -16,7 +16,7 @@
 // Unit tests for ERF's ice melt rate
 // (Source/Particles/ERF_SuperDropletPCMassChange.H, SDMassChangeUtils_SV::dMdt
 // ::meltRate). The rate follows Seifert-Beheng (2006, Eq. 72): heat conducted
-// from warm air plus the latent-heat flux of vapour to the 0 C wet surface,
+// from warm air plus the latent-heat flux of vapor to the 0 C wet surface,
 // divided by the latent heat of fusion, with the same capacitance and
 // ventilation as deposition. dm_ice/dt is negative when melting. The terminal-
 // velocity test covers the melt fall-speed blend; this covers the melt mass rate.
@@ -30,13 +30,13 @@ using SDMassChangeUtils_SV::dMdt;
 
 constexpr amrex::Real kRhoWater = amrex::Real(1000.0);
 constexpr amrex::Real kP        = amrex::Real(90000.0);   // ambient pressure [Pa]
-constexpr amrex::Real kD        = diffelq;                // vapour diffusivity [m^2 s^-1]
+constexpr amrex::Real kD        = diffelq;                // vapor diffusivity [m^2 s^-1]
 
 constexpr int kNumMetrics = 5;
 constexpr amrex::Real kTol = amrex::Real(1.0e-6);
 
 // dMdt functor built with the water material (per meltRate's contract: L is the
-// latent heat of vaporization, K the air thermal conductivity, Rv the vapour gas
+// latent heat of vaporization, K the air thermal conductivity, Rv the vapor gas
 // constant; rho is unused by meltRate).
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 dMdt<amrex::Real> melt_functor () noexcept

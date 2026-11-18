@@ -1265,7 +1265,7 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
 
 // Motivation:
 // A dry cell next to an icy one must not exchange ice with it through their
-// shared face (#4415). With the transported qci centred on the face, the dry
+// shared face (#4415). With the transported qci centered on the face, the dry
 // cell above the icy layer "sent" half the layer's ice down, the clip on its
 // tendency discarded that loss, and the layer received it anyway: ice was
 // created. Here cell 1 holds all the ice, and the dry bottom cell has nothing
