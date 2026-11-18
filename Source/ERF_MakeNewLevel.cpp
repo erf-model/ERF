@@ -1824,6 +1824,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 void
 ERF::ClearLevel (int lev)
 {
+    if (micro) {
+        micro->ClearLevel(lev);
+        if (lev < static_cast<int>(qmoist.size())) { qmoist[lev].clear(); }
+    }
     for (int iface = lev; iface <= lev + 1; ++iface) {
         if (iface >= 0 && iface < static_cast<int>(sbm_amr_flux_regs.size()) &&
             sbm_amr_flux_regs[iface] &&

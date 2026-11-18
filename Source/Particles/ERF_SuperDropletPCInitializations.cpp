@@ -177,6 +177,8 @@ void SuperDropletPC::readInputs (const double a_dt)
         m_coalescence_kernel = SDCoalescenceKernelType::Longs;
     } else if (coal_kernel_name == "Halls") {
         m_coalescence_kernel = SDCoalescenceKernelType::Halls;
+    } else if (coal_kernel_name == "geometric") {
+        m_coalescence_kernel = SDCoalescenceKernelType::geometric;
     } else {
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
@@ -341,6 +343,8 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, con
             Print() << "Longs" << "\n";
         } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
             Print() << "Halls" << "\n";
+        } else if (m_coalescence_kernel == SDCoalescenceKernelType::geometric) {
+            Print() << "geometric" << "\n";
         }
         Print() << "  Kernel relative velocity: "
                 << getEnumNameString(m_kernel_relative_velocity) << "\n";
@@ -417,82 +421,6 @@ void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, cons
         Redistribute();
         SplitMergeAtLevelBoundary();
     }
-}
-
-/*! Set super-droplets multiplicity and radius in the domain from a given condensate mass density:
-    Given the condensate mass density, we compute the mass of condensate per super-droplet from
-    the mass per cell and the number of super-droplets per cell. We vary the multiplicity by a
-    random amount for each super-droplet. The mass per physical particle is then computed from the
-    mass per super-droplet and the multiplicity. The equivalent radius is then computed from the
-    particle mass and the density of condensate. */
-void SuperDropletPC::SetAttributes (MultiFab& a_rhoc, const MultiFab& a_z_phys_nd, int a_lev)
-{
-    BL_PROFILE("SuperDropletPC::SetAttributes");
-
-    const auto plo = Geom(a_lev).ProbLoArray();
-    const auto dx = Geom(a_lev).CellSizeArray();
-    const auto dxi = Geom(a_lev).InvCellSizeArray();
-    const auto domain = Geom(a_lev).Domain();
-    const bool variable_dz = m_variable_dz;
-
-    // super-droplets per cell, from each cell's volume
-    const auto init_counts_d = initCellCounts();
-    const SDCellCounts* init_counts = init_counts_d.data();
-    const int num_init = static_cast<int>(init_counts_d.size());
-    const int num_sp  = m_num_species;
-    const int num_ae = m_num_aerosols;
-
-    // condensate density
-    const Real rho_w = m_species_mat[m_idx_w]->m_density;
-    const int idx_w = m_idx_w;
-
-    forEachParticleTile(a_lev,
-        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
-            const SDProcess::ParticlePointers& ptrs, int np)
-    {
-        auto condensate_mass_density = a_rhoc[grid].array();
-        SDCellVolume cell_vol{dx, Array4<Real const>{}, variable_dz};
-        if (variable_dz) { cell_vol.z_nd = a_z_phys_nd[grid].const_array(); }
-
-        ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine)
-        {
-            ParticleType& p = p_pbox[i];
-            if (p.id() <= 0) { return; }
-            auto iv = getParticleCell(p, plo, dxi, domain);
-
-            const Real cell_volume = cell_vol(iv[0],iv[1],iv[2]);
-            int num_sd_per_cell = 0;
-            for (int n = 0; n < num_init; n++) {
-                num_sd_per_cell += variable_dz ? init_counts[n].numSDCell(cell_volume)
-                                               : init_counts[n].numSD(cell_volume);
-            }
-
-            const Real mass_condensate_cell = condensate_mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
-            const Real mass_condensate_sd = mass_condensate_cell / num_sd_per_cell;
-
-            Real mult_rnd = static_cast<Real>(-ptrs.mult_ptr[i]/3 + 2*ptrs.mult_ptr[i]/3*Random(rnd_engine));
-            ptrs.mult_ptr[i] += mult_rnd;
-
-            ParticleReal species_mass_total = zero;
-            for (int ctr = 0; ctr < num_sp; ctr++) {
-                if (ctr != idx_w) {
-                    species_mass_total += ptrs.sp_mass_ptrs[ctr][i];
-                }
-            }
-
-            ParticleReal aerosol_mass_total = zero;
-            for (int ctr = 0; ctr < num_ae; ctr++) {
-                aerosol_mass_total += ptrs.ae_mass_ptrs[ctr][i];
-            }
-
-            const Real mass_particle = static_cast<Real>(mass_condensate_sd / ptrs.mult_ptr[i] + aerosol_mass_total + species_mass_total);
-            ptrs.mass_ptr[i] = mass_particle;
-
-            Real radius_cubed = mass_particle / (four_thirds_pi*rho_w);
-            Real radius = (radius_cubed == zero ? zero : std::cbrt(radius_cubed));
-            ptrs.radius_ptr[i] = radius;
-        });
-    }); // end forEachParticleTile
 }
 
 /*! Scale the multiplicities with density of air */

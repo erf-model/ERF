@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-# Stable Atmospheric Boundary Layer Test Case - YSUNew Scheme
+# Stable Atmospheric Boundary Layer Test Case - YSU Scheme
 # 
 # Stable conditions characterized by:
 #   - Strong negative surface heat flux (cooling)
@@ -9,7 +9,7 @@
 #   - Sharp PBL-free atmosphere interface
 #   - Very limited vertical mixing (low diffusivity)
 #
-# This case tests YSUNew performance in stable conditions where:
+# This case tests YSU performance in stable conditions where:
 # - Countergradient corrections have minimal effect
 # - Stability damping dominates
 # - Richardson number mixing is weak in PBL
@@ -75,8 +75,8 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_YSUNew_stable"
 
-# PBL CONFIGURATION - YSUNew for stable boundary layer
-erf.pbl_type = "YSUNew"
+# PBL CONFIGURATION - YSU for stable boundary layer
+erf.pbl_type = "YSU"
 erf.pbl_ysu_land_Ribcr = 0.25    # critical bulk Richardson number for land
 erf.enable_ysu_countergradient = false
 erf.enable_ysu_entrainment = false

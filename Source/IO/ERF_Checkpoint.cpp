@@ -2088,13 +2088,21 @@ ERF::ReadCheckpointFile ()
         std::vector<std::string> qmoist_names;
         micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
         int qmoist_nvar = static_cast<int>(qmoist_indices.size());
+        // a super-droplet checkpoint written before the accumulators were kept lacks them
+        const bool sdm = (solverChoice.moisture_type == MoistureType::SuperDroplets);
         bool precip_accum_missing = false;
         for (int var = 0; var < qmoist_nvar; var++) {
             const int ncomp  = 1;
             IntVect ng_moist = qmoist[lev][qmoist_indices[var]]->nGrowVect();
             const std::string qmoist_file =
                 amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", qmoist_names[var]);
-            if (qmoist_names[var] == "PrecipAccum") {
+            if (sdm) {
+                if (!read_checkpoint_mf_if_present(*(qmoist[lev][qmoist_indices[var]]), qmoist_file,
+                                                   lev, 0, 0, ncomp, ng_moist, /*src_ghosts=*/true)) {
+                    Warning("Restart checkpoint " + restart_chkfile + " has no " + qmoist_names[var]
+                            + " at level " + std::to_string(lev) + "; it starts from zero");
+                }
+            } else if (qmoist_names[var] == "PrecipAccum") {
                 // Checkpoints written before the precipitation total was kept separately
                 // have no such file; it is rebuilt from the others below
                 precip_accum_missing = !read_checkpoint_mf_if_present(*(qmoist[lev][qmoist_indices[var]]),

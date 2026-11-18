@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-# YSUNew PBL height of a column whose surface cell already has a bulk
+# YSU PBL height of a column whose surface cell already has a bulk
 # Richardson number at or above Ribcr (erf-model/ERF#4458).
 #
 # A 1 m/s wind over a neutral surface, and a temperature perturbation of
@@ -84,4 +84,4 @@ erf.abl_geo_wind    = 1.0 0.0 0.0
 
 # TURBULENCE CLOSURE
 erf.les_type = "None"
-erf.pbl_type = "YSUNew"
+erf.pbl_type = "YSU"

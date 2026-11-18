@@ -11,7 +11,7 @@
 using namespace amrex;
 
 // Keep device lambdas in free/public functions, not GoogleTest's private TestBody (NVCC).
-void composite_cic_mass_test ()
+void cic_mass_test (bool composite, const Vector<Real>& zs)
 {
     const Box coarse_domain(IntVect(0), IntVect(3));
     const RealBox rb(Real(0), Real(0), Real(0), Real(4), Real(4), Real(4));
@@ -25,9 +25,8 @@ void composite_cic_mass_test ()
     const Vector<IntVect> rr{IntVect(2)};
     ParGDB gdb(geom, dm, ba, rr);
 
-    // Fine wall, fine-side interface, coarse-side interface; x also crosses
-    // the periodic seam. No advection, microphysics, or plotting can repair this deposit.
-    for (Real zpos : {Real(0.1), Real(1.9), Real(2.1)}) {
+    // x also crosses the periodic seam. No advection, microphysics, or plotting can repair this deposit.
+    for (Real zpos : zs) {
         ERFPC pc(&gdb, "species_projection_test", ERFPCOptions{false, false});
         pc.InitRandom(1, 42, {});
         for (int lev = 0; lev <= pc.finestLevel(); ++lev) {
@@ -57,7 +56,7 @@ void composite_cic_mass_test ()
             pc.ERFPCParticleToMesh(deposit, height, lev, 0,
                 [=] AMREX_GPU_DEVICE (const ERFPC::ParticleTileType::ConstParticleTileDataType&, int) {
                     return ParticleReal(1);
-                }, true);
+                }, composite);
             if (lev == 0) {
                 const iMultiFab mask = makeFineMask(deposit, ba[1], rr[0], 1, 0);
                 for (MFIter mfi(deposit); mfi.isValid(); ++mfi) {
@@ -81,7 +80,15 @@ void composite_cic_mass_test ()
 // composite deposition on both sides of a level edge and across a periodic seam.
 TEST(SpeciesProjection, CompositeCICConservesParticleMassAtWallsAndLevelEdges)
 {
-    composite_cic_mass_test();
+    // fine wall, fine-side interface, coarse-side interface
+    cic_mass_test(true, {Real(0.1), Real(1.9), Real(2.1)});
+}
+
+// Motivation: the plain CIC deposit of water and ice must fold the share outside a
+// non-periodic wall into the wall cell (#5174).
+TEST(SpeciesProjection, CICConservesParticleMassAtWalls)
+{
+    cic_mass_test(false, {Real(0.1)});
 }
 
 void composite_initialization_test ()
@@ -137,31 +144,13 @@ void composite_initialization_test ()
                 total += value;
             }
         }
-        MultiFab condensate(ba[lev], dm[lev], 1, 0);
-        condensate.setVal(Real(1.e-4));
-        pc.SetAttributes(condensate, *height, lev);
-        for (SuperDropletPC::ParIterType pti(pc, lev); pti.isValid(); ++pti) {
-            const auto& soa = pti.GetStructOfArrays();
-            const auto& xi = soa.GetRealData(static_cast<int>(SDPCDefn::SuperDropletsRealIdx::ncomps) +
-                                            SDPCDefn::SuperDropletsRealIdxSoA_RT::multiplicity);
-            const auto& mass = soa.GetRealData(SDPCDefn::SuperDropletsRealIdx::mass);
-            Vector<ParticleReal> multiplicity(xi.size()), per_drop(mass.size());
-            Gpu::copy(Gpu::deviceToHost, xi.begin(), xi.end(), multiplicity.begin());
-            Gpu::copy(Gpu::deviceToHost, mass.begin(), mass.end(), per_drop.begin());
-            const Real expected = Real(1.e-4) / Real(16);
-            for (int i = 0; i < static_cast<int>(multiplicity.size()); ++i) {
-                EXPECT_NEAR(multiplicity[i] * (per_drop[i] - ParticleReal(1.e-12) - ParticleReal(1.e-19)),
-                            expected, expected * Real(32) * std::numeric_limits<ParticleReal>::epsilon());
-            }
-        }
     }
     EXPECT_EQ(total, ParticleReal(2560));
 }
 
 // Motivation: Covered coarse cells must not seed a second initial population,
 // and density scaling must use the flow on each owning level before particles
-// move. Distinct level densities give an exact composite multiplicity oracle;
-// volume-based sampling also checks the level-local condensate attribute divisor.
+// move. Distinct level densities give an exact composite multiplicity oracle.
 TEST(SpeciesProjection, CompositeInitializationScalesEachLevelOnce)
 {
     composite_initialization_test();

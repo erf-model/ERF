@@ -1,4 +1,4 @@
-# The MRF and YSUNew boundary-layer schemes on an immersed building.
+# The MRF and YSU boundary-layer schemes on an immersed building.
 #
 # A 40 m cube (an exact box, so every cell is fluid or solid) on a 320 m
 # periodic domain at 10 m in a 3 m/s westerly, neutral at 300 K with a MOST

@@ -2091,6 +2091,25 @@ ERF::InitData_post ()
                 }
             }
 
+            // The surface layer computes the MYNN25 PBL height itself, but the YSU and MRF
+            // heights come from those PBL schemes (set_pblh). With any other erf.pbl_type the
+            // PBL height would keep its initial bogus_large_value, which the w* correction
+            // turns into a velocity scale of ~1e50.
+            const auto pblh_type = m_SurfaceLayer[ori]->pblh_type;
+            if (pblh_type == SurfaceLayer::PBLHeightCalcType::YSU ||
+                pblh_type == SurfaceLayer::PBLHeightCalcType::MRF) {
+                const PBLType needed = (pblh_type == SurfaceLayer::PBLHeightCalcType::YSU)
+                                     ? PBLType::YSU : PBLType::MRF;
+                for (const auto& tc : solverChoice.turbChoice) {
+                    if (tc.pbl_type != needed) {
+                        Abort("erf.most.pblh_calc = " + std::string(amrex::getEnumNameString(needed)) +
+                              " takes its PBL height from erf.pbl_type = " +
+                              std::string(amrex::getEnumNameString(needed)) +
+                              ", but erf.pbl_type = " + std::string(amrex::getEnumNameString(tc.pbl_type)));
+                    }
+                }
+            }
+
             // If initializing from an input_sounding, make sure the surface layer
             // is using the same surface conditions
             // Note: do this only if using a single face on zlo, otherwise this will overwrite user specified wall values
