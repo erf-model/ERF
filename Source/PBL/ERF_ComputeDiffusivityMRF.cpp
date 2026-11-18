@@ -1153,7 +1153,7 @@ Real fire_kbfs_max      = Real(0);
                 // The first-level offset ZL1 belongs to ZFAC alone: the linear factor
                 // is the full height above the surface, ZQ(I,K).  Subtracting zl1 from
                 // both drives K_m to exactly zero in the first fluid cell.
-                // ERF_ComputeDiffusivityYSU.cpp:1699-1720 splits them the same way.
+                // The YSU K profile (ERF_ComputeDiffusivityYSU.cpp, Step 5) splits them the same way.
                 //
                 // zval already measures height from the top of an immersed column (zib
                 // was subtracted where it was formed), so it is that height directly;
@@ -1166,7 +1166,7 @@ Real fire_kbfs_max      = Real(0);
                 // The Rib passes floor pblh at max(zl1, 10), so pblh - zl1 is exactly
                 // zero for any column whose height lands on that floor with a first
                 // layer thicker than 20 m -- and zval - zl1 is zero too at k == ksrf,
-                // making the quotient 0/0.  Guard it, as YSU does (line 1701).
+                // making the quotient 0/0.  Guard it, as the YSU K profile does.
                 const Real pblh_rel = amrex::max(pblh - zl1, Real(1.0e-4));
                 const Real zfac = amrex::max(Real(1) - (zval - zl1) / pblh_rel, Real(1.0e-8));
 
