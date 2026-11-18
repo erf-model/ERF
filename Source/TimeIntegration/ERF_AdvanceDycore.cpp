@@ -94,8 +94,10 @@ void ERF::advance_dycore (int level,
                                          "custom moisture forcing is not built on this level's grids");
     }
     if (solverChoice.custom_w_subsidence) {
-        const auto domlen = static_cast<std::size_t>(domain.length(2) + 1);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(h_w_subsid[level].size() == domlen && d_w_subsid[level].size() == domlen,
+        // amrex::Vector::size() is a Long, Gpu::DeviceVector::size() a std::size_t
+        const Long domlen = domain.length(2) + 1;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(h_w_subsid[level].size() == domlen &&
+                                         d_w_subsid[level].size() == static_cast<std::size_t>(domlen),
                                          "custom w subsidence profile is not built on this level");
     }
 
