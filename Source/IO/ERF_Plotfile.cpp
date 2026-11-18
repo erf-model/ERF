@@ -206,6 +206,8 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
 
     // Finally, check to see if we found all the requested variables
     for (const auto& plot_name : plot_var_names) {
+        // "levelset" is written by Write3DPlotFile to its own nodal plotfile
+        if (plot_name == "levelset") { continue; }
         if (!containerHasElement(a_plot_var_names, plot_name)) {
              if (amrex::ParallelDescriptor::IOProcessor()) {
                  Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
@@ -2074,6 +2076,22 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         }
     }
 
+    // Nodal EB level set, written to its own plotfile if "levelset" is in erf.plot_vars_<which>
+    bool plot_levelset = false;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        ParmParse pp(pp_prefix);
+        Vector<std::string> requested_vars;
+        pp.queryarr((which == 1) ? "plot_vars_1" : "plot_vars_2", requested_vars);
+        plot_levelset = containerHasElement(requested_vars, "levelset");
+    }
+    Vector<MultiFab> mf_ls(finest_level+1);
+    if (plot_levelset) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            mf_ls[lev].define(convert(grids[lev], IntVect(1)), dmap[lev], 1, 0);
+            MultiFab::Copy(mf_ls[lev], EBFactory(lev).getLevelSet(), 0, 0, 1, 0);
+        }
+    }
+
     for (int lev = 0; lev <= finest_level; ++lev) {
         FillPlot3DVars(lev, plot_var_names, scratch, mf[lev], ncomp_mf, tnew);
     }
@@ -2168,6 +2186,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             writeJobInfo(plotfilename, erf_provenance::ArtifactType::Plotfile3D,
                          istep[0], t_new[0]);
 
+            if (plot_levelset) {
+                Print() << "Writing nodal EB level set" << std::endl;
+                WriteMultiLevelPlotfile(plotfilename + "_levelset", finest_level+1,
+                                        GetVecOfConstPtrs(mf_ls),
+                                        {"levelset"},
+                                        Geom(), tnew, istep, refRatio());
+            }
+
             if (m_plot_face_vels) {
                 Print() << "Writing face velocities" << std::endl;
                 WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
@@ -2243,6 +2269,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                         GetVecOfConstPtrs(mf), varnames,
                                         geom, tnew, istep, ref_ratio);
             }
+            if (plot_levelset) {
+                Print() << "Writing nodal EB level set" << std::endl;
+                WriteMultiLevelPlotfile(plotfilename + "_levelset", finest_level+1,
+                                        GetVecOfConstPtrs(mf_ls),
+                                        {"levelset"},
+                                        geom, tnew, istep, ref_ratio);
+            }
+
             if (m_plot_face_vels) {
                 Print() << "Writing face velocities" << std::endl;
                 WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
