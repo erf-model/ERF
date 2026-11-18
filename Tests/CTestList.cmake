@@ -1281,7 +1281,20 @@ endfunction(add_test_field_bounds)
 # Run test_files/<TEST_NAME>/<TEST_NAME>.i and require every cell at or above Z_MIN in the
 # vertical column through the domain centre of PLTFILE to lie within [LO, HI] for each
 # variable (Tests/RunColumnBounds.cmake). VARIABLES, LOS and HIS are comma-separated lists.
+# Optional keywords: Z_MAX also skips the cells above it; N_CELLS is the number of cells the
+# check must cover; OPTIONS is a space-separated list of inputs appended to the command line;
+# INPUT names the deck when it is not <TEST_NAME>.i (set TEST_FILES_DIR before the call when
+# the deck lives in another test's directory).
 function(add_test_column_bounds TEST_NAME PLTFILE Z_MIN VARIABLES LOS HIS)
+    cmake_parse_arguments(ADD_TEST_CB "" "Z_MAX;N_CELLS;OPTIONS;INPUT" "" ${ARGN})
+    if(ADD_TEST_CB_UNPARSED_ARGUMENTS OR ADD_TEST_CB_KEYWORDS_MISSING_VALUES)
+        message(FATAL_ERROR "add_test_column_bounds(${TEST_NAME}): unknown argument or keyword "
+                "without a value: ${ADD_TEST_CB_UNPARSED_ARGUMENTS} ${ADD_TEST_CB_KEYWORDS_MISSING_VALUES}")
+    endif()
+    set(_input "${TEST_NAME}.i")
+    if(NOT "${ADD_TEST_CB_INPUT}" STREQUAL "")
+        set(_input "${ADD_TEST_CB_INPUT}")
+    endif()
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
@@ -1290,11 +1303,14 @@ function(add_test_column_bounds TEST_NAME PLTFILE Z_MIN VARIABLES LOS HIS)
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${NP}"
         "-DTEST_EXE=${TEST_EXE}"
-        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${_input}"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DFEXTRACT=${FEXTRACT_EXE}"
         "-DPLTFILE=${PLTFILE}"
         "-DZ_MIN=${Z_MIN}"
+        "-DZ_MAX=${ADD_TEST_CB_Z_MAX}"
+        "-DN_CELLS=${ADD_TEST_CB_N_CELLS}"
+        "-DOPTIONS=${ADD_TEST_CB_OPTIONS}"
         "-DVARIABLES=${VARIABLES}"
         "-DLOS=${LOS}"
         "-DHIS=${HIS}"
@@ -1835,6 +1851,29 @@ add_test_field_bounds(PBL_RibHeight_YSU_Stretched "plt2d00002" pblh 146.0 146.6)
 add_test_field_bounds(PBL_RibHeight_YSU_Heated "plt2d00002" pblh 230.0 231.0)
 add_test_field_bounds(PBL_RibHeight_YSU_Heated_Stretched "plt2d00002" pblh 230.0 231.0)
 unset(TEST_FILES_DIR)
+# YSU cloud PBLH extension with the entrainment term off (erf-model/ERF#5191). The PBL-top cell
+# (z = 496 m, dz = 32 m) is cloudy, so erf.enable_ysu_cloud_pblh raises the PBL-top index by one
+# and that cell takes the in-PBL diffusivity. Its top face is above the PBL height, so the
+# K profile term vanishes and Kmv = rho (0.1 + 0.001 dz) = 0.132 rho = 0.14497, against the
+# free-atmosphere floor 0.1 rho = 0.10983 without the extension. Before the fix the extension
+# was skipped whenever erf.enable_ysu_entrainment = false and the first test gave 0.10983.
+# The second test switches the extension off, and the third keeps it with the entrainment
+# term on (0.14500; the entrainment diffusivity goes to the cell above). The second and third
+# gave the same values before the fix: they pin the behaviour the fix must not change. The
+# bounds are 3.5 percent wide, since the value carries the density, and the two outcomes
+# differ by 32 percent.
+add_test_column_bounds(PBL_CloudTop_YSU "plt00003" 480 "Kmv" "0.140" "0.150" Z_MAX 512 N_CELLS 1)
+set(TEST_FILES_DIR PBL_CloudTop_YSU)
+add_test_column_bounds(PBL_CloudTop_YSU_NoExtension "plt00003" 480 "Kmv" "0.105" "0.115" Z_MAX 512 N_CELLS 1
+                       INPUT PBL_CloudTop_YSU.i OPTIONS "erf.enable_ysu_cloud_pblh=false")
+add_test_column_bounds(PBL_CloudTop_YSU_Entrainment "plt00003" 480 "Kmv" "0.140" "0.150" Z_MAX 512 N_CELLS 1
+                       INPUT PBL_CloudTop_YSU.i OPTIONS "erf.enable_ysu_entrainment=true")
+unset(TEST_FILES_DIR)
+# A negative cloud threshold would count clear air as cloud
+add_test_abort(PBL_YSU_NegativeCloudThreshold ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_CloudTop_YSU
+               PBL_CloudTop_YSU.i
+               "erf.ysu_qcloud_threshold must not be negative"
+               "erf.ysu_qcloud_threshold=-1.0e-4")
 # Keys read only by the original YSU, which the former YSUNew replaced: they must stop the
 # run rather than be ignored
 add_test_abort(PBL_YSU_RemovedKey ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBL_NoCrossing_YSU

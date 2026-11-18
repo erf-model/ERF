@@ -1503,3 +1503,15 @@ Configuration: ``enable_ysu_topdown = true``, ``use_moisture = true``
 When liquid water content plus ice content at the layer below PBL top exceeds a threshold (0.01 g/kg), an adjusted entrainment coefficient is computed using cloud buoyancy considerations. This correction replaces the clear-sky entrainment velocity with a value derived from the liquid-theta buoyancy jump, accounting for the reduced stability at cloud top. The entrainment efficiency is computed from cloud liquid water content and limited to 0.4. This path does not require radiation coupling; the calculation uses only surface buoyancy flux.
 
 Configuration: ``enable_ysu_topdown = true``, ``use_moisture = true``
+
+**Cloud at the PBL Top**
+
+Let :math:`k_{pbl}` be the PBL-top cell index: the cell where the bulk Richardson number first reaches its critical value, after the liquid potential temperature extension above. Where the cloud water plus cloud ice mixing ratio in that cell exceeds ``erf.ysu_qcloud_threshold`` (default :math:`10^{-4}` kg/kg), the index is raised by one cell, bounded by the top cell :math:`k_{hi}`:
+
+.. math::
+
+   k_{pbl} \leftarrow \min(k_{pbl} + 1,\, k_{hi}) \quad \text{if} \quad q_c(k_{pbl}) + q_i(k_{pbl}) > q_{thr}
+
+The height :math:`h` itself is not changed. The cloudy cell then takes the in-PBL diffusivity profile, the countergradient terms and the background diffusivity instead of the free-atmosphere values, and the entrainment diffusivity, if enabled, is added one cell higher. The entrainment diffusivity is computed first, from the index before the extension. The extension does not depend on ``erf.enable_ysu_entrainment``: it is applied with the entrainment term on or off.
+
+Configuration: ``enable_ysu_cloud_pblh = true``, ``use_moisture = true``

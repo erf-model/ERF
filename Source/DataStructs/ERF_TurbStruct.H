@@ -294,6 +294,9 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "ysu_qcloud_threshold", ysu_qcloud_threshold, lev, max_level);
+        // A negative threshold would count every cell as cloudy, clear air included
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ysu_qcloud_threshold >= amrex::Real(0.0),
+            "erf.ysu_qcloud_threshold must not be negative");
         query_one_or_per_level(
           pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
         query_one_or_per_level(
@@ -1068,9 +1071,10 @@ public:
   bool enable_ysu_entrainment =
     true; // if true, enable entrainment layer parameterization
   bool enable_ysu_cloud_pblh =
-    true; // if true, enable cloud-based PBL height detection
+    true; // if true, raise the PBL-top cell index by one where that cell is cloudy;
+          // independent of enable_ysu_entrainment
   amrex::Real ysu_qcloud_threshold =
-    amrex::Real(1.0e-4); // Cloud liquid water threshold for YSU (kg/kg)
+    amrex::Real(1.0e-4); // Cloud water plus cloud ice threshold for YSU (kg/kg)
   bool ysu_moistvars = false; // if true, adds turbulence to moisture
   bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
   // Radiative tendency limiter (YSU only)
@@ -1210,9 +1214,9 @@ public:
  * @var TurbChoice::enable_ysu_entrainment
  * @brief Whether YSU entrainment-layer parameterization is enabled.
  * @var TurbChoice::enable_ysu_cloud_pblh
- * @brief Whether YSU cloud-based PBL-height detection is enabled.
+ * @brief Whether the YSU PBL-top cell index is raised by one where that cell is cloudy.
  * @var TurbChoice::ysu_qcloud_threshold
- * @brief Cloud liquid water threshold for YSU [kg/kg].
+ * @brief Cloud water plus cloud ice threshold for YSU [kg/kg].
  * @var TurbChoice::ysu_moistvars
  * @brief Whether YSU applies turbulence to moisture variables.
  * @var TurbChoice::pbl_ysunew_highres_bounds
