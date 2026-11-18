@@ -37,7 +37,9 @@ class BoundaryChecker(Checker):
                 t = (self.fstr(face, "type", "") or "").lower().strip('"')
                 keys = self.face_keys(face)
                 if c.periodic[idim]:
-                    if keys:
+                    if c.any_anelastic and self.fkey(face, "density"):
+                        self._anelastic_density(face)
+                    elif keys:
                         self.warn(face + ".type", "%s is periodic, so every %s.* key is ignored" % (dim, face),
                                   "Remove the %s.* keys or make the direction non-periodic." % face)
                     continue
@@ -77,10 +79,19 @@ class BoundaryChecker(Checker):
             self.error(self.fkey(face, "density"), "may not be combined with %s.density_grad" % face)
         if self.fkey(face, "theta") and self.fkey(face, "theta_grad"):
             self.error(self.fkey(face, "theta"), "may not be combined with %s.theta_grad" % face)
-        if self.fkey(face, "density") and self.ctx.is_anelastic:
-            self.error(self.fkey(face, "density"), "rejected for anelastic runs")
+        if self.fkey(face, "density") and self.ctx.any_anelastic:
+            self._anelastic_density(face)
+        if t == "inflow_outflow" and idim == 2:
+            self.error(face + ".type", "inflow_outflow is supported on x and y faces only; ERF stops")
         if t == "outflow" and idim < 2 and not self.ctx.use_real_bcs:
             self.info(face + ".type", "plain outflow reflects acoustic waves; open or inflow_outflow faces are usually quieter")
+
+    def _anelastic_density(self, face) -> None:
+        self.error(self.fkey(face, "density"),
+                   "rejected on every face in anelastic and pseudo-incompressible runs, periodic "
+                   "ones included: the inflow density is taken from the interior; ERF stops",
+                   "Remove the key; %s.theta and the other face values are made conserved with "
+                   "the interior density." % face)
 
     def _surface_layer(self) -> None:
         c, d = self.ctx, self.deck

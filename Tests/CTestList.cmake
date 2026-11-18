@@ -1771,6 +1771,23 @@ add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
+# Anelastic inflow faces give theta without <face>.density: it is made conserved with the
+# base-state density at each height of a stratified column, on an Inflow face, on an
+# inflow_outflow face, and from a dirichlet_file on an inflow_outflow face (#5256)
+add_test_field_bounds(AnelasticInflowStratified "plt00100" theta 300.99 301.01)
+add_test_field_bounds(AnelasticInflowOutflowStratified "plt00100" theta 300.99 301.01)
+add_test_field_bounds(AnelasticInflowOutflowThetaFile "plt00100" theta 300.99 301.01)
+# ... and stop on a <face>.density, on scalar planes read without density planes, and on an
+# inflow_outflow z face, which the vertical fills do not handle
+set(_anel_inflow_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticInflowStratified)
+add_test_abort(AnelasticInflow_FaceDensity ${_anel_inflow_dir} AnelasticInflowStratified.i
+               "xlo.density must be omitted in anelastic" "xlo.density=1.0")
+add_test_abort(AnelasticInflow_PlanesWithoutDensity ${_anel_inflow_dir} AnelasticInflowStratified.i
+               "but not density in an anelastic run"
+               "erf.input_bndry_planes=1 erf.bndry_file=NoSuchPlanes 'erf.bndry_input_var_names=velocity theta'")
+add_test_abort(InflowOutflow_ZFace ${_anel_inflow_dir} AnelasticInflowStratified.i
+               "inflow_outflow is supported on x and y faces only"
+               "zhi.type=inflow_outflow 'zhi.velocity=0 0 0'")
 # Where the flow leaves through an inflow_outflow face its ghost cells are foextrap (#5136);
 # left unfilled, they held bogus_large_value after a restart, so a restarted run differed
 add_test_restart_parity(InflowOutflow_OutflowFaceRestart InflowOutflowOutflowFace 15 30)

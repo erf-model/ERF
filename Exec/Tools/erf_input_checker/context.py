@@ -5,6 +5,7 @@
 per-level lists that may be a single value) and classifies the run:
 
 * ``is_anelastic``        -- ``erf.compressibility_type`` is not FullyCompressible
+* ``any_anelastic``       -- the same, at any level
                              at level 0 (or the deprecated ``erf.anelastic`` = 1)
 * ``timestepping``        -- per-level ``erf.timestepping_type``, lower case, with the
                              default for each level's compressibility (or mapped from the
@@ -60,6 +61,8 @@ class RunContext:
 
         self.compressibility_type = self._compressibility_type()
         self.is_anelastic = self.compressibility_type[0] != "fullycompressible"
+        # ERF rejects <face>.density when any level is not fully compressible
+        self.any_anelastic = any(t != "fullycompressible" for t in self.compressibility_type)
         self.timestepping = self._timestepping()
         self.substepping = "Implicit" if self.timestepping[0] == "rk3_implicitsubstep" else "None"
         self.init_type = (deck.get_str("erf.init_type", "None") or "None")

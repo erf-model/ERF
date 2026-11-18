@@ -37,7 +37,8 @@ geometry.prob_hi = 1 1 1
 geometry.is_periodic = 0 1 0
 xlo.type = Inflow
 xlo.velocity = 0.8 0.6 0.0
-xlo.density = 1.0
+# xlo.density = 1.0 is passed by the compressible tests (Tests/Unit/CMakeLists.txt):
+# an anelastic run takes the density from the base state and rejects it
 xlo.theta = 300.0
 xlo.sbm_inflow_z = 4.e-6 3.e-6 2.e-6 1.e-6
 xhi.type = Outflow
