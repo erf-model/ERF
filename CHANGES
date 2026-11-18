@@ -1,4 +1,14 @@
 #26.12
+    -- With several input soundings (erf.input_sounding_file and erf.input_sounding_time),
+       the base state, the initial state and the surface layer's surface temperature and
+       moisture come from the first sounding. They came from the surface line of the last
+       file, combined with the profiles of the first. Every sounding must now have the
+       surface pressure of the first; their surface theta and qv may differ and are used
+       as nudging targets. ERF stops if the files and times do not pair up one to one, or
+       if the times do not increase; it used to drop the extra files or times without a
+       word. erf.most.pot_surf_temp and erf.most.surf_moist are checked against the first
+       sounding only (#5152)
+
     -- The YSU PBL-height floor is the top face of the first fluid cell (at least 10 m)
        on every mesh type. Terrain-fitted and stretched meshes keep their answers at the
        default inputs. On constant-dz meshes the floor moves from dz/2 to dz, so pblh and

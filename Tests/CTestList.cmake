@@ -5320,6 +5320,33 @@ add_test_option_parity(InputSounding_FineLevelLSF InputSoundingFineLevels "plt00
     OFF_OPTIONS "erf.large_scale_forcing=false"
     ON_OPTIONS  "erf.nudging_from_input_sounding=true erf.large_scale_forcing=true erf.large_scale_forcing_file=../lsf_zero_tendency erf.forcing_timescale=0.5")
 
+# Several soundings (#5152): only the first sets the base state and the initial state.  The
+# second sounding here has another surface theta, so a run given both must start exactly as a
+# run given the first alone; before the fix the hydrostatic integration started from the
+# surface line of the last file.  Ideal integrates from the surface pressure, theta and qv;
+# Isentropic also takes the surface theta as the theta of the whole column.
+set(_two_soundings "'erf.input_sounding_file=../input_sounding_sfc300 ../input_sounding_sfc303' 'erf.input_sounding_time=0 3600'")
+set(_hse_plot "'erf.plot_vars_1=density theta x_velocity z_velocity pres_hse dens_hse'")
+foreach(_snd_type Ideal Isentropic)
+    add_test_option_parity(InputSounding_SecondSounding_${_snd_type} InputSoundingFineLevels "plt00000"
+        COMMON_OPTIONS "erf.sounding_type=${_snd_type} erf.use_gravity=true ${_hse_plot}"
+        OFF_OPTIONS "erf.input_sounding_file=../input_sounding_sfc300"
+        ON_OPTIONS  "${_two_soundings}")
+endforeach()
+
+# The base state does not change in time, so a later sounding must have the surface pressure
+# of the first; the files and times must pair up one to one, in increasing time
+set(_snd_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/InputSoundingFineLevels)
+add_test_abort(InputSounding_SurfacePressureMismatch ${_snd_dir} InputSoundingFineLevels.i
+               "every input sounding must have the same surface pressure"
+               "'erf.input_sounding_file=input_sounding_sfc300 input_sounding_sfc300_p1005' 'erf.input_sounding_time=0 3600'")
+add_test_abort(InputSounding_FileTimeCountMismatch ${_snd_dir} InputSoundingFineLevels.i
+               "give one time for each file"
+               "'erf.input_sounding_file=input_sounding_sfc300 input_sounding_sfc303'")
+add_test_abort(InputSounding_TimesNotIncreasing ${_snd_dir} InputSoundingFineLevels.i
+               "erf.input_sounding_time must be strictly increasing"
+               "'erf.input_sounding_file=input_sounding_sfc300 input_sounding_sfc303' 'erf.input_sounding_time=3600 0'")
+
 #=============================================================================
 # Terrain: decomposition and station output over a hill
 #=============================================================================

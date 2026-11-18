@@ -3252,6 +3252,8 @@ coordinate at which its sponge ends or starts.
 | **erf.sponge_z_velocity**       | target z-velocity in the sponge zone                     | Real               | 0.0              |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 
+.. _inputs-nudging:
+
 Nudging from Input Soundings
 ----------------------------
 
@@ -3286,20 +3288,30 @@ Nudging from Input Soundings
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.nudging_q_z2**                 | height above which moisture is not nudged                | Real [m]           | 10000.0          |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.input_sounding_time**          | Time(s) of the input sounding file(s)                    | Real(s)            | 0.0              |
+| **erf.input_sounding_time**          | Time(s) of the input sounding file(s), one per file, in  | Real(s)            | 0.0              |
+|                                      | strictly increasing order                                |                    |                  |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.tau_nudging**                  | Time scale for nudging                                   | Real               | 5.0              |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 ``erf.input_sounding_file`` is documented under :ref:`Initialization <inputs-initialization>`;
-more than one file may be named there, paired with ``erf.input_sounding_time``.
+more than one file may be named there, paired with ``erf.input_sounding_time``.  The two lists
+must have the same length, and the times must increase strictly.
 
 If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
 file is available.  If there is only one, and no specification of time is made, it is assumed that
 the one file corresponds to time = 0.0.   If the final time supplied in
-``input_*_sounding_*_time``  is less than the final time in the calculation, the final sounding supplied
-in ``input_*_sounding_*_file`` will be used for all times later than the final value in
-in ``input_*_sounding_*_time``.
+``erf.input_sounding_time`` is less than the final time in the calculation, the final sounding supplied
+in ``erf.input_sounding_file`` will be used for all times later than the final value
+in ``erf.input_sounding_time``.
+
+With more than one sounding, only the first one sets the base state, the initial state and the
+surface temperature and moisture of a surface layer; the later ones are used only as nudging
+targets.  The base state does not change in time, so every sounding must have the surface pressure
+(the first value of its first line) of the first one, and the run stops if it does not.  The
+surface theta and moisture may differ between soundings: they are the bottom point of each
+sounding's profiles, and so shape its nudging target near the ground.  ``erf.most.pot_surf_temp``
+and ``erf.most.surf_moist``, if given, must match the first sounding only.
 
 Every level samples the input sounding at its own cell centers, for the initial state and base
 state and for nudging, just as a single-level run at that resolution does; the large-scale forcing
@@ -3939,7 +3951,9 @@ List of Parameters
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.input_sounding_file**       | Path to the WRF-style input sounding file.  When nudging | String(s)                    | "input_sounding"   |
 |                                   | from input soundings, more than one file may be named,   |                              |                    |
-|                                   | paired with ``erf.input_sounding_time``                  |                              |                    |
+|                                   | paired with ``erf.input_sounding_time``; the first one   |                              |                    |
+|                                   | sets the initial and base states (see                    |                              |                    |
+|                                   | :ref:`inputs-nudging`)                                   |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.sounding_type**             | how the profiles in an input sounding file are           | ConstantDensity, Ideal,      | Ideal              |
 |                                   | interpreted; read only when ``init_type`` =              | Isentropic, DryIsentropic    |                    |
