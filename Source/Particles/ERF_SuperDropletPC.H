@@ -197,12 +197,6 @@ class SuperDropletPC : public ERFPC
                                       const amrex::RealBox&,
                                       const bool );
 
-        /*! \brief Set super-droplets attributes from a given condensate mass density
-         * \param[in] a_mf Multifab containing the initial condensate mass density
-         * \param[in] a_z_phys_nd Terrain heights (nodal)
-         */
-        virtual void SetAttributes ( amrex::MultiFab& a_mf, const amrex::MultiFab& a_z_phys_nd, int a_lev = 0 );
-
         /*! \brief Scale the SDM number density with air density
          * \param[in] a_mf Multifab containing the air density field
          */

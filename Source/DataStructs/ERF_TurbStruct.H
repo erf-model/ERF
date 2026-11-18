@@ -434,8 +434,11 @@ public:
         }
         // Advect QKE/TKE?
         query_one_or_per_level(pp, "advect_tke"    , advect_tke    , lev, max_level);
-        // Apply numerical diffusion to QKE/TKE?
-        query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
+        // Apply numerical diffusion to QKE/TKE? (no effect while the 6th-order numerical
+        // diffusion is deactivated, see erf.num_diff_coeff)
+        if (query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level) && lev == 0) {
+            amrex::Warning("erf.diffuse_tke_3D is ignored: the 6th-order numerical diffusion is currently deactivated");
+        }
     }
 
     // There is a default value of 1e-6 but the user can override the value here,

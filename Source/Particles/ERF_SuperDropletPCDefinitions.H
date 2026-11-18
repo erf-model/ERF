@@ -493,7 +493,8 @@ enum struct SDCoalescenceKernelType {
     golovin,
     sedimentation,
     Longs,
-    Halls
+    Halls,
+    geometric
 };
 
 /*! \brief Types of kernel relative velocity calculation: terminal_velocity

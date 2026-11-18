@@ -114,6 +114,12 @@ public:
         m_moist_model->AverageDownMicroVars(finest_level);
     }
 
+    /*! \brief drop the fields of a level that a regrid removes */
+    void ClearLevel (const int lev) override
+    {
+        m_moist_model->ClearLevel(lev);
+    }
+
     /*! \brief diagnostics of the state of all levels at a step */
     void Diagnostics (const int& step, /*!< step of the state */
                       const amrex::Real& time, /*!< time of the state */
@@ -200,17 +206,12 @@ public:
 
     /*! \brief get the indices and names of moisture model variables for restart
                at a given level */
-    void Get_Qmoist_Restart_Vars ( const int a_lev, /*!< level */
+    void Get_Qmoist_Restart_Vars ( const int /*a_lev*/, /*!< level */
                                    const SolverChoice& a_sc, /*!< Solver choice object */
                                    std::vector<int>& a_idx, /*!< indices */
                                    std::vector<std::string>& a_names /*!< names */ ) const override
     {
-        if (a_lev == 0) {
-            m_moist_model->Qmoist_Restart_Vars( a_sc, a_idx, a_names );
-        } else {
-            a_idx.clear();
-            a_names.clear();
-        }
+        m_moist_model->Qmoist_Restart_Vars( a_sc, a_idx, a_names );
     }
 
     /*! \brief Returns a list of additional plot variable names */
