@@ -1244,8 +1244,14 @@ endfunction(add_test_at_rest_terrain_outflow)
 # own density and theta).  PRE_INPUT names a deck in the test folder to run first, in the same
 # folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).  MIN_HI
 # and MAX_LO further require the minimum to be at most MIN_HI and the maximum at least MAX_LO.
+# INPUT names the deck when it is not <TEST_NAME>.i (set TEST_FILES_DIR before the call when
+# the deck lives in another test's directory).
 function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
-    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT;MIN_HI;MAX_LO" "" ${ARGN})
+    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT;MIN_HI;MAX_LO;INPUT" "" ${ARGN})
+    set(_input "${TEST_NAME}.i")
+    if(NOT "${ADD_TEST_FB_INPUT}" STREQUAL "")
+        set(_input "${ADD_TEST_FB_INPUT}")
+    endif()
     setup_test()
     set(_pre_input "")
     if(NOT "${ADD_TEST_FB_PRE_INPUT}" STREQUAL "")
@@ -1258,7 +1264,7 @@ function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${NP}"
         "-DTEST_EXE=${TEST_EXE}"
-        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${_input}"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DFEXTREMA=${FEXTREMA_EXE}"
         "-DPLTFILE=${PLTFILE}"
@@ -1777,8 +1783,13 @@ add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
 add_test_field_bounds(AnelasticInflowStratified "plt00100" theta 300.99 301.01)
 add_test_field_bounds(AnelasticInflowOutflowStratified "plt00100" theta 300.99 301.01)
 add_test_field_bounds(AnelasticInflowOutflowThetaFile "plt00100" theta 300.99 301.01)
-# A face that gives a scalar but no theta takes theta from the interior
+# A face that gives a scalar but no theta takes theta from the interior, and the scalar it
+# gives fills the domain
 add_test_field_bounds(AnelasticInflowScalarOnly "plt00100" theta 299.99 300.01)
+set(TEST_FILES_DIR "AnelasticInflowScalarOnly")
+add_test_field_bounds(AnelasticInflowScalarOnly_Scalar "plt00100" scalar 1.99 2.01
+                      INPUT AnelasticInflowScalarOnly.i)
+unset(TEST_FILES_DIR)
 # ... and stop on a <face>.density, on scalar planes read without density planes, and on an
 # inflow_outflow z face, which the vertical fills do not handle
 set(_anel_inflow_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticInflowStratified)
