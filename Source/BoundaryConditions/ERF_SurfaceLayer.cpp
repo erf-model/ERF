@@ -1066,6 +1066,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
         // Both take the fluxes from get_lsm_flux_view and test them with
         // SurfaceFluxView::valid, so a column with lmask == 1 gets exactly one of the two.
         // (compute_sfc_params_from_lsm_fluxes also treats a missing lmask as land.)
+        // Every field written here on the grown box must be refilled at the end of update_fluxes.
         const NearestColumn col(vbx);
 
         auto u_star_arr = u_star[lev]->array(mfi);
