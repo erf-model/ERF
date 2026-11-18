@@ -5292,6 +5292,14 @@ ERF::has_surface_layer_inputs (const std::string& prefix) const
  * or remade by a regrid: the forcing sources live on the level's BoxArray and
  * DistributionMapping, and SHOC reads the subsidence profile before advance_dycore updates it.
  *
+ * The geostrophic profile instead is sized for every level up to max_level in InitData_post and
+ * filled in a new level's first advance_dycore.  That cannot work here: the sources need the
+ * level's grids, and the subsidence profile is read by SHOC before advance_dycore and may read
+ * the level's base_state.
+ *
+ * On return the host and device subsidence profiles have length domain length + 1 and hold
+ * whatever update_w_subsidence wrote, zero where it wrote nothing.
+ *
  * @param[in] lev  level
  * @param[in] time time at which the forcing is evaluated
  */
@@ -5329,7 +5337,10 @@ ERF::init_custom_forcing (int lev, Real time)
     if (solverChoice.custom_w_subsidence) {
         const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
         h_w_subsid[lev].assign(domlen, 0.0_rt);
-        d_w_subsid[lev].resize(domlen, 0.0_rt);
+        // Zero the device copy too: on a remake resize alone would keep the old profile
+        d_w_subsid[lev].resize(domlen);
+        Gpu::copy(Gpu::hostToDevice, h_w_subsid[lev].begin(), h_w_subsid[lev].end(),
+                  d_w_subsid[lev].begin());
         prob->update_w_subsidence(time, h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
                                   geom[lev], z_phys_nd[lev], zlevels_stag[lev]);
     }
