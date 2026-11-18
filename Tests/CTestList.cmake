@@ -5353,6 +5353,9 @@ add_test_abort(InputSounding_FileTimeCountMismatch ${_snd_dir} InputSoundingFine
 add_test_abort(InputSounding_TimesNotIncreasing ${_snd_dir} InputSoundingFineLevels.i
                "erf.input_sounding_time must be strictly increasing"
                "'erf.input_sounding_file=input_sounding_sfc300 input_sounding_sfc303' 'erf.input_sounding_time=3600 0'")
+add_test_abort(InputSounding_TimesEqual ${_snd_dir} InputSoundingFineLevels.i
+               "erf.input_sounding_time must be strictly increasing"
+               "'erf.input_sounding_file=input_sounding_sfc300 input_sounding_sfc303' 'erf.input_sounding_time=0 0'")
 
 #=============================================================================
 # Terrain: decomposition and station output over a hill

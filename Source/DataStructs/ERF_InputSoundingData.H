@@ -62,6 +62,16 @@ public:
             input_sounding_time[0] = zero;
         }
 
+    }
+
+    /**
+     * @brief Check the sounding files and times, and resize the host and device sounding arrays.
+     *
+     * The checks are made here rather than in the constructor, which runs whatever erf.init_type
+     * is: they then apply only to a run that reads the soundings.
+     */
+    void resize_arrays ()
+    {
         // One time per file, in increasing order: the nudging interpolates between consecutive
         //    soundings in time
         if (n_sounding_times != n_sounding_files) {
@@ -77,13 +87,7 @@ public:
                              std::to_string(input_sounding_time[n-1]) + ")");
             }
         }
-    }
 
-    /**
-     * @brief Resize host and device sounding arrays for the configured sounding times.
-     */
-    void resize_arrays ()
-    {
         ntimes = n_sounding_files;
 
         z_inp_sound.resize(ntimes);
@@ -147,19 +151,19 @@ public:
             press_sfc *= 100; // convert from hPa to Pa
             qv_sfc *= amrex::Real(0.001); // convert from g/kg to kg/kg
 
-            // Only the t = 0 sounding sets the base state, the initial state and the surface
+            // Only the first sounding sets the base state, the initial state and the surface
             //    layer, so only its surface values are kept in the members.  A later sounding's
             //    surface theta and qv are the bottom point of its own profiles, which the nudging
             //    reads; its surface pressure would be used by nothing, so it must be that of the
-            //    t = 0 sounding (the base state does not change in time)
+            //    first sounding (the base state does not change in time)
             if (itime == 0) {
                 press_ref_inp_sound = press_sfc;
                 theta_ref_inp_sound = theta_sfc;
                 qv_ref_inp_sound    = qv_sfc;
-                have_t0_surface     = true;
+                have_first_surface  = true;
             } else {
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(have_t0_surface,
-                    "InputSoundingData::read_from_file: the t = 0 sounding must be read first");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(have_first_surface,
+                    "InputSoundingData::read_from_file: the first sounding must be read before the others");
                 if (std::abs(press_sfc - press_ref_inp_sound) > surface_pressure_rtol * press_ref_inp_sound) {
                     amrex::Abort("The surface pressure of input sounding " + input_sounding_file[itime] +
                                  " (" + std::to_string(press_sfc * amrex::Real(0.01)) + " hPa) differs from that of " +
@@ -178,7 +182,7 @@ public:
 
             // *************************************************************************************************
             // Make sure that if we specify surface values for temp in the inputs file and in the input sounding file,
-            //      those values must match.  The surface layer takes them from the t = 0 sounding, so
+            //      those values must match.  The surface layer takes them from the first sounding, so
             //      later soundings, whose surface values may change, are not checked
             // *************************************************************************************************
             amrex::ParmParse pp_erf("erf");
@@ -549,12 +553,12 @@ public:
 
     bool assume_dry{false};
 
-    // - read from file: the surface line of the t = 0 sounding
+    // - read from file: the surface line of the first sounding
     amrex::Real press_ref_inp_sound, theta_ref_inp_sound, qv_ref_inp_sound; // input
-    bool have_t0_surface{false};
+    bool have_first_surface{false};
 
     // Relative difference allowed between the surface pressure of a later sounding and that of
-    //    the t = 0 sounding
+    //    the first sounding
     static constexpr amrex::Real surface_pressure_rtol = amrex::Real(1.e-6);
 
     // This is a vector (over time) of Vectors
@@ -592,10 +596,10 @@ public:
  * @brief Surface reference potential temperature read from the input sounding [K].
  * @var InputSoundingData::qv_ref_inp_sound
  * @brief Surface reference water vapor mixing ratio read from the input sounding [kg/kg].
- * @var InputSoundingData::have_t0_surface
- * @brief Whether the surface line of the t = 0 sounding has been read into the members above.
+ * @var InputSoundingData::have_first_surface
+ * @brief Whether the surface line of the first sounding has been read into the members above.
  * @var InputSoundingData::surface_pressure_rtol
- * @brief Relative tolerance on the surface pressure of a later sounding against the t = 0 one.
+ * @brief Relative tolerance on the surface pressure of a later sounding against the first one.
  * @var InputSoundingData::z_inp_sound
  * @brief Interpolated host sounding heights for each sounding time [m].
  * @var InputSoundingData::theta_inp_sound
