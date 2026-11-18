@@ -112,7 +112,8 @@ ERF::configure_sbm_physical_boundaries ()
                 else             { domain_bcs_type[bc].setHi(dir, t); }
             };
             // A face that gave no other value brings in zero of the rest, as one that gave
-            // any does (init_phys_bcs); a theta file or a non-reflecting face keeps its theta
+            // any does (init_phys_bcs); theta is never set to zero, and is extrapolated from
+            // the interior when it is not given
             const bool any_given = [&] {
                 for (int n = BCVars::RhoTheta_bc_comp; n < NBCVAR_max; ++n) {
                     if (m_bc_prim_given[n][ori]) { return true; }
@@ -120,9 +121,7 @@ ERF::configure_sbm_physical_boundaries ()
                 return false;
             }();
             if (!any_given) {
-                for (int n = BCVars::RhoTheta_bc_comp; n < NBCVAR_max; ++n) {
-                    if (n == BCVars::RhoTheta_bc_comp &&
-                        (m_th_file_face[ori] != 0 || m_bc_nonreflecting[ori])) { continue; }
+                for (int n = BCVars::RhoKE_bc_comp; n < NBCVAR_max; ++n) {
                     const int type_now = ori.isLow() ? domain_bcs_type[n].lo(dir)
                                                      : domain_bcs_type[n].hi(dir);
                     if (type_now == ERFBCType::ext_dir_ingested) { continue; }
