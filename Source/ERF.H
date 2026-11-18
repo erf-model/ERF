@@ -2008,6 +2008,10 @@ private:
     // Per face: whether its Dirichlet theta comes from a dirichlet_file, and in which form
     // (0: not from a file, 1: the file holds rho*theta, 2: the file holds theta)
     amrex::Array<int, AMREX_SPACEDIM*2> m_th_file_face = {{0}};
+    // Per conserved BC component and face: 1 where an anelastic inflow or inflow_outflow face
+    // was given a primitive value (<face>.theta, scalar, qv, qc, KE).  m_bc_extdir_vals then
+    // holds that primitive value, made conserved with the interior density
+    amrex::Array<amrex::Array<int, AMREX_SPACEDIM*2>, NBCVAR_max> m_bc_prim_given{};
 
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;

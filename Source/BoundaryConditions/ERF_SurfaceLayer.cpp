@@ -833,14 +833,21 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_planar_boundary(lev, *olen[lev]);
         // A Charnock, Donelan or wave-coupled roughness is iterated on the grown box, from
         // the z0 stored there; without this its ghost cells kept each box's own value, which
-        // a restart (that refills them from the valid cells) does not reproduce
-        fill_planar_boundary(lev, z_0[lev]);
+        // a restart (that refills them from the valid cells) does not reproduce.  The LSM
+        // and bulk-coefficient paths also recover z0 on the grown box (Compute_roughness).
+        // A constant or file roughness is not rewritten, and needs no fill here
+        // (read_custom_roughness fills a file roughness once).
+        if (m_var_z0 || m_has_lsm_fluxes || flux_type == FluxCalcType::BULK_COEFF) {
+            fill_planar_boundary(lev, z_0[lev]);
+        }
     } else {
         // The ordinary FillBoundary is unsafe for lateral walls: the
         // collapsed layout contains FABs from interior grids whose surface
         // parameters were never computed. Exchange only after all flux
         // iterations have written the selected face FABs, and copy the
-        // communicated values back only to those FABs.
+        // communicated values back only to those FABs.  z0 is not among them:
+        // a variable sea roughness is allowed on the z-low face only (see
+        // make_SurfaceLayer_at_level), so z0 is never iterated on a lateral face.
         fill_lateral_surface_parameter_ghosts(lev);
     }
 }
@@ -2633,7 +2640,11 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
                                             Array4<const Real> {};
 
         // Only a cell of this box decides whether a conversion failure aborts; a halo
-        // cell, which reads the state of a column another box owns, is only reported
+        // cell, which reads the state of a column another box owns, is only reported.
+        // Nothing is lost where that column is valid on this level: its own box reads the
+        // same column and aborts.  A halo cell whose column lies in a coarse/fine ghost
+        // region has no such box, and on a failure keeps whatever an earlier producer
+        // wrote there (as in fill_tsurf_with_sst_and_tsk).
         const Box vbx = mfi.validbox();
         const int i_lo = vbx.smallEnd(0); const int i_hi = vbx.bigEnd(0);
         const int j_lo = vbx.smallEnd(1); const int j_hi = vbx.bigEnd(1);
@@ -3069,7 +3080,11 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
                                             Array4<const Real> {};
 
         // Only a cell of this box decides whether a conversion failure aborts; a halo
-        // cell, which reads the state of a column another box owns, is only reported
+        // cell, which reads the state of a column another box owns, is only reported.
+        // Nothing is lost where that column is valid on this level: its own box reads the
+        // same column and aborts.  A halo cell whose column lies in a coarse/fine ghost
+        // region has no such box, and on a failure keeps whatever an earlier producer
+        // wrote there (as in fill_tsurf_with_sst_and_tsk).
         const Box vbx = mfi.validbox();
         const int i_lo = vbx.smallEnd(0); const int i_hi = vbx.bigEnd(0);
         const int j_lo = vbx.smallEnd(1); const int j_hi = vbx.bigEnd(1);
@@ -4061,6 +4076,13 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                        m_geom[0], m_geom[lev],
                        m_geom[lev].Domain(),ratio,
                        bcr, 0);
+    }
+
+    // The file is written only to the boxes that touch the surface; the copies of the boxes
+    // above it (a grid split in z) are read too (ComputeTurbulentViscosity), and update_fluxes
+    // does not fill a roughness that is never rewritten, so fill them here once
+    if (m_terrain_type == TerrainType::EB || m_face.coordDir() == 2) {
+        fill_planar_boundary(lev, z_0[lev]);
     }
 }
 

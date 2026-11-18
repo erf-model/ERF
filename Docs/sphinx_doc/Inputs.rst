@@ -262,8 +262,11 @@ List of Parameters
 |                             | (per-level).  See :ref:`sec:InflowTurbulenceGeneration`  | Direct, CPM, CPM_W |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.density**          | density imposed at a ``slipwall`` or ``noslipwall``      | Real > 0           | not set          |
-|                             | face; may not be combined with ``<face>.density_grad``,  |                    |                  |
-|                             | and is rejected for anelastic runs                       |                    |                  |
+|                             | face, where it may not be combined with                  |                    |                  |
+|                             | ``<face>.density_grad``; or the inflow density of an     |                    |                  |
+|                             | ``inflow`` or ``inflow_outflow`` face (see               |                    |                  |
+|                             | :ref:`sec:LateralBoundaryConditions`).  Rejected on      |                    |                  |
+|                             | every face in anelastic and pseudo-incompressible runs   |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.density_grad**     | Neumann gradient of density imposed at a ``slipwall`` or | Real               | 0.0              |
 |                             | ``noslipwall`` face; may not be combined with            |                    |                  |
@@ -3811,7 +3814,8 @@ Notes
   reading.  If ``density`` is read too, its planes are used; otherwise (for example when the writer
   did not list ``density``) the constant ``<face>.density`` of each inflow face (``xlo.density``
   and so on) is used, and ERF stops if it is not given.  That constant is used at every height, so
-  it suits a face over which density varies little; otherwise write and read ``density``.
+  it suits a face over which density varies little; otherwise write and read ``density``.  An
+  anelastic run cannot give ``<face>.density``, so there these planes need ``density`` too.
   ``temperature`` planes always need ``density``, since theta is recovered from temperature
   through the pressure; without it ERF stops.  Planes of ``velocity`` alone need no density.
   None of this applies with ``erf.use_real_bcs``, where the planes are used as they are read.
@@ -5293,7 +5297,8 @@ execution restrictions.
      - Constant spectrum entering through an ``Inflow`` or ``inflow_outflow``
        face, one value per component per kilogram of dry air, in the order of
        ``erf.sbm_fixture_initial_state``. Required on every such face and
-       rejected on any other; ``<face>.density`` must also be given.
+       rejected on any other; ``<face>.density`` must also be given, except in
+       anelastic and pseudo-incompressible runs, where it must be omitted.
      - One value per spectral component
      - None
 
