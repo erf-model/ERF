@@ -7,7 +7,7 @@
 # cell of every column, so the scan reaches the top cell khi without a crossing.  The
 # PBL height is then the top of the scan, z(khi) = 31.5 dz = 1008 m, capped at
 # 0.9 z(khi) = 907.2 m (WRF bl_ysu.F90 and module_bl_mrf.F, brint = 1).  Before
-# the fix, YSU gave such a column the floor, max(0.5 dz, 10 m) = 16 m.  The CTest
+# the fix, YSU gave such a column the floor (16 m then).  The CTest
 # entry bounds the pblh of the 2D plotfile.
 erf.prob_name = "ABL"
 

@@ -72,7 +72,6 @@ erf.pbl_type = "YSU"
 
 # YSU PBL PARAMETERS
 erf.enable_ysu_countergradient     = true      # Apply countergradient flux corrections
-erf.enable_ysu_terrain_pblh_floor  = true      # Terrain-following PBLH floor
 erf.enable_ysu_sat_limiter         = false     # Saturation limiter for moisture countergradient
 erf.enable_ysu_topdown             = true      # Enable top-down mixing (LRAD-driven)
 erf.enable_ysu_entrainment         = true      # Entrainment layer parameterization

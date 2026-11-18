@@ -7,7 +7,8 @@
 # so theta' is about T' near the ground).  The surface-layer temperature is
 # the plane average (erf.most.average_policy = 0), so in the warm columns the
 # surface cell's Rib, g (dz/2) theta' / (ws^2 theta), is about 0.8, above
-# Ribcr = 0.25: those columns take the floor, max(0.5 dz, 10 m) = 16 m.  In
+# Ribcr = 0.25: those columns take the floor, the top face of the first cell,
+# max(dz, 10 m) = 32 m (erf-model/ERF#5252; it was 0.5 dz = 16 m before).  In
 # the cold columns Rib stays below Ribcr to the top cell: they take
 # 0.9 z(khi) = 907.2 m.  Before the fix the interpolation ran with both of
 # its ends on the surface cell, 0 / 0, and stopped this run at the

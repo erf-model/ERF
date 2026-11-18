@@ -15,6 +15,28 @@ struct RibCrossing {
 };
 
 /**
+ * Lower bound of the YSU PBL height: the top face of the column's first fluid
+ * cell, and at least 10 m.
+ *
+ * The top face of the first cell is WRF's zq(i,2) (bl_ysu.F90), the height
+ * below which WRF sets kpbl = 1.  It lies half a cell above zl1, the first
+ * level of the K profile, so the profile's depth pblh - zl1 stays positive;
+ * with pblh at the floor the profile is zero at that face, and the first cell
+ * keeps the background diffusivity.  The same expression is used on every
+ * mesh type.
+ *
+ * @param[in] zl1  height of the center of the column's first fluid cell
+ * @param[in] dz1  thickness of that cell
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+ysu_pblh_floor (amrex::Real zl1, amrex::Real dz1) noexcept
+{
+    return amrex::max(zl1 + amrex::Real(0.5) * dz1, amrex::Real(10.0));
+}
+
+/**
  * Find the PBL height where the bulk Richardson number first reaches Ribcr,
  * scanning one column from its surface cell ksrf up to the top cell khi
  * (YSU, Hong et al. 2006; WRF bl_ysu.F90, the "brint" interpolation).
