@@ -16,7 +16,84 @@
 #endif
 #include <AMReX_buildInfo.H>
 
+#include <cstdint>
+#include <fstream>
+#include <iomanip>
+
 using namespace amrex;
+
+namespace {
+// Write one-component nodal MultiFabs (one per level) as VTK point data into the folder dir:
+// dir/L<lev>_B<box>.vti per box (ImageData, raw binary Float32), indexed by dir/<vtm_name>.vtm.
+// dir must not contain "plt" in its name: ParaView hands any such directory to its
+// AMReX plotfile reader, which crashes on it.
+// Assumes uniform spacing in every direction.
+void
+WriteNodalVTK (const std::string& dir, const std::string& vtm_name, const std::string& varname,
+               const Vector<MultiFab>& mf, const Vector<Geometry>& geom)
+{
+    UtilCreateCleanDirectory(dir, true);
+
+    auto piece_file = [] (int lev, int box) {
+        return "L" + std::to_string(lev) + "_B" + std::to_string(box) + ".vti";
+    };
+    auto extent = [] (const Box& bx) {
+        const IntVect lo = bx.smallEnd(), hi = bx.bigEnd();
+        return std::to_string(lo[0]) + " " + std::to_string(hi[0]) + " " +
+               std::to_string(lo[1]) + " " + std::to_string(hi[1]) + " " +
+               std::to_string(lo[2]) + " " + std::to_string(hi[2]);
+    };
+
+    for (int lev = 0; lev < mf.size(); ++lev) {
+        const Real* plo = geom[lev].ProbLo();
+        const Real* dx  = geom[lev].CellSize();
+        for (MFIter mfi(mf[lev]); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            FArrayBox hfab(bx, 1, The_Pinned_Arena());
+            hfab.copy<RunOn::Device>(mf[lev][mfi], bx);
+            Gpu::streamSynchronize();
+
+            const auto npts = static_cast<std::size_t>(bx.numPts());
+            std::vector<float> data(npts);
+            const Real* src = hfab.dataPtr();
+            for (std::size_t n = 0; n < npts; ++n) { data[n] = static_cast<float>(src[n]); }
+            const auto nbytes = static_cast<std::uint32_t>(npts * sizeof(float));
+
+            std::ofstream ofs(dir + "/" + piece_file(lev, mfi.index()), std::ios::binary);
+            ofs << std::setprecision(17)
+                << "<?xml version=\"1.0\"?>\n"
+                << "<VTKFile type=\"ImageData\" version=\"1.0\" byte_order=\"LittleEndian\" header_type=\"UInt32\">\n"
+                << "<ImageData WholeExtent=\"" << extent(bx) << "\" Origin=\""
+                << plo[0] << " " << plo[1] << " " << plo[2] << "\" Spacing=\""
+                << dx[0] << " " << dx[1] << " " << dx[2] << "\">\n"
+                << "<Piece Extent=\"" << extent(bx) << "\">\n"
+                << "<PointData Scalars=\"" << varname << "\">\n"
+                << "<DataArray type=\"Float32\" Name=\"" << varname
+                << "\" format=\"appended\" offset=\"0\"/>\n"
+                << "</PointData>\n<CellData/>\n</Piece>\n</ImageData>\n"
+                << "<AppendedData encoding=\"raw\">\n_";
+            ofs.write(reinterpret_cast<const char*>(&nbytes), sizeof(nbytes));
+            ofs.write(reinterpret_cast<const char*>(data.data()), nbytes);
+            ofs << "\n</AppendedData>\n</VTKFile>\n";
+        }
+    }
+
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ofstream ofs(dir + "/" + vtm_name + ".vtm");
+        ofs << "<?xml version=\"1.0\"?>\n"
+            << "<VTKFile type=\"vtkMultiBlockDataSet\" version=\"1.0\" byte_order=\"LittleEndian\">\n"
+            << "<vtkMultiBlockDataSet>\n";
+        for (int lev = 0; lev < mf.size(); ++lev) {
+            ofs << "<Block index=\"" << lev << "\" name=\"Level_" << lev << "\">\n";
+            for (int b = 0; b < mf[lev].boxArray().size(); ++b) {
+                ofs << "<DataSet index=\"" << b << "\" file=\"" << piece_file(lev, b) << "\"/>\n";
+            }
+            ofs << "</Block>\n";
+        }
+        ofs << "</vtkMultiBlockDataSet>\n</VTKFile>\n";
+    }
+}
+} // namespace
 
 
 void
@@ -2083,6 +2160,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         Vector<std::string> requested_vars;
         pp.queryarr((which == 1) ? "plot_vars_1" : "plot_vars_2", requested_vars);
         plot_levelset = containerHasElement(requested_vars, "levelset");
+        if (plot_levelset && SolverChoice::mesh_type != MeshType::ConstantDz) {
+            Warning("levelset output assumes uniform dz; skipping it on a stretched mesh");
+            plot_levelset = false;
+        }
     }
     Vector<MultiFab> mf_ls(finest_level+1);
     if (plot_levelset) {
@@ -2165,6 +2246,17 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     */
 #endif
 
+    if (plot_levelset && plotfile_type != PlotFileType::None) {
+        // e.g. plt00001 -> levelset00001/plt00001_levelset.vtm
+        const std::string& prefix = (which == 1) ? plot3d_file_1 : plot3d_file_2;
+        const std::string ls_dir = prefix.substr(0, prefix.find_last_of('/') + 1)
+                                 + ((which == 1) ? "levelset" : "levelset_2_")
+                                 + plotfilename.substr(prefix.size());
+        const std::string vtm_name = plotfilename.substr(plotfilename.find_last_of('/') + 1) + "_levelset";
+        Print() << "Writing nodal EB level set " << ls_dir << "/" << vtm_name << ".vtm" << std::endl;
+        WriteNodalVTK(ls_dir, vtm_name, "levelset", mf_ls, geom);
+    }
+
     // Single level
     if (finest_level == 0)
     {
@@ -2185,14 +2277,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             writeJobInfo(plotfilename, erf_provenance::ArtifactType::Plotfile3D,
                          istep[0], t_new[0]);
-
-            if (plot_levelset) {
-                Print() << "Writing nodal EB level set" << std::endl;
-                WriteMultiLevelPlotfile(plotfilename + "_levelset", finest_level+1,
-                                        GetVecOfConstPtrs(mf_ls),
-                                        {"levelset"},
-                                        Geom(), tnew, istep, refRatio());
-            }
 
             if (m_plot_face_vels) {
                 Print() << "Writing face velocities" << std::endl;
@@ -2269,14 +2353,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                         GetVecOfConstPtrs(mf), varnames,
                                         geom, tnew, istep, ref_ratio);
             }
-            if (plot_levelset) {
-                Print() << "Writing nodal EB level set" << std::endl;
-                WriteMultiLevelPlotfile(plotfilename + "_levelset", finest_level+1,
-                                        GetVecOfConstPtrs(mf_ls),
-                                        {"levelset"},
-                                        geom, tnew, istep, ref_ratio);
-            }
-
             if (m_plot_face_vels) {
                 Print() << "Writing face velocities" << std::endl;
                 WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
