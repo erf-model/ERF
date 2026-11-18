@@ -1499,6 +1499,7 @@ private:
 
     static double start_bdy_time;
     static double final_bdy_time;
+    static bool   use_theta_m_bdy;
 
     static double start_low_time;
     static double final_low_time;

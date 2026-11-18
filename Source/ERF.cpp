@@ -58,6 +58,7 @@ double ERF::stop_time     = std::numeric_limits<double>::max();
 #ifdef ERF_USE_NETCDF
 double ERF::start_bdy_time     =  0.0;
 double ERF::final_bdy_time     = -1.0;
+bool   ERF::use_theta_m_bdy    = false;
 
 double ERF::start_low_time     =  0.0;
 double ERF::final_low_time     = -1.0;
@@ -1284,7 +1285,7 @@ ERF::InitData_post ()
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                                       start_bdy_time, final_bdy_time);
+                                                       start_bdy_time, final_bdy_time, use_theta_m_bdy);
 
             double time_since_start_bdy = t_new[0] + (start_time - start_bdy_time);
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
@@ -1299,7 +1300,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             }
 
@@ -1312,7 +1313,7 @@ ERF::InitData_post ()
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             } // itime
         } // use_real_bcs
