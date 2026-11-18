@@ -2535,6 +2535,20 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   add_test_tagging(Tagging_MovingBox_TwoIntervals ""
       "max_step=7 erf.regrid_int=1 erf.plot_int_1=7 amr.max_level=1 erf.refinement_indicators=crit erf.crit.field_name=density erf.crit.value_greater=0 'erf.crit.in_box_lo=-2000 0' 'erf.crit.in_box_hi=2000 100' 'erf.crit.move_start_time=0 3' 'erf.crit.move_stop_time=2 5' 'erf.crit.move_speed_x=400 -200' 'erf.crit.move_speed_y=0 0'"
       "00007" "--cond density ge 0 --box -1600 2400 0 100")
+  # adjacent_difference_greater on theta, which is computed only on the cells of the level: with
+  # amr.max_grid_size = 16 level 0 is split in x and z, and the bubble crosses the box faces at
+  # x = 0. A cell on a box face must be compared with the neighboring box's cell, a cell on a
+  # non-periodic domain face with nothing beyond it, and in y with its periodic image.  Before
+  # #5222 every box face and domain face was tagged, against the zeroed ghost cells (#5183)
+  add_test_tagging(Tagging_AdjacentDifference_Theta "amr.max_level=0"
+      "amr.max_level=1 amr.max_grid_size=16 erf.refinement_indicators=crit erf.crit.field_name=theta erf.crit.adjacent_difference_greater=1.0"
+      "00000" "--cond theta adj 1.0 --periodic 0 1 0")
+  # The same on density, whose ghost cells hold the FillPatched state; this deck's boundary
+  # conditions repeat the cell next to the boundary, so the expected tags are the same as for a
+  # field computed only on the cells of the level
+  add_test_tagging(Tagging_AdjacentDifference_Density "amr.max_level=0"
+      "amr.max_level=1 amr.max_grid_size=16 erf.refinement_indicators=crit erf.crit.field_name=density erf.crit.adjacent_difference_greater=0.02"
+      "00000" "--cond density adj 0.02 --periodic 0 1 0")
 endif()
 add_test_r(Terrain2Lev_STF_interp           ""  "erf_exec" "plt00010")
 add_test_r(Terrain2Lev_STF_transform         ""  "erf_exec" "plt00010")
