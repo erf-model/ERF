@@ -3794,6 +3794,10 @@ Notes
   that writes ``temperature`` must therefore also write ``qv``, and a run that reads
   ``temperature`` from planes that include ``qv`` must also read ``qv``; otherwise ERF stops.
   ``theta`` planes need no qv.
+- The planes of ``theta``, ``temperature``, ``scalar``, ``qv``, ``qc`` and ``ke`` are multiplied
+  by density on reading.  If ``density`` is read too, its planes are used; otherwise (for example
+  when the writer did not list ``density``) the constant ``erf.<face>.density`` of each inflow
+  face is used, and ERF stops if it is not given.  Planes of ``velocity`` alone need no density.
 - A plane holds the domain's cells along its face only.  The ghost cells beside the face in the
   other horizontal direction (the corner ghosts) take the plane's value at the periodic image
   when that direction is periodic, as the interior cells across the seam do, and the nearest
