@@ -835,7 +835,8 @@ SurfaceLayer::update_fluxes (const int& lev,
         // the z0 stored there; without this its ghost cells kept each box's own value, which
         // a restart (that refills them from the valid cells) does not reproduce.  The LSM
         // and bulk-coefficient paths also recover z0 on the grown box (Compute_roughness).
-        // A constant or file roughness is not rewritten, and needs no fill.
+        // A constant or file roughness is not rewritten, and needs no fill here
+        // (read_custom_roughness fills a file roughness once).
         if (m_var_z0 || m_has_lsm_fluxes || flux_type == FluxCalcType::BULK_COEFF) {
             fill_planar_boundary(lev, z_0[lev]);
         }
@@ -4075,6 +4076,13 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                        m_geom[0], m_geom[lev],
                        m_geom[lev].Domain(),ratio,
                        bcr, 0);
+    }
+
+    // The file is written only to the boxes that touch the surface; the copies of the boxes
+    // above it (a grid split in z) are read too (ComputeTurbulentViscosity), and update_fluxes
+    // does not fill a roughness that is never rewritten, so fill them here once
+    if (m_terrain_type == TerrainType::EB || m_face.coordDir() == 2) {
+        fill_planar_boundary(lev, z_0[lev]);
     }
 }
 

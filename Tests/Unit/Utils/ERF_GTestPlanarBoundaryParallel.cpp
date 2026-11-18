@@ -351,7 +351,8 @@ TEST(PlanarBoundaryParallel, SharedFacesComeFromOneSurfaceBox)
 // fab with its own constant, as a producer filling from its own grid would.
 //
 // The same BoxArray is then reconciled on a second DistributionMapping, which must not
-// reuse the strips built for the first.
+// reuse the strips built for the first.  On one rank both mappings are {0, 0}, so this part
+// is exercised only on two or more ranks.
 TEST(PlanarBoundaryParallel, BeyondEdgeCellsWithNoOwnerTakeTheLowestGrid)
 {
     const amrex::Box domain(amrex::IntVect(0,0,0), amrex::IntVect(nx-1,ny-1,nz-1));
