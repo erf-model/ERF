@@ -262,8 +262,11 @@ List of Parameters
 |                             | (per-level).  See :ref:`sec:InflowTurbulenceGeneration`  | Direct, CPM, CPM_W |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.density**          | density imposed at a ``slipwall`` or ``noslipwall``      | Real > 0           | not set          |
-|                             | face; may not be combined with ``<face>.density_grad``,  |                    |                  |
-|                             | and is rejected for anelastic runs                       |                    |                  |
+|                             | face, where it may not be combined with                  |                    |                  |
+|                             | ``<face>.density_grad``; or the inflow density of an     |                    |                  |
+|                             | ``inflow`` or ``inflow_outflow`` face (see               |                    |                  |
+|                             | :ref:`sec:LateralBoundaryConditions`).  Rejected on      |                    |                  |
+|                             | every face in anelastic and pseudo-incompressible runs   |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.density_grad**     | Neumann gradient of density imposed at a ``slipwall`` or | Real               | 0.0              |
 |                             | ``noslipwall`` face; may not be combined with            |                    |                  |
@@ -5293,7 +5296,8 @@ execution restrictions.
      - Constant spectrum entering through an ``Inflow`` or ``inflow_outflow``
        face, one value per component per kilogram of dry air, in the order of
        ``erf.sbm_fixture_initial_state``. Required on every such face and
-       rejected on any other; ``<face>.density`` must also be given.
+       rejected on any other; ``<face>.density`` must also be given, except in
+       anelastic and pseudo-incompressible runs, where it must be omitted.
      - One value per spectral component
      - None
 

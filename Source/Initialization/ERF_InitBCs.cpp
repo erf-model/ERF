@@ -75,13 +75,16 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
 
         std::string bc_type = amrex::toLower(bc_type_in);
 
-        // The density of an anelastic run is the base state, so no face may prescribe it
-        // (solid walls report this themselves, with density_grad)
+        // An anelastic or pseudo-incompressible run takes the inflow density from the first
+        // interior cell (the base state when anelastic, the evolving density when
+        // pseudo-incompressible), so no face may prescribe it (solid walls report this
+        // themselves, with density_grad)
         for (int n = 0; n < NBCVAR_max; ++n) { m_bc_prim_given[n][ori] = 0; }
         if (anelastic && bc_type != "slipwall" && bc_type != "noslipwall" && pp.contains("density")) {
             Abort(pp_text + ".density must be omitted in anelastic and pseudo-incompressible runs: "
-                  "the density is the base state.  The face's theta, scalar, qv, qc and KE are "
-                  "made conserved with it.");
+                  "the inflow density is the density of the first interior cell -- the base state "
+                  "in an anelastic run, the evolving density in a pseudo-incompressible one.  The "
+                  "face's theta, scalar, qv, qc and KE are made conserved with it.");
         }
 
         auto apply_wall_scalar = [this,ori] (int comp,
@@ -124,6 +127,10 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
 
         else if (bc_type == "inflow" || bc_type == "inflow_outflow")
         {
+            // impose_vertical_cons_bcs and the z-velocity fill have no ext_dir_upwind branch
+            if (bc_type == "inflow_outflow" && ori.coordDir() == 2) {
+                Abort(pp_text + ".type = inflow_outflow is supported on x and y faces only");
+            }
             if (bc_type == "inflow") {
                 // Print() << bcid << " set to inflow.\n";
                   phys_bc_type[ori] = ERF_BC::inflow;
@@ -167,7 +174,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             if (input_bndry_planes && m_r2d->ingested_density()) {
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero_d;
             } else if (anelastic) {
-                // The ghost density is the interior one, the base state (no <face>.density,
+                // The ghost density is the interior one (no <face>.density,
                 // see above); the face's primitive values are made conserved with it
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero_d;
                 if (input_bndry_planes && bc_type == "inflow" && ori.coordDir() < 2 &&
@@ -207,7 +214,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             }
 
             // A value given on this face: conserved with <face>.density when compressible;
-            // primitive when anelastic, made conserved with the interior (base-state)
+            // primitive when anelastic, made conserved with the interior
             // density as the ghost cells are filled (ext_dir_prim, or ext_dir_upwind with
             // Rho not prescribed)
             auto set_inflow_value = [&] (int bccomp, Real value) {
@@ -294,6 +301,22 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                 pp.queryAdd("KE", KE_in);
                 if (KE_in >= zero_d) {
                     set_inflow_value(BCVars::RhoKE_bc_comp, KE_in);
+                }
+            }
+
+            // An anelastic face that gives any of these values brings in zero of every
+            // component it does not give, as a compressible face with <face>.density does;
+            // a face that gives none takes them all from the interior
+            if (anelastic) {
+                bool any_given = false;
+                for (int n = BCVars::RhoTheta_bc_comp; n < NBCVAR_max; ++n) {
+                    any_given = any_given || (m_bc_prim_given[n][ori] != 0);
+                }
+                if (any_given) {
+                    for (int n = BCVars::RhoTheta_bc_comp; n < NBCVAR_max; ++n) {
+                        if (n == BCVars::RhoTheta_bc_comp && th_read) { continue; }
+                        if (m_bc_prim_given[n][ori] == 0) { set_inflow_value(n, zero_d); }
+                    }
                 }
             }
         }
@@ -744,7 +767,7 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
-                        if ((BCVars::cons_bc+i == RhoTheta_comp) && (m_th_file_face[ori] != 0))
+                        if ((BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp) && (m_th_file_face[ori] != 0))
                         {
                             if (m_th_file_face[ori] == 2) domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
                         }
@@ -759,7 +782,7 @@ void ERF::init_bcs ()
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
                         }
                         else if (m_bc_prim_given[BCVars::cons_bc+i][ori]) {
-                            // anelastic: the given primitive value times the interior (base-state) density
+                            // anelastic: the given primitive value times the interior density
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
                         }
                         else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
@@ -774,7 +797,7 @@ void ERF::init_bcs ()
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
-                        if ((BCVars::cons_bc+i == RhoTheta_comp) && (m_th_file_face[ori] != 0))
+                        if ((BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp) && (m_th_file_face[ori] != 0))
                         {
                             if (m_th_file_face[ori] == 2) domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_prim);
                         }
@@ -790,7 +813,7 @@ void ERF::init_bcs ()
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
                         }
                         else if (m_bc_prim_given[BCVars::cons_bc+i][ori]) {
-                            // anelastic: the given primitive value times the interior (base-state) density
+                            // anelastic: the given primitive value times the interior density
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_prim);
                         }
                         else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
@@ -808,14 +831,16 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_upwind);
-                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0 && !m_bc_prim_given[BCVars::cons_bc+i][ori]) {
+                        const bool th_file = (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp) && (m_th_file_face[ori] != 0);
+                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0 && !m_bc_prim_given[BCVars::cons_bc+i][ori] && !th_file) {
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                         }
                     }
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_upwind);
-                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0 && !m_bc_prim_given[BCVars::cons_bc+i][ori]) {
+                        const bool th_file = (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp) && (m_th_file_face[ori] != 0);
+                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0 && !m_bc_prim_given[BCVars::cons_bc+i][ori] && !th_file) {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                         }
                     }

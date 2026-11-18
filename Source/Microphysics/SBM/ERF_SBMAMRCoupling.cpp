@@ -99,19 +99,38 @@ ERF::configure_sbm_physical_boundaries ()
         const int qr_bc = cons_bc_comp(solverChoice.moisture_indices.qr);
         if (anelastic) {
             // No <face>.density in an anelastic run (init_phys_bcs): the compact values are
-            // primitive and made conserved with the interior, base-state density, as the
+            // primitive and made conserved with the interior density, as the
             // face's other inflow values are (ext_dir_prim, or ext_dir_upwind with Rho not
             // prescribed)
             const int dir = ori.coordDir();
             const int t = (phys_bc_type[ori] == ERF_BC::inflow_outflow) ? ERFBCType::ext_dir_upwind
                                                                         : ERFBCType::ext_dir_prim;
-            for (const int bc : {qc_bc, qr_bc}) {
+            auto prescribe = [&] (int bc, Real value) {
                 m_bc_prim_given[bc][ori] = 1;
+                m_bc_extdir_vals[bc][ori] = value;
                 if (ori.isLow()) { domain_bcs_type[bc].setLo(dir, t); }
                 else             { domain_bcs_type[bc].setHi(dir, t); }
+            };
+            // A face that gave no other value brings in zero of the rest, as one that gave
+            // any does (init_phys_bcs); a theta file or a non-reflecting face keeps its theta
+            const bool any_given = [&] {
+                for (int n = BCVars::RhoTheta_bc_comp; n < NBCVAR_max; ++n) {
+                    if (m_bc_prim_given[n][ori]) { return true; }
+                }
+                return false;
+            }();
+            if (!any_given) {
+                for (int n = BCVars::RhoTheta_bc_comp; n < NBCVAR_max; ++n) {
+                    if (n == BCVars::RhoTheta_bc_comp &&
+                        (m_th_file_face[ori] != 0 || m_bc_nonreflecting[ori])) { continue; }
+                    const int type_now = ori.isLow() ? domain_bcs_type[n].lo(dir)
+                                                     : domain_bcs_type[n].hi(dir);
+                    if (type_now == ERFBCType::ext_dir_ingested) { continue; }
+                    prescribe(n, Real(0.0));
+                }
             }
-            m_bc_extdir_vals[qc_bc][ori] = compact.qc;
-            m_bc_extdir_vals[qr_bc][ori] = compact.qr;
+            prescribe(qc_bc, compact.qc);
+            prescribe(qr_bc, compact.qr);
         } else {
             const Real rho_in = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
             if (!(rho_in > Real(0.0))) {
