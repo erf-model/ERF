@@ -1074,6 +1074,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         init_sbm_level_from_coarse(lev, time, ba, dm);
     }
 
+    // The custom forcing of this (new) level, on its grids
+    init_custom_forcing(lev, time);
+
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -1813,6 +1816,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         remake_sbm_level(lev, time, ba, dm);
     }
 
+    // The custom forcing of this level, on its new grids
+    init_custom_forcing(lev, time);
+
     // Particle redistribute handled in timeStep() after regrid() completes.
     // Calling it here causes stale-grid crashes.
 }
@@ -1858,6 +1864,10 @@ ERF::ClearLevel (int lev)
     }
 
     base_state[lev].clear();
+    if (lev < static_cast<int>(rhotheta_src.size())) { rhotheta_src[lev].reset(); }
+    if (lev < static_cast<int>(rhoqt_src.size()))    { rhoqt_src[lev].reset(); }
+    if (lev < static_cast<int>(h_w_subsid.size()))   { h_w_subsid[lev].clear(); }
+    if (lev < static_cast<int>(d_w_subsid.size()))   { d_w_subsid[lev].clear(); }
 
     rU_new[lev].clear();
     rU_old[lev].clear();

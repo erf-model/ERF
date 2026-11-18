@@ -2435,7 +2435,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                                       start_bdy_time, final_bdy_time);
+                                                       start_bdy_time, final_bdy_time, use_theta_m_bdy);
 
             int ntimes_total = bdy_data_xlo.size();
             Vector<double> bdy_times(ntimes_total);
@@ -2464,7 +2464,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                              wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                              lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                             r_hse, area_vec, geom[lev], use_moist,
+                                             r_hse, area_vec, geom[lev], use_moist, use_theta_m_bdy,
                                              solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
 
@@ -2486,7 +2486,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                                  bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                                  wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                                  lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
-                                                 r_hse, area_vec, geom[lev], use_moist,
+                                                 r_hse, area_vec, geom[lev], use_moist, use_theta_m_bdy,
                                                  solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
 

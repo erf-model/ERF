@@ -145,7 +145,11 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][0];
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic)
+                        // holds primitive values: make them conserved with the interior density
+                        const Real rho_v = (l_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[0])
+                                         ? dest_arr(dom_lo.x,j,k,Rho_comp) : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_v * l_bc_extdir_vals_d[bc_comp][0];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = rho_is_extdir[0] ? rho_extdir_val[0] : dest_arr(dom_lo.x,j,k,Rho_comp);
@@ -180,7 +184,11 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][3];
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic)
+                        // holds primitive values: make them conserved with the interior density
+                        const Real rho_v = (h_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[3])
+                                         ? dest_arr(dom_hi.x,j,k,Rho_comp) : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_v * l_bc_extdir_vals_d[bc_comp][3];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = rho_is_extdir[3] ? rho_extdir_val[3] : dest_arr(dom_hi.x,j,k,Rho_comp);
@@ -230,7 +238,11 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][1];
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic)
+                        // holds primitive values: make them conserved with the interior density
+                        const Real rho_v = (l_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[1])
+                                         ? dest_arr(i,dom_lo.y,k,Rho_comp) : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_v * l_bc_extdir_vals_d[bc_comp][1];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = rho_is_extdir[1] ? rho_extdir_val[1] : dest_arr(i,dom_lo.y,k,Rho_comp);
@@ -264,7 +276,11 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][4];
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic)
+                        // holds primitive values: make them conserved with the interior density
+                        const Real rho_v = (h_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[4])
+                                         ? dest_arr(i,dom_hi.y,k,Rho_comp) : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_v * l_bc_extdir_vals_d[bc_comp][4];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
                     Real rho = rho_is_extdir[4] ? rho_extdir_val[4] : dest_arr(i,dom_hi.y,k,Rho_comp);

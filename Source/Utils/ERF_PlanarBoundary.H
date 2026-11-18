@@ -83,6 +83,16 @@ public:
      * restarts from the same values.  Only ghost cells beyond a non-periodic edge are
      * written; interior, periodic and coarse/fine ghost cells are left as they are.
      *
+     * On a fine level the column a cell beyond the edge faces need not be covered by any
+     * grid: where a coarse/fine boundary meets the domain edge, or two grids along the
+     * edge are separated by a gap narrower than twice the ghost width.  Such a cell has no
+     * owner by projection, and it takes instead the value of the surface copy with the
+     * lowest global box index whose ghost region holds it (OverrideSync's precedence in
+     * fill()), so it too has one value that does not depend on the decomposition.  Only
+     * surface copies take part: a cell held solely by the ghost region of an uncomputed
+     * copy (a 3D box above the surface whose footprint differs from those below it) is
+     * left as it is.
+     *
      * Call it after fill(), on a cell-centered planar MultiFab; other index types are left
      * as they are.
      *
@@ -140,17 +150,20 @@ private:
     };
 
     // The strips beyond the non-periodic domain edges that each surface copy owns, for
-    // one planar layout and number of lateral ghost cells
+    // one planar layout (BoxArray and DistributionMapping) and number of lateral ghost cells
     struct EdgeStrips
     {
         amrex::BoxArray planar_ba;
+        amrex::DistributionMapping planar_dm;
         amrex::IntVect ngrow;
-        amrex::BoxArray ba;              // the strips, disjoint
+        amrex::BoxArray ba;              // the strips, disjoint, inside the domain in periodic directions
         amrex::DistributionMapping dm;   // each on the rank of its owner
         amrex::Vector<int> owner;        // planar index of the surface copy owning each strip
+        amrex::Vector<amrex::IntVect> shift; // owner's cells are at the strip's shifted by this
+        amrex::Vector<std::unique_ptr<amrex::MultiFab>> bufs; // copy buffers, one per ncomp
     };
 
-    const EdgeStrips& edge_strips (const amrex::MultiFab& mf, const amrex::Geometry& geom);
+    EdgeStrips& edge_strips (const amrex::MultiFab& mf, const amrex::Geometry& geom);
 
     int m_nplanar{0};                    // Number of boxes in the planar BoxArray
     amrex::BoxArray m_ba_sfc;            // Surface copies
