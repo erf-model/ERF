@@ -3810,7 +3810,8 @@ Notes
   reading.  If ``density`` is read too, its planes are used; otherwise (for example when the writer
   did not list ``density``) the constant ``<face>.density`` of each inflow face (``xlo.density``
   and so on) is used, and ERF stops if it is not given.  That constant is used at every height, so
-  it suits a face over which density varies little; otherwise write and read ``density``.
+  it suits a face over which density varies little; otherwise write and read ``density``.  An
+  anelastic run cannot give ``<face>.density``, so there these planes need ``density`` too.
   ``temperature`` planes always need ``density``, since theta is recovered from temperature
   through the pressure; without it ERF stops.  Planes of ``velocity`` alone need no density.
   None of this applies with ``erf.use_real_bcs``, where the planes are used as they are read.

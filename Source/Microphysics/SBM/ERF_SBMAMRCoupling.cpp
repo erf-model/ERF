@@ -47,6 +47,10 @@ ERF::configure_sbm_physical_boundaries ()
     const auto& layout = sbm_state_manager->layout();
     const erf_sbm::SBMBulkProjection projection(layout);
     erf_sbm::SBMPhysicalBoundaryConfig config;
+    bool anelastic = false;
+    for (int lev = 0; lev <= max_level; ++lev) {
+        anelastic = anelastic || (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
+    }
     for (OrientationIter oit; oit; ++oit) {
         const Orientation ori = oit();
         const int face = ori;
@@ -90,14 +94,33 @@ ERF::configure_sbm_physical_boundaries ()
         if (!erf_sbm::validate_inflow_state(layout, z, reason)) {
             Abort("SBM inflow spectrum " + name + ".sbm_inflow_z is not admissible: " + reason);
         }
-        const Real rho_in = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
-        if (!(rho_in > Real(0.0))) {
-            Abort("SBM prescribed inflow at " + name + " requires " + name +
-                  ".density > 0 to set its compact qc/qr boundary values");
-        }
         const auto compact = projection.apply(z);
-        m_bc_extdir_vals[cons_bc_comp(solverChoice.moisture_indices.qc)][ori] = rho_in * compact.qc;
-        m_bc_extdir_vals[cons_bc_comp(solverChoice.moisture_indices.qr)][ori] = rho_in * compact.qr;
+        const int qc_bc = cons_bc_comp(solverChoice.moisture_indices.qc);
+        const int qr_bc = cons_bc_comp(solverChoice.moisture_indices.qr);
+        if (anelastic) {
+            // No <face>.density in an anelastic run (init_phys_bcs): the compact values are
+            // primitive and made conserved with the interior, base-state density, as the
+            // face's other inflow values are (ext_dir_prim, or ext_dir_upwind with Rho not
+            // prescribed)
+            const int dir = ori.coordDir();
+            const int t = (phys_bc_type[ori] == ERF_BC::inflow_outflow) ? ERFBCType::ext_dir_upwind
+                                                                        : ERFBCType::ext_dir_prim;
+            for (const int bc : {qc_bc, qr_bc}) {
+                m_bc_prim_given[bc][ori] = 1;
+                if (ori.isLow()) { domain_bcs_type[bc].setLo(dir, t); }
+                else             { domain_bcs_type[bc].setHi(dir, t); }
+            }
+            m_bc_extdir_vals[qc_bc][ori] = compact.qc;
+            m_bc_extdir_vals[qr_bc][ori] = compact.qr;
+        } else {
+            const Real rho_in = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
+            if (!(rho_in > Real(0.0))) {
+                Abort("SBM prescribed inflow at " + name + " requires " + name +
+                      ".density > 0 to set its compact qc/qr boundary values");
+            }
+            m_bc_extdir_vals[qc_bc][ori] = rho_in * compact.qc;
+            m_bc_extdir_vals[qr_bc][ori] = rho_in * compact.qr;
+        }
         config.inflow_z[static_cast<std::size_t>(face)] = std::move(z);
     }
     std::string mixing_reason;
