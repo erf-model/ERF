@@ -1,4 +1,10 @@
 #26.12
+    -- The YSU PBL-height floor is the top face of the first fluid cell (at least 10 m)
+       on every mesh type. Terrain-fitted and stretched meshes keep their answers at the
+       default inputs. On constant-dz meshes the floor moves from dz/2 to dz, so pblh and
+       the terms that scale with it change in columns that sit on the floor.
+       erf.enable_ysu_terrain_pblh_floor is removed; a deck that sets it stops (#5254)
+
     -- WRF nests at level 2 and above are placed relative to the whole parent file, not to
        the parent's ERF region, so a deck with three or more levels that crops level 1 and
        was tuned to the old placement now refines a different region (#4992). Such a nest
