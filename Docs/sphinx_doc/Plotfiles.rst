@@ -337,6 +337,12 @@ predicate the 3D plotfile uses, so the two output paths accept the same
 ``rhoQn`` names for a given moisture scheme; unsupported or unavailable names
 are omitted from the output rather than reported as an error.
 
+``erf.subvol_sampling_vars`` may also select ``z_phys``, the physical height of
+each cell center, on any mesh. The origin, spacing and box of a subvolume are in
+the computational coordinates, and so is the geometry of its plotfile; on a
+stretched or terrain-fitted mesh these are not the physical height, so there
+``z_phys`` is always written.
+
 .. _sec:PlotfileGeneralNotes:
 
 General behavior
