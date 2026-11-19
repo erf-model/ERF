@@ -82,9 +82,11 @@ precipitation accumulator. The wall model does not add a droplet-impact,
 aerosol-deposition, or facility-specific collection law.
 
 A ``wet`` wall requires a supported active moisture model. It exchanges
-water vapor with the adjacent air using the saturation mixing ratio **over
-liquid water**, evaluated at the prescribed wall temperature and local
-hydrostatic pressure. It does not directly deposit suspended cloud droplets,
+water vapor with the adjacent air at a prescribed wall relative humidity **over
+liquid water**. For example, ``zlo.wetness = 0.8`` sets the bottom wet wall
+to 80% RH; omitting the key retains saturation. A wet wall at zero RH can
+remove vapor from moist air, unlike an impermeable dry wall.
+The wall does not directly deposit suspended cloud droplets,
 ice hydrometeors, or aerosol number; those species remain governed by the
 selected native microphysics and transport operators.
 
@@ -606,6 +608,10 @@ The following table summarizes the physical-temperature wall keys.
      - none
      - ``dry`` or ``wet``
      - required on every physical wall; ``wet`` requires an active supported moisture model
+   * - ``<face>.wetness``
+     - ``1.0``
+     - relative humidity over liquid water (fraction in ``[0,1]``, finite)
+     - optional on physical wet walls; rejected on dry and legacy walls
    * - ``<face>.wall_transfer_model``
      - omitted
      - ``resolved_molecular`` only
@@ -779,6 +785,14 @@ A dry wall is therefore not a ``qv_wall = 0`` Dirichlet condition.
 The heat equations below apply to conductive faces; an adiabatic face has
 :math:`J_{\rho\theta,\mathrm{in}}=0` for every transfer model.
 
+All wet-wall vapor laws use the same prescribed wall mixing ratio. Wetness
+scales vapor pressure, not the mixing ratio or the transfer coefficient:
+
+.. math::
+
+   e_w = \mathrm{wetness}\,e_{sw}(T_w), \qquad
+   q_{v,w} = \frac{R_d}{R_v}\frac{e_w}{\max(e_w,\,p_\mathrm{hse}-e_w)}.
+
 Resolved transfer
 ~~~~~~~~~~~~~~~~~
 
@@ -799,7 +813,7 @@ For a wet wall with ``vapor_transfer_model = resolved_molecular``,
 
    J_{\rho q_v,\mathrm{in}}
    = \rho\,\alpha_C
-     \left[q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}\right]
+       \left[q_{v,w}-q_{v,a}\right]
      \frac{2}{\Delta n}.
 
 The resolved scalar coefficients are configured through ``erf.alpha_T`` for
@@ -839,7 +853,7 @@ For a wet wall, bulk vapor transfer is
 
    J_{\rho q_v,\mathrm{in}}
    = \rho C_E U_t
-     \left[q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}\right].
+       \left[q_{v,w}-q_{v,a}\right].
 
 The physical transfer uses the actual :math:`U_t`; there is no hidden minimum
 speed, gustiness velocity, or free-convection augmentation.  Fixed bulk
@@ -854,6 +868,8 @@ Let :math:`d=\Delta n/2` be the distance to the first cell center. The
 combined closure replaces :math:`C_D U_t`, :math:`C_H U_t`, and :math:`C_E U_t`
 in the fixed-bulk equations above by :math:`C_D U_t + \nu/d`,
 :math:`C_H U_t + \alpha_T/d`, and :math:`C_E U_t + \alpha_C/d`, respectively.
+Both vapor terms multiply the same prescribed contrast :math:`q_{v,w}-q_{v,a}`,
+including when ``wetness`` is less than one.
 Here :math:`\nu` is ``erf.dynamic_viscosity / erf.rho0_trans`` for
 ``ConstantAlpha``. This is a half-cell molecular wall-gradient model, not an
 addition of the full interior LES diffusive flux. At rest the molecular heat
@@ -933,14 +949,9 @@ where
 
    \epsilon_v=\frac{R_v}{R_d}-1,
 
-using ERF's thermodynamic constants.  With
-
-.. math::
-
-   q_{v,w}=\begin{cases}
-      q_\mathrm{sat}(T_w,p_\mathrm{hse}), & \text{wet wall},\\
-      q_{v,a}, & \text{dry wall}.
-   \end{cases}
+using ERF's thermodynamic constants. For wet walls, MOST uses the same
+prescribed wall mixing ratio :math:`q_{v,w}` as the vapor flux; for dry walls it uses
+:math:`q_{v,w}=q_{v,a}`.
 
 For conductive heat, :math:`\theta_w` is the potential temperature corresponding
 to the prescribed :math:`T_w`. For adiabatic heat, the stability calculation

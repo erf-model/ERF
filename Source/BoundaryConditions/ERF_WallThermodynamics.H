@@ -69,6 +69,7 @@ struct ScalarTransfer {
 struct FaceWall {
     ThermalBoundary thermal;
     MoistureMode moisture = MoistureMode::LegacyNumerical;
+    amrex::Real wetness = amrex::Real(1.0); // Prescribed RH over liquid on wet walls.
     MomentumTransfer momentum;
     ScalarTransfer heat;
     ScalarTransfer vapor;

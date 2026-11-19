@@ -374,6 +374,28 @@ inline std::string face_name (WallFace face)
     return "unknown";
 }
 
+inline bool valid_wall_wetness (amrex::Real rh) noexcept
+{
+    return finite(rh) && rh >= amrex::Real(0.0) && rh <= amrex::Real(1.0);
+}
+
+inline std::string
+parse_wall_wetness (amrex::ParmParse& pp, const std::string& face,
+                    erf_wall_thermodynamics::FaceWall& wall)
+{
+    if (!pp.contains("wetness")) { return {}; }
+    if (wall.moisture != erf_wall_thermodynamics::MoistureMode::WetEquilibrium) {
+        return "Cloud Chamber: " + face + ".wetness is only valid on physical walls with moisture = wet";
+    }
+    amrex::Real rh;
+    pp.get("wetness", rh);
+    if (!valid_wall_wetness(rh)) {
+        return "Cloud Chamber: " + face + ".wetness must be a finite relative humidity fraction in [0,1]";
+    }
+    wall.wetness = rh;
+    return {};
+}
+
 struct WallTransferContract {
     bool legacy_aggregate_specified = false;
     bool momentum_model_specified = false;
@@ -1152,6 +1174,8 @@ inline Config parse_config (const amrex::Geometry& geom, MoistureType selected_m
             }
             wall.wall_velocity[d] = amrex::Real(0.0);
         }
+        const auto wetness_error = parse_wall_wetness(pp_face, face, wall);
+        if (!wetness_error.empty()) { amrex::Error(wetness_error); }
     }
     validate_wall_roughness_geometry(walls, geom.CellSizeArray());
     config.m_boundary = walls;

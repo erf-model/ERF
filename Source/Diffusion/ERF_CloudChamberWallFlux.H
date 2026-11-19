@@ -458,6 +458,17 @@ most_stability_coordinate (amrex::Real Ri,
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+amrex::Real
+wet_wall_qv (const erf_wall_thermodynamics::FaceWall& wall, amrex::Real p_hse) noexcept
+{
+    // Apply RH to vapor pressure (hPa) before the capped mixing-ratio conversion.
+    // At RH=1 this is the same calculation as erf_qsatw.
+    const amrex::Real e = wall.wetness * erf_esatw(wall.thermal.temperature_K);
+    return erf_qsat_from_esat(e, p_hse * amrex::Real(0.01));
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
 FaceRuntimeCoefficients
 most_wall_coefficients (
     const erf_wall_thermodynamics::FaceWall& wall,
@@ -481,7 +492,7 @@ most_wall_coefficients (
 
     amrex::Real qv_wall = qv_air;
     if (wall.vapor_is_wet()) {
-        erf_qsatw(wall.thermal.temperature_K, p_hse * amrex::Real(0.01), qv_wall);
+        qv_wall = wet_wall_qv(wall, p_hse);
     }
     const bool adiabatic = wall.thermal.mode == ThermalMode::Adiabatic;
     amrex::Real delta_theta_v;
@@ -778,13 +789,12 @@ amrex::Real
 bulk_vapor_flux_in (amrex::Real rho,
                     amrex::Real C_E,
                     amrex::Real U_t,
-                    amrex::Real wall_temperature_K,
+                    const erf_wall_thermodynamics::FaceWall& wall,
                     amrex::Real qv_air,
                     amrex::Real p_hse,
                     amrex::Real molecular_speed = amrex::Real(0)) noexcept
 {
-    amrex::Real qv_wall = amrex::Real(0.0);
-    erf_qsatw(wall_temperature_K, p_hse * amrex::Real(0.01), qv_wall);
+    const amrex::Real qv_wall = wet_wall_qv(wall, p_hse);
     return (rho * C_E * U_t + rho * molecular_speed) * (qv_wall - qv_air);
 }
 
@@ -925,16 +935,12 @@ amrex::Real
 resolved_vapor_flux_in (
     amrex::Real rho,
     amrex::Real alpha_C,
-    amrex::Real wall_temperature_K,
+    const erf_wall_thermodynamics::FaceWall& wall,
     amrex::Real qv_air,
     amrex::Real p_hse,
     amrex::Real dx_inv) noexcept
 {
-    amrex::Real qv_wall = amrex::Real(0.0);
-    erf_qsatw(
-        wall_temperature_K,
-        p_hse * amrex::Real(0.01),
-        qv_wall);
+    const amrex::Real qv_wall = wet_wall_qv(wall, p_hse);
     return rho * alpha_C * (qv_wall - qv_air) *
         amrex::Real(2.0) * dx_inv;
 }
@@ -1067,7 +1073,7 @@ evaluate_scalar_flux_in (
             result.rhoQv_in = resolved_vapor_flux_in(
                 sample.rho,
                 sample.alpha_C,
-                wall.thermal.temperature_K,
+                wall,
                 sample.scalar_air,
                 sample.p_hse,
                 sample.dx_inv);
@@ -1087,7 +1093,7 @@ evaluate_scalar_flux_in (
                 sample.rho,
                 C_E,
                 sample.U_t,
-                wall.thermal.temperature_K,
+                wall,
                 sample.scalar_air,
                 sample.p_hse, wall.vapor.molecular_speed);
             return result;
@@ -1100,7 +1106,7 @@ evaluate_scalar_flux_in (
                     wall.momentum.z0_m,
                     wall.vapor.z0),
                 sample.U_t,
-                wall.thermal.temperature_K,
+                wall,
                 sample.scalar_air,
                 sample.p_hse);
             return result;
