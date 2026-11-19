@@ -818,6 +818,13 @@ and wet-wall vapor terms remain if there is a wall-to-air contrast; tangential
 drag and dry-wall vapor flux are zero. The combined flux replaces the
 corresponding boundary flux; it is not added on top of it.
 
+At setup, each selected combined channel requires finite, strictly positive
+molecular inputs: ``erf.dynamic_viscosity`` and ``erf.rho0_trans`` for
+momentum, ``erf.alpha_T`` for heat, and ``erf.alpha_C`` for vapor. A dry
+wall still has zero vapor flux. The solver computes the half-cell transfer
+speeds once for the chamber grid and uses the same wall data in the RHS
+and timestep guard.
+
 ``bulk_aero`` remains bulk-only. If the supplied bulk coefficients were fitted
 to *total* DNS wall exchange, adding molecular exchange without refitting can
 count part of that exchange twice. Use coefficients for the residual bulk
@@ -1071,9 +1078,16 @@ so the per-face momentum contribution is
 For ``bulk_aero_plus_molecular``, add :math:`(\nu/d)\Delta n^{-1}` to
 the momentum rate (without :math:`K_\infty`), or
 :math:`(\alpha_s/d)\Delta n^{-1}` to the corresponding scalar rate.
-If a wall contributes a nonzero molecular speed to a bulk scalar channel,
-the guard sums that channel's bulk and neutral rates over all incident faces
-of the cell. Otherwise it retains that channel's largest individual face rate.
+If an incident face uses combined transfer for an active scalar, the guard
+sums that scalar's rates from **all** incident physical faces. For example,
+where a combined heat face meets a ``resolved_molecular`` heat face, the
+resolved face contributes :math:`2\alpha_T/\Delta n^2` to the heat sum.
+Both faces of a one-cell direction count. Heat and vapor are handled
+separately: a dry face neither contributes to nor activates the vapor sum.
+Without an active combined face for that scalar, the guard retains the
+largest bulk or neutral face rate; a resolved face alone does not impose a
+separate wall-law limit. This rule does not depend on enabling ERF's optional
+interior diffusion timestep limiter.
 
 At an edge or corner, contributions from perpendicular active walls are added
 for each free velocity component before taking the maximum.  MOST coefficients
