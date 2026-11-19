@@ -116,12 +116,17 @@ static_assert(std::is_standard_layout_v<ScalarFluxReplacement>);
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 bool
+wall_uses_most_heat (const erf_wall_thermodynamics::FaceWall& wall) noexcept
+{
+    return wall.heat_uses_most();
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
 wall_uses_most_vapor (const erf_wall_thermodynamics::FaceWall& wall) noexcept
 {
-    using namespace erf_wall_thermodynamics;
-    return wall.moisture == MoistureMode::WetEquilibrium &&
-        wall.vapor.model == ScalarModel::BulkAero &&
-        wall.vapor.provider == CoefficientProvider::MOST;
+    return wall.vapor_uses_most();
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -129,13 +134,7 @@ AMREX_FORCE_INLINE
 bool
 wall_uses_most (const erf_wall_thermodynamics::FaceWall& wall) noexcept
 {
-    using namespace erf_wall_thermodynamics;
-    return (wall.momentum.model == MomentumModel::BulkAero &&
-            wall.momentum.provider == CoefficientProvider::MOST) ||
-        (wall.thermal.mode == ThermalMode::FixedPhysicalTemperature &&
-         wall.heat.model == ScalarModel::BulkAero &&
-         wall.heat.provider == CoefficientProvider::MOST) ||
-        wall_uses_most_vapor(wall);
+    return wall.momentum_uses_most() || wall.heat_uses_most() || wall.vapor_uses_most();
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -178,7 +177,7 @@ wall_owns_scalar_channel (
 
     switch (channel) {
     case ScalarChannel::Heat:
-        return wall.thermal.mode == ThermalMode::FixedPhysicalTemperature;
+        return wall.thermal.mode != ThermalMode::LegacyNumerical;
     case ScalarChannel::Vapor:
     case ScalarChannel::CloudWater:
         return wall.moisture != MoistureMode::LegacyNumerical;
@@ -472,48 +471,51 @@ most_wall_coefficients (
 {
     using namespace erf_wall_thermodynamics;
     FaceRuntimeCoefficients result{};
-    const bool most_momentum =
-        wall.momentum.model == MomentumModel::BulkAero &&
-        wall.momentum.provider == CoefficientProvider::MOST;
-    const bool most_heat =
-        wall.heat.model == ScalarModel::BulkAero &&
-        wall.heat.provider == CoefficientProvider::MOST;
+    const bool most_momentum = wall.momentum_uses_most();
+    const bool most_heat = wall_uses_most_heat(wall);
     const bool most_vapor = wall_uses_most_vapor(wall);
     if (!(most_momentum || most_heat || most_vapor)) {
         result.valid = 1;
         return result;
     }
 
-    const amrex::Real theta_wall = wall.thermal.temperature_K *
-        std::pow(p_0 / p_hse, rdOcp);
     amrex::Real qv_wall = qv_air;
-    if (wall.moisture == MoistureMode::WetEquilibrium) {
+    if (wall.vapor_is_wet()) {
         erf_qsatw(wall.thermal.temperature_K, p_hse * amrex::Real(0.01), qv_wall);
     }
-    const amrex::Real theta_v_air = theta_air * (amrex::Real(1.0) + epsv * qv_air);
-    const amrex::Real theta_v_wall = theta_wall * (amrex::Real(1.0) + epsv * qv_wall);
+    const bool adiabatic = wall.thermal.mode == ThermalMode::Adiabatic;
+    amrex::Real delta_theta_v;
+    if (adiabatic) {
+        // theta_wall = theta_air: only wet-wall saturation can drive buoyancy.
+        // Difference the mixing ratios first so equal humidities are exactly neutral.
+        delta_theta_v = theta_air * epsv * (qv_air - qv_wall);
+    } else {
+        const amrex::Real theta_wall = wall.thermal.temperature_K *
+            std::pow(p_0 / p_hse, rdOcp);
+        const amrex::Real theta_v_air = theta_air * (amrex::Real(1.0) + epsv * qv_air);
+        const amrex::Real theta_v_wall = theta_wall * (amrex::Real(1.0) + epsv * qv_wall);
+        delta_theta_v = theta_v_air - theta_v_wall;
+    }
     const amrex::Real U_most = amrex::max(U_t, amrex::Real(0.01));
     const amrex::Real Ri_b = gravity_sign == 0 ? amrex::Real(0.0) :
         amrex::Real(gravity_sign) * CONST_GRAV * wall_distance / theta_air *
-        (theta_v_air - theta_v_wall) / (U_most * U_most);
+        delta_theta_v / (U_most * U_most);
     const amrex::Real Ri = amrex::max(amrex::Real(-4.0),
         amrex::min(amrex::Real(4.0), Ri_b));
 
     const amrex::Real z0_m = wall.momentum.z0_m;
-    const amrex::Real z0_h = wall.heat.z0 > amrex::Real(0.0) ?
-        wall.heat.z0 : z0_m;
     const amrex::Real z0_q = wall.vapor.z0 > amrex::Real(0.0) ?
         wall.vapor.z0 : z0_m;
     const amrex::Real D_m = std::log(wall_distance / z0_m);
-    const amrex::Real D_h = std::log(wall_distance / z0_h);
+    // Keep returning all coefficients, but never sample an adiabatic heat roughness.
+    const amrex::Real D_h = wall.heat_is_conductive() && wall.heat.z0 > amrex::Real(0.0) ?
+        std::log(wall_distance / wall.heat.z0) : D_m;
     const amrex::Real D_q = std::log(wall_distance / z0_q);
 
     // A coupled MOST heat/vapor face is host-constrained to have equal scalar
     // roughness.  For a single active scalar channel, that channel supplies
     // the scalar resistance used by the bulk-Richardson fixed point.
-    const amrex::Real z0_stability = most_heat ? z0_h :
-        (most_vapor ? z0_q : z0_m);
-    const amrex::Real D_stability = std::log(wall_distance / z0_stability);
+    const amrex::Real D_stability = most_heat ? D_h : (most_vapor ? D_q : D_m);
     const auto stability = most_stability_coordinate(Ri, D_m, D_stability);
     const amrex::Real zeta = stability.zeta;
     most_stability_require(
@@ -641,17 +643,11 @@ requires_tangential_speed (
     const erf_wall_thermodynamics::FaceWall& wall,
     ScalarChannel channel) noexcept
 {
-    using namespace erf_wall_thermodynamics;
-
     switch (channel) {
     case ScalarChannel::Heat:
-        return wall.thermal.mode == ThermalMode::FixedPhysicalTemperature &&
-               (wall.heat.model == ScalarModel::BulkAero ||
-                wall.heat.model == ScalarModel::NeutralRoughnessLog);
+        return wall.heat_requires_speed();
     case ScalarChannel::Vapor:
-        return wall.moisture == MoistureMode::WetEquilibrium &&
-               (wall.vapor.model == ScalarModel::BulkAero ||
-                wall.vapor.model == ScalarModel::NeutralRoughnessLog);
+        return wall.vapor_requires_speed();
     case ScalarChannel::CloudWater:
     case ScalarChannel::None:
         return false;
@@ -666,8 +662,7 @@ bool
 requires_tangential_momentum (
     const erf_wall_thermodynamics::FaceWall& wall) noexcept
 {
-    return wall.momentum.model !=
-        erf_wall_thermodynamics::MomentumModel::ResolvedNoSlip;
+    return wall.momentum_requires_speed();
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -676,9 +671,7 @@ bool
 wall_rate_requires_tangential_speed (
     const erf_wall_thermodynamics::FaceWall& wall) noexcept
 {
-    return requires_tangential_momentum(wall) ||
-        requires_tangential_speed(wall, ScalarChannel::Heat) ||
-        requires_tangential_speed(wall, ScalarChannel::Vapor);
+    return wall.has_wall_rate_channel();
 }
 
 // One scalar row at one cell. A resolved wall contributes 2*alpha/dx^2 to
@@ -893,10 +886,10 @@ wall_rate_for_cell (int i, int j, int k, const amrex::Box& domain,
             } else {
                 momentum[dir].resolved += wall.momentum.resolved_row_rate;
             }
-            if (wall.thermal.mode == ThermalMode::FixedPhysicalTemperature) {
+            if (wall.heat_is_conductive()) {
                 heat.add(wall.heat, U_t, inv, wall.momentum.z0_m, runtime.C_H);
             }
-            if (wall.moisture == MoistureMode::WetEquilibrium) {
+            if (wall.vapor_is_wet()) {
                 vapor.add(wall.vapor, U_t, inv, wall.momentum.z0_m, runtime.C_E);
             }
         }
@@ -1008,6 +1001,8 @@ evaluate_scalar_flux_in (
 
     switch (channel) {
     case ScalarChannel::Heat:
+        // An owned zero replaces ordinary diffusion and removes its RHS contribution.
+        if (!wall.heat_is_conductive()) { return result; }
         if (sample.U_t == amrex::Real(0.0) &&
             wall.heat.model != ScalarModel::ResolvedMolecular && wall.heat.molecular_speed == 0) {
             return result;
@@ -1062,9 +1057,7 @@ evaluate_scalar_flux_in (
         return result;
 
     case ScalarChannel::Vapor:
-        if (wall.moisture == MoistureMode::DryImpermeable) {
-            return result;
-        }
+        if (!wall.vapor_is_wet()) { return result; }
         if (sample.U_t == amrex::Real(0.0) &&
             wall.vapor.model != ScalarModel::ResolvedMolecular && wall.vapor.molecular_speed == 0) {
             return result;
