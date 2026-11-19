@@ -1578,6 +1578,12 @@ List of Parameters
 |                                     | plotfile                                                 |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.write_eb_surface**            | write the embedded-boundary surface as a separate file   | Boolean            | false            |
+|                                     | (eb.pvtp) and, for erf.terrain_type = EB, its nodal      |                    |                  |
+|                                     | level set (eb_levelset.vtm, in the directory of          |                    |                  |
+|                                     | erf.plot_file_1), once at initialization. eb.pvtp holds  |                    |                  |
+|                                     | the finest level that exists then, and eb_levelset.vtm   |                    |                  |
+|                                     | every level that exists then (not levels made later by   |                    |                  |
+|                                     | regridding). The level set needs a mesh with constant dz |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rad.datalog**                 | name of the log file to which radiation profiles are     | String             | None             |
 |                                     | written; see :ref:`sec:RadiationDatalog`                 |                    |                  |
