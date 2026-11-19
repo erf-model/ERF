@@ -342,8 +342,8 @@ void fill_nonuniform_detj (amrex::MultiFab& detJ_cc)
 
 struct IceFallFluxReductionDiagnostics {
     amrex::Real initial_qci_mass{amrex::Real(0.0)};
-    amrex::Real local_max_flux{amrex::Real(0.0)};
-    amrex::Real global_max_flux{amrex::Real(0.0)};
+    amrex::Real local_max_fall_speed{amrex::Real(0.0)};
+    amrex::Real global_max_fall_speed{amrex::Real(0.0)};
     int local_n_substep{0};
     int global_n_substep{0};
     int owned_box_count{0};
@@ -365,7 +365,9 @@ SAMCellState make_icefall_reduction_state (const bool high_flux_region,
     state.pres_mbar = pres_mbar;
     state.qv = qv;
     state.qcl = zero;
-    state.qci = (high_flux_region ? amrex::Real(5.0e-4) : amrex::Real(5.0e-6)) * qci_scale;
+    // The low region's ice is light enough that its fall speed stays below the 0.4 m/s
+    // cap, so it needs fewer substeps than the high region, whose ice falls at the cap.
+    state.qci = (high_flux_region ? amrex::Real(5.0e-4) : amrex::Real(1.0e-8)) * qci_scale;
     state.qpr = zero;
     state.qps = zero;
     state.qpg = zero;
@@ -389,6 +391,13 @@ amrex::Real icefall_face_flux (const amrex::Real rho_face,
                                const amrex::Real qci_face) noexcept
 {
     return rho_face * sam_cloud_ice_terminal_velocity(qci_face) * qci_face;
+}
+
+// The fall speed IceFall sizes its substeps from; a face with no ice does not fall.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real icefall_face_fall_speed (const amrex::Real qci_face) noexcept
+{
+    return (qci_face > zero) ? sam_cloud_ice_terminal_velocity(qci_face) : zero;
 }
 
 void fill_icefall_reduction_conserved_state (amrex::MultiFab& cons,
@@ -487,14 +496,14 @@ IceFallFluxReductionDiagnostics compute_icefall_flux_reduction_diagnostics (
                                                                    zero, zero,
                                                                    qci_km1, qci_k,
                                                                    zero, zero);
-            fz_array(i,j,k) = icefall_face_flux(face_state.rho_avg, face_state.qci_avg);
+            fz_array(i,j,k) = icefall_face_fall_speed(face_state.qci_avg);
         });
     }
 
     amrex::Gpu::streamSynchronize();
 
     const auto fz_arrays = fz.const_arrays();
-    const amrex::GpuTuple<amrex::Real> max_reduced_flux = amrex::ParReduce(
+    const amrex::GpuTuple<amrex::Real> max_fall_speed = amrex::ParReduce(
         amrex::TypeList<amrex::ReduceOpMax>{},
         amrex::TypeList<amrex::Real>{},
         fz, amrex::IntVect(0),
@@ -502,18 +511,14 @@ IceFallFluxReductionDiagnostics compute_icefall_flux_reduction_diagnostics (
             return {fz_arrays[box_no](i,j,k)};
         });
 
-    diagnostics.local_max_flux = amrex::max(amrex::Real(0.0), amrex::get<0>(max_reduced_flux));
-    diagnostics.global_max_flux = diagnostics.local_max_flux;
-    amrex::ParallelDescriptor::ReduceRealMax(diagnostics.global_max_flux);
+    diagnostics.local_max_fall_speed = amrex::max(amrex::Real(0.0), amrex::get<0>(max_fall_speed));
+    diagnostics.global_max_fall_speed = diagnostics.local_max_fall_speed;
+    amrex::ParallelDescriptor::ReduceRealMax(diagnostics.global_max_fall_speed);
 
-    diagnostics.local_n_substep = sam_substep_count_from_reduced_flux(
-        diagnostics.local_max_flux + std::numeric_limits<amrex::Real>::epsilon(),
-        dt,
-        dz);
-    diagnostics.global_n_substep = sam_substep_count_from_reduced_flux(
-        diagnostics.global_max_flux + std::numeric_limits<amrex::Real>::epsilon(),
-        dt,
-        dz);
+    diagnostics.local_n_substep = sam_sedimentation_substep_count(
+        sam_fall_courant(diagnostics.local_max_fall_speed, dt, dz, amrex::Real(1.0)));
+    diagnostics.global_n_substep = sam_sedimentation_substep_count(
+        sam_fall_courant(diagnostics.global_max_fall_speed, dt, dz, amrex::Real(1.0)));
 
     std::ostringstream box_stream;
     bool first_box = true;
@@ -1046,7 +1051,9 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
     constexpr int nx = 8;
     constexpr int ny = 4;
     constexpr int nz = 4;
-    const amrex::Real dt = amrex::Real(1000.0);
+    // With dz = 1 m, the high region's 0.4 m/s needs 8 substeps and the low region's
+    // slower ice fewer, so a rank that owns only low columns has a smaller local count.
+    const amrex::Real dt = amrex::Real(10.0);
 
     amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(nx - 1, ny - 1, nz - 1));
     amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
@@ -1077,11 +1084,9 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
     const int rank = amrex::ParallelDescriptor::MyProc();
     const int nprocs = amrex::ParallelDescriptor::NProcs();
     const amrex::Real dz = geom.CellSize(2);
-    const amrex::Real expected_global_max = diagnostics.global_max_flux;
-    const int expected_n_substep = sam_substep_count_from_reduced_flux(
-        expected_global_max + std::numeric_limits<amrex::Real>::epsilon(),
-        dt,
-        dz);
+    const amrex::Real expected_global_max = diagnostics.global_max_fall_speed;
+    const int expected_n_substep = sam_sedimentation_substep_count(
+        sam_fall_courant(expected_global_max, dt, dz, amrex::Real(1.0)));
 
     int any_local_differs = (diagnostics.local_n_substep != expected_n_substep) ? 1 : 0;
     amrex::ParallelDescriptor::ReduceIntMax(any_local_differs);
@@ -1090,8 +1095,8 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
         << "rank=" << rank
         << " boxes=" << diagnostics.box_summary
         << " max_size=(" << max_size[0] << "," << max_size[1] << "," << max_size[2] << ")"
-        << " local_max_flux=" << diagnostics.local_max_flux
-        << " global_max_flux=" << diagnostics.global_max_flux
+        << " local_max_fall_speed=" << diagnostics.local_max_fall_speed
+        << " global_max_fall_speed=" << diagnostics.global_max_fall_speed
         << " local_n_substep=" << diagnostics.local_n_substep
         << " global_n_substep=" << diagnostics.global_n_substep
         << " expected_n_substep=" << expected_n_substep
@@ -1105,8 +1110,8 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
         << " owned_boxes=" << diagnostics.owned_box_count
         << " boxes=" << diagnostics.box_summary
         << " max_size=(" << max_size[0] << "," << max_size[1] << "," << max_size[2] << ")"
-        << " local_max_flux=" << diagnostics.local_max_flux
-        << " global_max_flux=" << diagnostics.global_max_flux
+        << " local_max_fall_speed=" << diagnostics.local_max_fall_speed
+        << " global_max_fall_speed=" << diagnostics.global_max_fall_speed
         << " local_n_substep=" << diagnostics.local_n_substep
         << " global_n_substep=" << diagnostics.global_n_substep
         << " expected_n_substep=" << expected_n_substep
@@ -1121,8 +1126,8 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
             << " owned_boxes=" << diagnostics.owned_box_count
             << " boxes=" << diagnostics.box_summary
             << " max_size=(" << max_size[0] << "," << max_size[1] << "," << max_size[2] << ")"
-            << " local_max_flux=" << diagnostics.local_max_flux
-            << " global_max_flux=" << diagnostics.global_max_flux
+            << " local_max_fall_speed=" << diagnostics.local_max_fall_speed
+            << " global_max_fall_speed=" << diagnostics.global_max_fall_speed
             << " local_n_substep=" << diagnostics.local_n_substep
             << " global_n_substep=" << diagnostics.global_n_substep
             << " expected_n_substep=" << expected_n_substep
@@ -1160,8 +1165,8 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
         << " owned_boxes=" << diagnostics.owned_box_count
         << " boxes=" << diagnostics.box_summary
         << " max_size=(" << max_size[0] << "," << max_size[1] << "," << max_size[2] << ")"
-        << " local_max_flux=" << diagnostics.local_max_flux
-        << " global_max_flux=" << diagnostics.global_max_flux
+        << " local_max_fall_speed=" << diagnostics.local_max_fall_speed
+        << " global_max_fall_speed=" << diagnostics.global_max_fall_speed
         << " local_n_substep=" << diagnostics.local_n_substep
         << " global_n_substep=" << diagnostics.global_n_substep
         << " expected_n_substep=" << expected_n_substep
@@ -1237,8 +1242,8 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
                                             << " box=" << bx
                                             << " cell=(" << i << "," << j << "," << k << ")"
                                             << " max_size=(" << max_size[0] << "," << max_size[1] << "," << max_size[2] << ")"
-                                            << " local_max_flux=" << diagnostics.local_max_flux
-                                            << " global_max_flux=" << diagnostics.global_max_flux
+                                            << " local_max_fall_speed=" << diagnostics.local_max_fall_speed
+                                            << " global_max_fall_speed=" << diagnostics.global_max_fall_speed
                                             << " local_n_substep=" << diagnostics.local_n_substep
                                             << " global_n_substep=" << diagnostics.global_n_substep
                                             << " expected_n_substep=" << expected_n_substep
@@ -1296,12 +1301,9 @@ TEST(SAMParallel, IceFallDryNeighboursConserveColumnIce)
     const amrex::Real dz = geom.CellSize(2);
     const amrex::Real cell_volume = geom.CellSize(0) * geom.CellSize(1) * dz;
 
-    // The cloud-ice fall speed is capped at 0.4 m/s, so this bounds the largest face
-    // flux; it must leave IceFall a single substep for the exact budget below to hold.
-    const amrex::Real rho_bound = cons.max(Rho_comp);
-    ASSERT_EQ(sam_substep_count_from_reduced_flux(
-                  rho_bound * amrex::Real(0.4) * qci_layer + std::numeric_limits<amrex::Real>::epsilon(),
-                  dt, dz), 1);
+    // The cloud-ice fall speed is capped at 0.4 m/s, which must leave IceFall a single
+    // substep for the exact budget below to hold.
+    ASSERT_EQ(sam_sedimentation_substep_count(sam_fall_courant(amrex::Real(0.4), dt, dz, amrex::Real(1.0))), 1);
 
     const amrex::Real initial_qci_mass = cons.sum(RhoQ3_comp) * cell_volume;
 

@@ -231,7 +231,7 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
     const auto terminal_velocities = precipfall_terminal_velocities();
 
     PrecipFallRunDiagnostics diagnostics{};
-    amrex::Real max_total_raw_flux = amrex::Real(0.0);
+    amrex::Real max_courant = amrex::Real(0.0);
 
     for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
@@ -298,10 +298,15 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
                     diagnostics.max_raw_fluxes[0] = std::max(diagnostics.max_raw_fluxes[0], corrected_fluxes.rain);
                     diagnostics.max_raw_fluxes[1] = std::max(diagnostics.max_raw_fluxes[1], corrected_fluxes.snow);
                     diagnostics.max_raw_fluxes[2] = std::max(diagnostics.max_raw_fluxes[2], corrected_fluxes.graupel);
-                    max_total_raw_flux = std::max(max_total_raw_flux,
-                                                  corrected_fluxes.rain + corrected_fluxes.snow + corrected_fluxes.graupel);
 
                     const amrex::Real detj_donor = detj ? detj(i,j,donor_k) : amrex::Real(1.0);
+                    max_courant = std::max(max_courant,
+                                           sam_fall_courant(sam_precip_component_max_fall_speed(face_state,
+                                                                                                terminal_velocities[0],
+                                                                                                terminal_velocities[1],
+                                                                                                terminal_velocities[2],
+                                                                                                rho0),
+                                                            dt, geom.CellSize(2), detj_donor));
                     diagnostics.detj_min = std::min(diagnostics.detj_min, detj_donor);
                     diagnostics.detj_max = std::max(diagnostics.detj_max, detj_donor);
                 }
@@ -309,10 +314,7 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
         }
     }
 
-    diagnostics.n_substep = sam_substep_count_from_reduced_flux(
-        max_total_raw_flux + std::numeric_limits<amrex::Real>::epsilon(),
-        dt,
-        geom.CellSize(2));
+    diagnostics.n_substep = sam_sedimentation_substep_count(max_courant);
 
     const amrex::Real coef_substep = (dt / diagnostics.n_substep) / geom.CellSize(2);
     for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
@@ -1056,6 +1058,84 @@ TEST(SAMPhysicalProperties, PrecipFall_PureRainLimiterActiveColumnBudgetCloses)
         << " min_qpr_after=" << summary.min_qpr_after
         << " detj_min=" << summary.diagnostics.detj_min
         << " detj_max=" << summary.diagnostics.detj_max;
+}
+
+// Motivation:
+// The sedimentation substeps must be sized from the fall speed (#5168). Rain
+// starts in the top cell of a column and dt is long enough for it to fall about
+// three cells. Sized from the mass flux, PrecipFall took a single substep, and
+// the donor cap then let rain cross only one face: none reached the cells below
+// the second-highest. Sized from the fall speed, it takes several substeps and
+// the rain moves down the column.
+TEST(SAMPhysicalProperties, PrecipFall_RainFallsSeveralCellsInOneLongStep)
+{
+    constexpr int nz = 8;
+    const amrex::Real pres_mbar = amrex::Real(900.0);
+    const amrex::Real tabs = amrex::Real(284.0);
+    const amrex::Real qpr_top = amrex::Real(1.0e-3);
+
+    amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
+    amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                            {AMREX_D_DECL(1.0, 1.0, amrex::Real(nz))});
+    amrex::Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 0)};
+    amrex::Geometry geom(domain, &real_box, 0, is_periodic.data());
+
+    amrex::BoxArray ba(domain);
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
+    cons.setVal(amrex::Real(0.0));
+    amrex::Real rho_top = amrex::Real(0.0);
+    for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto arr = cons.array(mfi);
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            const amrex::Real qsat = mixed_qsat_for_state(kSAMNoIceMode, tabs, pres_mbar);
+            const SAMCellState state = make_cell_state(
+                tabs, pres_mbar, amrex::Real(0.8) * qsat,
+                amrex::Real(0.0), amrex::Real(0.0),
+                (k == nz - 1) ? qpr_top : amrex::Real(0.0),
+                amrex::Real(0.0), amrex::Real(0.0));
+            arr(0,0,k,Rho_comp) = state.rho;
+            arr(0,0,k,RhoKE_comp) = amrex::Real(0.0);
+            arr(0,0,k,RhoScalar_comp) = amrex::Real(0.0);
+            sam_primitive_to_cons(state, arr, 0, 0, k);
+            if (k == nz - 1) { rho_top = state.rho; }
+        }
+    }
+
+    // The rain's fall speed out of the top cell, and a dt that carries it three cells
+    const auto terminal_velocities = precipfall_terminal_velocities();
+    SAMPrecipComponentFaceState top_face{};
+    top_face.rho_avg = rho_top;
+    top_face.tabs_avg = tabs;
+    top_face.qpr_avg = qpr_top;
+    const amrex::Real v_top = sam_precip_component_max_fall_speed(
+        top_face, terminal_velocities[0], terminal_velocities[1], terminal_velocities[2],
+        amrex::Real(1.29));
+    const amrex::Real dz = geom.CellSize(2);
+    const amrex::Real dt = amrex::Real(3.0) * dz / v_top;
+
+    const PrecipFallBudgetSummary summary =
+        run_precipfall_budget_case(geom, cons, MoistureType::SAM_NoIce, dt);
+
+    amrex::Real low_rain_mass = amrex::Real(0.0);
+    for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const auto arr = cons.const_array(mfi);
+        for (int k = 0; k <= nz - 3; ++k) {
+            low_rain_mass += arr(0,0,k,RhoQ4_comp) * dz;
+        }
+    }
+
+    EXPECT_GE(summary.diagnostics.n_substep, 6)
+        << "v_top=" << v_top << " dt=" << dt << " dz=" << dz;
+    EXPECT_GT(low_rain_mass, amrex::Real(0.1) * summary.initial_rain_mass)
+        << "low_rain_mass=" << low_rain_mass
+        << " initial_rain_mass=" << summary.initial_rain_mass
+        << " final_rain_mass=" << summary.final_rain_mass
+        << " v_top=" << v_top << " dt=" << dt << " dz=" << dz
+        << " n_substep=" << summary.diagnostics.n_substep;
+    EXPECT_GE(summary.min_qpr_after, -exact_zero_or_near_zero_tol());
 }
 
 // Motivation:

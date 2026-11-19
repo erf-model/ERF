@@ -919,15 +919,48 @@ int sam_precip_face_donor_k (const int& face_k,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-int sam_substep_count_from_reduced_flux (const amrex::Real& reduced_flux,
-                                         const amrex::Real& dt,
-                                         const amrex::Real& dz) noexcept
+int sam_sedimentation_substep_count (const amrex::Real& max_courant) noexcept
 {
-    // Substeps follow the legacy reduced-flux rule based on the maximum
-    // density-corrected precip flux, not directly on a terminal fall speed.
-    // Property tests characterize this behavior before any intended change.
+    // max_courant is the largest fall Courant number over the faces for the full step,
+    // v*dt over the height of the cell the face drains (#5168): enough substeps that no
+    // species falls more than CFL_MAX of that cell per substep, and always at least one.
     // MUST MATCH: SAM::CFL_MAX.
-    return static_cast<int>(std::ceil(reduced_flux * (dt / dz) / myhalf));
+    return amrex::max(1, static_cast<int>(std::ceil(max_courant / myhalf)));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sam_fall_courant (const amrex::Real& fall_speed,
+                              const amrex::Real& dt,
+                              const amrex::Real& dz,
+                              const amrex::Real& detJ_donor) noexcept
+{
+    // The fall Courant number at a face: the distance fallen in dt over the physical height
+    // dz*detJ of the donor cell, the one the face drains, as the donor-cap limiter uses.
+    return fall_speed * dt / (dz * detJ_donor);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sam_precip_component_max_fall_speed (const SAMPrecipComponentFaceState& face_state,
+                                                 const amrex::Real& vrain,
+                                                 const amrex::Real& vsnow,
+                                                 const amrex::Real& vgrau,
+                                                 const amrex::Real& rho_0) noexcept
+{
+    // The largest fall speed of rain, snow and graupel at a face: each density-corrected
+    // flux of sam_precip_component_fluxes_from_face_state divided by its rho_avg*q, so
+    // v*(rho_avg*q)^c*sqrt(rho_0/rho_avg). A component with no mass does not fall.
+    const amrex::Real density_correction = std::sqrt(rho_0 / face_state.rho_avg);
+    amrex::Real vmax = zero;
+    if (face_state.qpr_avg > zero) {
+        vmax = amrex::max(vmax, vrain * std::pow(face_state.rho_avg * face_state.qpr_avg, crain));
+    }
+    if (face_state.qps_avg > zero) {
+        vmax = amrex::max(vmax, vsnow * std::pow(face_state.rho_avg * face_state.qps_avg, csnow));
+    }
+    if (face_state.qpg_avg > zero) {
+        vmax = amrex::max(vmax, vgrau * std::pow(face_state.rho_avg * face_state.qpg_avg, cgrau));
+    }
+    return vmax * density_correction;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
