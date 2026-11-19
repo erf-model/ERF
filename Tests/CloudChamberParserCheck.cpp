@@ -9,9 +9,12 @@ int main (int argc, char** argv)
     MoistureType model = MoistureType::None;
     amrex::ParmParse pp_erf("erf");
     pp_erf.query_enum_case_insensitive("moisture_model", model);
-    const amrex::Real problo[AMREX_SPACEDIM] = {0.0, 0.0, 0.0};
-    const amrex::Real probhi[AMREX_SPACEDIM] = {2.0, 2.0, 1.0};
-    const auto config = erf_cloud_chamber::parse_config(problo, probhi, model);
+    DiffChoice dc;
+    dc.init_params("erf");
+    amrex::IntVect ncells;
+    amrex::ParmParse("amr").getarr("n_cell", ncells);
+    const amrex::Geometry geom(amrex::Box(amrex::IntVect(0), ncells - amrex::IntVect(1)));
+    const auto config = erf_cloud_chamber::parse_config(geom, model, dc);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         config.has_moisture == (model != MoistureType::None),
         "Cloud Chamber: parsed moisture flag disagrees with the selected model");
