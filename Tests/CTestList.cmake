@@ -6909,6 +6909,33 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   endfunction(add_test_line_sampling_terrain)
   add_test_line_sampling_terrain(LineSamplingTerrain)
 
+  # The physical height written with plane samples and subvolumes (erf.plane_sampling_vars and
+  # erf.subvol_sampling_vars z_phys). Over the hill on a stretched mesh it is written without
+  # being asked for, and a vertical and a horizontal plane and a subvolume must hold the 3D
+  # plotfile's z_phys and theta, interpolated across each plane as the plane sampler does. On
+  # moving terrain the planes must hold the heights at the end of the step, as the plotfile does.
+  # With constant dz a horizontal plane's z_phys (asked for as z) is its height, and a
+  # subvolume holds z_phys only when asked for it (check_plane_heights.py)
+  function(add_test_plane_sampling_heights TEST_NAME)
+    set(TEST_FILES_DIR LineSamplingTerrain)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    set(_src ${CMAKE_CURRENT_SOURCE_DIR}/test_files)
+    set(_check "${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_plane_heights.py")
+    set(_off "erf.do_line_sampling=0 erf.do_plane_sampling=1 erf.plane_sampling_vars=theta erf.check_int=-1")
+    set(_hill "${_off} max_step=1 erf.plane_sampling_interval=1 erf.plot_file_1=hplt 'erf.plot_vars_1=theta z_phys' 'erf.sample_plane_dir=0 2' 'erf.sample_plane_name=hx hz' 'erf.sample_plane_lo=20 -1280 0 -1280 -1280 150' 'erf.sample_plane_hi=20 1280 791.6 1280 1280 150' erf.subvol_file=hsub erf.subvol_int=1 erf.subvol_sampling_vars=theta 'erf.subvol.origin=-640 -640 0' 'erf.subvol.nxnynz=8 8 4' 'erf.subvol.dxdydz=80 80 65.96666666666667'")
+    set(_moving "${_off} max_step=2 erf.plane_sampling_interval=2 erf.plot_file_1=mplt erf.plot_int_1=2 'erf.plot_vars_1=theta z_phys' 'erf.sample_plane_dir=0 2' 'erf.sample_plane_name=mx mz' 'erf.sample_plane_lo=51 0 0 0 0 100' 'erf.sample_plane_hi=51 40 400 200 40 100'")
+    set(_flat "${_off} max_step=1 erf.plane_sampling_interval=1 'erf.plane_sampling_vars=theta z' erf.sample_plane_dir=2 erf.sample_plane_name=fz 'erf.sample_plane_lo=0 0 100' 'erf.sample_plane_hi=256 256 100' erf.subvol_file=fsub erf.subvol_int=1 erf.subvol_sampling_vars=theta 'erf.subvol.origin=0 0 0' 'erf.subvol.nxnynz=4 4 4' 'erf.subvol.dxdydz=16 16 16'")
+    # Remove the output of an earlier pass, so a run that stops writing cannot pass on old files
+    add_test(${TEST_NAME} sh -c
+        "rm -rf hplt0* hx_* hz_* hsub_* mplt0* mx_* mz_* fz_* fsub_* && ( ${MPI_COMMANDS} ${TEST_EXE} LineSamplingTerrain.i ${_hill} > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${_check} --plt hplt00001 --plane hx_step_00001:0:20 --plane hz_step_00001:2:150 --subvol hsub_0_00001:8:8:0 --names hx_step_00001:theta,z_phys --names hsub_0_00001:theta,z_phys && ( ${MPI_COMMANDS} ${TEST_EXE} ${_src}/MovingTerrain_nosub/MovingTerrain_nosub.i ${_moving} > ${_log}.moving 2>&1 || ( tail -n 40 ${_log}.moving && false ) ) && ${_check} --plt mplt00002 --plane mx_step_00002:0:51 --plane mz_step_00002:2:100 && ( ${MPI_COMMANDS} ${TEST_EXE} ${_src}/SampleLine/SampleLine.i ${_flat} > ${_log}.flat 2>&1 || ( tail -n 40 ${_log}.flat && false ) ) && ${_check} --flat-plane fz_step_00001:100 --names fz_step_00001:theta,z_phys --no-names fsub_0_00001:z_phys")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log};${_log}.moving;${_log}.flat")
+  endfunction(add_test_plane_sampling_heights)
+  add_test_plane_sampling_heights(PlaneSamplingHeights)
+
   # Lines interpolated to requested heights over the same hill (erf.sample_line_interp): four
   # vertical lines at given heights and a horizontal one at a constant height across the hill,
   # partly below the ground, by height above sea level and above the ground; each sample must
