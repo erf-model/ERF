@@ -844,7 +844,6 @@ PrecipFallComponentBudgetResult run_precipfall_component_budget_case (const amre
     SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(geom.CellSize(2));
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, dt, z_phys_nd, detj_owned);
     sam.Copy_State_to_Micro(cons);
@@ -936,7 +935,6 @@ TEST(SAMParallel, ComputeCoefficientsRankInvariant)
     SolverChoice sc = make_sam_solver_choice();
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(amrex::Real(100.0));
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, amrex::Real(1.0), z_phys_nd, detJ_cc);
     sam.Copy_State_to_Micro(cons);
@@ -991,7 +989,6 @@ TEST(SAMParallel, CopyMicroToStateFillBoundaryParallel)
     SolverChoice sc = make_sam_solver_choice();
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(amrex::Real(100.0));
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, amrex::Real(1.0), z_phys_nd, detJ_cc);
     sam.Copy_State_to_Micro(cons);
@@ -1143,7 +1140,6 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
 
     SAM public_sam;
     public_sam.Define(sc);
-    public_sam.Set_dzmin(dz);
     public_sam.Set_RealWidth(0);
     public_sam.Init(public_cons, ba, geom, dt, z_phys_nd, detJ_cc);
     public_sam.Copy_State_to_Micro(public_cons);
@@ -1312,7 +1308,6 @@ TEST(SAMParallel, IceFallDryNeighboursConserveColumnIce)
     SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(dz);
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, dt, z_phys_nd, detJ_cc);
     sam.Copy_State_to_Micro(cons);
@@ -1421,7 +1416,6 @@ TEST(SAMParallel, PrecipFallGlobalMassAndSurfaceAccumulation)
     SolverChoice sc = make_sam_solver_choice();
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(dz);
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, dt, z_phys_nd, detJ_cc);
     sam.Copy_State_to_Micro(cons);
@@ -1518,7 +1512,6 @@ TEST(SAMParallel, PrecipGlobalWaterBudgetDecompositionInvariant)
     SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(geom.CellSize(2));
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, dt, z_phys_nd, detJ_cc);
 
@@ -1585,7 +1578,6 @@ TEST(SAMParallel, PrecipDetJWeightedWaterBudgetDecompositionInvariant)
     SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(geom.CellSize(2));
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, dt, z_phys_nd, detJ_cc);
 
@@ -1652,7 +1644,6 @@ TEST(SAMParallel, PrecipConstantPressureLatentProxyBudgetDecompositionInvariant)
     SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(geom.CellSize(2));
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, dt, z_phys_nd, detJ_cc);
 
@@ -1761,7 +1752,6 @@ TEST(SAMParallel, PrecipDetJWeightedConstantPressureLatentProxyBudgetDecompositi
     SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(geom.CellSize(2));
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, dt, z_phys_nd, detJ_cc);
 

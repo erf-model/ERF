@@ -51,14 +51,18 @@ void SAM::IceFall (const SolverChoice& sc) {
 
     // Size the substeps from the largest fall Courant number over the faces (#5168): the
     // cloud-ice fall speed at each face, from the same face state as the fluxes below, over
-    // the height of the cell that face drains. A face with no ice does not count: the
-    // terminal velocity is positive even for qci = 0.
+    // the smaller of the heights of the cell that face drains and the cell it drains into
+    // (sam_fall_sizing_detJ says why the cell below counts too). A face with no ice does not
+    // count: the terminal velocity is positive even for qci = 0.
     int n_substep;
     {
         auto const& ma_rho = rho->const_arrays();
         auto const& ma_qci = qci->const_arrays();
-        // On an EB mesh detJ is the volume fraction, not a cell height, so size the substeps
-        // from the reference dz there
+        // On an EB mesh detJ is the volume fraction, not a cell height, so the sizing uses the
+        // reference dz there (J = 1).  The donor cap and the tendency below still use detJ, the
+        // volume fraction, so a small cut cell can be donor-capped rather than substepped.
+        // Off EB, detJ_cc has one ghost cell filled (make_J), so the receiver cell k-1 at the
+        // bottom of a box that is interior in z can be read here.
         const auto ma_dJ = (m_detJ_cc && sc.terrain_type != TerrainType::EB)
                          ? m_detJ_cc->const_arrays() : MultiArray4<const Real>{};
         const Real dz_ref = m_geom.CellSize(2);
@@ -80,15 +84,20 @@ void SAM::IceFall (const SolverChoice& sc) {
                                                                                         qci_km1, qci_k,
                                                                                         zero, zero);
                                  const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
-                                 const Real detJ_donor = (ma_dJ) ? ma_dJ[box_no](i,j,donor_k) : one;
+                                 const int receiver_k = sam_precip_face_receiver_k(k, k_lo, k_hi);
+                                 const Real detJ_size = (ma_dJ)
+                                     ? sam_fall_sizing_detJ(ma_dJ[box_no](i,j,donor_k),
+                                                            ma_dJ[box_no](i,j,receiver_k))
+                                     : one;
                                  const Real vt_ice = (face_state.qci_avg > zero)
                                      ? sam_cloud_ice_terminal_velocity(face_state.qci_avg) : zero;
-                                 return { sam_fall_courant(vt_ice, dtn, dz_ref, detJ_donor) };
+                                 return { sam_fall_courant(vt_ice, dtn, dz_ref, detJ_size) };
                              });
         Real max_courant = get<0>(max);
         // ParReduce over a MultiFab gives the local rank maximum here. IceFall
         // needs one global substep count across ranks, matching PrecipFall.
         ParallelDescriptor::ReduceRealMax(max_courant);
+        sam_check_sedimentation_substeps("SAM::IceFall", max_courant);
         n_substep = sam_sedimentation_substep_count(max_courant);
     }
     AMREX_ALWAYS_ASSERT(n_substep >= 1);
