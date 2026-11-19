@@ -1406,6 +1406,24 @@ ERF::make_physbcs (int lev)
                                                             l_use_real_bcs, zvel_bc_data[lev].data());
     // the terrain-following inflow profiles of the lateral faces (xlo.inflow_profile)
     physbcs_cons[lev]->set_inflow_profiles(&m_inflow_profiles);
+    // the lateral inflow faces of a pseudo-incompressible level that give a primitive theta
+    //    (<face>.theta, or a theta dirichlet_file read as primitive): see set_pi_inflow_faces
+    {
+        GpuArray<int,AMREX_SPACEDIM*2>  pi_face{};
+        GpuArray<Real,AMREX_SPACEDIM*2> pi_theta{};
+        if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+            for (OrientationIter oit; oit; ++oit) {
+                const Orientation ori = oit();
+                pi_face[ori] = pi_theta_inflow_face(ori);
+                if (pi_face[ori] == 0) { continue; }
+                pi_theta[ori] = m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori];
+                if (m_th_file_face[ori] != 2 && !(pi_theta[ori] > Real(0.0))) {
+                    Abort("The inflow theta of a pseudo-incompressible face must be positive");
+                }
+            }
+        }
+        physbcs_cons[lev]->set_pi_inflow_faces(pi_face, pi_theta);
+    }
     physbcs_u[lev]->set_inflow_profiles(&m_inflow_profiles);
     physbcs_v[lev]->set_inflow_profiles(&m_inflow_profiles);
     const bool moving_mesh = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
