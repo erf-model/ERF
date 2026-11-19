@@ -2,6 +2,7 @@
 #define ERF_SLM_H
 
 #include <set>
+#include <unordered_set>
 #include <string>
 #include <vector>
 #include <memory>

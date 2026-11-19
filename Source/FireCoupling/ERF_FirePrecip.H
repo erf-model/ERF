@@ -18,7 +18,7 @@
  * Morrison's rain, snow and graupel accumulations, ...), exposed through
  * Microphysics::Get_Surface_Precip_Accumulation_Ptrs() with a factor that
  * turns the scheme's native unit into kg/m2 of liquid water. One kg/m2 of
- * liquid water is one millimetre of depth, so the change of the accumulation
+ * liquid water is one millimeter of depth, so the change of the accumulation
  * over a step, divided by the step, is the rain rate in mm/hr that the
  * time-lag and stick moisture updates take. The fire layer keeps the
  * accumulation it saw at the end of its previous step (checkpointed) and
