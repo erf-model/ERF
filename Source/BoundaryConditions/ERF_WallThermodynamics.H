@@ -49,6 +49,8 @@ struct MomentumTransfer {
     CoefficientProvider provider = CoefficientProvider::None;
     amrex::Real C_D = amrex::Real(0.0);
     amrex::Real z0_m = amrex::Real(0.0);
+    amrex::Real molecular_speed = amrex::Real(0.0); // nu / half-cell distance [m/s]
+    amrex::Real resolved_row_rate = amrex::Real(0.0); // ordinary no-slip stencil [1/s]; guard only
 };
 
 struct ScalarTransfer {
@@ -56,6 +58,10 @@ struct ScalarTransfer {
     CoefficientProvider provider = CoefficientProvider::None;
     amrex::Real coefficient = amrex::Real(0.0);
     amrex::Real z0 = amrex::Real(0.0);
+    // Both speeds have units of m/s (alpha / half-cell distance); at most one is active.
+    amrex::Real molecular_speed = amrex::Real(0.0); // additive part of a combined bulk law only
+    // Resolved-only reference for the corner timestep. The resolved flux already uses alpha.
+    amrex::Real resolved_speed = amrex::Real(0.0);
 };
 
 struct FaceWall {
