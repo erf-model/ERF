@@ -21,8 +21,9 @@ AMREX_ENUM(RANSType, None, kEqn);
 /**
  * @brief Planetary boundary-layer closure type.
  *
- * YSUNew and SHOC are input names only: TurbChoice::init_params maps them to YSU and
- * EAMXX_SHOC, so no other code sees them.
+ * YSUNew, SHOC and EAMXX_SHOC are input names only: TurbChoice::init_params maps YSUNew to
+ * YSU and SHOC to NATIVE_SHOC, and stops for EAMXX_SHOC, which is no longer available, so no
+ * other code sees them.
  */
 AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, YSUNew, MRF, SHOC, EAMXX_SHOC, NATIVE_SHOC);
 
@@ -157,13 +158,19 @@ public:
 
     // Which PBL Closure
     query_one_or_per_level_enum_case_insensitive(pp, "pbl_type", pbl_type, lev, max_level);
+    // SHOC used to select the EAMxx SHOC, which has been removed; it now selects native SHOC
     if (pbl_type == PBLType::SHOC) {
       static bool warned_legacy_shoc = false;
       if (!warned_legacy_shoc && amrex::ParallelDescriptor::IOProcessor()) {
-        amrex::Warning("erf.pbl_type = SHOC is deprecated; use erf.pbl_type = EAMXX_SHOC");
+        amrex::Warning("erf.pbl_type = SHOC now selects the native SHOC (erf.pbl_type = NATIVE_SHOC); "
+                       "it used to select the EAMxx SHOC, which has been removed");
       }
       warned_legacy_shoc = true;
-      pbl_type = PBLType::EAMXX_SHOC;
+      pbl_type = PBLType::NATIVE_SHOC;
+    }
+    if (pbl_type == PBLType::EAMXX_SHOC) {
+      amrex::Abort("erf.pbl_type = EAMXX_SHOC is no longer available: the EAMxx SHOC has been "
+                   "removed; use erf.pbl_type = NATIVE_SHOC");
     }
     // The former YSUNew is now the only YSU; the name is still accepted
     if (pbl_type == PBLType::YSUNew) {
@@ -421,12 +428,6 @@ public:
           amrex::Error("pblh_smoothing_weight must be in [0, 1]");
         }
       }
-      if (uses_eamxx_shoc()) {
-#ifndef ERF_USE_EAMXX_SHOC
-          amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
-#endif
-      }
-
       if (pbl_requires_surface_layer()) {
           std::string zlo_bc = "none";
           amrex::ParmParse pp_bc("zlo");
@@ -707,8 +708,6 @@ public:
       amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    Using MRF PBL model at level " << lev << std::endl;
-    } else if (pbl_type == PBLType::EAMXX_SHOC) {
-      amrex::Print() << "    Using EAMxx SHOC PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::NATIVE_SHOC) {
       amrex::Print() << "    Using native SHOC PBL model at level " << lev << std::endl;
     } else {
@@ -976,15 +975,6 @@ public:
   PBLType pbl_type = PBLType::None;
 
   /**
-   * @brief Query whether this level uses the EAMxx SHOC PBL scheme.
-   * @return True if PBLType::EAMXX_SHOC is selected.
-   */
-  bool uses_eamxx_shoc () const noexcept
-  {
-      return pbl_type == PBLType::EAMXX_SHOC;
-  }
-
-  /**
    * @brief Query whether this level uses the native SHOC PBL scheme.
    * @return True if PBLType::NATIVE_SHOC is selected.
    */
@@ -995,11 +985,11 @@ public:
 
   /**
    * @brief Query whether this level uses any SHOC-family PBL scheme.
-   * @return True if native or EAMxx SHOC is selected.
+   * @return True if native SHOC is selected (the only SHOC since the EAMxx one was removed).
    */
   bool uses_shoc_family () const noexcept
   {
-      return uses_eamxx_shoc() || uses_native_shoc();
+      return uses_native_shoc();
   }
 
   /**
