@@ -259,15 +259,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
         // Apply SHOC before the dycore so it sees a coherent state.
         Real* w_sub = (solverChoice.custom_w_subsidence) ? d_w_subsid[lev].data() : nullptr;
-        if (solverChoice.turbChoice[lev].uses_eamxx_shoc()) {
-#ifdef ERF_USE_EAMXX_SHOC
-            compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
-                                    Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
-                                    SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
-                                    eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
-                                    dt_lev);
-#endif
-        } else if (solverChoice.turbChoice[lev].uses_native_shoc()) {
+        if (solverChoice.turbChoice[lev].uses_native_shoc()) {
             compute_native_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
                                            Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
                                            SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,

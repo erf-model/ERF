@@ -120,11 +120,6 @@ void write_description (std::ostream& os, erf_description::Format format)
 #else
     writer.value("rrtmgp", false);
 #endif
-#ifdef ERF_USE_EAMXX_SHOC
-    writer.value("eamxx_shoc", true);
-#else
-    writer.value("eamxx_shoc", false);
-#endif
 #ifdef ERF_USE_WINDFARM
     writer.value("windfarm", true);
 #else

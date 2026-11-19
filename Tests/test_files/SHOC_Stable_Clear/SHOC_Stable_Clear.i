@@ -45,7 +45,6 @@ erf.shoc.allow_tendency_microphysics_overlap = false
 erf.shoc.top_taper_depth = 0.0
 erf.shoc.top_taper_min_factor = 0.0
 erf.shoc.debug_summary = false
-erf.shoc.check_flux_state = true
 erf.shoc.column_conservation_check = true
 erf.shoc.debug_bad_column = false
 erf.shoc.debug_bad_column_abort = false

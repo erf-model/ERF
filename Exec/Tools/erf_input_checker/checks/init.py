@@ -38,9 +38,13 @@ class IdealInitChecker(InitChecker):
                       "Set erf.use_gravity = true for any stratified atmosphere.")
         if t == "input_sounding":
             files = d.get_strs("erf.input_sounding_file") or ["input_sounding"]
-            times = self.reals("erf.input_sounding_time")
-            if times and len(times) != len(files):
-                self.error("erf.input_sounding_time", "%d times for %d sounding files" % (len(times), len(files)))
+            # As in ERF: no erf.input_sounding_time means one sounding at time 0
+            times = self.reals("erf.input_sounding_time") or [0.0]
+            if len(times) != len(files):
+                self.error("erf.input_sounding_time", "%d times for %d sounding files" % (len(times), len(files)),
+                           "Give one time for each file in erf.input_sounding_file.")
+            elif any(b <= a for a, b in zip(times, times[1:])):
+                self.error("erf.input_sounding_time", "the sounding times must be strictly increasing")
             if len(files) > 1 and not self.bool_("erf.nudging_from_input_sounding", False):
                 self.advise("erf.input_sounding_file", "several soundings are only used over time with erf.nudging_from_input_sounding = true")
         for key in ("erf.nc_init_file_0", "erf.nc_bdy_file", "erf.nc_low_file", "erf.real_width", "erf.use_real_bcs",

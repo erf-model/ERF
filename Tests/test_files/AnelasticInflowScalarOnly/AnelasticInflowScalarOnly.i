@@ -29,7 +29,7 @@ amr.max_level = 0
 erf.check_int   = -1
 erf.plot_file_1 = plt
 erf.plot_int_1  = 100
-erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta scalar
 
 erf.use_gravity     = true
 erf.molec_diff_type = "None"

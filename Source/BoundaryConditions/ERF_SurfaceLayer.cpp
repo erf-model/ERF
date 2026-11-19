@@ -950,6 +950,13 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_planar_boundary(lev, *t_star[lev]);
         fill_planar_boundary(lev, *q_star[lev]);
         fill_planar_boundary(lev, *olen[lev]);
+        // The flux iterations also write the surface values on the grown box: t_surf with a
+        // heat flux and q_surf with a moisture flux (most_flux_outputs, and the spec_qflux
+        // branches of the kernels).  A ghost column decides from its own grid's nearest
+        // column whether it takes the LSM flux, so at a seam it can be iterated while the
+        // grid owning it is not; without a refill its ghost kept that value (issue #5257).
+        fill_planar_boundary(lev, *t_surf[lev]);
+        fill_planar_boundary(lev, *q_surf[lev]);
         // A Charnock, Donelan or wave-coupled roughness is iterated on the grown box, from
         // the z0 stored there; without this its ghost cells kept each box's own value, which
         // a restart (that refills them from the valid cells) does not reproduce.  The LSM
@@ -1178,6 +1185,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
         // Both take the fluxes from get_lsm_flux_view and test them with
         // SurfaceFluxView::valid, so a column with lmask == 1 gets exactly one of the two.
         // (compute_sfc_params_from_lsm_fluxes also treats a missing lmask as land.)
+        // Every field written here on the grown box must be refilled at the end of update_fluxes.
         const NearestColumn col(vbx);
 
         auto u_star_arr = u_star[lev]->array(mfi);

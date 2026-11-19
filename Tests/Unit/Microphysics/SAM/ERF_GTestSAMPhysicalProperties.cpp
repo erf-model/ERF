@@ -16,7 +16,6 @@ SolverChoice make_sam_solver_choice (const MoistureType moisture_type = Moisture
     sc.rdOcp = kRdOcp;
     sc.ave_plane = 2;
     sc.moisture_type = moisture_type;
-    sc.use_eamxx_shoc = false;
     sc.use_native_shoc = false;
     return sc;
 }

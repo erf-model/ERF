@@ -11,10 +11,6 @@
 #include "ERF_EOS.H"
 #include "ERF_EB.H"
 
-#ifdef ERF_USE_EAMXX_SHOC
-#include "ERF_ShocInterface.H"
-#endif
-
 /** Compute turbulent viscosity and related flux fields for the configured turbulence model. */
 void
 ComputeTurbulentViscosity (double dt,

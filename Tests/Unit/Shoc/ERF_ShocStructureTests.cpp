@@ -211,7 +211,6 @@ TEST(SolverChoice, NativeStateUpdateOwnsNoVerticalDiffusion)
 {
     SolverChoice choice;
     choice.use_native_shoc = true;
-    choice.use_eamxx_shoc = false;
     choice.shoc_transport_mode = ShocTransportMode::StateUpdate;
     choice.shoc_momentum_transport = ShocMomentumTransport::StateUpdate;
 
@@ -223,7 +222,6 @@ TEST(SolverChoice, NativeMomentumNoneLeavesHostMomentumOwnership)
 {
     SolverChoice choice;
     choice.use_native_shoc = true;
-    choice.use_eamxx_shoc = false;
     choice.shoc_transport_mode = ShocTransportMode::StateUpdate;
     choice.shoc_momentum_transport = ShocMomentumTransport::None;
 
@@ -235,20 +233,9 @@ TEST(SolverChoice, NonNativeShocRetainsGenericHostOwnership)
 {
     SolverChoice choice;
     choice.use_native_shoc = false;
-    choice.use_eamxx_shoc = false;
 
     EXPECT_TRUE(choice.host_owns_vertical_scalar_diffusion());
     EXPECT_TRUE(choice.host_owns_vertical_momentum_diffusion());
-}
-
-TEST(SolverChoice, EamxxShocRetainsExistingOwnership)
-{
-    SolverChoice choice;
-    choice.use_native_shoc = false;
-    choice.use_eamxx_shoc = true;
-
-    EXPECT_FALSE(choice.host_owns_vertical_scalar_diffusion());
-    EXPECT_FALSE(choice.host_owns_vertical_momentum_diffusion());
 }
 
 TEST(ShocStructure, SurfaceLayerUsesUstarFloorAndFiniteObukhov)
