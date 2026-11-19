@@ -78,13 +78,13 @@ ComputeDiffusivityMYJ (double dt,
     Real BETA    = one/Real(273.);
     Real EL0MAX  = Real(1000.);
     Real EL0MIN  = one;
-    Real ELFC    = Real(0.23)*myhalf;
+    Real ELFC    = Real(0.23);
 
-    Real A1  =  Real(0.659888514560862645);
-    Real A2x =  Real(0.6574209922667784586);
+    Real A1  = Real( 0.659888514560862645);
+    Real A2x = Real( 0.6574209922667784586);
     Real B1  = Real(11.87799326209552761);
-    Real B2  =  Real(7.226971804046074028);
-    Real C1  =  Real(0.000830955950095854396);
+    Real B2  = Real( 7.226971804046074028);
+    Real C1  = Real( 0.000830955950095854396);
 
     Real BTG    = BETA*G;
     Real RB1    = one/B1;
