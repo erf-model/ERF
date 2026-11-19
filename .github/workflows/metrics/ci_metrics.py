@@ -1,22 +1,12 @@
 #!/usr/bin/env python3
-"""Weekly CI numbers for ERF, from the GitHub API, as a Markdown table.
+"""Summarize selected ERF CI workflow records from the GitHub API.
 
-Four things decide whether the CI is doing its job, and none of them is visible
-on the Actions tab:
-
-  merges and red merges   how many pushes to development in the window, and how
-                          many had at least one failed build workflow
-  time to full signal     from the first workflow starting to the last one
-                          finishing, per push to development and per PR commit
-  queue wait              how long jobs sat queued before a runner picked them
-                          up (merge tier, sampled); the org cap is 20 jobs
-  runner-minutes per merge  what one merge costs, sampled from the latest pushes
-
-Runs weekly from metrics.yml into the job summary; also runs by hand:
-    GH_TOKEN=... python3 ci_metrics.py [--repo erf-model/ERF] [--days 7]
+Durations cover observed SHA cohorts, not necessarily every required check.
+Runs weekly from metrics.yml or locally with an authenticated gh CLI.
 """
-import argparse, collections, json, statistics, subprocess, sys
+import argparse, collections, json, re, statistics, subprocess, sys
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 BUILD_WORKFLOWS = {"ERF CI", "Linux GCC", "Linux GCC NetCDF RRTMGP", "ERF CI (cuda)",
                    "ERF CI (hip)", "ERF CI (sycl)", "MacOS", "Windows", "Windows MPI",
@@ -25,7 +15,14 @@ BUILD_WORKFLOWS = {"ERF CI", "Linux GCC", "Linux GCC NetCDF RRTMGP", "ERF CI (cu
 
 def gh(path, paginate=True):
     cmd = ["gh", "api"] + (["--paginate"] if paginate else []) + [path]
-    out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+    except subprocess.CalledProcessError as exc:
+        match = re.search(r"\bHTTP ([1-5][0-9]{2})\b", exc.stderr or "")
+        status = f" (HTTP {match.group(1)})" if match else ""
+        raise RuntimeError(f"GitHub API request failed{status}; check permissions, rate limits and service status") from None
+    except OSError:
+        raise RuntimeError("Unable to run the GitHub CLI (gh)") from None
     # --paginate concatenates JSON objects; each has a workflow_runs / jobs list
     items = []
     dec = json.JSONDecoder(); i = 0
@@ -41,13 +38,42 @@ def ts(s):
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
-def runs(repo, event, since, branch=None):
-    q = f"repos/{repo}/actions/runs?event={event}&created=>={since:%Y-%m-%dT%H:%M:%SZ}&per_page=100"
-    if branch: q += f"&branch={branch}"
-    out = []
-    for page in gh(q):
-        out += [r for r in page.get("workflow_runs", []) if r["name"] in BUILD_WORKFLOWS]
-    return out
+def runs(repo, event, since, until, branch=None):
+    """Split filtered queries before GitHub's 1,000-result limit."""
+    first, last = int(since.timestamp()), int(until.timestamp())
+    if first > last:
+        raise ValueError("collection window starts after it ends")
+    found = {}
+
+    def collect(left, right):
+        start = datetime.fromtimestamp(left, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        end = datetime.fromtimestamp(right, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        params = {"event": event, "created": f"{start}..{end}"}
+        if branch:
+            params["branch"] = branch
+        endpoint = f"repos/{repo}/actions/runs?"
+        count_page = gh(endpoint + urlencode({**params, "per_page": 1}), paginate=False)
+        total = count_page[0]["total_count"]
+        if total >= 1000:
+            if left == right:
+                raise RuntimeError(f"GitHub returned {total} runs in one second; collection incomplete")
+            middle = (left + right) // 2
+            collect(left, middle)
+            collect(middle + 1, right)
+            return
+        pages = gh(endpoint + urlencode({**params, "per_page": 100}))
+        records = [run for page in pages for run in page["workflow_runs"]]
+        if len(records) != total:
+            raise RuntimeError(f"GitHub returned {len(records)} of {total} runs for {start}..{end}")
+        if len({run["id"] for run in records}) != len(records):
+            raise RuntimeError(f"GitHub returned duplicate runs for {start}..{end}")
+        for run in records:
+            if run["id"] in found:
+                raise RuntimeError(f"GitHub returned run {run['id']} in multiple time buckets")
+            found[run["id"]] = run
+
+    collect(first, last)
+    return list(found.values())
 
 
 def by_sha(rs):
@@ -56,59 +82,125 @@ def by_sha(rs):
     return d
 
 
-def signal_minutes(group):
-    done = [r for r in group if r["status"] == "completed" and r["conclusion"] in ("success", "failure")]
-    if len(done) < 4: return None
-    t0 = min(ts(r["created_at"]) for r in done); t1 = max(ts(r["updated_at"]) for r in done)
-    return (t1 - t0).total_seconds() / 60
-
-
 def median(xs):
     xs = [x for x in xs if x is not None]
     return f"{statistics.median(xs):.0f}" if xs else "n/a"
+
+
+def outcomes(records):
+    counts = collections.Counter((run["conclusion"] or "unknown") if run["status"] == "completed"
+                                 else "unfinished" for run in records)
+    return ", ".join(f"{name}: {count}" for name, count in sorted(counts.items())) or "none"
+
+
+def sample_jobs(repo, group):
+    """Measure finished, assigned jobs; flag anything that makes totals partial."""
+    count, minutes, queue = 0, 0.0, []
+    partial = any(run["status"] != "completed" or run["conclusion"] not in ("success", "failure")
+                  for run in group)
+    for run in group:
+        if run["status"] != "completed":
+            continue
+        attempt = run.get("run_attempt")
+        if not isinstance(attempt, int) or attempt < 1:
+            partial = True
+            continue
+        if attempt > 1:
+            partial = True
+        path = f"repos/{repo}/actions/runs/{run['id']}/attempts/{attempt}/jobs?per_page=100"
+        pages = gh(path)
+        jobs = [job for page in pages for job in page["jobs"]]
+        if not pages or len(jobs) != pages[0]["total_count"] or len({job["id"] for job in jobs}) != len(jobs):
+            raise RuntimeError(f"GitHub returned an incomplete job list for run {run['id']}")
+        if not jobs and run["conclusion"] not in ("skipped", "cancelled"):
+            partial = True
+        for job in jobs:
+            if job["status"] != "completed":
+                partial = True
+                continue
+            if job["conclusion"] == "skipped":
+                continue
+            if not job.get("runner_id") or not job.get("started_at") or not job.get("completed_at"):
+                partial = True
+                continue
+            try:
+                started, completed = ts(job["started_at"]), ts(job["completed_at"])
+                if started.tzinfo is None or completed.tzinfo is None or completed < started:
+                    raise ValueError("invalid job timestamps")
+            except (AttributeError, TypeError, ValueError):
+                partial = True
+                continue
+            count += 1
+            minutes += (completed - started).total_seconds() / 60
+            if job.get("created_at"):
+                try:
+                    created = ts(job["created_at"])
+                    if created.tzinfo is not None and created <= started:
+                        queue.append((started - created).total_seconds() / 60)
+                except (AttributeError, TypeError, ValueError):
+                    pass
+    return count, minutes, queue, partial
+
+
+def sample_value(value, partial, has_data):
+    if partial and not has_data:
+        return "n/a (partial)"
+    return f"{value} (partial)" if partial else str(value)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default="erf-model/ERF")
     ap.add_argument("--days", type=int, default=7)
-    ap.add_argument("--sample", type=int, default=3, help="latest pushes to cost out via the jobs API")
+    ap.add_argument("--sample", type=int, default=3, help="latest development SHAs for job sampling; 0 disables it")
     a = ap.parse_args()
-    since = datetime.now(timezone.utc) - timedelta(days=a.days)
+    if a.days <= 0 or a.sample < 0:
+        ap.error("days must be positive and sample must be nonnegative")
+    until = datetime.now(timezone.utc).replace(microsecond=0)
+    since = until - timedelta(days=a.days)
 
-    dev = by_sha(runs(a.repo, "push", since, branch="development"))
-    prs = by_sha(runs(a.repo, "pull_request", since))
+    dev_records = runs(a.repo, "push", since, until, branch="development")
+    pr_records = runs(a.repo, "pull_request", since, until)
+    dev_runs = [run for run in dev_records if run["name"] in BUILD_WORKFLOWS]
+    pr_runs = [run for run in pr_records if run["name"] in BUILD_WORKFLOWS]
+    dev, prs = by_sha(dev_runs), by_sha(pr_runs)
+    red = [group for group in dev.values() if any(run["conclusion"] == "failure" for run in group)]
+    red_by = collections.Counter(run["name"] for group in red for run in group if run["conclusion"] == "failure")
 
-    red = [s for s, g in dev.items() if any(r["conclusion"] == "failure" for r in g)]
-    red_by = collections.Counter(r["name"] for s in red for r in dev[s] if r["conclusion"] == "failure")
-    dev_signal = [signal_minutes(g) for g in dev.values()]
-    pr_signal = [signal_minutes(g) for g in prs.values()]
-
-    # cost and queue wait, sampled from the latest pushes
-    latest = sorted(dev.items(), key=lambda kv: max(ts(r["created_at"]) for r in kv[1]))[-a.sample:]
+    latest = sorted(dev.items(), key=lambda item: max(ts(run["created_at"]) for run in item[1]))
+    latest = latest[-a.sample:] if a.sample else []
     jobs_per, minutes_per, queue = [], [], []
+    queue_partial = False
     for sha, group in latest:
-        nj = 0; mins = 0.0
-        for r in group:
-            js = [j for page in gh(f"repos/{a.repo}/actions/runs/{r['id']}/jobs?per_page=100")
-                  for j in page.get("jobs", []) if j.get("started_at") and j.get("completed_at")]
-            if not js: continue
-            nj += len(js)
-            mins += sum((ts(j["completed_at"]) - ts(j["started_at"])).total_seconds() / 60 for j in js)
-            queue.append((min(ts(j["started_at"]) for j in js) - ts(r["created_at"])).total_seconds() / 60)
-        jobs_per.append(nj); minutes_per.append(mins)
+        count, minutes, waits, partial = sample_jobs(a.repo, group)
+        jobs_per.append(f"{sha[:12]}: {sample_value(count, partial, count > 0)}")
+        minutes_per.append(f"{sha[:12]}: {sample_value(f'{minutes:.1f}', partial, count > 0)}")
+        queue.extend(waits)
+        queue_partial = queue_partial or partial or len(waits) != count
 
     rows = [
-        ("Pushes to development", f"{len(dev)}"),
-        ("  with a failed build workflow", f"{len(red)}" + (f" ({', '.join(f'{k} {v}' for k, v in red_by.most_common(4))})" if red_by else "")),
-        ("PR commits built", f"{len(prs)}"),
-        ("Time to full signal, merge, median min", median(dev_signal)),
-        ("Time to full signal, PR commit, median min", median(pr_signal)),
-        (f"Queue wait, merge tier, median min (last {a.sample} pushes)", median(queue)),
-        (f"Jobs per merge (last {a.sample})", "/".join(str(x) for x in jobs_per) or "n/a"),
-        (f"Runner-minutes per merge (last {a.sample})", "/".join(f"{x:.0f}" for x in minutes_per) or "n/a"),
+        ("Development push workflow records returned by API", str(len(dev_records))),
+        ("Selected development push workflow records", str(len(dev_runs))),
+        ("  Workflow record outcomes", outcomes(dev_runs)),
+        ("Selected development push SHAs", str(len(dev))),
+        ("  SHAs with any observed workflow failure", str(len(red))),
+        ("  Failed workflow records by name (top 4)",
+         ", ".join(f"{name}: {count}" for name, count in red_by.most_common(4)) or "none"),
+        ("Pull-request workflow records returned by API", str(len(pr_records))),
+        ("Selected pull-request workflow records", str(len(pr_runs))),
+        ("  Workflow record outcomes", outcomes(pr_runs)),
+        ("Selected pull-request run SHAs", str(len(prs))),
+        (f"Completed assigned-job created-to-start delay, median min (latest {len(latest)} development SHAs; n={len(queue)})",
+         sample_value(median(queue), queue_partial, bool(queue))),
+        (f"Observed completed runner jobs (latest {len(latest)} development SHAs)", " / ".join(jobs_per) or "n/a"),
+        (f"Observed completed runner-minutes (latest {len(latest)} development SHAs)", " / ".join(minutes_per) or "n/a"),
     ]
-    out = [f"### CI, last {a.days} days, {a.repo}, as of {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC", "",
+    out = [f"### Selected CI records for {a.repo}",
+           f"Window: {since:%Y-%m-%d %H:%M:%S} to {until:%Y-%m-%d %H:%M:%S} UTC.",
+           f"Workflow scope: {', '.join(sorted(BUILD_WORKFLOWS))}.", "",
+           "SHAs can span PRs or reruns. Job samples use completed latest attempts; partial values omit work. "
+           "Created-to-start "
+           "can include non-runner waiting; runner-minutes are not monetary cost.", "",
            "| Measure | Value |", "|---|---|"] + [f"| {k} | {v} |" for k, v in rows]
     print("\n".join(out))
     import os

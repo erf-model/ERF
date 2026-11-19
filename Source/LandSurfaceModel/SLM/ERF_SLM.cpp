@@ -1414,7 +1414,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
     }
 
     // Every other field is interpolated without mixing land and water (#4390): a land cell's
-    // slopes come from land neighbours only and a water cell's from water ones, as WRF's
+    // slopes come from land neighbors only and a water cell's from water ones, as WRF's
     // masked nest interpolation does, so a coastal land cell is not pulled toward the water
     // value (SLM holds soilw = 1 and soilt = SST there). The surface type comes from the
     // source level's vegetation type at the top soil level (slm_surface_type), for every soil
@@ -1532,6 +1532,29 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
 {
     const int d_khi_lsm = khi_lsm;
     const int islake = 21;
+
+    // The reference-level forcing lives in the k = 0 plane, a z ghost cell of the SLM grid that
+    // the transfer from the source (InterpFromCoarseLevel, ParallelCopy) does not fill, so it
+    // still holds the zeros of Init.  Copy_State_to_Lsm and set_precip_input mirror it into the
+    // khi plane, which is transferred, so take it back from there: init_slm_vars below starts
+    // the canopy from tref, qref and pref at k = 0, which would otherwise be 0 K on a level made
+    // or remade after the atmosphere was coupled (issue 5163).  Before the atmosphere has been
+    // coupled the khi plane is zero too, and init_from_atmos_pending sets the canopy again later.
+    // This is done first so that the fields saved below for preserve_checkpoint_fields have it.
+    for (const int var : {LsmVar_SLM::tref, LsmVar_SLM::qref, LsmVar_SLM::pref, LsmVar_SLM::dref,
+                          LsmVar_SLM::uref, LsmVar_SLM::vref, LsmVar_SLM::precipref,
+                          LsmVar_SLM::swdsvisxyref, LsmVar_SLM::swdsnirxyref,
+                          LsmVar_SLM::swdsvisdxyref, LsmVar_SLM::swdsnirdxyref,
+                          LsmVar_SLM::lwref, LsmVar_SLM::coszrsxy})
+    {
+        for (MFIter mfi(*lsm_fab_vars[var], TileNoZ()); mfi.isValid(); ++mfi) {
+            const Box box = mfi.tilebox().makeSlab(2, 0);
+            auto ref_arr = lsm_fab_vars[var]->array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                ref_arr(i, j, 0) = ref_arr(i, j, d_khi_lsm);
+            });
+        }
+    }
 
     MultiFab saved_tsurf = lsm_fab_vars[LsmVar_SLM::tsurf]->deepCopy();
     MultiFab saved_soilt = lsm_fab_vars[LsmVar_SLM::soilt]->deepCopy();
@@ -5252,10 +5275,10 @@ void SLM::Copy_Lsm_to_State (MultiFab& cons_in)
     cons_in.FillBoundary(m_geom.periodicity());
 }
 
-void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int /*lev*/, const int /*finest_lev*/, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
+void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int lev, const int /*finest_lev*/, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
 {
 #ifndef ERF_USE_NETCDF
-    amrex::ignore_unused(cur_time, plot_prefix, level_step);
+    amrex::ignore_unused(cur_time, plot_prefix, level_step, lev);
 #endif
     geom.define(amrex::makeSlab(m_lsm_geom.Domain(), 2, 0), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());
 
@@ -5403,7 +5426,7 @@ void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur
 #endif
 #ifdef ERF_USE_NETCDF
     } else if (plotfile_type == PlotFileType::Netcdf) {
-        writeSLM_NetCDF(fab, varnames, cur_time, plot_prefix, level_step);
+        writeSLM_NetCDF(fab, varnames, cur_time, plot_prefix, level_step, lev);
 #endif
     } else {
         Abort("Dont know this plot_filetype");
@@ -5659,7 +5682,7 @@ void SLM::twostream_noahmp (int ib, int ic, int /*vegtyp*/, amrex::Real cosz, am
     amrex::Real thetap;   //angle conversion from SZA
     amrex::Real fa;       //foliage volume density (m-1)
     amrex::Real newvai;   //effective LSAI (-)
-    // Set below for opt_rad = 1, 2 or 3 (the only values); initialised so that no
+    // Set below for opt_rad = 1, 2 or 3 (the only values); initialized so that no
     // path reads them unset.
     amrex::Real kopen = one; //gap fraction for diffue light (-)
     amrex::Real gap   = one; //total gap fraction for beam ( <=1-shafac )

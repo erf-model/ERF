@@ -22,7 +22,7 @@
  * The fire module extracts wind at a height above ground by walking the
  * atmospheric column's z_phys_cc profile, so the ground it measures from has to
  * be the ground of that same column: the average of the four k = 0 nodes of
- * atmospheric cell (i_f/C, j_f/C). Taking the first cell centre instead puts the
+ * atmospheric cell (i_f/C, j_f/C). Taking the first cell center instead puts the
  * extraction height half an atmospheric cell too high, and by an amount that
  * changes with vertical resolution.
  *
@@ -36,7 +36,7 @@
  * @param[in]  geom_atm        Geometry of the level the fire grid refines
  * @param[in]  fg              Fire grid structure
  *
- * Called once by the fire engine at initialisation; terrain is static.
+ * Called once by the fire engine at initialization; terrain is static.
  */
 void compute_fire_surface_height(
     amrex::MultiFab& fire_surface_z,
@@ -51,8 +51,8 @@ void compute_fire_surface_height(
  * fire cell. Each of those columns has its own ground, and near the surface the
  * wind profile is anchored to it, so every column has to be sampled at the same
  * height *above its own ground* before the horizontal blend. Over the ridge of
- * the ROS_Slope_Effects case, neighbouring column grounds differ by up to 28 m,
- * so blending at a single absolute height would sample a neighbour at 35 m above
+ * the ROS_Slope_Effects case, neighboring column grounds differ by up to 28 m,
+ * so blending at a single absolute height would sample a neighbor at 35 m above
  * ground while asking for 6 m.
  *
  * Component c holds the ground of stencil column c, ordered
@@ -64,7 +64,7 @@ void compute_fire_surface_height(
  * @param[in]  geom_atm         Geometry of the level the fire grid refines
  * @param[in]  fg               Fire grid structure
  *
- * Called once by the fire engine at initialisation; terrain is static.
+ * Called once by the fire engine at initialization; terrain is static.
  */
 void compute_fire_column_grounds(
     amrex::MultiFab& fire_col_ground,

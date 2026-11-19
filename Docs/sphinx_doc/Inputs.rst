@@ -1566,6 +1566,13 @@ List of Parameters
 |                                     | see :ref:`sec:RadiationDatalog`                          |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_lsm**                    | write the land-surface-model fields to the plotfile      | Boolean            | false            |
+|                                     | (``plt_lsm_*``). With NetCDF plotfiles the SLM fields go |                    |                  |
+|                                     | to one file per level, ``plt_lsm_lev<L>.nc``, each on    |                    |                  |
+|                                     | that level's whole domain (cells outside a refined       |                    |                  |
+|                                     | level's grids are left unset), with one time entry per   |                    |                  |
+|                                     | plotfile; a restarted run appends to these files. The 3D |                    |                  |
+|                                     | land plotfiles ``plt_lsm_<step>`` are always written in  |                    |                  |
+|                                     | the AMReX format                                         |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_surfmodel**              | write SurfaceModel fields to ``plt_surf_*`` files;       | Boolean            | both LSM+Urban   |
 |                                     | independent of ``erf.plot_lsm``                          |                    | active by default|
@@ -1578,6 +1585,12 @@ List of Parameters
 |                                     | plotfile                                                 |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.write_eb_surface**            | write the embedded-boundary surface as a separate file   | Boolean            | false            |
+|                                     | (eb.pvtp) and, for erf.terrain_type = EB, its nodal      |                    |                  |
+|                                     | level set (eb_levelset.vtm, in the directory of          |                    |                  |
+|                                     | erf.plot_file_1), once at initialization. eb.pvtp holds  |                    |                  |
+|                                     | the finest level that exists then, and eb_levelset.vtm   |                    |                  |
+|                                     | every level that exists then (not levels made later by   |                    |                  |
+|                                     | regridding). The level set needs a mesh with constant dz |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rad.datalog**                 | name of the log file to which radiation profiles are     | String             | None             |
 |                                     | written; see :ref:`sec:RadiationDatalog`                 |                    |                  |
@@ -1828,7 +1841,16 @@ With immersed terrain (``erf.terrain_type = ImmersedForcing`` or ``EB``) the gro
 terrain surface, as for stations, rather than the bottom of the flat mesh. On these meshes the
 variable ``z``, the height of each sample, is always written with the line, since the z
 coordinates of a line plotfile assume equally spaced levels; it may be requested on any mesh.
-Plane sampling has not been implemented for terrain.
+
+A plane is placed, and its plotfile written, in the computational coordinates, in which the
+levels of cells are equally spaced. On a stretched or terrain-fitted mesh these are not the
+physical height. A horizontal plane (``sample_plane_dir = 2``) at z is interpolated between the two
+levels of cells whose nominal heights bracket z, so over terrain it follows the mesh rather than a
+constant physical height; the vertical axis of a vertical plane is the nominal height of each level
+of cells. On these meshes the variable ``z_phys``, the physical height of each sample, is always
+written with the planes; it may be requested on any mesh. Planes at a constant physical height are
+not supported. A horizontal line with ``erf.sample_line_interp = true`` gives a 1-D transect at a
+constant height.
 
 With ``erf.sample_line_interp = true``, lines given by ``sample_line_lo_real`` and
 ``sample_line_hi_real`` (or ``sample_line_lo_latlon`` and ``sample_line_hi_latlon``) are sampled
@@ -1891,11 +1913,14 @@ The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
 ``density``, ``x_velocity``, ``y_velocity``, ``z_velocity``, ``magvel``,
 ``theta``, ``qv``, ``qc``, and ``pressure``. Line sampling additionally supports
-``conserved``, ``z``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
-``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. Both also support ``volfrac``, the volume
-fraction of each cell (1 without immersed terrain). ``conserved`` writes every component of the
-conserved state as stored, named ``cons_0``, ``cons_1``, ... in component order (density,
-rho theta, ...). The variables are written in a fixed order, not the order they are listed in.
+``conserved``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
+``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. Both also support the physical height of each
+sample, written as ``z`` by line sampling and as ``z_phys`` (the name of the 3D plotfile variable)
+by plane sampling, which accepts either name, and ``volfrac``, the volume fraction of each cell
+(1 without immersed terrain).
+``conserved`` writes every component of the conserved state as stored, named ``cons_0``,
+``cons_1``, ... in component order (density, rho theta, ...). The variables are written in a
+fixed order, not the order they are listed in.
 The SGS stresses ``sgs_tau11``, ``sgs_tau22`` and ``sgs_tau33`` are stored at cell centers; the
 other stresses and the heat flux are averaged from their native edge/face locations to cell
 centers; if their diffusion storage is unavailable, ERF writes zero. Velocities
@@ -4201,7 +4226,7 @@ List of Parameters
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.buildings_type**           | how buildings are represented; see :ref:`Forcings`;      | None,              | None             |
 |                                  | ImmersedForcing is not supported with                    | ImmersedForcing    |                  |
-|                                  | ``erf.terrain_type`` = EB                                |                    |                  |
+|                                  | ``erf.terrain_type`` = EB or ImmersedForcing             |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.buildings_fc_factories**   | use native face-centered EB factories for immersed       | Boolean            | false            |
 |                                  | buildings with ``StaticFittedMesh`` terrain; see         |                    |                  |
@@ -4347,7 +4372,7 @@ Immersed Forcing
 
 These inputs configure the immersed-forcing representation of solid bodies,
 selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
-``erf.buildings_type`` = ``ImmersedForcing``.  At most one of
+``erf.buildings_type`` = ``ImmersedForcing``, but not both in the same run.  At most one of
 ``erf.if_surf_temp_flux``, ``erf.if_init_surf_temp`` and ``erf.if_Olen`` may be set.
 
 Building immersed forcing is applied only on levels where the nominal horizontal

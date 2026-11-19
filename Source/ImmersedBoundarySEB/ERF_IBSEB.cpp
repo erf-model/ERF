@@ -611,9 +611,9 @@ ERF::ibseb_set_two_stream_sun (int lev, Real time)
  * @param[in] cons    Conserved state at the start of the step: the air
  *                    temperature of the longwave and the wall function, and
  *                    the profile of the bulk Richardson depth.
- * @param[in] xvel    Face-centred x velocity at the start of the step.
- * @param[in] yvel    Face-centred y velocity at the start of the step.
- * @param[in] zvel    Face-centred z velocity at the start of the step; the
+ * @param[in] xvel    Face-centered x velocity at the start of the step.
+ * @param[in] yvel    Face-centered y velocity at the start of the step.
+ * @param[in] zvel    Face-centered z velocity at the start of the step; the
  *                    three together drive the wall function of the sensible
  *                    flux.
  */
@@ -745,7 +745,7 @@ ERF::ibseb_report (int nstep, Real time)
  *
  * With the first level as the reference, ``Ri_b(z) = g (z - z_1) (theta(z)
  * - theta_1) / (theta_1 (|U(z) - U_1|^2 + 100 u*^2))`` with u* = 0.1 m/s,
- * and the depth is the first cell centre where it exceeds
+ * and the depth is the first cell center where it exceeds
  * ``erf.ibseb.ri_crit``, or the domain depth when it never does (a neutral
  * profile); both are heights above the domain bottom. The profile is the plane average of the conserved state and the
  * face velocities, uniform vertical spacing assumed as elsewhere in the
@@ -758,8 +758,8 @@ ERF::ibseb_report (int nstep, Real time)
  * @param[in] cons  Conserved state of the level; the ``Rho_comp`` and
  *                  ``RhoTheta_comp`` averages give the mean potential
  *                  temperature.
- * @param[in] xvel  Face-centred x velocity, for the mean wind profile.
- * @param[in] yvel  Face-centred y velocity, for the mean wind profile.
+ * @param[in] xvel  Face-centered x velocity, for the mean wind profile.
+ * @param[in] yvel  Face-centered y velocity, for the mean wind profile.
  * @return Mixed-layer depth above the domain bottom [m]; the depth of the
  *         domain when ``Ri_b`` never exceeds ``erf.ibseb.ri_crit``.
  */

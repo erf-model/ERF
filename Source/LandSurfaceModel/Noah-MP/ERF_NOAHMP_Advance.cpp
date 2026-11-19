@@ -56,7 +56,7 @@ NOAHMP::interp_from_lev0 (const int& lev,
 
     // Noah-MP leaves the lsm_undefined sentinel in the cells it does not process (water) --
     // in its results and soil profile and, through SurfaceLayer (#3446), in the level-0 flux.
-    // Interpolate valid values from valid neighbours only and the sentinel from sentinel
+    // Interpolate valid values from valid neighbors only and the sentinel from sentinel
     // cells only (#4390), as WRF's masked nest interpolation keeps land and water apart: a
     // coastal land cell then takes no slope toward the water, and the sentinel comes through
     // exactly, so consumers keep rejecting it with is_valid_lsm_value. Fields that are valid

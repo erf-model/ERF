@@ -1111,6 +1111,13 @@ struct SolverChoice {
             amrex::Error("erf.buildings_type = ImmersedForcing is not supported with erf.terrain_type = EB");
         }
 
+        // Each surface builds its own EB index space, and the factories use only the last one
+        // (the buildings), so the terrain would be dropped without warning (#5188)
+        if (terrain_type == TerrainType::ImmersedForcing && buildings_type == BuildingsType::ImmersedForcing) {
+            amrex::Error("erf.terrain_type = ImmersedForcing and erf.buildings_type = ImmersedForcing "
+                         "cannot be used together");
+        }
+
         if ( (moisture_type == MoistureType::SAM                ||
               moisture_type == MoistureType::SAM_NoIce          ||
               moisture_type == MoistureType::SAM_NoPrecip_NoIce   ) &&
@@ -1726,10 +1733,6 @@ struct SolverChoice {
             if (!if_terrain && !if_buildings) {
                 amrex::Abort("erf.if_implicit_projection needs erf.terrain_type = ImmersedForcing or "
                              "erf.buildings_type = ImmersedForcing");
-            }
-            if (if_terrain && if_buildings) {
-                amrex::Abort("erf.if_implicit_projection is not implemented for erf.terrain_type = ImmersedForcing "
-                             "together with erf.buildings_type = ImmersedForcing");
             }
             if (mesh_type != MeshType::ConstantDz) {
                 amrex::Abort("erf.if_implicit_projection needs a constant-dz mesh");
