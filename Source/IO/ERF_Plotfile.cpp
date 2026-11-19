@@ -39,8 +39,10 @@ WriteNodalVTK (const std::string& dir, const std::string& vtm_name, const std::s
     const std::string parent   = dir.substr(0, dir.find_last_of('/') + 1);
     const std::string dir_base = dir.substr(parent.size());
 
-    // The sizes and values are written in the host's byte order
-    const char* byte_order = (std::endian::native == std::endian::big) ? "BigEndian" : "LittleEndian";
+    // The sizes and values are written in the host's byte order (if constexpr, since a
+    // conditional on this compile-time constant is flagged as unreachable code by clang)
+    const char* byte_order = "LittleEndian";
+    if constexpr (std::endian::native == std::endian::big) { byte_order = "BigEndian"; }
 
     auto piece_file = [] (int lev, int box) {
         return "L" + std::to_string(lev) + "_B" + std::to_string(box) + ".vti";
