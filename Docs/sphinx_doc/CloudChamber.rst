@@ -383,8 +383,8 @@ supported active moisture model. Cloud Chamber walls are stationary;
 ``<face>.heat = conductive`` (default) exchanges sensible heat using the
 selected ``heat_transfer_model``. ``<face>.heat = adiabatic`` instead replaces
 the normal heat flux with exactly zero, including any ordinary diffusive
-flux already applied to the adjacent cell. This changes neither tangential
-drag nor the moisture boundary. For example, an insulated wet wall still
+flux already applied to the adjacent cell. This does not turn off drag or
+change the moisture boundary type. For example, an insulated wet wall still
 exchanges vapor at its prescribed saturation temperature:
 
 .. code-block:: none
@@ -394,12 +394,17 @@ exchanges vapor at its prescribed saturation temperature:
    zlo.moisture = wet
    zlo.temperature = 294.0
 
-Wall temperature is required for conductive heat, wet-wall saturation, or
-MOST momentum stability. Only a dry adiabatic face without MOST momentum
-may omit it. Any supplied temperature must still be finite and positive.
-Existing decks may use ``<face>.thermal = adiabatic`` (or
-``fixed_temperature`` for conductive heat). If both keys are present they
-must agree. Neither selector applies in ``legacy_theta_qv`` mode.
+Wall temperature is required for conductive heat or wet-wall saturation.
+A dry adiabatic face may omit it even with MOST drag: its stability is
+neutral, independent of any supplied temperature. A wet adiabatic face
+uses the prescribed temperature for saturation, not for sensible buoyancy.
+Any supplied temperature must still be finite and positive.
+
+``<face>.thermal = adiabatic`` is an alias; ``thermal = fixed_temperature``
+means ``heat = conductive``. Selector values are case-insensitive. If both
+keys are present, they must agree. In ``legacy_theta_qv`` mode both keys are
+rejected: remove any previously ignored ``.thermal`` key and keep the legacy
+``.theta`` wall input.
 
 ``NoSlipWall`` is the required ERF boundary type for all supported Cloud
 Chamber wall models.  Selecting an aerodynamic momentum model changes the
@@ -537,7 +542,10 @@ roughness length must satisfy
 
    0 < z_0 < z_\mathrm{ref}.
 
-The parser does not clip invalid roughness values.
+An exception is a heat law retained on an adiabatic face. Its ``z0_h`` must
+be finite and positive, but need not be below the reference distance because
+the heat resistance is unused. The same applies to ``z0_m`` when it is needed
+only by the inactive heat law. The parser does not clip roughness values.
 
 .. list-table:: Roughness inputs
    :header-rows: 1
@@ -578,14 +586,18 @@ The following table summarizes the physical-temperature wall keys.
      - none
      - ``NoSlipWall``
      - required on every face
+   * - ``<face>.heat``
+     - ``conductive``
+     - ``conductive`` or ``adiabatic``
+     - physical mode only; adiabatic sets normal sensible heat flux to zero
+   * - ``<face>.thermal``
+     - omitted
+     - ``fixed_temperature`` or ``adiabatic``
+     - alias for ``<face>.heat``; must agree if both are set; rejected in legacy mode
    * - ``<face>.temperature``
      - none
      - finite, positive K
-       - required for conductive heat, wet moisture, or MOST momentum
-    * - ``<face>.heat``
-       - ``conductive``
-       - ``conductive`` or ``adiabatic``
-       - optional; adiabatic suppresses only sensible heat exchange
+     - required for conductive heat or wet moisture; optional on dry adiabatic walls
    * - ``<face>.moisture``
      - none
      - ``dry`` or ``wet``
@@ -624,11 +636,11 @@ The following table summarizes the physical-temperature wall keys.
      - required only for fixed bulk vapor, including a configured dry vapor channel; rejected with MOST or non-bulk vapor
    * - ``<face>.z0_m``
      - none
-     - ``0 < z0_m < z_ref``
+     - finite, positive; below ``z_ref`` unless used only by inactive heat
      - required by any neutral channel or any MOST bulk channel; otherwise rejected
    * - ``<face>.z0_h``
      - none
-     - ``0 < z0_h < z_ref``
+     - finite, positive; below ``z_ref`` for conductive heat
      - required by neutral heat or MOST bulk heat; otherwise rejected
    * - ``<face>.z0_q``
      - none
@@ -899,7 +911,12 @@ using ERF's thermodynamic constants.  With
       q_{v,a}, & \text{dry wall}.
    \end{cases}
 
-The stability calculation uses
+For conductive heat, :math:`\theta_w` is the potential temperature corresponding
+to the prescribed :math:`T_w`. For adiabatic heat, the stability calculation
+uses :math:`\theta_w=\theta_a`, so
+:math:`\theta_{v,a}-\theta_{v,w}=\theta_a\epsilon_v(q_{v,a}-q_{v,w})`.
+This gives exactly neutral stability on a dry adiabatic wall and a humidity-only
+stability correction on a wet adiabatic wall. The calculation uses
 
 .. math::
 
@@ -1035,8 +1052,8 @@ scalar stability resistance and its physical wall flux remains exactly zero.
 When a moisture state is present, ambient ``qv`` still enters the virtual
 potential temperature used by any active MOST momentum or heat calculation.
 Similarly, adiabatic heat does not supply the scalar stability resistance:
-wet MOST vapor uses ``z0_q``; momentum-only MOST uses ``z0_m``. Both still
-use the prescribed wall temperature in the bulk Richardson number.
+wet MOST vapor uses ``z0_q``; momentum-only MOST uses ``z0_m``. Neither
+uses ``z0_h`` or a prescribed sensible temperature contrast on an adiabatic wall.
 
 Momentum stress application
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1399,12 +1416,12 @@ Run checklist
    add RH when any active supported moisture model is enabled.
 #. For ``physical_temperature_rh``, define all six stationary ``NoSlipWall``
    faces with ``dry`` or ``wet`` moisture state. Supply wall temperature for
-   conductive heat, wet moisture, or MOST momentum.
+   conductive heat or wet moisture.
    Choose the momentum, heat, and vapor model on each face; remember that one
    ``coefficient_source`` is shared by every bulk channel on that face.  Supply
-   every required coefficient or roughness length, check ``0 < z0_* <
-   Delta_n/2`` on the actual grid, and use equal ``z0_h`` and ``z0_q`` for wet
-   heat+vapor MOST on one face.
+   every required coefficient or roughness length. Check the grid bounds
+   in the per-face input reference and use equal ``z0_h`` and ``z0_q``
+   when conductive heat and wet vapor both use MOST on one face.
 #. For ``legacy_theta_qv``, use the legacy ``<face>.theta`` wall values and,
    for cloudy legacy cases, provide ``<face>.qv``.  Do not use generalized
    per-channel wall-transfer keys in legacy mode.
