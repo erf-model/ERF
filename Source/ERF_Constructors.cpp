@@ -530,6 +530,19 @@ ERF::ERF_shared ()
     const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
     setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
+    // A subvolume is chosen, and its plotfile written, in the computational coordinates,
+    // which are not the physical height on a stretched or terrain-fitted mesh
+    bool have_subvol = false;
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if (m_subvol_int[i] > 0 || m_subvol_per[i] > zero) { have_subvol = true; }
+    }
+    if (have_subvol && solverChoice.mesh_type != MeshType::ConstantDz &&
+        !containerHasElement(subvol3d_var_names, "z_phys")) {
+        Print() << "WARNING: on a stretched or terrain-fitted mesh, subvolumes are chosen and "
+                << "written in computational coordinates, not physical height; add z_phys to "
+                << "erf.subvol_sampling_vars for the height of each cell" << std::endl;
+    }
+
     // This is only used when we have mesh_type == MeshType::StretchedDz
     stretched_dz_h.resize(nlevs_max);
     stretched_dz_d.resize(nlevs_max);

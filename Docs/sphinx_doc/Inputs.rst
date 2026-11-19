@@ -1828,7 +1828,15 @@ With immersed terrain (``erf.terrain_type = ImmersedForcing`` or ``EB``) the gro
 terrain surface, as for stations, rather than the bottom of the flat mesh. On these meshes the
 variable ``z``, the height of each sample, is always written with the line, since the z
 coordinates of a line plotfile assume equally spaced levels; it may be requested on any mesh.
-Plane sampling has not been implemented for terrain.
+
+A plane is placed, and its plotfile written, in the computational coordinates. On a stretched or
+terrain-fitted mesh the z coordinate is not the physical height: a horizontal plane
+(``sample_plane_dir = 2``) at z lies between the levels of cells that hold z on the equally spaced
+nominal mesh, so over terrain it follows the mesh rather than a constant height, and the vertical
+axis of a vertical plane is the nominal z of each level of cells. The variable ``z``, the physical
+height of each sample, gives the height on such a mesh; ERF prints a warning at start-up when
+planes are sampled on such a mesh without it. Planes are not interpolated to a constant physical
+height; use a horizontal line with ``erf.sample_line_interp = true`` for that.
 
 With ``erf.sample_line_interp = true``, lines given by ``sample_line_lo_real`` and
 ``sample_line_hi_real`` (or ``sample_line_lo_latlon`` and ``sample_line_hi_latlon``) are sampled
@@ -1891,11 +1899,11 @@ The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
 ``density``, ``x_velocity``, ``y_velocity``, ``z_velocity``, ``magvel``,
 ``theta``, ``qv``, ``qc``, and ``pressure``. Line sampling additionally supports
-``conserved``, ``z``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
-``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. Both also support ``volfrac``, the volume
-fraction of each cell (1 without immersed terrain). ``conserved`` writes every component of the
-conserved state as stored, named ``cons_0``, ``cons_1``, ... in component order (density,
-rho theta, ...). The variables are written in a fixed order, not the order they are listed in.
+``conserved``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
+``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. Both also support ``z``, the physical height of
+each sample, and ``volfrac``, the volume fraction of each cell (1 without immersed terrain).
+``conserved`` writes every component of the conserved state as stored, named ``cons_0``,
+``cons_1``, ... in component order (density, rho theta, ...). The variables are written in a fixed order, not the order they are listed in.
 The SGS stresses ``sgs_tau11``, ``sgs_tau22`` and ``sgs_tau33`` are stored at cell centers; the
 other stresses and the heat flux are averaged from their native edge/face locations to cell
 centers; if their diffusion storage is unavailable, ERF writes zero. Velocities

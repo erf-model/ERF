@@ -1833,11 +1833,25 @@ struct PlaneSampler
                     m_varnames.push_back("pressure");
                     amrex::Print() << " " << "pressure";
                 }
+                if (containerHasElement(requested_vars, "z")) {
+                    m_varnames.push_back("z");
+                    amrex::Print() << " " << "z";
+                }
                 if (containerHasElement(requested_vars, "volfrac")) {
                     m_varnames.push_back("volfrac");
                     amrex::Print() << " " << "volfrac";
                 }
                 amrex::Print() << std::endl;
+            }
+
+            // The plane is placed, and its plotfile written, in the computational coordinates,
+            // which are not the physical height on a stretched or terrain-fitted mesh
+            if (SolverChoice::mesh_type != MeshType::ConstantDz &&
+                !containerHasElement(m_varnames, "z")) {
+                amrex::Print() << "WARNING: on a stretched or terrain-fitted mesh, plane sampling "
+                               << "places the planes and writes them in computational coordinates, "
+                               << "not physical height; add z to erf.plane_sampling_vars for the "
+                               << "height of each sample" << std::endl;
             }
         }
     }
@@ -1862,6 +1876,7 @@ struct PlaneSampler
     void
     get_sample_data (amrex::Vector<amrex::Geometry>& geom,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_cc,
                      const amrex::Vector<const amrex::MultiFab*>& volfrac_lev = {})
     {
         int nlev   = sampling_num_levels(vars_new);
@@ -2039,6 +2054,14 @@ struct PlaneSampler
                     mf_comp += 1;
                 }
 
+                // The physical height of each cell center
+                int z_comp = -1;
+                if (containerHasElement(m_varnames, "z")) {
+                    amrex::MultiFab::Copy(mf_cc_data, *z_phys_cc[ilev], 0, mf_comp, 1, 0);
+                    z_comp = mf_comp;
+                    mf_comp += 1;
+                }
+
                 // The volume fraction, 1 without immersed terrain, and 1 where a cell is
                 // covered (0 elsewhere)
                 const amrex::MultiFab* volfrac = ilev < static_cast<int>(volfrac_lev.size())
@@ -2133,8 +2156,9 @@ struct PlaneSampler
                         else if (l_dir == 1) { sj = k_slice; }
                         else                 { sk = k_slice; }
                         // A sample interpolated from a covered cell is written as
-                        // erf.sampling_covered_value, except for the volume fraction
-                        ofab(i,j,k,n) = (sfab(si,sj,sk,ncomp) > amrex::Real(0.0) && n != vf_comp)
+                        // erf.sampling_covered_value, except for the height and volume fraction
+                        ofab(i,j,k,n) = (sfab(si,sj,sk,ncomp) > amrex::Real(0.0) &&
+                                         n != vf_comp && n != z_comp)
                                       ? covered_value : sfab(si,sj,sk,n);
                     });
                 }

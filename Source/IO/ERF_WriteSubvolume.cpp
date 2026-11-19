@@ -77,6 +77,12 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
         tmp_plot_names.push_back("z_velocity");
     }
 
+    // The physical height of each cell center, on any mesh: the plotfile itself holds only
+    // the computational coordinates, which are not the height on a stretched or terrain-fitted mesh
+    if (containerHasElement(subvol_var_names, "z_phys")) {
+        tmp_plot_names.push_back("z_phys");
+    }
+
     //
     // If the model we are running doesn't have the variable listed in the inputs file,
     //     just ignore it rather than aborting
@@ -86,9 +92,9 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
     //       "derived_names" order.  "derived_subvol_names" is the unordered allow-list of
     //       the derived quantities WriteSubvolume knows how to fill.
     //
-    // NOTE: there are no terrain-dependent names to gate here -- "z_phys", "detJ" and
-    //       "terrain_IB_mask" are not in "derived_subvol_names", so WriteSubvolume
-    //       cannot fill them and they never reach this loop.
+    // NOTE: there are no terrain-dependent names to gate here -- "z_phys" is handled
+    //       above, and "detJ" and "terrain_IB_mask" are not in "derived_subvol_names", so
+    //       WriteSubvolume cannot fill them and they never reach this loop.
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(subvol_var_names,     derived_names[i]) &&
@@ -252,6 +258,13 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
             mf.ParallelCopy(mf_cc_vel,2,mf_comp,1,0,0);
             mf_comp++;
         }
+    }
+
+    // *****************************************************************************************
+
+    if (containerHasElement(subvol_var_names, "z_phys")) {
+        mf.ParallelCopy(*z_phys_cc[lev_for_sub],0,mf_comp,1,0,0);
+        mf_comp++;
     }
 
     // *****************************************************************************************
