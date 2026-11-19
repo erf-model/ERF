@@ -1134,9 +1134,215 @@ TEST(CloudChamberWallConfig, ActivatesTimestepGuardOnlyForActiveBulkChannels)
 
     walls[0].moisture =
         erf_wall_thermodynamics::MoistureMode::DryImpermeable;
+    walls[0].thermal.mode =
+        erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
     walls[0].heat.model =
         erf_wall_thermodynamics::ScalarModel::BulkAero;
     EXPECT_TRUE(Config::has_bulk_scalar_wall(walls));
+}
+
+TEST(CloudChamberWallConfig, AdiabaticHeatParser)
+{
+    using namespace erf_wall_thermodynamics;
+    amrex::ParmParse pp("cc_test_heat_selector");
+    FaceWall wall;
+    auto parse = [&](bool physical = true) {
+        return erf_cloud_chamber::parse_wall_heat(pp, "zlo", physical, wall);
+    };
+
+    wall.thermal.temperature_K = Real(283); // legacy theta must survive untouched
+    EXPECT_TRUE(parse(false).empty());
+    EXPECT_EQ(wall.thermal.mode, ThermalMode::LegacyNumerical);
+    EXPECT_EQ(wall.thermal.temperature_K, 283);
+    EXPECT_NE(parse().find("zlo.temperature"), std::string::npos);
+    pp.add("temperature", Real(292));
+    EXPECT_TRUE(parse().empty());
+    EXPECT_EQ(wall.thermal.mode, ThermalMode::FixedPhysicalTemperature);
+    pp.add("heat", "CoNdUcTiVe");
+    pp.add("thermal", "FiXeD_TeMpErAtUrE");
+    EXPECT_TRUE(parse().empty());
+    EXPECT_EQ(wall.thermal.mode, ThermalMode::FixedPhysicalTemperature);
+    pp.remove("thermal");
+    pp.add("thermal", "AdIaBaTiC");
+    EXPECT_NE(parse().find("conflicting"), std::string::npos);
+    pp.remove("heat");
+    pp.remove("temperature");
+    wall.moisture = MoistureMode::DryImpermeable;
+    EXPECT_TRUE(parse().empty()); // deployed alias alone
+    EXPECT_EQ(wall.thermal.mode, ThermalMode::Adiabatic);
+    EXPECT_FALSE(parse(false).empty());
+    pp.add("heat", "aDiAbAtIc");
+    EXPECT_TRUE(parse().empty()); // matching keys are unambiguous
+    pp.remove("thermal");
+    EXPECT_TRUE(parse().empty());
+    EXPECT_EQ(wall.thermal.mode, ThermalMode::Adiabatic);
+    EXPECT_FALSE(parse(false).empty());
+
+    pp.add("temperature", Real(0)); // optional, but never invalid
+    EXPECT_NE(parse().find("positive Kelvin"), std::string::npos);
+    pp.remove("temperature");
+    wall.moisture = MoistureMode::WetEquilibrium;
+    EXPECT_NE(parse().find("zlo.temperature"), std::string::npos);
+    wall.moisture = MoistureMode::DryImpermeable;
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::Fixed;
+    EXPECT_TRUE(parse().empty());
+    wall.momentum.provider = CoefficientProvider::MOST;
+    EXPECT_TRUE(parse().empty()); // dry adiabatic drag has no prescribed T_wall
+    EXPECT_FALSE(wall.heat_is_conductive());
+    wall.moisture = MoistureMode::WetEquilibrium;
+    EXPECT_NE(parse().find("zlo.temperature"), std::string::npos);
+    pp.add("temperature", Real(295));
+    EXPECT_TRUE(parse().empty());
+    EXPECT_EQ(wall.thermal.temperature_K, 295);
+    pp.remove("heat");
+    pp.add("heat", "fixed_temperature"); // compatibility spelling is alias-only
+    EXPECT_NE(parse().find("zlo.heat"), std::string::npos);
+    pp.remove("heat");
+    pp.add("thermal", "typo");
+    EXPECT_NE(parse().find("zlo.thermal"), std::string::npos);
+    pp.remove("thermal");
+    pp.remove("temperature");
+}
+
+TEST(CloudChamberWallFlux, AdiabaticKeepsActiveMostChannelsAndRates)
+{
+    using namespace erf_wall_thermodynamics;
+    using namespace erf_cloud_chamber_wall_flux;
+    Boundary walls{};
+    auto& wall = walls[4];
+    const auto any_rate_channel = [&] {
+        for (const auto& w : walls) { if (w.has_wall_rate_channel()) { return true; } }
+        return false;
+    };
+    wall.thermal = {ThermalMode::Adiabatic, Real(300)};
+    wall.moisture = MoistureMode::DryImpermeable;
+    wall.momentum.z0_m = Real(.01);
+    const Real U = 4, inv = 2, theta = 300, qv = Real(.005), rdOcp = R_d/Cp_d;
+    const Real p = 85000;
+    const Real distance = Real(.5)/inv;
+    wall.heat = {ScalarModel::BulkAero, CoefficientProvider::MOST, 0, 2 * distance};
+    ScalarWallSample sample{1, theta, p, U, Real(.1), Real(.1), inv, rdOcp,
+                            distance, theta, qv, 1};
+    for (auto model : {ScalarModel::ResolvedMolecular, ScalarModel::NeutralRoughnessLog,
+                       ScalarModel::BulkAero}) {
+        wall.heat.model = model;
+        const auto heat = evaluate_scalar_flux_in(wall, ScalarChannel::Heat, sample);
+        EXPECT_EQ(heat.owned_channels, OwnHeat);
+        EXPECT_EQ(heat.rhoTheta_in, 0);
+        EXPECT_FALSE(wall_rate_requires_tangential_speed(wall));
+        EXPECT_FALSE(erf_cloud_chamber::Config::has_bulk_scalar_wall(walls));
+        EXPECT_FALSE(any_rate_channel());
+        EXPECT_FALSE(wall_uses_most(wall));
+        EXPECT_EQ(rate_at_origin(walls, {inv, inv, inv}, {U, 0, 0, theta, qv, p, rdOcp}), 0);
+    }
+
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::MOST;
+    EXPECT_FALSE(erf_cloud_chamber::Config::has_bulk_scalar_wall(walls));
+    EXPECT_TRUE(any_rate_channel());
+    // Independent neutral log-law oracle: no MOST coefficient call in the reference.
+    const Real k_over_log = KAPPA / std::log(distance / wall.momentum.z0_m);
+    const Real cd = k_over_log * k_over_log;
+    const MomentumWallSample wind{1, {U, 0, 0}, U, distance, theta, qv, p, rdOcp, 1};
+    const Real rate = momentum_infinity_row_sum_factor() * cd * U * inv;
+    for (Real temperature : {Real(280), Real(320), ThermalBoundary{}.temperature_K}) {
+        SCOPED_TRACE(temperature);
+        wall.thermal.temperature_K = temperature;
+        const auto dry = most_wall_coefficients(wall, theta, qv, p, rdOcp, U, distance, 1);
+        EXPECT_EQ(dry.valid, 1);
+        EXPECT_EQ(dry.zeta, 0);
+        EXPECT_NEAR(dry.C_D, cd, scaled_tolerance(cd));
+        EXPECT_NEAR(dry.u_star, U * k_over_log, scaled_tolerance(U * k_over_log));
+        // Even an unused C_H is populated, but not from the unseparated z0_h.
+        EXPECT_NEAR(dry.C_H, cd, scaled_tolerance(cd));
+        const auto drag = evaluate_momentum_traction(wall, wind);
+        EXPECT_EQ(drag.owned_channels, OwnMomentum);
+        EXPECT_NEAR(drag.traction_on_fluid[0], -cd * U * U, scaled_tolerance(cd * U * U));
+        EXPECT_NEAR(rate_at_origin(walls, {inv, inv, inv}, {U, 0, 0, theta, qv, p, rdOcp}),
+                    rate, scaled_tolerance(rate));
+    }
+    sample.scalar_air = qv;
+    EXPECT_EQ(evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, sample).rhoQv_in, 0);
+
+    // Momentum-only MOST on a conductive wall must still see the thermal jump,
+    // even when the heat transfer model itself does not use MOST.
+    wall.heat = {};
+    wall.thermal = {ThermalMode::FixedPhysicalTemperature, Real(280)};
+    const auto cold = most_wall_coefficients(wall, theta, qv, p, rdOcp, U, distance, 1);
+    wall.thermal.temperature_K = Real(320);
+    const auto warm = most_wall_coefficients(wall, theta, qv, p, rdOcp, U, distance, 1);
+    EXPECT_GT(cold.zeta, 0);
+    EXPECT_LT(cold.C_D, cd);
+    EXPECT_LT(warm.zeta, 0);
+    EXPECT_GT(warm.C_D, cd);
+}
+
+TEST(CloudChamberWallFlux, WetAdiabaticMOSTUsesOnlyHumidityForStability)
+{
+    using namespace erf_wall_thermodynamics;
+    using namespace erf_cloud_chamber_wall_flux;
+    Boundary walls{};
+    auto& wall = walls[4];
+    const auto any_rate_channel = [&] {
+        for (const auto& w : walls) { if (w.has_wall_rate_channel()) { return true; } }
+        return false;
+    };
+    wall.thermal = {ThermalMode::Adiabatic, Real(300)};
+    wall.moisture = MoistureMode::WetEquilibrium;
+    wall.momentum.z0_m = Real(.01);
+    wall.vapor = {ScalarModel::BulkAero, CoefficientProvider::MOST, 0, Real(.04)};
+    const Real p = 85000, theta = 290, U = 1, inv = 2, rdOcp = R_d/Cp_d;
+    const Real distance = Real(.5)/inv;
+    wall.heat = {ScalarModel::BulkAero, CoefficientProvider::MOST, 0, 2 * distance};
+    EXPECT_TRUE(erf_cloud_chamber::Config::has_bulk_scalar_wall(walls));
+    EXPECT_TRUE(any_rate_channel());
+
+    // At 850 hPa, neither the air temperature nor its theta is the 300 K
+    // prescribed for saturation. At q_air = q_sat only an adiabatic wall is neutral.
+    Real qsat;
+    erf_qsatw(Real(300), Real(850), qsat);
+    const Real D_m = std::log(distance / wall.momentum.z0_m);
+    const Real D_q = std::log(distance / wall.vapor.z0);
+    for (Real qv : {qsat - Real(.01), qsat, qsat + Real(.01)}) {
+        SCOPED_TRACE(qv);
+        const Real Ri = CONST_GRAV * distance * epsv * (qv - qsat) / (U * U);
+        const Real zeta = most_stability_coordinate(Ri, D_m, D_q).zeta;
+        const auto wet = most_wall_coefficients(wall, theta, qv, p, rdOcp, U, distance, 1);
+        EXPECT_EQ(wet.valid, 1);
+        EXPECT_NEAR(wet.zeta, zeta, scaled_tolerance(zeta));
+        if (qv == qsat) { EXPECT_EQ(wet.zeta, 0); }
+        else { EXPECT_GT(wet.zeta * (qv - qsat), 0); }
+
+        const similarity_funs sfuns;
+        const Real A_m = std::max(D_m - sfuns.calc_psi_m2(zeta), Real(1));
+        const Real A_q = std::max(D_q - sfuns.calc_psi_h2(zeta), Real(1));
+        const Real ce = KAPPA * KAPPA / (A_m * A_q);
+        EXPECT_NEAR(wet.C_E, ce, scaled_tolerance(ce));
+        ScalarWallSample sample{1, qv, p, U, 0, 0, inv, rdOcp, distance, theta, qv, 1};
+        const auto vapor = evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, sample);
+        EXPECT_EQ(vapor.owned_channels, OwnVapor);
+        const Real flux = ce * U * (qsat - qv);
+        EXPECT_NEAR(vapor.rhoQv_in, flux, scaled_tolerance(ce) * std::abs(U * (qsat - qv)));
+        sample.scalar_air = theta;
+        const auto heat = evaluate_scalar_flux_in(wall, ScalarChannel::Heat, sample);
+        EXPECT_EQ(heat.owned_channels, OwnHeat);
+        EXPECT_EQ(heat.rhoTheta_in, 0);
+        const Real rate = ce * U * inv;
+        EXPECT_NEAR(rate_at_origin(walls, {inv, inv, inv}, {U, 0, 0, theta, qv, p, rdOcp}),
+                    rate, scaled_tolerance(rate));
+    }
+
+    // Wet equilibrium also drives MOST drag when vapor transfer is molecular.
+    // With no MOST scalar, the scalar stability resistance falls back to D_m.
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::MOST;
+    wall.vapor = {};
+    const Real qv = qsat + Real(.01);
+    const Real Ri = CONST_GRAV * distance * epsv * (qv - qsat) / (U * U);
+    const Real expected = most_stability_coordinate(Ri, D_m, D_m).zeta;
+    const auto drag = most_wall_coefficients(wall, theta, qv, p, rdOcp, U, distance, 1);
+    EXPECT_NEAR(drag.zeta, expected, scaled_tolerance(expected));
 }
 
 // The evaluator must be authoritative about legacy versus physical
@@ -2235,6 +2441,52 @@ TEST(CloudChamberWallFlux, StaggeredTangentialSpeedRotatesAndRemovesNormal)
     }
 }
 
+TEST(CloudChamberWallFlux, AdiabaticReplacesOrdinaryFluxAndRhsOnEachFace)
+{
+    using namespace amrex;
+    using namespace erf_wall_thermodynamics;
+    const Box domain(IntVect(0), IntVect(0));
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    MultiFab state(ba, dm, RhoTheta_comp + 1, 0), prim(ba, dm, PrimTheta_comp + 1, 0);
+    MultiFab base(ba, dm, BaseState::num_comps, 0), rhs(ba, dm, RhoTheta_comp + 1, 0);
+    state.setVal(1);
+    prim.setVal(280);
+    base.setVal(p_0);
+    MultiFab flux[AMREX_SPACEDIM];
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        BoxArray faces(ba);
+        faces.surroundingNodes(d);
+        flux[d].define(faces, dm, 1, 0);
+    }
+    const GpuArray<Real, AMREX_SPACEDIM> inv{2, 4, 8};
+    const Real old_flux = 7, other_rhs = 3;
+    for (int n = 0; n < 2 * AMREX_SPACEDIM; ++n) {
+        SCOPED_TRACE(n);
+        const int dir = n / 2;
+        const bool high = n % 2 != 0;
+        Boundary walls{}; // other faces retain legacy numerical ownership
+        walls[n].thermal = {ThermalMode::Adiabatic, Real(300)};
+        for (auto& f : flux) { f.setVal(old_flux); }
+        // The ordinary face contribution is already included in the RHS.
+        // Activate one face at a time so low/high correction errors cannot cancel.
+        rhs.setVal(other_rhs + (high ? -old_flux : old_flux) * inv[dir]);
+        for (MFIter mfi(state); mfi.isValid(); ++mfi) {
+            erf_cloud_chamber_wall_flux::apply(mfi.validbox(), domain, RhoTheta_comp, 0,
+                state.const_array(mfi), prim.const_array(mfi), base.const_array(mfi), {}, {}, {},
+                rhs.array(mfi), flux[0].array(mfi), flux[1].array(mfi), flux[2].array(mfi),
+                inv, walls, Real(.1), Real(0), R_d/Cp_d);
+        }
+        Gpu::streamSynchronize();
+        EXPECT_EQ(sum_region(rhs, domain, RhoTheta_comp), other_rhs);
+        for (int face = 0; face < 2 * AMREX_SPACEDIM; ++face) {
+            IntVect at(0);
+            at[face / 2] = face % 2;
+            EXPECT_EQ(value_at(flux[face / 2], at), face == n ? Real(0) : old_flux);
+        }
+    }
+}
+
 // Motivation: conservation alone cannot prove the selected bulk model ran;
 // a no-op or stale resolved flux can still close a domain budget. This test
 // verifies retained low/high face values and RHS corrections at the actual
@@ -2960,6 +3212,21 @@ TEST(CloudChamberNeutralLog, HostParserContractMatrix)
     EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
         missing_heat_z0, "ylo").find("z0_h"), std::string::npos);
 
+    // Retaining a heat model on an adiabatic face does not waive its input grammar.
+    for (const bool most_heat : {false, true}) {
+        auto retained = heat_only();
+        if (most_heat) {
+            retained.heat_model = "bulk_aero";
+            retained.coefficient_source_specified = true;
+            retained.coefficient_source = "most";
+        }
+        for (const Real invalid : {Real(0), std::numeric_limits<Real>::infinity()}) {
+            retained.z0_h = invalid;
+            EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
+                retained, "zlo").find("finite and positive"), std::string::npos);
+        }
+    }
+
     auto missing_vapor_z0 = vapor_only();
     missing_vapor_z0.z0_q_specified = false;
     EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
@@ -3024,21 +3291,10 @@ TEST(CloudChamberNeutralLog, HostParserContractMatrix)
     coupled_most.z0_q = Real(0.02);
     EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
         coupled_most, "zlo").empty());
-    EXPECT_TRUE(erf_cloud_chamber::wall_coupled_most_roughness_error(
-        coupled_most, "zlo", true).empty());
-
     coupled_most.z0_q = Real(0.03);
+    // Both lengths are legal inputs; equality depends on physical activity.
     EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
         coupled_most, "zhi").empty());
-    const auto coupled_error =
-        erf_cloud_chamber::wall_coupled_most_roughness_error(
-            coupled_most, "zhi", true);
-    EXPECT_NE(coupled_error.find("zhi"), std::string::npos);
-    EXPECT_NE(coupled_error.find("z0_h == z0_q"), std::string::npos);
-    EXPECT_NE(coupled_error.find("z0_h=0.020000"), std::string::npos);
-    EXPECT_NE(coupled_error.find("z0_q=0.030000"), std::string::npos);
-    EXPECT_TRUE(erf_cloud_chamber::wall_coupled_most_roughness_error(
-        coupled_most, "zhi", false).empty());
 
     auto smooth = momentum_only();
     smooth.momentum_model = "law_of_wall_momentum";
@@ -3051,6 +3307,76 @@ TEST(CloudChamberNeutralLog, HostParserContractMatrix)
         vapor_only(), "xlo").empty());
 }
 
+TEST(CloudChamberWallConfig, CoupledMostRoughnessRequiresTwoActiveScalars)
+{
+    using namespace erf_wall_thermodynamics;
+    FaceWall wall;
+    wall.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    wall.moisture = MoistureMode::WetEquilibrium;
+    wall.heat = {ScalarModel::BulkAero, CoefficientProvider::MOST, 0, Real(0.02)};
+    wall.vapor = wall.heat;
+    auto error = [&] { return erf_cloud_chamber::wall_coupled_most_roughness_error(wall, "zhi"); };
+    EXPECT_TRUE(error().empty());
+    wall.vapor.z0 = Real(0.03);
+    const auto mismatch = error();
+    EXPECT_NE(mismatch.find("zhi"), std::string::npos);
+    EXPECT_NE(mismatch.find("z0_h == z0_q"), std::string::npos);
+    EXPECT_NE(mismatch.find("z0_h=0.020000"), std::string::npos);
+    EXPECT_NE(mismatch.find("z0_q=0.030000"), std::string::npos);
+
+    wall.moisture = MoistureMode::DryImpermeable;
+    EXPECT_TRUE(error().empty());
+    wall.moisture = MoistureMode::WetEquilibrium;
+    wall.thermal.mode = ThermalMode::Adiabatic;
+    EXPECT_TRUE(error().empty());
+}
+
+TEST(CloudChamberWallConfig, AdiabaticSkipsOnlyUnusedRoughnessGeometry)
+{
+    using namespace erf_wall_thermodynamics;
+    const GpuArray<Real, AMREX_SPACEDIM> dx{1, 1, 1};
+    const Real z_ref = Real(0.5);
+    for (auto model : {ScalarModel::NeutralRoughnessLog, ScalarModel::BulkAero}) {
+        SCOPED_TRACE(model == ScalarModel::BulkAero ? "MOST" : "neutral");
+        Boundary walls{};
+        auto& wall = walls[4]; // zlo
+        wall.thermal.mode = ThermalMode::Adiabatic;
+        wall.moisture = MoistureMode::DryImpermeable;
+        wall.momentum.z0_m = Real(0.1);
+        const auto provider = model == ScalarModel::BulkAero ? CoefficientProvider::MOST
+                                                             : CoefficientProvider::None;
+        wall.heat = {model, provider, 0, z_ref};
+        auto error = [&] { return erf_cloud_chamber::wall_roughness_geometry_error(walls, dx); };
+        for (auto retained : {z_ref, 2 * z_ref}) {
+            wall.heat.z0 = retained;
+            EXPECT_TRUE(error().empty());
+            wall.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+            EXPECT_NE(error().find("z0_h"), std::string::npos);
+            wall.thermal.mode = ThermalMode::Adiabatic;
+        }
+
+        // The shared z0_m is unused until a momentum or wet vapor closure needs it.
+        wall.momentum.z0_m = z_ref;
+        EXPECT_TRUE(error().empty());
+        wall.momentum.model = model == ScalarModel::BulkAero ? MomentumModel::BulkAero
+                                                             : MomentumModel::NeutralRoughnessLog;
+        wall.momentum.provider = provider;
+        EXPECT_NE(error().find("z0_m"), std::string::npos);
+        wall.momentum.model = MomentumModel::ResolvedNoSlip;
+        wall.momentum.provider = CoefficientProvider::None;
+        wall.moisture = MoistureMode::WetEquilibrium;
+        wall.vapor = {model, provider, 0, z_ref};
+        EXPECT_NE(error().find("z0_m"), std::string::npos);
+        wall.momentum.z0_m = Real(0.1);
+        EXPECT_NE(error().find("z0_q"), std::string::npos);
+        wall.moisture = MoistureMode::DryImpermeable;
+        EXPECT_NE(error().find("z0_q"), std::string::npos); // retained vapor grammar is unchanged
+        wall.moisture = MoistureMode::WetEquilibrium;
+        wall.vapor.z0 = Real(0.2);
+        EXPECT_TRUE(error().empty()); // z0_h is still too large and differs from z0_q
+    }
+}
+
 TEST(CloudChamberNeutralLog, GeometryValidationUsesEveryActiveFace)
 {
     using namespace erf_wall_thermodynamics;
@@ -3058,9 +3384,11 @@ TEST(CloudChamberNeutralLog, GeometryValidationUsesEveryActiveFace)
     Boundary walls{};
     walls[0].momentum.model = MomentumModel::NeutralRoughnessLog;
     walls[0].momentum.z0_m = Real(0.49);
+    walls[2].thermal.mode = ThermalMode::FixedPhysicalTemperature;
     walls[2].heat.model = ScalarModel::NeutralRoughnessLog;
     walls[2].momentum.z0_m = Real(0.99);
     walls[2].heat.z0 = Real(0.99);
+    walls[4].moisture = MoistureMode::WetEquilibrium;
     walls[4].vapor.model = ScalarModel::NeutralRoughnessLog;
     walls[4].momentum.z0_m = Real(1.49);
     walls[4].vapor.z0 = Real(1.49);
@@ -3088,6 +3416,7 @@ TEST(CloudChamberNeutralLog, GeometryValidationUsesEveryActiveFace)
 
     Boundary scalar_only{};
     scalar_only[0].momentum.model = MomentumModel::ResolvedNoSlip;
+    scalar_only[0].thermal.mode = ThermalMode::FixedPhysicalTemperature;
     scalar_only[0].heat.model = ScalarModel::NeutralRoughnessLog;
     scalar_only[0].heat.z0 = Real(0.25);
     scalar_only[0].momentum.z0_m = Real(0.49);
@@ -3106,6 +3435,7 @@ TEST(CloudChamberNeutralLog, GeometryValidationUsesEveryActiveFace)
 
     scalar_only = Boundary{};
     scalar_only[0].momentum.model = MomentumModel::ResolvedNoSlip;
+    scalar_only[0].moisture = MoistureMode::WetEquilibrium;
     scalar_only[0].vapor.model = ScalarModel::NeutralRoughnessLog;
     scalar_only[0].vapor.z0 = Real(0.25);
     scalar_only[0].momentum.z0_m = Real(0.49);
