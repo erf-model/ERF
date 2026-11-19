@@ -587,6 +587,28 @@ wall_transfer_contract_error (const WallTransferContract& contract,
     return {};
 }
 
+inline bool valid_wall_wetness (amrex::Real rh) noexcept
+{
+    return finite(rh) && rh >= amrex::Real(0.0) && rh <= amrex::Real(1.0);
+}
+
+inline std::string
+parse_wall_wetness (amrex::ParmParse& pp, const std::string& face,
+                    erf_wall_thermodynamics::FaceWall& wall)
+{
+    if (!pp.contains("wetness")) { return {}; }
+    if (wall.moisture != erf_wall_thermodynamics::MoistureMode::WetEquilibrium) {
+        return "Cloud Chamber: " + face + ".wetness is only valid on physical walls with moisture = wet";
+    }
+    amrex::Real rh;
+    pp.get("wetness", rh);
+    if (!valid_wall_wetness(rh)) {
+        return "Cloud Chamber: " + face + ".wetness must be a finite relative humidity fraction in [0,1]";
+    }
+    wall.wetness = rh;
+    return {};
+}
+
 inline std::string
 wall_coupled_most_roughness_error (const WallTransferContract& contract,
                                    const std::string& face,
@@ -1082,6 +1104,8 @@ inline Config parse_config (const amrex::Real* problo,
                 amrex::Error("Cloud Chamber: legacy cloudy walls require " + face + ".qv");
             }
         }
+        const auto wetness_error = parse_wall_wetness(pp_face, face, wall.wall);
+        if (!wetness_error.empty()) { amrex::Error(wetness_error); }
         for (int d = 0; d < AMREX_SPACEDIM; ++d) {
             if (pp_face.contains("velocity")) {
                 amrex::Error("Cloud Chamber: wall velocity metadata is not active; use NoSlipWall with zero velocity");

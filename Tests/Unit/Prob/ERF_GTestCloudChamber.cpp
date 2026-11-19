@@ -981,6 +981,110 @@ TEST(CloudChamberWallConfig, ActivatesTimestepGuardOnlyForActiveBulkChannels)
     EXPECT_TRUE(config.has_bulk_scalar_wall());
 }
 
+TEST(CloudChamberWallConfig, ParsesWetnessOnlyForWetPhysicalWalls)
+{
+    using namespace erf_wall_thermodynamics;
+    amrex::ParmParse pp("cc_test_wall_wetness");
+    FaceWall wall;
+    wall.moisture = MoistureMode::WetEquilibrium;
+    auto parse = [&] { return erf_cloud_chamber::parse_wall_wetness(pp, "zlo", wall); };
+    EXPECT_TRUE(parse().empty());
+    EXPECT_EQ(wall.wetness, Real(1));
+    for (Real rh : {Real(0), Real(0.625), Real(1)}) {
+        pp.add("wetness", rh);
+        EXPECT_TRUE(parse().empty());
+        EXPECT_EQ(wall.wetness, rh);
+        pp.remove("wetness");
+    }
+    for (Real rh : {Real(-0.01), Real(1.01)}) {
+        pp.add("wetness", rh);
+        EXPECT_NE(parse().find("zlo.wetness"), std::string::npos);
+        pp.remove("wetness");
+    }
+    // Test the numeric parser guard independently of how ParmParse reads NaN/Inf tokens.
+    const Real inf = std::numeric_limits<Real>::infinity();
+    for (Real rh : {std::numeric_limits<Real>::quiet_NaN(), inf, -inf}) {
+        EXPECT_FALSE(erf_cloud_chamber::valid_wall_wetness(rh));
+    }
+    for (auto mode : {MoistureMode::DryImpermeable, MoistureMode::LegacyNumerical}) {
+        wall.moisture = mode;
+        EXPECT_TRUE(parse().empty());
+        pp.add("wetness", Real(1)); // Even the default is invalid when explicitly supplied.
+        EXPECT_NE(parse().find("zlo.wetness"), std::string::npos);
+        pp.remove("wetness");
+    }
+}
+
+TEST(CloudChamberWallFlux, WetnessSetsVaporPressureForEveryVaporLaw)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+    FaceWall wall;
+    wall.moisture = MoistureMode::WetEquilibrium;
+    wall.thermal = {ThermalMode::FixedPhysicalTemperature, Real(300)};
+    wall.momentum.z0_m = wall.vapor.z0 = Real(0.01);
+    wall.vapor.coefficient = Real(0.1);
+    const Real p = Real(90000);
+    ScalarWallSample s{1, 0, p, 3, 0, Real(0.125), 2, R_d/Cp_d, Real(0.25)};
+    Real saturated;
+    erf_qsatw(wall.thermal.temperature_K, p * Real(0.01), saturated);
+    EXPECT_EQ(wet_wall_qv(wall, p), saturated);
+
+    for (Real rh : {Real(0), Real(0.4), Real(1)}) {
+        wall.wetness = rh;
+        const Real e = rh * erf_esatw(wall.thermal.temperature_K) * Real(100); // Pa
+        const Real target = RdoRv * e / (p - e);
+        EXPECT_NEAR(wet_wall_qv(wall, p), target, scaled_tolerance(target));
+        for (auto model : {ScalarModel::ResolvedMolecular, ScalarModel::BulkAero,
+                           ScalarModel::NeutralRoughnessLog}) {
+            wall.vapor.model = model;
+            const Real speed = model == ScalarModel::ResolvedMolecular ? 2*s.alpha_C*s.dx_inv :
+                model == ScalarModel::BulkAero ? wall.vapor.coefficient*s.U_t :
+                neutral_log_scalar_coefficient(s.wall_distance, wall.momentum.z0_m, wall.vapor.z0)*s.U_t;
+            for (Real air : {Real(0), target, Real(0.03)}) {
+                s.scalar_air = air;
+                const auto flux = evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, s);
+                EXPECT_EQ(flux.owned_channels, OwnVapor);
+                EXPECT_NEAR(flux.rhoQv_in, s.rho*speed*(target-air), scaled_tolerance(target));
+            }
+        }
+    }
+    wall.wetness = 0;
+    s.scalar_air = Real(0.01);
+    EXPECT_LT(evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, s).rhoQv_in, 0);
+    wall.moisture = MoistureMode::DryImpermeable;
+    EXPECT_EQ(evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, s).rhoQv_in, 0);
+}
+
+TEST(CloudChamberWallFlux, MOSTUsesWetnessForStabilityAndVapor)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+    FaceWall wall;
+    wall.moisture = MoistureMode::WetEquilibrium;
+    wall.thermal = {ThermalMode::FixedPhysicalTemperature, Real(300)};
+    wall.momentum.z0_m = wall.vapor.z0 = Real(0.01);
+    wall.vapor.model = ScalarModel::BulkAero;
+    wall.vapor.provider = CoefficientProvider::MOST;
+    const Real rh = Real(0.4);
+    const Real e = rh * erf_esatw(wall.thermal.temperature_K); // hPa
+    const Real target = RdoRv * e / (Real(1000) - e);
+    ScalarWallSample s{1, target, p_0, 3, 0, 0, 1, R_d/Cp_d, Real(0.5), 300, target, 1};
+    auto runtime = [&] {
+        return most_wall_coefficients(wall, s.theta_air, s.qv_air, s.p_hse, s.rdOcp,
+                                      s.U_t, s.wall_distance, s.gravity_sign);
+    };
+    EXPECT_LT(runtime().zeta, 0); // Saturated bottom wall is more buoyant than the air.
+    wall.wetness = rh;
+    EXPECT_NEAR(runtime().zeta, 0, scaled_tolerance(0)); // Equal virtual temperatures.
+    EXPECT_NEAR(evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, s).rhoQv_in,
+                0, scaled_tolerance(0));
+    s.qv_air = s.scalar_air = Real(0.02);
+    EXPECT_GT(runtime().zeta, 0);
+    EXPECT_NEAR(evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, s).rhoQv_in,
+                s.rho * runtime().C_E * s.U_t * (target - s.qv_air), scaled_tolerance(target));
+}
+
 // The evaluator must be authoritative about legacy versus physical
 // ownership, including owned-zero dry vapor and cloud-water channels.
 TEST(CloudChamberWallFlux, EvaluatorOwnershipIsWallAware)
