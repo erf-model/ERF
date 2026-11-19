@@ -50,6 +50,7 @@ struct MomentumTransfer {
     amrex::Real C_D = amrex::Real(0.0);
     amrex::Real z0_m = amrex::Real(0.0);
     amrex::Real molecular_speed = amrex::Real(0.0); // nu / half-cell distance [m/s]
+    amrex::Real resolved_row_rate = amrex::Real(0.0); // ordinary no-slip stencil [1/s]; guard only
 };
 
 struct ScalarTransfer {

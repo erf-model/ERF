@@ -576,21 +576,32 @@ momentum_infinity_row_sum_factor () noexcept
     return (amrex::Real(3.0) + std::sqrt(amrex::Real(2.0))) / amrex::Real(2.0);
 }
 
+// Totals for incident faces with the same normal (both sides for a one-cell direction).
+struct DirectionalMomentumRate {
+    amrex::Real modeled = 0;
+    amrex::Real resolved = 0;
+    bool combined = false;
+};
+
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-momentum_row_sum_rate (
-    int component,
-    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& low_rate,
-    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& high_rate) noexcept
+momentum_row_sum_rate (int component, const amrex::GpuArray<DirectionalMomentumRate,
+                       AMREX_SPACEDIM>& rates) noexcept
 {
-    amrex::Real result = amrex::Real(0.0);
+    // Only walls tangential to this component enter its row. A combined momentum
+    // wall activates ordinary no-slip shear on that same row, not on all three.
+    // Otherwise keep the modeled-only sum; never add a second stress to the RHS.
+    amrex::Real modeled = 0, resolved = 0;
+    bool combined = false;
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         if (dir != component) {
-            result += low_rate[dir] + high_rate[dir];
+            modeled += rates[dir].modeled;
+            resolved += rates[dir].resolved;
+            combined |= rates[dir].combined;
         }
     }
-    return result;
+    return combined ? modeled + resolved : modeled;
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -858,7 +869,7 @@ wall_rate_for_cell (int i, int j, int k, const amrex::Box& domain,
 {
     using namespace erf_wall_thermodynamics;
     const amrex::IntVect cell(i,j,k);
-    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> low_momentum{}, high_momentum{};
+    amrex::GpuArray<DirectionalMomentumRate, AMREX_SPACEDIM> momentum{};
     CellScalarWallRate heat{}, vapor{};
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         for (int side = 0; side < 2; ++side) {
@@ -875,10 +886,12 @@ wall_rate_for_cell (int i, int j, int k, const amrex::Box& domain,
                         velocity(i,j,k,6), U_t, amrex::Real(0.5) / inv, dir == 2 ? 1-2*side : 0);
                     AMREX_ALWAYS_ASSERT(runtime.valid != 0);
                 }
-                if (requires_tangential_momentum(wall)) {
-                    (side ? high_momentum : low_momentum)[dir] =
-                        momentum_rate_for_face(wall, U_t, inv, runtime);
-                }
+            }
+            if (requires_tangential_momentum(wall)) {
+                momentum[dir].modeled += momentum_rate_for_face(wall, U_t, inv, runtime);
+                momentum[dir].combined |= wall.momentum.molecular_speed > 0;
+            } else {
+                momentum[dir].resolved += wall.momentum.resolved_row_rate;
             }
             if (wall.thermal.mode == ThermalMode::FixedPhysicalTemperature) {
                 heat.add(wall.heat, U_t, inv, wall.momentum.z0_m, runtime.C_H);
@@ -890,7 +903,7 @@ wall_rate_for_cell (int i, int j, int k, const amrex::Box& domain,
     }
     auto rate = amrex::max(heat.max_rate(), vapor.max_rate());
     for (int component = 0; component < AMREX_SPACEDIM; ++component) {
-        rate = amrex::max(rate, momentum_row_sum_rate(component, low_momentum, high_momentum));
+        rate = amrex::max(rate, momentum_row_sum_rate(component, momentum));
     }
     return rate;
 }

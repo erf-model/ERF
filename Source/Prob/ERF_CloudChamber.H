@@ -11,6 +11,7 @@
 #include "ERF_EOS.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "BoundaryConditions/ERF_WallThermodynamics.H"
+#include "Diffusion/ERF_WallGradientCoeffs.H"
 
 #include <cmath>
 #include <limits>
@@ -979,6 +980,13 @@ inline std::string set_wall_transport_speeds (
             return error("momentum", "(dynamic_viscosity/rho0_trans) / half-cell distance");
         }
         wall.momentum.molecular_speed = speed;
+    } else if (wall.momentum.model == MomentumModel::ResolvedNoSlip &&
+               positive(dc.dynamic_viscosity) && positive(dc.rho0_trans)) {
+        // ComputeStrain_N uses a prescribed wall value and two interior velocities.
+        // Only the latter vary in the wall-stress row; the normal velocity is prescribed too.
+        const auto w = WallGradientCoeffsUniform();
+        wall.momentum.resolved_row_rate = (std::abs(w.c_0) + std::abs(w.c_1)) *
+            (dc.dynamic_viscosity / dc.rho0_trans) * dx_inv * dx_inv;
     }
     const auto scalar = [&](ScalarTransfer& transfer, const std::string& model, bool active,
                             amrex::Real alpha, const char* channel, const char* key) -> std::string {

@@ -1089,8 +1089,19 @@ largest bulk or neutral face rate; a resolved face alone does not impose a
 separate wall-law limit. This rule does not depend on enabling ERF's optional
 interior diffusion timestep limiter.
 
-At an edge or corner, contributions from perpendicular active walls are added
-for each free velocity component before taking the maximum.  MOST coefficients
+For each velocity component, the guard sums modeled momentum rates only from
+walls tangential to that component. If any of those walls uses combined
+momentum transfer, the same row also includes its incident resolved no-slip
+walls. For example, a combined bottom plate and a resolved x-sidewall both
+act on y-momentum. The plate's molecular term is :math:`2\nu/\Delta z^2`.
+The sidewall retains ERF's ordinary one-sided shear stencil, with uniform-grid
+weights :math:`(-8/3,3,-1/3)` for the prescribed wall velocity and the two
+interior velocities. Its molecular contribution to the absolute wall-row sum
+is therefore :math:`(3+1/3)\nu/\Delta x^2`. This is a timestep estimate, not
+an additional stress or a bound on interior or SGS diffusion. A combined
+scalar wall does not activate this momentum rule.
+
+MOST coefficients
 are evaluated once for the current wall/cell sample and then treated as frozen
 for this local rate estimate; this is not an exact Jacobian of the nonlinear
 MOST iteration.

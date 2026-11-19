@@ -1415,6 +1415,45 @@ TEST(CloudChamberWallFlux, CombinedCornerIncludesResolvedAndPlainBulkOnlyForItsS
     EXPECT_EQ(rate_at_origin(walls, inv, state, thin_x), 42);
 }
 
+TEST(CloudChamberWallFlux, MixedMomentumCountsResolvedShearOnlyOnTheSameTangentialRow)
+{
+    using namespace erf_wall_thermodynamics;
+    using erf_cloud_chamber::set_wall_transport_speeds;
+    Boundary walls{};
+    DiffChoice dc;
+    dc.dynamic_viscosity = 6;
+    dc.rho0_trans = 2;
+    const GpuArray<Real,3> inv{1,2,4};
+    ASSERT_TRUE(set_wall_transport_speeds(walls[2], {}, dc, inv[1], "ylo").empty());
+    ASSERT_TRUE(set_wall_transport_speeds(walls[4], {}, dc, inv[2], "zlo").empty());
+    const auto rate = [&] { return rate_at_origin(walls, inv, {}); };
+    EXPECT_EQ(rate(), 0); // resolved alone does not impose a new wall limit
+    EXPECT_EQ(walls[4].momentum.molecular_speed, 0); // ordinary stress is not replaced
+
+    auto& x = walls[0];
+    x.momentum.model = MomentumModel::BulkAero;
+    x.momentum.provider = CoefficientProvider::Fixed;
+    x.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    x.heat.model = ScalarModel::BulkAero;
+    x.heat.provider = CoefficientProvider::Fixed;
+    dc.alpha_T = Real(.5);
+    erf_cloud_chamber::WallTransferContract contract;
+    contract.heat_model = "bulk_aero_plus_molecular";
+    ASSERT_TRUE(set_wall_transport_speeds(x, contract, dc, inv[0], "xlo").empty());
+    EXPECT_EQ(rate(), 1); // combined heat and plain drag do not activate resolved shear
+    contract.momentum_model = "bulk_aero_plus_molecular";
+    ASSERT_TRUE(set_wall_transport_speeds(x, contract, dc, inv[0], "xlo").empty());
+    // At rest and C_D=0: xlo contributes 6; ylo and zlo contribute 40 and 160.
+    // y-momentum sees xlo+zlo; the larger resolved-only x-momentum row (40+160) is dormant.
+    EXPECT_EQ(rate(), 166);
+    walls[5] = walls[4]; // both resolved z faces incident only in a one-cell z direction
+    EXPECT_EQ(rate(), 166);
+    EXPECT_EQ(rate_at_origin(walls, inv, {}, amrex::IntVect(1,1,0)), 326);
+    std::swap(walls[0], walls[1]);
+    EXPECT_EQ(rate(), 0); // combined xhi is no longer incident
+    EXPECT_EQ(rate_at_origin(walls, inv, {}, amrex::IntVect(0,1,1)), 166);
+}
+
 TEST(CloudChamberWallFlux, InactiveCombinedFaceCannotTriggerLegacyCornerSum)
 {
     using namespace erf_wall_thermodynamics;
@@ -1449,6 +1488,7 @@ TEST(CloudChamberWallFlux, ResolvedOnlyRateRequiresNoCellState)
     walls[0].moisture = MoistureMode::WetEquilibrium;
     walls[0].heat.resolved_speed = 4;
     walls[0].vapor.resolved_speed = 8;
+    walls[0].momentum.resolved_row_rate = 12;
     const amrex::Box domain(amrex::IntVect(0), amrex::IntVect(1));
     EXPECT_EQ(erf_cloud_chamber_wall_flux::wall_rate_for_cell(
         0, 0, 0, domain, walls, {1,1,1}, {}), 0);
@@ -2525,15 +2565,14 @@ TEST(CloudChamberNeutralLog, ComposedMomentumRowSumIncludesPerpendicularWalls)
     using namespace erf_wall_thermodynamics;
     const GpuArray<Real, AMREX_SPACEDIM> low = {Real(1.0), Real(2.0), Real(3.0)};
     const GpuArray<Real, AMREX_SPACEDIM> high = {Real(4.0), Real(5.0), Real(6.0)};
-    EXPECT_DOUBLE_EQ(
-        erf_cloud_chamber_wall_flux::momentum_row_sum_rate(0, low, high),
-        Real(16.0));
-    EXPECT_DOUBLE_EQ(
-        erf_cloud_chamber_wall_flux::momentum_row_sum_rate(1, low, high),
-        Real(14.0));
-    EXPECT_DOUBLE_EQ(
-        erf_cloud_chamber_wall_flux::momentum_row_sum_rate(2, low, high),
-        Real(12.0));
+    using namespace erf_cloud_chamber_wall_flux;
+    GpuArray<DirectionalMomentumRate, AMREX_SPACEDIM> rates{};
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        rates[dir].modeled = low[dir] + high[dir];
+    }
+    EXPECT_EQ(momentum_row_sum_rate(0, rates), 16);
+    EXPECT_EQ(momentum_row_sum_rate(1, rates), 14);
+    EXPECT_EQ(momentum_row_sum_rate(2, rates), 12);
 
     Boundary walls{};
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
