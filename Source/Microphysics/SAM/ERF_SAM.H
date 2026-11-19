@@ -100,13 +100,6 @@ public:
           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
           std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
-    // Import minimum dz at this level
-    void
-    Set_dzmin (const amrex::Real dz_min) override
-    {
-        m_dzmin = dz_min;
-    }
-
     // Copy state into micro vars
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
@@ -355,7 +348,7 @@ private:
     int n_qstate_moist_numconc_size = 0;
 
     // CFL MAX for vertical advection
-    static constexpr amrex::Real CFL_MAX = myhalf;
+    static constexpr amrex::Real CFL_MAX = sam_sedimentation_cfl_max;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
@@ -379,9 +372,6 @@ private:
     amrex::Real m_rdOcp{RdoCp};
     bool m_do_cond;
     MoistureType m_moisture_type = MoistureType::None;
-
-    // Minimum dz at this level
-    amrex::Real m_dzmin{0.0};   // set by Set_dzmin; the fall routines assert it is positive
 
     // Pointer to terrain data
     amrex::MultiFab* m_z_phys_nd;

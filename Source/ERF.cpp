@@ -962,22 +962,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
       }
     }
 
-    // Write plane/line sampler data
-    if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
-        run_line_sampler(*line_sampler);
-    }
-    if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
-        plane_sampler->get_sample_data(geom, vars_new, sampling_volfrac());
-        plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
-    }
-
-    // Write station time series
-    if (station_sampler &&
-        is_it_time_for_action(nstep+1, time, dt_lev0, station_sampling_interval, station_sampling_per)) {
-        sample_stations(static_cast<Real>(time));
-    }
-
-    // Moving terrain
+    // Moving terrain: the heights at the end of the step, before the samplers below write them
+    // with the state at the end of the step
     if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
     {
       for (int lev = finest_level; lev >= 0; lev--)
@@ -993,6 +979,21 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
       for (int lev = 0; lev <= finest_level; ++lev) {
         update_zsfc_nd(lev);
       }
+    }
+
+    // Write plane/line sampler data
+    if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
+        run_line_sampler(*line_sampler);
+    }
+    if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
+        plane_sampler->get_sample_data(geom, vars_new, z_phys_cc, sampling_volfrac());
+        plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    }
+
+    // Write station time series
+    if (station_sampler &&
+        is_it_time_for_action(nstep+1, time, dt_lev0, station_sampling_interval, station_sampling_per)) {
+        sample_stations(static_cast<Real>(time));
     }
 
     if (solverChoice.io_hurricane_eye_tracker and
@@ -2831,6 +2832,12 @@ ERF::InitData_post ()
                 amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
             }
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
+            if (solverChoice.terrain_type == TerrainType::EB) {
+                if (verbose > 0) {
+                    amrex::Print() << "Writing the nodal level set to eb_levelset.vtm.\n" << std::endl;
+                }
+                WriteEBLevelSet();
+            }
         }
     }
 

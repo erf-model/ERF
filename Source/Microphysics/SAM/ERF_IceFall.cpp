@@ -18,10 +18,8 @@ void SAM::IceFall (const SolverChoice& sc) {
     Real dtn  = dt;
     // NOTE: coef carries only the reference vertical spacing. The physical
     //       spacing is supplied by the inverse Jacobian in the tendency below,
-    //       since detJ = dz_phys/CellSize(2). Dividing by m_dzmin here as well
-    //       would apply the vertical metric twice. m_dzmin is still the correct
-    //       length scale for the substep (CFL) count, which must bound the
-    //       thinnest cell in the domain.
+    //       since detJ = dz_phys/CellSize(2). Dividing by dz_phys here as well
+    //       would apply the vertical metric twice.
     Real coef = dtn * m_geom.InvCellSize(2);
 
     auto domain = m_geom.Domain();
@@ -47,60 +45,61 @@ void SAM::IceFall (const SolverChoice& sc) {
     fz.setVal(0.);
 
     // The face state reads qci at k-1, a ghost cell whenever a box boundary is interior in
-    // z, and Cloud has just updated qci in valid cells only: refresh before the fluxes that
-    // size the substeps are computed (the substep loop refreshes it again as it falls).
+    // z, and Cloud has just updated qci in valid cells only: refresh before the fall speeds
+    // that size the substeps are computed (the substep loop refreshes it again as it falls).
     qci->FillBoundary(m_geom.periodicity());
 
-    for (MFIter mfi(fz, TileNoZ()); mfi.isValid(); ++mfi) {
-        auto qci_array = qci->array(mfi);
-        auto rho_array = rho->array(mfi);
-        auto fz_array  = fz.array(mfi);
-
-        const auto& box3d  = mfi.tilebox();
-
-        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            const Real rho_km1 = (k == k_lo) ? rho_array(i,j,k) : rho_array(i,j,k-1);
-            const Real rho_k = (k == k_hi + 1) ? rho_array(i,j,k-1) : rho_array(i,j,k);
-            const Real qci_km1 = (k == k_lo) ? qci_array(i,j,k) : qci_array(i,j,k-1);
-            const Real qci_k = (k == k_hi + 1) ? qci_array(i,j,k-1) : qci_array(i,j,k);
-            const SAMFaceState face_state = sam_face_average_state(k, k_lo, k_hi,
-                                                                   rho_km1, rho_k,
-                                                                   zero, zero,
-                                                                   qci_km1, qci_k,
-                                                                   zero, zero);
-            const Real vt_ice = sam_cloud_ice_terminal_velocity(face_state.qci_avg);
-
-            // NOTE: Fz is the sedimentation flux from the advective operator.
-            //       In the terrain-following coordinate system, the z-deriv in
-            //       the divergence uses the normal velocity (Omega). However,
-            //       there are no u/v components to the sedimentation velocity.
-            //       Therefore, we simply end up with a division by detJ when
-            //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
-            fz_array(i,j,k) = face_state.rho_avg * vt_ice * face_state.qci_avg;
-        });
-    }
-
-    // Compute number of substeps from maximum terminal velocity
-    Real wt_max;
+    // Size the substeps from the largest fall Courant number over the faces (#5168): the
+    // cloud-ice fall speed at each face, from the same face state as the fluxes below, over
+    // the smaller of the heights of the cell that face drains and the cell it drains into
+    // (sam_fall_sizing_detJ says why the cell below counts too). A face with no ice does not
+    // count: the terminal velocity is positive even for qci = 0.
     int n_substep;
-    auto const& ma_fz_arr = fz.const_arrays();
-    GpuTuple<Real> max = ParReduce(TypeList<ReduceOpMax>{},
-                                   TypeList<Real>{},
-                                   fz, IntVect(0),
-                         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
-                         -> GpuTuple<Real>
-                         {
-                             return { ma_fz_arr[box_no](i,j,k) };
-                         });
-    wt_max = get<0>(max);
-    // ParReduce over a MultiFab gives the local rank maximum here. IceFall
-    // needs one global substep count across ranks, matching PrecipFall.
-    ParallelDescriptor::ReduceRealMax(wt_max);
-    wt_max += std::numeric_limits<Real>::epsilon();
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_dzmin > Real(0),
-        "SAM::IceFall: the minimum cell height was never set (Set_dzmin), so the fall substeps cannot be sized");
-    n_substep = sam_substep_count_from_reduced_flux(wt_max, dtn, m_dzmin);
+    {
+        auto const& ma_rho = rho->const_arrays();
+        auto const& ma_qci = qci->const_arrays();
+        // On an EB mesh detJ is the volume fraction, not a cell height, so the sizing uses the
+        // reference dz there (J = 1).  The donor cap and the tendency below still use detJ, the
+        // volume fraction, so a small cut cell can be donor-capped rather than substepped.
+        // Off EB, detJ_cc has one ghost cell filled (make_J), so the receiver cell k-1 at the
+        // bottom of a box that is interior in z can be read here.
+        const auto ma_dJ = (m_detJ_cc && sc.terrain_type != TerrainType::EB)
+                         ? m_detJ_cc->const_arrays() : MultiArray4<const Real>{};
+        const Real dz_ref = m_geom.CellSize(2);
+        GpuTuple<Real> max = ParReduce(TypeList<ReduceOpMax>{},
+                                       TypeList<Real>{},
+                                       fz, IntVect(0),
+                             [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+                             -> GpuTuple<Real>
+                             {
+                                 const auto& rho_array = ma_rho[box_no];
+                                 const auto& qci_array = ma_qci[box_no];
+                                 const Real rho_km1 = (k == k_lo) ? rho_array(i,j,k) : rho_array(i,j,k-1);
+                                 const Real rho_k = (k == k_hi + 1) ? rho_array(i,j,k-1) : rho_array(i,j,k);
+                                 const Real qci_km1 = (k == k_lo) ? qci_array(i,j,k) : qci_array(i,j,k-1);
+                                 const Real qci_k = (k == k_hi + 1) ? qci_array(i,j,k-1) : qci_array(i,j,k);
+                                 const SAMFaceState face_state = sam_face_average_state(k, k_lo, k_hi,
+                                                                                        rho_km1, rho_k,
+                                                                                        zero, zero,
+                                                                                        qci_km1, qci_k,
+                                                                                        zero, zero);
+                                 const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
+                                 const int receiver_k = sam_precip_face_receiver_k(k, k_lo, k_hi);
+                                 const Real detJ_size = (ma_dJ)
+                                     ? sam_fall_sizing_detJ(ma_dJ[box_no](i,j,donor_k),
+                                                            ma_dJ[box_no](i,j,receiver_k))
+                                     : one;
+                                 const Real vt_ice = (face_state.qci_avg > zero)
+                                     ? sam_cloud_ice_terminal_velocity(face_state.qci_avg) : zero;
+                                 return { sam_fall_courant(vt_ice, dtn, dz_ref, detJ_size) };
+                             });
+        Real max_courant = get<0>(max);
+        // ParReduce over a MultiFab gives the local rank maximum here. IceFall
+        // needs one global substep count across ranks, matching PrecipFall.
+        ParallelDescriptor::ReduceRealMax(max_courant);
+        sam_check_sedimentation_substeps("SAM::IceFall", max_courant);
+        n_substep = sam_sedimentation_substep_count(max_courant);
+    }
     AMREX_ALWAYS_ASSERT(n_substep >= 1);
     coef /= Real(n_substep);
     dtn  /= Real(n_substep);

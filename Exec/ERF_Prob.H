@@ -18,7 +18,7 @@ public:
 #include "Prob/ERF_UpdateSources.H"
 
 private:
-    erf_cloud_chamber::Config m_cloud_chamber_config;
+    erf_cloud_chamber::Initialization m_cloud_chamber_config;
 };
 
 #endif

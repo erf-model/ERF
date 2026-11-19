@@ -16,7 +16,132 @@
 #endif
 #include <AMReX_buildInfo.H>
 
+#include <bit>
+#include <cstdint>
+#include <fstream>
+#include <iomanip>
+
 using namespace amrex;
+
+namespace {
+// Write one-component nodal MultiFabs (one per level) as VTK point data:
+// dir/L<lev>_B<box>.vti per box (ImageData, raw binary Float32), indexed by <vtm_name>.vtm,
+// which is written next to dir (in dir's parent directory).
+// dir must not contain "plt" in its name: ParaView hands any such directory to its
+// AMReX plotfile reader, which crashes on it.
+// Assumes uniform spacing in every direction.
+void
+WriteNodalVTK (const std::string& dir, const std::string& vtm_name, const std::string& varname,
+               const Vector<const MultiFab*>& mf, const Vector<Geometry>& geom)
+{
+    // The whole output is rewritten each time, so the old one is removed rather than kept
+    UtilCreateDirectoryDestructive(dir, true);
+    const std::string parent   = dir.substr(0, dir.find_last_of('/') + 1);
+    const std::string dir_base = dir.substr(parent.size());
+
+    // The sizes and values are written in the host's byte order (if constexpr, since a
+    // conditional on this compile-time constant is flagged as unreachable code by clang)
+    const char* byte_order = "LittleEndian";
+    if constexpr (std::endian::native == std::endian::big) { byte_order = "BigEndian"; }
+
+    auto piece_file = [] (int lev, int box) {
+        return "L" + std::to_string(lev) + "_B" + std::to_string(box) + ".vti";
+    };
+    auto extent = [] (const Box& bx) {
+        const IntVect lo = bx.smallEnd(), hi = bx.bigEnd();
+        return std::to_string(lo[0]) + " " + std::to_string(hi[0]) + " " +
+               std::to_string(lo[1]) + " " + std::to_string(hi[1]) + " " +
+               std::to_string(lo[2]) + " " + std::to_string(hi[2]);
+    };
+
+    for (int lev = 0; lev < mf.size(); ++lev) {
+        const Real* plo = geom[lev].ProbLo();
+        const Real* dx  = geom[lev].CellSize();
+
+        // Copy every box of this rank to the host, then wait once
+        Vector<int> box_index;
+        Vector<std::unique_ptr<FArrayBox>> hfabs;
+        for (MFIter mfi(*mf[lev]); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            hfabs.push_back(std::make_unique<FArrayBox>(bx, 1, The_Pinned_Arena()));
+            hfabs.back()->copy<RunOn::Device>((*mf[lev])[mfi], bx);
+            box_index.push_back(mfi.index());
+        }
+        Gpu::streamSynchronize();
+
+        for (int n = 0; n < hfabs.size(); ++n) {
+            const FArrayBox& hfab = *hfabs[n];
+            const Box& bx = hfab.box();
+            const auto npts = static_cast<std::size_t>(bx.numPts());
+            std::vector<float> data(npts);
+            const Real* src = hfab.dataPtr();
+            for (std::size_t m = 0; m < npts; ++m) { data[m] = static_cast<float>(src[m]); }
+            const auto nbytes = static_cast<std::uint64_t>(npts * sizeof(float));
+
+            const std::string fname = dir + "/" + piece_file(lev, box_index[n]);
+            std::ofstream ofs(fname, std::ios::binary);
+            if (!ofs.is_open()) { FileOpenFailed(fname); }
+            ofs << std::setprecision(17)
+                << "<?xml version=\"1.0\"?>\n"
+                << "<VTKFile type=\"ImageData\" version=\"1.0\" byte_order=\"" << byte_order
+                << "\" header_type=\"UInt64\">\n"
+                << "<ImageData WholeExtent=\"" << extent(bx) << "\" Origin=\""
+                << plo[0] << " " << plo[1] << " " << plo[2] << "\" Spacing=\""
+                << dx[0] << " " << dx[1] << " " << dx[2] << "\">\n"
+                << "<Piece Extent=\"" << extent(bx) << "\">\n"
+                << "<PointData Scalars=\"" << varname << "\">\n"
+                << "<DataArray type=\"Float32\" Name=\"" << varname
+                << "\" format=\"appended\" offset=\"0\"/>\n"
+                << "</PointData>\n<CellData/>\n</Piece>\n</ImageData>\n"
+                << "<AppendedData encoding=\"raw\">\n_";
+            ofs.write(reinterpret_cast<const char*>(&nbytes), sizeof(nbytes));
+            ofs.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(nbytes));
+            ofs << "\n</AppendedData>\n</VTKFile>\n";
+            ofs.close();
+            if (ofs.fail()) { Abort("WriteNodalVTK: failed writing " + fname); }
+        }
+    }
+
+    if (ParallelDescriptor::IOProcessor()) {
+        const std::string fname = parent + vtm_name + ".vtm";
+        std::ofstream ofs(fname);
+        if (!ofs.is_open()) { FileOpenFailed(fname); }
+        ofs << "<?xml version=\"1.0\"?>\n"
+            << "<VTKFile type=\"vtkMultiBlockDataSet\" version=\"1.0\" byte_order=\"" << byte_order << "\">\n"
+            << "<vtkMultiBlockDataSet>\n";
+        for (int lev = 0; lev < mf.size(); ++lev) {
+            ofs << "<Block index=\"" << lev << "\" name=\"Level_" << lev << "\">\n";
+            for (int b = 0; b < mf[lev]->boxArray().size(); ++b) {
+                ofs << "<DataSet index=\"" << b << "\" file=\"" << dir_base << "/" << piece_file(lev, b) << "\"/>\n";
+            }
+            ofs << "</Block>\n";
+        }
+        ofs << "</vtkMultiBlockDataSet>\n</VTKFile>\n";
+        ofs.close();
+        if (ofs.fail()) { Abort("WriteNodalVTK: failed writing " + fname); }
+    }
+}
+} // namespace
+
+// Write the nodal EB level set of every level that exists now, once, as eb_levelset.vtm +
+// eb_levelset/L<lev>_B<box>.vti in the directory of erf.plot_file_1.
+// The EB does not move, so this goes with the EB surface output (erf.write_eb_surface).
+void
+ERF::WriteEBLevelSet ()
+{
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        Print() << "WARNING: EB level set output assumes uniform dz (mesh_type = ConstantDz); "
+                << "skipping it" << std::endl;
+        return;
+    }
+    Vector<const MultiFab*> ls(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        ls[lev] = &EBFactory(lev).getLevelSet();
+    }
+    // The directory of the plotfiles (everything up to the last '/' of erf.plot_file_1)
+    const std::string plot_dir = plot3d_file_1.substr(0, plot3d_file_1.find_last_of('/') + 1);
+    WriteNodalVTK(plot_dir + "eb_levelset", "eb_levelset", "levelset", ls, geom);
+}
 
 
 void
