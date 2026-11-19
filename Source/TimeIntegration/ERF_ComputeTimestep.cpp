@@ -52,12 +52,30 @@ ERF::ComputeDt (int step, double cur_time_d)
         const TurbChoice& tc = solverChoice.turbChoice[lev];
         const bool slope_report = fitted && tc.use_kturb && tc.kh_kv_can_differ() &&
             (do_diffusive_check || tc.smag2d_slope_limiter || tc.smag2d_kh_cap > zero);
-        if (slope_report) {
-            const bool new_grids = (slope_report_grids[lev] != grids[lev]);
-            if (SlopeReportEvaluate(new_grids, moving)) {
-                ReportTerrainSlopeFactor(lev, new_grids);
-                slope_report_grids[lev] = grids[lev];
+        const bool new_grids = (slope_report_grids[lev] != grids[lev]);
+        if (slope_report && SlopeReportEvaluate(new_grids, moving)) {
+            ReportTerrainSlopeFactor(lev, new_grids);
+        }
+
+        // Implicit acoustic substepping on a terrain-fitted mesh: switch to the spatially varying
+        // beta_s if the constant beta_s is below the large-Courant stability limit min(sigma^2, 1)
+        // (see make_fast_coeffs).  use_variable_beta_s is shared by all levels and, once on, stays
+        // on; it is not checkpointed, but a restart starts with new grids and so checks again.
+        const bool l_substepping = (solverChoice.timestepping_type[lev] == TimesteppingType::RK3_ImplicitSubstep);
+        if (fitted && l_substepping && !solverChoice.use_variable_beta_s &&
+            SlopeReportEvaluate(new_grids, moving)) {
+            const Real sigma2_max = ComputeMaxTerrainSlope(lev);
+            if (solverChoice.beta_s < amrex::min(sigma2_max, one)) {
+                solverChoice.use_variable_beta_s = true;
+                Print() << "Level " << lev << ": max terrain slope sigma^2 = " << sigma2_max
+                        << " exceeds erf.beta_s = " << solverChoice.beta_s
+                        << "; turning on erf.use_variable_beta_s for acoustic stability" << std::endl;
             }
+        }
+
+        // Both checks above use slope_report_grids, so it is reset after both
+        if (SlopeReportEvaluate(new_grids, moving)) {
+            slope_report_grids[lev] = grids[lev];
         }
 
         // Steep terrain next to an inflow or outflow face: checked for every new set of grids
@@ -312,6 +330,45 @@ ERF::ReportTerrainSlopeFactor (int lev, bool force)
         }
         Print() << std::endl;
     }
+}
+
+/**
+ * Return the largest terrain slope sigma^2 = h_xi^2 + h_eta^2 over the w-faces of a level, the
+ * quantity make_fast_coeffs sets the variable beta_s from.  ComputeDt compares it with beta_s on
+ * a terrain-fitted mesh with implicit acoustic substepping.
+ *
+ * @param[in] lev   level
+ */
+Real
+ERF::ComputeMaxTerrainSlope (int lev)
+{
+    AMREX_ALWAYS_ASSERT(z_phys_nd[lev]);
+
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+
+    const MultiFab& w = vars_new[lev][Vars::zvel];
+
+    ReduceOps<ReduceOpMax> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(w, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real> z_nd = z_phys_nd[lev]->const_array(mfi);
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            const Real h_xi   = Compute_h_xi_AtKface (i, j, k, dxInv, z_nd);
+            const Real h_eta  = Compute_h_eta_AtKface(i, j, k, dxInv, z_nd);
+            const Real sigma2 = h_xi*h_xi + h_eta*h_eta;
+            return {sigma2};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    Real sigma2_max = amrex::get<0>(hv);
+    ParallelDescriptor::ReduceRealMax(sigma2_max);
+    return sigma2_max;
 }
 
 /**

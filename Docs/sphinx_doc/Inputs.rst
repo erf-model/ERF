@@ -3880,7 +3880,9 @@ List of Parameters
 | **erf.use_variable_beta_s** | with implicit substepping, use a beta_s that varies      | Boolean            | false            |
 |                             | on the w-faces with the terrain slope and the vertical   |                    |                  |
 |                             | acoustic Courant number, in place of ``erf.beta_s``      |                    |                  |
-|                             | (see :ref:`TimeAdvance`)                                 |                    |                  |
+|                             | (see :ref:`TimeAdvance`); turned on automatically on a   |                    |                  |
+|                             | terrain-fitted mesh where ``erf.beta_s`` is below        |                    |                  |
+|                             | min(h_xi^2 + h_eta^2, 1) on any w-face                   |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.beta_d**              | divergence damping coefficient used in the acoustic      | Real in [0, 1]     | 0.1              |
 |                             | substepping; how far (rho theta) is projected forward    |                    |                  |

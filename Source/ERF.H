@@ -802,6 +802,9 @@ public:
     // true (new grids), otherwise only if it changed by more than 1 % since the last report
     void ReportTerrainSlopeFactor (int lev, bool force);
 
+    // return the largest terrain slope sigma^2 = h_xi^2 + h_eta^2 over the w-faces of level lev
+    amrex::Real ComputeMaxTerrainSlope (int lev);
+
     // on a terrain-fitted mesh, warn when the terrain next to an inflow or outflow face of
     // level lev is steeper than erf_terrain_file::open_face_slope_warn and no steep-terrain
     // option is on; called by ComputeDt for every new set of grids
