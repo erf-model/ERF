@@ -4,7 +4,7 @@
 Durations cover observed SHA cohorts, not necessarily every required check.
 Runs weekly from metrics.yml or locally with an authenticated gh CLI.
 """
-import argparse, collections, json, statistics, subprocess, sys
+import argparse, collections, json, re, statistics, subprocess, sys
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
@@ -15,7 +15,14 @@ BUILD_WORKFLOWS = {"ERF CI", "Linux GCC", "Linux GCC NetCDF RRTMGP", "ERF CI (cu
 
 def gh(path, paginate=True):
     cmd = ["gh", "api"] + (["--paginate"] if paginate else []) + [path]
-    out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+    except subprocess.CalledProcessError as exc:
+        match = re.search(r"\bHTTP ([1-5][0-9]{2})\b", exc.stderr or "")
+        status = f" (HTTP {match.group(1)})" if match else ""
+        raise RuntimeError(f"GitHub API request failed{status}; check permissions, rate limits and service status") from None
+    except OSError:
+        raise RuntimeError("Unable to run the GitHub CLI (gh)") from None
     # --paginate concatenates JSON objects; each has a workflow_runs / jobs list
     items = []
     dec = json.JSONDecoder(); i = 0
@@ -75,16 +82,6 @@ def by_sha(rs):
     return d
 
 
-def signal_minutes(group):
-    """Measure only terminal success/failure records in an observed SHA cohort."""
-    if not group or any(run["status"] != "completed" or run["conclusion"] not in ("success", "failure")
-                        for run in group):
-        return None
-    start = min(ts(run["created_at"]) for run in group)
-    end = max(ts(run["updated_at"]) for run in group)
-    return (end - start).total_seconds() / 60 if end >= start else None
-
-
 def median(xs):
     xs = [x for x in xs if x is not None]
     return f"{statistics.median(xs):.0f}" if xs else "n/a"
@@ -126,16 +123,22 @@ def sample_jobs(repo, group):
             if not job.get("runner_id") or not job.get("started_at") or not job.get("completed_at"):
                 partial = True
                 continue
-            started, completed = ts(job["started_at"]), ts(job["completed_at"])
-            if completed < started:
+            try:
+                started, completed = ts(job["started_at"]), ts(job["completed_at"])
+                if started.tzinfo is None or completed.tzinfo is None or completed < started:
+                    raise ValueError("invalid job timestamps")
+            except (AttributeError, TypeError, ValueError):
                 partial = True
                 continue
             count += 1
             minutes += (completed - started).total_seconds() / 60
             if job.get("created_at"):
-                created = ts(job["created_at"])
-                if created <= started:
-                    queue.append((started - created).total_seconds() / 60)
+                try:
+                    created = ts(job["created_at"])
+                    if created.tzinfo is not None and created <= started:
+                        queue.append((started - created).total_seconds() / 60)
+                except (AttributeError, TypeError, ValueError):
+                    pass
     return count, minutes, queue, partial
 
 
@@ -163,43 +166,40 @@ def main():
     dev, prs = by_sha(dev_runs), by_sha(pr_runs)
     red = [group for group in dev.values() if any(run["conclusion"] == "failure" for run in group)]
     red_by = collections.Counter(run["name"] for group in red for run in group if run["conclusion"] == "failure")
-    dev_signal = [value for group in dev.values() if (value := signal_minutes(group)) is not None]
-    pr_signal = [value for group in prs.values() if (value := signal_minutes(group)) is not None]
 
     latest = sorted(dev.items(), key=lambda item: max(ts(run["created_at"]) for run in item[1]))
     latest = latest[-a.sample:] if a.sample else []
     jobs_per, minutes_per, queue = [], [], []
+    queue_partial = False
     for sha, group in latest:
         count, minutes, waits, partial = sample_jobs(a.repo, group)
         jobs_per.append(f"{sha[:12]}: {sample_value(count, partial, count > 0)}")
         minutes_per.append(f"{sha[:12]}: {sample_value(f'{minutes:.1f}', partial, count > 0)}")
         queue.extend(waits)
+        queue_partial = queue_partial or partial or len(waits) != count
 
     rows = [
         ("Development push workflow records returned by API", str(len(dev_records))),
         ("Selected development push workflow records", str(len(dev_runs))),
         ("  Workflow record outcomes", outcomes(dev_runs)),
         ("Selected development push SHAs", str(len(dev))),
-        ("  SHAs with any observed workflow failure", str(len(red)) +
-         (f" ({', '.join(f'{name} {count}' for name, count in red_by.most_common(4))})" if red_by else "")),
+        ("  SHAs with any observed workflow failure", str(len(red))),
+        ("  Failed workflow records by name (top 4)",
+         ", ".join(f"{name}: {count}" for name, count in red_by.most_common(4)) or "none"),
         ("Pull-request workflow records returned by API", str(len(pr_records))),
         ("Selected pull-request workflow records", str(len(pr_runs))),
         ("  Workflow record outcomes", outcomes(pr_runs)),
         ("Selected pull-request run SHAs", str(len(prs))),
-        (f"Observed development SHA duration, median min (n={len(dev_signal)})", median(dev_signal)),
-        ("  Development SHA cohorts excluded from duration", str(len(dev) - len(dev_signal))),
-        (f"Observed pull-request SHA duration, median min (n={len(pr_signal)})", median(pr_signal)),
-        ("  Pull-request SHA cohorts excluded from duration", str(len(prs) - len(pr_signal))),
-        (f"Completed assigned-job created-to-start delay, median min (n={len(queue)})", median(queue)),
+        (f"Completed assigned-job created-to-start delay, median min (latest {len(latest)} development SHAs; n={len(queue)})",
+         sample_value(median(queue), queue_partial, bool(queue))),
         (f"Observed completed runner jobs (latest {len(latest)} development SHAs)", " / ".join(jobs_per) or "n/a"),
         (f"Observed completed runner-minutes (latest {len(latest)} development SHAs)", " / ".join(minutes_per) or "n/a"),
     ]
     out = [f"### Selected CI records for {a.repo}",
            f"Window: {since:%Y-%m-%d %H:%M:%S} to {until:%Y-%m-%d %H:%M:%S} UTC.",
            f"Workflow scope: {', '.join(sorted(BUILD_WORKFLOWS))}.", "",
-           "SHA duration spans selected successful/failed workflows from creation to last update; "
-           "it is not full required-check signal. Other cohorts are excluded; SHAs can span PRs or reruns. "
-           "Job samples use completed latest attempts; partial values omit work. Created-to-start "
+           "SHAs can span PRs or reruns. Job samples use completed latest attempts; partial values omit work. "
+           "Created-to-start "
            "can include non-runner waiting; runner-minutes are not monetary cost.", "",
            "| Measure | Value |", "|---|---|"] + [f"| {k} | {v} |" for k, v in rows]
     print("\n".join(out))
