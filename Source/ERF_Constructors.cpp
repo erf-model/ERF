@@ -422,6 +422,8 @@ ERF::ERF_shared ()
 
     rhotheta_src.resize(nlevs_max);
     rhoqt_src.resize(nlevs_max);
+    h_w_subsid.resize(nlevs_max);
+    d_w_subsid.resize(nlevs_max);
 
     // NOTE: size canopy model before readparams (if file exists, we construct)
     m_forest_drag.resize(nlevs_max);
@@ -494,15 +496,6 @@ ERF::ERF_shared ()
         if (pp_structures.contains("model")) {
             amrex::Abort("erf.structures.model needs ERF built with the structure coupling"
                          " (ERF_ENABLE_MOVING_BODIES=ON in CMake, USE_MOVING_BODIES=TRUE in GNU make)");
-        }
-    }
-#endif
-
-#ifdef ERF_USE_EAMXX_SHOC
-    eamxx_shoc_interface.resize(nlevs_max);
-    for (int lev = 0; lev <= max_level; ++lev) {
-        if (solverChoice.turbChoice[lev].uses_eamxx_shoc()) {
-            eamxx_shoc_interface[lev] = std::make_unique<SHOCInterface>(lev, solverChoice);
         }
     }
 #endif

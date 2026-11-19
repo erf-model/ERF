@@ -12,9 +12,10 @@ ERF depends on the following external libraries:
 
 * **AMReX** - Adaptive mesh refinement framework (required, provided as submodule)
 * **RTE-RRTMGP** - Radiation model from E3SM (optional, provided as submodule)
-* **SHOC** - Simplified Higher-Order Closure turbulence and cloud macrophysics from E3SM (optional, requires extra setup)
 * **NetCDF** - I/O library for reading WRF inputs and writing plotfiles (optional, system-provided)
 * **HDF5** - Parallel I/O backend for NetCDF (optional, system-provided)
+
+Physics packages implemented in the ERF source tree, such as native SHOC, need no external library.
 
 **AMReX Configuration**
 
@@ -22,7 +23,7 @@ ERF uses the AMReX framework. The default method uses an internal AMReX submodul
 
 **Submodule Management**
 
-AMReX, EKAT, NOAH-MP, and RTE-RRTMGP are available as submodules in the ERF repository. SHOC requires additional setup steps (see :ref:`sec:build:systems`). Kokkos is accessed as a submodule within EKAT (currently Kokkos 5.1, which requires C++20).
+AMReX, EKAT, NOAH-MP, and RTE-RRTMGP are available as submodules in the ERF repository. Kokkos is accessed as a submodule within EKAT (currently Kokkos 5.1, which requires C++20).
 
 **Dependency Relationships**
 
@@ -39,7 +40,6 @@ Physics packages have specific dependency requirements:
 
        // Physics packages
        RRTMGP [label="RRTMGP\n(Radiation)", fillcolor=lightcoral];
-       SHOC [label="SHOC\n(Turbulence)", fillcolor=lightcoral];
 
        // Dependencies
        NetCDF [fillcolor=lightblue];
@@ -52,13 +52,10 @@ Physics packages have specific dependency requirements:
        RRTMGP -> Kokkos [label="auto-enabled"];
        RRTMGP -> MPI [label="required*"];
 
-       SHOC -> Kokkos [label="auto-enabled"];
-       SHOC -> MPI [label="required*"];
-
        NetCDF -> HDF5 [style=dashed, label="parallel I/O"];
 
        // Layout
-       {rank=same; RRTMGP SHOC}
+       {rank=same; RRTMGP}
        {rank=same; NetCDF Kokkos MPI}
        {rank=min; HDF5}
    }
@@ -66,7 +63,7 @@ Physics packages have specific dependency requirements:
 .. note::
    MPI is required by EKAT (which provides Kokkos). CMake enforces this; GNU Make assumes it's set.
 
-Enabling RRTMGP or SHOC automatically enables EKAT, which provides the Kokkos performance portability framework. The build system enforces these prerequisites:
+Enabling RRTMGP automatically enables EKAT, which provides the Kokkos performance portability framework. The build system enforces these prerequisites:
 
 * EKAT requires MPI to be enabled
 * RRTMGP requires both NetCDF and MPI to be enabled

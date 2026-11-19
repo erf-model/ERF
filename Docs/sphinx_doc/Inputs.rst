@@ -262,8 +262,11 @@ List of Parameters
 |                             | (per-level).  See :ref:`sec:InflowTurbulenceGeneration`  | Direct, CPM, CPM_W |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.density**          | density imposed at a ``slipwall`` or ``noslipwall``      | Real > 0           | not set          |
-|                             | face; may not be combined with ``<face>.density_grad``,  |                    |                  |
-|                             | and is rejected for anelastic runs                       |                    |                  |
+|                             | face, where it may not be combined with                  |                    |                  |
+|                             | ``<face>.density_grad``; or the inflow density of an     |                    |                  |
+|                             | ``inflow`` or ``inflow_outflow`` face (see               |                    |                  |
+|                             | :ref:`sec:LateralBoundaryConditions`).  Rejected on      |                    |                  |
+|                             | every face in anelastic and pseudo-incompressible runs   |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **<face>.density_grad**     | Neumann gradient of density imposed at a ``slipwall`` or | Real               | 0.0              |
 |                             | ``noslipwall`` face; may not be combined with            |                    |                  |
@@ -616,8 +619,9 @@ List of Parameters
 | **erf.<indicator>.value_less**                   | tag cells where the field falls below this value, one    | List of Reals      | None                 |
 |                                                  | value per level                                          |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
-| **erf.<indicator>.adjacent_difference_greater**  | tag cells where the difference between adjacent values   | List of Reals      | None                 |
-|                                                  | exceeds this, one value per level                        |                    |                      |
+| **erf.<indicator>.adjacent_difference_greater**  | tag cells where the largest difference from the six face | List of Reals      | None                 |
+|                                                  | neighbors is at least this, one value per level; which   |                    |                      |
+|                                                  | neighbors count is described in :ref:`MeshRefinement`    |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.<indicator>.conditions**                   | names of several conditions the indicator tests          | List of Strings    | None                 |
 |                                                  | together; each is given by **field_name** and one of the |                    |                      |
@@ -2716,12 +2720,12 @@ List of Parameters
 | **erf.pbl_type**                         | Name of PBL Scheme to be used                            | "None", "MYNN25",  | "None"           |
 |                                          |                                                          | "MYNNEDMF", "MYJ", |                  |
 |                                          |                                                          | "YSU", "MRF",      |                  |
-|                                          |                                                          | "NATIVE_SHOC",     |                  |
-|                                          |                                                          | "EAMXX_SHOC";      |                  |
-|                                          |                                                          | legacy "SHOC" is   |                  |
-|                                          |                                                          | deprecated and     |                  |
-|                                          |                                                          | maps to            |                  |
-|                                          |                                                          | "EAMXX_SHOC";      |                  |
+|                                          |                                                          | "NATIVE_SHOC";     |                  |
+|                                          |                                                          | "SHOC" selects     |                  |
+|                                          |                                                          | "NATIVE_SHOC" with |                  |
+|                                          |                                                          | a warning;         |                  |
+|                                          |                                                          | "EAMXX_SHOC" is no |                  |
+|                                          |                                                          | longer accepted;   |                  |
 |                                          |                                                          | legacy "YSUNew" is |                  |
 |                                          |                                                          | deprecated and     |                  |
 |                                          |                                                          | maps to "YSU"      |                  |
@@ -3250,6 +3254,8 @@ coordinate at which its sponge ends or starts.
 | **erf.sponge_z_velocity**       | target z-velocity in the sponge zone                     | Real               | 0.0              |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 
+.. _inputs-nudging:
+
 Nudging from Input Soundings
 ----------------------------
 
@@ -3284,20 +3290,34 @@ Nudging from Input Soundings
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.nudging_q_z2**                 | height above which moisture is not nudged                | Real [m]           | 10000.0          |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.input_sounding_time**          | Time(s) of the input sounding file(s)                    | Real(s)            | 0.0              |
+| **erf.input_sounding_time**          | Time(s) of the input sounding file(s), one per file, in  | Real(s)            | 0.0              |
+|                                      | strictly increasing order                                |                    |                  |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.tau_nudging**                  | Time scale for nudging                                   | Real               | 5.0              |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 ``erf.input_sounding_file`` is documented under :ref:`Initialization <inputs-initialization>`;
-more than one file may be named there, paired with ``erf.input_sounding_time``.
+more than one file may be named there, paired with ``erf.input_sounding_time``.  In a run that
+reads the soundings (``erf.init_type = Input_Sounding``) the two lists must have the same length,
+and the times must increase strictly.
 
 If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
 file is available.  If there is only one, and no specification of time is made, it is assumed that
 the one file corresponds to time = 0.0.   If the final time supplied in
-``input_*_sounding_*_time``  is less than the final time in the calculation, the final sounding supplied
-in ``input_*_sounding_*_file`` will be used for all times later than the final value in
-in ``input_*_sounding_*_time``.
+``erf.input_sounding_time`` is less than the final time in the calculation, the final sounding supplied
+in ``erf.input_sounding_file`` will be used for all times later than the final value
+in ``erf.input_sounding_time``.
+
+With more than one sounding, only the first one sets the base state, the initial state and the
+surface temperature and moisture of a surface layer; the later ones are used only as nudging
+targets.  The base state does not change in time, so every sounding must have the surface pressure
+(the first value of its first line) of the first one, and the run stops if it does not.  The
+surface theta and moisture may differ between soundings: they are the bottom point of each
+sounding's profiles, and so shape its nudging target near the ground.  ``erf.most.pot_surf_temp``
+and ``erf.most.surf_moist``, if given, must match the first sounding only.  The surface layer
+does not follow the later soundings: its surface temperature and moisture stay at the first
+sounding's values, unless another source (such as an SST or skin temperature, or a land model)
+sets them.
 
 Every level samples the input sounding at its own cell centers, for the initial state and base
 state and for nudging, just as a single-level run at that resolution does; the large-scale forcing
@@ -3812,7 +3832,8 @@ Notes
   reading.  If ``density`` is read too, its planes are used; otherwise (for example when the writer
   did not list ``density``) the constant ``<face>.density`` of each inflow face (``xlo.density``
   and so on) is used, and ERF stops if it is not given.  That constant is used at every height, so
-  it suits a face over which density varies little; otherwise write and read ``density``.
+  it suits a face over which density varies little; otherwise write and read ``density``.  An
+  anelastic run cannot give ``<face>.density``, so there these planes need ``density`` too.
   ``temperature`` planes always need ``density``, since theta is recovered from temperature
   through the pressure; without it ERF stops.  Planes of ``velocity`` alone need no density.
   None of this applies with ``erf.use_real_bcs``, where the planes are used as they are read.
@@ -3936,7 +3957,9 @@ List of Parameters
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.input_sounding_file**       | Path to the WRF-style input sounding file.  When nudging | String(s)                    | "input_sounding"   |
 |                                   | from input soundings, more than one file may be named,   |                              |                    |
-|                                   | paired with ``erf.input_sounding_time``                  |                              |                    |
+|                                   | paired with ``erf.input_sounding_time``; the first one   |                              |                    |
+|                                   | sets the initial and base states (see                    |                              |                    |
+|                                   | :ref:`inputs-nudging`)                                   |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.sounding_type**             | how the profiles in an input sounding file are           | ConstantDensity, Ideal,      | Ideal              |
 |                                   | interpreted; read only when ``init_type`` =              | Isentropic, DryIsentropic    |                    |
@@ -5294,7 +5317,8 @@ execution restrictions.
      - Constant spectrum entering through an ``Inflow`` or ``inflow_outflow``
        face, one value per component per kilogram of dry air, in the order of
        ``erf.sbm_fixture_initial_state``. Required on every such face and
-       rejected on any other; ``<face>.density`` must also be given.
+       rejected on any other; ``<face>.density`` must also be given, except in
+       anelastic and pseudo-incompressible runs, where it must be omitted.
      - One value per spectral component
      - None
 
@@ -6142,22 +6166,18 @@ atmospheric cell), ``start_datetime`` and the
 SHOC
 ======================
 
-ERF provides two SHOC implementations. Select the ERF-native implementation with
-``erf.pbl_type = NATIVE_SHOC``. Select the optional EAMxx implementation with
-``erf.pbl_type = EAMXX_SHOC``. The legacy value ``SHOC`` is deprecated and is
-interpreted as ``EAMXX_SHOC``; it does not select native SHOC.
+ERF provides a native SHOC implementation, selected with
+``erf.pbl_type = NATIVE_SHOC``. The value ``SHOC`` is also accepted and selects
+native SHOC, with a warning that its meaning has changed: it used to select the
+EAMxx SHOC interface. That interface has been removed, and
+``erf.pbl_type = EAMXX_SHOC`` now stops the run with an error.
 
-Both SHOC implementations use the ``erf.shoc`` namespace for closure tuning.
-Native SHOC also has transport and native-only numerical controls. EAMxx SHOC
-has a small number of interface-only controls. See :ref:`SHOC` for the model
-description, coupling restrictions, transport behavior, and diagnostic output.
+SHOC uses the ``erf.shoc`` namespace for closure tuning, transport, and
+numerical controls. See :ref:`SHOC` for the model description, coupling
+restrictions, transport behavior, and diagnostic output.
 
-Shared SHOC closure inputs
---------------------------
-
-The following option names are read by both native SHOC and EAMxx SHOC. The two
-implementations are separate code paths, so identical input values do not imply
-bit-for-bit identical calculations.
+SHOC closure inputs
+-------------------
 
 .. list-table::
    :header-rows: 1
@@ -6356,34 +6376,12 @@ parsed internally but do not currently alter Native SHOC.
 Each threshold is validated on read, and a non-positive value aborts the run
 with a message naming the input.
 
-EAMxx SHOC interface inputs
----------------------------
-
-The following controls have a verified runtime effect in the optional
-``EAMXX_SHOC`` interface and are not native-SHOC controls.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 36 52 18 12
-
-   * - Parameter
-     - Definition
-     - Acceptable Values
-     - Default
-   * - **erf.shoc.apply_tms**
-     - Apply the turbulent mountain stress contribution in the EAMxx SHOC interface.
-       Not supported: it needs a subgrid-orography drag coefficient, which ERF does
-       not provide, so ``true`` aborts. Native SHOC reads it but does not use it.
-     - false
-     - false
-   * - **erf.shoc.check_flux_state**
-     - Run the EAMxx SHOC interface flux/state consistency check
-     - true / false
-     - false
-
 Only options documented above are part of the supported SHOC user-facing
 runtime contract. Some historical or development ``erf.shoc`` keys may still
 be parsed internally but are intentionally not documented as active features.
+The EAMxx-only inputs ``erf.shoc.apply_tms`` and ``erf.shoc.check_flux_state``
+were removed with the EAMxx SHOC interface; ERF stops if an inputs file sets
+either one.
 
 Minimal native SHOC setup
 -------------------------
@@ -6403,23 +6401,6 @@ The native transport defaults are:
    erf.shoc.momentum_transport = state_update
 
 These two transport lines may be omitted when the defaults are desired.
-
-Minimal EAMxx SHOC setup
-------------------------
-
-The EAMxx SHOC path requires an executable built with the CMake option
-``ERF_ENABLE_EAMXX_SHOC=ON``. For example:
-
-.. code-block:: bash
-
-   cmake -DERF_ENABLE_EAMXX_SHOC=ON ...
-
-The corresponding runtime selection is:
-
-.. code-block:: text
-
-   zlo.type = "surface_layer"
-   erf.pbl_type = EAMXX_SHOC
 
 .. _inputs-runtime-error-checking:
 

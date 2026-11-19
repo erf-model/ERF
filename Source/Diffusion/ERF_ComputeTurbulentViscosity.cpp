@@ -1054,7 +1054,7 @@ void ComputeTurbulentViscosity (double dt,
         // NOTE: Nothing to do here. The SHOC class handles setting the vertical
         //       components of eddyDiffs in slow RHS pre.
     } else if (turbChoice.pbl_type != PBLType::None) {
-        // YSUNew and SHOC are input names only, mapped to YSU and EAMXX_SHOC when read
+        // YSUNew, SHOC and EAMXX_SHOC are input names only, resolved when read (ERF_TurbStruct.H)
         Abort("ComputeTurbulentViscosity: no PBL diffusivity for erf.pbl_type = " +
               std::string(amrex::getEnumNameString(turbChoice.pbl_type)));
     }

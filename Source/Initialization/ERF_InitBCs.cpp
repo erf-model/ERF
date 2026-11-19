@@ -75,6 +75,19 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
 
         std::string bc_type = amrex::toLower(bc_type_in);
 
+        // An anelastic or pseudo-incompressible run sets the inflow density itself (the base
+        // state when anelastic; (rho theta)_interior / theta_in on a pseudo-incompressible face
+        // that gives theta, see init_bcs), so no face may prescribe it (solid walls report this
+        // themselves, with density_grad)
+        for (int n = 0; n < NBCVAR_max; ++n) { m_bc_prim_given[n][ori] = 0; }
+        if (anelastic && bc_type != "slipwall" && bc_type != "noslipwall" && pp.contains("density")) {
+            Abort(pp_text + ".density must be omitted in anelastic and pseudo-incompressible runs: "
+                  "ERF sets the inflow density -- the base state in an anelastic run, and in a "
+                  "pseudo-incompressible one the density that keeps rho*theta at rho0*theta0 with "
+                  "the face's theta.  The face's theta, scalar, qv, qc and KE are made conserved "
+                  "with it.");
+        }
+
         auto apply_wall_scalar = [this,ori] (int comp,
                                              const erf_wall_scalar_bc::ParsedWallScalarBC& parsed)
         {
@@ -115,6 +128,10 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
 
         else if (bc_type == "inflow" || bc_type == "inflow_outflow")
         {
+            // impose_vertical_cons_bcs and the z-velocity fill have no ext_dir_upwind branch
+            if (bc_type == "inflow_outflow" && ori.coordDir() == 2) {
+                Abort(pp_text + ".type = inflow_outflow is supported on x and y faces only");
+            }
             if (bc_type == "inflow") {
                 // Print() << bcid << " set to inflow.\n";
                   phys_bc_type[ori] = ERF_BC::inflow;
@@ -157,6 +174,19 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             Real rho_in = zero_d;
             if (input_bndry_planes && m_r2d->ingested_density()) {
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero_d;
+            } else if (anelastic) {
+                // The ghost density is the interior one (no <face>.density,
+                // see above); the face's primitive values are made conserved with it
+                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero_d;
+                if (input_bndry_planes && bc_type == "inflow" && ori.coordDir() < 2 &&
+                    (m_r2d->ingested_theta() || m_r2d->ingested_scalar() || m_r2d->ingested_q1() ||
+                     m_r2d->ingested_q2()    || m_r2d->ingested_KE()) )
+                {
+                    Abort("erf.bndry_input_var_names reads a scalar (theta, scalar, qv, qc or ke) "
+                          "but not density in an anelastic run, where " + pp_text + ".density "
+                          "cannot be given: add density to erf.bndry_input_var_names (and to the "
+                          "writer's erf.bndry_output_var_names)");
+                }
             } else {
                 // Negative sentinel rather than the queryAdd return value: a density is
                 // always positive -- the "rho_in > 0" test just below already reads
@@ -184,16 +214,37 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
             }
 
+            // A value given on this face: conserved with <face>.density when compressible;
+            // primitive when anelastic, made conserved with the interior
+            // density as the ghost cells are filled (ext_dir_prim, or ext_dir_upwind with
+            // Rho not prescribed)
+            auto set_inflow_value = [&] (int bccomp, Real value) {
+                if (anelastic) {
+                    m_bc_extdir_vals[bccomp][ori] = value;
+                    m_bc_prim_given[bccomp][ori]  = 1;
+                } else {
+                    m_bc_extdir_vals[bccomp][ori] = rho_in*value;
+                }
+            };
+
             // this face's own theta comes from a file only if this face read one with theta
             bool th_read  = (m_th_file_face[ori] != 0);
             Real theta_in = zero_d;
             if (input_bndry_planes && m_r2d->ingested_theta()) {
                 m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = zero_d;
             } else if (!th_read) {
-                if (rho_in > 0) {
-                    pp.get("theta", theta_in);
+                if (anelastic) {
+                    // optional: without it theta is extrapolated from the interior
+                    m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = zero_d;
+                    if (pp.query("theta", theta_in)) {
+                        set_inflow_value(BCVars::RhoTheta_bc_comp, theta_in);
+                    }
+                } else {
+                    if (rho_in > 0) {
+                        pp.get("theta", theta_in);
+                    }
+                    set_inflow_value(BCVars::RhoTheta_bc_comp, theta_in);
                 }
-                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = rho_in*theta_in;
             }
 
             // Non-reflecting inflow: prescribe velocity and density but
@@ -208,8 +259,9 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             if (input_bndry_planes && m_r2d->ingested_scalar()) {
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = zero_d;
             } else {
-                if (pp.query("scalar", scalar_in))
-                m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
+                if (pp.query("scalar", scalar_in)) {
+                    set_inflow_value(BCVars::RhoScalar_bc_comp, scalar_in);
+                }
             }
 
             if (solverChoice.moisture_type != MoistureType::None) {
@@ -222,7 +274,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                     // the key existed before this call (init_bcs() runs twice on restart).
                     pp.queryAdd("qv", qv_in);
                     if (qv_in >= zero_d) {
-                        m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
+                        set_inflow_value(BCVars::RhoQ1_bc_comp, qv_in);
                     }
                 }
                 Real qc_in = Real(-1.0);
@@ -234,7 +286,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                     // the key existed before this call (init_bcs() runs twice on restart).
                     pp.queryAdd("qc", qc_in);
                     if (qc_in >= zero_d) {
-                        m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
+                        set_inflow_value(BCVars::RhoQ2_bc_comp, qc_in);
                     }
                 }
             }
@@ -249,7 +301,23 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                 // restart).
                 pp.queryAdd("KE", KE_in);
                 if (KE_in >= zero_d) {
-                    m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
+                    set_inflow_value(BCVars::RhoKE_bc_comp, KE_in);
+                }
+            }
+
+            // An anelastic face that gives any of these values brings in zero of every other
+            // component it does not give, as a compressible face with <face>.density does;
+            // a face that gives none takes them all from the interior.  Theta is never set to
+            // zero: when it is not given it is extrapolated from the interior
+            if (anelastic) {
+                bool any_given = false;
+                for (int n = BCVars::RhoTheta_bc_comp; n < NBCVAR_max; ++n) {
+                    any_given = any_given || (m_bc_prim_given[n][ori] != 0);
+                }
+                if (any_given) {
+                    for (int n = BCVars::RhoKE_bc_comp; n < NBCVAR_max; ++n) {
+                        if (m_bc_prim_given[n][ori] == 0) { set_inflow_value(n, zero_d); }
+                    }
                 }
             }
         }
@@ -700,7 +768,7 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
-                        if ((BCVars::cons_bc+i == RhoTheta_comp) && (m_th_file_face[ori] != 0))
+                        if ((BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp) && (m_th_file_face[ori] != 0))
                         {
                             if (m_th_file_face[ori] == 2) domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
                         }
@@ -714,6 +782,10 @@ void ERF::init_bcs ()
                         {
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
                         }
+                        else if (m_bc_prim_given[BCVars::cons_bc+i][ori]) {
+                            // anelastic: the given primitive value times the interior density
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
+                        }
                         else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                         }
@@ -726,7 +798,7 @@ void ERF::init_bcs ()
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
-                        if ((BCVars::cons_bc+i == RhoTheta_comp) && (m_th_file_face[ori] != 0))
+                        if ((BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp) && (m_th_file_face[ori] != 0))
                         {
                             if (m_th_file_face[ori] == 2) domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_prim);
                         }
@@ -740,6 +812,10 @@ void ERF::init_bcs ()
                            ) )
                         {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
+                        }
+                        else if (m_bc_prim_given[BCVars::cons_bc+i][ori]) {
+                            // anelastic: the given primitive value times the interior density
+                            domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_prim);
                         }
                         else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
@@ -756,14 +832,16 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_upwind);
-                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
+                        const bool th_file = (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp) && (m_th_file_face[ori] != 0);
+                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0 && !m_bc_prim_given[BCVars::cons_bc+i][ori] && !th_file) {
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                         }
                     }
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_upwind);
-                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
+                        const bool th_file = (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp) && (m_th_file_face[ori] != 0);
+                        if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0 && !m_bc_prim_given[BCVars::cons_bc+i][ori] && !th_file) {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                         }
                     }
@@ -815,6 +893,20 @@ void ERF::init_bcs ()
         };
         if (prof.has_theta) { prescribe(BCVars::RhoTheta_bc_comp); }
         if (prof.has_tke)   { prescribe(BCVars::RhoKE_bc_comp); }
+    }
+
+    // A pseudo-incompressible inflow face with a given theta prescribes its ghost density too:
+    // rho = (rho theta)_interior / theta_in, which keeps rho theta at rho0 theta0 there
+    // (impose_lateral_cons_bcs; on a level that is not pseudo-incompressible the ghost keeps the
+    // interior density).  Typing Rho ext_dir makes the momentum on the inflow face and the
+    // boundary-flux constraint use that ghost density, as they do with <face>.density (#5265)
+    for (OrientationIter oit; oit; ++oit) {
+        const Orientation ori = oit();
+        const int pi_face = pi_theta_inflow_face(ori);
+        if (pi_face == 0) { continue; }
+        const int t = (pi_face == 1) ? ERFBCType::ext_dir : ERFBCType::ext_dir_upwind;
+        if (ori.isLow()) { domain_bcs_type[BCVars::Rho_bc_comp].setLo(ori.coordDir(), t); }
+        else             { domain_bcs_type[BCVars::Rho_bc_comp].setHi(ori.coordDir(), t); }
     }
 
     // Sanity check that implicit diffusion is consistent with the BC types.
@@ -1159,4 +1251,30 @@ ERF::init_inflow_profile (const std::string& bcid, Orientation ori,
                     "to start it the same way");
         }
     }
+}
+
+/**
+ * Whether a face is a lateral inflow face of a run with a pseudo-incompressible level that
+ * gives a primitive theta (<face>.theta, or a theta dirichlet_file read as primitive) and no
+ * inflow profile.  Its ghost density is then (rho theta)_interior / theta_in on the
+ * pseudo-incompressible levels.
+ *
+ * @param[in] ori face
+ * @return 0 if not, 1 for an inflow face, 2 for an inflow_outflow face
+ */
+int
+ERF::pi_theta_inflow_face (const Orientation& ori) const
+{
+    bool any_pi = false;
+    for (int lev = 0; lev <= max_level; ++lev) {
+        any_pi = any_pi || (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
+    }
+    if (!any_pi || ori.coordDir() == 2 || m_inflow_profiles[ori].active) { return 0; }
+    const bool inflow  = (phys_bc_type[ori] == ERF_BC::inflow);
+    const bool inf_out = (phys_bc_type[ori] == ERF_BC::inflow_outflow);
+    if (!inflow && !inf_out) { return 0; }
+    const bool theta_key  = (m_bc_prim_given[BCVars::RhoTheta_bc_comp][ori] != 0);
+    const bool theta_file = (m_th_file_face[ori] == 2);
+    if (!theta_key && !theta_file) { return 0; }
+    return inflow ? 1 : 2;
 }

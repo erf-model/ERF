@@ -3,12 +3,16 @@
 
 Usage: check_tagging_conditions.py <fields plotfile> <grids plotfile>
            --cond FIELD OP VALUE [--cond ...] [--combine and|or]
-           [--box XLO XHI YLO YHI [ZLO ZHI]] [--ref-ratio R]
+           [--box XLO XHI YLO YHI [ZLO ZHI]] [--periodic PX PY PZ] [--ref-ratio R]
 
 The expected tags are recomputed here from the level 0 fields of the first plotfile: a cell
-passes a condition when FIELD >= VALUE (OP ge, value_greater) or FIELD <= VALUE (OP le,
-value_less), and the criterion when it passes all the conditions (combine and) or any one of
-them (or). With --box it must also have its center inside the box, bounds included, with z
+passes a condition when FIELD >= VALUE (OP ge, value_greater), FIELD <= VALUE (OP le,
+value_less), or when the largest difference of FIELD from its six face neighbors is >= VALUE
+(OP adj, adjacent_difference_greater), and the criterion when it passes all the conditions
+(combine and) or any one of them (or).  For adj, a neighbor across a face periodic in the
+directions --periodic marks with 1 is the periodic image, and a cell has no neighbor across a
+non-periodic domain face; that is what ERF does for a field computed only on the cells of the
+level, and for a field whose boundary ghost cells repeat the cell next to them. With --box it must also have its center inside the box, bounds included, with z
 the height of the center above the flat bottom of the domain. The tagged run is the second
 plotfile, written with amr.n_error_buf = 0, a coarse blocking factor of 1 and
 amr.grid_eff = 1, so its level 1 grids, coarsened by R, are the tagged cells.
@@ -59,23 +63,39 @@ def main(argv):
                     metavar=("FIELD", "OP", "VALUE"))
     ap.add_argument("--combine", choices=["and", "or"], default="and")
     ap.add_argument("--box", nargs="+", type=float, default=None)
+    ap.add_argument("--periodic", nargs=3, type=int, default=[0, 0, 0], metavar=("PX", "PY", "PZ"))
     ap.add_argument("--ref-ratio", type=int, default=2)
     a = ap.parse_args(argv)
 
     if a.box is not None and len(a.box) not in (4, 6):
         sys.exit("--box takes XLO XHI YLO YHI [ZLO ZHI]")
     for _, op, _ in a.cond:
-        if op not in ("ge", "le"):
-            sys.exit("condition operator must be ge or le, not %s" % op)
+        if op not in ("ge", "le", "adj"):
+            sys.exit("condition operator must be ge, le or adj, not %s" % op)
 
     fields = sorted({c[0] for c in a.cond})
     hdr, data = erf_plotfile.read_fields(a.plt_fields, fields)
     lo, hi, dx, prob_lo = hdr["lo"], hdr["hi"], hdr["dx"], hdr["prob_lo"]
     n = [hi[d] - lo[d] + 1 for d in range(3)]
 
+    def neighbors(i, j, k):
+        for d in range(3):
+            for s in (-1, 1):
+                idx = [i, j, k]
+                idx[d] += s
+                if not 0 <= idx[d] < n[d]:
+                    if not a.periodic[d]:
+                        continue
+                    idx[d] %= n[d]
+                yield idx
+
     def passes(cond, i, j, k):
         field, op, value = cond
-        v = data[field][i][j][k]
+        f = data[field]
+        v = f[i][j][k]
+        if op == "adj":
+            d = max((abs(f[p][q][r] - v) for p, q, r in neighbors(i, j, k)), default=0.0)
+            return d >= float(value)
         return v >= float(value) if op == "ge" else v <= float(value)
 
     def in_box(i, j, k):
