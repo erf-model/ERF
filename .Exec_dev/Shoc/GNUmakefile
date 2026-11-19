@@ -22,8 +22,6 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-USE_EAMXX_SHOC  = FALSE
-
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

@@ -159,21 +159,11 @@ option(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS "Enable ML UPHYS diagnostics in SDM" OFF)
 if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS AND NOT ERF_ENABLE_PARTICLES)
   message(FATAL_ERROR "ERF_ENABLE_ML_UPHYS_DIAGNOSTICS requires particles be enabled")
 endif()
-option(ERF_ENABLE_EAMXX_SHOC "Build EAMxx SHOC parameterization" OFF)
-option(ERF_ENABLE_SHOC "Deprecated alias for ERF_ENABLE_EAMXX_SHOC" OFF)
-if(ERF_ENABLE_SHOC AND NOT ERF_ENABLE_EAMXX_SHOC)
-  message(WARNING "ERF_ENABLE_SHOC is deprecated; use ERF_ENABLE_EAMXX_SHOC=ON")
-  set(ERF_ENABLE_EAMXX_SHOC ON CACHE BOOL "Build EAMxx SHOC parameterization" FORCE)
-  set(ERF_ENABLE_EAMXX_SHOC ON)   # also over a normal variable a parent project set (CMP0126 NEW)
-endif()
-
-# The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so
-# scream::Real is double and the EAMxx ETI files we compile only instantiate the SHOC templates
-# for double.  ERF instantiates them with amrex::Real, so a SINGLE precision build would ask for
-# Functions<float,...> and fail to link.  Refuse the combination here rather than at link time.
-if(ERF_ENABLE_EAMXX_SHOC AND NOT ERF_PRECISION STREQUAL "DOUBLE")
-  message(FATAL_ERROR "ERF_ENABLE_EAMXX_SHOC requires ERF_PRECISION=DOUBLE because the vendored "
-                      "eamxx_config.h builds EAMxx in double precision")
+# The EAMxx SHOC has been removed; native SHOC (erf.pbl_type = NATIVE_SHOC) is always built
+if(ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_SHOC)
+  message(FATAL_ERROR "ERF_ENABLE_EAMXX_SHOC and ERF_ENABLE_SHOC are no longer available: the "
+                      "EAMxx SHOC has been removed. Native SHOC needs no build option; select it "
+                      "with erf.pbl_type = NATIVE_SHOC.")
 endif()
 
 #Options for performance
@@ -425,7 +415,7 @@ list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 
 ########################## EKAT ##################################
 
-if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC)
+if(ERF_ENABLE_RRTMGP)
   set(ERF_ENABLE_EKAT ON)
 else()
   set(ERF_ENABLE_EKAT OFF)
@@ -712,45 +702,6 @@ if(ERF_ENABLE_RRTMGP)
   print_target_properties(rrtmgp)
 
   message(STATUS "RRTMGP configuration complete")
-  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
-endif()
-
-########################### SHOC #################################
-
-if(ERF_ENABLE_EAMXX_SHOC)
-  list(APPEND CMAKE_MESSAGE_CONTEXT "SHOC")
-
-  message(STATUS "Configuring SHOC")
-
-  if(NOT ERF_ENABLE_EKAT)
-      message(FATAL_ERROR "EKAT must be enabled if SHOC is enabled")
-  endif()
-
-  # NOTE: We compile shoc src files directly
-  message(VERBOSE "SHOC source files will be compiled directly")
-
-  # E3SM Cloned Check
-  message(VERBOSE "Checking EAMxx files from E3SM")
-
-  set(E3SM_EXPECTED_PATH "${PROJECT_SOURCE_DIR}/external/E3SM")
-
-  if(NOT EXISTS "${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
-      message(FATAL_ERROR
-          "E3SM provides eamxx required for SHOC but not found.\n"
-          "\n"
-          "This requires specific EAMxx physics source files from E3SM at commit 2eb52d9.\n"
-          "\n"
-          "Option 1 - Use provided script (recommended):\n"
-          "  ${PROJECT_SOURCE_DIR}/Build/eamxx_clone.sh\n"
-          "\n"
-          "Option 2 - Symlink existing E3SM (not tested, must be at commit 2eb52d9b3d):\n"
-          "  ln -s /path/to/your/E3SM ${PROJECT_SOURCE_DIR}/external/E3SM\n"
-          "\n"
-          "Or disable features:\n"
-          "  cmake -DERF_ENABLE_EAMXX_SHOC=OFF ..\n")
-  endif()
-
-  message(STATUS "SHOC configuration complete")
   list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 

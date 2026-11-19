@@ -54,19 +54,9 @@ zlo.type = "surface_layer"
 erf.pbl_type = NATIVE_SHOC
 ```
 
-ERF also supports the optional EAMxx SHOC interface:
-
-```text
-erf.pbl_type = EAMXX_SHOC
-```
-
-The legacy runtime name:
-
-```text
-erf.pbl_type = SHOC
-```
-
-is a deprecated alias for `EAMXX_SHOC`. It does not select native SHOC.
+`erf.pbl_type = SHOC` also selects native SHOC, with a warning. It used to select the
+EAMxx SHOC interface, which has been removed; `erf.pbl_type = EAMXX_SHOC` and the
+`ERF_ENABLE_EAMXX_SHOC` / `USE_EAMXX_SHOC` build options now stop with an error.
 
 Do not add new build workflows that pretend native SHOC is optional. Native
 SHOC is an in-tree ERF implementation. Runtime selection controls whether it

@@ -500,15 +500,6 @@ ERF::ERF_shared ()
     }
 #endif
 
-#ifdef ERF_USE_EAMXX_SHOC
-    eamxx_shoc_interface.resize(nlevs_max);
-    for (int lev = 0; lev <= max_level; ++lev) {
-        if (solverChoice.turbChoice[lev].uses_eamxx_shoc()) {
-            eamxx_shoc_interface[lev] = std::make_unique<SHOCInterface>(lev, solverChoice);
-        }
-    }
-#endif
-
     native_shoc_driver.resize(nlevs_max);
     for (int lev = 0; lev <= max_level; ++lev) {
         if (solverChoice.turbChoice[lev].uses_native_shoc()) {
