@@ -61,11 +61,10 @@ struct Config : Initialization {
 
     static bool has_bulk_scalar_wall (const erf_wall_thermodynamics::Boundary& walls) noexcept
     {
+        using erf_wall_thermodynamics::ScalarModel;
         for (const auto& wall : walls) {
-            if (wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero ||
-                (wall.vapor.model == erf_wall_thermodynamics::ScalarModel::BulkAero &&
-                 wall.moisture ==
-                     erf_wall_thermodynamics::MoistureMode::WetEquilibrium)) {
+            if ((wall.heat_is_conductive() && wall.heat.model == ScalarModel::BulkAero) ||
+                (wall.vapor_is_wet() && wall.vapor.model == ScalarModel::BulkAero)) {
                 return true;
             }
         }
@@ -75,24 +74,7 @@ struct Config : Initialization {
     bool has_wall_rate_channel () const
     {
         for (const auto& wall : transport_boundary()) {
-            if (wall.momentum.model ==
-                    erf_wall_thermodynamics::MomentumModel::BulkAero ||
-                wall.momentum.model ==
-                    erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog ||
-                wall.heat.model ==
-                    erf_wall_thermodynamics::ScalarModel::BulkAero ||
-                wall.heat.model ==
-                    erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog ||
-                (wall.vapor.model ==
-                     erf_wall_thermodynamics::ScalarModel::BulkAero &&
-                 wall.moisture ==
-                     erf_wall_thermodynamics::MoistureMode::WetEquilibrium) ||
-                (wall.vapor.model ==
-                     erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog &&
-                 wall.moisture ==
-                     erf_wall_thermodynamics::MoistureMode::WetEquilibrium)) {
-                return true;
-            }
+            if (wall.has_wall_rate_channel()) { return true; }
         }
         return false;
     }
@@ -392,6 +374,28 @@ inline std::string face_name (WallFace face)
     return "unknown";
 }
 
+inline bool valid_wall_wetness (amrex::Real rh) noexcept
+{
+    return finite(rh) && rh >= amrex::Real(0.0) && rh <= amrex::Real(1.0);
+}
+
+inline std::string
+parse_wall_wetness (amrex::ParmParse& pp, const std::string& face,
+                    erf_wall_thermodynamics::FaceWall& wall)
+{
+    if (!pp.contains("wetness")) { return {}; }
+    if (wall.moisture != erf_wall_thermodynamics::MoistureMode::WetEquilibrium) {
+        return "Cloud Chamber: " + face + ".wetness is only valid on physical walls with moisture = wet";
+    }
+    amrex::Real rh;
+    pp.get("wetness", rh);
+    if (!valid_wall_wetness(rh)) {
+        return "Cloud Chamber: " + face + ".wetness must be a finite relative humidity fraction in [0,1]";
+    }
+    wall.wetness = rh;
+    return {};
+}
+
 struct WallTransferContract {
     bool legacy_aggregate_specified = false;
     bool momentum_model_specified = false;
@@ -628,28 +632,66 @@ wall_transfer_contract_error (const WallTransferContract& contract,
     return {};
 }
 
+// Wet-wall saturation needs T_wall independently of sensible heat transfer.
+// A dry adiabatic wall does not need T_wall, even for MOST drag.
 inline std::string
-wall_coupled_most_roughness_error (const WallTransferContract& contract,
-                                   const std::string& face,
-                                   bool wet_wall)
+parse_wall_heat (amrex::ParmParse& pp, const std::string& face, bool physical,
+                 erf_wall_thermodynamics::FaceWall& wall)
 {
-    const bool heat_most = contract.heat_model_specified &&
-        contract.heat_model == "bulk_aero" &&
-        contract.coefficient_source_specified &&
-        contract.coefficient_source == "most";
-    const bool vapor_most = contract.vapor_model_specified &&
-        contract.vapor_model == "bulk_aero" &&
-        contract.coefficient_source_specified &&
-        contract.coefficient_source == "most";
-    if (wet_wall && heat_most && vapor_most &&
-        contract.z0_h != contract.z0_q) {
+    using namespace erf_wall_thermodynamics;
+    if (!physical) {
+        if (pp.contains("heat") || pp.contains("thermal")) {
+            return "Cloud Chamber: " + face + ".heat and its .thermal alias require physical_temperature_rh";
+        }
+        return {};
+    }
+
+    std::string heat = "conductive";
+    const bool explicit_heat = pp.query("heat", heat);
+    heat = amrex::toLower(heat);
+    if (heat != "conductive" && heat != "adiabatic") {
+        return "Cloud Chamber: " + face + ".heat must be conductive or adiabatic";
+    }
+    std::string alias;
+    if (pp.query("thermal", alias)) {
+        alias = amrex::toLower(alias);
+        if (alias == "fixed_temperature") { alias = "conductive"; }
+        else if (alias != "adiabatic") {
+            return "Cloud Chamber: " + face + ".thermal must be fixed_temperature or adiabatic";
+        }
+        if (explicit_heat && heat != alias) {
+            return "Cloud Chamber: conflicting " + face + ".heat and " + face + ".thermal";
+        }
+        heat = alias;
+    }
+
+    const bool conductive = heat == "conductive";
+    ThermalBoundary thermal;
+    thermal.mode = conductive ? ThermalMode::FixedPhysicalTemperature : ThermalMode::Adiabatic;
+    if (pp.query("temperature", thermal.temperature_K)) {
+        if (!finite(thermal.temperature_K) || thermal.temperature_K <= 0) {
+            return "Cloud Chamber: " + face + ".temperature must be finite and positive Kelvin";
+        }
+    } else if (conductive || wall.vapor_is_wet()) {
+        return "Cloud Chamber: missing required physical " + face +
+            ".temperature (needed for conductive heat or wet-wall saturation)";
+    }
+    wall.thermal = thermal;
+    return {};
+}
+
+inline std::string
+wall_coupled_most_roughness_error (const erf_wall_thermodynamics::FaceWall& wall,
+                                   const std::string& face)
+{
+    if (wall.heat_uses_most() && wall.vapor_uses_most() && wall.heat.z0 != wall.vapor.z0) {
         return "Cloud Chamber: " + face +
             " coupled heat/vapor MOST requires z0_h == z0_q because the "
             "prescribed-temperature bulk-Richardson closure uses one scalar "
             "similarity resistance; z0_h=" +
-            std::to_string(static_cast<double>(contract.z0_h)) +
+            std::to_string(static_cast<double>(wall.heat.z0)) +
             ", z0_q=" +
-            std::to_string(static_cast<double>(contract.z0_q));
+            std::to_string(static_cast<double>(wall.vapor.z0));
     }
     return {};
 }
@@ -730,36 +772,25 @@ wall_roughness_geometry_error (
             }
             return {};
         };
-        const bool momentum_neutral =
-            wall.momentum.model ==
-                erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog;
-        const bool heat_neutral =
-            wall.heat.model ==
-                erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog;
-        const bool vapor_neutral =
-            wall.vapor.model ==
-                erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog;
-        const bool any_neutral =
-            momentum_neutral || heat_neutral || vapor_neutral;
-        const bool most_momentum =
-            wall.momentum.model == erf_wall_thermodynamics::MomentumModel::BulkAero &&
-            wall.momentum.provider == erf_wall_thermodynamics::CoefficientProvider::MOST;
-        const bool most_heat =
-            wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero &&
-            wall.heat.provider == erf_wall_thermodynamics::CoefficientProvider::MOST;
-        const bool most_vapor =
-            wall.vapor.model == erf_wall_thermodynamics::ScalarModel::BulkAero &&
-            wall.vapor.provider == erf_wall_thermodynamics::CoefficientProvider::MOST;
+        // An adiabatic face never evaluates its heat resistance. Keep the
+        // existing geometry contract for configured vapor models, even if dry.
+        using namespace erf_wall_thermodynamics;
+        const bool heat_rough = wall.heat_uses_most() ||
+            (wall.heat_is_conductive() && wall.heat.model == ScalarModel::NeutralRoughnessLog);
+        const bool vapor_rough = wall.vapor.model == ScalarModel::NeutralRoughnessLog ||
+            (wall.vapor.model == ScalarModel::BulkAero &&
+             wall.vapor.provider == CoefficientProvider::MOST);
         const auto momentum_error = check(
-            any_neutral || most_momentum || most_heat || most_vapor,
+            wall.momentum.model == MomentumModel::NeutralRoughnessLog ||
+            wall.momentum_uses_most() || heat_rough || vapor_rough,
             "z0_m", wall.momentum.z0_m);
         if (!momentum_error.empty()) { return momentum_error; }
         const auto heat_error = check(
-            heat_neutral || most_heat,
+            heat_rough,
             "z0_h", wall.heat.z0);
         if (!heat_error.empty()) { return heat_error; }
         const auto vapor_error = check(
-            vapor_neutral || most_vapor,
+            vapor_rough,
             "z0_q", wall.vapor.z0);
         if (!vapor_error.empty()) { return vapor_error; }
     }
@@ -1004,10 +1035,10 @@ inline std::string set_wall_transport_speeds (
         return {};
     };
     const auto heat_error = scalar(wall.heat, contract.heat_model,
-        wall.thermal.mode == ThermalMode::FixedPhysicalTemperature, dc.alpha_T, "heat", "alpha_T");
+        wall.heat_is_conductive(), dc.alpha_T, "heat", "alpha_T");
     if (!heat_error.empty()) { return heat_error; }
     return scalar(wall.vapor, contract.vapor_model,
-        wall.moisture == MoistureMode::WetEquilibrium, dc.alpha_C, "vapor", "alpha_C");
+        wall.vapor_is_wet(), dc.alpha_C, "vapor", "alpha_C");
 }
 
 inline Config parse_config (const amrex::Geometry& geom, MoistureType selected_moisture_model,
@@ -1060,13 +1091,6 @@ inline Config parse_config (const amrex::Geometry& geom, MoistureType selected_m
                 pp_face.contains("theta_grad") || pp_face.contains("qv_grad")) {
                 amrex::Error("Cloud Chamber: physical walls cannot combine temperature/moisture with legacy theta/qv wall keys");
             }
-            if (!pp_face.query("temperature", wall.thermal.temperature_K)) {
-                amrex::Error("Cloud Chamber: missing required physical " + face + ".temperature");
-            }
-            require_finite(face + ".temperature", wall.thermal.temperature_K);
-            if (wall.thermal.temperature_K <= amrex::Real(0.0)) {
-                amrex::Error("Cloud Chamber: " + face + ".temperature must be positive Kelvin");
-            }
             std::string moisture;
             pp_face.get("moisture", moisture);
             moisture = amrex::toLower(moisture);
@@ -1080,15 +1104,6 @@ inline Config parse_config (const amrex::Geometry& geom, MoistureType selected_m
             } else {
                 amrex::Error("Cloud Chamber: " + face + ".moisture must be dry or wet");
             }
-            const std::string coupled_most_error =
-                wall_coupled_most_roughness_error(
-                    transfer_contract, face,
-                    wall.moisture ==
-                        erf_wall_thermodynamics::MoistureMode::WetEquilibrium);
-            if (!coupled_most_error.empty()) {
-                amrex::Error(coupled_most_error);
-            }
-            wall.thermal.mode = erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
             if (transfer_contract.momentum_model == "law_of_wall_momentum") {
                 transfer_contract.momentum_model = "neutral_roughness_log";
             }
@@ -1131,9 +1146,6 @@ inline Config parse_config (const amrex::Geometry& geom, MoistureType selected_m
                     erf_wall_thermodynamics::CoefficientProvider::Fixed;
                 wall.vapor.coefficient = transfer_contract.vapor_coefficient;
             }
-            const auto speed_error = set_wall_transport_speeds(
-                wall, transfer_contract, dc, dx_inv[n/2], face);
-            if (!speed_error.empty()) { amrex::Error(speed_error); }
         } else {
             if (!pp_face.query("theta", wall.thermal.temperature_K)) {
                 amrex::Error("Cloud Chamber: missing required " + face + ".theta");
@@ -1146,12 +1158,24 @@ inline Config parse_config (const amrex::Geometry& geom, MoistureType selected_m
                 amrex::Error("Cloud Chamber: legacy cloudy walls require " + face + ".qv");
             }
         }
+        const auto heat_error = parse_wall_heat(pp_face, face, config.physical_initialization, wall);
+        if (!heat_error.empty()) { amrex::Error(heat_error); }
+        const auto coupled_error = wall_coupled_most_roughness_error(wall, face);
+        if (!coupled_error.empty()) { amrex::Error(coupled_error); }
+        if (config.physical_initialization) {
+            // After parse_wall_heat: only conductive heat gets a molecular speed.
+            const auto speed_error = set_wall_transport_speeds(
+                wall, transfer_contract, dc, dx_inv[n/2], face);
+            if (!speed_error.empty()) { amrex::Error(speed_error); }
+        }
         for (int d = 0; d < AMREX_SPACEDIM; ++d) {
             if (pp_face.contains("velocity")) {
                 amrex::Error("Cloud Chamber: wall velocity metadata is not active; use NoSlipWall with zero velocity");
             }
             wall.wall_velocity[d] = amrex::Real(0.0);
         }
+        const auto wetness_error = parse_wall_wetness(pp_face, face, wall);
+        if (!wetness_error.empty()) { amrex::Error(wetness_error); }
     }
     validate_wall_roughness_geometry(walls, geom.CellSizeArray());
     config.m_boundary = walls;
