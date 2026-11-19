@@ -25,7 +25,6 @@ void initialize_kessler (Kessler& kessler,
                          std::unique_ptr<amrex::MultiFab>& detJ_cc)
 {
     kessler.Define(sc);
-    kessler.Set_dzmin(geom.CellSize(2));
     kessler.Init(cons, cons.boxArray(), geom, kDefaultDt, z_phys_nd, detJ_cc);
 }
 
@@ -88,22 +87,13 @@ inline void fill_reference_rain_accum_portable (amrex::MultiFab& rain_accum,
 inline KesslerFaceState reference_column_face_state (const std::array<PrimitiveState, 2>& states,
                                                      const int face_k)
 {
-    KesslerFaceState face_state{amrex::Real(0.0), amrex::Real(0.0)};
-    // Mirror the production sedimentation face split: face-centered rho for the
-    // z-face flux and donor/upwind qp for downward transport.
-    if (face_k == 2) {
-        face_state.rho = states[1].rho;
-        face_state.qp = states[1].qp;
-    } else if (face_k == 0) {
-        face_state.rho = states[0].rho;
-        face_state.qp = states[0].qp;
-    } else {
-        face_state.rho = amrex::Real(0.5) * (states[0].rho + states[1].rho);
-        face_state.qp = states[1].qp;
-    }
-
-    face_state.qp = std::max(amrex::Real(0.0), face_state.qp);
-    return face_state;
+    // The production face state, so this reference cannot drift from it: face-centered rho
+    // for the z-face flux, donor/upwind qp for downward transport, and no rain through the
+    // top face.  (A hand-written copy here used the top cell's qp on the top face.)
+    const int below = (face_k == 0) ? 0 : face_k - 1;
+    const int above = (face_k == 2) ? 1 : face_k;
+    return kessler_face_state(face_k, 1, states[below].rho, states[above].rho,
+                              states[below].qp, states[above].qp);
 }
 
 // Provenance: pow roundoff in terminal velocity, arithmetic over a small fixed
@@ -133,11 +123,11 @@ inline SedimentationColumnState advance_reference_sedimentation_column (
             const amrex::Real terminal_velocity = reference_terminal_velocity(face_state.rho, face_state.qp);
             const amrex::Real donor_rho = result.states[donor_k].rho;
             const amrex::Real donor_qp = std::max(amrex::Real(0.0), result.states[donor_k].qp);
-            // Mirror the production donor-cap limiter, which is separate from the
-            // face-centered flux state.
-            const amrex::Real max_flux = donor_rho * donor_qp / coef;
-            face_fluxes[face_k] = amrex::min(
-                reference_precip_flux(face_state.rho, terminal_velocity, face_state.qp), max_flux);
+            // The production donor-cap limiter, which is separate from the face-centered
+            // flux state.
+            face_fluxes[face_k] = kessler_limit_precip_flux(
+                reference_precip_flux(face_state.rho, terminal_velocity, face_state.qp),
+                donor_rho, donor_qp, amrex::Real(1.0), coef);
         }
 
         result.rain_accum += kessler_rain_accumulation_increment(face_fluxes[0] * substep_dt);
