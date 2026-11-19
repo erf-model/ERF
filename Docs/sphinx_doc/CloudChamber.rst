@@ -367,7 +367,7 @@ initial velocity perturbation.
 Physical wall configuration
 ---------------------------
 
-In physical-temperature mode, every face requires three basic declarations:
+In physical-temperature mode, a default (conductive) face is specified as:
 
 .. code-block:: none
 
@@ -379,6 +379,27 @@ The face prefix is one of ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or
 ``zhi``. Wall temperature must be finite and positive. A wet wall requires a
 supported active moisture model. Cloud Chamber walls are stationary;
 ``<face>.velocity`` is rejected.
+
+``<face>.heat = conductive`` (default) exchanges sensible heat using the
+selected ``heat_transfer_model``. ``<face>.heat = adiabatic`` instead replaces
+the normal heat flux with exactly zero, including any ordinary diffusive
+flux already applied to the adjacent cell. This changes neither tangential
+drag nor the moisture boundary. For example, an insulated wet wall still
+exchanges vapor at its prescribed saturation temperature:
+
+.. code-block:: none
+
+   zlo.type = NoSlipWall
+   zlo.heat = adiabatic
+   zlo.moisture = wet
+   zlo.temperature = 294.0
+
+Wall temperature is required for conductive heat, wet-wall saturation, or
+MOST momentum stability. Only a dry adiabatic face without MOST momentum
+may omit it. Any supplied temperature must still be finite and positive.
+Existing decks may use ``<face>.thermal = adiabatic`` (or
+``fixed_temperature`` for conductive heat). If both keys are present they
+must agree. Neither selector applies in ``legacy_theta_qv`` mode.
 
 ``NoSlipWall`` is the required ERF boundary type for all supported Cloud
 Chamber wall models.  Selecting an aerodynamic momentum model changes the
@@ -496,6 +517,10 @@ With ``coefficient_source = most``, do **not** provide ``C_D``, ``C_H``, or
    requires the corresponding roughness metadata.  The physical dry-wall
    vapor flux nevertheless remains exactly zero.
 
+   The same rule applies to heat-model metadata on an adiabatic face:
+   selected models still require their coefficients or roughness lengths,
+   but the heat law is not evaluated and imposes no wall timestep limit.
+
 Roughness requirements
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -531,7 +556,7 @@ The parser does not clip invalid roughness values.
      - m
      - neutral vapor, or MOST bulk vapor, including a configured dry vapor channel
 
-When wet heat and wet vapor both use MOST on one face, ``z0_h`` and ``z0_q``
+When conductive heat and wet vapor both use MOST on one face, ``z0_h`` and ``z0_q``
 must be exactly equal because the implemented bulk-Richardson fixed point uses
 one scalar stability resistance.  This equality is not imposed by a dry vapor
 channel because dry vapor is not an active scalar-transfer channel.
@@ -556,7 +581,11 @@ The following table summarizes the physical-temperature wall keys.
    * - ``<face>.temperature``
      - none
      - finite, positive K
-     - required on every physical wall
+       - required for conductive heat, wet moisture, or MOST momentum
+    * - ``<face>.heat``
+       - ``conductive``
+       - ``conductive`` or ``adiabatic``
+       - optional; adiabatic suppresses only sensible heat exchange
    * - ``<face>.moisture``
      - none
      - ``dry`` or ``wet``
@@ -712,7 +741,7 @@ in the positive coordinate direction, so
       -J_\mathrm{in}, & \text{high face}.
    \end{cases}
 
-The wall potential temperature is
+For closures that use a prescribed wall temperature, the wall potential temperature is
 
 .. math::
 
@@ -731,6 +760,8 @@ supported transfer model:
    J_{\rho q_c,\mathrm{in}}=0 \quad \text{for every wall}.
 
 A dry wall is therefore not a ``qv_wall = 0`` Dirichlet condition.
+The heat equations below apply to conductive faces; an adiabatic face has
+:math:`J_{\rho\theta,\mathrm{in}}=0` for every transfer model.
 
 Resolved transfer
 ~~~~~~~~~~~~~~~~~
@@ -1003,6 +1034,9 @@ required and validated, but dry vapor does not participate in the active
 scalar stability resistance and its physical wall flux remains exactly zero.
 When a moisture state is present, ambient ``qv`` still enters the virtual
 potential temperature used by any active MOST momentum or heat calculation.
+Similarly, adiabatic heat does not supply the scalar stability resistance:
+wet MOST vapor uses ``z0_q``; momentum-only MOST uses ``z0_m``. Both still
+use the prescribed wall temperature in the bulk Richardson number.
 
 Momentum stress application
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1027,8 +1061,8 @@ For heat or active wet vapor,
 
    \lambda_s = C_s U_t\,\Delta n^{-1}.
 
-Neutral scalars use their derived coefficient.  Dry vapor does not contribute
-because its wall flux is exactly zero.
+Neutral scalars use their derived coefficient. Dry vapor and adiabatic heat
+do not contribute because their wall fluxes are exactly zero.
 
 For a bulk or neutral tangential momentum face, the local conservative
 infinity-row-sum factor is
@@ -1364,7 +1398,8 @@ Run checklist
 #. In ``physical_temperature_rh``, define bottom/top initial temperature and
    add RH when any active supported moisture model is enabled.
 #. For ``physical_temperature_rh``, define all six stationary ``NoSlipWall``
-   faces with physical wall temperature and ``dry`` or ``wet`` moisture state.
+   faces with ``dry`` or ``wet`` moisture state. Supply wall temperature for
+   conductive heat, wet moisture, or MOST momentum.
    Choose the momentum, heat, and vapor model on each face; remember that one
    ``coefficient_source`` is shared by every bulk channel on that face.  Supply
    every required coefficient or roughness length, check ``0 < z0_* <
@@ -1390,7 +1425,7 @@ The implemented Cloud Chamber wall-model scope is intentionally limited to:
 * six stationary ``NoSlipWall`` faces;
 * no periodic direction;
 * no terrain, embedded boundaries, or immersed buildings;
-* prescribed physical wall temperature in the generalized wall-model path;
+* conductive (prescribed-temperature) or adiabatic sensible heat boundaries;
 * resolved, fixed bulk, neutral roughness-log, and horizontal MOST transfer as
   documented above; and
 * forced/shear-dependent bulk transfer with no gustiness or natural/mixed

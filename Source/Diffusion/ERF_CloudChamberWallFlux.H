@@ -116,6 +116,17 @@ static_assert(std::is_standard_layout_v<ScalarFluxReplacement>);
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 bool
+wall_uses_most_heat (const erf_wall_thermodynamics::FaceWall& wall) noexcept
+{
+    using namespace erf_wall_thermodynamics;
+    return wall.thermal.mode == ThermalMode::FixedPhysicalTemperature &&
+        wall.heat.model == ScalarModel::BulkAero &&
+        wall.heat.provider == CoefficientProvider::MOST;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
 wall_uses_most_vapor (const erf_wall_thermodynamics::FaceWall& wall) noexcept
 {
     using namespace erf_wall_thermodynamics;
@@ -132,9 +143,7 @@ wall_uses_most (const erf_wall_thermodynamics::FaceWall& wall) noexcept
     using namespace erf_wall_thermodynamics;
     return (wall.momentum.model == MomentumModel::BulkAero &&
             wall.momentum.provider == CoefficientProvider::MOST) ||
-        (wall.heat.model == ScalarModel::BulkAero &&
-         wall.heat.provider == CoefficientProvider::MOST) ||
-        wall_uses_most_vapor(wall);
+        wall_uses_most_heat(wall) || wall_uses_most_vapor(wall);
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -177,7 +186,7 @@ wall_owns_scalar_channel (
 
     switch (channel) {
     case ScalarChannel::Heat:
-        return wall.thermal.mode == ThermalMode::FixedPhysicalTemperature;
+        return wall.thermal.mode != ThermalMode::LegacyNumerical;
     case ScalarChannel::Vapor:
     case ScalarChannel::CloudWater:
         return wall.moisture != MoistureMode::LegacyNumerical;
@@ -474,9 +483,7 @@ most_wall_coefficients (
     const bool most_momentum =
         wall.momentum.model == MomentumModel::BulkAero &&
         wall.momentum.provider == CoefficientProvider::MOST;
-    const bool most_heat =
-        wall.heat.model == ScalarModel::BulkAero &&
-        wall.heat.provider == CoefficientProvider::MOST;
+    const bool most_heat = wall_uses_most_heat(wall);
     const bool most_vapor = wall_uses_most_vapor(wall);
     if (!(most_momentum || most_heat || most_vapor)) {
         result.valid = 1;
@@ -974,6 +981,8 @@ evaluate_scalar_flux_in (
 
     switch (channel) {
     case ScalarChannel::Heat:
+        // An owned zero replaces ordinary diffusion and removes its RHS contribution.
+        if (wall.thermal.mode == ThermalMode::Adiabatic) { return result; }
         if (sample.U_t == amrex::Real(0.0) &&
             wall.heat.model != ScalarModel::ResolvedMolecular) {
             return result;

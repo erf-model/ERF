@@ -71,7 +71,8 @@ struct Config {
     bool has_bulk_scalar_wall () const noexcept
     {
         for (const auto& wall : walls) {
-            if (wall.wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero ||
+            if ((wall.wall.thermal.mode == erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature &&
+                 wall.wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero) ||
                 (wall.wall.vapor.model == erf_wall_thermodynamics::ScalarModel::BulkAero &&
                  wall.wall.moisture ==
                      erf_wall_thermodynamics::MoistureMode::WetEquilibrium)) {
@@ -88,10 +89,9 @@ struct Config {
                     erf_wall_thermodynamics::MomentumModel::BulkAero ||
                 wall.wall.momentum.model ==
                     erf_wall_thermodynamics::MomentumModel::NeutralRoughnessLog ||
-                wall.wall.heat.model ==
-                    erf_wall_thermodynamics::ScalarModel::BulkAero ||
-                wall.wall.heat.model ==
-                    erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog ||
+                (wall.wall.thermal.mode == erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature &&
+                 (wall.wall.heat.model == erf_wall_thermodynamics::ScalarModel::BulkAero ||
+                  wall.wall.heat.model == erf_wall_thermodynamics::ScalarModel::NeutralRoughnessLog)) ||
                 (wall.wall.vapor.model ==
                      erf_wall_thermodynamics::ScalarModel::BulkAero &&
                  wall.wall.moisture ==
@@ -587,6 +587,55 @@ wall_transfer_contract_error (const WallTransferContract& contract,
     return {};
 }
 
+// Parse after the moisture and momentum selections: either can need T_wall
+// independently of the sensible heat flux. Never reinterpret legacy theta.
+inline std::string
+parse_wall_heat (amrex::ParmParse& pp, const std::string& face, bool physical,
+                 erf_wall_thermodynamics::FaceWall& wall)
+{
+    using namespace erf_wall_thermodynamics;
+    if (!physical) {
+        if (pp.contains("heat") || pp.contains("thermal")) {
+            return "Cloud Chamber: " + face + ".heat and its .thermal alias require physical_temperature_rh";
+        }
+        return {};
+    }
+
+    std::string heat = "conductive";
+    const bool explicit_heat = pp.query("heat", heat);
+    if (heat != "conductive" && heat != "adiabatic") {
+        return "Cloud Chamber: " + face + ".heat must be conductive or adiabatic";
+    }
+    std::string alias;
+    if (pp.query("thermal", alias)) {
+        alias = amrex::toLower(alias);
+        if (alias == "fixed_temperature") { alias = "conductive"; }
+        else if (alias != "adiabatic") {
+            return "Cloud Chamber: " + face + ".thermal must be fixed_temperature or adiabatic";
+        }
+        if (explicit_heat && heat != alias) {
+            return "Cloud Chamber: conflicting " + face + ".heat and " + face + ".thermal";
+        }
+        heat = alias;
+    }
+
+    ThermalBoundary thermal;
+    thermal.mode = heat == "conductive" ? ThermalMode::FixedPhysicalTemperature : ThermalMode::Adiabatic;
+    const bool most_drag = wall.momentum.model == MomentumModel::BulkAero &&
+                           wall.momentum.provider == CoefficientProvider::MOST;
+    if (pp.query("temperature", thermal.temperature_K)) {
+        if (!finite(thermal.temperature_K) || thermal.temperature_K <= 0) {
+            return "Cloud Chamber: " + face + ".temperature must be finite and positive Kelvin";
+        }
+    } else if (thermal.mode == ThermalMode::FixedPhysicalTemperature ||
+               wall.moisture == MoistureMode::WetEquilibrium || most_drag) {
+        return "Cloud Chamber: missing required physical " + face +
+            ".temperature (needed for conductive heat, wet-wall saturation, or MOST momentum)";
+    }
+    wall.thermal = thermal;
+    return {};
+}
+
 inline std::string
 wall_coupled_most_roughness_error (const WallTransferContract& contract,
                                    const std::string& face,
@@ -999,13 +1048,6 @@ inline Config parse_config (const amrex::Real* problo,
                 pp_face.contains("theta_grad") || pp_face.contains("qv_grad")) {
                 amrex::Error("Cloud Chamber: physical walls cannot combine temperature/moisture with legacy theta/qv wall keys");
             }
-            if (!pp_face.query("temperature", wall.wall.thermal.temperature_K)) {
-                amrex::Error("Cloud Chamber: missing required physical " + face + ".temperature");
-            }
-            require_finite(face + ".temperature", wall.wall.thermal.temperature_K);
-            if (wall.wall.thermal.temperature_K <= amrex::Real(0.0)) {
-                amrex::Error("Cloud Chamber: " + face + ".temperature must be positive Kelvin");
-            }
             std::string moisture;
             pp_face.get("moisture", moisture);
             moisture = amrex::toLower(moisture);
@@ -1019,15 +1061,6 @@ inline Config parse_config (const amrex::Real* problo,
             } else {
                 amrex::Error("Cloud Chamber: " + face + ".moisture must be dry or wet");
             }
-            const std::string coupled_most_error =
-                wall_coupled_most_roughness_error(
-                    transfer_contract, face,
-                    wall.wall.moisture ==
-                        erf_wall_thermodynamics::MoistureMode::WetEquilibrium);
-            if (!coupled_most_error.empty()) {
-                amrex::Error(coupled_most_error);
-            }
-            wall.wall.thermal.mode = erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
             if (transfer_contract.momentum_model == "law_of_wall_momentum") {
                 transfer_contract.momentum_model = "neutral_roughness_log";
             }
@@ -1081,6 +1114,13 @@ inline Config parse_config (const amrex::Real* problo,
             if (config.has_moisture && !pp_face.contains("qv")) {
                 amrex::Error("Cloud Chamber: legacy cloudy walls require " + face + ".qv");
             }
+        }
+        const auto heat_error = parse_wall_heat(pp_face, face, config.physical_initialization, wall.wall);
+        if (!heat_error.empty()) { amrex::Error(heat_error); }
+        if (wall.wall.thermal.mode == erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature) {
+            const auto error = wall_coupled_most_roughness_error(transfer_contract, face,
+                wall.wall.moisture == erf_wall_thermodynamics::MoistureMode::WetEquilibrium);
+            if (!error.empty()) { amrex::Error(error); }
         }
         for (int d = 0; d < AMREX_SPACEDIM; ++d) {
             if (pp_face.contains("velocity")) {

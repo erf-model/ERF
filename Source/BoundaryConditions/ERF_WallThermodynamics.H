@@ -12,7 +12,8 @@ namespace erf_wall_thermodynamics {
 // parsing strings and all other host-only state outside this representation.
 enum class ThermalMode : unsigned char {
     LegacyNumerical,
-    FixedPhysicalTemperature
+    FixedPhysicalTemperature,
+    Adiabatic
 };
 
 enum class MoistureMode : unsigned char {
