@@ -34,8 +34,6 @@ struct ShocRuntimeOptions
 
     bool shoc_1p5tke = false;
     bool extra_shoc_diags = false;
-    bool apply_tms = false;
-    bool check_flux_state = false;
     bool column_conservation_check = false;
     bool debug_summary = false;
     bool allow_tendency_microphysics_overlap = false;
@@ -168,8 +166,14 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
     pp.query("top_taper_min_factor", opts.top_taper_min_factor);
     pp.query("shoc_1p5tke", opts.shoc_1p5tke);
     pp.query("extra_shoc_diags", opts.extra_shoc_diags);
-    pp.query("apply_tms", opts.apply_tms);
-    pp.query("check_flux_state", opts.check_flux_state);
+    // apply_tms and check_flux_state were options of the EAMxx SHOC, which has been removed;
+    //    native SHOC never used them, so a deck that still sets them stops here
+    for (const char* key : {"apply_tms", "check_flux_state"}) {
+        if (pp.contains(key)) {
+            amrex::Abort(std::string("erf.shoc.") + key + " is no longer accepted: it was an option "
+                         "of the EAMxx SHOC, which has been removed, and native SHOC does not use it");
+        }
+    }
     pp.query("column_conservation_check", opts.column_conservation_check);
     pp.query("debug_summary", opts.debug_summary);
     pp.query("allow_tendency_microphysics_overlap", opts.allow_tendency_microphysics_overlap);

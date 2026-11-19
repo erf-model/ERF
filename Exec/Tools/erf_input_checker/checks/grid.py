@@ -6,7 +6,7 @@ from typing import List
 from ..checker import Checker, register
 from ..context import DEFAULT_BLOCKING_FACTOR, DEFAULT_MAX_GRID_SIZE, DEFAULT_NO_BOX_SPLIT_DIR
 
-COLUMN_PBL = {"mynn25", "mynnedmf", "myj", "ysu", "ysunew", "mrf", "native_shoc", "eamxx_shoc", "shoc"}
+COLUMN_PBL = {"mynn25", "mynnedmf", "myj", "ysu", "ysunew", "mrf", "native_shoc", "shoc"}
 
 
 def _per_level_per_dim(ck: Checker, base: str, default: int, nlev: int) -> List[List[int]]:

@@ -5,7 +5,7 @@ from ..checker import Checker, register
 FACE_TYPES = {"inflow", "outflow", "inflow_outflow", "open", "ho_outflow", "slipwall",
               "noslipwall", "symmetry", "surface_layer", "most"}
 FACES = ("xlo", "xhi", "ylo", "yhi", "zlo", "zhi")
-COLUMN_PBL = {"mynn25", "mynnedmf", "myj", "ysu", "ysunew", "mrf", "native_shoc", "eamxx_shoc", "shoc"}
+COLUMN_PBL = {"mynn25", "mynnedmf", "myj", "ysu", "ysunew", "mrf", "native_shoc", "shoc"}
 
 
 @register

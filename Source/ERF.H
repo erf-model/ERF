@@ -99,10 +99,6 @@
 
 #include <ERF_RadiationModels.H>
 
-#ifdef ERF_USE_EAMXX_SHOC
-#include "ERF_ShocInterface.H"
-#endif
-
 #include "ERF_ShocDriver.H"
 #include "AuxiliaryState/ERF_AuxiliaryInertTracer.H"
 
@@ -863,22 +859,6 @@ public:
                             amrex::MultiFab& cons_in,
                             const double& dt_advance);
 
-#ifdef ERF_USE_EAMXX_SHOC
-    void compute_shoc_tendencies (int lev,
-                                  amrex::MultiFab* cons,
-                                  amrex::MultiFab* xvel,
-                                  amrex::MultiFab* yvel,
-                                  amrex::MultiFab* zvel,
-                                  amrex::Real* w_subsid,
-                                  amrex::MultiFab* tau13,
-                                  amrex::MultiFab* tau23,
-                                  amrex::MultiFab* hfx3,
-                                  amrex::MultiFab* qfx3,
-                                  amrex::MultiFab* eddyDiffs,
-                                  amrex::MultiFab* z_phys_nd,
-                                  const double& dt_advance);
-#endif
-
     void compute_native_shoc_tendencies (int lev,
                                          amrex::MultiFab* cons,
                                          amrex::MultiFab* xvel,
@@ -1332,6 +1312,10 @@ private:
     void ParameterSanityChecks ();
 
     [[nodiscard]] bool has_surface_layer_inputs (const std::string& prefix) const;
+
+    // 0 unless ori is a lateral inflow (1) or inflow_outflow (2) face that gives a primitive
+    // theta in a run with a pseudo-incompressible level (see set_pi_inflow_faces)
+    [[nodiscard]] int pi_theta_inflow_face (const amrex::Orientation& ori) const;
 
     // Build and fill the custom rhotheta, moisture and subsidence forcing of one level
     void init_custom_forcing (int lev, amrex::Real time);
@@ -1797,10 +1781,6 @@ private:
     // solverChoice.rad_type == RadiationType::TwoStream.
     TwoStreamRadiation two_stream_rad;
     TopographicShading topographic_radiation;
-
-#ifdef ERF_USE_EAMXX_SHOC
-    amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level
-#endif
 
     amrex::Vector<std::unique_ptr<ShocDriver>> native_shoc_driver; // Native SHOC model at each level
 

@@ -6,9 +6,10 @@ stack, Noah-MP and the EAMxx sources as pinned git resources instead of submodul
 clone scripts, so release tarballs can be built. This compares those pins with ERF's tree:
 
   * the @develop pins against the ref given with --ref (default HEAD): the RRTMGP, ekat,
-    Noah-MP and AMReX gitlinks, and the E3SM commit in Build/GNU_Ekat/eamxx_clone.sh;
+    Noah-MP and AMReX gitlinks;
   * each tagged release the recipe offers against that tag, including any AMReX
-    release commit override, for the tags available locally
+    release commit override and, for 26.09 to 26.11 (the releases with the EAMxx SHOC), the
+    E3SM commit in Build/GNU_Ekat/eamxx_clone.sh, for the tags available locally
     (`git fetch --tags` to get them all);
   * EKAT's own pins at each pinned EKAT commit: the extern/* gitlinks, and for a TPL that
     EKAT fetches with FetchContent the GIT_TAG in its cmake/tpls/EkatBuild*.cmake; read from
@@ -222,7 +223,7 @@ def main():
     check("develop AMReX", links.get("Submodules/AMReX"), amrex_develop)
     for path in ("Submodules/RRTMGP", "Submodules/ekat"):
         check(f"develop {path}", links.get(path), develop_stack.get(path))
-    check("develop E3SM (eamxx_clone.sh)", e3sm_commit_at(args.ref, root), e3sm_commit)
+    # develop has no EAMxx SHOC, and so no E3SM pin, since 26.11
 
     # Each release the recipe offers, where the tag is available locally.
     skipped_tags = []
@@ -244,7 +245,7 @@ def main():
                 check(f"{v} {path}", tag_links.get(path), stack_for(v, stacks).get(path))
         if vtuple(v) >= (25, 12):
             check(f"{v} Noah-MP", tag_links.get("Submodules/Noah-MP"), noahmp_pin_for(v, noahmp))
-        if vtuple(v) >= (26, 9):
+        if (26, 9) <= vtuple(v) <= (26, 11):
             check(f"{v} E3SM (eamxx_clone.sh)", e3sm_commit_at(v, root), e3sm_commit)
 
     # EKAT's own pins (submodules or FetchContent tags) at each pinned EKAT commit.
@@ -311,8 +312,6 @@ def main():
             "the GIT_TAG commits in its cmake/tpls/EkatBuild*.cmake at the new EKAT commit) "
             "and rerun."
         )
-    if "develop E3SM (eamxx_clone.sh)" in failures:
-        print("The E3SM commit moved: update _e3sm_commit in package.py and rerun.")
 
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
