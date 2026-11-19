@@ -4,12 +4,7 @@
 Durations cover observed SHA cohorts, not necessarily every required check.
 Runs weekly from metrics.yml or locally with an authenticated gh CLI.
 """
-import argparse
-import collections
-import json
-import statistics
-import subprocess
-import sys
+import argparse, collections, json, statistics, subprocess, sys
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
@@ -20,7 +15,7 @@ BUILD_WORKFLOWS = {"ERF CI", "Linux GCC", "Linux GCC NetCDF RRTMGP", "ERF CI (cu
 
 def gh(path, paginate=True):
     cmd = ["gh", "api"] + (["--paginate"] if paginate else []) + [path]
-    out = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=120).stdout
+    out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
     # --paginate concatenates JSON objects; each has a workflow_runs / jobs list
     items = []
     dec = json.JSONDecoder(); i = 0
@@ -75,10 +70,9 @@ def runs(repo, event, since, until, branch=None):
 
 
 def by_sha(rs):
-    groups = collections.defaultdict(list)
-    for run in rs:
-        groups[run["head_sha"]].append(run)
-    return groups
+    d = collections.defaultdict(list)
+    for r in rs: d[r["head_sha"]].append(r)
+    return d
 
 
 def signal_minutes(group):
@@ -203,14 +197,10 @@ def main():
     out = [f"### Selected CI records for {a.repo}",
            f"Window: {since:%Y-%m-%d %H:%M:%S} to {until:%Y-%m-%d %H:%M:%S} UTC.",
            f"Workflow scope: {', '.join(sorted(BUILD_WORKFLOWS))}.", "",
-           "SHA durations run from the earliest workflow creation to the latest workflow update "
-           "among observed selected workflows with successful or failed outcomes; they do not "
-           "establish full required-check coverage. Cancelled, skipped, and unfinished "
-           "cohorts are excluded. SHA cohorts may include reruns or multiple PRs. Job samples cover "
-           "completed workflow records and their latest attempt only; reruns and unfinished work are "
-           "marked partial. Created-to-start delay can include non-runner waiting, and runner-minutes "
-           "are not monetary cost. Run statuses can change "
-           "during collection.", "",
+           "SHA duration spans selected successful/failed workflows from creation to last update; "
+           "it is not full required-check signal. Other cohorts are excluded; SHAs can span PRs or reruns. "
+           "Job samples use completed latest attempts; partial values omit work. Created-to-start "
+           "can include non-runner waiting; runner-minutes are not monetary cost.", "",
            "| Measure | Value |", "|---|---|"] + [f"| {k} | {v} |" for k, v in rows]
     print("\n".join(out))
     import os

@@ -1,7 +1,5 @@
 name: CI metrics
 
-# Weekly summary of selected workflow records and sampled job times.
-# Incomplete observations are identified; the summary is not a full check status.
 on:
   schedule:
     - cron: '0 7 * * 1'
