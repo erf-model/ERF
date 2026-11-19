@@ -1533,6 +1533,29 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
     const int d_khi_lsm = khi_lsm;
     const int islake = 21;
 
+    // The reference-level forcing lives in the k = 0 plane, a z ghost cell of the SLM grid that
+    // the transfer from the source (InterpFromCoarseLevel, ParallelCopy) does not fill, so it
+    // still holds the zeros of Init.  Copy_State_to_Lsm and set_precip_input mirror it into the
+    // khi plane, which is transferred, so take it back from there: init_slm_vars below starts
+    // the canopy from tref, qref and pref at k = 0, which would otherwise be 0 K on a level made
+    // or remade after the atmosphere was coupled (issue 5163).  Before the atmosphere has been
+    // coupled the khi plane is zero too, and init_from_atmos_pending sets the canopy again later.
+    // This is done first so that the fields saved below for preserve_checkpoint_fields have it.
+    for (const int var : {LsmVar_SLM::tref, LsmVar_SLM::qref, LsmVar_SLM::pref, LsmVar_SLM::dref,
+                          LsmVar_SLM::uref, LsmVar_SLM::vref, LsmVar_SLM::precipref,
+                          LsmVar_SLM::swdsvisxyref, LsmVar_SLM::swdsnirxyref,
+                          LsmVar_SLM::swdsvisdxyref, LsmVar_SLM::swdsnirdxyref,
+                          LsmVar_SLM::lwref, LsmVar_SLM::coszrsxy})
+    {
+        for (MFIter mfi(*lsm_fab_vars[var], TileNoZ()); mfi.isValid(); ++mfi) {
+            const Box box = mfi.tilebox().makeSlab(2, 0);
+            auto ref_arr = lsm_fab_vars[var]->array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                ref_arr(i, j, 0) = ref_arr(i, j, d_khi_lsm);
+            });
+        }
+    }
+
     MultiFab saved_tsurf = lsm_fab_vars[LsmVar_SLM::tsurf]->deepCopy();
     MultiFab saved_soilt = lsm_fab_vars[LsmVar_SLM::soilt]->deepCopy();
     MultiFab saved_soilw = lsm_fab_vars[LsmVar_SLM::soilw]->deepCopy();
