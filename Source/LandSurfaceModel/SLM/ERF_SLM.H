@@ -528,7 +528,9 @@ public:
 
     void init_soil_tw ();
 
-    void init_slm_vars ();
+    // reset_soil_targets: also set the soil nudging targets soilt_obs and soilw_obs to the
+    // current soil state, as at the start of a run
+    void init_slm_vars (bool reset_soil_targets = true);
 
     /**
      * Initializes local SLM fields from WRFInput data.
