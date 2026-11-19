@@ -97,9 +97,6 @@
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], get_eb(level),
                           physbnd_mask[IntVars::cons],
-#ifdef ERF_USE_EAMXX_SHOC
-                          eamxx_shoc_interface[level].get(),
-#endif
                           native_shoc_driver[level].get(),
                           fr_as_crse, fr_as_fine,
                           m_r2d, &base_state[level],

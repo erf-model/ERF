@@ -1254,8 +1254,14 @@ endfunction(add_test_at_rest_terrain_outflow)
 # own density and theta).  PRE_INPUT names a deck in the test folder to run first, in the same
 # folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).  MIN_HI
 # and MAX_LO further require the minimum to be at most MIN_HI and the maximum at least MAX_LO.
+# INPUT names the deck when it is not <TEST_NAME>.i (set TEST_FILES_DIR before the call when
+# the deck lives in another test's directory).
 function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
-    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT;MIN_HI;MAX_LO" "" ${ARGN})
+    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT;MIN_HI;MAX_LO;INPUT" "" ${ARGN})
+    set(_input "${TEST_NAME}.i")
+    if(NOT "${ADD_TEST_FB_INPUT}" STREQUAL "")
+        set(_input "${ADD_TEST_FB_INPUT}")
+    endif()
     setup_test()
     set(_pre_input "")
     if(NOT "${ADD_TEST_FB_PRE_INPUT}" STREQUAL "")
@@ -1268,7 +1274,7 @@ function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${NP}"
         "-DTEST_EXE=${TEST_EXE}"
-        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${_input}"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DFEXTREMA=${FEXTREMA_EXE}"
         "-DPLTFILE=${PLTFILE}"
@@ -1406,6 +1412,32 @@ add_test_shoc_removed_transport(SHOC_Removed_Momentum_Host_Diffusion
     "erf.shoc.momentum_transport = host_diffusion has been removed for native SHOC"
     "state_update"
     "none")
+
+# The EAMxx SHOC has been removed: selecting it, or setting one of its two options, stops at
+# startup with a pointer to native SHOC
+add_test_shoc_removed_transport(SHOC_Removed_EAMxx_PBLType
+    "erf.pbl_type=EAMXX_SHOC"
+    "erf.pbl_type = EAMXX_SHOC is no longer available"
+    "use erf.pbl_type = NATIVE_SHOC"
+    "")
+add_test_shoc_removed_transport(SHOC_Removed_EAMxx_ApplyTms
+    "erf.shoc.apply_tms=true"
+    "erf.shoc.apply_tms is no longer accepted"
+    "native SHOC does not use it"
+    "")
+add_test_shoc_removed_transport(SHOC_Removed_EAMxx_CheckFluxState
+    "erf.shoc.check_flux_state=true"
+    "erf.shoc.check_flux_state is no longer accepted"
+    "native SHOC does not use it"
+    "")
+
+# erf.pbl_type = SHOC used to select the EAMxx SHOC and now selects native SHOC: the two names
+# must give the same answer
+add_test_option_parity(SHOC_LegacyName_Is_NativeShoc SHOC_Stable_Clear "plt00010"
+    COMMON_OPTIONS "erf.input_sounding_file=../input_sounding_stable_clear max_step=10"
+    OFF_OPTIONS "erf.pbl_type=NATIVE_SHOC"
+    ON_OPTIONS  "erf.pbl_type=SHOC")
+set_property(TEST SHOC_LegacyName_Is_NativeShoc APPEND PROPERTY LABELS "shoc")
 
 # Production wiring regression: two dry runs differ only in xlo roughness;
 # the checker requires finite output and a resolvable z0_m response.
@@ -1787,8 +1819,13 @@ add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
 add_test_field_bounds(AnelasticInflowStratified "plt00100" theta 300.99 301.01)
 add_test_field_bounds(AnelasticInflowOutflowStratified "plt00100" theta 300.99 301.01)
 add_test_field_bounds(AnelasticInflowOutflowThetaFile "plt00100" theta 300.99 301.01)
-# A face that gives a scalar but no theta takes theta from the interior
+# A face that gives a scalar but no theta takes theta from the interior, and the scalar it
+# gives fills the domain
 add_test_field_bounds(AnelasticInflowScalarOnly "plt00100" theta 299.99 300.01)
+set(TEST_FILES_DIR "AnelasticInflowScalarOnly")
+add_test_field_bounds(AnelasticInflowScalarOnly_Scalar "plt00100" scalar 1.99 2.01
+                      INPUT AnelasticInflowScalarOnly.i)
+unset(TEST_FILES_DIR)
 # ... and stop on a <face>.density, on scalar planes read without density planes, and on an
 # inflow_outflow z face, which the vertical fills do not handle
 set(_anel_inflow_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticInflowStratified)
@@ -5336,6 +5373,36 @@ add_test_option_parity(InputSounding_FineLevelLSF InputSoundingFineLevels "plt00
     COMMON_OPTIONS "max_step=1 erf.input_sounding_file=../input_sounding_wind"
     OFF_OPTIONS "erf.large_scale_forcing=false"
     ON_OPTIONS  "erf.nudging_from_input_sounding=true erf.large_scale_forcing=true erf.large_scale_forcing_file=../lsf_zero_tendency erf.forcing_timescale=0.5")
+
+# Several soundings (#5152): only the first sets the base state and the initial state.  The
+# second sounding here has another surface theta, so a run given both must start exactly as a
+# run given the first alone; before the fix the hydrostatic integration started from the
+# surface line of the last file.  Ideal integrates from the surface pressure, theta and qv;
+# Isentropic also takes the surface theta as the theta of the whole column.
+set(_two_soundings "'erf.input_sounding_file=../input_sounding_sfc300 ../input_sounding_sfc303' 'erf.input_sounding_time=0 3600'")
+set(_hse_plot "'erf.plot_vars_1=density theta x_velocity z_velocity pres_hse dens_hse'")
+foreach(_snd_type Ideal Isentropic)
+    add_test_option_parity(InputSounding_SecondSounding_${_snd_type} InputSoundingFineLevels "plt00000"
+        COMMON_OPTIONS "erf.sounding_type=${_snd_type} erf.use_gravity=true ${_hse_plot}"
+        OFF_OPTIONS "erf.input_sounding_file=../input_sounding_sfc300"
+        ON_OPTIONS  "${_two_soundings}")
+endforeach()
+
+# The base state does not change in time, so a later sounding must have the surface pressure
+# of the first; the files and times must pair up one to one, in increasing time
+set(_snd_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/InputSoundingFineLevels)
+add_test_abort(InputSounding_SurfacePressureMismatch ${_snd_dir} InputSoundingFineLevels.i
+               "every input sounding must have the same surface pressure"
+               "'erf.input_sounding_file=input_sounding_sfc300 input_sounding_sfc300_p1005' 'erf.input_sounding_time=0 3600'")
+add_test_abort(InputSounding_FileTimeCountMismatch ${_snd_dir} InputSoundingFineLevels.i
+               "give one time for each file"
+               "'erf.input_sounding_file=input_sounding_sfc300 input_sounding_sfc303'")
+add_test_abort(InputSounding_TimesNotIncreasing ${_snd_dir} InputSoundingFineLevels.i
+               "erf.input_sounding_time must be strictly increasing"
+               "'erf.input_sounding_file=input_sounding_sfc300 input_sounding_sfc303' 'erf.input_sounding_time=3600 0'")
+add_test_abort(InputSounding_TimesEqual ${_snd_dir} InputSoundingFineLevels.i
+               "erf.input_sounding_time must be strictly increasing"
+               "'erf.input_sounding_file=input_sounding_sfc300 input_sounding_sfc303' 'erf.input_sounding_time=0 0'")
 
 #=============================================================================
 # Terrain: decomposition and station output over a hill

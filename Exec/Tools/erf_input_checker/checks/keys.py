@@ -11,6 +11,8 @@ from ..findings import Severity
 # Inputs that SolverChoice refuses (Docs: "Deprecated and Removed Inputs")
 RETIRED_KEYS = {
     "erf.use_terrain": "set erf.terrain_type instead",
+    "erf.shoc.apply_tms": "it was an option of the EAMxx SHOC, which has been removed; native SHOC does not use it",
+    "erf.shoc.check_flux_state": "it was an option of the EAMxx SHOC, which has been removed; native SHOC does not use it",
     "erf.use_moist_background": "set erf.init_type = MoistBaseState instead",
     "erf.moisture_type": "renamed: set erf.moisture_model instead",
     "erf.no_substepping": "set erf.timestepping_type = RK3_NoSubstepping instead",
@@ -29,10 +31,11 @@ DEPRECATED_KEYS = {
 }
 RETIRED_VALUES = {
     "erf.init_type": {"real": "WRFInput", "ideal": "WRFInput"},
+    "erf.pbl_type": {"eamxx_shoc": "NATIVE_SHOC"},
 }
 RENAMED_VALUES = {
     "erf.terrain_type": {"static": "StaticFittedMesh", "moving": "MovingFittedMesh"},
-    "erf.pbl_type": {"shoc": "EAMXX_SHOC"},
+    "erf.pbl_type": {"shoc": "NATIVE_SHOC"},
 }
 
 # Prefixes whose keys are defined per problem or per sub-model, not in the

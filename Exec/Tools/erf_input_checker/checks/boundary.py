@@ -5,9 +5,7 @@ from ..checker import Checker, register
 FACE_TYPES = {"inflow", "outflow", "inflow_outflow", "open", "ho_outflow", "slipwall",
               "noslipwall", "symmetry", "surface_layer", "most"}
 FACES = ("xlo", "xhi", "ylo", "yhi", "zlo", "zhi")
-# the schemes of pbl_requires_surface_layer (ERF_TurbStruct.H); MYJ is not one of them
-COLUMN_PBL = {"mynn25", "mynnedmf", "ysu", "ysunew", "mrf", "native_shoc", "eamxx_shoc", "shoc"}
-
+COLUMN_PBL = {"mynn25", "mynnedmf", "ysu", "ysunew", "mrf", "native_shoc", "shoc"}
 
 @register
 class BoundaryChecker(Checker):
