@@ -438,9 +438,9 @@ The three configurable channels are selected independently:
 
 .. code-block:: none
 
-   <face>.momentum_transfer_model = resolved_noslip|bulk_aero|neutral_roughness_log|law_of_wall_momentum
-   <face>.heat_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
-   <face>.vapor_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
+   <face>.momentum_transfer_model = resolved_noslip|bulk_aero|bulk_aero_plus_molecular|neutral_roughness_log|law_of_wall_momentum
+   <face>.heat_transfer_model = resolved_molecular|bulk_aero|bulk_aero_plus_molecular|neutral_roughness_log
+   <face>.vapor_transfer_model = resolved_molecular|bulk_aero|bulk_aero_plus_molecular|neutral_roughness_log
 
 ``law_of_wall_momentum`` is a compatibility alias for
 ``neutral_roughness_log``; it does not select a separate formulation.
@@ -461,6 +461,10 @@ The three configurable channels are selected independently:
      - momentum, heat, vapor
      - ``coefficient_source = fixed`` plus the corresponding ``C_D``, ``C_H``, or ``C_E``
      - user-supplied dimensionless transfer coefficient multiplied by actual tangential speed
+   * - fixed ``bulk_aero_plus_molecular``
+     - momentum, heat, vapor
+     - same fixed bulk coefficients, plus the configured molecular transport coefficients
+     - sums molecular and bulk exchange at the wall; excludes SGS diffusivity
    * - ``neutral_roughness_log``
      - momentum, heat, vapor
      - ``z0_m`` and the required scalar roughness lengths
@@ -473,11 +477,11 @@ The three configurable channels are selected independently:
 One coefficient provider per face
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``<face>.coefficient_source`` is a **face-level provider shared by every
-``bulk_aero`` channel on that face**.  It is required when at least one bulk
-channel is active and must be either ``fixed`` or ``most``.  Consequently, a
+``<face>.coefficient_source`` is shared by every bulk channel on that face.
+``bulk_aero`` accepts ``fixed`` or ``most``; if any channel selects
+``bulk_aero_plus_molecular``, the face must use ``fixed``. Consequently, a
 single face cannot use fixed bulk momentum and MOST bulk heat at the same
-time.  Non-bulk channels on that face may still be resolved or neutral.
+time. Non-bulk channels on that face may still be resolved or neutral.
 
 With ``coefficient_source = fixed``, provide a coefficient for every selected
 bulk channel:
@@ -563,30 +567,30 @@ The following table summarizes the physical-temperature wall keys.
      - none
      - ``dry`` or ``wet``
      - required on every physical wall; ``wet`` requires an active supported moisture model
-    * - ``<face>.wetness``
-       - ``1.0``
-       - finite RH fraction in ``[0,1]``
-       - optional on physical wet walls; rejected on dry and legacy walls
+   * - ``<face>.wetness``
+     - ``1.0``
+     - relative humidity over liquid water (fraction in ``[0,1]``, finite)
+     - optional on physical wet walls; rejected on dry and legacy walls
    * - ``<face>.wall_transfer_model``
      - omitted
      - ``resolved_molecular`` only
      - compatibility aggregate; rejected when combined with any per-channel transfer key
    * - ``<face>.momentum_transfer_model``
      - ``resolved_noslip``
-     - ``resolved_noslip``, ``bulk_aero``, ``neutral_roughness_log``, ``law_of_wall_momentum``
+     - ``resolved_noslip``, ``bulk_aero``, ``bulk_aero_plus_molecular``, ``neutral_roughness_log``, ``law_of_wall_momentum``
      - optional; alias maps to neutral roughness-log
    * - ``<face>.heat_transfer_model``
      - ``resolved_molecular``
-     - ``resolved_molecular``, ``bulk_aero``, ``neutral_roughness_log``
+     - ``resolved_molecular``, ``bulk_aero``, ``bulk_aero_plus_molecular``, ``neutral_roughness_log``
      - optional
    * - ``<face>.vapor_transfer_model``
      - ``resolved_molecular``
-     - ``resolved_molecular``, ``bulk_aero``, ``neutral_roughness_log``
+     - ``resolved_molecular``, ``bulk_aero``, ``bulk_aero_plus_molecular``, ``neutral_roughness_log``
      - optional; dry physical vapor flux remains exactly zero
    * - ``<face>.coefficient_source``
      - omitted
      - ``fixed`` or ``most``
-     - required if any channel is ``bulk_aero``; rejected if no bulk channel is active; ``most`` only on ``zlo``/``zhi``
+     - required for either bulk model; rejected if no bulk channel is selected; ``most`` only for ``bulk_aero`` on ``zlo``/``zhi``
    * - ``<face>.C_D``
      - none
      - finite and nonnegative
@@ -738,7 +742,7 @@ supported transfer model:
 
 A dry wall is therefore not a ``qv_wall = 0`` Dirichlet condition.
 
-All wet-wall vapor laws use the same equilibrium mixing ratio. Wetness
+All wet-wall vapor laws use the same prescribed wall mixing ratio. Wetness
 scales vapor pressure, not the mixing ratio or the transfer coefficient:
 
 .. math::
@@ -766,7 +770,7 @@ For a wet wall with ``vapor_transfer_model = resolved_molecular``,
 
    J_{\rho q_v,\mathrm{in}}
    = \rho\,\alpha_C
-   \left[q_{v,w}-q_{v,a}\right]
+       \left[q_{v,w}-q_{v,a}\right]
      \frac{2}{\Delta n}.
 
 The resolved scalar coefficients are configured through ``erf.alpha_T`` for
@@ -806,12 +810,41 @@ For a wet wall, bulk vapor transfer is
 
    J_{\rho q_v,\mathrm{in}}
    = \rho C_E U_t
-   \left[q_{v,w}-q_{v,a}\right].
+       \left[q_{v,w}-q_{v,a}\right].
 
 The physical transfer uses the actual :math:`U_t`; there is no hidden minimum
 speed, gustiness velocity, or free-convection augmentation.  Fixed bulk
 transfer is therefore a forced/shear-dependent closure, not a complete
 natural- or mixed-convection wall correlation.
+
+Molecular plus fixed bulk transfer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Select ``bulk_aero_plus_molecular`` for each channel that should use the sum.
+Let :math:`d=\Delta n/2` be the distance to the first cell center. The
+combined closure replaces :math:`C_D U_t`, :math:`C_H U_t`, and :math:`C_E U_t`
+in the fixed-bulk equations above by :math:`C_D U_t + \nu/d`,
+:math:`C_H U_t + \alpha_T/d`, and :math:`C_E U_t + \alpha_C/d`, respectively.
+Both vapor terms multiply the same prescribed contrast :math:`q_{v,w}-q_{v,a}`,
+including when ``wetness`` is less than one.
+Here :math:`\nu` is ``erf.dynamic_viscosity / erf.rho0_trans`` for
+``ConstantAlpha``. This is a half-cell molecular wall-gradient model, not an
+addition of the full interior LES diffusive flux. At rest the molecular heat
+and wet-wall vapor terms remain if there is a wall-to-air contrast; tangential
+drag and dry-wall vapor flux are zero. The combined flux replaces the
+corresponding boundary flux; it is not added on top of it.
+
+At setup, each selected combined channel requires finite, strictly positive
+molecular inputs: ``erf.dynamic_viscosity`` and ``erf.rho0_trans`` for
+momentum, ``erf.alpha_T`` for heat, and ``erf.alpha_C`` for vapor. A dry
+wall still has zero vapor flux. The solver computes the half-cell transfer
+speeds once for the chamber grid and uses the same wall data in the RHS
+and timestep guard.
+
+``bulk_aero`` remains bulk-only. If the supplied bulk coefficients were fitted
+to *total* DNS wall exchange, adding molecular exchange without refitting can
+count part of that exchange twice. Use coefficients for the residual bulk
+contribution when calibrating this combined model.
 
 Neutral roughness-log transfer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -874,7 +907,7 @@ where
    \epsilon_v=\frac{R_v}{R_d}-1,
 
 using ERF's thermodynamic constants. For wet walls, MOST uses the same
-equilibrium :math:`q_{v,w}` as the vapor flux; for dry walls it uses
+prescribed wall mixing ratio :math:`q_{v,w}` as the vapor flux; for dry walls it uses
 :math:`q_{v,w}=q_{v,a}`.
 
 The stability calculation uses
@@ -1053,8 +1086,33 @@ so the per-face momentum contribution is
    \lambda_{m,f}
    = K_\infty C_{D,f}U_{t,f}\Delta n_f^{-1}.
 
-At an edge or corner, contributions from perpendicular active walls are added
-for each free velocity component before taking the maximum.  MOST coefficients
+For ``bulk_aero_plus_molecular``, add :math:`(\nu/d)\Delta n^{-1}` to
+the momentum rate (without :math:`K_\infty`), or
+:math:`(\alpha_s/d)\Delta n^{-1}` to the corresponding scalar rate.
+If an incident face uses combined transfer for an active scalar, the guard
+sums that scalar's rates from **all** incident physical faces. For example,
+where a combined heat face meets a ``resolved_molecular`` heat face, the
+resolved face contributes :math:`2\alpha_T/\Delta n^2` to the heat sum.
+Both faces of a one-cell direction count. Heat and vapor are handled
+separately: a dry face neither contributes to nor activates the vapor sum.
+Without an active combined face for that scalar, the guard retains the
+largest bulk or neutral face rate; a resolved face alone does not impose a
+separate wall-law limit. This rule does not depend on enabling ERF's optional
+interior diffusion timestep limiter.
+
+For each velocity component, the guard sums modeled momentum rates only from
+walls tangential to that component. If any of those walls uses combined
+momentum transfer, the same row also includes its incident resolved no-slip
+walls. For example, a combined bottom plate and a resolved x-sidewall both
+act on y-momentum. The plate's molecular term is :math:`2\nu/\Delta z^2`.
+The sidewall retains ERF's ordinary one-sided shear stencil, with uniform-grid
+weights :math:`(-8/3,3,-1/3)` for the prescribed wall velocity and the two
+interior velocities. Its molecular contribution to the absolute wall-row sum
+is therefore :math:`(3+1/3)\nu/\Delta x^2`. This is a timestep estimate, not
+an additional stress or a bound on interior or SGS diffusion. A combined
+scalar wall does not activate this momentum rule.
+
+MOST coefficients
 are evaluated once for the current wall/cell sample and then treated as frozen
 for this local rate estimate; this is not an exact Jacobian of the nonlinear
 MOST iteration.
@@ -1439,8 +1497,8 @@ A bulk model's chamber budget is rejected
    physical chamber cases. Omit the option or set it to ``0``.
 
 ``coefficient_source`` is rejected
-   Use it only when at least one channel on that face is ``bulk_aero``.  The
-   same provider applies to every bulk channel on the face.
+   Use it only when at least one channel on that face selects a bulk model.
+   If any selects ``bulk_aero_plus_molecular``, the provider must be ``fixed``.
 
 ``C_D``, ``C_H``, or ``C_E`` is missing
    Fixed bulk transfer requires the coefficient corresponding to every bulk
