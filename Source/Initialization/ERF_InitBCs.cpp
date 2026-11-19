@@ -75,16 +75,17 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
 
         std::string bc_type = amrex::toLower(bc_type_in);
 
-        // An anelastic or pseudo-incompressible run takes the inflow density from the first
-        // interior cell (the base state when anelastic, the evolving density when
-        // pseudo-incompressible), so no face may prescribe it (solid walls report this
+        // An anelastic or pseudo-incompressible run sets the inflow density itself (the base
+        // state when anelastic; (rho theta)_interior / theta_in on a pseudo-incompressible face
+        // that gives theta, see init_bcs), so no face may prescribe it (solid walls report this
         // themselves, with density_grad)
         for (int n = 0; n < NBCVAR_max; ++n) { m_bc_prim_given[n][ori] = 0; }
         if (anelastic && bc_type != "slipwall" && bc_type != "noslipwall" && pp.contains("density")) {
             Abort(pp_text + ".density must be omitted in anelastic and pseudo-incompressible runs: "
-                  "the inflow density is the density of the first interior cell -- the base state "
-                  "in an anelastic run, the evolving density in a pseudo-incompressible one.  The "
-                  "face's theta, scalar, qv, qc and KE are made conserved with it.");
+                  "ERF sets the inflow density -- the base state in an anelastic run, and in a "
+                  "pseudo-incompressible one the density that keeps rho*theta at rho0*theta0 with "
+                  "the face's theta.  The face's theta, scalar, qv, qc and KE are made conserved "
+                  "with it.");
         }
 
         auto apply_wall_scalar = [this,ori] (int comp,
@@ -891,6 +892,20 @@ void ERF::init_bcs ()
         if (prof.has_tke)   { prescribe(BCVars::RhoKE_bc_comp); }
     }
 
+    // A pseudo-incompressible inflow face with a given theta prescribes its ghost density too:
+    // rho = (rho theta)_interior / theta_in, which keeps rho theta at rho0 theta0 there
+    // (impose_lateral_cons_bcs; on a level that is not pseudo-incompressible the ghost keeps the
+    // interior density).  Typing Rho ext_dir makes the momentum on the inflow face and the
+    // boundary-flux constraint use that ghost density, as they do with <face>.density (#5265)
+    for (OrientationIter oit; oit; ++oit) {
+        const Orientation ori = oit();
+        const int pi_face = pi_theta_inflow_face(ori);
+        if (pi_face == 0) { continue; }
+        const int t = (pi_face == 1) ? ERFBCType::ext_dir : ERFBCType::ext_dir_upwind;
+        if (ori.isLow()) { domain_bcs_type[BCVars::Rho_bc_comp].setLo(ori.coordDir(), t); }
+        else             { domain_bcs_type[BCVars::Rho_bc_comp].setHi(ori.coordDir(), t); }
+    }
+
     // Sanity check that implicit diffusion is consistent with the BC types.
     // Turn off implicit diffusion for a component if its BCs don't match
     // those allowed by the tridiagonal solver.
@@ -1233,4 +1248,30 @@ ERF::init_inflow_profile (const std::string& bcid, Orientation ori,
                     "to start it the same way");
         }
     }
+}
+
+/**
+ * Whether a face is a lateral inflow face of a run with a pseudo-incompressible level that
+ * gives a primitive theta (<face>.theta, or a theta dirichlet_file read as primitive) and no
+ * inflow profile.  Its ghost density is then (rho theta)_interior / theta_in on the
+ * pseudo-incompressible levels.
+ *
+ * @param[in] ori face
+ * @return 0 if not, 1 for an inflow face, 2 for an inflow_outflow face
+ */
+int
+ERF::pi_theta_inflow_face (const Orientation& ori) const
+{
+    bool any_pi = false;
+    for (int lev = 0; lev <= max_level; ++lev) {
+        any_pi = any_pi || (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
+    }
+    if (!any_pi || ori.coordDir() == 2 || m_inflow_profiles[ori].active) { return 0; }
+    const bool inflow  = (phys_bc_type[ori] == ERF_BC::inflow);
+    const bool inf_out = (phys_bc_type[ori] == ERF_BC::inflow_outflow);
+    if (!inflow && !inf_out) { return 0; }
+    const bool theta_key  = (m_bc_prim_given[BCVars::RhoTheta_bc_comp][ori] != 0);
+    const bool theta_file = (m_th_file_face[ori] == 2);
+    if (!theta_key && !theta_file) { return 0; }
+    return inflow ? 1 : 2;
 }

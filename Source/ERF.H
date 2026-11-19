@@ -1315,6 +1315,10 @@ private:
 
     [[nodiscard]] bool use_eb_surface_layer () const;
 
+    // 0 unless ori is a lateral inflow (1) or inflow_outflow (2) face that gives a primitive
+    // theta in a run with a pseudo-incompressible level (see set_pi_inflow_faces)
+    [[nodiscard]] int pi_theta_inflow_face (const amrex::Orientation& ori) const;
+
     // Build and fill the custom rhotheta, moisture and subsidence forcing of one level
     void init_custom_forcing (int lev, amrex::Real time);
 

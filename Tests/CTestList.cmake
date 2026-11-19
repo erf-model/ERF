@@ -4030,6 +4030,13 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
   # rho theta plus the drift correction) keeps the drift at a few 1e-6 (about 1e-3 without it)
   add_test_pi_drift(PseudoIncompressible_Drift_Diffusion PseudoIncompressible_StratifiedHill -5
       OPTIONS "amr.max_level=0 erf.molec_diff_type=ConstantAlpha erf.alpha_T=10.0 erf.dynamic_viscosity=0.0")
+  # A pseudo-incompressible inflow face with a given theta: rho theta enters as rho0 theta0 u, on
+  # an Inflow face, an inflow_outflow face and with the theta from a dirichlet_file (#5265)
+  add_test_pi_drift(PseudoIncompressible_Inflow PseudoIncompressibleInflowStratified -8)
+  add_test_pi_drift(PseudoIncompressible_InflowOutflow PseudoIncompressibleInflowStratified -8
+      OPTIONS "xlo.type=inflow_outflow")
+  add_test_pi_drift(PseudoIncompressible_InflowOutflow_ThetaFile PseudoIncompressibleInflowStratified -8
+      OPTIONS "xlo.type=inflow_outflow xlo.dirichlet_file=inflow_file")
 endif()
 add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.terrain_type=StaticFittedMesh")

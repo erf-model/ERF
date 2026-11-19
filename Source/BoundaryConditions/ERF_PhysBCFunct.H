@@ -102,6 +102,23 @@ public:
     /** Terrain-following inflow profiles per face (xlo.inflow_profile), owned by ERF */
     void set_inflow_profiles (const amrex::Array<InflowProfile,2*AMREX_SPACEDIM>* profiles) { m_inflow_profiles = profiles; }
 
+    /**
+     * The lateral faces of a pseudo-incompressible level that give a primitive inflow theta.
+     * There the constraint holds rho*theta at rho0*theta0, so the ghost cells where the flow
+     * enters take rho = (rho*theta)_interior / theta_in, and every given value is made
+     * conserved with that density (#5265).
+     *
+     * @param[in] face  per face: 0 not such a face, 1 inflow, 2 inflow_outflow
+     * @param[in] theta per face: the given theta (<face>.theta), unless the face's theta comes
+     *                  from th_bc_data (th_file_face 2)
+     */
+    void set_pi_inflow_faces (const amrex::GpuArray<int,AMREX_SPACEDIM*2>& face,
+                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM*2>& theta)
+    {
+        m_pi_inflow_face  = face;
+        m_pi_inflow_theta = theta;
+    }
+
     /** Overwrite the lateral ghost cells of profiled inflow faces (theta, tke) */
     void impose_inflow_profile_cons (const amrex::Array4<amrex::Real>& dest_arr,
                                      const amrex::Array4<amrex::Real const>& xvel_arr,
@@ -196,6 +213,8 @@ private:
     amrex::Real*     m_th_bc_data;
     const amrex::Array<InflowProfile,2*AMREX_SPACEDIM>* m_inflow_profiles = nullptr;
     amrex::GpuArray<int,AMREX_SPACEDIM*2> m_th_file_face;
+    amrex::GpuArray<int,AMREX_SPACEDIM*2> m_pi_inflow_face{};
+    amrex::GpuArray<amrex::Real,AMREX_SPACEDIM*2> m_pi_inflow_theta{};
     BelowGroundGhostSync m_below_ground_sync;
 };
 
