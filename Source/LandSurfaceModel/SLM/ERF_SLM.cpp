@@ -1618,7 +1618,13 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
         });
     }
 
-    init_slm_vars();
+    // The soil nudging targets were transferred with the rest of the state.  Keep them once the
+    // source level has set its own (its first Update_Lsm_Vars sets has_atmos_state and the
+    // targets together, and a checkpoint is written after it), so that this level nudges toward
+    // the run's targets rather than toward the soil state at the time it was made (issue 5178).
+    // Before that the transferred targets are not set yet, so take them from the soil state, as
+    // init_from_atmos_pending will again once this level has the atmospheric state.
+    init_slm_vars(!has_atmos_state);
 
     if (preserve_checkpoint_fields) {
         for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
@@ -2247,7 +2253,7 @@ void SLM::init_soil_vars ()
     }
 }
 
-void SLM::init_slm_vars ()
+void SLM::init_slm_vars (bool reset_soil_targets)
 {
     const int d_khi_lsm = khi_lsm;
 
@@ -2308,8 +2314,10 @@ void SLM::init_slm_vars ()
     }
 
     // initialize nudging profiles for soil based on the initial soilt and soilw
-    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilt_obs], *lsm_fab_vars[LsmVar_SLM::soilt], 0, 0, 1, 0);
-    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
+    if (reset_soil_targets) {
+        MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilt_obs], *lsm_fab_vars[LsmVar_SLM::soilt], 0, 0, 1, 0);
+        MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
+    }
 
     initialize_surface_outputs();
 }
