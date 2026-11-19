@@ -82,9 +82,11 @@ precipitation accumulator. The wall model does not add a droplet-impact,
 aerosol-deposition, or facility-specific collection law.
 
 A ``wet`` wall requires a supported active moisture model. It exchanges
-water vapor with the adjacent air using the saturation mixing ratio **over
-liquid water**, evaluated at the prescribed wall temperature and local
-hydrostatic pressure. It does not directly deposit suspended cloud droplets,
+water vapor with the adjacent air at a prescribed wall relative humidity **over
+liquid water**. For example, ``zlo.wetness = 0.8`` sets the bottom wet wall
+to 80% RH; omitting the key retains saturation. A wet wall at zero RH can
+remove vapor from moist air, unlike an impermeable dry wall.
+The wall does not directly deposit suspended cloud droplets,
 ice hydrometeors, or aerosol number; those species remain governed by the
 selected native microphysics and transport operators.
 
@@ -367,7 +369,7 @@ initial velocity perturbation.
 Physical wall configuration
 ---------------------------
 
-In physical-temperature mode, every face requires three basic declarations:
+In physical-temperature mode, a default (conductive) face is specified as:
 
 .. code-block:: none
 
@@ -379,6 +381,32 @@ The face prefix is one of ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or
 ``zhi``. Wall temperature must be finite and positive. A wet wall requires a
 supported active moisture model. Cloud Chamber walls are stationary;
 ``<face>.velocity`` is rejected.
+
+``<face>.heat = conductive`` (default) exchanges sensible heat using the
+selected ``heat_transfer_model``. ``<face>.heat = adiabatic`` instead replaces
+the normal heat flux with exactly zero, including any ordinary diffusive
+flux already applied to the adjacent cell. This does not turn off drag or
+change the moisture boundary type. For example, an insulated wet wall still
+exchanges vapor at its prescribed saturation temperature:
+
+.. code-block:: none
+
+   zlo.type = NoSlipWall
+   zlo.heat = adiabatic
+   zlo.moisture = wet
+   zlo.temperature = 294.0
+
+Wall temperature is required for conductive heat or wet-wall saturation.
+A dry adiabatic face may omit it even with MOST drag: its stability is
+neutral, independent of any supplied temperature. A wet adiabatic face
+uses the prescribed temperature for saturation, not for sensible buoyancy.
+Any supplied temperature must still be finite and positive.
+
+``<face>.thermal = adiabatic`` is an alias; ``thermal = fixed_temperature``
+means ``heat = conductive``. Selector values are case-insensitive. If both
+keys are present, they must agree. In ``legacy_theta_qv`` mode both keys are
+rejected: remove any previously ignored ``.thermal`` key and keep the legacy
+``.theta`` wall input.
 
 ``NoSlipWall`` is the required ERF boundary type for all supported Cloud
 Chamber wall models.  Selecting an aerodynamic momentum model changes the
@@ -500,6 +528,10 @@ With ``coefficient_source = most``, do **not** provide ``C_D``, ``C_H``, or
    requires the corresponding roughness metadata.  The physical dry-wall
    vapor flux nevertheless remains exactly zero.
 
+   The same rule applies to heat-model metadata on an adiabatic face:
+   selected models still require their coefficients or roughness lengths,
+   but the heat law is not evaluated and imposes no wall timestep limit.
+
 Roughness requirements
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -516,7 +548,10 @@ roughness length must satisfy
 
    0 < z_0 < z_\mathrm{ref}.
 
-The parser does not clip invalid roughness values.
+An exception is a heat law retained on an adiabatic face. Its ``z0_h`` must
+be finite and positive, but need not be below the reference distance because
+the heat resistance is unused. The same applies to ``z0_m`` when it is needed
+only by the inactive heat law. The parser does not clip roughness values.
 
 .. list-table:: Roughness inputs
    :header-rows: 1
@@ -535,7 +570,7 @@ The parser does not clip invalid roughness values.
      - m
      - neutral vapor, or MOST bulk vapor, including a configured dry vapor channel
 
-When wet heat and wet vapor both use MOST on one face, ``z0_h`` and ``z0_q``
+When conductive heat and wet vapor both use MOST on one face, ``z0_h`` and ``z0_q``
 must be exactly equal because the implemented bulk-Richardson fixed point uses
 one scalar stability resistance.  This equality is not imposed by a dry vapor
 channel because dry vapor is not an active scalar-transfer channel.
@@ -557,14 +592,26 @@ The following table summarizes the physical-temperature wall keys.
      - none
      - ``NoSlipWall``
      - required on every face
+   * - ``<face>.heat``
+     - ``conductive``
+     - ``conductive`` or ``adiabatic``
+     - physical mode only; adiabatic sets normal sensible heat flux to zero
+   * - ``<face>.thermal``
+     - omitted
+     - ``fixed_temperature`` or ``adiabatic``
+     - alias for ``<face>.heat``; must agree if both are set; rejected in legacy mode
    * - ``<face>.temperature``
      - none
      - finite, positive K
-     - required on every physical wall
+     - required for conductive heat or wet moisture; optional on dry adiabatic walls
    * - ``<face>.moisture``
      - none
      - ``dry`` or ``wet``
      - required on every physical wall; ``wet`` requires an active supported moisture model
+   * - ``<face>.wetness``
+     - ``1.0``
+     - relative humidity over liquid water (fraction in ``[0,1]``, finite)
+     - optional on physical wet walls; rejected on dry and legacy walls
    * - ``<face>.wall_transfer_model``
      - omitted
      - ``resolved_molecular`` only
@@ -599,11 +646,11 @@ The following table summarizes the physical-temperature wall keys.
      - required only for fixed bulk vapor, including a configured dry vapor channel; rejected with MOST or non-bulk vapor
    * - ``<face>.z0_m``
      - none
-     - ``0 < z0_m < z_ref``
+     - finite, positive; below ``z_ref`` unless used only by inactive heat
      - required by any neutral channel or any MOST bulk channel; otherwise rejected
    * - ``<face>.z0_h``
      - none
-     - ``0 < z0_h < z_ref``
+     - finite, positive; below ``z_ref`` for conductive heat
      - required by neutral heat or MOST bulk heat; otherwise rejected
    * - ``<face>.z0_q``
      - none
@@ -716,7 +763,7 @@ in the positive coordinate direction, so
       -J_\mathrm{in}, & \text{high face}.
    \end{cases}
 
-The wall potential temperature is
+For closures that use a prescribed wall temperature, the wall potential temperature is
 
 .. math::
 
@@ -735,6 +782,16 @@ supported transfer model:
    J_{\rho q_c,\mathrm{in}}=0 \quad \text{for every wall}.
 
 A dry wall is therefore not a ``qv_wall = 0`` Dirichlet condition.
+The heat equations below apply to conductive faces; an adiabatic face has
+:math:`J_{\rho\theta,\mathrm{in}}=0` for every transfer model.
+
+All wet-wall vapor laws use the same prescribed wall mixing ratio. Wetness
+scales vapor pressure, not the mixing ratio or the transfer coefficient:
+
+.. math::
+
+   e_w = \mathrm{wetness}\,e_{sw}(T_w), \qquad
+   q_{v,w} = \frac{R_d}{R_v}\frac{e_w}{\max(e_w,\,p_\mathrm{hse}-e_w)}.
 
 Resolved transfer
 ~~~~~~~~~~~~~~~~~
@@ -756,7 +813,7 @@ For a wet wall with ``vapor_transfer_model = resolved_molecular``,
 
    J_{\rho q_v,\mathrm{in}}
    = \rho\,\alpha_C
-     \left[q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}\right]
+       \left[q_{v,w}-q_{v,a}\right]
      \frac{2}{\Delta n}.
 
 The resolved scalar coefficients are configured through ``erf.alpha_T`` for
@@ -796,7 +853,7 @@ For a wet wall, bulk vapor transfer is
 
    J_{\rho q_v,\mathrm{in}}
    = \rho C_E U_t
-     \left[q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}\right].
+       \left[q_{v,w}-q_{v,a}\right].
 
 The physical transfer uses the actual :math:`U_t`; there is no hidden minimum
 speed, gustiness velocity, or free-convection augmentation.  Fixed bulk
@@ -811,6 +868,8 @@ Let :math:`d=\Delta n/2` be the distance to the first cell center. The
 combined closure replaces :math:`C_D U_t`, :math:`C_H U_t`, and :math:`C_E U_t`
 in the fixed-bulk equations above by :math:`C_D U_t + \nu/d`,
 :math:`C_H U_t + \alpha_T/d`, and :math:`C_E U_t + \alpha_C/d`, respectively.
+Both vapor terms multiply the same prescribed contrast :math:`q_{v,w}-q_{v,a}`,
+including when ``wetness`` is less than one.
 Here :math:`\nu` is ``erf.dynamic_viscosity / erf.rho0_trans`` for
 ``ConstantAlpha``. This is a half-cell molecular wall-gradient model, not an
 addition of the full interior LES diffusive flux. At rest the molecular heat
@@ -890,16 +949,16 @@ where
 
    \epsilon_v=\frac{R_v}{R_d}-1,
 
-using ERF's thermodynamic constants.  With
+using ERF's thermodynamic constants. For wet walls, MOST uses the same
+prescribed wall mixing ratio :math:`q_{v,w}` as the vapor flux; for dry walls it uses
+:math:`q_{v,w}=q_{v,a}`.
 
-.. math::
-
-   q_{v,w}=\begin{cases}
-      q_\mathrm{sat}(T_w,p_\mathrm{hse}), & \text{wet wall},\\
-      q_{v,a}, & \text{dry wall}.
-   \end{cases}
-
-The stability calculation uses
+For conductive heat, :math:`\theta_w` is the potential temperature corresponding
+to the prescribed :math:`T_w`. For adiabatic heat, the stability calculation
+uses :math:`\theta_w=\theta_a`, so
+:math:`\theta_{v,a}-\theta_{v,w}=\theta_a\epsilon_v(q_{v,a}-q_{v,w})`.
+This gives exactly neutral stability on a dry adiabatic wall and a humidity-only
+stability correction on a wet adiabatic wall. The calculation uses
 
 .. math::
 
@@ -1034,6 +1093,9 @@ required and validated, but dry vapor does not participate in the active
 scalar stability resistance and its physical wall flux remains exactly zero.
 When a moisture state is present, ambient ``qv`` still enters the virtual
 potential temperature used by any active MOST momentum or heat calculation.
+Similarly, adiabatic heat does not supply the scalar stability resistance:
+wet MOST vapor uses ``z0_q``; momentum-only MOST uses ``z0_m``. Neither
+uses ``z0_h`` or a prescribed sensible temperature contrast on an adiabatic wall.
 
 Momentum stress application
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1058,8 +1120,8 @@ For heat or active wet vapor,
 
    \lambda_s = C_s U_t\,\Delta n^{-1}.
 
-Neutral scalars use their derived coefficient.  Dry vapor does not contribute
-because its wall flux is exactly zero.
+Neutral scalars use their derived coefficient. Dry vapor and adiabatic heat
+do not contribute because their wall fluxes are exactly zero.
 
 For a bulk or neutral tangential momentum face, the local conservative
 infinity-row-sum factor is
@@ -1420,12 +1482,13 @@ Run checklist
 #. In ``physical_temperature_rh``, define bottom/top initial temperature and
    add RH when any active supported moisture model is enabled.
 #. For ``physical_temperature_rh``, define all six stationary ``NoSlipWall``
-   faces with physical wall temperature and ``dry`` or ``wet`` moisture state.
+   faces with ``dry`` or ``wet`` moisture state. Supply wall temperature for
+   conductive heat or wet moisture.
    Choose the momentum, heat, and vapor model on each face; remember that one
    ``coefficient_source`` is shared by every bulk channel on that face.  Supply
-   every required coefficient or roughness length, check ``0 < z0_* <
-   Delta_n/2`` on the actual grid, and use equal ``z0_h`` and ``z0_q`` for wet
-   heat+vapor MOST on one face.
+   every required coefficient or roughness length. Check the grid bounds
+   in the per-face input reference and use equal ``z0_h`` and ``z0_q``
+   when conductive heat and wet vapor both use MOST on one face.
 #. For ``legacy_theta_qv``, use the legacy ``<face>.theta`` wall values and,
    for cloudy legacy cases, provide ``<face>.qv``.  Do not use generalized
    per-channel wall-transfer keys in legacy mode.
@@ -1446,7 +1509,7 @@ The implemented Cloud Chamber wall-model scope is intentionally limited to:
 * six stationary ``NoSlipWall`` faces;
 * no periodic direction;
 * no terrain, embedded boundaries, or immersed buildings;
-* prescribed physical wall temperature in the generalized wall-model path;
+* conductive (prescribed-temperature) or adiabatic sensible heat boundaries;
 * resolved, fixed bulk, neutral roughness-log, and horizontal MOST transfer as
   documented above; and
 * forced/shear-dependent bulk transfer with no gustiness or natural/mixed
