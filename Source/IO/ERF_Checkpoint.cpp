@@ -266,6 +266,28 @@ ERF::WriteCheckpointFile () const
            }
        }
 
+       // The CFL limit of erf.fixed_dt (ERF::ComputeDt): the value given in the inputs and the
+       // level-0 fixed dt the run reached (lower if the limit lowered it), so a restart with the
+       // same erf.fixed_dt continues with it and does not check the restored grids again
+       {
+           double fixed_dt_given = -1.0;
+           ParmParse pp_erf("erf");
+           pp_erf.query("fixed_dt", fixed_dt_given);
+           if (fixed_dt_cfl_limit && fixed_dt_given > 0.0) {
+               std::string FixedDtFileName(checkpointname + "/fixed_dt_cfl_limit");
+               std::ofstream FixedDtFile;
+               FixedDtFile.open(FixedDtFileName.c_str(), std::ofstream::out   |
+                                                         std::ofstream::trunc |
+                                                         std::ofstream::binary);
+               if(! FixedDtFile.good()) {
+                   FileOpenFailed(FixedDtFileName);
+               } else {
+                   FixedDtFile.precision(17);
+                   FixedDtFile << fixed_dt_given << " " << fixed_dt[0] << "\n";
+               }
+           }
+       }
+
        // Persist the state of the exponential time filter used by the surface layer
        // when erf.most.time_average is on.  The plane and EB averaging policies hold
        // that state in the plane averages below; every policy needs the per-level
@@ -2475,6 +2497,33 @@ ERF::ReadCheckpointFile ()
         for (int lev = 0; lev <= finest_level; ++lev) { period[lev] = geom[lev].periodicity(); }
         wrf_surface_fields.read_checkpoint(restart_chkfile, finest_level+1, ba2d, dmap,
                                            ng_sfc, period, refRatio());
+    }
+
+    // The fixed dt of the run that wrote the checkpoint, if the inputs still give the same
+    // erf.fixed_dt: restored (lowered if the CFL limit lowered it), and the restored grids are
+    // taken as checked, so the restart continues exactly as the run would have
+    if (fixed_dt_cfl_limit && fixed_dt[0] > zero &&
+        amrex::FileExists(restart_chkfile + "/fixed_dt_cfl_limit")) {
+        Vector<char> FixedDtCharPtr;
+        ParallelDescriptor::ReadAndBcastFile(restart_chkfile + "/fixed_dt_cfl_limit", FixedDtCharPtr);
+        std::istringstream fixed_dt_is(std::string(FixedDtCharPtr.dataPtr()), std::istringstream::in);
+        double fixed_dt_given = -1.0, fixed_dt_reached = -1.0;
+        fixed_dt_is >> fixed_dt_given >> fixed_dt_reached;
+        if (fixed_dt_given == fixed_dt[0] && fixed_dt_reached > 0.0 && fixed_dt_reached <= fixed_dt[0]) {
+            if (fixed_dt_reached < fixed_dt[0]) {
+                const double scale = fixed_dt_reached / fixed_dt[0];
+                for (int lev = 0; lev <= max_level; ++lev) {
+                    fixed_dt[lev] *= scale;
+                    if (fixed_fast_dt[lev] > zero) { fixed_fast_dt[lev] *= scale; }
+                }
+                Print() << "Restored the fixed dt lowered to the CFL limit from the checkpoint: "
+                        << fixed_dt[0] << " at level 0" << std::endl;
+            }
+            fixed_dt_check_grids.resize(finest_level+1);
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                fixed_dt_check_grids[lev] = grids[lev];
+            }
+        }
     }
 
     // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the

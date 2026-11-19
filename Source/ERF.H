@@ -792,7 +792,11 @@ public:
                                   const amrex::DistributionMapping& dm) override;
 
     // compute dt from CFL considerations
-    double estTimeStep (int lev, long& dt_fast_ratio) const;
+    double estTimeStep (int lev, long& dt_fast_ratio, double& cfl_rate, double& estdt_acoustic) const;
+
+    // ratio of slow to fast dt on a level with implicit acoustic substepping, from the
+    // compressible dt estimate of estTimeStep
+    void ComputeSubstepRatio (int lev, double estdt_comp_T, long& dt_fast_ratio) const;
 
     // largest explicit diffusion rates (eddy and molecular, 1/s) on level lev, momentum and scalars, for the
     // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
@@ -2082,12 +2086,17 @@ private:
     // reported, per level (WarnSteepTerrainAtOpenFaces)
     amrex::Vector<amrex::BoxArray> openface_grids;
     amrex::Vector<amrex::Array<bool,4>> openface_warned;
+    // grids on which the CFL limit of a fixed dt was last checked, per level (ComputeDt)
+    amrex::Vector<amrex::BoxArray> fixed_dt_check_grids;
     amrex::Vector<amrex::Real> slope_report_alpha;
 
     // Fixed dt at each level (only used if positive)
     amrex::Vector<double> fixed_dt;
     amrex::Vector<double> fixed_fast_dt;
     static int fixed_mri_dt_ratio;
+    // Lower a fixed dt that exceeds the CFL limit erf.cfl to the Courant number min(erf.cfl, 0.8)
+    // (erf.fixed_dt_cfl_limit, default true; ComputeDt)
+    static bool fixed_dt_cfl_limit;
 
     // how often each level regrids the higher levels of refinement
     // (after a level advances that many time steps)

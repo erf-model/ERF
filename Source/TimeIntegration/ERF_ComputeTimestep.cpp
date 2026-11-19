@@ -9,6 +9,7 @@
 #include <ERF.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
+#include "TimeIntegration/ERF_FixedDtCFLLimit.H"
 #include "AuxiliaryState/ERF_AuxiliaryMappedTransport.H"
 #include "Microphysics/SBM/ERF_SBMTransport.H"
 
@@ -32,6 +33,10 @@ ERF::ComputeDt (int step, double cur_time_d)
     const bool do_diffusive_check = (diffusive_dt_check || diffusive_dt_limit);
     Vector<Real> rate_mom (finest_level+1, zero);
     Vector<Real> rate_scal(finest_level+1, zero);
+    // Inverse dt at a Courant number of one per level, for the CFL limit of a fixed dt
+    Vector<double> cfl_rate(finest_level+1, 0.0);
+    // Compressible dt estimate per level, for the substep ratio of a lowered fixed dt
+    Vector<double> estdt_acoustic(finest_level+1, 0.0);
 
     // Track exactly the current levels, so a level removed and later re-created is reported again
     slope_report_grids.resize(finest_level+1);
@@ -66,7 +71,7 @@ ERF::ComputeDt (int step, double cur_time_d)
             openface_grids[lev] = grids[lev];
         }
 
-        dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev]);
+        dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev], cfl_rate[lev], estdt_acoustic[lev]);
 
         if (do_diffusive_check) {
             ComputeDiffusiveRates(lev, rate_mom[lev], rate_scal[lev]);
@@ -85,6 +90,41 @@ ERF::ComputeDt (int step, double cur_time_d)
                     // step (which the limit bounded if the run that wrote it used the limit).
                     dt_tmp[lev] = std::min(dt_tmp[lev], dt[lev]);
                 }
+            }
+        }
+    }
+
+    // A fixed dt above the CFL limit on any level is lowered, on all levels, to the Courant number
+    // min(erf.cfl, 0.8) (erf.fixed_dt_cfl_limit = false keeps the fixed dt as given).  Checked
+    // whenever a level has a new set of grids (at initialisation, at the coarse step after a
+    // regrid, and on restart unless the checkpoint holds the fixed dt of the same erf.fixed_dt);
+    // the dt then stays fixed as the flow evolves.
+    if (fixed_dt_cfl_limit && fixed_dt[0] > zero) {
+        fixed_dt_check_grids.resize(finest_level+1);
+        double scale = 1.0;
+        int lev_lim = 0;
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            if (fixed_dt_check_grids[lev] == grids[lev]) { continue; }
+            fixed_dt_check_grids[lev] = grids[lev];
+            const double s = FixedDtCFLScale(fixed_dt[lev], cfl_rate[lev], static_cast<double>(cfl));
+            if (s < scale) { scale = s; lev_lim = lev; }
+        }
+        if (scale < 1.0) {
+            const double old_dt  = fixed_dt[0];
+            const double courant = fixed_dt[lev_lim] * cfl_rate[lev_lim];
+            for (int lev = 0; lev <= max_level; ++lev) {
+                fixed_dt[lev] *= scale;
+                if (fixed_fast_dt[lev] > zero) { fixed_fast_dt[lev] *= scale; }
+            }
+            Print() << "Fixed dt at level 0 = " << old_dt << " exceeds the CFL limit erf.cfl = " << cfl
+                    << " (Courant number " << courant << " at level " << lev_lim
+                    << "); lowering the fixed dt on all levels, to " << fixed_dt[0]
+                    << " at level 0 (Courant number " << std::min(static_cast<double>(cfl), 0.8)
+                    << "); set erf.fixed_dt_cfl_limit = false to keep erf.fixed_dt" << std::endl;
+            // The substep ratios follow from the new fixed dt; the estimates are unchanged
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                dt_tmp[lev] = fixed_dt[lev];
+                ComputeSubstepRatio(lev, estdt_acoustic[lev], dt_mri_ratio[lev]);
             }
         }
     }
@@ -319,9 +359,14 @@ ERF::ReportTerrainSlopeFactor (int lev, bool force)
  *
  * @param[in] level level of refinement (coarsest level i 0)
  * @param[out] dt_fast_ratio ratio of slow to fast time step
+ * @param[out] cfl_rate inverse time step at a Courant number of one that the adaptive dt is
+ *                      based on (compressible or anelastic, terrain aware); zero if the level
+ *                      does not constrain dt
+ * @param[out] estdt_acoustic compressible dt estimate at erf.cfl that sets the substep ratio
+ *                      (ComputeSubstepRatio)
  */
 double
-ERF::estTimeStep (int level, long& dt_fast_ratio) const
+ERF::estTimeStep (int level, long& dt_fast_ratio, double& cfl_rate, double& estdt_acoustic) const
 {
     BL_PROFILE("ERF::estTimeStep()");
 
@@ -651,6 +696,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     if (estdt_lowM_inv_T > zero) { estdt_lowM_T = cfl / estdt_lowM_inv_T; }
     if (estdt_lowM_inv_N > zero) { estdt_lowM_N = cfl / estdt_lowM_inv_N; }
 
+    // Rate behind the adaptive dt returned below, for the CFL limit of a fixed dt (ComputeDt)
+    {
+        const Real rate = l_anelastic ? estdt_lowM_inv_T : estdt_comp_inv_T;
+        cfl_rate = (rate > zero) ? static_cast<double>(rate) : 0.0;
+    }
+
     // The host estimator uses a directional maximum, whereas M3's donor
     // positivity condition is based on the sum of all mapped outgoing faces.
     // Rebuild the current-time dry-air carrier with the same momentum and
@@ -943,72 +994,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      }
 
-     if (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep) {
-         if (fixed_dt[level] > zero && fixed_fast_dt[level] > zero) {
-             dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
-             if (dt_fast_ratio < 1) {
-                 Abort("Invalid fixed_fast_dt: must be <= fixed_dt so mri_dt_ratio >= 1");
-             }
-         } else if (fixed_dt[level] > zero) {
-             // Max CFL_c = one for substeps by default, but we enforce a min of 4 substeps
-             const double dt_sub_max = static_cast<double>(estdt_comp_T * (third/cfl) * sub_cfl);
-             //
-             // Check dt_sub_max BEFORE dividing by it, and the quotient before casting it.
-             // Converting a non-finite or wildly out-of-range double to long is undefined
-             // behaviour and in practice traps, and the division itself raises on a zero
-             // denominator under erf's FPE trapping.  A level handed corrupted state
-             // arrives here with an enormous sound speed, hence a vanishing estdt_comp_T
-             // and a vanishing dt_sub_max; without this the first symptom is a bare signal
-             // inside the time-step estimate rather than a message naming the cause.
-             //
-             auto bad_substep_ratio = [&] (const char* what, double value)
-             {
-                 std::ostringstream message;
-                 message.precision(17);
-                 message << "estTimeStep: cannot form the acoustic substep ratio at level "
-                         << level << ": " << what << " = " << value
-                         << " (fixed_dt=" << fixed_dt[level]
-                         << ", estdt_comp_T=" << estdt_comp_T
-                         << ", cfl=" << cfl << ", substepping_cfl=" << sub_cfl << ")."
-                         << " The compressible time-step estimate came back zero or"
-                            " non-finite, so the state this level was handed is not usable.";
-                 Abort(message.str());
-             };
-
-             //
-             // +inf is deliberately allowed through: an SCM level and a globally empty
-             // level both report an unconstrained acoustic dt on purpose, the quotient
-             // below is then zero, and the ratio correctly floors at the minimum of 4.
-             // Only a zero, negative or NaN denominator is a real failure.
-             //
-             if (std::isnan(dt_sub_max) || (dt_sub_max <= 0.0)) {
-                 bad_substep_ratio("dt_sub_max", dt_sub_max);
-             }
-             const double sub_ratio = std::max(std::ceil(fixed_dt[level]/dt_sub_max), double(4.0));
-             if (!std::isfinite(sub_ratio) || (sub_ratio > 1.0e9)) {
-                 bad_substep_ratio("mri_dt_ratio", sub_ratio);
-             }
-             dt_fast_ratio = static_cast<long>(sub_ratio);
-         } else {
-             const double sub_ratio = std::max(std::ceil((cfl/third)/sub_cfl), Real(4.0));
-             dt_fast_ratio = static_cast<long>(sub_ratio);
-         }
-
-         // Force time step ratio to be an even value
-         if (solverChoice.force_stage1_single_substep) {
-             if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
-         } else {
-             if ( dt_fast_ratio%6 != 0) {
-                 Print() << "mri_dt_ratio = " << dt_fast_ratio
-                         << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
-                 dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/Real(6.0)) * 6);
-             }
-         }
-
-         if (verbose) {
-             Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
-         }
-     } // if substepping
+     // Ratio of slow to fast time step (also redone by ComputeDt when it lowers a fixed dt)
+     estdt_acoustic = estdt_comp_T;
+     ComputeSubstepRatio(level, estdt_comp_T, dt_fast_ratio);
 
      // Print out some extra diagnostics -- dt calcs are repeated so as to not
      // disrupt the overall code flow...
@@ -1049,4 +1037,85 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              return estdt_comp_T;
          }
      }
+}
+
+/**
+ * Ratio of slow to fast time step on a level with implicit acoustic substepping: from
+ * erf.fixed_fast_dt, from erf.fixed_dt and the acoustic limit of a substep, or from erf.cfl,
+ * then made even (or a multiple of 6).  Left unchanged on a level without substepping.
+ * Called by estTimeStep, and by ComputeDt after it lowers a fixed dt to the CFL limit.
+ *
+ * @param[in]  level          level of refinement
+ * @param[in]  estdt_comp_T   compressible dt estimate of the level at erf.cfl (estTimeStep)
+ * @param[out] dt_fast_ratio  ratio of slow to fast time step
+ */
+void
+ERF::ComputeSubstepRatio (int level, double estdt_comp_T, long& dt_fast_ratio) const
+{
+    if (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep) {
+        if (fixed_dt[level] > zero && fixed_fast_dt[level] > zero) {
+            dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
+            if (dt_fast_ratio < 1) {
+                Abort("Invalid fixed_fast_dt: must be <= fixed_dt so mri_dt_ratio >= 1");
+            }
+        } else if (fixed_dt[level] > zero) {
+            // Max CFL_c = one for substeps by default, but we enforce a min of 4 substeps
+            const double dt_sub_max = static_cast<double>(estdt_comp_T * (third/cfl) * sub_cfl);
+            //
+            // Check dt_sub_max BEFORE dividing by it, and the quotient before casting it.
+            // Converting a non-finite or wildly out-of-range double to long is undefined
+            // behaviour and in practice traps, and the division itself raises on a zero
+            // denominator under erf's FPE trapping.  A level handed corrupted state
+            // arrives here with an enormous sound speed, hence a vanishing estdt_comp_T
+            // and a vanishing dt_sub_max; without this the first symptom is a bare signal
+            // inside the time-step estimate rather than a message naming the cause.
+            //
+            auto bad_substep_ratio = [&] (const char* what, double value)
+            {
+                std::ostringstream message;
+                message.precision(17);
+                message << "ComputeSubstepRatio: cannot form the acoustic substep ratio at level "
+                        << level << ": " << what << " = " << value
+                        << " (fixed_dt=" << fixed_dt[level]
+                        << ", estdt_comp_T=" << estdt_comp_T
+                        << ", cfl=" << cfl << ", substepping_cfl=" << sub_cfl << ")."
+                        << " The compressible time-step estimate came back zero or"
+                           " non-finite, so the state this level was handed is not usable.";
+                Abort(message.str());
+            };
+
+            //
+            // +inf is deliberately allowed through: an SCM level and a globally empty
+            // level both report an unconstrained acoustic dt on purpose, the quotient
+            // below is then zero, and the ratio correctly floors at the minimum of 4.
+            // Only a zero, negative or NaN denominator is a real failure.
+            //
+            if (std::isnan(dt_sub_max) || (dt_sub_max <= 0.0)) {
+                bad_substep_ratio("dt_sub_max", dt_sub_max);
+            }
+            const double sub_ratio = std::max(std::ceil(fixed_dt[level]/dt_sub_max), double(4.0));
+            if (!std::isfinite(sub_ratio) || (sub_ratio > 1.0e9)) {
+                bad_substep_ratio("mri_dt_ratio", sub_ratio);
+            }
+            dt_fast_ratio = static_cast<long>(sub_ratio);
+        } else {
+            const double sub_ratio = std::max(std::ceil((cfl/third)/sub_cfl), Real(4.0));
+            dt_fast_ratio = static_cast<long>(sub_ratio);
+        }
+
+        // Force time step ratio to be an even value
+        if (solverChoice.force_stage1_single_substep) {
+            if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
+        } else {
+            if ( dt_fast_ratio%6 != 0) {
+                Print() << "mri_dt_ratio = " << dt_fast_ratio
+                        << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
+                dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/Real(6.0)) * 6);
+            }
+        }
+
+        if (verbose) {
+            Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
+        }
+    } // if substepping
 }

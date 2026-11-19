@@ -30,6 +30,7 @@ erf.input_sounding_file = "input_sounding_GABLS1"
 
 # TIME STEP CONTROL
 erf.fixed_dt        = 1.0  # largest stable low Mach dt
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.fixed_mri_dt_ratio = 6
 
 # DIAGNOSTICS & VERBOSITY

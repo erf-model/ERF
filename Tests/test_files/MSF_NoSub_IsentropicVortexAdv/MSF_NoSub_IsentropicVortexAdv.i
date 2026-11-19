@@ -24,6 +24,7 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.timestepping_type = RK3_NoSubstepping
 erf.fixed_dt        = 0.0003
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass

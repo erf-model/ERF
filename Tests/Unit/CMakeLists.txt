@@ -208,6 +208,9 @@ target_sources(${erf_exe_name}
     # documented formulas, with the vertical part dropped only where every implicit stage is
     # shown to stay bounded.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestSmag2DLimiters.cpp
+    # Motivation: a fixed dt above the CFL limit erf.cfl must be lowered to the Courant number
+    # min(erf.cfl, 0.8), and a fixed dt within the limit kept (erf-model/ERF#5238).
+    ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestFixedDtCFLLimit.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     # Motivation: a Noah-MP 2 m tile with zero weight must not reject the bundle, and a

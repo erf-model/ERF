@@ -26,6 +26,7 @@ erf.input_sounding_file = "input_sounding"
 # TIME STEP CONTROL
 erf.fixed_mri_dt_ratio = 6
 erf.fixed_dt = 10.0
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
    
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
