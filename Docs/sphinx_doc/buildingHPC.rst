@@ -200,47 +200,6 @@ The test procedure is documented in :download:`notes_test.sh <figures/notes_test
      - —
      - —
      - —
-   * - ``build_erf_with_shoc.sh``
-     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
-     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
-     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
-     - Untested
-     - Untested
-     - Tested
-     - Tested
-   * - ``build_erf_with_shoc_cuda.sh``
-     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
-     - —
-     - —
-     - Untested
-     - Untested
-     - —
-     - Untested
-   * - ``build_erf_with_shoc_hip.sh``
-     - —
-     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
-     - —
-     - Untested
-     - Untested
-     - —
-     - Untested
-   * - ``build_erf_with_shoc_sycl.sh``
-     - —
-     - —
-     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
-     - Untested
-     - Untested
-     - —
-     - Untested
-   * - ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh``
-     - Untested
-     - Untested
-     - Untested
-     - Untested
-     - Untested
-     - —
-     - Untested
-
    * - ``Perlmutter/cmake_with_RRTMGP_NOAHMP.sh``
      - `4d7cf58 <https://github.com/erf-model/ERF/commit/4d7cf58>`_
      - Untested
@@ -268,19 +227,7 @@ The test procedure is documented in :download:`notes_test.sh <figures/notes_test
 * ``cmake_with_kokkos_many_noradiation_hip.sh`` - AMD GPUs (HIP) without radiation
 * ``cmake_with_kokkos_many_hip.sh`` - AMD GPUs (HIP) full build
 * ``cmake_with_kokkos_many_sycl.sh`` - Intel GPUs with SYCL
-* ``build_erf_with_shoc.sh`` - Automated SHOC workflow (CPU)
-* ``build_erf_with_shoc_{cuda,hip,sycl}.sh`` - Automated SHOC workflow with GPU backend
-* ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh`` - SHOC with CUDA on Perlmutter
 * ``Perlmutter/cmake_with_RRTMGP_NOAHMP.sh`` - radiation (RRTMGP) with land-surface model (NOAHMP) with CUDA on Perlmutter
-
-.. note::
-   The GPU SHOC scripts can be auto-generated. Set ``BACKEND=CUDA`` (or ``HIP``/``SYCL``), then:
-
-   .. code-block:: bash
-
-      sed "/ERF_ENABLE_MPI/a\      -DERF_ENABLE_${BACKEND}:BOOL=ON \\\\" Build/cmake_with_shoc.sh > Build/cmake_with_shoc_${BACKEND,,}.sh
-      sed "s/cmake_with_shoc.sh/cmake_with_shoc_${BACKEND,,}.sh/" Build/build_erf_with_shoc.sh > Build/build_erf_with_shoc_${BACKEND,,}.sh
-      chmod +x Build/cmake_with_shoc_${BACKEND,,}.sh Build/build_erf_with_shoc_${BACKEND,,}.sh
 
 .. dropdown:: Build Script Examples
    :icon: code
@@ -304,20 +251,6 @@ The test procedure is documented in :download:`notes_test.sh <figures/notes_test
 
    .. literalinclude:: ../../Build/cmake_with_kokkos_many_sycl.sh
       :language: bash
-
-   **SHOC (CPU):**
-
-   .. literalinclude:: ../../Build/cmake_with_shoc.sh
-      :language: bash
-
-   Requires E3SM submodules: ``source Build/GNU_Ekat/eamxx_clone.sh``
-
-   **Automated SHOC Workflow:**
-
-   .. literalinclude:: ../../Build/build_erf_with_shoc.sh
-      :language: bash
-
-   Usage: ``source Build/build_erf_with_shoc.sh``
 
 For detailed CMake options and dependencies, see :ref:`sec:build:systems`.
 

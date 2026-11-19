@@ -36,10 +36,6 @@ ERF integrates external libraries for core functionality and advanced physics:
      - Turbulence and cloud macrophysics (:ref:`SHOC`)
      - Always built
      - ``erf.pbl_type = NATIVE_SHOC``
-   * - **EAMxx SHOC**
-     - Optional EAMxx SHOC turbulence and cloud macrophysics
-     - Optional
-     - ``-DERF_ENABLE_EAMXX_SHOC=ON`` / ``USE_EAMXX_SHOC=TRUE``
    * - **RRTMGP**
      - Radiation model
      - Optional
@@ -292,39 +288,12 @@ SHOC (Turbulence)
 ~~~~~~~~~~~~~~~~~
 
 SHOC (Simplified Higher-Order Closure) provides turbulence and cloud
-macrophysics. ERF has two SHOC paths. Native SHOC is always built in tree.
-EAMxx SHOC is optional and uses the E3SM source tree.
+macrophysics. ERF's native SHOC is always built in tree and needs no build
+option or external library. Select it at runtime with
+``erf.pbl_type = NATIVE_SHOC``.
 
 For theory and runtime details, see :ref:`SHOC` in the PBL schemes
 documentation.
-
-Native SHOC
-^^^^^^^^^^^
-
-Native SHOC is always built in tree and selected at runtime with
-``erf.pbl_type = NATIVE_SHOC``.
-
-EAMxx SHOC
-^^^^^^^^^^
-
-EAMxx SHOC needs the E3SM setup scripts.
-
-.. code-block:: bash
-
-   export ERF_DIR=/path/to/ERF
-   source $ERF_DIR/Build/GNU_Ekat/eamxx_clone.sh
-
-Build with ``-DERF_ENABLE_EAMXX_SHOC=ON`` for CMake or ``USE_EAMXX_SHOC=TRUE``
-for GNU Make.
-
-EAMxx SHOC also requires MPI and EKAT, which provides Kokkos support for GPU
-builds.
-
-Select EAMxx SHOC at runtime:
-
-.. code-block:: text
-
-   erf.pbl_type = EAMXX_SHOC
 
 RRTMGP (Radiation)
 ~~~~~~~~~~~~~~~~~~

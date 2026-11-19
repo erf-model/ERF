@@ -1403,6 +1403,32 @@ add_test_shoc_removed_transport(SHOC_Removed_Momentum_Host_Diffusion
     "state_update"
     "none")
 
+# The EAMxx SHOC has been removed: selecting it, or setting one of its two options, stops at
+# startup with a pointer to native SHOC
+add_test_shoc_removed_transport(SHOC_Removed_EAMxx_PBLType
+    "erf.pbl_type=EAMXX_SHOC"
+    "erf.pbl_type = EAMXX_SHOC is no longer available"
+    "use erf.pbl_type = NATIVE_SHOC"
+    "")
+add_test_shoc_removed_transport(SHOC_Removed_EAMxx_ApplyTms
+    "erf.shoc.apply_tms=true"
+    "erf.shoc.apply_tms is no longer accepted"
+    "native SHOC does not use it"
+    "")
+add_test_shoc_removed_transport(SHOC_Removed_EAMxx_CheckFluxState
+    "erf.shoc.check_flux_state=true"
+    "erf.shoc.check_flux_state is no longer accepted"
+    "native SHOC does not use it"
+    "")
+
+# erf.pbl_type = SHOC used to select the EAMxx SHOC and now selects native SHOC: the two names
+# must give the same answer
+add_test_option_parity(SHOC_LegacyName_Is_NativeShoc SHOC_Stable_Clear "plt00010"
+    COMMON_OPTIONS "erf.input_sounding_file=../input_sounding_stable_clear max_step=10"
+    OFF_OPTIONS "erf.pbl_type=NATIVE_SHOC"
+    ON_OPTIONS  "erf.pbl_type=SHOC")
+set_property(TEST SHOC_LegacyName_Is_NativeShoc APPEND PROPERTY LABELS "shoc")
+
 # Production wiring regression: two dry runs differ only in xlo roughness;
 # the checker requires finite output and a resolvable z0_m response.
 
@@ -3959,6 +3985,13 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
   # rho theta plus the drift correction) keeps the drift at a few 1e-6 (about 1e-3 without it)
   add_test_pi_drift(PseudoIncompressible_Drift_Diffusion PseudoIncompressible_StratifiedHill -5
       OPTIONS "amr.max_level=0 erf.molec_diff_type=ConstantAlpha erf.alpha_T=10.0 erf.dynamic_viscosity=0.0")
+  # A pseudo-incompressible inflow face with a given theta: rho theta enters as rho0 theta0 u, on
+  # an Inflow face, an inflow_outflow face and with the theta from a dirichlet_file (#5265)
+  add_test_pi_drift(PseudoIncompressible_Inflow PseudoIncompressibleInflowStratified -8)
+  add_test_pi_drift(PseudoIncompressible_InflowOutflow PseudoIncompressibleInflowStratified -8
+      OPTIONS "xlo.type=inflow_outflow")
+  add_test_pi_drift(PseudoIncompressible_InflowOutflow_ThetaFile PseudoIncompressibleInflowStratified -8
+      OPTIONS "xlo.type=inflow_outflow xlo.dirichlet_file=inflow_file")
 endif()
 add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.terrain_type=StaticFittedMesh")

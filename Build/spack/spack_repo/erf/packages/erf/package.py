@@ -161,12 +161,13 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         description="Enable the WDM6 Fortran microphysics bridge",
         when="@26.09:",
     )
+    # ERF after 26.11 has only the native SHOC, which needs no build option
     variant(
         "eamxx_shoc",
         default=False,
         description="Build the EAMxx SHOC turbulence parameterization (EKAT, Kokkos and "
         "a sparse checkout of E3SM's EAMxx sources at the commit ERF pins)",
-        when="@26.09:",
+        when="@26.09:26.11",
     )
     # ERF_ENABLE_FIRE was added after 26.09 and is included in 26.11.
     variant(
@@ -484,8 +485,9 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
                     when=f"{_range}{_when}",
                 )
 
-    # The EAMxx sources SHOC compiles, at the E3SM commit Build/GNU_Ekat/eamxx_clone.sh
-    # checks out (check_pins.py compares them); Spack 1.1+ clones them sparsely.
+    # The EAMxx sources SHOC compiles in 26.09 to 26.11, at the E3SM commit their
+    # Build/GNU_Ekat/eamxx_clone.sh checks out (check_pins.py compares them); Spack 1.1+
+    # clones them sparsely.
     _e3sm_commit = "2eb52d9b3d452e593f3825f9408507cae3519bf6"
     resource(
         name="e3sm-eamxx",
@@ -784,6 +786,9 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
             "wsm6_fort",
             "wdm6_fort",
         ):
+            # eamxx_shoc exists, and is in the build description, only for 26.09 to 26.11
+            if variant == "eamxx_shoc" and "eamxx_shoc" not in self.spec.variants:
+                continue
             feature = {
                 "morr_fort": "morrison_fortran",
                 "wsm6_fort": "wsm6_fortran",
