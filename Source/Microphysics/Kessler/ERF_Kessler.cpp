@@ -28,10 +28,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         Real dtn  = dt;
         // NOTE: coef carries only the reference vertical spacing. The physical
         //       spacing is supplied by the inverse Jacobian in the tendency below,
-        //       since detJ = dz_phys/CellSize(2). Dividing by m_dzmin here as well
-        //       would apply the vertical metric twice. m_dzmin is still the correct
-        //       length scale for the substep (CFL) count, which must bound the
-        //       thinnest cell in the domain.
+        //       since detJ = dz_phys/CellSize(2). Dividing by dz_phys here as well
+        //       would apply the vertical metric twice.
         Real coef = dtn * m_geom.InvCellSize(2);
 
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -117,8 +115,16 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         auto const& ma_qp_arr = mic_fab_vars[MicVar_Kess::qp]->const_arrays();
         // The sedimentation CFL uses fall speed, not precipitating mass flux.
         // fz stores rho * Vt * qp for the flux divergence below, so the reduction
-        // recomputes Vt from the same face state used for the flux.
-        GpuTuple<Real> max_terminal_velocity = ParReduce(TypeList<ReduceOpMax>{},
+        // recomputes Vt from the same face state used for the flux. Each face is checked
+        // against the physical height of the cell it drains, as the limiter below is, so
+        // fast rain aloft in tall cells is not sized by the thinnest cell near the ground.
+        // On an EB mesh detJ is the volume fraction, not a cell height, so the reference
+        // dz is used there.
+        const auto ma_dJ = (m_detJ_cc && solverChoice.terrain_type != TerrainType::EB)
+                         ? m_detJ_cc->const_arrays() : MultiArray4<const Real>{};
+        const Real dz_ref = m_geom.CellSize(2);
+        const Real dt_full = dt;
+        GpuTuple<Real> max_courant_tuple = ParReduce(TypeList<ReduceOpMax>{},
                                                          TypeList<Real>{},
                                                          fz, IntVect(0),
                                                          [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
@@ -132,9 +138,13 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                                                              const Real qp_k = (k == k_hi+1) ? qp_arr(i,j,k-1) : qp_arr(i,j,k);
                                                              const KesslerFaceState face_state =
                                                                  kessler_face_state(k, k_hi, rho_km1, rho_k, qp_km1, qp_k);
-                                                             return { kessler_terminal_velocity(face_state.rho, face_state.qp) };
+                                                             const int donor_k = kessler_face_donor_k(k, k_hi);
+                                                             const Real detJ_donor = (ma_dJ) ? ma_dJ[box_no](i,j,donor_k) : Real(1);
+                                                             return { kessler_fall_courant(
+                                                                 kessler_terminal_velocity(face_state.rho, face_state.qp),
+                                                                 dt_full, dz_ref, detJ_donor) };
                                                          });
-        Real max_vt = get<0>(max_terminal_velocity);
+        Real max_courant = get<0>(max_courant_tuple);
         //
         // ParReduce over a MultiFab gives the local rank maximum here.  Every rank must
         //    arrive at the SAME substep count: otherwise different parts of the domain
@@ -144,13 +154,9 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         //    ReduceOpMax's lowest() initial value here.  (SAM's PrecipFall does this same
         //    reduction for the same reasons.)
         //
-        ParallelDescriptor::ReduceRealMax(max_vt);
+        ParallelDescriptor::ReduceRealMax(max_courant);
 
-        // A zero minimum dz means Set_dzmin was never called (a restart path that
-        // skipped it): the substep count would be unbounded and the step never end.
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_dzmin > Real(0),
-            "Kessler: the minimum cell height was never set (Set_dzmin), so the sedimentation substeps cannot be sized");
-        int n_substep = kessler_num_sedimentation_substeps(max_vt, dt, m_dzmin);
+        int n_substep = kessler_num_sedimentation_substeps(max_courant);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(n_substep >= 1,
                                          "Kessler: Number of precipitation substeps must be greater than 0!");
         coef /= Real(n_substep);

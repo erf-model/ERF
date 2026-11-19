@@ -66,13 +66,23 @@ amrex::Real kessler_precip_flux (const amrex::Real rho,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-int kessler_num_sedimentation_substeps (const amrex::Real current_reduced_value,
-                                        const amrex::Real dt,
-                                        const amrex::Real dzmin) noexcept
+int kessler_num_sedimentation_substeps (const amrex::Real max_courant) noexcept
 {
-    // MUST MATCH: current AdvanceKessler CFL_MAX precipitation substep formula.
-    return static_cast<int>(std::ceil((current_reduced_value + std::numeric_limits<amrex::Real>::epsilon())
-                                      * (dt / dzmin) / kessler_sedimentation_cfl_max));
+    // max_courant is the largest fall Courant number over the faces for the full step,
+    // V*dt over the height of the cell the face drains: enough substeps that rain falls
+    // at most CFL_MAX of that cell per substep, and always at least one.
+    return amrex::max(1, static_cast<int>(std::ceil(max_courant / kessler_sedimentation_cfl_max)));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real kessler_fall_courant (const amrex::Real terminal_velocity,
+                                  const amrex::Real dt,
+                                  const amrex::Real dz,
+                                  const amrex::Real detJ_donor) noexcept
+{
+    // The fall Courant number at a face: the distance fallen in dt over the physical height
+    // dz*detJ of the donor cell, the one the face drains, as the donor-cap limiter uses.
+    return terminal_velocity * dt / (dz * detJ_donor);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

@@ -595,7 +595,8 @@ TEST(KesslerScalar, SedimentationThreshold_StrictLessThanAbsoluteCutoff)
 TEST(KesslerScalar, SubstepCount_IntegerFormulaForProvidedReducedValue)
 {
     const amrex::Real reduced_value = amrex::Real(0.375);
-    const int actual = kessler_num_sedimentation_substeps(reduced_value, amrex::Real(2.0), amrex::Real(0.5));
+    const int actual = kessler_num_sedimentation_substeps(
+        kessler_fall_courant(reduced_value, amrex::Real(2.0), amrex::Real(0.5), amrex::Real(1.0)));
     const int expected = reference_substeps_from_reduced_value(reduced_value, amrex::Real(2.0), amrex::Real(0.5));
 
     EXPECT_EQ(actual, expected);
@@ -772,7 +773,7 @@ TEST(KesslerScalar, RainAccumulationConvertsMassPerAreaToMillimeters)
 }
 
 // Motivation: The sedimentation substep count contract is a terminal-velocity
-// CFL, n = ceil((V_terminal + eps) * dt / dz / CFL_MAX). A flux-like reduced
+// CFL, n = max(1, ceil(V_terminal * dt / dz / CFL_MAX)). A flux-like reduced
 // value rho * V_terminal * qp is dimensionally different and must not be used
 // as a drop-in replacement for the CFL quantity.
 TEST(KesslerScalar, SubstepCountUsesTerminalVelocityCFL)
@@ -784,10 +785,29 @@ TEST(KesslerScalar, SubstepCountUsesTerminalVelocityCFL)
     const amrex::Real velocity = reference_terminal_velocity(rho, qp);
     const amrex::Real reduced_flux_like_value = reference_precip_flux(rho, velocity, qp);
 
-    EXPECT_EQ(kessler_num_sedimentation_substeps(velocity, dt, dz),
+    const amrex::Real one_r = amrex::Real(1.0);
+
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(velocity, dt, dz, one_r)),
               reference_velocity_cfl_substeps(velocity, dt, dz));
-    EXPECT_NE(kessler_num_sedimentation_substeps(reduced_flux_like_value, dt, dz),
+    EXPECT_NE(kessler_num_sedimentation_substeps(kessler_fall_courant(reduced_flux_like_value, dt, dz, one_r)),
               reference_velocity_cfl_substeps(velocity, dt, dz));
+}
+
+// Motivation: The substep count follows the fall Courant number at each face, over
+// the physical height dz*detJ of the cell the face drains, not the domain's fastest
+// rain over its thinnest cell; with no rain there is still one substep.
+TEST(KesslerScalar, SubstepCountUsesDonorCellHeight)
+{
+    const amrex::Real dt = amrex::Real(5.0);
+    const amrex::Real dz = amrex::Real(100.0);
+
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(0.0), dt, dz, amrex::Real(1.0))), 1);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(10.0), dt, dz, amrex::Real(1.0))), 1);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(10.0001), dt, dz, amrex::Real(1.0))), 2);
+    // The same 10 m/s needs two substeps out of a cell half as tall, and 20 m/s needs one
+    // out of a cell twice as tall.
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(10.0), dt, dz, amrex::Real(0.5))), 2);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(20.0), dt, dz, amrex::Real(2.0))), 1);
 }
 
 // Motivation: Total vapor supplied by cloud evaporation plus rain evaporation
