@@ -11,19 +11,19 @@
 /**
  * Conservative linear interpolation that does not mix cells of different types, in the spirit
  * of WRF's land/water-masked nest interpolation (erf-model/ERF#4390). Every cell is
- * interpolated; a cell's type decides only which neighbours its slopes and limiter may see.
+ * interpolated; a cell's type decides only which neighbors its slopes and limiter may see.
  * The types are whatever the caller encodes: land and water (SLM's state), a valid value and
  * the lsm_undefined sentinel (Noah-MP), or both at once (SLM's fluxes).
  *
  * The coarse data carries nfield fields followed by nind type indicators (one value per type;
  * NaN, no type, outside the domain). With nind == 1 every field shares the one indicator; with
  * nind == nfield field n has indicator n. In each direction the slope of a coarse cell is taken
- * only if both of its neighbours are of the same type as the cell; otherwise it is zero, as it
- * is at a domain boundary. The min/max limiter likewise looks only at neighbours of the same
- * type. Where every neighbour is of the same type this is exactly AMReX's cell_cons_interp
+ * only if both of its neighbors are of the same type as the cell; otherwise it is zero, as it
+ * is at a domain boundary. The min/max limiter likewise looks only at neighbors of the same
+ * type. Where every neighbor is of the same type this is exactly AMReX's cell_cons_interp
  * (CellConservativeLinear without linear limiting), so the result changes only next to a type
  * boundary. Each coarse cell's mean is kept, and the indicator is copied (piecewise constant),
- * so a cell whose neighbours are all of other types (an isolated sentinel, say) comes through
+ * so a cell whose neighbors are all of other types (an isolated sentinel, say) comes through
  * exactly.
  */
 class TypedConsLinear
@@ -58,7 +58,7 @@ private:
 };
 
 /**
- * Slopes of the field (component nu) of coarse cell (i,j,k), from neighbours of its own type only
+ * Slopes of the field (component nu) of coarse cell (i,j,k), from neighbors of its own type only
  * (indicator in component nm). Follows mf_cell_cons_lin_interp_mcslope term for term; the slope
  * in direction d goes to component ns + d*nslope, the layout mf_cell_cons_lin_interp reads.
  */
@@ -224,7 +224,7 @@ interp_by_type_packed (amrex::MultiFab& fdst, amrex::MultiFab& csrc, int nind,
  * per type, on any BoxArray (it is copied onto src's cells, ghost cells included): with one
  * component it applies to every field, with src.nComp() components component n applies to field
  * n. Coarse cells it does not reach, and cells outside the domain, have no type and are never
- * anyone's neighbour. Fine cells the interpolation does not fill (ghost cells outside the domain)
+ * anyone's neighbor. Fine cells the interpolation does not fill (ghost cells outside the domain)
  * keep their values in dst. Every field takes the boundary condition bcs[bcscomp].
  */
 inline void

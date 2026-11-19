@@ -45,7 +45,7 @@ int fire_anchor_level(int anchor_level, int finest_level);
  *
  * Aborts, naming the engine and erf.moisture_model, when the sources are
  * empty (no moisture model, Kessler_NoRain, saturation adjustment only, ...).
- * Called after the microphysics of the fire grid's level is initialised.
+ * Called after the microphysics of the fire grid's level is initialized.
  *
  * @param[in] engine_name  The engine's name (FireEngine::name)
  * @param[in] sources      Microphysics::Get_Surface_Precip_Accumulation_Ptrs(lev)
