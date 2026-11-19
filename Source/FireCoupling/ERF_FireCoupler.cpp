@@ -269,7 +269,7 @@ FireCoupler::update_flux_buffer (const Geometry& geom_atm)
     }
 
     // A reader may sample these fluxes in the halo columns around every tile;
-    // give them the neighbouring box's value (and the edge column's
+    // give them the neighboring box's value (and the edge column's
     // outside a non-periodic face), so a column sees the same flux whichever box
     // holds it. On a finer level the columns outside the refined region have no
     // fire grid and keep the zero they were allocated with.
@@ -286,7 +286,7 @@ FireCoupler::add_sources (MultiFab& cc_source,
                           bool has_moisture,
                           int step)
 {
-    // Heat and vapour, with the WRF-Fire profile (ERF_FireAtmCoupling.H)
+    // Heat and vapor, with the WRF-Fire profile (ERF_FireAtmCoupling.H)
     if (m_params.injects_flux() && m_Q_atm_prev && m_params.fire_atm_feedback > 0.0_rt) {
         if (m_params.fire_debug) {
             amrex::Print() << "[FIRE DEBUG] Applying fire coupling to atmosphere (coupling_type="

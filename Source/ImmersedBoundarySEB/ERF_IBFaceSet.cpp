@@ -36,7 +36,7 @@ namespace {
 /**
  * Host-readable view of one fab of a MultiFab.
  *
- * The face detection is a host loop at initialisation. On CPU builds the fab
+ * The face detection is a host loop at initialization. On CPU builds the fab
  * is read in place; on GPU builds a pinned copy is made so the loop does not
  * touch device memory. The copy keeps the fab's own box, so the returned
  * Array4 is indexed with the same global (i, j, k) as the device fab.
@@ -75,7 +75,7 @@ void fill (Gpu::DeviceVector<T>& d, size_t n, T value)
 }
 
 /**
- * Water vapour mixing ratio of cell (i, j, k): rho qv over rho, at least zero
+ * Water vapor mixing ratio of cell (i, j, k): rho qv over rho, at least zero
  * (as the two-stream column reads it, get_qv_from_state()), or zero when the
  * run has no moisture model (``qv_comp`` negative, the state then has no such
  * component).
@@ -157,13 +157,13 @@ BoxArray column_box_array (const BoxArray& ba, const Box& domain)
  *
  * The scan visits every valid cell of every local fab in MFIter order, once.
  * A fluid cell (blanking < 0.5) contributes one face for each of its six
- * neighbours that is solid (blanking >= 0.5); the neighbour may sit in a
+ * neighbors that is solid (blanking >= 0.5); the neighbor may sit in a
  * ghost cell, which is why the blanking must have its ghost cells filled.
- * Neighbours outside the domain in a non-periodic direction are skipped, so
+ * Neighbors outside the domain in a non-periodic direction are skipped, so
  * a building against a non-periodic boundary has no face there. Solid cells
  * contribute no face, only the column map (the highest solid cell of each
  * column of the level's own boxes) that the building ids and the ray cast
- * read. A solid neighbour outside the level's grids, of a fluid or a solid
+ * read. A solid neighbor outside the level's grids, of a fluid or a solid
  * cell, means a building crosses the edge of a refined level; the scan
  * counts them and stops the run once all ranks have reported.
  *
@@ -196,24 +196,24 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     m_z_ground = plo[2];
 
     // The face list of a cell must not depend on the decomposition: every
-    // valid cell has to see its six neighbours, which needs a filled ghost
+    // valid cell has to see its six neighbors, which needs a filled ghost
     // layer on the blanking.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(blanking.nGrowVect().min() >= 1,
                                      "erf.ibseb: the blanking needs at least one ghost cell");
-    // The labelling below gives every column its scan index plus one as a label, in an int.
+    // The labeling below gives every column its scan index plus one as a label, in an int.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(Long(nx) * ny < Long(std::numeric_limits<int>::max()),
                                      "erf.ibseb: the level has more columns than an int can label");
 
     // The level's own column map: one cell per column of each of the level's
-    // boxes, with one ghost cell for the neighbours the faces and the
-    // labelling read across boxes and periodic seams.
+    // boxes, with one ghost cell for the neighbors the faces and the
+    // labeling read across boxes and periodic seams.
     const BoxArray col_ba = column_box_array(blanking.boxArray(), domain);
     m_col_valid.define(col_ba, blanking.DistributionMap(), 1, IntVect(AMREX_D_DECL(1, 1, 0)));
     m_col_valid.setVal(-1);
 
     std::vector<int>  h_i, h_j, h_k, h_dir, h_side, h_nbi, h_nbj;
     std::vector<Real> h_area, h_xf, h_yf, h_zf;
-    // Solid neighbours outside the level's grids, of a fluid cell (a wall
+    // Solid neighbors outside the level's grids, of a fluid cell (a wall
     // against the edge) or of a solid one (a building running across the
     // edge, which a low roof can do with no fluid cell in between): a
     // building that crosses the edge of a refined level, whose columns there
@@ -222,7 +222,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     Long n_outside = 0;
     Long first_outside = std::numeric_limits<Long>::max();   // lowest such cell, as a linear domain index
     auto solid_outside = [&] (const Array4<const Real>& b, const Box& vbox, const Box& fbox, const IntVect& nb) {
-        // A neighbour in the same valid box is in the level (the common case,
+        // A neighbor in the same valid box is in the level (the common case,
         // and every case on level 0): no lookup.
         if (vbox.contains(nb) || !fbox.contains(nb) || b(nb) < 0.5) { return false; }
         IntVect nbw = nb;
@@ -280,12 +280,12 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
                     solid_outside(b, bx, fbox, nb);
                     h_i.push_back(i); h_j.push_back(j); h_k.push_back(k);
                     h_dir.push_back(d); h_side.push_back(s);
-                    // Face centre: the fluid cell centre moved half a cell toward the solid
+                    // Face center: the fluid cell center moved half a cell toward the solid
                     // (plo is the position of the domain's low corner cell).
                     Real c[3] = { Real(plo[0] + (i - ilo + 0.5) * dx[0]), Real(plo[1] + (j - jlo + 0.5) * dx[1]), Real(plo[2] + (k - klo + 0.5) * dx[2]) };
                     c[d] += 0.5 * s * dx[d];
                     h_xf.push_back(c[0]); h_yf.push_back(c[1]); h_zf.push_back(c[2]);
-                    // Column of the solid neighbour, unwrapped: it lies in this
+                    // Column of the solid neighbor, unwrapped: it lies in this
                     // box or in its ghost cell, where the periodic image is.
                     h_nbi.push_back(nb[0]); h_nbj.push_back(nb[1]);
                     h_area.push_back(face_area[d]);
@@ -344,7 +344,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     }
 
     // Host copies of the column map, ghost cells filled: the column of a
-    // face's solid neighbour is in its fab's box or its ghost ring.
+    // face's solid neighbor is in its fab's box or its ghost ring.
     std::vector<HostInts> tops;
     std::vector<Box> vboxes;
     for (MFIter mfi(m_col_valid); mfi.isValid(); ++mfi) {
@@ -370,7 +370,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     // Each box splits its solid columns into connected pieces (a depth-first
     // flood fill); a piece's label starts as the lowest scan index plus one
     // of its columns, and the pieces then take the lowest label of their
-    // neighbours across the box edges, through one ghost cell of m_lab,
+    // neighbors across the box edges, through one ghost cell of m_lab,
     // until no label changes anywhere: the pieces of one building all end
     // with the scan index of its first column. The rounds are as many as a
     // building's pieces are deep, so the exchange never depends on the
@@ -451,7 +451,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
             const int lx = vb.length(0);
             for (int j = lo.y; j <= hi.y; ++j) {
                 for (int i = lo.x; i <= hi.x; ++i) {
-                    if (i != lo.x && i != hi.x && j != lo.y && j != hi.y) { continue; }   // an inner column has no neighbour outside the box
+                    if (i != lo.x && i != hi.x && j != lo.y && j != hi.y) { continue; }   // an inner column has no neighbor outside the box
                     const int p = piece_of[li][(j - lo.y) * lx + (i - lo.x)];
                     if (p < 0) { continue; }
                     const int ni[4] = {i - 1, i + 1, i, i};
@@ -489,7 +489,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
         }
     }
     write_labels(piece_id);
-    // The id of each face: that of the column of its solid neighbour, in the
+    // The id of each face: that of the column of its solid neighbor, in the
     // fab's box or its ghost ring.
     std::vector<int> h_bid(m_nface);
     {
@@ -578,7 +578,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     fill(d_T_skin,   nf, m_params.T_skin_init);
     fill(d_T_slab,   nf * static_cast<size_t>(n_layers()), m_params.T_skin_init);
     // View fractions: placeholders (a roof sees the whole sky, a wall half sky
-    // and half ground) that compute_view_fractions() replaces at initialisation.
+    // and half ground) that compute_view_fractions() replaces at initialization.
     {
         std::vector<Real> fs(nf), fg(nf), fb(nf, 0.0);
         for (size_t n = 0; n < nf; ++n) {
@@ -816,12 +816,12 @@ IBFaceSet::add_outside_occluders (const std::vector<const IBFaceSet*>& below)
  * Map this level's buildings to level 0's numbering through the labels of
  * the level below (see the header). Every column of a building votes with
  * the level-0 id of the coarse column under it (through the level below's own
- * map), unlabelled coarse columns abstaining, and the most frequent id wins
+ * map), unlabeled coarse columns abstaining, and the most frequent id wins
  * (the lowest on a tie). No single column is trusted: the coarse blanking is
- * a volume average, so a column the coarse level leaves unlabelled (a spire
+ * a volume average, so a column the coarse level leaves unlabeled (a spire
  * alone in its coarse cell) cannot unmap a building the level below
  * resolves through its other columns. A building none of whose columns lies
- * under a labelled coarse column is one only this level resolves; it maps to
+ * under a labeled coarse column is one only this level resolves; it maps to
  * 0, and a warning names it when the level below has buildings at all.
  * The level below's ids are brought under this level's columns by a
  * parallel copy; the votes, a few per building, are gathered from every rank
@@ -1019,7 +1019,7 @@ IBFaceSet::build_ground_landings ()
  * Longwave of the current step. One kernel per fab over that fab's faces,
  * reading the air temperature of the fluid cell from the conserved state
  * (dry density, potential temperature and, with a moisture model, water
- * vapour through the equation of state; cell_qv()). With
+ * vapor through the equation of state; cell_qv()). With
  * lw_mode = two_stream the sky and ground terms come from the canopy forcing
  * of the face's column, read from the 2D fab of the same local index (the
  * level's grids flattened, on the same distribution).
@@ -1329,7 +1329,7 @@ IBFaceSet::solve_balance (Real dt)
 
 /**
  * Wall function on every face. One kernel per fab over that fab's faces:
- * the cell-centred velocity of the fluid cell from its face values, its
+ * the cell-centered velocity of the fluid cell from its face values, its
  * tangential part with respect to the wall, the neutral log law for u*
  * and theta*, and on request two additions: a convective
  * velocity scale in the wind (Beljaars' gustiness form with Deardorff's
@@ -1386,7 +1386,7 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
             const Real th  = rth / rho;
             const Real Ta  = getTgivenRandRTh(rho, rth, cell_qv(c, i, j, k, qv_comp));
             const Real th_skin = pT[f] * th / Ta;            // skin temperature as a potential temperature
-            // Cell-centred velocity and its tangential part with respect to the wall.
+            // Cell-centered velocity and its tangential part with respect to the wall.
             Real U[3] = { Real(0.5) * (u(i, j, k) + u(i + 1, j, k)),
                           Real(0.5) * (v(i, j, k) + v(i, j + 1, k)),
                           Real(0.5) * (w(i, j, k) + w(i, j, k + 1)) };
@@ -1413,7 +1413,7 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
             Real olen = 1.0e30;
             if (louis && d == 2) {
                 // Roofs, Louis (1979): explicit factors on the bulk Richardson
-                // number between the skin and the cell centre, no iteration.
+                // number between the skin and the cell center, no iteration.
                 // u*^2 = (kappa U / ln(delta/z0))^2 F_m and u* theta* =
                 // kappa^2 U dtheta F_h / (ln(delta/z0) ln(delta/z0h)), so the
                 // neutral limit is the two log laws above; the heat law's
@@ -1803,7 +1803,7 @@ IBFaceSet::compute_ground_shadow (MultiFab& shadow) const
 {
     const Real sx = m_sun.sx, sy = m_sun.sy, sz = m_sun.sz;
     // The rank's ray map holds every column of its boxes and the halo a ray from
-    // them can cross (build_ray_map()), so the walk from a ground centre needs no
+    // them can cross (build_ray_map()), so the walk from a ground center needs no
     // communication: the shadow field is on this level's boxes.
     const ibseb::RayMap rm = ray_map();
     const Real  z_ground = m_z_ground;
@@ -2128,7 +2128,7 @@ IBFaceSet::print_debug_summary () const
 }
 
 /**
- * Scatter the face count and the mean skin temperature into cell-centred
+ * Scatter the face count and the mean skin temperature into cell-centered
  * fields. One kernel per fab over that fab's faces (contiguous, see
  * fab_start()), with atomic adds since a corner cell collects several faces,
  * then a kernel over the box divides the temperature sum by the count.
