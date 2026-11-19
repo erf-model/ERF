@@ -129,7 +129,7 @@ void verify_fire_prerequisites(const ERF& erf,
 
     // Check 7b: the boxes cover one rectangle. The fire grid treats the edges of
     // their bounding rectangle as its domain edges and fills its ghost cells
-    // there; a hole or a second patch would leave cells with no neighbour data.
+    // there; a hole or a second patch would leave cells with no neighbor data.
     {
         BoxList bl_2d;
         for (int i = 0; i < ba.size(); ++i) {

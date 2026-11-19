@@ -1,6 +1,8 @@
 #ifndef ERF_SLM_H
 #define ERF_SLM_H
 
+#include <set>
+#include <unordered_set>
 #include <string>
 #include <vector>
 #include <memory>
@@ -648,7 +650,8 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void writeSLM_NetCDF (const amrex::MultiFab& mf, const amrex::Vector<std::string>& varnames,
-                          const amrex::Real cur_time, const std::string plot_prefix, const int level_step);
+                          const amrex::Real cur_time, const std::string plot_prefix, const int level_step,
+                          const int lev);
 
     void writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom);
 
@@ -887,6 +890,16 @@ private:
 
     amrex::Real start_time = -1.0;
     bool first_step = true;
+
+#ifdef ERF_USE_NETCDF
+    // The NetCDF land output files made so far in this run, one per level: a level made again
+    // by a regrid appends to its file rather than replacing it (shared by all levels' SLMs)
+    static inline std::set<std::string> s_nc_files_made;
+
+    // Set when this run was restarted from a checkpoint: the first write of each NetCDF land
+    // output file then appends to the file of the earlier run, if there is one
+    static inline bool s_nc_restarted = false;
+#endif
     bool m_updated = false;
 
     std::string parameter_file = "NoahmpTable.TBL";

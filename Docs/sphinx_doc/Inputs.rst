@@ -1566,6 +1566,13 @@ List of Parameters
 |                                     | see :ref:`sec:RadiationDatalog`                          |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_lsm**                    | write the land-surface-model fields to the plotfile      | Boolean            | false            |
+|                                     | (``plt_lsm_*``). With NetCDF plotfiles the SLM fields go |                    |                  |
+|                                     | to one file per level, ``plt_lsm_lev<L>.nc``, each on    |                    |                  |
+|                                     | that level's whole domain (cells outside a refined       |                    |                  |
+|                                     | level's grids are left unset), with one time entry per   |                    |                  |
+|                                     | plotfile; a restarted run appends to these files. The 3D |                    |                  |
+|                                     | land plotfiles ``plt_lsm_<step>`` are always written in  |                    |                  |
+|                                     | the AMReX format                                         |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_surfmodel**              | write SurfaceModel fields to ``plt_surf_*`` files;       | Boolean            | both LSM+Urban   |
 |                                     | independent of ``erf.plot_lsm``                          |                    | active by default|
@@ -4219,7 +4226,7 @@ List of Parameters
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.buildings_type**           | how buildings are represented; see :ref:`Forcings`;      | None,              | None             |
 |                                  | ImmersedForcing is not supported with                    | ImmersedForcing    |                  |
-|                                  | ``erf.terrain_type`` = EB                                |                    |                  |
+|                                  | ``erf.terrain_type`` = EB or ImmersedForcing             |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.buildings_fc_factories**   | use native face-centered EB factories for immersed       | Boolean            | false            |
 |                                  | buildings with ``StaticFittedMesh`` terrain; see         |                    |                  |
@@ -4365,7 +4372,7 @@ Immersed Forcing
 
 These inputs configure the immersed-forcing representation of solid bodies,
 selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
-``erf.buildings_type`` = ``ImmersedForcing``.  At most one of
+``erf.buildings_type`` = ``ImmersedForcing``, but not both in the same run.  At most one of
 ``erf.if_surf_temp_flux``, ``erf.if_init_surf_temp`` and ``erf.if_Olen`` may be set.
 
 Building immersed forcing is applied only on levels where the nominal horizontal

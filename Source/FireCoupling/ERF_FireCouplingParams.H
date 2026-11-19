@@ -31,9 +31,9 @@ struct FireCouplingParams
     amrex::Real heat_flux_alfg        = 45.0;
     /// erf.fire.fire_atm_feedback: multiplier on the injected fluxes
     amrex::Real fire_atm_feedback     = 1.0;
-    /// erf.fire.inject_latent: inject the engine's latent flux as vapour
+    /// erf.fire.inject_latent: inject the engine's latent flux as vapor
     bool        inject_latent         = true;
-    /// erf.fire.source_mode: overwrite or add to the theta and vapour sources
+    /// erf.fire.source_mode: overwrite or add to the theta and vapor sources
     std::string source_mode           = "overwrite";
     /// erf.fire.source_mode was given in the deck (the default overwrite must be chosen explicitly
     /// when another theta source would be discarded)
@@ -57,7 +57,7 @@ struct FireCouplingParams
     bool is_passive()     const { return coupling_type == "passive"; }
     bool is_lagged()      const { return coupling_type == "lagged"; }
     bool is_synchronous() const { return coupling_type == "synchronous"; }
-    /// Heat (and vapour) reach the atmosphere: lagged and synchronous coupling.
+    /// Heat (and vapor) reach the atmosphere: lagged and synchronous coupling.
     bool injects_flux()   const { return is_lagged() || is_synchronous(); }
     bool heat_in_bottom_cell() const { return heat_profile == "bottom_cell"; }
 
