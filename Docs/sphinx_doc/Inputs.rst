@@ -1829,14 +1829,15 @@ terrain surface, as for stations, rather than the bottom of the flat mesh. On th
 variable ``z``, the height of each sample, is always written with the line, since the z
 coordinates of a line plotfile assume equally spaced levels; it may be requested on any mesh.
 
-A plane is placed, and its plotfile written, in the computational coordinates. On a stretched or
-terrain-fitted mesh the z coordinate is not the physical height: a horizontal plane
-(``sample_plane_dir = 2``) at z lies between the levels of cells that hold z on the equally spaced
-nominal mesh, so over terrain it follows the mesh rather than a constant height, and the vertical
-axis of a vertical plane is the nominal z of each level of cells. The variable ``z``, the physical
-height of each sample, gives the height on such a mesh; ERF prints a warning at start-up when
-planes are sampled on such a mesh without it. Planes are not interpolated to a constant physical
-height; use a horizontal line with ``erf.sample_line_interp = true`` for that.
+A plane is placed, and its plotfile written, in the computational coordinates, in which the
+levels of cells are equally spaced. On a stretched or terrain-fitted mesh these are not the
+physical height. A horizontal plane (``sample_plane_dir = 2``) at z is interpolated between the two
+levels of cells whose nominal heights bracket z, so over terrain it follows the mesh rather than a
+constant physical height; the vertical axis of a vertical plane is the nominal height of each level
+of cells. On these meshes the variable ``z_phys``, the physical height of each sample, is always
+written with the planes; it may be requested on any mesh. Planes at a constant physical height are
+not supported. A horizontal line with ``erf.sample_line_interp = true`` gives a 1-D transect at a
+constant height.
 
 With ``erf.sample_line_interp = true``, lines given by ``sample_line_lo_real`` and
 ``sample_line_hi_real`` (or ``sample_line_lo_latlon`` and ``sample_line_hi_latlon``) are sampled
@@ -1900,10 +1901,13 @@ The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``density``, ``x_velocity``, ``y_velocity``, ``z_velocity``, ``magvel``,
 ``theta``, ``qv``, ``qc``, and ``pressure``. Line sampling additionally supports
 ``conserved``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
-``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. Both also support ``z``, the physical height of
-each sample, and ``volfrac``, the volume fraction of each cell (1 without immersed terrain).
+``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. Both also support the physical height of each
+sample, written as ``z`` by line sampling and as ``z_phys`` (the name of the 3D plotfile variable)
+by plane sampling, which accepts either name, and ``volfrac``, the volume fraction of each cell
+(1 without immersed terrain).
 ``conserved`` writes every component of the conserved state as stored, named ``cons_0``,
-``cons_1``, ... in component order (density, rho theta, ...). The variables are written in a fixed order, not the order they are listed in.
+``cons_1``, ... in component order (density, rho theta, ...). The variables are written in a
+fixed order, not the order they are listed in.
 The SGS stresses ``sgs_tau11``, ``sgs_tau22`` and ``sgs_tau33`` are stored at cell centers; the
 other stresses and the heat flux are averaged from their native edge/face locations to cell
 centers; if their diffusion storage is unavailable, ERF writes zero. Velocities

@@ -1833,9 +1833,11 @@ struct PlaneSampler
                     m_varnames.push_back("pressure");
                     amrex::Print() << " " << "pressure";
                 }
-                if (containerHasElement(requested_vars, "z")) {
-                    m_varnames.push_back("z");
-                    amrex::Print() << " " << "z";
+                // "z", as for line sampling, is the same variable
+                if (containerHasElement(requested_vars, "z_phys") ||
+                    containerHasElement(requested_vars, "z")) {
+                    m_varnames.push_back("z_phys");
+                    amrex::Print() << " " << "z_phys";
                 }
                 if (containerHasElement(requested_vars, "volfrac")) {
                     m_varnames.push_back("volfrac");
@@ -1845,13 +1847,12 @@ struct PlaneSampler
             }
 
             // The plane is placed, and its plotfile written, in the computational coordinates,
-            // which are not the physical height on a stretched or terrain-fitted mesh
+            // which are not the physical height on a stretched or terrain-fitted mesh, so there
+            // the height is always written (before volfrac, as when it is requested)
             if (SolverChoice::mesh_type != MeshType::ConstantDz &&
-                !containerHasElement(m_varnames, "z")) {
-                amrex::Print() << "WARNING: on a stretched or terrain-fitted mesh, plane sampling "
-                               << "places the planes and writes them in computational coordinates, "
-                               << "not physical height; add z to erf.plane_sampling_vars for the "
-                               << "height of each sample" << std::endl;
+                !containerHasElement(m_varnames, "z_phys")) {
+                auto it = std::find(m_varnames.begin(), m_varnames.end(), "volfrac");
+                m_varnames.insert(it, "z_phys");
             }
         }
     }
@@ -2056,7 +2057,7 @@ struct PlaneSampler
 
                 // The physical height of each cell center
                 int z_comp = -1;
-                if (containerHasElement(m_varnames, "z")) {
+                if (containerHasElement(m_varnames, "z_phys")) {
                     amrex::MultiFab::Copy(mf_cc_data, *z_phys_cc[ilev], 0, mf_comp, 1, 0);
                     z_comp = mf_comp;
                     mf_comp += 1;

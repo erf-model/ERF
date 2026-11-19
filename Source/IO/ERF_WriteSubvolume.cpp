@@ -78,8 +78,10 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
     }
 
     // The physical height of each cell center, on any mesh: the plotfile itself holds only
-    // the computational coordinates, which are not the height on a stretched or terrain-fitted mesh
-    if (containerHasElement(subvol_var_names, "z_phys")) {
+    // the computational coordinates, which are not the height on a stretched or terrain-fitted
+    // mesh, so there it is always written
+    if (containerHasElement(subvol_var_names, "z_phys") ||
+        SolverChoice::mesh_type != MeshType::ConstantDz) {
         tmp_plot_names.push_back("z_phys");
     }
 

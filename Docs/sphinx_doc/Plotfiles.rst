@@ -340,9 +340,8 @@ are omitted from the output rather than reported as an error.
 ``erf.subvol_sampling_vars`` may also select ``z_phys``, the physical height of
 each cell center, on any mesh. The origin, spacing and box of a subvolume are in
 the computational coordinates, and so is the geometry of its plotfile; on a
-stretched or terrain-fitted mesh these are not the physical height, and
-``z_phys`` gives the height of each cell. ERF prints a warning at start-up when
-subvolumes are written on such a mesh without ``z_phys``.
+stretched or terrain-fitted mesh these are not the physical height, so there
+``z_phys`` is always written.
 
 .. _sec:PlotfileGeneralNotes:
 
