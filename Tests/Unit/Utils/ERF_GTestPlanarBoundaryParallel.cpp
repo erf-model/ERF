@@ -211,6 +211,48 @@ amrex::Real max_error_against_owner (const amrex::MultiFab& mf,
     return err;
 }
 
+// Each grid fills its whole fab, valid region and ghost cells, with (its index + 1) + 10*n.
+// (Kept out of the TEST body: nvcc rejects extended __device__ lambdas in gtest's private
+// TestBody().)
+void set_whole_fab_to_grid_index (amrex::MultiFab& mf)
+{
+    const int ncomp = mf.nComp();
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const auto arr = mf.array(mfi);
+        const amrex::Real v = amrex::Real(mfi.index() + 1);
+        amrex::ParallelFor(mfi.fabbox(), ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            arr(i,j,k,n) = v + amrex::Real(10*n);
+        });
+    }
+}
+
+// Largest |value - expected| after reconcile_outside_domain on the two-grid edge layout:
+// cells beyond x = 0 hold grid 2's constant at wrapped j >= 10 and grid 1's elsewhere, and
+// every other cell keeps its own grid's constant.
+amrex::Real max_error_beyond_edge (const amrex::MultiFab& mf)
+{
+    amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
+    amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    const int ncomp = mf.nComp();
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const auto arr = mf.const_array(mfi);
+        const amrex::Real own = amrex::Real(mfi.index() + 1);
+        reduce_op.eval(mfi.fabbox(), ncomp, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) -> ReduceTuple
+            {
+                const int jw = ((j % ny) + ny) % ny;
+                const amrex::Real e = (i >= 0) ? own
+                                    : (jw >= 10) ? amrex::Real(2.0) : amrex::Real(1.0);
+                return std::abs(arr(i,j,k,n) - (e + amrex::Real(10*n)));
+            });
+    }
+    amrex::Real err = amrex::get<0>(reduce_data.value(reduce_op));
+    amrex::ParallelDescriptor::ReduceRealMax(err);
+    return err;
+}
+
 } // namespace
 
 // The fills below only copy values that are small integers or half-integers, which are
@@ -378,35 +420,9 @@ TEST(PlanarBoundaryParallel, BeyondEdgeCellsWithNoOwnerTakeTheLowestGrid)
         for (const int ncomp : {1, 2, 1}) {
             SCOPED_TRACE("ncomp " + std::to_string(ncomp));
             amrex::MultiFab mf(ba2d, *dm, ncomp, ng);
-            for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
-                const auto arr = mf.array(mfi);
-                const amrex::Real v = amrex::Real(mfi.index() + 1);
-                amrex::ParallelFor(mfi.fabbox(), ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                {
-                    arr(i,j,k,n) = v + amrex::Real(10*n);
-                });
-            }
-
+            set_whole_fab_to_grid_index(mf);
             bndry.reconcile_outside_domain(mf, geom);
-
-            amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
-            amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
-            using ReduceTuple = typename decltype(reduce_data)::Type;
-            for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
-                const auto arr = mf.const_array(mfi);
-                const amrex::Real own = amrex::Real(mfi.index() + 1);
-                reduce_op.eval(mfi.fabbox(), ncomp, reduce_data,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) -> ReduceTuple
-                    {
-                        const int jw = ((j % ny) + ny) % ny;
-                        const amrex::Real e = (i >= 0) ? own
-                                            : (jw >= 10) ? amrex::Real(2.0) : amrex::Real(1.0);
-                        return std::abs(arr(i,j,k,n) - (e + amrex::Real(10*n)));
-                    });
-            }
-            amrex::Real err = amrex::get<0>(reduce_data.value(reduce_op));
-            amrex::ParallelDescriptor::ReduceRealMax(err);
-            EXPECT_EQ(err, amrex::Real(0.0));
+            EXPECT_EQ(max_error_beyond_edge(mf), amrex::Real(0.0));
         }
     }
 }
