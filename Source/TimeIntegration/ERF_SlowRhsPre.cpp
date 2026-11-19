@@ -145,7 +145,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         cloud_chamber_config != nullptr && cloud_chamber_base_state != nullptr &&
         cloud_chamber_config->physical_initialization;
     const erf_wall_thermodynamics::Boundary chamber_walls =
-        use_physical_chamber_wall_flux ? cloud_chamber_config->wall_boundary() :
+        use_physical_chamber_wall_flux ? cloud_chamber_config->transport_boundary(dc, geom.InvCellSizeArray()) :
                                          erf_wall_thermodynamics::Boundary{};
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);

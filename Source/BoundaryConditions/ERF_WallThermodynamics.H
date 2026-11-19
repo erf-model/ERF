@@ -49,6 +49,7 @@ struct MomentumTransfer {
     CoefficientProvider provider = CoefficientProvider::None;
     amrex::Real C_D = amrex::Real(0.0);
     amrex::Real z0_m = amrex::Real(0.0);
+    amrex::Real molecular_speed = amrex::Real(0.0); // nu / half-cell distance [m/s]
 };
 
 struct ScalarTransfer {
@@ -56,6 +57,7 @@ struct ScalarTransfer {
     CoefficientProvider provider = CoefficientProvider::None;
     amrex::Real coefficient = amrex::Real(0.0);
     amrex::Real z0 = amrex::Real(0.0);
+    amrex::Real molecular_speed = amrex::Real(0.0); // alpha / half-cell distance [m/s]
 };
 
 struct FaceWall {

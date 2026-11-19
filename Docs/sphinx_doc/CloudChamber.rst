@@ -436,9 +436,9 @@ The three configurable channels are selected independently:
 
 .. code-block:: none
 
-   <face>.momentum_transfer_model = resolved_noslip|bulk_aero|neutral_roughness_log|law_of_wall_momentum
-   <face>.heat_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
-   <face>.vapor_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
+   <face>.momentum_transfer_model = resolved_noslip|bulk_aero|bulk_aero_plus_molecular|neutral_roughness_log|law_of_wall_momentum
+   <face>.heat_transfer_model = resolved_molecular|bulk_aero|bulk_aero_plus_molecular|neutral_roughness_log
+   <face>.vapor_transfer_model = resolved_molecular|bulk_aero|bulk_aero_plus_molecular|neutral_roughness_log
 
 ``law_of_wall_momentum`` is a compatibility alias for
 ``neutral_roughness_log``; it does not select a separate formulation.
@@ -459,6 +459,10 @@ The three configurable channels are selected independently:
      - momentum, heat, vapor
      - ``coefficient_source = fixed`` plus the corresponding ``C_D``, ``C_H``, or ``C_E``
      - user-supplied dimensionless transfer coefficient multiplied by actual tangential speed
+   * - fixed ``bulk_aero_plus_molecular``
+     - momentum, heat, vapor
+     - same fixed bulk coefficients, plus the configured molecular transport coefficients
+     - sums molecular and bulk exchange at the wall; excludes SGS diffusivity
    * - ``neutral_roughness_log``
      - momentum, heat, vapor
      - ``z0_m`` and the required scalar roughness lengths
@@ -471,11 +475,11 @@ The three configurable channels are selected independently:
 One coefficient provider per face
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``<face>.coefficient_source`` is a **face-level provider shared by every
-``bulk_aero`` channel on that face**.  It is required when at least one bulk
-channel is active and must be either ``fixed`` or ``most``.  Consequently, a
+``<face>.coefficient_source`` is shared by every bulk channel on that face.
+``bulk_aero`` accepts ``fixed`` or ``most``; if any channel selects
+``bulk_aero_plus_molecular``, the face must use ``fixed``. Consequently, a
 single face cannot use fixed bulk momentum and MOST bulk heat at the same
-time.  Non-bulk channels on that face may still be resolved or neutral.
+time. Non-bulk channels on that face may still be resolved or neutral.
 
 With ``coefficient_source = fixed``, provide a coefficient for every selected
 bulk channel:
@@ -567,20 +571,20 @@ The following table summarizes the physical-temperature wall keys.
      - compatibility aggregate; rejected when combined with any per-channel transfer key
    * - ``<face>.momentum_transfer_model``
      - ``resolved_noslip``
-     - ``resolved_noslip``, ``bulk_aero``, ``neutral_roughness_log``, ``law_of_wall_momentum``
+     - ``resolved_noslip``, ``bulk_aero``, ``bulk_aero_plus_molecular``, ``neutral_roughness_log``, ``law_of_wall_momentum``
      - optional; alias maps to neutral roughness-log
    * - ``<face>.heat_transfer_model``
      - ``resolved_molecular``
-     - ``resolved_molecular``, ``bulk_aero``, ``neutral_roughness_log``
+     - ``resolved_molecular``, ``bulk_aero``, ``bulk_aero_plus_molecular``, ``neutral_roughness_log``
      - optional
    * - ``<face>.vapor_transfer_model``
      - ``resolved_molecular``
-     - ``resolved_molecular``, ``bulk_aero``, ``neutral_roughness_log``
+     - ``resolved_molecular``, ``bulk_aero``, ``bulk_aero_plus_molecular``, ``neutral_roughness_log``
      - optional; dry physical vapor flux remains exactly zero
    * - ``<face>.coefficient_source``
      - omitted
      - ``fixed`` or ``most``
-     - required if any channel is ``bulk_aero``; rejected if no bulk channel is active; ``most`` only on ``zlo``/``zhi``
+     - required for either bulk model; rejected if no bulk channel is selected; ``most`` only for ``bulk_aero`` on ``zlo``/``zhi``
    * - ``<face>.C_D``
      - none
      - finite and nonnegative
@@ -798,6 +802,26 @@ The physical transfer uses the actual :math:`U_t`; there is no hidden minimum
 speed, gustiness velocity, or free-convection augmentation.  Fixed bulk
 transfer is therefore a forced/shear-dependent closure, not a complete
 natural- or mixed-convection wall correlation.
+
+Molecular plus fixed bulk transfer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Select ``bulk_aero_plus_molecular`` for each channel that should use the sum.
+Let :math:`d=\Delta n/2` be the distance to the first cell center. The
+combined closure replaces :math:`C_D U_t`, :math:`C_H U_t`, and :math:`C_E U_t`
+in the fixed-bulk equations above by :math:`C_D U_t + \nu/d`,
+:math:`C_H U_t + \alpha_T/d`, and :math:`C_E U_t + \alpha_C/d`, respectively.
+Here :math:`\nu` is ``erf.dynamic_viscosity / erf.rho0_trans`` for
+``ConstantAlpha``. This is a half-cell molecular wall-gradient model, not an
+addition of the full interior LES diffusive flux. At rest the molecular heat
+and wet-wall vapor terms remain if there is a wall-to-air contrast; tangential
+drag and dry-wall vapor flux are zero. The combined flux replaces the
+corresponding boundary flux; it is not added on top of it.
+
+``bulk_aero`` remains bulk-only. If the supplied bulk coefficients were fitted
+to *total* DNS wall exchange, adding molecular exchange without refitting can
+count part of that exchange twice. Use coefficients for the residual bulk
+contribution when calibrating this combined model.
 
 Neutral roughness-log transfer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1043,6 +1067,13 @@ so the per-face momentum contribution is
 
    \lambda_{m,f}
    = K_\infty C_{D,f}U_{t,f}\Delta n_f^{-1}.
+
+For ``bulk_aero_plus_molecular``, add :math:`(\nu/d)\Delta n^{-1}` to
+the momentum rate (without :math:`K_\infty`), or
+:math:`(\alpha_s/d)\Delta n^{-1}` to the corresponding scalar rate.
+If a wall contributes a nonzero molecular speed to a bulk scalar channel,
+the guard sums that channel's bulk and neutral rates over all incident faces
+of the cell. Otherwise it retains that channel's largest individual face rate.
 
 At an edge or corner, contributions from perpendicular active walls are added
 for each free velocity component before taking the maximum.  MOST coefficients
@@ -1430,8 +1461,8 @@ A bulk model's chamber budget is rejected
    physical chamber cases. Omit the option or set it to ``0``.
 
 ``coefficient_source`` is rejected
-   Use it only when at least one channel on that face is ``bulk_aero``.  The
-   same provider applies to every bulk channel on the face.
+   Use it only when at least one channel on that face selects a bulk model.
+   If any selects ``bulk_aero_plus_molecular``, the provider must be ``fixed``.
 
 ``C_D``, ``C_H``, or ``C_E`` is missing
    Fixed bulk transfer requires the coefficient corresponding to every bulk
