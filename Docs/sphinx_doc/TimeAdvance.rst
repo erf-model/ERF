@@ -249,13 +249,16 @@ that the amplification factor of the flat-terrain eigenvalue is about 0.99 per s
 damping than the default constant :math:`\beta_s = 0.1`; only the local stability limit on each
 face is met.
 
-The variable :math:`\beta_s` is also turned on automatically.  On a terrain-fitted mesh with
-implicit substepping, ERF compares ``erf.beta_s`` with the largest :math:`h_\xi^2 + h_\eta^2`
-over the :math:`w`-faces of each level whenever the level has a new set of grids (at
-initialization, on the first step after a restart, and after a regrid), and every coarse step on
-a moving terrain.  If ``erf.beta_s`` is below :math:`\min(\sigma^2, 1)`, the high-:math:`Z`
-stability limit, on any level, ``erf.use_variable_beta_s`` is set to true for all levels for the
-rest of the run and a message is printed.
+If ``erf.use_variable_beta_s`` is not given in the inputs, it is turned on automatically when
+the constant :math:`\beta_s` would be unstable.  On a terrain-fitted mesh with implicit
+substepping, ERF compares ``erf.beta_s`` with the largest :math:`h_\xi^2 + h_\eta^2` over the
+:math:`w`-faces of each level whenever the level has a new set of grids (at initialization, on
+the first step after a restart, and right after a regrid, before the new grids take a step), and
+every coarse step on a moving terrain.  If ``erf.beta_s`` is below :math:`\min(\sigma^2, 1)`,
+the high-:math:`Z` stability limit, on any level, ``erf.use_variable_beta_s`` is set to true for
+all levels for the rest of the run and a message is printed.  The switch is saved in the
+checkpoint, so a restarted run keeps it.  Setting ``erf.use_variable_beta_s = false`` explicitly
+keeps the constant ``erf.beta_s``.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
