@@ -175,7 +175,7 @@ are applied later, when the fluxes enter the right-hand side, so over
 sloping terrain both :math:`P_b` and the ``hfx3`` output omit those
 terms. The Deardorff closure shares this source term. The k-eqn closure
 cannot be combined with a PBL scheme that also transports the turbulent
-kinetic energy (``MYJ``, ``MYNN25``, ``MYNNEDMF``, the SHOC schemes);
+kinetic energy (``MYJ``, ``MYNN25``, ``MYNNEDMF``, ``NATIVE_SHOC``);
 the Deardorff closure cannot be combined with any PBL scheme.
 
 Length scale

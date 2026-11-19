@@ -175,9 +175,6 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                       const eb_& ebfact,
                       const amrex::Vector<amrex::iMultiFab>& physbnd_mask,
-#ifdef ERF_USE_EAMXX_SHOC
-                      SHOCInterface* eamxx_shoc_lev,
-#endif
                       ShocDriver* native_shoc_lev,
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine,
@@ -244,9 +241,6 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        const eb_& ebfact,
                        const amrex::iMultiFab& physbnd_mask,
-#ifdef ERF_USE_EAMXX_SHOC
-                       SHOCInterface* eamxx_shoc_lev,
-#endif
                        ShocDriver* native_shoc_lev,
                        amrex::YAFluxRegister* fr_as_crse,
                        amrex::YAFluxRegister* fr_as_fine,

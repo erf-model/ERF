@@ -279,7 +279,7 @@ if(AMReX_GPU_BACKEND MATCHES "HIP" OR ERF_ENABLE_HIP)
 endif()
 
 # Kokkos Architecture Detection (for EKAT physics)
-if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC)
+if(ERF_ENABLE_RRTMGP)
     message(VERBOSE "EKAT-based physics enabled, checking Kokkos architecture")
     
     set(KOKKOS_ARCH_SET FALSE)
@@ -454,31 +454,6 @@ else()
     message(DEBUG "FFTW not enabled")
 endif()
 
-# E3SM Cloned Check
-if(ERF_ENABLE_EAMXX_SHOC)
-    message(VERBOSE "Checking EAMxx files from E3SM")
-
-    set(E3SM_EXPECTED_PATH "${PROJECT_SOURCE_DIR}/external/E3SM")
-
-    if(NOT EXISTS "${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
-        message(FATAL_ERROR
-            "E3SM provides eamxx required for SHOC but not found.\n"
-            "\n"
-            "This requires specific EAMxx physics source files from E3SM at commit 2eb52d9.\n"
-            "\n"
-            "Option 1 - Use provided script (recommended):\n"
-            "  ${PROJECT_SOURCE_DIR}/Build/eamxx_clone.sh\n"
-            "\n"
-            "Option 2 - Symlink existing E3SM (not tested, must be at commit 2eb52d9b3d):\n"
-            "  ln -s /path/to/your/E3SM ${PROJECT_SOURCE_DIR}/external/E3SM\n"
-            "\n"
-            "Or disable features:\n"
-            "  cmake -DERF_ENABLE_EAMXX_SHOC=OFF ..\n")
-    endif()
-else()
-    message(DEBUG "EKAT physics not enabled, skipping E3SM check")
-endif()
-
 # Environment summary (DEBUG level)
 message(DEBUG "Key environment variables:")
 message(DEBUG "  CRAYPE_VERSION: $ENV{CRAYPE_VERSION}")
@@ -493,7 +468,7 @@ message(DEBUG "  MPICH_GPU_SUPPORT_ENABLED: $ENV{MPICH_GPU_SUPPORT_ENABLED}")
 # Fix 1: CUDA + EKAT -> nvcc_wrapper complications
 # ==============================================================================
 
-if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC))
+if(ERF_ENABLE_CUDA AND ERF_ENABLE_RRTMGP)
     message(STATUS "Applying Fix 1: CUDA+EKAT nvcc_wrapper")
 
     message(DEBUG "Problem: nvcc_wrapper doesn't inherit Cray include paths")
@@ -528,7 +503,7 @@ endif()
 # Fix 2: FCOMPARE + Cray + EKAT/Kokkos -> mpi_gnu_123 not found
 # ==============================================================================
 
-if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC))
+if(ERF_ENABLE_FCOMPARE AND ERF_ENABLE_RRTMGP)
     message(STATUS "Applying Fix 2: fcompare linker with EKAT")
 
     message(DEBUG "Problem: --as-needed drops required MPI libs when EKAT is enabled")
@@ -889,12 +864,12 @@ set(FIX56_ACTIVE OFF)
 set(FIX7_ACTIVE OFF)
 
 # Fix 1: CUDA + EKAT
-if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC) AND CRAY_CUDA_FLAGS)
+if(ERF_ENABLE_CUDA AND ERF_ENABLE_RRTMGP AND CRAY_CUDA_FLAGS)
     set(FIX1_ACTIVE ON)
 endif()
 
 # Fix 2: fcompare + EKAT
-if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC) AND CRAY_LIBS_CLEAN)
+if(ERF_ENABLE_FCOMPARE AND ERF_ENABLE_RRTMGP AND CRAY_LIBS_CLEAN)
     set(FIX2_ACTIVE ON)
 endif()
 

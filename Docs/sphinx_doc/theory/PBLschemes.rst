@@ -21,7 +21,7 @@ conjunction with an LES model that specifies horizontal turbulent transport, in
 which case the vertical component of the LES model is ignored.
 
 Right now, ERF supports several PBL schemes: MYNN Level 2.5, MYJ, native SHOC,
-optional EAMxx SHOC, MRF, and YSU.
+MRF, and YSU.
 
 The MYNN Level 2.5 model is the Mellor-Yamada-Nakanishi-Niino Level 2.5 model, largely matching the original forumulation proposed by Nakanishi and Niino in a series of papers from 2001 to 2009.
 
@@ -192,21 +192,14 @@ PDF allows a grid cell to contain a diagnosed fractional cloud field rather
 than requiring the entire cell to be either clear or cloudy.
 
 SHOC follows the approach described by `Bogenschutz and Krueger (2013)
-<https://doi.org/10.1002/jame.20018>`_. ERF provides both an ERF-native SHOC
-implementation and an optional interface to EAMxx SHOC. The native
-implementation follows the E3SM/EAMxx SHOC algorithmic structure but is adapted
+<https://doi.org/10.1002/jame.20018>`_. ERF provides an ERF-native SHOC
+implementation. It follows the E3SM/EAMxx SHOC algorithmic structure but is adapted
 to ERF state variables, AMReX data structures, ERF surface-flux coupling, and
 ERF time integration. It should not be expected to reproduce EAMxx SHOC
 bit-for-bit.
 
-Selecting a SHOC implementation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-ERF keeps both paths because they serve different integration goals. Native
-SHOC is adapted to ERF's AMReX data structures, surface coupling, and time
-integration and therefore is not expected to reproduce EAMxx SHOC bit-for-bit;
-the EAMxx path is retained for users who need the E3SM/EAMxx reference
-implementation path.
+Selecting SHOC
+~~~~~~~~~~~~~~
 
 Native SHOC is part of the ERF source tree and does not require EAMxx, EKAT, or
 Kokkos setup.
@@ -221,11 +214,12 @@ ERF recognizes the following SHOC-family PBL selections:
      - Meaning
    * - ``NATIVE_SHOC``
      - ERF-native SHOC in ``Source/PBL/Shoc``.
-   * - ``EAMXX_SHOC``
-     - Optional EAMxx SHOC interface. The executable must be built with
-       ``ERF_ENABLE_EAMXX_SHOC=ON``.
    * - ``SHOC``
-     - Deprecated alias for ``EAMXX_SHOC``. It does **not** select native SHOC.
+     - Alias for ``NATIVE_SHOC``. ERF prints a warning, since ``SHOC`` used to
+       select the EAMxx SHOC interface.
+   * - ``EAMXX_SHOC``
+     - No longer accepted. The EAMxx SHOC interface has been removed, and ERF
+       stops with an error that points to ``NATIVE_SHOC``.
 
 Native SHOC quick start
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -585,25 +579,6 @@ Only options documented in the native SHOC input table are part of the
 supported native user-facing runtime contract. Some historical/development
 ``erf.shoc`` keys remain parsed internally but do not currently alter native
 SHOC and should not be treated as native model features.
-
-EAMxx SHOC notes
-~~~~~~~~~~~~~~~~
-
-``EAMXX_SHOC`` is a separate optional implementation path. It uses the shared
-SHOC closure-tuning input names documented in :ref:`sec:Inputs`, but its data
-structures and coupling are provided through the EAMxx interface.
-
-The EAMxx interface additionally supports:
-
-* ``erf.shoc.check_flux_state`` to run its flux/state consistency check.
-
-This is an EAMxx-interface control. It is not an active native-SHOC control.
-
-``erf.shoc.apply_tms`` would apply EAMxx's turbulent mountain stress: form drag from
-subgrid orography, added on top of the surface-layer drag. ERF has no subgrid-orography
-statistics to build its coefficient from, so the option is not supported, and ``true``
-aborts in the EAMxx interface. The surface-layer drag already reaches SHOC through its
-surface momentum flux. Native SHOC reads the option but does not use it.
 
 References
 ~~~~~~~~~~

@@ -2718,12 +2718,12 @@ List of Parameters
 | **erf.pbl_type**                         | Name of PBL Scheme to be used                            | "None", "MYNN25",  | "None"           |
 |                                          |                                                          | "MYNNEDMF", "MYJ", |                  |
 |                                          |                                                          | "YSU", "MRF",      |                  |
-|                                          |                                                          | "NATIVE_SHOC",     |                  |
-|                                          |                                                          | "EAMXX_SHOC";      |                  |
-|                                          |                                                          | legacy "SHOC" is   |                  |
-|                                          |                                                          | deprecated and     |                  |
-|                                          |                                                          | maps to            |                  |
-|                                          |                                                          | "EAMXX_SHOC";      |                  |
+|                                          |                                                          | "NATIVE_SHOC";     |                  |
+|                                          |                                                          | "SHOC" selects     |                  |
+|                                          |                                                          | "NATIVE_SHOC" with |                  |
+|                                          |                                                          | a warning;         |                  |
+|                                          |                                                          | "EAMXX_SHOC" is no |                  |
+|                                          |                                                          | longer accepted;   |                  |
 |                                          |                                                          | legacy "YSUNew" is |                  |
 |                                          |                                                          | deprecated and     |                  |
 |                                          |                                                          | maps to "YSU"      |                  |
@@ -6164,22 +6164,18 @@ atmospheric cell), ``start_datetime`` and the
 SHOC
 ======================
 
-ERF provides two SHOC implementations. Select the ERF-native implementation with
-``erf.pbl_type = NATIVE_SHOC``. Select the optional EAMxx implementation with
-``erf.pbl_type = EAMXX_SHOC``. The legacy value ``SHOC`` is deprecated and is
-interpreted as ``EAMXX_SHOC``; it does not select native SHOC.
+ERF provides a native SHOC implementation, selected with
+``erf.pbl_type = NATIVE_SHOC``. The value ``SHOC`` is also accepted and selects
+native SHOC, with a warning that its meaning has changed: it used to select the
+EAMxx SHOC interface. That interface has been removed, and
+``erf.pbl_type = EAMXX_SHOC`` now stops the run with an error.
 
-Both SHOC implementations use the ``erf.shoc`` namespace for closure tuning.
-Native SHOC also has transport and native-only numerical controls. EAMxx SHOC
-has a small number of interface-only controls. See :ref:`SHOC` for the model
-description, coupling restrictions, transport behavior, and diagnostic output.
+SHOC uses the ``erf.shoc`` namespace for closure tuning, transport, and
+numerical controls. See :ref:`SHOC` for the model description, coupling
+restrictions, transport behavior, and diagnostic output.
 
-Shared SHOC closure inputs
---------------------------
-
-The following option names are read by both native SHOC and EAMxx SHOC. The two
-implementations are separate code paths, so identical input values do not imply
-bit-for-bit identical calculations.
+SHOC closure inputs
+-------------------
 
 .. list-table::
    :header-rows: 1
@@ -6378,34 +6374,12 @@ parsed internally but do not currently alter Native SHOC.
 Each threshold is validated on read, and a non-positive value aborts the run
 with a message naming the input.
 
-EAMxx SHOC interface inputs
----------------------------
-
-The following controls have a verified runtime effect in the optional
-``EAMXX_SHOC`` interface and are not native-SHOC controls.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 36 52 18 12
-
-   * - Parameter
-     - Definition
-     - Acceptable Values
-     - Default
-   * - **erf.shoc.apply_tms**
-     - Apply the turbulent mountain stress contribution in the EAMxx SHOC interface.
-       Not supported: it needs a subgrid-orography drag coefficient, which ERF does
-       not provide, so ``true`` aborts. Native SHOC reads it but does not use it.
-     - false
-     - false
-   * - **erf.shoc.check_flux_state**
-     - Run the EAMxx SHOC interface flux/state consistency check
-     - true / false
-     - false
-
 Only options documented above are part of the supported SHOC user-facing
 runtime contract. Some historical or development ``erf.shoc`` keys may still
 be parsed internally but are intentionally not documented as active features.
+The EAMxx-only inputs ``erf.shoc.apply_tms`` and ``erf.shoc.check_flux_state``
+were removed with the EAMxx SHOC interface; ERF stops if an inputs file sets
+either one.
 
 Minimal native SHOC setup
 -------------------------
@@ -6425,23 +6399,6 @@ The native transport defaults are:
    erf.shoc.momentum_transport = state_update
 
 These two transport lines may be omitted when the defaults are desired.
-
-Minimal EAMxx SHOC setup
-------------------------
-
-The EAMxx SHOC path requires an executable built with the CMake option
-``ERF_ENABLE_EAMXX_SHOC=ON``. For example:
-
-.. code-block:: bash
-
-   cmake -DERF_ENABLE_EAMXX_SHOC=ON ...
-
-The corresponding runtime selection is:
-
-.. code-block:: text
-
-   zlo.type = "surface_layer"
-   erf.pbl_type = EAMXX_SHOC
 
 .. _inputs-runtime-error-checking:
 
