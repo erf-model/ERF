@@ -2882,6 +2882,12 @@ ERF::InitData_post ()
                 amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
             }
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
+            if (solverChoice.terrain_type == TerrainType::EB) {
+                if (verbose > 0) {
+                    amrex::Print() << "Writing the nodal level set to eb_levelset.vtm.\n" << std::endl;
+                }
+                WriteEBLevelSet();
+            }
         }
     }
 

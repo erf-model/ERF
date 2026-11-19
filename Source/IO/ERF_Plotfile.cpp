@@ -98,6 +98,23 @@ WriteNodalVTK (const std::string& dir, const std::string& vtm_name, const std::s
 }
 } // namespace
 
+// Write the nodal EB level set of every level once, as eb_levelset.vtm + eb_levelset/L<lev>_B<box>.vti.
+// The EB does not move, so this goes with the EB surface output (erf.write_eb_surface).
+void
+ERF::WriteEBLevelSet ()
+{
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        Warning("EB level set output assumes uniform dz; skipping it on a stretched mesh");
+        return;
+    }
+    Vector<MultiFab> mf_ls(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        mf_ls[lev].define(convert(grids[lev], IntVect(1)), dmap[lev], 1, 0);
+        MultiFab::Copy(mf_ls[lev], EBFactory(lev).getLevelSet(), 0, 0, 1, 0);
+    }
+    WriteNodalVTK("eb_levelset", "eb_levelset", "levelset", mf_ls, geom);
+}
+
 
 void
 ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
@@ -286,8 +303,6 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
 
     // Finally, check to see if we found all the requested variables
     for (const auto& plot_name : plot_var_names) {
-        // "levelset" is written by Write3DPlotFile to its own nodal plotfile
-        if (plot_name == "levelset") { continue; }
         if (!containerHasElement(a_plot_var_names, plot_name)) {
              if (amrex::ParallelDescriptor::IOProcessor()) {
                  Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
@@ -2156,26 +2171,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         }
     }
 
-    // Nodal EB level set, written to its own plotfile if "levelset" is in erf.plot_vars_<which>
-    bool plot_levelset = false;
-    if (solverChoice.terrain_type == TerrainType::EB) {
-        ParmParse pp(pp_prefix);
-        Vector<std::string> requested_vars;
-        pp.queryarr((which == 1) ? "plot_vars_1" : "plot_vars_2", requested_vars);
-        plot_levelset = containerHasElement(requested_vars, "levelset");
-        if (plot_levelset && SolverChoice::mesh_type != MeshType::ConstantDz) {
-            Warning("levelset output assumes uniform dz; skipping it on a stretched mesh");
-            plot_levelset = false;
-        }
-    }
-    Vector<MultiFab> mf_ls(finest_level+1);
-    if (plot_levelset) {
-        for (int lev = 0; lev <= finest_level; ++lev) {
-            mf_ls[lev].define(convert(grids[lev], IntVect(1)), dmap[lev], 1, 0);
-            MultiFab::Copy(mf_ls[lev], EBFactory(lev).getLevelSet(), 0, 0, 1, 0);
-        }
-    }
-
     for (int lev = 0; lev <= finest_level; ++lev) {
         FillPlot3DVars(lev, plot_var_names, scratch, mf[lev], ncomp_mf, tnew);
     }
@@ -2248,17 +2243,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     }
     */
 #endif
-
-    if (plot_levelset && plotfile_type != PlotFileType::None) {
-        // e.g. plt00001 -> plt00001_levelset.vtm + levelset00001/L<lev>_B<box>.vti
-        const std::string& prefix = (which == 1) ? plot3d_file_1 : plot3d_file_2;
-        const std::string ls_dir = prefix.substr(0, prefix.find_last_of('/') + 1)
-                                 + ((which == 1) ? "levelset" : "levelset_2_")
-                                 + plotfilename.substr(prefix.size());
-        const std::string vtm_name = plotfilename.substr(plotfilename.find_last_of('/') + 1) + "_levelset";
-        Print() << "Writing nodal EB level set " << vtm_name << ".vtm (data in " << ls_dir << ")" << std::endl;
-        WriteNodalVTK(ls_dir, vtm_name, "levelset", mf_ls, geom);
-    }
 
     // Single level
     if (finest_level == 0)

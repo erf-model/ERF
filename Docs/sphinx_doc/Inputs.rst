@@ -1574,6 +1574,8 @@ List of Parameters
 |                                     | plotfile                                                 |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.write_eb_surface**            | write the embedded-boundary surface as a separate file   | Boolean            | false            |
+|                                     | (eb.pvtp) and, for erf.terrain_type = EB, its nodal      |                    |                  |
+|                                     | level set (eb_levelset.vtm), once at initialization      |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rad.datalog**                 | name of the log file to which radiation profiles are     | String             | None             |
 |                                     | written; see :ref:`sec:RadiationDatalog`                 |                    |                  |
