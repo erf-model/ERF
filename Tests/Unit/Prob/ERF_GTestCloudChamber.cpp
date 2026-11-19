@@ -973,27 +973,6 @@ TEST(CloudChamberWallConfig, AcceptsIndependentHeatAndVaporBulkChannels)
     EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(contract, "zlo").empty());
 }
 
-// Motivation: dry bulk vapor is algebraically impermeable and must not turn
-// on the global wall-rate scan; wet bulk vapor and bulk heat remain active.
-TEST(CloudChamberWallConfig, ActivatesTimestepGuardOnlyForActiveBulkChannels)
-{
-    using erf_cloud_chamber::Config;
-    erf_wall_thermodynamics::Boundary walls{};
-    walls[0].vapor.model =
-        erf_wall_thermodynamics::ScalarModel::BulkAero;
-    EXPECT_FALSE(Config::has_bulk_scalar_wall(walls));
-
-    walls[0].moisture =
-        erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
-    EXPECT_TRUE(Config::has_bulk_scalar_wall(walls));
-
-    walls[0].moisture =
-        erf_wall_thermodynamics::MoistureMode::DryImpermeable;
-    walls[0].heat.model =
-        erf_wall_thermodynamics::ScalarModel::BulkAero;
-    EXPECT_TRUE(Config::has_bulk_scalar_wall(walls));
-}
-
 TEST(CloudChamberWallConfig, ParsesWetnessOnlyForWetPhysicalWalls)
 {
     using namespace erf_wall_thermodynamics;
@@ -1137,6 +1116,27 @@ TEST(CloudChamberWallFlux, MOSTUsesWetnessForStabilityAndVapor)
     EXPECT_GT(runtime().zeta, 0);
     EXPECT_NEAR(evaluate_scalar_flux_in(wall, ScalarChannel::Vapor, s).rhoQv_in,
                 s.rho * runtime().C_E * s.U_t * (target - s.qv_air), scaled_tolerance(target));
+}
+
+// Motivation: dry bulk vapor is algebraically impermeable and must not turn
+// on the global wall-rate scan; wet bulk vapor and bulk heat remain active.
+TEST(CloudChamberWallConfig, ActivatesTimestepGuardOnlyForActiveBulkChannels)
+{
+    using erf_cloud_chamber::Config;
+    erf_wall_thermodynamics::Boundary walls{};
+    walls[0].vapor.model =
+        erf_wall_thermodynamics::ScalarModel::BulkAero;
+    EXPECT_FALSE(Config::has_bulk_scalar_wall(walls));
+
+    walls[0].moisture =
+        erf_wall_thermodynamics::MoistureMode::WetEquilibrium;
+    EXPECT_TRUE(Config::has_bulk_scalar_wall(walls));
+
+    walls[0].moisture =
+        erf_wall_thermodynamics::MoistureMode::DryImpermeable;
+    walls[0].heat.model =
+        erf_wall_thermodynamics::ScalarModel::BulkAero;
+    EXPECT_TRUE(Config::has_bulk_scalar_wall(walls));
 }
 
 // The evaluator must be authoritative about legacy versus physical

@@ -67,11 +67,11 @@ struct ScalarTransfer {
 struct FaceWall {
     ThermalBoundary thermal;
     MoistureMode moisture = MoistureMode::LegacyNumerical;
+    amrex::Real wetness = amrex::Real(1.0); // Prescribed RH over liquid on wet walls.
     MomentumTransfer momentum;
     ScalarTransfer heat;
     ScalarTransfer vapor;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> wall_velocity{};
-    amrex::Real wetness = amrex::Real(1.0); // Wet-wall RH over liquid, not a transfer coefficient.
 };
 
 using Boundary = amrex::GpuArray<FaceWall, 2 * AMREX_SPACEDIM>;
