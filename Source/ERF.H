@@ -884,6 +884,7 @@ public:
 
     // Write plotfile to disk
     bool Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    void WriteEBLevelSet ();
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
     void ResetIntervalMeansAfter3DPlotfileBatch (int plotfiles_written,
                                                  bool interval_diagnostic_consumed);
