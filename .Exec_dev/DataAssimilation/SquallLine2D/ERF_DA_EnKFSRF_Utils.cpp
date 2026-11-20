@@ -4,6 +4,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Utility.H>
+#include <AMReX_ParmParse.H>
 #include "ERF_DA_EnKFSRF.H"
 
 #include <vector>
@@ -243,10 +244,70 @@ compute_d_vec(const MultiFab& mf1,
                        mf1.nGrowVect());
 }
 
+ObsMask
+get_obs_mask (const Geometry& geom, int n_obs_fields)
+{
+    const Box&  domain = geom.Domain();
+    const Real* plo    = geom.ProbLo();
+    const Real* phi    = geom.ProbHi();
+    const Real* dx     = geom.CellSize();
+
+    Vector<Real> roi_lo(plo, plo + AMREX_SPACEDIM);
+    Vector<Real> roi_hi(phi, phi + AMREX_SPACEDIM);
+
+    ParmParse pp("da");
+    pp.queryarr("obs_roi_lo", roi_lo, 0, AMREX_SPACEDIM);
+    pp.queryarr("obs_roi_hi", roi_hi, 0, AMREX_SPACEDIM);
+
+    // A cell is inside iff its center x_c = plo + (i+0.5)*dx lies in [lo, hi]
+    IntVect ilo, ihi;
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(roi_lo[d] <= roi_hi[d],
+                                         "da.obs_roi_lo must be <= da.obs_roi_hi in every direction");
+        ilo[d] = static_cast<int>(std::ceil ((roi_lo[d] - plo[d]) / dx[d] - 0.5_rt));
+        ihi[d] = static_cast<int>(std::floor((roi_hi[d] - plo[d]) / dx[d] - 0.5_rt));
+        ilo[d] = std::max(ilo[d], domain.smallEnd(d));
+        ihi[d] = std::min(ihi[d], domain.bigEnd(d));
+    }
+
+    // Strides inside the box, counted from the box lower corner
+    int stride_x = 1, stride_y = 1, stride_z = 1;
+    pp.query("roi_stride_x", stride_x);
+    pp.query("roi_stride_y", stride_y);
+    pp.query("roi_stride_z", stride_z);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(stride_x >= 1 && stride_y >= 1 && stride_z >= 1,
+                                     "da.roi_stride_x/y/z must be >= 1");
+
+    ObsMask mask;
+    mask.roi    = Box(ilo, ihi);
+    mask.stride = IntVect(stride_x, stride_y, stride_z);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(mask.roi.ok(),
+        "Observation region of interest (da.obs_roi_lo/hi) contains no cell centers");
+
+    const Long ncells = mask.count();
+    Print() << "Observation region of interest:\n";
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        Print() << "    dir " << d << ": requested [" << roi_lo[d] << ", " << roi_hi[d] << "]"
+                << ", cell centers [" << plo[d] + (ilo[d] + 0.5_rt) * dx[d] << ", "
+                << plo[d] + (ihi[d] + 0.5_rt) * dx[d] << "]"
+                << ", index [" << ilo[d] << ", " << ihi[d] << "]"
+                << " (" << ihi[d] - ilo[d] + 1 << " of " << domain.length(d) << " cells)"
+                << ", stride " << mask.stride[d]
+                << " -> " << mask.count_dir(d) << " observed\n";
+    }
+    Print() << "    observed cells = " << ncells
+            << ", m = " << ncells << " x " << n_obs_fields << " = " << ncells * n_obs_fields
+            << std::endl;
+
+    return mask;
+}
+
+// d' = R^{-1} d at observed cells; zero elsewhere (unobserved cells get zero weight)
 void
 compute_d_prime_vec(MultiFab& d_prime_vec,
                     const MultiFab& d_vec,
-                    const Vector<Real>& R_diag)
+                    const Vector<Real>& R_diag,
+                    const ObsMask& obs_mask)
 {
     AMREX_ALWAYS_ASSERT(d_vec.nComp() == R_diag.size());
 
@@ -270,7 +331,7 @@ compute_d_prime_vec(MultiFab& d_prime_vec,
         ParallelFor(bx, ncomp,
                             [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
         {
-            dp_arr(i,j,k,n) = d_arr(i,j,k,n) / R_diag_d_ptr[n];
+            dp_arr(i,j,k,n) = obs_mask(i,j,k) ? d_arr(i,j,k,n) / R_diag_d_ptr[n] : 0.0_rt;
         });
     }
 }
@@ -311,7 +372,8 @@ compute_mean_H_xf(const int da_iter,
 Real
 Compute_yf_prime_i_T_Rinv_yf_prime_j(const MultiFab& Yi,
                                    const MultiFab& Yj,
-                                   const Vector<Real>& R_diag)
+                                   const Vector<Real>& R_diag,
+                                   const ObsMask& obs_mask)
 {
     const int ncomp = Yi.nComp();
 
@@ -336,8 +398,11 @@ Compute_yf_prime_i_T_Rinv_yf_prime_j(const MultiFab& Yi,
         {
             Real local = 0.0;
 
-            for (int n = 0; n < ncomp; ++n) {
-                local += yi(i,j,k,n) * yj(i,j,k,n)/R_diag_d_ptr[n];
+            // Only observed cells contribute
+            if (obs_mask(i,j,k)) {
+                for (int n = 0; n < ncomp; ++n) {
+                    local += yi(i,j,k,n) * yj(i,j,k,n)/R_diag_d_ptr[n];
+                }
             }
 
             return {local};
@@ -393,6 +458,7 @@ compute_S_matrix(const int da_iter,
                  const int& Nens,
                  const MultiFab& mean_H_xf,
                  const Vector<Real>& R_diag,
+                 const ObsMask& obs_mask,
                  const std::string& last_pf_name,
                  const Vector<std::string>& varnames)
 {
@@ -403,7 +469,7 @@ compute_S_matrix(const int da_iter,
         for (int j = 0; j < Nens; ++j) {
             MultiFab yf_prime_j;
             compute_yf_prime(da_iter, j, last_pf_name, varnames, mean_H_xf, yf_prime_j);
-            Real val = Compute_yf_prime_i_T_Rinv_yf_prime_j(yf_prime_i, yf_prime_j, R_diag);
+            Real val = Compute_yf_prime_i_T_Rinv_yf_prime_j(yf_prime_i, yf_prime_j, R_diag, obs_mask);
             S(i,j) = val/(Nens-1);
             if(i==j) {
                 S(i,j) = 1.0 + S(i,j);
@@ -721,7 +787,9 @@ MakeFullPath (const std::string& filename, const int da_iter)
     return ss.str();
 }
 
+// RMS of the innovation d over the observation set (observed cells, all fields)
 void WriteInnovationRMS(const MultiFab& dvec,
+                        const ObsMask& obs_mask,
                         const std::string& filename,
                         int da_iter)
 {
@@ -743,14 +811,14 @@ void WriteInnovationRMS(const MultiFab& dvec,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 -> ReduceTuple
                 {
-                    const Real val = arr(i, j, k, n);
+                    const Real val = obs_mask(i, j, k) ? arr(i, j, k, n) : 0.0_rt;
                     return {val * val};
                 });
 
             sum_sq += get<0>(reduce_data.value());
         }
 
-        count += static_cast<long>(box.numPts()) * dvec.nComp();
+        count += static_cast<long>(obs_mask.count(box)) * dvec.nComp();
     }
 
     // Global reductions across MPI ranks
