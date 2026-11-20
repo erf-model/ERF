@@ -1,6 +1,9 @@
 #include "ERF_SurfaceLayer.H"
+#include <AMReX_Algorithm.H>
 #include <AMReX_Math.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_FillPatchUtil.H>
+#include <AMReX_PhysBCFunct.H>
 #include "ERF_Constants.H"
 #include "ERF_EarthRelativeWind.H"
 #include "ERF_SurfaceLayerStress.H"
@@ -8,6 +11,12 @@
 #include "ERF_SurfaceMoisture.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Wstar.H"
+#include <array>
+#include <cerrno>
+#include <cfenv>
+#include <cstdlib>
+#include <iomanip>
+#include <limits>
 
 using namespace amrex;
 
@@ -32,6 +41,116 @@ struct NearestColumn
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int j (int jj) const noexcept { return amrex::min(amrex::max(jj, jlo), jhi); }
 };
+
+// Validate EB input on the host and return the model's horizontal values in
+// x-fastest order. The optional upper node row/column is not consumed by MOST.
+Gpu::HostVector<Real>
+read_eb_roughness (std::istream& file, const std::string& fname,
+                   const Geometry& geom, int lev)
+{
+    const std::string context = "MOST roughness file \"" + fname + "\" at level " +
+                                std::to_string(lev);
+    const Box& dom = geom.Domain();
+    const int nx = dom.length(0), ny = dom.length(1);
+    const Long nvalues = Long(nx) * Long(ny);
+    if (nvalues > std::numeric_limits<int>::max()) {
+        Abort(context + ": horizontal grid is too large for the roughness broadcast");
+    }
+    Gpu::HostVector<Real> values(nvalues);
+    Vector<Long> source_line((Long(nx)+1) * (Long(ny)+1), -1);
+    const auto dx = geom.CellSizeArray();
+    const auto prob_lo = geom.ProbLoArray();
+    const auto prob_hi = geom.ProbHiArray();
+    const Real tol = Real(1.e-4);
+    const std::array<const char*, 3> names{"x", "y", "z0"};
+    auto location = [] (Real x, Real y) {
+        std::ostringstream os;
+        os << std::setprecision(std::numeric_limits<Real>::max_digits10)
+           << "(" << x << ", " << y << ")";
+        return os.str();
+    };
+
+    std::string line;
+    Long lineno = 0, nrecords = 0;
+    while (std::getline(file, line)) {
+        ++lineno;
+        if (line.find_first_not_of(" \t\r") == std::string::npos) { continue; }
+        auto line_error = [&] (const std::string& problem) {
+            Abort(context + ": line " + std::to_string(lineno) + ": " + problem);
+        };
+        std::istringstream record(line);
+        std::array<std::string, 3> tokens;
+        std::string extra;
+        if (!(record >> tokens[0] >> tokens[1] >> tokens[2]) || record >> extra) {
+            line_error("expected exactly three numbers: x y z0");
+        }
+        std::array<Real, 3> point{};
+        for (int c = 0; c < 3; ++c) {
+            const char* first = tokens[c].c_str();
+            char* end = nullptr;
+            // strtod is available on older standard libraries. Suppress conversion
+            // exceptions so out-of-range input reports an error even with FPE traps.
+            std::fenv_t saved_env;
+            if (std::feholdexcept(&saved_env) != 0) {
+                line_error("could not suspend floating-point exceptions for input validation");
+            }
+            errno = 0;
+            const double parsed = std::strtod(first, &end);
+            const int parse_errno = errno;
+            std::fesetenv(&saved_env);
+            if (end == first || *end != '\0') {
+                line_error(std::string("invalid number for ") + names[c]);
+            }
+            // Keep representable subnormal values; strtod may set ERANGE for them.
+            if (parse_errno == ERANGE && (parsed == 0.0 || !std::isfinite(parsed))) {
+                line_error(std::string("number out of range for ") + names[c]);
+            }
+            if (!std::isfinite(parsed) || (c == 2 && parsed <= 0.0)) {
+                line_error(std::string(names[c]) +
+                           (c == 2 ? " must be finite and strictly positive" : " must be finite"));
+            }
+            if (std::abs(parsed) > double(std::numeric_limits<Real>::max())) {
+                line_error(std::string("number out of range for ") + names[c]);
+            }
+            point[c] = Real(parsed);
+            if (c == 2 && point[c] <= zero) {
+                line_error("z0 must be finite and strictly positive at the model precision");
+            }
+        }
+        ++nrecords;
+        const Real x = point[0], y = point[1];
+        // Extra samples outside the model grid remain allowed, but every
+        // record above is checked even when it will not be used.
+        if (x < prob_lo[0]-tol || x > prob_hi[0]+tol ||
+            y < prob_lo[1]-tol || y > prob_hi[1]+tol) { continue; }
+        const Real ri = std::round((x-prob_lo[0]) / dx[0]);
+        const Real rj = std::round((y-prob_lo[1]) / dx[1]);
+        if (ri < zero || ri > Real(nx) || rj < zero || rj > Real(ny)) { continue; }
+        const int i = static_cast<int>(ri), j = static_cast<int>(rj);
+        const Real model_x = prob_lo[0] + i*dx[0];
+        const Real model_y = prob_lo[1] + j*dx[1];
+        if (std::hypot(x-model_x, y-model_y) >= tol) { continue; }
+        const Long node = Long(i) + Long(j)*(Long(nx)+1);
+        if (source_line[node] >= 0) {
+            line_error("duplicate grid location " + location(model_x, model_y) +
+                       ", already supplied on line " + std::to_string(source_line[node]));
+        }
+        source_line[node] = lineno;
+        if (i < nx && j < ny) { values[Long(i)+Long(j)*nx] = point[2]; }
+    }
+    if (file.bad()) { Abort(context + ": could not read the complete file"); }
+    if (nrecords == 0) { Abort(context + ": holds no (x, y, z0) triples"); }
+    for (int j = 0; j < ny; ++j) {
+        for (int i = 0; i < nx; ++i) {
+            if (source_line[Long(i)+Long(j)*(Long(nx)+1)] < 0) {
+                Abort(context + ": missing horizontal model coordinate " +
+                      location(prob_lo[0]+i*dx[0], prob_lo[1]+j*dx[1]) +
+                      "; domain-wide horizontal coverage is required");
+            }
+        }
+    }
+    return values;
+}
 
 /**
  * The column whose LSM fluxes a face stress reads for cell (ii,jj), at most one cell beyond
@@ -3942,6 +4061,8 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
 
 /**
  * Read or interpolate custom roughness length data.
+ * EB maps the horizontal values through every vertical cell and ghost cell;
+ * non-EB terrain retains its surface slab.
  *
  * @param[in] lev Current level
  * @param[in] fname Roughness file name; an empty name interpolates from level 0
@@ -3950,6 +4071,7 @@ void
 SurfaceLayer::read_custom_roughness (const int& lev,
                                      const std::string& fname)
 {
+    const bool is_eb = m_terrain_type == TerrainType::EB;
     // Read the file if we have it
     if (!fname.empty()) {
         // Only the ioproc reads the file
@@ -3961,39 +4083,47 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                 Abort("Could not open the MOST roughness file \"" + fname + "\" given as "
                       "erf.most.roughness_file_name -- please check the file name in the inputs file");
             }
-            Real value1,value2,value3;
-            while(file>>value1>>value2>>value3){
-                m_x.push_back(value1);
-                m_y.push_back(value2);
-                m_z0.push_back(value3);
+            if (is_eb) {
+                m_z0 = read_eb_roughness(file, fname, m_geom[lev], lev);
+            } else {
+                Real value1,value2,value3;
+                while(file>>value1>>value2>>value3){
+                    m_x.push_back(value1);
+                    m_y.push_back(value2);
+                    m_z0.push_back(value3);
+                }
+
+                AMREX_ALWAYS_ASSERT(m_x.size() == m_y.size());
+                AMREX_ALWAYS_ASSERT(m_x.size() == m_z0.size());
+
+                if (m_x.empty()) {
+                    Abort("The MOST roughness file \"" + fname + "\" holds no (x, y, z0) triples");
+                }
             }
             file.close();
-
-            AMREX_ALWAYS_ASSERT(m_x.size() == m_y.size());
-            AMREX_ALWAYS_ASSERT(m_x.size() == m_z0.size());
-
-            if (m_x.empty()) {
-                Abort("The MOST roughness file \"" + fname + "\" holds no (x, y, z0) triples");
-            }
         }
 
         // Broadcast the whole domain to every rank
         int ioproc = ParallelDescriptor::IOProcessorNumber();
-        int nnode = static_cast<int>(m_x.size());
+        int nnode = static_cast<int>(m_z0.size());
         ParallelDescriptor::Bcast(&nnode, 1, ioproc);
 
         if (!ParallelDescriptor::IOProcessor()) {
-            m_x.resize(nnode);
-            m_y.resize(nnode);
+            if (!is_eb) {
+                m_x.resize(nnode);
+                m_y.resize(nnode);
+            }
             m_z0.resize(nnode);
         }
-        ParallelDescriptor::Bcast(m_x.data() , nnode, ioproc);
-        ParallelDescriptor::Bcast(m_y.data() , nnode, ioproc);
+        if (!is_eb) {
+            ParallelDescriptor::Bcast(m_x.data() , nnode, ioproc);
+            ParallelDescriptor::Bcast(m_y.data() , nnode, ioproc);
+        }
         ParallelDescriptor::Bcast(m_z0.data(), nnode, ioproc);
 
         // The loop below indexes the file's values as nodes of this level's grid, so a file
         // holding fewer values than the grid has nodes would be read past its end
-        {
+        if (!is_eb) {
             const Box& dom = m_geom[lev].Domain();
             const int nnode_needed = dom.bigEnd(0) + dom.bigEnd(1) * (dom.length(0)+1) + 1;
             if (nnode < nnode_needed) {
@@ -4004,23 +4134,27 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         }
 
         // Copy data to the GPU
-        Gpu::DeviceVector<Real> d_x(nnode),d_y(nnode),d_z0(nnode);
-        Gpu::copy(Gpu::hostToDevice, m_x.begin(), m_x.end(), d_x.begin());
-        Gpu::copy(Gpu::hostToDevice, m_y.begin(), m_y.end(), d_y.begin());
+        Gpu::DeviceVector<Real> d_x(is_eb ? 0 : nnode),d_y(is_eb ? 0 : nnode),d_z0(nnode);
+        if (!is_eb) {
+            Gpu::copy(Gpu::hostToDevice, m_x.begin(), m_x.end(), d_x.begin());
+            Gpu::copy(Gpu::hostToDevice, m_y.begin(), m_y.end(), d_y.begin());
+        }
         Gpu::copy(Gpu::hostToDevice, m_z0.begin(), m_z0.end(), d_z0.begin());
         Real* xp  = d_x.data();
         Real* yp  = d_y.data();
         Real* z0p = d_z0.data();
 
-        // Each rank populates it's z_0[lev] MultiFab
+        // Each rank populates its z_0[lev] MultiFab.
         const int klo = m_geom[lev].Domain().smallEnd(2);
         for (MFIter mfi(z_0[lev]); mfi.isValid(); ++mfi)
         {
-            Box gtbx = mfi.growntilebox();
+            // EB roughness extends through the entire FAB, including vertical ghosts.
+            // The shared domain lookup gives overlapping FAB ghosts identical values.
+            Box gtbx = is_eb ? mfi.fabbox() : mfi.growntilebox();
 
-            if (gtbx.smallEnd(2) != klo) { continue; }
+            if (!is_eb && gtbx.smallEnd(2) != klo) { continue; }
 
-            // Populate z_phys data
+            // Match the horizontal roughness map at the legacy node-like coordinates.
             Real tol = Real(1.0e-4);
             auto dx = m_geom[lev].CellSizeArray();
             auto ProbLoArr = m_geom[lev].ProbLoArray();
@@ -4028,20 +4162,29 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             int jlo = m_geom[lev].Domain().smallEnd(1);
             int ihi = m_geom[lev].Domain().bigEnd(0);
             int jhi = m_geom[lev].Domain().bigEnd(1);
+            const int file_i_offset = is_eb ? ilo : 0;
+            const int file_j_offset = is_eb ? jlo : 0;
+            const int file_stride = is_eb ? ihi-ilo+1 : ihi-ilo+2;
 
             Array4<Real> const& z0_arr = z_0[lev].array(mfi);
-            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Clip indices for ghost-cells
-                int ii = amrex::min(amrex::max(i,ilo),ihi);
-                int jj = amrex::min(amrex::max(j,jlo),jhi);
+                int ii = amrex::Clamp(i,ilo,ihi) - file_i_offset;
+                int jj = amrex::Clamp(j,jlo,jhi) - file_j_offset;
+                const int roughness_k = is_eb ? k : klo;
+                const int inode = ii + jj * file_stride;
+                if (is_eb) {
+                    // Coverage and values were validated and ordered on the I/O rank.
+                    z0_arr(i,j,k) = z0p[inode];
+                    return;
+                }
 
                 // Location of nodes
                 Real x = ProbLoArr[0]  + ii  * dx[0];
                 Real y = ProbLoArr[1]  + jj  * dx[1];
-                int inode = ii + jj * (ihi-ilo+2); // stride is Nx+1
                 if (std::sqrt(amrex::Math::powi<2>(x-xp[inode])+amrex::Math::powi<2>(y-yp[inode])) < tol) {
-                    z0_arr(i,j,klo) = z0p[inode];
+                    z0_arr(i,j,roughness_k) = z0p[inode];
                 } else {
                     // Unexpected list order, do brute force search
                     Real z0loc = zero;
@@ -4056,7 +4199,7 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                     }
                     AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
                     amrex::ignore_unused(found);
-                    z0_arr(i,j,klo) = z0loc;
+                    z0_arr(i,j,roughness_k) = z0loc;
                 }
             });
         } // mfi
@@ -4075,15 +4218,22 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
             ratio[idim] = m_geom[lev].Domain().length(idim) / m_geom[0].Domain().length(idim);
         }
+        // Non-EB roughness is a single surface slab at klo on both levels, so map it
+        // horizontally only; a z ratio would pull unfilled cells above the slab into the
+        // coarse patch and its z slopes.
+        if (!is_eb) { ratio[2] = 1; }
 
-        // Create interp object and interpolate from the coarsest grid
+        // Interpolate from the coarsest grid. InterpFromCoarseLevel copies z_0[0] onto
+        // coarse patches laid out like the fine boxes and fills the physical ghosts; a raw
+        // MFInterpolater::interp call would need z_0[0] to share z_0[lev]'s box ownership,
+        // which it does not.
         MFInterpolater* interp = &mf_cell_cons_interp;
-        interp->interp(z_0[0]  , 0,
-                       z_0[lev], 0,
-                       1, z_0[lev].nGrowVect(),
-                       m_geom[0], m_geom[lev],
-                       m_geom[lev].Domain(),ratio,
-                       bcr, 0);
+        GpuBndryFuncFab<FabFillNoOp> bndry_func(FabFillNoOp{});
+        PhysBCFunct<GpuBndryFuncFab<FabFillNoOp>>
+            cbc(m_geom[0], bcr, bndry_func), fbc(m_geom[lev], bcr, bndry_func);
+        InterpFromCoarseLevel(z_0[lev], z_0[lev].nGrowVect(), Real(0.0),
+                             z_0[0], 0, 0, 1, m_geom[0], m_geom[lev],
+                             cbc, 0, fbc, 0, ratio, interp, bcr, 0);
     }
 
     // The file is written only to the boxes that touch the surface; the copies of the boxes

@@ -27,5 +27,6 @@ CEXE_headers += ERF_TI_substep_fun.H
 CEXE_headers += ERF_TI_fast_headers.H
 CEXE_headers += ERF_TI_slow_headers.H
 CEXE_headers += ERF_TI_utils.H
+CEXE_headers += ERF_VariableBetaSSwitch.H
 
 CEXE_headers += ERF_MRI.H

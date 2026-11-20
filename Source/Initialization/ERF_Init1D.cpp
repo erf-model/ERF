@@ -46,8 +46,8 @@ ERF::initHSE (int lev)
         //
         // Set the values of the base state inside the domain but outside of the fine region,
         // and in the fine ghost cells; the vertical integration below then overwrites only
-        // the fine grids, and for a box whose klo is in the interior it reads the value this
-        // leaves in klo-1 as its starting point.
+        // the fine grids.  Over terrain, a box whose klo is in the interior reads the value
+        // this leaves in klo-1 as its starting point.
         //
         interp_base_state_from_coarse(lev);
     }
@@ -100,9 +100,12 @@ ERF::initHSE (int lev)
         //    each ghost column is then built as it would be were it valid, the same in every
         //    box it is a ghost of, and the base state is one field in balance there too.
         //    (The constructions above also write the ring around the boxes they are given,
-        //    hence the one lateral ghost cell of the copies, which is not copied back.)  The
-        //    copy of the base state they start from gives a box whose klo is in the interior
-        //    the value below it that interp_base_state_from_coarse left.
+        //    hence the one lateral ghost cell of the copies, which is not copied back.)  On a
+        //    flat mesh the grown boxes span the whole column and are built from the bottom of
+        //    the domain, as on level 0, wherever the level's boxes start; over terrain they
+        //    keep their box's vertical range, and the copy of the base state they start from
+        //    gives a box whose klo is in the interior the value below it that
+        //    interp_base_state_from_coarse left.
         //
         const IntVect ngb = base_state[lev].nGrowVect();
         AMREX_ALWAYS_ASSERT(ngb[0] == ngb[1]);
