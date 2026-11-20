@@ -5590,6 +5590,25 @@ add_test_restart_parity(TerrainHill_RegridOnRestart_Fitted TerrainHill 7 20
     ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
+# A regrid that re-makes an existing fine level over the same cells on a new box layout
+# (erf-model/ERF#5228).  The restart leg alone halves amr.max_grid_size, so the first regrid
+# after the restart re-chops level 1 from 2 boxes into 8.  A regrid used to fill the base
+# state of a re-made level by interpolation from level 0, which next to the walls is out of
+# hydrostatic balance, so the first c/f ghost cells changed and so did the answer (level-1
+# y_velocity by 1e-2 one step later).  1 rank for all legs, so only the fine layout changes.
+add_test_restart_parity(RegridFineLevelOnRestart RegridFineLevelOnRestart 16 40
+    RESTART_OPTIONS "amr.max_grid_size=8"
+    CHK_NRANKS 1 RESTART_NRANKS 1
+    ALLOW_DIFF_GRIDS FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+
+# The same deck, checkpointed on 1 rank and continued on 2 (erf-model/ERF#5236): level 0 is
+# re-made on restart, and level 1 is re-chopped by the first regrid after it
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(RegridFineLevelOnRestart_MoreRanks RegridFineLevelOnRestart 16 40
+    CHK_NRANKS 1 RESTART_NRANKS 2
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
 # The automatic branch, end to end and with nothing set. ERF::restart re-makes the level-0
 # grids on its own when the checkpoint has fewer level-0 boxes than there are ranks, and a
 # fresh start gives level 0 exactly NProcs() boxes, so writing the checkpoint on one rank and
@@ -5702,22 +5721,27 @@ add_test_abort(SLM_FrozenCanopyAbort
 
 # A level made from a coarser one after the atmosphere is coupled, or remade by a regrid, starts
 # its canopy from the reference-level air state of the level it came from (issue 5163); it was
-# 0 K, so the first SLM step stopped on the frozen-canopy check. The deck runs one level to step
-# 10, then restarts (a) with a refined patch, made from level 0 at the first regrid, and (b)
-# from a two-level checkpoint with the patch moved, so the first regrid remakes level 1. Each
-# leg must reach step 20, and its log must show it took the path it is meant to.
-if(NOT WIN32)
+# 0 K, so the first SLM step stopped on the frozen-canopy check. It also keeps level 0's soil
+# nudging targets, the soil state at the start of the run, rather than taking the soil state at
+# the time it was made (issue 5178). The deck runs one level to step 50, by which time the soil
+# has moved away from its targets, then restarts (a) with a refined patch, made from level 0 at
+# the first regrid, and (b) from a two-level checkpoint with the patch moved, so the first
+# regrid remakes level 1. Each leg must reach step 60, its log must show it took the path it is
+# meant to, and the soil nudging of every level-1 column must be close to level 0's
+# (check_slm_soil_targets.py).
+if(NOT WIN32 AND ERF_TEST_PYTHON)
   function(add_test_slm_new_level_canopy TEST_NAME)
     set(TEST_FILES_DIR SLM_Restart)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
-    set(_run "${MPI_COMMANDS} ${TEST_EXE} SLM_Restart.i erf.plot_int_1=-1 amr.blocking_factor=4 erf.regrid_int=2 erf.refinement_indicators=box1")
+    set(_run "${MPI_COMMANDS} ${TEST_EXE} SLM_Restart.i erf.plot_int_1=60 amr.blocking_factor=4 erf.regrid_int=2 erf.refinement_indicators=box1")
+    set(_check "${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_slm_soil_targets.py plt_lsm_00060")
     set(_patch "'erf.box1.in_box_lo=100.0 100.0 0.0' 'erf.box1.in_box_hi=300.0 300.0 100.0'")
     set(_moved "'erf.box1.in_box_lo=200.0 200.0 0.0' 'erf.box1.in_box_hi=400.0 400.0 100.0'")
-    # Remove the checkpoints and logs of an earlier pass, so a leg cannot pass on old files
+    # Remove the checkpoints, plotfiles and logs of an earlier pass, so a leg cannot pass on old files
     add_test(${TEST_NAME} sh -c
-        "rm -rf one_chk* two_chk* ${_log}.* && ( ${_run} ${_patch} amr.max_level=0 max_step=10 erf.check_file=one_chk erf.check_int=10 > ${_log}.one 2>&1 || ( tail -n 40 ${_log}.one && false ) ) && ( ${_run} ${_patch} amr.max_level=1 erf.restart=one_chk00010 > ${_log}.new 2>&1 || ( tail -n 40 ${_log}.new && false ) ) && grep -q 'NEW BA FROM COARSE AT LEVEL 1' ${_log}.new && ( ${_run} ${_patch} amr.max_level=1 max_step=10 erf.check_file=two_chk erf.check_int=10 > ${_log}.two 2>&1 || ( tail -n 40 ${_log}.two && false ) ) && ( ${_run} ${_moved} amr.max_level=1 erf.restart=two_chk00010 > ${_log}.moved 2>&1 || ( tail -n 40 ${_log}.moved && false ) ) && grep -q 'REMAKING WITH NEW BA AT LEVEL 1' ${_log}.moved")
+        "rm -rf one_chk* two_chk* plt0* plt_lsm* ${_log}.* && ( ${_run} ${_patch} amr.max_level=0 max_step=50 erf.check_file=one_chk erf.check_int=50 > ${_log}.one 2>&1 || ( tail -n 40 ${_log}.one && false ) ) && ( ${_run} ${_patch} amr.max_level=1 max_step=60 erf.restart=one_chk00050 > ${_log}.new 2>&1 || ( tail -n 40 ${_log}.new && false ) ) && grep -q 'NEW BA FROM COARSE AT LEVEL 1' ${_log}.new && ${_check} && ( ${_run} ${_patch} amr.max_level=1 max_step=50 erf.check_file=two_chk erf.check_int=50 > ${_log}.two 2>&1 || ( tail -n 40 ${_log}.two && false ) ) && ( ${_run} ${_moved} amr.max_level=1 max_step=60 erf.restart=two_chk00050 > ${_log}.moved 2>&1 || ( tail -n 40 ${_log}.moved && false ) ) && grep -q 'REMAKING WITH NEW BA AT LEVEL 1' ${_log}.moved && ${_check}")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}.one;${_log}.new;${_log}.two;${_log}.moved")
@@ -7168,7 +7192,7 @@ if(ERF_ENABLE_NETCDF AND NOT WIN32 AND ERF_TEST_PYTHON)
 
     # erf.sample_point and its forms (#4978): each point's log must hold the conserved state of
     # the expected cell of the column through it, on a hill whose ground is 210 m under pt_a
-    # and 510 m under pt_b, with 8 levels to a flat top at 800 m (see SamplePoint_LatLon.i)
+    # and 510 m under pt_b, with 8 cells to a flat top at 800 m (see SamplePoint_LatLon.i)
     function(add_test_sample_point_latlon TEST_NAME RUNTIME_OPTIONS EXPECTED)
       set(TEST_FILES_DIR LineSampling_LatLon)
       setup_test()
@@ -7184,11 +7208,11 @@ if(ERF_ENABLE_NETCDF AND NOT WIN32 AND ERF_TEST_PYTHON)
     add_test_sample_point_latlon(SamplePoint_Index
         "erf.sample_point=10 20 3 25 5 6" "pt_a:col_a:3 pt_b:col_b:6")
     add_test_sample_point_latlon(SamplePoint_Real
-        "erf.sample_point_real=10500. 20500. 560. 25500. 5500. 700." "pt_a:col_a:4 pt_b:col_b:5")
+        "erf.sample_point_real=10500. 20500. 560. 25500. 5500. 700." "pt_a:col_a:5 pt_b:col_b:5")
     add_test_sample_point_latlon(SamplePoint_RealAGL
-        "erf.sample_point_real=10500. 20500. 50. 25500. 5500. 200. erf.sample_point_z_agl=true" "pt_a:col_a:0 pt_b:col_b:5")
+        "erf.sample_point_real=10500. 20500. 50. 25500. 5500. 200. erf.sample_point_z_agl=true" "pt_a:col_a:1 pt_b:col_b:6")
     add_test_sample_point_latlon(SamplePoint_LatLonAGL
-        "erf.sample_point_latlon=40.205500 -104.918150 250. 40.100500 -104.712650 200. erf.sample_point_z_agl=true" "pt_a:col_a:3 pt_b:col_b:5")
+        "erf.sample_point_latlon=40.205500 -104.918150 250. 40.100500 -104.712650 200. erf.sample_point_z_agl=true" "pt_a:col_a:4 pt_b:col_b:6")
   else()
     message(STATUS "Skipping LineSampling_LatLon: Python netCDF4 and numpy are required")
   endif()

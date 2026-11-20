@@ -2416,6 +2416,14 @@ ERF::InitData_post ()
         }
     }
 
+    // Every level's base state must be in hydrostatic balance; a regrid checks the levels it
+    // makes or remakes again (ERF::rebuild_base_state).  A restart only warns: a checkpoint
+    // written before refined levels' base states were rebuilt holds ones that are not.
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        check_base_state_hse(lev, restart_chkfile.empty() ? "at initialization" : "on restart",
+                             restart_chkfile.empty());
+    }
+
     // check for additional plotting variables that are available after particle containers
     // are setup.
     const std::string& pv3d_1 = "plot_vars_1"  ; appendPlotVariables(pv3d_1,plot3d_var_names_1);
@@ -4234,6 +4242,7 @@ ERF::ReadParameters ()
         // Query the set and total widths for crse-fine interior ghost cells
         pp.queryAdd("cf_width", cf_width);
         pp.queryAdd("cf_set_width", cf_set_width);
+        pp.queryAdd("perturbational_interpolation", perturbational_interp);
 
         // AmrMesh iterate on grids?
         bool iterate(true);

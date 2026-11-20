@@ -23,6 +23,14 @@ ERF::sum_integrated_quantities (double time)
 {
     BL_PROFILE("ERF::sum_integrated_quantities()");
 
+    // The point and line logs are asked for by name, so they are written whatever erf.v is
+    if (sample_point_sampler) {
+        run_line_sampler(*sample_point_sampler);
+    }
+    if (sample_line_sampler) {
+        run_line_sampler(*sample_line_sampler);
+    }
+
     if (verbose <= 0)
       return;
 
@@ -280,13 +288,6 @@ ERF::sum_integrated_quantities (double time)
 #ifdef AMREX_LAZY
     });
 #endif
-
-    if (sample_point_sampler) {
-        run_line_sampler(*sample_point_sampler);
-    }
-    if (sample_line_sampler) {
-        run_line_sampler(*sample_line_sampler);
-    }
 }
 
 void

@@ -1314,7 +1314,7 @@ TEST(CloudChamberWallFlux, WetAdiabaticMOSTUsesOnlyHumidityForStability)
         if (qv == qsat) { EXPECT_EQ(wet.zeta, 0); }
         else { EXPECT_GT(wet.zeta * (qv - qsat), 0); }
 
-        const similarity_funs sfuns;
+        similarity_funs sfuns;
         const Real A_m = std::max(D_m - sfuns.calc_psi_m2(zeta), Real(1));
         const Real A_q = std::max(D_q - sfuns.calc_psi_h2(zeta), Real(1));
         const Real ce = KAPPA * KAPPA / (A_m * A_q);
