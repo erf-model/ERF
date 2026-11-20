@@ -310,7 +310,8 @@ ERF::WriteCheckpointFile () const
        int n_faces = 0;
        for (OrientationIter oit; oit; ++oit) {
            Orientation ori = oit();
-           if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+           const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+           if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
                n_faces += 1;
            }
        }
@@ -624,11 +625,12 @@ ERF::WriteCheckpointFile () const
         }
 #endif
 
-        // Count number of surface layer boundaries to determine face prefix
+        // Count SurfaceLayer owners (including EB) to determine the state-file prefix
         int n_faces = 0;
         for (OrientationIter oit; oit; ++oit) {
             Orientation ori = oit();
-            if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+            if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
                 n_faces += 1;
             }
         }
@@ -2819,11 +2821,12 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
 void
 ERF::ReadCheckpointFileSurfaceLayer ()
 {
-    // Count number of surface layer boundaries to determine face prefix
+    // Count SurfaceLayer owners (including EB) to determine the state-file prefix
     int n_faces = 0;
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
-        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+        const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+        if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
             n_faces += 1;
         }
     }
@@ -2934,6 +2937,23 @@ ERF::ReadCheckpointFileSurfaceLayer ()
 
                 // Z0
                 read_most_var("Z0" + face, m_SurfaceLayer[ori]->get_z0(lev));
+                if (solverChoice.terrain_type == TerrainType::EB) {
+                    // Periodic copies of checkpoint ghosts can disagree at the
+                    // physical z boundaries, where no valid source overwrites
+                    // them. EB roughness is a horizontal map: restore its
+                    // vertical ghosts from the now-restored interior columns.
+                    MultiFab& z0 = *m_SurfaceLayer[ori]->get_z0(lev);
+                    for (MFIter mfi(z0); mfi.isValid(); ++mfi) {
+                        const int klo = mfi.validbox().smallEnd(2);
+                        const int khi = mfi.validbox().bigEnd(2);
+                        const auto a = z0.array(mfi);
+                        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                            if (k < klo || k > khi) {
+                                a(i,j,k) = a(i,j,amrex::Clamp(k,klo,khi));
+                            }
+                        });
+                    }
+                }
 
                 // Older checkpoints can contain initialization sentinels in
                 // immersed columns, which skip the usual MOST/LSM updates.

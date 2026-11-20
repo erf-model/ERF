@@ -1400,6 +1400,8 @@ private:
 
     [[nodiscard]] bool has_surface_layer_inputs (const std::string& prefix) const;
 
+    [[nodiscard]] bool use_eb_surface_layer () const;
+
     // 0 unless ori is a lateral inflow (1) or inflow_outflow (2) face that gives a primitive
     // theta in a run with a pseudo-incompressible level (see set_pi_inflow_faces)
     [[nodiscard]] int pi_theta_inflow_face (const amrex::Orientation& ori) const;

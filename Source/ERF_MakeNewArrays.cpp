@@ -23,6 +23,33 @@ using namespace amrex;
 
 namespace erf_detail_MakeNewArrays {
 
+// MomentumToVelocity leaves faces between two covered cells untouched.
+// ComputeStrain_EB can read those neighbors in its centered differences, so
+// initialize only those faces to rest and keep the sentinel on fluid faces.
+void
+set_covered_face_velocity (MultiFab& vel_new, MultiFab& vel_old,
+                           const MultiFab& volfrac, int dir)
+{
+    const IntVect offset = IntVect::TheDimensionVector(dir);
+    const int di = offset[0], dj = offset[1], dk = offset[2];
+    for (MFIter mfi(vel_new); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.fabbox();
+        Box available_faces = convert(volfrac[mfi].box(), vel_new.ixType());
+        available_faces.grow(dir, -1);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(available_faces.contains(bx),
+            "Covered-face velocity initialization requires both adjacent cell volumes");
+        const auto vf = volfrac.const_array(mfi);
+        const auto vnew = vel_new.array(mfi);
+        const auto vold = vel_old.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (vf(i,j,k) == zero && vf(i-di,j-dj,k-dk) == zero) {
+                vnew(i,j,k) = zero;
+                vold(i,j,k) = zero;
+            }
+        });
+    }
+}
+
 // Smoothly varying test map factors, valid and ghost cells, at the MultiFab's own locations.
 // NOTE: a free function, since nvcc does not allow an extended (__device__) lambda inside a
 //       member function with private or protected access, such as ERF::init_stuff
@@ -215,7 +242,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
-    // Set these to avoid operations on uninitialized data
+    // Set these to avoid operations on uninitialized data.
     lev_new[Vars::xvel].setVal(bogus_large_value);
     lev_old[Vars::xvel].setVal(bogus_large_value);
     lev_new[Vars::yvel].setVal(bogus_large_value);
@@ -227,6 +254,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_new[Vars::zvel].setVal(bogus_large_value);
     lev_old[Vars::zvel].setVal(bogus_large_value);
+
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        const MultiFab& volfrac = EBFactory(lev).getVolFrac();
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            const int var_idx = Vars::xvel + dir;
+            set_covered_face_velocity(lev_new[var_idx], lev_old[var_idx], volfrac, dir);
+        }
+    }
 
     gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(zero);
     gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(zero);
@@ -316,7 +351,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     make_flux_register(lev);
 
     // ********************************************************************************************
-    // Define Theta_prim storage if using surface_layer BC
+    // Define primitive storage for physical or embedded SurfaceLayer owners
     // ********************************************************************************************
     Theta_prim[lev] = nullptr;
     Qv_prim[lev]    = nullptr;
@@ -324,7 +359,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
-        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+        const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+        if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
             amrex::Print() << " Found MOST at face " << ori << " : Constructing primitive vars for MOST.." << std::endl;
             Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
             if (solverChoice.moisture_type != MoistureType::None) {

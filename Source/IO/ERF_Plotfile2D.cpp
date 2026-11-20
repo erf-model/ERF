@@ -137,7 +137,7 @@ ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::strin
     }
 
     const bool has_surface_layer =
-        phys_bc_type[Orientation(Direction::z, Orientation::low)] == ERF_BC::surface_layer;
+        (phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) || use_eb_surface_layer();
     const auto active_lsm_names = lsm.Get_DataNames();
     const auto available_names = plotfile2d::available_diagnostic_names(solverChoice,
                                                                          has_surface_layer,

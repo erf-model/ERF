@@ -766,25 +766,24 @@ make_surface_slice (const BoxArray& ba, const DistributionMapping& dm, const Rea
 
 } // namespace
 
-TEST(SurfaceLayerCompatibility, EBAllowsNativeStateWithoutPlanarProviders)
+TEST(SurfaceLayerCompatibility, EBAllowsCustomRoughnessWithoutPlanarProviders)
 {
+    // Custom roughness is not an unsupported planar provider.
     EXPECT_TRUE(erf_surface_layer::planar_sources_supported_for_terrain(
-        TerrainType::EB, false, false, false, false, false, false));
+        TerrainType::EB, false, false, false, false, false));
 }
 
 TEST(SurfaceLayerCompatibility, EBRejectsPlanarSurfaceProviders)
 {
-    const std::array<std::array<bool, 6>, 6> providers{{
-        {{true, false, false, false, false, false}},
-        {{false, true, false, false, false, false}},
-        {{false, false, true, false, false, false}},
-        {{false, false, false, true, false, false}},
-        {{false, false, false, false, true, false}},
-        {{false, false, false, false, false, true}}}};
+    const std::array<std::array<bool, 5>, 5> providers{{
+        {{true, false, false, false, false}},
+        {{false, true, false, false, false}},
+        {{false, false, true, false, false}},
+        {{false, false, false, true, false}},
+        {{false, false, false, false, true}}}};
     for (const auto& provider : providers) {
         EXPECT_FALSE(erf_surface_layer::planar_sources_supported_for_terrain(
-            TerrainType::EB, provider[0], provider[1], provider[2], provider[3], provider[4],
-            provider[5]));
+            TerrainType::EB, provider[0], provider[1], provider[2], provider[3], provider[4]));
     }
 }
 
@@ -794,7 +793,7 @@ TEST(SurfaceLayerCompatibility, NonEBAllowsPlanarSurfaceProviders)
         TerrainType::None, TerrainType::StaticFittedMesh, TerrainType::MovingFittedMesh};
     for (const auto terrain_type : terrain_types) {
         EXPECT_TRUE(erf_surface_layer::planar_sources_supported_for_terrain(
-            terrain_type, true, true, true, true, true, true));
+            terrain_type, true, true, true, true, true));
     }
 }
 
