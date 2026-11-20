@@ -255,6 +255,10 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                     dt[k] = dt[k-1] / static_cast<double>(nsubsteps[k]);
                 }
 
+                // The CFL limit of a fixed dt on the new grids, before they take a step; a
+                // lowered fixed dt applies from the next coarse step
+                CheckFixedDtCFLLimitAfterRegrid(lev);
+
                 // The terrain under each regridded level has moved with its
                 // grids.  Find it now, as start-up does, so that a level the
                 // nudging cannot handle (on a terrain-fitted mesh, one whose

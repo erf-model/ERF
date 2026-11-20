@@ -4662,6 +4662,10 @@ ERF::ReadParameters ()
     }
 
     ParameterSanityChecks();
+
+    // The fixed dt as the inputs give it, kept for the checkpoint once the CFL limit lowers it
+    fixed_dt_input      = fixed_dt;
+    fixed_fast_dt_input = fixed_fast_dt;
 }
 
 // Read in some parameters from inputs file

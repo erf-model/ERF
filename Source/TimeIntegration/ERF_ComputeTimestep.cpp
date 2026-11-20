@@ -33,10 +33,8 @@ ERF::ComputeDt (int step, double cur_time_d)
     const bool do_diffusive_check = (diffusive_dt_check || diffusive_dt_limit);
     Vector<Real> rate_mom (finest_level+1, zero);
     Vector<Real> rate_scal(finest_level+1, zero);
-    // Inverse dt at a Courant number of one per level, for the CFL limit of a fixed dt
-    Vector<double> cfl_rate(finest_level+1, 0.0);
-    // Compressible dt estimate per level, for the substep ratio of a lowered fixed dt
-    Vector<double> estdt_acoustic(finest_level+1, 0.0);
+    // What estTimeStep finds per level besides dt, for the limits of a fixed dt
+    Vector<DtEstimateInfo> dt_info(finest_level+1);
 
     // Track exactly the current levels, so a level removed and later re-created is reported again
     slope_report_grids.resize(finest_level+1);
@@ -71,7 +69,7 @@ ERF::ComputeDt (int step, double cur_time_d)
             openface_grids[lev] = grids[lev];
         }
 
-        dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev], cfl_rate[lev], estdt_acoustic[lev]);
+        dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev], dt_info[lev]);
 
         if (do_diffusive_check) {
             ComputeDiffusiveRates(lev, rate_mom[lev], rate_scal[lev]);
@@ -94,38 +92,20 @@ ERF::ComputeDt (int step, double cur_time_d)
         }
     }
 
-    // A fixed dt above the CFL limit on any level is lowered, on all levels, to the Courant number
-    // min(erf.cfl, 0.8) (erf.fixed_dt_cfl_limit = false keeps the fixed dt as given).  Checked
-    // whenever a level has a new set of grids (at initialisation, at the coarse step after a
-    // regrid, and on restart unless the checkpoint holds the fixed dt of the same erf.fixed_dt);
-    // the dt then stays fixed as the flow evolves.
-    if (fixed_dt_cfl_limit && fixed_dt[0] > zero) {
-        fixed_dt_check_grids.resize(finest_level+1);
-        double scale = 1.0;
-        int lev_lim = 0;
-        for (int lev = 0; lev <= finest_level; ++lev) {
-            if (fixed_dt_check_grids[lev] == grids[lev]) { continue; }
-            fixed_dt_check_grids[lev] = grids[lev];
-            const double s = FixedDtCFLScale(fixed_dt[lev], cfl_rate[lev], static_cast<double>(cfl));
-            if (s < scale) { scale = s; lev_lim = lev; }
-        }
-        if (scale < 1.0) {
-            const double old_dt  = fixed_dt[0];
-            const double courant = fixed_dt[lev_lim] * cfl_rate[lev_lim];
-            for (int lev = 0; lev <= max_level; ++lev) {
-                fixed_dt[lev] *= scale;
-                if (fixed_fast_dt[lev] > zero) { fixed_fast_dt[lev] *= scale; }
-            }
-            Print() << "Fixed dt at level 0 = " << old_dt << " exceeds the CFL limit erf.cfl = " << cfl
-                    << " (Courant number " << courant << " at level " << lev_lim
-                    << "); lowering the fixed dt on all levels, to " << fixed_dt[0]
-                    << " at level 0 (Courant number " << std::min(static_cast<double>(cfl), 0.8)
-                    << "); set erf.fixed_dt_cfl_limit = false to keep erf.fixed_dt" << std::endl;
+    if (fixed_dt[0] > zero) {
+        // The CFL limit of a fixed dt, on the levels with a new set of grids
+        Vector<double> cfl_rate(finest_level+1);
+        for (int lev = 0; lev <= finest_level; ++lev) { cfl_rate[lev] = dt_info[lev].cfl_rate; }
+        if (CheckFixedDtCFLLimit(cfl_rate, 0, false)) {
             // The substep ratios follow from the new fixed dt; the estimates are unchanged
             for (int lev = 0; lev <= finest_level; ++lev) {
                 dt_tmp[lev] = fixed_dt[lev];
-                ComputeSubstepRatio(lev, estdt_acoustic[lev], dt_mri_ratio[lev]);
+                ComputeSubstepRatio(lev, dt_info[lev].estdt_acoustic, dt_mri_ratio[lev]);
             }
+        }
+        // Limits the fixed dt must respect whatever erf.cfl, once the CFL limit had its say
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            CheckFixedDtHardLimits(lev, dt_info[lev]);
         }
     }
 
@@ -359,14 +339,13 @@ ERF::ReportTerrainSlopeFactor (int lev, bool force)
  *
  * @param[in] level level of refinement (coarsest level i 0)
  * @param[out] dt_fast_ratio ratio of slow to fast time step
- * @param[out] cfl_rate inverse time step at a Courant number of one that the adaptive dt is
- *                      based on (compressible or anelastic, terrain aware); zero if the level
- *                      does not constrain dt
- * @param[out] estdt_acoustic compressible dt estimate at erf.cfl that sets the substep ratio
- *                      (ComputeSubstepRatio)
+ * @param[out] info what the estimate finds besides dt (DtEstimateInfo): the rate behind the
+ *                  adaptive dt, the compressible estimate, and the limits of a fixed dt that
+ *                  hold whatever erf.cfl (checked by ComputeDt, CheckFixedDtHardLimits)
+ * @param[in] cfl_rate_only return once info.cfl_rate is set (CheckFixedDtCFLLimitAfterRegrid)
  */
 double
-ERF::estTimeStep (int level, long& dt_fast_ratio, double& cfl_rate, double& estdt_acoustic) const
+ERF::estTimeStep (int level, long& dt_fast_ratio, DtEstimateInfo& info, bool cfl_rate_only) const
 {
     BL_PROFILE("ERF::estTimeStep()");
 
@@ -483,6 +462,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio, double& cfl_rate, double& estd
             const Array4<const Real>& s     = S_new.const_array(mfi);
             const Array4<const Real>& u     = ccvel_N.const_array(mfi);
             const Array4<const Real>& vf    = detJ.const_array(mfi);
+            const Array4<const Real>& z_nd  = z_nd_mf.const_array(mfi);
             const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
             const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
 
@@ -501,43 +481,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio, double& cfl_rate, double& estd
                    Real pressure = getPgivenRTh(rhotheta);
                    Real c = std::sqrt(Gamma * pressure / rho);
 
-                   // Inverse physical horizontal spacing
-                   const Real idx = mf_mx(i,j,0) * dxinv_EB[0];
-                   const Real idy = mf_my(i,j,0) * dxinv_EB[1];
-
-                   // If we are doing implicit acoustic substepping, then the z-direction does not contribute
-                   //    to the computation of the time step
-                   if (l_substepping) {
-                       if ((nxc > 1) && (nyc==1)) {
-                           // 2-D in x-z
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx), new_comp_dt);
-                       } else if ((nyc > 1) && (nxc==1)) {
-                           // 2-D in y-z
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*idy), new_comp_dt);
-                       } else {
-                           // 3-D
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx
-                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*idy ), new_comp_dt);
-                       }
-
-                   // If we are not doing implicit acoustic substepping, then the z-direction contributes
-                   //    to the computation of the time step
-                   } else {
-                       if (nxc > 1 && nyc > 1) {
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx
-                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*idy
-                                                     + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
-                       } else if (nxc > 1) {
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx
-                                                     + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
-                       } else if (nyc > 1) {
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*idy
-                                                     + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
-                       } else {
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
-                       }
-
-                   }
+                   // As without EB (with implicit acoustic substepping, a third of the sound speed
+                   // horizontally and none vertically), on the smallest vertical spacing
+                   new_comp_dt = Compute_InvDt_Compressible(i,j,k, c,
+                                     u(i,j,k,0), u(i,j,k,1), u(i,j,k,2),
+                                     z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv_EB,
+                                     false, l_substepping, nxc, nyc);
                }
                return {new_comp_dt};
             });
@@ -699,8 +648,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio, double& cfl_rate, double& estd
     // Rate behind the adaptive dt returned below, for the CFL limit of a fixed dt (ComputeDt)
     {
         const Real rate = l_anelastic ? estdt_lowM_inv_T : estdt_comp_inv_T;
-        cfl_rate = (rate > zero) ? static_cast<double>(rate) : 0.0;
+        info.cfl_rate = (rate > zero) ? static_cast<double>(rate) : 0.0;
     }
+    if (cfl_rate_only) { return fixed_dt[level]; }
 
     // The host estimator uses a directional maximum, whereas M3's donor
     // positivity condition is based on the sum of all mapped outgoing faces.
@@ -844,23 +794,14 @@ ERF::estTimeStep (int level, long& dt_fast_ratio, double& cfl_rate, double& estd
             estdt_lowM_T = std::min(estdt_lowM_T, adaptive_sbm_dt);
             estdt_lowM_N = std::min(estdt_lowM_N, adaptive_sbm_dt);
 
-            double hard_sbm_dt = std::numeric_limits<double>::infinity();
-            if (erf_auxiliary::FixedDtExceedsMappedDonorLimit(
-                    static_cast<double>(fixed_dt[level]),
-                    max_sbm_outgoing_rate, hard_sbm_dt)) {
-                std::ostringstream message;
-                message.precision(17);
-                message << (sbm_mixing
-                                ? "SBM fixed timestep exceeds the combined advection-diffusion "
-                                  "positivity limit: fixed_dt="
-                                : "SBM M3 fixed timestep exceeds donor positivity "
-                                  "limit: fixed_dt=")
-                        << fixed_dt[level]
-                        << " hard_limit=" << hard_sbm_dt
-                        << " max_outgoing_rate=" << max_sbm_outgoing_rate;
-                Abort(message.str());
-            }
+            // A fixed dt above the donor positivity limit aborts in ComputeDt, after the CFL
+            // limit of the fixed dt (CheckFixedDtHardLimits)
+            info.sbm_rate   = max_sbm_outgoing_rate;
+            info.sbm_mixing = sbm_mixing;
             if (verbose) {
+                double hard_sbm_dt = std::numeric_limits<double>::infinity();
+                erf_auxiliary::FixedDtExceedsMappedDonorLimit(
+                    static_cast<double>(fixed_dt[level]), max_sbm_outgoing_rate, hard_sbm_dt);
                 Print() << "SBM mapped donor dt at level " << level << ": "
                         << adaptive_sbm_dt << " (hard fixed-dt limit "
                         << hard_sbm_dt << ")" << std::endl;
@@ -900,9 +841,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio, double& cfl_rate, double& estd
      estdt_lowM_T = std::min(estdt_lowM_T, estdt_wall_host);
      estdt_lowM_N = std::min(estdt_lowM_N, estdt_wall_host);
 
-     const double fixed_dt_level = static_cast<double>(fixed_dt[level]);
-     erf_cloud_chamber_wall_dt_guard::enforce_fixed_dt_limit(
-         level, fixed_dt_level, estdt_wall_host, max_wall_rate);
+     // A fixed dt above the wall-transfer limit aborts in ComputeDt, after the CFL limit of the
+     // fixed dt (CheckFixedDtHardLimits)
+     info.wall_dt   = estdt_wall_host;
+     info.wall_rate = max_wall_rate;
 
      // Additional vertical diagnostics
      if (l_comp_substepping_diag) {
@@ -995,7 +937,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio, double& cfl_rate, double& estd
      }
 
      // Ratio of slow to fast time step (also redone by ComputeDt when it lowers a fixed dt)
-     estdt_acoustic = estdt_comp_T;
+     info.estdt_acoustic = estdt_comp_T;
      ComputeSubstepRatio(level, estdt_comp_T, dt_fast_ratio);
 
      // Print out some extra diagnostics -- dt calcs are repeated so as to not
@@ -1118,4 +1060,136 @@ ERF::ComputeSubstepRatio (int level, double estdt_comp_T, long& dt_fast_ratio) c
             Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
         }
     } // if substepping
+}
+
+/**
+ * CFL limit of a fixed dt.  On each level from lev_min to finest_level with a new set of grids
+ * (at initialisation, on restart unless the checkpoint holds the fixed dt, and after a regrid),
+ * a fixed dt above the Courant number erf.cfl is lowered, on all levels, to the Courant number
+ * min(erf.cfl, 0.8) on the most constrained level; erf.fixed_fast_dt is scaled with it.  The dt
+ * then stays fixed as the flow evolves; a level whose fixed dt is more than 10 % above erf.cfl on
+ * grids already checked (the flow sped up, or erf.fixed_dt_cfl_limit = false) gets a warning,
+ * once per set of grids.
+ *
+ * @param[in] cfl_rate      inverse dt at a Courant number of one per level (estTimeStep); zero
+ *                          on a level not to be checked
+ * @param[in] lev_min       coarsest level to check
+ * @param[in] after_regrid  called right after a regrid, part-way through a coarse step: the dt
+ *                          of the step under way is left alone and the new fixed dt applies
+ *                          from the next coarse step (ComputeDt)
+ * @return whether the fixed dt was lowered
+ */
+bool
+ERF::CheckFixedDtCFLLimit (const Vector<double>& cfl_rate, int lev_min, bool after_regrid)
+{
+    fixed_dt_check_grids.resize(finest_level+1);
+    fixed_dt_cfl_warned.resize(finest_level+1, 0);
+
+    double scale = 1.0;
+    int lev_lim = lev_min;
+    for (int lev = lev_min; lev <= finest_level; ++lev) {
+        if (fixed_dt_check_grids[lev] == grids[lev]) { continue; }
+        fixed_dt_check_grids[lev] = grids[lev];
+        fixed_dt_cfl_warned[lev] = 0;
+        if (!fixed_dt_cfl_limit) { continue; }
+        const double s = FixedDtCFLScale(fixed_dt[lev], cfl_rate[lev], static_cast<double>(cfl));
+        if (s < scale) { scale = s; lev_lim = lev; }
+    }
+
+    const bool lowered = (scale < 1.0);
+    if (lowered) {
+        const double old_dt  = fixed_dt[0];
+        const double courant = fixed_dt[lev_lim] * cfl_rate[lev_lim];
+        for (int lev = 0; lev <= max_level; ++lev) {
+            fixed_dt[lev] *= scale;
+            if (fixed_fast_dt[lev] > zero) { fixed_fast_dt[lev] *= scale; }
+        }
+        Print() << "Fixed dt at level 0 = " << old_dt << " exceeds the CFL limit erf.cfl = " << cfl
+                << " (Courant number " << courant << " at level " << lev_lim
+                << (after_regrid ? " after a regrid" : "")
+                << "); lowering the fixed dt on all levels, to " << fixed_dt[0]
+                << " at level 0 (Courant number " << std::min(static_cast<double>(cfl), 0.8) << ")"
+                << (after_regrid ? " from the next coarse step; the coarse step under way keeps the old dt" : "")
+                << "; set erf.fixed_dt_cfl_limit = false to keep erf.fixed_dt" << std::endl;
+#ifdef ERF_USE_MOVING_BODIES
+        if (m_structure_model && m_structure_model_initialized) {
+            const int lev_s = m_structure_model->level(finest_level);
+            m_structure_model->fixed_dt_changed(lev_s, fixed_dt[lev_s]);
+        }
+#endif
+    }
+
+    // A fixed dt set to the limit drifts just past it as the flow evolves, so the warning
+    // allows 10 % over erf.cfl
+    for (int lev = lev_min; lev <= finest_level; ++lev) {
+        if (fixed_dt_cfl_warned[lev]) { continue; }
+        if (fixed_dt[lev] * cfl_rate[lev] > 1.1 * static_cast<double>(cfl)) {
+            fixed_dt_cfl_warned[lev] = 1;
+            Print() << "WARNING: fixed dt at level " << lev << " = " << fixed_dt[lev]
+                    << " exceeds the CFL limit erf.cfl = " << cfl << " (Courant number "
+                    << fixed_dt[lev] * cfl_rate[lev] << "); "
+                    << (fixed_dt_cfl_limit ? "the fixed dt is checked only when the grids change"
+                                           : "erf.fixed_dt_cfl_limit = false keeps it")
+                    << std::endl;
+        }
+    }
+
+    return lowered;
+}
+
+/**
+ * CFL limit of a fixed dt on the levels a regrid of level lev just made or remade, before they
+ * take their first step (timeStep).  The levels lev and coarser are part-way through their step,
+ * so a lowered fixed dt applies from the next coarse step.
+ *
+ * @param[in] lev  level whose regrid changed the finer levels
+ */
+void
+ERF::CheckFixedDtCFLLimitAfterRegrid (int lev)
+{
+    if (fixed_dt[0] <= zero) { return; }
+    fixed_dt_check_grids.resize(finest_level+1);
+    Vector<double> cfl_rate(finest_level+1, 0.0);
+    for (int k = lev+1; k <= finest_level; ++k) {
+        if (fixed_dt_check_grids[k] == grids[k]) { continue; }
+        long dt_fast_ratio = 0;
+        DtEstimateInfo info;
+        estTimeStep(k, dt_fast_ratio, info, true);
+        cfl_rate[k] = info.cfl_rate;
+    }
+    CheckFixedDtCFLLimit(cfl_rate, lev+1, true);
+}
+
+/**
+ * Abort if the fixed dt of a level exceeds a limit that holds whatever erf.cfl: the SBM donor
+ * positivity limit or the cloud-chamber wall-transfer limit, as estTimeStep found them.  Checked
+ * by ComputeDt after the CFL limit of the fixed dt, so a fixed dt that the CFL limit lowers below
+ * them is accepted.
+ *
+ * @param[in] lev   level
+ * @param[in] info  what estTimeStep found on the level
+ */
+void
+ERF::CheckFixedDtHardLimits (int lev, const DtEstimateInfo& info) const
+{
+    if (info.sbm_rate > Real(0.0)) {
+        double hard_sbm_dt = std::numeric_limits<double>::infinity();
+        if (erf_auxiliary::FixedDtExceedsMappedDonorLimit(
+                static_cast<double>(fixed_dt[lev]), info.sbm_rate, hard_sbm_dt)) {
+            std::ostringstream message;
+            message.precision(17);
+            message << (info.sbm_mixing
+                            ? "SBM fixed timestep exceeds the combined advection-diffusion "
+                              "positivity limit: fixed_dt="
+                            : "SBM M3 fixed timestep exceeds donor positivity "
+                              "limit: fixed_dt=")
+                    << fixed_dt[lev]
+                    << " hard_limit=" << hard_sbm_dt
+                    << " max_outgoing_rate=" << info.sbm_rate;
+            Abort(message.str());
+        }
+    }
+
+    erf_cloud_chamber_wall_dt_guard::enforce_fixed_dt_limit(
+        lev, static_cast<double>(fixed_dt[lev]), info.wall_dt, info.wall_rate);
 }

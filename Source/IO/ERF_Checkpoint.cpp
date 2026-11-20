@@ -266,24 +266,24 @@ ERF::WriteCheckpointFile () const
            }
        }
 
-       // The CFL limit of erf.fixed_dt (ERF::ComputeDt): the value given in the inputs and the
-       // level-0 fixed dt the run reached (lower if the limit lowered it), so a restart with the
-       // same erf.fixed_dt continues with it and does not check the restored grids again
-       {
-           double fixed_dt_given = -1.0;
-           ParmParse pp_erf("erf");
-           pp_erf.query("fixed_dt", fixed_dt_given);
-           if (fixed_dt_cfl_limit && fixed_dt_given > 0.0) {
-               std::string FixedDtFileName(checkpointname + "/fixed_dt_cfl_limit");
-               std::ofstream FixedDtFile;
-               FixedDtFile.open(FixedDtFileName.c_str(), std::ofstream::out   |
-                                                         std::ofstream::trunc |
-                                                         std::ofstream::binary);
-               if(! FixedDtFile.good()) {
-                   FileOpenFailed(FixedDtFileName);
-               } else {
-                   FixedDtFile.precision(17);
-                   FixedDtFile << fixed_dt_given << " " << fixed_dt[0] << "\n";
+       // The CFL limit of erf.fixed_dt (ERF::CheckFixedDtCFLLimit): erf.cfl, and per level the
+       // fixed dt and fixed fast dt given in the inputs and those the run reached (lower if the
+       // limit lowered them), so a restart with the same inputs continues with exactly the
+       // same dt and does not check the restored grids again
+       if (fixed_dt_cfl_limit && fixed_dt_input[0] > 0.0) {
+           std::string FixedDtFileName(checkpointname + "/fixed_dt_cfl_limit");
+           std::ofstream FixedDtFile;
+           FixedDtFile.open(FixedDtFileName.c_str(), std::ofstream::out   |
+                                                     std::ofstream::trunc |
+                                                     std::ofstream::binary);
+           if(! FixedDtFile.good()) {
+               FileOpenFailed(FixedDtFileName);
+           } else {
+               FixedDtFile.precision(17);
+               FixedDtFile << static_cast<double>(cfl) << " " << max_level+1 << "\n";
+               for (int lev = 0; lev <= max_level; ++lev) {
+                   FixedDtFile << fixed_dt_input[lev] << " " << fixed_fast_dt_input[lev] << " "
+                               << fixed_dt[lev]       << " " << fixed_fast_dt[lev]       << "\n";
                }
            }
        }
@@ -2499,29 +2499,41 @@ ERF::ReadCheckpointFile ()
                                            ng_sfc, period, refRatio());
     }
 
-    // The fixed dt of the run that wrote the checkpoint, if the inputs still give the same
-    // erf.fixed_dt: restored (lowered if the CFL limit lowered it), and the restored grids are
-    // taken as checked, so the restart continues exactly as the run would have
+    // The fixed dt of the run that wrote the checkpoint, if the inputs still give the same fixed
+    // dt on every level: restored exactly (lowered if the CFL limit lowered it).  With the same
+    // erf.cfl the restored grids are taken as checked, so the restart continues exactly as the
+    // run would have; with a different erf.cfl, ComputeDt checks them again
     if (fixed_dt_cfl_limit && fixed_dt[0] > zero &&
         amrex::FileExists(restart_chkfile + "/fixed_dt_cfl_limit")) {
         Vector<char> FixedDtCharPtr;
         ParallelDescriptor::ReadAndBcastFile(restart_chkfile + "/fixed_dt_cfl_limit", FixedDtCharPtr);
         std::istringstream fixed_dt_is(std::string(FixedDtCharPtr.dataPtr()), std::istringstream::in);
-        double fixed_dt_given = -1.0, fixed_dt_reached = -1.0;
-        fixed_dt_is >> fixed_dt_given >> fixed_dt_reached;
-        if (fixed_dt_given == fixed_dt[0] && fixed_dt_reached > 0.0 && fixed_dt_reached <= fixed_dt[0]) {
-            if (fixed_dt_reached < fixed_dt[0]) {
-                const double scale = fixed_dt_reached / fixed_dt[0];
-                for (int lev = 0; lev <= max_level; ++lev) {
-                    fixed_dt[lev] *= scale;
-                    if (fixed_fast_dt[lev] > zero) { fixed_fast_dt[lev] *= scale; }
-                }
+        double chk_cfl = -1.0;
+        int chk_nlevs = 0;
+        fixed_dt_is >> chk_cfl >> chk_nlevs;
+        bool same_inputs = (chk_nlevs == max_level+1);
+        Vector<double> chk_dt(max_level+1), chk_fast_dt(max_level+1);
+        for (int lev = 0; same_inputs && lev <= max_level; ++lev) {
+            double given_dt = 0.0, given_fast_dt = 0.0;
+            fixed_dt_is >> given_dt >> given_fast_dt >> chk_dt[lev] >> chk_fast_dt[lev];
+            same_inputs = !fixed_dt_is.fail() && given_dt == fixed_dt[lev] && given_fast_dt == fixed_fast_dt[lev] &&
+                          chk_dt[lev] > 0.0 && chk_dt[lev] <= fixed_dt[lev];
+        }
+        if (same_inputs) {
+            if (chk_dt[0] < fixed_dt[0]) {
+                fixed_dt      = chk_dt;
+                fixed_fast_dt = chk_fast_dt;
                 Print() << "Restored the fixed dt lowered to the CFL limit from the checkpoint: "
                         << fixed_dt[0] << " at level 0" << std::endl;
             }
-            fixed_dt_check_grids.resize(finest_level+1);
-            for (int lev = 0; lev <= finest_level; ++lev) {
-                fixed_dt_check_grids[lev] = grids[lev];
+            if (chk_cfl == static_cast<double>(cfl)) {
+                fixed_dt_check_grids.resize(finest_level+1);
+                for (int lev = 0; lev <= finest_level; ++lev) {
+                    fixed_dt_check_grids[lev] = grids[lev];
+                }
+            } else {
+                Print() << "erf.cfl = " << cfl << " differs from the " << chk_cfl
+                        << " of the checkpoint; checking the fixed dt against it again" << std::endl;
             }
         }
     }
