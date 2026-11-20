@@ -817,9 +817,7 @@ TEST(KesslerScalar, SizingDetJ_LooksOneCellBelowInsideTheDomain)
 {
     const int k_lo = 0;
     const int k_hi = 9;
-    const amrex::Real one  = amrex::Real(1.0);
     const amrex::Real half = amrex::Real(0.5);
-    const amrex::Real two  = amrex::Real(2.0);
 
     // Interior faces take the smaller of donor and receiver
     EXPECT_EQ(kessler_sizing_detJ(5, k_lo, k_hi, one, half), half);
