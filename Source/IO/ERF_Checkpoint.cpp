@@ -285,6 +285,9 @@ ERF::WriteCheckpointFile () const
                    FixedDtFile << fixed_dt_input[lev] << " " << fixed_fast_dt_input[lev] << " "
                                << fixed_dt[lev]       << " " << fixed_fast_dt[lev]       << "\n";
                }
+           }
+       }
+
        // erf.use_variable_beta_s turned on during the run (ERF::CheckVariableBetaS).  The level
        // that needed it may no longer exist on restart, so the switch itself is kept
        if (solverChoice.auto_variable_beta_s && solverChoice.use_variable_beta_s) {
@@ -2550,6 +2553,8 @@ ERF::ReadCheckpointFile ()
                         << " of the checkpoint; checking the fixed dt against it again" << std::endl;
             }
         }
+    }
+
     // erf.use_variable_beta_s, if it was turned on during the run that wrote the checkpoint and
     // the inputs still leave it unset
     if (solverChoice.auto_variable_beta_s && !solverChoice.use_variable_beta_s &&
