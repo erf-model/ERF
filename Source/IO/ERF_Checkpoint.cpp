@@ -266,6 +266,21 @@ ERF::WriteCheckpointFile () const
            }
        }
 
+       // erf.use_variable_beta_s turned on during the run (ERF::CheckVariableBetaS).  The level
+       // that needed it may no longer exist on restart, so the switch itself is kept
+       if (solverChoice.auto_variable_beta_s && solverChoice.use_variable_beta_s) {
+           std::string BetaSFileName(checkpointname + "/variable_beta_s");
+           std::ofstream BetaSFile;
+           BetaSFile.open(BetaSFileName.c_str(), std::ofstream::out   |
+                                                 std::ofstream::trunc |
+                                                 std::ofstream::binary);
+           if(! BetaSFile.good()) {
+               FileOpenFailed(BetaSFileName);
+           } else {
+               BetaSFile << 1 << "\n";
+           }
+       }
+
        // Persist the state of the exponential time filter used by the surface layer
        // when erf.most.time_average is on.  The plane and EB averaging policies hold
        // that state in the plane averages below; every policy needs the per-level
@@ -2475,6 +2490,14 @@ ERF::ReadCheckpointFile ()
         for (int lev = 0; lev <= finest_level; ++lev) { period[lev] = geom[lev].periodicity(); }
         wrf_surface_fields.read_checkpoint(restart_chkfile, finest_level+1, ba2d, dmap,
                                            ng_sfc, period, refRatio());
+    }
+
+    // erf.use_variable_beta_s, if it was turned on during the run that wrote the checkpoint and
+    // the inputs still leave it unset
+    if (solverChoice.auto_variable_beta_s && !solverChoice.use_variable_beta_s &&
+        amrex::FileExists(restart_chkfile + "/variable_beta_s")) {
+        solverChoice.use_variable_beta_s = true;
+        Print() << "Restored erf.use_variable_beta_s = true from the checkpoint" << std::endl;
     }
 
     // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the

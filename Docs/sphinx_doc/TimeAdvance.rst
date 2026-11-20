@@ -205,7 +205,7 @@ surface and the vertical acoustic Courant number there.  With
 
 .. math::
 
-   \sigma^2 = \max\left(h_\xi^2 + h_\eta^2, \, 2 \times 10^{-6}\right), \qquad
+   \sigma^2 = \max\left(h_\xi^2 + h_\eta^2, \, 0.021\right), \qquad
    b = \frac{\sigma^2}{2 + \sigma^2}, \qquad
    Z = \frac{2 c_s \delta \tau}{\Delta z}, \qquad
    Z_{crit} = \frac{2 \sqrt{1 + \sigma^2}}{\sigma^2 \, (1 + b) / 2},
@@ -242,10 +242,23 @@ The vertical flux on a face is then weighted by
 :math:`\beta_1` and :math:`\beta_2` of that face, and the :math:`W^{\prime \prime}` equation on a
 face by :math:`\beta_2` of that face, so that the entries of the tridiagonal system for the face
 :math:`k` carry :math:`\beta_2` of face :math:`k` times :math:`\beta_2` of face :math:`k-1`,
-:math:`k` or :math:`k+1`.  Without terrain, :math:`\sigma^2` takes its floor value, so that
-:math:`Z_{crit} \approx 2 \times 10^6` and :math:`\beta_s \approx 10^{-6}`, i.e. essentially no
-off-centering, everywhere.  Over flat terrain, turning on ``erf.use_variable_beta_s`` therefore
-gives less acoustic damping than the default constant :math:`\beta_s = 0.1`.
+:math:`k` or :math:`k+1`.  Without terrain, :math:`\sigma^2` takes its floor value, chosen so
+that the amplification factor of the flat-terrain eigenvalue is about 0.99 per substep; then
+:math:`Z_{crit} \approx 190` and :math:`\beta_s` lies between :math:`b \approx 0.010` and
+:math:`0.021`.  Over flat terrain, ``erf.use_variable_beta_s`` therefore gives less acoustic
+damping than the default constant :math:`\beta_s = 0.1`; only the local stability limit on each
+face is met.
+
+If ``erf.use_variable_beta_s`` is not given in the inputs, it is turned on automatically when
+the constant :math:`\beta_s` would be unstable.  On a terrain-fitted mesh with implicit
+substepping, ERF compares ``erf.beta_s`` with the largest :math:`h_\xi^2 + h_\eta^2` over the
+:math:`w`-faces of each level whenever the level has a new set of grids (at initialization, on
+the first step after a restart, and right after a regrid, before the new grids take a step), and
+every coarse step on a moving terrain.  If ``erf.beta_s`` is below :math:`\min(\sigma^2, 1)`,
+the high-:math:`Z` stability limit, on any level, ``erf.use_variable_beta_s`` is set to true for
+all levels for the rest of the run and a message is printed.  The switch is saved in the
+checkpoint, so a restarted run keeps it.  Setting ``erf.use_variable_beta_s = false`` explicitly
+keeps the constant ``erf.beta_s``.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
