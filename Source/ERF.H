@@ -836,6 +836,14 @@ public:
     // true (new grids), otherwise only if it changed by more than 1 % since the last report
     void ReportTerrainSlopeFactor (int lev, bool force);
 
+    // with implicit substepping on a terrain-fitted mesh, turn on erf.use_variable_beta_s (unless
+    // the inputs set it) if erf.beta_s is below min(sigma^2, 1) on a w-face of level lev; called by
+    // ComputeDt and after a regrid for every new set of grids, and every step on a moving terrain
+    void CheckVariableBetaS (int lev);
+
+    // return the largest terrain slope sigma^2 = h_xi^2 + h_eta^2 over the w-faces of level lev
+    amrex::Real ComputeMaxTerrainSlope (int lev);
+
     // on a terrain-fitted mesh, warn when the terrain next to an inflow or outflow face of
     // level lev is steeper than erf_terrain_file::open_face_slope_warn and no steep-terrain
     // option is on; called by ComputeDt for every new set of grids
@@ -2192,6 +2200,9 @@ private:
     // fixed dt was since reported above erf.cfl on them (CheckFixedDtCFLLimit)
     amrex::Vector<amrex::BoxArray> fixed_dt_check_grids;
     amrex::Vector<int> fixed_dt_cfl_warned;
+    // grids on which the stability of the constant beta_s was last checked, per level
+    // (CheckVariableBetaS)
+    amrex::Vector<amrex::BoxArray> beta_s_check_grids;
     amrex::Vector<amrex::Real> slope_report_alpha;
 
     // Fixed dt at each level (only used if positive)

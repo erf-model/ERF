@@ -259,6 +259,12 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                 // lowered fixed dt applies from the next coarse step
                 CheckFixedDtCFLLimitAfterRegrid(lev);
 
+                // A regridded level over steep terrain may need the variable beta_s before
+                // its first substep, not at the next ComputeDt
+                for (int k = lev+1; k <= finest_level; ++k) {
+                    CheckVariableBetaS(k);
+                }
+
                 // The terrain under each regridded level has moved with its
                 // grids.  Find it now, as start-up does, so that a level the
                 // nudging cannot handle (on a terrain-fitted mesh, one whose

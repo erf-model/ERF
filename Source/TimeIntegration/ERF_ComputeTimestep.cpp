@@ -10,6 +10,7 @@
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
 #include "TimeIntegration/ERF_FixedDtCFLLimit.H"
+#include "TimeIntegration/ERF_VariableBetaSSwitch.H"
 #include "AuxiliaryState/ERF_AuxiliaryMappedTransport.H"
 #include "Microphysics/SBM/ERF_SBMTransport.H"
 
@@ -62,6 +63,9 @@ ERF::ComputeDt (int step, double cur_time_d)
                 slope_report_grids[lev] = grids[lev];
             }
         }
+
+        // Stability of the constant beta_s on this level's terrain (also checked after a regrid)
+        CheckVariableBetaS(lev);
 
         // Steep terrain next to an inflow or outflow face: checked for every new set of grids
         if (openface_grids[lev] != grids[lev]) {
@@ -332,6 +336,87 @@ ERF::ReportTerrainSlopeFactor (int lev, bool force)
         }
         Print() << std::endl;
     }
+}
+
+/**
+ * Implicit acoustic substepping on a terrain-fitted mesh with erf.use_variable_beta_s not given
+ * in the inputs: turn on erf.use_variable_beta_s, for all levels and the rest of the run, if
+ * erf.beta_s is below the large-Courant stability limit min(sigma^2, 1) on any w-face of level
+ * lev (see make_fast_coeffs).  Checked whenever the level has a new set of grids (called by
+ * ComputeDt, and by timeStep right after a regrid so that a new level does not take a step with
+ * the constant beta_s), and every coarse step on a moving terrain.  Once on, the switch is saved
+ * in the checkpoint, so a restarted run keeps it.
+ *
+ * @param[in] lev   level
+ */
+void
+ERF::CheckVariableBetaS (int lev)
+{
+    beta_s_check_grids.resize(finest_level+1);
+
+    const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
+                         solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const bool moving = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const bool new_grids = (beta_s_check_grids[lev] != grids[lev]);
+    beta_s_check_grids[lev] = grids[lev];
+
+    if (!fitted || !solverChoice.auto_variable_beta_s || solverChoice.use_variable_beta_s ||
+        solverChoice.timestepping_type[lev] != TimesteppingType::RK3_ImplicitSubstep ||
+        !(new_grids || moving)) {
+        return;
+    }
+
+    const Real sigma2_max = ComputeMaxTerrainSlope(lev);
+    if (VariableBetaSSwitchNeeded(solverChoice.beta_s, sigma2_max)) {
+        solverChoice.use_variable_beta_s = true;
+        Print() << "Level " << lev << ": erf.beta_s = " << solverChoice.beta_s
+                << " is below the acoustic stability limit min(sigma^2, 1) = "
+                << amrex::min(sigma2_max, one) << " (largest sigma^2 = h_xi^2 + h_eta^2 = "
+                << sigma2_max << "); turning on erf.use_variable_beta_s on all levels"
+                << " (set erf.use_variable_beta_s = false to keep erf.beta_s)" << std::endl;
+    }
+}
+
+/**
+ * Return the largest terrain slope sigma^2 = h_xi^2 + h_eta^2 over the w-faces of a level, the
+ * quantity make_fast_coeffs sets the variable beta_s from.  ComputeDt compares it with beta_s on
+ * a terrain-fitted mesh with implicit acoustic substepping (CheckVariableBetaS).
+ *
+ * @param[in] lev   level
+ */
+Real
+ERF::ComputeMaxTerrainSlope (int lev)
+{
+    AMREX_ALWAYS_ASSERT(z_phys_nd[lev]);
+
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+
+    const MultiFab& w = vars_new[lev][Vars::zvel];
+
+    ReduceOps<ReduceOpMax> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(w, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real> z_nd = z_phys_nd[lev]->const_array(mfi);
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            const Real h_xi   = Compute_h_xi_AtKface (i, j, k, dxInv, z_nd);
+            const Real h_eta  = Compute_h_eta_AtKface(i, j, k, dxInv, z_nd);
+            const Real sigma2 = h_xi*h_xi + h_eta*h_eta;
+            return {sigma2};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    Real sigma2_max = amrex::get<0>(hv);
+    ParallelDescriptor::ReduceRealMax(sigma2_max);
+    return sigma2_max;
 }
 
 /**

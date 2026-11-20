@@ -285,6 +285,18 @@ ERF::WriteCheckpointFile () const
                    FixedDtFile << fixed_dt_input[lev] << " " << fixed_fast_dt_input[lev] << " "
                                << fixed_dt[lev]       << " " << fixed_fast_dt[lev]       << "\n";
                }
+       // erf.use_variable_beta_s turned on during the run (ERF::CheckVariableBetaS).  The level
+       // that needed it may no longer exist on restart, so the switch itself is kept
+       if (solverChoice.auto_variable_beta_s && solverChoice.use_variable_beta_s) {
+           std::string BetaSFileName(checkpointname + "/variable_beta_s");
+           std::ofstream BetaSFile;
+           BetaSFile.open(BetaSFileName.c_str(), std::ofstream::out   |
+                                                 std::ofstream::trunc |
+                                                 std::ofstream::binary);
+           if(! BetaSFile.good()) {
+               FileOpenFailed(BetaSFileName);
+           } else {
+               BetaSFile << 1 << "\n";
            }
        }
 
@@ -2536,6 +2548,12 @@ ERF::ReadCheckpointFile ()
                         << " of the checkpoint; checking the fixed dt against it again" << std::endl;
             }
         }
+    // erf.use_variable_beta_s, if it was turned on during the run that wrote the checkpoint and
+    // the inputs still leave it unset
+    if (solverChoice.auto_variable_beta_s && !solverChoice.use_variable_beta_s &&
+        amrex::FileExists(restart_chkfile + "/variable_beta_s")) {
+        solverChoice.use_variable_beta_s = true;
+        Print() << "Restored erf.use_variable_beta_s = true from the checkpoint" << std::endl;
     }
 
     // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the

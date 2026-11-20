@@ -211,6 +211,10 @@ target_sources(${erf_exe_name}
     # Motivation: a fixed dt above the CFL limit erf.cfl must be lowered to the Courant number
     # min(erf.cfl, 0.8), and a fixed dt within the limit kept (erf-model/ERF#5238).
     ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestFixedDtCFLLimit.cpp
+    # Motivation: with erf.use_variable_beta_s unset, the constant beta_s must be replaced
+    # exactly when it is below the acoustic stability limit min(sigma^2, 1) of the terrain
+    # (erf-model/ERF#5082).
+    ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestVariableBetaSSwitch.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     # Motivation: a Noah-MP 2 m tile with zero weight must not reject the bundle, and a
