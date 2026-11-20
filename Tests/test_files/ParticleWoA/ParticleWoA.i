@@ -64,6 +64,10 @@ erf.les_type = "None"
 erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 0
 
+# Keep the constant beta_s that the gold files were made with (no automatic switch
+# to the variable beta_s over the steep hill)
+erf.use_variable_beta_s = false
+
 erf.dycore_horiz_adv_type  = Centered_2nd
 erf.dycore_vert_adv_type   = Centered_2nd
 erf.dryscal_horiz_adv_type = Centered_2nd

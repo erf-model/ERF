@@ -1393,7 +1393,11 @@ struct SolverChoice {
         pp.query("face_sync_int", face_sync_int);
 
         // Spatially varying beta_s on the w-faces (implicit substepping only), set from the
-        //    terrain slope and the vertical acoustic Courant number (see make_fast_coeffs)
+        //    terrain slope and the vertical acoustic Courant number (see make_fast_coeffs).
+        //    If it is not given, it is turned on during the run on a terrain-fitted mesh where
+        //    beta_s is below the stability limit min(sigma^2, 1) (ERF::CheckVariableBetaS);
+        //    an explicit false keeps the constant beta_s
+        auto_variable_beta_s = !pp.contains("use_variable_beta_s");
         pp.queryAdd("use_variable_beta_s", use_variable_beta_s);
 
         // *******************************************************************************
@@ -2964,6 +2968,9 @@ struct SolverChoice {
     // if true, beta_s varies on the w-faces
     // and beta_s itself is not used (implicit substepping only)
     bool use_variable_beta_s = false;
+    // true if erf.use_variable_beta_s is not given in the inputs, so that it may be turned on
+    // where the constant beta_s is below the stability limit min(sigma^2, 1) of the terrain
+    bool auto_variable_beta_s = true;
 
     // divergence damping coefficient: how far (rho theta) is projected forward
     // in the horizontal momentum equations of the acoustic substepping
@@ -3499,6 +3506,8 @@ struct SolverChoice {
  * @brief Time off-centering coefficient for forward weighting.
  * @var SolverChoice::use_variable_beta_s
  * @brief Whether beta_s varies on the w-faces with the terrain slope and acoustic Courant number.
+ * @var SolverChoice::auto_variable_beta_s
+ * @brief Whether erf.use_variable_beta_s may be turned on automatically (it is not set in the inputs).
  * @var SolverChoice::beta_d
  * @brief Divergence damping coefficient used in the acoustic substepping.
  * @var SolverChoice::vert_implicit_fac

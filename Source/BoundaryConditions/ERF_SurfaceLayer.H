@@ -37,12 +37,13 @@ planar_sources_supported_for_terrain (TerrainType terrain_type,
                                        bool use_tsk,
                                        bool use_coupled_sst,
                                        bool has_lsm_tsurf,
-                                       bool has_lsm_fluxes,
-                                       bool has_custom_roughness)
+                                       bool has_lsm_fluxes)
 {
-    return terrain_type != TerrainType::EB ||
-           !(use_sst || use_tsk || use_coupled_sst || has_lsm_tsurf ||
-             has_lsm_fluxes || has_custom_roughness);
+    if (terrain_type != TerrainType::EB) { return true; }
+
+    // EB supports this configuration only when all planar providers are absent.
+    return !use_sst && !use_tsk && !use_coupled_sst &&
+           !has_lsm_tsurf && !has_lsm_fluxes;
 }
 
 } // namespace erf_surface_layer
@@ -842,12 +843,13 @@ public:
       // LSM flux arrays are planar and compute_sfc_params_from_lsm_fluxes only
       // writes the k=0 slab, while EB MOST consumes surface parameters at
       // arbitrary cut-cell k; no valid planar-to-cut-cell mapping exists yet.
+      // Custom roughness is a horizontal material property, handled separately.
       if (!erf_surface_layer::planar_sources_supported_for_terrain(
               m_terrain_type, use_sst, use_tsk, m_use_coupled_sst,
-              m_has_lsm_tsurf, m_has_lsm_fluxes, read_z0)) {
+              m_has_lsm_tsurf, m_has_lsm_fluxes)) {
           amrex::Abort(
               "EB SurfaceLayer does not support planar SST/TSK, coupled SST, LSM surface "
-              "temperature or fluxes, or custom/file-driven roughness; no mapping exists "
+              "temperature or fluxes; no mapping exists "
               "from those planar inputs to arbitrary EB cut cells.");
       }
 

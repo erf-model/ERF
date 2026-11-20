@@ -723,7 +723,7 @@ ERF::init_stations ()
     // The set of 2D diagnostics this configuration can actually fill, selected
     // exactly as Write2DPlotFile selects them.
     const bool has_surface_layer =
-        phys_bc_type[Orientation(Direction::z, Orientation::low)] == ERF_BC::surface_layer;
+        (phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) || use_eb_surface_layer();
     const auto active_lsm_names = lsm.Get_DataNames();
     const auto available_2d = plotfile2d::available_diagnostic_names(solverChoice,
                                                                     has_surface_layer,

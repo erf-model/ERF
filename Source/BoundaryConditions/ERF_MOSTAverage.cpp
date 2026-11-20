@@ -784,6 +784,7 @@ MOSTAverage::set_eb_normalization (const int& lev)
         ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
         AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
         {
+            Real area = zero;
             if (flag_arr(i,j,k).isSingleValued()) {
                 // Compute area from face-centered area fractions
                 Real axm = afrac_x(i  ,j  ,k  );
@@ -797,10 +798,11 @@ MOSTAverage::set_eb_normalization (const int& lev)
                 Real ady = (aym - ayp) * dx * dz;
                 Real adz = (azm - azp) * dx * dy;
 
-                Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
-
-                Gpu::deviceReduceSum(&area_device[0], area, handler);
+                area = std::sqrt(adx*adx + ady*ady + adz*adz);
             }
+            // Every active thread must enter the block reduction, including
+            // regular and covered cells, which contribute zero surface area.
+            Gpu::deviceReduceSum(&area_device[0], area, handler);
         });
     }
 
@@ -2928,7 +2930,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
         denom[1]   = one / m_total_bndry_area[lev][1];
         val_old[1] = plane_average[1]*d_fact_old;
 
-        int iavg = m_navg - 1;  // Tangential velocity magnitude
+        int iavg = m_navg - 3;  // Tangential velocity magnitude
         denom[iavg]   = one / m_total_bndry_area[lev][iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
@@ -2967,6 +2969,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
+                Real val_u = zero;
+                Real val_v = zero;
+                Real val_mag = zero;
                 // Area-weighted averaging over cut cells at any k
                 if (flag_arr(i,j,k).isSingleValued()) {
                     // Compute area from face-centered area fractions
@@ -3011,14 +3016,14 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     Real mag = std::sqrt(u_tangent*u_tangent + v_tangent*v_tangent + Vsg*Vsg);
 
                     // Area-weighted sum
-                    Real val_u = u_tangent * area;
-                    Real val_v = v_tangent * area;
-                    Real val_mag = mag * area;
-
-                    Gpu::deviceReduceSum(&plane_avg[0], val_u, handler);
-                    Gpu::deviceReduceSum(&plane_avg[1], val_v, handler);
-                    Gpu::deviceReduceSum(&plane_avg[iavg], val_mag, handler);
+                    val_u = u_tangent * area;
+                    val_v = v_tangent * area;
+                    val_mag = mag * area;
                 }
+                // The reduction is collective across the active GPU block.
+                Gpu::deviceReduceSum(&plane_avg[0], val_u, handler);
+                Gpu::deviceReduceSum(&plane_avg[1], val_v, handler);
+                Gpu::deviceReduceSum(&plane_avg[iavg], val_mag, handler);
             });
         }
     }
@@ -3059,6 +3064,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
+                Real val = zero;
                 // Area-weighted averaging over cut cells at any k
                 if (flag_arr(i,j,k).isSingleValued()) {
                     // Compute area from face-centered area fractions
@@ -3075,9 +3081,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
 
                     Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                    Real val = mf_arr(i,j,k) * area;
-                    Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                    val = mf_arr(i,j,k) * area;
                 }
+                Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
             });
         }
     }
@@ -3121,6 +3127,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
+                Real val = zero;
                 if (flag_arr(i,j,k).isSingleValued()) {
                     // Compute area from face-centered area fractions
                     Real axm = afrac_x(i  ,j  ,k  );
@@ -3143,9 +3150,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     } else {
                         vfac = one + epsv*qv_mf_arr(i,j,k);
                     }
-                    const Real val = T_mf_arr(i,j,k) * vfac * area;
-                    Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+                    val = T_mf_arr(i,j,k) * vfac * area;
                 }
+                Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
             });
         }
     }
@@ -3153,7 +3160,8 @@ MOSTAverage::compute_eb_averages (const int& lev)
     {
         int iavg    = m_navg - 4;
         denom[iavg] = one / m_total_bndry_area[lev][iavg];
-        // plane_avg[iavg] = plane_avg[2]
+        // Dry virtual temperature shares temperature's filtered history.
+        val_old[iavg] = val_old[3];
         Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 3, pavg.begin() + 4,
                   pavg.begin() + iavg);
     }
