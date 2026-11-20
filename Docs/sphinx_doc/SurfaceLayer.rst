@@ -587,6 +587,11 @@ when covered by EB terrain. A diffusive closure is required. Prescribe
 roughness with ``erf.most.z0`` or ``erf.most.roughness_file_name``, using
 ``erf.is_land = 1`` and ``erf.most.roughness_type_land = constant``.
 
+For any ``zlo.type``, the first ``erf.data_log`` file
+reports ``u_star``, ``t_star``, and ``olen`` as ``nan`` (unavailable).
+The existing surface sum samples the lowest grid plane of the 3D EB fields,
+not the embedded surface; an average over that surface is not implemented.
+
 EB SurfaceLayer does not support sea surface-flux models, planar SST/TSK,
 coupled-ocean SST, or LSM surface-temperature/flux providers. These planar
 providers have no defined mapping to EB cut cells.

@@ -106,12 +106,16 @@ ERF::sum_integrated_quantities (double time)
 #endif
     }
 
-    Real h_avg_ustar = zero;
-    Real h_avg_tstar = zero;
-    Real h_avg_olen  = zero;
     Orientation zlo(Direction::z, Orientation::low);
-    if ((m_SurfaceLayer[zlo] != nullptr) && (NumDataLogs() > 0) &&
-        (!use_eb_surface_layer() || (phys_bc_type[zlo] == ERF_BC::surface_layer))) {
+    // With EB MOST (whatever zlo.type is), surface_sum samples the lowest grid
+    // plane, not the embedded surface. Its surface averages are unavailable;
+    // write NaN so the data log does not show zero or fill values as fluxes.
+    const bool eb_most = use_eb_surface_layer();
+    const Real surface_default = eb_most ? std::numeric_limits<Real>::quiet_NaN() : zero;
+    Real h_avg_ustar = surface_default;
+    Real h_avg_tstar = surface_default;
+    Real h_avg_olen  = surface_default;
+    if ((m_SurfaceLayer[zlo] != nullptr) && (NumDataLogs() > 0) && !eb_most) {
         // Sum each surface cell once: on grids split in z the planar arrays hold one
         // duplicate box per stacked 3D box
         h_avg_ustar = m_SurfaceLayer[zlo]->surface_sum(0, *m_SurfaceLayer[zlo]->get_u_star(0));

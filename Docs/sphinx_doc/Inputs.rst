@@ -1512,6 +1512,11 @@ level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3
 specifying 5 filenames will also include output (5). Data files are only written
 if ``erf.profile_int > 0``.
 
+With EB SurfaceLayer active (for any ``zlo.type``), the surface time history
+reports ``u_star``, ``t_star``, and ``olen`` as ``nan`` (unavailable). The EB
+fields use a 3D layout, and ``surface_sum`` samples the lowest grid plane rather
+than averaging over the embedded surface. These entries do not indicate zero surface fluxes.
+
 This output functionality has not been implemented for terrain.
 For **real simulation domains**, users should use 2-D and 3-D :ref:`sec:Plotfiles`.
 
