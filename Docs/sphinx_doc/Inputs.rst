@@ -576,6 +576,15 @@ List of Parameters
 | **erf.cf_set_width**                             | width, in cells, of the region within ``erf.cf_width``   | Integer >= 0       | 0                    |
 |                                                  | in which the fine solution is set from the coarse one    |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.perturbational_interpolation**             | fill rho, rho theta and (with moisture) rho qv from the  | Boolean            | true                 |
+|                                                  | coarser level -- in the coarse/fine ghost cells and in   |                    |                      |
+|                                                  | the cells a regrid newly covers -- by interpolating      |                    |                      |
+|                                                  | their departures from the base state and adding the      |                    |                      |
+|                                                  | fine level's base state back, so that an atmosphere in   |                    |                      |
+|                                                  | its base state stays in it on the fine level whatever    |                    |                      |
+|                                                  | the two levels' heights; false interpolates rho,         |                    |                      |
+|                                                  | rho theta and rho qv themselves                          |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.cf_loglaw_fill**                           | lateral coarse/fine faces next to a wall (the immersed   | Boolean            | false                |
 |                                                  | surface, or a ``surface_layer`` bottom; constant dz, not |                    |                      |
 |                                                  | EB terrain): share the flux of the first coarse face     |                    |                      |
