@@ -5702,22 +5702,27 @@ add_test_abort(SLM_FrozenCanopyAbort
 
 # A level made from a coarser one after the atmosphere is coupled, or remade by a regrid, starts
 # its canopy from the reference-level air state of the level it came from (issue 5163); it was
-# 0 K, so the first SLM step stopped on the frozen-canopy check. The deck runs one level to step
-# 10, then restarts (a) with a refined patch, made from level 0 at the first regrid, and (b)
-# from a two-level checkpoint with the patch moved, so the first regrid remakes level 1. Each
-# leg must reach step 20, and its log must show it took the path it is meant to.
-if(NOT WIN32)
+# 0 K, so the first SLM step stopped on the frozen-canopy check. It also keeps level 0's soil
+# nudging targets, the soil state at the start of the run, rather than taking the soil state at
+# the time it was made (issue 5178). The deck runs one level to step 50, by which time the soil
+# has moved away from its targets, then restarts (a) with a refined patch, made from level 0 at
+# the first regrid, and (b) from a two-level checkpoint with the patch moved, so the first
+# regrid remakes level 1. Each leg must reach step 60, its log must show it took the path it is
+# meant to, and the soil nudging of every level-1 column must be close to level 0's
+# (check_slm_soil_targets.py).
+if(NOT WIN32 AND ERF_TEST_PYTHON)
   function(add_test_slm_new_level_canopy TEST_NAME)
     set(TEST_FILES_DIR SLM_Restart)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
-    set(_run "${MPI_COMMANDS} ${TEST_EXE} SLM_Restart.i erf.plot_int_1=-1 amr.blocking_factor=4 erf.regrid_int=2 erf.refinement_indicators=box1")
+    set(_run "${MPI_COMMANDS} ${TEST_EXE} SLM_Restart.i erf.plot_int_1=60 amr.blocking_factor=4 erf.regrid_int=2 erf.refinement_indicators=box1")
+    set(_check "${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_slm_soil_targets.py plt_lsm_00060")
     set(_patch "'erf.box1.in_box_lo=100.0 100.0 0.0' 'erf.box1.in_box_hi=300.0 300.0 100.0'")
     set(_moved "'erf.box1.in_box_lo=200.0 200.0 0.0' 'erf.box1.in_box_hi=400.0 400.0 100.0'")
-    # Remove the checkpoints and logs of an earlier pass, so a leg cannot pass on old files
+    # Remove the checkpoints, plotfiles and logs of an earlier pass, so a leg cannot pass on old files
     add_test(${TEST_NAME} sh -c
-        "rm -rf one_chk* two_chk* ${_log}.* && ( ${_run} ${_patch} amr.max_level=0 max_step=10 erf.check_file=one_chk erf.check_int=10 > ${_log}.one 2>&1 || ( tail -n 40 ${_log}.one && false ) ) && ( ${_run} ${_patch} amr.max_level=1 erf.restart=one_chk00010 > ${_log}.new 2>&1 || ( tail -n 40 ${_log}.new && false ) ) && grep -q 'NEW BA FROM COARSE AT LEVEL 1' ${_log}.new && ( ${_run} ${_patch} amr.max_level=1 max_step=10 erf.check_file=two_chk erf.check_int=10 > ${_log}.two 2>&1 || ( tail -n 40 ${_log}.two && false ) ) && ( ${_run} ${_moved} amr.max_level=1 erf.restart=two_chk00010 > ${_log}.moved 2>&1 || ( tail -n 40 ${_log}.moved && false ) ) && grep -q 'REMAKING WITH NEW BA AT LEVEL 1' ${_log}.moved")
+        "rm -rf one_chk* two_chk* plt0* plt_lsm* ${_log}.* && ( ${_run} ${_patch} amr.max_level=0 max_step=50 erf.check_file=one_chk erf.check_int=50 > ${_log}.one 2>&1 || ( tail -n 40 ${_log}.one && false ) ) && ( ${_run} ${_patch} amr.max_level=1 max_step=60 erf.restart=one_chk00050 > ${_log}.new 2>&1 || ( tail -n 40 ${_log}.new && false ) ) && grep -q 'NEW BA FROM COARSE AT LEVEL 1' ${_log}.new && ${_check} && ( ${_run} ${_patch} amr.max_level=1 max_step=50 erf.check_file=two_chk erf.check_int=50 > ${_log}.two 2>&1 || ( tail -n 40 ${_log}.two && false ) ) && ( ${_run} ${_moved} amr.max_level=1 max_step=60 erf.restart=two_chk00050 > ${_log}.moved 2>&1 || ( tail -n 40 ${_log}.moved && false ) ) && grep -q 'REMAKING WITH NEW BA AT LEVEL 1' ${_log}.moved && ${_check}")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}.one;${_log}.new;${_log}.two;${_log}.moved")
