@@ -365,7 +365,8 @@
                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                          cloud_chamber_budget.get(),
                          ib_wall_face13[level].get(), ib_wall_face23[level].get(),
-                         ib_wall_face33[level].get(), ib_wall_hfx[level].get());
+                         ib_wall_face33[level].get(), ib_wall_hfx[level].get(),
+                         walldist[level].get());
 
         // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp): a coarse level adds
         // this stage's mass fluxes to those of its step, a fine level registers the coarse

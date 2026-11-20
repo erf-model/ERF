@@ -2615,6 +2615,27 @@ List of Parameters
 |                                        | that switches it on at such a level stops the run        |                    |                  |
 |                                        | (per-level)                                              |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_shear_stencil**             | k-equation RANS: vertical gradients of u and v in the    | ``central`` or     | ``central``      |
+|                                        | strain invariant of the shear production of k and of the | ``log_law``        |                  |
+|                                        | realizability cap. ``central`` (default) averages the    |                    |                  |
+|                                        | strains of the faces below and above the cell;           |                    |                  |
+|                                        | ``log_law`` uses (u_k+1 - u_k-1) / [(d_k + z0) ln((d_k+1 |                    |                  |
+|                                        | + z0) / (d_k-1 + z0))] in the cells above the wall cell  |                    |                  |
+|                                        | and below the top cell (d wall distance, z0 roughness    |                    |                  |
+|                                        | length of the surface layer, ``erf.most.z0`` unless a    |                    |                  |
+|                                        | roughness file or model sets it). The form is exact for  |                    |                  |
+|                                        | a logarithmic profile over flat ground and less accurate |                    |                  |
+|                                        | than ``central`` for a profile that is linear in height. |                    |                  |
+|                                        | A cell whose d_k-1 + z0 would not be positive keeps the  |                    |                  |
+|                                        | ``central`` value. ``log_law`` needs ``erf.rans_type =   |                    |                  |
+|                                        | kEqn`` and ``zlo.type = surface_layer`` and stops the    |                    |                  |
+|                                        | run with EB or immersed-forcing terrain or buildings,    |                    |                  |
+|                                        | thin immersed bodies or ``erf.terrain_type =             |                    |                  |
+|                                        | MovingFittedMesh``; a single value is reset to           |                    |                  |
+|                                        | ``central`` on levels without the k-eqn closure, a       |                    |                  |
+|                                        | per-level list that names such a level stops the run     |                    |                  |
+|                                        | (per-level)                                              |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rans_moist_buoyancy**            | k-equation RANS with a moisture model that carries water | Boolean            | false            |
 |                                        | vapor: TKE buoyancy production from the virtual          |                    |                  |
 |                                        | potential temperature flux, g/theta_v0 [(1 + epsv qv)    |                    |                  |

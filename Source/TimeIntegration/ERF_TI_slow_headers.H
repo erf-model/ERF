@@ -113,7 +113,8 @@ void erf_make_tau_terms (int level, int nrk,
                          const amrex::MultiFab& az,
                          const eb_& ebfact,
                          const amrex::MultiFab* ib_wall_face13 = nullptr,
-                         const amrex::MultiFab* ib_wall_face23 = nullptr);
+                         const amrex::MultiFab* ib_wall_face23 = nullptr,
+                         const amrex::MultiFab* walldist = nullptr);
 
 void copy_surface_tau_for_implicit (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev);
@@ -184,7 +185,8 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::MultiFab* ib_wall_face13 = nullptr,
                       const amrex::MultiFab* ib_wall_face23 = nullptr,
                       const amrex::MultiFab* ib_wall_face33 = nullptr,
-                      const amrex::MultiFab* ib_wall_hfx = nullptr);
+                      const amrex::MultiFab* ib_wall_hfx = nullptr,
+                      const amrex::MultiFab* walldist = nullptr);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature

@@ -3316,13 +3316,42 @@ if(NOT WIN32)
                  inputs_neutral
                  "erf.rans_realizability needs erf.pbl_type = None"
                  "erf.use_fft=false erf.pbl_type=YSU erf.rans_realizability=0.309")
+  # Input checks of the log-consistent shear of the closure (erf.rans_shear_stencil)
+  add_test_abort(RANSShearStencil_UnknownName ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "Unknown enum: loglaw in AMREX_ENUM.RANSShearStencil"
+                 "erf.use_fft=false erf.rans_shear_stencil=loglaw")
+  # a per-level list names a level without the k-eqn closure: abort
+  add_test_abort(RANSShearStencil_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.rans_shear_stencil = log_law needs erf.rans_type = kEqn"
+                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false 'erf.rans_shear_stencil=log_law central'")
+  # no surface layer at zlo: no roughness length for the stencil
+  add_test_abort(RANSShearStencil_NeedsSurfaceLayer ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_shear_stencil = log_law requires zlo.type = surface_layer"
+                 "erf.use_fft=false zlo.type=SlipWall erf.dirichlet_k=false erf.init_tke_from_ustar=false erf.rans_shear_stencil=log_law")
+  # immersed terrain: the nearest wall need not be the ground below the cell
+  add_test_abort(RANSShearStencil_NoImmersedTerrain ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_shear_stencil = log_law is not available with erf.terrain_type = EB or"
+                 "erf.use_fft=false erf.terrain_type=ImmersedForcing erf.rans_shear_stencil=log_law")
+  # a moving mesh: the wall distance is that of the initial mesh while the heights move
+  add_test_abort(RANSShearStencil_NoMovingMesh ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_shear_stencil = log_law is not available with erf.terrain_type = MovingFittedMesh"
+                 "erf.use_fft=false erf.compressibility_type=FullyCompressible erf.terrain_type=MovingFittedMesh erf.rans_shear_stencil=log_law")
+  # thin immersed bodies shorten the wall distance
+  add_test_abort(RANSShearStencil_NoThinBodies ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_shear_stencil = log_law is not available with thin immersed bodies"
+                 "erf.use_fft=false 'erf.zero_xflux_faces=(4,4,4)' erf.rans_shear_stencil=log_law")
   # One value for the hierarchy is meant for the kEqn levels: on a level without the closure
   # it is reset instead of refused, and the run then completes its step; the level also runs
   # a PBL scheme (MYNN25 on the neutral flat deck), which the cap refuses only where it is
   # still on. Unlike add_test_abort, the command requires both the reset message and the end
   # of step 1 in the log, so a run that prints the reset and stops afterwards (the PBL check
   # before the reset) fails. Covers a single entry and a list whose entries are all equal.
-  function(add_test_rans_reset TEST_NAME CAP_OPTION)
+  function(add_test_rans_reset TEST_NAME CAP_OPTION RESET_MESSAGE)
     set(_rr_src ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat)
     set(_rr_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
     file(MAKE_DIRECTORY ${_rr_dir})
@@ -3336,13 +3365,18 @@ if(NOT WIN32)
     resolve_test_exe("" "erf_exec" _rr_exe)
     set(_rr_log "${_rr_dir}/${TEST_NAME}.log")
     add_test(${TEST_NAME} sh -c
-      "${_rr_mpi} ${_rr_exe} ${_rr_dir}/inputs_neutral max_step=1 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 erf.use_fft=false erf.rans_type=None erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25 ${CAP_OPTION} > ${_rr_log} 2>&1 && grep -q 'erf.rans_realizability reset to 0 on level 0' ${_rr_log} && grep -q 'Coarse STEP 1 ends' ${_rr_log}")
+      "${_rr_mpi} ${_rr_exe} ${_rr_dir}/inputs_neutral max_step=1 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 erf.use_fft=false erf.rans_type=None erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25 ${CAP_OPTION} > ${_rr_log} 2>&1 && grep -q '${RESET_MESSAGE}' ${_rr_log} && grep -q 'Coarse STEP 1 ends' ${_rr_log}")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS 1 WORKING_DIRECTORY "${_rr_dir}/" LABELS "regression"
         ATTACHED_FILES_ON_FAIL "${_rr_log}")
   endfunction(add_test_rans_reset)
-  add_test_rans_reset(RANSRealizability_SingleValueResetOnLESLevel "erf.rans_realizability=0.309")
-  add_test_rans_reset(RANSRealizability_EqualListResetOnLESLevel "'erf.rans_realizability=0.309 0.309'")
+  add_test_rans_reset(RANSRealizability_SingleValueResetOnLESLevel "erf.rans_realizability=0.309"
+                      "erf.rans_realizability reset to 0 on level 0")
+  add_test_rans_reset(RANSRealizability_EqualListResetOnLESLevel "'erf.rans_realizability=0.309 0.309'"
+                      "erf.rans_realizability reset to 0 on level 0")
+  # the same for the shear stencil of the closure: one value, reset where there is no closure
+  add_test_rans_reset(RANSShearStencil_SingleValueResetOnLESLevel "erf.rans_shear_stencil=log_law"
+                      "erf.rans_shear_stencil reset to central on level 0")
   # kEqn on level 0 only: the canopy terms would act on part of the hierarchy
   add_test_abort(ForestCanopyRANS_NeedsKEqnOnEveryLevel
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i
@@ -4395,6 +4429,38 @@ if(NOT WIN32)
         RUNTIME_OPTIONS "erf.compressibility_type=FullyCompressible erf.use_fft=false erf.rans_type=None erf.les_type=Deardorff erf.plot_vars_1=density theta KE Kmv Khv"
         OPTIONS_A "erf.vert_implicit=true" OPTIONS_B "erf.vert_implicit=false"
         CHECK_OPTIONS "--tol 3.0e-4")
+endif()
+
+# Vertical shear of the k-eqn closure (erf.rans_shear_stencil, erf-model/ERF#5261): one step from
+# a logarithmic wind profile with the central stencil (A) and the log-consistent one (B). The
+# S of the closure is pinned to each stencil on the initial wind and, for B, to the closed form
+# u*/(kappa (z + z0)); the ratio A/B in the cells 2-4 is 1.2046, 1.0588, 1.0285; and the
+# difference of rho k after the step is the difference of the shear production. The cap is on
+# with C_r = 10 so that the closure writes cap_ratio (from which S follows) without capping.
+# The three mesh branches of erf_make_tau_terms each call the correction:
+#   _LogShear            uniform layers (MeshType::ConstantDz)
+#   _LogShear_Stretched  stretched layers (erf.initial_dz = 6 m, top layer 5 times the bottom one),
+#                        boxes cut in z; the check reads the heights from the plotfile and leaves
+#                        out the closed form and the pinned ratios (the sounding is interpolated)
+#   _LogShear_Fitted     terrain-fitted mesh over flat ground (a ridge of 1e-9 m), all checks of
+#                        the uniform case; needs the FFT-preconditioned projection
+# The command runs through sh, so not on Windows.
+if(NOT WIN32)
+    set(_log_shear_common "erf.use_fft=false erf.input_sounding_file=input_sounding_log erf.rans_realizability=10 erf.plot_int_1=1")
+    add_test_rans_pair(RANS_Neutral_ABL_Flat_LogShear Neutral_ABL_Flat inputs_neutral 1 check_log_shear.py
+        RUNTIME_OPTIONS "${_log_shear_common} erf.fixed_dt=0.05 erf.plot_vars_1=density x_velocity y_velocity KE Kmv Lturb diss cmu cap_ratio"
+        OPTIONS_A "erf.rans_shear_stencil=central" OPTIONS_B "erf.rans_shear_stencil=log_law"
+        CHECK_OPTIONS "--dt 0.05 --cr 10")
+    add_test_rans_pair(RANS_Neutral_ABL_Flat_LogShear_Stretched Neutral_ABL_Flat inputs_neutral 1 check_log_shear.py
+        RUNTIME_OPTIONS "${_log_shear_common} erf.fixed_dt=0.02 erf.initial_dz=6 erf.vert_implicit=false amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16' erf.plot_vars_1=density x_velocity y_velocity KE Kmv Lturb diss cmu cap_ratio z_phys"
+        OPTIONS_A "erf.rans_shear_stencil=central" OPTIONS_B "erf.rans_shear_stencil=log_law"
+        CHECK_OPTIONS "--dt 0.02 --cr 10 --stretched")
+    if(ERF_ENABLE_FFT)
+        add_test_rans_pair(RANS_Neutral_ABL_Flat_LogShear_Fitted Neutral_ABL_Flat inputs_neutral 1 check_log_shear.py
+            RUNTIME_OPTIONS "${_log_shear_common} erf.fixed_dt=0.02 erf.terrain_type=StaticFittedMesh erf.terrain_smoothing=0 erf.wall_dist_type=terrain_height prob.custom_terrain_type=WoA prob.dir=0 prob.hmax=1e-9 prob.L=500 erf.plot_vars_1=density x_velocity y_velocity KE Kmv Lturb diss cmu cap_ratio"
+            OPTIONS_A "erf.rans_shear_stencil=central" OPTIONS_B "erf.rans_shear_stencil=log_law"
+            CHECK_OPTIONS "--dt 0.02 --cr 10")
+    endif()
 endif()
 
 # The check scripts' own pass/fail logic: kind = "range" accepted half a band

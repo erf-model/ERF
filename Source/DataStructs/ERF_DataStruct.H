@@ -1941,6 +1941,24 @@ struct SolverChoice {
                 amrex::Abort("erf.rans_moist_buoyancy needs a moisture model that carries water vapour "
                              "(erf.moisture_model; level " + std::to_string(lev) + ")");
             }
+            // the log-consistent shear of the k-eqn RANS assumes the log law of the ground below
+            // the cell: not with a cut-cell or immersed surface, nor with thin immersed bodies
+            if (turbChoice[lev].rans_shear_stencil == RANSShearStencil::log_law) {
+                if (terrain_type == TerrainType::EB || terrain_type == TerrainType::ImmersedForcing ||
+                    buildings_type == BuildingsType::ImmersedForcing) {
+                    amrex::Abort("erf.rans_shear_stencil = log_law is not available with erf.terrain_type = EB or "
+                                 "ImmersedForcing or erf.buildings_type = ImmersedForcing");
+                }
+                // the wall distance is that of the initial mesh, the height differences move
+                if (terrain_type == TerrainType::MovingFittedMesh) {
+                    amrex::Abort("erf.rans_shear_stencil = log_law is not available with erf.terrain_type = "
+                                 "MovingFittedMesh");
+                }
+                if (advChoice.have_zero_flux_faces) {
+                    amrex::Abort("erf.rans_shear_stencil = log_law is not available with thin immersed bodies "
+                                 "(erf.zero_xflux_faces, erf.zero_yflux_faces, erf.zero_zflux_faces)");
+                }
+            }
         }
 
         if (perturbation_auto) {
