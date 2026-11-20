@@ -1248,8 +1248,11 @@ SLM::Lsm_Regrid_Level (const int& lev,
         for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
             lsm_fab_vars[LsmDataMap[ivar]]->ParallelCopy(*saved_data[ivar], 0, 0, 1);
         }
+        // The surface-layer stress reads the flux one column beyond each grid, so the ghost
+        // cells at the edges between the new grids must hold their neighbors' values too
         for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
             lsm_fab_flux[LsmFluxMap[ivar]]->ParallelCopy(*saved_flux[ivar], 0, 0, 1);
+            lsm_fab_flux[LsmFluxMap[ivar]]->FillBoundary(m_geom.periodicity());
         }
     } else {
         source_data.resize(m_lsm_data_size, nullptr);
