@@ -5545,6 +5545,25 @@ add_test_restart_parity(TerrainHill_RegridOnRestart_Fitted TerrainHill 7 20
     ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
+# A regrid that re-makes an existing fine level over the same cells on a new box layout
+# (erf-model/ERF#5228).  The restart leg alone halves amr.max_grid_size, so the first regrid
+# after the restart re-chops level 1 from 2 boxes into 8.  A regrid used to fill the base
+# state of a re-made level by interpolation from level 0, which next to the walls is out of
+# hydrostatic balance, so the first c/f ghost cells changed and so did the answer (level-1
+# y_velocity by 1e-2 one step later).  1 rank for all legs, so only the fine layout changes.
+add_test_restart_parity(RegridFineLevelOnRestart RegridFineLevelOnRestart 16 40
+    RESTART_OPTIONS "amr.max_grid_size=8"
+    CHK_NRANKS 1 RESTART_NRANKS 1
+    ALLOW_DIFF_GRIDS FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+
+# The same deck, checkpointed on 1 rank and continued on 2 (erf-model/ERF#5236): level 0 is
+# re-made on restart, and level 1 is re-chopped by the first regrid after it
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(RegridFineLevelOnRestart_MoreRanks RegridFineLevelOnRestart 16 40
+    CHK_NRANKS 1 RESTART_NRANKS 2
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
 # The automatic branch, end to end and with nothing set. ERF::restart re-makes the level-0
 # grids on its own when the checkpoint has fewer level-0 boxes than there are ranks, and a
 # fresh start gives level 0 exactly NProcs() boxes, so writing the checkpoint on one rank and
