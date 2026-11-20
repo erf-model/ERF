@@ -1515,8 +1515,16 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
         for (int n = 0; n < nsurface; ++n) {
             surf.push_back({surface[n], source_surface_state[n]});
         }
-        MultiFab surf_src = pack_src(surf, nsurface+1, source_geom);
-        surf_src.setVal(std::numeric_limits<Real>::quiet_NaN(), nsurface, 1, surf_src.nGrowVect());
+        // The surface state has no ghost cells, but the interpolation reads one coarse cell
+        // around each (TypedConsLinear::CoarseBox), so the packed source gets one in x and y,
+        // filled from the neighboring grids; a ghost cell no grid covers stays NaN, with no type
+        const MultiFab& s0 = *source_surface_state[0];
+        MultiFab surf_src(s0.boxArray(), s0.DistributionMap(), nsurface+1, IntVect(1,1,0));
+        surf_src.setVal(std::numeric_limits<Real>::quiet_NaN());
+        for (int n = 0; n < nsurface; ++n) {
+            surf_src.ParallelCopy(*source_surface_state[n], 0, n, 1, IntVect(0),
+                                  surf_src.nGrowVect(), source_geom.periodicity());
+        }
         surf_src.ParallelCopy(surface_type_2d, 0, nsurface, 1, surface_type_2d.nGrowVect(),
                               surf_src.nGrowVect(), source_geom.periodicity());
         {
