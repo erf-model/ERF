@@ -270,8 +270,17 @@ get_obs_mask (const Geometry& geom, int n_obs_fields)
         ihi[d] = std::min(ihi[d], domain.bigEnd(d));
     }
 
+    // Strides inside the box, counted from the box lower corner
+    int stride_x = 1, stride_y = 1, stride_z = 1;
+    pp.query("roi_stride_x", stride_x);
+    pp.query("roi_stride_y", stride_y);
+    pp.query("roi_stride_z", stride_z);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(stride_x >= 1 && stride_y >= 1 && stride_z >= 1,
+                                     "da.roi_stride_x/y/z must be >= 1");
+
     ObsMask mask;
-    mask.roi = Box(ilo, ihi);
+    mask.roi    = Box(ilo, ihi);
+    mask.stride = IntVect(stride_x, stride_y, stride_z);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(mask.roi.ok(),
         "Observation region of interest (da.obs_roi_lo/hi) contains no cell centers");
 
@@ -282,7 +291,9 @@ get_obs_mask (const Geometry& geom, int n_obs_fields)
                 << ", cell centers [" << plo[d] + (ilo[d] + 0.5_rt) * dx[d] << ", "
                 << plo[d] + (ihi[d] + 0.5_rt) * dx[d] << "]"
                 << ", index [" << ilo[d] << ", " << ihi[d] << "]"
-                << " (" << ihi[d] - ilo[d] + 1 << " of " << domain.length(d) << " cells)\n";
+                << " (" << ihi[d] - ilo[d] + 1 << " of " << domain.length(d) << " cells)"
+                << ", stride " << mask.stride[d]
+                << " -> " << mask.count_dir(d) << " observed\n";
     }
     Print() << "    observed cells = " << ncells
             << ", m = " << ncells << " x " << n_obs_fields << " = " << ncells * n_obs_fields
@@ -807,7 +818,7 @@ void WriteInnovationRMS(const MultiFab& dvec,
             sum_sq += get<0>(reduce_data.value());
         }
 
-        count += static_cast<long>((box & obs_mask.roi).numPts()) * dvec.nComp();
+        count += static_cast<long>(obs_mask.count(box)) * dvec.nComp();
     }
 
     // Global reductions across MPI ranks

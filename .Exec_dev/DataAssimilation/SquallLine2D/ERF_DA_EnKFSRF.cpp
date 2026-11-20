@@ -204,7 +204,8 @@ ERF::PerformDataAssimilation(int da_iter)
     int Nens = solverChoice.n_ensemble;
     Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
 
-    // Observation set: cells inside the region of interest (da.obs_roi_lo/hi).
+    // Observation set: cells inside the region of interest (da.obs_roi_lo/hi),
+    // thinned with strides da.roi_stride_x/y/z counted from the box lower corner.
     // Built once and shared by d', S and the innovation RMS.
     const ObsMask obs_mask = get_obs_mask(geom[0], varnames.size());
 

@@ -185,29 +185,56 @@ private:
 };
 
 
-// Observation selection mask. A cell (i,j,k) is observed iff it lies inside
-// the index-space region of interest `roi`. All observed fields are kept at
-// every selected cell. This single predicate is used everywhere the
-// observation set matters (d', S, innovation RMS), so S and r always use the
-// same observation set. (Thinning strides can be added here later.)
+// Observation selection mask (single level). A cell (i,j,k) is observed iff
+//   1. it lies inside the index-space region of interest `roi`, and
+//   2. it is on the stride lattice counted from the lower corner of the box:
+//      (i - roi.lo(0)) % stride[0] == 0, and likewise for j and k.
+// All observed fields are kept at every selected cell. This single predicate is
+// used everywhere the observation set matters (d', S, innovation RMS), so S and
+// r always use the same observation set.
 struct ObsMask {
-    amrex::Box roi;   // index-space region of interest (cell-centered)
+    amrex::Box     roi;                        // index-space region of interest (cell-centered)
+    amrex::IntVect stride = amrex::IntVect(1); // strides in x, y, z (>= 1; 1 = every cell)
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     bool operator()(int i, int j, int k) const noexcept {
-        return roi.contains(i,j,k);
+        return roi.contains(i,j,k)
+            && ((i - roi.smallEnd(0)) % stride[0] == 0)
+            && ((j - roi.smallEnd(1)) % stride[1] == 0)
+            && ((k - roi.smallEnd(2)) % stride[2] == 0);
     }
 
-    // Number of observed cells
-    amrex::Long count() const { return roi.numPts(); }
+    // Number of observed cells inside box b (same rule as operator())
+    amrex::Long count(const amrex::Box& b) const {
+        const amrex::Box ib = b & roi;
+        if (!ib.ok()) { return 0; }
+        amrex::Long n = 1;
+        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+            // lattice points roi.lo + m*stride in [ib.lo, ib.hi]; ib.lo >= roi.lo
+            const int r0  = roi.smallEnd(d);
+            const int s   = stride[d];
+            const int mlo = (ib.smallEnd(d) - r0 + s - 1) / s;
+            const int mhi = (ib.bigEnd(d)   - r0) / s;
+            n *= amrex::Long(mhi - mlo + 1);
+        }
+        return n;
+    }
+
+    // Number of observed cells in direction d (box extent and stride only)
+    int count_dir(int d) const { return (roi.length(d) + stride[d] - 1) / stride[d]; }
+
+    // Total number of observed cells
+    amrex::Long count() const { return count(roi); }
 };
 
 // Build the observation mask from the inputs
 //   da.obs_roi_lo = x_lo y_lo z_lo   (physical coordinates; default: domain lo)
 //   da.obs_roi_hi = x_hi y_hi z_hi   (physical coordinates; default: domain hi)
+//   da.roi_stride_x, da.roi_stride_y, da.roi_stride_z
+//                                    (strides in cells inside the box; default 1)
 // A cell is in the box iff its cell center lies in [lo, hi] in every direction.
 // Assumes a uniform, non-terrain-following grid. Prints the box (physical and
-// index), the number of observed cells and m = cells x n_obs_fields.
+// index), the strides, the number of observed cells and m = cells x n_obs_fields.
 ObsMask get_obs_mask(const amrex::Geometry& geom, int n_obs_fields);
 
 void
