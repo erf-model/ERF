@@ -480,8 +480,13 @@ ERF::InterpFromCoarseLevelCons (int lev, MultiFab& mf, const IntVect& nghost, co
 
     const Box everywhere(IntVect(std::numeric_limits<int>::lowest()/2),
                          IntVect(std::numeric_limits<int>::max()/2));
+    // With PhysBCFunctUseCoarseGhost, InterpFromCoarseLevel's coarse patch is coarsen(ba) with
+    //    ghost cells, which the interpolation reads, so take the base state out of those too:
+    //    left as the full state, the slopes across the edge of each patch mix it with the
+    //    perturbation, and the fine cells near every box edge -- including the edges between
+    //    a level's boxes -- then depend on how the level is chopped
     auto pre_interp = [&] (MultiFab& crse_patch, int, int) {
-        add_base_cons(crse_patch, IntVect(0), everywhere, bs_crse, cgeom.periodicity(),
+        add_base_cons(crse_patch, crse_patch.nGrowVect(), everywhere, bs_crse, cgeom.periodicity(),
                       -one, Rho_comp, RhoTheta_comp, iqv);
     };
     // InterpFromCoarseLevel's post hook sees one fab at a time, without its index, so the
