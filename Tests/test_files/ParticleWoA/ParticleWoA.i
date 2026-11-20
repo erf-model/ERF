@@ -37,6 +37,7 @@ tracer_particles.place_randomly_in_cells = false
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 1E-3
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.fixed_mri_dt_ratio = 12
 
 # DIAGNOSTICS & VERBOSITY

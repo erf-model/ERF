@@ -33,6 +33,7 @@ erf.molec_diff_type = "None"
 erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.fixed_dt           = 0.5
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.fixed_mri_dt_ratio = 6
 
 erf.check_int     = -1
