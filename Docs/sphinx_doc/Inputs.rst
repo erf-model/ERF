@@ -5180,6 +5180,12 @@ List of Parameters
 |                        | ``OneWay`` if some levels are anelastic and others       |                    |                  |
 |                        | compressible                                             |                    |                  |
 +------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.momentum_reflux**| with ``TwoWay``, reflux the pressure impulse on the      | true / false       | false            |
+|                        | coarse/fine faces normal to the x- and y-momenta (see    |                    |                  |
+|                        | :ref:`MeshRefinement`). Only for fully compressible      |                    |                  |
+|                        | levels without terrain or EB (the run stops otherwise);  |                    |                  |
+|                        | not used with ``OneWay`` or with one level               |                    |                  |
++------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Notes
 -----

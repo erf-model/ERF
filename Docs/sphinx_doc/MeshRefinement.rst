@@ -65,7 +65,13 @@ width of the composite control volume :math:`(\Delta x_c + \Delta x_f)/2`, and t
 gave it. The impulse is given as a momentum source on those faces over the next coarse step, not at
 once: added at once it acts as an explicit acoustic update over a whole coarse step and grows where
 the coarse-fine faces of two directions meet. The momentum at the end of a step is therefore short
-by that step's impulse, which is not written to checkpoints. The advective and diffusive momentum
+by that step's impulse. With ``erf.v = 1`` each reflux prints it for the x- and the y-momentum, so
+that a momentum budget can count it. It is written to checkpoints (``Level_<lev>/MomRefluxX`` and
+``MomRefluxY``) and read on a restart, so a restarted run gives it as the run that wrote the
+checkpoint does; a checkpoint without it restarts with none. It is dropped when the coarse level's
+grids change, and it is not made in a step in which the grids of either level change. A level that
+loses its fine level gives its last impulse once, in the next step, and none after that; the
+budget does not close across that regrid. The advective and diffusive momentum
 fluxes, the momentum sources on these faces, the tangential momenta and :math:`\rho w` on z-faces are
 not refluxed. This is done only for fully compressible levels without terrain or EB, and takes the
 map factors to be one.

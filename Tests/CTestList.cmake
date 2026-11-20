@@ -6167,8 +6167,8 @@ endif()
 # example model directory (Tests/StructureModelExample) compiled in: one point pushes
 # on still air in a periodic box with 50 N along x. With no friction or gravity, the
 # volume integral of x_velocity at t = 4 s is F t / rho_0 = 200 m^4/s (rho_0 = 1, and
-# the density stays 1 to 6e-9 at these speeds), checked to 1e-5 relative because
-# fvolumesum prints 6 significant digits; the model's fields reach the
+# the density stays 1 to 6e-9 at these speeds), checked to 1e-5 relative
+# (fvolumesum prints 10 significant digits); the model's fields reach the
 # ERF plotfile; and a restart from the mid-run checkpoint reproduces the final
 # plotfile exactly, and the model's checkpointed impulse (50 N for 4 s = 200 N s) is the
 # same in both logs. Without a fire the model gets no fire view (StructureStep::fire is
@@ -6207,6 +6207,24 @@ if(ERF_ENABLE_MPI AND NOT WIN32)   # the launchers below run through sh -c, as t
         set_tests_properties(Structures_ExampleModel PROPERTIES
             LABELS "regression;structures" TIMEOUT 600 PROCESSORS 2
             ATTACHED_FILES_ON_FAIL "${_smx_dir}/straight.log;${_smx_dir}/momentum.txt;${_smx_dir}/restart.log")
+        # The reflux of the pressure impulse on coarse/fine faces normal to the momentum
+        # (erf.momentum_reflux, erf-model/ERF#5017), with the model on a level 1 of ratio 2 under
+        # two-way coupling: the composite integral of x_velocity at t = 4 s plus the impulse still to
+        # be given is F t / rho_0 = 200 m^4/s to 1e-6 relative (with the option off the integral is
+        # 200.61 and 202.16), for a patch with faces normal to the force and for a cube; a restart
+        # from the mid-run checkpoint reads the impulse and reproduces the final plotfile exactly;
+        # a checkpoint written with the option off restarts with it on; and a level whose fine level
+        # goes away gives its last impulse once and then none (momentum_reflux_budget.sh).
+        set(_smx_mr_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Structures_ExampleModel_MomentumReflux)
+        file(MAKE_DIRECTORY ${_smx_mr_dir})
+        file(COPY ${_smx_src}/inputs_structure_example ${_smx_src}/momentum_reflux_budget.sh
+             DESTINATION ${_smx_mr_dir})
+        add_test(NAME Structures_ExampleModel_MomentumReflux
+                 COMMAND sh momentum_reflux_budget.sh "${_smx_mpi}" "${_smx_exe}" "${_smx_fvs}" "${FCOMPARE_EXE}"
+                 WORKING_DIRECTORY ${_smx_mr_dir})
+        set_tests_properties(Structures_ExampleModel_MomentumReflux PROPERTIES
+            LABELS "regression;structures" TIMEOUT 1200 PROCESSORS 2
+            ATTACHED_FILES_ON_FAIL "${_smx_mr_dir}/normal/run.log;${_smx_mr_dir}/normal/restart.log;${_smx_mr_dir}/cube/run.log;${_smx_mr_dir}/cube/restart.log;${_smx_mr_dir}/nofile/restart.log;${_smx_mr_dir}/gone/run.log")
       endif()
       set(_smx_fe_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Structures_ExampleModel_FinerLevelElsewhere)
       file(MAKE_DIRECTORY ${_smx_fe_dir})
