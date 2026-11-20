@@ -141,13 +141,9 @@ ERF::FillIntermediatePatch (int lev, double time_d,
         Vector<MultiFab*> fmf = {mfs_vel[Vars::cons],mfs_vel[Vars::cons]};
         Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::cons], vars_new[lev-1][Vars::cons]);
 
-        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-        mapper = &cell_cons_interp;
-        FillPatchTwoLevels(mf, IntVect{ng_cons}, IntVect(0,0,0),
-                           time_rel, cmf, ctime, fmf, ftime,
-                           icomp_cons, icomp_cons, ncomp_cons, geom[lev-1], geom[lev],
-                           refRatio(lev-1), mapper, domain_bcs_type,
-                           icomp_cons);
+        // This ASSUMES that all ghost cells at lev-1 have already been filled
+        FillPatchTwoLevelsCons(lev, mf, IntVect{ng_cons}, time_rel, cmf, ctime, fmf, ftime,
+                               icomp_cons, icomp_cons, ncomp_cons, icomp_cons);
 
         // Impose physical bc's on fine data (note time and 0 are not used)
         // Note that we do this after the FillPatch because imposing physical bc's on fine ghost

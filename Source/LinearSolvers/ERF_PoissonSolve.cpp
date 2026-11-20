@@ -439,10 +439,12 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                              RhoTheta_comp+1, ng_c);
             MultiFab::Copy(pi_cons, mom_mf[Vars::cons], Rho_comp, Rho_comp, 1, ng_c);
             MultiFab::Copy(pi_cons, rho0_theta0, 0, RhoTheta_comp, 1, ng_c);
-            if (lev > 0) {
+            if (lev > 0 && !perturbational_interp) {
                 // At a coarse/fine boundary theta comes from the coarse (rho theta) and rho,
                 // interpolated as the fill of the state interpolates them, so rho0 theta0 gets
-                // its ghost cells there from the coarse rho0 theta0 in the same way
+                // its ghost cells there from the coarse rho0 theta0 in the same way.  With
+                // erf.perturbational_interpolation the fill adds the perturbation to this level's
+                // own rho0 theta0, which its ghost cells already hold.
                 const IntVect ng_bc = base_state[lev-1].nGrowVect();
                 MultiFab crse_r0t0(base_state[lev-1].boxArray(), base_state[lev-1].DistributionMap(), 1, ng_bc);
                 MultiFab::Copy    (crse_r0t0, base_state[lev-1], BaseState::r0_comp , 0, 1, ng_bc);
