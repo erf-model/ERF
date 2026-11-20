@@ -5,6 +5,7 @@ CEXE_sources += ERF_InitFromHSE.cpp
 CEXE_sources += ERF_InitFromInputSounding.cpp
 CEXE_sources += ERF_InitGeowind.cpp
 CEXE_sources += ERF_InitRayleigh.cpp
+CEXE_sources += ERF_RebuildBaseState.cpp
 CEXE_sources += ERF_InitSponge.cpp
 CEXE_sources += ERF_Init1D.cpp
 CEXE_sources += ERF_InitTurbPert.cpp

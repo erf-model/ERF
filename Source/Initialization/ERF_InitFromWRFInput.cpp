@@ -2886,10 +2886,40 @@ ERF::rebuild_base_state_from_wrfinput (int lev, MultiFab& base_state_mf)
     Box region = domain;
     region.setSmall(2, base_state_mf.boxArray().minimalBox().smallEnd(2));
     MultiFab dummy_PB;
-    init_base_state_from_wrfinput(region, solverChoice.rdOcp,
-                                  p_hse, pi_hse, th_hse, qv_hse, r_hse,
-                                  dummy_PB, nullptr, z_phys_cc[lev].get(),
-                                  wrf_bsp);
+    if (lev == 0) {
+        init_base_state_from_wrfinput(region, solverChoice.rdOcp,
+                                      p_hse, pi_hse, th_hse, qv_hse, r_hse,
+                                      dummy_PB, nullptr, z_phys_cc[lev].get(),
+                                      wrf_bsp);
+    } else {
+        //
+        // The routine rebalances the valid cells only.  On a refined level, build on the
+        //    boxes grown by all of the base state's lateral ghost cells, so that each ghost
+        //    column is built and rebalanced as it would be were it valid, the same in every
+        //    box it is a ghost of.  (Not on level 0, whose heights outside the domain are not
+        //    yet set when this is first called, and which has no coarse/fine boundary.)
+        //
+        const IntVect ngb = base_state_mf.nGrowVect();
+        AMREX_ALWAYS_ASSERT(ngb[0] == ngb[1]);
+        const IntVect ng_g(0, 0, ngb[2]);
+
+        MultiFab bs_g;
+        std::unique_ptr<MultiFab> z_nd_g, z_cc_g;
+        make_base_state_on_grown_boxes(lev, base_state_mf, ngb[0], ng_g, bs_g, z_nd_g, z_cc_g);
+
+        MultiFab r_g (bs_g, make_alias, BaseState::r0_comp, 1);
+        MultiFab p_g (bs_g, make_alias, BaseState::p0_comp, 1);
+        MultiFab pi_g(bs_g, make_alias, BaseState::pi0_comp, 1);
+        MultiFab th_g(bs_g, make_alias, BaseState::th0_comp, 1);
+        MultiFab qv_g(bs_g, make_alias, BaseState::qv0_comp, 1);
+
+        init_base_state_from_wrfinput(region, solverChoice.rdOcp,
+                                      p_g, pi_g, th_g, qv_g, r_g,
+                                      dummy_PB, nullptr, z_cc_g.get(),
+                                      wrf_bsp);
+
+        copy_base_state_from_grown_boxes(lev, base_state_mf, bs_g);
+    }
 
     //
     // Below a nest that starts above k = 0, the ghost cells lie inside the domain, so
