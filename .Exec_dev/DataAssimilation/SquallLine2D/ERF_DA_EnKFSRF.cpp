@@ -204,6 +204,10 @@ ERF::PerformDataAssimilation(int da_iter)
     int Nens = solverChoice.n_ensemble;
     Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
 
+    // Observation set: cells inside the region of interest (da.obs_roi_lo/hi).
+    // Built once and shared by d', S and the innovation RMS.
+    const ObsMask obs_mask = get_obs_mask(geom[0], varnames.size());
+
     // Compute the ensemble mean
     MultiFab xf_bar = compute_ensemble_mean(da_iter, Nens, last_pf_name, varnames);
 
@@ -253,7 +257,7 @@ ERF::PerformDataAssimilation(int da_iter)
     MultiFab d_vec;
     compute_d_vec(y_obs, mean_H_xf, d_vec);
 
-    WriteInnovationRMS(d_vec, "innovation_norm.txt", da_iter);
+    WriteInnovationRMS(d_vec, obs_mask, "innovation_norm.txt", da_iter);
 
     Print() << "Computing dvec complete" << std::endl;
 
@@ -275,7 +279,7 @@ ERF::PerformDataAssimilation(int da_iter)
 
     // Compute d'=R_inv*d
     MultiFab d_prime_vec;
-    compute_d_prime_vec(d_prime_vec, d_vec, R_diag);
+    compute_d_prime_vec(d_prime_vec, d_vec, R_diag, obs_mask);
 
     Print() << "compute_d_prime_vec complete" << std::endl;
 
@@ -287,7 +291,7 @@ ERF::PerformDataAssimilation(int da_iter)
 
     // Compute the S matrix
     Matrix S_mat(Nens);
-    compute_S_matrix(da_iter, S_mat, Nens, mean_H_xf, R_diag, last_pf_name, varnames);
+    compute_S_matrix(da_iter, S_mat, Nens, mean_H_xf, R_diag, obs_mask, last_pf_name, varnames);
 
     Print() << "compute_S_matrix complete" << std::endl;
 

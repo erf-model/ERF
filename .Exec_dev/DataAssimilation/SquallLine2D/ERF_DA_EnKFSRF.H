@@ -185,6 +185,31 @@ private:
 };
 
 
+// Observation selection mask. A cell (i,j,k) is observed iff it lies inside
+// the index-space region of interest `roi`. All observed fields are kept at
+// every selected cell. This single predicate is used everywhere the
+// observation set matters (d', S, innovation RMS), so S and r always use the
+// same observation set. (Thinning strides can be added here later.)
+struct ObsMask {
+    amrex::Box roi;   // index-space region of interest (cell-centered)
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool operator()(int i, int j, int k) const noexcept {
+        return roi.contains(i,j,k);
+    }
+
+    // Number of observed cells
+    amrex::Long count() const { return roi.numPts(); }
+};
+
+// Build the observation mask from the inputs
+//   da.obs_roi_lo = x_lo y_lo z_lo   (physical coordinates; default: domain lo)
+//   da.obs_roi_hi = x_hi y_hi z_hi   (physical coordinates; default: domain hi)
+// A cell is in the box iff its cell center lies in [lo, hi] in every direction.
+// Assumes a uniform, non-terrain-following grid. Prints the box (physical and
+// index), the number of observed cells and m = cells x n_obs_fields.
+ObsMask get_obs_mask(const amrex::Geometry& geom, int n_obs_fields);
+
 void
 read_plot_file(amrex::PlotFileData& pf,
                const std::vector<std::string> varnames,
@@ -218,7 +243,8 @@ void compute_R_diag_vals(amrex::Vector<amrex::Real>& R_diag);
 
 void compute_d_prime_vec(amrex::MultiFab& d_prime_vec,
                     const amrex::MultiFab& d_vec,
-                    const amrex::Vector<amrex::Real>& R_diag);
+                    const amrex::Vector<amrex::Real>& R_diag,
+                    const ObsMask& obs_mask);
 
 void compute_mean_H_xf(const int da_iter,
                        amrex::MultiFab& mean_H_xf,
@@ -273,6 +299,7 @@ void compute_S_matrix(const int da_iter,
                       const int& Nens,
                       const amrex::MultiFab& mean_H_xf,
                       const amrex::Vector<amrex::Real>& R_diag,
+                      const ObsMask& obs_mask,
                       const std::string& last_pf_name,
                       const amrex::Vector<std::string>& varnames);
 std::string
@@ -283,6 +310,7 @@ MakeFullPath (const std::string& filename, const int da_iter);
 
 void
 WriteInnovationRMS(const amrex::MultiFab& dvec,
+                   const ObsMask& obs_mask,
                    const std::string& filename,
                    int da_iter);
 #endif
