@@ -7157,7 +7157,7 @@ if(ERF_ENABLE_NETCDF AND NOT WIN32 AND ERF_TEST_PYTHON)
 
     # erf.sample_point and its forms (#4978): each point's log must hold the conserved state of
     # the expected cell of the column through it, on a hill whose ground is 210 m under pt_a
-    # and 510 m under pt_b, with 8 levels to a flat top at 800 m (see SamplePoint_LatLon.i)
+    # and 510 m under pt_b, with 8 cells to a flat top at 800 m (see SamplePoint_LatLon.i)
     function(add_test_sample_point_latlon TEST_NAME RUNTIME_OPTIONS EXPECTED)
       set(TEST_FILES_DIR LineSampling_LatLon)
       setup_test()
@@ -7173,11 +7173,11 @@ if(ERF_ENABLE_NETCDF AND NOT WIN32 AND ERF_TEST_PYTHON)
     add_test_sample_point_latlon(SamplePoint_Index
         "erf.sample_point=10 20 3 25 5 6" "pt_a:col_a:3 pt_b:col_b:6")
     add_test_sample_point_latlon(SamplePoint_Real
-        "erf.sample_point_real=10500. 20500. 560. 25500. 5500. 700." "pt_a:col_a:4 pt_b:col_b:5")
+        "erf.sample_point_real=10500. 20500. 560. 25500. 5500. 700." "pt_a:col_a:5 pt_b:col_b:5")
     add_test_sample_point_latlon(SamplePoint_RealAGL
-        "erf.sample_point_real=10500. 20500. 50. 25500. 5500. 200. erf.sample_point_z_agl=true" "pt_a:col_a:0 pt_b:col_b:5")
+        "erf.sample_point_real=10500. 20500. 50. 25500. 5500. 200. erf.sample_point_z_agl=true" "pt_a:col_a:1 pt_b:col_b:6")
     add_test_sample_point_latlon(SamplePoint_LatLonAGL
-        "erf.sample_point_latlon=40.205500 -104.918150 250. 40.100500 -104.712650 200. erf.sample_point_z_agl=true" "pt_a:col_a:3 pt_b:col_b:5")
+        "erf.sample_point_latlon=40.205500 -104.918150 250. 40.100500 -104.712650 200. erf.sample_point_z_agl=true" "pt_a:col_a:4 pt_b:col_b:6")
   else()
     message(STATUS "Skipping LineSampling_LatLon: Python netCDF4 and numpy are required")
   endif()
