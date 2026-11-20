@@ -913,6 +913,12 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 #endif
 
     //
+    // Rebuild the base state on this level's grids rather than keep the interpolation
+    // above, which is out of hydrostatic balance next to the walls (erf-model/ERF#5236)
+    //
+    rebuild_base_state(lev);
+
+    //
     // Interpolate the solution data
     //
     FillCoarsePatch(lev, time);
@@ -1430,6 +1436,19 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 #endif
 
         // *************************************************************************************************
+        // The base state of the new grids is now complete except for its rebuild: put it in place,
+        // and rebuild it, before the state is filled.  The fill of the state from the coarse level
+        // can then use the base state of the grids it fills (erf.perturbational_interpolation).
+        //
+        // Rebuild it rather than keep the interpolation above: next to the bottom and top walls
+        // that is out of hydrostatic balance in the cells newly covered and in the first c/f ghost
+        // cells, and over terrain throughout the columns newly covered, so a remake that only
+        // re-chops the level would change the answer (erf-model/ERF#5228, #5236)
+        // *************************************************************************************************
+        std::swap(temp_base_state, base_state[lev]);
+        rebuild_base_state(lev);
+
+        // *************************************************************************************************
         // This will fill the temporary MultiFabs with data from vars_new
         // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
         // *************************************************************************************************
@@ -1478,8 +1497,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                               IntVect(0),IntVect(ngrow_vels,ngrow_vels,0));
     }
 
-    // Now swap the pointers since we needed both old and new in the FillPatch
-    std::swap(temp_base_state, base_state[lev]);
+    // Now swap the pointers since we needed both old and new in the copy (a fine level
+    //    swapped its base state in above, before its fill)
+    if (lev == 0) { std::swap(temp_base_state, base_state[lev]); }
 
     // ********************************************************************************************
     // Copy from new into old just in case

@@ -978,6 +978,50 @@ public:
     void init_from_input_sounding (int lev);
 
     /**
+     * Build the hydrostatic base state of level lev from the input sounding, as a fresh
+     * start does: the profile sampled at this level's heights, rebalanced column by
+     * column, with p_0 and pi_0 recomputed.  The lateral ghost cells are built the same
+     * way as the valid cells, so each holds the column it would hold were it valid, and
+     * the base state is one field in balance everywhere, whichever box a cell is a
+     * ghost cell of.  Not for SoundingType::ConstantDensity, whose base state comes from
+     * initHSE.
+     */
+    void build_base_state_from_input_sounding (int lev, amrex::MultiFab& base_state_mf);
+
+    /**
+     * Rebuild level lev's base state from the input sounding after a regrid made or
+     * remade the level, replacing the interpolation from the coarser level that the
+     * regrid filled it with.  The state is not touched.  Next to the bottom and top
+     * walls that interpolation has no vertical slope, which puts p_0 out of hydrostatic
+     * balance by about rho_0 g dz there (erf-model/ERF#5236).
+     */
+    void rebuild_base_state_from_input_sounding (int lev, amrex::MultiFab& base_state_mf);
+
+    // Rebuild base_state[lev] after a regrid made or remade level lev, by the construction
+    // the run was initialized with where it can be repeated and from the coarser level
+    // otherwise, then check it (erf-model/ERF#5228, #5236)
+    void rebuild_base_state (int lev);
+
+    // Rebuild base_state[lev] in hydrostatic balance from the coarser level alone
+    void rebuild_base_state_from_coarse (int lev);
+
+    // A copy of bs, a base state of level lev, on the boxes of bs's BoxArray grown laterally
+    //    by grow, with ng ghost cells, and level lev's heights on the same boxes (z_nd_g nodal,
+    //    z_cc_g cell-centered, both with ng ghost cells).  Building a base state there builds
+    //    bs's ghost cells as valid cells: grow + ng must not exceed bs's lateral ghost cells.
+    void make_base_state_on_grown_boxes (int lev, const amrex::MultiFab& bs, int grow,
+                                         const amrex::IntVect& ng, amrex::MultiFab& bs_g,
+                                         std::unique_ptr<amrex::MultiFab>& z_nd_g,
+                                         std::unique_ptr<amrex::MultiFab>& z_cc_g);
+
+    // Copy a base state built on the grown boxes of make_base_state_on_grown_boxes back into bs
+    void copy_base_state_from_grown_boxes (int lev, amrex::MultiFab& bs, const amrex::MultiFab& bs_g);
+
+    // Abort (or, with abort_if_fail false, warn) if base_state[lev] is out of discrete
+    // hydrostatic balance in the valid region
+    void check_base_state_hse (int lev, const std::string& when, bool abort_if_fail = true);
+
+    /**
      * The input sounding sampled at the cell centres of level lev. Level 0 is
      * input_sounding_data itself; a finer level gets its own copy, resampled at
      * geom[lev] / zlevels_stag[lev], so that its profile index k is its own cell k
@@ -1400,10 +1444,32 @@ private:
                              bool cons_only=false);
 
     // This one works only at level > 0 (base state does change)
+    //
+    // allow_perturbational = false keeps the fill of the conserved state from coarse
+    //    full-state even with erf.perturbational_interpolation: for a destination that is not
+    //    on the layout of base_state[lev], as when RemakeLevel fills the new grids
     void FillPatchFineLevel (int lev, double time,
                              const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                              const amrex::Vector<amrex::MultiFab*>& mfs_mom,
-                             bool fillset=true, bool cons_only=false);
+                             bool fillset=true, bool cons_only=false,
+                             bool allow_perturbational=true);
+
+    // FillPatchTwoLevels for the cell-centered conserved state, perturbational in
+    //    Rho_comp, RhoTheta_comp and RhoQ1_comp when perturbational_interp and perturbational
+    void FillPatchTwoLevelsCons (int lev, amrex::MultiFab& mf, const amrex::IntVect& nghost,
+                                 amrex::Real time,
+                                 const amrex::Vector<amrex::MultiFab*>& cmf,
+                                 const amrex::Vector<amrex::Real>& ctime,
+                                 const amrex::Vector<amrex::MultiFab*>& fmf,
+                                 const amrex::Vector<amrex::Real>& ftime,
+                                 int scomp, int dcomp, int ncomp, int bccomp,
+                                 bool perturbational = true);
+
+    // InterpFromCoarseLevel for the whole cell-centered conserved state of a level made from
+    //    the coarser one, perturbational in Rho_comp, RhoTheta_comp and RhoQ1_comp when perturbational_interp
+    void InterpFromCoarseLevelCons (int lev, amrex::MultiFab& mf, const amrex::IntVect& nghost,
+                                    const amrex::MultiFab& cmf);
+
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
     // Unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
@@ -1793,6 +1859,12 @@ private:
     // Fillpatcher classes for coarse-fine boundaries
     int cf_width{0};
     int cf_set_width{0};
+
+    // erf.perturbational_interpolation: fill rho, rho theta and (with moisture) rho qv from the
+    //    coarser level (the c/f ghost cells, and the cells a regrid newly covers) by interpolating
+    //    rho - rho0, rho theta - rho0 theta0 and rho qv - rho0 qv0 and adding back the fine base
+    //    state.  On by default; false interpolates rho, rho theta and rho qv themselves.
+    bool perturbational_interp{true};
     amrex::Vector<ERFFillPatcher> FPr_c;
     amrex::Vector<ERFFillPatcher> FPr_u;
     amrex::Vector<ERFFillPatcher> FPr_v;
