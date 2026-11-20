@@ -440,8 +440,8 @@ int reference_substeps_from_reduced_value (const amrex::Real reduced_value,
                                            const amrex::Real dt,
                                            const amrex::Real dz) noexcept
 {
-    return static_cast<int>(std::ceil((reduced_value + std::numeric_limits<amrex::Real>::epsilon())
-                                      * (dt / dz) / kessler_sedimentation_cfl_max));
+    return amrex::max(1, static_cast<int>(std::ceil(reduced_value * (dt / dz)
+                                                    / kessler_sedimentation_cfl_max)));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -449,8 +449,8 @@ int reference_velocity_cfl_substeps (const amrex::Real terminal_velocity,
                                      const amrex::Real dt,
                                      const amrex::Real dz) noexcept
 {
-    return static_cast<int>(std::ceil((terminal_velocity + std::numeric_limits<amrex::Real>::epsilon())
-                                      * (dt / dz) / kessler_sedimentation_cfl_max));
+    return amrex::max(1, static_cast<int>(std::ceil(terminal_velocity * (dt / dz)
+                                                    / kessler_sedimentation_cfl_max)));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -690,7 +690,6 @@ inline void run_kessler_public_flow (Kessler& kessler,
 {
     run_and_sync([&] {
         kessler.Define(sc);
-        kessler.Set_dzmin(geom.CellSize(2));
         kessler.Init(cons, cons.boxArray(), geom, dt, z_phys_nd, detJ_cc);
         kessler.Copy_State_to_Micro(cons);
         kessler.Advance(dt, sc);

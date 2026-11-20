@@ -36,13 +36,11 @@ Problem::Problem (const Real* problo, const Real* probhi)
     pp_erf.query("prob_name", prob_name);
     if (amrex::toLower(prob_name) == "cloud chamber" ||
         amrex::toLower(prob_name) == "cloudchamber") {
-        // Problem is created before ERF::solverChoice is available. Read the
-        // same typed enum here so the chamber parser can validate the input
-        // against the selected moisture model instead of treating any present
-        // string as an implicitly supported model.
+        // The problem needs only the initial profile. ERF owns wall setup,
+        // using the level-zero geometry and its effective diffusion coefficients.
         MoistureType selected_moisture_model = MoistureType::None;
         pp_erf.query_enum_case_insensitive("moisture_model", selected_moisture_model);
-        m_cloud_chamber_config = erf_cloud_chamber::parse_config(
+        m_cloud_chamber_config = erf_cloud_chamber::parse_initialization(
             problo, probhi, selected_moisture_model);
     }
 

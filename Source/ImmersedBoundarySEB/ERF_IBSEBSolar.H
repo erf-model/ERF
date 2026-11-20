@@ -251,7 +251,7 @@ struct RayMap
         return (kt < 0) ? z_ground : z_ground + (kt + 1) * dz;
     }
 
-    /** Centre of column ``ci`` in x (``cj`` in y) [m]; the column is counted from the domain's low corner and may lie outside it. */
+    /** Center of column ``ci`` in x (``cj`` in y) [m]; the column is counted from the domain's low corner and may lie outside it. */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real centre_x (int ci) const noexcept { return x_lo + (static_cast<amrex::Real>(ci - ilo) + amrex::Real(0.5)) * dx; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -263,7 +263,7 @@ struct RayMap
  * (the sine of its elevation) can travel horizontally before it rises above
  * ``height`` or falls that far, ``height / tan(elevation)``, rounded up and
  * with one cell for the column it starts in. At least one cell, so a face
- * always finds the column of its solid neighbour; a level ray would reach
+ * always finds the column of its solid neighbor; a level ray would reach
  * for ever, which the caller caps at the domain.
  */
 inline int ray_halo_cells (amrex::Real height, amrex::Real dx, amrex::Real sz_min)
@@ -308,7 +308,7 @@ amrex::Real hemisphere_ray_weight (int n_az, int n_el) noexcept
 
 /**
  * Whether the ray from a point toward the sun hits a building: the one walk of
- * ray_blocked() (a face, or the centre of a column's ground) and of ray_blocked_near()
+ * ray_blocked() (a face, or the center of a column's ground) and of ray_blocked_near()
  * (the ground a face sees).
  *
  * Buildings are the column tops of the rank's ray map (RayMap), so a ray is
@@ -378,7 +378,7 @@ bool ray_blocked_walk (amrex::Real x0, amrex::Real y0, amrex::Real z0,
 }
 
 /**
- * Whether the ray from a face, or from the centre of a column's ground, toward the sun
+ * Whether the ray from a face, or from the center of a column's ground, toward the sun
  * hits a building (ray_blocked_walk() over all the map holds).
  *
  * @return true when blocked (the face, or the ground, is in shadow).
@@ -393,7 +393,7 @@ bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
 /**
  * ray_blocked() for the ground a face sees (the sunlit part of a face's ground view,
  * ground_view_lit()): the same walk (ray_blocked_walk()) from the same start as the
- * ground's own shadow (IBFaceSet::compute_ground_shadow()), the centre of the ground of
+ * ground's own shadow (IBFaceSet::compute_ground_shadow()), the center of the ground of
  * column ``(ci0, cj0)``, kept within the map's reach (``reach_x``, ``reach_y``) of the
  * face's own column ``(ci_ref, cj_ref)``; the columns are counted without wrapping.
  * Every rank's patch holds that window around each of its faces (its boxes grown by
@@ -614,7 +614,7 @@ bool ground_view_beam_up (amrex::Real sz, amrex::Real beam_ground) noexcept
  * ground view fraction). The landings ``land[0 .. n_land)`` are the distinct columns
  * the face's ground rays land in and ``rays[0 .. n_land)`` the number of rays that land
  * in each (IBFaceSet::build_ground_landings(), kept once: the geometry is static). Each
- * column takes the shadow at the centre of its ground, cast toward the sun
+ * column takes the shadow at the center of its ground, cast toward the sun
  * ``(sx, sy, sz)`` by the walk of the ground's own shadow
  * (IBFaceSet::compute_ground_shadow()), within the map's reach of the face's column
  * ``(ci_f, cj_f)`` (ray_blocked_near()): one walk per column, whatever the number of

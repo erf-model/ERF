@@ -622,11 +622,7 @@ ERF::ERF_shared ()
     const std::string prob_name_ci = amrex::toLower(prob_name);
     if (prob_name_ci == "cloud chamber" || prob_name_ci == "cloudchamber") {
         cloud_chamber_config = erf_cloud_chamber::parse_config(
-            geom[0].ProbLo(), geom[0].ProbHi(), solverChoice.moisture_type);
-        const amrex::GpuArray<Real, AMREX_SPACEDIM> cloud_chamber_dx = {
-            geom[0].CellSize(0), geom[0].CellSize(1), geom[0].CellSize(2)};
-        erf_cloud_chamber::validate_wall_roughness_geometry(
-            cloud_chamber_config.wall_boundary(), cloud_chamber_dx);
+            geom[0], solverChoice.moisture_type, solverChoice.diffChoice);
     }
     {
         int budget_interval = 0;

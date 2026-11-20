@@ -34,7 +34,7 @@
  *    frozen at its value from the wind of the step, ``Pi`` the Exner
  *    function of the fluid cell so the skin temperature enters as a
  *    potential temperature;
- *  - ``LE`` is the latent flux, held at its stored value (zero, not modelled);
+ *  - ``LE`` is the latent flux, held at its stored value (zero, not modeled);
  *  - ``a T_s - b`` is the conduction into the slab that the implicit slab
  *    step (ERF_IBSEBSlab.H) will produce for a skin temperature ``T_s``
  *    (ibseb::slab_skin_response()), so the balance and the slab agree
