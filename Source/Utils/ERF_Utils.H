@@ -66,6 +66,12 @@ rebalance_columns (amrex::MultiFab& rho,
                    bool use_sfc = false);
 
 /*
+ * Re-compute p_0 and pi_0 of a base state from rho_0, theta_0 and qv_0 over the valid region
+ */
+void
+recompute_p_pi_hse (amrex::MultiFab& base_state_mf, amrex::Real l_rdOcp);
+
+/*
  * Create a new BoxArray in which every grid touches the bottom boundary
  */
 void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size);
