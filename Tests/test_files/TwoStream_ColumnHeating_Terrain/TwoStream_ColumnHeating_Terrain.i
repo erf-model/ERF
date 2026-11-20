@@ -34,7 +34,7 @@ amr.blocking_factor = 2
 amr.max_grid_size_z = 128
 geometry.is_periodic = 1 1 0
 
-# TERRAIN: axisymmetric Witch of Agnesi hill centred in the domain on a
+# TERRAIN: axisymmetric Witch of Agnesi hill centered in the domain on a
 # terrain-fitted mesh, so every column has its own layer thicknesses (taken
 # from the nodal heights) and the domain-mean diagnostics differ from any
 # single rank's share of the columns.

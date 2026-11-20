@@ -183,7 +183,7 @@ amrex::Real prognostic_dqs_dt (amrex::Real le,
         return 0.0;  // Safe no-op for invalid parameters
     }
 
-    // L_v and rhor both come from ERF_Constants.H. A local L_v here shadowed
+    // L_v comes from ERF_Constants.H and rhor from ERF_MicrophysicsConstants.H. A local L_v here shadowed
     // the global one, and a local water density duplicated rhor.
 
     // Compute tendency: -(LE / (L_v * rhor * d_s)) - (1/tau_q) * (q_s - q_deep)

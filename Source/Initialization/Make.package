@@ -5,10 +5,13 @@ CEXE_sources += ERF_InitFromHSE.cpp
 CEXE_sources += ERF_InitFromInputSounding.cpp
 CEXE_sources += ERF_InitGeowind.cpp
 CEXE_sources += ERF_InitRayleigh.cpp
+CEXE_sources += ERF_RebuildBaseState.cpp
 CEXE_sources += ERF_InitSponge.cpp
 CEXE_sources += ERF_Init1D.cpp
 CEXE_sources += ERF_InitTurbPert.cpp
 CEXE_headers += ERF_PerturbationWind.H
+CEXE_headers += ERF_WRFSurfaceFields.H
+CEXE_sources += ERF_WRFSurfaceFields.cpp
 CEXE_sources += ERF_InitImmersedForcing.cpp
 CEXE_sources += ERF_InitForEnsemble.cpp 
 

@@ -20,7 +20,7 @@
  * \brief Compact list of the wall faces of resolved buildings on one AMR level.
  *
  * **What a face is.** The immersed forcing marks every cell of a level as
- * fluid or solid through the cell-centred blanking ``terrain_blanking``
+ * fluid or solid through the cell-centered blanking ``terrain_blanking``
  * (one minus the embedded-boundary volume fraction, so 0 in the air and 1
  * inside a building). A wall face is the cell face between a fluid cell
  * (blanking below 0.5) and a solid cell (blanking at or above 0.5). Walls
@@ -28,7 +28,7 @@
  *
  * **Face convention.** A face is identified by its *fluid* cell ``(i, j, k)``,
  * its direction ``dir`` (0 = x, 1 = y, 2 = z) and its ``side`` (-1 when the
- * solid neighbour is at ``i-1`` / ``j-1`` / ``k-1``, +1 when it is at
+ * solid neighbor is at ``i-1`` / ``j-1`` / ``k-1``, +1 when it is at
  * ``i+1`` / ``j+1`` / ``k+1``). The outward unit normal of the wall, pointing
  * into the fluid, is therefore ``-side`` along ``dir``. The fluid cell is where
  * every atmospheric input of the balance (wind, temperature, humidity,
@@ -48,24 +48,24 @@
  * column) are kept as a k-collapsed ``amrex::iMultiFab`` on the level's own
  * boxes, one integer per column: the domain-relative k of its highest solid
  * cell, -1 where it is fluid. Nothing about the columns is replicated across
- * the ranks (erf-model/ERF#4020): the building labelling exchanges labels
+ * the ranks (erf-model/ERF#4020): the building labeling exchanges labels
  * through the map's ghost cells, and the ray cast of the shortwave and the
  * view fractions reads a per-rank *patch* of the map, this rank's boxes
  * grown by a halo that holds every column a ray from one of its faces can
  * reach (build_ray_map()).
  *
- * **Building ids.** The solid columns are labelled by 4-connectivity in the
+ * **Building ids.** The solid columns are labeled by 4-connectivity in the
  * horizontal (across the periodic seams too) and numbered in scan order over
  * ``(i, j)``, the same on every rank and whatever the decomposition: every
  * column starts with its own scan index as its label, each box takes the
  * lowest label of its connected pieces, and the pieces exchange labels
  * through one ghost cell until nothing changes, so a building ends with the
  * scan index of its first column; the distinct labels, gathered once, give
- * the numbering. A face carries the id of the column of its solid neighbour.
+ * the numbering. A face carries the id of the column of its solid neighbor.
  * Ids are 1-based, 0 is never assigned.
  *
  * **Output.** The list is never written directly. scatter_diagnostics() puts
- * the number of faces and their mean skin temperature into cell-centred
+ * the number of faces and their mean skin temperature into cell-centered
  * fields for the plotfile; write_state() / read_state() move the skin
  * temperature, the sensible flux and the slab temperatures through one
  * record per face, keyed by the face's cell, direction and side, for the
@@ -75,7 +75,7 @@
  *
  * **Per-step order.** build() detects and stores the faces and
  * compute_view_fractions() fills ``d_f_sky`` / ``d_f_ground`` / ``d_f_bldg``
- * once at initialisation; every step then runs compute_shortwave(),
+ * once at initialization; every step then runs compute_shortwave(),
  * compute_longwave(), compute_sensible() and, with ``erf.ibseb.prognostic``,
  * solve_balance(), which finds the skin temperature closing the balance,
  * advances the slab with it and rewrites the fluxes at the solution; without
@@ -93,7 +93,7 @@ public:
      * @param lev    AMR level the set belongs to, for reports only.
      * @param qv_comp State component of rho qv (SolverChoice::moisture_indices.qv),
      *                negative without a moisture model. The air temperature and the
-     *                Exner function of a fluid cell take its vapour through the
+     *                Exner function of a fluid cell take its vapor through the
      *                equation of state, as the rest of ERF does; with no moisture
      *                model they take none.
      */
@@ -101,21 +101,21 @@ public:
         : m_params(params), m_lev(lev), m_qv_comp(qv_comp) {}
 
     /**
-     * Detect this rank's faces from the cell-centred blanking and allocate
+     * Detect this rank's faces from the cell-centered blanking and allocate
      * every per-face array.
      *
-     * Runs on the host once at initialisation: the blanking is copied fab by
+     * Runs on the host once at initialization: the blanking is copied fab by
      * fab (a pinned copy on GPU builds), the valid cells are scanned, and the
      * arrays are uploaded to the device at the end. Must be called after the
      * blanking has been built and its ghost cells filled, since the solid
-     * neighbour of a fluid cell on a box edge lives in a ghost cell. Stops
-     * when a solid cell outside the level's grids neighbours a cell of the
+     * neighbor of a fluid cell on a box edge lives in a ghost cell. Stops
+     * when a solid cell outside the level's grids neighbors a cell of the
      * level, fluid or solid: a building across the edge of a refined level.
      *
-     * @param blanking Cell-centred blanking of the level (needs at least one
+     * @param blanking Cell-centered blanking of the level (needs at least one
      *                 ghost cell, filled).
      * @param geom     Geometry of the level: cell sizes for the face areas,
-     *                 domain and periodicity for the neighbour tests.
+     *                 domain and periodicity for the neighbor tests.
      */
     void build (const amrex::MultiFab& blanking, const amrex::Geometry& geom);
 
@@ -141,13 +141,13 @@ public:
     void add_outside_occluders (const std::vector<const IBFaceSet*>& below);
 
     /**
-     * Give the sun of the next compute_shortwave() with
+     * Give the sun of the next compute_shortwave() or fill_roofs() with
      * ``erf.ibseb.sun_mode = two_stream``: the two-stream radiation's
      * declination and hour angle at that time, its site latitude and its
      * top-of-atmosphere irradiance (the date's distance factor included).
      * ERF::ibseb_set_two_stream_sun() calls it before every call; the call
-     * uses it up, so a shortwave without a fresh sun stops rather than reusing
-     * an old one.
+     * uses it up, so a shortwave or a roofs' shadow without a fresh sun stops
+     * rather than reusing an old one.
      */
     void set_two_stream_sun (amrex::Real declination, amrex::Real hour_angle,
                              amrex::Real latitude_deg, amrex::Real toa_irradiance)
@@ -207,15 +207,74 @@ public:
      * every face's outward normal with ``view_n_az x view_n_el`` rays through
      * the column walk and count where they end: sky, ground or a building.
      * The three fractions sum to one and are view factors. Called once at
-     * initialisation; the geometry is static.
+     * initialization; the geometry is static.
      */
     void compute_view_fractions ();
+
+    /**
+     * For erf.ibseb.ground_view_shadow: keep, for every face, the columns its ground
+     * rays land in (the rays of compute_view_fractions(), which calls this), so that
+     * each step only the rays from those columns toward the sun are cast
+     * (ibseb::ground_view_lit()). The distinct columns are kept with the number of rays
+     * that land in each, 8 bytes per column. Found in one pass over the rays, so the
+     * columns and the counts cannot disagree.
+     */
+    void build_ground_landings ();
+
+    /**
+     * For erf.ibseb.two_stream_roofs: give each column under a building the roof face that
+     * stands on it. @p roof_cell holds, per column, the cell on the roof of the building
+     * that stands on the ground (TwoStreamRadiation::roof_cell()); the upward face whose
+     * fluid cell is that cell writes 1, its albedo, its emissivity, its skin temperature
+     * and the share of the direct beam that reaches it (0 where a taller building shades
+     * the roof under the sun at @p time, by the shadow ray of the faces) into the
+     * five components of @p out (TwoStreamRadiation::roofs_for_step()). Every other column
+     * gets zeros: open ground, and a building that fills the column. Both fields are the
+     * level's columns (k = 0), box for box with the faces. The roof faces are found at the
+     * first call.
+     *
+     * @param with_fixed true at the first fill of a field: zero it and write what does not
+     *                   change (the first three components) too; false afterwards, when
+     *                   only the skin temperature and the lit share are written
+     * @param time       simulation time [s] of the sweep that takes the roofs: the roofs'
+     *                   shadow is cast under the sun of that time (sun_at()), which does
+     *                   not depend on the faces' last shortwave. With sun_mode = two_stream
+     *                   the two-stream sun of that time must have been given first
+     *                   (set_two_stream_sun()).
+     */
+    void fill_roofs (amrex::MultiFab& out, const amrex::iMultiFab& roof_cell, bool with_fixed, amrex::Real time);
+
+    /// Components of the field of compute_ground_walls().
+    enum GroundWalls : int { GW_VIEW = 0, GW_SW = 1, GW_LW = 2, GW_NCOMP = 3 };
+
+    /**
+     * For erf.ibseb.ground_sky_view: what the walls of this level send to the ground of
+     * each column, from the faces' own ground rays (build_ground_landings()). A face of
+     * area A_f whose n rays of N land in a column of area A_c sends that column
+     * A_f (n / N) J_f of its radiosity J_f, so by the reciprocity of view factors the
+     * walls take ``sum_f A_f n / (N A_c)`` of that ground's view (GW_VIEW), and the
+     * ground receives, per unit of its area, that sum weighted with the faces' reflected
+     * shortwave, ``albedo (SW_direct_in + SW_diffuse_in)`` (GW_SW), and with their
+     * longwave, ``emissivity sigma T_skin^4 + (1 - emissivity) LW_in`` (GW_LW), in W/m2.
+     * Where the level's columns hold every kept landing (a level that covers the domain)
+     * what the faces send through their kept rays is what the ground gets; on a refined
+     * level the landings outside its grids are dropped, and rays to the far field are
+     * never kept. Each rank adds its faces' shares to the part of its ray-map patch its
+     * landings reach (found at the first call) and the parts are summed onto the level's
+     * columns, across ranks and periodic edges. Call after compute_shortwave() and
+     * compute_longwave() of the step.
+     *
+     * @param out       the level's columns (k = 0), GW_NCOMP components, no ghost cells needed
+     * @param with_view also form GW_VIEW, which depends on the geometry alone: true at the
+     *                  first call for a field, false afterwards (GW_VIEW is then left as it is)
+     */
+    void compute_ground_walls (amrex::MultiFab& out, bool with_view);
 
     /**
      * Longwave of the current step. Incoming on a face:
      * ``f_sky LW_sky + f_ground LW_ground + f_bldg sigma T_skin^4``,
      * the sky term fixed or gray (``sky_emissivity sigma T_air^4`` with the
-     * air temperature of the face's fluid cell, its water vapour included)
+     * air temperature of the face's fluid cell, its water vapor included)
      * with the ground term
      * ``eps_g sigma T_g^4``, or with ``lw_mode = two_stream`` the longwave
      * down and up at the face's height in the face's column
@@ -232,7 +291,7 @@ public:
      * Assign every face its material properties: from the material
      * library by building id, or the uniform inputs. Called once after
      * build(); fills d_mat, d_albedo, d_emis, d_k, d_rhocp, d_thick and
-     * initialises the slab layers to the skin temperature.
+     * initializes the slab layers to the skin temperature.
      */
     void assign_materials ();
 
@@ -265,22 +324,25 @@ public:
      * potential-temperature difference gives theta* with z0h_wall, and
      * H = rho c_p u* theta*, positive out of the face. Neutral, or with the
      * surface layer's stability functions on roofs when asked. The latent
-     * flux is not modelled and stays zero.
+     * flux is not modeled and stays zero.
      *
      * Beyond neutral: with ``convective_velocity = deardorff`` the
      * wind is ``sqrt(U_tan^2 + (beta w*)^2)`` with w* from the previous
      * step's H (zero when H is into the face) and a depth that is the mixed
      * layer above a roof or the building height for a wall; with
-     * ``stability_correction`` the roofs iterate the similarity functions on
+     * ``stability_correction`` the roofs are corrected for stability:
+     * ``stability_scheme = iterative`` iterates the similarity functions on
      * the face's own Obukhov length, seeded from the ground surface layer's
-     * 2D field at the face's column when given.
+     * 2D field at the face's column when given; ``louis`` applies the Louis
+     * (1979) factors on the bulk Richardson number between the skin and the
+     * cell center, without iteration.
      *
      * Fills d_H, d_ustar, d_U_tan, d_rho, d_theta_air, d_H_coeff (the
      * coefficient of the skin-to-air potential-temperature difference that
      * the balance keeps frozen), d_w_star, d_olen and d_z_i; T_air was read
      * by compute_longwave(), which must run first in a step.
      * @param cons  Conserved state of the level (density, rho theta).
-     * @param xvel, yvel, zvel  Face-centred velocities of the level.
+     * @param xvel, yvel, zvel  Face-centered velocities of the level.
      * @param c_p   Specific heat of air [J/kg/K].
      * @param olen_ground  Ground surface layer's Obukhov length (2D field on
      *                     the level's box array collapsed to k = 0), or null.
@@ -328,6 +390,21 @@ public:
     void compute_shortwave (amrex::Real time, const TwoStreamCanopyView& canopy = TwoStreamCanopyView{});
 
     /**
+     * The buildings' shadow on the ground of the level, for the two-stream ground
+     * balance (erf.ibseb.two_stream_buildings): 1 in a column where the ray from the
+     * center of its ground toward the sun of the last compute_shortwave() meets a
+     * building (the same column walk as the faces' shadow, ibseb::ray_blocked(), on the
+     * rank's ray map, build_ray_map(), with the buildings outside a refined level
+     * included and the far field beyond its halo open ground), and where the sun is
+     * at or below the horizon; 0 where the sun reaches the ground. A column under a
+     * building, or under an overhang, is in shadow. One ray per column, so a column is
+     * shaded or not, as a face is.
+     * @param[out] shadow A 2D field (k = 0) on the level's grids flattened in z; its
+     *                    valid cells are written.
+     */
+    void compute_ground_shadow (amrex::MultiFab& shadow) const;
+
+    /**
      * The highest interface of the level's vertical grid that any of its faces
      * samples with radiation = two_stream (a roof the bottom of its fluid cell, a
      * ceiling and a wall the top of its cell too), counted from the domain bottom, over all
@@ -354,7 +431,7 @@ public:
     void compute_longwave_two_stream (const amrex::MultiFab& cons, const TwoStreamCanopyView& canopy);
 
     /**
-     * Scatter one per-face array into a cell-centred field as the mean over
+     * Scatter one per-face array into a cell-centered field as the mean over
      * the faces touching each cell (zero where there are none).
      */
     void scatter_field (const amrex::Gpu::DeviceVector<amrex::Real>& v, amrex::MultiFab& out) const;
@@ -367,7 +444,7 @@ public:
     void dump_faces (const std::string& prefix) const;
 
     /**
-     * Scatter the faces into two cell-centred diagnostics for the plotfile.
+     * Scatter the faces into two cell-centered diagnostics for the plotfile.
      *
      * @param[out] nfaces Number of wall faces touching each fluid cell (0 away
      *                    from buildings; up to 3 at an outside corner, 6 in a
@@ -454,18 +531,34 @@ public:
     // Static geometry, set by build():
     amrex::Gpu::DeviceVector<int>         d_i, d_j, d_k;   ///< Fluid cell of the face
     amrex::Gpu::DeviceVector<int>         d_dir;           ///< Face direction: 0 x, 1 y, 2 z
-    amrex::Gpu::DeviceVector<int>         d_side;          ///< Solid neighbour at -1 (low) or +1 (high) side
+    amrex::Gpu::DeviceVector<int>         d_side;          ///< Solid neighbor at -1 (low) or +1 (high) side
     amrex::Gpu::DeviceVector<int>         d_bid;           ///< Building id (1-based)
     amrex::Gpu::DeviceVector<int>         d_mat;           ///< Material id (0 = uniform inputs)
     amrex::Gpu::DeviceVector<amrex::Real> d_albedo, d_emis;///< Optical properties of the face
     amrex::Gpu::DeviceVector<amrex::Real> d_kth, d_rhocp, d_thick; ///< Slab conductivity [W/m/K], heat capacity [J/m3/K], thickness [m]
     amrex::Gpu::DeviceVector<amrex::Real> d_area;          ///< Face area [m2]
-    amrex::Gpu::DeviceVector<amrex::Real> d_xf, d_yf, d_zf;///< Face centre [m]
+    amrex::Gpu::DeviceVector<amrex::Real> d_xf, d_yf, d_zf;///< Face center [m]
     // State, advanced by the balance and checkpointed:
     amrex::Gpu::DeviceVector<amrex::Real> d_T_skin;        ///< Skin temperature [K]
     amrex::Gpu::DeviceVector<amrex::Real> d_T_slab;        ///< Slab layers [K], face-major: [face * n_layers + layer]
     // Static radiative geometry:
     amrex::Gpu::DeviceVector<amrex::Real> d_f_sky, d_f_ground, d_f_bldg;  ///< View fractions, sum to 1
+    /// With erf.ibseb.ground_view_shadow, the part of f_ground that is ground the sun of the last
+    /// compute_shortwave() reaches (0 at night or where the ground gets no beam; 0 and unused without the input).
+    /// Not state: recomputed every step.
+    amrex::Gpu::DeviceVector<amrex::Real> d_f_ground_lit;
+    /// With erf.ibseb.ground_view_shadow, where each face's ground rays land (build_ground_landings()):
+    /// face f owns the entries [d_gnd_start[f], d_gnd_start[f+1]) of d_gnd_land (the distinct landing
+    /// columns, ibseb::pack_landing()) and of d_gnd_rays (the rays that land in each), and d_gnd_far[f]
+    /// of its ground rays end on the far field's open ground. Static, like the view fractions.
+    amrex::Gpu::DeviceVector<int>          d_gnd_start, d_gnd_far, d_gnd_rays;
+    amrex::Gpu::DeviceVector<unsigned int> d_gnd_land;
+    amrex::Gpu::DeviceVector<int> d_roof_face;   ///< fill_roofs(): the roof faces (indices into the face arrays), fab by fab
+    std::vector<int> m_roof_fab_start;           ///< fill_roofs(): fab n owns the entries [m_roof_fab_start[n], m_roof_fab_start[n+1]) of d_roof_face
+    bool m_roof_faces_built = false;             ///< d_roof_face has been built since build()
+    amrex::MultiFab m_gnd_patch;     ///< compute_ground_walls(): per rank, the box of the columns its faces' landings reach (k = 0), GW_NCOMP components
+    bool m_gnd_patch_built = false;  ///< m_gnd_patch has been sized since the ray map was built
+    bool m_landings_built = false;   ///< build_ground_landings() has run since build()
     // Fluxes of the current step [W/m2]: SW_abs and LW_net positive into the
     // face, H, LE and G positive out of it:
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_abs, d_LW_net, d_H, d_LE, d_G;
@@ -510,8 +603,9 @@ public:
     bool m_wrap_x = false, m_wrap_y = false;   ///< The patch spans the periodic domain in x / y
     bool m_map_spans_domain = false;           ///< Every rank's patch spans the domain
     int  m_max_steps = 0;                      ///< Columns a walk is followed for: the halo's reach in x plus y, before the domain cap
+    int  m_reach[2] = {0, 0};                  ///< The halo's reach in x and in y before the domain cap [columns]
 
-    /// Sun and irradiances of the last compute_shortwave() call, for reports.
+    /// A sun and its irradiances: sun() holds those of the last compute_shortwave() call, for reports.
     struct SunState {
         amrex::Real zenith = 0.0, azimuth = 0.0;        ///< [rad]
         amrex::Real sx = 0.0, sy = 0.0, sz = 1.0;       ///< Unit vector toward the sun
@@ -519,6 +613,8 @@ public:
         amrex::Real diffuse_h = 0.0;                    ///< Diffuse on a horizontal surface [W/m2]
     };
     const SunState& sun () const { return m_sun; }
+    /// The sun at @p time by erf.ibseb.sun_mode; changes nothing in the set (see the definition).
+    SunState sun_at (amrex::Real time) const;
 
     /**
      * Print the ``[IBSEB DEBUG]`` description of the set: the inputs, every
@@ -530,7 +626,7 @@ public:
 
     /** Add the wall-clock time of one per-step update of this rank, for the cost line of report(). */
     void add_cost (double seconds) { m_cost_s += seconds; ++m_cost_n; }
-    /** Record the wall-clock time of the initialisation (build and view fractions). */
+    /** Record the wall-clock time of the initialization (build and view fractions). */
     void set_init_cost (double seconds) { m_init_cost_s = seconds; }
 
     /**
@@ -597,7 +693,7 @@ private:
     amrex::Real m_col_top_max = 0.0;           ///< Tallest column the ray map holds [m] (the levels below included after add_outside_occluders())
     amrex::Real m_z_ground = 0.0;              ///< Ground height [m] (flat, the domain bottom)
     SunState m_sun;
-    /// The two-stream sun of the next compute_shortwave() (sun_mode = two_stream).
+    /// The two-stream sun of the next compute_shortwave() or fill_roofs() (sun_mode = two_stream).
     struct TwoStreamSun { bool set = false; amrex::Real decl = 0.0, hour_angle = 0.0, lat_deg = 0.0, S0 = 0.0; };
     TwoStreamSun m_ts_sun;
     double m_cost_s = 0.0;        ///< Wall-clock seconds spent in the per-step update on this rank

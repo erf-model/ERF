@@ -54,7 +54,7 @@ erf.check_int       = 100 # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 50      # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y tracer_particles_count tracer_particles_mass_density
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_y tracer_particles_count tracer_particles_mass_density
 
 # SOLVER CHOICE
 erf.use_gravity = true
@@ -63,6 +63,10 @@ erf.les_type = "None"
 # TERRRAIN GRID TYPE
 erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 0
+
+# Keep the constant beta_s that the gold files were made with (no automatic switch
+# to the variable beta_s over the steep hill)
+erf.use_variable_beta_s = false
 
 erf.dycore_horiz_adv_type  = Centered_2nd
 erf.dycore_vert_adv_type   = Centered_2nd

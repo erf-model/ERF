@@ -1,8 +1,11 @@
 #include <ERF.H>
+#include <ERF_EarthRelativeWind.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_LatLonMap.H>
 #include <ERF_MicrophysicsUtils.H>
 #include <Diagnostics/ERF_SurfaceFluxDiagnostics.H>
+#include <ERF_SurfacePrecipitation.H>
 
 #include <AMReX_Box.H>
 #include <AMReX_MFIter.H>
@@ -15,8 +18,7 @@
 
 #include <limits>
 
-namespace
-{
+namespace erf_detail_to_REMORA {
 // Contract slot indices, in driver active-view order (mirrors
 // ERFRemoraCouplingContract.H; repeated to avoid a driver->submodule include).
 constexpr int iUwind = 0, iVwind = 1, iPatm = 2, iRH = 3, iTair = 4;
@@ -33,6 +35,51 @@ PrintFluxLaneStats (const char* label, const amrex::MultiFab& mf, int comp = 0)
     amrex::Print() << "ERF flux-pack " << label
                    << ": min=" << mf.min(comp)
                    << " max=" << mf.max(comp) << "\n";
+}
+
+// The eastward and northward components (0 and 1 of en, on the 2D layout of the
+// level) at the cell centres of plane k of a vector whose x and y components fx and fy
+// are on the x and y faces: the faces either side averaged, then turned from the grid
+// axes with the grid orientation cos_alpha/sin_alpha (on en's layout), or left along
+// them when that is null.
+void
+FillEastNorth (amrex::MultiFab& en, const amrex::MultiFab& fx, const amrex::MultiFab& fy,
+               int k, const amrex::MultiFab* cos_alpha, const amrex::MultiFab* sin_alpha)
+{
+    using namespace amrex;
+    const bool rotate = cos_alpha != nullptr && sin_alpha != nullptr;
+    if (rotate) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            cos_alpha->boxArray() == en.boxArray() &&
+            cos_alpha->DistributionMap() == en.DistributionMap(),
+            "The coupler's grid orientation is not on the level-0 2D layout");
+    }
+    for (MFIter mfi(en, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        // The 2D boxes index the 3D ones: each 3D box is the 2D one over the whole height,
+        // so it holds plane k. ERF doesn't split in z by default (amr.no_box_split_dir = 2);
+        // this says so when it is told to.
+        const Box& b3 = fx.box(mfi.index());
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(b3.smallEnd(2) <= k && b3.bigEnd(2) >= k,
+            "FillEastNorth needs each level-0 box to span the surface plane.");
+        const Box bx = mfi.tilebox();
+        auto const& ux = fx.const_array(mfi);
+        auto const& vy = fy.const_array(mfi);
+        auto const& e  = en.array(mfi);
+        if (rotate) {
+            auto const& ca = cos_alpha->const_array(mfi);
+            auto const& sa = sin_alpha->const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int n) {
+                const Real u = Real(0.5) * (ux(i,j,k) + ux(i+1,j,k));
+                const Real v = Real(0.5) * (vy(i,j,k) + vy(i,j+1,k));
+                erf_earth_wind::grid_to_earth(u, v, ca(i,j,n), sa(i,j,n), e(i,j,n,0), e(i,j,n,1));
+            });
+        } else {
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int n) {
+                e(i,j,n,0) = Real(0.5) * (ux(i,j,k) + ux(i+1,j,k));
+                e(i,j,n,1) = Real(0.5) * (vy(i,j,k) + vy(i,j+1,k));
+            });
+        }
+    }
 }
 
 // -------------------------------------------------------------------------
@@ -99,9 +146,9 @@ StagedSourceBoxArray (const amrex::MultiFab& src,
     ParallelDescriptor::ReduceIntMin(lo.dataPtr(), static_cast<int>(lo.size()));
     ParallelDescriptor::ReduceIntMax(hi.dataPtr(), static_cast<int>(hi.size()));
 
-    // The staged boxes must carry the source's index type from the start: the tau
-    // lanes hand us a face-staggered source, and intersecting a cell-centered box
-    // with a face-staggered one trips Box::operator&='s sameType assertion.
+    // The staged boxes carry the source's index type, so that intersecting them with
+    // the source's boxes cannot trip Box::operator&='s sameType assertion. Every
+    // source is cell-centred today.
     const IndexType src_ixtype = src.boxArray().ixType();
 
     BoxList bl(src_ixtype);
@@ -216,6 +263,7 @@ ApplyConservativeRemap (const amrex::MultiFab& src,
     }
 }
 }
+using namespace erf_detail_to_REMORA;
 
 double
 ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
@@ -225,6 +273,17 @@ ERF::EvolveOneStep (double /*time*/, double /*dt_request*/)
 
     if (start_time + cur_time >= stop_time) {
         return 0.0;
+    }
+
+    // The accumulation the first rain rate is differenced against: the
+    // accumulators' state at the start of this run (zero on a cold start, the
+    // checkpointed totals on a restart).
+    if (m_a2o_precip_accum == nullptr && HasA2OPrecipSource()) {
+        m_a2o_precip_accum = std::make_unique<amrex::MultiFab>(ba2d[0], dmap[0], 1, 0);
+        m_a2o_precip_rate  = std::make_unique<amrex::MultiFab>(ba2d[0], dmap[0], 1, 0);
+        SampleA2OPrecipAccumulation(*m_a2o_precip_accum);
+        m_a2o_precip_rate->setVal(amrex::Real(0.0));
+        m_a2o_precip_time = t_new[0];
     }
 
     ComputeDt(step);
@@ -296,6 +355,59 @@ ERF::GetLandMask (const amrex::iMultiFab*& lmask) const
     lmask = lmask_lev[0][0].get();
 }
 
+bool
+ERF::HasA2OPrecipSource () const
+{
+    return micro != nullptr &&
+           surface_precip_has_any_source(micro->Get_Surface_Precip_Accumulation_Ptrs(0));
+}
+
+void
+ERF::SampleA2OPrecipAccumulation (amrex::MultiFab& accum_2d) const
+{
+    // Rain, snow, graupel and hail together, as liquid water: all of it reaches
+    // the ocean as fresh water. A scheme's total is taken when it has one, else
+    // the sum of its species, so nothing is counted twice (the rule of the 2D
+    // plotfile precipitation fields). The accumulators live in the k = klo plane
+    // of the level's 3D boxes; box n of accum_2d is box n of them.
+    using namespace amrex;
+    const SurfacePrecipAccumulationSources src = micro->Get_Surface_Precip_Accumulation_Ptrs(0);
+    const bool has_total   = surface_precip_has_source(src.total);
+    const bool has_rain    = surface_precip_has_source(src.rain);
+    const bool has_snow    = surface_precip_has_source(src.snow);
+    const bool has_graupel = surface_precip_has_source(src.graupel);
+    const bool has_hail    = surface_precip_has_source(src.hail);
+    const Real f_total   = src.total.native_to_kg_m2;
+    const Real f_rain    = src.rain.native_to_kg_m2;
+    const Real f_snow    = src.snow.native_to_kg_m2;
+    const Real f_graupel = src.graupel.native_to_kg_m2;
+    const Real f_hail    = src.hail.native_to_kg_m2;
+    const int klo = geom[0].Domain().smallEnd(2);
+
+    for (MFIter mfi(accum_2d, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        auto a = accum_2d.array(mfi);
+        const auto total   = has_total   ? src.total.accum->const_array(mfi)   : Array4<const Real>{};
+        const auto rain    = has_rain    ? src.rain.accum->const_array(mfi)    : Array4<const Real>{};
+        const auto snow    = has_snow    ? src.snow.accum->const_array(mfi)    : Array4<const Real>{};
+        const auto graupel = has_graupel ? src.graupel.accum->const_array(mfi) : Array4<const Real>{};
+        const auto hail    = has_hail    ? src.hail.accum->const_array(mfi)    : Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real v = Real(0.0);
+            if (has_total) {
+                v = total(i,j,klo) * f_total;
+            } else {
+                if (has_rain)    { v += rain(i,j,klo)    * f_rain; }
+                if (has_snow)    { v += snow(i,j,klo)    * f_snow; }
+                if (has_graupel) { v += graupel(i,j,klo) * f_graupel; }
+                if (has_hail)    { v += hail(i,j,klo)    * f_hail; }
+            }
+            a(i,j,k) = v;
+        });
+    }
+}
+
 void
 ERF::GetFillableAtmosToOceanLanes (bool state_contract,
                                    amrex::Vector<int>& can_fill) const
@@ -313,6 +425,7 @@ ERF::GetFillableAtmosToOceanLanes (bool state_contract,
     const bool has_radiation = HasRadiation();
     const bool has_sfs_heat  = (!SFS_hfx3_lev.empty()  && SFS_hfx3_lev[lev]  != nullptr);
     const bool has_sfs_moist = (!SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr);
+    const bool has_precip    = HasA2OPrecipSource();
 
     if (state_contract) {
         can_fill.resize(nStateLanes, 0);
@@ -320,10 +433,9 @@ ERF::GetFillableAtmosToOceanLanes (bool state_contract,
         can_fill[iVwind] = 1;                       // always packed from Vars::yvel
         can_fill[iPatm]  = 1;                       // always packed via getPgivenRTh
         can_fill[iTair]  = 1;                       // always packed via getTgivenRandRTh
-        // #if 0 below, pending Qair (RH vs specific humidity) and rain-rate
-        // semantics.
+        // #if 0 below, pending Qair (RH vs specific humidity) semantics.
         can_fill[iRH]    = 0;
-        can_fill[iRain]  = 0;
+        can_fill[iRain]  = has_precip ? 1 : 0;
         can_fill[iCloud] = (has_moisture &&
                             (solverChoice.moisture_indices.qc != -1 ||
                              solverChoice.moisture_indices.qi != -1)) ? 1 : 0;
@@ -331,14 +443,17 @@ ERF::GetFillableAtmosToOceanLanes (bool state_contract,
         can_fill[iLWrad] = has_radiation ? 1 : 0;
     } else {
         can_fill.resize(nFluxLanes, 0);
-        // tau_x/tau_y assert rather than skip, so gate on what they assert on.
-        can_fill[iTauX]      = (Tau[lev][TauType::tau13] != nullptr) ? 1 : 0;
-        can_fill[iTauY]      = (Tau[lev][TauType::tau23] != nullptr) ? 1 : 0;
+        // tau_x/tau_y assert rather than skip, so gate on what they assert on: both
+        // components, which are turned to east and north together.
+        const bool has_tau = Tau[lev][TauType::tau13] != nullptr &&
+                             Tau[lev][TauType::tau23] != nullptr;
+        can_fill[iTauX]      = has_tau ? 1 : 0;
+        can_fill[iTauY]      = has_tau ? 1 : 0;
         can_fill[iSHflux]    = has_sfs_heat  ? 1 : 0;
         can_fill[iLHflux]    = has_sfs_moist ? 1 : 0;
         can_fill[iFluxSWrad] = has_radiation ? 1 : 0;
         can_fill[iFluxLWrad] = has_radiation ? 1 : 0;
-        can_fill[iFluxRain]  = 0;                   // pack block is #if 0
+        can_fill[iFluxRain]  = has_precip ? 1 : 0;
         can_fill[iFluxEvap]  = has_sfs_moist ? 1 : 0;
     }
 }
@@ -369,40 +484,25 @@ ERF::GetFillableAtmosToOceanLanes (bool state_contract,
 void
 ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                             double /*time*/,
-                            const amrex::Vector<const amrex::MultiFab*>& weight_mf_by_family,
-                            const amrex::Vector<const amrex::iMultiFab*>& index_mf_by_family,
+                            const amrex::MultiFab& weight_mf,
+                            const amrex::iMultiFab& index_mf,
                             int max_stencil_size,
-                            const amrex::MultiFab* dst_mskr,
-                            const amrex::MultiFab* dst_msku,
-                            const amrex::MultiFab* dst_mskv)
+                            const amrex::MultiFab* dst_mskr)
 {
     using namespace amrex;
 
-    // WeightFamily slot order, mirrored from ERFRemoraMultiBlockContainer.H:
-    // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER}.
-    constexpr int kScalarFamily = 0, kTauXFamily = 1, kTauYFamily = 2, kWindFamily = 3;
+    // The stencil loops read max_stencil_size weights and 3*max_stencil_size index
+    // components. Nothing else checks that the driver allocated that many, so a
+    // driver/submodule version skew would read past the component count and silently
+    // return garbage rather than failing.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        weight_mf_by_family.size() == 4 && index_mf_by_family.size() == 4,
-        "PackAtmosphericStates requires 4 WeightFamily-keyed weight/index pairs.");
-    for (int f = 0; f < 4; ++f) {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            weight_mf_by_family[f] != nullptr && index_mf_by_family[f] != nullptr,
-            "PackAtmosphericStates requires valid driver remap stencil components for every WeightFamily slot.");
-        // The stencil loops read max_stencil_size weights and 3*max_stencil_size
-        // index components. Nothing else checks that the driver allocated that
-        // many, so a driver/submodule version skew would read past the component
-        // count and silently return garbage rather than failing.
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            weight_mf_by_family[f]->nComp() >= max_stencil_size &&
-            index_mf_by_family[f]->nComp() >= 3 * max_stencil_size,
-            "PackAtmosphericStates: driver remap stencil arrays have too few components for max_stencil_size.");
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            weight_mf_by_family[f]->boxArray() == index_mf_by_family[f]->boxArray() &&
-            weight_mf_by_family[f]->DistributionMap() == index_mf_by_family[f]->DistributionMap(),
-            "PackAtmosphericStates: weight and index arrays for a WeightFamily slot disagree on layout.");
-    }
-    const amrex::MultiFab* weight_mf = weight_mf_by_family[kScalarFamily];
-    const amrex::iMultiFab* index_mf = index_mf_by_family[kScalarFamily];
+        weight_mf.nComp() >= max_stencil_size &&
+        index_mf.nComp() >= 3 * max_stencil_size,
+        "PackAtmosphericStates: driver remap stencil arrays have too few components for max_stencil_size.");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        weight_mf.boxArray() == index_mf.boxArray() &&
+        weight_mf.DistributionMap() == index_mf.DistributionMap(),
+        "PackAtmosphericStates: the weight and index arrays disagree on layout.");
 
     // Values for destination cells no source cell overlaps (see
     // ApplyConservativeRemap). These are standard-atmosphere placeholders, not
@@ -429,9 +529,34 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const auto& ba = cons.boxArray();
     const auto& dm = cons.DistributionMap();
     const auto& ba2d_lev = ba2d[lev];
-    const auto& xba2d_lev = amrex::convert(ba2d_lev, IntVect(1,0,0));
-    const auto& yba2d_lev = amrex::convert(ba2d_lev, IntVect(0,1,0));
     const int klo = ba.minimalBox().smallEnd(2);
+
+    // Rain [kg m^-2 s^-1]: the accumulation gained since the previous pack,
+    // divided by ERF time elapsed since then, then the snapshot moves here. So a
+    // driver that packs once per exchange gets that exchange's mean rate exactly,
+    // and one that packs after every step gets each step's. A pack at the time of
+    // the previous one (nothing elapsed) repeats that pack's rate. Negative
+    // differences are clamped: REMORA reads negative rain as snow.
+    const MultiFab* precip_rate = m_a2o_precip_rate.get();
+    if (precip_rate != nullptr && t_new[lev] > m_a2o_precip_time) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_a2o_precip_accum->boxArray() == ba2d_lev &&
+                                         m_a2o_precip_accum->DistributionMap() == dm,
+            "PackAtmosphericStates: the level-0 layout changed under the precipitation snapshot.");
+        MultiFab accum_now(ba2d_lev, dm, 1, 0);
+        SampleA2OPrecipAccumulation(accum_now);
+        const Real inv_elapsed = Real(1.0) / (t_new[lev] - m_a2o_precip_time);
+        for (MFIter mfi(accum_now, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            Box bx = mfi.tilebox();
+            auto const& now  = accum_now.const_array(mfi);
+            auto        prev = m_a2o_precip_accum->array(mfi);
+            auto        rate = m_a2o_precip_rate->array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rate(i,j,k) = amrex::max(Real(0.0), now(i,j,k) - prev(i,j,k)) * inv_elapsed;
+                prev(i,j,k) = now(i,j,k);
+            });
+        }
+        m_a2o_precip_time = t_new[lev];
+    }
 
     const bool flux_mode = (states.size() == nFluxLanes);
     if (flux_mode) {
@@ -479,93 +604,33 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         //       have to be checked before they are dereferenced.
         //
 
-        // TAU LANE STAGGER: unresolved, see the parked block below.
-        //
-        // ERF tau13/tau23 live on x-/y-faces and REMORA vec_sustr/vec_svstr live on
-        // u-/v-faces, so the physically meaningful transfer is face -> face: a
-        // stagger-matched transfer with no averaging on a conformal grid. That is
-        // what the live code below does, and what the driver's WeightFamily comment
-        // describes.
-        //
-        // The defect is on the weight side, not here: the driver builds its remap
-        // stencils from source *cell* polygons and stores ERF *cell* indices for
-        // every family (ERFRemoraMultiBlockContainer.cpp, the ExtractCellQuadFromCoords
-        // / CellBoundsFromGeom calls in BuildAtmosToOceanWeights). So the index this
-        // face-staggered source is read with was computed for a cell, displacing tau
-        // by ~dx/2 and leaving the outermost face column unreachable.
-        //
-        // The parked block below "fixed" that by averaging tau to cell centres so the
-        // source would match the cell-based weights. That is the wrong direction: it
-        // smooths the stress twice (face -> cell, then cell -> face via area weights)
-        // and throws away the face alignment. Keeping it only as a record of the
-        // attempt. The correct fix is to build ERF *face* control-volume source
-        // polygons for the TAUX/TAUY families in the driver, so the weights match the
-        // face source that is already being passed here.
-#if 0
-        if (iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr) {
-            MultiFab tmp(ba2d_lev, dm, 1, 0);
-            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = mfi.tilebox();
-                auto const& tau13 = Tau[lev][TauType::tau13]->const_array(mfi);
-                auto const& c = cons.const_array(mfi);
-                auto t = tmp.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    t(i,j,k) = c(i,j,klo,Rho_comp)
-                             * Real(0.5) * (tau13(i,j,klo) + tau13(i+1,j,klo));
-                });
+        // The stress goes east and north at the cell centres, like the wind. A vector can
+        // only be turned where both of its components are, so tau13 and tau23 are averaged
+        // from the faces to the centres first; REMORA turns the stress to its own axes at
+        // its rho points and averages it to its u and v points, as ROMS does with the
+        // stress COAWST sends it from WRF.
+        const bool want_taux = iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr;
+        const bool want_tauy = iTauY < static_cast<int>(states.size()) && states[iTauY] != nullptr;
+        if (want_taux || want_tauy) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                Tau[lev][TauType::tau13] != nullptr && Tau[lev][TauType::tau23] != nullptr,
+                "Flux-mode coupling of the surface stress requires Tau; enable diffusion or a surface_layer bc");
+            SetCouplerGridRotation();
+            MultiFab tau_en(ba2d_lev, dm, 2, 0);
+            FillEastNorth(tau_en, *Tau[lev][TauType::tau13], *Tau[lev][TauType::tau23], klo,
+                          m_coupler_cos_alpha.get(), m_coupler_sin_alpha.get());
+            if (want_taux) {
+                MultiFab tau_east(tau_en, amrex::make_alias, 0, 1);
+                ApplyConservativeRemap(tau_east, *states[iTauX], weight_mf, index_mf,
+                                       max_stencil_size, dst_mskr);
+                if (verbose) { PrintFluxLaneStats("tau_east_lane", *states[iTauX]); }
             }
-            ApplyConservativeRemap(tmp, *states[iTauX], *weight_mf_by_family[kTauXFamily],
-                                   *index_mf_by_family[kTauXFamily], max_stencil_size, dst_msku);
-        }
-        if (iTauY < static_cast<int>(states.size()) && states[iTauY] != nullptr) {
-            MultiFab tmp(ba2d_lev, dm, 1, 0);
-            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = mfi.tilebox();
-                auto const& tau23 = Tau[lev][TauType::tau23]->const_array(mfi);
-                auto const& c = cons.const_array(mfi);
-                auto t = tmp.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    t(i,j,k) = c(i,j,klo,Rho_comp)
-                             * Real(0.5) * (tau23(i,j,klo) + tau23(i,j+1,klo));
-                });
+            if (want_tauy) {
+                MultiFab tau_north(tau_en, amrex::make_alias, 1, 1);
+                ApplyConservativeRemap(tau_north, *states[iTauY], weight_mf, index_mf,
+                                       max_stencil_size, dst_mskr);
+                if (verbose) { PrintFluxLaneStats("tau_north_lane", *states[iTauY]); }
             }
-            ApplyConservativeRemap(tmp, *states[iTauY], *weight_mf_by_family[kTauYFamily],
-                                   *index_mf_by_family[kTauYFamily], max_stencil_size, dst_mskv);
-        }
-#endif
-
-        if (iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(Tau[lev][TauType::tau13] != nullptr,
-                "Flux-mode coupling of tau_x requires Tau; enable diffusion or a surface_layer bc");
-            MultiFab tmp(xba2d_lev, dm, 1, 0);
-            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = mfi.tilebox();
-                auto const& tau13 = Tau[lev][TauType::tau13]->const_array(mfi);
-                auto t = tmp.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    t(i,j,k) = tau13(i,j,klo);
-                });
-            }
-            ApplyConservativeRemap(tmp, *states[iTauX], *weight_mf_by_family[kTauXFamily],
-                                   *index_mf_by_family[kTauXFamily], max_stencil_size, dst_msku);
-            if (verbose) { PrintFluxLaneStats("tau_x_lane", *states[iTauX]); }
-        }
-
-        if (iTauY < static_cast<int>(states.size()) && states[iTauY] != nullptr) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(Tau[lev][TauType::tau23] != nullptr,
-                "Flux-mode coupling of tau_y requires Tau; enable diffusion or a surface_layer bc");
-            MultiFab tmp(yba2d_lev, dm, 1, 0);
-            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = mfi.tilebox();
-                auto const& tau23 = Tau[lev][TauType::tau23]->const_array(mfi);
-                auto t = tmp.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    t(i,j,k) = tau23(i,j,klo);
-                });
-            }
-            ApplyConservativeRemap(tmp, *states[iTauY], *weight_mf_by_family[kTauYFamily],
-                                   *index_mf_by_family[kTauYFamily], max_stencil_size, dst_mskv);
-            if (verbose) { PrintFluxLaneStats("tau_y_lane", *states[iTauY]); }
         }
 
         if (iSHflux < static_cast<int>(states.size()) && states[iSHflux] != nullptr &&
@@ -580,7 +645,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         hfx(i,j,klo));
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iSHflux], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iSHflux], weight_mf, index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("SHflux_lane", *states[iSHflux]); }
         }
 
@@ -596,7 +661,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         qfx(i,j,klo));
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iLHflux], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iLHflux], weight_mf, index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("LHflux_lane", *states[iLHflux]); }
         }
 
@@ -613,7 +678,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = rad_flux(i,j,k,1) - rad_flux(i,j,k,0);
                     });
                 }
-                ApplyConservativeRemap(tmp, *states[iFluxSWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+                ApplyConservativeRemap(tmp, *states[iFluxSWrad], weight_mf, index_mf, max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("SWrad_lane", *states[iFluxSWrad]); }
             }
             if (iFluxLWrad < static_cast<int>(states.size()) && states[iFluxLWrad] != nullptr) {
@@ -626,7 +691,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = rad_flux(i,j,k,3) - rad_flux(i,j,k,2);
                     });
                 }
-                ApplyConservativeRemap(tmp, *states[iFluxLWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+                ApplyConservativeRemap(tmp, *states[iFluxLWrad], weight_mf, index_mf, max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("LWrad_lane", *states[iFluxLWrad]); }
             }
         }
@@ -642,59 +707,36 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = qfx(i,j,klo);
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iFluxEvap], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iFluxEvap], weight_mf, index_mf, max_stencil_size, dst_mskr);
             if (verbose) { PrintFluxLaneStats("evap_lane", *states[iFluxEvap]); }
         }
 
-#if 0
-        // Extract Rain Flux using surface qr and a proxy terminal velocity
-        if (has_moisture && iFluxRain < static_cast<int>(states.size()) && states[iFluxRain] != nullptr) {
-            int qr_idx = solverChoice.moisture_indices.qr;
-            if (qr_idx != -1) {
-                MultiFab tmp(ba2d_lev, dm, 1, 0);
-                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    Box bx = mfi.tilebox();
-                    auto const& c = cons.const_array(mfi);
-                    auto t = tmp.array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        // Rain flux proxy: (rho * qr) * V_terminal (approx 5.0 m/s for rain) -> kg m^-2 s^-1
-                        t(i,j,k) = c(i,j,klo,qr_idx) * Real(5.0);
-                    });
-                }
-                ApplyConservativeRemap(tmp, *states[iFluxRain], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
-                if (verbose) { PrintFluxLaneStats("rain_lane", *states[iFluxRain]); }
-            }
+        if (precip_rate != nullptr && states[iFluxRain] != nullptr) {
+            ApplyConservativeRemap(*precip_rate, *states[iFluxRain], weight_mf, index_mf, max_stencil_size, dst_mskr);
+            if (verbose) { PrintFluxLaneStats("rain_lane", *states[iFluxRain]); }
         }
-#endif
-        amrex::ignore_unused(iFluxRain);
         return;
     }
 
-    // --- Uwind + Vwind ---
+    // --- Uwind + Vwind, east and north at the cell centres of the lowest level ---
     if ((iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) ||
         (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr)) {
 
-        auto& zvel = vars_new[lev][Vars::zvel];
-        MultiFab cc_vel(ba, dm, AMREX_SPACEDIM, 0);
-        amrex::average_face_to_cellcenter(cc_vel, 0,
-            Array<const MultiFab*, AMREX_SPACEDIM>{&xvel, &yvel, &zvel});
-
-        // Collapse to 2D slab
-        MultiFab uv_slab(ba2d_lev, dm, 2, 0);  // comp0=u, comp1=v
-        uv_slab.ParallelCopy(cc_vel, 0, 0, 2);
+        SetCouplerGridRotation();
+        MultiFab wind_en(ba2d_lev, dm, 2, 0);  // comp0 = east, comp1 = north
+        FillEastNorth(wind_en, xvel, yvel, klo,
+                      m_coupler_cos_alpha.get(), m_coupler_sin_alpha.get());
 
         if (iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) {
-            MultiFab u_alias(uv_slab, amrex::make_alias, 0, 1); // alias u component
-            ApplyConservativeRemap(u_alias, *states[iUwind], *weight_mf_by_family[kWindFamily],
-                                   *index_mf_by_family[kWindFamily], max_stencil_size,
-                                   nullptr, fallback_wind_ms);
+            MultiFab u_east(wind_en, amrex::make_alias, 0, 1);
+            ApplyConservativeRemap(u_east, *states[iUwind], weight_mf, index_mf,
+                                   max_stencil_size, nullptr, fallback_wind_ms);
         }
 
         if (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr) {
-            MultiFab v_alias(uv_slab, amrex::make_alias, 1, 1); // alias v component
-            ApplyConservativeRemap(v_alias, *states[iVwind], *weight_mf_by_family[kWindFamily],
-                                   *index_mf_by_family[kWindFamily], max_stencil_size,
-                                   nullptr, fallback_wind_ms);
+            MultiFab v_north(wind_en, amrex::make_alias, 1, 1);
+            ApplyConservativeRemap(v_north, *states[iVwind], weight_mf, index_mf,
+                                   max_stencil_size, nullptr, fallback_wind_ms);
         }
     }
 
@@ -716,7 +758,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        ApplyConservativeRemap(tmp, *states[iPatm], *weight_mf, *index_mf, max_stencil_size, dst_mskr,
+        ApplyConservativeRemap(tmp, *states[iPatm], weight_mf, index_mf, max_stencil_size, dst_mskr,
                                fallback_pressure_pa);
     }
 
@@ -738,7 +780,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                 });
             }
         }
-        ApplyConservativeRemap(tmp, *states[iTair], *weight_mf, *index_mf, max_stencil_size, dst_mskr,
+        ApplyConservativeRemap(tmp, *states[iTair], weight_mf, index_mf, max_stencil_size, dst_mskr,
                                fallback_temp_k);
     }
 
@@ -792,33 +834,17 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                         t(i,j,k) = static_cast<Real>(cloudy);
                     });
                 }
-                ApplyConservativeRemap(tmp, *states[iCloud], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+                ApplyConservativeRemap(tmp, *states[iCloud], weight_mf, index_mf, max_stencil_size, dst_mskr);
             }
         }
-#if 0
-        if (iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
-            int qr_idx = solverChoice.moisture_indices.qr;
-            if (qr_idx != -1) {
-                MultiFab tmp(ba2d_lev, dm, 1, 0);
-                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    Box bx = mfi.tilebox();
-                    auto const& c = cons.const_array(mfi);
-                    auto         t = tmp.array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        t(i,j,k) = c(i,j,k,qr_idx) / c(i,j,k,Rho_comp);
-                    });
-                }
-                IntVect ratio = ba2d_lev.minimalBox().length() / states[iRain]->boxArray().minimalBox().length();
-                amrex::average_down(tmp, *states[iRain], 0, 1, ratio);
-            }
-        }
-#else
-        amrex::ignore_unused(iRain);
-        // Avoiding unexercised moist assumptions: retain the driver-prefilled
-        // rain lane until live ERF->REMORA rain semantics are made explicit.
-#endif
     }
-    // No moisture: leave RH/Cloud/Rain slabs at their driver-pre-filled values.
+    // No moisture: leave the RH and Cloud slabs at their driver-pre-filled values.
+
+    // --- Rain ---
+    // Without a precipitating microphysics scheme the slab keeps its prefill.
+    if (precip_rate != nullptr && iRain < static_cast<int>(states.size()) && states[iRain] != nullptr) {
+        ApplyConservativeRemap(*precip_rate, *states[iRain], weight_mf, index_mf, max_stencil_size, dst_mskr);
+    }
 
     // --- Radiation ---
     if (has_radiation) {
@@ -834,13 +860,44 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
                     t(i,j,k) = rad_flux(i,j,k,1) - rad_flux(i,j,k,0);
                 });
             }
-            ApplyConservativeRemap(tmp, *states[iSWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iSWrad], weight_mf, index_mf, max_stencil_size, dst_mskr);
         }
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
             tmp.ParallelCopy(*rad_fluxes[lev], 3, 0, 1);
-            ApplyConservativeRemap(tmp, *states[iLWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
+            ApplyConservativeRemap(tmp, *states[iLWrad], weight_mf, index_mf, max_stencil_size, dst_mskr);
         }
+    }
+}
+
+void
+ERF::SetCouplerGridRotation ()
+{
+    // From lat/lon when ERF has them; made again whenever level 0's layout has changed
+    if (!lat_m.empty() && !lon_m.empty() && lat_m[0] != nullptr && lon_m[0] != nullptr) {
+        if (m_coupler_cos_alpha == nullptr) {
+            m_coupler_cos_alpha = std::make_unique<amrex::MultiFab>();
+            m_coupler_sin_alpha = std::make_unique<amrex::MultiFab>();
+        }
+        // Remade in place, so the surface layer, which borrows them, never holds a freed one
+        if (!m_coupler_cos_alpha->ok() || m_coupler_cos_alpha->boxArray() != ba2d[0] ||
+            m_coupler_cos_alpha->DistributionMap() != dmap[0]) {
+            for (auto* mf : {m_coupler_cos_alpha.get(), m_coupler_sin_alpha.get()}) {
+                mf->clear();
+                mf->define(ba2d[0], dmap[0], 1, 0);
+            }
+            fill_grid_rotation(*m_coupler_cos_alpha, *m_coupler_sin_alpha,
+                               *lat_m[0], *lon_m[0], geom[0]);
+        }
+        return;
+    }
+    // Without lat/lon ERF cannot know its orientation, and takes its grid axes as east and
+    // north, which an idealized Cartesian case means anyway; said once
+    if (!m_warned_coupler_no_latlon) {
+        m_warned_coupler_no_latlon = true;
+        amrex::Print() << "ERF has no latitude and longitude, so it takes its grid axes as east "
+                       << "and north for the vectors it exchanges with the ocean coupler."
+                       << std::endl;
     }
 }
 
@@ -849,6 +906,56 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
                              double time,
                              const amrex::iMultiFab* erf_coverage)
 {
+    // The surface current (state[1], state[2]), on every call: the coupler hands over the
+    // current of its last exchange, and turning it to the grid faces is cheap
+    if (solverChoice.use_coupled_currents) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            state.size() > 2 && state[1] != nullptr && state[2] != nullptr,
+            "erf.use_coupled_currents is set, but the coupler supplied no surface current.");
+        SurfaceLayer* surface_layer = m_SurfaceLayer[amrex::Orientation::zlo()].get();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(surface_layer && surface_layer->use_surface_current(),
+            "erf.use_coupled_currents needs a surface layer at the z-low face.");
+        SetCouplerGridRotation();
+        // ERF's own copies, which the surface layer keeps to set the current again on a
+        // regrid; on the layout the coupler is told to use, made again if that changes
+        amrex::BoxArray ba;
+        amrex::DistributionMapping dm;
+        GetOceanToAtmosSurfaceLayout(ba, dm);
+        if (m_coupled_current_east == nullptr || m_coupled_current_east->boxArray() != ba ||
+            m_coupled_current_east->DistributionMap() != dm) {
+            m_coupled_current_east  = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
+            m_coupled_current_north = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
+            m_coupled_current_valid = std::make_unique<amrex::iMultiFab>(ba, dm, 1, 0);
+        }
+        // A plain copy when the coupler uses that layout, as it should; else a parallel one
+        auto copy_in = [&] (auto& dst, const auto& src) {
+            if (src.boxArray() == dst.boxArray() && src.DistributionMap() == dst.DistributionMap()) {
+                amrex::Copy(dst, src, 0, 0, 1, 0);
+            } else {
+                dst.ParallelCopy(src, 0, 0, 1);
+            }
+        };
+        copy_in(*m_coupled_current_east, *state[1]);
+        copy_in(*m_coupled_current_north, *state[2]);
+        // No coverage means no cell is covered, as for the SST
+        m_coupled_current_valid->setVal(0);
+        if (erf_coverage != nullptr) {
+            copy_in(*m_coupled_current_valid, *erf_coverage);
+        }
+        surface_layer->update_coupled_surface_current(0, *m_coupled_current_east,
+                                                      *m_coupled_current_north,
+                                                      m_coupled_current_valid.get(),
+                                                      m_coupler_cos_alpha.get(),
+                                                      m_coupler_sin_alpha.get());
+    } else if (state.size() > 2 && state[1] != nullptr && state[2] != nullptr &&
+               !m_warned_coupled_current_declined) {
+        m_warned_coupled_current_declined = true;
+        amrex::Print() << "ERF::ApplyOceanSurfaceState was given a surface current but "
+                       << "erf.use_coupled_currents is not set; the current is being "
+                       << "discarded and the surface stress uses the absolute wind."
+                       << std::endl;
+    }
+
     // The gate is "is coupled SST configured"
     if (!solverChoice.use_coupled_sst) {
         if (!m_warned_coupled_sst_declined) {
@@ -867,10 +974,9 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
         amrex::BoxArray ba;
         amrex::DistributionMapping dm;
         GetOceanToAtmosSurfaceLayout(ba, dm);
-        // No ghost cells: SurfaceLayer::fill_tsurf_with_coupled_sst clamps its sample
-        // index into the valid box, exactly as get_lsm_tsurf does for the LSM
-        // arrays, so ghosts here would never be read. t_surf's own ghosts are
-        // filled by the FillBoundary at the end of update_fluxes.
+        // No ghost cells: SurfaceLayer::fill_tsurf_with_coupled_sst copies the SST and its
+        // coverage into temporaries with the halo of t_surf, filled from the valid cells
+        // that own it, so ghosts here would never be read.
         m_coupled_sst       = std::make_unique<amrex::MultiFab> (ba, dm, 1, 0);
         m_coupled_sst_valid = std::make_unique<amrex::iMultiFab>(ba, dm, 1, 0);
     }
@@ -889,9 +995,9 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
             0, m_coupled_sst.get(), m_coupled_sst_valid.get());
     }
 
-    // Diagnostics only from here on. The driver calls this every ERF substep with
-    // the SST of the last exchange, and REMORA already checks that SST on its wet
-    // cells once per exchange, so run this on the first call and at erf.v >= 2 only.
+    // Diagnostics only from here on. The driver calls this once per exchange with
+    // that exchange's SST, which REMORA has already checked on its wet cells when
+    // it packed it, so run this on the first call and at erf.v >= 2 only.
     // verbose is a ParmParse value, so every rank returns together.
     if (m_checked_coupled_sst && verbose < 2) { return; }
     m_checked_coupled_sst = true;

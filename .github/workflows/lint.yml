@@ -5,14 +5,14 @@ name: Lint
 # their run: blocks; shellcheck also covers the helper scripts under
 # .github/workflows. Cache helper tests use mocked registry commands; workflow
 # contracts check matrix tags, restore/save settings, and publication guards.
-# Mypy checks the cache driver and both implementations of the transport interface.
+# Mypy checks the cache transports and PR cleanup script.
 # These checks do not compile ERF.
 on:
   push:
     branches: [development]
-    paths: ['.github/**']
+    paths: ['.github/**', 'Build/spack/**']
   pull_request:
-    paths: ['.github/**']
+    paths: ['.github/**', 'Build/spack/**']
   workflow_dispatch:
 
 permissions:
@@ -27,7 +27,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: "Install shellcheck (actionlint uses it on run blocks)"
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
       - name: Install actionlint
@@ -47,16 +49,18 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Check Spack recipe pins
+        run: python3 Build/spack/check_pins.py
       - name: Test GHCR cache helpers
         run: python3 -m unittest discover -s .github/actions/ccache-trunk -p 'test_*.py' -v
       - name: Install cache check dependencies
         run: |
           python3 -m venv "${RUNNER_TEMP}/cache-checks"
           "${RUNNER_TEMP}/cache-checks/bin/python" -m pip install -r .github/tests/requirements.txt
-      - name: Type-check GHCR cache transports
+      - name: Type-check Python CI helpers
         run: '"${RUNNER_TEMP}/cache-checks/bin/python" -m mypy --config-file .github/tests/mypy.ini'
       - name: Check GHCR workflow contracts
         run: |

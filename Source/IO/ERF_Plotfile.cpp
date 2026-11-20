@@ -11,9 +11,137 @@
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Utils.H"
+#ifdef ERF_USE_MOVING_BODIES
+#include "ERF_StructureModelRegistry.H"
+#endif
 #include <AMReX_buildInfo.H>
 
+#include <bit>
+#include <cstdint>
+#include <fstream>
+#include <iomanip>
+
 using namespace amrex;
+
+namespace {
+// Write one-component nodal MultiFabs (one per level) as VTK point data:
+// dir/L<lev>_B<box>.vti per box (ImageData, raw binary Float32), indexed by <vtm_name>.vtm,
+// which is written next to dir (in dir's parent directory).
+// dir must not contain "plt" in its name: ParaView hands any such directory to its
+// AMReX plotfile reader, which crashes on it.
+// Assumes uniform spacing in every direction.
+void
+WriteNodalVTK (const std::string& dir, const std::string& vtm_name, const std::string& varname,
+               const Vector<const MultiFab*>& mf, const Vector<Geometry>& geom)
+{
+    // The whole output is rewritten each time, so the old one is removed rather than kept
+    UtilCreateDirectoryDestructive(dir, true);
+    const std::string parent   = dir.substr(0, dir.find_last_of('/') + 1);
+    const std::string dir_base = dir.substr(parent.size());
+
+    // The sizes and values are written in the host's byte order (if constexpr, since a
+    // conditional on this compile-time constant is flagged as unreachable code by clang)
+    const char* byte_order = "LittleEndian";
+    if constexpr (std::endian::native == std::endian::big) { byte_order = "BigEndian"; }
+
+    auto piece_file = [] (int lev, int box) {
+        return "L" + std::to_string(lev) + "_B" + std::to_string(box) + ".vti";
+    };
+    auto extent = [] (const Box& bx) {
+        const IntVect lo = bx.smallEnd(), hi = bx.bigEnd();
+        return std::to_string(lo[0]) + " " + std::to_string(hi[0]) + " " +
+               std::to_string(lo[1]) + " " + std::to_string(hi[1]) + " " +
+               std::to_string(lo[2]) + " " + std::to_string(hi[2]);
+    };
+
+    for (int lev = 0; lev < mf.size(); ++lev) {
+        const Real* plo = geom[lev].ProbLo();
+        const Real* dx  = geom[lev].CellSize();
+
+        // Copy every box of this rank to the host, then wait once
+        Vector<int> box_index;
+        Vector<std::unique_ptr<FArrayBox>> hfabs;
+        for (MFIter mfi(*mf[lev]); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            hfabs.push_back(std::make_unique<FArrayBox>(bx, 1, The_Pinned_Arena()));
+            hfabs.back()->copy<RunOn::Device>((*mf[lev])[mfi], bx);
+            box_index.push_back(mfi.index());
+        }
+        Gpu::streamSynchronize();
+
+        for (int n = 0; n < hfabs.size(); ++n) {
+            const FArrayBox& hfab = *hfabs[n];
+            const Box& bx = hfab.box();
+            const auto npts = static_cast<std::size_t>(bx.numPts());
+            std::vector<float> data(npts);
+            const Real* src = hfab.dataPtr();
+            for (std::size_t m = 0; m < npts; ++m) { data[m] = static_cast<float>(src[m]); }
+            const auto nbytes = static_cast<std::uint64_t>(npts * sizeof(float));
+
+            const std::string fname = dir + "/" + piece_file(lev, box_index[n]);
+            std::ofstream ofs(fname, std::ios::binary);
+            if (!ofs.is_open()) { FileOpenFailed(fname); }
+            ofs << std::setprecision(17)
+                << "<?xml version=\"1.0\"?>\n"
+                << "<VTKFile type=\"ImageData\" version=\"1.0\" byte_order=\"" << byte_order
+                << "\" header_type=\"UInt64\">\n"
+                << "<ImageData WholeExtent=\"" << extent(bx) << "\" Origin=\""
+                << plo[0] << " " << plo[1] << " " << plo[2] << "\" Spacing=\""
+                << dx[0] << " " << dx[1] << " " << dx[2] << "\">\n"
+                << "<Piece Extent=\"" << extent(bx) << "\">\n"
+                << "<PointData Scalars=\"" << varname << "\">\n"
+                << "<DataArray type=\"Float32\" Name=\"" << varname
+                << "\" format=\"appended\" offset=\"0\"/>\n"
+                << "</PointData>\n<CellData/>\n</Piece>\n</ImageData>\n"
+                << "<AppendedData encoding=\"raw\">\n_";
+            ofs.write(reinterpret_cast<const char*>(&nbytes), sizeof(nbytes));
+            ofs.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(nbytes));
+            ofs << "\n</AppendedData>\n</VTKFile>\n";
+            ofs.close();
+            if (ofs.fail()) { Abort("WriteNodalVTK: failed writing " + fname); }
+        }
+    }
+
+    if (ParallelDescriptor::IOProcessor()) {
+        const std::string fname = parent + vtm_name + ".vtm";
+        std::ofstream ofs(fname);
+        if (!ofs.is_open()) { FileOpenFailed(fname); }
+        ofs << "<?xml version=\"1.0\"?>\n"
+            << "<VTKFile type=\"vtkMultiBlockDataSet\" version=\"1.0\" byte_order=\"" << byte_order << "\">\n"
+            << "<vtkMultiBlockDataSet>\n";
+        for (int lev = 0; lev < mf.size(); ++lev) {
+            ofs << "<Block index=\"" << lev << "\" name=\"Level_" << lev << "\">\n";
+            for (int b = 0; b < mf[lev]->boxArray().size(); ++b) {
+                ofs << "<DataSet index=\"" << b << "\" file=\"" << dir_base << "/" << piece_file(lev, b) << "\"/>\n";
+            }
+            ofs << "</Block>\n";
+        }
+        ofs << "</vtkMultiBlockDataSet>\n</VTKFile>\n";
+        ofs.close();
+        if (ofs.fail()) { Abort("WriteNodalVTK: failed writing " + fname); }
+    }
+}
+} // namespace
+
+// Write the nodal EB level set of every level that exists now, once, as eb_levelset.vtm +
+// eb_levelset/L<lev>_B<box>.vti in the directory of erf.plot_file_1.
+// The EB does not move, so this goes with the EB surface output (erf.write_eb_surface).
+void
+ERF::WriteEBLevelSet ()
+{
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        Print() << "WARNING: EB level set output assumes uniform dz (mesh_type = ConstantDz); "
+                << "skipping it" << std::endl;
+        return;
+    }
+    Vector<const MultiFab*> ls(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        ls[lev] = &EBFactory(lev).getLevelSet();
+    }
+    // The directory of the plotfiles (everything up to the last '/' of erf.plot_file_1)
+    const std::string plot_dir = plot3d_file_1.substr(0, plot3d_file_1.find_last_of('/') + 1);
+    WriteNodalVTK(plot_dir + "eb_levelset", "eb_levelset", "levelset", ls, geom);
+}
 
 
 void
@@ -278,6 +406,36 @@ ERF::appendPlot3DVariables (const Vector<std::string>& plot_var_names,
     }
 #endif
 
+#ifdef ERF_USE_MOVING_BODIES
+    // The structure model's fields; filled after the fire's in FillPlot3DVars, in this order
+    if (m_structure_model) {
+        // Every name ERF and the other models provide, requested or not: a model name among
+        // them would be dropped here and still filled there
+        std::vector<std::string> taken(cons_names.begin(), cons_names.end());
+        taken.insert(taken.end(), derived_names.begin(), derived_names.end());
+        {
+            Vector<std::string> micro_names;
+            micro->GetPlotVarNames(micro_names);
+            taken.insert(taken.end(), micro_names.begin(), micro_names.end());
+        }
+#ifdef ERF_USE_PARTICLES
+        taken.insert(taken.end(), particle_mesh_plot_names.begin(), particle_mesh_plot_names.end());
+#endif
+#ifdef ERF_USE_FIRE
+        if (m_fire_coupler) {
+            for (const auto& n : m_fire_coupler->plot_var_names()) { taken.push_back(n); }
+        }
+#endif
+        check_structure_plot_names(*m_structure_model, taken);
+        for (const auto& plot_name : m_structure_model->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name) &&
+                !containerHasElement(tmp_plot_names, plot_name)) {
+                tmp_plot_names.push_back(plot_name);
+            }
+        }
+    }
+#endif
+
     for (int i = 0; i < tmp_plot_names.size(); i++) {
         if (!containerHasElement(a_plot_var_names, tmp_plot_names[i])) {
             a_plot_var_names.push_back(tmp_plot_names[i]);
@@ -409,14 +567,17 @@ ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratc
                 // todo - clean this up
                 const Box& bxcc= mfi.tilebox();
 
-                const Array4<Real>& tau12 = (Tau[lev][TauType::tau12]) ? Tau[lev][TauType::tau12]->array(mfi) : Array4<Real>{};
-                const Array4<Real>& tau21 = (Tau[lev][TauType::tau21]) ? Tau[lev][TauType::tau21]->array(mfi) : Array4<Real>{};
+                // Without terrain or lateral surface-layer BCs (or vertical implicit diffusion, for
+                // tau31/tau32) the transposed components are not stored: the stress is symmetric
+                // there and the momentum equations use tau12/tau13/tau23 in their place, so do too
+                const Array4<Real>  tau12 = (Tau[lev][TauType::tau12]) ? Tau[lev][TauType::tau12]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau21 = (Tau[lev][TauType::tau21]) ? Tau[lev][TauType::tau21]->array(mfi) : tau12;
 
-                const Array4<Real>& tau13 = (Tau[lev][TauType::tau13]) ? Tau[lev][TauType::tau13]->array(mfi) : Array4<Real>{};
-                const Array4<Real>& tau31 = (Tau[lev][TauType::tau31]) ? Tau[lev][TauType::tau31]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau13 = (Tau[lev][TauType::tau13]) ? Tau[lev][TauType::tau13]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau31 = (Tau[lev][TauType::tau31]) ? Tau[lev][TauType::tau31]->array(mfi) : tau13;
 
-                const Array4<Real>& tau23 = (Tau[lev][TauType::tau23]) ? Tau[lev][TauType::tau23]->array(mfi) : Array4<Real>{};
-                const Array4<Real>& tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau23 = (Tau[lev][TauType::tau23]) ? Tau[lev][TauType::tau23]->array(mfi) : Array4<Real>{};
+                const Array4<Real>  tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : tau23;
 
                 const Array4<Real>& tau_cc   = mf_cc_tau[lev].array(mfi);
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -869,7 +1030,7 @@ ERF::FillPlot3DVars (int lev,
 
         b.setVal(0.); // Need to initialize to zero because buoyancy not defined on faces at top and bottom of domain
         make_buoyancy(lev, vars_new[lev], S_prim, qt, b, geom[lev], solverChoice, base_state[lev], n_qstate_into_total,
-                      get_eb(lev), solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible);
+                      get_eb(lev), solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic);
         MultiFab::Copy(mf_dst, b, 0, mf_comp, 1, 0);
         mf_comp ++;
     }
@@ -1447,7 +1608,7 @@ ERF::FillPlot3DVars (int lev,
     // The boundary layer height in meters AGL.  Native SHOC carries its own
     // column-filled diagnostic; every other scheme gets it from the surface
     // layer, which diagnoses it whenever erf.most.pblh_calc is set (MYNN25
-    // computes it directly, MRF/YSU/YSUNew write theirs back via set_pblh).
+    // computes it directly, MRF/YSU write theirs back via set_pblh).
     // That field is two-dimensional, so broadcast it down each column.
     if (containerHasElement(plot_var_names, "pblh")) {
         const auto& surf_lay_zlo = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
@@ -1961,6 +2122,18 @@ ERF::FillPlot3DVars (int lev,
         for (const auto& plot_name : m_fire_coupler->plot_var_names()) {
             if (containerHasElement(plot_var_names, plot_name)) {
                 m_fire_coupler->fill_plot_var(plot_name, mf_dst, mf_comp, lev);
+                mf_comp += 1;
+            }
+        }
+    }
+#endif
+
+#ifdef ERF_USE_MOVING_BODIES
+    // Must match the order of appendPlot3DVariables (after the fire)
+    if (m_structure_model) {
+        for (const auto& plot_name : m_structure_model->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name)) {
+                m_structure_model->fill_plot_var(plot_name, lev, mf_dst, mf_comp);
                 mf_comp += 1;
             }
         }

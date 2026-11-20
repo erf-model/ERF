@@ -40,6 +40,8 @@ using namespace amrex;
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ]  l_real_bc
  * @param[inout]  cf_fluxes coarse/fine face fluxes: recorded here on a coarse level, imposed on a fine one
+ * @param[inout]  mom_reflux_p if not null, the sum of the pressure the horizontal momenta see, added to (ERF_MomentumReflux.cpp)
+ * @param[in   ]  lateral_walls whether the xlo, xhi, ylo and yhi faces are walls (zero normal velocity)
  */
 
 void erf_substep_NS (int step, int nrk,
@@ -74,7 +76,9 @@ void erf_substep_NS (int step, int nrk,
                      const amrex::Real* sinesq_stag_d,
                      const Real l_damp_coef,
                      const Real beta_d,
-                     const CFFaceFluxes& cf_fluxes)
+                     const CFFaceFluxes& cf_fluxes,
+                     MultiFab* mom_reflux_p,
+                     const GpuArray<bool,4>& lateral_walls)
 {
     //
     // NOTE: for step > 0, S_data and S_prev point to the same MultiFab data!!
@@ -92,6 +96,20 @@ void erf_substep_NS (int step, int nrk,
     int ihi = domhi.x + 1;
     int jlo = domlo.y;
     int jhi = domhi.y + 1;
+
+    // The substeps keep the normal momentum on a lateral wall face (slip, no-slip, symmetry or
+    // surface layer) at its stage value, zero on all but a symmetry face, as the terrain
+    // substeps do.  The pressure gradient on a wall face, the difference of theta_extrap across
+    // it, is zero only while the ghost cell is an even reflection, which it is not on a wall
+    // with a given theta or density; and the fast sources in xmom_src and ymom_src (Rayleigh
+    // damping toward a nonzero mean wind) are not zero on the face either.  Updating the face
+    // carried mass through the wall: on a slip or no-slip wall until the boundary fill reset it
+    // after the substep, and on a symmetry face, which the fill does not set and where the slow
+    // RHS is not zeroed, for good
+    const bool wall_xlo = lateral_walls[0];
+    const bool wall_xhi = lateral_walls[1];
+    const bool wall_ylo = lateral_walls[2];
+    const bool wall_yhi = lateral_walls[3];
 
     bool l_rayleigh_impl_for_w = (sinesq_stag_d != nullptr);
 
@@ -181,6 +199,19 @@ void erf_substep_NS (int step, int nrk,
             lagged_arr(i,j,k) = prev_drho_theta(i,j,k);
         });
 
+        // The acoustic pressure the horizontal momenta see in this substep, gamma R_d pi (rho theta)'',
+        // for the reflux of the pressure impulse on the coarse/fine faces (ERF_MomentumReflux.cpp)
+        if (mom_reflux_p && !(nrk == 0 && step == 0)) {
+            const Array4<Real>&       p_reflux = mom_reflux_p->array(mfi);
+            const Array4<const Real>& pi_arr   = pi_stage.const_array(mfi);
+            const Array4<const Real>& qt_arr   = qt.const_array(mfi);
+            ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real q = (l_use_moisture) ? qt_arr(i,j,k) : zero;
+                p_reflux(i,j,k) += dtau * Gamma * R_d * pi_arr(i,j,k,0) * theta_extrap(i,j,k) / (one + q);
+            });
+        }
+
         // NOTE: We must do this here because for step > 0, prev_zmom and cur_zmom both point to the same data,
         //       so by the time we would use prev_zmom to define zflux, it would have already been over-written.
         //
@@ -257,11 +288,15 @@ void erf_substep_NS (int step, int nrk,
         //           applied.  It is identically 1 for MeshType::ConstantDz.
         // *********************************************************************
         if (nrk == 0 and step == 0) { // prev == stage
+            // The wall faces are held here too, for consistency with the branch below.  This
+            // branch runs only in the first RK stage, whose result feeds only the next stage's
+            // slow RHS, so the domain mass at the end of the step does not show these guards
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real h_zeta = dz_ptr[k] * dzi;
-                Real new_drho_u = dtau * slow_rhs_rho_u(i,j,k) + dtau * xmom_src_arr(i,j,k);;
+                Real new_drho_u = dtau * slow_rhs_rho_u(i,j,k) + dtau * xmom_src_arr(i,j,k);
+                if ((wall_xlo && i == ilo) || (wall_xhi && i == ihi)) { new_drho_u = zero; }
                 avg_xmom_arr(i,j,k) += facinv * new_drho_u * h_zeta / mf_uy(i,j,0);
                 temp_cur_xmom_arr(i,j,k) = stage_xmom(i,j,k) + new_drho_u;
             },
@@ -269,6 +304,7 @@ void erf_substep_NS (int step, int nrk,
             {
                 Real h_zeta = dz_ptr[k] * dzi;
                 Real new_drho_v = dtau * slow_rhs_rho_v(i,j,k) + dtau * ymom_src_arr(i,j,k);
+                if ((wall_ylo && j == jlo) || (wall_yhi && j == jhi)) { new_drho_v = zero; }
                 avg_ymom_arr(i,j,k) += facinv * new_drho_v * h_zeta / mf_vx(i,j,0);
                 temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
             });
@@ -289,6 +325,7 @@ void erf_substep_NS (int step, int nrk,
                 Real new_drho_u = prev_xmom(i,j,k) - stage_xmom(i,j,k)
                                 + dtau * fast_rhs_rho_u + dtau * slow_rhs_rho_u(i,j,k)
                                 + dtau * xmom_src_arr(i,j,k);
+                if ((wall_xlo && i == ilo) || (wall_xhi && i == ihi)) { new_drho_u = zero; }
 
                 Real h_zeta = dz_ptr[k] * dzi;
                 avg_xmom_arr(i,j,k) += facinv * new_drho_u * h_zeta / mf_uy(i,j,0);
@@ -310,6 +347,7 @@ void erf_substep_NS (int step, int nrk,
                 Real new_drho_v = prev_ymom(i,j,k) - stage_ymom(i,j,k)
                                 + dtau * fast_rhs_rho_v + dtau * slow_rhs_rho_v(i,j,k)
                                 + dtau * ymom_src_arr(i,j,k);
+                if ((wall_ylo && j == jlo) || (wall_yhi && j == jhi)) { new_drho_v = zero; }
 
                 Real h_zeta = dz_ptr[k] * dzi;
                 avg_ymom_arr(i,j,k) += facinv * new_drho_v * h_zeta / mf_vx(i,j,0);

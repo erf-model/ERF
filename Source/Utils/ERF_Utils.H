@@ -15,60 +15,13 @@
 #include "ERF_ImmersedWallCell.H"
 #include "ERF_ReadBndryPlanes.H"
 
-/** Build one density-weighted, nonnegative WRF moisture target. */
-AMREX_GPU_HOST_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-wrf_moisture_target (const amrex::Real rho,
-                     const amrex::Real q_n,
-                     const amrex::Real q_np1,
-                     const amrex::Real alpha) noexcept
-{
-    const amrex::Real q = (one - alpha) * q_n + alpha * q_np1;
-    return rho * amrex::max(q, amrex::Real(0.0));
-}
-
-/** True when ERF carries all five hydrometeor mass species separately. */
-AMREX_GPU_HOST_DEVICE
-AMREX_FORCE_INLINE
-bool
-wrf_bdy_has_separate_hydrometeors (const MoistureComponentIndices& moisture_indices) noexcept
-{
-    return moisture_indices.qc >= 0 && moisture_indices.qi >= 0 &&
-           moisture_indices.qr >= 0 && moisture_indices.qs >= 0 &&
-           moisture_indices.qg >= 0;
-}
-
-/** Map an active conserved moisture component to its real-boundary field. */
-inline int
-wrf_bdy_var_for_moisture_component (const int comp,
-                                    const MoistureComponentIndices& moisture_indices,
-                                    const bool use_wrf_bdy_qc_qi,
-                                    const bool separate_hydrometeors = false)
-{
-    if (comp == moisture_indices.qv) { return RealBdyVars::QV; }
-    if (use_wrf_bdy_qc_qi) {
-        if (comp == moisture_indices.qc) { return RealBdyVars::QC; }
-        if (moisture_indices.qi >= 0 && comp == moisture_indices.qi) {
-            return RealBdyVars::QI;
-        }
-        if (separate_hydrometeors) {
-            if (comp == moisture_indices.qr) { return RealBdyHydrometeorVars::QR; }
-            if (comp == moisture_indices.qs) { return RealBdyHydrometeorVars::QS; }
-            if (comp == moisture_indices.qg) { return RealBdyHydrometeorVars::QG; }
-        }
-    }
-    return -1;
-}
-
 /**
  * The real-boundary maps of the conserved state, one entry per conserved
  * component up to NVAR_max: whether the component is read from the WRF/metgrid
  * boundary data (read), from which boundary field (map), and from which
  * boundary-plane slot when planes are read as well (bnd, cons_bc_comp).
  * Density is read with erf.use_wrf_bdy_density, theta and the water vapour
- * always; passive scalars never. Hydrometeor mappings retain the upstream
- * read flags, which do not enable hydrometeor ghost-cell fills.
+ * always; passive scalars and hydrometeors never.
  * Built from the component layout, so every passive scalar (NSCALARS of them)
  * sits between RhoKE_comp and RhoQ1_comp.
  */
@@ -80,10 +33,7 @@ struct RealBdyConsMaps
 };
 
 inline RealBdyConsMaps
-real_bdy_cons_maps (const bool read_density,
-                    const MoistureComponentIndices& moisture_indices,
-                    const bool use_wrf_bdy_qc_qi,
-                    const bool separate_hydrometeors)
+real_bdy_cons_maps (const bool read_density)
 {
     RealBdyConsMaps m;
     m.read.assign(NVAR_max, 0);
@@ -99,13 +49,6 @@ real_bdy_cons_maps (const bool read_density,
     m.map [RhoTheta_comp] = RealBdyVars::T;
     m.read[RhoQ1_comp]    = 1;
     m.map [RhoQ1_comp]    = RealBdyVars::QV;
-    for (int comp = 0; comp < NVAR_max; ++comp) {
-        const int bdy_var = wrf_bdy_var_for_moisture_component(
-            comp, moisture_indices, use_wrf_bdy_qc_qi, separate_hydrometeors);
-        if (bdy_var >= 0) {
-            m.map[comp]  = bdy_var;
-        }
-    }
     return m;
 }
 
@@ -121,6 +64,12 @@ rebalance_columns (amrex::MultiFab& rho,
                    const amrex::Geometry& geom,
                    const bool& maintain_Th,
                    bool use_sfc = false);
+
+/*
+ * Re-compute p_0 and pi_0 of a base state from rho_0, theta_0 and qv_0 over the valid region
+ */
+void
+recompute_p_pi_hse (amrex::MultiFab& base_state_mf, amrex::Real l_rdOcp);
 
 /*
  * Create a new BoxArray in which every grid touches the bottom boundary
@@ -293,6 +242,17 @@ void make_zcc (const amrex::Geometry& geom,
                amrex::MultiFab& z_phys_cc);
 
 /*
+ * Height of the bottom of the domain at each node of the 2D projection of z_phys_nd's
+ * grids; a box that does not reach the bottom interpolates it from z_sfc_crse, the
+ * coarser level's, which must then be given
+ */
+void make_zsfc_nd (const amrex::Geometry& geom,
+                   const amrex::MultiFab& z_phys_nd,
+                   amrex::MultiFab& z_sfc_nd,
+                   const amrex::MultiFab* z_sfc_crse = nullptr,
+                   const amrex::IntVect& ref_ratio = amrex::IntVect(1));
+
+/*
  * Convert momentum to velocity by dividing by density averaged onto faces
  */
 void MomentumToVelocity (amrex::MultiFab& xvel_out,
@@ -334,13 +294,35 @@ ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den
                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
+ * Face weights beta = den_mlt/den_div with which ConvertForProjection converts the momenta
+ */
+void
+MakeProjectionWeights (const amrex::MultiFab& den_div, const amrex::MultiFab& den_mlt,
+                       const amrex::MultiFab& xmom, const amrex::MultiFab& ymom, const amrex::MultiFab& zmom,
+                       amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& beta,
+                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+
+/*
+ * Face weights beta = den_mlt/den_div mapped onto faces with the advection scheme's reconstruction
+ */
+void
+MakeAdvectiveProjectionWeights (const amrex::MultiFab& den_div, const amrex::MultiFab& den_mlt,
+                                const amrex::MultiFab& xmom, const amrex::MultiFab& ymom, const amrex::MultiFab& zmom,
+                                amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& beta,
+                                const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                                const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
+                                const amrex::Periodicity& period);
+
+/*
  * Compute lateral boundary mass influx/outflux from base-state-density-weighted
- * boundary normal velocities.
+ * boundary normal velocities.  mask_x/mask_y are owner masks of area_vec[0]/[1]
+ * (amrex::OwnerMask), so a face shared by two boxes is counted once.
  */
 void
 compute_influx_outflux_bdy (amrex::FArrayBox& bdy_data_xlo, amrex::FArrayBox& bdy_data_xhi,
                             amrex::FArrayBox& bdy_data_ylo, amrex::FArrayBox& bdy_data_yhi,
                             amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                            const amrex::iMultiFab& mask_x, const amrex::iMultiFab& mask_y,
                             const amrex::Geometry& geom,
                             amrex::Real& influx, amrex::Real& outflux,
                             const int n);
@@ -737,135 +719,6 @@ realbdy_compute_relaxation (const int& icomp,
     });
 }
 
-/**
- * Apply Davies relaxation to explicitly mapped moisture components.  Target
- * component n corresponds to state component moisture_comps[n].
- */
-AMREX_GPU_HOST
-AMREX_FORCE_INLINE
-void
-realbdy_compute_moisture_relaxation (
-                            const amrex::GpuArray<int,6>& moisture_comps,
-                            const int n_targets,
-                            const int& width,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
-                            const amrex::Real& F1,
-                            const amrex::Box& bx_xlo,
-                            const amrex::Box& bx_xhi,
-                            const amrex::Box& bx_ylo,
-                            const amrex::Box& bx_yhi,
-                            const amrex::Array4<const amrex::Real>& arr_xlo,
-                            const amrex::Array4<const amrex::Real>& arr_xhi,
-                            const amrex::Array4<const amrex::Real>& arr_ylo,
-                            const amrex::Array4<const amrex::Real>& arr_yhi,
-                            const amrex::Array4<const amrex::Real>& data_arr,
-                            const amrex::Array4<amrex::Real>& rhs_arr)
-{
-    const amrex::IntVect iv = bx_xlo.type();
-    const amrex::Real ioff = (iv[0] == 1) ? zero : myhalf;
-    const amrex::Real joff = (iv[1] == 1) ? zero : myhalf;
-
-    amrex::ParallelFor(bx_xlo, bx_xhi,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        const amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
-        const amrex::Real y = ProbLo[1] + (j + joff) * dx[1];
-        const amrex::Real x_end = ProbLo[0] + width * dx[0];
-        const amrex::Real y_end = ProbLo[1] + width * dx[1];
-        const amrex::Real y_strt = ProbHi[1] - width * dx[1];
-        const amrex::Real xi = (x_end - x) / (x_end - ProbLo[0]);
-        const amrex::Real eta_lo = (y < y_end) ? (y_end - y) / (y_end - ProbLo[1]) : amrex::Real(0.0);
-        const amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : amrex::Real(0.0);
-        const amrex::Real factor = amrex::max(xi*xi, amrex::max(eta_lo,eta_hi)*amrex::max(eta_lo,eta_hi)) * F1;
-        for (int n = 0; n < n_targets; ++n) {
-            const int comp = moisture_comps[n];
-            if (comp >= 0) {
-                rhs_arr(i,j,k,comp) += factor * (arr_xlo(i,j,k,n) - data_arr(i,j,k,comp));
-            }
-        }
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        const amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
-        const amrex::Real y = ProbLo[1] + (j + joff) * dx[1];
-        const amrex::Real x_strt = ProbHi[0] - width * dx[0];
-        const amrex::Real y_end = ProbLo[1] + width * dx[1];
-        const amrex::Real y_strt = ProbHi[1] - width * dx[1];
-        const amrex::Real xi = (x - x_strt) / (ProbHi[0] - x_strt);
-        const amrex::Real eta_lo = (y < y_end) ? (y_end - y) / (y_end - ProbLo[1]) : amrex::Real(0.0);
-        const amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : amrex::Real(0.0);
-        const amrex::Real eta = amrex::max(eta_lo,eta_hi);
-        const amrex::Real factor = amrex::max(xi*xi, eta*eta) * F1;
-        for (int n = 0; n < n_targets; ++n) {
-            const int comp = moisture_comps[n];
-            if (comp >= 0) {
-                rhs_arr(i,j,k,comp) += factor * (arr_xhi(i,j,k,n) - data_arr(i,j,k,comp));
-            }
-        }
-    });
-
-    amrex::ParallelFor(bx_ylo, bx_yhi,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        const amrex::Real y = ProbLo[1] + (j + joff) * dx[1];
-        const amrex::Real y_end = ProbLo[1] + width * dx[1];
-        const amrex::Real eta = (y_end - y) / (y_end - ProbLo[1]);
-        const amrex::Real factor = eta*eta * F1;
-        for (int n = 0; n < n_targets; ++n) {
-            const int comp = moisture_comps[n];
-            if (comp >= 0) {
-                rhs_arr(i,j,k,comp) += factor * (arr_ylo(i,j,k,n) - data_arr(i,j,k,comp));
-            }
-        }
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        const amrex::Real y = ProbLo[1] + (j + joff) * dx[1];
-        const amrex::Real y_strt = ProbHi[1] - width * dx[1];
-        const amrex::Real eta = (y - y_strt) / (ProbHi[1] - y_strt);
-        const amrex::Real factor = eta*eta * F1;
-        for (int n = 0; n < n_targets; ++n) {
-            const int comp = moisture_comps[n];
-            if (comp >= 0) {
-                rhs_arr(i,j,k,comp) += factor * (arr_yhi(i,j,k,n) - data_arr(i,j,k,comp));
-            }
-        }
-    });
-}
-
-// Backward-compatible three-species overload used by existing unit tests and
-// callers that only target qv/qc/qi.
-AMREX_GPU_HOST
-AMREX_FORCE_INLINE
-void
-realbdy_compute_moisture_relaxation (
-                            const amrex::GpuArray<int,3>& moisture_comps,
-                            const int& width,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
-                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
-                            const amrex::Real& F1,
-                            const amrex::Box& bx_xlo,
-                            const amrex::Box& bx_xhi,
-                            const amrex::Box& bx_ylo,
-                            const amrex::Box& bx_yhi,
-                            const amrex::Array4<const amrex::Real>& arr_xlo,
-                            const amrex::Array4<const amrex::Real>& arr_xhi,
-                            const amrex::Array4<const amrex::Real>& arr_ylo,
-                            const amrex::Array4<const amrex::Real>& arr_yhi,
-                            const amrex::Array4<const amrex::Real>& data_arr,
-                            const amrex::Array4<amrex::Real>& rhs_arr)
-{
-    const amrex::GpuArray<int,6> extended_comps = {
-        moisture_comps[0], moisture_comps[1], moisture_comps[2], -1, -1, -1};
-    realbdy_compute_moisture_relaxation(
-        extended_comps, 3, width, dx, ProbLo, ProbHi, F1,
-        bx_xlo, bx_xhi, bx_ylo, bx_yhi,
-        arr_xlo, arr_xhi, arr_ylo, arr_yhi, data_arr, rhs_arr);
-}
-
 /*
  * Effectively a Multiply for a MultiFab and an iMultiFab mask
  */
@@ -938,30 +791,6 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
 
 
 void WeatherDataInterpolation (const double time);
-
-/**
- * Perform quadratic interpolation in one dimension.
- * @param[in] z Interpolation coordinate.
- * @param[in] z0 Coordinate of first point.
- * @param[in] p0 Value at first point.
- * @param[in] z1 Coordinate of second point.
- * @param[in] p1 Value at second point.
- * @param[in] z2 Coordinate of third point.
- * @param[in] p2 Value at third point.
- * @return Interpolated value.
- */
-AMREX_GPU_HOST_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-quad_interp_1d (amrex::Real z,
-                amrex::Real z0, amrex::Real p0,
-                amrex::Real z1, amrex::Real p1,
-                amrex::Real z2, amrex::Real p2)
-{
-    return p0 * ( (z - z1) * (z - z2) ) / ( (z0 - z1) * (z0 - z2) )
-         + p1 * ( (z - z0) * (z - z2) ) / ( (z1 - z0) * (z1 - z2) )
-         + p2 * ( (z - z0) * (z - z1) ) / ( (z2 - z0) * (z2 - z1) );
-}
 
 /**
  * Which time level(s) a fillpatch at a given time should draw from.

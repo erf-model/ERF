@@ -1,6 +1,7 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Reduce.H>
+#include <AMReX_Utility.H>
 #include <AMReX_VisMF.H>
 #include <ERF_IndexDefines.H>
 
@@ -102,23 +103,36 @@ amrex::MultiFab on_grids_of (const amrex::MultiFab& lhs,
 void compare_checkpoint (const std::string& lhs_path, const std::string& rhs_path,
                          const bool allow_different_grids)
 {
-    amrex::MultiFab lhs_spectrum;
-    amrex::MultiFab rhs_spectrum;
-    amrex::VisMF::Read(lhs_spectrum, lhs_path + "/Level_0/SBMSpectrum");
-    amrex::VisMF::Read(rhs_spectrum, rhs_path + "/Level_0/SBMSpectrum");
-    compare_all_components(lhs_spectrum,
-                           on_grids_of(lhs_spectrum, std::move(rhs_spectrum),
-                                       allow_different_grids, "SBMSpectrum"),
-                           "SBMSpectrum");
+    int level = 0;
+    for (;; ++level) {
+        const std::string level_dir = "/Level_" + std::to_string(level);
+        const bool lhs_has = amrex::FileExists(lhs_path + level_dir + "/SBMSpectrum_H");
+        const bool rhs_has = amrex::FileExists(rhs_path + level_dir + "/SBMSpectrum_H");
+        require(lhs_has == rhs_has, "checkpoints hold SBM spectra on different levels");
+        if (!lhs_has) { break; }
+        // Only level 0 may be re-gridded on restart.
+        const bool different_grids = allow_different_grids && level == 0;
+        const std::string label = "level " + std::to_string(level) + " ";
 
-    amrex::MultiFab lhs_cell;
-    amrex::MultiFab rhs_cell;
-    amrex::VisMF::Read(lhs_cell, lhs_path + "/Level_0/Cell");
-    amrex::VisMF::Read(rhs_cell, rhs_path + "/Level_0/Cell");
-    const amrex::MultiFab rhs_cell_aligned =
-        on_grids_of(lhs_cell, std::move(rhs_cell), allow_different_grids, "Cell");
-    compare_component(lhs_cell, rhs_cell_aligned, RhoQ2_comp, "projected qc");
-    compare_component(lhs_cell, rhs_cell_aligned, RhoQ3_comp, "projected qr");
+        amrex::MultiFab lhs_spectrum;
+        amrex::MultiFab rhs_spectrum;
+        amrex::VisMF::Read(lhs_spectrum, lhs_path + level_dir + "/SBMSpectrum");
+        amrex::VisMF::Read(rhs_spectrum, rhs_path + level_dir + "/SBMSpectrum");
+        compare_all_components(lhs_spectrum,
+                               on_grids_of(lhs_spectrum, std::move(rhs_spectrum),
+                                           different_grids, label + "SBMSpectrum"),
+                               label + "SBMSpectrum");
+
+        amrex::MultiFab lhs_cell;
+        amrex::MultiFab rhs_cell;
+        amrex::VisMF::Read(lhs_cell, lhs_path + level_dir + "/Cell");
+        amrex::VisMF::Read(rhs_cell, rhs_path + level_dir + "/Cell");
+        const amrex::MultiFab rhs_cell_aligned =
+            on_grids_of(lhs_cell, std::move(rhs_cell), different_grids, label + "Cell");
+        compare_component(lhs_cell, rhs_cell_aligned, RhoQ2_comp, label + "projected qc");
+        compare_component(lhs_cell, rhs_cell_aligned, RhoQ3_comp, label + "projected qr");
+    }
+    require(level > 0, "checkpoints hold no SBM spectrum");
 }
 
 } // namespace

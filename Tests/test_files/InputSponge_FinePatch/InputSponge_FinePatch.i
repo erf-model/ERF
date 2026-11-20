@@ -8,7 +8,7 @@
 # patch, whose boxes stop at k = 15 of 64, was read outside its data at start-up (a crash).
 # Only the xhi side is switched on and amrex.fpe_trap_invalid = 1: the sponge kernels divided by
 # the ramp lengths of the sides that are switched off too (evaluated speculatively by the
-# optimiser), whose ends were never set, and the first step trapped even on one level.
+# optimizer), whose ends were never set, and the first step trapped even on one level.
 # The CTest entry runs it and bounds x_velocity (6 m/s target, 8 m/s free stream plus the start-up
 # adjustment, 8.24 m/s).
 

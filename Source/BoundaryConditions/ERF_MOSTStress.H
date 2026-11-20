@@ -2713,14 +2713,20 @@ struct bulk_coeff_flux
      * @param[in] m_Cd drag coefficient
      * @param[in] m_Ch heat-transfer coefficient
      * @param[in] m_Cq moisture-transfer coefficient
+     * @param[in] use_fixed_tflux impose fixed_tflux as the heat flux instead of using m_Ch
+     * @param[in] fixed_tflux imposed kinematic heat flux <theta'w'> [K m/s], positive upward
      */
     bulk_coeff_flux (amrex::Real m_Cd,
                      amrex::Real m_Ch,
-                     amrex::Real m_Cq)
+                     amrex::Real m_Cq,
+                     bool use_fixed_tflux = false,
+                     amrex::Real fixed_tflux = amrex::Real(0.0))
     {
         mdata.Cd = m_Cd;
         mdata.Ch = m_Ch;
         mdata.Cq = m_Cq;
+        m_use_fixed_tflux = use_fixed_tflux;
+        m_fixed_tflux = fixed_tflux;
     }
 
     /**
@@ -2792,7 +2798,10 @@ struct bulk_coeff_flux
         amrex::Real wsp    = std::sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<T'w'> = -K dTdz
-        amrex::Real moflux  = rho * mdata.Ch * wsp * (thsurf - th);
+        // With most.surf_temp_flux given, the kinematic heat flux is imposed (WRF's constant
+        // drag coefficient with an imposed heat flux) and Ch, the wind and theta_surf are not used.
+        amrex::Real moflux  = (m_use_fixed_tflux) ? rho * m_fixed_tflux
+                                                  : rho * mdata.Ch * wsp * (thsurf - th);
 
         return moflux;
     }
@@ -2873,6 +2882,8 @@ struct bulk_coeff_flux
 
 private:
     most_data mdata;
+    bool m_use_fixed_tflux{false};
+    amrex::Real m_fixed_tflux{0};
 };
 
 

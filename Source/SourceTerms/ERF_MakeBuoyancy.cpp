@@ -28,7 +28,8 @@ using namespace amrex;
  * @param[in]  base_state    base state
  * @param[in]  n_qstate      Number of moist variables used by the current model
  * @param[in]  ebfact        Container of EB information
- * @param[in]  anelastic     Are we solving the anelastic equations (1 if yes, 0 if no)
+ * @param[in]  anelastic     Are we solving the anelastic equations (1 if yes, 0 if no; a pseudo-incompressible
+ *                           level passes 0 and uses the density departure, buoyancy_type 1)
  */
 
 void make_buoyancy (int lev,

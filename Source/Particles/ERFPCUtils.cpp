@@ -126,9 +126,15 @@ void ERFPC::ExtractAndRouteOORParticles (int a_lev)
     locator_fine.build(ParticleBoxArray(a_lev), m_gdb->Geom(a_lev));
     auto ag_fine = locator_fine.getGridAssignor();
 
-    // Find a local L0 grid index to receive routed particles.  Particles that
+    // Find an L0 grid index to receive routed particles.  Particles that
     // leave the fine level always fall to L0 (which covers the full domain).
-    int dest_grid_L0 = -1;
+    // A local grid is preferred; a rank that owns no L0 grid stages them on
+    // grid 0, since Redistribute(0, 0) visits every tile on the rank and sends
+    // each particle to the owner of the grid that contains it (#5172).
+    // Redistribute does not erase the then-empty (0, 0) tile, so such a rank
+    // keeps one in GetParticles(0) for grid 0 it does not own: ParIter skips
+    // it, but a raw loop over that map must not index a MultiFab by its grid.
+    int dest_grid_L0 = 0;
     {
         const int my_proc = ParallelDescriptor::MyProc();
         const auto& dm0 = ParticleDistributionMap(0);
@@ -138,8 +144,7 @@ void ERFPC::ExtractAndRouteOORParticles (int a_lev)
     }
     DefaultAssignor cell_assignor;
 
-    if (dest_grid_L0 >= 0) {
-      for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+    for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
         auto& src_tile = ParticlesAt(a_lev, pti);
         auto& aos = src_tile.GetArrayOfStructs();
         auto* p_pbox = aos().data();
@@ -180,7 +185,6 @@ void ERFPC::ExtractAndRouteOORParticles (int a_lev)
             if (mask_ptr[i]) { p_pbox[i].id() = -1; }
         });
         Gpu::synchronize();
-      }
     }
 
     Redistribute(0, 0);

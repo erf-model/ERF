@@ -206,6 +206,151 @@ makes the layers through the boundary layer substantially thicker than the file'
 A level whose grids do not reach the top of the domain has no mean profile over part of its
 column, and falls back to the geometric construction with a message saying so.
 
+.. _subsec:wrfinput-surface-fields:
+
+Land and soil fields of a wrfinput file
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With the two-stream force-restore surface energy balance
+(``erf.radiation_model = TwoStream`` and ``erf.radiation.seb_prognostic_enable = true``)
+and no land model, the reader also takes the fields below. There is no input for this.
+Each field is optional: one that the file does not carry is reported as skipped and the
+run goes on. With a land model the list of fields does not change: the land model asks for
+the fields it needs (``LAI``, ``VEGFRA``, ``TMN``, ``TSLB``, ``SMOIS``, ``ZS``, ``DZS``
+among them), they are required, and the others in the table are not read. One thing
+changes with a land model too: every soil layer of the file is read (see below).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 14 16 56
+
+   * - Variable
+     - Units
+     - Allowed range
+     - Meaning
+   * - ``LAI``
+     - m2/m2
+     - 0 to 100
+     - Leaf area index
+   * - ``VEGFRA``
+     - %
+     - 0 to 100
+     - Vegetation fraction
+   * - ``TMN``
+     - K
+     - 0 to 1000
+     - Deep soil temperature
+   * - ``ZNT``
+     - m
+     - 0 to 100
+     - Roughness length
+   * - ``ALBEDO``
+     - 1
+     - 0 to 1
+     - Surface albedo
+   * - ``ALBBCK``
+     - 1
+     - 0 to 1
+     - Background (snow-free) albedo
+   * - ``SEAICE``
+     - 1
+     - 0 to 1
+     - Sea ice flag
+   * - ``SNOW``
+     - kg/m2
+     - 0 to 1e6
+     - Snow water equivalent
+   * - ``SNOWH``
+     - m
+     - 0 to 1e4
+     - Snow depth
+   * - ``TSLB``
+     - K
+     - 0 to 1000
+     - Soil temperature, one value per soil layer, top layer first
+   * - ``SMOIS``
+     - m3/m3
+     - 0 to 1
+     - Soil moisture, one value per soil layer, top layer first
+   * - ``ZS``
+     - m
+     - 0 to 1e4, increasing
+     - Depth of the center of each soil layer, one column for the level
+   * - ``DZS``
+     - m
+     - > 0 to 1e4
+     - Thickness of each soil layer, one column for the level
+
+A field that holds a value outside the allowed range, or one that is not finite, is not
+held. The run goes on, as for a field the file does not have. The log has one line that
+names the variable and the level and gives the number of values outside the range, the
+number that are not finite, and the span of the finite values, for example::
+
+    Warning: wrfinput SNOWH at level 0 is not held: 96 value(s) outside 0 to 10000 [m], 0 not finite; the finite values span -999 to -999
+
+Files can hold such values where a field does not apply: a snow depth of -999, or a sea
+ice value just below zero. Nothing is clamped; the field is left out as a whole. The code
+that takes a field decides whether its absence stops the run. The other fields of the
+level are not affected.
+
+The range only leaves out values that cannot be the named quantity; a field that the file
+declares and leaves at zero is held. The upper bounds of ``LAI``, ``TMN``, ``ZNT``,
+``SNOW``, ``SNOWH``, ``TSLB``, ``ZS`` and ``DZS`` are not physical limits. They are set
+far above any value of the quantity so that a NetCDF fill value (9.97e36) is left out.
+For every field held, the log reports the number of components, the minimum and the
+maximum over the level.
+
+``ZS`` may start at zero: a land model can put its first level at the surface. ``ZS`` or
+``DZS`` that is zero in every layer is taken as not given, and the log says so. Files
+written without a land model can hold them that way. ``TSLB``, ``SMOIS``, ``ZS`` and
+``DZS``, whichever are read, must have the same number of layers; when they do not, the
+four are left out together, with a message. Every soil layer of the file is read, also
+when the file has fewer atmospheric levels than soil layers. Before, the soil variables
+were cut at the number of atmospheric levels; this also holds for a run with a land
+model, where it is the intended behavior: the soil arrays of a land model have the
+file's number of soil layers.
+
+A ``wrfinput`` file written by ``real.exe`` holds ``ALBBCK`` and does not hold ``ALBEDO``
+or ``ZNT``; those two are in ``wrfout`` files and in hand-built files. This was checked on
+one file written by ``real.exe`` of WRF V4.8.0.
+
+The fields are kept per level in ``WRFSurfaceFields``
+(``Source/Initialization/ERF_WRFSurfaceFields.H``). They are data of the initial time.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Event
+     - What the level holds afterwards
+   * - Initial read
+     - The fields its files hold and that pass the checks. A level put together from
+       several files takes a field when the files together cover every column of the
+       level; otherwise the field is left out, with a message
+   * - Checkpoint and restart
+     - The same fields. They are written to the checkpoint (``WRFSurfaceFieldsHeader``
+       and one ``WRFSfc_<NAME>`` per field and level) and read back, also onto other
+       grids. The log of the restart reports each one. A checkpoint written before this
+       was added gives none, with a message. Where the grids of the restart reach beyond
+       those of the checkpoint, the rule of a regrid below applies
+   * - Regrid or rebalance of the level
+     - The same fields on the new grids. A column the old grids of the level covered
+       keeps its values. Any other column takes the values of the column of the next
+       coarser level it lies in (piecewise constant: a flag stays a flag, and a soil
+       profile stays that of one column). A field that the coarser level does not hold
+       with the same number of soil layers is dropped when the new grids reach beyond the
+       old ones, and the log says so. With ``erf.v`` above zero the log reports each
+       field put on new grids, with the number of columns taken from the coarser level
+   * - Level removed
+     - None; the log says so when the level held any
+   * - Level without a file of its own (made by tagging, at the start or by a regrid)
+     - Every field of the next coarser level, and its soil layer depths, in the same way
+
+No part of ERF uses them yet; the force-restore balance will take its albedo, roughness,
+deep temperature, soil moisture and snow from them in later changes. Until then the cost
+is the read of up to thirteen more variables at the start, the memory of up to eleven
+two-dimensional fields per level, and their files in each checkpoint.
+
 .. _sec:nested-wrfinput:
 
 Nested Initialization From WRF Input Files
@@ -292,6 +437,26 @@ Note that all three components must be given.  Supplying only x and y is the doc
 way to ask for the full depth of the domain (see :ref:`subsec:full-depth-refinement`),
 which is the opposite of what is wanted here.
 
+With three or more levels, a nest at level 2 or above is placed relative to the *whole*
+file of its parent level, as WRF places it, not relative to the part of that file ERF refines.
+Cropping level 1 with a refinement indicator therefore does not move level 2. This has
+consequences:
+
+- each ancestor level must be given exactly one ``nc_init_file``, since WRF's metadata does
+  not say which of several files at a level is the parent; ERF aborts otherwise. Successive
+  files in time (for example ``erf.nc_init_file_1 = "wrfinput_d02_t0" "wrfinput_d02_t1"``) are
+  possible only at the finest level;
+- every level-2 or finer region must fit inside its parent's ERF region, with the
+  proper-nesting buffer of ``amr.n_proper`` cells except at the domain boundary. ERF aborts,
+  printing both regions, if it does not; enlarge the parent's region or crop the finer level
+  with a refinement indicator;
+- a restart reads the ``nc_init_file`` of every ancestor level again to place the nests, so
+  those files must still be available.
+
+A WRF nest carries the full column of eta levels of its parent, so its vertical indices are
+those of the domain at every level: a refined region that starts above the bottom of the
+domain takes the file's data for the layers it covers.
+
 If no file is given for the finer level, omit ``erf.nc_init_file_1`` and use a refinement
 indicator alone.  The finer level's terrain and state are then interpolated from its
 parent, and its base state is built as described below.  This works whether or not the
@@ -306,6 +471,9 @@ When ``erf.nc_low_file`` names a wrflowinp file, level 0 reads its sea surface t
 (SST) from it at each of the file's times, and the surface layer interpolates linearly in
 time between the two slices that bracket the current time.  Over water the skin
 temperature (TSK) takes the SST from the file, so it is interpolated in time the same way.
+Both are kept as absolute temperature; the surface layer converts them to potential
+temperature with the surface pressure of the current state each time it uses them, so
+the surface potential temperature follows the pressure as it changes during the run.
 
 A finer level may be given a wrflowinp file of its own, as WRF does for a nest run with
 ``sst_update = 1``::

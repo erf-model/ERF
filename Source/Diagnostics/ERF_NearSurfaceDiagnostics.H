@@ -247,6 +247,7 @@ struct Sources
     const amrex::iMultiFab* land_mask = nullptr;
     const amrex::MultiFab* cons = nullptr;
     const amrex::MultiFab* z_phys_nd = nullptr;
+    const amrex::MultiFab* z_sfc_nd = nullptr;  ///< ground heights at the nodes; needed with z_phys_nd
     similarity_funs sfuns;                ///< the surface layer's similarity functions (most.stable_functions)
 
     amrex::Real dz = amrex::Real(0.0);
@@ -270,6 +271,9 @@ void fill (amrex::MultiFab& dst,
 // Inputs to the 10 m wind: the surface layer's friction velocity, roughness height
 // and Obukhov length set the speed; the grid-relative wind at the centre of the first
 // cell sets the direction; cos_alpha and sin_alpha, where given, turn it earth-relative.
+// Over a moving surface (current_x and current_y given, on the x- and y-faces of the
+// plane k = klo) the speed and direction are those of the wind relative to the surface,
+// and the current is added back.
 struct WindSources
 {
     const amrex::MultiFab* u_star = nullptr;
@@ -277,6 +281,8 @@ struct WindSources
     const amrex::MultiFab* obukhov_length = nullptr;
     const amrex::MultiFab* xvel = nullptr;
     const amrex::MultiFab* yvel = nullptr;
+    const amrex::MultiFab* current_x = nullptr;
+    const amrex::MultiFab* current_y = nullptr;
     const amrex::MultiFab* cos_alpha = nullptr;
     const amrex::MultiFab* sin_alpha = nullptr;
     similarity_funs sfuns;                ///< the surface layer's similarity functions (most.stable_functions)

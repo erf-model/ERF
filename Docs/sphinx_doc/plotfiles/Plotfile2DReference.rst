@@ -191,6 +191,81 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``W/m^2``
      - ``FillMinus999WhenUnavailable``
      - Latent heat flux in the two-stream simplified surface energy balance
+   * - ``seb_sw_net``
+     - ``Radiation``
+     - ``W/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Net shortwave absorbed by the two-stream simplified surface energy balance at its last update after the dycore
+   * - ``ibseb_ground_shadow``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Shadow of the immersed-boundary buildings on the ground for the two-stream surface energy balance on the sweep's shortwave: 1 shaded, 0 sunlit
+   * - ``seb_lw_net``
+     - ``Radiation``
+     - ``W/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Net longwave absorbed by the two-stream simplified surface energy balance at its last update after the dycore
+   * - ``ibseb_ground_wall_view``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Share of the ground's view of the sky taken by the walls of the immersed-boundary buildings (erf.ibseb.ground_sky_view)
+   * - ``seb_t_deep``
+     - ``Radiation``
+     - ``K``
+     - ``FillMinus999WhenUnavailable``
+     - Deep soil temperature of the two-stream force-restore balance (evolves with erf.radiation.seb_deep_prognostic_enable)
+   * - ``seb_q_deep``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Mean water content of the soil column of the two-stream force-restore balance (evolves with erf.radiation.seb_deep_prognostic_enable)
+   * - ``seb_rain_rate``
+     - ``Radiation``
+     - ``kg/m^2/s``
+     - ``FillMinus999WhenUnavailable``
+     - Rain rate at the two-stream force-restore soil over the last step (erf.radiation.seb_precipitation_source; not checkpointed, so zero at a restart step)
+   * - ``seb_rain_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Rain the two-stream force-restore hydrology has taken in since the start
+   * - ``seb_runoff_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Water above the porosity that has run off the two-stream force-restore soil since the start
+   * - ``seb_drainage_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Gravitational drainage out of the bottom of the two-stream force-restore soil column since the start (erf.radiation.seb_drainage_enable)
+   * - ``seb_deficit_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Evaporation the two-stream force-restore soil column could not supply since the start
+   * - ``seb_snow_swe``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Snow water equivalent on the two-stream force-restore surface (erf.radiation.seb_snow_enable)
+   * - ``seb_snowfall_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Frozen precipitation the two-stream force-restore snow layer has taken in since the start
+   * - ``seb_snow_sublimation_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Snow sublimated from the two-stream force-restore snow layer since the start
+   * - ``seb_snow_melt_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Snow melted on the two-stream force-restore surface since the start (the melt water goes to the soil as rain)
    * - ``sens_flux``
      - ``SurfaceFlux``
      - ``kg K m^-2 s^-1``
@@ -447,17 +522,17 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``FillMinus999WhenUnavailable``
      - Noah-MP vegetation fraction
    * - ``temperature_2m``
-     - ``LandSurface``
+     - ``NearSurface``
      - ``K``
      - ``FillMinus999WhenUnavailable``
      - Physical air temperature 2 m above the local surface
    * - ``water_vapor_mixing_ratio_2m``
-     - ``LandSurface``
+     - ``NearSurface``
      - ``kg kg^-1 dry air``
      - ``FillMinus999WhenUnavailable``
      - Water-vapor mixing ratio 2 m above the local surface per unit dry-air mass
    * - ``near_surface_diagnostic_source``
-     - ``LandSurface``
+     - ``NearSurface``
      - ``1``
      - ``AlwaysAvailable``
      - Source code for the unified near-surface diagnostic bundle
@@ -503,14 +578,14 @@ The selection contract and the value written after selection are separate:
      - Value: the wind 10 m above the local surface, as WRF's ``U10``/``V10``. Its speed is
        :math:`u_* / \kappa \, [\ln(10/z_0) - \psi_m(10/L)]` from the surface layer's
        :math:`u_*`, :math:`z_0` and Obukhov length :math:`L` (with :math:`10/L` capped at 1,
-       as for ``temperature_2m``), and its direction that of the wind at the centre of the
+       as for ``temperature_2m``), and its direction that of the wind at the center of the
        first cell. ``u_east_10m`` and ``v_north_10m`` are turned earth-relative with the
        grid orientation from the run's latitude and longitude, as the sampled ``u_east``
        and ``v_north`` are; without them the grid is taken to be aligned with east. ``-999``
        without a surface layer, or where :math:`z_0 \ge 10` m.
    * - ``pblh``
      - Selectable: fixed request name.
-     - Native SHOC ``pblh`` is reported in metres above local ground (AGL). Value: native SHOC PBL height when native SHOC diagnostics are present; otherwise SurfaceLayer; ``-999`` if neither exists.
+     - Native SHOC ``pblh`` is reported in meters above local ground (AGL). Value: native SHOC PBL height when native SHOC diagnostics are present; otherwise SurfaceLayer; ``-999`` if neither exists.
    * - ``OLR``
      - Selectable: fixed request name.
      - Value: radiation output; ``-999`` when the radiation source is absent.
@@ -524,7 +599,10 @@ The selection contract and the value written after selection are separate:
      - Value: the two-stream simplified surface energy balance's own prognostic surface
        state, which is distinct from Noah-MP's ``t_sfc`` and from the surface layer's
        ``t_surf``. ``-999`` unless the two-stream solver is running with
-       ``erf.radiation.seb_enable = true``.
+       ``erf.radiation.seb_enable = true``. On a water column of the land mask the balance
+       does not run: these fields, and the ``seb_*_total`` and ``seb_snow_swe`` fields, hold
+       held values there, not a state of the water (see the land mask under the two-stream
+       surface energy balance inputs).
    * - ``seb_hfx``, ``seb_lh``
      - Selectable: fixed request names.
      - Value: the sensible and latent heat fluxes the two-stream surface energy balance
@@ -540,7 +618,7 @@ The selection contract and the value written after selection are separate:
      - Selectable: fixed request name.
      - Value: the pressure at the ground, as WRF's ``PSFC``: the pressure of the
        lowest cell's state plus :math:`\rho g z_c`, with :math:`z_c` the height
-       of that cell's centre above the ground -- the same surface pressure the
+       of that cell's center above the ground -- the same surface pressure the
        radiation and the surface layer use.
    * - ``sea_level_pressure``
      - Selectable: fixed request name in dry and moist configurations.

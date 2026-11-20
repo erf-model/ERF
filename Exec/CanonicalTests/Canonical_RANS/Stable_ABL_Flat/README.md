@@ -13,7 +13,7 @@ length capped from the diagnosed boundary-layer height
 | item | value |
 | --- | --- |
 | domain | 400 x 400 x 400 m |
-| grid | 8 x 8 x 100, dz = 4 m, first cell centre 2 m |
+| grid | 8 x 8 x 100, dz = 4 m, first cell center 2 m |
 | time step | 2 s fixed, anelastic with FFT |
 | closure | `erf.rans_type = kEqn`, AL01 defaults, `dirichlet_k = true` |
 | physics run | 9 h (16200 steps), about 3 min on 2 ranks |
@@ -30,7 +30,7 @@ python3 check_stable.py --physics plt16200 surf_hist.dat
 
 Smoke (`--smoke`, the CTest entry): the structural checks of
 `../rans_checks.py` (finite fields; KE, Kmv, diss non-negative; wall
-distance equal to the cell-centre height; Lturb at most the unstable bound
+distance equal to the cell-center height; Lturb at most the unstable bound
 of the neutral geometric length; dissipation consistent with AL01 Eq. 19 in
 interior cells within 5 %; wall-cell k retention within 1 %).
 

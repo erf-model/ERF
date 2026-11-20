@@ -2,6 +2,17 @@
 
 cmake_minimum_required (VERSION 3.20 FATAL_ERROR)
 
+# A parent project that adds ERF with add_subdirectory may set ERF options as normal
+# variables before the call. Under CMP0126 OLD, the first configure lets each
+# set(... CACHE ...) below remove that variable, so the option takes its default
+# until the next configure. NEW keeps the parent's value. This concerns the options set
+# with set(... CACHE ...), such as ERF_STRUCTURE_MODEL_DIRS; option() already keeps a
+# normal variable (CMP0077). CMake 3.20 has no CMP0126, and there a parent passes those
+# options as cache variables; the internal AMReX needs CMake 3.25 in any case.
+if(POLICY CMP0126)
+  cmake_policy(SET CMP0126 NEW)
+endif()
+
 # Set main ERF context
 list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")
 
@@ -122,6 +133,8 @@ option(ERF_ENABLE_DOCUMENTATION "Build documentation" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
+option(ERF_ENABLE_SBM_AMR_QUALIFICATION
+  "Build an isolated internal executable for fixed two-level periodic SBM qualification" OFF)
 set(_erf_enable_unit_tests_default OFF)
 if(ERF_ENABLE_TESTS AND NOT ERF_ENABLE_REGRESSION_TESTS_ONLY)
   set(_erf_enable_unit_tests_default ON)
@@ -129,6 +142,7 @@ endif()
 option(ERF_ENABLE_UNIT_TESTS "Enable gtest-based unit tests" ${_erf_enable_unit_tests_default})
 if(ERF_ENABLE_REGRESSION_TESTS_ONLY)
   set(ERF_ENABLE_UNIT_TESTS OFF CACHE BOOL "Enable gtest-based unit tests" FORCE)
+  set(ERF_ENABLE_UNIT_TESTS OFF)   # also over a normal variable a parent project set (CMP0126 NEW)
 endif()
 option(ERF_USE_INTERNAL_AMREX "Add AMReX as subproject" ON)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
@@ -145,20 +159,11 @@ option(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS "Enable ML UPHYS diagnostics in SDM" OFF)
 if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS AND NOT ERF_ENABLE_PARTICLES)
   message(FATAL_ERROR "ERF_ENABLE_ML_UPHYS_DIAGNOSTICS requires particles be enabled")
 endif()
-option(ERF_ENABLE_EAMXX_SHOC "Build EAMxx SHOC parameterization" OFF)
-option(ERF_ENABLE_SHOC "Deprecated alias for ERF_ENABLE_EAMXX_SHOC" OFF)
-if(ERF_ENABLE_SHOC AND NOT ERF_ENABLE_EAMXX_SHOC)
-  message(WARNING "ERF_ENABLE_SHOC is deprecated; use ERF_ENABLE_EAMXX_SHOC=ON")
-  set(ERF_ENABLE_EAMXX_SHOC ON CACHE BOOL "Build EAMxx SHOC parameterization" FORCE)
-endif()
-
-# The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so
-# scream::Real is double and the EAMxx ETI files we compile only instantiate the SHOC templates
-# for double.  ERF instantiates them with amrex::Real, so a SINGLE precision build would ask for
-# Functions<float,...> and fail to link.  Refuse the combination here rather than at link time.
-if(ERF_ENABLE_EAMXX_SHOC AND NOT ERF_PRECISION STREQUAL "DOUBLE")
-  message(FATAL_ERROR "ERF_ENABLE_EAMXX_SHOC requires ERF_PRECISION=DOUBLE because the vendored "
-                      "eamxx_config.h builds EAMxx in double precision")
+# The EAMxx SHOC has been removed; native SHOC (erf.pbl_type = NATIVE_SHOC) is always built
+if(ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_SHOC)
+  message(FATAL_ERROR "ERF_ENABLE_EAMXX_SHOC and ERF_ENABLE_SHOC are no longer available: the "
+                      "EAMxx SHOC has been removed. Native SHOC needs no build option; select it "
+                      "with erf.pbl_type = NATIVE_SHOC.")
 endif()
 
 #Options for performance
@@ -195,6 +200,11 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
 option(ERF_ENABLE_FIRE "Enable the fire coupling (the atmosphere side; fire engines plug into it)" OFF)
 set(ERF_FIRE_ENGINE_DIRS "" CACHE STRING "Fire engine directories (each with ERFFireEngine.cmake) to compile in; needs ERF_ENABLE_FIRE")
+option(ERF_ENABLE_MOVING_BODIES "Enable the actuator core and the structure coupling for bodies in the flow (Source/MovingBodies)" OFF)
+set(ERF_STRUCTURE_MODEL_DIRS "" CACHE STRING "Structure model directories (each with ERFStructureModel.cmake) to compile in; needs ERF_ENABLE_MOVING_BODIES")
+option(ERF_ENABLE_DUST "Enable the dust coupling (the atmosphere side; dust models plug into it)" OFF)
+set(ERF_NUM_DUST_SCALARS "1" CACHE STRING "Number of passive scalars the dust coupling adds to the state; needs ERF_ENABLE_DUST")
+set(ERF_DUST_MODEL_DIRS "" CACHE STRING "Dust model directories (each with ERFDustModel.cmake) to compile in; needs ERF_ENABLE_DUST")
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
 option(ERF_ENABLE_WDM6_FORT "Enable WDM6 Fortran bridge calls" OFF)
 
@@ -405,7 +415,7 @@ list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 
 ########################## EKAT ##################################
 
-if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC)
+if(ERF_ENABLE_RRTMGP)
   set(ERF_ENABLE_EKAT ON)
 else()
   set(ERF_ENABLE_EKAT OFF)
@@ -692,45 +702,6 @@ if(ERF_ENABLE_RRTMGP)
   print_target_properties(rrtmgp)
 
   message(STATUS "RRTMGP configuration complete")
-  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
-endif()
-
-########################### SHOC #################################
-
-if(ERF_ENABLE_EAMXX_SHOC)
-  list(APPEND CMAKE_MESSAGE_CONTEXT "SHOC")
-
-  message(STATUS "Configuring SHOC")
-
-  if(NOT ERF_ENABLE_EKAT)
-      message(FATAL_ERROR "EKAT must be enabled if SHOC is enabled")
-  endif()
-
-  # NOTE: We compile shoc src files directly
-  message(VERBOSE "SHOC source files will be compiled directly")
-
-  # E3SM Cloned Check
-  message(VERBOSE "Checking EAMxx files from E3SM")
-
-  set(E3SM_EXPECTED_PATH "${PROJECT_SOURCE_DIR}/external/E3SM")
-
-  if(NOT EXISTS "${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
-      message(FATAL_ERROR
-          "E3SM provides eamxx required for SHOC but not found.\n"
-          "\n"
-          "This requires specific EAMxx physics source files from E3SM at commit 2eb52d9.\n"
-          "\n"
-          "Option 1 - Use provided script (recommended):\n"
-          "  ${PROJECT_SOURCE_DIR}/Build/eamxx_clone.sh\n"
-          "\n"
-          "Option 2 - Symlink existing E3SM (not tested, must be at commit 2eb52d9b3d):\n"
-          "  ln -s /path/to/your/E3SM ${PROJECT_SOURCE_DIR}/external/E3SM\n"
-          "\n"
-          "Or disable features:\n"
-          "  cmake -DERF_ENABLE_EAMXX_SHOC=OFF ..\n")
-  endif()
-
-  message(STATUS "SHOC configuration complete")
   list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 

@@ -1,5 +1,6 @@
 #include <array>
 #include "ERF_Constants.H"
+#include <limits>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -377,6 +378,25 @@ TEST(KesslerScalar, TerminalVelocity_ZeroRainGivesZeroFlux)
     EXPECT_NEAR(flux, amrex::Real(0.0), exact_zero_or_near_zero_tol());
 }
 
+// Motivation (#5193): the reference helpers share the kessler_vt_* constants with
+// kessler_terminal_velocity, so they cannot catch a wrong value. Pin the values,
+// and the fall speed at one state, with literals from Klemp & Wilhelmson (1978)
+// as used by WRF module_mp_kessler.F. With the transposed exponent 0.1346 the
+// fall speed below would be 5.7027 m/s.
+TEST(KesslerScalar, TerminalVelocity_PinnedCoefficients)
+{
+    EXPECT_EQ(kessler_vt_coeff, amrex::Real(36.34));
+    EXPECT_EQ(kessler_vt_rho_to_cgs, amrex::Real(0.001));
+    EXPECT_EQ(kessler_vt_exponent, amrex::Real(0.1364));
+    EXPECT_EQ(kessler_vt_rho0, amrex::Real(1.16));
+    EXPECT_EQ(kessler_vt_density_exponent, amrex::Real(-0.5));
+
+    // 36.34 * (0.001 * 1.2 * 1.0e-3)^0.1364 * (1.2 / 1.16)^(-1/2), evaluated in double.
+    const amrex::Real expected = amrex::Real(5.564467580979174);
+    const amrex::Real velocity = kessler_terminal_velocity(amrex::Real(1.2), amrex::Real(1.0e-3));
+    EXPECT_NEAR(velocity, expected, backend_math_abs_tol(expected));
+}
+
 // Motivation: Terminal velocity should be nondecreasing in rain water for
 // fixed positive density. This protects a basic physical monotonicity contract.
 TEST(KesslerScalar, TerminalVelocity_MonotoneInQp)
@@ -576,7 +596,8 @@ TEST(KesslerScalar, SedimentationThreshold_StrictLessThanAbsoluteCutoff)
 TEST(KesslerScalar, SubstepCount_IntegerFormulaForProvidedReducedValue)
 {
     const amrex::Real reduced_value = amrex::Real(0.375);
-    const int actual = kessler_num_sedimentation_substeps(reduced_value, amrex::Real(2.0), amrex::Real(0.5));
+    const int actual = kessler_num_sedimentation_substeps(
+        kessler_fall_courant(reduced_value, amrex::Real(2.0), amrex::Real(0.5), amrex::Real(1.0)));
     const int expected = reference_substeps_from_reduced_value(reduced_value, amrex::Real(2.0), amrex::Real(0.5));
 
     EXPECT_EQ(actual, expected);
@@ -608,7 +629,6 @@ TEST(KesslerScalar, CopyStateToMicro_PressureStoredInMbar)
     SolverChoice sc = make_solver_choice(MoistureType::Kessler, false);
 
     kessler.Define(sc);
-    kessler.Set_dzmin(geom.CellSize(2));
     kessler.Init(cons, ba, geom, kDefaultDt, z_phys_nd, detJ_cc);
     run_and_sync([&] {
         kessler.Copy_State_to_Micro(cons);
@@ -657,7 +677,6 @@ TEST(KesslerScalar, CopyMicroToState_WritesQvQcQpAsRhoWeightedConservedScalars)
     SolverChoice sc = make_solver_choice(MoistureType::Kessler, false);
 
     kessler.Define(sc);
-    kessler.Set_dzmin(geom.CellSize(2));
     kessler.Init(cons, ba, geom, kDefaultDt, z_phys_nd, detJ_cc);
 
     run_and_sync([&] {
@@ -691,7 +710,6 @@ TEST(KesslerScalar, CopyMicroToState_WritesCurrentMicroThetaToRhoTheta)
     SolverChoice sc = make_solver_choice(MoistureType::Kessler, false);
 
     kessler.Define(sc);
-    kessler.Set_dzmin(geom.CellSize(2));
     kessler.Init(cons, ba, geom, kDefaultDt, z_phys_nd, detJ_cc);
 
     run_and_sync([&] {
@@ -753,7 +771,7 @@ TEST(KesslerScalar, RainAccumulationConvertsMassPerAreaToMillimeters)
 }
 
 // Motivation: The sedimentation substep count contract is a terminal-velocity
-// CFL, n = ceil((V_terminal + eps) * dt / dz / CFL_MAX). A flux-like reduced
+// CFL, n = max(1, ceil(V_terminal * dt / dz / CFL_MAX)). A flux-like reduced
 // value rho * V_terminal * qp is dimensionally different and must not be used
 // as a drop-in replacement for the CFL quantity.
 TEST(KesslerScalar, SubstepCountUsesTerminalVelocityCFL)
@@ -765,10 +783,103 @@ TEST(KesslerScalar, SubstepCountUsesTerminalVelocityCFL)
     const amrex::Real velocity = reference_terminal_velocity(rho, qp);
     const amrex::Real reduced_flux_like_value = reference_precip_flux(rho, velocity, qp);
 
-    EXPECT_EQ(kessler_num_sedimentation_substeps(velocity, dt, dz),
+    const amrex::Real one_r = amrex::Real(1.0);
+
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(velocity, dt, dz, one_r)),
               reference_velocity_cfl_substeps(velocity, dt, dz));
-    EXPECT_NE(kessler_num_sedimentation_substeps(reduced_flux_like_value, dt, dz),
+    EXPECT_NE(kessler_num_sedimentation_substeps(kessler_fall_courant(reduced_flux_like_value, dt, dz, one_r)),
               reference_velocity_cfl_substeps(velocity, dt, dz));
+}
+
+// Motivation: The substep count follows the fall Courant number at each face, over
+// the physical height dz*detJ of the cell the face drains, not the domain's fastest
+// rain over its thinnest cell; with no rain there is still one substep.
+TEST(KesslerScalar, SubstepCountUsesDonorCellHeight)
+{
+    const amrex::Real dt = amrex::Real(5.0);
+    const amrex::Real dz = amrex::Real(100.0);
+
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(0.0), dt, dz, amrex::Real(1.0))), 1);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(10.0), dt, dz, amrex::Real(1.0))), 1);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(10.0001), dt, dz, amrex::Real(1.0))), 2);
+    // The same 10 m/s needs two substeps out of a cell half as tall, and 20 m/s needs one
+    // out of a cell twice as tall.
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(10.0), dt, dz, amrex::Real(0.5))), 2);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(amrex::Real(20.0), dt, dz, amrex::Real(2.0))), 1);
+}
+
+// Motivation: The substep count is fixed at the start of the step, while the cells below
+// the rain front are still dry. A face inside the domain is sized by the smaller of its
+// donor and the cell its rain falls into, so a thinner cell below raises the count; the
+// surface and top faces use the donor alone, and with J = 1 (EB, or no terrain) the rule
+// reduces to the reference dz.
+TEST(KesslerScalar, SizingDetJ_LooksOneCellBelowInsideTheDomain)
+{
+    const int k_lo = 0;
+    const int k_hi = 9;
+    const amrex::Real half = amrex::Real(0.5);
+
+    // Interior faces take the smaller of donor and receiver
+    EXPECT_EQ(kessler_sizing_detJ(5, k_lo, k_hi, one, half), half);
+    EXPECT_EQ(kessler_sizing_detJ(5, k_lo, k_hi, half, one), half);
+    EXPECT_EQ(kessler_sizing_detJ(5, k_lo, k_hi, one, two), one);
+    EXPECT_EQ(kessler_sizing_detJ(k_lo + 1, k_lo, k_hi, one, half), half);
+    EXPECT_EQ(kessler_sizing_detJ(k_hi, k_lo, k_hi, one, half), half);
+
+    // The surface face drains out of the domain and the top face carries no rain
+    EXPECT_EQ(kessler_sizing_detJ(k_lo, k_lo, k_hi, one, half), one);
+    EXPECT_EQ(kessler_sizing_detJ(k_hi + 1, k_lo, k_hi, one, half), one);
+
+    // J = 1 everywhere (EB, or no terrain): the uniform-grid count is unchanged
+    EXPECT_EQ(kessler_sizing_detJ(5, k_lo, k_hi, one, one), one);
+
+    // 10 m/s over dt = 5 s falls half of a 100 m donor, so one substep; with a 50 m cell
+    // below, an interior face needs two, and the surface face still needs one
+    const amrex::Real dt = amrex::Real(5.0);
+    const amrex::Real dz = amrex::Real(100.0);
+    const amrex::Real v  = amrex::Real(10.0);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(
+                  v, dt, dz, kessler_sizing_detJ(5, k_lo, k_hi, one, one))), 1);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(
+                  v, dt, dz, kessler_sizing_detJ(5, k_lo, k_hi, one, half))), 2);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(kessler_fall_courant(
+                  v, dt, dz, kessler_sizing_detJ(k_lo, k_lo, k_hi, one, half))), 1);
+}
+
+// Motivation: The donor cap keeps qp non-negative when rain enters a thinner cell later
+// in a step than the substep count looked. It must bind when the face would export more
+// than the donor holds, and leave the flux alone otherwise.
+TEST(KesslerScalar, LimitPrecipFlux_CapsAtDonorContent)
+{
+    const amrex::Real rho  = amrex::Real(1.1);
+    const amrex::Real qp   = amrex::Real(2.0e-3);
+    const amrex::Real detJ = amrex::Real(0.5);
+    const amrex::Real coef = amrex::Real(0.1);  // dt/dz
+    const amrex::Real cap  = rho * qp * detJ / coef;
+
+    // Below the cap: untouched
+    EXPECT_EQ(kessler_limit_precip_flux(amrex::Real(0.5) * cap, rho, qp, detJ, coef), amrex::Real(0.5) * cap);
+    // Above the cap: exports what the donor holds, so the donor ends at zero
+    const amrex::Real capped = kessler_limit_precip_flux(amrex::Real(3.0) * cap, rho, qp, detJ, coef);
+    EXPECT_EQ(capped, cap);
+    EXPECT_NEAR(rho * qp * detJ - capped * coef, amrex::Real(0.0),
+                amrex::Real(10.0) * std::numeric_limits<amrex::Real>::epsilon() * rho * qp * detJ);
+    // A dry donor exports nothing
+    EXPECT_EQ(kessler_limit_precip_flux(amrex::Real(1.0), rho, amrex::Real(0.0), detJ, coef), amrex::Real(0.0));
+}
+
+// Motivation: A NaN, infinite or huge Courant number must not reach the int cast
+// (undefined behavior); the count returns one past the ceiling, which AdvanceKessler
+// rejects with a message.
+TEST(KesslerScalar, SubstepCount_NonFiniteOrHugeCourantReturnsPastCeiling)
+{
+    const int past = kessler_max_sedimentation_substeps + 1;
+    EXPECT_EQ(kessler_num_sedimentation_substeps(std::numeric_limits<amrex::Real>::quiet_NaN()), past);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(std::numeric_limits<amrex::Real>::infinity()), past);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(amrex::Real(1.0e30)), past);
+    EXPECT_EQ(kessler_num_sedimentation_substeps(
+                  kessler_sedimentation_cfl_max * amrex::Real(kessler_max_sedimentation_substeps)),
+              kessler_max_sedimentation_substeps);
 }
 
 // Motivation: Total vapor supplied by cloud evaporation plus rain evaporation

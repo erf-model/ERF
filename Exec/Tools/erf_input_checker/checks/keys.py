@@ -11,6 +11,8 @@ from ..findings import Severity
 # Inputs that SolverChoice refuses (Docs: "Deprecated and Removed Inputs")
 RETIRED_KEYS = {
     "erf.use_terrain": "set erf.terrain_type instead",
+    "erf.shoc.apply_tms": "it was an option of the EAMxx SHOC, which has been removed; native SHOC does not use it",
+    "erf.shoc.check_flux_state": "it was an option of the EAMxx SHOC, which has been removed; native SHOC does not use it",
     "erf.use_moist_background": "set erf.init_type = MoistBaseState instead",
     "erf.moisture_type": "renamed: set erf.moisture_model instead",
     "erf.no_substepping": "set erf.timestepping_type = RK3_NoSubstepping instead",
@@ -29,10 +31,11 @@ DEPRECATED_KEYS = {
 }
 RETIRED_VALUES = {
     "erf.init_type": {"real": "WRFInput", "ideal": "WRFInput"},
+    "erf.pbl_type": {"eamxx_shoc": "NATIVE_SHOC"},
 }
 RENAMED_VALUES = {
     "erf.terrain_type": {"static": "StaticFittedMesh", "moving": "MovingFittedMesh"},
-    "erf.pbl_type": {"shoc": "EAMXX_SHOC"},
+    "erf.pbl_type": {"shoc": "NATIVE_SHOC"},
 }
 
 # Prefixes whose keys are defined per problem or per sub-model, not in the
@@ -58,6 +61,7 @@ def _find_docs() -> Optional[str]:
 
 
 _DOC_KEY_RE = re.compile(r"\*\*([A-Za-z0-9_.<>]+)\*\*")
+_RST_COMMENT_RE = re.compile(r"\.\.(?:\s*$|\s+(?![_\[|])(?!\S+::))")
 _DOC_CODE_RE = re.compile(r"``((?:erf|amr|geometry|xlo|xhi|ylo|yhi|zlo|zhi)\.[A-Za-z0-9_.]+)``")
 
 
@@ -119,7 +123,16 @@ def _documented_keys(path):
         pages.extend(os.path.join(dirpath, f) for f in files if f.endswith(".rst"))
     for page in pages:
         with open(page, errors="replace") as fh:
+            in_comment = False
             for line in fh:
+                # An RST comment (".. text" that is not a directive, target, footnote or
+                # substitution) runs through its indented and blank lines; keys in it, such
+                # as a table row commented out with a deactivated feature, are not documented.
+                if in_comment and (not line.strip() or line[0] in " \t"):
+                    continue
+                in_comment = bool(_RST_COMMENT_RE.match(line))
+                if in_comment:
+                    continue
                 for m in _DOC_KEY_RE.finditer(line):
                     k = m.group(1)
                     if "." in k:

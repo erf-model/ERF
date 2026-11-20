@@ -198,8 +198,6 @@ update_sst_tsk (const int lev,
                 std::unique_ptr<SurfaceLayer>& SurfLayer,
                 const Vector<Vector<FArrayBox>>& low_data_zlo,
                 const MultiFab& cons,
-                const MultiFab& mf_PSFC_lev,
-                const Real rdOcp,
                 std::unique_ptr<iMultiFab>& lmask,
                 const bool /*use_moist*/)
 {
@@ -242,13 +240,11 @@ update_sst_tsk (const int lev,
         const Array4<      Real>& sst_arr   = sst_fab.array();
         const Array4<      Real>& tsk_arr   = tsk_fab.array();
         const Array4<const Real>& src_arr   = src.const_array();
-        const Array4<const Real>& psfc_arr  = mf_PSFC_lev.const_array(mfi);
         const Array4<const  int>& lmask_arr = (lmask) ? lmask->const_array(mfi) : Array4<const int> {};
 
-        // For simplicity, assume constant surface pressure = p0
-        // ==> surface theta == SST.
-        // We convert to theta for the surface layer scheme using the
-        // the initial surface pressure since it's not available in the wrflowinp file
+        // The SST is kept as the absolute temperature [K] of the file.  The surface layer
+        // converts it to potential temperature with the current surface pressure each
+        // time it fills t_surf, so no surface pressure is needed here.
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
@@ -256,7 +252,7 @@ update_sst_tsk (const int lev,
             int lj = min(max(j, jlo), jhi);
 
             bool is_land = (lmask_arr) ? lmask_arr(li,lj,0) : true;
-            sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), rdOcp);
+            sst_arr(i,j,0) = src_arr(li,lj,0);
             if (!is_land && std::abs(sst_arr(i,j,0)) < Real(400.0)) {
                 tsk_arr(i,j,0) = sst_arr(i,j,0);
             }

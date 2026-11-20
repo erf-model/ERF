@@ -12,6 +12,7 @@ CEXE_sources += ERF_SlowRhsPre.cpp
 CEXE_sources += ERF_SlowRhsPost.cpp
 CEXE_sources += ERF_Substep_NS.cpp
 CEXE_sources += ERF_CFFluxHistory.cpp
+CEXE_sources += ERF_MomentumReflux.cpp
 CEXE_sources += ERF_Substep_T.cpp
 CEXE_sources += ERF_Substep_MT.cpp
 
@@ -26,5 +27,6 @@ CEXE_headers += ERF_TI_substep_fun.H
 CEXE_headers += ERF_TI_fast_headers.H
 CEXE_headers += ERF_TI_slow_headers.H
 CEXE_headers += ERF_TI_utils.H
+CEXE_headers += ERF_VariableBetaSSwitch.H
 
 CEXE_headers += ERF_MRI.H

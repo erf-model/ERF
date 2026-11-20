@@ -62,43 +62,43 @@ ComputeStrain_EB (const MFIter& mfi,
     bool xl_v_dir = ( (bc_ptr[BCVars::yvel_bc].lo(0) == ERFBCType::ext_dir)          ||
                       (bc_ptr[BCVars::yvel_bc].lo(0) == ERFBCType::ext_dir_upwind)   ||
                       (bc_ptr[BCVars::yvel_bc].lo(0) == ERFBCType::ext_dir_ingested) );
-         xl_v_dir = ( xl_v_dir && (tbxxy.smallEnd(0) == domain_xy.smallEnd(0)) );
+         xl_v_dir = ( xl_v_dir && (tbxxy.smallEnd(0) <= domain_xy.smallEnd(0)) && (tbxxy.bigEnd(0) >= domain_xy.smallEnd(0)) );
 
     bool xh_v_dir = ( (bc_ptr[BCVars::yvel_bc].hi(0) == ERFBCType::ext_dir)          ||
                       (bc_ptr[BCVars::yvel_bc].hi(0) == ERFBCType::ext_dir_upwind)   ||
                       (bc_ptr[BCVars::yvel_bc].hi(0) == ERFBCType::ext_dir_ingested) );
-         xh_v_dir = ( xh_v_dir && (tbxxy.bigEnd(0) == domain_xy.bigEnd(0)) );
+         xh_v_dir = ( xh_v_dir && (tbxxy.smallEnd(0) <= domain_xy.bigEnd(0)) && (tbxxy.bigEnd(0) >= domain_xy.bigEnd(0)) );
 
     bool xl_w_dir = ( (bc_ptr[BCVars::zvel_bc].lo(0) == ERFBCType::ext_dir)          ||
                       (bc_ptr[BCVars::zvel_bc].lo(0) == ERFBCType::ext_dir_upwind)   ||
                       (bc_ptr[BCVars::zvel_bc].lo(0) == ERFBCType::ext_dir_ingested) );
-         xl_w_dir = ( xl_w_dir && (tbxxz.smallEnd(0) == domain_xz.smallEnd(0)) );
+         xl_w_dir = ( xl_w_dir && (tbxxz.smallEnd(0) <= domain_xz.smallEnd(0)) && (tbxxz.bigEnd(0) >= domain_xz.smallEnd(0)) );
 
     bool xh_w_dir = ( (bc_ptr[BCVars::zvel_bc].hi(0) == ERFBCType::ext_dir)          ||
                       (bc_ptr[BCVars::zvel_bc].hi(0) == ERFBCType::ext_dir_upwind)   ||
                       (bc_ptr[BCVars::zvel_bc].hi(0) == ERFBCType::ext_dir_ingested) );
-         xh_w_dir = ( xh_w_dir && (tbxxz.bigEnd(0) == domain_xz.bigEnd(0)) );
+         xh_w_dir = ( xh_w_dir && (tbxxz.smallEnd(0) <= domain_xz.bigEnd(0)) && (tbxxz.bigEnd(0) >= domain_xz.bigEnd(0)) );
 
     // Dirichlet on front or back plane
     bool yl_u_dir = ( (bc_ptr[BCVars::xvel_bc].lo(1) == ERFBCType::ext_dir)          ||
                       (bc_ptr[BCVars::xvel_bc].lo(1) == ERFBCType::ext_dir_upwind)   ||
                       (bc_ptr[BCVars::xvel_bc].lo(1) == ERFBCType::ext_dir_ingested) );
-         yl_u_dir = ( yl_u_dir && (tbxxy.smallEnd(1) == domain_xy.smallEnd(1)) );
+         yl_u_dir = ( yl_u_dir && (tbxxy.smallEnd(1) <= domain_xy.smallEnd(1)) && (tbxxy.bigEnd(1) >= domain_xy.smallEnd(1)) );
 
     bool yh_u_dir = ( (bc_ptr[BCVars::xvel_bc].hi(1) == ERFBCType::ext_dir)          ||
                       (bc_ptr[BCVars::xvel_bc].hi(1) == ERFBCType::ext_dir_upwind)   ||
                       (bc_ptr[BCVars::xvel_bc].hi(1) == ERFBCType::ext_dir_ingested) );
-         yh_u_dir = ( yh_u_dir && (tbxxy.bigEnd(1) == domain_xy.bigEnd(1)) );
+         yh_u_dir = ( yh_u_dir && (tbxxy.smallEnd(1) <= domain_xy.bigEnd(1)) && (tbxxy.bigEnd(1) >= domain_xy.bigEnd(1)) );
 
     bool yl_w_dir = ( (bc_ptr[BCVars::zvel_bc].lo(1) == ERFBCType::ext_dir)          ||
                       (bc_ptr[BCVars::zvel_bc].lo(1) == ERFBCType::ext_dir_upwind)   ||
                       (bc_ptr[BCVars::zvel_bc].lo(1) == ERFBCType::ext_dir_ingested) );
-         yl_w_dir = ( yl_w_dir && (tbxyz.smallEnd(1) == domain_yz.smallEnd(1)) );
+         yl_w_dir = ( yl_w_dir && (tbxyz.smallEnd(1) <= domain_yz.smallEnd(1)) && (tbxyz.bigEnd(1) >= domain_yz.smallEnd(1)) );
 
     bool yh_w_dir = ( (bc_ptr[BCVars::zvel_bc].hi(1) == ERFBCType::ext_dir)          ||
                       (bc_ptr[BCVars::zvel_bc].hi(1) == ERFBCType::ext_dir_upwind)   ||
                       (bc_ptr[BCVars::zvel_bc].hi(1) == ERFBCType::ext_dir_ingested) );
-         yh_w_dir = ( yh_w_dir && (tbxyz.bigEnd(1) == domain_yz.bigEnd(1)) );
+         yh_w_dir = ( yh_w_dir && (tbxyz.smallEnd(1) <= domain_yz.bigEnd(1)) && (tbxyz.bigEnd(1) >= domain_yz.bigEnd(1)) );
 
     // Dirichlet on top or bottom plane
     bool zl_u_dir = ( (bc_ptr[BCVars::xvel_bc].lo(2) == ERFBCType::ext_dir)          ||
@@ -117,151 +117,13 @@ ComputeStrain_EB (const MFIter& mfi,
                       (bc_ptr[BCVars::yvel_bc].hi(2) == ERFBCType::ext_dir_ingested) );
          zh_v_dir = ( zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2)) );
 
-    //***********************************************************************************
-    // X-Dirichlet
-    //***********************************************************************************
-    if (xl_v_dir) {
-        Box planexy = tbxxy; planexy.setBig(0, planexy.smallEnd(0) );
-        tbxxy.growLo(0,-1);
-        bool need_to_test = (bc_ptr[BCVars::yvel_bc].lo(0) == ERFBCType::ext_dir_upwind) ? true : false;
-
-        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            if (!need_to_test || u(dom_lo.x,j,k) >= zero) {
-                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
-                                     + (-(Real(8.)/three) * v(i-1,j,k) + three * v(i,j,k) - third * v(i+1,j,k))*dxInv[0] );
-            } else {
-                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1] +
-                                       (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
-            }
-        });
-    }
-    if (xh_v_dir) {
-        // note: tilebox xy should be nodal, so i|i-1|i-2 at the bigEnd is analogous to i-1|i|i+1 at the smallEnd
-        Box planexy = tbxxy; planexy.setSmall(0, planexy.bigEnd(0) );
-        tbxxy.growHi(0,-1);
-        bool need_to_test = (bc_ptr[BCVars::yvel_bc].hi(0) == ERFBCType::ext_dir_upwind) ? true : false;
-
-        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            if (!need_to_test || u(dom_hi.x+1,j,k) <= zero) {
-                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
-                                     - (-(Real(8.)/three) * v(i,j,k) + three * v(i-1,j,k) - third * v(i-2,j,k))*dxInv[0] );
-            } else {
-                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1] +
-                                       (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
-            }
-        });
-    }
-
-    if (xl_w_dir) {
-        Box planexz = tbxxz; planexz.setBig(0, planexz.smallEnd(0) );
-        tbxxz.growLo(0,-1);
-        bool need_to_test = (bc_ptr[BCVars::zvel_bc].lo(0) == ERFBCType::ext_dir_upwind) ? true : false;
-
-        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2];
-            if (!need_to_test || u(dom_lo.x,j,k) >= zero) {
-                tau13(i,j,k) = myhalf * ( du_dz
-                                     + (-(Real(8.)/three) * w(i-1,j,k) + three * w(i,j,k) - third * w(i+1,j,k))*dxInv[0] );
-            } else {
-                tau13(i,j,k) = myhalf * ( du_dz
-                                     + (w(i, j, k) - w(i-1, j, k))*dxInv[0] );
-            }
-
-            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
-        });
-    }
-    if (xh_w_dir) {
-        // note: tilebox xz should be nodal, so i|i-1|i-2 at the bigEnd is analogous to i-1|i|i+1 at the smallEnd
-        Box planexz = tbxxz; planexz.setSmall(0, planexz.bigEnd(0) );
-        tbxxz.growHi(0,-1);
-        bool need_to_test = (bc_ptr[BCVars::zvel_bc].hi(0) == ERFBCType::ext_dir_upwind) ? true : false;
-
-        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2];
-            if (!need_to_test || u(dom_hi.x+1,j,k) <= zero) {
-                tau13(i,j,k) = myhalf * ( du_dz
-                                     - (-(Real(8.)/three) * w(i,j,k) + three * w(i-1,j,k) - third * w(i-2,j,k))*dxInv[0] );
-            } else {
-                tau13(i,j,k) = myhalf * ( du_dz
-                                     + (w(i, j, k) - w(i-1, j, k))*dxInv[0] );
-            }
-
-            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
-        });
-    }
-
-    //***********************************************************************************
-    // Y-Dirichlet
-    //***********************************************************************************
-    if (yl_u_dir) {
-        Box planexy = tbxxy; planexy.setBig(1, planexy.smallEnd(1) );
-        tbxxy.growLo(1,-1);
-        bool need_to_test = (bc_ptr[BCVars::xvel_bc].lo(1) == ERFBCType::ext_dir_upwind) ? true : false;
-
-        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            if (!need_to_test || v(i,dom_lo.y,k) >= zero) {
-                tau12(i,j,k) = myhalf * ( (-(Real(8.)/three) * u(i,j-1,k) + three * u(i,j,k) - third * u(i,j+1,k))*dxInv[1]
-                                     + (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
-            } else {
-                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
-                                     + (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
-            }
-        });
-    }
-    if (yh_u_dir) {
-        // note: tilebox xy should be nodal, so j|j-1|j-2 at the bigEnd is analogous to j-1|j|j+1 at the smallEnd
-        Box planexy = tbxxy; planexy.setSmall(1, planexy.bigEnd(1) );
-        tbxxy.growHi(1,-1);
-        bool need_to_test = (bc_ptr[BCVars::xvel_bc].hi(1) == ERFBCType::ext_dir_upwind) ? true : false;
-
-        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            if (!need_to_test || v(i,dom_hi.y+1,k) <= zero) {
-                tau12(i,j,k) = myhalf * ( -(-(Real(8.)/three) * u(i,j,k) + three * u(i,j-1,k) - third * u(i,j-2,k))*dxInv[1]
-                                      + (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
-            } else {
-                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
-                                     + (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
-            }
-        });
-    }
-
-    if (yl_w_dir) {
-        Box planeyz = tbxyz; planeyz.setBig(1, planeyz.smallEnd(1) );
-        tbxyz.growLo(1,-1);
-        bool need_to_test = (bc_ptr[BCVars::zvel_bc].lo(1) == ERFBCType::ext_dir_upwind) ? true : false;
-
-        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2];
-            if (!need_to_test || v(i,dom_lo.y,k) >= zero) {
-                tau23(i,j,k) = myhalf * ( dv_dz
-                                     + (-(Real(8.)/three) * w(i,j-1,k) + three * w(i,j  ,k) - third * w(i,j+1,k))*dxInv[1] );
-            } else {
-                tau23(i,j,k) = myhalf * ( dv_dz
-                                     + (w(i, j, k) - w(i, j-1, k))*dxInv[1] );
-            }
-
-            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
-        });
-    }
-    if (yh_w_dir) {
-        // note: tilebox yz should be nodal, so j|j-1|j-2 at the bigEnd is analogous to j-1|j|j+1 at the smallEnd
-        Box planeyz = tbxyz; planeyz.setSmall(1, planeyz.bigEnd(1) );
-        tbxyz.growHi(1,-1);
-        bool need_to_test = (bc_ptr[BCVars::zvel_bc].hi(1) == ERFBCType::ext_dir_upwind) ? true : false;
-
-        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2];
-            if (!need_to_test || v(i,dom_hi.y+1,k) <= zero) {
-                tau23(i,j,k) = myhalf * ( dv_dz
-                                     - (-(Real(8.)/three) * w(i,j  ,k) + three * w(i,j-1,k) - third * w(i,j-2,k))*dxInv[1] );
-            } else {
-                tau23(i,j,k) = myhalf * ( dv_dz
-                                     + (w(i, j, k) - w(i, j-1, k))*dxInv[1] );
-            }
-
-            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
-        });
-    }
+    // The lateral (x and y) Dirichlet planes are filled after the generic kernels below,
+    // from the boxes as passed in: the callers grow the boxes in x and y, so a boundary
+    // node is inside the box rather than at its edge, and the generic kernel also fills
+    // the halo node outside the domain, which the caller reads
+    const Box tbxxy0 = tbxxy;
+    const Box tbxxz0 = tbxxz;
+    const Box tbxyz0 = tbxyz;
 
     //***********************************************************************************
     // Z-Dirichlet
@@ -446,4 +308,144 @@ ComputeStrain_EB (const MFIter& mfi,
 
         if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
     });
+
+    // Overwrite the lateral Dirichlet planes with the one-sided stencils: y first, then x,
+    // so that x takes the nodes where an x and a y (or z) plane meet
+    //***********************************************************************************
+    // Y-Dirichlet
+    //***********************************************************************************
+    if (yl_u_dir) {
+        Box planexy = tbxxy0; planexy.setSmall(1, domain_xy.smallEnd(1)); planexy.setBig(1, domain_xy.smallEnd(1));
+        bool need_to_test = (bc_ptr[BCVars::xvel_bc].lo(1) == ERFBCType::ext_dir_upwind) ? true : false;
+
+        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (!need_to_test || v(i,dom_lo.y,k) >= zero) {
+                tau12(i,j,k) = myhalf * ( (-(Real(8.)/three) * u(i,j-1,k) + three * u(i,j,k) - third * u(i,j+1,k))*dxInv[1]
+                                     + (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
+            } else {
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
+                                     + (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
+            }
+        });
+    }
+    if (yh_u_dir) {
+        // note: tilebox xy should be nodal, so j|j-1|j-2 at the bigEnd is analogous to j-1|j|j+1 at the smallEnd
+        Box planexy = tbxxy0; planexy.setSmall(1, domain_xy.bigEnd(1)); planexy.setBig(1, domain_xy.bigEnd(1));
+        bool need_to_test = (bc_ptr[BCVars::xvel_bc].hi(1) == ERFBCType::ext_dir_upwind) ? true : false;
+
+        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (!need_to_test || v(i,dom_hi.y+1,k) <= zero) {
+                tau12(i,j,k) = myhalf * ( -(-(Real(8.)/three) * u(i,j,k) + three * u(i,j-1,k) - third * u(i,j-2,k))*dxInv[1]
+                                      + (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
+            } else {
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
+                                     + (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
+            }
+        });
+    }
+
+    if (yl_w_dir) {
+        Box planeyz = tbxyz0; planeyz.setSmall(1, domain_yz.smallEnd(1)); planeyz.setBig(1, domain_yz.smallEnd(1));
+        bool need_to_test = (bc_ptr[BCVars::zvel_bc].lo(1) == ERFBCType::ext_dir_upwind) ? true : false;
+
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2];
+            if (!need_to_test || v(i,dom_lo.y,k) >= zero) {
+                tau23(i,j,k) = myhalf * ( dv_dz
+                                     + (-(Real(8.)/three) * w(i,j-1,k) + three * w(i,j  ,k) - third * w(i,j+1,k))*dxInv[1] );
+            } else {
+                tau23(i,j,k) = myhalf * ( dv_dz
+                                     + (w(i, j, k) - w(i, j-1, k))*dxInv[1] );
+            }
+
+            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
+        });
+    }
+    if (yh_w_dir) {
+        // note: tilebox yz should be nodal, so j|j-1|j-2 at the bigEnd is analogous to j-1|j|j+1 at the smallEnd
+        Box planeyz = tbxyz0; planeyz.setSmall(1, domain_yz.bigEnd(1)); planeyz.setBig(1, domain_yz.bigEnd(1));
+        bool need_to_test = (bc_ptr[BCVars::zvel_bc].hi(1) == ERFBCType::ext_dir_upwind) ? true : false;
+
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2];
+            if (!need_to_test || v(i,dom_hi.y+1,k) <= zero) {
+                tau23(i,j,k) = myhalf * ( dv_dz
+                                     - (-(Real(8.)/three) * w(i,j  ,k) + three * w(i,j-1,k) - third * w(i,j-2,k))*dxInv[1] );
+            } else {
+                tau23(i,j,k) = myhalf * ( dv_dz
+                                     + (w(i, j, k) - w(i, j-1, k))*dxInv[1] );
+            }
+
+            if (tau23i) tau23i(i,j,k) = myhalf * dv_dz;
+        });
+    }
+
+    //***********************************************************************************
+    // X-Dirichlet
+    //***********************************************************************************
+    if (xl_v_dir) {
+        Box planexy = tbxxy0; planexy.setSmall(0, domain_xy.smallEnd(0)); planexy.setBig(0, domain_xy.smallEnd(0));
+        bool need_to_test = (bc_ptr[BCVars::yvel_bc].lo(0) == ERFBCType::ext_dir_upwind) ? true : false;
+
+        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (!need_to_test || u(dom_lo.x,j,k) >= zero) {
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
+                                     + (-(Real(8.)/three) * v(i-1,j,k) + three * v(i,j,k) - third * v(i+1,j,k))*dxInv[0] );
+            } else {
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1] +
+                                       (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
+            }
+        });
+    }
+    if (xh_v_dir) {
+        // note: tilebox xy should be nodal, so i|i-1|i-2 at the bigEnd is analogous to i-1|i|i+1 at the smallEnd
+        Box planexy = tbxxy0; planexy.setSmall(0, domain_xy.bigEnd(0)); planexy.setBig(0, domain_xy.bigEnd(0));
+        bool need_to_test = (bc_ptr[BCVars::yvel_bc].hi(0) == ERFBCType::ext_dir_upwind) ? true : false;
+
+        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (!need_to_test || u(dom_hi.x+1,j,k) <= zero) {
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
+                                     - (-(Real(8.)/three) * v(i,j,k) + three * v(i-1,j,k) - third * v(i-2,j,k))*dxInv[0] );
+            } else {
+                tau12(i,j,k) = myhalf * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1] +
+                                       (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
+            }
+        });
+    }
+
+    if (xl_w_dir) {
+        Box planexz = tbxxz0; planexz.setSmall(0, domain_xz.smallEnd(0)); planexz.setBig(0, domain_xz.smallEnd(0));
+        bool need_to_test = (bc_ptr[BCVars::zvel_bc].lo(0) == ERFBCType::ext_dir_upwind) ? true : false;
+
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2];
+            if (!need_to_test || u(dom_lo.x,j,k) >= zero) {
+                tau13(i,j,k) = myhalf * ( du_dz
+                                     + (-(Real(8.)/three) * w(i-1,j,k) + three * w(i,j,k) - third * w(i+1,j,k))*dxInv[0] );
+            } else {
+                tau13(i,j,k) = myhalf * ( du_dz
+                                     + (w(i, j, k) - w(i-1, j, k))*dxInv[0] );
+            }
+
+            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
+        });
+    }
+    if (xh_w_dir) {
+        // note: tilebox xz should be nodal, so i|i-1|i-2 at the bigEnd is analogous to i-1|i|i+1 at the smallEnd
+        Box planexz = tbxxz0; planexz.setSmall(0, domain_xz.bigEnd(0)); planexz.setBig(0, domain_xz.bigEnd(0));
+        bool need_to_test = (bc_ptr[BCVars::zvel_bc].hi(0) == ERFBCType::ext_dir_upwind) ? true : false;
+
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2];
+            if (!need_to_test || u(dom_hi.x+1,j,k) <= zero) {
+                tau13(i,j,k) = myhalf * ( du_dz
+                                     - (-(Real(8.)/three) * w(i,j,k) + three * w(i-1,j,k) - third * w(i-2,j,k))*dxInv[0] );
+            } else {
+                tau13(i,j,k) = myhalf * ( du_dz
+                                     + (w(i, j, k) - w(i-1, j, k))*dxInv[0] );
+            }
+
+            if (tau13i) tau13i(i,j,k) = myhalf * du_dz;
+        });
+    }
 }

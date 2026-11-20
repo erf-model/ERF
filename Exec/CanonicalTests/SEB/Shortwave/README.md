@@ -14,7 +14,7 @@ python3 plot_shortwave.py plt00002          # writes plots/*.png
 A 640 m cube domain on a 5 m grid with two immersed-forcing boxes from
 `two_buildings_5m_128x128.txt` (made by `make_buildings.py`): a tall one,
 80 x 80 x 140 m at x = 280-360 m, and a short one, 40 x 40 x 40 m at
-x = 400-440 m, both centred on y = 320 m, so the gap between the tall box's
+x = 400-440 m, both centered on y = 320 m, so the gap between the tall box's
 east wall and the short box's west wall is 40 m. Two steps; the face dump at
 step 2 is what the checker reads.
 

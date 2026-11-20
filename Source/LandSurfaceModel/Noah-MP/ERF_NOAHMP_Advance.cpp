@@ -56,7 +56,7 @@ NOAHMP::interp_from_lev0 (const int& lev,
 
     // Noah-MP leaves the lsm_undefined sentinel in the cells it does not process (water) --
     // in its results and soil profile and, through SurfaceLayer (#3446), in the level-0 flux.
-    // Interpolate valid values from valid neighbours only and the sentinel from sentinel
+    // Interpolate valid values from valid neighbors only and the sentinel from sentinel
     // cells only (#4390), as WRF's masked nest interpolation keeps land and water apart: a
     // coastal land cell then takes no slope toward the water, and the sentinel comes through
     // exactly, so consumers keep rejecting it with is_valid_lsm_value. Fields that are valid
@@ -188,6 +188,8 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     }
     const int kklo = klo;
 
+    // Only boxes at the ground get here, so z_nd_arr also serves as the ground heights
+
     // (1) Stage ERF forcing into the pinned buffer (device).
     Real zref_default = noahmpio->ZLVL;
     ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -198,7 +200,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
         noah_input_arr(i,j,0,NoahmpInputComp::t_phy)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
         noah_input_arr(i,j,0,NoahmpInputComp::qv_curr) = qv;
         noah_input_arr(i,j,0,NoahmpInputComp::p8w)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
-        noah_input_arr(i,j,0,NoahmpInputComp::dz8w)    = two * ((z_nd_arr) ? Compute_Zrel_AtCellCenter(i,j,kklo,z_nd_arr) : zref_default);
+        noah_input_arr(i,j,0,NoahmpInputComp::dz8w)    = two * ((z_nd_arr) ? Compute_Zrel_AtCellCenter(i,j,kklo,z_nd_arr,z_nd_arr) : zref_default);
         // The radiation inputs come from whichever radiation model writes them, and
         // NOAHMP::Init setVal'd every lsm_fab_data to lsm_undefined (1e150 in double,
         // 1e18 in single). A model that does not write them -- erf.radiation_model unset,

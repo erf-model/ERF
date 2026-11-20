@@ -941,9 +941,13 @@ public:
     {
         // Read, checked and broadcast once per file; other levels, regrids, the EB build and
         // the station slabs reuse the table
+        // A table that covers the domain gets the same heights on the two faces of a periodic
+        // direction; a local building patch is left as it is
+        const amrex::Array<bool,2> periodic{require_domain_coverage && geom.isPeriodic(0),
+                                            require_domain_coverage && geom.isPeriodic(1)};
         const auto& table = erf_terrain_file::ReadHeightTable(fname, is_usgs,
                                                               geom.ProbLoArray(), geom.ProbHiArray(),
-                                                              require_domain_coverage);
+                                                              require_domain_coverage, periodic);
         const int nx = table.nx;
         const int ny = table.ny;
         const amrex::Vector<amrex::Real>& m_xterrain = table.x;
@@ -975,11 +979,20 @@ public:
         amrex::Box zbx = terrain_fab.box();
         amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
 
+        const bool per_x = periodic[0];
+        const bool per_y = periodic[1];
+
         amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
         {
-            // Clip indices for ghost cells
-            int ii = amrex::min(amrex::max(i,ilo),ihi);
-            int jj = amrex::min(amrex::max(j,jlo),jhi);
+            // In a periodic direction a node outside [lo, hi) takes the height of its periodic
+            // image, so the node on the high face is the node on the low face; otherwise clip
+            // the indices of ghost nodes
+            auto wrap = [] (int m, int mlo, int mhi) {
+                const int n = mhi - mlo;
+                return mlo + ((m - mlo) % n + n) % n;
+            };
+            int ii = per_x ? wrap(i,ilo,ihi) : amrex::min(amrex::max(i,ilo),ihi);
+            int jj = per_y ? wrap(j,jlo,jhi) : amrex::min(amrex::max(j,jlo),jhi);
 
             // Location of nodes
             amrex::Real x_node = ProbLoArr[0] + ii * dx[0];

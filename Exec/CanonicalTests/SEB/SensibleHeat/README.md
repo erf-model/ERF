@@ -12,7 +12,7 @@ python3 plot_sensible.py plt00080          # writes plots/*.png
 
 ## The scenario
 
-A 40 m cube at the centre of a 640 m domain on a 5 m grid in a uniform
+A 40 m cube at the center of a 640 m domain on a 5 m grid in a uniform
 8 m/s wind at 300 K, its faces held at 320 K. No sun, no Coriolis, no
 damping, an adiabatic no-slip ground, so the only heat entering the air is
 the face flux. The immersed forcing carries the momentum wall model

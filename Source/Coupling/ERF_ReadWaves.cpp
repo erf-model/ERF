@@ -123,6 +123,8 @@ ERF::read_waves (int lev)
             }
         });
     }
+    // The surface layer reads the mask in its halo too (the SST producers)
+    lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
 
     //    amrex::Real myclock = ParallelDescriptor::second();
     //     amrex::AllPrintToFile("timer.txt") << "At " << myclock << " seconds, I reached the end of read_waves" << std::endl;

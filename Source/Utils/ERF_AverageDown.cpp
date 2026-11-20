@@ -20,12 +20,9 @@ ERF::AverageDown ()
     int src_comp, num_comp;
     for (int lev = finest_level-1; lev >= 0; --lev)
     {
-        // If anelastic we don't average down rho because rho == rho0.
-        if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
-            src_comp = 1;
-        } else {
-            src_comp = 0;
-        }
+        // If anelastic we don't average down rho because rho == rho0 (a pseudo-incompressible
+        // level evolves rho, which is averaged down as on a compressible level)
+        src_comp = (solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic) ? 1 : 0;
         num_comp = vars_new[0][Vars::cons].nComp() - src_comp;
         AverageDownTo(lev,src_comp,num_comp);
     }
@@ -36,7 +33,7 @@ void
 ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_momenta) // NOLINT
 {
     if (do_full_state_and_momenta) {
-        if (solverChoice.compressibility_type[crse_lev] != CompressibilityType::FullyCompressible) {
+        if (solverChoice.compressibility_type[crse_lev] == CompressibilityType::Anelastic) {
             AMREX_ALWAYS_ASSERT(scomp == 1);
         } else {
             AMREX_ALWAYS_ASSERT(scomp == 0);
@@ -120,7 +117,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
         //    w (rho) average exactly to the coarse w (rho), which fails when m varies (#4904).
         //    Rescale the covered coarse cells by w_c rho_c / avg(w_f rho_f) so that
         //    (rho S)_c = rho_c * (the same-weighted mean of S_f).
-        const bool rescale_by_rho = solverChoice.compressibility_type[crse_lev] != CompressibilityType::FullyCompressible && (scomp > Rho_comp);
+        const bool rescale_by_rho = solverChoice.compressibility_type[crse_lev] == CompressibilityType::Anelastic && (scomp > Rho_comp);
 
         MultiFab rho_w_fac;
         if (rescale_by_rho) {

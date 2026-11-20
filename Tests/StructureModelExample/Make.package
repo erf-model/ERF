@@ -1,0 +1,6 @@
+# GNU make: the structure model directory's sources. Exec/Make.ERF includes this
+# file for each directory listed in STRUCTURE_HOME, with STRUCTURE_MODEL_DIR set to
+# it and the directory already on VPATH and the include path. A model that links a
+# prebuilt library adds it here, for example
+#   LIBRARIES += -L$(MOORDYN_DIR)/lib -lmoordyn
+CEXE_sources += ERF_StructureModelExample.cpp

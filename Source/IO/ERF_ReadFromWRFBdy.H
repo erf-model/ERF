@@ -12,19 +12,15 @@
 
 #ifdef ERF_USE_NETCDF
 
-/** Repack one converted WRF boundary side from serialized to runtime layout. */
-void
-repack_wrfbdy_to_realbdy (amrex::Vector<amrex::FArrayBox>& bdy_data,
-                          bool use_wrf_bdy_qc_qi,
-                          bool separate_hydrometeors = false);
-
 double
 read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                        double& start_bdy_time, double& final_bdy_time);
+                        double& start_bdy_time,
+                        double& final_bdy_time,
+                        bool&   use_theta_m_bdy);
 
 void
 read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
@@ -44,14 +40,15 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               const amrex::MultiFab& cons,
                               const amrex::MultiFab& rho0,
                               amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
-                              const amrex::Geometry& geom, const bool& use_moist,
-                              const bool use_wrf_bdy_qc_qi,
-                              const bool has_cloud_ice,
-                              const bool separate_hydrometeors,
+                              const amrex::Geometry& geom,
+                              const bool& use_moist,
+                              const bool& use_theta_m_bdy,
                               const bool rebalance_wrf_state,
                               const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
-                              int real_width, double bdy_time_interval,
-                              bool is_anelastic, bool do_conversion = true);
+                              int real_width,
+                              double bdy_time_interval,
+                              bool is_anelastic,
+                              bool do_conversion = true);
 
 double
 read_times_from_wrflow (const std::string& nc_low_file,
@@ -74,8 +71,6 @@ update_sst_tsk (const int lev,
                 std::unique_ptr<SurfaceLayer>& SurfLayer,
                 const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo,
                 const amrex::MultiFab& cons,
-                const amrex::MultiFab& mf_PSFC_lev,
-                const amrex::Real rdOcp,
                 std::unique_ptr<amrex::iMultiFab>& lmask,
                 const bool use_moist);
 

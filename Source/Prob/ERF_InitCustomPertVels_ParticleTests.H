@@ -4,12 +4,11 @@
   const Real ztop = phys_zhi(geomdata, lev);   // physical top of the domain
 
   // Set the x-velocity
-  // NOTE: z_nd(i,j,0) is the terrain surface height. This works when the
-  // refined patch abuts the terrain (klo=0) but will fail if L1 is elevated
-  // above the surface (k=0 would be out of bounds for the local z_nd data).
+  // NOTE: z_sfc_nd(i,j,0) is the terrain surface height, which every box has,
+  // including one that starts above the surface
   ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      Real zbot = z_nd(i,j,0);
+      Real zbot = z_sfc_nd(i,j,0);
       x_vel_pert(i, j, k) = U_0 * ztop / (ztop - zbot);
   });
 

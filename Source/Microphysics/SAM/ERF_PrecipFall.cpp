@@ -4,7 +4,6 @@
 #include "ERF_SAMUtils.H"
 #include "ERF_TileNoZ.H"
 #include <cmath>
-#include <limits>
 
 using namespace amrex;
 
@@ -41,10 +40,8 @@ SAM::PrecipFall (const SolverChoice& sc)
     Real dtn  = dt;
     // NOTE: coef carries only the reference vertical spacing. The physical
     //       spacing is supplied by the inverse Jacobian in the tendency below,
-    //       since detJ = dz_phys/CellSize(2). Dividing by m_dzmin here as well
-    //       would apply the vertical metric twice. m_dzmin is still the correct
-    //       length scale for the substep (CFL) count, which must bound the
-    //       thinnest cell in the domain.
+    //       since detJ = dz_phys/CellSize(2). Dividing by dz_phys here as well
+    //       would apply the vertical metric twice.
     Real coef = dtn * m_geom.InvCellSize(2);
 
     auto domain = m_geom.Domain();
@@ -71,70 +68,64 @@ SAM::PrecipFall (const SolverChoice& sc)
 
     // The face states read tabs, rho and the precipitating species at k-1, a ghost cell
     // whenever a box boundary is interior in z. Cloud and Precip have just updated them in
-    // valid cells only, so refresh the ghosts before the fluxes that size the substeps are
-    // computed; the substep loop below refreshes the species again as they fall. tabs does
-    // not change here, so once is enough for it.
+    // valid cells only, so refresh the ghosts before the fall speeds that size the substeps
+    // are computed; the substep loop below refreshes the species again as they fall. tabs
+    // does not change here, so once is enough for it.
     tabs->FillBoundary(m_geom.periodicity());
     rho->FillBoundary(m_geom.periodicity());
     qpr->FillBoundary(m_geom.periodicity());
     qps->FillBoundary(m_geom.periodicity());
     qpg->FillBoundary(m_geom.periodicity());
 
-    //  Precompute the vertical component fluxes for the legacy reduced-flux substep rule.
-    for (MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        auto qpr_array  = qpr->const_array(mfi);
-        auto qps_array  = qps->const_array(mfi);
-        auto qpg_array  = qpg->const_array(mfi);
-        auto rho_array  = rho->const_array(mfi);
-        auto tabs_array = tabs->const_array(mfi);
-        auto fz_array   = fz.array(mfi);
-
-        const auto& box3d = mfi.tilebox();
-
-        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            const SAMPrecipComponentFaceState face_state =
-                sam_precip_component_face_state(rho_array, tabs_array,
-                                                qpr_array, qps_array, qpg_array,
-                                                i, j, k, k_lo, k_hi);
-            const SAMPrecipFluxComponents raw_fluxes =
-                sam_precip_component_fluxes_from_face_state(face_state,
-                                                            vrain, vsnow, vgrau);
-            const SAMPrecipFluxComponents corrected_fluxes =
-                sam_precip_flux_components_density_corrected(raw_fluxes,
-                                                             rho_0,
-                                                             face_state.rho_avg);
-
-            fz_array(i,j,k,0) = corrected_fluxes.rain;
-            fz_array(i,j,k,1) = corrected_fluxes.snow;
-            fz_array(i,j,k,2) = corrected_fluxes.graupel;
-        });
-    }
-
-    // Compute the legacy reduced-flux substep count from the maximum
-    // density-corrected sedimentation flux rather than a direct fall speed.
-    Real max_reduced_flux;
+    // Size the substeps from the largest fall Courant number over the faces (#5168): the
+    // fastest of rain, snow and graupel at each face, from the same face state as the fluxes
+    // below, over the smaller of the heights of the cell that face drains and the cell it
+    // drains into (sam_fall_sizing_detJ says why the cell below counts too).
     int n_substep;
-    auto const& ma_fz_arr = fz.const_arrays();
-    GpuTuple<Real> max = ParReduce(TypeList<ReduceOpMax>{},
-                                   TypeList<Real>{},
-                                   fz, IntVect(0),
-                         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
-                         -> GpuTuple<Real>
-                         {
-                             return { ma_fz_arr[box_no](i,j,k,0)
-                                 + ma_fz_arr[box_no](i,j,k,1)
-                                 + ma_fz_arr[box_no](i,j,k,2) };
-                         });
-    max_reduced_flux = get<0>(max);
-    // ParReduce over a MultiFab gives the local rank maximum here. PrecipFall
-    // needs one global substep count across ranks, including ranks that own no
-    // active tiles for this reduction, so keep the explicit MPI max reduction.
-    ParallelDescriptor::ReduceRealMax(max_reduced_flux);
-    max_reduced_flux += std::numeric_limits<Real>::epsilon();
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_dzmin > Real(0),
-        "SAM::PrecipFall: the minimum cell height was never set (Set_dzmin), so the fall substeps cannot be sized");
-    n_substep = sam_substep_count_from_reduced_flux(max_reduced_flux, dtn, m_dzmin);
+    {
+        auto const& ma_rho  = rho->const_arrays();
+        auto const& ma_tabs = tabs->const_arrays();
+        auto const& ma_qpr  = qpr->const_arrays();
+        auto const& ma_qps  = qps->const_arrays();
+        auto const& ma_qpg  = qpg->const_arrays();
+        // On an EB mesh detJ is the volume fraction, not a cell height, so the sizing uses the
+        // reference dz there (J = 1).  The donor cap and the tendency below still use detJ, the
+        // volume fraction, so a small cut cell can be donor-capped rather than substepped.
+        // Off EB, detJ_cc has one ghost cell filled (make_J), so the receiver cell k-1 at the
+        // bottom of a box that is interior in z can be read here.
+        const auto ma_dJ = (m_detJ_cc && sc.terrain_type != TerrainType::EB)
+                         ? m_detJ_cc->const_arrays() : MultiArray4<const Real>{};
+        const Real dz_ref = m_geom.CellSize(2);
+        GpuTuple<Real> max = ParReduce(TypeList<ReduceOpMax>{},
+                                       TypeList<Real>{},
+                                       fz, IntVect(0),
+                             [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+                             -> GpuTuple<Real>
+                             {
+                                 const SAMPrecipComponentFaceState face_state =
+                                     sam_precip_component_face_state(ma_rho[box_no], ma_tabs[box_no],
+                                                                     ma_qpr[box_no], ma_qps[box_no],
+                                                                     ma_qpg[box_no],
+                                                                     i, j, k, k_lo, k_hi);
+                                 const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
+                                 const int receiver_k = sam_precip_face_receiver_k(k, k_lo, k_hi);
+                                 const Real detJ_size = (ma_dJ)
+                                     ? sam_fall_sizing_detJ(ma_dJ[box_no](i,j,donor_k),
+                                                            ma_dJ[box_no](i,j,receiver_k))
+                                     : one;
+                                 return { sam_fall_courant(sam_precip_component_max_fall_speed(face_state,
+                                                                                               vrain, vsnow, vgrau,
+                                                                                               rho_0),
+                                                           dtn, dz_ref, detJ_size) };
+                             });
+        Real max_courant = get<0>(max);
+        // ParReduce over a MultiFab gives the local rank maximum here. PrecipFall
+        // needs one global substep count across ranks, including ranks that own no
+        // active tiles for this reduction, so keep the explicit MPI max reduction.
+        ParallelDescriptor::ReduceRealMax(max_courant);
+        sam_check_sedimentation_substeps("SAM::PrecipFall", max_courant);
+        n_substep = sam_sedimentation_substep_count(max_courant);
+    }
     AMREX_ALWAYS_ASSERT(n_substep >= 1);
     coef /= Real(n_substep);
     dtn  /= Real(n_substep);

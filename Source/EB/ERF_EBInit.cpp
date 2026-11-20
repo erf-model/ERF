@@ -118,7 +118,7 @@ ERF::initializeEB ()
                 // Buildings-only
                 BuildingsIF buildings_if(buildings_stl_file, stl_scale, stl_center,
                                         stl_reverse_normal, geom[max_level]);
-                auto gshop = EB2::makeShop(buildings_if);
+                auto gshop = EB2::makeShop(buildings_if.getIF());
                 build_eb(gshop);
 
             } else {
@@ -128,13 +128,14 @@ ERF::initializeEB ()
                 FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
                 double dummy_time = 0.0;
                 prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
-                TerrainIF terrain_if(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+                TerrainIF terrain_if(terrain_fab, geom[max_level], stretched_dz_d[max_level],
+                                     /*a_periodic_wrap=*/true);
 
                 if (has_buildings_stl) {
                     // Terrain + Buildings
                     BuildingsIF buildings_if(buildings_stl_file, stl_scale, stl_center,
                                             stl_reverse_normal, geom[max_level]);
-                    auto combined_if = EB2::makeUnion(terrain_if, buildings_if);
+                    auto combined_if = EB2::makeUnion(terrain_if, buildings_if.getIF());
                     auto gshop = EB2::makeShop(combined_if);
                     build_eb(gshop);
                 } else {

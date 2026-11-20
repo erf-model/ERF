@@ -57,6 +57,14 @@ void ERF::build_fft_solvers (int lev)
             auto dx    = geom[lev].CellSizeArray();
 
             auto bc_fft = get_fft_bc(geom[lev],domain_bc_type,subdomain,solverChoice.use_real_bcs);
+            if (mg_verbose > 0) {
+                amrex::Print() << "FFT boundary conditions (lo, hi) in x, y, z on " << subdomain << ":";
+                for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                    amrex::Print() << " (" << amrex::getEnumNameString(bc_fft[dir].first)
+                                   << ", " << amrex::getEnumNameString(bc_fft[dir].second) << ")";
+                }
+                amrex::Print() << std::endl;
+            }
 
             Geometry my_geom;
 
@@ -220,7 +228,10 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
                 if (k == sub_lo.z || (k == sub_hi.z+1 && !top_is_dirichlet)) {
                     fz_arr(i,j,k) = zero;
                 } else {
-                    Real dz = myhalf * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
+                    // At a Dirichlet (Outflow/Open) top the ghost phi is the mirror of the top
+                    // cell, a distance dz of the top layer away; stretched_dz has no entry above it
+                    Real dz = (k == sub_hi.z+1) ? stretched_dz_d_ptr[k-1]
+                                                : myhalf * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) / dz;
                 }
             });

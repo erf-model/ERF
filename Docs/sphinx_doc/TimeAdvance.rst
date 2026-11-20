@@ -40,7 +40,8 @@ Anelastic Advance
 ---------------------
 
 When solving the anelastic rather than fully compressible equations, ERF supports
-a 2nd order Runge-Kutta method and the 2nd order midpoint method (both with no substepping):
+a 2nd order Runge-Kutta method and the 2nd order midpoint method (both with no substepping).
+The midpoint method is the default; set ``erf.timestepping_type = RK2`` for the Runge-Kutta method.
 
 The 2nd order Runge-Kutta method solves
 
@@ -200,18 +201,64 @@ This may be controlled with the ``erf.beta_s`` parameter.
 
 Over steep terrain more off-centering may be needed.  With ``erf.use_variable_beta_s = true``,
 :math:`\beta_s` is instead defined on each :math:`w`-face from the slopes of the coordinate
-surface there,
+surface and the vertical acoustic Courant number there.  With
 
 .. math::
 
-   \beta_s = \max\left(\beta_{s,min}, \min\left(\beta_{s,max}, h_\xi^2 + h_\eta^2\right)\right),
+   \sigma^2 = \max\left(h_\xi^2 + h_\eta^2, \, 0.021\right), \qquad
+   b = \frac{\sigma^2}{2 + \sigma^2}, \qquad
+   Z = \frac{2 c_s \delta \tau}{\Delta z}, \qquad
+   Z_{crit} = \frac{2 \sqrt{1 + \sigma^2}}{\sigma^2 \, (1 + b) / 2},
 
-with :math:`\beta_{s,min}` and :math:`\beta_{s,max}` set by ``erf.beta_s_min`` (default 0.1)
-and ``erf.beta_s_max`` (default 0.8).  The vertical flux on a face is then weighted by
+where :math:`c_s = \sqrt{\gamma p / \rho}` is the sound speed (evaluated with the dry
+:math:`\gamma`, also with moisture) and :math:`\Delta z` the vertical grid spacing at the face,
+we take
+
+.. math::
+
+   \beta_s = b + w(s) \left[ \min\left(\sigma^2, 1\right) - b \right], \qquad
+   w(s) = s^2 (3 - 2 s), \qquad
+   s = \min\left(\max\left(\frac{Z - \alpha Z_{crit}}{(1 - \alpha) Z_{crit}}, \, 0\right), \, 1\right),
+
+with :math:`\alpha = 0.5`.
+
+The low-:math:`Z` value :math:`b` follows the low-dissipation branch of the maximum
+amplification factor, i.e. the stability limit of the weak, propagating instability at small
+:math:`Z`, and the high-:math:`Z` value :math:`\min(\sigma^2, 1)` the high-dissipation branch,
+which controls the strong, non-propagating instability at large :math:`Z`.  :math:`Z_{crit}` is
+where the low-dissipation branch ceases to apply; it is evaluated with :math:`\beta_2` taken from
+the low-:math:`Z` value :math:`b`.  Rather than switching between the two branches at
+:math:`Z_{crit}`, which would make :math:`\beta_s` jump by about a factor of two between faces,
+stages or substeps, the smoothstep weight :math:`w` blends them over
+:math:`Z \in [\alpha Z_{crit}, Z_{crit}]`: :math:`\beta_s = b` for :math:`Z \le \alpha Z_{crit}`
+and :math:`\beta_s = \min(\sigma^2, 1)` for :math:`Z \ge Z_{crit}`.
+
+Note that no upper cap is applied to :math:`\beta_s`: on faces with :math:`\sigma^2 \ge 1` and
+:math:`Z \ge Z_{crit}` (e.g. :math:`Z_{crit} \approx 4.2` for :math:`\sigma^2 = 1`), we get
+:math:`\beta_s = 1`, i.e. a fully implicit, first-order and strongly damping, vertical acoustic
+update on those faces.
+
+The vertical flux on a face is then weighted by
 :math:`\beta_1` and :math:`\beta_2` of that face, and the :math:`W^{\prime \prime}` equation on a
 face by :math:`\beta_2` of that face, so that the entries of the tridiagonal system for the face
 :math:`k` carry :math:`\beta_2` of face :math:`k` times :math:`\beta_2` of face :math:`k-1`,
-:math:`k` or :math:`k+1`.  Without terrain, :math:`\beta_s = \beta_{s,min}` everywhere.
+:math:`k` or :math:`k+1`.  Without terrain, :math:`\sigma^2` takes its floor value, chosen so
+that the amplification factor of the flat-terrain eigenvalue is about 0.99 per substep; then
+:math:`Z_{crit} \approx 190` and :math:`\beta_s` lies between :math:`b \approx 0.010` and
+:math:`0.021`.  Over flat terrain, ``erf.use_variable_beta_s`` therefore gives less acoustic
+damping than the default constant :math:`\beta_s = 0.1`; only the local stability limit on each
+face is met.
+
+If ``erf.use_variable_beta_s`` is not given in the inputs, it is turned on automatically when
+the constant :math:`\beta_s` would be unstable.  On a terrain-fitted mesh with implicit
+substepping, ERF compares ``erf.beta_s`` with the largest :math:`h_\xi^2 + h_\eta^2` over the
+:math:`w`-faces of each level whenever the level has a new set of grids (at initialization, on
+the first step after a restart, and right after a regrid, before the new grids take a step), and
+every coarse step on a moving terrain.  If ``erf.beta_s`` is below :math:`\min(\sigma^2, 1)`,
+the high-:math:`Z` stability limit, on any level, ``erf.use_variable_beta_s`` is set to true for
+all levels for the rest of the run and a message is printed.  The switch is saved in the
+checkpoint, so a restarted run keeps it.  Setting ``erf.use_variable_beta_s = false`` explicitly
+keeps the constant ``erf.beta_s``.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.

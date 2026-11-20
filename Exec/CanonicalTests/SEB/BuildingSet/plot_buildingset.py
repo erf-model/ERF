@@ -66,7 +66,7 @@ def shading_maps(files, c, dt, out):
     for ax, (hour, fn), d in zip(axs, picks, data):
         roof = d["dir"] == 2
         sc = ax.scatter(d["x_m"][roof], d["y_m"][roof], c=d["SW_direct_in"][roof], cmap="inferno", vmin=0, vmax=vmax, s=60, marker="s", edgecolors="none")
-        # Wall columns: all faces of a column share (x, y); colour by the column-mean direct beam.
+        # Wall columns: all faces of a column share (x, y); color by the column-mean direct beam.
         cols = {}
         for x, y, dr, sw in zip(d["x_m"][~roof], d["y_m"][~roof], d["dir"][~roof], d["SW_direct_in"][~roof]):
             cols.setdefault((x, y, int(dr)), []).append(sw)

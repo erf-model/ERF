@@ -1,3 +1,11 @@
+# The uninstall and distclean targets act on the top-level build tree (its
+# install_manifest.txt, CMakeCache.txt and folders). Under a parent project that
+# tree and its cache belong to the parent, and the parent may define targets with
+# these names, so ERF adds them only when it is the top-level project.
+if(NOT CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    return()
+endif()
+
 # Add uninstall target
 if(NOT TARGET uninstall)
     configure_file(

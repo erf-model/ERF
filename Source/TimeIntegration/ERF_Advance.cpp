@@ -2,6 +2,7 @@
 #include "ERF_Constants.H"
 #include <ERF_Utils.H>
 #include "Microphysics/SBM/ERF_SBMStateManager.H"
+#include "Microphysics/SBM/ERF_SBMTransport.H"
 
 #ifdef ERF_USE_WINDFARM
 #include <ERF_WindFarm.H>
@@ -28,8 +29,16 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
     if (sbm_state_manager) {
         std::string diagnostic;
-        if (!sbm_state_manager->begin_step(lev, time, diagnostic)) {
+        const bool began = lev > 0
+            ? sbm_state_manager->begin_step(lev, time, diagnostic, dt_lev)
+            : sbm_state_manager->begin_step(lev, time, diagnostic);
+        if (!began) {
             Abort("SBM state lifecycle at ERF::Advance: " + diagnostic);
+        }
+        if (!sbm_transport ||
+            !sbm_transport->begin_physical_step(lev, time, time + dt_lev,
+                                                diagnostic)) {
+            Abort("SBM AMR register step lifecycle at ERF::Advance: " + diagnostic);
         }
     }
 
@@ -38,6 +47,18 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     if (!ibseb_after_radiation()) {
         ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
                       vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    }
+
+    // The force-restore hydrology's rain (erf.radiation.seb_precipitation_source =
+    // microphysics): the surface precipitation accumulation at the start of the step, before
+    // the dycore and microphysics change it; its change over the step is the rain the
+    // post-dycore update takes (hydrology_end_step below). A no-op otherwise. A level whose
+    // boxes do not span z never runs the balance (the two-stream solver returns early there),
+    // so it takes no rain rate either.
+    if (solverChoice.rad_type == RadiationType::TwoStream && !rad_level_needs_interpolation(lev)) {
+        two_stream_rad.hydrology_begin_step(lev, micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                                                       : SurfacePrecipAccumulationSources{},
+                                            geom[lev].Domain().smallEnd(2));
     }
 
     MultiFab& S_old = vars_old[lev][Vars::cons];
@@ -139,7 +160,9 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     bool updated_prim = false;
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
-        if (phys_bc_type[ori] == ERF_BC::surface_layer && m_SurfaceLayer[ori]) {
+        const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+        if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
+            AMREX_ALWAYS_ASSERT(m_SurfaceLayer[ori]);
             if (!updated_prim) {
                 // This only needs to be done once
                 IntVect ng = Theta_prim[lev]->nGrowVect();
@@ -184,9 +207,26 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     if (solverChoice.windfarm_type != WindFarmType::None) {
         advance_windfarm(Geom(lev), dt_lev, S_old,
                          U_old, V_old, W_old, vars_windfarm[lev],
-                         Nturb[lev], SMark[lev], time);
+                         Nturb[lev], SMark[lev],
+                         z_phys_nd[lev].get(), z_phys_cc[lev].get(), time);
     }
 
+#endif
+
+#ifdef ERF_USE_MOVING_BODIES
+    // **************************************************************************************
+    // Advance the structure model (erf.structures.model) over this step of its level,
+    // from the state at the start of the step; its momentum source then holds over the step
+    // **************************************************************************************
+    if (m_structure_model && lev == m_structure_model->level(finest_level)) {
+        advance_structure_model(lev, time, dt_lev, U_old, V_old, W_old, S_old);
+    }
+
+    // On a coarser level, the model's latest source restricted onto this level, held over the
+    // step, so that the air under the finer level feels the force while this level steps
+    if (m_structure_model && lev < m_structure_model->level(finest_level)) {
+        make_structure_coarse_sources(lev);
+    }
 #endif
 
     // **************************************************************************************
@@ -219,15 +259,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
         // Apply SHOC before the dycore so it sees a coherent state.
         Real* w_sub = (solverChoice.custom_w_subsidence) ? d_w_subsid[lev].data() : nullptr;
-        if (solverChoice.turbChoice[lev].uses_eamxx_shoc()) {
-#ifdef ERF_USE_EAMXX_SHOC
-            compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
-                                    Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
-                                    SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
-                                    eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
-                                    dt_lev);
-#endif
-        } else if (solverChoice.turbChoice[lev].uses_native_shoc()) {
+        if (solverChoice.turbChoice[lev].uses_native_shoc()) {
             compute_native_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
                                            Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
                                            SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
@@ -500,6 +532,15 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
+    // A periodic face velocity is stored twice, at both ends of the domain; make the two copies equal
+    if (solverChoice.face_sync_int > 0 && (istep[lev] % solverChoice.face_sync_int == 0)
+        && geom[lev].isAnyPeriodic())
+    {
+        U_new.OverrideSync(geom[lev].periodicity());
+        V_new.OverrideSync(geom[lev].periodicity());
+        W_new.OverrideSync(geom[lev].periodicity());
+    }
+
 #ifdef ERF_USE_FIRE
     // Advance the fire on the level its grid refines (erf.fire.anchor_level).
     // The coupler hands the engine the wind (before the dycore with passive and
@@ -544,12 +585,18 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         if (m_SurfaceModel) {
             radiation_inputs = m_SurfaceModel->get_radiation_fields(lev);
         }
+        if (!rad_level_needs_interpolation(lev)) {
+            two_stream_rad.hydrology_end_step(lev, micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                                                         : SurfacePrecipAccumulationSources{},
+                                              geom[lev].Domain().smallEnd(2), dt_lev);
+        }
         two_stream_rad.advance(lev, iteration, time + dt_lev, dt_lev, "post_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
                                lsm, radiation_inputs, noahmp_active,
                                qheating_rates[lev].get(), rad_fluxes[lev].get(),
                                t_surf, sfc_sens_flux, sfc_laten_flux, lat_ptr, lon_ptr,
-                               time + dt_lev + start_time, use_datetime);
+                               time + dt_lev + start_time, use_datetime,
+                               lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get());
     }
     if (solverChoice.compute_mean_vars) {
         // The interval window is shared by all AMR levels.  Reset it before

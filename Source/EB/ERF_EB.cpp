@@ -25,7 +25,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_EB {
 
 #ifdef AMREX_USE_GPU
 int
@@ -51,6 +51,7 @@ fill_cut_cell_list (Box const& bx, Array4<EBCellFlag const> const& flag,
 #endif
 
 } // namespace
+using namespace erf_detail_EB;
 
 eb_::~eb_ ()
 {
@@ -152,6 +153,24 @@ eb_::make_all_factories ([[maybe_unused]] int level,
     build_cut_cell_lists(m_w_factory.getMultiEBCellFlagFab(), m_w_cut_cells);
 #endif
     Print() << "\nDone making EB factory at level = " << level << ".\n\n";
+}
+
+void
+eb_::clear_factories ()
+{
+    m_factory.reset();
+#if USE_FC_FACTORY
+    m_u_factory_fc.reset();
+    m_v_factory_fc.reset();
+    m_w_factory_fc.reset();
+#else
+    m_u_factory.clear();
+    m_v_factory.clear();
+    m_w_factory.clear();
+#endif
+    m_u_cut_cells.clear();
+    m_v_cut_cells.clear();
+    m_w_cut_cells.clear();
 }
 
 void

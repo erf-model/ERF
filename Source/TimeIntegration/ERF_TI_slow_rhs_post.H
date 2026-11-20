@@ -54,10 +54,40 @@
                                          solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
             terrain_blanking_zface[level].get() : nullptr;
 
+        erf_sbm::SBMAMRStageParent sbm_parent_stage;
+        const erf_sbm::SBMAMRStageParent* sbm_parent_stage_ptr = nullptr;
+        if (sbm_state_manager != nullptr && level > 0) {
+            sbm_parent_stage.conserved_old =
+                &vars_old[level - 1][Vars::cons];
+            sbm_parent_stage.conserved_new =
+                &vars_new[level - 1][Vars::cons];
+            sbm_parent_stage.old_time = t_old[level - 1];
+            sbm_parent_stage.new_time = t_new[level - 1];
+            sbm_parent_stage.fine_step_dt = dt_advance;
+            sbm_parent_stage.refinement_ratio = refRatio(level - 1);
+            sbm_parent_stage.profile_parent_fill =
+                solverChoice.sbm_amr_qualification_test;
+            sbm_parent_stage.validate_split_ghost_values =
+                solverChoice.sbm_amr_qualification_expect_split;
+            sbm_parent_stage.inject_parent_store_fault =
+                solverChoice.sbm_amr_qualification_parent_store_fault;
+            sbm_parent_stage_ptr = &sbm_parent_stage;
+        }
+
+        // Pseudo-incompressible: the upwind direction erf_slow_rhs_pre advected with in this stage
+        Array<const MultiFab*,AMREX_SPACEDIM> upw_dir{AMREX_D_DECL(nullptr,nullptr,nullptr)};
+        if (solverChoice.compressibility_type[level] == CompressibilityType::PseudoIncompressible &&
+            solverChoice.terrain_type != TerrainType::EB) {
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                upw_dir[idim] = pi_upw_dir_stage[level][idim].get();
+            }
+        }
+
         erf_slow_rhs_post(level, finest_level, nrk,
                           old_step_time, old_stage_time, new_stage_time, slow_dt,
                           micro->Get_Qstate_Moist_Size(),
                           S_rhs, S_old, S_new, S_data, S_prim, avg_xmom[level], avg_ymom[level], avg_zmom[level],
+                          upw_dir,
                           xvel_new, yvel_new, zvel_new, cc_src, terrain_blank,
                           terrain_blank_xface, terrain_blank_yface, terrain_blank_zface,
                           SmnSmn, eddyDiffs,
@@ -66,16 +96,15 @@
                           fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], get_eb(level),
-#ifdef ERF_USE_EAMXX_SHOC
-                          eamxx_shoc_interface[level].get(),
-#endif
+                          physbnd_mask[IntVars::cons],
                           native_shoc_driver[level].get(),
                           fr_as_crse, fr_as_fine,
                           m_r2d, &base_state[level],
                           cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                           cloud_chamber_budget.get(), auxiliary_inert_tracer.get(),
                           sbm_state_manager.get(), sbm_transport.get(),
-                          ib_wall_face33[level].get(), ib_wall_ktarget[level].get(), ib_wall_qfx[level].get());
+                          ib_wall_face33[level].get(), ib_wall_ktarget[level].get(), ib_wall_qfx[level].get(),
+                          sbm_parent_stage_ptr);
 
         // One component list for the solve, stage ghosts and implicit reflux.
         Vector<int> implicit_post_comps;

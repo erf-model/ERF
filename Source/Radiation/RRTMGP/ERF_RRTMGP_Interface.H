@@ -74,7 +74,8 @@ get_subsampled_clouds (const int ncol,
                        optical_props2_t& cloud_optics,
                        gas_optics_t& kdist,
                        real2d_k& cld,
-                       real2d_k& p_lay);
+                       real2d_k& p_lay,
+                       const bool do_subcol_sampling);
 
 optical_props1_t
 get_subsampled_clouds (const int ncol,
@@ -84,7 +85,8 @@ get_subsampled_clouds (const int ncol,
                        optical_props1_t& cloud_optics,
                        gas_optics_t& kdist,
                        real2d_k& cld,
-                       real2d_k& p_lay);
+                       real2d_k& p_lay,
+                       const bool do_subcol_sampling);
 
 void
 rrtmgp_initialize (gas_concs_t& gas_concs,
@@ -131,6 +133,7 @@ rrtmgp_main (const int ncol, const int nlay,
              real3d_k& sw_bnd_flux_up      , real3d_k& sw_bnd_flux_dn      , real3d_k& sw_bnd_flux_dn_dir,
              real3d_k& lw_bnd_flux_up      , real3d_k& lw_bnd_flux_dn,
              const RealT tsi_scaling,
+             const bool do_subcol_sampling,
              const bool extra_clnclrsky_diag = false, const bool extra_clnsky_diag = false);
 
 

@@ -9,6 +9,7 @@
 #include <AMReX_PlotFileUtil.H>
 #include "ERF.H"
 
+#include <limits>
 #include <optional>
 #include <AMReX_Math.H>
 
@@ -478,7 +479,8 @@ SLM::Init (const int& /*lev*/,
     // Following Noah-MP, zref is modified to become ztop (canopy top height) + dz0 (height above the ground of the center of the atmosphere's lowest cell)
     if (!use_wrfinput) {
         Real dz       = m_geom.CellSize(2);
-        // The ground nodes under every box, including those that start above the ground
+        // The ground nodes under every box, including those that start above the ground; its
+        //    plane k = 0 is also the ground heights Compute_Zrel_AtCellCenter wants
         const auto z_ground = (use_terrain) ? copy_ground_plane(*z_phys_nd, m_geom.Domain().smallEnd(2))
                                             : std::unique_ptr<MultiFab>{};
         for ( MFIter mfi(cons_in,TileNoZ()); mfi.isValid(); ++mfi) {
@@ -488,7 +490,7 @@ SLM::Init (const int& /*lev*/,
             auto zrefxy_arr = zrefxy.array(mfi);
 
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : myhalf*dz;
+                amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr, z_nd_arr) : myhalf*dz;
                 zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
             });
         }
@@ -1412,7 +1414,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
     }
 
     // Every other field is interpolated without mixing land and water (#4390): a land cell's
-    // slopes come from land neighbours only and a water cell's from water ones, as WRF's
+    // slopes come from land neighbors only and a water cell's from water ones, as WRF's
     // masked nest interpolation does, so a coastal land cell is not pulled toward the water
     // value (SLM holds soilw = 1 and soilt = SST there). The surface type comes from the
     // source level's vegetation type at the top soil level (slm_surface_type), for every soil
@@ -1500,7 +1502,8 @@ void
 SLM::initialize_zrefxy ()
 {
     const Real dz = m_geom.CellSize(2);
-    // The ground nodes under every box, including those that start above the ground
+    // The ground nodes under every box, including those that start above the ground; its
+    //    plane k = 0 is also the ground heights Compute_Zrel_AtCellCenter wants
     const auto z_ground = use_terrain ? copy_ground_plane(*z_phys_nd, m_geom.Domain().smallEnd(2))
                                       : std::unique_ptr<MultiFab>{};
     for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
@@ -1513,7 +1516,7 @@ SLM::initialize_zrefxy ()
 
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
             if (landmask_arr(i, j, 0) == 1) {
-                const Real znd = z_nd_arr ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr)
+                const Real znd = z_nd_arr ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr, z_nd_arr)
                                            : myhalf * dz;
                 zrefxy_arr(i, j, 0) = ztop_arr(i, j, 0) + znd;
             }
@@ -1529,6 +1532,29 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
 {
     const int d_khi_lsm = khi_lsm;
     const int islake = 21;
+
+    // The reference-level forcing lives in the k = 0 plane, a z ghost cell of the SLM grid that
+    // the transfer from the source (InterpFromCoarseLevel, ParallelCopy) does not fill, so it
+    // still holds the zeros of Init.  Copy_State_to_Lsm and set_precip_input mirror it into the
+    // khi plane, which is transferred, so take it back from there: init_slm_vars below starts
+    // the canopy from tref, qref and pref at k = 0, which would otherwise be 0 K on a level made
+    // or remade after the atmosphere was coupled (issue 5163).  Before the atmosphere has been
+    // coupled the khi plane is zero too, and init_from_atmos_pending sets the canopy again later.
+    // This is done first so that the fields saved below for preserve_checkpoint_fields have it.
+    for (const int var : {LsmVar_SLM::tref, LsmVar_SLM::qref, LsmVar_SLM::pref, LsmVar_SLM::dref,
+                          LsmVar_SLM::uref, LsmVar_SLM::vref, LsmVar_SLM::precipref,
+                          LsmVar_SLM::swdsvisxyref, LsmVar_SLM::swdsnirxyref,
+                          LsmVar_SLM::swdsvisdxyref, LsmVar_SLM::swdsnirdxyref,
+                          LsmVar_SLM::lwref, LsmVar_SLM::coszrsxy})
+    {
+        for (MFIter mfi(*lsm_fab_vars[var], TileNoZ()); mfi.isValid(); ++mfi) {
+            const Box box = mfi.tilebox().makeSlab(2, 0);
+            auto ref_arr = lsm_fab_vars[var]->array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                ref_arr(i, j, 0) = ref_arr(i, j, d_khi_lsm);
+            });
+        }
+    }
 
     MultiFab saved_tsurf = lsm_fab_vars[LsmVar_SLM::tsurf]->deepCopy();
     MultiFab saved_soilt = lsm_fab_vars[LsmVar_SLM::soilt]->deepCopy();
@@ -1592,7 +1618,13 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
         });
     }
 
-    init_slm_vars();
+    // The soil nudging targets were transferred with the rest of the state.  Keep them once the
+    // source level has set its own (its first Update_Lsm_Vars sets has_atmos_state and the
+    // targets together, and a checkpoint is written after it), so that this level nudges toward
+    // the run's targets rather than toward the soil state at the time it was made (issue 5178).
+    // Before that the transferred targets are not set yet, so take them from the soil state, as
+    // init_from_atmos_pending will again once this level has the atmospheric state.
+    init_slm_vars(!has_atmos_state);
 
     if (preserve_checkpoint_fields) {
         for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
@@ -2221,7 +2253,7 @@ void SLM::init_soil_vars ()
     }
 }
 
-void SLM::init_slm_vars ()
+void SLM::init_slm_vars (bool reset_soil_targets)
 {
     const int d_khi_lsm = khi_lsm;
 
@@ -2282,8 +2314,10 @@ void SLM::init_slm_vars ()
     }
 
     // initialize nudging profiles for soil based on the initial soilt and soilw
-    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilt_obs], *lsm_fab_vars[LsmVar_SLM::soilt], 0, 0, 1, 0);
-    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
+    if (reset_soil_targets) {
+        MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilt_obs], *lsm_fab_vars[LsmVar_SLM::soilt], 0, 0, 1, 0);
+        MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
+    }
 
     initialize_surface_outputs();
 }
@@ -3177,6 +3211,12 @@ SLM::AdvanceSLM ()
     Real dt = m_dt;
     const int d_khi_lsm = khi_lsm;
 
+    // The canopy starts at the reference-level air temperature, so check it before the first step.
+    if (!m_initial_canopy_checked) {
+        check_canopy_above_freezing("at the start of the run");
+        m_initial_canopy_checked = true;
+    }
+
     net_rad.setVal(0.0, SLM_NetRad::net_sw1, 1, 0);
     net_rad.setVal(0.0, SLM_NetRad::net_sw2, 1, 0);
     net_rad.setVal(0.0, SLM_NetRad::net_rad1, 1, 0);
@@ -3487,6 +3527,31 @@ SLM::AdvanceSLM ()
     lsm_fab_flux[LsmFlux_SLM::tau13]->FillBoundary(m_geom.periodicity());
     lsm_fab_flux[LsmFlux_SLM::tau23]->FillBoundary(m_geom.periodicity());
     lsm_fab_flux[LsmFlux_SLM::olen]->FillBoundary(m_geom.periodicity());
+
+    check_canopy_above_freezing("after an SLM step");
+}
+
+void SLM::check_canopy_above_freezing (const char* when) const
+{
+    // The minimum canopy temperature over the vegetated land cells, in one reduction per call
+    // rather than a test in every canopy subcycle.
+    auto const& t_canop_ma   = t_canop.const_arrays();
+    auto const& landmask_ma  = landmask.const_arrays();
+    auto const& vegetype_ma  = vegetype.const_arrays();
+    Real t_canop_min = ParReduce(TypeList<ReduceOpMin>{}, TypeList<Real>{}, t_canop, IntVect(0),
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept -> GpuTuple<Real>
+        {
+            const bool vegetated = landmask_ma[box_no](i, j, k) == 1 && vegetype_ma[box_no](i, j, k) == 1;
+            return { vegetated ? t_canop_ma[box_no](i, j, k) : std::numeric_limits<Real>::max() };
+        });
+    ParallelDescriptor::ReduceRealMin(t_canop_min);
+
+    if (t_canop_min <= tfriz) {
+        amrex::Abort("SLM: the canopy temperature of a vegetated land cell is "
+                     + std::to_string(t_canop_min) + " K " + when
+                     + ", at or below freezing (273.15 K). SLM does not treat a frozen canopy;"
+                     + " see the limitations in the SLM documentation (erf-model/ERF#4467).");
+    }
 }
 
 
@@ -4089,9 +4154,8 @@ void SLM::fluxes_canopy (const amrex::MFIter &mfi)
                 shf_canop_arr(i, j, 0) = (t_canop_arr(i, j, 0) - t_sfc_arr(i, j, 0)) * rhow * cp * two * LAI_arr(i, j, 0) / r_b_arr(i, j, 0);
                 shf0 += shf_canop_arr(i, j, 0);
 
-                // Evaporation from canopy
-                // only treat the case where t_canop_arr > tfriz;
-                AMREX_ALWAYS_ASSERT(t_canop_arr(i, j, 0) > tfriz);
+                // Evaporation from canopy. SLM treats only a canopy above freezing:
+                // check_canopy_above_freezing stops the run otherwise.
 
                 erf_qsatw(t_canop_arr(i, j, 0), pref_arr(i, j, 0), qsat_canop);
 
@@ -5219,10 +5283,10 @@ void SLM::Copy_Lsm_to_State (MultiFab& cons_in)
     cons_in.FillBoundary(m_geom.periodicity());
 }
 
-void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int /*lev*/, const int /*finest_lev*/, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
+void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int lev, const int /*finest_lev*/, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
 {
 #ifndef ERF_USE_NETCDF
-    amrex::ignore_unused(cur_time, plot_prefix, level_step);
+    amrex::ignore_unused(cur_time, plot_prefix, level_step, lev);
 #endif
     geom.define(amrex::makeSlab(m_lsm_geom.Domain(), 2, 0), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());
 
@@ -5370,7 +5434,7 @@ void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur
 #endif
 #ifdef ERF_USE_NETCDF
     } else if (plotfile_type == PlotFileType::Netcdf) {
-        writeSLM_NetCDF(fab, varnames, cur_time, plot_prefix, level_step);
+        writeSLM_NetCDF(fab, varnames, cur_time, plot_prefix, level_step, lev);
 #endif
     } else {
         Abort("Dont know this plot_filetype");
@@ -5626,7 +5690,7 @@ void SLM::twostream_noahmp (int ib, int ic, int /*vegtyp*/, amrex::Real cosz, am
     amrex::Real thetap;   //angle conversion from SZA
     amrex::Real fa;       //foliage volume density (m-1)
     amrex::Real newvai;   //effective LSAI (-)
-    // Set below for opt_rad = 1, 2 or 3 (the only values); initialised so that no
+    // Set below for opt_rad = 1, 2 or 3 (the only values); initialized so that no
     // path reads them unset.
     amrex::Real kopen = one; //gap fraction for diffue light (-)
     amrex::Real gap   = one; //total gap fraction for beam ( <=1-shafac )

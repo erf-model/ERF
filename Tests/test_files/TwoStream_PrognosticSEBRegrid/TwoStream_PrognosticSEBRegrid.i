@@ -95,7 +95,7 @@ erf.plot2d_vars_1 = seb_t_sfc seb_q_sfc
 # the levels are actually kept in step, which is worth nothing.
 #
 # Taller and narrower than the MultiLevel case's hill (hmax 100, L 300), and
-# centred at x = 1024 m, on the boundary between the kept and added fine cells:
+# centered at x = 1024 m, on the boundary between the kept and added fine cells:
 # the kept cells then carry sub-coarse structure (up to ~4e-4 K from their
 # block means) that a restore which only re-interpolated would lose. With the
 # gentler hill that loss was barely 3x the check's tolerance; here it is ~6x.

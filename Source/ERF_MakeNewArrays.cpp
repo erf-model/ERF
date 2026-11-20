@@ -21,7 +21,34 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_MakeNewArrays {
+
+// MomentumToVelocity leaves faces between two covered cells untouched.
+// ComputeStrain_EB can read those neighbors in its centered differences, so
+// initialize only those faces to rest and keep the sentinel on fluid faces.
+void
+set_covered_face_velocity (MultiFab& vel_new, MultiFab& vel_old,
+                           const MultiFab& volfrac, int dir)
+{
+    const IntVect offset = IntVect::TheDimensionVector(dir);
+    const int di = offset[0], dj = offset[1], dk = offset[2];
+    for (MFIter mfi(vel_new); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.fabbox();
+        Box available_faces = convert(volfrac[mfi].box(), vel_new.ixType());
+        available_faces.grow(dir, -1);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(available_faces.contains(bx),
+            "Covered-face velocity initialization requires both adjacent cell volumes");
+        const auto vf = volfrac.const_array(mfi);
+        const auto vnew = vel_new.array(mfi);
+        const auto vold = vel_old.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (vf(i,j,k) == zero && vf(i-di,j-dj,k-dk) == zero) {
+                vnew(i,j,k) = zero;
+                vold(i,j,k) = zero;
+            }
+        });
+    }
+}
 
 // Smoothly varying test map factors, valid and ghost cells, at the MultiFab's own locations.
 // NOTE: a free function, since nvcc does not allow an extended (__device__) lambda inside a
@@ -46,6 +73,7 @@ set_test_mapfactor (MultiFab& mf, const Geometry& geom, const Real amp)
 }
 
 } // namespace
+using namespace erf_detail_MakeNewArrays;
 
 void
 ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
@@ -214,7 +242,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
-    // Set these to avoid operations on uninitialized data
+    // Set these to avoid operations on uninitialized data.
     lev_new[Vars::xvel].setVal(bogus_large_value);
     lev_old[Vars::xvel].setVal(bogus_large_value);
     lev_new[Vars::yvel].setVal(bogus_large_value);
@@ -224,6 +252,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // kind of domain decomposition in the vertical (at level 0 or above)
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+    lev_new[Vars::zvel].setVal(bogus_large_value);
+    lev_old[Vars::zvel].setVal(bogus_large_value);
+
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        const MultiFab& volfrac = EBFactory(lev).getVolFrac();
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            const int var_idx = Vars::xvel + dir;
+            set_covered_face_velocity(lev_new[var_idx], lev_old[var_idx], volfrac, dir);
+        }
+    }
 
     gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(zero);
     gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(zero);
@@ -313,7 +351,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     make_flux_register(lev);
 
     // ********************************************************************************************
-    // Define Theta_prim storage if using surface_layer BC
+    // Define primitive storage for physical or embedded SurfaceLayer owners
     // ********************************************************************************************
     Theta_prim[lev] = nullptr;
     Qv_prim[lev]    = nullptr;
@@ -321,7 +359,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
-        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+        const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+        if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
             amrex::Print() << " Found MOST at face " << ori << " : Constructing primitive vars for MOST.." << std::endl;
             Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
             if (solverChoice.moisture_type != MoistureType::None) {
@@ -573,6 +612,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         topographic_radiation.define_level(lev, ba2d[lev], dm, geom[lev]);
     }
 
+    // Every radiation model needs whole columns; check this level's grids before any of them
+    // sees them
+    check_rad_level_grids(lev, ba);
+
     // Two-stream radiation: the model owns its 2D surface and SEB fields.
     if (solverChoice.rad_type == RadiationType::TwoStream)
     {
@@ -729,6 +772,7 @@ ERF::make_flux_register (int lev)
 {
     if (solverChoice.coupling_type != CouplingType::TwoWay || lev == 0) {
         advflux_reg[lev].reset();
+        make_sbm_flux_register(lev);
         return;
     }
     int ncomp_reflux = vars_new[0][Vars::cons].nComp();
@@ -736,6 +780,7 @@ ERF::make_flux_register (int lev)
                                                         dmap[lev] ,  dmap[lev-1],
                                                         geom[lev] ,  geom[lev-1],
                                                         ref_ratio[lev-1], lev, ncomp_reflux);
+    make_sbm_flux_register(lev);
 }
 
 void
@@ -997,7 +1042,8 @@ ERF::init_zphys (int lev, double elapsed_time)
 
         make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type,
                                    fine_terrain,
-                                   (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
+                                   (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr,
+                                   (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
@@ -1143,7 +1189,8 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
             //    and also fills values of z_phys_nd outside the domain
             make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type,
                                        fine_terrain,
-                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
+                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr,
+                                       (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 
         } // lev > 0
 
@@ -1312,6 +1359,32 @@ ERF::update_terrain_arrays (int lev)
             detJ_cc[lev] = std::make_unique<MultiFab>(volfrac, amrex::make_alias, 0, volfrac.nComp());
         }
     }
+    update_zsfc_nd(lev);
+}
+
+/**
+ * (Re)build z_sfc_nd[lev], the height of the bottom of the domain at each node, from
+ * z_phys_nd[lev]. A box that does not reach the bottom interpolates it from the coarser
+ * level, so z_sfc_nd[lev-1] must be current when this is called for lev > 0.
+ *
+ * @param[in] lev level of refinement
+ */
+void
+ERF::update_zsfc_nd (int lev)
+{
+    BoxArray ba2d_nd(ba2d[lev]);
+    ba2d_nd.surroundingNodes(0); ba2d_nd.surroundingNodes(1);
+    // As many ghost cells in x and y as z_phys_nd, since the PBL schemes work on grown boxes
+    const IntVect ng(z_phys_nd[lev]->nGrowVect()[0], z_phys_nd[lev]->nGrowVect()[1], 0);
+    if (!z_sfc_nd[lev] || z_sfc_nd[lev]->boxArray() != ba2d_nd ||
+        z_sfc_nd[lev]->DistributionMap() != dmap[lev] || z_sfc_nd[lev]->nGrowVect() != ng) {
+        z_sfc_nd[lev] = std::make_unique<MultiFab>(ba2d_nd, dmap[lev], 1, ng);
+    }
+    if (lev > 0) {
+        make_zsfc_nd(geom[lev], *z_phys_nd[lev], *z_sfc_nd[lev], z_sfc_nd[lev-1].get(), ref_ratio[lev-1]);
+    } else {
+        make_zsfc_nd(geom[lev], *z_phys_nd[lev], *z_sfc_nd[lev]);
+    }
 }
 
 void
@@ -1367,10 +1440,38 @@ ERF::make_physbcs (int lev)
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             l_use_real_bcs, zvel_bc_data[lev].data());
-    physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
-                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
-                                                               (solverChoice.mesh_type != MeshType::ConstantDz),
-                                                               solverChoice.rdOcp, solverChoice.gravity);
+    // the terrain-following inflow profiles of the lateral faces (xlo.inflow_profile)
+    physbcs_cons[lev]->set_inflow_profiles(&m_inflow_profiles);
+    // the lateral inflow faces of a pseudo-incompressible level that give a primitive theta
+    //    (<face>.theta, or a theta dirichlet_file read as primitive): see set_pi_inflow_faces
+    {
+        GpuArray<int,AMREX_SPACEDIM*2>  pi_face{};
+        GpuArray<Real,AMREX_SPACEDIM*2> pi_theta{};
+        if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+            for (OrientationIter oit; oit; ++oit) {
+                const Orientation ori = oit();
+                pi_face[ori] = pi_theta_inflow_face(ori);
+                if (pi_face[ori] == 0) { continue; }
+                pi_theta[ori] = m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori];
+                if (m_th_file_face[ori] != 2 && !(pi_theta[ori] > Real(0.0))) {
+                    Abort("The inflow theta of a pseudo-incompressible face must be positive");
+                }
+            }
+        }
+        physbcs_cons[lev]->set_pi_inflow_faces(pi_face, pi_theta);
+    }
+    physbcs_u[lev]->set_inflow_profiles(&m_inflow_profiles);
+    physbcs_v[lev]->set_inflow_profiles(&m_inflow_profiles);
+    const bool moving_mesh = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    auto make_base_bcs = [&] (std::unique_ptr<MultiFab>& z_nd) {
+        return std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_nd,
+                                                      moving_mesh,
+                                                      (solverChoice.mesh_type != MeshType::ConstantDz),
+                                                      solverChoice.rdOcp, solverChoice.gravity);
+    };
+    physbcs_base[lev] = make_base_bcs(z_phys_nd[lev]);
+    // The base state a moving mesh advances is on the mesh at the end of the stage
+    physbcs_base_new[lev] = (moving_mesh) ? make_base_bcs(z_phys_nd_new[lev]) : nullptr;
 }
 
 /**

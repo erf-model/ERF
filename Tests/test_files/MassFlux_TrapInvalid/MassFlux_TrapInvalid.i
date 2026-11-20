@@ -4,7 +4,7 @@
 # MassFlux_Off_TrapInvalid runs one step without a constant mass flux (the default
 # erf.const_massflux_u = erf.const_massflux_v = 0): the mass-flux control in
 # make_mom_sources then has zero cross-sectional areas, and its guarded divisions must
-# not form 0/0 (an optimised build may divide before it tests the area).
+# not form 0/0 (an optimized build may divide before it tests the area).
 # MassFlux_X_Relaxation adds erf.const_massflux_u = 1 over the layer 0.2-0.6 m and checks
 # the relaxation of the integrated x mass flux against its closed form (Tests/check_massflux_relaxation.py).
 erf.prob_name = "Flow in a Box"

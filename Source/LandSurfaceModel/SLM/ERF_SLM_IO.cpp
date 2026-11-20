@@ -9,16 +9,29 @@ using namespace amrex;
 #ifdef ERF_USE_NETCDF
 void
 SLM::writeSLM_NetCDF (const MultiFab& mf, const Vector<std::string>& varnames, const amrex::Real cur_time,
-                      const std::string plot_prefix, const int /*level_step*/)
+                      const std::string plot_prefix, const int /*level_step*/, const int lev)
 {
-    std::string plotfilename = plot_prefix + ".nc";
+    // One file per level, each in that level's own index space
+    const std::string plotfilename = plot_prefix + "lev" + std::to_string(lev) + ".nc";
+
+    // The first write of this file in this run makes it, except that a restarted run appends
+    // to the file of the earlier run if there is one.  Later writes, including those of a level
+    // made again by a regrid, append.  Every rank takes the same decision.
+    bool create = false;
+    if (s_nc_files_made.count(plotfilename) == 0) {
+        int exists = 0;
+        if (ParallelDescriptor::IOProcessor()) { exists = amrex::FileExists(plotfilename) ? 1 : 0; }
+        ParallelDescriptor::Bcast(&exists, 1, ParallelDescriptor::IOProcessorNumber());
+        create = !(s_nc_restarted && exists);
+        s_nc_files_made.insert(plotfilename);
+    }
 
     ncutils::NCFile ncf =
-        (first_step)
+        (create)
         ? ncutils::NCFile::create_par(plotfilename, NC_CLOBBER | NC_NETCDF4)
         : ncutils::NCFile::open_par(plotfilename, NC_WRITE);
 
-    if (first_step)
+    if (create)
     {
         writeNCHeader(ncf, m_geom);
 
@@ -29,17 +42,24 @@ SLM::writeSLM_NetCDF (const MultiFab& mf, const Vector<std::string>& varnames, c
             writeMFtoNC(ncf, lsm_fab_vars[var].get(), LsmVarName_Full[var], -1.0);
         }
 
-        // Write out 2D variables that are constant in time
-        writeMFtoNC(ncf, &LAI, "LAI", -1.0);
+        // Write out 2D variables that are constant in time (LAI changes in time and is
+        // written with the 2D fields below)
         writeMFtoNC(ncf, &BAI, "BAI", -1.0);
         writeMFtoNC(ncf, &ztop, "ztop", -1.0);
     }
+
+    // Some fields appear in more than one of the lists below (vegtype is both a 3D SLM field
+    // and a 2D output field, and the diagnostics are also among the 2D output fields).  Each
+    // name is written once, by the first list it is in, since a variable cannot be written
+    // with two different shapes.
+    std::set<std::string> written;
 
     // Write out SLM 3D fields
     for (int var = 0; var < LsmVar_SLM::NumVars; ++var) {
         if (const_vars.find(var) != const_vars.end()) continue;
         //writeMFtoNC(ncf, lsm_fab_vars[var].get(), LsmVarName_Full[var], cur_time, true); // write ghost cells
         writeMFtoNC(ncf, lsm_fab_vars[var].get(), LsmVarName_Full[var], cur_time, false); // write ghost cells
+        written.insert(LsmVarName_Full[var]);
     }
 
     // Write out SLM 2D fields
@@ -48,6 +68,7 @@ SLM::writeSLM_NetCDF (const MultiFab& mf, const Vector<std::string>& varnames, c
     AMREX_ALWAYS_ASSERT(mf.nComp() == varnames.size());
     for (int var = 0; var < mf.nComp(); ++var)
     {
+        if (!written.insert(varnames[var]).second) { continue; }
         MultiFab fab(mf, make_alias, var, 1);
         writeMFtoNC(ncf, &fab, varnames[var], cur_time);
     }
@@ -62,6 +83,7 @@ SLM::writeSLM_NetCDF (const MultiFab& mf, const Vector<std::string>& varnames, c
     // additional slm outputs
     for (int var = 0; var < slm_diag.nComp(); ++var)
     {
+        if (!written.insert(diag_names[var]).second) { continue; }
         MultiFab fab(slm_diag, make_alias, var, 1);
         writeMFtoNC(ncf, &fab, diag_names[var], cur_time);
     }
@@ -139,21 +161,24 @@ SLM::writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom)
     const auto prob_lo = geom.ProbLoArray();
     const auto dx = geom.CellSizeArray();
     const int d_khi_lsm = khi_lsm;
+
+    // x and y over the whole level domain, also where a refined level has no grids, so that
+    // the coordinates match the dimensions the fields are written on (x_arr and y_arr are in
+    // host-accessible memory)
+    if (ParallelDescriptor::IOProcessor())
+    {
+        const int dom_lo_x = domain.smallEnd(0);
+        const int dom_lo_y = domain.smallEnd(1);
+        for (int i = 0; i < nx; ++i) { x_arr(i) = prob_lo[0] + (dom_lo_x+i+myhalf)*dx[0]; }
+        for (int j = 0; j < ny; ++j) { y_arr(j) = prob_lo[1] + (dom_lo_y+j+myhalf)*dx[1]; }
+        nc_file.var("x").put(x_arr.p, {0}, {static_cast<unsigned long>(nx)});
+        nc_file.var("y").put(y_arr.p, {0}, {static_cast<unsigned long>(ny)});
+    }
+
     for(MFIter mfi(*lsm_fab_vars[0]); mfi.isValid(); ++mfi)
     {
         const auto &box = mfi.validbox();
         const auto node_z_arr = lsm_fab_vars[LsmVar_SLM::node_z]->const_array(mfi);
-        const int bx_offset = box.smallEnd(0);
-        const int by_offset = box.smallEnd(1);
-        ParallelFor(box.length(0), [=] AMREX_GPU_DEVICE (int i)
-        {
-            x_arr(i) = prob_lo[0] + (bx_offset+i+myhalf)*dx[0];
-        });
-
-        ParallelFor(box.length(1), [=] AMREX_GPU_DEVICE (int j)
-        {
-            y_arr(j) = prob_lo[1] + (by_offset+j+myhalf)*dx[1];
-        });
 
         ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k)
         {
@@ -163,8 +188,6 @@ SLM::writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom)
 
         amrex::Gpu::Device::synchronize();
 
-        nc_file.var("x").put(x_arr.p, {static_cast<unsigned long>(box.smallEnd()[0])}, {static_cast<unsigned long>(box.length()[0])});
-        nc_file.var("y").put(y_arr.p, {static_cast<unsigned long>(box.smallEnd()[1])}, {static_cast<unsigned long>(box.length()[1])});
         nc_file.var("z").put(z_arr.p, {0}, {static_cast<unsigned long>(box.length()[2])});
     }
 
@@ -196,7 +219,11 @@ void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
             nc_file.def_var("time", ncutils::NCDType::Real, {"time"});
         }
 
+        // x and y span the whole level domain, as in writeNCHeader: each box is written at
+        // its own index, and on a refined level the grids need not start at index 0
         IntVect box_size = mf->boxArray().minimalBox().size();
+        box_size[0] = m_geom.Domain().length(0);
+        box_size[1] = m_geom.Domain().length(1);
         if (write_ghost)
         {
             box_size += 2 * ngrow;
@@ -297,11 +324,17 @@ void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
         data = mf_tmp.get();
     }
 
-    // The data below is written from inside an MFIter loop, so each rank makes one put
-    // call per box that it owns.  Ranks can own different numbers of boxes, so we must
-    // use independent rather than collective access.  The access mode is reset each time
+    // The data below is written from inside an MFIter loop, one put per box and component.
+    // A time-dependent variable grows along the unlimited time dimension when a new time is
+    // written, which NetCDF allows only with collective access.  So the puts are collective,
+    // and a rank that owns fewer boxes than another makes empty puts for the difference, so
+    // that every rank makes the same number of calls.  The access mode is reset each time
     // the file is opened, so it is set here on every call.
-    nc_file.var(name).par_access(NC_INDEPENDENT);
+    nc_file.var(name).par_access(NC_COLLECTIVE);
+    int nbox_local = 0;
+    for (MFIter mfi(*data); mfi.isValid(); ++mfi) { ++nbox_local; }
+    int nbox_max = nbox_local;
+    ParallelDescriptor::ReduceIntMax(nbox_max);
 
     amrex::Arena* Arena_Used = amrex::The_Arena();
 #ifdef AMREX_USE_GPU
@@ -360,6 +393,16 @@ void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
             Gpu::streamSynchronize();
 
             nc_file.var(name).put(dataPtr, starts, counts);
+        }
+    }
+
+    // The empty puts that match the boxes other ranks own beyond this rank's
+    const int ndims = static_cast<int>(nc_file.var(name).shape().size());
+    const std::vector<size_t> zeros(ndims, 0);
+    const Real dummy = 0;
+    for (int b = nbox_local; b < nbox_max; ++b) {
+        for (int comp = 0; comp < data->nComp(); ++comp) {
+            nc_file.var(name).put(&dummy, zeros, zeros);
         }
     }
 }
@@ -690,6 +733,11 @@ void SLM::WriteCheckpoint (const int &lev, const std::string &checkpointname) co
 void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
 {
     auto check_start = amrex::second();
+
+#ifdef ERF_USE_NETCDF
+    // The NetCDF land output of a restarted run appends to that of the earlier run
+    s_nc_restarted = true;
+#endif
 
     amrex::Print() << " Reading SLM checkpoint at level " << lev << std::endl;
 

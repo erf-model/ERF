@@ -29,7 +29,7 @@ class SurfaceLayer;
  *   (FireFluxes) onto the atmospheric columns, where they wait for the next
  *   step (the one-step explicit lag of WRF-Fire);
  * - at every Runge-Kutta stage of that next step, injects the lagged heat and
- *   vapour into the cell sources with the WRF-Fire exponential profile
+ *   vapor into the cell sources with the WRF-Fire exponential profile
  *   (ERF_FireAtmCoupling.H; lagged and synchronous coupling only) and the
  *   smoke tracer (ERF_FireSmokeEmission.H; erf.fire.smoke_enable);
  * - holds the lagged fluxes for the boundary-layer scheme and the checkpoint.
@@ -51,7 +51,7 @@ public:
      * Called once from ERF::InitData_post() after every surface layer exists.
      * Runs the coupling's checks (verify_fire_prerequisites), then the
      * engine's, builds the fire grid on level lev, allocates the lagged flux
-     * buffers (zero) and initialises the engine.
+     * buffers (zero) and initializes the engine.
      *
      * @param[in] erf            ERF instance (public AmrCore accessors only)
      * @param[in] lev            The level the fire grid refines (fire_anchor_level)
@@ -71,7 +71,7 @@ public:
      * Takes the fire grid and allocates the lagged flux buffers (zero) on the
      * k = 0 slabs of ba_atm, with 5 ghost columns. Public so that a test can
      * drive the coupling with an engine of its own without an ERF object
-     * (Tests/Unit/Fire/ERF_GTestFireCoupler.cpp).
+     * (erf-model/FLARE: Tests/Unit/Fire/ERF_GTestFireCoupler.cpp).
      *
      * @param[in] lev       The level the fire grid refines
      * @param[in] fg        The fire grid (create_fire_grid)
@@ -93,16 +93,17 @@ public:
      * lagged coupling) or after it (synchronous).
      *
      * @param[in] time            Start of the step [s]
-     * @param[in] dt              Step of the level [s]
+     * @param[in] dt              Step of the level [s], ERF's double dt[lev]: fields_time()
+     *                            becomes time + dt, the time ERF assigns to the level
      * @param[in] S_old           Conserved state before the dycore
      * @param[in] xvel_old, yvel_old  Face velocities before the dycore [m/s]
      * @param[in] xvel_new, yvel_new  Face velocities after the dycore [m/s]
-     * @param[in] z_phys_cc       Cell-centre height of the level [m]
+     * @param[in] z_phys_cc       Cell-center height of the level [m]
      * @param[in] ba2d            The level's boxes coarsened to one cell in z
      * @param[in] geom            Geometry of the level
      * @param[in] precip_sources  The microphysics surface precipitation accumulators of the level
      */
-    void advance (amrex::Real time, amrex::Real dt,
+    void advance (double time, double dt,
                   const amrex::MultiFab& S_old,
                   const amrex::MultiFab& xvel_old, const amrex::MultiFab& yvel_old,
                   const amrex::MultiFab& xvel_new, const amrex::MultiFab& yvel_new,
@@ -112,23 +113,23 @@ public:
                   const SurfacePrecipAccumulationSources& precip_sources);
 
     /**
-     * @brief Inject the lagged fire heat, vapour and smoke into the cell sources
+     * @brief Inject the lagged fire heat, vapor and smoke into the cell sources
      *
      * Called from the slow right-hand side at every Runge-Kutta stage on the
      * fire grid's level, after make_sources has rebuilt cc_source. The lagged
      * fluxes are fixed over the step, so every stage receives the same
      * tendency (erf.fire.source_mode decides whether it replaces or adds to the
-     * theta and vapour sources). Heat and vapour only with lagged or
+     * theta and vapor sources). Heat and vapor only with lagged or
      * synchronous coupling; smoke with erf.fire.smoke_enable.
      *
-     * @param[in,out] cc_source     Cell-centred sources of the level
+     * @param[in,out] cc_source     Cell-centered sources of the level
      * @param[in]     S_old         Conserved state at the start of the step (density)
-     * @param[in]     z_phys_cc     Cell-centre height [m]
+     * @param[in]     z_phys_cc     Cell-center height [m]
      * @param[in]     z_phys_nd     Nodal height [m] (ERF always passes it): the cell
      *                              thickness and roof datum of the heat, and the
      *                              smoke cell's thickness
      * @param[in]     geom          Geometry of the level
-     * @param[in]     has_moisture  The vapour source exists
+     * @param[in]     has_moisture  The vapor source exists
      * @param[in]     step          Step of the level, for the debug output
      */
     void add_sources (amrex::MultiFab& cc_source,
@@ -183,7 +184,7 @@ public:
      * as nullptr hold zero.
      *
      * @param[in]  name  One of plot_var_names()
-     * @param[out] dst   Cell-centred MultiFab on the boxes of level lev
+     * @param[out] dst   Cell-centered MultiFab on the boxes of level lev
      * @param[in]  dcomp Component of dst to fill
      * @param[in]  lev   The level dst belongs to
      */
@@ -201,6 +202,19 @@ public:
 
     /// The fire grid.
     const FireGrid& fire_grid () const { return m_fg; }
+
+    /**
+     * @brief The time the engine's fields belong to [s], in ERF's double time
+     *
+     * ERF sets it to the fire level's time at start-up and on a restart
+     * (set_fields_time), advance() to the end of the step, and ERF again to
+     * the coarser level's time once the finer levels' substeps have reached
+     * it, so that it equals the time ERF assigns to the level and carries no
+     * round-off from summing substeps.
+     */
+    double fields_time () const { return m_fields_time; }
+    /// Set fields_time() to t [s] (ERF only: start-up, restart, end of a coarser step).
+    void set_fields_time (double t) { m_fields_time = t; }
 
     /**
      * @brief Sensible heat flux [W/m2] of the previous fire step on the
@@ -222,11 +236,12 @@ private:
     FireGrid                    m_fg;
     int                         m_lev = 0;
     amrex::Geometry             m_geom_atm;   ///< geometry of the fire grid's level
+    double                      m_fields_time = 0.0;  ///< the time the engine's fields belong to (fields_time())
 
     // The engine's fluxes averaged onto the atmospheric columns of the fire
     // grid's level (one slab per box of that level), held from the previous
     // step for injection at every stage of the next (one-step explicit lag).
-    // Their ghost columns hold the neighbouring box's value for a reader that
+    // Their ghost columns hold the neighboring box's value for a reader that
     // samples a halo around every tile; outside the refined region of a finer
     // level they hold zero.
     std::unique_ptr<amrex::MultiFab> m_Q_atm_prev;      ///< sensible [W/m2]

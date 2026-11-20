@@ -15,9 +15,9 @@
  * returns the conduction into the slab that results. The bottom boundary
  * is the interior temperature of the building.
  *
- * Layers are uniform, ``dz = L / N``, with layer centres at
+ * Layers are uniform, ``dz = L / N``, with layer centers at
  * ``(l + 1/2) dz`` below the skin; the skin sits half a layer above the
- * first centre and the interior half a layer below the last, so both
+ * first center and the interior half a layer below the last, so both
  * boundary fluxes use the half-layer spacing ``2 k / dz``.
  */
 namespace ibseb {
@@ -32,7 +32,7 @@ constexpr int SLAB_MAX_LAYERS = 32;
  *
  * Solves, for layers ``l = 0 .. N-1`` with implicit Euler,
  * ``rho_cp dz (T_l^{n+1} - T_l^n) / dt = flux_in - flux_out``, the fluxes
- * between neighbouring centres being ``k (T_{l-1} - T_l) / dz``, the flux
+ * between neighboring centers being ``k (T_{l-1} - T_l) / dz``, the flux
  * from the skin ``2 k (T_skin - T_0) / dz`` and the flux to the interior
  * ``2 k (T_{N-1} - T_int) / dz``. Unconditionally stable.
  *

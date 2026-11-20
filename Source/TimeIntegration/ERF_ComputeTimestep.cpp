@@ -9,6 +9,7 @@
 #include <ERF.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
+#include "TimeIntegration/ERF_VariableBetaSSwitch.H"
 #include "AuxiliaryState/ERF_AuxiliaryMappedTransport.H"
 #include "Microphysics/SBM/ERF_SBMTransport.H"
 
@@ -59,6 +60,9 @@ ERF::ComputeDt (int step, double cur_time_d)
                 slope_report_grids[lev] = grids[lev];
             }
         }
+
+        // Stability of the constant beta_s on this level's terrain (also checked after a regrid)
+        CheckVariableBetaS(lev);
 
         // Steep terrain next to an inflow or outflow face: checked for every new set of grids
         if (openface_grids[lev] != grids[lev]) {
@@ -113,7 +117,12 @@ ERF::ComputeDt (int step, double cur_time_d)
     //
     const double eps = 1.e-3*dt_0;
     if (cur_time_d + dt_0 > (stop_time - start_time) - eps) {
-        dt_0 = (stop_time - start_time) - cur_time_d;
+        const double dt_clamp = (stop_time - start_time) - cur_time_d;
+        // Shorten the step only for a real partial step, not when the remaining interval is dt
+        // to within the round-off of cur_time_d (tolerance as in the stop test of Evolve)
+        if (std::abs(dt_clamp - dt_0) > 1.e-6*dt_0) {
+            dt_0 = dt_clamp;
+        }
     }
 
     dt[0] = dt_0;
@@ -307,6 +316,87 @@ ERF::ReportTerrainSlopeFactor (int lev, bool force)
         }
         Print() << std::endl;
     }
+}
+
+/**
+ * Implicit acoustic substepping on a terrain-fitted mesh with erf.use_variable_beta_s not given
+ * in the inputs: turn on erf.use_variable_beta_s, for all levels and the rest of the run, if
+ * erf.beta_s is below the large-Courant stability limit min(sigma^2, 1) on any w-face of level
+ * lev (see make_fast_coeffs).  Checked whenever the level has a new set of grids (called by
+ * ComputeDt, and by timeStep right after a regrid so that a new level does not take a step with
+ * the constant beta_s), and every coarse step on a moving terrain.  Once on, the switch is saved
+ * in the checkpoint, so a restarted run keeps it.
+ *
+ * @param[in] lev   level
+ */
+void
+ERF::CheckVariableBetaS (int lev)
+{
+    beta_s_check_grids.resize(finest_level+1);
+
+    const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
+                         solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const bool moving = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const bool new_grids = (beta_s_check_grids[lev] != grids[lev]);
+    beta_s_check_grids[lev] = grids[lev];
+
+    if (!fitted || !solverChoice.auto_variable_beta_s || solverChoice.use_variable_beta_s ||
+        solverChoice.timestepping_type[lev] != TimesteppingType::RK3_ImplicitSubstep ||
+        !(new_grids || moving)) {
+        return;
+    }
+
+    const Real sigma2_max = ComputeMaxTerrainSlope(lev);
+    if (VariableBetaSSwitchNeeded(solverChoice.beta_s, sigma2_max)) {
+        solverChoice.use_variable_beta_s = true;
+        Print() << "Level " << lev << ": erf.beta_s = " << solverChoice.beta_s
+                << " is below the acoustic stability limit min(sigma^2, 1) = "
+                << amrex::min(sigma2_max, one) << " (largest sigma^2 = h_xi^2 + h_eta^2 = "
+                << sigma2_max << "); turning on erf.use_variable_beta_s on all levels"
+                << " (set erf.use_variable_beta_s = false to keep erf.beta_s)" << std::endl;
+    }
+}
+
+/**
+ * Return the largest terrain slope sigma^2 = h_xi^2 + h_eta^2 over the w-faces of a level, the
+ * quantity make_fast_coeffs sets the variable beta_s from.  ComputeDt compares it with beta_s on
+ * a terrain-fitted mesh with implicit acoustic substepping (CheckVariableBetaS).
+ *
+ * @param[in] lev   level
+ */
+Real
+ERF::ComputeMaxTerrainSlope (int lev)
+{
+    AMREX_ALWAYS_ASSERT(z_phys_nd[lev]);
+
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+
+    const MultiFab& w = vars_new[lev][Vars::zvel];
+
+    ReduceOps<ReduceOpMax> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(w, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real> z_nd = z_phys_nd[lev]->const_array(mfi);
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            const Real h_xi   = Compute_h_xi_AtKface (i, j, k, dxInv, z_nd);
+            const Real h_eta  = Compute_h_eta_AtKface(i, j, k, dxInv, z_nd);
+            const Real sigma2 = h_xi*h_xi + h_eta*h_eta;
+            return {sigma2};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    Real sigma2_max = amrex::get<0>(hv);
+    ParallelDescriptor::ReduceRealMax(sigma2_max);
+    return sigma2_max;
 }
 
 /**
@@ -737,17 +827,52 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         }
         const MultiFab& measure = sbm_transport->static_measure(level);
 
+        // Particle mixing adds its low-order exchange to the donor demand.  ERF
+        // prepares the eddy diffusivity inside the step, so the estimate uses
+        // the last step's coefficients and the stage check the actual ones.
+        const bool sbm_mixing = sbm_transport->mixes_particles();
         Real max_sbm_outgoing_rate = Real(0.0);
-        const bool rate_ok = erf_auxiliary::ComputeMaxMappedOutgoingRate(
-            mapped_carrier, measure, S_new, Rho_comp, dxinv,
-            max_sbm_outgoing_rate, sbm_diagnostic);
+        bool rate_ok = false;
+        if (sbm_mixing) {
+            const auto inputs = erf_sbm::make_stage_mixing_inputs(
+                *sbm_transport, eddyDiffs_lev[level].get(), mapfac[level],
+                ax[level].get(), ay[level].get(), stretched_dz_d[level].data());
+            MultiFab density(cell_ba, cell_dm, 1, 1);
+            MultiFab::Copy(density, S_new, Rho_comp, 0, 1, 0);
+            density.FillBoundary(geom[level].periodicity());
+            erf_auxiliary::MappedFaceTransmissibility transmissibility;
+            transmissibility.define(cell_ba, cell_dm, 1, 0);
+            if (!erf_sbm::build_particle_mixing_transmissibility(
+                    sbm_transport->particle_mixing(), geom[level], inputs.metrics,
+                    density, 0, inputs.eddy_diffusivity, transmissibility, sbm_diagnostic)) {
+                Abort("SBM particle mixing timestep estimate: " + sbm_diagnostic);
+            }
+            rate_ok = erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
+                mapped_carrier, transmissibility, measure, S_new, Rho_comp, dxinv,
+                max_sbm_outgoing_rate, sbm_diagnostic);
+        } else {
+            rate_ok = erf_auxiliary::ComputeMaxMappedOutgoingRate(
+                mapped_carrier, measure, S_new, Rho_comp, dxinv,
+                max_sbm_outgoing_rate, sbm_diagnostic);
+        }
         if (!rate_ok) {
-            Abort("SBM M3 current donor-rate estimate: " + sbm_diagnostic);
+            Abort(std::string(sbm_mixing ? "SBM combined advection-diffusion rate estimate: "
+                                         : "SBM M3 current donor-rate estimate: ") +
+                  sbm_diagnostic);
         }
         if (max_sbm_outgoing_rate > Real(0.0)) {
-            const double adaptive_sbm_dt =
+            double adaptive_sbm_dt =
                 static_cast<double>(amrex::min(cfl, Real(1.0)) /
                                     max_sbm_outgoing_rate);
+            // The eddy diffusivity is not checkpointed: on the first step after a
+            // restart do not let dt grow past the checkpointed step.
+            const bool lagged_coefficients =
+                sbm_mixing && sbm_transport->particle_mixing().policy ==
+                                  erf_sbm::ParticleMixingPolicy::HostPassiveScalar;
+            if (lagged_coefficients && diffusive_first_call && !restart_chkfile.empty() &&
+                istep[level] > 0) {
+                adaptive_sbm_dt = std::min(adaptive_sbm_dt, dt[level]);
+            }
             estdt_comp_T = std::min(estdt_comp_T, adaptive_sbm_dt);
             estdt_comp_N = std::min(estdt_comp_N, adaptive_sbm_dt);
             estdt_lowM_T = std::min(estdt_lowM_T, adaptive_sbm_dt);
@@ -759,8 +884,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                     max_sbm_outgoing_rate, hard_sbm_dt)) {
                 std::ostringstream message;
                 message.precision(17);
-                message << "SBM M3 fixed timestep exceeds donor positivity "
-                           "limit: fixed_dt=" << fixed_dt[level]
+                message << (sbm_mixing
+                                ? "SBM fixed timestep exceeds the combined advection-diffusion "
+                                  "positivity limit: fixed_dt="
+                                : "SBM M3 fixed timestep exceeds donor positivity "
+                                  "limit: fixed_dt=")
+                        << fixed_dt[level]
                         << " hard_limit=" << hard_sbm_dt
                         << " max_outgoing_rate=" << max_sbm_outgoing_rate;
                 Abort(message.str());
@@ -778,7 +907,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (cloud_chamber_config.active &&
          cloud_chamber_config.physical_initialization &&
          cloud_chamber_config.has_wall_rate_channel()) {
-         const auto walls = cloud_chamber_config.wall_boundary();
+         const auto walls = cloud_chamber_config.transport_boundary();
          const Box domain = geom[level].Domain();
          max_wall_rate = ReduceMax(ccvel_N, 0,
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
@@ -787,78 +916,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              Real rate = Real(0.0);
              amrex::Loop(b, [=,&rate] (int i, int j, int k) noexcept
              {
-                 // A free staggered component can receive tangential traction
-                 // from every active perpendicular wall at an edge/corner.
-                 // Fixed and neutral coefficients use the exact local
-                 // velocity-parallel Jacobian row-sum factor.  MOST evaluates
-                 // its current coefficients once per wall/cell and uses that
-                 // state as a frozen-coefficient local rate estimate; it is
-                 // not a nonlinear MOST Jacobian bound.
-                 Real momentum_rate = Real(0.0);
-                 amrex::GpuArray<Real, AMREX_SPACEDIM> low_momentum_rates{};
-                 amrex::GpuArray<Real, AMREX_SPACEDIM> high_momentum_rates{};
-                 // Evaluate each encountered wall/cell state once.  The
-                 // component row sums below only compose these retained
-                 // per-face rates; they must not repeat the MOST solve.
-                 for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                     const bool low = (dir == 0 ? i == domain.smallEnd(0) :
-                                       (dir == 1 ? j == domain.smallEnd(1) :
-                                                    k == domain.smallEnd(2)));
-                     const bool high = (dir == 0 ? i == domain.bigEnd(0) :
-                                        (dir == 1 ? j == domain.bigEnd(1) :
-                                                     k == domain.bigEnd(2)));
-                     if (low) {
-                         const auto& wall = walls[2*dir];
-                         if (erf_cloud_chamber_wall_flux::
-                             wall_rate_requires_tangential_speed(wall)) {
-                             const Real U_t =
-                                 erf_cloud_chamber_wall_flux::
-                                 tangential_speed_cell_centered(
-                                     dir, i, j, k, velocity, wall);
-                             const auto runtime =
-                                 erf_cloud_chamber_wall_flux::most_wall_coefficients(
-                                     wall, velocity(i,j,k,3), velocity(i,j,k,4),
-                                     velocity(i,j,k,5), velocity(i,j,k,6), U_t,
-                                     Real(0.5) / dxinv[dir],
-                                     dir == 2 ? 1 : 0);
-                             rate = amrex::max(rate,
-                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
-                                     wall, U_t, dxinv[dir], runtime));
-                             low_momentum_rates[dir] =
-                                 erf_cloud_chamber_wall_flux::momentum_rate_for_face(
-                                     wall, U_t, dxinv[dir], runtime);
-                         }
-                     }
-                     if (high) {
-                         const auto& wall = walls[2*dir+1];
-                         if (erf_cloud_chamber_wall_flux::
-                             wall_rate_requires_tangential_speed(wall)) {
-                             const Real U_t =
-                                 erf_cloud_chamber_wall_flux::
-                                 tangential_speed_cell_centered(
-                                     dir, i, j, k, velocity, wall);
-                             const auto runtime =
-                                 erf_cloud_chamber_wall_flux::most_wall_coefficients(
-                                     wall, velocity(i,j,k,3), velocity(i,j,k,4),
-                                     velocity(i,j,k,5), velocity(i,j,k,6), U_t,
-                                     Real(0.5) / dxinv[dir],
-                                     dir == 2 ? -1 : 0);
-                             rate = amrex::max(rate,
-                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
-                                     wall, U_t, dxinv[dir], runtime));
-                             high_momentum_rates[dir] =
-                                 erf_cloud_chamber_wall_flux::momentum_rate_for_face(
-                                     wall, U_t, dxinv[dir], runtime);
-                         }
-                     }
-                 }
-                 for (int component = 0; component < AMREX_SPACEDIM; ++component) {
-                     const Real component_rate =
-                         erf_cloud_chamber_wall_flux::momentum_row_sum_rate(
-                             component, low_momentum_rates, high_momentum_rates);
-                     momentum_rate = amrex::max(momentum_rate, component_rate);
-                 }
-                 rate = amrex::max(rate, momentum_rate);
+                 rate = amrex::max(rate, erf_cloud_chamber_wall_flux::wall_rate_for_cell(
+                     i, j, k, domain, walls, dxinv, velocity));
              });
              return rate;
          });

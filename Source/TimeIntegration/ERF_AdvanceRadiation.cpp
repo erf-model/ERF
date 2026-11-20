@@ -119,6 +119,20 @@ void ERF::advance_radiation (int lev,
         return rad_level_needs_interpolation(l);
     };
 
+    // A level whose two-stream heating rates come from its parent has no sweep of its own
+    // to leave the buildings' solid cells unheated (erf.ibseb.two_stream_buildings), so
+    // they are set to zero after the interpolation, and the halo refilled from them. The
+    // refill covers the ghost cells other boxes of the level and periodic images hold; a
+    // ghost cell outside the level keeps its interpolated value, and no consumer of the
+    // rates reads one (the source term reads valid cells).
+    auto mask_two_stream_building_heating = [&] ()
+    {
+        if (solverChoice.rad_type == RadiationType::TwoStream && two_stream_rad.has_building_cover(lev)) {
+            two_stream_rad.mask_building_heating(lev, *qheating_rates[lev]);
+            qheating_rates[lev]->FillBoundary(geom[lev].periodicity());
+        }
+    };
+
     auto interp_rad_from_coarse = [&] ()
     {
         // Ensure the parent level's ghost cells are filled before interpolation.  This is
@@ -337,6 +351,7 @@ void ERF::advance_radiation (int lev,
         amrex::Print() << "Interpolating radiation heating rates and fluxes from level " << lev-1
                        << " to level " << lev << " on the first step after that level was built\n";
         interp_rad_from_coarse();
+        mask_two_stream_building_heating();
         rad_interp_from_coarse_pending[lev] = 0;
         return;
     }
@@ -387,7 +402,7 @@ void ERF::advance_radiation (int lev,
                       lmask_lev[lev][0].get(), t_surf,
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
-                      z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
+                      z_phys_nd[lev].get()     , z_sfc_nd[lev].get(), lat_ptr, lon_ptr,
                       terrain_radiation && !topographic_radiation.forcing_ready(lev),
                       solar_declin, calday);
 
@@ -437,6 +452,7 @@ void ERF::advance_radiation (int lev,
         // in how a level that *does* span the column is solved.
         if (lev > 0 && level_needs_interpolation(lev)) {
             interp_rad_from_coarse();
+            mask_two_stream_building_heating();
             return;
         }
 #ifdef ERF_USE_NETCDF
@@ -457,12 +473,15 @@ void ERF::advance_radiation (int lev,
         if (m_SurfaceModel) {
             radiation_inputs = m_SurfaceModel->get_radiation_fields(lev);
         }
+        // The roofs the columns under buildings start on (erf.ibseb.two_stream_roofs).
+        ibseb_give_roofs(lev);
         two_stream_rad.advance(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
                                lsm, radiation_inputs, noahmp_active,
                                qheating_rates[lev].get(), rad_fluxes[lev].get(),
                                t_surf, sfc_sens_flux, sfc_laten_flux, lat_ptr, lon_ptr,
-                               t_old[lev] + start_time, use_datetime);
+                               t_old[lev] + start_time, use_datetime,
+                               lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get());
 
         // Hand the land-surface model the surface forcing of this sweep, as RRTMGP does
         // through lsm_output_ptrs. The two-stream model sweeps on every step, so this is

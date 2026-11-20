@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-# Moist Unstable Atmospheric Boundary Layer Test Case - YSUNew Scheme
+# Moist Unstable Atmospheric Boundary Layer Test Case - YSU Scheme
 # 
 # Moist unstable conditions characterized by:
 #   - Strong surface heat flux (heating)
@@ -7,7 +7,7 @@
 #   - Potential for cloud formation
 #   - Buoyancy-driven convection enhanced by latent heating
 #
-# This case tests YSUNew performance in moist unstable conditions
+# This case tests YSU performance in moist unstable conditions
 
 erf.prob_name = "ABL"
 
@@ -69,8 +69,8 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_YSUNew_moist"
 
-# PBL CONFIGURATION - YSUNew with moist variables
-erf.pbl_type = "YSUNew"
+# PBL CONFIGURATION - YSU with moist variables
+erf.pbl_type = "YSU"
 erf.pbl_ysu_land_Ribcr = 0.25
 erf.enable_ysu_countergradient = true
 erf.enable_ysu_entrainment = true

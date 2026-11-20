@@ -33,7 +33,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_CoarseFineFaces {
 
 /**
  * The coarse/fine w-faces of every box of a level: its bottom (top) face where the cells just
@@ -141,6 +141,7 @@ scale_by_column_mapfac (MultiFab& f, const MultiFab& mx, const MultiFab& my,
 }
 
 } // namespace
+using namespace erf_detail_CoarseFineFaces;
 
 /**
  * The layout of level lev's coarse/fine z-face data, kept until the level's grids or
@@ -473,6 +474,9 @@ void ERF::set_cf_zghost_projection (int lev, double time_d, MultiFab& xmom, Mult
 {
     BL_PROFILE("ERF::set_cf_zghost_projection()");
     MultiFab rhou_g, rhov_g;
+    // The scaling is (rho u) with a fixed density and (rho0 u) otherwise; neither is the
+    // beta (rho u) of a pseudo-incompressible projection, which therefore stops before here
+    // on a level with coarse/fine faces in z (project_momenta)
     if (!cf_zface_coarse_data(lev, time_d, solverChoice.fixed_density[lev],
                               omega_t, rhou_g, rhov_g, slab_box)) {
         return;
@@ -538,7 +542,8 @@ bool ERF::cf_interp_mass_flux (int lev) const
  * @param area Face areas, ax or ay
  * @param mf   Map factor on those faces, m_uy or m_vx
  */
-static MultiFab
+namespace erf_detail_CoarseFineFaces {
+MultiFab
 weighted_mass_flux (const MultiFab& m, const MultiFab& area, const MultiFab& mf)
 {
     IntVect ng = amrex::min(m.nGrowVect(), area.nGrowVect());
@@ -558,6 +563,8 @@ weighted_mass_flux (const MultiFab& m, const MultiFab& area, const MultiFab& mf)
     }
     return w;
 }
+} // namespace erf_detail_CoarseFineFaces
+using namespace erf_detail_CoarseFineFaces;
 
 /**
  * Register the coarse horizontal momenta for the coarse/fine face fills of the level above,
@@ -968,7 +975,8 @@ void ERF::cf_anelastic_stage_registration (int lev, int nrk)
  * holds, the fill gives the mass flux, which is multiplied by the fine map factor and divided by
  * the fine area on the faces it set; all other faces keep their values exactly.
  */
-static void
+namespace erf_detail_CoarseFineFaces {
+void
 fill_cf_momentum (ERFFillPatcher& patcher, MultiFab& mom, const MultiFab& area, const MultiFab& mapfac,
                   bool mass_flux, double time_d, const Vector<BCRec>& bcs)
 {
@@ -994,6 +1002,8 @@ fill_cf_momentum (ERFFillPatcher& patcher, MultiFab& mom, const MultiFab& area, 
         });
     }
 }
+} // namespace erf_detail_CoarseFineFaces
+using namespace erf_detail_CoarseFineFaces;
 
 /**
  * Fill the horizontal momenta on the coarse/fine faces of a level (see RegisterCoarseMomentumCF).

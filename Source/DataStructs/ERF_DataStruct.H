@@ -92,10 +92,24 @@ AMREX_ENUM(SubsteppingType,
  *
  * FullyCompressible solves the compressible equations with acoustic substepping.
  * Anelastic holds the density at its base-state value and projects the velocity.
- * PseudoIncompressible currently takes exactly the anelastic path.
+ * PseudoIncompressible evolves the density and (rho theta) as FullyCompressible does, with the
+ * buoyancy -(rho - rho0) g, and projects the velocity to satisfy div(rho0 theta0 u) = 0 with a
+ * variable-coefficient solve; like Anelastic it never substeps acoustically.
  */
 AMREX_ENUM(CompressibilityType,
     FullyCompressible, Anelastic, PseudoIncompressible
+);
+
+/**
+ * @brief Horizontal pressure-gradient formulation with terrain-fitted coordinates.
+ *
+ * ChainRule:         dp/dx along the coordinate surface minus the terrain slope times dp/dz
+ * HydrostaticHybrid: as ChainRule, but the hydrostatic part of p' is carried to the height
+ *                    of the face along dp'/dz = -g rho' and only the remainder
+ *                    dp'/dz + g rho' is differenced
+ */
+AMREX_ENUM(GradpType,
+    ChainRule, HydrostaticHybrid
 );
 
 /**
@@ -757,10 +771,36 @@ struct SolverChoice {
         }
 
         // Which horizontal pressure gradient formulation to use with terrain fitted coords?
-        // 0: dp/dx with dp/dz correction (default)
-        // 1: gradient of vertically interpolated p, see Klemp 2011
-        pp.queryAdd("gradp_type", gradp_type);
-        AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
+        //    (see GradpType).  HydrostaticHybrid always uses the perturbational pressure,
+        //    regardless of the setting of use_pert_pres_gradient.
+        //
+        // The integer values this used to take are still accepted, with a warning:
+        //    0 -> ChainRule, 2 -> HydrostaticHybrid; 1 (Klemp 2011) has been removed
+        if (pp.contains("gradp_type")) {
+            std::string gradp_str;
+            pp.get("gradp_type", gradp_str);
+            if (gradp_str == "0" || gradp_str == "1" || gradp_str == "2") {
+                if (gradp_str == "1") {
+                    amrex::Abort("erf.gradp_type = 1 has been removed; use erf.gradp_type = HydrostaticHybrid");
+                }
+                gradp_type = (gradp_str == "0") ? GradpType::ChainRule : GradpType::HydrostaticHybrid;
+                amrex::Print() << "WARNING: integer values of erf.gradp_type are deprecated; use erf.gradp_type = "
+                               << amrex::getEnumNameString(gradp_type) << std::endl;
+            } else {
+                // Case-insensitive and ignoring underscores, so that e.g. hydrostatic_hybrid
+                //    selects HydrostaticHybrid
+                try {
+                    pp.query_enum_sloppy("gradp_type", gradp_type, "_");
+                } catch (...) {
+                    amrex::Abort("erf.gradp_type must be ChainRule or HydrostaticHybrid, not '"
+                                 + gradp_str + "'");
+                }
+            }
+        }
+
+        // With ChainRule, whether dp/dz at the bottom and top of the domain is the second-order
+        //    one-sided difference through three cells rather than the first-order two-point one
+        pp.query("gradp_2nd_order_bndry", gradp_2nd_order_bndry);
 
         // For the lateral pressure gradient to be used in the momentum equation, should we
         // take the x- and y-derivatives of the perturbational pressure or the full pressure?
@@ -774,6 +814,41 @@ struct SolverChoice {
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
 
+#ifdef ERF_SBM_AMR_QUALIFICATION
+        pp.queryAdd("sbm_amr_qualification_test", sbm_amr_qualification_test);
+        pp.queryAdd("sbm_amr_qualification_expect_zero_flow",
+                    sbm_amr_qualification_expect_zero_flow);
+        pp.queryAdd("sbm_amr_qualification_expect_split",
+                    sbm_amr_qualification_expect_split);
+        pp.queryAdd("sbm_amr_qualification_expect_empty_fine_rank",
+                    sbm_amr_qualification_expect_empty_fine_rank);
+        pp.queryAdd("sbm_amr_qualification_unique_profile",
+                    sbm_amr_qualification_unique_profile);
+        pp.queryAdd("sbm_amr_qualification_parent_store_fault",
+                    sbm_amr_qualification_parent_store_fault);
+        pp.queryAdd("sbm_amr_qualification_regrid",
+                    sbm_amr_qualification_regrid);
+        pp.queryAdd("sbm_amr_qualification_regrid_reject_fault",
+                    sbm_amr_qualification_regrid_reject_fault);
+        pp.queryAdd("sbm_amr_qualification_uniform_ratio",
+                    sbm_amr_qualification_uniform_ratio);
+#else
+        for (const char* name : {"sbm_amr_qualification_test",
+                                 "sbm_amr_qualification_expect_zero_flow",
+                                 "sbm_amr_qualification_expect_split",
+                                 "sbm_amr_qualification_expect_empty_fine_rank",
+                                 "sbm_amr_qualification_unique_profile",
+                                 "sbm_amr_qualification_parent_store_fault",
+                                 "sbm_amr_qualification_regrid",
+                                 "sbm_amr_qualification_regrid_reject_fault",
+                                 "sbm_amr_qualification_uniform_ratio"}) {
+            if (pp.contains(name)) {
+                amrex::Error(std::string("erf.") + name + " is available only in "
+                             "the isolated ERF_ENABLE_SBM_AMR_QUALIFICATION build");
+            }
+        }
+#endif
+
         // Test-only SBM failure injections. They remain disabled unless an
         // integration test explicitly enables the corresponding option.
         pp.queryAdd("sbm_test_native_qc_write_fault", sbm_test_native_qc_write_fault);
@@ -781,6 +856,10 @@ struct SolverChoice {
         if (moisture_type != MoistureType::SBM &&
             (sbm_test_native_qc_write_fault || sbm_test_donor_cfl_fault)) {
             amrex::Error("SBM test fault-injection options require moisture_model=SBM");
+        }
+        pp.queryAdd("sbm_budget_check", sbm_budget_check);
+        if (moisture_type != MoistureType::SBM && sbm_budget_check) {
+            amrex::Error("erf.sbm_budget_check requires erf.moisture_model = SBM");
         }
 
         // Register the moisture data this scheme carries: conserved-state
@@ -804,6 +883,10 @@ struct SolverChoice {
             pp.queryarr("sbm_edges", sbm_edges);
             pp.queryarr("sbm_pivots", sbm_pivots);
             pp.queryarr("sbm_fixture_initial_state", sbm_fixture_initial_state);
+            pp.queryarr("sbm_fixture_initial_state_xhi", sbm_fixture_initial_state_xhi);
+            pp.queryAdd("sbm_particle_mixing", sbm_particle_mixing);
+            pp.queryAdd("sbm_particle_mixing_kh", sbm_particle_mixing_kh);
+            pp.queryAdd("sbm_particle_mixing_kv", sbm_particle_mixing_kv);
 
             if (sbm_nbins < 2 || (sbm_moment_mode != 1 && sbm_moment_mode != 2)) {
                 amrex::Error("SBM requires sbm_nbins >= 2 and sbm_moment_mode equal to 1 or 2");
@@ -839,7 +922,12 @@ struct SolverChoice {
             if (sbm_cloud_rain_split <= 0 || sbm_cloud_rain_split >= sbm_nbins) {
                 amrex::Error("sbm_cloud_rain_split must be strictly inside the liquid bin range");
             }
-            const int expected_sbm_components = sbm_nbins * (sbm_moment_mode == 2 ? 2 : 1);
+            int expected_sbm_components = sbm_nbins * (sbm_moment_mode == 2 ? 2 : 1);
+#ifdef ERF_SBM_AMR_QUALIFICATION
+            if (sbm_amr_qualification_test && sbm_moment_mode == 2) {
+                expected_sbm_components += sbm_nbins;
+            }
+#endif
             if (!sbm_fixture_initial_state.empty() &&
                 sbm_fixture_initial_state.size() != static_cast<amrex::Long>(expected_sbm_components)) {
                 amrex::Error("sbm_fixture_initial_state must match the full runtime SBM component count");
@@ -847,6 +935,16 @@ struct SolverChoice {
             for (const amrex::Real value : sbm_fixture_initial_state) {
                 if (!std::isfinite(value) || value < amrex::Real(0.0)) {
                     amrex::Error("sbm_fixture_initial_state values must be finite and nonnegative");
+                }
+            }
+            if (!sbm_fixture_initial_state_xhi.empty() &&
+                sbm_fixture_initial_state_xhi.size() != sbm_fixture_initial_state.size()) {
+                amrex::Error("sbm_fixture_initial_state_xhi must have as many values as "
+                             "sbm_fixture_initial_state");
+            }
+            for (const amrex::Real value : sbm_fixture_initial_state_xhi) {
+                if (!std::isfinite(value) || value < amrex::Real(0.0)) {
+                    amrex::Error("sbm_fixture_initial_state_xhi values must be finite and nonnegative");
                 }
             }
         }
@@ -884,6 +982,11 @@ struct SolverChoice {
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
         // ApplyOceanSurfaceState call.
         pp.queryAdd("use_coupled_sst", use_coupled_sst);
+
+        // Will an external ocean coupler supply the surface current? The surface layer
+        // allocates the current with each level, before the first ApplyOceanSurfaceState
+        // call, and takes the wind relative to it.
+        pp.queryAdd("use_coupled_currents", use_coupled_currents);
 
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
@@ -1006,6 +1109,13 @@ struct SolverChoice {
         // init_zphys returns before building it when the terrain is EB
         if (terrain_type == TerrainType::EB && buildings_type == BuildingsType::ImmersedForcing) {
             amrex::Error("erf.buildings_type = ImmersedForcing is not supported with erf.terrain_type = EB");
+        }
+
+        // Each surface builds its own EB index space, and the factories use only the last one
+        // (the buildings), so the terrain would be dropped without warning (#5188)
+        if (terrain_type == TerrainType::ImmersedForcing && buildings_type == BuildingsType::ImmersedForcing) {
+            amrex::Error("erf.terrain_type = ImmersedForcing and erf.buildings_type = ImmersedForcing "
+                         "cannot be used together");
         }
 
         if ( (moisture_type == MoistureType::SAM                ||
@@ -1136,20 +1246,37 @@ struct SolverChoice {
         read_int_string(max_level, "project_initial_velocity", project_initial_velocity, 0);
 
         // The anelastic equations hold the density at its base-state value, so
-        // fixed_density is forced to 1 at every anelastic level; a user value of 0
-        // there is ignored, and we say so rather than drop it silently.
+        // fixed_density is forced to 1 at every anelastic level.  The pseudo-incompressible
+        // equations evolve the density (continuity equation) with the density-departure
+        // buoyancy -(rho - rho0) g, so fixed_density is forced to 0 and buoyancy_type to 1 there.
+        // A user value that disagrees is ignored, and we say so rather than drop it silently.
         bool any_anelastic = false;
         bool any_compress  = false;
         for (int i = 0; i <= max_level; ++i) {
-            if (compressibility_type[i] != CompressibilityType::FullyCompressible) {
+            if (compressibility_type[i] == CompressibilityType::Anelastic) {
                 if (fixed_density_given && fixed_density[i] == 0) {
                     amrex::Print() << "WARNING: erf.fixed_density = 0 is ignored at level " << i
-                                   << " because erf.compressibility_type is not FullyCompressible there; the anelastic"
-                                   << " and pseudo-incompressible equations always hold the density fixed in time." << std::endl;
+                                   << " because erf.compressibility_type is Anelastic there; the anelastic"
+                                   << " equations always hold the density fixed in time." << std::endl;
                 }
                 project_initial_velocity[i] = 1;
                 fixed_density[i]            = 1; // Always fixed when anelastic
                 buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
+                any_anelastic               = true;
+            } else if (compressibility_type[i] == CompressibilityType::PseudoIncompressible) {
+                if (fixed_density_given && fixed_density[i] == 1) {
+                    amrex::Print() << "WARNING: erf.fixed_density = 1 is ignored at level " << i
+                                   << " because erf.compressibility_type is PseudoIncompressible there; the"
+                                   << " pseudo-incompressible equations evolve the density." << std::endl;
+                }
+                if (buoyancy_type[i] != 1) {
+                    amrex::Print() << "WARNING: erf.buoyancy_type = " << buoyancy_type[i] << " is replaced by 1 at level "
+                                   << i << " because erf.compressibility_type is PseudoIncompressible there; the"
+                                   << " pseudo-incompressible buoyancy is -(rho - rho0) g." << std::endl;
+                }
+                project_initial_velocity[i] = 1;
+                fixed_density[i]            = 0; // The density evolves
+                buoyancy_type[i]            = 1; // -(rho - rho0) g
                 any_anelastic               = true;
             } else {
                 any_compress                = true;
@@ -1172,12 +1299,12 @@ struct SolverChoice {
         // *******************************************************************************
         // Read timestepping_type and allow for different values at each level.  The default
         // depends on the level's compressibility: RK3_ImplicitSubstep at a FullyCompressible
-        // level, RK2 otherwise.
+        // level, MidPoint otherwise.
         // *******************************************************************************
         timestepping_type.resize(max_level+1);
         for (int i = 0; i <= max_level; i++) {
             timestepping_type[i] = (compressibility_type[i] == CompressibilityType::FullyCompressible)
-                                 ? TimesteppingType::RK3_ImplicitSubstep : TimesteppingType::RK2;
+                                 ? TimesteppingType::RK3_ImplicitSubstep : TimesteppingType::MidPoint;
         }
 
         const bool substepping_type_given = pp.contains("substepping_type");
@@ -1215,7 +1342,7 @@ struct SolverChoice {
                                    << std::endl;
                 }
                 for (int i = 0; i <= max_level; i++) {
-                    AnelasticType anelastic_scheme = AnelasticType::RK2;
+                    AnelasticType anelastic_scheme = AnelasticType::MidPoint;
                     query_one_or_per_level_enum_case_insensitive(pp, "anelastic_type", anelastic_scheme, i, max_level);
                     if (compressibility_type[i] != CompressibilityType::FullyCompressible) {
                         timestepping_type[i] = (anelastic_scheme == AnelasticType::MidPoint)
@@ -1238,6 +1365,19 @@ struct SolverChoice {
             }
         }
 
+        // A moving mesh is advanced only by the RK3 integrators (erf_substep_MT with
+        // RK3_ImplicitSubstep, the update without substeps with RK3_NoSubstepping), which by the
+        // check above are those of a FullyCompressible level
+        if (terrain_type == TerrainType::MovingFittedMesh) {
+            for (int i = 0; i <= max_level; i++) {
+                if (compressibility_type[i] != CompressibilityType::FullyCompressible) {
+                    amrex::Abort("erf.terrain_type = MovingFittedMesh requires erf.timestepping_type = "
+                                 "RK3_ImplicitSubstep or RK3_NoSubstepping (a FullyCompressible level) "
+                                 "at level " + std::to_string(i));
+                }
+            }
+        }
+
         pp.queryAdd("substepping_diag", substepping_diag);
 
         pp.queryAdd("beta_s", beta_s);
@@ -1248,17 +1388,17 @@ struct SolverChoice {
             amrex::Abort("erf.beta_d must lie in [0, 1]; got " + std::to_string(beta_d));
         }
 
-        // Spatially varying beta_s on the w-faces (implicit substepping only):
-        //    beta_s = max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
+        // Number of steps between the synchronization of the two copies of a periodic face
+        // velocity (0 = never)
+        pp.query("face_sync_int", face_sync_int);
+
+        // Spatially varying beta_s on the w-faces (implicit substepping only), set from the
+        //    terrain slope and the vertical acoustic Courant number (see make_fast_coeffs).
+        //    If it is not given, it is turned on during the run on a terrain-fitted mesh where
+        //    beta_s is below the stability limit min(sigma^2, 1) (ERF::CheckVariableBetaS);
+        //    an explicit false keeps the constant beta_s
+        auto_variable_beta_s = !pp.contains("use_variable_beta_s");
         pp.queryAdd("use_variable_beta_s", use_variable_beta_s);
-        pp.queryAdd("beta_s_min", beta_s_min);
-        pp.queryAdd("beta_s_max", beta_s_max);
-        if (use_variable_beta_s) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(beta_s_min <= beta_s_max,
-                "erf.beta_s_min must be less than or equal to erf.beta_s_max");
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(beta_s_min >= -one && beta_s_max <= one,
-                "erf.beta_s_min and erf.beta_s_max must lie in [-1, 1]");
-        }
 
         // *******************************************************************************
         // Error check on deprecated input
@@ -1266,6 +1406,15 @@ struct SolverChoice {
         int nvals_old = pp.countval("no_substepping");
         if (nvals_old > 0) {
             amrex::Error("The no_substepping flag is deprecated -- set erf.timestepping_type instead");
+        }
+
+        nvals_old = pp.countval("beta_s_min");
+        if (nvals_old > 0) {
+            amrex::Error("The beta_s_min flag is deprecated -- remove it from the inputs file");
+        }
+        nvals_old = pp.countval("beta_s_max");
+        if (nvals_old > 0) {
+            amrex::Error("The beta_s_max flag is deprecated -- remove it from the inputs file");
         }
 
         pp.queryAdd("ncorr", ncorr);
@@ -1277,6 +1426,10 @@ struct SolverChoice {
             amrex::Error("erf.wall_dist_type must be poisson or terrain_height");
         }
         pp.queryAdd("poisson_abstol", poisson_abstol);
+        pp.queryAdd("pi_drift_factor", pi_drift_factor);
+        if (pi_drift_factor < zero) {
+            amrex::Abort("erf.pi_drift_factor must be non-negative");
+        }
         pp.queryAdd("poisson_reltol", poisson_reltol);
         // Solver for the projection on a terrain-fitted mesh: FFT-preconditioned GMRES (default),
         // or amrex::MLTerrainPoisson with multigrid, alone or under GMRES
@@ -1585,10 +1738,6 @@ struct SolverChoice {
                 amrex::Abort("erf.if_implicit_projection needs erf.terrain_type = ImmersedForcing or "
                              "erf.buildings_type = ImmersedForcing");
             }
-            if (if_terrain && if_buildings) {
-                amrex::Abort("erf.if_implicit_projection is not implemented for erf.terrain_type = ImmersedForcing "
-                             "together with erf.buildings_type = ImmersedForcing");
-            }
             if (mesh_type != MeshType::ConstantDz) {
                 amrex::Abort("erf.if_implicit_projection needs a constant-dz mesh");
             }
@@ -1720,15 +1869,15 @@ struct SolverChoice {
         pp.queryAdd("Ave_Plane", ave_plane);
 
         // Use numerical diffusion?
+        // The 6th-order numerical diffusion is deactivated until its known issues are resolved;
+        // a nonzero coefficient aborts rather than being silently ignored. To restore it, bring
+        // back the [0, 1] range check, use_num_diff = (num_diff_coeff > 0) and the 2^-6 scaling
+        // of num_diff_coeff that this block had before erf-model/ERF#5246.
         pp.queryAdd("num_diff_coeff",num_diff_coeff);
-        AMREX_ASSERT_WITH_MESSAGE(( (num_diff_coeff >= zero) && (num_diff_coeff <= one) ),
-                                  "Numerical diffusion coefficient must be between 0 & one");
-        use_num_diff = (num_diff_coeff > 0);
-        if (use_num_diff) {
-            amrex::Print() << "6th-order numerical diffusion turned on with coefficient = "
-                << num_diff_coeff << std::endl;
-            num_diff_coeff *= amrex::Math::powi<-6>(two);
-        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_diff_coeff == zero,
+            "erf.num_diff_coeff must be 0: the 6th-order numerical diffusion is currently "
+            "deactivated. Remove erf.num_diff_coeff or set it to 0.");
+        use_num_diff = false;
 
             advChoice.init_params(pp_prefix);
 
@@ -1763,6 +1912,25 @@ struct SolverChoice {
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
              ebChoice.init_params(pp_prefix);
+
+        // A level that takes no acoustic substeps applies these terms on the slow step instead
+        // (level_substeps); say so when they were asked for
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (level_substeps(lev)) { continue; }
+            if (dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit ||
+                dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit) {
+                amrex::Print() << "Level " << lev << " takes no acoustic substeps: Rayleigh damping is"
+                               << " applied on the slow step there" << std::endl;
+            }
+            if (forest_substep) {
+                amrex::Print() << "Level " << lev << " takes no acoustic substeps: erf.forest_substep is"
+                               << " ignored there and canopy drag is applied on the slow step" << std::endl;
+            }
+            if (immersed_forcing_substep && pp.contains("immersed_forcing_substep")) {
+                amrex::Print() << "Level " << lev << " takes no acoustic substeps: erf.immersed_forcing_substep"
+                               << " is ignored there and immersed forcing is applied on the slow step" << std::endl;
+            }
+        }
 
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -1882,9 +2050,6 @@ struct SolverChoice {
         // Optionally use the dry-air density reconstructed from wrfbdy.
         pp.queryAdd("use_wrf_bdy_density", use_wrf_bdy_density);
 
-        // Optionally ingest cloud water and cloud ice from wrfinput/wrfbdy.
-        pp.queryAdd("use_wrf_bdy_qc_qi", use_wrf_bdy_qc_qi);
-
         if (!use_real_bcs || init_type != InitType::WRFInput) {
             use_wrf_bdy_density = false;
         }
@@ -1893,41 +2058,14 @@ struct SolverChoice {
 
         // Which approach to nudging the moist variables in the boundary region?
         pp.queryAdd("bdy_moist_nudge_type",bdy_moist_nudge_type);
-        if (bdy_moist_nudge_type < 0 || bdy_moist_nudge_type > 3) {
-            amrex::Error("erf.bdy_moist_nudge_type must be one of 0, 1, 2, or 3");
-        }
-        if (bdy_moist_nudge_type == 3 && !use_wrf_bdy_qc_qi) {
-            amrex::Error("erf.bdy_moist_nudge_type = 3 requires erf.use_wrf_bdy_qc_qi = true");
-        }
-        if (use_wrf_bdy_qc_qi) {
-            if (moisture_type == MoistureType::None) {
-                amrex::Error("erf.use_wrf_bdy_qc_qi requires an active moisture model");
-            }
-            if (!use_real_bcs || init_type != InitType::WRFInput) {
-                amrex::Error("erf.use_wrf_bdy_qc_qi requires WRFInput real boundary conditions");
-            }
-            if (moisture_indices.qv < RhoQ1_comp || moisture_indices.qv > RhoQ11_comp ||
-                moisture_indices.qc < RhoQ1_comp || moisture_indices.qc > RhoQ11_comp) {
-                amrex::Error("erf.use_wrf_bdy_qc_qi requires active qv and qc component indices");
-            }
-            const int optional_moisture_comps[] = {moisture_indices.qi,
-                                                   moisture_indices.qr,
-                                                   moisture_indices.qs,
-                                                   moisture_indices.qg};
-            for (const int comp : optional_moisture_comps) {
-                if (comp != -1 && (comp < RhoQ1_comp || comp > RhoQ11_comp)) {
-                    amrex::Error("erf.use_wrf_bdy_qc_qi found an invalid active moisture component index");
-                }
-            }
+        if (bdy_moist_nudge_type < 0 || bdy_moist_nudge_type > 2) {
+            amrex::Error("erf.bdy_moist_nudge_type must be one of 0, 1, or 2");
         }
 
         // Are me transporting the scalar component?
         pp.queryAdd("transport_scalar",transport_scalar);
 
         for (int lev = 0; lev <= max_level; ++lev) {
-            if (turbChoice[lev].uses_eamxx_shoc()) {
-                use_eamxx_shoc = true;
-            }
             if (turbChoice[lev].uses_native_shoc()) {
                 use_native_shoc = true;
                 read_shoc_transport_modes(shoc_transport_mode, shoc_momentum_transport);
@@ -2149,6 +2287,20 @@ struct SolverChoice {
 
         pp.queryAdd("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
+        // The hindcast latitude comes with the lateral-forcing data; without it, Coriolis
+        // takes the variable or constant latitude instead, so say which
+        if (init_type == InitType::HindCast && use_coriolis && !hindcast_lateral_forcing) {
+            if (variable_coriolis) {
+                amrex::Print() << "WARNING: erf.init_type = hindcast without erf.hindcast_lateral_forcing:"
+                               << " Coriolis uses the variable latitude (erf.variable_coriolis)" << std::endl;
+            } else {
+                amrex::Print() << "WARNING: erf.init_type = hindcast without erf.hindcast_lateral_forcing:"
+                               << " Coriolis uses the constant erf.latitude"
+                               << (pp.contains("latitude") ? "" : ", which is not set (default 90 degrees)")
+                               << std::endl;
+            }
+        }
+
         if (hindcast_lateral_forcing) {
             pp.queryAdd("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
 
@@ -2199,6 +2351,13 @@ struct SolverChoice {
                               " but have not provided the initial location of the eye of the hurricane to be tracked. There has to be two"
                               " options in the inputs - erf.hurricane_eye_latitude and erf.hurricane_eye_longitude that gives an approximate"
                               " location of the eye in the initial condition");
+            }
+            // With init_type = hindcast the tracker takes latitude and longitude from the
+            // forecast state, which exists only with lateral forcing
+            if (init_type == InitType::HindCast && !hindcast_lateral_forcing) {
+                amrex::Error("ERROR: 'erf.io_hurricane_eye_tracker' with erf.init_type = hindcast needs"
+                             " erf.hindcast_lateral_forcing = true: the tracker reads latitude and longitude"
+                             " from the forecast state, which only lateral forcing provides");
             }
         }
 
@@ -2354,6 +2513,14 @@ struct SolverChoice {
                           " turbine disk from the x-axis. A turbine facing an oncoming flow in the x-direction"
                           " will have turb_disk_angle value of 90 deg.");
         }
+#ifdef ERF_USE_WINDFARM
+        // Without a location type no turbine table is read, and the model would run on empty tables
+        if (windfarm_type != WindFarmType::None && windfarm_loc_type == WindFarmLocType::None) {
+            amrex::Error(std::string("erf.windfarm_type = ") + amrex::getEnumNameString(windfarm_type)
+                         + " needs erf.windfarm_loc_type, either lat_lon or x_y, with the turbine locations"
+                         " in erf.windfarm_loc_table and their specifications in erf.windfarm_spec_table.");
+        }
+#endif
         if (windfarm_loc_type == WindFarmLocType::lat_lon and (windfarm_x_shift < zero or windfarm_y_shift < zero)) {
             amrex::Error("You are using windfarms with latitude-logitude option to position the turbines."
                          " For this you should provide the inputs erf.windfarm_x_shift and"
@@ -2508,7 +2675,9 @@ struct SolverChoice {
         for (int lev = 0; lev <= max_level; lev++) {
             amrex::Print() << "At level " << lev << " : " << std::endl;
             if (compressibility_type[lev] != CompressibilityType::FullyCompressible) {
-                amrex::Print() << "   anelastic with no substepping, using the "
+                amrex::Print() << ((compressibility_type[lev] == CompressibilityType::PseudoIncompressible)
+                                   ? "   pseudo-incompressible" : "   anelastic")
+                               << " with no substepping, using the "
                                << ((timestepping_type[lev] == TimesteppingType::MidPoint) ? "MidPoint" : "RK2")
                                << " integrator" << std::endl;
             } else {
@@ -2640,7 +2809,8 @@ struct SolverChoice {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
 
-        amrex::Print() << "Gradp_type                  : " << gradp_type << std::endl;
+        amrex::Print() << "Gradp_type                  : " << amrex::getEnumNameString(gradp_type) << std::endl;
+        amrex::Print() << "Gradp_2nd_order_bndry       : " << gradp_2nd_order_bndry << std::endl;
 
         for (int lev = 0; lev <= max_level; lev++) {
             amrex::Print() << "Buoyancy_type at level " << lev << " : " << buoyancy_type[lev] << std::endl;
@@ -2793,12 +2963,14 @@ struct SolverChoice {
     // time off-centering coefficient, > 0 for forward weighting (i.e., bias
     // towards the future time step)
     amrex::Real beta_s = amrex::Real(0.1);
+    int face_sync_int = 1;
 
-    // if true, beta_s varies on the w-faces as max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
+    // if true, beta_s varies on the w-faces
     // and beta_s itself is not used (implicit substepping only)
     bool use_variable_beta_s = false;
-    amrex::Real beta_s_min = amrex::Real(0.1);
-    amrex::Real beta_s_max = amrex::Real(0.8);
+    // true if erf.use_variable_beta_s is not given in the inputs, so that it may be turned on
+    // where the constant beta_s is below the stability limit min(sigma^2, 1) of the terrain
+    bool auto_variable_beta_s = true;
 
     // divergence damping coefficient: how far (rho theta) is projected forward
     // in the horizontal momentum equations of the acoustic substepping
@@ -2831,10 +3003,16 @@ struct SolverChoice {
     amrex::Real poisson_reltol      = amrex::Real(1e-8);
 #endif
 
+    // Pseudo-incompressible: the constraint is div(rho0 theta0 u) = Q + c (rho theta - rho0 theta0) / dt,
+    // with Q the non-advective tendency of (rho theta) and c this factor (0 for no drift correction)
+    amrex::Real pi_drift_factor     = myhalf;
+
     bool        test_mapfactor         = false;
     amrex::Real test_mapfactor_amp     = amrex::Real(0);
 
-    int         gradp_type             = 0;
+    GradpType   gradp_type             = GradpType::ChainRule;
+
+    bool        gradp_2nd_order_bndry  = false;
 
     bool        use_pert_pres_gradient = true;
 
@@ -2943,7 +3121,6 @@ struct SolverChoice {
     bool use_rotate_surface_flux = false;
 
     // Should we use SHOC?
-    bool use_eamxx_shoc = false;
     bool use_native_shoc = false;
 
     // Native shoc transport mode
@@ -2969,6 +3146,49 @@ struct SolverChoice {
         return buildings_type == BuildingsType::ImmersedForcing &&
                std::sqrt(geom.CellSize(0) * geom.CellSize(1)) <=
                    amrex::Real(50.0) * (one + amrex::Real(1.e-6));
+    }
+
+    // Whether a level takes acoustic substeps.  Anelastic, pseudo-incompressible and
+    // RK3_NoSubstepping levels do not, so a source term that is asked to be applied in
+    // the substeps only is applied on the slow step there instead.
+    [[nodiscard]] bool level_substeps (int lev) const noexcept
+    {
+        return timestepping_type[lev] == TimesteppingType::RK3_ImplicitSubstep;
+    }
+
+    // Rayleigh damping of u, v and (rho theta) in the substeps (FastExplicit, FastImplicit)
+    [[nodiscard]] bool rayleigh_fast_uvT (int lev) const noexcept
+    {
+        return level_substeps(lev) &&
+               (dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit ||
+                dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);
+    }
+
+    // Explicit Rayleigh damping of w in the substeps (FastExplicit only)
+    [[nodiscard]] bool rayleigh_fast_w (int lev) const noexcept
+    {
+        return level_substeps(lev) &&
+               dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit;
+    }
+
+    // Implicit Rayleigh damping of w in the substeps (FastImplicit with erf.rayleigh_damp_W).
+    // It replaces the explicit w damping, which is then applied on neither step.
+    [[nodiscard]] bool rayleigh_implicit_w (int lev) const noexcept
+    {
+        return level_substeps(lev) && dampingChoice.rayleigh_damp_W &&
+               dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit;
+    }
+
+    // Canopy drag in the substeps (erf.forest_substep)
+    [[nodiscard]] bool forest_fast (int lev) const noexcept
+    {
+        return level_substeps(lev) && forest_substep;
+    }
+
+    // Immersed forcing in the substeps (erf.immersed_forcing_substep)
+    [[nodiscard]] bool immersed_forcing_fast (int lev) const noexcept
+    {
+        return level_substeps(lev) && immersed_forcing_substep;
     }
 
     /**
@@ -3018,11 +3238,11 @@ struct SolverChoice {
 
     /**
      * @brief Query whether any SHOC-family PBL scheme is active.
-     * @return True if native or EAMxx SHOC is active.
+     * @return True if native SHOC is active.
      */
     bool uses_shoc_family () const noexcept
     {
-        return (use_eamxx_shoc || use_native_shoc);
+        return use_native_shoc;
     }
 
     /**
@@ -3031,7 +3251,6 @@ struct SolverChoice {
      */
     bool host_owns_vertical_momentum_diffusion () const noexcept
     {
-        if (use_eamxx_shoc)   { return false; }
         if (!use_native_shoc) { return true;  }
         return shoc_disables_momentum_transport(shoc_momentum_transport);
     }
@@ -3042,7 +3261,6 @@ struct SolverChoice {
      */
     bool host_owns_vertical_scalar_diffusion () const noexcept
     {
-        if (use_eamxx_shoc)   { return false; }
         if (!use_native_shoc) { return true;  }
         return false;
     }
@@ -3102,11 +3320,26 @@ struct SolverChoice {
     int sbm_nbins{4};
     int sbm_moment_mode{1};
     int sbm_cloud_rain_split{-1};
+    bool sbm_amr_qualification_test{false};
+    bool sbm_amr_qualification_expect_zero_flow{false};
+    bool sbm_amr_qualification_expect_split{false};
+    bool sbm_amr_qualification_expect_empty_fine_rank{false};
+    bool sbm_amr_qualification_unique_profile{false};
+    bool sbm_amr_qualification_parent_store_fault{false};
+    bool sbm_amr_qualification_regrid{false};
+    bool sbm_amr_qualification_regrid_reject_fault{false};
+    bool sbm_amr_qualification_uniform_ratio{false};
     bool sbm_test_native_qc_write_fault{false};
     bool sbm_test_donor_cfl_fault{false};
+    bool sbm_budget_check{false};
     amrex::Vector<amrex::Real> sbm_edges;
     amrex::Vector<amrex::Real> sbm_pivots;
     amrex::Vector<amrex::Real> sbm_fixture_initial_state;
+    // The fixture state of cells whose centre lies in the upper half of the x domain
+    amrex::Vector<amrex::Real> sbm_fixture_initial_state_xhi;
+    std::string sbm_particle_mixing{"None"};
+    amrex::Real sbm_particle_mixing_kh{0};
+    amrex::Real sbm_particle_mixing_kv{0};
     WindFarmType windfarm_type;
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
@@ -3137,6 +3370,8 @@ struct SolverChoice {
 
     // Does an external ocean coupler supply SST? See the query in init_params.
     bool use_coupled_sst = false;
+    // Does an external ocean coupler supply the surface current? See the query in init_params.
+    bool use_coupled_currents = false;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
@@ -3165,9 +3400,6 @@ struct SolverChoice {
 
     // Use density reconstructed from standard WRF lateral boundary data.
     bool use_wrf_bdy_density = true;
-
-    // Ingest WRF cloud water and active cloud ice at initialization and lateral boundaries.
-    bool use_wrf_bdy_qc_qi = false;
 
     // Density-specific Davies factor; non-positive means use bdy_nudge_factor.
     amrex::Real bdy_rho_nudge_factor = amrex::Real(-1.0);
@@ -3261,7 +3493,7 @@ struct SolverChoice {
  * @var SolverChoice::timestepping_type
  * @brief Per-level time integrator (RK3_ImplicitSubstep, RK3_NoSubstepping, RK2 or MidPoint).
  * @var SolverChoice::fixed_density
- * @brief Per-level flag selecting fixed-density treatment; always 1 at an anelastic level.
+ * @brief Per-level flag selecting fixed-density treatment; always 1 at an anelastic level and 0 at a pseudo-incompressible level.
  * @var SolverChoice::project_initial_velocity
  * @brief Per-level flag for projecting the initial velocity.
  * @var SolverChoice::buoyancy_type
@@ -3273,11 +3505,9 @@ struct SolverChoice {
  * @var SolverChoice::beta_s
  * @brief Time off-centering coefficient for forward weighting.
  * @var SolverChoice::use_variable_beta_s
- * @brief Whether beta_s varies on the w-faces with the terrain slope.
- * @var SolverChoice::beta_s_min
- * @brief Lower bound of the spatially varying beta_s.
- * @var SolverChoice::beta_s_max
- * @brief Upper bound of the spatially varying beta_s.
+ * @brief Whether beta_s varies on the w-faces with the terrain slope and acoustic Courant number.
+ * @var SolverChoice::auto_variable_beta_s
+ * @brief Whether erf.use_variable_beta_s may be turned on automatically (it is not set in the inputs).
  * @var SolverChoice::beta_d
  * @brief Divergence damping coefficient used in the acoustic substepping.
  * @var SolverChoice::vert_implicit_fac
@@ -3308,6 +3538,8 @@ struct SolverChoice {
  * @brief Amplitude of the spatially varying test map scale factors on level 0 (0: not used).
  * @var SolverChoice::gradp_type
  * @brief Terrain-fitted horizontal pressure-gradient formulation.
+ * @var SolverChoice::gradp_2nd_order_bndry
+ * @brief Whether ChainRule takes dp/dz at the bottom and top from a second-order one-sided difference.
  * @var SolverChoice::use_pert_pres_gradient
  * @brief Whether momentum equations use perturbational pressure gradients.
  * @var SolverChoice::use_gravity
@@ -3451,8 +3683,6 @@ struct SolverChoice {
  * @brief Whether solution fields are nudged toward observations at stations.
  * @var SolverChoice::use_rotate_surface_flux
  * @brief Whether MOST surface fluxes are rotated with terrain.
- * @var SolverChoice::use_eamxx_shoc
- * @brief Whether any level uses the EAMxx SHOC PBL scheme.
  * @var SolverChoice::use_native_shoc
  * @brief Whether any level uses the native SHOC PBL scheme.
  * @var SolverChoice::transport_scalar
@@ -3524,8 +3754,6 @@ struct SolverChoice {
  * @brief Wind-farm y-coordinate shift.
  * @var SolverChoice::bdy_nudge_factor
  * @brief Boundary sponge nudging factor.
- * @var SolverChoice::use_wrf_bdy_qc_qi
- * @brief Whether WRF cloud water and active cloud ice are ingested at real boundaries.
  * @var SolverChoice::bdy_moist_nudge_type
  * @brief Moist-variable nudging strategy in boundary regions.
  * @var SolverChoice::do_forest_drag

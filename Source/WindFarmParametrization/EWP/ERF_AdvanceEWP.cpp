@@ -16,11 +16,14 @@ EWP::advance (const Geometry& geom,
               MultiFab& W_old,
               const MultiFab& mf_Nturb,
               const MultiFab& mf_SMark,
+              const MultiFab* z_phys_nd,
+              const MultiFab* z_phys_cc,
               const double& time)
  {
     AMREX_ALWAYS_ASSERT(mf_SMark.nComp() > 0);
     AMREX_ALWAYS_ASSERT(time > -one);
-    source_terms_cellcentered(geom, cons_in, mf_vars_ewp, U_old, V_old, W_old, mf_Nturb);
+    amrex::ignore_unused(z_phys_cc);
+    source_terms_cellcentered(geom, cons_in, mf_vars_ewp, U_old, V_old, W_old, mf_Nturb, z_phys_nd);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_ewp);
     compute_power_output(cons_in, U_old, V_old, W_old, mf_SMark, mf_Nturb, time);
 }
@@ -137,14 +140,14 @@ EWP::source_terms_cellcentered (const Geometry& geom,
                                 const MultiFab& U_old,
                                 const MultiFab& V_old,
                                 const MultiFab& W_old,
-                                const MultiFab& mf_Nturb)
+                                const MultiFab& mf_Nturb,
+                                const MultiFab* z_phys_nd)
 {
 
   get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
 
   auto dx = geom.CellSizeArray();
-  auto ProbLoArr = geom.ProbLoArray();
   Real sigma_0 = Real(1.7)*rotor_rad;
 
   Real d_rotor_rad = rotor_rad;
@@ -162,6 +165,8 @@ EWP::source_terms_cellcentered (const Geometry& geom,
   const amrex::Box& domain = geom.Domain();
   int domlo_z = domain.smallEnd(2);
   int domhi_z = domain.bigEnd(2) + 1;
+  // Cells for the heights: kc+1 stays a node of the domain
+  int domhi_cc = domain.bigEnd(2);
 
   // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
   mf_vars_ewp.setVal(0.0);
@@ -174,6 +179,8 @@ EWP::source_terms_cellcentered (const Geometry& geom,
         auto u_vel       = U_old.array(mfi);
         auto v_vel       = V_old.array(mfi);
         auto w_vel       = W_old.array(mfi);
+        // Physical node heights (#5182); without them, uniform dz above the domain bottom
+        const Array4<const Real> zp = (z_phys_nd) ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
 
         const Real* wind_speed_d     = d_wind_speed.dataPtr();
         const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
@@ -182,7 +189,10 @@ EWP::source_terms_cellcentered (const Geometry& geom,
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
-            Real z = ProbLoArr[2] + (kk+myhalf) * dx[2];
+            int kc = amrex::min(amrex::max(k, domlo_z), domhi_cc);
+            // Cell-centre height above the ground, where the hub height is measured from
+            Real z = myhalf * (windfarm_face_height_above_ground(zp, i, j, kc  , domlo_z, dx[2]) +
+                               windfarm_face_height_above_ground(zp, i, j, kc+1, domlo_z, dx[2]));
 
             // Compute Fitch source terms
 

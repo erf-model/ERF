@@ -319,7 +319,7 @@ LandForcingResult run_land_forcing (bool supply, amrex::Real cloud_fraction)
     state.setVal(getThgivenRandT(Real(1.0), Real(290.0), RdoCp), RhoTheta_comp, 1);
 
     // Both bands on, an absorbing and scattering atmosphere, and a cloud layer over the
-    // middle two of the four 1 km layers (centres at 1.5 and 2.5 km). With a cloud
+    // middle two of the four 1 km layers (centers at 1.5 and 2.5 km). With a cloud
     // fraction the surface fluxes are then a real clear/cloudy blend: the cloudy column
     // differs from the clear one, which the test checks, so storing the forcing before
     // the blend would be caught.

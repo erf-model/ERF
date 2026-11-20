@@ -2,7 +2,7 @@
 #
 # A 100 m Witch-of-Agnesi hill carried by an embedded boundary rather than by
 # the mesh, which stays flat.  The grid is 5 m in every direction and the hill
-# is centred at x = 300 m, so the terrain is exactly 50 m up at x = 400 m.
+# is centered at x = 300 m, so the terrain is exactly 50 m up at x = 400 m.
 #
 # Tests/CTestList.cmake uses it for station output over embedded-boundary
 # terrain: a station asked for 40 m above the local terrain must sample the

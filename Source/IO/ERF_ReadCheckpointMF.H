@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include <AMReX_Algorithm.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_IntVect.H>
 #include <AMReX_MultiFab.H>
@@ -26,6 +27,43 @@ lateral_periodicity (const amrex::Geometry& geom)
 }
 
 /**
+ * Fill the ghost layers of dst between ng_filled and ng_dst, which a checkpoint written with
+ * fewer ghost cells (for example before a change of advection scheme) could not supply.
+ *
+ * Every such cell first takes the value of the nearest cell within ng_filled of its own valid
+ * box, so that none is left undefined: outside the domain that is the outermost layer the file
+ * did hold. FillBoundary then gives the cells that lie over another box's valid region, or its
+ * periodic image, the value from there.
+ */
+inline void
+fill_unread_ghosts (amrex::MultiFab& dst, int dcomp, int ncomp,
+                    const amrex::IntVect& ng_filled, const amrex::IntVect& ng_dst,
+                    const amrex::Periodicity& period)
+{
+    if (ng_filled.allGE(ng_dst)) { return; }
+
+    for (amrex::MFIter mfi(dst); mfi.isValid(); ++mfi) {
+        const amrex::Box& vbx = mfi.validbox();
+        const amrex::Box  gbx = amrex::grow(vbx, ng_dst);
+        const amrex::Box  fbx = amrex::grow(vbx, ng_filled);
+        const amrex::Dim3 flo = amrex::lbound(fbx);
+        const amrex::Dim3 fhi = amrex::ubound(fbx);
+        const amrex::Array4<amrex::Real>& a = dst.array(mfi);
+        amrex::ParallelFor(gbx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            const int ii = amrex::Clamp(i, flo.x, fhi.x);
+            const int jj = amrex::Clamp(j, flo.y, fhi.y);
+            const int kk = amrex::Clamp(k, flo.z, fhi.z);
+            if (ii != i || jj != j || kk != k) {
+                a(i,j,k,dcomp+n) = a(ii,jj,kk,dcomp+n);
+            }
+        });
+    }
+
+    dst.FillBoundary(dcomp, ncomp, ng_dst, period);
+}
+
+/**
  * Read one checkpoint MultiFab and deposit it into dst, which may live on different grids.
  *
  * The source is read into an undefined MultiFab, which VisMF::Read then defines on the
@@ -38,6 +76,8 @@ lateral_periodicity (const amrex::Geometry& geom)
  * offering them can land stale values in valid cells. Pass src_ghosts = true for a field
  * whose halo the checkpoint carries and whose ordinary restart has always restored it; the
  * valid cells are then laid over the top in a second pass, so they win wherever they reach.
+ * If the file holds fewer ghost cells than that, the layers it cannot supply are filled by
+ * fill_unread_ghosts rather than left undefined.
  *
  * @param[inout] dst         destination, on the grids the run uses
  * @param[in]    mf_name     the checkpoint MultiFab, as for VisMF::Read
@@ -92,6 +132,7 @@ read_checkpoint_multifab (amrex::MultiFab& dst,
             aligned.Redistribute(src, 0, 0, src.nComp(), src.nGrowVect());
             amrex::MultiFab::Copy(dst, aligned, scomp, dcomp, ncomp, ng_copy);
         }
+        if (src_ghosts) { fill_unread_ghosts(dst, dcomp, ncomp, ng_copy, ng_dst, period); }
         return;
     }
 
@@ -107,6 +148,7 @@ read_checkpoint_multifab (amrex::MultiFab& dst,
         const amrex::IntVect ng_src = amrex::min(ng_dst, src.nGrowVect());
         dst.ParallelCopy(src, scomp, dcomp, ncomp, ng_src,            ng_dst, period);
         dst.ParallelCopy(src, scomp, dcomp, ncomp, amrex::IntVect(0), ng_dst, period);
+        fill_unread_ghosts(dst, dcomp, ncomp, ng_src, ng_dst, period);
     } else {
         dst.ParallelCopy(src, scomp, dcomp, ncomp, amrex::IntVect(0), ng_dst, period);
     }

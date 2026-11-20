@@ -1,4 +1,5 @@
 #include <ERF_TwoStreamRadiation.H>
+#include <ERF_RadiationInterface.H>
 #include <ERF_RadStruct.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_PlotFileUtil.H>
@@ -14,6 +15,7 @@
 #include <ERF_SimplifiedSEB.H>
 #include <ERF_SurfaceMoisture.H>
 #include <ERF_SEBTurbulentFlux.H>
+#include <ERF_SEBLandMask.H>
 #include <ERF_OrbCosZenith.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -249,10 +251,30 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_moisture.resize(nlevs_max);
     m_canopy.resize(nlevs_max);
     m_canopy_cosz.resize(nlevs_max);
+    m_canopy_alb.resize(nlevs_max);
     m_canopy_m.resize(nlevs_max, -1);
     m_canopy_step.resize(nlevs_max, -1);
+    m_solid.resize(nlevs_max);
+    m_footprint.resize(nlevs_max);
+    m_ground_shadow.resize(nlevs_max);
+    m_sw_beam_sfc.resize(nlevs_max);
+    m_shadow_step.resize(nlevs_max, -1);
+    m_ground_walls.resize(nlevs_max);
+    m_ground_keep.resize(nlevs_max);
+    m_walls_step.resize(nlevs_max, -1);
+    m_roof_k.resize(nlevs_max);
+    m_roof.resize(nlevs_max);
+    m_roof_step.resize(nlevs_max, -1);
+    m_sweep_step.resize(nlevs_max, -1);
+    m_shaded_step.resize(nlevs_max, -1);
+    m_has_cover.resize(nlevs_max, 0);
+    m_seb_updated.resize(nlevs_max, 0);
+    m_water_message.resize(nlevs_max, -1);
     m_flux_diag.resize(nlevs_max);
     m_diag.resize(nlevs_max);
+    m_precip.resize(nlevs_max);
+    m_hydro.resize(nlevs_max);
+    m_snow.resize(nlevs_max);
 }
 
 void
@@ -277,25 +299,12 @@ TwoStreamRadiation::define_level (int lev,
     // and they all have the same consequence, that no box holds a column to sweep.
     //
     // Above level 0 that is not an error: ERF::advance_radiation interpolates the level's
-    // heating rates and fluxes from its parent, the route RRTMGP takes for a nested patch,
-    // and level_needs_interpolation() there applies this same per-box test so the two agree.
-    //
-    // On level 0 there is no parent to interpolate from, so it is fatal. Level 0 always
-    // covers the domain, which makes a box that does not span z there exactly the
-    // decomposed-in-z case -- and the remedies below are the ones that apply to it.
-    if (lev == 0) {
-        for (int ibox = 0; ibox < ba.size(); ++ibox) {
-            const Box& b = ba[ibox];
-            if (b.smallEnd(2) != domain.smallEnd(2) || b.bigEnd(2) != domain.bigEnd(2)) {
-                amrex::Abort("erf.radiation_model = TwoStream cannot run on a level 0 whose "
-                             "grids are decomposed in z: a box there holds only part of a "
-                             "column, and level 0 has no parent to interpolate from. Set "
-                             "amr.max_grid_size_z to at least the number of cells in z, or "
-                             "leave amr.no_box_split_dir at its default of 2 so grids are "
-                             "never split in z.");
-            }
-        }
-    }
+    // heating rates and fluxes from its parent, the route RRTMGP takes for a nested patch.
+    // On level 0 there is no parent to interpolate from, so it is fatal; ERF rejects such a
+    // level 0 for every radiation model when its grids are built (ERF::check_rad_level_grids,
+    // called just before this), so here it is only asserted.
+    AMREX_ASSERT(lev > 0 || rad_boxes_span_column(ba, domain));
+    amrex::ignore_unused(ba, domain);
 
     // 2D surface fields on the horizontal BoxArray, one ghost cell in x and y
     const IntVect ng_sfc{1,1,0};
@@ -330,6 +339,12 @@ TwoStreamRadiation::define_level (int lev,
         } else {
             m_moisture[lev].reset();
         }
+        // The precipitation rate of the step, and the hydrology's running totals (each a
+        // no-op when it is off).
+        m_precip.define_level(lev, rad_choice, ba2d, dm);
+        m_hydro.define_level(lev, rad_choice, ba2d, dm, ng_sfc);
+        // The snow water equivalent and its running totals (a no-op when it is off).
+        m_snow.define_level(lev, rad_choice, ba2d, dm, ng_sfc);
     }
 
     // The land-model forcing (see the members). It holds the lsm_undefined sentinel until a
@@ -354,13 +369,32 @@ TwoStreamRadiation::define_level (int lev,
     // must be asked for again on them (the faces do not regrid; ERF::init_ibseb()).
     m_canopy[lev].reset();
     m_canopy_cosz[lev].reset();
+    m_canopy_alb[lev].reset();
     m_canopy_m[lev] = -1;
     m_canopy_step[lev] = -1;
+    // The building cover likewise (ERF::init_ibseb() sets it once; the balance refuses a regrid).
+    m_solid[lev].reset();
+    m_footprint[lev].reset();
+    m_ground_shadow[lev].reset();
+    m_sw_beam_sfc[lev].reset();
+    m_ground_walls[lev].reset();
+    m_ground_keep[lev].reset();
+    m_roof_k[lev].reset();
+    m_roof[lev].reset();
+    m_roof_step[lev] = -1;
+    m_walls_step[lev] = -1;
+    m_shadow_step[lev] = -1;
+    m_sweep_step[lev] = -1;
+    m_shaded_step[lev] = -1;
+    m_has_cover[lev] = 0;
+    m_seb_updated[lev] = 0;
+    // The level may have new grids: look at its land mask again.
+    m_water_message[lev] = -1;
     m_flux_diag[lev] = FluxDiag{};
 }
 
 void
-TwoStreamRadiation::supply_canopy_forcing (int lev, int m_top)
+TwoStreamRadiation::supply_canopy_forcing (int lev, int m_top, bool ground_albedo)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(active(),
         "TwoStreamRadiation::supply_canopy_forcing: erf.radiation_model is not TwoStream");
@@ -377,11 +411,177 @@ TwoStreamRadiation::supply_canopy_forcing (int lev, int m_top)
     // cosine of the zenith are lost after the sweep.
     m_canopy[lev] = std::make_unique<MultiFab>(BoxArray(std::move(canopy_boxes)), m_alb_sw[lev]->DistributionMap(), 1, 0);
     m_canopy_cosz[lev] = std::make_unique<MultiFab>(m_alb_sw[lev]->boxArray(), m_alb_sw[lev]->DistributionMap(), 1, 0);
+    // The ground's direct-beam albedo only for the faces that read it (erf.ibseb.ground_view_shadow).
+    m_canopy_alb[lev].reset();
+    if (ground_albedo) {
+        m_canopy_alb[lev] = std::make_unique<MultiFab>(m_alb_sw[lev]->boxArray(), m_alb_sw[lev]->DistributionMap(), 2, 0);
+        m_canopy_alb[lev]->setVal(0.0);
+    }
     // Never read before a sweep has written them: canopy_forcing() returns null until then.
     m_canopy[lev]->setVal(0.0);
     m_canopy_cosz[lev]->setVal(0.0);
     m_canopy_m[lev] = m_top;
     m_canopy_step[lev] = -1;
+}
+
+void
+TwoStreamRadiation::set_building_cover (int lev, const MultiFab& blanking, const Box& domain, bool take_ground_walls,
+                                        bool start_on_roofs)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(active(),
+        "TwoStreamRadiation::set_building_cover: erf.radiation_model is not TwoStream");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev >= 0 && lev < static_cast<int>(m_alb_sw.size()) && m_alb_sw[lev],
+        "TwoStreamRadiation::set_building_cover: level " + std::to_string(lev) + " has not been defined");
+    // The sweep and the 2D fields go by the local index of the state's boxes, so the
+    // blanking must be on the state's grids: the 2D boxes flattened from its own.
+    BoxList flat = blanking.boxArray().boxList();
+    for (Box& b : flat) { b.setRange(2, 0); }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(BoxArray(std::move(flat)) == m_alb_sw[lev]->boxArray() &&
+                                     blanking.DistributionMap() == m_alb_sw[lev]->DistributionMap(),
+        "TwoStreamRadiation::set_building_cover: the blanking is not on the level's grids");
+    const BoxArray& ba2d = m_alb_sw[lev]->boxArray();
+    const DistributionMapping& dm = m_alb_sw[lev]->DistributionMap();
+    const int k0 = domain.smallEnd(2);
+    // The solid cells are kept only up to the highest one of the level (the tallest
+    // building), as the faces' beam is kept only up to the highest face: 4 bytes per cell
+    // of that height, not of the whole column.
+    int k_solid = k0 - 1;
+    {
+        ReduceOps<ReduceOpMax> reduce_op;
+        ReduceData<int> reduce_data(reduce_op);
+        for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
+            const auto blank = blanking.const_array(mfi);
+            reduce_op.eval(mfi.validbox(), reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<int> {
+                return {(blank(i, j, k) >= Real(0.5)) ? k : std::numeric_limits<int>::lowest()};
+            });
+        }
+        k_solid = amrex::max(k_solid, amrex::get<0>(reduce_data.value(reduce_op)));
+        ParallelDescriptor::ReduceIntMax(k_solid);
+    }
+    BoxList solid_boxes = blanking.boxArray().boxList();
+    for (Box& b : solid_boxes) {
+        // A box wholly above the buildings keeps its bottom layer, all air.
+        const int hi = amrex::max(b.smallEnd(2), amrex::min(b.bigEnd(2), k_solid));
+        b.setBig(2, hi);
+    }
+    m_solid[lev] = std::make_unique<iMultiFab>(BoxArray(std::move(solid_boxes)), dm, 1, 0);
+    m_footprint[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+    for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto blank = blanking.const_array(mfi);
+        const auto solid = m_solid[lev]->array(mfi);
+        const auto foot = m_footprint[lev]->array(mfi);
+        ParallelFor((*m_solid[lev])[mfi].box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            solid(i, j, k) = (blank(i, j, k) >= Real(0.5)) ? 1 : 0;
+        });
+        // A box that does not reach the ground (a level whose radiation comes from its
+        // parent) has no ground balance, and no footprint.
+        if (bx.smallEnd(2) == k0) {
+            ParallelFor(makeSlab(bx, 2, 0), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                foot(i, j, 0) = (blank(i, j, k0) >= Real(0.5)) ? Real(1.0) : Real(0.0);
+            });
+        } else {
+            ParallelFor(makeSlab(bx, 2, 0), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                foot(i, j, 0) = Real(0.0);
+            });
+        }
+    }
+    m_has_cover[lev] = 1;
+    // The shadow, and the beam it takes off, only where the ground balance will take them:
+    // a balance on the sweep's shortwave, with the shortwave on, on a level that sweeps its
+    // own columns (one whose rates come from its parent has no balance).
+    bool sweeps = true;
+    for (int ibox = 0; ibox < blanking.boxArray().size(); ++ibox) {
+        const Box& b = blanking.boxArray()[ibox];
+        sweeps = sweeps && b.smallEnd(2) == k0 && b.bigEnd(2) == domain.bigEnd(2);
+    }
+    if (m_rad->seb_enable && m_rad->seb_use_radiation_fluxes && m_rad->sw_enabled && sweeps) {
+        m_ground_shadow[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+        m_sw_beam_sfc[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+        m_ground_shadow[lev]->setVal(0.0);
+        m_sw_beam_sfc[lev]->setVal(0.0);
+    } else {
+        m_ground_shadow[lev].reset();
+        m_sw_beam_sfc[lev].reset();
+    }
+    // What the walls send to the ground, only where the ground takes the shadow and the
+    // longwave is on: the shortwave and the longwave terms are taken together or not at all.
+    m_ground_walls[lev].reset();
+    m_ground_keep[lev].reset();
+    if (take_ground_walls && m_ground_shadow[lev] && m_rad->lw_enabled) {
+        m_ground_walls[lev] = std::make_unique<MultiFab>(ba2d, dm, 3, 0);
+        m_ground_keep[lev] = std::make_unique<MultiFab>(ba2d, dm, 3, 0);
+        m_ground_walls[lev]->setVal(0.0);
+        m_ground_keep[lev]->setVal(0.0);
+    }
+    m_walls_step[lev] = -1;
+    // The cell on each column's roof, on a level that sweeps its own columns: the first
+    // cell above the solid cells that stand on the ground (the bottom cell on open
+    // ground; one above the kept solid cells where they are solid to their top).
+    m_roof_k[lev].reset();
+    m_roof[lev].reset();
+    if (start_on_roofs && sweeps) {
+        m_roof_k[lev] = std::make_unique<iMultiFab>(ba2d, dm, 1, 0);
+        m_roof[lev] = std::make_unique<MultiFab>(ba2d, dm, ROOF_NCOMP, 0);
+        m_roof[lev]->setVal(0.0);
+        for (MFIter mfi(*m_roof_k[lev]); mfi.isValid(); ++mfi) {
+            const auto solid = m_solid[lev]->const_array(mfi);
+            const auto roof_k = m_roof_k[lev]->array(mfi);
+            const int k_hi = (*m_solid[lev])[mfi].box().bigEnd(2);
+            ParallelFor(makeSlab(mfi.validbox(), 2, 0), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                int k = k0;
+                while (k <= k_hi && solid(i, j, k) != 0) { ++k; }
+                roof_k(i, j, 0) = k;
+            });
+        }
+        Gpu::streamSynchronize();
+    }
+    m_roof_step[lev] = -1;
+    m_shadow_step[lev] = -1;
+    m_shaded_step[lev] = -1;
+}
+
+MultiFab*
+TwoStreamRadiation::roofs_for_step (int lev, int nstep)
+{
+    if (!has_building_cover(lev) || !starts_on_roofs(lev)) { return nullptr; }
+    m_roof_step[lev] = nstep;
+    return m_roof[lev].get();
+}
+
+MultiFab*
+TwoStreamRadiation::ground_walls_for_step (int lev, int nstep)
+{
+    if (!has_building_cover(lev) || !takes_ground_walls(lev)) { return nullptr; }
+    m_walls_step[lev] = nstep;
+    return m_ground_walls[lev].get();
+}
+
+MultiFab*
+TwoStreamRadiation::ground_shadow_for_step (int lev, int nstep)
+{
+    if (!has_building_cover(lev) || !m_ground_shadow[lev]) { return nullptr; }
+    m_shadow_step[lev] = nstep;
+    return m_ground_shadow[lev].get();
+}
+
+void
+TwoStreamRadiation::mask_building_heating (int lev, MultiFab& qheating) const
+{
+    if (!has_building_cover(lev)) { return; }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qheating.nComp() == 2 && qheating.boxArray().size() == m_solid[lev]->boxArray().size() &&
+                                     qheating.DistributionMap() == m_solid[lev]->DistributionMap(),
+        "TwoStreamRadiation::mask_building_heating: the heating rates are not on the level's grids");
+    // The kept solid cells: each box of the level up to the tallest building.
+    for (MFIter mfi(qheating); mfi.isValid(); ++mfi) {
+        const Box sbx = (*m_solid[lev])[mfi].box() & mfi.validbox();
+        if (sbx.isEmpty()) { continue; }
+        const auto q = qheating.array(mfi);
+        const auto solid = m_solid[lev]->const_array(mfi);
+        ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (solid(i, j, k) != 0) { q(i, j, k, 0) = 0.0; q(i, j, k, 1) = 0.0; }
+        });
+    }
 }
 
 void
@@ -511,6 +711,15 @@ TwoStreamRadiation::write_checkpoint (int lev, const std::string& checkpointname
         VisMF::Write(*m_q_sfc[lev],
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QSfc"));
     }
+    // The deep state evolves only with erf.radiation.seb_deep_prognostic_enable.
+    if (m_rad->seb_deep_prognostic_enable && m_t_deep[lev] && m_q_deep[lev]) {
+        VisMF::Write(*m_t_deep[lev],
+                     MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_TDeep"));
+        VisMF::Write(*m_q_deep[lev],
+                     MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QDeep"));
+    }
+    m_hydro.write_checkpoint(lev, checkpointname);
+    m_snow.write_checkpoint(lev, checkpointname);
 }
 
 void
@@ -539,6 +748,83 @@ TwoStreamRadiation::read_checkpoint (int lev, const std::string& restart_chkfile
         erf_checkpoint::read_checkpoint_multifab(*m_q_sfc[lev], qsfc_name, 0, 0, 1,
                                                  m_q_sfc[lev]->nGrowVect(), true, period);
     }
+    // A checkpoint written without the deep reservoir has no deep state: the defaults stand.
+    if (m_rad->seb_deep_prognostic_enable) {
+        MultiFab* deep[] = {m_t_deep[lev].get(), m_q_deep[lev].get()};
+        const char* deep_names[] = {"TwoStream_TDeep", "TwoStream_QDeep"};
+        for (int n = 0; n < 2; ++n) {
+            const std::string name =
+                MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", deep_names[n]);
+            if (deep[n] && amrex::FileExists(name + "_H")) {
+                erf_checkpoint::read_checkpoint_multifab(*deep[n], name, 0, 0, 1,
+                                                         deep[n]->nGrowVect(), true, period);
+            } else if (deep[n] && lev == 0) {
+                amrex::Print() << "NOTE: the checkpoint has no " << deep_names[n]
+                               << "; erf.radiation.seb_t_deep_default and seb_q_deep_default "
+                                  "start the deep reservoir\n";
+            }
+        }
+    }
+    m_hydro.read_checkpoint(lev, restart_chkfile, period);
+    m_snow.read_checkpoint(lev, restart_chkfile, period);
+}
+
+Vector<MultiFab*>
+TwoStreamRadiation::seb_prognostic_fields (int lev)
+{
+    Vector<MultiFab*> out;
+    if (!seb_prognostic_active() || lev >= static_cast<int>(m_t_sfc.size())) { return out; }
+    out.push_back(m_t_sfc[lev].get());
+    out.push_back(m_q_sfc[lev].get());
+    if (m_rad->seb_deep_prognostic_enable) {
+        out.push_back(m_t_deep[lev].get());
+        out.push_back(m_q_deep[lev].get());
+    }
+    if (m_hydro.totals(lev)) { out.push_back(m_hydro.totals(lev)); }
+    if (m_snow.defined(lev)) {
+        out.push_back(m_snow.swe(lev));
+        out.push_back(m_snow.totals(lev));
+    }
+    return out;
+}
+
+void
+TwoStreamRadiation::hydrology_begin_step (int lev, const SurfacePrecipAccumulationSources& sources,
+                                          int klo)
+{
+    if (!active() || m_rad->seb_precipitation_source == SEBPrecipitationSource::None) { return; }
+    m_precip.begin_step(lev, sources, klo);
+}
+
+void
+TwoStreamRadiation::hydrology_end_step (int lev, const SurfacePrecipAccumulationSources& sources,
+                                        int klo, Real dt)
+{
+    if (!active() || m_rad->seb_precipitation_source == SEBPrecipitationSource::None) { return; }
+    m_precip.end_step(lev, sources, klo, dt);
+}
+
+ForceRestoreSoil
+TwoStreamRadiation::force_restore_soil (int lev) const
+{
+    ForceRestoreSoil v;
+    if (!seb_prognostic_active() || lev < 0 || lev >= static_cast<int>(m_t_sfc.size()) ||
+        !m_q_sfc[lev]) {
+        return v;
+    }
+    const RadChoice& rc = *m_rad;
+    v.q_sfc  = m_q_sfc[lev].get();
+    v.q_deep = m_q_deep[lev].get();
+    v.t_sfc  = m_t_sfc[lev].get();
+    v.rain_rate = m_precip.rate(lev);
+    v.d_s  = rc.seb_moisture_layer_depth_m;
+    v.deep = rc.seb_deep_prognostic_enable;
+    v.d_2  = v.deep ? rc.seb_deep_layer_depth_m : Real(0.0);
+    v.porosity = (rc.seb_soil_porosity > 0.0) ? rc.seb_soil_porosity
+               : (rc.seb_soil_type != 0 ? noahmp_soil_params(rc.seb_soil_type)->smc_max : Real(-1.0));
+    v.fc   = rc.seb_soil_moisture_fc;
+    v.wilt = rc.seb_soil_moisture_wilt;
+    return v;
 }
 
 void
@@ -561,7 +847,8 @@ TwoStreamRadiation::advance (int lev,
                              const MultiFab* lat_m,
                              const MultiFab* lon_m,
                              double epoch_time,
-                             bool have_datetime)
+                             bool have_datetime,
+                             const iMultiFab* land_mask)
 {
     BL_PROFILE("TwoStreamRadiation::advance()");
 
@@ -572,17 +859,10 @@ TwoStreamRadiation::advance (int lev,
     // A level on which no box holds a whole column has nothing for the sweep or the surface
     // state to work on; ERF::advance_radiation interpolates its fields from the parent
     // instead. Returning here covers the post-dycore call too, which comes from ERF::Advance
-    // and does not test for it. Per box, and identical to level_needs_interpolation() there:
+    // and does not test for it. Same test (rad_boxes_span_column) as level_needs_interpolation():
     // if the two tests disagreed, one of them would try to sweep a level the other had
     // already interpolated.
-    if (lev > 0) {
-        const BoxArray& lev_ba = cons_old.boxArray();
-        const Box& dom = geom.Domain();
-        for (int ibox = 0; ibox < lev_ba.size(); ++ibox) {
-            const Box& b = lev_ba[ibox];
-            if (b.smallEnd(2) != dom.smallEnd(2) || b.bigEnd(2) != dom.bigEnd(2)) { return; }
-        }
-    }
+    if (lev > 0 && !rad_boxes_span_column(cons_old.boxArray(), geom.Domain())) { return; }
 
     // ---- Contract checks. Each of these would otherwise surface as a wrong
     // heating rate or an out-of-bounds read several routines away.
@@ -640,6 +920,29 @@ TwoStreamRadiation::advance (int lev,
     // into a no-op: the surface energy balance returns to level 0 only while the tests,
     // docs and PR all still claim otherwise. Keep this form.
     const bool seb_active = rad_choice.seb_enable;
+    // The land mask counts only for the balance: a water column (mask 0) is not soil.
+    // The mask is read by the local index of the state's boxes, as the 2D fields are.
+    // How the mask is read is in ERF_SEBLandMask.H; balance_mask is nullptr with no balance.
+    const iMultiFab* const balance_mask = seb_active ? land_mask : nullptr;
+    if (balance_mask != nullptr) {
+        AMREX_ALWAYS_ASSERT(m_alb_sw[lev]);
+        seb_assert_land_mask_layout(balance_mask, *m_alb_sw[lev], "TwoStreamRadiation::advance");
+        // A message only, once per set of grids (one reduction and one collective). The
+        // kernels below read the mask as it is at each sweep, and ERF reads it again for
+        // the average-down and the fill of a new level; none of them uses this flag.
+        if (m_water_message[lev] < 0) {
+            m_water_message[lev] = seb_land_mask_has_water(balance_mask) ? 1 : 0;
+            if (m_water_message[lev] == 1) {
+                // Say so once: the keys of the balance are read, but it does not run there.
+                amrex::Print() << "TwoStreamRadiation: level " << lev
+                               << " has water columns in its land mask. The force-restore "
+                               << "balance does not run on them; their longwave boundary is "
+                               << (t_surf != nullptr
+                                   ? "the surface layer's surface temperature.\n"
+                                   : "erf.rad_t_sfc (there is no surface layer at the lower boundary).\n");
+            }
+        }
+    }
     // The force-restore state is only the longwave boundary when no external
     // surface-temperature provider owns that boundary on this level. The
     // canonical radiation input covers SurfaceModel providers such as SLM;
@@ -788,6 +1091,22 @@ TwoStreamRadiation::advance (int lev,
 
         if (seb_active) {
             fill_or_copy_seb_field(m_alb_sw[lev].get(), lsm, lev, lsm_broadband_albedo_name, rad_choice.surface_albedo_sw);
+            // With the snow layer, the albedo of each column is the blend of the snow-free
+            // value just written and the snow albedo (Douville et al. 1995, Eq. 8).
+            if (rad_choice.seb_snow_enable && m_snow.defined(lev)) {
+                // The sweep below takes a land-surface model's albedo before this field;
+                // the snow would then melt under an albedo that does not see it.
+                if ((noahmp_active && lsm_has_field(lsm, lev, lsm_broadband_albedo_name)) ||
+                    (radiation_inputs.size() > 2 && radiation_inputs[2] != nullptr)) {
+                    amrex::Abort("erf.radiation.seb_snow_enable acts on the two-stream surface "
+                                 "albedo, but a land-surface model supplies the albedo here; turn "
+                                 "it off with a land-surface model");
+                }
+                // No snow lies on a building footprint, or on water.
+                m_snow.apply_albedo(lev, *m_alb_sw[lev], ForceRestoreSnow::params(rad_choice),
+                                    has_building_cover(lev) ? m_footprint[lev].get() : nullptr,
+                                    balance_mask);
+            }
             fill_or_copy_seb_field(m_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
 
             // In prognostic mode, do not seed this state from an LSM field.
@@ -838,9 +1157,12 @@ TwoStreamRadiation::advance (int lev,
             // No LSM exposes a deep-soil temperature or moisture in kg/kg by
             // name (Noah-MP's smstav / smstot are soil-moisture availability
             // and total column water), so the reservoir values are the
-            // scalar defaults.
-            m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
-            m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
+            // scalar defaults. With erf.radiation.seb_deep_prognostic_enable they evolve
+            // (ERF_ForceRestoreHydrology.H) and are left alone here.
+            if (!rad_choice.seb_deep_prognostic_enable) {
+                m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
+                m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
+            }
         }
 
         // The column sweep integrates the whole atmospheric column in one
@@ -974,6 +1296,10 @@ TwoStreamRadiation::advance (int lev,
                     has_surface_layer = true;
                 }
             }
+            // The balance's skin is a soil temperature. Over water (land mask 0) it is
+            // not offered, so the column falls through to the surface layer's sea surface
+            // temperature, then to the scalar fallback.
+            const SEBLandMaskView skin_mask = seb_land_mask_view(has_seb_t_sfc ? balance_mask : nullptr, mfi);
 
             // Per-column latitude and longitude for the calendar sun (only
             // the WRF and metgrid initialisations fill them; otherwise the
@@ -1027,7 +1353,9 @@ TwoStreamRadiation::advance (int lev,
             const bool supply_canopy = supplies_canopy_forcing(lev);
             const int  m_canopy_top = supply_canopy ? m_canopy_m[lev] : 0;
             const bool sw_on = rad_choice.sw_enabled;
-            Array4<amrex::Real> canopy_out, canopy_cosz_out;
+            Array4<amrex::Real> canopy_out, canopy_cosz_out, canopy_alb_out;
+            const bool supply_canopy_alb = supply_canopy && m_canopy_alb[lev];
+            if (supply_canopy_alb) { canopy_alb_out = m_canopy_alb[lev]->array(mfi); }
             if (supply_canopy) {
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(write_fluxes,
                     "TwoStreamRadiation: the canopy forcing of the building faces needs the rad_fluxes array");
@@ -1035,6 +1363,44 @@ TwoStreamRadiation::advance (int lev,
                     "TwoStreamRadiation: the canopy reaches above the top of the column");
                 canopy_out = m_canopy[lev]->array(mfi);
                 canopy_cosz_out = m_canopy_cosz[lev]->array(mfi);
+            }
+
+            // The buildings, when the columns see them (set_building_cover): no heating in
+            // their solid cells, and, for a ground balance on the sweep's shortwave, the
+            // absorbed beam at the ground, which the update after the dycore takes off
+            // the shaded open ground.
+            const bool cover = has_building_cover(lev);
+            const bool keep_beam = cover && sw_flux_from_rad && m_sw_beam_sfc[lev];
+            Array4<const int> solid_arr;
+            Array4<amrex::Real> sw_beam_out;
+            int k_solid_top = bx.smallEnd(2) - 1;   // the solid cells are kept up to here
+            if (cover) {
+                solid_arr = m_solid[lev]->const_array(mfi);
+                k_solid_top = amrex::min(bx.bigEnd(2), (*m_solid[lev])[mfi].box().bigEnd(2));
+            }
+            if (keep_beam) { sw_beam_out = m_sw_beam_sfc[lev]->array(mfi); }
+            // For what the walls send to the ground (ground_walls_for_step()): the
+            // longwave down at the ground and the ground's diffuse absorptance and emissivity.
+            const bool keep_ground = keep_beam && takes_ground_walls(lev);
+            Array4<amrex::Real> ground_keep_out;
+            if (keep_ground) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(write_fluxes,
+                    "TwoStreamRadiation: the walls' longwave on the ground (erf.ibseb.ground_sky_view) needs the rad_fluxes array");
+                ground_keep_out = m_ground_keep[lev]->array(mfi);
+            }
+
+            // The roofs the columns under buildings start on (erf.ibseb.two_stream_roofs),
+            // which the immersed-boundary balance gave for this step.
+            const bool on_roofs = cover && starts_on_roofs(lev);
+            Array4<const int> roof_k_arr;
+            Array4<const amrex::Real> roof_arr;
+            if (on_roofs) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_roof_step[lev] == nstep,
+                    "TwoStreamRadiation: the roofs of level " + std::to_string(lev) + " are of step " +
+                    std::to_string(m_roof_step[lev]) + ", the sweep of step " + std::to_string(nstep) +
+                    "; the immersed-boundary balance must give them before the sweep (ERF::Advance())");
+                roof_k_arr = m_roof_k[lev]->const_array(mfi);
+                roof_arr = m_roof[lev]->const_array(mfi);
             }
 
             // Create a 2D box for (i,j) iteration over the horizontal extent
@@ -1098,6 +1464,24 @@ TwoStreamRadiation::advance (int lev,
                     amrex::Real lw_up_clear = 0.0;
                     amrex::Real sw_toa_clear = 0.0;
                     amrex::Real cos_zenith_col = 0.0;
+                    amrex::Real sw_beam_clear = 0.0;
+                    // A column under a building starts on the roof face given for it; one
+                    // without such a face (none given, or open ground) starts on the ground.
+                    TwoStreamRoof roof_col;
+                    // On a roof: a roof face stands on the column and its cell is above the
+                    // box's bottom layer. The sweep takes the roof under the same condition
+                    // (two_stream_starts_on_roof()), so what the faces read of this column
+                    // below is what the sweep used.
+                    const bool col_on_roof = on_roofs && roof_arr(i, j, 0, ROOF_SET) > amrex::Real(0.5)
+                                          && two_stream_starts_on_roof(roof_k_arr(i, j, 0), bx.smallEnd(2));
+                    if (col_on_roof) {
+                        roof_col.k_lower = roof_k_arr(i, j, 0);
+                        roof_col.albedo = roof_arr(i, j, 0, ROOF_ALBEDO);
+                        roof_col.emissivity = roof_arr(i, j, 0, ROOF_EMISSIVITY);
+                        roof_col.temperature = roof_arr(i, j, 0, ROOF_TEMPERATURE);
+                        roof_col.lit = roof_arr(i, j, 0, ROOF_LIT);
+                    }
+                    const TwoStreamRoof* roof_ptr = col_on_roof ? &roof_col : nullptr;
                     vertical_two_stream_sweep(
                         i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/false,
                         qheating_clear_arr,
@@ -1107,11 +1491,11 @@ TwoStreamRadiation::advance (int lev,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
                         has_hetero_emiss_lw, &hetero_emiss_lw_arr,
                         has_lsm_t_sfc, &lsm_t_sfc_arr,
-                        has_seb_t_sfc, &seb_t_sfc_arr,
+                        has_seb_t_sfc && !skin_mask.water(i, j), &seb_t_sfc_arr,
                         has_surface_layer, &surface_layer_theta_arr,
                         has_latlon, &lat_arr, &lon_arr,
                         write_fluxes ? &rad_flux_clear_arr : nullptr,
-                        &cos_zenith_col);
+                        &cos_zenith_col, keep_beam ? &sw_beam_clear : nullptr, roof_ptr);
 
                     // The scratch holds this evaluation's beam until the cloudy one overwrites it.
                     if (supply_canopy) {
@@ -1125,6 +1509,7 @@ TwoStreamRadiation::advance (int lev,
                     amrex::Real sw_up_col = sw_up_clear;
                     amrex::Real lw_net_col = lw_net_clear;
                     amrex::Real lw_up_col = lw_up_clear;
+                    amrex::Real sw_beam_col = sw_beam_clear;
 
                     // Cloudy column only needs to be evaluated when there is a
                     // nonzero cloud fraction; this keeps the cloud_fraction==0
@@ -1136,6 +1521,7 @@ TwoStreamRadiation::advance (int lev,
                          amrex::Real lw_net_cloudy = 0.0;
                          amrex::Real lw_up_cloudy = 0.0;
                          amrex::Real sw_toa_cloudy = 0.0;
+                         amrex::Real sw_beam_cloudy = 0.0;
                          vertical_two_stream_sweep(
                             i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/true,
                             qheating_cloudy_arr,
@@ -1145,10 +1531,11 @@ TwoStreamRadiation::advance (int lev,
                             has_hetero_alb_sw, &hetero_alb_sw_arr,
                             has_hetero_emiss_lw, &hetero_emiss_lw_arr,
                             has_lsm_t_sfc, &lsm_t_sfc_arr,
-                            has_seb_t_sfc, &seb_t_sfc_arr,
+                            has_seb_t_sfc && !skin_mask.water(i, j), &seb_t_sfc_arr,
                             has_surface_layer, &surface_layer_theta_arr,
                             has_latlon, &lat_arr, &lon_arr,
-                            write_fluxes ? &rad_flux_cloudy_arr : nullptr);
+                            write_fluxes ? &rad_flux_cloudy_arr : nullptr,
+                            nullptr, keep_beam ? &sw_beam_cloudy : nullptr, roof_ptr);
 
                         // Blend clear-sky and cloudy-column results
                         sw_flux_col = (1.0 - cloud_fraction) * sw_flux_clear +
@@ -1159,6 +1546,8 @@ TwoStreamRadiation::advance (int lev,
                                      cloud_fraction * lw_net_cloudy;
                         lw_up_col = (1.0 - cloud_fraction) * lw_up_clear +
                                     cloud_fraction * lw_up_cloudy;
+                        sw_beam_col = (1.0 - cloud_fraction) * sw_beam_clear +
+                                      cloud_fraction * sw_beam_cloudy;
                         max_heating_col = std::max(max_heating_clear, max_heating_cloudy);
                         if (supply_canopy) {
                             two_stream_canopy_beam(i, j, bx.smallEnd(2), m_canopy_top, scratch_arr,
@@ -1192,9 +1581,33 @@ TwoStreamRadiation::advance (int lev,
                         }
                     }
 
+                    // No heating in the solid cells of a building: what its cells would
+                    // absorb is its faces' (the immersed-boundary balance takes the
+                    // column at each face's own height). In a column that holds one, the
+                    // largest rate is then taken over its air cells, from the blended rates.
+                    if (cover) {
+                        bool has_solid = false;
+                        for (int k = bx.smallEnd(2); k <= k_solid_top; ++k) {
+                            if (solid_arr(i, j, k) != 0) {
+                                qheating_clear_arr(i, j, k, 0) = 0.0;
+                                qheating_clear_arr(i, j, k, 1) = 0.0;
+                                has_solid = true;
+                            }
+                        }
+                        if (has_solid) {
+                            amrex::Real q_max = 0.0;
+                            for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+                                q_max = amrex::max(q_max, std::abs(qheating_clear_arr(i, j, k, 0)) +
+                                                          std::abs(qheating_clear_arr(i, j, k, 1)));
+                            }
+                            max_heating_col = q_max;
+                        }
+                    }
+
                     // Surface fluxes for the SEB: absorbed shortwave, and the
                     // absorbed longwave, which is minus the net (up - down).
                     if (sw_flux_from_rad) sw_sfc_out(i, j, 0) = sw_flux_col;
+                    if (keep_beam) sw_beam_out(i, j, 0) = sw_beam_col;
                     if (lw_flux_from_rad) lw_sfc_out(i, j, 0) = -lw_net_col;
 
                     // The land model's forcing, after the clear/cloudy blend above.
@@ -1204,9 +1617,34 @@ TwoStreamRadiation::advance (int lev,
                                                 lw_dn_out(i, j, 0), coszen_out(i, j, 0));
                     }
 
+                    // After the clear/cloudy blend: the longwave down at the ground, and the
+                    // diffuse absorptance and the emissivity the sweep gave this column's ground.
+                    if (keep_ground) {
+                        const amrex::Real alb_dir_g = resolve_surface_albedo_sw(i, j, &hetero_alb_sw_arr, ts_params,
+                                                                                has_hetero_alb_sw);
+                        const amrex::Real alb_dif_g = resolve_surface_albedo_sw_diffuse(alb_dir_g, ts_params.surface_albedo_sw_diffuse);
+                        ground_keep_out(i, j, 0, 0) = rad_flux_clear_arr(i, j, bx.smallEnd(2), 3);
+                        ground_keep_out(i, j, 0, 1) = amrex::Real(1.0) - alb_dif_g;
+                        ground_keep_out(i, j, 0, 2) = resolve_surface_emissivity_lw(i, j, &hetero_emiss_lw_arr, ts_params,
+                                                                                    has_hetero_emiss_lw);
+                    }
+
                     // The sun the building faces must share (their beam is in canopy_out).
                     if (supply_canopy) {
                         canopy_cosz_out(i, j, 0) = (cos_zenith_col > amrex::Real(0.0)) ? cos_zenith_col : amrex::Real(0.0);
+                    }
+                    // The direct-beam albedo the sweep gave this column's ground.
+                    if (supply_canopy_alb) {
+                        // On a roof: the roof's albedo for the beam that reaches it, and
+                        // the interface the roof is at, for the faces that read this column.
+                        if (col_on_roof) {
+                            canopy_alb_out(i, j, 0, 0) = roof_col.albedo * roof_col.lit;
+                            canopy_alb_out(i, j, 0, 1) = static_cast<amrex::Real>(roof_col.k_lower - bx.smallEnd(2));
+                        } else {
+                            canopy_alb_out(i, j, 0, 0) = resolve_surface_albedo_sw(i, j, &hetero_alb_sw_arr, ts_params,
+                                                                                   has_hetero_alb_sw);
+                            canopy_alb_out(i, j, 0, 1) = amrex::Real(0.0);
+                        }
                     }
 
                     // The incident TOA flux is the same for both evaluations.
@@ -1248,6 +1686,8 @@ TwoStreamRadiation::advance (int lev,
             ParallelDescriptor::ReduceRealMax(max_heating_global);
             // The faces may take this sweep's canopy forcing in this step, and only in it.
             if (supplies_canopy_forcing(lev)) { m_canopy_step[lev] = nstep; }
+            // The shadow on the ground must be of this step too (see the update below).
+            m_sweep_step[lev] = nstep;
         }
         } // do_sweep
 
@@ -1270,6 +1710,67 @@ TwoStreamRadiation::advance (int lev,
                 warned_seb_misconfig = true;
             }
         }
+        // The buildings on the ground balance, at the update after the dycore (see
+        // set_building_cover): a footprint absorbs no shortwave, and with the shortwave
+        // from the sweep the open ground the buildings shade loses the beam the sweep
+        // brought it. The shadow is the immersed-boundary balance's, of the sun of this
+        // step's sweep: that balance runs between the two calls (ERF::Advance()), and the
+        // stamps say so. Once per sweep, so a second call cannot take the beam twice. The
+        // call before the dycore sees the sweep's own values, which only its residual
+        // diagnostic reads.
+        const bool cover_seb = seb_active && has_building_cover(lev);
+        if (cover_seb && call_site == "post_dycore") {
+            const bool take_beam = sw_flux_from_rad && m_ground_shadow[lev] && m_flux_diag[lev].valid &&
+                                   m_shaded_step[lev] != m_sweep_step[lev];
+            if (take_beam) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_shadow_step[lev] == m_sweep_step[lev],
+                    "TwoStreamRadiation: the ground's shadow on level " + std::to_string(lev) + " is of step " +
+                    std::to_string(m_shadow_step[lev]) + ", its sweep of step " + std::to_string(m_sweep_step[lev]) +
+                    "; the immersed-boundary balance must give it between the sweep and the update (ERF::Advance())");
+            }
+            // What the walls send to the open ground (erf.ibseb.ground_sky_view), with the
+            // beam, once per sweep: the ground keeps its absorbed diffuse shortwave (the
+            // sweep's less the beam) and the sky's longwave through the part of its view
+            // the walls leave open, and takes the walls' through the rest.
+            // The shortwave and the longwave together: only when the balance takes both from the sweep.
+            const bool take_walls = take_beam && takes_ground_walls(lev) && lw_flux_from_rad;
+            if (take_walls) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_walls_step[lev] == m_sweep_step[lev],
+                    "TwoStreamRadiation: what the walls send to the ground on level " + std::to_string(lev) + " is of step " +
+                    std::to_string(m_walls_step[lev]) + ", its sweep of step " + std::to_string(m_sweep_step[lev]) +
+                    "; the immersed-boundary balance must give it between the sweep and the update (ERF::Advance())");
+            }
+            for (MFIter mfi(*m_sw_flux_sfc[lev]); mfi.isValid(); ++mfi) {
+                const Box xy_box = makeSlab(mfi.validbox(), 2, 0);
+                const auto sw = m_sw_flux_sfc[lev]->array(mfi);
+                const auto foot = m_footprint[lev]->const_array(mfi);
+                const auto shadow = take_beam ? m_ground_shadow[lev]->const_array(mfi) : Array4<const Real>{};
+                const auto beam = take_beam ? m_sw_beam_sfc[lev]->const_array(mfi) : Array4<const Real>{};
+                const auto walls = take_walls ? m_ground_walls[lev]->const_array(mfi) : Array4<const Real>{};
+                const auto keep = take_walls ? m_ground_keep[lev]->const_array(mfi) : Array4<const Real>{};
+                const auto lw = take_walls ? m_lw_flux_sfc[lev]->array(mfi) : Array4<Real>{};
+                ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                    if (foot(i, j, 0) > Real(0.5)) {
+                        sw(i, j, 0) = 0.0;
+                        return;
+                    }
+                    if (take_walls) {
+                        const GroundWallTerms t = two_stream_ground_wall_terms(
+                            sw(i, j, 0), beam(i, j, 0), walls(i, j, 0, 0), walls(i, j, 0, 1), walls(i, j, 0, 2),
+                            keep(i, j, 0, 0), keep(i, j, 0, 1), keep(i, j, 0, 2));
+                        sw(i, j, 0) += t.d_sw;
+                        lw(i, j, 0) += t.d_lw;
+                    }
+                    if (take_beam && shadow(i, j, 0) > Real(0.5)) {
+                        sw(i, j, 0) -= beam(i, j, 0);
+                    }
+                });
+            }
+            if (take_beam) { m_shaded_step[lev] = m_sweep_step[lev]; }
+        }
+        // From the level's first update after a sweep on, the net shortwave is the balance's.
+        if (seb_active && call_site == "post_dycore" && m_flux_diag[lev].valid) { m_seb_updated[lev] = 1; }
+
         // Compute SEB residual diagnostics if enabled
         if (rad_choice.seb_diagnostic_enable && seb_active) {
             seb_residual_max = 0.0;
@@ -1288,21 +1789,30 @@ TwoStreamRadiation::advance (int lev,
                 Array4<const amrex::Real> hfx_arr = m_hfx_sfc[lev]->const_array(mfi);
                 Array4<const amrex::Real> lh_arr = m_lh_sfc[lev]->const_array(mfi);
                 Array4<const amrex::Real> grdflx_arr = m_grdflx_sfc[lev]->const_array(mfi);
+                // A building's footprint is not ground the balance runs on.
+                const bool skip_footprints = cover_seb;
+                Array4<const amrex::Real> foot_arr;
+                if (skip_footprints) { foot_arr = m_footprint[lev]->const_array(mfi); }
+                // Nor is a water column (land mask 0).
+                const SEBLandMaskView lmask = seb_land_mask_view(balance_mask, mfi);
 
                 // Count columns and compute residuals
-                amrex::Long n_cols_box = static_cast<amrex::Long>(bx.length(0)) *
-                                        static_cast<amrex::Long>(bx.length(1));
+                amrex::Long n_cols_box = 0;
                 amrex::Real residual_sum_box = 0.0;
                 amrex::Real residual_max_box = 0.0;
 
                 // GPU-safe reduction for SEB residuals
-                ReduceOps<ReduceOpSum, ReduceOpMax> seb_reduce_ops;
-                ReduceData<amrex::Real, amrex::Real> seb_reduce_data(seb_reduce_ops);
+                ReduceOps<ReduceOpSum, ReduceOpMax, ReduceOpSum> seb_reduce_ops;
+                ReduceData<amrex::Real, amrex::Real, amrex::Long> seb_reduce_data(seb_reduce_ops);
 
                 using SEBReduceTuple = typename decltype(seb_reduce_data)::Type;
 
                 seb_reduce_ops.eval(xy_box, seb_reduce_data,
                     [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> SEBReduceTuple {
+                        if ((skip_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) ||
+                            lmask.water(i, j)) {
+                            return {amrex::Real(0.0), amrex::Real(0.0), amrex::Long(0)};
+                        }
                         amrex::Real sw_net = sw_flux_arr(i, j, 0);
                         amrex::Real lw_net = lw_flux_arr(i, j, 0);
                         amrex::Real hfx = hfx_arr(i, j, 0);
@@ -1312,8 +1822,8 @@ TwoStreamRadiation::advance (int lev,
                         // Compute residual using helper function
                         amrex::Real residual = diagnose_seb_residual(sw_net, lw_net, hfx, lh, grdflx);
 
-                        // Return sum and abs(max) of residual
-                        return {residual, std::abs(residual)};
+                        // Return sum and abs(max) of residual, and the column count
+                        return {residual, std::abs(residual), amrex::Long(1)};
                     }
                 );
 
@@ -1322,6 +1832,7 @@ TwoStreamRadiation::advance (int lev,
                 auto seb_reduce_tuple = seb_reduce_data.value(seb_reduce_ops);
                 residual_sum_box = amrex::get<0>(seb_reduce_tuple);
                 residual_max_box = amrex::get<1>(seb_reduce_tuple);
+                n_cols_box = amrex::get<2>(seb_reduce_tuple);
 
                 // Accumulate into global results
                 seb_residual_sum += residual_sum_box;
@@ -1379,17 +1890,27 @@ TwoStreamRadiation::advance (int lev,
                     // Get SEB state arrays (read-write for prognostic update)
                     Array4<amrex::Real> t_s_arr = m_t_sfc[lev]->array(mfi);
                     Array4<amrex::Real> q_s_arr = m_q_sfc[lev]->array(mfi);
+                    // A building's footprint keeps its state (see set_building_cover).
+                    const bool hold_footprints = cover_seb;
+                    Array4<const amrex::Real> foot_arr;
+                    if (hold_footprints) { foot_arr = m_footprint[lev]->const_array(mfi); }
+                    // Under snow the upper bound of T_s waits for the snow step below: the
+                    // heat above it melts snow first (ERF_ForceRestoreSnow.H).
+                    const bool melt_first = rad_choice.seb_snow_enable && m_snow.defined(lev);
+                    Array4<const amrex::Real> swe_arr;
+                    if (melt_first) { swe_arr = m_snow.swe(lev)->const_array(mfi); }
+                    // So does a water column (land mask 0): the update is a soil's.
+                    const SEBLandMaskView lmask = seb_land_mask_view(balance_mask, mfi);
                     // Count columns and prepare for reductions
-                    amrex::Long n_cols_box = static_cast<amrex::Long>(bx.length(0)) *
-                                             static_cast<amrex::Long>(bx.length(1));
+                    amrex::Long n_cols_box = 0;
                     amrex::Real t_s_sum_box = 0.0;
                     amrex::Real t_s_max_box = -std::numeric_limits<amrex::Real>::max();
                     amrex::Real q_s_sum_box = 0.0;
                     amrex::Real q_s_max_box = -std::numeric_limits<amrex::Real>::max();
 
                     // GPU-safe update for prognostic T_s and q_s with reductions
-                    ReduceOps<ReduceOpSum, ReduceOpMax, ReduceOpSum, ReduceOpMax> prog_reduce_ops;
-                    ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real> prog_reduce_data(prog_reduce_ops);
+                    ReduceOps<ReduceOpSum, ReduceOpMax, ReduceOpSum, ReduceOpMax, ReduceOpSum> prog_reduce_ops;
+                    ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real, amrex::Long> prog_reduce_data(prog_reduce_ops);
 
                     using ProgReduceTuple = typename decltype(prog_reduce_data)::Type;
 
@@ -1403,6 +1924,11 @@ TwoStreamRadiation::advance (int lev,
                             q_min=rad_choice.seb_prognostic_q_min,
                             q_max=rad_choice.seb_prognostic_q_max]
                             AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
+                            if ((hold_footprints && foot_arr(i, j, 0) > amrex::Real(0.5)) ||
+                                lmask.water(i, j)) {
+                                constexpr amrex::Real lowest = std::numeric_limits<amrex::Real>::lowest();
+                                return {amrex::Real(0.0), lowest, amrex::Real(0.0), lowest, amrex::Long(0)};
+                            }
                             amrex::Real t_s_old = t_s_arr(i, j, 0);
                             amrex::Real q_s_old = q_s_arr(i, j, 0);
 
@@ -1429,15 +1955,16 @@ TwoStreamRadiation::advance (int lev,
                             amrex::Real q_s_new = q_s_old + dt_step * dq_s_dt;
 
                             // Clamp to valid ranges
-                            t_s_new = amrex::max(t_min, amrex::min(t_max, t_s_new));
+                            const bool under_snow = melt_first && swe_arr(i, j, 0) > amrex::Real(0.0);
+                            t_s_new = amrex::max(t_min, under_snow ? t_s_new : amrex::min(t_max, t_s_new));
                             q_s_new = amrex::max(q_min, amrex::min(q_max, q_s_new));
 
                             // Write back updated values (this modifies the device array)
                             t_s_arr(i, j, 0) = t_s_new;
                             q_s_arr(i, j, 0) = q_s_new;
 
-                            // Return for reduction: sum T_s, max T_s, sum q_s, max q_s
-                            return {t_s_new, std::abs(t_s_new), q_s_new, std::abs(q_s_new)};
+                            // Return for reduction: sum T_s, max T_s, sum q_s, max q_s, one column
+                            return {t_s_new, std::abs(t_s_new), q_s_new, std::abs(q_s_new), amrex::Long(1)};
                         });
 
                     // Copy results from device to host
@@ -1447,6 +1974,7 @@ TwoStreamRadiation::advance (int lev,
                     t_s_max_box = amrex::get<1>(prog_reduce_tuple);
                     q_s_sum_box = amrex::get<2>(prog_reduce_tuple);
                     q_s_max_box = amrex::get<3>(prog_reduce_tuple);
+                    n_cols_box = amrex::get<4>(prog_reduce_tuple);
 
                     // Accumulate into global results
                     t_s_sum += t_s_sum_box;
@@ -1464,6 +1992,73 @@ TwoStreamRadiation::advance (int lev,
                                  "after the force-restore update at level " + std::to_string(lev) +
                                  ", step " + std::to_string(nstep));
                 }
+
+                // The force-restore hydrology (ERF_ForceRestoreHydrology.H): rain, runoff,
+                // the deep reservoir, drainage and the deep temperature, after the balance
+                // and on the same columns. A second pass so that with it off the balance's
+                // kernel and its answers are unchanged.
+                // The snow layer (ERF_ForceRestoreSnow.H), between the balance and the
+                // hydrology: it takes the frozen precipitation, lowers T_s where snow melts
+                // and leaves the melt water for the hydrology step below.
+                const bool snow_on = rad_choice.seb_snow_enable && m_snow.defined(lev);
+                if (snow_on) {
+                    amrex::Real t_s_sum_snow = 0.0;
+                    amrex::Real t_s_max_snow = -std::numeric_limits<amrex::Real>::max();
+                    const ForceRestoreSnow::StepSums ss = m_snow.step(
+                        lev, *m_t_sfc[lev], *m_lh_sfc[lev],
+                        cover_seb ? m_footprint[lev].get() : nullptr, dt_step,
+                        ForceRestoreSnow::params(rad_choice), m_precip.frozen(lev, dt_step),
+                        t_s_sum_snow, t_s_max_snow, balance_mask);
+                    // The melt changed T_s: the step's T_s statistics are those after it.
+                    t_s_sum = t_s_sum_snow;
+                    t_s_max_val = t_s_max_snow;
+                    // Counted in the step's own reduction.
+                    if (ss.bad_columns > 0) {
+                        amrex::Abort("TwoStreamRadiation: non-finite surface temperature, or "
+                                     "non-finite or negative snow water equivalent, after the force-restore snow step at level " +
+                                     std::to_string(lev) + ", step " + std::to_string(nstep));
+                    }
+                    if (rad_choice.verbosity >= 2 && ss.columns > 0) {
+                        const amrex::Real inv_n = amrex::Real(1.0) / static_cast<amrex::Real>(ss.columns);
+                        amrex::Print() << "Force-restore snow at level " << lev << ", step " << nstep
+                                       << " (column means, kg/m^2): snowfall = " << ss.snowfall * inv_n
+                                       << ", sublimation = " << ss.sublimation * inv_n
+                                       << ", melt = " << ss.melt * inv_n
+                                       << ", snow water equivalent = " << ss.swe * inv_n
+                                       << "; max column budget residual = " << ss.max_residual
+                                       << " kg/m^2\n";
+                    }
+                }
+
+                if (rad_choice.seb_hydrology_enabled()) {
+                    const ForceRestoreHydrology::StepSums hs = m_hydro.step(
+                        lev, *m_t_sfc[lev], *m_q_sfc[lev], *m_q_deep[lev], *m_t_deep[lev],
+                        *m_lh_sfc[lev], cover_seb ? m_footprint[lev].get() : nullptr,
+                        dt_step, ForceRestoreHydrology::params(rad_choice),
+                        m_precip.rain(lev, dt_step),
+                        snow_on ? m_snow.soil_water(lev) : nullptr,
+                        balance_mask);
+                    if (m_q_sfc[lev]->contains_nan(0, 1, 0) || m_q_deep[lev]->contains_nan(0, 1, 0) ||
+                        m_t_deep[lev]->contains_nan(0, 1, 0)) {
+                        amrex::Abort("TwoStreamRadiation: non-finite soil water or deep temperature "
+                                     "after the force-restore hydrology at level " + std::to_string(lev) +
+                                     ", step " + std::to_string(nstep));
+                    }
+                    if (rad_choice.verbosity >= 2 && hs.columns > 0) {
+                        const amrex::Real inv_n = amrex::Real(1.0) / static_cast<amrex::Real>(hs.columns);
+                        amrex::Print() << "Force-restore hydrology at level " << lev << ", step " << nstep
+                                       << " (column means, kg/m^2 this step): rain = " << hs.rain * inv_n
+                                       << ", evaporation = " << hs.evaporation * inv_n
+                                       << ", runoff = " << hs.runoff * inv_n
+                                       << ", drainage = " << hs.drainage * inv_n
+                                       << ", deficit = " << hs.deficit * inv_n
+                                       << "; max column budget residual = " << hs.max_residual
+                                       << " kg/m^2\n";
+                    }
+                }
+                // The steps above took the precipitation rate of this step: a step that
+                // follows without a new rate takes none.
+                m_precip.mark_used(lev);
 
                 {
                     amrex::Real sums[2] = {t_s_sum, q_s_sum};
@@ -1487,6 +2082,14 @@ TwoStreamRadiation::advance (int lev,
                     q_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
                 }
             } else {
+                // The hydrology acts on TwoStream's own state, which an external provider
+                // leaves unused: stop rather than silently drop the rain.
+                if (rad_choice.seb_hydrology_enabled()) {
+                    amrex::Abort("erf.radiation.seb_precipitation_source and "
+                                 "seb_deep_prognostic_enable act on the two-stream force-restore "
+                                 "state, but a land-surface model supplies the surface temperature "
+                                 "here; turn them off with a land-surface model");
+                }
                 // An external provider owns the boundary; leave the unused
                 // TwoStream state untouched and do not report it as active.
                 t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();

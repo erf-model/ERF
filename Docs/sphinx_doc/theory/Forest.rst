@@ -44,7 +44,7 @@ ERF supports two mutually exclusive canopy descriptions:
 * ``erf.forest_file`` describes discrete circular forest patches. Each row is
   ``tree_type x_center y_center height diameter Cd LAI LAImax``. Where patches
   overlap, their drag :math:`C_d L` and leaf area densities :math:`L` add. A
-  cell receives drag from a patch when its centre is strictly below the tree
+  cell receives drag from a patch when its center is strictly below the tree
   height :math:`h`, as in the gridded mode; the type-2 profile tends to zero at
   :math:`z = h`.
 * Gridded NetCDF mode uses ``erf.forest_lai_file`` and
@@ -79,7 +79,7 @@ adds both effects where the forest drag field :math:`f = C_d L` is positive:
 
    S_k = \rho f \left( \beta_p |\boldsymbol{U}|^3 - \beta_d |\boldsymbol{U}| k \right),
 
-where :math:`|\boldsymbol{U}|` is the cell-centred wind speed, :math:`\beta_p`
+where :math:`|\boldsymbol{U}|` is the cell-centered wind speed, :math:`\beta_p`
 (``erf.forest_canopy_beta_p``, default 1) is the fraction of the drag work that
 becomes TKE and :math:`\beta_d` (``erf.forest_canopy_beta_d``, default 4) sets
 the short-circuit dissipation (Green 1992; Liu et al. 1996; Sanz 2003).
@@ -157,7 +157,8 @@ Richardson number towards neutral.
 
 With ``erf.forest_substep = true`` the momentum drag moves to the acoustic
 substeps, while the TKE source stays in the slow RK stages with the other
-:math:`k` sources.
+:math:`k` sources. A level that takes no acoustic substeps applies the drag in the slow RK
+stages whatever ``erf.forest_substep`` says.
 
 The input names, defaults and formulas follow the ``ForestDrag.canopy_*``
 inputs of the ``KLAxell`` model in kynema-sgf (branch ``f/winsent`` of
@@ -189,15 +190,15 @@ with that one input.
 
 References:
 
-- Green, S. R. (1992). Modelling turbulent air flow in a stand of widely-spaced
+- Green, S. R. (1992). Modeling turbulent air flow in a stand of widely-spaced
   trees. PHOENICS Journal of Computational Fluid Dynamics and Its Applications,
   5, 294-312.
 - Harman, I. N., and Finnigan, J. J. (2007). A simple unified theory for flow in
   the canopy and roughness sublayer. Boundary-Layer Meteorology, 123, 339-363.
 - Liu, J., Chen, J. M., Black, T. A., and Novak, M. D. (1996). E-epsilon
-  modelling of turbulent air flow downwind of a model forest edge.
+  modeling of turbulent air flow downwind of a model forest edge.
   Boundary-Layer Meteorology, 77, 21-44.
-- Sanz, C. (2003). A note on k-epsilon modelling of vegetation canopy air-flows.
+- Sanz, C. (2003). A note on k-epsilon modeling of vegetation canopy air-flows.
   Boundary-Layer Meteorology, 108, 191-197.
 
 Fixed-leaf-temperature exchange

@@ -3,6 +3,8 @@
 #include <ERF_ReadFromWRFBdy.H>
 #include <ERF_ReadFromERFBdy.H>
 #include <ERF_LagrangianMicrophysics.H>
+#include "Microphysics/SBM/ERF_SBMAMRFluxRegister.H"
+#include "Microphysics/SBM/ERF_SBMTransport.H"
 
 using namespace amrex;
 
@@ -42,14 +44,6 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         double time_since_start_bdy = time + (start_time - start_bdy_time);
         int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
         int n_time_new = std::min(static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval), ntimes-1);
-        auto repack_runtime_bdy = [&] (const int itime) {
-            const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
-                wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
-            repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-            repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-            repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-            repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
-        };
 
         for (int itime = 0; itime < ntimes; itime++)
         {
@@ -82,7 +76,6 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                                      bdy_data_xlo, bdy_data_xhi,
                                      bdy_data_ylo, bdy_data_yhi,
                                      nvars_erfbdy, real_width);
-                    repack_runtime_bdy(itime);
                 }
             // Handle wrfbdy files (NetCDF format).
             } else {
@@ -91,17 +84,8 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                     read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                                  wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
                                                  vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                                 r_hse, area_vec, geom[lev], use_moist,
-                                                 solverChoice.use_wrf_bdy_qc_qi,
-                                                 solverChoice.moisture_indices.qi >= 0,
-                                                 solverChoice.use_wrf_bdy_qc_qi &&
-                                                 wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
-                                                 solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                                 r_hse, area_vec, geom[lev], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
-                    if (itime == ntimes-1 && itime > 0) {
-                        repack_runtime_bdy(itime-1);
-                    }
-                    repack_runtime_bdy(itime);
                 }
             } // use_erfbdy
         } // itime
@@ -140,8 +124,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                 update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
-                               S_new, *mf_PSFC[lev],
-                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+                               S_new, lmask_lev[lev][0], use_moist);
 
                 // Give the finer levels this slice too, coarsest first, and point the surface
                 // layer at it: a level with a wrflow file of its own (erf.nc_low_file_<lev>)
@@ -272,6 +255,12 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                     dt[k] = dt[k-1] / static_cast<double>(nsubsteps[k]);
                 }
 
+                // A regridded level over steep terrain may need the variable beta_s before
+                // its first substep, not at the next ComputeDt
+                for (int k = lev+1; k <= finest_level; ++k) {
+                    CheckVariableBetaS(k);
+                }
+
                 // The terrain under each regridded level has moved with its
                 // grids.  Find it now, as start-up does, so that a level the
                 // nudging cannot handle (on a terrain-fitted mesh, one whose
@@ -310,8 +299,30 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
     //send_to_ww3(lev);
 #endif
 
+    // Start each SBM coarse/fine register interval before the coarse step.
+    // It remains pending until the coarse advance and every fine substep are
+    // accepted below; only then may post_timestep consume it.
+    if (sbm_state_manager && lev < finest_level &&
+        lev + 1 < static_cast<int>(sbm_amr_flux_regs.size()) &&
+        sbm_amr_flux_regs[lev + 1]) {
+        std::string diagnostic;
+        if (!sbm_amr_flux_regs[lev + 1]->begin_interval(
+                time, time + dt[lev], nsubsteps[lev + 1], diagnostic)) {
+            Abort("SBM AMR register interval at ERF::timeStep: " + diagnostic);
+        }
+    }
+
     // Advance a single level for a single time step
     Advance(lev, time, dt[lev], istep[lev], nsubsteps[lev]);
+
+    if (sbm_state_manager) {
+        std::string diagnostic;
+        if (!sbm_transport ||
+            !sbm_transport->accept_physical_step(
+                lev, time, time + dt[lev], diagnostic)) {
+            Abort("SBM AMR register step admission at ERF::timeStep: " + diagnostic);
+        }
+    }
 
     ++istep[lev];
 
@@ -332,6 +343,12 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         // The finer level has now reached this level's new time; make the two agree
         // exactly rather than to within the roundoff of summing its substeps.
         t_new[lev+1] = t_new[lev];
+#ifdef ERF_USE_FIRE
+        // A fire on a finer level has reached this time too; its fields take the same time
+        if (m_fire_coupler && m_fire_coupler->level() > lev) {
+            m_fire_coupler->set_fields_time(t_new[lev]);
+        }
+#endif
     }
 
     if ( verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {

@@ -4,6 +4,7 @@
 
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFab.H>
@@ -119,7 +120,7 @@ amrex::Real max_change_from_placeholder (const amrex::MultiFab& mf)
     return change;
 }
 
-// Give every surface copy its own constant, so that neighbouring surface boxes disagree at
+// Give every surface copy its own constant, so that neighboring surface boxes disagree at
 // any face they share.  Component n is offset by n.  Returns the constants, indexed as
 // surface_boxes(), so that a caller can say which box a filled value came from.
 amrex::Vector<amrex::Real> set_distinct_surface_copies (amrex::MultiFab& mf,
@@ -165,7 +166,7 @@ int owning_surface_box (const amrex::BoxArray& ba_sfc, const amrex::IntVect& ixt
 
 // Largest |value - the owning surface box's constant| over the valid region and ghost cells
 // of every copy on every rank.  Non-zero means some copy disagrees with the owner, which is
-// what a shared face supplied by the wrong neighbour looks like.
+// what a shared face supplied by the wrong neighbor looks like.
 amrex::Real max_error_against_owner (const amrex::MultiFab& mf,
                                      const PlanarBoundary& bndry,
                                      const amrex::Vector<amrex::Real>& vals,
@@ -203,6 +204,48 @@ amrex::Real max_error_against_owner (const amrex::MultiFab& mf,
             {
                 const amrex::Real e = owner[(i-ilo) + ni*(j-jlo)] + amrex::Real(n);
                 return std::abs(arr(i,j,k,n) - e);
+            });
+    }
+    amrex::Real err = amrex::get<0>(reduce_data.value(reduce_op));
+    amrex::ParallelDescriptor::ReduceRealMax(err);
+    return err;
+}
+
+// Each grid fills its whole fab, valid region and ghost cells, with (its index + 1) + 10*n.
+// (Kept out of the TEST body: nvcc rejects extended __device__ lambdas in gtest's private
+// TestBody().)
+void set_whole_fab_to_grid_index (amrex::MultiFab& mf)
+{
+    const int ncomp = mf.nComp();
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const auto arr = mf.array(mfi);
+        const amrex::Real v = amrex::Real(mfi.index() + 1);
+        amrex::ParallelFor(mfi.fabbox(), ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            arr(i,j,k,n) = v + amrex::Real(10*n);
+        });
+    }
+}
+
+// Largest |value - expected| after reconcile_outside_domain on the two-grid edge layout:
+// cells beyond x = 0 hold grid 2's constant at wrapped j >= 10 and grid 1's elsewhere, and
+// every other cell keeps its own grid's constant.
+amrex::Real max_error_beyond_edge (const amrex::MultiFab& mf)
+{
+    amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
+    amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    const int ncomp = mf.nComp();
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const auto arr = mf.const_array(mfi);
+        const amrex::Real own = amrex::Real(mfi.index() + 1);
+        reduce_op.eval(mfi.fabbox(), ncomp, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) -> ReduceTuple
+            {
+                const int jw = ((j % ny) + ny) % ny;
+                const amrex::Real e = (i >= 0) ? own
+                                    : (jw >= 10) ? amrex::Real(2.0) : amrex::Real(1.0);
+                return std::abs(arr(i,j,k,n) - (e + amrex::Real(10*n)));
             });
     }
     amrex::Real err = amrex::get<0>(reduce_data.value(reduce_op));
@@ -336,6 +379,50 @@ TEST(PlanarBoundaryParallel, SharedFacesComeFromOneSurfaceBox)
             const amrex::Vector<amrex::Real> vals = set_distinct_surface_copies(mf, bndry);
             bndry.fill(mf, period);
             EXPECT_EQ(max_error_against_owner(mf, bndry, vals, ixtype), amrex::Real(0.0));
+        }
+    }
+}
+
+// A fine level whose grids along a non-periodic edge leave columns uncovered: two grids
+// against x = 0, one at j = 2..7 and one at j = 10..15, periodic in y, two ghost cells.  The
+// cells beyond the edge at j = 8, 9 (between the grids) and j = 0, 1 (across the periodic
+// seam, held by the second grid as j = 16, 17) face no grid, and both grids hold them in
+// their ghost regions.  Each must take the value of the grid with the lower index in every
+// copy; the cells facing a grid take that grid's value; and ghost cells inside the domain
+// (coarse/fine and periodic) are left as each grid wrote them.  Each grid fills its whole
+// fab with its own constant, as a producer filling from its own grid would.
+//
+// The same BoxArray is then reconciled on a second DistributionMapping, which must not
+// reuse the strips built for the first.  On one rank both mappings are {0, 0}, so this part
+// is exercised only on two or more ranks.
+TEST(PlanarBoundaryParallel, BeyondEdgeCellsWithNoOwnerTakeTheLowestGrid)
+{
+    const amrex::Box domain(amrex::IntVect(0,0,0), amrex::IntVect(nx-1,ny-1,nz-1));
+    const amrex::Geometry geom(domain, amrex::RealBox({0.,0.,0.},{1.,1.,1.}), 0, {0,1,0});
+
+    amrex::BoxList bl3d;
+    bl3d.push_back(amrex::Box(amrex::IntVect(0, 2,0), amrex::IntVect(7, 7,nz-1)));
+    bl3d.push_back(amrex::Box(amrex::IntVect(0,10,0), amrex::IntVect(7,15,nz-1)));
+    const amrex::BoxArray ba3d(std::move(bl3d));
+    amrex::BoxList bl2d = ba3d.boxList();
+    for (auto& b : bl2d) { b.setRange(2,0); }
+    const amrex::BoxArray ba2d(std::move(bl2d));
+
+    const int nprocs = amrex::ParallelDescriptor::NProcs();
+    const amrex::DistributionMapping dm1(amrex::Vector<int>{0, 1 % nprocs});
+    const amrex::DistributionMapping dm2(amrex::Vector<int>{1 % nprocs, 0});
+
+    PlanarBoundary bndry;
+    bndry.define(ba3d, ba2d, dm1, 0);
+
+    const amrex::IntVect ng(2,2,0);
+    for (const amrex::DistributionMapping* dm : {&dm1, &dm2}) {
+        for (const int ncomp : {1, 2, 1}) {
+            SCOPED_TRACE("ncomp " + std::to_string(ncomp));
+            amrex::MultiFab mf(ba2d, *dm, ncomp, ng);
+            set_whole_fab_to_grid_index(mf);
+            bndry.reconcile_outside_domain(mf, geom);
+            EXPECT_EQ(max_error_beyond_edge(mf), amrex::Real(0.0));
         }
     }
 }

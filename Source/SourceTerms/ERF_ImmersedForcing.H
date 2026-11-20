@@ -58,7 +58,8 @@ void ImmersedForcingBuildings_Xmom (const amrex::Box& tbx,
                                     const amrex::Array4<      amrex::Real>& xmom_src_arr,
                                     const amrex::Geometry& geom,
                                     const SolverChoice& solverChoice,
-                                    const amrex::Real fac);
+                                    const amrex::Real fac,
+                                    bool is_slow_step);
 
 void ImmersedForcingBuildings_Ymom (const amrex::Box& tby,
                                     const amrex::Array4<const amrex::Real>& u,
@@ -71,7 +72,8 @@ void ImmersedForcingBuildings_Ymom (const amrex::Box& tby,
                                     const amrex::Array4<      amrex::Real>& ymom_src_arr,
                                     const amrex::Geometry& geom,
                                     const SolverChoice& solverChoice,
-                                    const amrex::Real fac);
+                                    const amrex::Real fac,
+                                    bool is_slow_step);
 
 void ImmersedForcingBuildings_Zmom (const amrex::Box& tbz,
                                     const amrex::Array4<const amrex::Real>& u,
@@ -84,7 +86,8 @@ void ImmersedForcingBuildings_Zmom (const amrex::Box& tbz,
                                     const amrex::Array4<      amrex::Real>& zmom_src_arr,
                                     const amrex::Geometry& geom,
                                     const SolverChoice& solverChoice,
-                                    const amrex::Real fac);
+                                    const amrex::Real fac,
+                                    bool is_slow_step);
 
 // Terrain immersed forcing - MOMENTUM, fraction-stress wall law (erf.if_wall_form = fraction_stress)
 void ImmersedForcingTerrain_Xmom_FractionStress (const amrex::Box& tbx,

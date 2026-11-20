@@ -55,8 +55,8 @@ void launch_helper_kernel (const int ncases,
         const amrex::Real sedimentation = kessler_sedimentation_tendency(
             test_case.fz_hi, test_case.fz_lo, test_case.rho, test_case.dJinv, test_case.coef);
         const bool is_small = kessler_is_small_sedimentation_value(test_case.reduced_value);
-        const int substeps = kessler_num_sedimentation_substeps(
-            test_case.reduced_value, test_case.substep_dt, test_case.substep_dz);
+        const int substeps = kessler_num_sedimentation_substeps(kessler_fall_courant(
+            test_case.reduced_value, test_case.substep_dt, test_case.substep_dz, amrex::Real(1.0)));
 
         outputs_ptr[idx] = KernelOutputs{
             sat.dq_vapor_to_cloud,
@@ -125,9 +125,10 @@ KernelOutputs host_reference (const KernelCase& test_case)
         kessler_sedimentation_tendency(test_case.fz_hi, test_case.fz_lo,
                                        test_case.rho, test_case.dJinv, test_case.coef),
         static_cast<int>(kessler_is_small_sedimentation_value(test_case.reduced_value)),
-        kessler_num_sedimentation_substeps(test_case.reduced_value,
-                                           test_case.substep_dt,
-                                           test_case.substep_dz)};
+        kessler_num_sedimentation_substeps(kessler_fall_courant(test_case.reduced_value,
+                                                                test_case.substep_dt,
+                                                                test_case.substep_dz,
+                                                                amrex::Real(1.0)))};
 }
 
 } // namespace

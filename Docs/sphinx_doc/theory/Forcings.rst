@@ -12,8 +12,9 @@ Physical Forcings
 
 Physical forcings available in ERF comprise the standard source terms for atmospheric modeling.
 These include Coriolis and geostrophic forcing; Rayleigh damping and sponge layer(s); subsidence;
-simplified radiative thermal sources; solution nudging towards a prescribed input sounding; and
-nudging towards observations at stations (:ref:`sec:ObsNudging`).
+simplified radiative thermal sources; solution nudging towards a prescribed input sounding;
+nudging towards observations at stations (:ref:`sec:ObsNudging`); and a localized mass
+source of gas with an optional tracer, for fully compressible runs (:ref:`sec:MassSourceInputs`).
 
 ERF also supports models for wind farm parametrization in which the effects of wind turbines are represented
 by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE).
@@ -145,8 +146,13 @@ RK stage; if the type is FastExplicit then the damping terms are computed once p
 Either way, they are added explicitly.
 
 If the Rayleigh damping type is set to FastImplicit then the damping term for w only is included implicitly
-within the acoustic substepping algorithm; any additional Rayleigh damping (e.g. for u, v, or T) occurs
-as if the type is FastExplicit.
+within the acoustic substepping algorithm (when ``erf.rayleigh_damp_W`` is true), and is not also added
+explicitly; any additional Rayleigh damping (e.g. for u, v, or T) occurs as if the type is FastExplicit.
+The implicit form damps w towards zero rather than towards the reference profile.
+
+A level that takes no acoustic substeps (anelastic, pseudo-incompressible, or
+``RK3_NoSubstepping``) has no substeps to apply them in, so with FastExplicit or FastImplicit
+it computes all the damping terms once per RK stage, as with SlowExplicit.
 
 The algorithm for FastExplicit is as described in (3.44) of the `MPAS report`_
 which is equivalent to that written in (9) of
@@ -266,7 +272,7 @@ and is unchanged). Each column meets the air in its *wall cell*: a partially imm
 it, or, when the surface lies on a cell face, the free cell sitting on the fully immersed cell. With :math:`\beta`
 the immersed fraction of the wall cell (zero for a free wall cell), the surface is at
 :math:`h = z_{bot} + \beta \Delta z`, the fluid centroid of the wall cell at :math:`d_1 = (1 - \beta)\Delta z/2`
-above it and the centre of the cell above at :math:`d_2 = (3/2 - \beta)\Delta z`. The friction velocity mixes
+above it and the center of the cell above at :math:`d_2 = (3/2 - \beta)\Delta z`. The friction velocity mixes
 the wall cell's own estimate and the one of the better resolved cell above by the fraction,
 
 .. math::
@@ -287,7 +293,7 @@ with :math:`u_t` the horizontal velocity, and the vertical diffusive momentum fl
 the wall cell is switched off (explicit stress and implicit solve), so the column loses exactly :math:`u_*^2`
 through the wall. Fully immersed cells and partial cells below the wall cell keep the drag above; the wall cell
 has none. The solver differences the face above the wall cell over :math:`\Delta z`, although the wall cell's
-fluid centroid and the centre of the cell above are :math:`d_2 - d_1 = (1 - \beta/2)\Delta z` apart; left alone
+fluid centroid and the center of the cell above are :math:`d_2 - d_1 = (1 - \beta/2)\Delta z` apart; left alone
 this acts like a smaller roughness (a constant speed offset aloft, 1.5 to 3 % in the neutral ABL). The diffusive
 coupling through that face (momentum, strain, :math:`\theta`, TKE, scalars, moisture) is therefore scaled by
 :math:`\Delta z / \Delta z_{eff}` with, by default (``erf.if_wall_face_spacing = log``),
@@ -319,13 +325,13 @@ stencils of the flat surface (the strain of the face above; the wall cell itself
 surface on a cell face reproduces flat ground. With a moisture model the microphysics species the host
 transports keep their initial value in fully immersed cells, as :math:`\rho` and :math:`\theta` do (the
 lateral faces of a slope stay open to diffusion, as for :math:`\theta`), and the wall law carries a
-surface moisture condition for the water vapour, as the flat surface layer does: ``erf.if_surf_moist_flux``
+surface moisture condition for the water vapor, as the flat surface layer does: ``erf.if_surf_moist_flux``
 (a kinematic moisture flux :math:`F_q` [kg/kg m/s], :math:`q_* = -F_q/u_*`, as ``erf.most.surf_moist_flux``) or
 ``erf.if_surf_moist`` (a surface mixing ratio :math:`q_s` [kg/kg], as ``erf.most.surf_moist``, with
 :math:`q_* = (1-\beta)\kappa(q - q_s)/\phi_h(d_1) + \beta\kappa(q_{ref} - q_s)/\phi_h(d_2)`, mixed as
 :math:`\theta_*`); without either :math:`q_* = 0` (no evaporation or deposition). The wall moisture flux
 :math:`-u_* q_*` is spread over the cell height of the wall cell (integrated exactly toward :math:`q_s` when
-a surface mixing ratio is given), written on the wall face as the water-vapour flux the TKE buoyancy and the
+a surface mixing ratio is given), written on the wall face as the water-vapor flux the TKE buoyancy and the
 output read, and the Obukhov length is formed from the virtual potential temperature, as the flat surface layer
 forms it: :math:`L = u_*^2 \theta_v / (\kappa g \theta_{v*})` with :math:`\theta_v = \theta(1 + \epsilon_v q)` and
 :math:`\theta_{v*} = \theta_*(1 + \epsilon_v q) + \epsilon_v \theta q_*` (water vapour only; the flat surface
@@ -333,7 +339,7 @@ layer's :math:`\theta_v` subtracts rain water too), iterated with :math:`u_*` al
 a moisture condition is given; a given ``erf.if_Olen`` sets :math:`\theta_{v*}`, and
 :math:`\theta_* = (\theta_{v*} - \epsilon_v \theta q_*)/(1 + \epsilon_v q)`. Under ``erf.rans_moist_buoyancy`` the wall TKE below uses
 :math:`B = -g u_* \theta_{v*}/\theta_v`, as ``erf.dirichlet_k`` does on flat ground. With the k-equation closure, ``erf.rans_moist_buoyancy`` makes the
-TKE buoyancy production read the water-vapour flux too (see :ref:`RANS <RANS>`), so a heated, evaporating
+TKE buoyancy production read the water-vapor flux too (see :ref:`RANS <RANS>`), so a heated, evaporating
 surface on a cell face reproduces flat ground. The option needs ``erf.if_use_most = true``, a
 constant-:math:`\Delta z` mesh and the anelastic model (the compressible fast substep does not carry the wall
 heat flux and the wall TKE); ``erf.if_stability_correction`` belongs to the legacy law. With a RANS closure the

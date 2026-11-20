@@ -11,6 +11,7 @@
 
 #include "ERF.H"
 #include "ERF_InputsName.H"
+#include "ERF_InputPreflight.H"
 
 #ifdef ERF_USE_WW3_COUPLING
 #include <mpi.h>
@@ -261,6 +262,12 @@ auto finalize_mpi_and_return = [](int code) {
         return finalize_mpi_and_return(1);
     }
 
+    for (auto i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "--validate-input") {
+            return finalize_mpi_and_return(erf_preflight::run(argc, argv));
+        }
+    }
+
     // Look for "-h" or "--help" flag and print usage
     for (auto i = 1; i < argc; i++) {
         const std::string param(argv[i]);
@@ -273,8 +280,21 @@ auto finalize_mpi_and_return = [](int code) {
 
     if (argc >= 2) {
         for (auto i = 1; i < argc; i++) {
-            if (std::string(argv[i]) == "--describe") {
-                ERF::writeBuildInfo(std::cout);
+            const std::string option(argv[i]);
+            if (option == "--describe" || option == "--describe-json" || option == "--describe-yaml") {
+                int rank = 0;
+#ifdef AMREX_USE_MPI
+                MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+#endif
+                if (rank == 0) {
+                    if (option == "--describe-json") {
+                        ERF::writeBuildInfoJSON(std::cout);
+                    } else if (option == "--describe-yaml") {
+                        ERF::writeBuildInfoYAML(std::cout);
+                    } else {
+                        ERF::writeBuildInfo(std::cout);
+                    }
+                }
                 return finalize_mpi_and_return(0);
             }
         }

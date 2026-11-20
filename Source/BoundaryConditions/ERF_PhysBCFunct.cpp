@@ -145,6 +145,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
                 if (!m_use_real_bcs) {
                     // We send a box with ghost cells in the lateral directions only
                     impose_lateral_cons_bcs(cons_arr,velx_arr,vely_arr,cbx1,domain,icomp,ncomp,nghost,time);
+                    impose_inflow_profile_cons(cons_arr,velx_arr,vely_arr,z_nd_arr,cbx1,domain,icomp,ncomp);
                 }
 
                 // We send the full FAB box with ghost cells
@@ -235,6 +236,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
                 if (!gdomainx.contains(xbx1) && !m_use_real_bcs) {
                     impose_lateral_xvel_bcs(dest_arr,velx_arr,vely_arr,xbx1,domain,bccomp,time);
+                    impose_inflow_profile_xvel(dest_arr,velx_arr,vely_arr,z_nd_arr,xbx1,domain,bccomp);
                 }
 
                 impose_vertical_xvel_bcs(dest_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
@@ -323,6 +325,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
                 if (!m_use_real_bcs) {
                     impose_lateral_yvel_bcs(dest_arr,velx_arr,vely_arr,ybx1,domain,bccomp,time);
+                    impose_inflow_profile_yvel(dest_arr,velx_arr,vely_arr,z_nd_arr,ybx1,domain,bccomp);
                 }
 
                 impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,dxInv,bccomp,time);

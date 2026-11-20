@@ -216,7 +216,6 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     }); // end forEachParticleTile
 
     applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes, a_recycle);
-    Redistribute();
 }
 
 #endif

@@ -9,7 +9,7 @@
 
 // Two-stream kernel unit-test contract
 // ------------------------------------
-// These tests pin the algebraic behaviour of the per-layer SW and LW kernels
+// These tests pin the algebraic behavior of the per-layer SW and LW kernels
 // in ERF_TwoStreamSW.H / ERF_TwoStreamLW.H:
 //   1. Beer-Lambert direct beam: S0*mu0 at tau = 0, exp(-tau/mu0) attenuation,
 //      zero when the sun is below the horizon.

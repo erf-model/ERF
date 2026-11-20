@@ -1,6 +1,6 @@
 # 1D sublimation shaft: monodisperse solid-ice spheres (D = 0.35 mm) injected at the
 # top of an isothermal (-15 C), subsaturated-over-ice column fall and lose mass by
-# vapour diffusion. kinematic (prescribed) environment; coalescence off.
+# vapor diffusion. kinematic (prescribed) environment; coalescence off.
 
 erf.prob_name                = "SDM_Congestus3D_cold"
 

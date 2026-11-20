@@ -26,6 +26,7 @@ void SuperDropletsMoist::Define (SolverChoice& a_sc)
     m_Cp = a_sc.c_p;
     m_rdOcp = a_sc.rdOcp;
     m_compressibility_type = a_sc.compressibility_type;
+    m_variable_dz = (a_sc.mesh_type != MeshType::ConstantDz);
 }
 
 /*! \brief Read model configuration parameters from input file
@@ -33,7 +34,6 @@ void SuperDropletsMoist::Define (SolverChoice& a_sc)
  * This function reads all configuration parameters for the SuperDropletsMoist
  * model from the input file. Parameters include:
  * - Model flags (phase change, advection, coalescence)
- * - Initial distribution type
  * - Rain threshold radius
  * - Model modes (kinematic mode, dimensionality)
  * - Particle recycling options
@@ -60,9 +60,13 @@ void SuperDropletsMoist::readInputs ()
     m_with_ice = true;
     pp.queryAdd("include_cold_processes", m_with_ice);
 
-    // initial distribution type
-    m_init_type = SDMoistInit::uniform;
-    pp.queryAdd("distribution_type", m_init_type);
+    // uniform is the only initialization
+    std::string init_type = "uniform";
+    pp.query("distribution_type", init_type);
+    if (init_type != "uniform") {
+        amrex::Abort("super_droplets_moisture.distribution_type = " + init_type
+                     + " is not available; only uniform is");
+    }
 
     // minimum radius for rain
     m_r_rain = Real(4.0e-5); // 40 micrometers
@@ -210,6 +214,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
                                             m_aerosols,
                                             m_dt,
                                             m_name );
+    m_super_droplets->setVariableDz(m_variable_dz);
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
@@ -237,11 +242,8 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
 /*! \brief Initialize particles in the super-droplet moisture model
  *
  * If this is not a restart run, this function initializes the particles
- * in the particle container for the super-droplets. The initialization
- * depends on the configured initialization type:
- * - For condensate_density: Initially creates particles with uniform distribution,
- *   which will be updated later during FinishInit() based on condensate density
- * - For other types: Initializes particles directly with the configured distribution
+ * in the particle container for the super-droplets from the configured
+ * size distributions.
  *
  * \param[in] a_z_phys_nd MultiFab containing terrain height information
  */
@@ -251,12 +253,10 @@ void SuperDropletsMoist::InitParticles ( const int a_lev, MFPtr& a_z_phys_nd )
 
     m_super_droplets->InitializeParticles(a_lev, zero, a_z_phys_nd);
 
-    if (m_init_type != SDMoistInit::condensate_density) {
-        amrex::Print() << "Initialized "
-                       << m_super_droplets->NumberOfParticlesAtLevel(a_lev)
-                       << " super-droplets at level " << a_lev
-                       << " in super-droplets moisture model.\n";
-    }
+    amrex::Print() << "Initialized "
+                   << m_super_droplets->NumberOfParticlesAtLevel(a_lev)
+                   << " super-droplets at level " << a_lev
+                   << " in super-droplets moisture model.\n";
 }
 
 /*! \brief Restart particles in the super-droplet moisture model from checkpoint file
@@ -293,11 +293,10 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::
  * This function finalizes initialization steps that depend on conserved state
  * variables that were not available during Init(). It performs:
  * 1. Particle density scaling based on air density
- * 2. For condensate_density initialization type: sets particle attributes from condensate density
- * 3. For other initialization types: optionally performs initial phase change relaxation
- * 4. Computes cloud/rain water and total water content for all species
- * 5. Updates the rhoq2 component in conserved variables with computed cloud water
- * 6. Runs initial diagnostics for superdroplets
+ * 2. Optionally performs initial phase change relaxation
+ * 3. Computes cloud/rain water and total water content for all species
+ * 4. Updates the rhoq2 component in conserved variables with computed cloud water
+ * 5. Runs initial diagnostics for superdroplets
  *
  * \param[in] a_lev AMR level
  * \param[in,out] a_cons_vars Conserved variables MultiFab to be updated
@@ -314,23 +313,8 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
         // particle attributes on every level before redistribution can move them.
         for (int k = 0; k <= m_super_droplets->finestLevel(); ++k) {
             m_super_droplets->DensityScaling(*m_mic_fab_vars[k][MicVar_SD::rho], k);
-            if (m_init_type == SDMoistInit::condensate_density) {
-                auto& qc = *m_mic_fab_vars[k][MicVar_SD::q_c];
-                MultiFab rho_c(qc.boxArray(), qc.DistributionMap(), 1, qc.nGrowVect());
-                MultiFab::Copy(rho_c, qc, 0, 0, 1, qc.nGrowVect());
-                SetCurrentLevel(k);
-                ratioToDensity(rho_c);
-                m_super_droplets->SetAttributes(rho_c, k);
-            }
         }
         SetCurrentLevel(lev);
-        if (m_init_type == SDMoistInit::condensate_density) {
-            amrex::Print() << "Initialized "
-                           << m_super_droplets->NumSuperDroplets()
-                           << " super-droplets representing "
-                           << m_super_droplets->TotalNumberOfParticles()
-                           << " particles in super-droplets moisture model.\n";
-        }
     }
     if (lev == 0) {
         // Restart setup may also change the grids after particles were read.
@@ -342,7 +326,6 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
     }
 
     const bool relax = !m_restarted_particles &&
-                       m_init_type != SDMoistInit::condensate_density &&
                        m_flag_phase_change && m_init_phase_change;
     if (relax) {
         phaseChange(m_init_phase_change_time, a_z_phys_nd, lev);
@@ -398,10 +381,6 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
     // that exchange in the initial conserved state, not just its condensate.
     if (relax && !m_kinematic_mode) {
         Copy_Micro_to_State(a_cons_vars);
-    }
-
-    if (lev == 0) {
-        m_super_droplets->Diagnostics(-1, lev, zero, (m_diagnostics_iter>0));
     }
 
     return;

@@ -505,6 +505,93 @@ MOSTAverage::get_ng_fill (const int& lev) const
 }
 
 /**
+ * Function to return the highest k at which the averages on the z-low face read the
+ * horizontal velocities.
+ *
+ * It follows the reads of compute_plane_averages and compute_region_averages: the
+ * columns of every box at the surface, over the faces of the U & V averages and the
+ * ghost cells the averages fill (get_ng_fill). Without interpolation a column reads
+ * its reference index plus the radius; with it, the upper of the two cells around
+ * each sample point of its region, the highest of which is m_radius cells along the
+ * normal. Without terrain the reference index is the same in every column.
+ *
+ * @param[in] lev Current level
+ */
+int
+MOSTAverage::max_k_read (const int& lev) const
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_face.coordDir() == 2 && m_face.isLow(),
+        "MOSTAverage::max_k_read is only defined on the z-low face.");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_policy != 2, "MOSTAverage::max_k_read does not cover EB averages.");
+
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    const bool fitted_terrain =
+        (m_terrain_type == TerrainType::StaticFittedMesh) ||
+        (m_terrain_type == TerrainType::MovingFittedMesh);
+    const bool use_spatial_indices = m_norm_vec || fitted_terrain;
+    const int d_radius = m_radius;
+
+    if (!m_interp && !use_spatial_indices) {
+        return m_k_indx[lev]->max(0) + d_radius;
+    }
+
+    const IntVect ng_fill = get_ng_fill(lev);
+    const auto plo   = m_geom[lev].ProbLoArray();
+    const auto dx    = m_geom[lev].CellSizeArray();
+    const auto dxInv = m_geom[lev].InvCellSizeArray();
+
+    ReduceOps<ReduceOpMax> reduce_op;
+    ReduceData<int> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(*m_fields[lev][3]); mfi.isValid(); ++mfi) {
+        const Box& vbx = mfi.validbox();
+        if (vbx.smallEnd(2) != klo) { continue; }
+
+        Box bx = grow(convert(vbx, IntVect(1,1,0)), ng_fill);
+        bx.makeSlab(2, klo);
+
+        if (m_interp) {
+            const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
+            const auto x_pos_arr  = m_x_pos[lev]->const_array(mfi);
+            const auto y_pos_arr  = m_y_pos[lev]->const_array(mfi);
+            const auto z_pos_arr  = m_z_pos[lev]->const_array(mfi);
+            reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+            {
+                const Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
+                int kmax = klo;
+                for (int lj(-d_radius); lj <= d_radius; ++lj) {
+                    for (int li(-d_radius); li <= d_radius; ++li) {
+                        const Real zp = z_pos_arr(i+li,j+lj,k) + met_h_zeta*d_radius*dx[2];
+                        Real ireal, jreal, zval;
+                        if (find_interp_height_T(x_pos_arr(i+li,j+lj,k), y_pos_arr(i+li,j+lj,k), zp,
+                                                 z_phys_arr, plo, dxInv, ireal, jreal, zval)) {
+                            kmax = amrex::max(kmax, static_cast<int>(std::floor(zval)));
+                        }
+                    }
+                }
+                return {kmax};
+            });
+        } else {
+            // The averages clamp the column to the reference-index box
+            const auto k_arr = m_k_indx[lev]->const_array(mfi);
+            const Box k_box  = m_k_indx[lev]->fabbox(mfi.index());
+            reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+            {
+                const int ki = amrex::max(k_box.smallEnd(0), amrex::min(k_box.bigEnd(0), i));
+                const int kj = amrex::max(k_box.smallEnd(1), amrex::min(k_box.bigEnd(1), j));
+                const int kk = amrex::max(k_box.smallEnd(2), amrex::min(k_box.bigEnd(2), k));
+                return {k_arr(ki,kj,kk) + d_radius};
+            });
+        }
+    }
+
+    int kmax = amrex::max(klo, amrex::get<0>(reduce_data.value(reduce_op)));
+    ParallelDescriptor::ReduceIntMax(kmax);
+    return kmax;
+}
+
+/**
  * Function to set the rotated velocities.
  *
  * @param[in] lev Current level
@@ -544,6 +631,11 @@ MOSTAverage::set_rotated_fields (const int& lev)
         const Array4<const Real>& u_arr = fields[0]->const_array(mfi);
         const Array4<const Real>& v_arr = fields[1]->const_array(mfi);
         const Array4<const Real>& w_arr = fields[2]->const_array(mfi);
+
+        // Velocities cut above the planes the averages read (set_velocity_field_ptrs)
+        //    are rotated only where they are held
+        ubx.setBig(2, amrex::min(ubx.bigEnd(2), amrex::ubound(u_arr).z));
+        vbx.setBig(2, amrex::min(vbx.bigEnd(2), amrex::ubound(v_arr).z));
 
         const Array4<Real>& u_rot_arr = rot_fields[0]->array(mfi);
         const Array4<Real>& v_rot_arr = rot_fields[1]->array(mfi);
@@ -692,6 +784,7 @@ MOSTAverage::set_eb_normalization (const int& lev)
         ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
         AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
         {
+            Real area = zero;
             if (flag_arr(i,j,k).isSingleValued()) {
                 // Compute area from face-centered area fractions
                 Real axm = afrac_x(i  ,j  ,k  );
@@ -705,10 +798,11 @@ MOSTAverage::set_eb_normalization (const int& lev)
                 Real ady = (aym - ayp) * dx * dz;
                 Real adz = (azm - azp) * dx * dy;
 
-                Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
-
-                Gpu::deviceReduceSum(&area_device[0], area, handler);
+                area = std::sqrt(adx*adx + ady*ady + adz*adz);
             }
+            // Every active thread must enter the block reduction, including
+            // regular and covered cells, which contribute zero surface area.
+            Gpu::deviceReduceSum(&area_device[0], area, handler);
         });
     }
 
@@ -2836,7 +2930,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
         denom[1]   = one / m_total_bndry_area[lev][1];
         val_old[1] = plane_average[1]*d_fact_old;
 
-        int iavg = m_navg - 1;  // Tangential velocity magnitude
+        int iavg = m_navg - 3;  // Tangential velocity magnitude
         denom[iavg]   = one / m_total_bndry_area[lev][iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
@@ -2875,6 +2969,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
+                Real val_u = zero;
+                Real val_v = zero;
+                Real val_mag = zero;
                 // Area-weighted averaging over cut cells at any k
                 if (flag_arr(i,j,k).isSingleValued()) {
                     // Compute area from face-centered area fractions
@@ -2919,14 +3016,14 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     Real mag = std::sqrt(u_tangent*u_tangent + v_tangent*v_tangent + Vsg*Vsg);
 
                     // Area-weighted sum
-                    Real val_u = u_tangent * area;
-                    Real val_v = v_tangent * area;
-                    Real val_mag = mag * area;
-
-                    Gpu::deviceReduceSum(&plane_avg[0], val_u, handler);
-                    Gpu::deviceReduceSum(&plane_avg[1], val_v, handler);
-                    Gpu::deviceReduceSum(&plane_avg[iavg], val_mag, handler);
+                    val_u = u_tangent * area;
+                    val_v = v_tangent * area;
+                    val_mag = mag * area;
                 }
+                // The reduction is collective across the active GPU block.
+                Gpu::deviceReduceSum(&plane_avg[0], val_u, handler);
+                Gpu::deviceReduceSum(&plane_avg[1], val_v, handler);
+                Gpu::deviceReduceSum(&plane_avg[iavg], val_mag, handler);
             });
         }
     }
@@ -2967,6 +3064,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
+                Real val = zero;
                 // Area-weighted averaging over cut cells at any k
                 if (flag_arr(i,j,k).isSingleValued()) {
                     // Compute area from face-centered area fractions
@@ -2983,9 +3081,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
 
                     Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                    Real val = mf_arr(i,j,k) * area;
-                    Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                    val = mf_arr(i,j,k) * area;
                 }
+                Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
             });
         }
     }
@@ -3029,6 +3127,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
+                Real val = zero;
                 if (flag_arr(i,j,k).isSingleValued()) {
                     // Compute area from face-centered area fractions
                     Real axm = afrac_x(i  ,j  ,k  );
@@ -3051,9 +3150,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     } else {
                         vfac = one + epsv*qv_mf_arr(i,j,k);
                     }
-                    const Real val = T_mf_arr(i,j,k) * vfac * area;
-                    Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+                    val = T_mf_arr(i,j,k) * vfac * area;
                 }
+                Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
             });
         }
     }
@@ -3061,7 +3160,8 @@ MOSTAverage::compute_eb_averages (const int& lev)
     {
         int iavg    = m_navg - 4;
         denom[iavg] = one / m_total_bndry_area[lev][iavg];
-        // plane_avg[iavg] = plane_avg[2]
+        // Dry virtual temperature shares temperature's filtered history.
+        val_old[iavg] = val_old[3];
         Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 3, pavg.begin() + 4,
                   pavg.begin() + iavg);
     }

@@ -86,6 +86,13 @@ class eb_ {
                         amrex::DistributionMapping const& dm,
                         amrex::EB2::Level const& a_eb_level);
 
+    /**
+     * \brief Release the factories and cut-face lists built for the level's grids, as for a
+     * level that no longer exists.  The object itself is kept: other objects hold pointers
+     * to it, and the factories are built again when the level is made again.
+     */
+    void clear_factories ();
+
     //! Number of ghost cells needed for basic EB flags.
     int nghost_basic () const  { return 5; } // nghost_eb_basic ()
     //! Number of ghost cells needed for EB volume data.

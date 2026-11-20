@@ -40,13 +40,13 @@ class SurfaceLayer;
  * on the host:
  * - copies what it reads from FireForcing to the host inside advance()
  *   (fire_host_copy(), ERF_FireUtils.H, does the copy and the stream
- *   synchronisation), because those fields are temporaries of that call;
+ *   synchronization), because those fields are temporaries of that call;
  * - owns the MultiFabs it returns, allocated on fg.ba and fg.dm (or the
  *   level's k = 0 slabs where stated), and keeps them alive until its next
  *   advance(); it fills them on the host and copies them back to device
  *   memory (fire_host_copy() the other way) before returning from
  *   fill_fluxes() or the getter;
- * - may hold managed or pinned memory internally, but synchronises the GPU
+ * - may hold managed or pinned memory internally, but synchronizes the GPU
  *   stream (amrex::Gpu::streamSynchronize()) before it touches the host side
  *   of data the device may still be writing.
  * The coupling never frees, resizes or keeps across steps a pointer an engine
@@ -69,7 +69,7 @@ struct FireForcing
     amrex::Real            dt;            ///< Step of the fire grid's level [s]
     const amrex::MultiFab& xvel;          ///< x-velocity on x-faces [m/s]: before the dycore (passive, lagged) or after it (synchronous)
     const amrex::MultiFab& yvel;          ///< y-velocity on y-faces [m/s], the same time level as xvel
-    const amrex::MultiFab& z_phys_cc;     ///< Cell-centre height [m] of the terrain-following mesh
+    const amrex::MultiFab& z_phys_cc;     ///< Cell-center height [m] of the terrain-following mesh
     const amrex::MultiFab& T_k0;          ///< Air temperature at k = 0 [K] (theta times Exner), before the dycore
     const amrex::MultiFab& RH_k0;         ///< Relative humidity at k = 0 [0-1], before the dycore
     const amrex::MultiFab* precip_accum_k0; ///< Surface precipitation accumulated since t = 0 [kg/m2] after this step's microphysics, or nullptr unless the engine asks for it (FireEngine::wants_surface_precip)
@@ -88,7 +88,7 @@ struct FireForcing
  * grid's level (the one-step lag of WRF-Fire; erf.fire.coupling_type =
  * synchronous only changes the wind the engine saw).
  *
- * The latent flux is the energy of the water vapour released, so the vapour
+ * The latent flux is the energy of the water vapor released, so the vapor
  * mass flux is latent / L_v [kg/m2/s] with L_v of ERF_Constants.H; an engine
  * that computes a mass flux multiplies by that same L_v. The pointers stay
  * valid until the engine's next advance(). Sensible and latent pointers are
@@ -168,8 +168,11 @@ public:
     /**
      * @brief Start-up after initialize(), once the run's end is known
      *
-     * @param[in] stop_time              ERF's stop_time [s] (numeric_limits max when unset)
-     * @param[in] max_step               ERF's max_step, counting level-0 steps (negative when unset)
+     * @param[in] stop_time              Elapsed time at which the run stops [s], on the clock the
+     *                                   engine's step times use (ERF's stop_time less start_time);
+     *                                   numeric_limits<amrex::Real>::max() when no stop time is set
+     * @param[in] max_step               ERF's max_step, counting level-0 steps;
+     *                                   numeric_limits<int>::max() when unset (never negative)
      * @param[in] steps_per_coarse_step  Steps of the fire grid's level per level-0 step
      */
     virtual void start_run (amrex::Real stop_time, int max_step, int steps_per_coarse_step)

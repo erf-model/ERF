@@ -110,6 +110,10 @@ AdvectionSrcForRho (const Box& bx,
  * @param[in] avg_xmom x-component of time-averaged momentum defined in this routine
  * @param[in] avg_ymom y-component of time-averaged momentum defined in this routine
  * @param[in] avg_zmom z-component of time-averaged momentum defined in this routine
+ * @param[in] upw_x x-face field whose sign picks the upwind side: avg_xmom, or on a
+ *                  pseudo-incompressible level the direction set by the projection
+ * @param[in] upw_y y-face field whose sign picks the upwind side
+ * @param[in] upw_z z-face field whose sign picks the upwind side
  * @param[in] cell_prim primitive form of scalar variables, here only potential temperature theta
  * @param[out] advectionSrc tendency for the scalar update equation
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
@@ -132,6 +136,9 @@ AdvectionSrcForScalars (const Box& bx,
                         const Array4<const Real>& avg_xmom,
                         const Array4<const Real>& avg_ymom,
                         const Array4<const Real>& avg_zmom,
+                        const Array4<const Real>& upw_x,
+                        const Array4<const Real>& upw_y,
+                        const Array4<const Real>& upw_z,
                         const Array4<const Real>& cell_prim,
                         const Array4<Real>& advectionSrc,
                         const Array4<const Real>& detJ,
@@ -167,6 +174,7 @@ AdvectionSrcForScalars (const Box& bx,
 
         BuildScalarAdvectionFluxes(bx, cell_prim, scalar_comp, flx_arr, flux_comp,
                                    avg_xmom, avg_ymom, avg_zmom,
+                                   upw_x, upw_y, upw_z,
                                    horiz_adv_type, vert_adv_type,
                                    horiz_upw_frac, vert_upw_frac);
 

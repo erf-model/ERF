@@ -1,0 +1,7 @@
+FILE = inputs_base
+
+# Negative case: the iteration's relaxation has no meaning for the explicit factors.
+max_step = 1
+erf.ibseb.stability_correction = true
+erf.ibseb.stability_scheme = "louis"
+erf.ibseb.obukhov_relax = 0.7

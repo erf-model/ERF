@@ -15,6 +15,29 @@
 
 using namespace amrex;
 
+namespace {
+
+// Map a level's host integrator onto an auxiliary stage recipe; any anelastic
+// integrator without a recipe aborts instead of borrowing another one's.
+erf_auxiliary::HostIntegrator
+auxiliary_host_integrator (const SolverChoice& solverChoice, const int level)
+{
+    if (solverChoice.compressibility_type[level] == CompressibilityType::FullyCompressible) {
+        return erf_auxiliary::HostIntegrator::CompressibleRK3;
+    }
+    if (solverChoice.timestepping_type[level] == TimesteppingType::RK2) {
+        return erf_auxiliary::HostIntegrator::AnelasticHeun;
+    }
+    if (solverChoice.timestepping_type[level] == TimesteppingType::MidPoint) {
+        return erf_auxiliary::HostIntegrator::AnelasticMidPoint;
+    }
+    amrex::Abort("Auxiliary transport has no stage recipe for the anelastic integrator at level " +
+                 std::to_string(level));
+    return erf_auxiliary::HostIntegrator::AnelasticHeun;
+}
+
+} // namespace
+
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
  *
@@ -30,6 +53,8 @@ using namespace amrex;
  * @param[in   ] avg_xmom
  * @param[in   ] avg_ymom
  * @param[in   ] avg_zmom
+ * @param[in   ] upw_dir upwind direction used by erf_slow_rhs_pre in this stage, on a
+ *                       pseudo-incompressible level (nullptr otherwise: the mass flux picks it)
  * @param[in   ] xvel x-component of velocity
  * @param[in   ] yvel y-component of velocity
  * @param[in   ] zvel z-component of velocity
@@ -52,6 +77,7 @@ using namespace amrex;
  * @param[in   ] detJ     Jacobian of the metric transformation at start of time step (= 1 if use_terrain is false)
  * @param[in   ] detJ_new Jacobian of the metric transformation at new RK stage time (= 1 if use_terrain is false)
  * @param[in   ] mapfac map factors
+ * @param[in   ] physbnd_mask EB only: mask of the physical-boundary ghost cells of the cell-centered variables
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  */
@@ -71,6 +97,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                               MultiFab& avg_xmom,
                               MultiFab& avg_ymom,
                               MultiFab& avg_zmom,
+                        const Array<const MultiFab*,AMREX_SPACEDIM>& upw_dir,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
                         const MultiFab& zvel,
@@ -101,9 +128,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Gpu::DeviceVector<Real>& stretched_dz_d,
                         Vector<std::unique_ptr<MultiFab>>& mapfac,
                         const eb_& ebfact,
-#ifdef ERF_USE_EAMXX_SHOC
-                        SHOCInterface* eamxx_shoc_lev,
-#endif
+                        const iMultiFab& physbnd_mask,
                         ShocDriver* native_shoc_lev,
                         YAFluxRegister* fr_as_crse,
                         YAFluxRegister* fr_as_fine,
@@ -116,7 +141,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         erf_sbm::SBMTransport* sbm_transport,
                         const MultiFab* ib_wall_face33,
                         const MultiFab* ib_wall_ktarget,
-                        const MultiFab* ib_wall_qfx)
+                        const MultiFab* ib_wall_qfx,
+                        const erf_sbm::SBMAMRStageParent* sbm_parent_stage)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -181,11 +207,6 @@ void erf_slow_rhs_post (int level, int finest_level,
     const Box& domain = geom.Domain();
 
     bool l_apply_surface_layer_fluxes_in_diffusion = any_SurfLayer();
-#ifdef ERF_USE_EAMXX_SHOC
-    if (tc.uses_eamxx_shoc()) {
-        l_apply_surface_layer_fluxes_in_diffusion = false;
-    }
-#endif
     if (tc.uses_native_shoc()) {
         AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
         l_apply_surface_layer_fluxes_in_diffusion = false;
@@ -214,7 +235,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         cloud_chamber_config != nullptr && cloud_chamber_base_state != nullptr &&
         cloud_chamber_config->physical_initialization;
     const erf_wall_thermodynamics::Boundary chamber_walls =
-        use_physical_chamber_wall_flux ? cloud_chamber_config->wall_boundary() :
+        use_physical_chamber_wall_flux ? cloud_chamber_config->transport_boundary() :
                                          erf_wall_thermodynamics::Boundary{};
 
     std::unique_ptr<MultiFab> dflux_x;
@@ -275,10 +296,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     // M2 proof consumer: run after the stage carrier is final and before the
     // caller copies S_data over S_new, preserving the predictor density view.
     if (auxiliary_inert_tracer != nullptr) {
-        const auto method = !l_anelastic ? erf_auxiliary::HostIntegrator::CompressibleRK3 :
-            (solverChoice.timestepping_type[level] == TimesteppingType::RK2 ?
-                erf_auxiliary::HostIntegrator::AnelasticHeun :
-                erf_auxiliary::HostIntegrator::AnelasticMidPoint);
+        const auto method = auxiliary_host_integrator(solverChoice, level);
         auxiliary_inert_tracer->advance_stage(
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
             S_old[IntVars::cons], S_new[IntVars::cons], S_data[IntVars::cons],
@@ -295,18 +313,24 @@ void erf_slow_rhs_post (int level, int finest_level,
             // Force an outgoing-demand violation at the production donor CFL gate.
             avg_xmom.setVal(Real(1.0e8));
         }
-        const auto method = !l_anelastic ? erf_auxiliary::HostIntegrator::CompressibleRK3 :
-            (solverChoice.timestepping_type[level] == TimesteppingType::RK2 ?
-                erf_auxiliary::HostIntegrator::AnelasticHeun :
-                erf_auxiliary::HostIntegrator::AnelasticMidPoint);
+        const auto method = auxiliary_host_integrator(solverChoice, level);
         const MultiFab& stage_cons_anchor = S_old[IntVars::cons];
         const MultiFab& stage_cons_input = S_new[IntVars::cons];
         MultiFab& stage_cons_target = S_data[IntVars::cons];
+        erf_sbm::SBMStageMixingInputs sbm_mixing_inputs;
+        const erf_sbm::SBMStageMixingInputs* sbm_mixing = nullptr;
+        if (sbm_transport->mixes_particles()) {
+            sbm_mixing_inputs = erf_sbm::make_stage_mixing_inputs(
+                *sbm_transport, eddyDiffs, mapfac, ax.get(), ay.get(),
+                stretched_dz_d.data());
+            sbm_mixing = &sbm_mixing_inputs;
+        }
         sbm_transport->advance_stage_from_host(
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
             *sbm_state_manager, stage_cons_anchor, stage_cons_input,
             stage_cons_target, avg_xmom, avg_ymom, avg_zmom, geom,
-            solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr);
+            solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr,
+            sbm_parent_stage, sbm_mixing);
     }
 
     // *************************************************************************
@@ -321,13 +345,7 @@ void erf_slow_rhs_post (int level, int finest_level,
       int start_comp;
       int   num_comp;
 
-      // Cell-centered masks for EB (used for flux interpolation)
-      iMultiFab physbnd_mask;
       bool already_on_centroids = false;
-      if (l_use_eb) {
-          physbnd_mask.define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-          physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
-      }
 
       // NOTE: this loop must NOT be tiled.  It both reads and writes S_new[cons]:
       //   - the diffusion and PBL source routines below read new_cons with stencils
@@ -384,6 +402,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> avg_xmom_arr = avg_xmom.array(mfi);
         Array4<Real> avg_ymom_arr = avg_ymom.array(mfi);
         Array4<Real> avg_zmom_arr = avg_zmom.array(mfi);
+        // Pseudo-incompressible: the upwind side is the one the projection picked
+        const Array4<const Real> upw_x_arr = upw_dir[0] ? upw_dir[0]->const_array(mfi) : avg_xmom.const_array(mfi);
+        const Array4<const Real> upw_y_arr = upw_dir[1] ? upw_dir[1]->const_array(mfi) : avg_ymom.const_array(mfi);
+        const Array4<const Real> upw_z_arr = upw_dir[2] ? upw_dir[2]->const_array(mfi) : avg_zmom.const_array(mfi);
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
@@ -588,6 +610,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                             }
                             AdvectionSrcForScalars(tbx, start_comp, num_comp,
                                                    avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                                   upw_x_arr, upw_y_arr, upw_z_arr,
                                                    cur_prim, cell_rhs,
                                                    detJ_arr, dxInv, mf_mx, mf_my,
                                                    horiz_adv_type, vert_adv_type,
@@ -746,11 +769,6 @@ void erf_slow_rhs_post (int level, int finest_level,
             }
         }
 
-#ifdef ERF_USE_EAMXX_SHOC
-        if (tc.uses_eamxx_shoc() && eamxx_shoc_lev) {
-            eamxx_shoc_lev->add_slow_tend(mfi,tbx,cell_rhs);
-        }
-#endif
         // This updates just the "slow" conserved variables
         {
         BL_PROFILE("rhs_post_8");

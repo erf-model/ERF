@@ -14,6 +14,7 @@
 
 #include "ERF_ProbCommon.H"
 #include "ERF_TerrainFileChecks.H"
+#include "ERF_EBIFTerrain.H"
 #include "../ERF_GTestTempDir.H"
 
 // Motivation: malformed or mis-ordered height files, or terrain tables too small
@@ -422,4 +423,174 @@ TEST(TerrainFileChecks, OpenFaceWarningOnlyForSteepOpenFaces)
     EXPECT_EQ(w.find("xlo face"), std::string::npos) << w;
     EXPECT_NE(w.find("Flattening the terrain within 3 cells"), std::string::npos) << w;
     EXPECT_NE(w.find("none of them is on here"), std::string::npos) << w;
+}
+
+// A periodic direction needs the same terrain on its two faces.  A table with points on both
+// faces must already have it; a table with points on one face only (one height per node from
+// prob_lo, say, which used to hold the last height at prob_hi) gets the heights of that face on
+// the other.
+TEST(TerrainFileChecks, PeriodicTableHasTheSameHeightsOnBothFaces)
+{
+    auto make = [] (int nx, int ny, Real x0, Real y0) {
+        HeightTable t;
+        t.nx = nx; t.ny = ny;
+        for (int i = 0; i < nx; ++i) { t.x.push_back(x0 + Real(50.) * Real(i)); }
+        for (int j = 0; j < ny; ++j) { t.y.push_back(y0 + Real(50.) * Real(j)); }
+        for (int i = 0; i < nx; ++i) {
+            for (int j = 0; j < ny; ++j) { t.z.push_back(Real(10.) * Real(i) + Real(j)); }
+        }
+        return t;
+    };
+    std::string note;
+
+    // Points on both x faces with different heights there: a problem; not periodic: none
+    HeightTable both = make(17, 9, 0, 0);
+    EXPECT_NE(MakeTablePeriodic(both, lo_of(0, 0), hi_of(800, 400), {true, false}, note)
+              .find("heights on the two x faces differ"), std::string::npos);
+    EXPECT_EQ(MakeTablePeriodic(both, lo_of(0, 0), hi_of(800, 400), {false, false}, note), "");
+    EXPECT_EQ(both.nx, 17);
+
+    // The same heights on the two faces: accepted and unchanged
+    for (int j = 0; j < both.ny; ++j) { both.z[16*both.ny + j] = both.z[j]; }
+    EXPECT_EQ(MakeTablePeriodic(both, lo_of(0, 0), hi_of(800, 400), {true, false}, note), "");
+    EXPECT_EQ(both.nx, 17);
+
+    // Points from prob_lo to one spacing short of prob_hi in x and in y: the heights at
+    // prob_lo are repeated at prob_hi
+    HeightTable lo_only = make(16, 8, 0, 0);
+    const HeightTable orig = lo_only;
+    EXPECT_EQ(MakeTablePeriodic(lo_only, lo_of(0, 0), hi_of(800, 400), {true, true}, note), "");
+    ASSERT_EQ(lo_only.nx, 17);
+    ASSERT_EQ(lo_only.ny, 9);
+    EXPECT_EQ(lo_only.x.back(), Real(800.));
+    EXPECT_EQ(lo_only.y.back(), Real(400.));
+    for (int i = 0; i < 17; ++i) {
+        for (int j = 0; j < 9; ++j) {
+            const int io = (i == 16) ? 0 : i;
+            const int jo = (j == 8) ? 0 : j;
+            EXPECT_EQ(lo_only.z[i*9 + j], orig.z[io*8 + jo]) << "(" << i << ", " << j << ")";
+        }
+    }
+    EXPECT_EQ(TableProblem(false, lo_only.nx, lo_only.ny, lo_only.x, lo_only.y, lo_only.z,
+                           lo_of(0, 0), hi_of(800, 400)), "");
+
+    // Points from one spacing inside prob_lo up to prob_hi in x: the heights at prob_hi are
+    // repeated at prob_lo
+    HeightTable hi_only = make(16, 9, 50, 0);
+    EXPECT_EQ(MakeTablePeriodic(hi_only, lo_of(0, 0), hi_of(800, 400), {true, false}, note), "");
+    ASSERT_EQ(hi_only.nx, 17);
+    EXPECT_EQ(hi_only.x.front(), Real(0.));
+    for (int j = 0; j < 9; ++j) {
+        EXPECT_EQ(hi_only.z[j], hi_only.z[16*9 + j]) << "j = " << j;
+    }
+}
+
+// read_custom_terrain puts the same heights on the two faces of a periodic domain from a table
+// with one height per node from prob_lo
+TEST(TerrainFileChecks, PeriodicDomainGetsTheSameTerrainOnBothFaces)
+{
+    const std::string fname = erf_gtest_temp_path("erf_unit_periodic_terrain").string() + ".txt";
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ofstream file(fname);
+        // x = 0 .. 5 and y = 0 .. 5 over a 0 .. 6 domain; h = 10 x + y
+        file << "6\n6\n";
+        for (int i = 0; i < 6; ++i) { file << i << "\n"; }
+        for (int j = 0; j < 6; ++j) { file << j << "\n"; }
+        for (int i = 0; i < 6; ++i) {
+            for (int j = 0; j < 6; ++j) { file << 10*i + j << "\n"; }
+        }
+    }
+    ParallelDescriptor::Barrier();
+
+    const Box domain(IntVect(0,0,0), IntVect(5,5,0));
+    const RealBox rb({Real(0.), Real(0.), Real(0.)},
+                     {Real(6.), Real(6.), Real(1.)});
+    const Geometry geom(domain, rb, CoordSys::cartesian, {1, 1, 0});
+    const Box nodes = convert(domain, IntVect(1, 1, 0));
+    FArrayBox heights(nodes, 1);
+    ProblemBase problem;
+    problem.read_custom_terrain(fname, false, geom, heights, 0.0);
+
+    FArrayBox host_heights(nodes, 1, The_Pinned_Arena());
+    Gpu::copy(Gpu::deviceToHost, heights.dataPtr(), heights.dataPtr() + heights.size(),
+              host_heights.dataPtr());
+    Gpu::streamSynchronize();
+    const auto h = host_heights.const_array();
+    for (int m = 0; m <= 6; ++m) {
+        EXPECT_EQ(h(6,m,0), h(0,m,0)) << "x faces, j = " << m;
+        EXPECT_EQ(h(m,6,0), h(m,0,0)) << "y faces, i = " << m;
+    }
+
+    ParallelDescriptor::Barrier();
+    if (ParallelDescriptor::IOProcessor()) { std::filesystem::remove(fname); }
+}
+
+namespace {
+
+// The immersed terrain surface at the points (x[n], y) and (x[n] + shift, y), at height z
+// (at namespace scope: nvcc rejects a device lambda in a TEST body)
+Vector<Real>
+terrain_if_pairs (const TerrainIF& tif, const Vector<Real>& x, Real shift, Real y, Real z)
+{
+    const int n = static_cast<int>(x.size());
+    Gpu::DeviceVector<Real> d_x(n), d_out(2*n);
+    Gpu::copy(Gpu::hostToDevice, x.begin(), x.end(), d_x.begin());
+    const Real* px = d_x.data();
+    Real* pout = d_out.data();
+    amrex::ParallelFor(n, [=] AMREX_GPU_DEVICE (int m) {
+        pout[2*m  ] = tif(px[m]        , y, z);
+        pout[2*m+1] = tif(px[m] + shift, y, z);
+    });
+    Vector<Real> out(2*n);
+    Gpu::copy(Gpu::deviceToHost, d_out.begin(), d_out.end(), out.begin());
+    return out;
+}
+
+} // namespace
+
+// The immersed terrain is built from cells and faces that straddle the domain faces.  In a
+// periodic direction the implicit function must see the same surface on both sides of a face:
+// it used to hold the edge height beyond each face, so the two copies of a periodic face got
+// different fluid fractions (7.5e-6 apart in ImmersedForcing_Terrain).
+TEST(TerrainFileChecks, PeriodicTerrainIFIsTheSameAcrossThePeriodicFaces)
+{
+    const std::string fname = erf_gtest_temp_path("erf_unit_periodic_terrain_if").string() + ".txt";
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ofstream file(fname);
+        // x = 0 .. 5 and y = 0 .. 5 over a 0 .. 6 domain; h = 0.1 x (x - 6) + 0.05 y, which
+        // differs on the two sides of x = 0
+        file << "6\n6\n";
+        for (int i = 0; i < 6; ++i) { file << i << "\n"; }
+        for (int j = 0; j < 6; ++j) { file << j << "\n"; }
+        for (int i = 0; i < 6; ++i) {
+            for (int j = 0; j < 6; ++j) { file << Real(0.1)*i*(i-6) + Real(0.05)*j + 2 << "\n"; }
+        }
+    }
+    ParallelDescriptor::Barrier();
+
+    const Box domain(IntVect(0,0,0), IntVect(5,5,5));
+    const RealBox rb({Real(0.), Real(0.), Real(0.)}, {Real(6.), Real(6.), Real(6.)});
+    const Geometry geom(domain, rb, CoordSys::cartesian, {1, 1, 0});
+    Box nodes = surroundingNodes(domain); nodes.grow(3);
+    FArrayBox heights(makeSlab(nodes, 2, 0), 1);
+    ProblemBase problem;
+    problem.read_custom_terrain(fname, false, geom, heights, 0.0);
+
+    Gpu::DeviceVector<Real> dz(6, Real(1.));
+    // Points within a cell of the faces x = 0 and x = 6, and their periodic images
+    const Vector<Real> x{Real(-0.75), Real(-0.25), Real(0.), Real(0.25), Real(0.75)};
+    const TerrainIF wrapped(heights, geom, dz, true);
+    const TerrainIF clamped(heights, geom, dz, false);
+    const Vector<Real> w = terrain_if_pairs(wrapped, x, Real(6.), Real(2.5), Real(1.5));
+    const Vector<Real> c = terrain_if_pairs(clamped, x, Real(6.), Real(2.5), Real(1.5));
+    bool clamped_differs = false;
+    for (int m = 0; m < static_cast<int>(x.size()); ++m) {
+        EXPECT_NEAR(w[2*m], w[2*m+1], Real(1.e3)*tol) << "x = " << x[m];
+        if (std::abs(c[2*m] - c[2*m+1]) > Real(1.e-3)) { clamped_differs = true; }
+    }
+    // The comparison would pass trivially if this surface had no slope at the faces
+    EXPECT_TRUE(clamped_differs);
+
+    ParallelDescriptor::Barrier();
+    if (ParallelDescriptor::IOProcessor()) { std::filesystem::remove(fname); }
 }

@@ -30,8 +30,17 @@ struct KesslerFaceState {
 };
 
 static constexpr amrex::Real kessler_sedimentation_cfl_max = myhalf;
+// More rain substeps than any healthy state asks for (AdvanceKessler aborts above this)
+static constexpr int kessler_max_sedimentation_substeps = 1000;
 static constexpr amrex::Real kessler_water_depth_m_per_kg_m2 = amrex::Real(1.0) / rhor;
 static constexpr amrex::Real kessler_millimeters_per_meter = amrex::Real(1000.0);
+// Klemp & Wilhelmson (1978) rain fall speed, as in WRF module_mp_kessler.F and DCMIP2016 kessler.f90:
+// V [m/s] = 36.34 * (0.001*rho*qp)^0.1364 * (rho/1.16)^(-1/2), rho in kg/m^3 (0.001*rho is in g/cm^3).
+static constexpr amrex::Real kessler_vt_coeff = amrex::Real(36.34);
+static constexpr amrex::Real kessler_vt_rho_to_cgs = amrex::Real(0.001);
+static constexpr amrex::Real kessler_vt_exponent = amrex::Real(0.1364);
+static constexpr amrex::Real kessler_vt_rho0 = amrex::Real(1.16);
+static constexpr amrex::Real kessler_vt_density_exponent = -myhalf;
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int kessler_face_donor_k (const int k,
@@ -44,10 +53,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real kessler_terminal_velocity (const amrex::Real rho,
                                        const amrex::Real qp) noexcept
 {
-    // MUST MATCH: current AdvanceKessler terminal-velocity coefficients.
-    return amrex::Real(36.34)
-        * std::pow(rho * amrex::Real(0.001) * qp, amrex::Real(0.1346))
-        * std::pow(rho / amrex::Real(1.16), -myhalf);
+    // This function, with the kessler_vt_* constants, defines the Kessler rain fall speed.
+    return kessler_vt_coeff
+        * std::pow(rho * kessler_vt_rho_to_cgs * qp, kessler_vt_exponent)
+        * std::pow(rho / kessler_vt_rho0, kessler_vt_density_exponent);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -59,13 +68,57 @@ amrex::Real kessler_precip_flux (const amrex::Real rho,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-int kessler_num_sedimentation_substeps (const amrex::Real current_reduced_value,
-                                        const amrex::Real dt,
-                                        const amrex::Real dzmin) noexcept
+amrex::Real kessler_limit_precip_flux (const amrex::Real flux,
+                                       const amrex::Real donor_rho,
+                                       const amrex::Real donor_qp,
+                                       const amrex::Real donor_detJ,
+                                       const amrex::Real coef) noexcept
 {
-    // MUST MATCH: current AdvanceKessler CFL_MAX precipitation substep formula.
-    return static_cast<int>(std::ceil((current_reduced_value + std::numeric_limits<amrex::Real>::epsilon())
-                                      * (dt / dzmin) / kessler_sedimentation_cfl_max));
+    // The donor cap: a face cannot export more rain in one substep than its donor cell
+    // holds, F * dt / dz <= rho_donor * qp_donor * detJ_donor, with coef = dt / dz.
+    return amrex::min(flux, donor_rho * donor_qp * donor_detJ / coef);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+int kessler_num_sedimentation_substeps (const amrex::Real max_courant) noexcept
+{
+    // max_courant is the largest fall Courant number over the faces for the full step,
+    // V*dt over the height of the cell the face drains: enough substeps that rain falls
+    // at most CFL_MAX of that cell per substep, and always at least one.  A NaN, infinite
+    // or huge max_courant returns kessler_max_sedimentation_substeps + 1 rather than casting
+    // it to an int; AdvanceKessler aborts before it gets here.
+    const amrex::Real ratio = max_courant / kessler_sedimentation_cfl_max;
+    if (!(ratio <= amrex::Real(kessler_max_sedimentation_substeps))) {
+        return kessler_max_sedimentation_substeps + 1;
+    }
+    return amrex::max(1, static_cast<int>(std::ceil(ratio)));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real kessler_fall_courant (const amrex::Real terminal_velocity,
+                                  const amrex::Real dt,
+                                  const amrex::Real dz,
+                                  const amrex::Real detJ_donor) noexcept
+{
+    // The fall Courant number at a face: the distance fallen in dt over the physical height
+    // dz*detJ of the donor cell, the one the face drains, as the donor-cap limiter uses.
+    return terminal_velocity * dt / (dz * detJ_donor);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real kessler_sizing_detJ (const int k,
+                                 const int k_lo,
+                                 const int k_hi,
+                                 const amrex::Real detJ_donor,
+                                 const amrex::Real detJ_below) noexcept
+{
+    // The detJ that sizes the substeps at face k: the smaller of the donor's (the cell the
+    // face drains) and that of the cell below it (the one its rain falls into), for faces
+    // inside the domain.  The substep count is fixed at the start of the step, while the
+    // cells below the rain front are still dry; looking one cell down covers the first cell
+    // the front enters.  The surface face drains out of the domain and the top face carries
+    // no rain, so both use the donor alone.
+    return (k > k_lo && k <= k_hi) ? amrex::min(detJ_donor, detJ_below) : detJ_donor;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

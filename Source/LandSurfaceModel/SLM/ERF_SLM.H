@@ -1,6 +1,8 @@
 #ifndef ERF_SLM_H
 #define ERF_SLM_H
 
+#include <set>
+#include <unordered_set>
 #include <string>
 #include <vector>
 #include <memory>
@@ -526,7 +528,9 @@ public:
 
     void init_soil_tw ();
 
-    void init_slm_vars ();
+    // reset_soil_targets: also set the soil nudging targets soilt_obs and soilw_obs to the
+    // current soil state, as at the start of a run
+    void init_slm_vars (bool reset_soil_targets = true);
 
     /**
      * Initializes local SLM fields from WRFInput data.
@@ -623,6 +627,10 @@ public:
 
     void fluxes_canopy (const amrex::MFIter &mfi);
 
+    // Stop the run if a vegetated land cell's canopy is at or below freezing, which SLM
+    // does not treat (erf-model/ERF#4467).
+    void check_canopy_above_freezing (const char* when) const;
+
     void solve_ground_skin_temperature (const amrex::MFIter &mfi);
 
     void soil_water (const amrex::MFIter &mfi);
@@ -642,7 +650,8 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void writeSLM_NetCDF (const amrex::MultiFab& mf, const amrex::Vector<std::string>& varnames,
-                          const amrex::Real cur_time, const std::string plot_prefix, const int level_step);
+                          const amrex::Real cur_time, const std::string plot_prefix, const int level_step,
+                          const int lev);
 
     void writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom);
 
@@ -769,6 +778,7 @@ private:
 
     amrex::Real z0_soil = 0.01; // baresoil roughness length (m)
     static constexpr amrex::Real tfriz = 273.15;
+    bool m_initial_canopy_checked = false; // the first AdvanceSLM checks the initial canopy
     amrex::Real mws_mx0 = 50.0; // maximum puddle water storage (mm)
 
     static constexpr amrex::Real epsv = 0.61;
@@ -880,6 +890,16 @@ private:
 
     amrex::Real start_time = -1.0;
     bool first_step = true;
+
+#ifdef ERF_USE_NETCDF
+    // The NetCDF land output files made so far in this run, one per level: a level made again
+    // by a regrid appends to its file rather than replacing it (shared by all levels' SLMs)
+    static inline std::set<std::string> s_nc_files_made;
+
+    // Set when this run was restarted from a checkpoint: the first write of each NetCDF land
+    // output file then appends to the file of the earlier run, if there is one
+    static inline bool s_nc_restarted = false;
+#endif
     bool m_updated = false;
 
     std::string parameter_file = "NoahmpTable.TBL";

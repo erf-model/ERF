@@ -24,7 +24,7 @@
  * engine's directory (FIRE_HOME in GNU make, ERF_FIRE_ENGINE_DIRS in CMake)
  * adds that .cpp to the build, so adding an engine changes no file of ERF.
  *
- * The registration runs during static initialisation, so the .cpp that holds
+ * The registration runs during static initialization, so the .cpp that holds
  * it must be linked as an object file: inside a static archive (.a) that
  * nothing else references, the linker drops it and the engine is missing.
  * ERF's CMake build compiles engines into its OBJECT library, and GNU make

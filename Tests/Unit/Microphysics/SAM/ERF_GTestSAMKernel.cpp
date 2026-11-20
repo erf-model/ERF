@@ -30,7 +30,7 @@ struct SAMKernelCase {
     amrex::Real qps;
     amrex::Real qpg;
     amrex::Real qci_avg;
-    amrex::Real reduced_flux;
+    amrex::Real fall_speed;
     amrex::Real dt;
     amrex::Real dz;
     SAMPrecipFaceState face_state;
@@ -403,7 +403,7 @@ SAMKernelOutputs host_reference (const SAMKernelCase& test_case)
         face.tabs_avg,
         face.qci_avg,
         face.qp_avg,
-        sam_substep_count_from_reduced_flux(test_case.reduced_flux, test_case.dt, test_case.dz)};
+        sam_sedimentation_substep_count(sam_fall_courant(test_case.fall_speed, test_case.dt, test_case.dz, amrex::Real(1.0)))};
 }
 
 void launch_sam_helper_kernel (const int ncases,
@@ -466,7 +466,7 @@ void launch_sam_helper_kernel (const int ncases,
             face.tabs_avg,
             face.qci_avg,
             face.qp_avg,
-            sam_substep_count_from_reduced_flux(test_case.reduced_flux, test_case.dt, test_case.dz)};
+            sam_sedimentation_substep_count(sam_fall_courant(test_case.fall_speed, test_case.dt, test_case.dz, amrex::Real(1.0)))};
     });
 
     amrex::Gpu::synchronize();
@@ -556,7 +556,7 @@ void expect_close (const char* helper_name,
         << " qps=" << test_case.qps
         << " qpg=" << test_case.qpg
         << " qci_avg=" << test_case.qci_avg
-        << " reduced_flux=" << test_case.reduced_flux
+        << " fall_speed=" << test_case.fall_speed
         << " host=" << host_value
         << " device=" << device_value
         << " normalized_error=" << normalized_error(device_value, host_value)
@@ -685,7 +685,7 @@ TEST(SAMKernel, SAMUtilsSweptHostDeviceEquivalence)
                      host_outputs[idx].face_qp, device_outputs[idx].face_qp,
                      roundoff_tol(host_outputs[idx].face_qp));
         EXPECT_EQ(device_outputs[idx].substeps, host_outputs[idx].substeps)
-            << "helper=sam_substep_count_from_reduced_flux sample_index=" << idx;
+            << "helper=sam_sedimentation_substep_count sample_index=" << idx;
     }
 }
 

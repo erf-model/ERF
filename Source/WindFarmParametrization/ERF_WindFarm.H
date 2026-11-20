@@ -122,10 +122,14 @@ public:
      * @param[in] geom Geometry
      * @param[out] mf_Nturb MultiFab to fill with turbine counts.
      * @param[in,out] z_phys_nd Physical height MultiFab.
+     * @param[in] set_zloc Also set the ground elevation under each turbine (zloc) and check
+     *            that every turbine in the domain is counted once: true on level 0 only, which
+     *            covers the domain; the ground under a turbine does not depend on the level.
      */
     void fill_Nturb_multifab (const amrex::Geometry& geom,
                               amrex::MultiFab& mf_Nturb,
-                              std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                              std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                              bool set_zloc);
 
     /**
      * @brief Fill the SMark MultiFab.
@@ -147,11 +151,13 @@ public:
      * @param[out] mf_SMark MultiFab to fill with SMark values.
      * @param[in] mf_Nturb MultiFab containing turbine counts.
      * @param[in,out] z_phys_cc Physical height MultiFab.
+     * @param[in] z_sfc_nd Heights of the ground at the nodes.
      */
     void fill_SMark_multifab_mesoscale_models (const amrex::Geometry& geom,
                                           amrex::MultiFab& mf_SMark,
                                           const amrex::MultiFab& mf_Nturb,
-                                          std::unique_ptr<amrex::MultiFab>& z_phys_cc);
+                                          std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                                          const std::unique_ptr<amrex::MultiFab>& z_sfc_nd);
 
     /**
      * @brief Write turbine locations to a VTK file.
@@ -177,6 +183,8 @@ public:
      * @param[in,out] W_old Old z-velocity MultiFab.
      * @param[in] mf_Nturb Turbine count MultiFab.
      * @param[in] mf_SMark SMark MultiFab.
+     * @param[in] z_phys_nd Physical heights of the nodes (may be null).
+     * @param[in] z_phys_cc Physical heights of the cell centres (may be null).
      * @param[in] time Current simulation time.
      */
     void advance (const amrex::Geometry& a_geom,
@@ -188,10 +196,13 @@ public:
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
                   const amrex::MultiFab& mf_SMark,
+                  const amrex::MultiFab* z_phys_nd,
+                  const amrex::MultiFab* z_phys_cc,
                   const double& time) override
     {
         m_windfarm_model[0]->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
-                                     U_old, V_old, W_old, mf_Nturb, mf_SMark, time);
+                                     U_old, V_old, W_old, mf_Nturb, mf_SMark,
+                                     z_phys_nd, z_phys_cc, time);
     }
 
     /**
@@ -221,6 +232,15 @@ public:
                        const amrex::Vector<amrex::Real>& a_yloc) override
     {
         m_windfarm_model[0]->set_turb_loc(a_xloc, a_yloc);
+    }
+
+    /**
+     * @brief Set the ground elevation under each turbine.
+     * @param[in] a_zloc Ground elevations.
+     */
+    void set_turb_zloc (const amrex::Vector<amrex::Real>& a_zloc) override
+    {
+        m_windfarm_model[0]->set_turb_zloc(a_zloc);
     }
 
     /**
