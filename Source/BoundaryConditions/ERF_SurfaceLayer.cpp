@@ -4218,26 +4218,22 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
             ratio[idim] = m_geom[lev].Domain().length(idim) / m_geom[0].Domain().length(idim);
         }
+        // Non-EB roughness is a single surface slab at klo on both levels, so map it
+        // horizontally only; a z ratio would pull unfilled cells above the slab into the
+        // coarse patch and its z slopes.
+        if (!is_eb) { ratio[2] = 1; }
 
-        // Create interp object and interpolate from the coarsest grid
+        // Interpolate from the coarsest grid. InterpFromCoarseLevel copies z_0[0] onto
+        // coarse patches laid out like the fine boxes and fills the physical ghosts; a raw
+        // MFInterpolater::interp call would need z_0[0] to share z_0[lev]'s box ownership,
+        // which it does not.
         MFInterpolater* interp = &mf_cell_cons_interp;
-        if (is_eb) {
-            // Prepare coarse patches on the fine layout and fill physical ghosts.
-            // The raw MFInterpolater call requires matching box ownership.
-            GpuBndryFuncFab<FabFillNoOp> bndry_func(FabFillNoOp{});
-            PhysBCFunct<GpuBndryFuncFab<FabFillNoOp>>
-                cbc(m_geom[0], bcr, bndry_func), fbc(m_geom[lev], bcr, bndry_func);
-            InterpFromCoarseLevel(z_0[lev], z_0[lev].nGrowVect(), Real(0.0),
-                                 z_0[0], 0, 0, 1, m_geom[0], m_geom[lev],
-                                 cbc, 0, fbc, 0, ratio, interp, bcr, 0);
-        } else {
-            interp->interp(z_0[0]  , 0,
-                           z_0[lev], 0,
-                           1, z_0[lev].nGrowVect(),
-                           m_geom[0], m_geom[lev],
-                           m_geom[lev].Domain(),ratio,
-                           bcr, 0);
-        }
+        GpuBndryFuncFab<FabFillNoOp> bndry_func(FabFillNoOp{});
+        PhysBCFunct<GpuBndryFuncFab<FabFillNoOp>>
+            cbc(m_geom[0], bcr, bndry_func), fbc(m_geom[lev], bcr, bndry_func);
+        InterpFromCoarseLevel(z_0[lev], z_0[lev].nGrowVect(), Real(0.0),
+                             z_0[0], 0, 0, 1, m_geom[0], m_geom[lev],
+                             cbc, 0, fbc, 0, ratio, interp, bcr, 0);
     }
 
     // The file is written only to the boxes that touch the surface; the copies of the boxes
