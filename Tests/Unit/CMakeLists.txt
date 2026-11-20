@@ -208,6 +208,9 @@ target_sources(${erf_exe_name}
     # documented formulas, with the vertical part dropped only where every implicit stage is
     # shown to stay bounded.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestSmag2DLimiters.cpp
+    # Motivation: a fixed dt above the CFL limit erf.cfl must be lowered to the Courant number
+    # min(erf.cfl, 0.8), and a fixed dt within the limit kept (erf-model/ERF#5238).
+    ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestFixedDtCFLLimit.cpp
     # Motivation: with erf.use_variable_beta_s unset, the constant beta_s must be replaced
     # exactly when it is below the acoustic stability limit min(sigma^2, 1) of the terrain
     # (erf-model/ERF#5082).

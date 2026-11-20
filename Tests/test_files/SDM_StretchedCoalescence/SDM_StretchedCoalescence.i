@@ -22,6 +22,7 @@ erf.init_type = "uniform"
 erf.use_gravity = false
 
 erf.fixed_dt         = 1.0
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.substepping_type = "None"
 
 erf.sum_interval = -1

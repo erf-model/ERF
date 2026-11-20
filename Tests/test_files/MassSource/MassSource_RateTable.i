@@ -50,6 +50,7 @@ erf.input_sounding_file = "input_sounding"
 
 # TIME STEP CONTROL: dt = 0.5 s, acoustic substeps of 0.05 s (c dt_fast / dx = 0.55)
 erf.fixed_dt           = 0.5
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.fixed_mri_dt_ratio = 10
 
 # DIAGNOSTICS & VERBOSITY: the integrals at every step, with every digit

@@ -79,7 +79,8 @@ struct StructureInit
     bool                   keqn_rans;         ///< Level lev runs the k-equation RANS closure, so cons holds rho k
     amrex::Real            Cmu0;              ///< The closure's C_mu^0 on level lev
     std::string            restart_chkfile;   ///< The checkpoint ERF restarts from; empty on a fresh start
-    /// The nominal step of level lev [s]: erf.fixed_dt divided by the sub-cycling ratios down to lev.
+    /// The nominal step of level lev [s]: erf.fixed_dt divided by the sub-cycling ratios down to lev,
+    /// after the CFL limit of erf.fixed_dt_cfl_limit; ERF calls fixed_dt_changed() if it lowers it later.
     /// Not positive when the run has no fixed step (ERF then chooses each step from erf.cfl).
     /// StructureStep::dt is the step taken: it differs on the first steps with erf.init_shrink
     /// below 1 or after a restart (growth limited by erf.change_max), and on a last step that
@@ -212,6 +213,16 @@ public:
      * input, on a configuration the model cannot run.
      */
     virtual void initialize (const StructureInit& init) = 0;
+
+    /**
+     * @brief ERF lowered the fixed step after initialize()
+     *
+     * With erf.fixed_dt_cfl_limit, ERF lowers the fixed step on all levels when a regrid makes
+     * grids on which it exceeds erf.cfl.  fixed_dt is the new StructureInit::fixed_dt of level
+     * lev (the level the model couples to); a step under way finishes at the old step. The
+     * default does nothing.
+     */
+    virtual void fixed_dt_changed (int lev, double fixed_dt) { amrex::ignore_unused(lev, fixed_dt); }
 
     /**
      * @brief Advance the structures over one step of level()

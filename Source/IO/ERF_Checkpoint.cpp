@@ -266,6 +266,28 @@ ERF::WriteCheckpointFile () const
            }
        }
 
+       // The CFL limit of erf.fixed_dt (ERF::CheckFixedDtCFLLimit): erf.cfl, and per level the
+       // fixed dt and fixed fast dt given in the inputs and those the run reached (lower if the
+       // limit lowered them), so a restart with the same inputs continues with exactly the
+       // same dt and does not check the restored grids again
+       if (fixed_dt_cfl_limit && fixed_dt_input[0] > 0.0) {
+           std::string FixedDtFileName(checkpointname + "/fixed_dt_cfl_limit");
+           std::ofstream FixedDtFile;
+           FixedDtFile.open(FixedDtFileName.c_str(), std::ofstream::out   |
+                                                     std::ofstream::trunc |
+                                                     std::ofstream::binary);
+           if(! FixedDtFile.good()) {
+               FileOpenFailed(FixedDtFileName);
+           } else {
+               FixedDtFile.precision(17);
+               FixedDtFile << static_cast<double>(cfl) << " " << max_level+1 << "\n";
+               for (int lev = 0; lev <= max_level; ++lev) {
+                   FixedDtFile << fixed_dt_input[lev] << " " << fixed_fast_dt_input[lev] << " "
+                               << fixed_dt[lev]       << " " << fixed_fast_dt[lev]       << "\n";
+               }
+           }
+       }
+
        // erf.use_variable_beta_s turned on during the run (ERF::CheckVariableBetaS).  The level
        // that needed it may no longer exist on restart, so the switch itself is kept
        if (solverChoice.auto_variable_beta_s && solverChoice.use_variable_beta_s) {
@@ -2492,6 +2514,45 @@ ERF::ReadCheckpointFile ()
         for (int lev = 0; lev <= finest_level; ++lev) { period[lev] = geom[lev].periodicity(); }
         wrf_surface_fields.read_checkpoint(restart_chkfile, finest_level+1, ba2d, dmap,
                                            ng_sfc, period, refRatio());
+    }
+
+    // The fixed dt of the run that wrote the checkpoint, if the inputs still give the same fixed
+    // dt on every level: restored exactly (lowered if the CFL limit lowered it).  With the same
+    // erf.cfl the restored grids are taken as checked, so the restart continues exactly as the
+    // run would have; with a different erf.cfl, ComputeDt checks them again
+    if (fixed_dt_cfl_limit && fixed_dt[0] > zero &&
+        amrex::FileExists(restart_chkfile + "/fixed_dt_cfl_limit")) {
+        Vector<char> FixedDtCharPtr;
+        ParallelDescriptor::ReadAndBcastFile(restart_chkfile + "/fixed_dt_cfl_limit", FixedDtCharPtr);
+        std::istringstream fixed_dt_is(std::string(FixedDtCharPtr.dataPtr()), std::istringstream::in);
+        double chk_cfl = -1.0;
+        int chk_nlevs = 0;
+        fixed_dt_is >> chk_cfl >> chk_nlevs;
+        bool same_inputs = (chk_nlevs == max_level+1);
+        Vector<double> chk_dt(max_level+1), chk_fast_dt(max_level+1);
+        for (int lev = 0; same_inputs && lev <= max_level; ++lev) {
+            double given_dt = 0.0, given_fast_dt = 0.0;
+            fixed_dt_is >> given_dt >> given_fast_dt >> chk_dt[lev] >> chk_fast_dt[lev];
+            same_inputs = !fixed_dt_is.fail() && given_dt == fixed_dt[lev] && given_fast_dt == fixed_fast_dt[lev] &&
+                          chk_dt[lev] > 0.0 && chk_dt[lev] <= fixed_dt[lev];
+        }
+        if (same_inputs) {
+            if (chk_dt[0] < fixed_dt[0]) {
+                fixed_dt      = chk_dt;
+                fixed_fast_dt = chk_fast_dt;
+                Print() << "Restored the fixed dt lowered to the CFL limit from the checkpoint: "
+                        << fixed_dt[0] << " at level 0" << std::endl;
+            }
+            if (chk_cfl == static_cast<double>(cfl)) {
+                fixed_dt_check_grids.resize(finest_level+1);
+                for (int lev = 0; lev <= finest_level; ++lev) {
+                    fixed_dt_check_grids[lev] = grids[lev];
+                }
+            } else {
+                Print() << "erf.cfl = " << cfl << " differs from the " << chk_cfl
+                        << " of the checkpoint; checking the fixed dt against it again" << std::endl;
+            }
+        }
     }
 
     // erf.use_variable_beta_s, if it was turned on during the run that wrote the checkpoint and
