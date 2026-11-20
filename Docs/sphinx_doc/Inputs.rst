@@ -1024,12 +1024,12 @@ List of Parameters
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.fixed_dt**                     | set level 0 dt as this value regardless of other         | Real > 0           | unused if not set |
 |                                      | settings, except that it is lowered if it exceeds the    |                    |                   |
-|                                      | CFL limit erf.cfl (see erf.fixed_dt_cfl_limit)           |                    |                   |
+|                                      | CFL limit min(erf.cfl, 0.8) (see erf.fixed_dt_cfl_limit) |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
-| **erf.fixed_dt_cfl_limit**           | lower a fixed dt whose Courant number exceeds erf.cfl on | Boolean            | true              |
-|                                      | any level, on all levels, to the Courant number          |                    |                   |
-|                                      | min(erf.cfl, 0.8) (see Notes); false keeps erf.fixed_dt  |                    |                   |
-|                                      | as given                                                 |                    |                   |
+| **erf.fixed_dt_cfl_limit**           | lower a fixed dt whose Courant number exceeds            | Boolean            | true              |
+|                                      | min(erf.cfl, 0.8) on any level, on all levels, to that   |                    |                   |
+|                                      | Courant number (see Notes); false keeps erf.fixed_dt as  |                    |                   |
+|                                      | given                                                    |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.fixed_fast_dt**                | set fast dt as this value                                | Real > 0           | unused if not set |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
@@ -1308,16 +1308,17 @@ Notes
      initialisation, and right after a regrid), the Courant number of the fixed timestep on that
      level is computed from the same estimate as the adaptive timestep (for compressible flow the
      advective and acoustic speeds, with a third of the horizontal acoustic speed only when
-     substepping, also with EB; for anelastic flow the advective speeds).  If it exceeds
-     **erf.cfl** on any level, the fixed timestep is lowered on all levels to the Courant number
-     min(**erf.cfl**, 0.8) on the most constrained level, and a message is printed.  The cap of
-     0.8 leaves a margin below the stability limit; an **erf.cfl** below 0.8 is used as given.
+     substepping, also with EB; for anelastic flow the advective speeds).  The limit is
+     min(**erf.cfl**, 0.8): an **erf.cfl** below 0.8 is used as given, and a larger one is capped
+     at 0.8, a margin below the stability limit.  If the Courant number exceeds the limit on any
+     level, the fixed timestep is lowered on all levels to exactly the limit on the most
+     constrained level, and a message is printed.
      **erf.fixed_fast_dt** is lowered by the same factor, so its ratio to **erf.fixed_dt** is
      kept, and **erf.fixed_mri_dt_ratio** is unchanged.  A regrid part-way through a coarse step
      cannot change the timestep of that step, so a lowered timestep applies from the next coarse
      step.  The timestep then stays fixed as the flow evolves; it is not lowered again until the
      grids change, but a warning is printed (once per set of grids) if the flow speeds up to a
-     Courant number more than 10% above **erf.cfl**.  The SBM donor-positivity and Cloud Chamber wall-transfer limits on a fixed
+     Courant number more than 10% above the limit.  The SBM donor-positivity and Cloud Chamber wall-transfer limits on a fixed
      timestep are checked after this lowering.  The fixed timestep and **erf.cfl** are saved in
      the checkpoint, so a restart with the same **erf.fixed_dt** continues with exactly the same
      timestep; a restart with a different **erf.fixed_dt** or **erf.cfl** checks it again.  A

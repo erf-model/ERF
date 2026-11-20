@@ -1065,9 +1065,9 @@ ERF::ComputeSubstepRatio (int level, double estdt_comp_T, long& dt_fast_ratio) c
 /**
  * CFL limit of a fixed dt.  On each level from lev_min to finest_level with a new set of grids
  * (at initialisation, on restart unless the checkpoint holds the fixed dt, and after a regrid),
- * a fixed dt above the Courant number erf.cfl is lowered, on all levels, to the Courant number
- * min(erf.cfl, 0.8) on the most constrained level; erf.fixed_fast_dt is scaled with it.  The dt
- * then stays fixed as the flow evolves; a level whose fixed dt is more than 10 % above erf.cfl on
+ * a fixed dt above the Courant number min(erf.cfl, 0.8) is lowered, on all levels, to that Courant
+ * number on the most constrained level; erf.fixed_fast_dt is scaled with it.  The dt then stays
+ * fixed as the flow evolves; a level whose fixed dt is more than 10 % above that limit on
  * grids already checked (the flow sped up, or erf.fixed_dt_cfl_limit = false) gets a warning,
  * once per set of grids.
  *
@@ -1084,6 +1084,7 @@ ERF::CheckFixedDtCFLLimit (const Vector<double>& cfl_rate, int lev_min, bool aft
 {
     fixed_dt_check_grids.resize(finest_level+1);
     fixed_dt_cfl_warned.resize(finest_level+1, 0);
+    const double limit = FixedDtCFLLimitValue(static_cast<double>(cfl));
 
     double scale = 1.0;
     int lev_lim = lev_min;
@@ -1104,11 +1105,11 @@ ERF::CheckFixedDtCFLLimit (const Vector<double>& cfl_rate, int lev_min, bool aft
             fixed_dt[lev] *= scale;
             if (fixed_fast_dt[lev] > zero) { fixed_fast_dt[lev] *= scale; }
         }
-        Print() << "Fixed dt at level 0 = " << old_dt << " exceeds the CFL limit erf.cfl = " << cfl
+        Print() << "Fixed dt at level 0 = " << old_dt << " exceeds the CFL limit min(erf.cfl, 0.8) = " << limit
                 << " (Courant number " << courant << " at level " << lev_lim
                 << (after_regrid ? " after a regrid" : "")
                 << "); lowering the fixed dt on all levels, to " << fixed_dt[0]
-                << " at level 0 (Courant number " << std::min(static_cast<double>(cfl), 0.8) << ")"
+                << " at level 0 (Courant number " << limit << ")"
                 << (after_regrid ? " from the next coarse step; the coarse step under way keeps the old dt" : "")
                 << "; set erf.fixed_dt_cfl_limit = false to keep erf.fixed_dt" << std::endl;
 #ifdef ERF_USE_MOVING_BODIES
@@ -1120,13 +1121,13 @@ ERF::CheckFixedDtCFLLimit (const Vector<double>& cfl_rate, int lev_min, bool aft
     }
 
     // A fixed dt set to the limit drifts just past it as the flow evolves, so the warning
-    // allows 10 % over erf.cfl
+    // allows 10 % over the limit
     for (int lev = lev_min; lev <= finest_level; ++lev) {
         if (fixed_dt_cfl_warned[lev]) { continue; }
-        if (fixed_dt[lev] * cfl_rate[lev] > 1.1 * static_cast<double>(cfl)) {
+        if (fixed_dt[lev] * cfl_rate[lev] > 1.1 * limit) {
             fixed_dt_cfl_warned[lev] = 1;
             Print() << "WARNING: fixed dt at level " << lev << " = " << fixed_dt[lev]
-                    << " exceeds the CFL limit erf.cfl = " << cfl << " (Courant number "
+                    << " exceeds the CFL limit min(erf.cfl, 0.8) = " << limit << " (Courant number "
                     << fixed_dt[lev] * cfl_rate[lev] << "); "
                     << (fixed_dt_cfl_limit ? "the fixed dt is checked only when the grids change"
                                            : "erf.fixed_dt_cfl_limit = false keeps it")
