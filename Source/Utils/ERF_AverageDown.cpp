@@ -57,12 +57,11 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
                                (solverChoice.terrain_type   == TerrainType::ImmersedForcing ||
                                 solverChoice.buildings_type == BuildingsType::ImmersedForcing);
 
-    // erf.average_down_by_fine_volume / erf.perturbational_average_down: the cell-centered state
-    // is averaged by AverageDownConsByFineVolume, which reads the fine level as it is and writes
-    // the covered coarse cells only, so the scaling of the state around the plain average is
-    // skipped
-    const bool by_fine_volume = (avgdown_by_fine_volume || perturbational_avgdown) &&
-                                !if_fluid_mass && (SolverChoice::terrain_type != TerrainType::EB);
+    // erf.perturbational_average_down: the cell-centered state is averaged by
+    // AverageDownConsPerturbational, which reads the fine level as it is and writes the covered
+    // coarse cells only, so the scaling of the state around the plain average is skipped
+    const bool perturbational = perturbational_avgdown && !if_fluid_mass &&
+                                (SolverChoice::terrain_type != TerrainType::EB);
 
     // ******************************************************************************************
     // First do cell-centered quantities
@@ -70,7 +69,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
     // m is the map scale factor at cell centers
     // Here we multiply (rho S) by detJ and divide (rho S) by m^2 before average down
     // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass && !by_fine_volume; lev++) {
+    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass && !perturbational; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
@@ -118,8 +117,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
         if_average_down(fcons, vars_new[crse_lev][Vars::cons],
                         *terrain_blanking[fine_lev], *terrain_blanking[crse_lev], vol_fine,
                         scomp, ncomp, refRatio(crse_lev));
-    } else if (by_fine_volume) {
-        AverageDownConsByFineVolume(crse_lev, scomp, ncomp);
+    } else if (perturbational) {
+        AverageDownConsPerturbational(crse_lev, scomp, ncomp);
     } else if (SolverChoice::terrain_type != TerrainType::EB) {
         // Anelastic: rho is not averaged down (rho == rho0 on each level), so averaging
         //    w (rho S) with w = detJ/(m_x m_y) gives rho_c S for a uniform S only if the fine
@@ -191,7 +190,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
     // ******************************************************************************************
     // Here we multiply (rho S) by m^2 and divide by detJ after average down
     // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass && !by_fine_volume; lev++) {
+    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass && !perturbational; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
@@ -301,19 +300,17 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
 
 /**
  * Average the cell-centered state of level crse_lev+1 down onto the covered cells of level
- * crse_lev, for erf.average_down_by_fine_volume and erf.perturbational_average_down.
+ * crse_lev, for erf.perturbational_average_down.
  *
  * With w = detJ / (m_x m_y) the volume of a cell (1 / (m_x m_y) on a constant-dz mesh), a covered
  * coarse cell gets
  *
- *   q_c = q0_c + sum_f w_f (q_f - q0_f) / W,
+ *   q_c = q0_c + sum_f w_f (q_f - q0_f) / (N w_c),
  *
- * with W = sum_f w_f (erf.average_down_by_fine_volume) or N w_c, N the number of fine cells in a
- * coarse cell (the plain, mass-exact average).  q0 is rho0, rho0 theta0 and (with moisture)
- * rho0 qv0 in Rho_comp, RhoTheta_comp and RhoQ1_comp with erf.perturbational_average_down, and
- * zero otherwise.  With W = sum_f w_f a uniform value stays uniform where the fine volumes do not
- * add up to the coarse one; with the base state removed, a fine level in its base state averages
- * to the coarse base state.  The fine level is read only.
+ * with N the number of fine cells in a coarse cell, as in the plain, mass-exact average.  q0 is
+ * rho0, rho0 theta0 and (with moisture) rho0 qv0 in Rho_comp, RhoTheta_comp and RhoQ1_comp, and
+ * zero otherwise.  With the base state removed, a fine level in its base state averages to the
+ * coarse base state.  The fine level is read only.
  *
  * On an anelastic level rho is not averaged down (it is rho0 on each level), so the specific
  * value S = q / rho is averaged with the fine masses w_f rho_f, as the plain anelastic branch of
@@ -321,16 +318,14 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
  *
  *   q_c = rho_c [ S0_c + sum_f w_f rho_f (S_f - S0_f) / sum_f w_f rho_f ],
  *
- * with S0 = theta0 and (with moisture) qv0 in RhoTheta_comp and RhoQ1_comp with
- * erf.perturbational_average_down, and zero otherwise.  erf.average_down_by_fine_volume makes no
- * difference there: the sum of the fine masses is already the divisor.
+ * with S0 = theta0 and (with moisture) qv0 in RhoTheta_comp and RhoQ1_comp, and zero otherwise.
  *
  * @param[in] crse_lev coarse level
  * @param[in] scomp    first component
  * @param[in] ncomp    number of components
  */
 void
-ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
+ERF::AverageDownConsPerturbational (int crse_lev, int scomp, int ncomp)
 {
     const int fine_lev = crse_lev + 1;
     const IntVect rr = refRatio(crse_lev);
@@ -342,17 +337,15 @@ ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
     const MultiFab& fcons = vars_new[fine_lev][Vars::cons];
           MultiFab& ccons = vars_new[crse_lev][Vars::cons];
 
-    const bool by_fine  = avgdown_by_fine_volume;
     const bool anelastic = (solverChoice.compressibility_type[crse_lev] == CompressibilityType::Anelastic);
     AMREX_ALWAYS_ASSERT(!anelastic || scomp > Rho_comp);
-    const bool pert     = perturbational_avgdown;
     const bool use_detJ = (SolverChoice::mesh_type != MeshType::ConstantDz);
     const bool l_moist  = (solverChoice.moisture_type != MoistureType::None);
 
     // The components, counted from scomp, whose base state is taken out (-1 for none)
-    const int ir  = (pert && Rho_comp      >= scomp && Rho_comp      < scomp+ncomp) ? Rho_comp      - scomp : -1;
-    const int irt = (pert && RhoTheta_comp >= scomp && RhoTheta_comp < scomp+ncomp) ? RhoTheta_comp - scomp : -1;
-    const int iqv = (pert && l_moist &&
+    const int ir  = (Rho_comp      >= scomp && Rho_comp      < scomp+ncomp) ? Rho_comp      - scomp : -1;
+    const int irt = (RhoTheta_comp >= scomp && RhoTheta_comp < scomp+ncomp) ? RhoTheta_comp - scomp : -1;
+    const int iqv = (l_moist &&
                      RhoQ1_comp    >= scomp && RhoQ1_comp    < scomp+ncomp) ? RhoQ1_comp    - scomp : -1;
 
     // On the fine grids coarsened: sum_f w_f (q_f - q0_f) in components 0 to ncomp-1, sum_f w_f
@@ -399,7 +392,7 @@ ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
         });
     }
 
-    // On the coarse grids; cells no fine cell covers keep W = 0
+    // On the coarse grids; cells no fine cell covers keep a zero sum of the fine volumes
     MultiFab csums(ccons.boxArray(), ccons.DistributionMap(), ncomp+2, 0);
     csums.setVal(zero);
     csums.ParallelCopy(sums, 0, 0, ncomp+2);
@@ -417,9 +410,8 @@ ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
         {
             const Real wsum = s_arr(i,j,k,ncomp);
             if (wsum <= zero) { return; }
-            const Real W = (by_fine) ? wsum
-                                     : n_fine * ((use_detJ) ? dJ_arr(i,j,k) : one)
-                                              / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+            const Real W = n_fine * ((use_detJ) ? dJ_arr(i,j,k) : one)
+                                  / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
             if (anelastic) {
                 // rho_c is the coarse level's own, and is kept
                 const Real rho_c = c_arr(i,j,k,Rho_comp);

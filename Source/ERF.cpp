@@ -4234,7 +4234,6 @@ ERF::ReadParameters ()
         pp.queryAdd("cf_width", cf_width);
         pp.queryAdd("cf_set_width", cf_set_width);
         pp.queryAdd("perturbational_interpolation", perturbational_interp);
-        pp.queryAdd("average_down_by_fine_volume", avgdown_by_fine_volume);
         pp.queryAdd("perturbational_average_down", perturbational_avgdown);
 
         // AmrMesh iterate on grids?
