@@ -641,6 +641,12 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
+    // init_stuff leaves map factors of 1.  A level with no init file of its own takes them from
+    // the coarser level; do that now, as MakeNewLevelFromScratch and RemakeLevel do, so they are
+    // in place for the detJ average-down below (average_down_detJ reads them).  Interp2DArrays,
+    // further down, does it again, to the same values.
+    if (!has_own_init_file(lev)) { interp_mapfac_from_coarse(lev); }
+
     // FillCoarsePatch fills the faces of the new level that touch fluid.  A face between two
     // covered cells it leaves as it is, so start every face at rest, as the initial state of a
     // level made from scratch is there, rather than at init_stuff's placeholder
@@ -697,11 +703,12 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         //       derived from z_phys_nd, which is not averaged down either, so averaging only
         //       the cell-centered heights made the two disagree inside the refined region.
         //
-        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
-        //       averaging and divides by it afterwards, so the coarse detJ must be the average
-        //       of the fine detJ for that average-down to telescope and stay conservative.
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by the cell volume
+        //       detJ_cc/(m_x m_y) before averaging and divides by it afterwards, so the coarse
+        //       volume must be the mean of the fine ones (average_down_detJ) for that
+        //       average-down to telescope, stay conservative and keep a uniform value uniform.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
-            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down_detJ(crse_lev);
 
             //
             // Keep the halo in step with the valid cells we just replaced.  The coarse detJ
@@ -860,14 +867,14 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         // read from its file, when detJ_cc[lev] still held the init_stuff placeholder
         // of one -- so it stamped 1.0 into the coarse detJ under this level's
         // footprint. Repeat it now that the real fine detJ exists: AverageDownTo
-        // weights (rho S) by detJ_cc before averaging and divides by the coarse detJ
-        // afterwards, so a coarse detJ that is not the average of the fine one
-        // (let alone a placeholder ~9x too large) scales every covered coarse cell
-        // wrongly on the first two-level step.
+        // weights (rho S) by the cell volume detJ_cc/(m_x m_y) before averaging and
+        // divides by the coarse volume afterwards, so a coarse volume that is not the
+        // mean of the fine ones (let alone a placeholder ~9x too large) scales every
+        // covered coarse cell wrongly on the first two-level step.
         if ( (SolverChoice::mesh_type != MeshType::ConstantDz) &&
              (solverChoice.coupling_type == CouplingType::TwoWay) ) {
             for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
-                average_down(*detJ_cc[crse_lev+1], *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+                average_down_detJ(crse_lev);
 
                 // Keep the halo in step with the valid cells we just replaced (see the note on
                 // the first average-down in MakeNewLevelFromCoarse).
@@ -1355,11 +1362,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         //       derived from z_phys_nd, which is not averaged down either, so averaging only
         //       the cell-centered heights made the two disagree inside the refined region.
         //
-        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
-        //       averaging and divides by it afterwards, so the coarse detJ must be the average
-        //       of the fine detJ for that average-down to telescope and stay conservative.
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by the cell volume
+        //       detJ_cc/(m_x m_y) before averaging and divides by it afterwards, so the coarse
+        //       volume must be the mean of the fine ones (average_down_detJ) for that
+        //       average-down to telescope, stay conservative and keep a uniform value uniform.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
-            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down_detJ(crse_lev);
 
             // Keep the halo in step with the valid cells we just replaced (see the note on
             // the first average-down in MakeNewLevelFromCoarse).
