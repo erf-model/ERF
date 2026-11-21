@@ -36,6 +36,12 @@ void open_series (std::ofstream& out, const std::string& path, const std::string
                 if (!in.eof()) { Abort("SDM DSD: error reading " + path); }
                 break;
             }
+            // A last row without a newline was cut short (e.g. by a crash): drop it.
+            if (in.eof()) {
+                in.close();
+                std::filesystem::resize_file(path, static_cast<std::uintmax_t>(offset));
+                break;
+            }
             double t;
             if (!(std::istringstream(line) >> t)) { Abort("SDM DSD: invalid time in " + path); }
             if (t >= time) {
@@ -118,7 +124,8 @@ void SuperDropletsMoist::readDSDProbes ()
                 p.edges[i] = spacing == "log" ? std::exp(std::lerp(std::log(lo), std::log(hi), f)) : std::lerp(lo, hi, f);
             }
         }
-        if (p.edges.size() < 2 || p.edges.size()-1 > max_bins) { fail("expected at least two radius edges"); }
+        if (p.edges.size() < 2) { fail("expected at least two radius edges"); }
+        if (p.edges.size()-1 > max_bins) { fail("too many radius bins"); }
         double prev = -1;
         for (const auto edge : p.edges) {
             if (!std::isfinite(edge) || edge < 0 || edge <= prev) { fail("radius edges must be finite, nonnegative and strictly increasing"); }

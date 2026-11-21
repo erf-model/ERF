@@ -185,8 +185,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                   const amrex::Vector<MFPtr>&,
                                   const int) override;
 
-                    /*! Sample owned particles across levels (public for CUDA extended lambdas). */
-                    void sampleDSDProbes (int step, amrex::Real time, const amrex::Vector<MFPtr>& z_nd);
+        /*! Sample owned particles across levels (public for CUDA extended lambdas). */
+        void sampleDSDProbes (int step, amrex::Real time, const amrex::Vector<MFPtr>& z_nd);
 
         void Advance ( const amrex::Real&, const SolverChoice& ) override
         {
