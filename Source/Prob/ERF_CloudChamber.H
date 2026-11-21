@@ -155,9 +155,9 @@ supports_moisture_model (const MoistureType moisture_type) noexcept
     case MoistureType::WDM6:
     case MoistureType::Morrison_NoIce:
     case MoistureType::Morrison:
+    case MoistureType::SuperDroplets:
         return true;
     case MoistureType::SBM:
-    case MoistureType::SuperDroplets:
         return false;
     }
     return false;
