@@ -32,3 +32,29 @@ execute_process(COMMAND "${AWK}" -f "${CMAKE_CURRENT_LIST_DIR}/CheckBudgets.awk"
     cold/cloud_chamber_budget.dat hot/cloud_chamber_budget.dat
     one_band/cloud_chamber_budget.dat panels/cloud_chamber_budget.dat
     COMMAND_ERROR_IS_FATAL ANY)
+
+# Same nonuniform sidewalls and MOST options in both runs: a wet horizontal
+# plate is valid, but MOST on a banded sidewall must fail before timestepping.
+foreach(face IN ITEMS zlo xlo)
+    set(dir "${CMAKE_CURRENT_BINARY_DIR}/most_${face}")
+    file(MAKE_DIRECTORY "${dir}")
+    file(REMOVE "${dir}/cloud_chamber_budget.dat")
+    execute_process(COMMAND ${launch} "${TEST_EXE}" "${CMAKE_CURRENT_BINARY_DIR}/panels/inputs"
+        zlo.heat=conductive zlo.moisture=wet zlo.temperature=292 prob.U_0=0.1
+        ${face}.momentum_transfer_model=bulk_aero ${face}.heat_transfer_model=bulk_aero
+        ${face}.vapor_transfer_model=bulk_aero ${face}.coefficient_source=most
+        ${face}.z0_m=0.001 ${face}.z0_h=0.001 ${face}.z0_q=0.001 amrex.call_addr2line=0
+        WORKING_DIRECTORY "${dir}" RESULT_VARIABLE rc
+        OUTPUT_FILE "${dir}/simulation.log" ERROR_FILE "${dir}/simulation.log")
+    if(face STREQUAL "zlo")
+        if(NOT rc STREQUAL "0")
+            message(FATAL_ERROR "MOST plate with banded sidewalls failed (${rc}); see ${dir}/simulation.log")
+        endif()
+    else()
+        file(STRINGS "${dir}/simulation.log" diagnostic
+            REGEX "xlo supports coefficient_source = most only on zlo or zhi")
+        if(rc STREQUAL "0" OR NOT diagnostic)
+            message(FATAL_ERROR "Expected the banded xlo MOST rejection (${rc}); see ${dir}/simulation.log")
+        endif()
+    endif()
+endforeach()

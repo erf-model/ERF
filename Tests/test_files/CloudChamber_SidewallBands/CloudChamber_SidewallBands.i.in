@@ -40,7 +40,7 @@ prob.U_0 = 0
 # scalar setpoint OR the pair of band arrays, never a fallback scalar.
 xlo.type = NoSlipWall
 xlo.moisture = wet
-xlo.wall_transfer_model = resolved_molecular
+# Use the resolved defaults so the MOST parser test can select bulk channels.
 @XLO@
 yhi.type = NoSlipWall
 yhi.moisture = wet

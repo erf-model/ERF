@@ -46,8 +46,9 @@ struct ThermalBoundary {
     amrex::Real temperature_K = amrex::Real(0.0);
 };
 
-// Non-owning device views, separate from the drag and timestep metadata. A
-// null offsets pointer selects the original uniform-temperature wall law.
+// Non-owning device views for sidewall scalar fluxes. MOST is restricted to
+// the horizontal plates; supported sidewall drag and rate laws need no panel
+// temperature. Null offsets select the original uniform-temperature wall law.
 struct TemperaturePanel {
     amrex::Real temperature_K;
     amrex::Real fraction;

@@ -456,6 +456,16 @@ Dry walls still have zero vapor flux and adiabatic walls still have zero
 sensible heat flux. A wet adiabatic sidewall uses the band temperatures only
 for vapor exchange; a dry adiabatic sidewall still needs no temperature input.
 
+Temperature bands do not set a drag coefficient or a wall-exchange timestep
+rate. On vertical walls the supported closures are resolved transfer, fixed
+bulk transfer (with or without the molecular term), and neutral roughness-log
+transfer. At a given air state their transfer rates do not depend on the wall
+temperature; the heat and wet-vapor fluxes still use each panel's temperature.
+``coefficient_source = most`` is rejected on all four sidewalls. A chamber can
+combine banded sidewalls with MOST on the floor or ceiling: each plate uses
+its own wall state for MOST drag and scalar exchange, never a sidewall band's
+temperature.
+
 Channel defaults
 ~~~~~~~~~~~~~~~~
 

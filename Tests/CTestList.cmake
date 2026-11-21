@@ -1255,6 +1255,8 @@ function(add_test_cloud_chamber_sidewall_bands TEST_NAME)
         list(APPEND logs "${CURRENT_TEST_BINARY_DIR}/${leg}/simulation.log"
                          "${CURRENT_TEST_BINARY_DIR}/${leg}/cloud_chamber_budget.dat")
     endforeach()
+    list(APPEND logs "${CURRENT_TEST_BINARY_DIR}/most_zlo/simulation.log"
+                     "${CURRENT_TEST_BINARY_DIR}/most_xlo/simulation.log")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
         LABELS "regression;cloud-chamber;parallel" ENVIRONMENT "OMP_NUM_THREADS=1;LC_ALL=C"

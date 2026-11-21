@@ -692,7 +692,9 @@ parse_wall_heat (amrex::ParmParse& pp, const std::string& face, bool physical,
         pp.getarr("temperature_values", temperatures);
         const auto error = sidewall_bands->define(std::move(z), temperatures, geom);
         if (!error.empty()) { return "Cloud Chamber: " + face + ": " + error; }
-        thermal.temperature_K = temperatures.front(); // exact scalar path for uniform panels
+        // Uniform bands use the scalar path. For nonuniform bands each active
+        // scalar flux uses its panel temperature; MOST cannot run on this face.
+        thermal.temperature_K = temperatures.front();
     } else if (pp.query("temperature", thermal.temperature_K)) {
         if (!finite(thermal.temperature_K) || thermal.temperature_K <= 0) {
             return "Cloud Chamber: " + face + ".temperature must be finite and positive Kelvin";
