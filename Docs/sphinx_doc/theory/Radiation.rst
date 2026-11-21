@@ -455,6 +455,48 @@ Limitations
   before it enters the :math:`\sigma T_s^4` emission; with a
   surface layer present, ``erf.rad_t_sfc`` is the initial value of the prognostic surface
   temperature when the surface energy balance evolves one, and unused otherwise.
+- **First skin temperature from the initial file.** One value for every column is a poor first
+  guess over real terrain: the skin of a mountain and of a valley can differ by tens of kelvin,
+  and the restoring term alone brings the skin back over the time :math:`\tau/2\pi`, 3.8 hours
+  for a restoring period :math:`\tau` of one day. With
+  ``erf.radiation.seb_init_skin_from_file = true`` and the prognostic balance, a land column
+  :math:`(i,j)` of a level that read an initial file begins at that file's skin temperature,
+
+  .. math::
+
+     T_s(i,j,t_0) =
+     \begin{cases}
+       T_{\text{file}}(i,j), & \text{land (mask} \neq 0\text{)} \\
+       T_{\text{rad}},      & \text{water (mask} = 0\text{)}
+     \end{cases}
+
+  where :math:`T_{\text{file}}` is ``TSK`` of a wrfinput file or ``SKINTEMP`` of a metgrid file,
+  an absolute temperature in kelvin, and :math:`T_{\text{rad}}` is ``erf.rad_t_sfc`` at level 0
+  and, at a finer level, the value the fill from its parent gave the column. The balance
+  does not run on a water column, so its value there is not used, except by a fine land column
+  with no coarse land column next to it, which takes the held coarse value as described above.
+  A level without a file of its own is filled from its parent as described above, and so starts
+  from the parent's file values. So does a finer level that has a file when it takes its
+  radiation from its parent, or when ``erf.nc_low_file`` is set without ``erf.nc_low_file_<lev>``:
+  the level's surface temperature then follows its parent's, and a line in the log says so.
+  Only the first value changes: the balance, its restoring temperature ``seb_t_deep_default``
+  and the surface layer are as before. The restoring temperature :math:`T_{\text{deep}}` stays one
+  value for every column, so a column whose file value differs from it by :math:`\Delta T` feels
+  the restoring flux :math:`C_s (2\pi/\tau)\,\Delta T` from the first step, with :math:`C_s` the
+  skin heat capacity per area: 1.45 W m\ :sup:`-2` per kelvin for
+  :math:`C_s = 2\times10^{4}` J m\ :sup:`-2` K\ :sup:`-1` and :math:`\tau` of one day. A deep
+  temperature per column is not part of this input. A real file can hold land values outside
+  the default range of 200 K to 340 K (a hot desert, a polar plateau); the two range inputs
+  widen it. Without
+  ``erf.radiation.seb_surface_layer_uses_skin`` the surface layer keeps using the file's skin
+  temperature on land for the whole run, while the balance's skin evolves from it. The run stops
+  when the file of level 0, or of a finer level that takes its own file's value, lacks the field,
+  when the radiation model is not the two-stream one, when a land-surface, urban or surface
+  model is on, and when a land
+  value is not finite or lies outside ``[seb_prognostic_t_min_k, seb_prognostic_t_max_k]``, the
+  range the balance holds :math:`T_s` in. A level made later in the run is filled from its
+  parent, whose skin has evolved by then, also when it has a file. A restart takes :math:`T_s`
+  from the checkpoint, or ``erf.rad_t_sfc`` when the checkpoint was written without the balance.
 - **Call cadence.** The sweep runs once every slow step, from the old state, and there is no
   call-frequency input: one gray sweep per column costs about a millisecond per ten thousand
   cells, so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.

@@ -408,7 +408,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // holds erf.is_land of the level. Not on a restart: the parent holds the scalar
     // defaults here and the mask is still erf.is_land, and the checkpoint read sets the
     // state and the mask of every level afterwards.
-    if (restart_chkfile.empty()) { fill_seb_from_coarse(lev); }
+    if (restart_chkfile.empty()) {
+        fill_seb_from_coarse(lev);
+        // With erf.radiation.seb_init_skin_from_file the land columns of a level that read
+        // an initial file then start from that file's skin temperature. After the fill:
+        // the level's own file is the finer source. A level with no file keeps the fill,
+        // which reads the parent's skin that was set here a moment ago.
+        init_seb_skin_from_file(lev);
+    }
 
     // Initialize the non-cons auxiliary tracer only after the host atmospheric
     // density has been initialized from the selected problem configuration.

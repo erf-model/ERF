@@ -597,6 +597,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Radiation/TwoStream/ERF_RadiationDiagnostics.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_TwoStreamRadiation.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_SEBTurbulentFlux.cpp
+       ${SRC_DIR}/Radiation/TwoStream/ERF_SEBSkinInit.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_ForceRestoreHydrologyState.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_ForceRestorePrecipRate.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_ForceRestoreSnowState.cpp
