@@ -511,7 +511,7 @@ void ERF::init_bcs ()
         if (solverChoice.turbChoice[lev].rans_shear_stencil == RANSShearStencil::log_law &&
             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer) {
             Error("erf.rans_shear_stencil = log_law requires zlo.type = surface_layer: the stencil "
-                  "uses the roughness length of the surface layer");
+                  "uses the roughness length of the surface layer (level " + std::to_string(lev) + ")");
         }
     }
 
