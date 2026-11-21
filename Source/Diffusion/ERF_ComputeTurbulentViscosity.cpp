@@ -86,7 +86,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         {
             Box bxcc  = mfi.growntilebox(1) & domain;
             // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
-            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
+            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centered,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
@@ -198,7 +198,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             Box bxcc  = mfi.tilebox();
 
             // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
-            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
+            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centered,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
@@ -518,7 +518,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     // the only writer of the SGS heat flux output (the surface layer
                     // overwrites the bottom).  Elsewhere the theta diffusion writes the
                     // face fluxes and the closures do not store a heat flux.  This write
-                    // keeps the z-nodal/cell-centred mismatch noted above; moving the EB
+                    // keeps the z-nodal/cell-centered mismatch noted above; moving the EB
                     // heat-flux output to the EB face fluxes belongs with that diffusion.
                     hfx_x(i,j,k) = zero;
                     hfx_y(i,j,k) = zero;
@@ -717,7 +717,7 @@ void ComputeTurbulentViscosityRANS (int level,
                                                                         : Array4<Real const>{};
 
             // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
-            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
+            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centered,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
@@ -867,7 +867,7 @@ void ComputeTurbulentViscosityRANS (int level,
     // With erf.rans_consistent_diffusivities every heat, scalar and moisture
     // diffusivity is rho * cmu' * sqrt(k) * L, i.e. the Theta_v value set by
     // the closure; without it the horizontal heat and all scalar diffusivities
-    // are the eddy viscosity over Pr_t / Sc_t (the historical behaviour).
+    // are the eddy viscosity over Pr_t / Sc_t (the historical behavior).
     const bool consistent = use_KE && turbChoice.rans_consistent_diffusivities;
 
 #ifdef _OPENMP
@@ -1194,7 +1194,7 @@ void ComputeTurbulentViscosity (double dt,
             });
             //
             // Edge and corner ghost cells at a C/F boundary are skipped above when every face
-            // neighbour toward the valid box is itself a C/F ghost cell, e.g. (i_lo-1,j_lo-1).
+            // neighbor toward the valid box is itself a C/F ghost cell, e.g. (i_lo-1,j_lo-1).
             // Fill these from a cell that is valid at this level (in this grid or another),
             // stepping toward the valid box in two directions (xy, xz, yz) before all three.
             // The sources are never written in this block, and taking covered cells as well as

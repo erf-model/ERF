@@ -496,7 +496,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             Box colbx = fbx; colbx.setRange(2, klo);
             ParallelFor(colbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
-                // the surface height of the face (the mean of its two columns; the neighbour
+                // the surface height of the face (the mean of its two columns; the neighbor
                 // column across the coarse/fine boundary is a ghost cell of the fine blanking,
                 // which holds the geometry there), and the wall cell: the first cell up the
                 // column whose face is not next to a fully solid cell, found in integer

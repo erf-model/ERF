@@ -353,7 +353,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // OmegaFromW below averages (rho0 u) and (rho0 v) over the faces below and above
         // each w-face, so at the lowest and highest w-face of a box it reads one face in the
         // z-ghost layer. Where a box face lies inside the domain (a BoxArray split in z) that
-        // ghost face must hold the neighbouring box's momentum, in the same rho0 scaling as
+        // ghost face must hold the neighboring box's momentum, in the same rho0 scaling as
         // the valid faces; VelocityToMomentum and ConvertForProjection both write the valid
         // faces only. Fill the z-ghost layer here, after the conversion, so no caller has to.
         // At the domain bottom the w-face k = 0 is set to zero and nothing below it is read;
@@ -363,7 +363,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                             mom_mf[IntVars::ymom].nGrowVect()[2] >= 1);
         // Where the level stops inside the domain in z there is no fine box to copy from: take
         // those faces from the coarse level first, in the projected scaling, built from coarse
-        // data only.  FillBoundary below then overwrites the faces that a neighbouring fine box
+        // data only.  FillBoundary below then overwrites the faces that a neighboring fine box
         // does cover.  The same call returns the coarse Omega for the level's top and bottom.
         MultiFab cf_omega_t;
         Vector<int> cf_slab_box;

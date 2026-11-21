@@ -47,7 +47,7 @@ ERF::ComputeDt (int step, double cur_time_d)
     {
         // The terrain slope factor is reported only when one of the options it informs is on:
         // the diffusive check or limit, or a Smagorinsky2D limit at this level.  It is printed
-        // whenever a level has a new set of grids (at initialisation, on the first step after a
+        // whenever a level has a new set of grids (at initialization, on the first step after a
         // restart, and on the coarse step after a regrid), and on a moving terrain also whenever
         // its largest value changes by more than 1 %.
         const TurbChoice& tc = solverChoice.turbChoice[lev];
@@ -167,7 +167,7 @@ ERF::ComputeDt (int step, double cur_time_d)
 /**
  * Largest explicit diffusion rates on a level, for the diffusive time-step check: the
  * maximum over valid cells of CellDiffusiveRates (ERF_TerrainDiffusionLimits.H), which takes
- * the largest diffusivities and the smallest density over each cell's 3x3x3 neighbourhood,
+ * the largest diffusivities and the smallest density over each cell's 3x3x3 neighborhood,
  * built from the eddy diffusivities of the last step (zero
  * before the first step and on the first step after a restart, since they are not
  * checkpointed; a regrid happens before the advance that recomputes them) plus the molecular
@@ -226,7 +226,7 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     }
 
     const MultiFab& S = vars_new[lev][Vars::cons];
-    // CellDiffusiveRates reads the 3x3x3 neighbourhood of each valid cell
+    // CellDiffusiveRates reads the 3x3x3 neighborhood of each valid cell
     AMREX_ALWAYS_ASSERT(S.nGrowVect().min() >= 1);
     AMREX_ALWAYS_ASSERT(!has_eddy || eddyDiffs_lev[lev]->nGrowVect().min() >= 1);
 
@@ -1040,7 +1040,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              //
              // Check dt_sub_max BEFORE dividing by it, and the quotient before casting it.
              // Converting a non-finite or wildly out-of-range double to long is undefined
-             // behaviour and in practice traps, and the division itself raises on a zero
+             // behavior and in practice traps, and the division itself raises on a zero
              // denominator under erf's FPE trapping.  A level handed corrupted state
              // arrives here with an enormous sound speed, hence a vanishing estdt_comp_T
              // and a vanishing dt_sub_max; without this the first symptom is a bare signal

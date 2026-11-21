@@ -72,7 +72,7 @@ private:
 
     amrex::MultiFab deltaq, flux;
 
-    // Holds output for the datalog: cell-centred profiles, and the net flux on the surface
+    // Holds output for the datalog: cell-centered profiles, and the net flux on the surface
     // and top-of-atmosphere faces (one cell thick in z)
     amrex::MultiFab datalog_mf;
     amrex::MultiFab datalog_bdy_mf;

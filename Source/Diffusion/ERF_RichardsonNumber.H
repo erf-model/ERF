@@ -410,9 +410,9 @@ ComputeVerticalShear2_EB (int i, int j, int k,
                       bool& shear_is_valid)
 {
     // Volume-fraction weighted reconstruction of a velocity component at the
-    // centre of cell (ii,jj,kk) from the two staggered faces that bracket it in
+    // center of cell (ii,jj,kk) from the two staggered faces that bracket it in
     // the (di,dj) direction. Returns false when neither face carries any volume,
-    // in which case there is no cell-centred value to be had.
+    // in which case there is no cell-centered value to be had.
     auto cell_avg = [=] (const amrex::Array4<const amrex::Real>& vfrac,
                          const amrex::Array4<const amrex::Real>& vel,
                          int ii, int jj, int kk, int di, int dj,
@@ -428,10 +428,10 @@ ComputeVerticalShear2_EB (int i, int j, int k,
     };
 
     // Vertical derivative of one velocity component at cell (i,j,k), using the
-    // best stencil the EB geometry leaves available: centred when both k-1 and
-    // k+1 are usable, otherwise one-sided towards whichever neighbour is (second
+    // best stencil the EB geometry leaves available: centered when both k-1 and
+    // k+1 are usable, otherwise one-sided towards whichever neighbor is (second
     // order when k-2 / k+2 is usable as well). Returns false only when no stencil
-    // at all can be formed, so a single unusable neighbour degrades the order of
+    // at all can be formed, so a single unusable neighbor degrades the order of
     // accuracy rather than discarding the correction.
     auto vert_deriv = [=] (const amrex::Array4<const amrex::Real>& vfrac,
                            const amrex::Array4<const amrex::Real>& vel,
@@ -443,14 +443,14 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         const bool have_kp1 = !c_cflag(i,j,k+1).isCovered() &&
                               cell_avg(vfrac, vel, i, j, k+1, di, dj, c_kp1);
 
-        // The centred difference never reads the centre cell, so it stays valid
-        // even when the centre cell's own faces carry no volume.
+        // The centered difference never reads the center cell, so it stays valid
+        // even when the center cell's own faces carry no volume.
         if (have_km1 && have_kp1) {
             dq_dz = myhalf * (c_kp1 - c_km1) * dzInv;
             return true;
         }
 
-        // Every remaining stencil is one-sided, and those do need the centre cell.
+        // Every remaining stencil is one-sided, and those do need the center cell.
         amrex::Real c_c;
         if (!cell_avg(vfrac, vel, i, j, k, di, dj, c_c)) { return false; }
 
@@ -476,7 +476,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
             return true;
         }
 
-        // Both vertical neighbours are unusable: no stencil exists at all.
+        // Both vertical neighbors are unusable: no stencil exists at all.
         return false;
     };
 

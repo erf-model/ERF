@@ -895,7 +895,7 @@ SAMFaceState sam_face_average_state (const int& k,
         result.qp_avg = zero;
     } else {
         // Sedimentation only moves mass down, out of cell k: keep rho and T
-        // centred on the face but take the transported mixing ratios from that
+        // centered on the face but take the transported mixing ratios from that
         // donor cell, so the flux does not depend on the receiving cell below
         // (a dry donor sends nothing).
         result.rho_avg = myhalf * (rho_km1 + rho_k);
@@ -1042,7 +1042,7 @@ SAMPrecipFaceState sam_precip_face_state (const int& SAM_moisture_type,
         result.tabs_avg = tabs_array(i,j,k-1);
         result.qp_avg = zero;
     } else {
-        // Centred rho and T, donor (upwind) qp from the cell above the face.
+        // Centered rho and T, donor (upwind) qp from the cell above the face.
         result.rho_avg = myhalf * (rho_array(i,j,k-1) + rho_array(i,j,k));
         result.tabs_avg = myhalf * (tabs_array(i,j,k-1) + tabs_array(i,j,k));
         result.qp_avg = qp_array(i,j,k);
@@ -1086,7 +1086,7 @@ SAMPrecipComponentFaceState sam_precip_component_face_state (const amrex::Array4
         result.qps_avg = zero;
         result.qpg_avg = zero;
     } else {
-        // Centred rho and T, donor (upwind) qpr/qps/qpg from the cell above the face.
+        // Centered rho and T, donor (upwind) qpr/qps/qpg from the cell above the face.
         result.rho_avg = myhalf * (rho_array(i,j,k-1) + rho_array(i,j,k));
         result.tabs_avg = myhalf * (tabs_array(i,j,k-1) + tabs_array(i,j,k));
         result.qpr_avg = qpr_array(i,j,k);

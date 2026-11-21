@@ -207,7 +207,7 @@ ERF::FillForecastStateMultiFabs (const int lev,
             // Geometry (note we must include these here to get the data on device)
             const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
             const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
-            // Height of the cell centre from z_phys_nd -- the average of its eight corner
+            // Height of the cell center from z_phys_nd -- the average of its eight corner
             //    nodes, taken in pairs so that a flat column gives back its height exactly --
             //    or the flat-mesh height if there is no z_phys_nd
             const Real z = (z_arr) ?
@@ -275,7 +275,7 @@ ERF::FillForecastStateMultiFabs (const int lev,
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + i       * dx_erf[0];
             Real y = prob_lo_erf[1] + (j+myhalf) * dx_erf[1];
-            // Height of the x-face centre: the average of nodes (i, j..j+1, k..k+1)
+            // Height of the x-face center: the average of nodes (i, j..j+1, k..k+1)
             const Real z = (z_arr) ?
                 myhalf * ( myhalf * (z_arr(i,j,k  ) + z_arr(i,j+1,k  ))
                          + myhalf * (z_arr(i,j,k+1) + z_arr(i,j+1,k+1)) )
@@ -294,7 +294,7 @@ ERF::FillForecastStateMultiFabs (const int lev,
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + (i+myhalf) * dx_erf[0];
             Real y = prob_lo_erf[1] + j       * dx_erf[1];
-            // Height of the y-face centre: the average of nodes (i..i+1, j, k..k+1)
+            // Height of the y-face center: the average of nodes (i..i+1, j, k..k+1)
             const Real z = (z_arr) ?
                 myhalf * ( myhalf * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ))
                          + myhalf * (z_arr(i,j,k+1) + z_arr(i+1,j,k+1)) )

@@ -184,7 +184,7 @@ public:
      * @param[in] mf_Nturb Turbine count MultiFab.
      * @param[in] mf_SMark SMark MultiFab.
      * @param[in] z_phys_nd Physical heights of the nodes (may be null).
-     * @param[in] z_phys_cc Physical heights of the cell centres (may be null).
+     * @param[in] z_phys_cc Physical heights of the cell centers (may be null).
      * @param[in] time Current simulation time.
      */
     void advance (const amrex::Geometry& a_geom,

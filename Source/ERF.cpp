@@ -1120,7 +1120,7 @@ ERF::InitData_pre ()
 /**
  * Warn when the terrain next to an inflow or outflow face of level lev is steep and no
  * steep-terrain option is on (erf.smag2d_slope_limiter and erf.smag2d_kh_cap per level).
- * ComputeDt calls it whenever a level has a new set of grids (at initialisation, on the
+ * ComputeDt calls it whenever a level has a new set of grids (at initialization, on the
  * first step after a restart, and after a regrid), so a fine level created later that
  * reaches a face is checked too; each level and face is reported at most once.  Only on a
  * terrain-fitted mesh without real-data lateral boundaries; the band is the cells whose
@@ -1705,7 +1705,7 @@ ERF::InitData_post ()
     }
 
 #ifdef ERF_USE_FIRE
-    // The fire coupling is initialised after the surface layers are built (so its
+    // The fire coupling is initialized after the surface layers are built (so its
     // own prerequisite checks run there). An engine that reads the surface layer
     // (FireEngine::needs_surface_layer, the default) needs one at the bottom, so
     // stop here, with the inputs to set, instead of in the coupler's checks.
@@ -3489,7 +3489,7 @@ ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
                      " (the smoke tracer is advected with the scalars)");
     }
     // erf.fire.source_mode = overwrite (the default) REPLACES the theta (and,
-    // with latent heat, the vapour) slots of the cell source on the fire level
+    // with latent heat, the vapor) slots of the cell source on the fire level
     // every stage, discarding whatever make_sources put there. With no other
     // source that is the intended result; with one it silently drops physics.
     // Make the choice explicit in that case.

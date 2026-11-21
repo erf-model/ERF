@@ -53,7 +53,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
     const bool has_wall_face = static_cast<bool>(wall_face);
     // ... and wall_pin (the TKE solve with erf.if_wall_tke_time_factor = 1) holds the wall value
     // of the TKE where it is >= 0: that row is a Dirichlet row, like the pinned first cell of flat
-    // ground, and the row above sees it as a Dirichlet neighbour
+    // ground, and the row above sees it as a Dirichlet neighbor
     const bool has_wall_pin = static_cast<bool>(wall_pin);
 
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
@@ -105,7 +105,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
 
     // k-eqn RANS with a Dirichlet wall value of k: the first cell is held at
     // the value set by the surface layer, so its row reduces to x(klo) = phi(klo)
-    // and the row above sees it as a Dirichlet neighbour.
+    // and the row above sees it as a Dirichlet neighbor.
     // NOTE: init_bcs requires zlo.type = surface_layer whenever dirichlet_k is set,
     //       so this matches the l_dirichlet_k pin in erf_slow_rhs_post, which also
     //       requires a surface layer. Do not relax one without the other.

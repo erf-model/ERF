@@ -80,7 +80,7 @@ namespace ERFParticleNames
 /**
  * @brief Particle container for ERF particles.
  */
-/*! \brief Behaviour a derived container selects before ERFPC reads the input file.
+/*! \brief Behavior a derived container selects before ERFPC reads the input file.
  *
  *  ERFPC::readInputs() runs from the ERFPC constructor, so a derived class cannot
  *  influence it through a virtual -- the base version is the one that runs. These

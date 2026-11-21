@@ -38,7 +38,7 @@ PrintFluxLaneStats (const char* label, const amrex::MultiFab& mf, int comp = 0)
 }
 
 // The eastward and northward components (0 and 1 of en, on the 2D layout of the
-// level) at the cell centres of plane k of a vector whose x and y components fx and fy
+// level) at the cell centers of plane k of a vector whose x and y components fx and fy
 // are on the x and y faces: the faces either side averaged, then turned from the grid
 // axes with the grid orientation cos_alpha/sin_alpha (on en's layout), or left along
 // them when that is null.
@@ -148,7 +148,7 @@ StagedSourceBoxArray (const amrex::MultiFab& src,
 
     // The staged boxes carry the source's index type, so that intersecting them with
     // the source's boxes cannot trip Box::operator&='s sameType assertion. Every
-    // source is cell-centred today.
+    // source is cell-centered today.
     const IndexType src_ixtype = src.boxArray().ixType();
 
     BoxList bl(src_ixtype);
@@ -604,9 +604,9 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         //       have to be checked before they are dereferenced.
         //
 
-        // The stress goes east and north at the cell centres, like the wind. A vector can
+        // The stress goes east and north at the cell centers, like the wind. A vector can
         // only be turned where both of its components are, so tau13 and tau23 are averaged
-        // from the faces to the centres first; REMORA turns the stress to its own axes at
+        // from the faces to the centers first; REMORA turns the stress to its own axes at
         // its rho points and averages it to its u and v points, as ROMS does with the
         // stress COAWST sends it from WRF.
         const bool want_taux = iTauX < static_cast<int>(states.size()) && states[iTauX] != nullptr;
@@ -718,7 +718,7 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         return;
     }
 
-    // --- Uwind + Vwind, east and north at the cell centres of the lowest level ---
+    // --- Uwind + Vwind, east and north at the cell centers of the lowest level ---
     if ((iUwind < static_cast<int>(states.size()) && states[iUwind] != nullptr) ||
         (iVwind < static_cast<int>(states.size()) && states[iVwind] != nullptr)) {
 

@@ -487,7 +487,7 @@ MakeProjectionWeights (const MultiFab& den_div, const MultiFab& den_mlt,
  * @param[in]  period   periodicity of the level, to fill the ratio's ghost cells between boxes
  *
  * The ratio is computed on the valid and ghost cells and then its ghost cells inside the domain
- * (between boxes and across periodic boundaries) are filled from the neighbouring valid cells,
+ * (between boxes and across periodic boundaries) are filled from the neighboring valid cells,
  * so that they hold the same values as the valid cells there: the reconstruction reads two or
  * three cells past the face, and the base state's ghost cells beyond the first are not filled
  * between boxes.  Outside the domain the ratio comes from the ghost cells of den_div and

@@ -1028,7 +1028,7 @@ void ERF::FillSetHorizontalMomentaCF (int lev, double time_d, MultiFab& xmom, Mu
  * Omega,  rho w = WFromOmega(Omega_coarse, rho u, rho v),  with the layer of (rho u), (rho v)
  * outside the level taken from the coarse level too.  Every fine-level fill of the momenta goes
  * through here, before any ghost fill or FillBoundary, so every copy of these faces (the box's own
- * and its neighbours' ghost copies) gets the same value, and the time step transports theta and
+ * and its neighbors' ghost copies) gets the same value, and the time step transports theta and
  * the other scalars with the fluxes the projection balanced.  Setting them in the projection
  * alone left the fill's (rho w) in the advection, and theta in the layer next to the face drifted
  * (2.7 K in 300 s on a 100 m hill).

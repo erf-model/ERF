@@ -1472,7 +1472,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         // reads only the valid region of cons/xvel/yvel/zvel and then deliberately poisons
         // their halos with bogus_large_value (Source/IO/ERF_Checkpoint.cpp -- the only
         // setBndry calls on state in the code).  An old box's interior halo overlaps its
-        // neighbour's valid region, and ParallelCopy intersects the GROWN source box with
+        // neighbor's valid region, and ParallelCopy intersects the GROWN source box with
         // the grown destination boxes with no exclusion and no ordering guarantee between
         // overlapping sources.  Offering those halos would therefore land 1e150 in valid
         // cells of the new grids -- which is how a level-0 regrid on restart used to reach

@@ -335,7 +335,7 @@ void ERF::advance_radiation (int lev,
     // the LSM the radiation fields it needs for that step.
     //
     // This sits ahead of the model dispatch because the flag is set for whichever model is
-    // running (ERF_MakeNewLevel.cpp) and the reason for honouring it is a property of the
+    // running (ERF_MakeNewLevel.cpp) and the reason for honoring it is a property of the
     // state, not of the model.  For the two-stream model, the post-dycore call that still
     // follows holds back the prognostic surface energy balance on such a level until its
     // first sweep (TwoStreamRadiation::advance), since the balance takes its surface

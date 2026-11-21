@@ -88,7 +88,7 @@ void SuperDropletsMoist::readInputs ()
     pp.queryAdd("recycle_particles", m_recycle_particles);
 
 
-    // get vapour/condensate species names
+    // get vapor/condensate species names
     m_species.clear();
     // add water
     m_idx_w = static_cast<int>(m_species.size());

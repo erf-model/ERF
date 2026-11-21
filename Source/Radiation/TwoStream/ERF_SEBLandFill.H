@@ -56,17 +56,17 @@ seb_extend_halo (amrex::MultiFab& mf, const amrex::Geometry& geom)
  * A water column holds a value the balance never updated. The fill keeps it out of the
  * land columns:
  *
- * - A fine column whose parent and the parent's eight neighbours are all land takes the
+ * - A fine column whose parent and the parent's eight neighbors are all land takes the
  *   conservative linear interpolation, as on a level with no water.
  * - Elsewhere no slope is used: the slope of a coarse column next to water is formed with
  *   the held value. A fine land column over a coarse land column takes the parent's value.
  *   A fine land column over a coarse water column takes the mean of the land columns among
- *   the parent's eight neighbours.
- * - A fine land column whose parent and all eight neighbours are water has no land source.
+ *   the parent's eight neighbors.
+ * - A fine land column whose parent and all eight neighbors are water has no land source.
  *   It takes the parent's held value and is counted.
  * - A fine water column in that region takes its parent's value.
  *
- * Neighbours beyond a non-periodic domain face are left out. RemakeLevel copies the old
+ * Neighbors beyond a non-periodic domain face are left out. RemakeLevel copies the old
  * fine values on top afterwards, so only columns new to the level keep this fill.
  *
  * @param fine      the fine field; valid and ghost columns inside the domain are set
@@ -98,8 +98,8 @@ seb_fill_from_coarse_over_land (amrex::MultiFab& fine, const amrex::MultiFab& cr
                                  crse, 0, 0, nc, cgeom, fgeom, ratio, &amrex::cell_cons_interp, bcs, 0);
 
     // Per coarse column: [0, nc) the value a fine land column takes, [nc, 2 nc) the column's
-    // own value, 2 nc whether the column or one of its eight neighbours is water, 2 nc + 1
-    // whether it is water with no land neighbour.
+    // own value, 2 nc whether the column or one of its eight neighbors is water, 2 nc + 1
+    // whether it is water with no land neighbor.
     const int i_near = 2 * nc;
     const int i_none = 2 * nc + 1;
     amrex::MultiFab src(crse.boxArray(), crse.DistributionMap(), 2 * nc + 2, crse.nGrowVect());

@@ -1,4 +1,4 @@
-// Gaussian force spreading with discrete normalisation, and the source integral.
+// Gaussian force spreading with discrete normalization, and the source integral.
 
 #include "ERF_ActuatorSpreading.H"
 
@@ -184,7 +184,7 @@ struct KernelFaces
                 hi[2] = dhi[2] + 1;
                 return Box(lo, hi, IntVect::TheDimensionVector(dir));
             }
-            // the faces bounding those cells, one more each way for the faces of a cell's neighbours
+            // the faces bounding those cells, one more each way for the faces of a cell's neighbors
             lo[2] = std::max(kb - 1, dlo[2]);
             hi[2] = std::min(kt + 2, dhi[2] + 1);
         }

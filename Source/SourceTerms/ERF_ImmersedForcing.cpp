@@ -323,7 +323,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
  * Surface condition of the fraction-stress wall law from the erf.if_* inputs at this time: a given
  * Obukhov length, a given heat flux, a given surface temperature (erf.if_init_surf_temp, changing
  * at erf.if_surf_heating_rate, which is stored in K/s), or none (neutral); and, with a moisture
- * model that carries water vapour, a given moisture flux (erf.if_surf_moist_flux), a given surface
+ * model that carries water vapor, a given moisture flux (erf.if_surf_moist_flux), a given surface
  * mixing ratio (erf.if_surf_moist) or none, the Obukhov length then formed from theta_v and
  * theta_v*. The inputs guarantee that at most one of each is set.
  */
@@ -435,7 +435,7 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
     const Real tiny  = std::numeric_limits<Real>::epsilon();
     const Real small = solverChoice.if_small_volfrac;
     const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
-    // water vapour on the face (zero without a moisture model), for q* and the virtual Obukhov
+    // water vapor on the face (zero without a moisture model), for q* and the virtual Obukhov
     // length of the wall state, as the scalar kernel forms them
     const int qv_comp = cond.moist ? solverChoice.moisture_indices.qv : -1;
     constexpr int io = (dir == 0) ? 1 : 0;
@@ -520,7 +520,7 @@ void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
  * of the TKE is stored in wall_ktarget at the wall cell (-1 elsewhere), and a time factor of 1
  * leaves the pin to erf_slow_rhs_post and the implicit TKE solve. With a moisture model the wall
  * moisture flux -u* q* of the surface moisture condition (erf.if_surf_moist_flux or
- * erf.if_surf_moist; q* = 0 without one) goes to the water vapour of the wall cell and is stored
+ * erf.if_surf_moist; q* = 0 without one) goes to the water vapor of the wall cell and is stored
  * in wall_qfx (zero elsewhere); with wall_tke_moist (erf.rans_moist_buoyancy) the wall TKE's
  * buoyancy uses theta_v* and theta_v, as flat ground's erf.dirichlet_k does under the same key.
  */
@@ -557,7 +557,7 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
     const int klo = geom.Domain().smallEnd(2);
     const int khi = geom.Domain().bigEnd(2);
     const bool have_avg = (r_avg && t_avg);
-    // water vapour component of the conserved state (-1 without a moisture model that carries it)
+    // water vapor component of the conserved state (-1 without a moisture model that carries it)
     const int qv_comp = cond.moist ? solverChoice.moisture_indices.qv : -1;
     const bool moist_cond = (qv_comp >= 0) && (cond.moist_type != ib_wall::WallCond::moist_none);
 
@@ -570,7 +570,7 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
 
         if (ib_wall::is_wall_cell(if_cell_beta(t_blank_arr, i, j, k-1, klo, khi, small), b_k,
                                   if_cell_beta(t_blank_arr, i, j, k+1, klo, khi, small), small)) {
-            // horizontal speed at the cell centres of the wall cell and the cell above
+            // horizontal speed at the cell centers of the wall cell and the cell above
             const Real uc0 = myhalf * (u(i, j, k)   + u(i+1, j, k));
             const Real vc0 = myhalf * (v(i, j, k)   + v(i, j+1, k));
             const Real uc1 = myhalf * (u(i, j, k+1) + u(i+1, j, k+1));
@@ -578,7 +578,7 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
             const Real rho       = cell_data(i, j, k,   Rho_comp);
             const Real theta     = cell_data(i, j, k,   RhoTheta_comp) / rho;
             const Real theta_ref = cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp);
-            // water vapour of the wall cell and the cell above (zero without a moisture model)
+            // water vapor of the wall cell and the cell above (zero without a moisture model)
             const Real q     = (qv_comp >= 0) ? cell_data(i, j, k,   qv_comp) / rho : zero;
             const Real q_ref = (qv_comp >= 0) ? cell_data(i, j, k+1, qv_comp) / cell_data(i, j, k+1, Rho_comp) : zero;
             const ib_wall::WallState ws = ib_wall::wall_state(std::sqrt(uc0*uc0 + vc0*vc0), std::sqrt(uc1*uc1 + vc1*vc1),
@@ -735,7 +735,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // The face blanking and its neighbors are read through ERF_ImmersedBuildingMasks.H, as the
     // implicit projection reads them
     const int dom_klo = geom.Domain().smallEnd(2);
 
@@ -752,7 +752,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real rho_xface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
         const Real theta_xface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
 
-        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        // the face, its neighbors and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
         const if_bld::HorizFace fc = if_bld::horiz_face<0>(t_blank_arr, t_blank_xface_arr, i, j, k, dom_klo, l_snap, small_volfrac);
         const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
@@ -931,7 +931,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // The face blanking and its neighbors are read through ERF_ImmersedBuildingMasks.H, as the
     // implicit projection reads them
     const int dom_klo = geom.Domain().smallEnd(2);
 
@@ -948,7 +948,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         const Real rho_yface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
         const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k,RhoTheta_comp))) / rho_yface;
 
-        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        // the face, its neighbors and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
         const if_bld::HorizFace fc = if_bld::horiz_face<1>(t_blank_arr, t_blank_yface_arr, i, j, k, dom_klo, l_snap, small_volfrac);
         const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
@@ -1125,7 +1125,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // The face blanking and its neighbors are read through ERF_ImmersedBuildingMasks.H, as the
     // implicit projection reads them
 
 
@@ -1141,7 +1141,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real rho_zface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
         const Real theta_zface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i,j,k-1,RhoTheta_comp))) / rho_zface;
 
-        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        // the face, its neighbors and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
         const if_bld::VertFace fc = if_bld::vert_face(t_blank_arr, t_blank_zface_arr, i, j, k, l_snap, small_volfrac);
         const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
@@ -1448,7 +1448,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
     // staircase of whole cells an exact box is: the thermal conditions sit
-    // on the boundary solid cells, roofs included, found from the neighbour
+    // on the boundary solid cells, roofs included, found from the neighbor
     // blanking. Off (the default), the raw fractions are used and nothing
     // below changes. See SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
@@ -1485,9 +1485,9 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
         Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
 
         // Wall cells of the building, named by the face they carry: a
-        // partially blanked cell with a more solid neighbour behind it and a
+        // partially blanked cell with a more solid neighbor behind it and a
         // fluid one in front, or, with the snap (every solid cell at 1), a
-        // solid cell with a solid neighbour behind and a fluid one in front.
+        // solid cell with a solid neighbor behind and a fluid one in front.
         const bool south_face = l_snap ? (t_blank == one && t_blank_north == one && t_blank_south == zero)
                                        : (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero);
         const bool north_face = l_snap ? (t_blank == one && t_blank_south == one && t_blank_north == zero)

@@ -15,7 +15,7 @@ namespace erf_actuator {
  * Wake sampling lines behind one rotor: at each downstream distance x/D along the horizontal
  * projection of the rotor axis through the hub (a wake follows the wind at hub height, not a
  * tilted shaft), one lateral line (horizontal, normal to that direction) and one vertical
- * line, each of num_points points spanning +-half_width diameters about the centre. The
+ * line, each of num_points points spanning +-half_width diameters about the center. The
  * sampled velocities are written as they are and accumulated into a running time average.
  *
  * Point order: for each x/D, the lateral line then the vertical line, each from -half_width
@@ -44,7 +44,7 @@ public:
                amrex::Real half_width, int num_points, amrex::Real z_min);
 
     /**
-     * The same with one ground height per downstream distance (z_min[n] under the centre of
+     * The same with one ground height per downstream distance (z_min[n] under the center of
      * the lines at lines_xD[n], from terrain_heights), so that on terrain rising or falling
      * downstream each vertical line stops at its own ground. z_min must have lines_xD's size.
      */

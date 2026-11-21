@@ -317,7 +317,7 @@ AdvectionSrcForZMom (int i, int j, int k,
     if (k == hi_z_face) {
         centFluxZZNext *=  w(i,j,k);
     } else {
-        // The centre next to the top or bottom face is second order, seen from either side
+        // The center next to the top or bottom face is second order, seen from either side
         if (k == hi_z_face-1 || k == lo_z_face)
         {
             interp_omega_wall.InterpolateInZ(i,j,k+1,0,interp_hi,Omega_avg_hi,AdvType::Centered_2nd);

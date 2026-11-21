@@ -664,7 +664,7 @@ ERF::FillPlot2DVars (int lev,
 
     if (containerHasElement(plot_var_names, "surf_pres")) {
         // The pressure at the ground, as WRF's PSFC: the lowest cell's pressure plus
-        //    rho g times the height of that cell's centre above the ground, the same
+        //    rho g times the height of that cell's center above the ground, the same
         //    surface pressure the radiation and surface layer use
         bool moist = (solverChoice.moisture_type != MoistureType::None);
         const Real dz = geom[lev].CellSize(2);

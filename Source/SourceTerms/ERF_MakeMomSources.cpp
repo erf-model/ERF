@@ -889,7 +889,7 @@ void make_mom_sources (int level,
         if (is_slow_step && (enforce_massflux_x || enforce_massflux_y)) {
             // The mass fluxes are integrated over the cross-section, so their difference is
             //    divided by its area to give a tendency of rho*u (rho*v) at each point.
-            //    The divisor is never zero: an optimised build may divide before it tests
+            //    The divisor is never zero: an optimized build may divide before it tests
             //    the area, and 0/0 would then trip amrex.fpe_trap_invalid even when the
             //    result is discarded. For a positive area the divisor is the area itself.
             Real tau_inv = one / solverChoice.const_massflux_tau;

@@ -62,7 +62,7 @@ ERF::FillCoarsePatch (int lev, double time)
 
     // Fill ghost cells of coarse momentum before interpolation to fine level.
     // VelocityToMomentum above fills only valid cells (IntVect{0} grow).  On restart
-    // from a non-AMR checkpoint, init_stuff initialises rU/rV/rW_new[lev-1] with large
+    // from a non-AMR checkpoint, init_stuff initializes rU/rV/rW_new[lev-1] with large
     // sentinel values for ALL cells including ghost cells; the checkpoint read then
     // overwrites only valid cells.  InterpFromCoarseLevel (see comments below) ASSUMES
     // ghost cells at lev-1 are already filled and uses them in its stencil near periodic

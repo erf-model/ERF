@@ -100,12 +100,12 @@ ERF::sounding_at_level (int lev)
 
     if (input_sounding_data_fine.size() <= lev) { input_sounding_data_fine.resize(lev+1); }
     if (!input_sounding_data_fine[lev]) {
-        // input_sounding_data holds the profiles sampled at the level-0 cell centres, with the
+        // input_sounding_data holds the profiles sampled at the level-0 cell centers, with the
         // surface line of the sounding at z = 0. Interpolating those to a fine cell below the
-        // first level-0 centre blends in the surface values (with erf.most.surf_temp the surface
+        // first level-0 center blends in the surface values (with erf.most.surf_temp the surface
         // theta is the surface temperature, and U = V = 0) even where the sounding has air
         // values, and indexing them with a fine k reads the wrong height. So resample the file
-        // at this level's own cell centres, exactly as a single-level run at this resolution does.
+        // at this level's own cell centers, exactly as a single-level run at this resolution does.
         auto snd = std::make_unique<InputSoundingData>(input_sounding_data);
         const bool is_moist = (solverChoice.moisture_type != MoistureType::None);
         for (int n = 0; n < snd->n_sounding_files; n++) {
@@ -133,7 +133,7 @@ ERF::lsf_at_level (int lev)
     if (lsf_fine.size() <= lev) { lsf_fine.resize(lev+1); }
     if (!lsf_fine[lev]) {
         // lsf holds the forcing file as read and its profiles interpolated to the level-0 cell
-        // centres; interpolate the same file to this level's cell centres instead
+        // centers; interpolate the same file to this level's cell centers instead
         auto l = std::make_unique<LargeScaleForcingData>(lsf);
         l->verbose_print = false;
         l->interp_forcing(geom[lev].data(), zlevels_stag[lev], sounding_at_level(lev));
@@ -203,7 +203,7 @@ ERF::init_from_input_sounding (int lev)
          (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
     }
 
-    // The sounding sampled at this level's own cell centres
+    // The sounding sampled at this level's own cell centers
     const InputSoundingData& sounding = sounding_at_level(lev);
 
     auto& lev_new = vars_new[lev];

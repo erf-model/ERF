@@ -1594,7 +1594,7 @@ struct SolverChoice {
         }
         // Surface moisture condition of the fraction-stress law: a given kinematic moisture flux or
         // a given surface mixing ratio (not both), as erf.most.surf_moist_flux / erf.most.surf_moist
-        // on flat ground; it needs a moisture model that carries water vapour (the wall cell's qv
+        // on flat ground; it needs a moisture model that carries water vapor (the wall cell's qv
         // and the cell above's enter q* and the Obukhov length)
         {
             const bool moist_flux_set = (if_surf_moist_flux != zero);
@@ -1881,7 +1881,7 @@ struct SolverChoice {
 
             advChoice.init_params(pp_prefix);
 
-        // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centred and
+        // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centered and
         // upwind schemes; with any other the fluxes are never set and, in a Release build, the
         // fields are not advected at all.  The moist scalars default to WENO3, so they are checked
         // only when they are advected.
@@ -1935,7 +1935,7 @@ struct SolverChoice {
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
-            // the moist TKE buoyancy of the k-eqn RANS reads the water vapour and its flux
+            // the moist TKE buoyancy of the k-eqn RANS reads the water vapor and its flux
             if (turbChoice[lev].rans_moist_buoyancy &&
                 moisture_indices.qv == MoistureComponentIndices::absent) {
                 amrex::Abort("erf.rans_moist_buoyancy needs a moisture model that carries water vapour "
@@ -3353,7 +3353,7 @@ struct SolverChoice {
     amrex::Vector<amrex::Real> sbm_edges;
     amrex::Vector<amrex::Real> sbm_pivots;
     amrex::Vector<amrex::Real> sbm_fixture_initial_state;
-    // The fixture state of cells whose centre lies in the upper half of the x domain
+    // The fixture state of cells whose center lies in the upper half of the x domain
     amrex::Vector<amrex::Real> sbm_fixture_initial_state_xhi;
     std::string sbm_particle_mixing{"None"};
     amrex::Real sbm_particle_mixing_kh{0};
@@ -3635,7 +3635,7 @@ struct SolverChoice {
  * (if_implicit_drag), without which the explicit rate at rims and corners
  * drives the density negative within seconds. The momentum kernels take the
  * blanking of a face from the two cells it joins (solid if either is), so
- * the staircase is the same with and without the face-centred blanking of
+ * the staircase is the same with and without the face-centered blanking of
  * the build; a face between a solid and a fluid cell is wall-normal and gets
  * the interior drag toward zero (no penetration) whichever row it lies in,
  * and a face between two solid cells the roof or wall law of its row (with

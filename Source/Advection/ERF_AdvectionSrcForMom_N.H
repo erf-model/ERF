@@ -252,7 +252,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
         zflux_hi =  rho_w(i,j,k) * w(i,j,k);
     } else {
         rho_w_avg_hi = myhalf * (rho_w(i,j,k) + rho_w(i,j,k+1));
-        // The centre next to the top or bottom face is second order, seen from either side
+        // The center next to the top or bottom face is second order, seen from either side
         if (k == hi_z_face-1 || k == lo_z_face) {
             interp_w_wall.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi,AdvType::Centered_2nd);
         } else if (k == hi_z_face-2 || k == lo_z_face+1) {

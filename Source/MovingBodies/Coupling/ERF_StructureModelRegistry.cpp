@@ -9,7 +9,7 @@
 
 namespace {
 // A function-local static, so it exists before the first registration whatever
-// the order in which the models' translation units are initialised
+// the order in which the models' translation units are initialized
 std::map<std::string, StructureModelCreator>&
 structure_model_registry ()
 {

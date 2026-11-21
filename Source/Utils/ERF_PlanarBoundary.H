@@ -32,7 +32,7 @@
  *
  * The buffer is kept for each target layout, index type, and number of components, so only
  * the first fill of each kind allocates.  For a face-centered MultiFab (the MOST velocity averages)
- * neighbouring surface boxes share a face in the buffer.  Both should hold the same value
+ * neighboring surface boxes share a face in the buffer.  Both should hold the same value
  * there, but nothing enforces it, so fill() gives the shared faces a single value before
  * it copies: the lowest global box index wins, which does not depend on the decomposition
  * or the rank count, and every copy of the field then agrees.

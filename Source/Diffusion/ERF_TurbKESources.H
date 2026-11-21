@@ -76,7 +76,7 @@ AddTurbKESources (const amrex::Box& bx, const amrex::Box& domain,
 
     const bool SurfLayer_zlo = use_SurfLayer && SurfLayer[amrex::Orientation::zlo()] != nullptr;
 
-    // Clamp the divisor to the smallest normal Real before the select: an optimised
+    // Clamp the divisor to the smallest normal Real before the select: an optimized
     //   build if-converts the select into an unconditional 1/theta_ref (also when
     //   the select is on the divisor), which trips fpe_trap_zero with the default
     //   theta_ref = 0. The clamp is exact for any normal theta_ref > 0 and its
@@ -97,16 +97,16 @@ AddTurbKESources (const amrex::Box& bx, const amrex::Box& domain,
     //       RK stage only, therefore the shear production term also does not
     //       change between RK stages.
     //       hfx_z (Hfx3) is z-nodal, (0,0,1): it lives at the w-faces, not at the
-    //       cell centre, so a single hfx_z(i,j,k) is the flux at the LOWER face of
-    //       the cell and using it as the cell-centred value is not formally correct.
+    //       cell center, so a single hfx_z(i,j,k) is the flux at the LOWER face of
+    //       the cell and using it as the cell-centered value is not formally correct.
     //       hfx_z holds the face fluxes of the theta diffusion of this stage
     //       (the full flux, independent of the implicit/explicit split); at the
     //       bottom face of the domain that is the surface-layer flux when a
     //       surface layer is used.  The buoyancy production therefore averages the
-    //       two faces of every cell, the first cell included, for the cell-centred
+    //       two faces of every cell, the first cell included, for the cell-centered
     //       vertical heat flux.  The first cell is not special-cased to the surface
-    //       flux alone: that would again place a w-face value at the cell centre
-    //       (a MOST-profile gradient evaluated at the first cell centre would be
+    //       flux alone: that would again place a w-face value at the cell center
+    //       (a MOST-profile gradient evaluated at the first cell center would be
     //       the consistent alternative).
     //       On a terrain-fitted mesh hfx_z holds the flux along zeta only: the slope
     //       corrections and the Jacobian are applied where the fluxes enter the RHS, so
@@ -122,8 +122,8 @@ AddTurbKESources (const amrex::Box& bx, const amrex::Box& domain,
         AMREX_ASSERT(hfx_z.contains(bx.smallEnd(0), bx.smallEnd(1), bx.smallEnd(2)) &&
                      hfx_z.contains(bx.bigEnd(0),   bx.bigEnd(1),   bx.bigEnd(2)+1));
         // Moist buoyancy of the k-eqn RANS (erf.rans_moist_buoyancy, kEqn levels only): the
-        // water vapour flux qfx1_z of this stage (the RhoQ1 call in erf_slow_rhs_post, which
-        // writes every z-face of its valid box as the theta call does) and the vapour of the cell
+        // water vapor flux qfx1_z of this stage (the RhoQ1 call in erf_slow_rhs_post, which
+        // writes every z-face of its valid box as the theta call does) and the vapor of the cell
         const bool l_moist_buoy = turbChoice.rans_moist_buoyancy && (turbChoice.rans_type == RANSType::kEqn);
         const int  l_qv_prim    = solverChoice.moisture_indices.qv - 1;   // PrimQ1_comp = RhoQ1_comp - 1
         if (l_moist_buoy) {
@@ -142,7 +142,7 @@ AddTurbKESources (const amrex::Box& bx, const amrex::Box& domain,
             // for a dry atmosphere, and with erf.rans_moist_buoyancy
             //   B = g/theta_v0 * [(1 + epsv qv) tau_{theta,w} + epsv theta tau_{qv,w}],
             // the flux of the virtual potential temperature theta (1 + epsv qv) of
-            // unsaturated air (water vapour only: no cloud-water flux term, and no
+            // unsaturated air (water vapor only: no cloud-water flux term, and no
             // saturated form; cf. the WRF model description, Skamarock et al 2019).
             // theta_v0 is erf.theta_ref when that is set, else the cell's theta_v.
             // NOTE: reads hfx_z at k+1, one face above bx; Hfx3 is z-nodal and

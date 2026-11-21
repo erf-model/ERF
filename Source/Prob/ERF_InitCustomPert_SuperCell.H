@@ -82,7 +82,7 @@
         const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
         const Real z        = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
         // The humidity zones (height, z_tr) are heights above the ground, as in the profile
-        //    from init_isentropic_hse_no_terrain; the bubble centre z_c is a coordinate, like x_c
+        //    from init_isentropic_hse_no_terrain; the bubble center z_c is a coordinate, like x_c
         const Real z_agl    = z - erf_prob_heights::z_ground_cc(i,j,z_sfc_nd);
         Real rad, delta_theta, theta_total, temperature, rho, RH, scalar;
 

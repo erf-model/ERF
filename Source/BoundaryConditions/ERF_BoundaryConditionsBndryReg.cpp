@@ -11,8 +11,8 @@ using namespace amrex;
  * face of the level-0 domain.  On a finer level they are interpolated linearly along the
  * face, in the two directions tangential to it, onto the fine ghost cells and faces; the
  * fine ghost cells take the same value at every distance from the face, as they do at
- * level 0.  The planes hold cell-centred values (the writer averages the face velocities to
- * cell centres), so at level 0 a cell-centred component copies the plane, and a velocity
+ * level 0.  The planes hold cell-centered values (the writer averages the face velocities to
+ * cell centers), so at level 0 a cell-centered component copies the plane, and a velocity
  * component that is nodal along the face (y-velocity on an x face, x-velocity on a y face,
  * z-velocity on either) takes the average of the two plane cells either side of its node
  * (plane_index).

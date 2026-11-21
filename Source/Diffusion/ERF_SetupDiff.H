@@ -21,7 +21,7 @@
     [[maybe_unused]] bool l_implicit_diss = turbChoice.use_keqn && turbChoice.implicit_tke_dissipation;
     [[maybe_unused]] bool l_use_mynn = turbChoice.use_pbl_tke;
 
-    // Clamp the divisor to the smallest normal Real before the select: an optimised
+    // Clamp the divisor to the smallest normal Real before the select: an optimized
     //   build if-converts the select into an unconditional 1/theta_ref (also when
     //   the select is on the divisor), which trips fpe_trap_zero with the default
     //   theta_ref = 0. The clamp is exact for any normal theta_ref > 0 and its

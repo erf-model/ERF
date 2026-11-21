@@ -1185,7 +1185,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
 
                     // Global fine-level cell index and the corresponding
                     // coarse parent index.  Cloning is restricted to face-
-                    // adjacent neighbours inside the same coarse parent so
+                    // adjacent neighbors inside the same coarse parent so
                     // SDs cannot leak out of their parent's footprint --
                     // unrestricted cloning + count-based refinement creates
                     // a positive feedback loop that grows the fine BoxArray

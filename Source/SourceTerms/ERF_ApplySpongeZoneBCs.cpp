@@ -78,7 +78,7 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
     if(use_zhi_sponge_damping)AMREX_ALWAYS_ASSERT(zhi_sponge_start < ProbHiArr[2]);
 
     // Ramp lengths, computed here so that the kernels divide only by a valid length: the
-    // optimiser evaluates the guarded ramps of the sides that are switched off too, and the
+    // optimizer evaluates the guarded ramps of the sides that are switched off too, and the
     // lengths of those sides (whose ends are never read from the inputs) can be zero
     const Real L_xlo = use_xlo_sponge_damping ? (xlo_sponge_end - ProbLoArr[0]) : one;
     const Real L_xhi = use_xhi_sponge_damping ? (ProbHiArr[0] - xhi_sponge_start) : one;
@@ -272,7 +272,7 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
     if(use_zhi_sponge_damping)AMREX_ALWAYS_ASSERT(zhi_sponge_start < ProbHiArr[2]);
 
     // Ramp lengths, computed here so that the kernels divide only by a valid length: the
-    // optimiser evaluates the guarded ramps of the sides that are switched off too, and the
+    // optimizer evaluates the guarded ramps of the sides that are switched off too, and the
     // lengths of those sides (whose ends are never read from the inputs) can be zero
     const Real L_xlo = use_xlo_sponge_damping ? (xlo_sponge_end - ProbLoArr[0]) : one;
     const Real L_xhi = use_xhi_sponge_damping ? (ProbHiArr[0] - xhi_sponge_start) : one;
@@ -410,7 +410,7 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
 
         Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
         Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
-        // Height of the z-face centre: average of its four corner nodes, taken in pairs
+        // Height of the z-face center: average of its four corner nodes, taken in pairs
         // so that equal corner heights (no terrain) give back that height exactly
         Real z = myhalf * ( myhalf * (z_phys_nd(i,j  ,k) + z_phys_nd(i+1,j  ,k))
                           + myhalf * (z_phys_nd(i,j+1,k) + z_phys_nd(i+1,j+1,k)) );

@@ -11,7 +11,7 @@ using namespace amrex;
 
 /**
  * Read in the turbine locations in latitude-longitude from windturbines.txt
- * and convert it into x and y coordinates in metres
+ * and convert it into x and y coordinates in meters
  *
  * @param lev Integer specifying the current level
  */
