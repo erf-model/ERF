@@ -405,6 +405,60 @@ Diagnostics
 |                                                 | with ``ERF_USE_ML_UPHYS_DIAGNOSTICS``                    |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 
+Local droplet size distribution probes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A named probe counts liquid droplets inside a fixed sampling volume. It writes
+one whitespace-delimited file, ``<name>.dsd``, in the run directory: one row per
+sampled time. It needs SDM but not the optional ML diagnostics build or particle
+plotfiles. No probe runs unless named. For example, for a 2 x 2 x 1 metre chamber:
+
+::
+
+   super_droplets_moisture.dsd_probe_names    = S03 CellA
+   super_droplets_moisture.dsd_probe_interval = 40
+
+   super_droplets_moisture.S03.center       = 1.0 1.0 0.5
+   super_droplets_moisture.S03.side_lengths = 0.125
+   super_droplets_moisture.S03.rmin         = 0
+   super_droplets_moisture.S03.rmax         = 50.e-6
+   super_droplets_moisture.S03.nbins        = 50
+
+   super_droplets_moisture.CellA.cell       = 4 4 4
+   super_droplets_moisture.CellA.r_edges    = 0 2.e-6 5.e-6 10.e-6 20.e-6
+   super_droplets_moisture.CellA.write_mass = true
+
+Give **one** geometry per probe: ``cell`` is a level-0 cell index (including
+its refined descendants); ``box_lo`` and ``box_hi`` are opposite corners in physical
+model coordinates; or give ``center`` and ``side_lengths`` (one length for a cube,
+three for a cuboid). Boxes include the lower but not the upper faces. Each owned
+particle is tested at its position, without deposition or interpolation. On a
+terrain-fitted mesh, box heights are physical, not computational or above ground.
+The normalizing volume is the **full** box volume, not clipped to the terrain; put
+the whole box in the air for an air-volume concentration. An indexed cell uses
+its physical volume, including its local layer thickness.
+
+Specify strictly increasing ``r_edges``, or ``rmin``, ``rmax``, ``nbins`` and
+``spacing`` (``linear``, the default, or ``log`` with positive ``rmin``). All
+lengths and radii are in metres. Only active particles with positive liquid H2O
+mass contribute. Radius is the liquid-water-equivalent radius
+:math:`r=(3m_w/(4\pi\rho_w))^{1/3}`, not the diameter or total wet radius
+including aerosol and ice. Out-of-range radii are omitted.
+
+The header lists the edges and column units. After time in seconds, column
+:math:`N_b=\sum_{r_b\le r<r_{b+1}}\xi/V` is physical droplet number per cubic
+metre **in** bin :math:`b` (multiplicity :math:`\xi`, sample volume :math:`V`).
+Optional mass columns follow the number columns and contain :math:`\sum\xi m_w/V`
+in kg per cubic metre. Empty bins are zero. Divide by the linear or logarithmic
+bin width for a differential spectrum.
+
+The interval is in coarse timesteps (default 1), independent of
+``super_droplets_moisture.diagnostics_interval``. At a fixed timestep of 0.025 s,
+the example samples at 1 Hz. Set ``diagnostics_interval`` to ``0`` for probes
+without the usual whole-domain distribution files. A fresh run samples step 0;
+a restart preserves rows before the checkpoint time and replaces later rows,
+rejecting an incompatible header. A new probe name starts a new series.
+
 .. _sec:SuperDropletInitialization:
 
 Initialization blocks
