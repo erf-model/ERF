@@ -63,12 +63,6 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
     // skipped
     const bool by_fine_volume = (avgdown_by_fine_volume || perturbational_avgdown) &&
                                 !if_fluid_mass && (SolverChoice::terrain_type != TerrainType::EB);
-    if (by_fine_volume) {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            solverChoice.compressibility_type[crse_lev] != CompressibilityType::Anelastic,
-            "erf.average_down_by_fine_volume and erf.perturbational_average_down are not yet "
-            "available on anelastic levels");
-    }
 
     // ******************************************************************************************
     // First do cell-centered quantities
@@ -321,6 +315,16 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
  * add up to the coarse one; with the base state removed, a fine level in its base state averages
  * to the coarse base state.  The fine level is read only.
  *
+ * On an anelastic level rho is not averaged down (it is rho0 on each level), so the specific
+ * value S = q / rho is averaged with the fine masses w_f rho_f, as the plain anelastic branch of
+ * AverageDownTo does (#4904), and the coarse rho multiplies it:
+ *
+ *   q_c = rho_c [ S0_c + sum_f w_f rho_f (S_f - S0_f) / sum_f w_f rho_f ],
+ *
+ * with S0 = theta0 and (with moisture) qv0 in RhoTheta_comp and RhoQ1_comp with
+ * erf.perturbational_average_down, and zero otherwise.  erf.average_down_by_fine_volume makes no
+ * difference there: the sum of the fine masses is already the divisor.
+ *
  * @param[in] crse_lev coarse level
  * @param[in] scomp    first component
  * @param[in] ncomp    number of components
@@ -339,6 +343,8 @@ ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
           MultiFab& ccons = vars_new[crse_lev][Vars::cons];
 
     const bool by_fine  = avgdown_by_fine_volume;
+    const bool anelastic = (solverChoice.compressibility_type[crse_lev] == CompressibilityType::Anelastic);
+    AMREX_ALWAYS_ASSERT(!anelastic || scomp > Rho_comp);
     const bool pert     = perturbational_avgdown;
     const bool use_detJ = (SolverChoice::mesh_type != MeshType::ConstantDz);
     const bool l_moist  = (solverChoice.moisture_type != MoistureType::None);
@@ -349,11 +355,12 @@ ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
     const int iqv = (pert && l_moist &&
                      RhoQ1_comp    >= scomp && RhoQ1_comp    < scomp+ncomp) ? RhoQ1_comp    - scomp : -1;
 
-    // On the fine grids coarsened: sum_f w_f (q_f - q0_f) in components 0 to ncomp-1 and
-    //    sum_f w_f in component ncomp
+    // On the fine grids coarsened: sum_f w_f (q_f - q0_f) in components 0 to ncomp-1, sum_f w_f
+    //    in component ncomp and sum_f w_f rho_f in component ncomp+1.  On an anelastic level
+    //    q0_f is rho_f S0_f, so that the sums are sum_f w_f rho_f (S_f - S0_f)
     BoxArray cba = fcons.boxArray();
     cba.coarsen(rr);
-    MultiFab sums(cba, fcons.DistributionMap(), ncomp+1, 0);
+    MultiFab sums(cba, fcons.DistributionMap(), ncomp+2, 0);
 
     for (MFIter mfi(sums, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
@@ -366,7 +373,7 @@ ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
                                                       : Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            for (int n = 0; n <= ncomp; ++n) { s_arr(i,j,k,n) = zero; }
+            for (int n = 0; n <= ncomp+1; ++n) { s_arr(i,j,k,n) = zero; }
             for (int kk = 0; kk < rz; ++kk) {
             for (int jj = 0; jj < ry; ++jj) {
             for (int ii = 0; ii < rx; ++ii) {
@@ -375,7 +382,10 @@ ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
                 const int fk = k*rz + kk;
                 const Real w = ((use_detJ) ? dJ_arr(fi,fj,fk) : one)
                              / (mfx_arr(fi,fj,0)*mfy_arr(fi,fj,0));
-                const Real r0 = b_arr(fi,fj,fk,BaseState::r0_comp);
+                // The density the base state is scaled by: rho0 (q0 = rho0 S0), or on an
+                //    anelastic level the density itself (q0 = rho S0)
+                const Real r0 = (anelastic) ? f_arr(fi,fj,fk,Rho_comp)
+                                            : b_arr(fi,fj,fk,BaseState::r0_comp);
                 for (int n = 0; n < ncomp; ++n) {
                     Real q = f_arr(fi,fj,fk,scomp+n);
                     if (n == ir ) { q -= r0; }
@@ -383,15 +393,16 @@ ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
                     if (n == iqv) { q -= r0 * b_arr(fi,fj,fk,BaseState::qv0_comp); }
                     s_arr(i,j,k,n) += w * q;
                 }
-                s_arr(i,j,k,ncomp) += w;
+                s_arr(i,j,k,ncomp  ) += w;
+                s_arr(i,j,k,ncomp+1) += w * f_arr(fi,fj,fk,Rho_comp);
             }}}
         });
     }
 
     // On the coarse grids; cells no fine cell covers keep W = 0
-    MultiFab csums(ccons.boxArray(), ccons.DistributionMap(), ncomp+1, 0);
+    MultiFab csums(ccons.boxArray(), ccons.DistributionMap(), ncomp+2, 0);
     csums.setVal(zero);
-    csums.ParallelCopy(sums, 0, 0, ncomp+1);
+    csums.ParallelCopy(sums, 0, 0, ncomp+2);
 
     for (MFIter mfi(ccons, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
@@ -409,6 +420,18 @@ ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
             const Real W = (by_fine) ? wsum
                                      : n_fine * ((use_detJ) ? dJ_arr(i,j,k) : one)
                                               / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+            if (anelastic) {
+                // rho_c is the coarse level's own, and is kept
+                const Real rho_c = c_arr(i,j,k,Rho_comp);
+                const Real mass  = s_arr(i,j,k,ncomp+1);
+                for (int n = 0; n < ncomp; ++n) {
+                    Real S0 = zero;
+                    if (n == irt) { S0 = b_arr(i,j,k,BaseState::th0_comp); }
+                    if (n == iqv) { S0 = b_arr(i,j,k,BaseState::qv0_comp); }
+                    c_arr(i,j,k,scomp+n) = rho_c * (S0 + s_arr(i,j,k,n) / mass);
+                }
+                return;
+            }
             const Real r0 = b_arr(i,j,k,BaseState::r0_comp);
             for (int n = 0; n < ncomp; ++n) {
                 Real q0 = zero;
