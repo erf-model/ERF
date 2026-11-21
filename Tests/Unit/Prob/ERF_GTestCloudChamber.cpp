@@ -418,7 +418,7 @@ TEST(CloudChamberConfig, MoistureModelSupportIsAnExplicitTypedAllowlist)
         {MoistureType::Morrison_NoIce, true},
         {MoistureType::Morrison, true},
         {MoistureType::SBM, false},
-        {MoistureType::SuperDroplets, false}};
+        {MoistureType::SuperDroplets, true}};
 
     for (const auto& [model, supported] : expected) {
         EXPECT_EQ(erf_cloud_chamber::supports_moisture_model(model), supported)

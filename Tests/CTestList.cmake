@@ -1721,20 +1721,15 @@ add_test_cloud_chamber_bulk_legacy(CloudChamber_BulkSmoke_Legacy_Kessler_NoRain 
 # the Cloud Chamber typed allowlist. Direct parser failures have separate tests.
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SBM SBM 0
     "SBM does not support molecular diffusion")
-# Motivation: Anelastic SDM is valid in ERF, but Cloud Chamber still rejects
-# particle models before time stepping or output. Without particle support,
-# the earlier global build-capability guard must reject the same input.
-if(ERF_ENABLE_PARTICLES)
-    set(_cloud_chamber_sdm_reject "Cloud Chamber: selected moisture model is unsupported")
-else()
-    set(_cloud_chamber_sdm_reject "Lagrangian microphysics can be used when compiled with ERF_USE_PARTICLES")
+# Motivation: Cloud Chamber accepts SDM, but without particle support the
+# global build-capability guard must still reject it before time stepping.
+if(NOT ERF_ENABLE_PARTICLES)
+    add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SuperDroplets SuperDroplets 0
+        "Lagrangian microphysics can be used when compiled with ERF_USE_PARTICLES")
 endif()
-add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SuperDroplets SuperDroplets 0
-    "${_cloud_chamber_sdm_reject}")
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_Budget Kessler 1
     "cloud_chamber_budget_interval supports only physical_temperature_rh")
 add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SBM SBM)
-add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SuperDroplets SuperDroplets)
 add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_None None
     EXPECTED_TEXT "omit erf.moisture_model for dry mode")
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
