@@ -215,6 +215,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
                                             m_dt,
                                             m_name );
     m_super_droplets->setVariableDz(m_variable_dz);
+    readDSDProbes();
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
