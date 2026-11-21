@@ -1257,7 +1257,7 @@ Notes
      the horizontal and vertical eddy viscosities can differ (Smagorinsky2D, Smagorinsky or
      Deardorff with **erf.mix_isotropic** = false, or any PBL scheme), the largest slope factor
      :math:`\alpha = h \Delta x/\Delta z` of each level and the number of cells with
-     :math:`\alpha > 1` are printed whenever a level has a new set of grids (at initialisation,
+     :math:`\alpha > 1` are printed whenever a level has a new set of grids (at initialization,
      on the first step after a restart, and at the coarse step after a regrid), and with
      **erf.terrain_type** = MovingFittedMesh also whenever the largest :math:`\alpha` changes by
      more than 1 %.  Without those options nothing is computed or printed.
@@ -2842,7 +2842,7 @@ List of Parameters
 | **erf.enable_ysu_cloud_pblh**            | YSU only, with a moisture model: raise the PBL-top cell  | Boolean            | true             |
 |                                          | index by one where the cloud water plus cloud ice in the |                    |                  |
 |                                          | PBL-top cell exceeds ``erf.ysu_qcloud_threshold``. The   |                    |                  |
-|                                          | PBL height in metres does not change. Applies whether    |                    |                  |
+|                                          | PBL height in meters does not change. Applies whether    |                    |                  |
 |                                          | or not ``erf.enable_ysu_entrainment`` is set             |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.ysu_qcloud_threshold**             | YSU only: cloud water plus cloud ice [kg/kg] above which | Real               | 1.0e-4           |

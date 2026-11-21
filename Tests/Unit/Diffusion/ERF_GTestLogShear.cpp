@@ -32,7 +32,7 @@ constexpr Real s11val = Real(2.0e-3); // a normal strain, to be kept
 
 Real log_u (Real d) { return ustar / kappa * std::log((d + z0) / z0); }
 
-// The column: node heights, cell-centre wall distances and the two S_mn S_mn of every cell
+// The column: node heights, cell-center wall distances and the two S_mn S_mn of every cell
 struct Column {
     std::vector<Real> zf, d;
     std::vector<Real> central, corrected;
@@ -71,7 +71,7 @@ run_column (const std::vector<Real>& zf, Profile profile, Real d_scale = Real(1)
     }
     f11.setVal<RunOn::Host>(s11val);
 
-    // Heights of the nodes and of the cell centres, with one layer mirrored below and above
+    // Heights of the nodes and of the cell centers, with one layer mirrored below and above
     std::vector<Real> zn(nz + 3), zc(nz + 2), uc(nz + 2);
     for (int k = 0; k <= nz; ++k) { zn[k+1] = zf[k]; }
     zn[0]    = -zf[1];
@@ -172,7 +172,7 @@ Real rel_tol ()
 } // namespace
 
 // Uniform layers of Neutral_ABL_Flat (dz = 15.625 m, z0 = 0.1 m): the central difference of the log
-// profile is larger than the gradient at the cell centre by 1.2046, 1.0588 and 1.0285 in the cells
+// profile is larger than the gradient at the cell center by 1.2046, 1.0588 and 1.0285 in the cells
 // 2, 3 and 4 (the numbers of the issue), and the corrected S_mn S_mn is the closed form.
 TEST(LogShear, UniformLayersLogProfileIsExact)
 {
@@ -293,7 +293,7 @@ TEST(LogShear, CorrectBoxOnFieldsVaryingInXAndY)
         EXPECT_EQ(s(i,j,0),    S0(i,j,0))    << "wall cell";
         EXPECT_EQ(s(i,j,nz-1), S0(i,j,nz-1)) << "top cell";
         for (int k = 1; k < nz - 1; ++k) {
-            // heights of the cell centres k-1, k, k+1: mean of the eight nodes of each cell
+            // heights of the cell centers k-1, k, k+1: mean of the eight nodes of each cell
             auto zc = [&] (int kk) {
                 Real sum = Real(0);
                 for (int dk = 0; dk <= 1; ++dk) { for (int dj = 0; dj <= 1; ++dj) { for (int di = 0; di <= 1; ++di) {

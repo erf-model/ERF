@@ -138,7 +138,7 @@ boundary is cut there.
 
 The bubble is added to the random (``T_0_Pert_Mag``) and sinusoidal (``pert_deltaT``)
 perturbations when those are set as well. WRF places the center on the mass point
-:math:`i_c = (\mathrm{ide}-\mathrm{ids})/2` (rounded down), whose centre is
+:math:`i_c = (\mathrm{ide}-\mathrm{ids})/2` (rounded down), whose center is
 :math:`x_c = (i_c - 1/2)\,\Delta x` from the domain's west edge: for an even number of cells,
 half a cell short of the domain center (and likewise in y). Use that value to match WRF exactly.
 

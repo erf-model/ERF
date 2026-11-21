@@ -362,7 +362,7 @@ surface-temperature inputs must not be set with it.
 The air temperature :math:`T_{air}` and the Exner function :math:`\Pi` of a
 face's fluid cell come from ERF's equation of state, as in the two-stream
 columns. With the cell's dry density :math:`\rho`, dry potential temperature
-:math:`\theta_{air}` and water vapour mixing ratio :math:`q_v`,
+:math:`\theta_{air}` and water vapor mixing ratio :math:`q_v`,
 
 .. math::
 

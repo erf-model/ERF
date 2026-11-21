@@ -70,7 +70,7 @@ PRESETS: Dict[str, dict] = {
         about="Fitch wind-farm parameterisation with the MYNN PBL scheme (needs a wind-farm build)",
         setup="abl", windfarm="fitch", turbulence="mynn25", surface="most", coriolis=True, forcing="geostrophic",
         domain=[16000.0, 16000.0, 4000.0], nx=32, ny=32, nz=40, output="plt,chk,logs"),
-    # ---- buoyant and moist idealised cases -------------------------------------------------
+    # ---- buoyant and moist idealized cases -------------------------------------------------
     "warm_bubble": dict(
         about="dry warm bubble in a neutral atmosphere",
         setup="bubble", output="plt,chk,logs"),

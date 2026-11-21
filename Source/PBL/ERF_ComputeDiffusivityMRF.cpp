@@ -212,7 +212,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     ---------------------------------
     With the K-profile applied in every regime, this scheme inherits WRF MRF's
     over-mixing of stable boundary layers: on GABLS1 its peak K_m is roughly
-    2.1x YSU.  That is the behaviour Hong et al. (2006) set out to fix in YSU,
+    2.1x YSU.  That is the behavior Hong et al. (2006) set out to fix in YSU,
     so stable cases that need the weaker mixing should use the YSU scheme
     (erf.pbl_type = YSU).
 
@@ -1249,7 +1249,7 @@ Real fire_kbfs_max      = Real(0);
                 K_turb(i, j, k, EddyDiff::Scalar_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             }
 
-            // Scale-aware blending for grey-zone resolution (Boutle et al. 2014).
+            // Scale-aware blending for gray-zone resolution (Boutle et al. 2014).
             // ERF_PBLScaleAwareBlending.H. Gated by pbl_blend_length > 0.
             // Applied to Theta_v and Q_v. Mom_v is not modified.
             //

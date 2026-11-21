@@ -334,7 +334,7 @@ surface moisture condition for the water vapor, as the flat surface layer does: 
 a surface mixing ratio is given), written on the wall face as the water-vapor flux the TKE buoyancy and the
 output read, and the Obukhov length is formed from the virtual potential temperature, as the flat surface layer
 forms it: :math:`L = u_*^2 \theta_v / (\kappa g \theta_{v*})` with :math:`\theta_v = \theta(1 + \epsilon_v q)` and
-:math:`\theta_{v*} = \theta_*(1 + \epsilon_v q) + \epsilon_v \theta q_*` (water vapour only; the flat surface
+:math:`\theta_{v*} = \theta_*(1 + \epsilon_v q) + \epsilon_v \theta q_*` (water vapor only; the flat surface
 layer's :math:`\theta_v` subtracts rain water too), iterated with :math:`u_*` also when only
 a moisture condition is given; a given ``erf.if_Olen`` sets :math:`\theta_{v*}`, and
 :math:`\theta_* = (\theta_{v*} - \epsilon_v \theta q_*)/(1 + \epsilon_v q)`. Under ``erf.rans_moist_buoyancy`` the wall TKE below uses

@@ -74,7 +74,7 @@ public:
      * of the surface copy that holds the column it faces.
      *
      * Where a box seam meets a non-periodic edge, the ghost cells beyond the edge next to
-     * the seam lie in the grown boxes of both neighbours, and no FillBoundary reconciles
+     * the seam lie in the grown boxes of both neighbors, and no FillBoundary reconciles
      * them: each box fills its copy from its own valid region.  A cell beyond the edge is
      * here assigned to the surface copy whose valid region holds the cell's projection into
      * the domain (its index clamped into the domain in each non-periodic direction), and that

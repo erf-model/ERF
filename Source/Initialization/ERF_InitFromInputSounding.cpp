@@ -267,7 +267,7 @@ ERF::build_base_state_from_input_sounding (int lev, MultiFab& base_state_mf)
 {
     AMREX_ALWAYS_ASSERT(solverChoice.sounding_type != SoundingType::ConstantDensity);
 
-    // The sounding sampled at this level's own cell centres
+    // The sounding sampled at this level's own cell centers
     const InputSoundingData& sounding = sounding_at_level(lev);
 
     const bool l_isentropic = (solverChoice.sounding_type == SoundingType::Isentropic ||
