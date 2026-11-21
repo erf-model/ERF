@@ -448,6 +448,9 @@ public:
     void momentum_reflux (int crse_lev);
     void momentum_reflux_add_sources (int lev, amrex::MultiFab& xmom_src, amrex::MultiFab& ymom_src);
     void momentum_reflux_reset ();
+    // The impulse still to be given, to and from a checkpoint
+    void write_momentum_reflux_checkpoint (const std::string& checkpointname) const;
+    void read_momentum_reflux_checkpoint (int lev);
 
     void WriteMyEBSurface ();
 

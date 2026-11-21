@@ -807,6 +807,10 @@ ERF::WriteCheckpointFile () const
     }
 #endif
 
+    // The impulse of the last momentum reflux, which the next coarse step gives
+    // (erf.momentum_reflux, ERF_MomentumReflux.cpp)
+    write_momentum_reflux_checkpoint(checkpointname);
+
     if (m_SurfaceModel) {
         m_SurfaceModel->WriteCheckpoint(checkpointname);
     }
@@ -2482,6 +2486,12 @@ ERF::ReadCheckpointFile ()
         }
 #endif
     } // for lev
+
+    // The impulse of the last momentum reflux before the checkpoint, which the first coarse
+    // step of this run gives (erf.momentum_reflux, ERF_MomentumReflux.cpp)
+    for (int lev = 0; lev < finest_level; ++lev) {
+        read_momentum_reflux_checkpoint(lev);
+    }
 
     // The wrfinput land and soil fields that no land model takes: data of the initial time,
     // restored onto this run's grids. A checkpoint written before they were stored leaves
