@@ -135,9 +135,9 @@ initialization_contract_error (const InitializationContract& contract)
 /**
  * @brief Return whether a moisture type is supported by the Cloud Chamber.
  *
- * This is intentionally an allowlist.  In particular, particle-based
- * SuperDroplets and spectral SBM remain outside the chamber's supported
- * moisture configurations even though they are valid ERF moisture types.
+ * This is intentionally an allowlist.  In particular, spectral SBM remains
+ * outside the chamber's supported moisture configurations even though it is
+ * a valid ERF moisture type.
  */
 inline bool
 supports_moisture_model (const MoistureType moisture_type) noexcept
