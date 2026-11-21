@@ -411,7 +411,7 @@ Local droplet size distribution probes
 A named probe counts liquid droplets inside a fixed sampling volume. It writes
 one whitespace-delimited file, ``<name>.dsd``, in the run directory: one row per
 sampled time. It needs SDM but not the optional ML diagnostics build or particle
-plotfiles. No probe runs unless named. For example, for a 2 x 2 x 1 metre chamber:
+plotfiles. No probe runs unless named. For example, for a 2 x 2 x 1 meter chamber:
 
 ::
 
@@ -440,16 +440,16 @@ its physical volume, including its local layer thickness.
 
 Specify strictly increasing ``r_edges``, or ``rmin``, ``rmax``, ``nbins`` and
 ``spacing`` (``linear``, the default, or ``log`` with positive ``rmin``). All
-lengths and radii are in metres. Only active particles with positive liquid H2O
+lengths and radii are in meters. Only active particles with positive liquid H2O
 mass contribute. Radius is the liquid-water-equivalent radius
 :math:`r=(3m_w/(4\pi\rho_w))^{1/3}`, not the diameter or total wet radius
 including aerosol and ice. Out-of-range radii are omitted.
 
 The header lists the edges and column units. After time in seconds, column
 :math:`N_b=\sum_{r_b\le r<r_{b+1}}\xi/V` is physical droplet number per cubic
-metre **in** bin :math:`b` (multiplicity :math:`\xi`, sample volume :math:`V`).
+meter **in** bin :math:`b` (multiplicity :math:`\xi`, sample volume :math:`V`).
 Optional mass columns follow the number columns and contain :math:`\sum\xi m_w/V`
-in kg per cubic metre. Empty bins are zero. Divide by the linear or logarithmic
+in kg per cubic meter. Empty bins are zero. Divide by the linear or logarithmic
 bin width for a differential spectrum.
 
 The interval is in coarse timesteps (default 1), independent of

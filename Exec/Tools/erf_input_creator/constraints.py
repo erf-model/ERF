@@ -168,7 +168,7 @@ RULES: List[Rule] = [
     # Source/SourceTerms/ERF_MakeMomSources.cpp:119-121
     (lambda s: s.canopy != "none" and s.method == "immersed",
      "--canopy file cannot be used with --terrain-method immersed; ERF stops"),
-    # ERF_SurfaceLayer.H:841: the reference height (first cell centre) must exceed the roughness length
+    # ERF_SurfaceLayer.H:841: the reference height (first cell center) must exceed the roughness length
     (lambda s: s.zlo_most and 0.5 * s.dz_first <= s.z0,
      "--z0 {z0} m is not below the first cell centre, {half_first} m; ERF stops. Lower --z0 or thicken the first cell"),
     # Source/LinearSolvers/ERF_PoissonWallDist.cpp: the wall-distance solve needs a no-slip or surface-layer face

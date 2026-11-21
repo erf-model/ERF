@@ -52,7 +52,7 @@ namelist and table) are listed as files to supply. The script prints, and saves 
 
 A combination that ERF refuses at start-up is refused by the script, with a message that
 names the options (for example a PBL scheme without ``--surface most``, or
-``--forcing geostrophic`` without ``--coriolis``). The options cover idealised cases
+``--forcing geostrophic`` without ``--coriolis``). The options cover idealized cases
 (``--setup abl``, ``hill``, ``bubble``, ``density_current``) and real-data cases
 (``wrfinput``, ``metgrid``); terrain from an analytic hill or a table on a fitted mesh, by
 immersed forcing or as an embedded boundary; buildings; vertical stretching; the turbulence

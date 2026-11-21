@@ -52,7 +52,7 @@ def _refinement(sec, s) -> None:
         names = ["box%d" % (lev + 1) for lev in range(s.levels)]
         sec.set("erf.refinement_indicators", names, "one criterion per level; keys erf.<name>.*")
         for lev, name in enumerate(names):
-            frac = 0.25 + 0.125 * lev          # nested boxes around the domain centre
+            frac = 0.25 + 0.125 * lev          # nested boxes around the domain center
             sec.set("erf.%s.max_level" % name, lev + 1, "refine up to this level inside the box")
             sec.user("erf.%s.in_box_lo" % name, (s.lo[0] + frac * lx, s.lo[1] + frac * ly), "[m] x y of the lower corner")
             sec.user("erf.%s.in_box_hi" % name, (s.hi[0] - frac * lx, s.hi[1] - frac * ly), "[m] x y of the upper corner")

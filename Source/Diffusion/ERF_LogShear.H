@@ -17,7 +17,7 @@
  *
  * ComputeSmnSmn averages the strains of the faces below and above a cell, which for du/dz is the
  * central difference (u_{k+1} - u_{k-1}) / (z_{k+1} - z_{k-1}) on uniform layers. For the profile
- * u = (u_* / kappa) ln((d + z0) / z0) that difference is larger than du/dz at the cell centre by
+ * u = (u_* / kappa) ln((d + z0) / z0) that difference is larger than du/dz at the cell center by
  * the factor (d_k + z0) ln((d_{k+1} + z0) / (d_{k-1} + z0)) / (d_{k+1} - d_{k-1}): 1.21 in the
  * second cell of uniform layers, 1.06 in the third and 1.03 in the fourth (z0 << dz), and
  * 1 + dz^2 / (3 d^2) far from the ground. The shear production of k, 2 nu_t S_mn S_mn, is then
@@ -27,8 +27,8 @@
  *
  *   du/dz = (u_{k+1} - u_{k-1}) / [ (d_k + z0) ln((d_{k+1} + z0) / (d_{k-1} + z0)) ]
  *
- * and the same for v, with u and v averaged to the cell centres, d_k the closure's wall distance,
- * d_{k-1} and d_{k+1} that distance less and plus the height differences of the cell centres, and
+ * and the same for v, with u and v averaged to the cell centers, d_k the closure's wall distance,
+ * d_{k-1} and d_{k+1} that distance less and plus the height differences of the cell centers, and
  * z0 the surface layer's roughness length of the column. S_mn S_mn changes by the difference of
  * its (1,3) and (2,3) terms; dw/dx, dw/dy and the other components stay as ComputeStrain_* formed
  * them. A cell whose d_{k-1} + z0 would not be positive is left as it is.
@@ -108,7 +108,7 @@ corrected_SmnSmn (int i, int j, int k, amrex::Real SmnSmn,
                   amrex::Real z0,
                   const amrex::Array4<amrex::Real const>& z_nd) noexcept
 {
-    // Heights of the cell centres k-1 and k+1 relative to the centre k, from the nodes: the wall
+    // Heights of the cell centers k-1 and k+1 relative to the center k, from the nodes: the wall
     // distance is read in the cell itself only, so the result does not depend on how the boxes
     // are cut or on ghost cells of the distance.
     const amrex::Real dz_lo = amrex::Real(0.125) * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
@@ -124,7 +124,7 @@ corrected_SmnSmn (int i, int j, int k, amrex::Real SmnSmn,
     if (!(dm > zero && dc > dm && dp > dc)) { return SmnSmn; }
     const amrex::Real inv_lg = one / (dc * std::log(dp / dm));
 
-    // The log-consistent gradients, from the velocities averaged to the cell centres
+    // The log-consistent gradients, from the velocities averaged to the cell centers
     const amrex::Real gu_new = myhalf * ( u(i,j,k+1) + u(i+1,j,k+1) - u(i,j,k-1) - u(i+1,j,k-1) ) * inv_lg;
     const amrex::Real gv_new = myhalf * ( v(i,j,k+1) + v(i,j+1,k+1) - v(i,j,k-1) - v(i,j+1,k-1) ) * inv_lg;
 
@@ -138,7 +138,7 @@ corrected_SmnSmn (int i, int j, int k, amrex::Real SmnSmn,
                                         + (v(i,j+1,k  ) - v(i,j+1,k-1)) * inv_dz_yedge(i,j+1,k  ,z_nd)
                                         + (v(i,j+1,k+1) - v(i,j+1,k  )) * inv_dz_yedge(i,j+1,k+1,z_nd) );
 
-    // The cell-centred strains of ComputeSmnSmn, and the same with the new gradients
+    // The cell-centered strains of ComputeSmnSmn, and the same with the new gradients
     const amrex::Real s13_old = fourth * ( s13(i,j,k) + s13(i,j,k+1) + s13(i+1,j,k) + s13(i+1,j,k+1) );
     const amrex::Real s23_old = fourth * ( s23(i,j,k) + s23(i,j,k+1) + s23(i,j+1,k) + s23(i,j+1,k+1) );
     const amrex::Real s13_new = s13_old + myhalf * (gu_new - gu_old);

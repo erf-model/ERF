@@ -1964,7 +1964,7 @@ unset(TEST_FILES_DIR)
 # was skipped whenever erf.enable_ysu_entrainment = false and the first test gave 0.10983.
 # The second test switches the extension off, and the third keeps it with the entrainment
 # term on (0.14500; the entrainment diffusivity goes to the cell above). The second and third
-# gave the same values before the fix: they pin the behaviour the fix must not change. The
+# gave the same values before the fix: they pin the behavior the fix must not change. The
 # bounds are 3.5 percent wide, since the value carries the density, and the two outcomes
 # differ by 32 percent.
 add_test_column_bounds(PBL_CloudTop_YSU "plt00003" 480 "Kmv" "0.140" "0.150" Z_MAX 512 N_CELLS 1)

@@ -4,7 +4,7 @@
 #
 # A heated surface under a 285 K mixed layer, capped by a 10 K inversion whose
 # first cell (k = 15, z = 496 m, dz = 32 m) starts supersaturated: the sounding
-# gives it 16 g/kg of vapour, and the saturation adjustment of the first step
+# gives it 16 g/kg of vapor, and the saturation adjustment of the first step
 # leaves about 0.6 g/kg of cloud water there, above erf.ysu_qcloud_threshold
 # (0.1 g/kg).  The bulk Richardson number crosses Ribcr in that cell, so it is
 # the PBL-top cell, and the PBL height (about 466 m) lies below its top face

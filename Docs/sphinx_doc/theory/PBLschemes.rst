@@ -674,7 +674,7 @@ vertical solve that the A-stable integrators (MidPoint, RK3) do not damp.
 
    Using the profile in every regime also inherits WRF MRF's over-mixing of stable boundary
    layers: on GABLS1 the peak :math:`K_m` is about twice that of :ref:`YSU<YSUPBL>`.  This is the
-   behaviour that Hong et al. (2006) addressed in YSU, so stable cases that need the weaker
+   behavior that Hong et al. (2006) addressed in YSU, so stable cases that need the weaker
    mixing should set ``erf.pbl_type = YSU``.
 
 The turbulent diffusion coefficient in the free atmosphere is computed from the YSU model as the MRF

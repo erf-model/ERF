@@ -181,7 +181,7 @@ Then the acoustic substepping evolves the equations in the form
             \right)
 
 where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)`, and
-:math:`\Theta_m = \Theta (1 + \frac{R_v}{R_d} q_v)` is the moist analogue of :math:`\Theta`
+:math:`\Theta_m = \Theta (1 + \frac{R_v}{R_d} q_v)` is the moist analog of :math:`\Theta`
 which accounts for the contribution of water vapor to the pressure.
 
 The second term in the :math:`W^{\prime \prime}` equation above arises from differentiating

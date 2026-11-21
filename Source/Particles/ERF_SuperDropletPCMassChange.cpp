@@ -124,7 +124,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
             if (ptrs.active_ptr[i] == 0) { return; }
 
             // skip particles with an ice core (pure ice or mixed); the melt step owns
-            // wet-ice/vapour exchange
+            // wet-ice/vapor exchange
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (a_is_water && (par_phase != SDPhase::water)) { return; }
 

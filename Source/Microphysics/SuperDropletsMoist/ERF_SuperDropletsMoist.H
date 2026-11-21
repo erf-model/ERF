@@ -539,8 +539,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             std::string name;
             bool by_cell = false;
             amrex::IntVect cell{0}; // level 0
-            amrex::GpuArray<amrex::Real,3> lo{}, hi{}; // physical metres
-            amrex::Vector<double> edges; // liquid-water-equivalent radii, metres
+            amrex::GpuArray<amrex::Real,3> lo{}, hi{}; // physical meters
+            amrex::Vector<double> edges; // liquid-water-equivalent radii, meters
             bool write_mass = false;
             amrex::Gpu::DeviceVector<double> device_edges, histogram;
             amrex::Vector<double> sums;
