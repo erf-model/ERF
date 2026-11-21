@@ -41,10 +41,15 @@ def read_replace_list(path):
 
 
 def _sha256(path):
+    """sha256 of the file with CRLF read as LF, so a dummy re-saved by a Windows editor still matches."""
     h = hashlib.sha256()
+    carry = b""
     with open(path, "rb") as fh:
         for block in iter(lambda: fh.read(1 << 20), b""):
-            h.update(block)
+            block = carry + block
+            carry = b"\r" if block.endswith(b"\r") else b""   # a CRLF split across two blocks
+            h.update(block[:len(block) - len(carry)].replace(b"\r\n", b"\n"))
+    h.update(carry)
     return h.hexdigest()
 
 

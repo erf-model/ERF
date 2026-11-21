@@ -137,7 +137,7 @@ def write(s, deck: DeckText, files: List[AuxFile], case: dict = None) -> List[st
         os.makedirs(s.outdir, exist_ok=True)
         for name, text in targets:
             path = os.path.join(s.outdir, name)
-            with open(path, "w", encoding="utf-8") as fh:
+            with open(path, "w", encoding="utf-8", newline="\n") as fh:   # LF everywhere: the sha256 is of this text
                 fh.write(text)
             paths.append(path)
     except OSError as exc:
