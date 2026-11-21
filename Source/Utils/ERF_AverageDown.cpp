@@ -57,13 +57,26 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
                                (solverChoice.terrain_type   == TerrainType::ImmersedForcing ||
                                 solverChoice.buildings_type == BuildingsType::ImmersedForcing);
 
+    // erf.average_down_by_fine_volume / erf.perturbational_average_down: the cell-centered state
+    // is averaged by AverageDownConsByFineVolume, which reads the fine level as it is and writes
+    // the covered coarse cells only, so the scaling of the state around the plain average is
+    // skipped
+    const bool by_fine_volume = (avgdown_by_fine_volume || perturbational_avgdown) &&
+                                !if_fluid_mass && (SolverChoice::terrain_type != TerrainType::EB);
+    if (by_fine_volume) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            solverChoice.compressibility_type[crse_lev] != CompressibilityType::Anelastic,
+            "erf.average_down_by_fine_volume and erf.perturbational_average_down are not yet "
+            "available on anelastic levels");
+    }
+
     // ******************************************************************************************
     // First do cell-centered quantities
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
     // m is the map scale factor at cell centers
     // Here we multiply (rho S) by detJ and divide (rho S) by m^2 before average down
     // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass; lev++) {
+    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass && !by_fine_volume; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
@@ -111,6 +124,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
         if_average_down(fcons, vars_new[crse_lev][Vars::cons],
                         *terrain_blanking[fine_lev], *terrain_blanking[crse_lev], vol_fine,
                         scomp, ncomp, refRatio(crse_lev));
+    } else if (by_fine_volume) {
+        AverageDownConsByFineVolume(crse_lev, scomp, ncomp);
     } else if (SolverChoice::terrain_type != TerrainType::EB) {
         // Anelastic: rho is not averaged down (rho == rho0 on each level), so averaging
         //    w (rho S) with w = detJ/(m_x m_y) gives rho_c S for a uniform S only if the fine
@@ -182,7 +197,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
     // ******************************************************************************************
     // Here we multiply (rho S) by m^2 and divide by detJ after average down
     // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass; lev++) {
+    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass && !by_fine_volume; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
@@ -287,6 +302,122 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
                         Geom(lev).Domain(),
                         domain_bcs_type,
                         c_vfrac);
+    }
+}
+
+/**
+ * Average the cell-centered state of level crse_lev+1 down onto the covered cells of level
+ * crse_lev, for erf.average_down_by_fine_volume and erf.perturbational_average_down.
+ *
+ * With w = detJ / (m_x m_y) the volume of a cell (1 / (m_x m_y) on a constant-dz mesh), a covered
+ * coarse cell gets
+ *
+ *   q_c = q0_c + sum_f w_f (q_f - q0_f) / W,
+ *
+ * with W = sum_f w_f (erf.average_down_by_fine_volume) or N w_c, N the number of fine cells in a
+ * coarse cell (the plain, mass-exact average).  q0 is rho0, rho0 theta0 and (with moisture)
+ * rho0 qv0 in Rho_comp, RhoTheta_comp and RhoQ1_comp with erf.perturbational_average_down, and
+ * zero otherwise.  With W = sum_f w_f a uniform value stays uniform where the fine volumes do not
+ * add up to the coarse one; with the base state removed, a fine level in its base state averages
+ * to the coarse base state.  The fine level is read only.
+ *
+ * @param[in] crse_lev coarse level
+ * @param[in] scomp    first component
+ * @param[in] ncomp    number of components
+ */
+void
+ERF::AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp)
+{
+    const int fine_lev = crse_lev + 1;
+    const IntVect rr = refRatio(crse_lev);
+    const int rx = rr[0];
+    const int ry = rr[1];
+    const int rz = rr[2];
+    const Real n_fine = Real(rx*ry*rz);
+
+    const MultiFab& fcons = vars_new[fine_lev][Vars::cons];
+          MultiFab& ccons = vars_new[crse_lev][Vars::cons];
+
+    const bool by_fine  = avgdown_by_fine_volume;
+    const bool pert     = perturbational_avgdown;
+    const bool use_detJ = (SolverChoice::mesh_type != MeshType::ConstantDz);
+    const bool l_moist  = (solverChoice.moisture_type != MoistureType::None);
+
+    // The components, counted from scomp, whose base state is taken out (-1 for none)
+    const int ir  = (pert && Rho_comp      >= scomp && Rho_comp      < scomp+ncomp) ? Rho_comp      - scomp : -1;
+    const int irt = (pert && RhoTheta_comp >= scomp && RhoTheta_comp < scomp+ncomp) ? RhoTheta_comp - scomp : -1;
+    const int iqv = (pert && l_moist &&
+                     RhoQ1_comp    >= scomp && RhoQ1_comp    < scomp+ncomp) ? RhoQ1_comp    - scomp : -1;
+
+    // On the fine grids coarsened: sum_f w_f (q_f - q0_f) in components 0 to ncomp-1 and
+    //    sum_f w_f in component ncomp
+    BoxArray cba = fcons.boxArray();
+    cba.coarsen(rr);
+    MultiFab sums(cba, fcons.DistributionMap(), ncomp+1, 0);
+
+    for (MFIter mfi(sums, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const Array4<      Real> s_arr   = sums.array(mfi);
+        const Array4<const Real> f_arr   = fcons.const_array(mfi);
+        const Array4<const Real> b_arr   = base_state[fine_lev].const_array(mfi);
+        const Array4<const Real> mfx_arr = mapfac[fine_lev][MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real> mfy_arr = mapfac[fine_lev][MapFacType::m_y]->const_array(mfi);
+        const Array4<const Real> dJ_arr  = (use_detJ) ? detJ_cc[fine_lev]->const_array(mfi)
+                                                      : Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            for (int n = 0; n <= ncomp; ++n) { s_arr(i,j,k,n) = zero; }
+            for (int kk = 0; kk < rz; ++kk) {
+            for (int jj = 0; jj < ry; ++jj) {
+            for (int ii = 0; ii < rx; ++ii) {
+                const int fi = i*rx + ii;
+                const int fj = j*ry + jj;
+                const int fk = k*rz + kk;
+                const Real w = ((use_detJ) ? dJ_arr(fi,fj,fk) : one)
+                             / (mfx_arr(fi,fj,0)*mfy_arr(fi,fj,0));
+                const Real r0 = b_arr(fi,fj,fk,BaseState::r0_comp);
+                for (int n = 0; n < ncomp; ++n) {
+                    Real q = f_arr(fi,fj,fk,scomp+n);
+                    if (n == ir ) { q -= r0; }
+                    if (n == irt) { q -= r0 * b_arr(fi,fj,fk,BaseState::th0_comp); }
+                    if (n == iqv) { q -= r0 * b_arr(fi,fj,fk,BaseState::qv0_comp); }
+                    s_arr(i,j,k,n) += w * q;
+                }
+                s_arr(i,j,k,ncomp) += w;
+            }}}
+        });
+    }
+
+    // On the coarse grids; cells no fine cell covers keep W = 0
+    MultiFab csums(ccons.boxArray(), ccons.DistributionMap(), ncomp+1, 0);
+    csums.setVal(zero);
+    csums.ParallelCopy(sums, 0, 0, ncomp+1);
+
+    for (MFIter mfi(ccons, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const Array4<      Real> c_arr   = ccons.array(mfi);
+        const Array4<const Real> s_arr   = csums.const_array(mfi);
+        const Array4<const Real> b_arr   = base_state[crse_lev].const_array(mfi);
+        const Array4<const Real> mfx_arr = mapfac[crse_lev][MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real> mfy_arr = mapfac[crse_lev][MapFacType::m_y]->const_array(mfi);
+        const Array4<const Real> dJ_arr  = (use_detJ) ? detJ_cc[crse_lev]->const_array(mfi)
+                                                      : Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real wsum = s_arr(i,j,k,ncomp);
+            if (wsum <= zero) { return; }
+            const Real W = (by_fine) ? wsum
+                                     : n_fine * ((use_detJ) ? dJ_arr(i,j,k) : one)
+                                              / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+            const Real r0 = b_arr(i,j,k,BaseState::r0_comp);
+            for (int n = 0; n < ncomp; ++n) {
+                Real q0 = zero;
+                if (n == ir ) { q0 = r0; }
+                if (n == irt) { q0 = r0 * b_arr(i,j,k,BaseState::th0_comp); }
+                if (n == iqv) { q0 = r0 * b_arr(i,j,k,BaseState::qv0_comp); }
+                c_arr(i,j,k,scomp+n) = q0 + s_arr(i,j,k,n) / W;
+            }
+        });
     }
 }
 

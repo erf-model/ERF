@@ -1258,6 +1258,12 @@ public:
      *  cell's volume detJ/(m_x m_y) is the mean of the fine volumes over it. */
     void average_down_detJ (int crse_lev);
 
+    /*! \brief Average-down of the cell-centered state used by AverageDownTo when
+     *  erf.average_down_by_fine_volume or erf.perturbational_average_down is set: divides by the
+     *  summed fine volumes in place of the coarse volume, and/or averages the perturbation from
+     *  the base state in Rho_comp, RhoTheta_comp and RhoQ1_comp. */
+    void AverageDownConsByFineVolume (int crse_lev, int scomp, int ncomp);
+
     // Write checkpoint file to disk
     void WriteCheckpointFile () const;
 
@@ -1877,6 +1883,20 @@ private:
     //    rho - rho0, rho theta - rho0 theta0 and rho qv - rho0 qv0 and adding back the fine base
     //    state.  On by default; false interpolates rho, rho theta and rho qv themselves.
     bool perturbational_interp{true};
+
+    // erf.average_down_by_fine_volume: average-down of the cell-centered state divides the
+    //    volume-weighted sum over the fine cells by the sum of the fine volumes, not by the
+    //    coarse volume, so a uniform value stays uniform where the fine volumes (detJ/m^2) do not
+    //    add up to the coarse one (terrain, varying map factors).  The covered coarse cells then
+    //    do not hold the fine level's mass exactly; the composite (uncovered coarse plus fine)
+    //    totals are not affected.  Off by default.
+    bool avgdown_by_fine_volume{false};
+
+    // erf.perturbational_average_down: average down rho - rho0, rho theta - rho0 theta0 and (with
+    //    moisture) rho qv - rho0 qv0 and add back the coarse base state, so that a fine level in
+    //    its base state averages to the coarse base state whatever the two levels' heights.
+    //    Off by default.
+    bool perturbational_avgdown{false};
     amrex::Vector<ERFFillPatcher> FPr_c;
     amrex::Vector<ERFFillPatcher> FPr_u;
     amrex::Vector<ERFFillPatcher> FPr_v;
