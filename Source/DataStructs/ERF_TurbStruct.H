@@ -18,6 +18,12 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
  */
 AMREX_ENUM(RANSType, None, kEqn);
 
+// Vertical shear in the strain invariant of the k-eqn RANS closure (erf.rans_shear_stencil):
+// central (average of the face strains) or log_law (exact for a logarithmic profile)
+AMREX_ENUM(RANSShearStencil,
+    central, log_law
+);
+
 /**
  * @brief Planetary boundary-layer closure type.
  *
@@ -554,6 +560,22 @@ public:
         }
     }
 
+    // Log-consistent vertical shear of the k-eqn closure (ERF_LogShear.H). One value for the
+    // hierarchy is meant for its k-eqn levels and is reset on the others, as
+    // erf.rans_moist_buoyancy is; a per-level list must not name a level without the closure.
+    // An unknown name stops the run in the query.
+    query_one_or_per_level_enum_case_insensitive(pp, "rans_shear_stencil", rans_shear_stencil, lev, max_level);
+    if (rans_shear_stencil != RANSShearStencil::central && rans_type != RANSType::kEqn) {
+        if (pp.countval("rans_shear_stencil") == 1) {
+            amrex::Print() << "erf.rans_shear_stencil reset to central on level " << lev
+                           << " (no k-eqn closure there)" << std::endl;
+            rans_shear_stencil = RANSShearStencil::central;
+        } else {
+            amrex::Error("erf.rans_shear_stencil = log_law needs erf.rans_type = kEqn (it is the shear of the k-eqn "
+                         "production; level " + std::to_string(lev) + ")");
+        }
+    }
+
     if (rans_type == RANSType::kEqn) {
         // The stability functions (AL01 Eqs. 31, 32) have poles at Rt = -3.59869
         // (cmu) and -3.61011 (cmu'); the Burchard & Petersen smoothing maps
@@ -742,6 +764,7 @@ public:
         amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
         amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
         amrex::Print() << "rans_realizability          : " << rans_realizability << std::endl;
+        amrex::Print() << "rans_shear_stencil          : " << amrex::getEnumNameString(rans_shear_stencil) << std::endl;
         amrex::Print() << "rans_moist_buoyancy         : " << rans_moist_buoyancy << std::endl;
         amrex::Print() << "dirichlet_k                 : " << dirichlet_k << std::endl;
         amrex::Print() << "tke_floor                   : " << tke_floor << std::endl;
@@ -964,6 +987,11 @@ public:
   // viscosity in the shear layer that leaves a crest (AL01 Eqs. 11 and 19;
   // the SST limiter form).
   amrex::Real rans_realizability = zero;
+
+  // k-eqn RANS: vertical gradients of u and v in S_mn S_mn (shear production of k and the S of
+  // the realizability cap): central keeps the average of the face strains, log_law uses the
+  // difference that is exact for a logarithmic profile over the ground (ERF_LogShear.H)
+  RANSShearStencil rans_shear_stencil = RANSShearStencil::central;
 
   // k-eqn RANS: moist TKE buoyancy production (erf.rans_moist_buoyancy),
   //   B = g / theta_v0 [(1 + epsv qv) <w'theta'> + epsv theta <w'qv'>],

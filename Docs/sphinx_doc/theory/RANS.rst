@@ -42,6 +42,83 @@ stability function in every direction. The diffusivity of :math:`k`
 itself is :math:`\nu_t / \sigma_k` with :math:`\sigma_k = 1` (AL01
 Table I), which the code sets unless ``erf.sigma_k`` is given.
 
+Shear in the production of k
+----------------------------
+
+The shear production of :math:`k` is :math:`2 \nu_t S_{ij} S_{ij}`, with
+:math:`S_{ij} S_{ij}` the cell-centered average of the face and edge strains.
+For :math:`\partial u / \partial z` that average is the central difference
+over the cells below and above. In the logarithmic layer over the ground,
+:math:`u = (u_* / \kappa) \ln((d + z_0) / z_0)` with :math:`d` the wall
+distance and :math:`z_0` the roughness length, the central difference is
+larger than the gradient at the cell center by the factor
+
+.. math::
+
+   F_k = \frac{(d_k + z_0)
+         \ln\left(\dfrac{d_{k+1} + z_0}{d_{k-1} + z_0}\right)}
+         {d_{k+1} - d_{k-1}} ,
+
+which on uniform layers with :math:`z_0 \ll \Delta z` is 1.21 in the second
+cell, 1.06 in the third and 1.03 in the fourth, and
+:math:`1 + \Delta z^2 / (3 d^2)` far from the ground. The production is
+then high by :math:`F_k^2`: 46 %, 12 % and 6 % in those cells (45 %, 12 %
+and 6 % with :math:`z_0 = 0.1` m and :math:`\Delta z = 15.625` m).
+
+With :cpp:`erf.rans_shear_stencil = log_law` (default :cpp:`central`) the
+closure uses, in the cells above the wall cell and below the top cell,
+
+.. math::
+
+   \left.\frac{\partial u}{\partial z}\right|_k =
+   \frac{u_{k+1} - u_{k-1}}
+        {(d_k + z_0) \ln\left(\dfrac{d_{k+1} + z_0}{d_{k-1} + z_0}\right)} ,
+
+and the same for :math:`v`, which is exact for the logarithmic profile over
+flat ground.
+:math:`u` and :math:`v` are averaged to the cell centers, :math:`d_k` is the
+closure's wall distance and :math:`d_{k \pm 1}` are :math:`d_k` plus and
+minus the height differences of the cell centers. Only the
+:math:`\partial u / \partial z` and :math:`\partial v / \partial z` parts
+of :math:`S_{13}` and :math:`S_{23}` change; the horizontal gradients of
+:math:`w` and the other strain components stay as they are. The corrected
+:math:`S_{ij} S_{ij}` enters the shear production and the :math:`S` of the
+realizability cap below. The resolved stress divergence in the momentum
+equations, the buoyancy frequency of the length scale and the wall cell
+(whose two faces carry the one-sided difference :math:`(u_1 - u_0) /
+\Delta z`) keep their forms. The stencil follows
+``turb.shear_stencil = log_law`` of GUST (erf-model/gust-abl#132). It needs
+a surface layer at the bottom (:cpp:`zlo.type = surface_layer`): :math:`z_0`
+is the roughness length that layer holds, :cpp:`erf.most.z0` unless a
+roughness file or model sets it, also when the surface fluxes are not from
+the log law. It is refused with EB or immersed-forcing terrain or buildings
+and with thin immersed bodies, where the nearest wall need not be the ground
+below, and with :cpp:`erf.terrain_type = MovingFittedMesh`. A cell whose
+:math:`d_{k-1} + z_0` would not be positive keeps the central value.
+
+Limits of the stencil:
+
+- It is exact for the logarithmic profile only. For a profile that is linear
+  in :math:`d` it returns the gradient divided by :math:`F_k` (17 %, 6 % and
+  3 % low in the cells 2, 3 and 4), so it is less accurate than the central
+  difference where the profile is closer to linear than to logarithmic: in a
+  stable layer above about :math:`L / 5` (:math:`L` the Obukhov length) and
+  well above the ground, where both errors are below 1 %.
+- On sloping ground :math:`d` is the distance to the wall and the height
+  differences are vertical, so the form is exact to leading order in the
+  slope.
+- The momentum equations keep their central stress divergence, so the
+  converged wind of a run is not the logarithmic profile at the cell centers
+  and neither stencil returns :math:`u_* / l` there. In the 12 h
+  ``Neutral_ABL_Flat`` run (:math:`\Delta z = 15.625` m, :math:`z_0 = 0.1` m)
+  the shear of the production times :math:`l / u_*` is 1.06, 0.96 and 0.93
+  in the cells 2, 3 and 4 with ``central`` and 0.92, 0.95 and 0.93 with
+  ``log_law``: the option removes the excess in the second cell and leaves a
+  deficit of similar size.
+- The production of :math:`k` then no longer equals the loss of mean-flow
+  kinetic energy to the modeled stress cell by cell: that loss is formed
+  with the face stresses, and the two do not match with ``central`` either.
+
 Realizability cap
 -----------------
 
@@ -59,7 +136,9 @@ diffusivity (heat, scalars, moisture, :math:`k`) is built from the capped
 :math:`\nu_t`, so all of them are capped by the same factor; so is the
 shear production of :math:`k`, which uses the capped viscosity. :math:`S`
 is the cell-centered average of the face and edge strains of the velocity at
-the start of the step, the same average the Smagorinsky closure uses. The
+the start of the step, the same average the Smagorinsky closure uses (with
+the log-consistent vertical shear when
+:cpp:`erf.rans_shear_stencil = log_law`). The
 production of :math:`k` recomputes the strain at every Runge-Kutta stage, so
 within a step the capped stress :math:`\nu_t S = C_r k` holds for the
 start-of-step strain only and the cap lags a fast transient by one step;

@@ -67,6 +67,11 @@ Choose the thermodynamic mode
    * - Noncondensing moisture transport
      - ``MoistNoCondensation``
      - An ERF moisture-transport shell with no condensation source.
+   * - Lagrangian superdroplets
+     - ``SuperDroplets``
+     - Requires a particle-enabled build; configured with the
+       ``super_droplets_moisture`` inputs described in
+       :ref:`sec:SuperDroplets`.
 
 For dry mode, omit ``erf.moisture_model`` rather than explicitly setting it
 to ``None``. An explicit ``None`` is rejected with a diagnostic naming this

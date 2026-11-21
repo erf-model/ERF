@@ -505,6 +505,16 @@ void ERF::init_bcs ()
         Print() << "Using dirichlet wall value for the k equation (held in the first cell)" << std::endl;
     }
 
+    // The log-consistent shear of the k-eqn RANS (erf.rans_shear_stencil = log_law) reads the
+    // roughness length of the surface layer at zlo
+    for (int lev = 0; lev <= max_level; ++lev) {
+        if (solverChoice.turbChoice[lev].rans_shear_stencil == RANSShearStencil::log_law &&
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer) {
+            Error("erf.rans_shear_stencil = log_law requires zlo.type = surface_layer: the stencil "
+                  "uses the roughness length of the surface layer (level " + std::to_string(lev) + ")");
+        }
+    }
+
     // k-eqn RANS under a surface layer without the Dirichlet wall value: the
     // first cell cannot resolve the near-wall shear production, so k there
     // settles at about half the AL01 equilibrium u*^2/Cmu0^2 (the mean wind
