@@ -46,6 +46,22 @@ struct ThermalBoundary {
     amrex::Real temperature_K = amrex::Real(0.0);
 };
 
+// Non-owning device views, separate from the drag and timestep metadata. A
+// null offsets pointer selects the original uniform-temperature wall law.
+struct TemperaturePanel {
+    amrex::Real temperature_K;
+    amrex::Real fraction;
+};
+
+struct TemperatureBandView {
+    const int* offsets = nullptr;
+    const TemperaturePanel* panels = nullptr;
+    int k_lo = 0;
+};
+
+using SidewallBandViews = amrex::GpuArray<TemperatureBandView, 4>; // xlo, xhi, ylo, yhi
+static_assert(std::is_trivially_copyable_v<TemperatureBandView>);
+
 struct MomentumTransfer {
     MomentumModel model = MomentumModel::ResolvedNoSlip;
     CoefficientProvider provider = CoefficientProvider::None;

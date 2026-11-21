@@ -147,6 +147,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const erf_wall_thermodynamics::Boundary chamber_walls =
         use_physical_chamber_wall_flux ? cloud_chamber_config->transport_boundary() :
                                          erf_wall_thermodynamics::Boundary{};
+    const auto chamber_bands = use_physical_chamber_wall_flux ? cloud_chamber_config->temperature_band_views() :
+                                        erf_wall_thermodynamics::SidewallBandViews{};
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
 
@@ -734,7 +736,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     cloud_chamber_base_state->const_array(mfi), u, v, w, cell_rhs,
                     diffflux_x, diffflux_y, diffflux_z, dxInv,
                     chamber_walls, dc.alpha_T, dc.alpha_C,
-                    solverChoice.rdOcp, cloud_chamber_config->has_moisture);
+                    solverChoice.rdOcp, cloud_chamber_config->has_moisture, chamber_bands);
             }
         }
 

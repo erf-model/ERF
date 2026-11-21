@@ -7,16 +7,19 @@
 #include <AMReX_REAL.H>
 
 #include "ERF_Constants.H"
+#include "ERF_CloudChamberTemperatureBands.H"
 #include "ERF_DataStruct.H"
 #include "ERF_EOS.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "BoundaryConditions/ERF_WallThermodynamics.H"
 #include "Diffusion/ERF_WallGradientCoeffs.H"
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace erf_cloud_chamber {
@@ -59,6 +62,12 @@ struct Config : Initialization {
     }
     const erf_wall_thermodynamics::Boundary& transport_boundary () const && = delete;
 
+    [[nodiscard]] erf_wall_thermodynamics::SidewallBandViews temperature_band_views () const & noexcept
+    {
+        return {m_bands[0].view(), m_bands[1].view(), m_bands[2].view(), m_bands[3].view()};
+    }
+    erf_wall_thermodynamics::SidewallBandViews temperature_band_views () const && = delete;
+
     static bool has_bulk_scalar_wall (const erf_wall_thermodynamics::Boundary& walls) noexcept
     {
         using erf_wall_thermodynamics::ScalarModel;
@@ -82,6 +91,7 @@ struct Config : Initialization {
 private:
     friend Config parse_config (const amrex::Geometry&, MoistureType, const DiffChoice&);
     std::optional<erf_wall_thermodynamics::Boundary> m_boundary;
+    std::array<SidewallTemperatureBands, 4> m_bands;
 };
 
 enum class InitializationMode : unsigned char {
@@ -636,9 +646,17 @@ wall_transfer_contract_error (const WallTransferContract& contract,
 // A dry adiabatic wall does not need T_wall, even for MOST drag.
 inline std::string
 parse_wall_heat (amrex::ParmParse& pp, const std::string& face, bool physical,
-                 erf_wall_thermodynamics::FaceWall& wall)
+                 erf_wall_thermodynamics::FaceWall& wall, const amrex::Geometry& geom,
+                 SidewallTemperatureBands* sidewall_bands)
 {
     using namespace erf_wall_thermodynamics;
+    const bool edges = pp.contains("temperature_height_edges"), values = pp.contains("temperature_values");
+    if (edges || values) {
+        const auto prefix = "Cloud Chamber: " + face + ": ";
+        if (!physical || !sidewall_bands) { return prefix + "temperature bands require a physical x or y sidewall"; }
+        if (!(edges && values)) { return prefix + "temperature_height_edges and temperature_values must be supplied together"; }
+        if (pp.contains("temperature")) { return prefix + "temperature and temperature bands are mutually exclusive"; }
+    }
     if (!physical) {
         if (pp.contains("heat") || pp.contains("thermal")) {
             return "Cloud Chamber: " + face + ".heat and its .thermal alias require physical_temperature_rh";
@@ -668,7 +686,14 @@ parse_wall_heat (amrex::ParmParse& pp, const std::string& face, bool physical,
     const bool conductive = heat == "conductive";
     ThermalBoundary thermal;
     thermal.mode = conductive ? ThermalMode::FixedPhysicalTemperature : ThermalMode::Adiabatic;
-    if (pp.query("temperature", thermal.temperature_K)) {
+    if (edges) {
+        amrex::Vector<amrex::Real> z, temperatures;
+        pp.getarr("temperature_height_edges", z);
+        pp.getarr("temperature_values", temperatures);
+        const auto error = sidewall_bands->define(std::move(z), temperatures, geom);
+        if (!error.empty()) { return "Cloud Chamber: " + face + ": " + error; }
+        thermal.temperature_K = temperatures.front(); // exact scalar path for uniform panels
+    } else if (pp.query("temperature", thermal.temperature_K)) {
         if (!finite(thermal.temperature_K) || thermal.temperature_K <= 0) {
             return "Cloud Chamber: " + face + ".temperature must be finite and positive Kelvin";
         }
@@ -1158,7 +1183,8 @@ inline Config parse_config (const amrex::Geometry& geom, MoistureType selected_m
                 amrex::Error("Cloud Chamber: legacy cloudy walls require " + face + ".qv");
             }
         }
-        const auto heat_error = parse_wall_heat(pp_face, face, config.physical_initialization, wall);
+        const auto heat_error = parse_wall_heat(pp_face, face, config.physical_initialization, wall,
+                            geom, n < 4 ? &config.m_bands[n] : nullptr);
         if (!heat_error.empty()) { amrex::Error(heat_error); }
         const auto coupled_error = wall_coupled_most_roughness_error(wall, face);
         if (!coupled_error.empty()) { amrex::Error(coupled_error); }
