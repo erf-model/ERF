@@ -787,48 +787,34 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             }
             const int nreflux = ncomp - reflux_comp;
 
-            // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
-            // m is the map scale factor at cell centers
-            // Here we pre-divide (rho S) by m^2 before refluxing.  Only the refluxed components are
-            // scaled: the scaling and its inverse below are not exact in floating point, so scaling
-            // the others too would change them by round-off in every cell of the level.
+            // The quantity that is conserved is not (rho S), but rather (rho S detJ / m^2), with m
+            // the map scale factor at cell centers.  The reflux correction is to that quantity, so
+            // it goes into a temporary and is added to (rho S) times m^2 / detJ.  Scaling the state
+            // itself and back again is not exact in floating point and changed every cell of the
+            // level by round-off; the correction is zero away from the coarse/fine boundary, so
+            // there the state is left exactly as it is.
+            MultiFab reflux_corr(vars_new[lev][Vars::cons].boxArray(),
+                                 vars_new[lev][Vars::cons].DistributionMap(), nreflux, 0);
+            reflux_corr.setVal(zero);
+            getAdvFluxReg(lev+1)->Reflux(reflux_corr, reflux_comp, 0, nreflux);
+
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<const Real> corr_arr = reflux_corr.const_array(mfi);
                 const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
                 const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 if (SolverChoice::mesh_type == MeshType::ConstantDz) {
                     ParallelFor(bx, nreflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,reflux_comp+n) /= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                        cons_arr(i,j,k,reflux_comp+n) += corr_arr(i,j,k,n) * (mfx_arr(i,j,0)*mfy_arr(i,j,0));
                     });
                 } else {
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
                     ParallelFor(bx, nreflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,reflux_comp+n) *= detJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
-                    });
-                }
-            } // mfi
-
-            getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], reflux_comp, reflux_comp, nreflux);
-
-            // Here we multiply (rho S) by m^2 after refluxing
-            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
-                const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
-                const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-                if (SolverChoice::mesh_type == MeshType::ConstantDz) {
-                    ParallelFor(bx, nreflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                    {
-                        cons_arr(i,j,k,reflux_comp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
-                    });
-                } else {
-                    const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
-                    ParallelFor(bx, nreflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                    {
-                        cons_arr(i,j,k,reflux_comp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0)) / detJ_arr(i,j,k);
+                        cons_arr(i,j,k,reflux_comp+n) += corr_arr(i,j,k,n) * (mfx_arr(i,j,0)*mfy_arr(i,j,0))
+                                                       / detJ_arr(i,j,k);
                     });
                 }
             } // mfi
