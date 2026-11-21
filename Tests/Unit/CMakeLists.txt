@@ -184,6 +184,10 @@ target_sources(${erf_exe_name}
     # Motivation: the k-eqn RANS closure (AL01) must keep its stability
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
+    # Motivation: erf.rans_shear_stencil = log_law must return the closed-form vertical shear of a
+    # logarithmic profile in S_mn S_mn on uniform and stretched layers, keep the other strain
+    # terms, and leave a cell without a positive lower wall distance as it is (erf-model/ERF#5261).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestLogShear.cpp
     # Motivation: terrain-fitted momentum diffusion must apply K_h to the projected horizontal
     # stresses of the zeta-face flux and take the cell-centered du/dz from the cell's own faces
     # (erf-model/ERF#4214), so the operator is exact for bilinear fields and dissipates energy.

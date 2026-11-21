@@ -637,7 +637,17 @@ whose boxes are split in z, and check that the wall distance is the height
 above the bottom wall. ``RANS_Neutral_Hill_2D_Realizability`` runs the
 ridge twice, without and with the realizability cap of the closure
 (``erf.rans_realizability``), and pins the capped viscosity and diffusivity
-to their closed form cell by cell (``check_realizability.py``). The flat cases run with the MLMG projection
+to their closed form cell by cell (``check_realizability.py``).
+``RANS_Neutral_ABL_Flat_LogShear`` runs the neutral flat case for one step from a
+logarithmic wind profile with ``erf.rans_shear_stencil = central`` and with
+``log_law``, and pins the shear of the closure to each stencil, to
+:math:`u_*/(\kappa (z + z_0))` for ``log_law``, and the difference of the
+production of k to the difference of the two shears (``check_log_shear.py``).
+``RANS_Neutral_ABL_Flat_LogShear_Stretched`` repeats the pair on stretched
+layers with boxes cut in the vertical, and
+``RANS_Neutral_ABL_Flat_LogShear_Fitted`` on a terrain-fitted mesh over flat
+ground, so that each mesh branch of the strain calculation is run.
+The flat cases run with the MLMG projection
 (``erf.use_fft=false``); the terrain-fitted cases need the FFT-preconditioned
 projection and are registered only when the build enables FFT
 (``ERF_ENABLE_FFT``).

@@ -4,6 +4,7 @@
 #include "ERF_SurfaceLayer.H"
 #include "ERF_Constants.H"
 #include "ERF_EddyViscosity.H"
+#include "ERF_LogShear.H"
 #include "ERF_RANSClosure.H"
 #include "ERF_CanopyTurbulence.H"
 #include "ERF_Diffusion.H"
@@ -646,7 +647,9 @@ void ComputeTurbulentViscosityRANS (int level,
                                     const MultiFab* ib_blank,
                                     bool flat_wall_diss,
                                     Real ib_small_volfrac,
-                                    Real ib_z0)
+                                    Real ib_z0,
+                                    const MultiFab* xvel,
+                                    const MultiFab* yvel)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
@@ -686,6 +689,13 @@ void ComputeTurbulentViscosityRANS (int level,
         // Realizability cap nu_t <= C_r k / S (AL01::realizable_nut); off at 0
         const Real Cr = turbChoice.rans_realizability;
         const bool use_cap = (Cr > zero);
+        // The S of the cap with the log-consistent vertical shear (ERF_LogShear.H), as in the
+        // shear production of k
+        const bool cap_log_shear = use_cap && (turbChoice.rans_shear_stencil == RANSShearStencil::log_law);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!cap_log_shear || (use_SurfLayer && xvel && yvel),
+            "erf.rans_shear_stencil = log_law needs zlo.type = surface_layer and the velocities of the strain");
+        const int dom_klo = geom.Domain().smallEnd(2);
+        const int dom_khi = geom.Domain().bigEnd(2);
 
         // Clamped divisor: the select is if-converted, so 1/theta_ref runs even
         //   when theta_ref = 0 and would trip fpe_trap_zero (see ERF_SetupDiff.H)
@@ -728,6 +738,8 @@ void ComputeTurbulentViscosityRANS (int level,
             // closure cannot run with EB terrain (SolverChoice stops the run), so the plain
             // ComputeSmnSmn is the right form here.
             const StrainArrays tau = (use_cap) ? strain_arrays(Tau_lev, mfi) : StrainArrays{};
+            const Array4<Real const>& u_arr = (cap_log_shear) ? xvel->const_array(mfi) : Array4<Real const>{};
+            const Array4<Real const>& v_arr = (cap_log_shear) ? yvel->const_array(mfi) : Array4<Real const>{};
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -822,7 +834,12 @@ void ComputeTurbulentViscosityRANS (int level,
                 // Realizability cap nu_t <= C_r k / S; cap_ratio = nu_t / (C_r k / S)
                 Real cap_ratio = zero;
                 if (use_cap) {
-                    Real S = std::sqrt(two * ComputeSmnSmn(i,j,k,tau.tau11,tau.tau22,tau.tau33,tau.tau12,tau.tau13,tau.tau23));
+                    Real SmnSmn = ComputeSmnSmn(i,j,k,tau.tau11,tau.tau22,tau.tau33,tau.tau12,tau.tau13,tau.tau23);
+                    if (cap_log_shear && k > dom_klo && k < dom_khi) {
+                        SmnSmn = log_shear::corrected_SmnSmn(i, j, k, SmnSmn, u_arr, v_arr, tau.tau13, tau.tau23,
+                                                             d_arr, z0_arr(i,j,0), z_nd_arr);
+                    }
+                    Real S = std::sqrt(two * SmnSmn);
                     nut = AL01::realizable_nut(nut, tke, S, Cr, cap_ratio);
                 }
                 mu_turb(i, j, k, EddyDiff::RANS_cap_ratio) = cap_ratio;
@@ -1016,7 +1033,8 @@ void ComputeTurbulentViscosity (double dt,
                                       (solverChoice.if_fraction_stress) ? terrain_blank : nullptr,
                                       solverChoice.if_flat_wall_dissipation,
                                       solverChoice.if_small_volfrac,
-                                      solverChoice.if_z0);
+                                      solverChoice.if_z0,
+                                      &xvel, &yvel);
     }
 
     if (turbChoice.pbl_type == PBLType::MYJ) {
