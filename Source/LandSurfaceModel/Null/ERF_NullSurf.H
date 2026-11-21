@@ -193,6 +193,30 @@ class NullSurf {
     {}
 
     /**
+     * Returns the number of 2D surface state fields kept outside lsm_data that carry state from
+     * one step to the next, and so are transferred when a level is made or remade.
+     */
+    virtual
+    int
+    Lsm_Surface_State_Size () { return 0; }
+
+    /**
+     * Returns a 2D surface state field required for transfer.
+     */
+    virtual
+    amrex::MultiFab*
+    Lsm_Surface_State_Ptr (const int& /*varIdx*/) { return nullptr; }
+
+    /**
+     * Registers a 2D surface state field of the source level.
+     */
+    virtual
+    void
+    Lsm_Set_Source_Surface_State_Ptr (const int& /*varIdx*/,
+                                      amrex::MultiFab* /*source_data_ptr*/)
+    {}
+
+    /**
      * Returns whether the reference-level atmospheric fields have been filled.
      */
     virtual

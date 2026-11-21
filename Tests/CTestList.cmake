@@ -5826,6 +5826,16 @@ add_test_restart_parity(SLM_TwoLevel_Restart SLM_Restart 7 20
     COMMON_OPTIONS "amr.max_level=1 amr.blocking_factor=4 erf.refinement_indicators=box1 erf.box1.in_box_lo=100.0 100.0 0.0 erf.box1.in_box_hi=300.0 300.0 100.0"
     PLT2DFILE "plt_lsm_2D_00020"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+
+# The same, restarted with a smaller amr.max_grid_size, so the first regrid remakes level 1 on
+# new boxes over the same region (issue 5177). SLM keeps the state it carries from step to step
+# outside lsm_data (canopy and puddle water, the canopy, canopy-air and ground temperatures, snow
+# albedo and age) across the remake, so the run ends as the straight one does.
+add_test_restart_parity(SLM_TwoLevel_RemakeLevel SLM_Restart 10 20
+    COMMON_OPTIONS "amr.max_level=1 amr.blocking_factor=4 erf.regrid_int=2 erf.refinement_indicators=box1 erf.box1.in_box_lo=100.0 100.0 0.0 erf.box1.in_box_hi=300.0 300.0 100.0"
+    RESTART_OPTIONS "amr.max_grid_size=4"
+    PLT2DFILE "plt_lsm_2D_00020"
+    ALLOW_DIFF_GRIDS FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # SLM does not treat a frozen canopy (issue 4467): the canopy starts at the reference-level air
