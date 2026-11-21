@@ -1,0 +1,62 @@
+# One short RK2 step from motionless, isothermal, vapor-free air. Starting
+# from zero water makes its domain-integrated change measurable even in float.
+erf.prob_name = "Cloud Chamber"
+erf.init_type = ConstantDensity
+erf.compressibility_type = Anelastic
+erf.timestepping_type = RK2
+erf.use_gravity = true
+erf.moisture_model = SatAdj
+erf.vert_implicit = false
+erf.molec_diff_type = ConstantAlpha
+erf.dynamic_viscosity = 0.0
+erf.alpha_T = 0.001
+erf.alpha_C = 0.001
+erf.fixed_dt = 0.0001
+erf.cloud_chamber_budget_interval = 1
+erf.plot_int_1 = -1
+erf.check_int = -1
+max_step = 1
+
+geometry.prob_lo = 0 0 0
+geometry.prob_hi = 1 1 1
+geometry.is_periodic = 0 0 0
+amr.max_level = 0
+# Exactly one 8x8x8 box per rank; explicitly override ERF's unsplit-z default.
+amr.n_cell = 8 8 @NZ@
+amr.max_grid_size = 8
+amr.no_box_split_dir = -1
+
+prob.p_inf = 100000
+prob.T_0 = 292
+prob.thermodynamic_initialization = physical_temperature_rh
+prob.initial_temperature_bottom = 292
+prob.initial_temperature_top = 292
+prob.initial_relative_humidity = 0
+prob.temperature_perturbation_amplitude = 0
+prob.U_0 = 0
+
+# The two conductive wet walls meet at a corner. The resolved molecular law
+# is independent of tangential velocity. Each substitution supplies either a
+# scalar setpoint OR the pair of band arrays, never a fallback scalar.
+xlo.type = NoSlipWall
+xlo.moisture = wet
+# Use the resolved defaults so the MOST parser test can select bulk channels.
+@XLO@
+yhi.type = NoSlipWall
+yhi.moisture = wet
+yhi.wall_transfer_model = resolved_molecular
+@YHI@
+
+# One nonzero scalar heat control; the other three faces exchange nothing.
+xhi.type = NoSlipWall
+xhi.moisture = dry
+xhi.temperature = 296
+ylo.type = NoSlipWall
+ylo.moisture = dry
+ylo.heat = adiabatic
+zlo.type = NoSlipWall
+zlo.moisture = dry
+zlo.heat = adiabatic
+zhi.type = NoSlipWall
+zhi.moisture = dry
+zhi.heat = adiabatic

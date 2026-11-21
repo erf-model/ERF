@@ -1238,6 +1238,41 @@ function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_budget.dat")
 endfunction(add_test_cloud_chamber_budget)
 
+# Compare sidewall panels against scalar-wall controls using the fluxes retained
+# by the solver. Each MPI rank owns a different slab of the same two wet walls.
+function(add_test_cloud_chamber_sidewall_bands TEST_NAME)
+    if(NOT ERF_ENABLE_MPI OR ERF_TEST_NRANKS LESS 2)
+        return() # This regression checks a vertical split across MPI ranks.
+    endif()
+    find_program(ERF_TEST_AWK NAMES awk gawk mawk)
+    if(NOT ERF_TEST_AWK)
+        message(STATUS "Skipping ${TEST_NAME}: no awk for the floating-point budget check")
+        return()
+    endif()
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DAWK=${ERF_TEST_AWK}"
+        "-DMPI_HELPER=${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake"
+        -P "${CURRENT_TEST_BINARY_DIR}/RunSidewallBands.cmake")
+    set(logs "")
+    foreach(leg IN ITEMS cold hot one_band panels)
+        list(APPEND logs "${CURRENT_TEST_BINARY_DIR}/${leg}/simulation.log"
+                         "${CURRENT_TEST_BINARY_DIR}/${leg}/cloud_chamber_budget.dat")
+    endforeach()
+    list(APPEND logs "${CURRENT_TEST_BINARY_DIR}/most_zlo/simulation.log"
+                     "${CURRENT_TEST_BINARY_DIR}/most_xlo/simulation.log")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
+        LABELS "regression;cloud-chamber;parallel" ENVIRONMENT "OMP_NUM_THREADS=1;LC_ALL=C"
+        ATTACHED_FILES_ON_FAIL "${logs}")
+endfunction()
+
 # At-rest test: a hydrostatic atmosphere over terrain must stay at rest with lateral
 # outflow boundaries, where the mesh is extrapolated past the domain and the base state in
 # the ghost cells has to be built at the height the mesh puts them at rather than copied.
@@ -1745,6 +1780,7 @@ add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_None None
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
+add_test_cloud_chamber_sidewall_bands(CloudChamber_SidewallBands)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_BulkMixedWet bulk_wet CloudChamber_SatAdj_BulkMixedWet)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_NeutralWetBudget neutral_wet CloudChamber_SatAdj_NeutralWet)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_MOSTWetBudget most_wet CloudChamber_SatAdj_MOSTWetBudget)
