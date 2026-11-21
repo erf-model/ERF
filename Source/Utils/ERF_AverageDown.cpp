@@ -306,3 +306,60 @@ ERF::AverageDownMoistStateTo (int crse_lev)
         AverageDownTo(crse_lev, RhoQ1_comp, n_moist, false);
     }
 }
+
+/**
+ * Set detJ_cc of level crse_lev, in the cells that level crse_lev+1 covers, to
+ *
+ *   detJ_c = m_x,c m_y,c (1/N) sum_f detJ_f / (m_x,f m_y,f),
+ *
+ * with N the number of fine cells in a coarse cell, so that each covered coarse cell's volume
+ * detJ/(m_x m_y) is the mean of the fine volumes over it.  AverageDownTo weights the state by that
+ * volume before averaging and divides by it afterwards, so with this the average-down both
+ * conserves and keeps a uniform value uniform where the map factors vary.  With m = 1 it is the
+ * plain average of detJ, computed in the same order (amrex::average_down), so bit for bit the
+ * same.  The cells the finer level does not cover, and the ghost cells, are left as they are.
+ *
+ * @param[in] crse_lev coarse level
+ */
+void
+ERF::average_down_detJ (int crse_lev)
+{
+    const int fine_lev = crse_lev + 1;
+    const MultiFab& dJ_f = *detJ_cc[fine_lev];
+          MultiFab& dJ_c = *detJ_cc[crse_lev];
+
+    // The fine volumes, detJ / (m_x m_y)
+    MultiFab vol_f(dJ_f.boxArray(), dJ_f.DistributionMap(), 1, 0);
+    for (MFIter mfi(vol_f, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const Array4<      Real> v_arr   = vol_f.array(mfi);
+        const Array4<const Real> dJ_arr  = dJ_f.const_array(mfi);
+        const Array4<const Real> mfx_arr = mapfac[fine_lev][MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real> mfy_arr = mapfac[fine_lev][MapFacType::m_y]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            v_arr(i,j,k) = dJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+        });
+    }
+
+    // Their mean over each covered coarse cell, times the coarse m_x m_y
+    MultiFab vol_c(dJ_c.boxArray(), dJ_c.DistributionMap(), 1, 0);
+    vol_c.setVal(zero);
+    average_down(vol_f, vol_c, 0, 1, refRatio(crse_lev));
+    const iMultiFab covered = makeFineMask(dJ_c, dJ_f.boxArray(), refRatio(crse_lev));
+
+    for (MFIter mfi(dJ_c, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const Array4<      Real> dJ_arr  = dJ_c.array(mfi);
+        const Array4<const Real> v_arr   = vol_c.const_array(mfi);
+        const Array4<const int > m_arr   = covered.const_array(mfi);
+        const Array4<const Real> mfx_arr = mapfac[crse_lev][MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real> mfy_arr = mapfac[crse_lev][MapFacType::m_y]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (m_arr(i,j,k) == 1) {
+                dJ_arr(i,j,k) = v_arr(i,j,k) * (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+            }
+        });
+    }
+}

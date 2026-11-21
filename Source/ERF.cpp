@@ -1207,11 +1207,12 @@ ERF::InitData_post ()
         //       derived from z_phys_nd, which is not averaged down either, so averaging only
         //       the cell-centered heights made the two disagree inside the refined region.
         //
-        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
-        //       averaging and divides by it afterwards, so the coarse detJ must be the average
-        //       of the fine detJ for that average-down to telescope and stay conservative.
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by the cell volume
+        //       detJ_cc/(m_x m_y) before averaging and divides by it afterwards, so the coarse
+        //       volume must be the mean of the fine ones (average_down_detJ) for that
+        //       average-down to telescope, stay conservative and keep a uniform value uniform.
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
-                average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+                average_down_detJ(crse_lev);
             }
         }
         for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {

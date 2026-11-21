@@ -1254,6 +1254,10 @@ public:
      *  AverageDownTo with the full-state component checks and the momentum average-down disabled. */
     void AverageDownMoistStateTo (int crse_lev);
 
+    /*! \brief Set detJ_cc of level crse_lev under level crse_lev+1 so that each covered coarse
+     *  cell's volume detJ/(m_x m_y) is the mean of the fine volumes over it. */
+    void average_down_detJ (int crse_lev);
+
     // Write checkpoint file to disk
     void WriteCheckpointFile () const;
 
