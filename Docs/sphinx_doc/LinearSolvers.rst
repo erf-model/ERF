@@ -13,6 +13,8 @@ For simulations without terrain-fitted coordinates or grid stretching, one of th
 followed by multigrid.  We note that the multigrid solver has the option to "ignore" a coordinate direction
 if the domain is only one cell wide in that direction; this allows for efficient solution of effectively 2D problems.
 Multigrid can also be used when the union of grids at a level is not in itself rectangular (except on terrain-fitted meshes); the FFT solvers do not work in that general case.
+The multigrid for such a region on a flat mesh ignores a one-cell-wide direction only where it is periodic, as the terrain multigrid does;
+the multigrid of ``erf.if_implicit_projection`` ignores any one-cell-wide lateral direction.  Both do so with a zero face coefficient in that direction.
 
 When the cells of a level are anisotropic (a cell size at least 1.5 times the smallest one, as on a coarse flat grid,
 with immersed forcing, or on a level refined with ``amr.ref_ratio_vect = 2 2 1``), the multigrid solver on a

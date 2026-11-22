@@ -38,9 +38,18 @@ public:
 class MLABecLaplacianAniso : public MLABecLaplacian {
 public:
     MLABecLaplacianAniso (const Vector<Geometry>& a_geom, const Vector<BoxArray>& a_grids,
-                          const Vector<DistributionMapping>& a_dmap, const LPInfo& a_info)
+                          const Vector<DistributionMapping>& a_dmap, const LPInfo& a_info,
+                          bool a_one_cell_direction = false)
     {
         mg_independent_coarsening = true;
+        // AMReX coarsens a direction only if every direction of the domain and of the boxes is
+        // at least mg_*_min_width cells wide (2 by default; 0 in a hidden direction).  A
+        // direction one cell wide that is kept in the operator would stop all coarsening, and
+        // leave the whole solve to the bottom solver.
+        if (a_one_cell_direction) {
+            mg_domain_min_width = 1;
+            mg_box_min_width = 1;
+        }
         define(a_geom, a_grids, a_dmap, a_info);
     }
 };
@@ -101,6 +110,36 @@ aniso_max_coarsening_level (const Geometry& geom, const BoxArray& grids, const L
         ++nlev;
     }
     return nlev;
+}
+
+/**
+ * Multigrid options of an MLABecLaplacian solve that drops a direction one cell wide, whose
+ * face coefficients the caller sets to zero.
+ *
+ * The direction is not hidden (LPInfo::setHiddenDirection). MLCellLinOp gives phi no ghost
+ * cells in a hidden direction, and the kernels of MLABecLaplacian, unlike those of MLPoisson,
+ * read phi on both sides of a cell in every direction: they would read outside phi. So the
+ * direction stays in the operator, where its zero coefficient removes it from the equation,
+ * and the MG levels coarsen the other directions on their own (it cannot be coarsened; see the
+ * minimum widths in MLABecLaplacianAniso).
+ *
+ * @param geom    Geometry of the level
+ * @param grids   Boxes of the solve
+ * @param dropped Direction to drop, or -1
+ * @param info    Multigrid options; the number of coarsenings may be set
+ * @return whether the MG levels coarsen each direction on its own (MLABecLaplacianAniso)
+ */
+bool
+mlabec_independent_coarsening (const Geometry& geom, const BoxArray& grids, int dropped, LPInfo& info)
+{
+    // The two functions above skip the hidden direction of the options they are given
+    LPInfo info_skip;
+    if (dropped >= 0) { info_skip.setHiddenDirection(dropped); }
+    const bool independent = (dropped >= 0) || cells_are_anisotropic(geom, info_skip);
+    if (independent) {
+        info.setMaxCoarseningLevel(aniso_max_coarsening_level(geom, grids, info_skip));
+    }
+    return independent;
 }
 
 } // namespace
@@ -244,17 +283,15 @@ ERF::solve_with_flat_mlmg (int lev, const Box& subdomain, MultiFab& rhs, MultiFa
     const DistributionMapping& dm = rhs.DistributionMap();
 
     // A direction one cell wide is dropped only where it is periodic, as in
-    // solve_with_terrain_mlmg
-    LPInfo info;
+    // solve_with_terrain_mlmg.  It is not hidden: see mlabec_independent_coarsening.
+    int dropped = -1;
     if (domain.length(0) == 1 && lev_geom.isPeriodic(0)) {
-        info.setHiddenDirection(0);
+        dropped = 0;
     } else if (domain.length(1) == 1 && lev_geom.isPeriodic(1)) {
-        info.setHiddenDirection(1);
+        dropped = 1;
     }
-    const bool aniso = cells_are_anisotropic(lev_geom, info);
-    if (aniso) {
-        info.setMaxCoarseningLevel(aniso_max_coarsening_level(lev_geom, ba, info));
-    }
+    LPInfo info;
+    const bool aniso = mlabec_independent_coarsening(lev_geom, ba, dropped, info);
 
     // The face coefficients
     Array<MultiFab,AMREX_SPACEDIM> bcoef;
@@ -263,12 +300,12 @@ ERF::solve_with_flat_mlmg (int lev, const Box& subdomain, MultiFab& rhs, MultiFa
     }
     MultiFab::Copy(bcoef[0], ax_sub, 0, 0, 1, 0);
     MultiFab::Copy(bcoef[1], ay_sub, 0, 0, 1, 0);
-    // MLABecLaplacian keeps the faces of a hidden direction in its stencil (MLPoisson and
-    // MLTerrainPoisson drop them).  Their flux is zero (the one cell is its own periodic
-    // neighbor), but they would still add to the diagonal of the smoother, and on the coarser MG
-    // levels, which do not coarsen that direction, they would swamp it: multigrid diverges.
-    if (info.hasHiddenDimension()) {
-        bcoef[info.hidden_direction].setVal(Real(0.0));
+    // The faces of the dropped direction get a zero coefficient.  Their flux is zero anyway (the
+    // one cell is its own periodic neighbor), but they would still add to the diagonal of the
+    // smoother, and on the coarser MG levels, which do not coarsen that direction, they would
+    // swamp it.
+    if (dropped >= 0) {
+        bcoef[dropped].setVal(Real(0.0));
     }
     const Real dz = lev_geom.CellSize(2);
     for (MFIter mfi(bcoef[2]); mfi.isValid(); ++mfi) {
@@ -296,7 +333,7 @@ ERF::solve_with_flat_mlmg (int lev, const Box& subdomain, MultiFab& rhs, MultiFa
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(dm);
 
     std::unique_ptr<MLABecLaplacian> mlabec_ptr = aniso
-        ? std::make_unique<MLABecLaplacianAniso>(geom_tmp, ba_tmp, dm_tmp, info)
+        ? std::make_unique<MLABecLaplacianAniso>(geom_tmp, ba_tmp, dm_tmp, info, dropped >= 0)
         : std::make_unique<MLABecLaplacian>(geom_tmp, ba_tmp, dm_tmp, info);
     MLABecLaplacian& mlabec = *mlabec_ptr;
     mlabec.setDomainBC(get_lo_projection_bc(lev_geom, domain_bc_type),
@@ -319,12 +356,12 @@ ERF::solve_with_flat_mlmg (int lev, const Box& subdomain, MultiFab& rhs, MultiFa
     mlmg.solve({&phi}, {&rhs_mlabec}, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
     mlmg.getFluxes({GetArrOfPtrs(fluxes)});
 
-    // Minus the gradient, as the other solvers return it (zero in a hidden direction): the
+    // Minus the gradient, as the other solvers return it (zero in the dropped direction): the
     // fluxes are -B grad phi with grad phi on the Geometry's cell size, so -area times the
     // gradient over the physical distance
     const Array<MultiFab const*,AMREX_SPACEDIM> area{&ax_sub, &ay_sub, &az_sub};
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-        if (idim == info.hidden_direction) {
+        if (idim == dropped) {
             fluxes[idim].setVal(Real(0.0));
         } else {
             MultiFab::Divide(fluxes[idim], *area[idim], 0, 0, 1, 0);
@@ -362,31 +399,37 @@ ERF::solve_with_if_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     const BoxArray& ba = rhs[0].boxArray();
     const DistributionMapping& dm = rhs[0].DistributionMap();
 
-    LPInfo info;
-    // Allow a hidden direction if the domain is one cell wide in any lateral direction
+    // A lateral direction one cell wide is dropped, as solve_with_mlmg hides it.  It is not
+    // hidden here: see mlabec_independent_coarsening.
+    int dropped = -1;
     if (dom_lo.x == dom_hi.x) {
-        info.setHiddenDirection(0);
+        dropped = 0;
     } else if (dom_lo.y == dom_hi.y) {
-        info.setHiddenDirection(1);
+        dropped = 1;
     }
 
-    // Anisotropic cells: coarsen the directions on their own, as solve_with_mlmg does
-    const bool aniso = cells_are_anisotropic(lev_geom, info);
-    if (aniso) {
-        info.setMaxCoarseningLevel(aniso_max_coarsening_level(lev_geom, ba, info));
-    }
+    // Anisotropic cells, or a dropped direction: coarsen the directions on their own
+    LPInfo info;
+    const bool aniso = mlabec_independent_coarsening(lev_geom, ba, dropped, info);
 
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(ba);
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(dm);
     Vector<Geometry>            geom_tmp; geom_tmp.push_back(lev_geom);
 
     std::unique_ptr<MLABecLaplacian> linop_ptr = aniso
-        ? std::make_unique<MLABecLaplacianAniso>(geom_tmp, ba_tmp, dm_tmp, info)
+        ? std::make_unique<MLABecLaplacianAniso>(geom_tmp, ba_tmp, dm_tmp, info, dropped >= 0)
         : std::make_unique<MLABecLaplacian>(geom_tmp, ba_tmp, dm_tmp, info);
     MLABecLaplacian& linop = *linop_ptr;
     linop.setMaxOrder(2);
-    linop.setDomainBC(get_lo_projection_bc(lev_geom, domain_bc_type),
-                      get_hi_projection_bc(lev_geom, domain_bc_type));
+    auto bclo = get_lo_projection_bc(lev_geom, domain_bc_type);
+    auto bchi = get_hi_projection_bc(lev_geom, domain_bc_type);
+    // No flux crosses the faces of the dropped direction (zero coefficient).  A Dirichlet type
+    // there would not pin phi, but it would tell MLMG that the operator is not singular.
+    if (dropped >= 0 && !lev_geom.isPeriodic(dropped)) {
+        bclo[dropped] = LinOpBCType::Neumann;
+        bchi[dropped] = LinOpBCType::Neumann;
+    }
+    linop.setDomainBC(bclo, bchi);
     if (lev > 0) {
         linop.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
     }
@@ -399,9 +442,9 @@ ERF::solve_with_if_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
         bcoef[idim].define(sigma[idim]->boxArray(), sigma[idim]->DistributionMap(), 1, 0);
         MultiFab::Copy(bcoef[idim], *sigma[idim], 0, 0, 1, 0);
     }
-    // MLABecLaplacian keeps the faces of a hidden direction in its stencil; see solve_with_flat_mlmg
-    if (info.hasHiddenDimension()) {
-        bcoef[info.hidden_direction].setVal(Real(0.0));
+    // The faces of the dropped direction get a zero coefficient; see solve_with_flat_mlmg
+    if (dropped >= 0) {
+        bcoef[dropped].setVal(Real(0.0));
     }
     linop.setBCoeffs(0, GetArrOfConstPtrs(bcoef));
 
@@ -427,10 +470,10 @@ ERF::solve_with_if_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     }
 
     // Return -grad phi, as solve_with_if_gmres does: the gradient of the solution, not the flux
-    // sigma grad phi, so that no face is divided by sigma (zero in a hidden direction)
+    // sigma grad phi, so that no face is divided by sigma (zero in the dropped direction)
     mlmg.getGradSolution({GetArrOfPtrs(fluxes[0])});
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-        if (idim == info.hidden_direction) {
+        if (idim == dropped) {
             fluxes[0][idim].setVal(Real(0.0));
         } else {
             fluxes[0][idim].mult(Real(-1.0));

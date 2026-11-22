@@ -2785,9 +2785,12 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Stretched_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
                                       "${if_hb_stretched} erf.if_implicit_projection=false" multilevel)
   endif()
-  # A slab one cell wide in y, so the multigrid of the implicit projection hides y on level 0: its
-  # face coefficients there are zero, or the V-cycle diverges and the run stops (MLABecLaplacian
-  # keeps the faces of a hidden direction in its stencil). Measured: 4e-8 K.
+  # A slab one cell wide in y, so the multigrid of the implicit projection drops y on level 0: its
+  # face coefficients there are zero, or the V-cycle diverges and the run stops. The direction is
+  # not hidden (LPInfo::setHiddenDirection): MLABecLaplacian reads phi on both sides of a cell in
+  # every direction, and phi has no ghost cells in a hidden one, so a build with bounds checks
+  # (Debug) stopped at an index out of bounds. The multigrid runs in a build without FFT; with
+  # FFT this leg takes the GMRES route. Measured: 4e-8 K.
   add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Slab ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
                                     "amr.n_cell='16 1 20' geometry.prob_hi='320 20 400' amr.blocking_factor=1 erf.box1.in_box_hi_indices_crse='11 0 4'" multilevel)
   # The L-shaped region on the stretched mesh: the terrain Poisson multigrid needs a rectangle, so
