@@ -279,7 +279,6 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     // If at lev > 0 we must first fill the momenta at the c/f interface with interpolated coarse values
     //
     if (lev > 0) {
-        PhysBCFunctNoOp null_bc;
         set_cf_fill_options(lev, true);
         FillSetHorizontalMomentaCF(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom]);
         FillSetZMomentumCF(lev, l_time, mom_mf[IntVars::zmom]);
