@@ -567,7 +567,10 @@ ERF::check_seb_surface_layer ()
         }
     }
     if (solverChoice.rad_type != RadiationType::TwoStream || !rc.seb_enable) { return; }
-    // Checked here and not in init_seb_skin_from_file, so that a restart is checked too.
+    // Checked here and not in init_seb_skin_from_file, so that a restart is checked too, and
+    // because the surface model does not exist yet when the level is made. At a fresh start
+    // InitData calls this after MakeNewLevelFromScratch, so the skin has been written by
+    // then; the run stops here before the first step.
     if (rc.seb_init_skin_from_file &&
         (solverChoice.lsm_type != LandSurfaceType::None ||
          solverChoice.urban_type != UrbanType::None || m_SurfaceModel)) {
@@ -807,10 +810,19 @@ ERF::init_seb_skin_from_file (int lev)
         Print() << " (" << report.t_min << " K to " << report.t_max << " K)";
     }
     if (lev == 0) {
-        Print() << "; water columns keep erf.rad_t_sfc = " << rc.rad_t_sfc << " K.\n";
+        Print() << "; water columns keep erf.rad_t_sfc = " << rc.rad_t_sfc << " K.";
     } else {
-        Print() << "; water columns keep what level " << lev-1 << " gave them.\n";
+        Print() << "; water columns keep what level " << lev-1 << " gave them.";
     }
+    // The restoring temperature is still one value: say how far the start lies from it.
+    Print() << " The restoring temperature stays erf.radiation.seb_t_deep_default = "
+            << rc.seb_t_deep_default << " K in every column";
+    if (report.n_set > 0) {
+        const Real far = std::max(std::abs(report.t_min - rc.seb_t_deep_default),
+                                  std::abs(report.t_max - rc.seb_t_deep_default));
+        Print() << ", up to " << far << " K from the values set";
+    }
+    Print() << "; the skin relaxes toward it.\n";
 }
 
 /**

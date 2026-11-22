@@ -6013,7 +6013,10 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | land value is not finite or lies outside                   |                    |                  |
 |                                                    | [seb_prognostic_t_min_k, seb_prognostic_t_max_k]. Not      |                    |                  |
 |                                                    | used on a restart (a NOTE says so): T_s comes from the     |                    |                  |
-|                                                    | checkpoint. false: every column begins at erf.rad_t_sfc    |                    |                  |
+|                                                    | checkpoint. The restoring temperature stays the one        |                    |                  |
+|                                                    | value seb_t_deep_default: a start far from it relaxes      |                    |                  |
+|                                                    | toward it (the log prints the largest difference).         |                    |                  |
+|                                                    | false: every column begins at erf.rad_t_sfc                |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_surface_layer_uses_moisture**  | Two-way coupling of moisture as well: the zlo surface      | Boolean            | false            |
 |                                                    | layer takes its land surface mixing ratio from the         |                    |                  |

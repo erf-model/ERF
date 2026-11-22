@@ -56,7 +56,7 @@ python3 check_skin.py file plt2d00000 --log run.log --count 78
 The log holds one line per level that took its file's values:
 
 ```
-ERF::init_seb_skin_from_file: level 0: the skin temperature of 78 land column(s) starts from the initial file (280 K to 287.25 K); water columns keep erf.rad_t_sfc = 300 K.
+ERF::init_seb_skin_from_file: level 0: the skin temperature of 78 land column(s) starts from the initial file (280 K to 287.25 K); water columns keep erf.rad_t_sfc = 300 K. The restoring temperature stays erf.radiation.seb_t_deep_default = 290 K in every column, up to 10 K from the values set; the skin relaxes toward it.
 ```
 
 | Column | `seb_t_sfc` at step 0 [K] |
@@ -66,6 +66,11 @@ ERF::init_seb_skin_from_file: level 0: the skin temperature of 78 land column(s)
 | any column with the input `false` | 300 |
 
 The check is exact: no tolerance.
+
+The restoring temperature of the balance stays the one value `erf.radiation.seb_t_deep_default`
+(290 K in the deck), so the skin relaxes from the file's value toward it during a run. The log line
+prints the largest distance between the two, here 290 - 280 = 10 K. This case stops at step 0
+and does not test the relaxation.
 
 With a second level, refined by 2 and without a file of its own, the fine level is filled
 from level 0 by the interpolation ERF already used. For this linear field and away from
@@ -97,22 +102,18 @@ building's column, ghost columns, two boxes and values that are not usable.
 
 | Test | What it runs | Passes when |
 | --- | --- | --- |
-| `WRFInput_SEBSkinInit` | the deck | 78 land columns hold `TSK`, 18 water columns hold 300 K, and the log reports 78 |
+| `WRFInput_SEBSkinInit` | the deck, with `TSK = -999` in the water column (8, 1) | 78 land columns hold `TSK`, 18 water columns hold 300 K (a water value is not read), and the log reports 78 and the largest distance from the restoring temperature, 10 K |
 | `WRFInput_SEBSkinInit_Off` | `erf.radiation.seb_init_skin_from_file=false` | every column holds 300 K and the log has no report line |
-| `WRFInput_SEBSkinInit_AllLand` | a file without water | all 96 columns hold `TSK` |
-| `WRFInput_SEBSkinInit_TaggedLevel` | a file without water; a second level made by tagging at the start on level 0 columns 2..5 x 2..5 | level 0 holds `TSK`; the 64 fine columns hold the linear field at their centers; the log has no line for level 1 |
+| `WRFInput_SEBSkinInit_TaggedLevel` | a file without water (`--all-land`); a second level made by tagging at the start on level 0 columns 2..5 x 2..5 | all 96 columns of level 0 hold `TSK`; the 64 fine columns hold the linear field at their centers; the log has no line for level 1 |
 | `WRFInput_SEBSkinInit_Restart` | two steps with a checkpoint after the first, then a restart from it | the restart's skin at step 2 is that of the first run, bit for bit; its log has the NOTE that the input is not used on a restart and no report line |
 | `WRFInput_SEBSkinInit_NoFile` | `erf.init_type=Uniform` | the run stops; the message names the input and says the file of level 0 gave no skin temperature |
 | `WRFInput_SEBSkinInit_NotTwoStream` | `erf.radiation_model=None` | the run stops; the message names the input and `erf.radiation_model = TwoStream` |
 | `WRFInput_SEBSkinInit_Nested` | `--nest`; a second level from `wrfinput_d02` and `wrflowinp_d02` | level 0 as the first test; 62 fine land columns hold the `TSK` of `wrfinput_d02`, the 2 fine water columns 283 K; the log reports 78 and 62 |
 | `WRFInput_SEBSkinInit_NestedParentLow` | `--nest`; a second level from `wrfinput_d02`, no `erf.nc_low_file_1` | level 0 as the first test; only level 0 is reported; the log says level 1 takes the skin of level 0, interpolated |
-| `WRFInput_SEBSkinInit_FlagOnLand` | `TSK = -999` in the land column (8, 5) | the run stops; the message names the input and counts 1 land column |
-| `WRFInput_SEBSkinInit_AboveRange` | `TSK = 350` in that column, above `seb_prognostic_t_max_k = 340` | the same, and the message prints the range 200 to 340 K |
+| `WRFInput_SEBSkinInit_AboveRange` | `TSK = 350` in the land column (8, 5), above `seb_prognostic_t_max_k = 340` | the run stops; the message names the input, counts 1 land column and prints the range 200 to 340 K |
 | `WRFInput_SEBSkinInit_RangeRaised` | `TSK = 350` there and `erf.radiation.seb_prognostic_t_max_k=360` | the run finishes and the column holds 350 K |
 | `WRFInput_SEBSkinInit_NotPrognostic` | `erf.radiation.seb_prognostic_enable=false` | the run stops; the message names the input and `seb_prognostic_enable` |
-| `WRFInput_SEBSkinInit_FlagOnWater` | `TSK = -999` in the water column (8, 1) | the run finishes with the values of the first test: a water value is not read |
-| `WRFInput_SEBSkinInit_MPI` | the first test on 4 ranks (2 boxes, so 2 ranks hold none); MPI builds only | as the first test |
-| `WRFInput_SEBSkinInit_SmallBoxes_MPI` | the first test on 3 ranks with `amr.max_grid_size=4`; MPI builds only | as the first test |
+| `WRFInput_SEBSkinInit_MPI` | the deck on 4 ranks (2 boxes, so 2 ranks hold none); MPI builds only | as the first test |
 | `WRFInput_SEBSkinInit_FlagOnLand_MPI` | `TSK = -999` in one land column of each box, on 2 ranks; MPI builds only | the run stops and the message counts 2 land columns, the sum over the ranks |
 | `WRFInput_SEBSkinInit_Nested_MPI` | the nested test on 3 ranks with `amr.max_grid_size=4`; MPI builds only | as the nested test |
 | `WRFInput_SEBSkinInit_Restart_MPI` | the restart test on 3 ranks; MPI builds only | as the restart test |

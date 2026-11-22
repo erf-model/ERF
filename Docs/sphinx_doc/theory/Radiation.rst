@@ -484,8 +484,13 @@ Limitations
   value for every column, so a column whose file value differs from it by :math:`\Delta T` feels
   the restoring flux :math:`C_s (2\pi/\tau)\,\Delta T` from the first step, with :math:`C_s` the
   skin heat capacity per area: 1.45 W m\ :sup:`-2` per kelvin for
-  :math:`C_s = 2\times10^{4}` J m\ :sup:`-2` K\ :sup:`-1` and :math:`\tau` of one day. A deep
-  temperature per column is not part of this input. A real file can hold land values outside
+  :math:`C_s = 2\times10^{4}` J m\ :sup:`-2` K\ :sup:`-1` and :math:`\tau` of one day. A
+  column that starts at 270 K with the default :math:`T_{\text{deep}}` of 300 K is pulled back
+  by about 43 W m\ :sup:`-2`, over the time :math:`\tau/2\pi` of 3.8 hours, so a start far
+  from ``seb_t_deep_default`` relaxes toward it and the per-column start is partly lost. Set
+  ``seb_t_deep_default`` near the mean of the file's land values; the log line of each level
+  prints the largest difference. A deep temperature per column, for example ``TMN`` of a
+  wrfinput file, is not part of this input. A real file can hold land values outside
   the default range of 200 K to 340 K (a hot desert, a polar plateau); the two range inputs
   widen it. Without
   ``erf.radiation.seb_surface_layer_uses_skin`` the surface layer keeps using the file's skin

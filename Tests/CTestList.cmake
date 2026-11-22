@@ -5502,14 +5502,16 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     # wrfinput file (erf.radiation.seb_init_skin_from_file). make_wrfinput.py writes
     # TSK = 280 + 0.5 i + 0.25 j and a block of water columns in both boxes; erf.rad_t_sfc is
     # 300 K. check_skin.py compares every column of the 2D plotfile with the formula: a land
-    # column holds TSK, a water column 300 K. The legs: the input on; off, when every column
-    # holds 300 K as before; no water; a second level without a file, made by tagging at the
-    # start, which must hold the same linear field at its own column centers; a restart,
-    # which must not read the file again; a file without TSK, a land TSK of -999 K, one of
-    # 350 K (above seb_prognostic_t_max_k) and the balance not prognostic, each of which must
-    # stop the run with a message that names the input; 350 K with the bound raised to
-    # 360 K, which runs; a water TSK of -999 K, which is not read; and, with MPI, four ranks
-    # on two boxes and the land TSK of -999 K on a rank that does not print.
+    # column holds TSK, a water column 300 K. The legs: the input on, with a water TSK of
+    # -999 K, which is not read; off, when every column holds 300 K as before; a file without
+    # water and a second level without a file, made by tagging at the start, which must hold
+    # the same linear field at its own column centers; a restart, which must not read the file
+    # again; a nest with a file, with and without a lower boundary file of its own; a start
+    # without a file, another radiation model, a land TSK of 350 K (above
+    # seb_prognostic_t_max_k) and the balance not prognostic, each of which must stop the run
+    # with a message that names the input; 350 K with the bound raised to 360 K, which runs;
+    # and, with MPI, four ranks on two boxes, a land TSK of -999 K on each of two ranks, the
+    # nest on small boxes and the restart.
     function(add_test_wrfinput_seb_skin TEST_NAME MAKE_OPTIONS RUNTIME_OPTIONS EXPECT CHECK)
       set(_launch "")
       set(_np 1)
@@ -5544,12 +5546,11 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
     endfunction(add_test_wrfinput_seb_skin)
     set(_skin_named "@PY@ log @LOG@ 'erf.radiation.seb_init_skin_from_file = true'")
-    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit "" "" runs
-        "@PY@ file plt2d00000 --log @LOG@ --count 78")
+    # The water column (8, 1) of the file holds -999 K here: a water value is not read
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit "--water -999" "" runs
+        "@PY@ file plt2d00000 --log @LOG@ --count 78 && @PY@ log @LOG@ 'The restoring temperature stays erf.radiation.seb_t_deep_default = 290 K in every column, up to 10 K from the values set'")
     add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Off "" "erf.radiation.seb_init_skin_from_file=false" runs
         "@PY@ default plt2d00000 --log @LOG@")
-    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_AllLand "--all-land" "" runs
-        "@PY@ file plt2d00000 --all-land --log @LOG@ --count 96")
     add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_TaggedLevel "--all-land"
         "amr.max_level=1 amr.ref_ratio_vect=2 2 1 amr.n_error_buf=0 amr.blocking_factor=2 erf.regrid_int=-1 erf.refinement_indicators=boxa erf.boxa.max_level=1 erf.boxa.in_box_lo=2000.0 2000.0 erf.boxa.in_box_hi=6000.0 6000.0"
         runs "@PY@ tagged plt2d00000 --log @LOG@ --count 96 && @PY@ log @LOG@ 'ERF::init_seb_skin_from_file: level 1' --absent")
@@ -5568,8 +5569,6 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     # ... and without one: the level's surface temperature follows its parent's
     add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NestedParentLow "--nest" "${_skin_nest}" runs
         "@PY@ file plt2d00000 --log @LOG@ --count 78 && @PY@ log @LOG@ 'level 1: the skin temperature is that of level 0, interpolated'")
-    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_FlagOnLand "--land -999" "" stops
-        "${_skin_named} && @PY@ log @LOG@ 'on 1 land column(s)'")
     add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_AboveRange "--land 350" "" stops
         "${_skin_named} && @PY@ log @LOG@ 'on 1 land column(s)' && @PY@ log @LOG@ '= [200.000000, 340.000000] K'")
     add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_RangeRaised "--land 350"
@@ -5578,13 +5577,9 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
     add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NotPrognostic ""
         "erf.radiation.seb_prognostic_enable=false" stops
         "${_skin_named} && @PY@ log @LOG@ 'needs erf.radiation.seb_prognostic_enable = true'")
-    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_FlagOnWater "--water -999" "" runs
-        "@PY@ file plt2d00000 --log @LOG@ --count 78")
     if(ERF_ENABLE_MPI)
       add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_MPI "" "" runs
           "@PY@ file plt2d00000 --log @LOG@ --count 78" 4)
-      add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_SmallBoxes_MPI "" "amr.max_grid_size=4" runs
-          "@PY@ file plt2d00000 --log @LOG@ --count 78" 3)
       # One bad column in each box, so each rank holds one: the count is the sum over the ranks
       add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_FlagOnLand_MPI "--land -999 --land-west -999" "" stops
           "${_skin_named} && @PY@ log @LOG@ 'on 2 land column(s)'" 2)
