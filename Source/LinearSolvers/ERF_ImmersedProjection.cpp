@@ -64,8 +64,7 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     }
 
     // The drag rate of a solid face in the source terms, without their windspeed cap
-    // (CdM * windspeed = min(1, |u|) * drag_coefficient there)
-    const auto dx = geom[lev].CellSizeArray();
+    // (CdM * windspeed = min(1, |u|) * drag_coefficient there),
     // with dx in place of a dy over one cell, and the reverse, as the source terms
     const auto len = LengthScaleCellSize(geom[lev]);
     const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(len[0]*len[1]*len[2], one/three);
