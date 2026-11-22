@@ -394,6 +394,10 @@ solver, refined regions that meet across a periodic boundary are refused. The th
 multiplies the largest real number by 1.5 while it sets up its coarse levels, so a run with
 ``amrex.fpe_trap_overflow = 1`` stops there; run it with that trap off.
 
+Thin immersed bodies (``erf.zero_xflux_faces``, ``erf.zero_yflux_faces``, ``erf.zero_zflux_faces``)
+have their own projection, which does not take :math:`\sigma`. The option is refused with them
+when the inputs are read.
+
 A terrain-fitted mesh and a pseudo-incompressible level are not supported. A ``FullyCompressible``
 level has no projection: in a hierarchy that mixes the two, the option acts on the levels that
 project and the ``FullyCompressible`` levels keep the drag in the source term; at least one level

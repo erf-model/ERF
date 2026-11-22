@@ -2821,6 +2821,14 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                     "${if_hb_mapfac}" "")
   add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_MapFactor_Freeze ImmersedBuildingHeatBalance 300.0 1.0e-6 ON OFF
                                     "${if_hb_mapfac} erf.if_implicit_projection=false" "")
+  # Thin immersed bodies are projected without the drag coefficient, so the option is refused
+  # with them when the inputs are read (found in the audit after erf-model/ERF#5324)
+  if(ERF_ENABLE_MPI AND NOT WIN32)
+    add_test_abort(ImmersedBuildingHeatBalance_NoThinBodies ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ImmersedBuildingHeatBalance
+                   ImmersedBuildingHeatBalance.i
+                   "erf.if_implicit_projection is not supported with thin immersed bodies"
+                   "${if_hb_fft_option} 'erf.zero_xflux_faces=(4,4,10)'")
+  endif()
   if(ERF_ENABLE_FFT)
     # Neutral ABL with the k-eqn RANS over an immersed plane on a cell face, two solid rows below it,
     # against the same ABL on flat ground (erf-model/ERF#4134): with the fraction-stress wall law the
