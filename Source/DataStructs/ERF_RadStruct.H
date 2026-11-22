@@ -469,6 +469,17 @@ public:
   bool seb_surface_layer_uses_skin = false;
 
   /**
+   * @brief At a fresh start, the skin temperature T_s of a land column begins at the skin
+   * temperature of the initial file (TSK of a wrfinput file, SKINTEMP of a metgrid file)
+   * in place of rad_t_sfc. A water column keeps rad_t_sfc. Requires seb_prognostic_enable
+   * (without it T_s is reset to rad_t_sfc at every radiation step) and an initial file
+   * with the field; a land value that is not finite or lies outside
+   * [seb_prognostic_t_min_k, seb_prognostic_t_max_k] stops the run. Not used on a restart:
+   * the checkpoint holds T_s. Default false: every column begins at rad_t_sfc.
+   */
+  bool seb_init_skin_from_file = false;
+
+  /**
    * @brief Two-way coupling of moisture as well: the surface layer takes its land surface
    * mixing ratio from the balance's surface water, so its moisture flux follows the soil
    * and dries as the balance's q_s does. Without seb_soil_type it is
@@ -941,6 +952,7 @@ public:
    * - erf.radiation.seb_lw_flux_default (real, optional, default 0.0)
    * - erf.radiation.seb_turbulent_flux_source (string "surface_layer"|"defaults", optional, default "surface_layer")
    * - erf.radiation.seb_surface_layer_uses_skin (bool, optional, default false)
+   * - erf.radiation.seb_init_skin_from_file (bool, optional, default false)
    * - erf.radiation.seb_surface_layer_uses_moisture (bool, optional, default false)
    * - erf.radiation.seb_soil_moisture_wilt (real, optional, default 0.066, 0 <= wilt < fc)
    * - erf.radiation.seb_soil_moisture_fc (real, optional, default 0.329, wilt < fc <= 1)
@@ -1317,6 +1329,7 @@ public:
                        "or defaults, not '" + value + "'");
       }
       pp.query("radiation.seb_surface_layer_uses_skin", seb_surface_layer_uses_skin);
+      pp.query("radiation.seb_init_skin_from_file", seb_init_skin_from_file);
       pp.query("radiation.seb_surface_layer_uses_moisture", seb_surface_layer_uses_moisture);
       pp.query("radiation.seb_soil_moisture_wilt", seb_soil_moisture_wilt);
       pp.query("radiation.seb_soil_moisture_fc", seb_soil_moisture_fc);
@@ -1482,6 +1495,14 @@ public:
                            "balance must remove the heat flux the surface layer computes "
                            "from the skin");
           }
+      }
+
+      // The skin of the initial file is a first value of a field that evolves. Without the
+      // prognostic balance the skin is set back to rad_t_sfc at every radiation step.
+      if (seb_init_skin_from_file && !seb_prognostic_enable) {
+          amrex::Abort("erf.radiation.seb_init_skin_from_file = true needs "
+                       "erf.radiation.seb_prognostic_enable = true: without it the skin "
+                       "temperature is erf.rad_t_sfc at every radiation step");
       }
 
       // Moisture coupling: the surface mixing ratio is q_sat at the skin temperature, so

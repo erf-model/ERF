@@ -603,6 +603,10 @@ public:
     //! Fill a newly built level's two-stream SEB state from its parent
     void fill_seb_from_coarse (int lev);
 
+    //! With erf.radiation.seb_init_skin_from_file, start the two-stream SEB skin
+    //! temperature of the land columns of level lev from the initial file's TSK or SKINTEMP
+    void init_seb_skin_from_file (int lev);
+
     //! With erf.radiation.seb_surface_layer_uses_skin, hand the two-stream surface energy
     //! balance's skin temperature of level lev to the zlo surface layer before it
     //! computes its fluxes

@@ -1,6 +1,7 @@
 CEXE_sources += ERF_RadiationDiagnostics.cpp
 CEXE_sources += ERF_TwoStreamRadiation.cpp
 CEXE_sources += ERF_SEBTurbulentFlux.cpp
+CEXE_sources += ERF_SEBSkinInit.cpp
 CEXE_sources += ERF_ForceRestoreHydrologyState.cpp
 CEXE_sources += ERF_ForceRestorePrecipRate.cpp
 CEXE_sources += ERF_ForceRestoreSnowState.cpp
@@ -9,6 +10,7 @@ CEXE_headers += ERF_TwoStreamRadiation.H
 CEXE_headers += ERF_SEBLandAverageDown.H
 CEXE_headers += ERF_SEBLandFill.H
 CEXE_headers += ERF_SEBLandMask.H
+CEXE_headers += ERF_SEBSkinInit.H
 CEXE_headers += ERF_TwoStreamSW.H
 CEXE_headers += ERF_TwoStreamLW.H
 CEXE_headers += ERF_TwoStreamColumn.H
