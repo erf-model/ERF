@@ -104,11 +104,16 @@ solve_with_EB_mlmg (int lev,
  */
 bool ERF::has_nonunit_mapfac (int lev) const
 {
-    for (int i = 0; i < MapFacType::num; ++i) {
+    // Local extrema and one reduction: the coarse/fine fills ask this on every fill
+    int nonunit = 0;
+    for (int i = 0; i < MapFacType::num && nonunit == 0; ++i) {
         const MultiFab& mf = *mapfac[lev][i];
-        if (mf.min(0) != one || mf.max(0) != one) { return true; }
+        if (mf.local_size() > 0 && (mf.min(0, 0, true) != one || mf.max(0, 0, true) != one)) {
+            nonunit = 1;
+        }
     }
-    return false;
+    ParallelAllReduce::Max(nonunit, ParallelContext::CommunicatorSub());
+    return nonunit != 0;
 }
 
 /**
@@ -185,7 +190,7 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
         RegisterCoarseMomentumCF(levc, rU_new[levc], rU_new[levc], rV_new[levc], rV_new[levc], {time, time+l_dt});
 
         rW_new[levc].FillBoundary(geom[levc].periodicity());
-        FPr_w[levc].RegisterCoarseData({&rW_new[levc], &rW_new[levc]}, {time, time+l_dt});
+        RegisterCoarseZMomentumCF(levc, rW_new[levc], rW_new[levc], {time, time+l_dt});
     }
 
     // Use the same time that was registered in the FillPatcher above so that the
@@ -277,7 +282,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         PhysBCFunctNoOp null_bc;
         set_cf_fill_options(lev, true);
         FillSetHorizontalMomentaCF(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom]);
-        FPr_w[lev-1].FillSet(mom_mf[IntVars::zmom], l_time, null_bc, domain_bcs_type);
+        FillSetZMomentumCF(lev, l_time, mom_mf[IntVars::zmom]);
         set_cf_fill_options(lev, false);
     }
 
@@ -612,10 +617,6 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     const bool flat_terrain_solve = use_terrain_solver && (solverChoice.mesh_type != MeshType::VariableDz);
     if (l_if_implicit && use_terrain_solver) {
         amrex::Abort("erf.if_implicit_projection needs map factors of one (it does not use the terrain Poisson solver)");
-    }
-    if (flat_terrain_solve && lev > 0 && has_nonunit_mapfac(lev)) {
-        amrex::Abort("The projection on a refined level of a mesh without terrain (or with only "
-                     "grid stretching) and map factors other than one is not supported");
     }
 
     // If we are going to solve with MLMG then we do not need to break this into subdomains

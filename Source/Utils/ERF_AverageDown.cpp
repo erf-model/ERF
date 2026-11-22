@@ -127,6 +127,47 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
         //    (rho S)_c = rho_c * (the same-weighted mean of S_f).
         const bool rescale_by_rho = solverChoice.compressibility_type[crse_lev] == CompressibilityType::Anelastic && (scomp > Rho_comp);
 
+        // A flat mesh whose map factors vary: a covered coarse cell's volume 1/(m_x m_y)
+        //    (detJ/(m_x m_y) on a stretched mesh) is not the mean of the fine volumes over it,
+        //    and over terrain average_down_detJ makes it so, but a flat mesh keeps its own
+        //    volumes (see average_down_detJ).  Divide by the sum of the fine volumes instead,
+        //    w_c / avg(w_f) times the plain average, so that a uniform state stays uniform.  The
+        //    rescaling above already divides by the sum of the fine masses.
+        const bool rescale_by_vol = !rescale_by_rho && fine_volume_average(crse_lev);
+        MultiFab vol_fac;
+        if (rescale_by_vol) {
+            MultiFab vol[2];
+            for (int l = 0; l < 2; ++l) {
+                const int lev = crse_lev + l;
+                const MultiFab& cons = vars_new[lev][Vars::cons];
+                vol[l].define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+                for (MFIter mfi(vol[l], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<      Real> v_arr   = vol[l].array(mfi);
+                    const Array4<const Real> mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+                    const Array4<const Real> mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+                        const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            v_arr(i,j,k) = detJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                        });
+                    } else {
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            v_arr(i,j,k) = one / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                        });
+                    }
+                } // mfi
+            } // l
+
+            // Uncovered cells keep vol[0] unchanged, so their factor is exactly one
+            vol_fac.define(vol[0].boxArray(), vol[0].DistributionMap(), 1, 0);
+            MultiFab::Copy(vol_fac, vol[0], 0, 0, 1, 0);
+            average_down(vol[1], vol[0], 0, 1, refRatio(crse_lev));
+            MultiFab::Divide(vol_fac, vol[0], 0, 0, 1, 0);
+        }
+
         MultiFab rho_w_fac;
         if (rescale_by_rho) {
             MultiFab rho_w[2];
@@ -169,6 +210,11 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
         if (rescale_by_rho) {
             for (int n = 0; n < ncomp; ++n) {
                 MultiFab::Multiply(vars_new[crse_lev][Vars::cons], rho_w_fac, 0, scomp+n, 1, 0);
+            }
+        }
+        if (rescale_by_vol) {
+            for (int n = 0; n < ncomp; ++n) {
+                MultiFab::Multiply(vars_new[crse_lev][Vars::cons], vol_fac, 0, scomp+n, 1, 0);
             }
         }
     } else {
@@ -264,7 +310,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
     // is the fine mass flux through the coarse face, which keeps the anelastic constraint (a
     // fluid-weighted face average does not, and advecting theta with it heats the flow)
     if (SolverChoice::terrain_type != TerrainType::EB) {
-        // Anelastic over terrain: the horizontal momenta as mass fluxes (see average_down_mass_flux)
+        // Anelastic or pseudo-incompressible over terrain, or on a flat mesh with map factors other
+        // than one: the momenta as mass fluxes (see average_down_mass_flux)
         if (solverChoice.compressibility_type[crse_lev] != CompressibilityType::FullyCompressible && cf_interp_mass_flux(crse_lev+1)) {
             average_down_mass_flux(crse_lev);
         } else {
@@ -307,7 +354,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
  *
  *   q_c = q0_c + sum_f w_f (q_f - q0_f) / (N w_c),
  *
- * with N the number of fine cells in a coarse cell, as in the plain, mass-exact average.  q0 is
+ * with N the number of fine cells in a coarse cell, as in the plain, mass-exact average (on a flat
+ * mesh whose map factors vary, sum_f w_f in place of N w_c: see fine_volume_average).  q0 is
  * rho0, rho0 theta0 and (with moisture) rho0 qv0 in Rho_comp, RhoTheta_comp and RhoQ1_comp, and
  * zero otherwise.  With the base state removed, a fine level in its base state averages to the
  * coarse base state.  The fine level is read only.
@@ -341,6 +389,8 @@ ERF::AverageDownConsPerturbational (int crse_lev, int scomp, int ncomp)
     AMREX_ALWAYS_ASSERT(!anelastic || scomp > Rho_comp);
     const bool use_detJ = (SolverChoice::mesh_type != MeshType::ConstantDz);
     const bool l_moist  = (solverChoice.moisture_type != MoistureType::None);
+    // Divide by the sum of the fine volumes rather than N w_c (see fine_volume_average)
+    const bool fine_vol = fine_volume_average(crse_lev);
 
     // The components, counted from scomp, whose base state is taken out (-1 for none)
     const int ir  = (Rho_comp      >= scomp && Rho_comp      < scomp+ncomp) ? Rho_comp      - scomp : -1;
@@ -410,8 +460,9 @@ ERF::AverageDownConsPerturbational (int crse_lev, int scomp, int ncomp)
         {
             const Real wsum = s_arr(i,j,k,ncomp);
             if (wsum <= zero) { return; }
-            const Real W = n_fine * ((use_detJ) ? dJ_arr(i,j,k) : one)
-                                  / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+            const Real W = (fine_vol) ? wsum
+                                      : n_fine * ((use_detJ) ? dJ_arr(i,j,k) : one)
+                                               / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
             if (anelastic) {
                 // rho_c is the coarse level's own, and is kept
                 const Real rho_c = c_arr(i,j,k,Rho_comp);
@@ -454,6 +505,23 @@ ERF::AverageDownMoistStateTo (int crse_lev)
 }
 
 /**
+ * Whether the average-down onto the covered cells of level crse_lev divides by the sum of the fine
+ * volumes rather than by N times the coarse volume: on a flat mesh (ConstantDz or StretchedDz)
+ * whose map factors are not all one.  The two differ there, by O(dm^2), and a uniform state would
+ * not stay uniform.  Over terrain average_down_detJ makes them the same, and with all map factors
+ * one they are the same, so neither case changes.
+ *
+ * @param[in] crse_lev coarse level
+ */
+bool
+ERF::fine_volume_average (int crse_lev) const
+{
+    return SolverChoice::mesh_type != MeshType::VariableDz &&
+           SolverChoice::terrain_type != TerrainType::EB &&
+           has_nonunit_mapfac(crse_lev+1);
+}
+
+/**
  * Set detJ_cc of level crse_lev, in the cells that level crse_lev+1 covers, to
  *
  *   detJ_c = m_x,c m_y,c (1/N) sum_f detJ_f / (m_x,f m_y,f),
@@ -473,6 +541,16 @@ ERF::average_down_detJ (int crse_lev)
     const int fine_lev = crse_lev + 1;
     const MultiFab& dJ_f = *detJ_cc[fine_lev];
           MultiFab& dJ_c = *detJ_cc[crse_lev];
+
+    // On a stretched mesh without terrain detJ is a function of k alone: the projection's
+    // divergence uses the stretched dz there (compute_divergence) while its operator and the
+    // advection use detJ, so a covered coarse cell whose detJ took the map factors would keep a
+    // divergence, and upwind advection would carry it out of the covered cells.  The plain
+    // average leaves it as it was.
+    if (solverChoice.mesh_type == MeshType::StretchedDz) {
+        average_down(dJ_f, dJ_c, 0, 1, refRatio(crse_lev));
+        return;
+    }
 
     // The fine volumes, detJ / (m_x m_y)
     MultiFab vol_f(dJ_f.boxArray(), dJ_f.DistributionMap(), 1, 0);
