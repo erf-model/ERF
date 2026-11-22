@@ -84,7 +84,8 @@ ERF::make_eb_factories (int lev, const BoxArray& ba, const DistributionMapping& 
         const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
         const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
         if (solverChoice.terrain_type == TerrainType::EB) {
-            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level,
+                                        solverChoice.ebChoice.eb_cover_zero_area_faces);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
             if (use_native_fc_factories()) {
