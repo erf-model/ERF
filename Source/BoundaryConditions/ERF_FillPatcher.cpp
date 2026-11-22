@@ -221,9 +221,8 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
             for (int jj(0); jj < nshift[1]; ++jj) {
             for (int ii(0); ii < nshift[0]; ++ii) {
                 if (ii == 0 && jj == 0 && kk == 0) { continue; }  // already in bl_mf
-                Box bb(bcc);
+                Box bb(b);
                 bb.shift(IntVect(shift[0][ii],shift[1][jj],shift[2][kk]));
-                bb.setType(b.ixType());
                 bb &= fba_bnd;
                 if (bb.ok()) { bl_mf_new.push_back(bb); }
             }}} // shift combinations
