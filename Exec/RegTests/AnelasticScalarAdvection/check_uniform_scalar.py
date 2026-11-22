@@ -2,13 +2,17 @@
 """Check that anelastic advection over terrain leaves a uniform scalar and theta uniform.
 
 Usage: check_uniform_scalar.py <plotfile> <tolerance> [--require-z-split] [--require-level]
+                               [--density]
 
 On every level of the plotfile, scalar must stay within the given relative tolerance of
 its value at the start (prob.A_0 = 1), and theta of prob.T_0 = 300.  So that the check
 cannot pass on a flow that never crosses the terrain-following faces, the largest |w|
 must also be at least 0.5 m/s (the wind over the hill's flanks).  With --require-z-split
 level 0 must also hold a box that starts above the bottom of the domain, and with
---require-level the plotfile must hold a refined level.  A NaN anywhere fails.
+--require-level the plotfile must hold a refined level.  With --density the density must also
+stay within the tolerance of prob.rho_0 = 1: a pseudo-incompressible level evolves rho with the
+same fluxes as rho S, so the scalar stays uniform even where the flow is not divergence-free, and
+only the density shows it.  A NaN anywhere fails.
 """
 import math
 import os
@@ -41,7 +45,8 @@ def extrema(plotfile, level, names, name):
 
 
 def main(argv):
-    args = [a for a in argv[1:] if a not in ("--require-z-split", "--require-level")]
+    flags = ("--require-z-split", "--require-level", "--density")
+    args = [a for a in argv[1:] if a not in flags]
     if len(args) != 2:
         print(__doc__)
         return 2
@@ -50,8 +55,11 @@ def main(argv):
     failed = 0
     largest_w = 0.0
     print("%6s %8s %14s %14s %12s %6s" % ("level", "field", "min", "max", "rel. error", "pass"))
+    expected = dict(EXPECTED)
+    if "--density" in argv:
+        expected["density"] = 1.0
     for lev in range(hdr["finest"] + 1):
-        for name, value in EXPECTED.items():
+        for name, value in expected.items():
             lo, hi = extrema(plotfile, lev, hdr["names"], name)
             err = max(abs(lo - value), abs(hi - value)) / value
             ok = err <= tol
