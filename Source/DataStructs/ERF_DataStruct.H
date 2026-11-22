@@ -1893,6 +1893,15 @@ struct SolverChoice {
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
 
+        // A level with thin immersed bodies is projected by project_velocity_tb, which has no
+        // drag coefficient, while erf.if_implicit_projection takes the drag out of the momentum
+        // source and leaves the solid faces unfrozen: the immersed solid would get no drag at all
+        if (if_implicit_projection && advChoice.have_zero_flux_faces) {
+            amrex::Abort("erf.if_implicit_projection is not supported with thin immersed bodies "
+                         "(erf.zero_xflux_faces, erf.zero_yflux_faces, erf.zero_zflux_faces): "
+                         "set erf.if_implicit_projection = false or remove the thin bodies");
+        }
+
         // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centered and
         // upwind schemes; with any other the fluxes are never set and, in a Release build, the
         // fields are not advected at all.  The moist scalars default to WENO3, so they are checked

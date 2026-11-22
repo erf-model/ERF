@@ -4474,7 +4474,8 @@ building combinations.
 |                                   | solid too. Solver: FFT-preconditioned GMRES (constant    |                    |                  |
 |                                   | dz, map factors of one, FFT build, rectangular refined   |                    |                  |
 |                                   | regions), otherwise multigrid. A FullyCompressible       |                    |                  |
-|                                   | level keeps the drag in the momentum source              |                    |                  |
+|                                   | level keeps the drag in the momentum source.             |                    |                  |
+|                                   | Refused with thin immersed bodies (zero-flux faces)      |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_z0**                     | roughness length [m] used by the immersed forcing wall   | Real > 0           | 0.1              |
 |                                   | model                                                    |                    |                  |
