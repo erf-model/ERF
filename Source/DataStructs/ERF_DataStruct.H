@@ -1876,6 +1876,10 @@ struct SolverChoice {
         use_num_diff = false;
 
             advChoice.init_params(pp_prefix);
+           diffChoice.init_params(pp_prefix);
+        dampingChoice.init_params(pp_prefix);
+         spongeChoice.init_params(pp_prefix);
+             ebChoice.init_params(pp_prefix);
 
         // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centred and
         // upwind schemes; with any other the fluxes are never set and, in a Release build, the
@@ -1902,12 +1906,14 @@ struct SolverChoice {
                 check_eb_adv("moistscal_horiz_adv_type", advChoice.moistscal_horiz_adv_type);
                 check_eb_adv("moistscal_vert_adv_type",  advChoice.moistscal_vert_adv_type);
             }
-        }
 
-           diffChoice.init_params(pp_prefix);
-        dampingChoice.init_params(pp_prefix);
-         spongeChoice.init_params(pp_prefix);
-             ebChoice.init_params(pp_prefix);
+            // Required if any level projects every step
+            bool any_projection = false;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                any_projection |= (compressibility_type[lev] != CompressibilityType::FullyCompressible);
+            }
+            ebChoice.finalize_cover_zero_area_faces(any_projection);
+        }
 
         // A level that takes no acoustic substeps applies these terms on the slow step instead
         // (level_substeps); say so when they were asked for

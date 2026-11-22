@@ -55,6 +55,24 @@ struct EBChoice {
         } else {
             amrex::Error("Don't know this eb_boundary_type");
         }
+
+        eb_cover_zero_area_faces_given = pp.query("eb_cover_zero_area_faces", eb_cover_zero_area_faces);
+    }
+
+    /**
+     * @brief Force eb_cover_zero_area_faces on if any level projects every step: the projection
+     *        does not constrain momentum on faces of zero CC area fraction, which then grows.
+     * @param any_projection Whether any level is Anelastic or PseudoIncompressible.
+     */
+    void finalize_cover_zero_area_faces (bool any_projection)
+    {
+        if (any_projection) {
+            if (eb_cover_zero_area_faces_given && !eb_cover_zero_area_faces) {
+                amrex::Abort("erf.eb_cover_zero_area_faces = false is not allowed with Anelastic or "
+                             "PseudoIncompressible levels");
+            }
+            eb_cover_zero_area_faces = true;
+        }
     }
 
     /**
@@ -70,13 +88,23 @@ struct EBChoice {
         } else if (eb_boundary_type == EBBoundaryType::SurfaceLayer) {
             amrex::Print() << "    eb_boundary_type        : SurfaceLayer" << std::endl;
         }
+        amrex::Print() << "    eb_cover_zero_area_faces: " << (eb_cover_zero_area_faces ? "true" : "false")
+                       << std::endl;
     }
 
     EBBoundaryType eb_boundary_type = EBBoundaryType::SlipWall;
+    bool eb_cover_zero_area_faces = false;
+    bool eb_cover_zero_area_faces_given = false;
 };
 
 /**
  * @var EBChoice::eb_boundary_type
  * @brief Boundary condition model applied on embedded-boundary surfaces.
+ *
+ * @var EBChoice::eb_cover_zero_area_faces
+ * @brief Cover FC EB cells at faces with zero CC area fraction (forced on with a projection).
+ *
+ * @var EBChoice::eb_cover_zero_area_faces_given
+ * @brief Whether erf.eb_cover_zero_area_faces was given in the inputs.
  */
 #endif
