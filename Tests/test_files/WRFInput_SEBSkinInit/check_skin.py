@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Compare the balance's skin temperature in a 2D plotfile with make_wrfinput.py.
+"""Compare the balance's skin or deep temperature in a 2D plotfile with make_wrfinput.py.
+
+Without --field, or with --field skin, the field is the skin temperature seb_t_sfc: the
+file's TSK on land and erf.rad_t_sfc on water. With --field deep it is the deep temperature
+seb_t_deep: the file's TMN on land and erf.radiation.seb_t_deep_default on water. The modes
+below are written for the skin and read the same way for the deep temperature.
 
   check_skin.py file PLT [--all-land] [--land VALUE]
                                            land columns hold the file's TSK, water columns
@@ -13,10 +18,17 @@
                                            holds the TSK of wrfinput_d02, a level 1 water
                                            column what level 0 gave it (here the TSK of
                                            the land column of level 0 under it)
-  check_skin.py same PLT_A PLT_B           the two plotfiles hold the same skin, bit for bit
+                                           With --averaged the level 0 columns under the
+                                           nest hold the mean of the nest's land columns
+                                           over them, as after a step with two-way coupling
+  check_skin.py same PLT_A PLT_B           the two plotfiles hold the same skin, bit for bit,
+                                           on every level
+  check_skin.py near PLT --tol K           every land column of level 0 is within K of the
+                                           file's value, and at least one differs from it
   check_skin.py log LOG TEXT [--absent]    LOG holds TEXT (or does not, with --absent)
 
-The plotfile modes also take --log LOG --count N: the log must report N land columns set.
+The plotfile modes also take --log LOG --count N: the log must report N land columns set
+(by ERF::init_seb_skin_from_file, or with --field deep by ERF::init_seb_t_deep_from_file).
 """
 
 import argparse
@@ -30,12 +42,21 @@ for d in (_here, os.path.join(_here, "..", "..", "..", "Exec", "Tools"), os.envi
         sys.path.insert(0, d)
 import erf_plotfile  # noqa: E402
 
-from make_wrfinput import (LAND_COLUMN, NEST_LO, NEST_N, NEST_RATIO, NX, NY, RAD_T_SFC,  # noqa: E402
-                           is_water, nest_is_water, nest_tsk, tsk)
+import make_wrfinput as mw  # noqa: E402
+from make_wrfinput import (LAND_COLUMN, NEST_LO, NEST_N, NEST_RATIO, NX, NY,  # noqa: E402
+                           is_water, nest_is_water)
 
-FIELD = "seb_t_sfc"
-REPORT = re.compile(r"ERF::init_seb_skin_from_file: level (\d+): the skin temperature of (\d+) "
-                    r"land column\(s\) starts from the initial file")
+# Per field: the plotfile variable, the value a column holds when the file is not used, the
+# formulas of the two files, and the line the log reports the land columns in.
+FIELDS = {
+    "skin": ("seb_t_sfc", mw.RAD_T_SFC, mw.tsk, mw.nest_tsk,
+             re.compile(r"ERF::init_seb_skin_from_file: level (\d+): the skin temperature of (\d+) "
+                        r"land column\(s\) starts from the initial file")),
+    "deep": ("seb_t_deep", mw.T_DEEP_DEFAULT, mw.tmn, mw.nest_tmn,
+             re.compile(r"ERF::init_seb_t_deep_from_file: level (\d+): the deep temperature of (\d+) "
+                        r"land column\(s\) is the TMN of the initial file")),
+}
+FIELD, DEFAULT, value, nest_value, REPORT = FIELDS["skin"]
 
 
 def skin(plotfile, level=0):
@@ -64,14 +85,19 @@ def compare(plotfile, expected, level=0, boxes=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("file", "default", "tagged", "nested", "same", "log"))
+    parser.add_argument("mode", choices=("file", "default", "tagged", "nested", "same", "near", "log"))
     parser.add_argument("args", nargs="+")
     parser.add_argument("--all-land", action="store_true")
     parser.add_argument("--absent", action="store_true")
     parser.add_argument("--land", type=float, default=None)
+    parser.add_argument("--averaged", action="store_true")
+    parser.add_argument("--tol", type=float, default=None)
     parser.add_argument("--log")
     parser.add_argument("--count", type=int, action="append", default=[])
+    parser.add_argument("--field", choices=sorted(FIELDS), default="skin")
     a = parser.parse_args()
+    global FIELD, DEFAULT, value, nest_value, REPORT
+    FIELD, DEFAULT, value, nest_value, REPORT = FIELDS[a.field]
 
     errors = []
     if a.mode == "log":
@@ -80,27 +106,53 @@ def main():
         if found == a.absent:
             errors.append(f"{log_path}: '{text}' " + ("is present" if found else "is not present"))
     elif a.mode == "same":
-        la, ha, da = skin(a.args[0])
-        lb, hb, db = skin(a.args[1])
-        if (la, ha) != (lb, hb):
-            errors.append("the two plotfiles are not on the same domain")
-        elif da != db:
-            errors.append(f"{a.args[0]} and {a.args[1]} hold different skin temperatures")
-        elif all(v[0] == RAD_T_SFC for row in da for v in row):
-            errors.append("both plotfiles hold erf.rad_t_sfc everywhere: the comparison shows nothing")
+        finest = erf_plotfile.finest_level(a.args[0])
+        if finest != erf_plotfile.finest_level(a.args[1]):
+            errors.append("the two plotfiles do not have the same levels")
+            finest = -1
+        for level in range(finest + 1):
+            la, ha, da = skin(a.args[0], level)
+            lb, hb, db = skin(a.args[1], level)
+            if (la, ha) != (lb, hb):
+                errors.append(f"level {level}: the two plotfiles are not on the same domain")
+            elif da != db:
+                errors.append(f"level {level}: {a.args[0]} and {a.args[1]} hold different {FIELD}")
+            elif level == 0 and all(v[0] == DEFAULT for row in da for v in row):
+                errors.append(f"both plotfiles hold the default {DEFAULT} K everywhere: the comparison shows nothing")
+        print(f"{finest + 1} level(s) compared")
+    elif a.mode == "near":
+        lo, hi, got = skin(a.args[0])
+        differs = 0
+        for i in range(lo[0], hi[0] + 1):
+            for j in range(lo[1], hi[1] + 1):
+                if is_water(i, j):
+                    continue
+                have = got[i - lo[0]][j - lo[1]][0]
+                if not abs(have - value(i, j)) <= a.tol:
+                    errors.append(f"column ({i}, {j}): {have!r} is not within {a.tol} K of {value(i, j)!r}")
+                differs += have != value(i, j)
+        if differs == 0:
+            errors.append(f"every land column still holds the file's value: {FIELD} did not evolve")
     else:
         plotfile = a.args[0]
         if a.mode == "default":
-            n, errors = compare(plotfile, lambda i, j: RAD_T_SFC)
+            n, errors = compare(plotfile, lambda i, j: DEFAULT)
         else:
             all_land = a.all_land or a.mode == "tagged"
 
             def expected(i, j):
                 if is_water(i, j, all_land):
-                    return RAD_T_SFC
+                    return DEFAULT
+                if a.averaged and all(NEST_LO <= c < NEST_LO + NEST_N // NEST_RATIO for c in (i, j)):
+                    # Two-way coupling: the mean of the nest's land columns over this one
+                    fine = [nest_value(I, J)
+                            for I in range(NEST_RATIO * i, NEST_RATIO * (i + 1))
+                            for J in range(NEST_RATIO * j, NEST_RATIO * (j + 1))
+                            if not nest_is_water(I, J)]
+                    return sum(fine) / len(fine)
                 if a.land is not None and (i, j) == LAND_COLUMN:
                     return a.land
-                return tsk(i, j)
+                return value(i, j)
 
             n, errors = compare(plotfile, expected)
         if n != NX * NY:
@@ -112,8 +164,8 @@ def main():
                 boxes = erf_plotfile.level_boxes(plotfile, 1)
                 # The two water columns of the nest lie over the level 0 land column (5, 2)
                 # and keep the value the fill from level 0 gave them, without a slope.
-                n1, e1 = compare(plotfile, lambda i, j: tsk(i // NEST_RATIO, j // NEST_RATIO)
-                                 if nest_is_water(i, j) else nest_tsk(i, j), level=1, boxes=boxes)
+                n1, e1 = compare(plotfile, lambda i, j: value(i // NEST_RATIO, j // NEST_RATIO)
+                                 if nest_is_water(i, j) else nest_value(i, j), level=1, boxes=boxes)
                 errors += e1
                 lo = NEST_RATIO * NEST_LO
                 covered = all(any(b[0][0] <= i <= b[1][0] and b[0][1] <= j <= b[1][1] for b in boxes)
@@ -129,7 +181,7 @@ def main():
                 # linear field away from the domain faces. Bit for bit only because the
                 # slopes 0.5 and 0.25 are powers of two: every term is exact.
                 boxes = erf_plotfile.level_boxes(plotfile, 1)
-                n1, e1 = compare(plotfile, lambda i, j: tsk((i + 0.5) / 2 - 0.5, (j + 0.5) / 2 - 0.5),
+                n1, e1 = compare(plotfile, lambda i, j: value((i + 0.5) / 2 - 0.5, (j + 0.5) / 2 - 0.5),
                                  level=1, boxes=boxes)
                 errors += e1
                 if n1 == 0:

@@ -346,8 +346,10 @@ The fields are kept per level in ``WRFSurfaceFields``
    * - Level without a file of its own (made by tagging, at the start or by a regrid)
      - Every field of the next coarser level, and its soil layer depths, in the same way
 
-No part of ERF uses them yet; the force-restore balance will take its albedo, roughness,
-deep temperature, soil moisture and snow from them in later changes. Until then the cost
+The force-restore balance takes its deep temperature from ``TMN`` with
+``erf.radiation.seb_init_t_deep_from_file``; no part of ERF uses the other fields yet, and
+the balance will take its albedo, roughness, soil moisture and snow from them in later
+changes. Until then the cost
 is the read of up to thirteen more variables at the start, the memory of up to eleven
 two-dimensional fields per level, and their files in each checkpoint.
 

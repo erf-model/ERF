@@ -415,6 +415,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         // the level's own file is the finer source. A level with no file keeps the fill,
         // which reads the parent's skin that was set here a moment ago.
         init_seb_skin_from_file(lev);
+        // With erf.radiation.seb_init_t_deep_from_file the same for the deep temperature,
+        // from the file's TMN.
+        init_seb_t_deep_from_file(lev);
     }
 
     // Initialize the non-cons auxiliary tracer only after the host atmospheric

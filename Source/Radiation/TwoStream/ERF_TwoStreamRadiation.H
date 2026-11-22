@@ -229,7 +229,8 @@ public:
      * @brief Every field of the force-restore state of @p lev that evolves and so must
      * survive a regrid, be filled from the coarse level on a new level and be averaged
      * down: t_sfc and q_sfc; with erf.radiation.seb_deep_prognostic_enable, t_deep and
-     * q_deep; with the hydrology, its running totals (several components); with the snow
+     * q_deep; with erf.radiation.seb_init_t_deep_from_file, t_deep (it does not evolve
+     * then, but it differs from column to column); with the hydrology, its running totals (several components); with the snow
      * layer, its water equivalent and totals. Empty when the
      * state is not evolved. Each is a 2D field (k = 0) on the level's horizontal grids.
      */
@@ -255,6 +256,29 @@ public:
      * view (every pointer nullptr) when the force-restore state is not evolved there.
      */
     [[nodiscard]] ForceRestoreSoil force_restore_soil (int lev) const;
+
+    /**
+     * @brief True when the deep temperature is part of the state: it evolves
+     * (erf.radiation.seb_deep_prognostic_enable) or it was set per column from the initial
+     * file (erf.radiation.seb_init_t_deep_from_file). It is then not reset to
+     * erf.radiation.seb_t_deep_default at a radiation step, it is one of
+     * seb_prognostic_fields and it is written to the checkpoint and read back.
+     */
+    [[nodiscard]] bool seb_t_deep_is_state () const {
+        return active() && m_rad->seb_enable &&
+               (m_rad->seb_deep_prognostic_enable ||
+                (m_rad->seb_prognostic_enable && m_rad->seb_init_t_deep_from_file));
+    }
+
+    /**
+     * @brief The deep temperature [K] of @p lev for ERF::init_seb_t_deep_from_file to
+     * write, or nullptr when it is not part of the state (seb_t_deep_is_state) or the
+     * level has not been built.
+     */
+    [[nodiscard]] amrex::MultiFab* seb_t_deep_state (int lev) {
+        return (seb_t_deep_is_state() && lev >= 0 && lev < static_cast<int>(m_t_deep.size()))
+               ? m_t_deep[lev].get() : nullptr;
+    }
 
     /** @brief The deep temperature [K] and column water content of @p lev, or nullptr. Read-only: for output. */
     [[nodiscard]] const amrex::MultiFab* seb_t_deep (int lev) const {
@@ -563,7 +587,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_sfc;       // surface moisture, prognostic (see RadChoice::seb_q_sfc_default)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_t_deep;      // deep-soil temperature [K]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture q_s restores to
-    // (both constant at their defaults unless erf.radiation.seb_deep_prognostic_enable)
+    // (both constant at their defaults unless erf.radiation.seb_deep_prognostic_enable; the
+    // deep temperature is also kept per column with erf.radiation.seb_init_t_deep_from_file)
     ForceRestorePrecipRate m_precip;                                // rain and snowfall of the step (ERF_ForceRestorePrecipRate.H)
     ForceRestoreHydrology m_hydro;                                  // rain, runoff, drainage (ERF_ForceRestoreHydrologyState.H)
     ForceRestoreSnow m_snow;                                        // snow water equivalent (ERF_ForceRestoreSnowState.H)
