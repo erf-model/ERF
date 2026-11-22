@@ -210,6 +210,9 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     set.implicit_metric = solverChoice.implicit_terrain_metric;
     set.e_uv = e_uv; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
     set.has_eddy = has_eddy;
+    // As in estTimeStep, the level 0 domain decides whether a lateral direction counts
+    set.x_active = (geom[0].Domain().length(0) > 1);
+    set.y_active = (geom[0].Domain().length(1) > 1);
     // Molecular diffusivities as the diffusion operators use them: the stresses take
     // 2 * dynamic_viscosity (ComputeStress*), i.e. dynamic_viscosity in the convention of
     // MomentumDiffusiveRate, and the scalars rhoAlpha_T and rhoAlpha_C; with ConstantAlpha
@@ -678,7 +681,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                 Real inv_dt_lowM_N = Compute_InvDt_Anelastic(i,j,k,
                                              u(i,j,k,0), u(i,j,k,1), u(i,j,k,2),
                                              z_nd, mf_mx(i,j,0), mf_my(i,j,0),
-                                             dxinv_EB, false);
+                                             dxinv_EB, false, nxc, nyc);
                 return {inv_dt_lowM_N};
             });
         }
@@ -711,11 +714,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             {
                 Real inv_dt_T = Compute_InvDt_Anelastic(i,j,k,
                                     u_T(i,j,k,0), u_T(i,j,k,1), u_T(i,j,k,2),
-                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, true);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, true, nxc, nyc);
 
                 Real inv_dt_N = Compute_InvDt_Anelastic(i,j,k,
                                     u_N(i,j,k,0), u_N(i,j,k,1), u_N(i,j,k,2),
-                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, false);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, false, nxc, nyc);
 
                 return {inv_dt_T, inv_dt_N};
             });

@@ -255,6 +255,9 @@ struct DiffusiveRateSettings
     // (erf.molec_diff_type = ConstantAlpha).  KE has none.
     amrex::Real mol_mom = zero, mol_th = zero, mol_c = zero;
     bool mol_times_rho = false;
+    // Lateral directions with more than one cell on the level 0 domain; a direction with one
+    // cell carries no diffusion, so its dx or dy does not enter the rates
+    bool x_active = true, y_active = true;
 };
 
 /**
@@ -282,8 +285,8 @@ CellDiffusiveRates (int i, int j, int k,
                     const DiffusiveRateSettings& set,
                     amrex::Real& rate_mom, amrex::Real& rate_scal) noexcept
 {
-    const amrex::Real ax = mf_mx * dxinv[0];
-    const amrex::Real ay = mf_my * dxinv[1];
+    const amrex::Real ax = (set.x_active) ? mf_mx * dxinv[0] : zero;
+    const amrex::Real ay = (set.y_active) ? mf_my * dxinv[1] : zero;
     amrex::Real dzinv = dxinv[2];
     amrex::Real h2    = zero;
     if (set.variable_dz) {
