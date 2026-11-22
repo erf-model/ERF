@@ -389,8 +389,10 @@ variable-coefficient equation follows the mesh
   a stretched mesh every projection of the level uses these solvers, also the ones without the
   drag (the initial projection, and after a regrid), so no FFT is needed.
 
-The choice follows the build and the mesh, not ``erf.use_fft``. With the first and the third
-solver, refined regions that meet across a periodic boundary are refused. The third solver
+The choice follows the build and the mesh, not ``erf.use_fft``. Refined regions that meet
+across a periodic boundary are solved as one region with multigrid on the level's periodic
+geometry: with the second solver on a constant :math:`\Delta z`, and with the multigrid for
+regions that are not rectangles otherwise (:ref:`subsec:LinearSolvers`). The third solver
 multiplies the largest real number by 1.5 while it sets up its coarse levels, so a run with
 ``amrex.fpe_trap_overflow = 1`` stops there; run it with that trap off.
 

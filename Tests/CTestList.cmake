@@ -7314,6 +7314,14 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_OneCellWide inputs_flat 30
       RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 1 2' 'amr.n_cell=32 1 12' amr.blocking_factor=1 'geometry.prob_lo=-1280. -40. 0.' 'geometry.prob_hi=1280. 40. 791.6' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 0 2' 'erf.box1.in_box_hi_indices_crse=19 0 8' erf.coupling_type=OneWay erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # A refined level of two boxes that meet across the periodic x boundary, one at each end of x:
+  # one region, solved with multigrid on the periodic Geometry.  Before, multigrid solved each box
+  # alone, with a zero-flux face at the boundary (the scalar departed from uniform), and the FFT
+  # paths stopped.
+  set(_flat_wrap "amr.max_level=1 'amr.ref_ratio_vect=2 2 2' 'erf.refinement_indicators=box1 box2' erf.box1.max_level=1 erf.box2.max_level=1 'erf.box1.in_box_lo_indices_crse=0 12 2' 'erf.box1.in_box_hi_indices_crse=7 23 8' 'erf.box2.in_box_lo_indices_crse=24 12 2' 'erf.box2.in_box_hi_indices_crse=31 23 8' amr.grid_eff=1.0 erf.coupling_type=OneWay erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12")
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_PeriodicWrap inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_wrap}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   # The other anelastic integrator (the default is RK2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
       RUNTIME_OPTIONS "erf.timestepping_type=MidPoint"
@@ -7350,6 +7358,13 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
     # The L-shaped refined level on a stretched mesh (level 0 uses the hybrid FFT)
     add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_LShaped inputs_flat 30
         RUNTIME_OPTIONS "${_flat_l} ${_flat_sdz}"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+    # The refined level across the periodic boundary (see above), where level 0 uses the FFT
+    add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_PeriodicWrap_FFT inputs_flat 30
+        RUNTIME_OPTIONS "${_flat_wrap} erf.use_fft=true"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+    add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_PeriodicWrap inputs_flat 30
+        RUNTIME_OPTIONS "${_flat_wrap} ${_flat_sdz}"
         CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   endif()
 
@@ -7391,6 +7406,13 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_LShaped_VaryingMapFactor inputs_flat 30
       RUNTIME_OPTIONS "${_pi} ${_flat_l} ${_flat_sdz} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  # The refined level across the periodic boundary (see the anelastic case above)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Flat_PeriodicWrap inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_wrap}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_PeriodicWrap_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_wrap} ${_flat_sdz} erf.test_mapfactor_amp=0.2"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Inertial_RK2 inputs_inertial 40
       RUNTIME_OPTIONS "${_pi} erf.timestepping_type=RK2 prob.T_0=300"
