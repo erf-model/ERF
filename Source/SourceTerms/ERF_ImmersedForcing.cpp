@@ -91,7 +91,8 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
                                   const Array4<      Real>& xmom_src_arr,
                                   const Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const Real fac)
+                                  const Real fac,
+                                  const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -106,7 +107,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
     const similarity_funs sfuns = solverChoice.most_sfuns;
@@ -215,7 +216,8 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
                                   const Array4<      Real>& ymom_src_arr,
                                   const Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const Real fac)
+                                  const Real fac,
+                                  const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -230,7 +232,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
     const similarity_funs sfuns = solverChoice.most_sfuns;
@@ -426,7 +428,8 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
                                                     const Geometry& geom,
                                                     const SolverChoice& solverChoice,
                                                     const Real dt,
-                                                    const Real time)
+                                                    const Real time,
+                                                    const bool l_drag_in_projection)
 {
     const Real* dx_arr = geom.CellSize();
     // The drag rates take dx in place of a dy over one cell, and the reverse
@@ -438,7 +441,7 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
     const Real z0      = solverChoice.if_z0;
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    const bool l_drag = !l_drag_in_projection;
     const Real tiny  = std::numeric_limits<Real>::epsilon();
     const Real small = solverChoice.if_small_volfrac;
     const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
@@ -495,10 +498,11 @@ void ImmersedForcingTerrain_Xmom_FractionStress (const Box& tbx,
                                                  const Geometry& geom,
                                                  const SolverChoice& solverChoice,
                                                  const Real fac,
-                                                 const Real time)
+                                                 const Real time,
+                                                 const bool l_drag_in_projection)
 {
     ImmersedForcingTerrain_HorizMom_FractionStress<0>(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
-                                                      xmom_src_arr, geom, solverChoice, fac, time);
+                                                      xmom_src_arr, geom, solverChoice, fac, time, l_drag_in_projection);
 }
 
 void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
@@ -512,10 +516,11 @@ void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
                                                  const Geometry& geom,
                                                  const SolverChoice& solverChoice,
                                                  const Real fac,
-                                                 const Real time)
+                                                 const Real time,
+                                                 const bool l_drag_in_projection)
 {
     ImmersedForcingTerrain_HorizMom_FractionStress<1>(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
-                                                      ymom_src_arr, geom, solverChoice, fac, time);
+                                                      ymom_src_arr, geom, solverChoice, fac, time, l_drag_in_projection);
 }
 
 /**
@@ -637,7 +642,8 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
                                   const Array4<      Real>& zmom_src_arr,
                                   const Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const Real fac)
+                                  const Real fac,
+                                  const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -651,7 +657,7 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    const bool l_drag = !l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
@@ -700,7 +706,8 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
                                     const Real fac,
-                                    bool is_slow_step)
+                                    bool is_slow_step,
+                                    const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -732,7 +739,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
     // projection (ERF::make_if_projection_sigma), not here
-    const bool l_ip               = solverChoice.if_implicit_projection;
+    const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
@@ -899,7 +906,8 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
                                     const Real fac,
-                                    bool is_slow_step)
+                                    bool is_slow_step,
+                                    const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -931,7 +939,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
     // projection (ERF::make_if_projection_sigma), not here
-    const bool l_ip               = solverChoice.if_implicit_projection;
+    const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
@@ -1096,7 +1104,8 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
                                     const Real fac,
-                                    bool is_slow_step)
+                                    bool is_slow_step,
+                                    const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
@@ -1129,7 +1138,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
     // projection (ERF::make_if_projection_sigma), not here
-    const bool l_ip               = solverChoice.if_implicit_projection;
+    const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)

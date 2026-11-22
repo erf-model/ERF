@@ -86,6 +86,7 @@ erf.radiation.surface_emissivity_lw   = 0.99    # Longwave emissivity, clamped t
 # surface model; ERF checks each at start-up. A level that takes its radiation from its
 # parent (a nested patch) is not coupled, with a warning.
 erf.radiation.seb_surface_layer_uses_skin = false      # The surface layer takes its land surface temperature from T_s (as a potential temperature at the surface pressure). Bool. Default false.
+erf.radiation.seb_init_skin_from_file = false         # At a fresh start the skin T_s of a land column begins at the skin temperature of the initial file [K] (TSK of a wrfinput file, SKINTEMP of a metgrid file); water keeps erf.rad_t_sfc. Needs seb_prognostic_enable and a file value inside [seb_prognostic_t_min_k, seb_prognostic_t_max_k]. Bool. Default false.
 erf.radiation.seb_surface_layer_uses_moisture = false  # ... and its land surface mixing ratio from the soil water q_s: beta q_sat(T_s) + (1 - beta) q_air, or with seb_soil_type the two source fluxes of section 6; the balance drains q_s by the LE it removes. Needs seb_surface_layer_uses_skin, a moisture model and erf.most.surf_moist. Bool. Default false.
 
 zlo.type           = "surface_layer"

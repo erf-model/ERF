@@ -318,6 +318,11 @@ target_sources(${erf_exe_name}
     # column keeps its state and the sweep's longwave boundary there is the surface
     # layer's sea surface temperature (sigma T_sea^4), not the balance's skin.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandMask.cpp
+    # Motivation: with erf.radiation.seb_init_skin_from_file the balance's skin of a land
+    # column starts at the initial file's TSK or SKINTEMP and a water column keeps
+    # erf.rad_t_sfc; a land value that is not finite or lies outside the range the balance
+    # holds the skin in is counted (ERF then stops) and not copied.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBSkinInit.cpp
     # Motivation: with erf.ibseb.sun_mode = two_stream the building faces must
     # see the two-stream columns' sun: the same zenith, a morning sun in the
     # east, and the start date read the same way.

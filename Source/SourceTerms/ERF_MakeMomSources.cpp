@@ -851,22 +851,25 @@ void make_mom_sources (int level,
         // *****************************************************************************
         // 9a. Add immersed source terms for terrain
         // *****************************************************************************
+        // erf.if_implicit_projection: on a level that projects the drag of the solid is inside the
+        // projection; a FullyCompressible level keeps it in the source term
+        const bool l_if_drag_in_projection = solverChoice.if_drag_in_projection(level);
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
 
             if (solverChoice.if_fraction_stress) {
                 ImmersedForcingTerrain_Xmom_FractionStress(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
-                                                           xmom_src_arr, geom, solverChoice, dt, time);
+                                                           xmom_src_arr, geom, solverChoice, dt, time, l_if_drag_in_projection);
                 ImmersedForcingTerrain_Ymom_FractionStress(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
-                                                           ymom_src_arr, geom, solverChoice, dt, time);
+                                                           ymom_src_arr, geom, solverChoice, dt, time, l_if_drag_in_projection);
             } else {
                 ImmersedForcingTerrain_Xmom(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
-                                            z_cc_arr, xmom_src_arr, geom, solverChoice, dt);
+                                            z_cc_arr, xmom_src_arr, geom, solverChoice, dt, l_if_drag_in_projection);
                 ImmersedForcingTerrain_Ymom(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
-                                            z_cc_arr, ymom_src_arr, geom, solverChoice, dt);
+                                            z_cc_arr, ymom_src_arr, geom, solverChoice, dt, l_if_drag_in_projection);
             }
             ImmersedForcingTerrain_Zmom(tbz, u, v, w, cell_data, t_blank_arr, t_blank_zface_arr,
-                                        z_cc_arr, zmom_src_arr, geom, solverChoice, dt);
+                                        z_cc_arr, zmom_src_arr, geom, solverChoice, dt, l_if_drag_in_projection);
         }
 
         // *****************************************************************************
@@ -876,11 +879,11 @@ void make_mom_sources (int level,
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
 
             ImmersedForcingBuildings_Xmom(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
-                                          z_cc_arr, xmom_src_arr, geom, solverChoice, dt, is_slow_step);
+                                          z_cc_arr, xmom_src_arr, geom, solverChoice, dt, is_slow_step, l_if_drag_in_projection);
             ImmersedForcingBuildings_Ymom(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
-                                          z_cc_arr, ymom_src_arr, geom, solverChoice, dt, is_slow_step);
+                                          z_cc_arr, ymom_src_arr, geom, solverChoice, dt, is_slow_step, l_if_drag_in_projection);
             ImmersedForcingBuildings_Zmom(tbz, u, v, w, cell_data, t_blank_arr, t_blank_zface_arr,
-                                          z_cc_arr, zmom_src_arr, geom, solverChoice, dt, is_slow_step);
+                                          z_cc_arr, zmom_src_arr, geom, solverChoice, dt, is_slow_step, l_if_drag_in_projection);
         }
 
         // *****************************************************************************

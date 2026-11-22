@@ -382,7 +382,7 @@ std::vector<Real> run_xmom (const Mesh& m, MomFields& f, const SolverChoice& sc,
         ImmersedForcingTerrain_Xmom_FractionStress(mfi.validbox(), f.u.const_array(mfi), f.v.const_array(mfi),
                                                    f.w.const_array(mfi), f.cons.const_array(mfi),
                                                    f.beta.const_array(mfi), Array4<const Real>{},
-                                                   f.src.array(mfi), m.geom, sc, dt, Real(0.));
+                                                   f.src.array(mfi), m.geom, sc, dt, Real(0.), false);
     }
     Gpu::streamSynchronize();
     return to_host(f.src, convert(m.domain, IntVect(1,0,0)));
