@@ -13,6 +13,11 @@ For simulations without terrain-fitted coordinates or grid stretching, one of th
 followed by multigrid.  We note that the multigrid solver has the option to "ignore" a coordinate direction
 if the domain is only one cell wide in that direction; this allows for efficient solution of effectively 2D problems.
 Multigrid can also be used when the union of grids at a level is not in itself rectangular (except on terrain-fitted meshes); the FFT solvers do not work in that general case.
+A refined level is solved region by region, a region being a set of connected patches.  Patches that
+meet across a periodic boundary (a refined feature that the flow carries out of one side of the domain
+and back in at the other, say) are one region: on a flat mesh it is solved with multigrid on the
+level's periodic geometry, so the correction crosses the boundary.  On a terrain-fitted mesh such a
+level stops the run.
 
 When the cells of a level are anisotropic (a cell size at least 1.5 times the smallest one, as on a coarse flat grid,
 with immersed forcing, or on a level refined with ``amr.ref_ratio_vect = 2 2 1``), the multigrid solver on a
@@ -127,8 +132,8 @@ since the faces and the terrain across the cell still contribute there.
 A refined region that reaches only one end of a periodic direction is solved with a Neumann
 face there by ``mlmg`` and ``gmres_mlmg`` (coarse cells lie across it); the FFT preconditioner
 of ``gmres_fft`` does not accept that mix of boundary conditions and stops.  A refined level
-whose patches meet across a periodic boundary stops the run with ``mlmg`` and ``gmres_mlmg``,
-since each patch would be solved with a Neumann face at the boundary.
+whose patches meet across a periodic boundary stops the run on a terrain-fitted mesh, with any
+of the three solvers, since none can solve such a region as one.
 
 ``erf.poisson_reltol`` and ``erf.poisson_abstol`` do not measure the same thing for the three
 solvers.  ``mlmg`` stops on the largest value of :math:`J` times the residual of the
