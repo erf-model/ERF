@@ -6527,6 +6527,11 @@ List of Parameters
 |                                      | the embedded boundary; read only when                    |                    |                  |
 |                                      | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_cover_zero_area_faces**     | cover the staggered EB cells at faces whose cell-centered| Boolean            | true if any level|
+|                                      | area fraction is zero; always true (false aborts) when a |                    | is Anelastic or  |
+|                                      | level is Anelastic or PseudoIncompressible               |                    | PseudoIncomp.,   |
+|                                      |                                                          |                    | else false       |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **eb2.geometry**                     | which embedded-boundary shape to build; read only when   | terrain, plane,    | terrain          |
 |                                      | ``erf.terrain_type`` is ``EB`` or ``ImmersedForcing``    | box, sphere        |                  |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
