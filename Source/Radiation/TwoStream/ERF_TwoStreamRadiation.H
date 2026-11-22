@@ -230,9 +230,10 @@ public:
      * survive a regrid, be filled from the coarse level on a new level and be averaged
      * down: t_sfc and q_sfc; with erf.radiation.seb_deep_prognostic_enable, t_deep and
      * q_deep; with erf.radiation.seb_init_t_deep_from_file, t_deep (it does not evolve
-     * then, but it differs from column to column); with the hydrology, its running totals (several components); with the snow
-     * layer, its water equivalent and totals. Empty when the
-     * state is not evolved. Each is a 2D field (k = 0) on the level's horizontal grids.
+     * then, but it differs from column to column); with the hydrology, its running totals
+     * (several components); with the snow layer, its water equivalent and totals. Empty
+     * when the state is not evolved. Each is a 2D field (k = 0) on the level's horizontal
+     * grids.
      */
     [[nodiscard]] amrex::Vector<amrex::MultiFab*> seb_prognostic_fields (int lev);
 

@@ -714,11 +714,11 @@ TwoStreamRadiation::write_checkpoint (int lev, const std::string& checkpointname
     // The deep state evolves only with erf.radiation.seb_deep_prognostic_enable. The deep
     // temperature is also written when erf.radiation.seb_init_t_deep_from_file set it per
     // column: the restart does not read the initial file again.
-    if (seb_t_deep_is_state() && m_t_deep[lev] && m_q_deep[lev]) {
+    if (seb_t_deep_is_state() && m_t_deep[lev]) {
         VisMF::Write(*m_t_deep[lev],
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_TDeep"));
     }
-    if (m_rad->seb_deep_prognostic_enable && m_t_deep[lev] && m_q_deep[lev]) {
+    if (m_rad->seb_deep_prognostic_enable && m_q_deep[lev]) {
         VisMF::Write(*m_q_deep[lev],
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QDeep"));
     }
