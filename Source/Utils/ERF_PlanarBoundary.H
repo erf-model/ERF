@@ -32,7 +32,7 @@
  *
  * The buffer is kept for each target layout, index type, and number of components, so only
  * the first fill of each kind allocates.  For a face-centered MultiFab (the MOST velocity averages)
- * neighbouring surface boxes share a face in the buffer.  Both should hold the same value
+ * neighboring surface boxes share a face in the buffer.  Both should hold the same value
  * there, but nothing enforces it, so fill() gives the shared faces a single value before
  * it copies: the lowest global box index wins, which does not depend on the decomposition
  * or the rank count, and every copy of the field then agrees.
@@ -74,7 +74,7 @@ public:
      * of the surface copy that holds the column it faces.
      *
      * Where a box seam meets a non-periodic edge, the ghost cells beyond the edge next to
-     * the seam lie in the grown boxes of both neighbours, and no FillBoundary reconciles
+     * the seam lie in the grown boxes of both neighbors, and no FillBoundary reconciles
      * them: each box fills its copy from its own valid region.  A cell beyond the edge is
      * here assigned to the surface copy whose valid region holds the cell's projection into
      * the domain (its index clamped into the domain in each non-periodic direction), and that

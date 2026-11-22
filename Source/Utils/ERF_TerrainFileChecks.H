@@ -84,7 +84,7 @@ struct HeightTable
 };
 
 /**
- * The height table in file fname, read, checked (TableProblem) and summarised (TableSummary)
+ * The height table in file fname, read, checked (TableProblem) and summarized (TableSummary)
  * on the I/O rank the first time the file is asked for, then broadcast; later calls return the
  * same table without reading the file again.  Aborts, naming the file and the line, on a file
  * that cannot be read as the layout says.
@@ -161,7 +161,7 @@ TableProblem (bool is_usgs, int nx, int ny,
 /**
  * Text describing a valid height table: its size and extent, the order its heights are
  * read in, where the lowest and highest heights sit, and the largest slopes |dh/dx| and
- * |dh/dy| between neighbouring table points with where they sit.  Meant to be printed once
+ * |dh/dy| between neighboring table points with where they sit.  Meant to be printed once
  * per file, so that a transposed or mis-ordered file can be spotted at start-up.
  *
  * @param[in] fname    file name, for the first line
@@ -206,8 +206,8 @@ CellTerrainSlope (int i, int j, int k, const amrex::Array4<const amrex::Real>& z
  * holds no cell of this level.  Reduced over all ranks.
  *
  * @param[in] z_phys_nd nodal heights of the level (surface at the domain's lowest k)
- * @param[in] mf_mx     map factor in x at cell centres (ERF's mapfac m_x, on ba2d)
- * @param[in] mf_my     map factor in y at cell centres (m_y)
+ * @param[in] mf_mx     map factor in x at cell centers (ERF's mapfac m_x, on ba2d)
+ * @param[in] mf_my     map factor in y at cell centers (m_y)
  * @param[in] geom      geometry of the level
  * @param[in] band      width of the band in cells (>= 1)
  */

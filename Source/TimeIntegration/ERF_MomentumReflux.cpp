@@ -6,13 +6,13 @@
  * erf-model/ERF#5017).
  *
  * The momenta live on faces, and the momentum flux of a face's control volume is at the cell
- * centres on either side of it.  Under two-way coupling the composite solution is the fine level
+ * centers on either side of it.  Under two-way coupling the composite solution is the fine level
  * where there is one and the coarse level elsewhere, and the control volume of a coarse/fine face
- * then runs from the centre of the uncovered coarse cell beside it to the centre of the first fine
+ * then runs from the center of the uncovered coarse cell beside it to the center of the first fine
  * cell, a width h = (dx_c + dx_f) / 2.  The fine level does not evolve its coarse/fine faces (they
- * are set from the coarse level), and its first interior face takes its flux at the centre of the
+ * are set from the coarse level), and its first interior face takes its flux at the center of the
  * first fine cell.  The coarse level, though, updates the coarse/fine face with its own flux at the
- * centre of the covered coarse cell, over its own width dx_c.  What the fine interior gives up at
+ * center of the covered coarse cell, over its own width dx_c.  What the fine interior gives up at
  * its edge is not what the coarse/fine face receives, and nothing puts the difference back: the
  * composite momentum is not conserved (#5017).  In the cases there the difference is almost all
  * pressure.

@@ -621,12 +621,12 @@ public:
                 const int map_proj = require_int_attribute("MAP_PROJ");
                 // Projection 6 (latitude/longitude) is deliberately excluded.
                 // WPS writes DX/DY in degrees for that projection, whereas
-                // everything below consumes them as metres -- both the
+                // everything below consumes them as meters -- both the
                 // geometry-consistency check and the m_xterrain/m_yterrain
                 // axes built from ProbLo + (i+0.5)*DX.  Accepting it would
                 // either abort with a misleading "grid does not match"
                 // message, or, if prob_hi were specified in degrees to get
-                // past that check, silently place metre-valued terrain
+                // past that check, silently place meter-valued terrain
                 // heights on a degree-spaced horizontal grid and corrupt the
                 // terrain-fitted metrics with no warning.
                 if (map_proj != 1 && map_proj != 2 && map_proj != 3) {

@@ -44,16 +44,25 @@ recompute_p_pi_hse (MultiFab& base_state_mf, const Real l_rdOcp)
  * A copy of bs, a base state of level lev, on the boxes of bs's BoxArray grown laterally by
  * grow, and level lev's heights on the same boxes.
  *
- * The grown boxes overlap where bs's boxes are neighbours; a column they share is built from
+ * The grown boxes overlap where bs's boxes are neighbors; a column they share is built from
  * the same heights in each.  A base state built in their valid cells and copied back from
  * those alone, base_state.ParallelCopy(bs_g, 0, 0, ncomp, IntVect(0,0,ng[2]), bs.nGrowVect()),
  * therefore holds in each of bs's lateral ghost cells (grow = bs's lateral ghost cells) the
  * column it would hold were the cell valid, the same whichever box it is a ghost cell of.
  *
+ * Where the heights of a whole column are known without z_phys_nd[lev] (MeshType::ConstantDz
+ * and StretchedDz, which are flat), the grown boxes span the full height of the domain, so
+ * that each column is built from the bottom of the domain up, as on level 0.  The base state
+ * then does not depend on where the level's boxes start: a box that starts above the bottom
+ * would otherwise start its column from the coarse interpolation below it, and boxes that
+ * start at different heights would build the same height differently (erf-model/ERF#5308).
+ * Over terrain (MeshType::VariableDz) the heights of the level are known only on its grids,
+ * and the grown boxes keep the vertical range of their box.
+ *
  * The lateral ghost cells of bs_g, z_nd_g and z_cc_g are there for constructions that also
  * write the ring around the cells they are given; what lands in them is not to be used.
- * bs_g's take the values of the nearest cell of the grown box; where z_phys_nd[lev] does not
- * reach z_nd_g's they start from the heights of a flat mesh.
+ * bs_g's cells that bs does not cover take the values of the nearest cell it does; where
+ * z_phys_nd[lev] does not reach z_nd_g's they start from the heights of the flat mesh.
  *
  * @param[in]  lev    level of bs
  * @param[in]  bs     base state to copy, valid and ghost cells
@@ -61,7 +70,7 @@ recompute_p_pi_hse (MultiFab& base_state_mf, const Real l_rdOcp)
  * @param[in]  ng     ghost cells of bs_g, z_nd_g and z_cc_g; ng[2] at most bs's vertical ones
  * @param[out] bs_g   the copy
  * @param[out] z_nd_g z_phys_nd[lev] on the grown boxes (nodal)
- * @param[out] z_cc_g the cell-centre heights on the grown boxes, as make_zcc forms them
+ * @param[out] z_cc_g the cell-center heights on the grown boxes, as make_zcc forms them
  */
 void
 ERF::make_base_state_on_grown_boxes (int lev, const MultiFab& bs, int grow, const IntVect& ng,
@@ -79,11 +88,16 @@ ERF::make_base_state_on_grown_boxes (int lev, const MultiFab& bs, int grow, cons
     //    columns are the periodic images of columns inside it (which not every construction
     //    integrates where it lies outside the domain)
     const Box& dom_g = geom[lev].Domain();
+    const bool full_columns = (solverChoice.mesh_type != MeshType::VariableDz);
     BoxList bl;
     for (int n = 0; n < static_cast<int>(bs.boxArray().size()); ++n) {
         Box b = bs.boxArray()[n];
         b.grow(0, grow); b.grow(1, grow);
-        b.setRange(2, bs.boxArray()[n].smallEnd(2), bs.boxArray()[n].length(2));
+        if (full_columns) {
+            b.setRange(2, dom_g.smallEnd(2), dom_g.length(2));
+        } else {
+            b.setRange(2, bs.boxArray()[n].smallEnd(2), bs.boxArray()[n].length(2));
+        }
         bl.push_back(b & dom_g);
     }
     const BoxArray ba_g(std::move(bl));
@@ -99,19 +113,24 @@ ERF::make_base_state_on_grown_boxes (int lev, const MultiFab& bs, int grow, cons
     bs_g.ParallelCopy(bs, 0, 0, bs.nComp(), ngb, ng);
     bs_g.ParallelCopy(bs, 0, 0, bs.nComp(), IntVect(0), ng);
 
-    // The lateral ghost cells of bs_g lie beyond bs's ghost cells: give them the values of
-    //    the nearest cell of the grown box, so that a construction that reads them (e.g. the
-    //    cell below a box that starts above the bottom) sees a value of the right size
+    // The lateral ghost cells of bs_g lie beyond bs's ghost cells, and in a full column the
+    //    cells above and below the box's own vertical ghost cells are not in bs either: give
+    //    them the values of the nearest cell that is, so that a construction that reads them
+    //    (e.g. the cell below a box that starts above the bottom) sees a value of the right size
     for (MFIter mfi(bs_g); mfi.isValid(); ++mfi) {
         const Box vb = mfi.validbox();
+        const Box sb = bs.boxArray()[mfi.index()];
         const auto lo = lbound(vb);
         const auto hi = ubound(vb);
+        const int klo_s = amrex::max(sb.smallEnd(2) - ngb[2], vb.smallEnd(2) - ng[2]);
+        const int khi_s = amrex::min(sb.bigEnd(2)   + ngb[2], vb.bigEnd(2)   + ng[2]);
         const auto& b = bs_g.array(mfi);
         ParallelFor(mfi.fabbox(), bs_g.nComp(), [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int ii = amrex::min(amrex::max(i, lo.x), hi.x);
             const int jj = amrex::min(amrex::max(j, lo.y), hi.y);
-            if (ii != i || jj != j) { b(i,j,k,n) = b(ii,jj,k,n); }
+            const int kk = amrex::min(amrex::max(k, klo_s), khi_s);
+            if (ii != i || jj != j || kk != k) { b(i,j,k,n) = b(ii,jj,kk,n); }
         });
     }
 
@@ -119,15 +138,36 @@ ERF::make_base_state_on_grown_boxes (int lev, const MultiFab& bs, int grow, cons
     ba_nd.surroundingNodes();
     z_nd_g = std::make_unique<MultiFab>(ba_nd, dm, 1, ng);
     {
+        // The heights of the flat mesh: uniform, or the stretched levels (extended past
+        //    either end by the end spacing)
         const Real z_lo = geom[lev].ProbLo(2);
         const Real dz   = geom[lev].CellSize(2);
+        const bool stretched = (solverChoice.mesh_type == MeshType::StretchedDz);
+        const int  nzs = stretched ? static_cast<int>(zlevels_stag[lev].size()) : 0;
+        Gpu::DeviceVector<Real> d_zs(nzs);
+        if (stretched) {
+            AMREX_ALWAYS_ASSERT(nzs >= 2);
+            Gpu::copy(Gpu::hostToDevice, zlevels_stag[lev].begin(), zlevels_stag[lev].end(), d_zs.begin());
+        }
+        const Real* zs = d_zs.data();
         for (MFIter mfi(*z_nd_g); mfi.isValid(); ++mfi) {
             const auto& z = z_nd_g->array(mfi);
             ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                z(i,j,k) = z_lo + static_cast<Real>(k) * dz;
+                if (stretched) {
+                    if (k < 0) {
+                        z(i,j,k) = zs[0] + static_cast<Real>(k) * (zs[1] - zs[0]);
+                    } else if (k > nzs-1) {
+                        z(i,j,k) = zs[nzs-1] + static_cast<Real>(k-nzs+1) * (zs[nzs-1] - zs[nzs-2]);
+                    } else {
+                        z(i,j,k) = zs[k];
+                    }
+                } else {
+                    z(i,j,k) = z_lo + static_cast<Real>(k) * dz;
+                }
             });
         }
+        Gpu::streamSynchronize();
     }
     z_nd_g->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), ng);
     z_nd_g->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, IntVect(0), ng);
@@ -256,7 +296,7 @@ ERF::rebuild_base_state (int lev)
  * theta_0 and qv_0 are interpolated from the coarser level; they vary smoothly and are kept.
  * In each column of the valid region and of the lateral ghost cells, the lowest cell
  * of the level is then given the density that puts it in hydrostatic balance with the coarse
- * cell that contains it, integrating from the height of that coarse cell's centre to its own,
+ * cell that contains it, integrating from the height of that coarse cell's center to its own,
  * and the column is integrated upward from there with rebalance_columns.  p_0 and pi_0 follow
  * from the equation of state.  Working in physical heights, this also holds where the fine
  * terrain differs from the coarse terrain.
@@ -304,7 +344,7 @@ ERF::rebuild_base_state_from_coarse (int lev)
     MultiFab z_nd(gba_nd, dm, 1, 0);
     z_nd.ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), IntVect(0));
 
-    // The coarse cell containing each fine cell: p_0, theta_0, qv_0 and the height of its centre
+    // The coarse cell containing each fine cell: p_0, theta_0, qv_0 and the height of its center
     enum { Pc = 0, Thc, Qvc, Zc, n_crse };
     MultiFab crse(base_state[lev-1].boxArray(), base_state[lev-1].DistributionMap(), n_crse, 1);
     base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
@@ -336,13 +376,13 @@ ERF::rebuild_base_state_from_coarse (int lev)
 
         ParallelFor(slab, [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // From the coarse cell centre ...
+            // From the coarse cell center ...
             const Real P_lo  = s(i,j,k,Pc);
             const Real Th_lo = s(i,j,k,Thc);
             const Real qv_lo = s(i,j,k,Qvc);
             const Real z_lo  = s(i,j,k,Zc);
 
-            // ... to the centre of this fine cell, at the height rebalance_columns uses
+            // ... to the center of this fine cell, at the height rebalance_columns uses
             const Real z_hi = Real(0.125) * (zna(i,j,k  ) + zna(i+1,j,k  ) + zna(i,j+1,k  ) + zna(i+1,j+1,k  )
                                             +zna(i,j,k+1) + zna(i+1,j,k+1) + zna(i,j+1,k+1) + zna(i+1,j+1,k+1));
             const Real dz = z_hi - z_lo;
@@ -384,7 +424,7 @@ ERF::rebuild_base_state_from_coarse (int lev)
  * is not.
  *
  * The residual is dp_0/dz + rho_0 (1 + qv_0) |g| between vertically adjacent cells of the
- * same grid, with dz the distance between the cell centres (from z_phys_nd), which is the balance
+ * same grid, with dz the distance between the cell centers (from z_phys_nd), which is the balance
  * rebalance_columns and the initializations enforce.  It is checked over the valid region,
  * as compute_max_pressure_gradient_diagnostic does.  The tolerance is the one
  * compute_max_pressure_gradient_diagnostic uses.
@@ -430,7 +470,7 @@ ERF::check_base_state_hse (int lev, const std::string& when, bool abort_if_fail)
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Cell-centre heights as rebalance_columns forms them, from the nodal heights
+            // Cell-center heights as rebalance_columns forms them, from the nodal heights
             auto zcc = [&] (int kk) {
                 return Real(0.125) * (zn(i,j,kk  ) + zn(i+1,j,kk  ) + zn(i,j+1,kk  ) + zn(i+1,j+1,kk  )
                                      +zn(i,j,kk+1) + zn(i+1,j,kk+1) + zn(i,j+1,kk+1) + zn(i+1,j+1,kk+1));

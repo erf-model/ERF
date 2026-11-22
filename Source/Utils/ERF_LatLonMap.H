@@ -120,7 +120,7 @@ void grid_rotation_from_latlon (const amrex::Array4<const amrex::Real>& ll,
 
 //
 // Place (req_lat, req_lon) on the grid described by the lat/lon array ll over
-// the 2D domain dom, whose cell (i,j) is centred at problo + (i+1/2) dx.  Host
+// the 2D domain dom, whose cell (i,j) is centered at problo + (i+1/2) dx.  Host
 // code; the whole array must be addressable.
 //
 LatLonStatus locate_latlon_on_grid (const amrex::Array4<const amrex::Real>& ll,

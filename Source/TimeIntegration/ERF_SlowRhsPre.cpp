@@ -130,7 +130,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab* ib_wall_face13,
                        const MultiFab* ib_wall_face23,
                        const MultiFab* ib_wall_face33,
-                       const MultiFab* ib_wall_hfx)
+                       const MultiFab* ib_wall_hfx,
+                       const MultiFab* walldist)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -147,6 +148,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const erf_wall_thermodynamics::Boundary chamber_walls =
         use_physical_chamber_wall_flux ? cloud_chamber_config->transport_boundary() :
                                          erf_wall_thermodynamics::Boundary{};
+    const auto chamber_bands = use_physical_chamber_wall_flux ? cloud_chamber_config->temperature_band_views() :
+                                        erf_wall_thermodynamics::SidewallBandViews{};
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
 
@@ -233,7 +236,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            Tau_lev,Tau_corr_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
                            stretched_dz_d, detJ,mapfac, ax, ay, az, ebfact,
-                           ib_wall_face13, ib_wall_face23);
+                           ib_wall_face13, ib_wall_face23, walldist);
 
         IntVect ng(0,0,1);
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, ng);
@@ -734,7 +737,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     cloud_chamber_base_state->const_array(mfi), u, v, w, cell_rhs,
                     diffflux_x, diffflux_y, diffflux_z, dxInv,
                     chamber_walls, dc.alpha_T, dc.alpha_C,
-                    solverChoice.rdOcp, cloud_chamber_config->has_moisture);
+                    solverChoice.rdOcp, cloud_chamber_config->has_moisture, chamber_bands);
             }
         }
 

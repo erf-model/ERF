@@ -198,7 +198,7 @@ public:
     // needs this to know whether the SWrad/LWrad lanes it would hand an ocean
     // model carry real values or just zeros: passing zeros is worse than passing
     // nothing, because the ocean model then suppresses its own radiative forcing
-    // in favour of them.
+    // in favor of them.
     //
     // Note this is a configuration predicate, not a data-validity one. rad_fluxes
     // is allocated and zero-filled as soon as solverChoice.rad_type != None, so
@@ -241,12 +241,12 @@ public:
     void GetFillableAtmosToOceanLanes (bool state_contract,
                                        amrex::Vector<int>& can_fill) const;
 
-    // Every lane is remapped from ERF's level-0 cell centres to REMORA's rho points with
+    // Every lane is remapped from ERF's level-0 cell centers to REMORA's rho points with
     // the one set of weights weight_mf/index_mf the driver builds for that pair of grids.
     // The vectors (Uwind/Vwind and tau_x/tau_y) are sent as their eastward and northward
     // components, turned from the grid axes with the grid orientation from lat_m/lon_m,
     // so that the ocean can turn them to its own axes; the stress is averaged from the
-    // faces to the cell centres first.
+    // faces to the cell centers first.
     // dst_mskr is REMORA's wet/dry mask (1 = wet, 0 = land) on the rho layout, applied
     // to the scalar lanes (Patm, Tair, cloud) and to the flux lanes, tau_x/tau_y
     // included, but deliberately NOT to Uwind/Vwind, so the wind lanes carry live
@@ -489,9 +489,12 @@ public:
     void set_cf_zface_omega (int lev, amrex::MultiFab& omega, const amrex::MultiFab& omega_t,
                              const amrex::Vector<int>& slab_box);
     bool cf_interp_mass_flux (int lev) const;
+    bool cf_flat_mapfac (int lev) const;
     void RegisterCoarseMomentumCF (int levc, const amrex::MultiFab& xold, const amrex::MultiFab& xnew,
                                    const amrex::MultiFab& yold, const amrex::MultiFab& ynew,
                                    const amrex::Vector<double>& times);
+    void RegisterCoarseZMomentumCF (int levc, const amrex::MultiFab& wold, const amrex::MultiFab& wnew,
+                                    const amrex::Vector<double>& times);
     // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp)
     bool cf_anelastic_flux_match (int lev) const;
     void cf_anelastic_record (int levc, int nrk);
@@ -505,6 +508,7 @@ public:
     // ... and its vertical flux, as Omega
     amrex::Vector<amrex::MultiFab> m_cf_step_zflux;
     void FillSetHorizontalMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom);
+    void FillSetZMomentumCF (int lev, double time, amrex::MultiFab& zmom);
     // Give the face fills of level lev the log-law share of the wall coarse face's flux
     // (erf.cf_loglaw_fill) for the set fills that follow, or clear it (on = false)
     void set_cf_fill_options (int lev, bool on);
@@ -802,6 +806,14 @@ public:
     // true (new grids), otherwise only if it changed by more than 1 % since the last report
     void ReportTerrainSlopeFactor (int lev, bool force);
 
+    // with implicit substepping on a terrain-fitted mesh, turn on erf.use_variable_beta_s (unless
+    // the inputs set it) if erf.beta_s is below min(sigma^2, 1) on a w-face of level lev; called by
+    // ComputeDt and after a regrid for every new set of grids, and every step on a moving terrain
+    void CheckVariableBetaS (int lev);
+
+    // return the largest terrain slope sigma^2 = h_xi^2 + h_eta^2 over the w-faces of level lev
+    amrex::Real ComputeMaxTerrainSlope (int lev);
+
     // on a terrain-fitted mesh, warn when the terrain next to an inflow or outflow face of
     // level lev is steeper than erf_terrain_file::open_face_slope_warn and no steep-terrain
     // option is on; called by ComputeDt for every new set of grids
@@ -1022,7 +1034,7 @@ public:
     void check_base_state_hse (int lev, const std::string& when, bool abort_if_fail = true);
 
     /**
-     * The input sounding sampled at the cell centres of level lev. Level 0 is
+     * The input sounding sampled at the cell centers of level lev. Level 0 is
      * input_sounding_data itself; a finer level gets its own copy, resampled at
      * geom[lev] / zlevels_stag[lev], so that its profile index k is its own cell k
      * and no fine cell blends in the surface line of the sounding.
@@ -1030,7 +1042,7 @@ public:
     const InputSoundingData& sounding_at_level (int lev);
 
     /**
-     * The large-scale forcing profiles interpolated to the cell centres of level lev.
+     * The large-scale forcing profiles interpolated to the cell centers of level lev.
      * Level 0 is lsf itself; a finer level gets its own copy, interpolated at
      * geom[lev] / zlevels_stag[lev] against sounding_at_level(lev), so that its profile
      * index k is its own cell k.
@@ -1246,6 +1258,16 @@ public:
      *  AverageDownTo with the full-state component checks and the momentum average-down disabled. */
     void AverageDownMoistStateTo (int crse_lev);
 
+    /*! \brief Set detJ_cc of level crse_lev under level crse_lev+1 so that each covered coarse
+     *  cell's volume detJ/(m_x m_y) is the mean of the fine volumes over it. */
+    void average_down_detJ (int crse_lev);
+    bool fine_volume_average (int crse_lev) const;
+
+    /*! \brief Average-down of the cell-centered state used by AverageDownTo when
+     *  erf.perturbational_average_down is set: averages the perturbation from the base state in
+     *  Rho_comp, RhoTheta_comp and RhoQ1_comp and adds back the coarse base state. */
+    void AverageDownConsPerturbational (int crse_lev, int scomp, int ncomp);
+
     // Write checkpoint file to disk
     void WriteCheckpointFile () const;
 
@@ -1357,6 +1379,8 @@ private:
     void ParameterSanityChecks ();
 
     [[nodiscard]] bool has_surface_layer_inputs (const std::string& prefix) const;
+
+    [[nodiscard]] bool use_eb_surface_layer () const;
 
     // 0 unless ori is a lateral inflow (1) or inflow_outflow (2) face that gives a primitive
     // theta in a run with a pseudo-incompressible level (see set_pi_inflow_faces)
@@ -1618,10 +1642,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
     // Struct for working with the sounding data we take as an input. Its profiles are
-    // sampled at the level-0 cell centres; use sounding_at_level for any other level.
+    // sampled at the level-0 cell centers; use sounding_at_level for any other level.
     InputSoundingData input_sounding_data;
 
-    // The sounding sampled at the cell centres of each level > 0, built on first use
+    // The sounding sampled at the cell centers of each level > 0, built on first use
     // from input_sounding_data (index 0 is unused)
     amrex::Vector<std::unique_ptr<InputSoundingData>> input_sounding_data_fine;
 
@@ -1863,6 +1887,12 @@ private:
     //    rho - rho0, rho theta - rho0 theta0 and rho qv - rho0 qv0 and adding back the fine base
     //    state.  On by default; false interpolates rho, rho theta and rho qv themselves.
     bool perturbational_interp{true};
+
+    // erf.perturbational_average_down: average down rho - rho0, rho theta - rho0 theta0 and (with
+    //    moisture) rho qv - rho0 qv0 and add back the coarse base state, so that a fine level in
+    //    its base state averages to the coarse base state whatever the two levels' heights.
+    //    Off by default.
+    bool perturbational_avgdown{false};
     amrex::Vector<ERFFillPatcher> FPr_c;
     amrex::Vector<ERFFillPatcher> FPr_u;
     amrex::Vector<ERFFillPatcher> FPr_v;
@@ -1999,8 +2029,8 @@ private:
     // written by the immersed scalar forcing, read as the TKE buoyancy flux on the wall face
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_hfx;
     // kinematic wall moisture flux -u* q* of the fraction-stress law in the wall cell (zero elsewhere;
-    // allocated with a moisture model that carries water vapour), written by the immersed scalar
-    // forcing, read as the water vapour flux on the wall face (qfx1_z: the moist TKE buoyancy, the output)
+    // allocated with a moisture model that carries water vapor), written by the immersed scalar
+    // forcing, read as the water vapor flux on the wall face (qfx1_z: the moist TKE buoyancy, the output)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_qfx;
     // wall value of the k-eqn TKE in the wall cell (erf.if_wall_tke; -1 elsewhere), written by the
     // immersed scalar forcing; with erf.if_wall_tke_time_factor = 1 the cell is held at it after
@@ -2154,6 +2184,9 @@ private:
     // reported, per level (WarnSteepTerrainAtOpenFaces)
     amrex::Vector<amrex::BoxArray> openface_grids;
     amrex::Vector<amrex::Array<bool,4>> openface_warned;
+    // grids on which the stability of the constant beta_s was last checked, per level
+    // (CheckVariableBetaS)
+    amrex::Vector<amrex::BoxArray> beta_s_check_grids;
     amrex::Vector<amrex::Real> slope_report_alpha;
 
     // Fixed dt at each level (only used if positive)
@@ -2434,7 +2467,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> column_kextent;
 
     // Masks of the coarse/fine ghost cells (1 there, 0 elsewhere) used by
-    // FillCoarseFineGhostsForImplicit: entry 0 is cell-centred with two ghost cells, entries
+    // FillCoarseFineGhostsForImplicit: entry 0 is cell-centered with two ghost cells, entries
     // 1-3 are on the x-, y- and z-faces with one ghost cell.  Built on first use
     // and rebuilt whenever the grids they were built on change.
     amrex::Vector<amrex::Array<std::unique_ptr<amrex::iMultiFab>,AMREX_SPACEDIM+1>> cf_implicit_mask;

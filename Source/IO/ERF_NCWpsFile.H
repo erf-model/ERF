@@ -253,7 +253,7 @@ fill_fab_from_arrays (int iv,
                       FAB& temp)
 {
     // bottom_top, south_north, west_east (these can be staggered or unstaggered).
-    // Initialised because amrex::Abort is not [[noreturn]], so the compiler
+    // Initialized because amrex::Abort is not [[noreturn]], so the compiler
     // cannot tell that the final else never falls through.
     int ns1 = 0, ns2 = 0, ns3 = 0;
     if (NC_dim_type == NC_Data_Dims_Type::Time_BT) {

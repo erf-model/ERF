@@ -151,6 +151,7 @@ void SuperDropletsMoist::Diagnostics ( const int& a_step,
                                        const int a_file_name_digits )
 {
     const bool write_files = (m_diagnostics_iter > 0) && (a_step % m_diagnostics_iter == 0);
+    if (!m_dsd_probes.empty()) { sampleDSDProbes(a_step, a_time, a_z); }
     m_super_droplets->Diagnostics(a_step, 0, a_time, write_files, *a_z[0], a_file_name_digits);
 }
 

@@ -1393,7 +1393,11 @@ struct SolverChoice {
         pp.query("face_sync_int", face_sync_int);
 
         // Spatially varying beta_s on the w-faces (implicit substepping only), set from the
-        //    terrain slope and the vertical acoustic Courant number (see make_fast_coeffs)
+        //    terrain slope and the vertical acoustic Courant number (see make_fast_coeffs).
+        //    If it is not given, it is turned on during the run on a terrain-fitted mesh where
+        //    beta_s is below the stability limit min(sigma^2, 1) (ERF::CheckVariableBetaS);
+        //    an explicit false keeps the constant beta_s
+        auto_variable_beta_s = !pp.contains("use_variable_beta_s");
         pp.queryAdd("use_variable_beta_s", use_variable_beta_s);
 
         // *******************************************************************************
@@ -1590,7 +1594,7 @@ struct SolverChoice {
         }
         // Surface moisture condition of the fraction-stress law: a given kinematic moisture flux or
         // a given surface mixing ratio (not both), as erf.most.surf_moist_flux / erf.most.surf_moist
-        // on flat ground; it needs a moisture model that carries water vapour (the wall cell's qv
+        // on flat ground; it needs a moisture model that carries water vapor (the wall cell's qv
         // and the cell above's enter q* and the Obukhov length)
         {
             const bool moist_flux_set = (if_surf_moist_flux != zero);
@@ -1880,7 +1884,7 @@ struct SolverChoice {
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
 
-        // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centred and
+        // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centered and
         // upwind schemes; with any other the fluxes are never set and, in a Release build, the
         // fields are not advected at all.  The moist scalars default to WENO3, so they are checked
         // only when they are advected.
@@ -1936,11 +1940,29 @@ struct SolverChoice {
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
-            // the moist TKE buoyancy of the k-eqn RANS reads the water vapour and its flux
+            // the moist TKE buoyancy of the k-eqn RANS reads the water vapor and its flux
             if (turbChoice[lev].rans_moist_buoyancy &&
                 moisture_indices.qv == MoistureComponentIndices::absent) {
                 amrex::Abort("erf.rans_moist_buoyancy needs a moisture model that carries water vapour "
                              "(erf.moisture_model; level " + std::to_string(lev) + ")");
+            }
+            // the log-consistent shear of the k-eqn RANS assumes the log law of the ground below
+            // the cell: not with a cut-cell or immersed surface, nor with thin immersed bodies
+            if (turbChoice[lev].rans_shear_stencil == RANSShearStencil::log_law) {
+                if (terrain_type == TerrainType::EB || terrain_type == TerrainType::ImmersedForcing ||
+                    buildings_type == BuildingsType::ImmersedForcing) {
+                    amrex::Abort("erf.rans_shear_stencil = log_law is not available with erf.terrain_type = EB or "
+                                 "ImmersedForcing or erf.buildings_type = ImmersedForcing");
+                }
+                // the wall distance is that of the initial mesh, the height differences move
+                if (terrain_type == TerrainType::MovingFittedMesh) {
+                    amrex::Abort("erf.rans_shear_stencil = log_law is not available with erf.terrain_type = "
+                                 "MovingFittedMesh");
+                }
+                if (advChoice.have_zero_flux_faces) {
+                    amrex::Abort("erf.rans_shear_stencil = log_law is not available with thin immersed bodies "
+                                 "(erf.zero_xflux_faces, erf.zero_yflux_faces, erf.zero_zflux_faces)");
+                }
             }
         }
 
@@ -2969,6 +2991,9 @@ struct SolverChoice {
     // if true, beta_s varies on the w-faces
     // and beta_s itself is not used (implicit substepping only)
     bool use_variable_beta_s = false;
+    // true if erf.use_variable_beta_s is not given in the inputs, so that it may be turned on
+    // where the constant beta_s is below the stability limit min(sigma^2, 1) of the terrain
+    bool auto_variable_beta_s = true;
 
     // divergence damping coefficient: how far (rho theta) is projected forward
     // in the horizontal momentum equations of the acoustic substepping
@@ -3333,7 +3358,7 @@ struct SolverChoice {
     amrex::Vector<amrex::Real> sbm_edges;
     amrex::Vector<amrex::Real> sbm_pivots;
     amrex::Vector<amrex::Real> sbm_fixture_initial_state;
-    // The fixture state of cells whose centre lies in the upper half of the x domain
+    // The fixture state of cells whose center lies in the upper half of the x domain
     amrex::Vector<amrex::Real> sbm_fixture_initial_state_xhi;
     std::string sbm_particle_mixing{"None"};
     amrex::Real sbm_particle_mixing_kh{0};
@@ -3504,6 +3529,8 @@ struct SolverChoice {
  * @brief Time off-centering coefficient for forward weighting.
  * @var SolverChoice::use_variable_beta_s
  * @brief Whether beta_s varies on the w-faces with the terrain slope and acoustic Courant number.
+ * @var SolverChoice::auto_variable_beta_s
+ * @brief Whether erf.use_variable_beta_s may be turned on automatically (it is not set in the inputs).
  * @var SolverChoice::beta_d
  * @brief Divergence damping coefficient used in the acoustic substepping.
  * @var SolverChoice::vert_implicit_fac
@@ -3613,7 +3640,7 @@ struct SolverChoice {
  * (if_implicit_drag), without which the explicit rate at rims and corners
  * drives the density negative within seconds. The momentum kernels take the
  * blanking of a face from the two cells it joins (solid if either is), so
- * the staircase is the same with and without the face-centred blanking of
+ * the staircase is the same with and without the face-centered blanking of
  * the build; a face between a solid and a fluid cell is wall-normal and gets
  * the interior drag toward zero (no penetration) whichever row it lies in,
  * and a face between two solid cells the roof or wall law of its row (with

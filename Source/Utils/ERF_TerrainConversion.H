@@ -57,7 +57,7 @@ z_face_at_xy (amrex::Real x, amrex::Real y, int k_face,
 }
 
 // Computational zeta -> physical z at column (x, y).
-//   zeta is in the same units as the cell-centred z coordinate (i.e. it ranges
+//   zeta is in the same units as the cell-centered z coordinate (i.e. it ranges
 //   over the level's z domain box scaled by dxi[2]).  The integer cell index
 //   k = floor((zeta - plo_z) * dxi_z) is the same as for a uniform-z grid;
 //   the sub-cell fraction is interpolated linearly between the two terrain

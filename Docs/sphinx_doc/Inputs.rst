@@ -1257,7 +1257,7 @@ Notes
      the horizontal and vertical eddy viscosities can differ (Smagorinsky2D, Smagorinsky or
      Deardorff with **erf.mix_isotropic** = false, or any PBL scheme), the largest slope factor
      :math:`\alpha = h \Delta x/\Delta z` of each level and the number of cells with
-     :math:`\alpha > 1` are printed whenever a level has a new set of grids (at initialisation,
+     :math:`\alpha > 1` are printed whenever a level has a new set of grids (at initialization,
      on the first step after a restart, and at the coarse step after a regrid), and with
      **erf.terrain_type** = MovingFittedMesh also whenever the largest :math:`\alpha` changes by
      more than 1 %.  Without those options nothing is computed or printed.
@@ -1520,6 +1520,11 @@ The number of output filenames specified through ``erf.data_log`` dictates the
 level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3);
 specifying 5 filenames will also include output (5). Data files are only written
 if ``erf.profile_int > 0``.
+
+With EB SurfaceLayer active (for any ``zlo.type``), the surface time history
+reports ``u_star``, ``t_star``, and ``olen`` as ``nan`` (unavailable). The EB
+fields use a 3D layout, and ``surface_sum`` samples the lowest grid plane rather
+than averaging over the embedded surface. These entries do not indicate zero surface fluxes.
 
 This output functionality has not been implemented for terrain.
 For **real simulation domains**, users should use 2-D and 3-D :ref:`sec:Plotfiles`.
@@ -2610,6 +2615,27 @@ List of Parameters
 |                                        | that switches it on at such a level stops the run        |                    |                  |
 |                                        | (per-level)                                              |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_shear_stencil**             | k-equation RANS: vertical gradients of u and v in the    | ``central`` or     | ``central``      |
+|                                        | strain invariant of the shear production of k and of the | ``log_law``        |                  |
+|                                        | realizability cap. ``central`` (default) averages the    |                    |                  |
+|                                        | strains of the faces below and above the cell;           |                    |                  |
+|                                        | ``log_law`` uses (u_k+1 - u_k-1) / [(d_k + z0) ln((d_k+1 |                    |                  |
+|                                        | + z0) / (d_k-1 + z0))] in the cells above the wall cell  |                    |                  |
+|                                        | and below the top cell (d wall distance, z0 roughness    |                    |                  |
+|                                        | length of the surface layer, ``erf.most.z0`` unless a    |                    |                  |
+|                                        | roughness file or model sets it). The form is exact for  |                    |                  |
+|                                        | a logarithmic profile over flat ground and less accurate |                    |                  |
+|                                        | than ``central`` for a profile that is linear in height. |                    |                  |
+|                                        | A cell whose d_k-1 + z0 would not be positive keeps the  |                    |                  |
+|                                        | ``central`` value. ``log_law`` needs ``erf.rans_type =   |                    |                  |
+|                                        | kEqn`` and ``zlo.type = surface_layer`` and stops the    |                    |                  |
+|                                        | run with EB or immersed-forcing terrain or buildings,    |                    |                  |
+|                                        | thin immersed bodies or ``erf.terrain_type =             |                    |                  |
+|                                        | MovingFittedMesh``; a single value is reset to           |                    |                  |
+|                                        | ``central`` on levels without the k-eqn closure, a       |                    |                  |
+|                                        | per-level list that names such a level stops the run     |                    |                  |
+|                                        | (per-level)                                              |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rans_moist_buoyancy**            | k-equation RANS with a moisture model that carries water | Boolean            | false            |
 |                                        | vapor: TKE buoyancy production from the virtual          |                    |                  |
 |                                        | potential temperature flux, g/theta_v0 [(1 + epsv qv)    |                    |                  |
@@ -2816,7 +2842,7 @@ List of Parameters
 | **erf.enable_ysu_cloud_pblh**            | YSU only, with a moisture model: raise the PBL-top cell  | Boolean            | true             |
 |                                          | index by one where the cloud water plus cloud ice in the |                    |                  |
 |                                          | PBL-top cell exceeds ``erf.ysu_qcloud_threshold``. The   |                    |                  |
-|                                          | PBL height in metres does not change. Applies whether    |                    |                  |
+|                                          | PBL height in meters does not change. Applies whether    |                    |                  |
 |                                          | or not ``erf.enable_ysu_entrainment`` is set             |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.ysu_qcloud_threshold**             | YSU only: cloud water plus cloud ice [kg/kg] above which | Real               | 1.0e-4           |
@@ -3899,10 +3925,13 @@ List of Parameters
 |                             | substepping; positive values weight the update towards   |                    |                  |
 |                             | the new time                                             |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.use_variable_beta_s** | with implicit substepping, use a beta_s that varies      | Boolean            | false            |
+| **erf.use_variable_beta_s** | with implicit substepping, use a beta_s that varies      | Boolean            | unset            |
 |                             | on the w-faces with the terrain slope and the vertical   |                    |                  |
 |                             | acoustic Courant number, in place of ``erf.beta_s``      |                    |                  |
-|                             | (see :ref:`TimeAdvance`)                                 |                    |                  |
+|                             | (see :ref:`TimeAdvance`).  If not given, turned on       |                    |                  |
+|                             | automatically on a terrain-fitted mesh where             |                    |                  |
+|                             | ``erf.beta_s`` is below min(h_xi^2 + h_eta^2, 1) on any  |                    |                  |
+|                             | w-face; an explicit false keeps ``erf.beta_s``           |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.beta_d**              | divergence damping coefficient used in the acoustic      | Real in [0, 1]     | 0.1              |
 |                             | substepping; how far (rho theta) is projected forward    |                    |                  |
@@ -4999,6 +5028,8 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.roughness_file_name**      | text file of (x, y, z0) giving a spatially varying       | String, or list of  | None             |
 |                                       | roughness length; may be given once or once per level.   | Strings             |                  |
+|                                       | Supported for EB by vertical extension of the map;       |                     |                  |
+|                                       | see :ref:`sec:surface_layer` for the file format.        |                     |                  |
 |                                       | Read only when ``flux_type`` is ``moeng`` or when        |                     |                  |
 |                                       | surface-flux rotation is active                          |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+

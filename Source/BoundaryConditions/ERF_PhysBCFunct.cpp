@@ -28,8 +28,8 @@ BelowGroundGhostSync::operator() (MultiFab& mf, int icomp, int ncomp,
     // The owning slab of each box that reaches the bottom of the domain: the
     // cells below the domain under its valid columns, extended laterally over
     // the ghost columns outside a non-periodic side of the domain that the box
-    // touches.  The slabs of different boxes meet only where face-centred boxes
-    // share a face, and there both compute the value with a centred stencil.
+    // touches.  The slabs of different boxes meet only where face-centered boxes
+    // share a face, and there both compute the value with a centered stencil.
     // A box that starts above the bottom (a refined level that does not reach
     // the ground) owns no cells below it and is left out.
     if (!(m_src_ba == mf.boxArray()) || !(m_src_dm == mf.DistributionMap()) || m_nghost != nghost)

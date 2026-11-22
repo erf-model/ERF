@@ -64,7 +64,7 @@ Real sample_component (int dir, Array4<Real const> const& f, Real x, Real y, Rea
                        int klo, int khi,
                        Array4<Real const> const& znd, bool has_znd, Real dz)
 {
-    // fractional index on the component's own grid: whole numbers on faces, half on centres
+    // fractional index on the component's own grid: whole numbers on faces, half on centers
     const Real xi = (x - plo[0]) * dxi[0] - ((dir == 0) ? Real(0.0) : Real(0.5));
     const Real yi = (y - plo[1]) * dxi[1] - ((dir == 1) ? Real(0.0) : Real(0.5));
     const int i0 = static_cast<int>(std::floor(xi));
@@ -177,7 +177,7 @@ sample_velocity_local (const MultiFab& U, const MultiFab& V, const MultiFab& W,
             if (jc > jhi && y <= phi[1]) { jc = jhi; }
             // the columns are searched within this box and its first ghost layer (filled), so a box split in z,
             // or a fine level that stops below the domain's top, reads only its own data. A point the box owns
-            // has its own column's bracketing pair in that range; a neighbouring column whose levels a slope
+            // has its own column's bracketing pair in that range; a neighboring column whose levels a slope
             // raises or lowers by more than about half a cell, at the box's top or bottom, extrapolates from
             // the range's end instead (a difference of the field's curvature, none for a field linear in height)
             const int kb = amrex::max(klo, vbx.smallEnd(2) - 1);
@@ -218,7 +218,7 @@ sample_velocity_local (const MultiFab& U, const MultiFab& V, const MultiFab& W,
             Gpu::Atomic::AddNoRet(&p_cnt[p], 1);
         });
     }
-    // the answers back with asynchronous copies and one synchronisation
+    // the answers back with asynchronous copies and one synchronization
     buf.sample_vel.download_async(vel.size());
     buf.sample_cnt.download_async(cnt.size());
     Gpu::streamSynchronize();
@@ -252,15 +252,15 @@ sample_velocity (const MultiFab& U, const MultiFab& V, const MultiFab& W,
 
 namespace erf_detail_ActuatorSampling {
 
-// height of the centre of cell (i,j,k): the mean of its bottom and top face heights
+// height of the center of cell (i,j,k): the mean of its bottom and top face heights
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real centre_height (int i, int j, int k, Array4<Real const> const& znd, bool has_znd, Real zlo, Real dz)
 {
     return Real(0.5) * (face_height(2, i, j, k, znd, has_znd, zlo, dz) + face_height(2, i, j, k+1, znd, has_znd, zlo, dz));
 }
 
-// the cell-centred field in column (i,j) at height z: linear between the two centres that
-// bracket z, the nearest pair extrapolating beyond the first and last centre
+// the cell-centered field in column (i,j) at height z: linear between the two centers that
+// bracket z, the nearest pair extrapolating beyond the first and last center
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 Real centre_column_value (Array4<Real const> const& f, int comp, int i, int j, int klo, int khi, Real z,
                           Array4<Real const> const& znd, bool has_znd, Real zlo, Real dz)
@@ -323,7 +323,7 @@ sample_cell_scalar (const MultiFab& mf, int comp, const MultiFab* z_phys_nd, con
             if (jc > jhi && y <= phi[1]) { jc = jhi; }
             // the columns are searched within this box and its first ghost layer (filled), so a box split in z,
             // or a fine level that stops below the domain's top, reads only its own data. A point the box owns
-            // has its own column's bracketing pair in that range; a neighbouring column whose levels a slope
+            // has its own column's bracketing pair in that range; a neighboring column whose levels a slope
             // raises or lowers by more than about half a cell, at the box's top or bottom, extrapolates from
             // the range's end instead (a difference of the field's curvature, none for a field linear in height)
             const int kb = amrex::max(klo, vbx.smallEnd(2) - 1);
@@ -354,7 +354,7 @@ sample_cell_scalar (const MultiFab& mf, int comp, const MultiFab* z_phys_nd, con
                 }
             }
             if (kc < vbx.smallEnd(2) || kc > vbx.bigEnd(2)) { return; }
-            // bilinear between the cell centres around (x, y), each column at height z
+            // bilinear between the cell centers around (x, y), each column at height z
             const Real xi = (x - plo[0]) * dxi[0] - Real(0.5);
             const Real yi = (y - plo[1]) * dxi[1] - Real(0.5);
             const int i0 = static_cast<int>(std::floor(xi));
@@ -579,7 +579,7 @@ LevelHeights::get (const MultiFab& z_phys_nd, const Geometry& geom, bool rebuild
 namespace erf_detail_ActuatorSampling {
 
 // Per direction across, the node index ranges of the cells a region touches, from its low (b[0], b[1])
-// and high (b[3], b[4]) ends in metres: one range, or two in a periodic direction whose range crosses
+// and high (b[3], b[4]) ends in meters: one range, or two in a periodic direction whose range crosses
 // the seam (the part beyond it wrapped to the other side)
 void
 horizontal_node_ranges (const Real* b, const Geometry& geom, std::array<std::vector<std::array<int,2>>,2>& ranges)
@@ -676,7 +676,7 @@ column_cell_ranges (const MultiFab& z_phys_nd, const Geometry& geom, const std::
         std::vector<int> first_of(boxes.size() + 1, static_cast<int>(work.size()));
         for (int w = static_cast<int>(work.size()) - 1; w >= 0; --w) { first_of[work[w].b] = w; }
         for (int ib = static_cast<int>(boxes.size()) - 1; ib >= 0; --ib) { first_of[ib] = std::min(first_of[ib], first_of[ib+1]); }
-        // every device vector lives until the synchronisation after the last launch
+        // every device vector lives until the synchronization after the last launch
         Gpu::DeviceVector<ColumnWork> d_work(work.size());
         Gpu::DeviceVector<Real> d_pos(pos.size()), d_reach(reach.size());
         Gpu::DeviceVector<int> d_kb(npts, dhi + 1), d_kt(npts, dlo - 1);

@@ -137,7 +137,7 @@ ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::strin
     }
 
     const bool has_surface_layer =
-        phys_bc_type[Orientation(Direction::z, Orientation::low)] == ERF_BC::surface_layer;
+        (phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) || use_eb_surface_layer();
     const auto active_lsm_names = lsm.Get_DataNames();
     const auto available_names = plotfile2d::available_diagnostic_names(solverChoice,
                                                                          has_surface_layer,
@@ -664,7 +664,7 @@ ERF::FillPlot2DVars (int lev,
 
     if (containerHasElement(plot_var_names, "surf_pres")) {
         // The pressure at the ground, as WRF's PSFC: the lowest cell's pressure plus
-        //    rho g times the height of that cell's centre above the ground, the same
+        //    rho g times the height of that cell's center above the ground, the same
         //    surface pressure the radiation and surface layer use
         bool moist = (solverChoice.moisture_type != MoistureType::None);
         const Real dz = geom[lev].CellSize(2);

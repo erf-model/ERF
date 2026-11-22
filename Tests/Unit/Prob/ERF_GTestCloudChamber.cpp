@@ -13,6 +13,9 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -418,7 +421,7 @@ TEST(CloudChamberConfig, MoistureModelSupportIsAnExplicitTypedAllowlist)
         {MoistureType::Morrison_NoIce, true},
         {MoistureType::Morrison, true},
         {MoistureType::SBM, false},
-        {MoistureType::SuperDroplets, false}};
+        {MoistureType::SuperDroplets, true}};
 
     for (const auto& [model, supported] : expected) {
         EXPECT_EQ(erf_cloud_chamber::supports_moisture_model(model), supported)
@@ -1007,6 +1010,214 @@ TEST(CloudChamberWallConfig, ParsesWetnessOnlyForWetPhysicalWalls)
     }
 }
 
+class CloudChamberSidewallBands : public ::testing::Test {
+protected:
+    static amrex::Geometry shifted_geometry ()
+    {
+        const amrex::Box domain(amrex::IntVect(0,0,7), amrex::IntVect(1,1,10));
+        const amrex::RealBox box({0,0,11}, {1,1,13});
+        const int periodic[AMREX_SPACEDIM] = {0,0,0};
+        return amrex::Geometry(domain, &box, amrex::CoordSys::cartesian, periodic);
+    }
+
+    const amrex::Geometry geom = shifted_geometry();
+    erf_cloud_chamber::SidewallTemperatureBands bands;
+
+    std::string define_profile ()
+    {
+        // Heights above the floor, not model z. dz = 1/2 m; one edge lands
+        // on a row boundary, and the narrowest panel is only 1/64 m high.
+        return bands.define({0, 0.625, 1, 1.015625, 1.0625, 1.25, 2},
+                            {285, 295, 308, 281, 300, 290}, geom);
+    }
+
+    // Independent hand-computed (Kelvin, area fraction) pairs for k = 7..10.
+    const std::vector<std::vector<std::pair<Real, Real>>> rows{
+        {{285, 1}}, {{285, 0.25}, {295, 0.75}},
+        {{308, 1./32}, {281, 3./32}, {300, 3./8}, {290, 0.5}}, {{290, 1}}};
+};
+
+TEST_F(CloudChamberSidewallBands, RejectsInvalidProfileData)
+{
+    auto reject = [&](const char* reason, amrex::Vector<Real> edges,
+                      const amrex::Vector<Real>& values) {
+        erf_cloud_chamber::SidewallTemperatureBands invalid;
+        EXPECT_FALSE(invalid.define(edges, values, geom).empty()) << reason;
+    };
+    reject("no panels", {0}, {});
+    reject("missing edge", {0, 2}, {285, 295});
+    reject("missing value", {0, 1, 2}, {285});
+    reject("gap at floor", {0.25, 2}, {285});
+    reject("gap at ceiling", {0, 1.75}, {285});
+    reject("extends past ceiling", {0, 2.25}, {285});
+    reject("duplicate edge", {0, 1, 1, 2}, {285, 290, 295});
+    reject("decreasing edges", {0, 1.5, 1, 2}, {285, 290, 295});
+    const Real eps = std::numeric_limits<Real>::epsilon();
+    reject("endpoint tolerance cannot hide a reversed first band", {2*eps, eps, 2}, {285, 295});
+    reject("interior edge must be above the floor", {-2*eps, -eps, 2}, {285, 295});
+    for (Real bad : {std::numeric_limits<Real>::quiet_NaN(),
+                     std::numeric_limits<Real>::infinity()}) {
+        reject("nonfinite edge", {0, bad, 2}, {285, 295});
+        reject("nonfinite Kelvin", {0, 2}, {bad});
+    }
+    reject("zero Kelvin", {0, 2}, {0});
+    reject("negative Kelvin", {0, 2}, {-1});
+}
+
+TEST_F(CloudChamberSidewallBands, ParserRequiresAPairOnAPhysicalSidewall)
+{
+    amrex::ParmParse pp("cc_test_sidewall_bands");
+    erf_wall_thermodynamics::FaceWall wall;
+    auto parse = [&](bool physical, bool sidewall) {
+        return erf_cloud_chamber::parse_wall_heat(pp, sidewall ? "yhi" : "zlo", physical,
+                                                   wall, geom, sidewall ? &bands : nullptr);
+    };
+    pp.addarr("temperature_height_edges", amrex::Vector<Real>{0, 1, 2});
+    EXPECT_NE(parse(true, true).find("together"), std::string::npos);
+    pp.addarr("temperature_values", amrex::Vector<Real>{285, 295});
+    EXPECT_NE(parse(false, true).find("physical"), std::string::npos);
+    EXPECT_NE(parse(true, false).find("sidewall"), std::string::npos);
+    pp.add("temperature", Real(290));
+    EXPECT_NE(parse(true, true).find("mutually exclusive"), std::string::npos);
+    pp.remove("temperature");
+    EXPECT_TRUE(parse(true, true).empty());
+    pp.remove("temperature_height_edges");
+    EXPECT_NE(parse(true, true).find("together"), std::string::npos);
+    pp.remove("temperature_values");
+}
+
+TEST_F(CloudChamberSidewallBands, DeviceRowsPartitionTheShiftedWall)
+{
+    using namespace amrex;
+    ASSERT_EQ(define_profile(), "");
+    const auto view = bands.view();
+    static_assert(std::is_trivially_copyable_v<erf_wall_thermodynamics::TemperatureBandView>);
+    ASSERT_EQ(view.k_lo, geom.Domain().smallEnd(2));
+    ASSERT_NE(view.offsets, nullptr);
+    ASSERT_NE(view.panels, nullptr);
+    Gpu::HostVector<int> offsets(rows.size() + 1);
+    Gpu::copy(Gpu::deviceToHost, view.offsets, view.offsets + offsets.size(), offsets.begin());
+    const int base = offsets.front();
+    ASSERT_GE(base, 0);
+    for (std::size_t r = 0; r < rows.size(); ++r) {
+        ASSERT_EQ(offsets[r+1] - offsets[r], static_cast<int>(rows[r].size())) << "row " << r;
+    }
+    Gpu::HostVector<erf_wall_thermodynamics::TemperaturePanel> panels(offsets.back() - base);
+    Gpu::copy(Gpu::deviceToHost, view.panels + base, view.panels + offsets.back(), panels.begin());
+    for (std::size_t r = 0; r < rows.size(); ++r) {
+        SCOPED_TRACE(::testing::Message() << "k=" << view.k_lo + static_cast<int>(r));
+        const auto first = panels.begin() + (offsets[r] - base);
+        const auto last = panels.begin() + (offsets[r+1] - base);
+        Real sum = 0;
+        for (auto it = first; it != last; ++it) { sum += it->fraction; }
+        EXPECT_NEAR(sum, 1, scaled_tolerance(1));
+        for (const auto& expected : rows[r]) {
+            const auto it = std::find_if(first, last, [&](const auto& panel) {
+                return panel.temperature_K == expected.first;
+            });
+            ASSERT_NE(it, last) << "missing panel at " << expected.first << " K";
+            EXPECT_NEAR(it->fraction, expected.second, scaled_tolerance(1));
+        }
+    }
+}
+
+struct BandFluxPair { Real heat, vapor; };
+
+// Keep the launch outside GoogleTest's generated TestBody (NVCC extended lambdas).
+amrex::Gpu::HostVector<BandFluxPair>
+band_fluxes_in_kernel (erf_wall_thermodynamics::FaceWall wall,
+                       erf_cloud_chamber_wall_flux::ScalarWallSample sample,
+                       erf_wall_thermodynamics::TemperatureBandView view,
+                       const amrex::Box& domain)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    const int lo = domain.smallEnd(2), nz = domain.length(2);
+    amrex::Gpu::DeviceVector<BandFluxPair> device(nz);
+    auto* out = device.data();
+    amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int r) noexcept {
+        auto s = sample;
+        s.scalar_air = s.theta_air;
+        out[r].heat = evaluate_face_scalar_flux_in(wall, ScalarChannel::Heat, s, view, lo+r);
+        s.scalar_air = s.qv_air;
+        out[r].vapor = evaluate_face_scalar_flux_in(wall, ScalarChannel::Vapor, s, view, lo+r);
+    });
+    amrex::Gpu::HostVector<BandFluxPair> host(nz);
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost, device.begin(), device.end(), host.begin());
+    return host;
+}
+
+TEST_F(CloudChamberSidewallBands, AveragesPanelFluxesNotWallTemperatures)
+{
+    using namespace erf_wall_thermodynamics;
+    ASSERT_EQ(define_profile(), "");
+    const auto view = bands.view();
+    ASSERT_EQ(view.k_lo, geom.Domain().smallEnd(2));
+    ASSERT_NE(view.offsets, nullptr);
+    ASSERT_NE(view.panels, nullptr);
+    auto uniform = view;
+    uniform.offsets = nullptr; // This alone selects scalar fallback; panels must be ignored.
+
+    FaceWall wall{};
+    const Real mean_T = Real(0.25)*285 + Real(0.75)*295;
+    wall.thermal = {ThermalMode::FixedPhysicalTemperature, mean_T};
+    wall.moisture = MoistureMode::WetEquilibrium;
+    wall.wetness = Real(0.625);
+    erf_cloud_chamber_wall_flux::ScalarWallSample s{};
+    s.rho = Real(1.25); s.p_hse = 90000; s.rdOcp = R_d/Cp_d; s.theta_air = 298;
+    s.U_t = 3; s.dx_inv = 2; s.wall_distance = Real(0.25);
+    s.alpha_T = Real(0.0625); s.alpha_C = Real(0.125);
+    const Real to_theta = std::pow(p_0 / s.p_hse, s.rdOcp);
+    auto qwall = [&](Real T) {
+        const Real e_Pa = wall.wetness * (100 * erf_esatw(T));
+        return RdoRv * e_Pa / (s.p_hse - e_Pa);
+    };
+    // In the 25/75 row F(mean T) gives condensation, but the area-weighted
+    // panel flux gives evaporation. Both use the same local air and pressure.
+    s.qv_air = (qwall(mean_T) + Real(0.25)*qwall(285) + Real(0.75)*qwall(295))/2;
+
+    for (auto model : {ScalarModel::ResolvedMolecular, ScalarModel::BulkAero}) {
+        const bool bulk = model == ScalarModel::BulkAero;
+        SCOPED_TRACE(bulk ? "fixed bulk" : "resolved");
+        const auto provider = bulk ? CoefficientProvider::Fixed : CoefficientProvider::None;
+        wall.heat = {model, provider, Real(0.125)};
+        wall.vapor = {model, provider, Real(0.0625)};
+        const Real h = s.rho * (bulk ? wall.heat.coefficient*s.U_t : 2*s.alpha_T*s.dx_inv);
+        const Real v = s.rho * (bulk ? wall.vapor.coefficient*s.U_t : 2*s.alpha_C*s.dx_inv);
+        const auto heat = [&](Real T) { return h * (T * to_theta - s.theta_air); };
+        const auto vapor = [&](Real T) { return v * (qwall(T) - s.qv_air); };
+        const Real heat_tol = scaled_tolerance(h * s.theta_air);
+        const Real vapor_tol = 64 * std::numeric_limits<Real>::epsilon() * v * qwall(308);
+
+        const auto wet = band_fluxes_in_kernel(wall, s, view, geom.Domain());
+        const auto scalar = band_fluxes_in_kernel(wall, s, uniform, geom.Domain());
+        auto dry_wall = wall;
+        dry_wall.moisture = MoistureMode::DryImpermeable;
+        const auto dry = band_fluxes_in_kernel(dry_wall, s, view, geom.Domain());
+        auto adiabatic_wall = wall;
+        adiabatic_wall.thermal.mode = ThermalMode::Adiabatic;
+        const auto adiabatic = band_fluxes_in_kernel(adiabatic_wall, s, view, geom.Domain());
+
+        EXPECT_GT(wet[1].vapor, vapor_tol);
+        EXPECT_LT(scalar[1].vapor, -vapor_tol);
+        for (std::size_t r = 0; r < rows.size(); ++r) {
+            SCOPED_TRACE(::testing::Message() << "k=" << view.k_lo + static_cast<int>(r));
+            Real expected_heat = 0, expected_vapor = 0;
+            for (const auto& [T, fraction] : rows[r]) {
+                expected_heat += fraction * heat(T);
+                expected_vapor += fraction * vapor(T);
+            }
+            EXPECT_NEAR(wet[r].heat, expected_heat, heat_tol);
+            EXPECT_NEAR(wet[r].vapor, expected_vapor, vapor_tol);
+            EXPECT_NEAR(dry[r].heat, expected_heat, heat_tol);
+            EXPECT_EQ(dry[r].vapor, 0);
+            EXPECT_EQ(adiabatic[r].heat, 0);
+            EXPECT_NEAR(adiabatic[r].vapor, expected_vapor, vapor_tol);
+            EXPECT_NEAR(scalar[r].heat, heat(mean_T), heat_tol);
+            EXPECT_NEAR(scalar[r].vapor, vapor(mean_T), vapor_tol);
+        }
+    }
+}
+
 TEST(CloudChamberWallFlux, WetnessSetsVaporPressureForEveryVaporLaw)
 {
     using namespace erf_cloud_chamber_wall_flux;
@@ -1145,9 +1356,10 @@ TEST(CloudChamberWallConfig, AdiabaticHeatParser)
 {
     using namespace erf_wall_thermodynamics;
     amrex::ParmParse pp("cc_test_heat_selector");
+    amrex::Geometry geom; // plate parser does not use sidewall geometry
     FaceWall wall;
     auto parse = [&](bool physical = true) {
-        return erf_cloud_chamber::parse_wall_heat(pp, "zlo", physical, wall);
+        return erf_cloud_chamber::parse_wall_heat(pp, "zlo", physical, wall, geom, nullptr);
     };
 
     wall.thermal.temperature_K = Real(283); // legacy theta must survive untouched

@@ -110,7 +110,7 @@ validate_uniform_axis (const amrex::Vector<amrex::Real>& coordinates,
         // at a UTM easting near 5e5 the float32 ulp is 0.03125 m, so a 0.4 m
         // raster stores intervals that deviate from the nominal spacing by up
         // to 0.025 m: more than 5% of the spacing, yet far below the ulp
-        // allowance.  Integer-metre spacings are unaffected either way, since
+        // allowance.  Integer-meter spacings are unaffected either way, since
         // integers are exactly representable in float32 at UTM magnitudes.
         const amrex::Real local_spacing = coordinate - coordinates[index-1];
         const amrex::Real spacing_tolerance = std::max(

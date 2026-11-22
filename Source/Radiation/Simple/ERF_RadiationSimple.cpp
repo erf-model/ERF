@@ -231,7 +231,7 @@ void RadiationSimple::WriteDataLog (const double &time)
     const Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
     const int nz = domain.length(2);
 
-    // Planar averages of the cell-centred profiles
+    // Planar averages of the cell-centered profiles
     Vector<Gpu::HostVector<Real>> cc_avg(n_datalog_comp);
     for (int n = 0; n < n_datalog_comp; ++n) {
         cc_avg[n] = sumToLine(datalog_mf, n, 1, domain, 2);

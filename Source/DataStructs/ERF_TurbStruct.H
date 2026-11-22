@@ -18,6 +18,12 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
  */
 AMREX_ENUM(RANSType, None, kEqn);
 
+// Vertical shear in the strain invariant of the k-eqn RANS closure (erf.rans_shear_stencil):
+// central (average of the face strains) or log_law (exact for a logarithmic profile)
+AMREX_ENUM(RANSShearStencil,
+    central, log_law
+);
+
 /**
  * @brief Planetary boundary-layer closure type.
  *
@@ -139,7 +145,7 @@ public:
     // above them, heights and the boundary-layer depth are measured from it,
     // the eddy diffusivities are zero inside the solid, and the surface
     // scales over such a column come from a neutral log law at its top with
-    // the roughness pbl_ib_z0. Only MRF and YSU honour it.
+    // the roughness pbl_ib_z0. Only MRF and YSU honor it.
     query_one_or_per_level(pp, "pbl_ib_aware", pbl_ib_aware, lev, max_level);
     query_one_or_per_level(pp, "pbl_ib_z0",    pbl_ib_z0,    lev, max_level);
 
@@ -477,7 +483,7 @@ public:
     const bool strat_type_set = (pp.countval("thermal_stratification") > 0);
     query_one_or_per_level(pp, "thermal_stratification", strat_type, lev, max_level);
     // The PBL schemes have always used theta_v for their buoyancy gradient,
-    // which is the physically right choice there.  Honour an explicit
+    // which is the physically right choice there.  Honor an explicit
     // erf.thermal_stratification everywhere, but when the user has not set it
     // keep the historical split: theta for the LES closures, theta_v for the
     // PBL ones.  That way the knob reaches the PBL schemes without silently
@@ -551,6 +557,22 @@ public:
         } else {
             amrex::Error("erf.rans_moist_buoyancy needs erf.rans_type = kEqn (it is the k-eqn TKE buoyancy; level "
                          + std::to_string(lev) + ")");
+        }
+    }
+
+    // Log-consistent vertical shear of the k-eqn closure (ERF_LogShear.H). One value for the
+    // hierarchy is meant for its k-eqn levels and is reset on the others, as
+    // erf.rans_moist_buoyancy is; a per-level list must not name a level without the closure.
+    // An unknown name stops the run in the query.
+    query_one_or_per_level_enum_case_insensitive(pp, "rans_shear_stencil", rans_shear_stencil, lev, max_level);
+    if (rans_shear_stencil != RANSShearStencil::central && rans_type != RANSType::kEqn) {
+        if (pp.countval("rans_shear_stencil") == 1) {
+            amrex::Print() << "erf.rans_shear_stencil reset to central on level " << lev
+                           << " (no k-eqn closure there)" << std::endl;
+            rans_shear_stencil = RANSShearStencil::central;
+        } else {
+            amrex::Error("erf.rans_shear_stencil = log_law needs erf.rans_type = kEqn (it is the shear of the k-eqn "
+                         "production; level " + std::to_string(lev) + ")");
         }
     }
 
@@ -742,6 +764,7 @@ public:
         amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
         amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
         amrex::Print() << "rans_realizability          : " << rans_realizability << std::endl;
+        amrex::Print() << "rans_shear_stencil          : " << amrex::getEnumNameString(rans_shear_stencil) << std::endl;
         amrex::Print() << "rans_moist_buoyancy         : " << rans_moist_buoyancy << std::endl;
         amrex::Print() << "dirichlet_k                 : " << dirichlet_k << std::endl;
         amrex::Print() << "tke_floor                   : " << tke_floor << std::endl;
@@ -965,9 +988,14 @@ public:
   // the SST limiter form).
   amrex::Real rans_realizability = zero;
 
+  // k-eqn RANS: vertical gradients of u and v in S_mn S_mn (shear production of k and the S of
+  // the realizability cap): central keeps the average of the face strains, log_law uses the
+  // difference that is exact for a logarithmic profile over the ground (ERF_LogShear.H)
+  RANSShearStencil rans_shear_stencil = RANSShearStencil::central;
+
   // k-eqn RANS: moist TKE buoyancy production (erf.rans_moist_buoyancy),
   //   B = g / theta_v0 [(1 + epsv qv) <w'theta'> + epsv theta <w'qv'>],
-  // water vapour only (no cloud-water flux, no saturated form); false keeps the
+  // water vapor only (no cloud-water flux, no saturated form); false keeps the
   // dry production g / theta_0 <w'theta'>
   bool rans_moist_buoyancy = false;
 
@@ -1087,7 +1115,7 @@ public:
   amrex::Real pbl_mrf_sf      = amrex::Real(0.1); // MRF surface flux, used to compute the PBL height
   // Scale-aware PBL-LES blending parameters.
   // Boutle et al. (2014): https://doi.org/10.1175/MWR-D-13-00229.1
-  // Set pbl_blend_length = 0 to disable (default). Recovers original behaviour.
+  // Set pbl_blend_length = 0 to disable (default). Recovers original behavior.
   amrex::Real pbl_blend_length   = amrex::Real(0.0);   ///< Boutle blending length L [m]. 0 = off.
   amrex::Real pbl_blend_cs       = amrex::Real(0.17);  ///< Smagorinsky coeff for K_h ceiling.
   amrex::Real pbl_blend_c_max    = amrex::Real(0.1);   ///< Power-law ceiling coeff [m^(2/3)/s].

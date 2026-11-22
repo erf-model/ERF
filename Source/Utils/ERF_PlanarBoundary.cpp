@@ -85,7 +85,7 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
     MultiFab& buf = buffer(mf);
     gather_surface(mf, buf, 0, 0, ncomp);
 
-    // A face-centered buffer's boxes share a face with their neighbours, and the gather above
+    // A face-centered buffer's boxes share a face with their neighbors, and the gather above
     // takes each box's face from its own surface copy, so two boxes can hold different values
     // there.  Give every shared face one value before the ParallelCopy -- OverrideSync's
     // precedence is the lowest global box index, so the result does not depend on the

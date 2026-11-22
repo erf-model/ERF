@@ -2,11 +2,11 @@
 #define ERF_MOIST_PERTURBATION_H_
 
 /**
- * Initial temperature and vapour perturbations of a moist column, applied together.
+ * Initial temperature and vapor perturbations of a moist column, applied together.
  *
  * Shared by the BOMEX, GATE and RICO setups (and DYCOMS, which uses the RICO one).
  * rho*theta is held, so the temperature perturbation is stored as a density change;
- * the vapour mixing ratio after the perturbation is qv + dqv, whatever the density.
+ * the vapor mixing ratio after the perturbation is qv + dqv, whatever the density.
  */
 
 #include <AMReX_GpuQualifiers.H>
@@ -17,7 +17,7 @@
 namespace erf_moist_perturbation {
 
 /**
- * Perturbation of rho and rho*qv for a temperature change dT and a vapour change dqv.
+ * Perturbation of rho and rho*qv for a temperature change dT and a vapor change dqv.
  *
  * With perturb_T, the new density gives T = T_old + dT at the pressure of the new state,
  * P(rho*theta, qv + dqv); with dqv = 0 that is the old pressure. Without perturb_T the
@@ -27,7 +27,7 @@ namespace erf_moist_perturbation {
  * @param[in]  rhotheta  rho*theta of the unperturbed state (held)
  * @param[in]  rhoqv     rho*qv of the unperturbed state (0 without moisture)
  * @param[in]  dT        temperature change [K]
- * @param[in]  dqv       vapour mixing ratio change
+ * @param[in]  dqv       vapor mixing ratio change
  * @param[in]  perturb_T whether the temperature is perturbed
  * @param[in]  moist     whether a moisture model is active
  * @param[in]  rdOcp     R_d / c_p

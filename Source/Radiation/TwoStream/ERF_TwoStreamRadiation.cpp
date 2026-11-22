@@ -1302,7 +1302,7 @@ TwoStreamRadiation::advance (int lev,
             const SEBLandMaskView skin_mask = seb_land_mask_view(has_seb_t_sfc ? balance_mask : nullptr, mfi);
 
             // Per-column latitude and longitude for the calendar sun (only
-            // the WRF and metgrid initialisations fill them; otherwise the
+            // the WRF and metgrid initializations fill them; otherwise the
             // erf.rad_cons_lat/lon constants apply).
             const bool has_latlon = (lat_m != nullptr) && (lon_m != nullptr);
             Array4<const amrex::Real> lat_arr, lon_arr;

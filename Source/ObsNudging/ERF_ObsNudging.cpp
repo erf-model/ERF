@@ -23,7 +23,7 @@ namespace obs_nudging {
 
 //
 // Where a nudged quantity lives and what it needs there: the position (x, y, z)
-// of face Dir (0, 1, 2 for u, v, w) or of the cell centre (Dir = -1), the
+// of face Dir (0, 1, 2 for u, v, w) or of the cell center (Dir = -1), the
 // terrain height zg under it and the density on it.  HasZnd selects the
 // terrain-fitted height (from z_phys_nd) over the uniform one.
 //

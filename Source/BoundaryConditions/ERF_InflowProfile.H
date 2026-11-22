@@ -77,7 +77,7 @@ inflow_profile_value (const amrex::Real* z, const amrex::Real* f, const int n, c
 
 /**
  * Mean height above the ground of the nodes [ilo,ihi] x [jlo,jhi] between
- * levels k and k+1 of the terrain-fitted mesh: a cell centre (two nodes in each
+ * levels k and k+1 of the terrain-fitted mesh: a cell center (two nodes in each
  * lateral direction), an x-face (ilo == ihi) or a y-face (jlo == jhi). The
  * ground is the same nodes on level klo. Indices are clamped to the array.
  */

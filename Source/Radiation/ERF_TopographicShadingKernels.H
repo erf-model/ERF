@@ -73,7 +73,7 @@ bool shadowed (int i, int j, const amrex::Array4<const Real>& terrain,
         // Interpolation and ray-height arithmetic can differ by several ulps
         // at the local terrain height, especially with single precision.
         const Real ray_height = z + r*s.z/horizontal;
-        // All heights are metres; use a 1 m scale near sea level.
+        // All heights are meters; use a 1 m scale near sea level.
         const Real height_scale = amrex::max(Real(1),
             amrex::max(std::abs(z), amrex::max(std::abs(h), std::abs(ray_height))));
         const Real height_tol = Real(8)*real_eps*height_scale;

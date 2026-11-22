@@ -23,7 +23,7 @@ namespace erf_actuator {
 void check_same_points_everywhere (int npts, const char* who);
 
 /**
- * Sample the velocity at a set of points from the face-centred velocity fields.
+ * Sample the velocity at a set of points from the face-centered velocity fields.
  *
  * Each component is interpolated trilinearly from its own staggered grid: u from the x faces,
  * v from the y faces, w from the z faces, so a field linear in x, y and z is reproduced
@@ -32,7 +32,7 @@ void check_same_points_everywhere (int npts, const char* who);
  * as the field is linear in the physical height.
  *
  * Every rank interpolates the points whose containing cell lies in one of its valid boxes,
- * reading the neighbours from the ghost cells, and the results are summed across ranks; the
+ * reading the neighbors from the ghost cells, and the results are summed across ranks; the
  * velocity fields must therefore have at least one filled ghost cell, and z_phys_nd one ghost
  * node, on the velocities' boxes and distribution. The ghost cells across the domain's lateral
  * boundaries are read too (a point within half a cell of a non-periodic face takes up to half
@@ -45,7 +45,7 @@ void check_same_points_everywhere (int npts, const char* who);
  * disagree on their number. A model whose ranks hold different points (those of the bodies
  * each owns) calls sample_velocity_local() instead, which has no such check.
  *
- * @param[in] U,V,W face-centred velocities on one level, ghost cells filled (m/s)
+ * @param[in] U,V,W face-centered velocities on one level, ghost cells filled (m/s)
  * @param[in] z_phys_nd nodal physical heights (m), or nullptr on a uniform-dz mesh
  * @param[in] geom the level's geometry
  * @param[in] pos 3*n point coordinates (x0,y0,z0, x1,y1,z1, ...) (m, ERF domain coordinates)
@@ -68,7 +68,7 @@ void sample_velocity (const amrex::MultiFab& U,
  * @param[out] vel 3*n velocities (m/s), zero at the points no box of this rank holds
  * @param[out] cnt n counts: how many of this rank's boxes hold each point (0 or 1)
  * @param buffers device memory kept from call to call (the call uses its own when nullptr); the points
- *        go to the device and the answers come back with asynchronous copies and one synchronisation
+ *        go to the device and the answers come back with asynchronous copies and one synchronization
  */
 void sample_velocity_local (const amrex::MultiFab& U,
                             const amrex::MultiFab& V,
@@ -88,14 +88,14 @@ void sample_velocity_local (const amrex::MultiFab& U,
 std::vector<amrex::Real> wrap_periodic (const std::vector<amrex::Real>& pos, const amrex::Geometry& geom);
 
 /**
- * Sample one component of a cell-centred field at a set of points: bilinear between the four
- * cell centres around the point in the horizontal and linear in the physical height between
- * the two cell centres that bracket it in the column (cell-centre heights from z_phys_nd on a
- * stretched or terrain-following mesh); below the first and above the last cell centre the
+ * Sample one component of a cell-centered field at a set of points: bilinear between the four
+ * cell centers around the point in the horizontal and linear in the physical height between
+ * the two cell centers that bracket it in the column (cell-center heights from z_phys_nd on a
+ * stretched or terrain-following mesh); below the first and above the last cell center the
  * nearest pair extrapolates linearly. Same ownership rules and reduction as sample_velocity();
  * the field needs one filled ghost cell.
  *
- * @param[in] mf the cell-centred field
+ * @param[in] mf the cell-centered field
  * @param[in] comp the component of mf (0-based)
  * @param[in] pos 3*n point coordinates (m, ERF domain coordinates)
  * @param[out] val n sampled values, the same on every rank on return
@@ -120,8 +120,8 @@ void terrain_heights (const amrex::MultiFab* z_phys_nd, const amrex::Geometry& g
                       const std::vector<amrex::Real>& pos, std::vector<amrex::Real>& h);
 
 /**
- * Return whether every point, with the cells within `reach` metres around it, lies inside the
- * union of boxes of a level (the anchor level's grids): the sampler needs the neighbouring cells
+ * Return whether every point, with the cells within `reach` meters around it, lies inside the
+ * union of boxes of a level (the anchor level's grids): the sampler needs the neighboring cells
  * and the spreader the kernel's reach, and on a refined level that is not the whole domain. In a
  * periodic direction the needed cells wrap across the seam to the domain's other side; in a
  * non-periodic one they are clamped to the domain. Returns false and names the first point
@@ -260,7 +260,7 @@ struct ColumnCells {
 
 /**
  * The cells a point's heights within reach may lie in, over the point's own columns: for point p
- * (pos[3p .. 3p+2], reach[p] across and in height, in metres), the lowest and highest cell k such that,
+ * (pos[3p .. 3p+2], reach[p] across and in height, in meters), the lowest and highest cell k such that,
  * in some node column the reach across touches (a periodic x or y wrapping across the seam, as
  * points_covered_by takes it), the cell's spacing [z(k), z(k+1)] overlaps [z - reach, z + reach] (to a
  * relative 1e-5, as ZBounds::k_range), from every rank's boxes of z_phys_nd. Where those heights go below
@@ -291,12 +291,12 @@ bool points_covered_by (const amrex::BoxArray& ba, const amrex::Geometry& geom,
 
 /**
  * A level's boxes as points_covered_by tests them, built once for every test of a check: the boxes
- * cell-centred, and flattened onto the domain's bottom layer (for CoverZ::Footprint).
+ * cell-centered, and flattened onto the domain's bottom layer (for CoverZ::Footprint).
  */
 struct CoverageGrids
 {
     CoverageGrids (const amrex::BoxArray& ba, const amrex::Geometry& geom);
-    amrex::BoxArray cells;        //!< the boxes, cell-centred
+    amrex::BoxArray cells;        //!< the boxes, cell-centered
     amrex::BoxArray footprints;   //!< each box flattened onto the bottom layer (they may overlap)
 };
 
@@ -306,7 +306,7 @@ bool points_covered_by (const CoverageGrids& grids, const amrex::Geometry& geom,
                         CoverZ z = CoverZ::Reach, const ZBounds* zb = nullptr, const ColumnCells* cells = nullptr);
 
 /**
- * Whether a level's boxes may hold a cell of a region (lo and hi in metres, lo <= hi in every
+ * Whether a level's boxes may hold a cell of a region (lo and hi in meters, lo <= hi in every
  * direction, no NaN): the opposite question to points_covered_by, for a caller that must stay clear
  * of a level. x and y use the cells the region's ends fall in (points_covered_by's own); in a
  * periodic direction every image of the region counts, however many periods away, and a region a

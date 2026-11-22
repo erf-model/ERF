@@ -266,6 +266,21 @@ ERF::WriteCheckpointFile () const
            }
        }
 
+       // erf.use_variable_beta_s turned on during the run (ERF::CheckVariableBetaS).  The level
+       // that needed it may no longer exist on restart, so the switch itself is kept
+       if (solverChoice.auto_variable_beta_s && solverChoice.use_variable_beta_s) {
+           std::string BetaSFileName(checkpointname + "/variable_beta_s");
+           std::ofstream BetaSFile;
+           BetaSFile.open(BetaSFileName.c_str(), std::ofstream::out   |
+                                                 std::ofstream::trunc |
+                                                 std::ofstream::binary);
+           if(! BetaSFile.good()) {
+               FileOpenFailed(BetaSFileName);
+           } else {
+               BetaSFile << 1 << "\n";
+           }
+       }
+
        // Persist the state of the exponential time filter used by the surface layer
        // when erf.most.time_average is on.  The plane and EB averaging policies hold
        // that state in the plane averages below; every policy needs the per-level
@@ -276,7 +291,8 @@ ERF::WriteCheckpointFile () const
        int n_faces = 0;
        for (OrientationIter oit; oit; ++oit) {
            Orientation ori = oit();
-           if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+           const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+           if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
                n_faces += 1;
            }
        }
@@ -590,11 +606,12 @@ ERF::WriteCheckpointFile () const
         }
 #endif
 
-        // Count number of surface layer boundaries to determine face prefix
+        // Count SurfaceLayer owners (including EB) to determine the state-file prefix
         int n_faces = 0;
         for (OrientationIter oit; oit; ++oit) {
             Orientation ori = oit();
-            if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+            if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
                 n_faces += 1;
             }
         }
@@ -1597,7 +1614,7 @@ ERF::ReadCheckpointFile ()
             //
             // The grids a fresh start would build.  MakeBaseGrids keeps every box inside the
             // domain when a direction has an odd number of cells (it then does not coarsen
-            // that direction before splitting), and it honours amr.no_box_split_dir.
+            // that direction before splitting), and it honors amr.no_box_split_dir.
             //
             BoxArray new_ba = MakeBaseGrids();
 
@@ -2076,7 +2093,7 @@ ERF::ReadCheckpointFile ()
         // The min dz the microphysics sizes its sedimentation substeps with, for
         // every mesh type as init_zphys does on a fresh start. Set only on fitted
         // meshes before, so a restart on a constant-dz mesh left Kessler's (and
-        // SAM's, Morrison's) dzmin uninitialised and the substep count unbounded:
+        // SAM's, Morrison's) dzmin uninitialized and the substep count unbounded:
         // the first restarted step of a raining run never finished.
         {
             Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
@@ -2477,6 +2494,14 @@ ERF::ReadCheckpointFile ()
                                            ng_sfc, period, refRatio());
     }
 
+    // erf.use_variable_beta_s, if it was turned on during the run that wrote the checkpoint and
+    // the inputs still leave it unset
+    if (solverChoice.auto_variable_beta_s && !solverChoice.use_variable_beta_s &&
+        amrex::FileExists(restart_chkfile + "/variable_beta_s")) {
+        solverChoice.use_variable_beta_s = true;
+        Print() << "Restored erf.use_variable_beta_s = true from the checkpoint" << std::endl;
+    }
+
     // Restore the LSM scalar step counter (e.g. NoahMP itimestep) so the
     // substepping schedule survives restart. lsm.Init() during
     // MakeNewLevelFromScratch has already reset itimestep to 0 (NoahmpIOVarInit);
@@ -2740,11 +2765,12 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
 void
 ERF::ReadCheckpointFileSurfaceLayer ()
 {
-    // Count number of surface layer boundaries to determine face prefix
+    // Count SurfaceLayer owners (including EB) to determine the state-file prefix
     int n_faces = 0;
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
-        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+        const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+        if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
             n_faces += 1;
         }
     }
@@ -2855,6 +2881,23 @@ ERF::ReadCheckpointFileSurfaceLayer ()
 
                 // Z0
                 read_most_var("Z0" + face, m_SurfaceLayer[ori]->get_z0(lev));
+                if (solverChoice.terrain_type == TerrainType::EB) {
+                    // Periodic copies of checkpoint ghosts can disagree at the
+                    // physical z boundaries, where no valid source overwrites
+                    // them. EB roughness is a horizontal map: restore its
+                    // vertical ghosts from the now-restored interior columns.
+                    MultiFab& z0 = *m_SurfaceLayer[ori]->get_z0(lev);
+                    for (MFIter mfi(z0); mfi.isValid(); ++mfi) {
+                        const int klo = mfi.validbox().smallEnd(2);
+                        const int khi = mfi.validbox().bigEnd(2);
+                        const auto a = z0.array(mfi);
+                        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                            if (k < klo || k > khi) {
+                                a(i,j,k) = a(i,j,amrex::Clamp(k,klo,khi));
+                            }
+                        });
+                    }
+                }
 
                 // Older checkpoints can contain initialization sentinels in
                 // immersed columns, which skip the usual MOST/LSM updates.

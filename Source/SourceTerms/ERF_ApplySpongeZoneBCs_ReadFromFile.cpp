@@ -70,7 +70,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
     if(use_zhi_sponge_damping)AMREX_ALWAYS_ASSERT(zhi_sponge_start < ProbHiArr[2]);
 
     // Ramp lengths, computed here so that the kernels divide only by a valid length: the
-    // optimiser evaluates the guarded ramps of the sides that are switched off too, and the
+    // optimizer evaluates the guarded ramps of the sides that are switched off too, and the
     // lengths of those sides (whose ends are never read from the inputs) can be zero
     const Real L_xlo = use_xlo_sponge_damping ? (xlo_sponge_end - ProbLoArr[0]) : one;
     const Real L_xhi = use_xhi_sponge_damping ? (ProbHiArr[0] - xhi_sponge_start) : one;

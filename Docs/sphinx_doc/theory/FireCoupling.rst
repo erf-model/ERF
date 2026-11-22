@@ -284,7 +284,7 @@ fire grid's level and distributed vertically with an exponential profile,
 where :math:`z` is height above the first cell center of the column (the
 profile's datum, half a cell above the terrain, so the lowest cell takes the
 share :math:`1 - e^{-\Delta z_1/\alpha_g}` of the flux, with
-:math:`\Delta z_1` the distance from the first cell centre to the second, and
+:math:`\Delta z_1` the distance from the first cell center to the second, and
 nothing is lost below it) and
 :math:`\alpha_g` = :cpp:`erf.fire.heat_flux_alfg` (default 45 m) is the
 e-folding depth: 37% of the flux remains at 45 m and less than 1% at 225 m.

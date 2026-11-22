@@ -718,7 +718,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
         constexpr double cl = static_cast<double>(Cp_l);
         constexpr double cpv = static_cast<double>(Cp_v);
         const double ccn0 = static_cast<double>(m_ccn0);
-        // Honour wdm6.hail_opt on this leg too. m_hail_opt is resolved in Init
+        // Honor wdm6.hail_opt on this leg too. m_hail_opt is resolved in Init
         // from the same input the native coefficients branch on, so the two
         // legs cannot disagree about the regime. The bool maps back to {0,1}
         // losslessly with respect to the Fortran, whose only test is
@@ -2216,7 +2216,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 } else {
                     // Same expression as G3; share the one exact port. The
                     // previous wdm6_lamdac() here differed from the Fortran on
-                    // three counts: it cancelled den out of the argument, it
+                    // three counts: it canceled den out of the argument, it
                     // used std::pow with a true 1/3 rather than exp/log with the
                     // unsuffixed .33333333, and it carried a qc/nc guard of its
                     // own that fired inside this block's own gate.
@@ -2510,7 +2510,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 // qc == 0 and qs == 0 case cannot be reached by any consumer --
                 // every use is gated on qs > qcrmin, qg > qcrmin or qc > qmin --
                 // and 0.0 is returned there only for definiteness. The divisor
-                // is never zero either: an optimised build may divide before it
+                // is never zero either: an optimized build may divide before it
                 // tests qc, and with qs = qc = 0 the 0/0 trips
                 // amrex.fpe_trap_invalid although the result is not used. For
                 // qc >= the smallest normal number the divisor is qc itself.
@@ -3417,7 +3417,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
         // leg advanced it, and Copy_Micro_to_State then formed
         // RhoTheta = rho * theta from the stale field, dropping microphysical
         // latent heating from the thermodynamic state. Confirmed by comparing
-        // theta before and after the bridge call: native PRE theta equalled
+        // theta before and after the bridge call: native PRE theta equaled
         // POST theta at 100/100 levels, and the resulting
         // divergence 6.625510053 at k=90 matched the step-1 theta error exactly.
         {

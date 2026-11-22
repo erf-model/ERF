@@ -23,7 +23,7 @@
 namespace erf_structure {
 
 /**
- * @brief Restrict face-centred momentum sources from level L down to level lev < L
+ * @brief Restrict face-centered momentum sources from level L down to level lev < L
  *
  * src holds the source [N/m^3] on the faces of grids[L] (x, y, z faces; it may have ghost
  * faces). On return it holds the source on the faces of grids[lev], without ghost faces,

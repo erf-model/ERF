@@ -155,7 +155,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
             const Real coeff = ScalarDiffusionFaceCoefficient<
                 MultiplyMolecularByDensity, AddTurbulence>(
                 rho, rho_comp, mu, vertical, i, j, k, 0, 0, 1, vertical.eddy_v_comp);
-            // The host S stencil spans the two cell centres of an interior face.
+            // The host S stencil spans the two cell centers of an interior face.
             const Real inv_spacing = stretched ? Real(2.0) / (dz[k] + dz[k - 1])
                                                : dx_inv[2];
             tz(i, j, k, 0) = ScalarDiffusionMappedVerticalTransfer(

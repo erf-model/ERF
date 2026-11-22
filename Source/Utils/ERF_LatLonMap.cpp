@@ -16,7 +16,7 @@ using namespace amrex;
 
 namespace {
 
-// The centred-difference stencil around (i,j), collapsed to one side at the
+// The centered-difference stencil around (i,j), collapsed to one side at the
 // edge of the domain
 struct GradientStencil
 {
@@ -69,11 +69,11 @@ grid_rotation_from_latlon (const Array4<const Real>& ll, const Box& dom, int i, 
 
 //
 // The grid rotation at every mass point of a level, from that level's lat/lon.
-// The centred difference reads one neighbour in i on each side, so lat/lon are
+// The centered difference reads one neighbor in i on each side, so lat/lon are
 // first copied into a scratch with one ghost cell in x and y; at the edge of the
 // domain the difference collapses to one side, as in grid_rotation_from_latlon.
-// The neighbours come from the ghost cells of lat/lon as well as their valid
-// cells: on a refined level the boxes need not cover the domain, and a neighbour
+// The neighbors come from the ghost cells of lat/lon as well as their valid
+// cells: on a refined level the boxes need not cover the domain, and a neighbor
 // across the edge of a patch, inside the domain, is held only in a ghost cell
 // (filled from the coarser level when the level is made or regridded, and read
 // back from the checkpoint on a restart).

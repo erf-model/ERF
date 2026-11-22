@@ -13,17 +13,17 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
-/*! \brief Field indices for liquid-vapour interpolation */
+/*! \brief Field indices for liquid-vapor interpolation */
 AMREX_ENUM(InterpFieldsLV, e_sat, sat_ratio, temperature, pressure, NUM_FIELDS);
 
 /*! \brief Field indices for solid-liquid interpolation */
 AMREX_ENUM(InterpFieldsSL, temperature, sat_ratio, moist_density, NUM_FIELDS);
 
-/*! \brief Field indices for solid-vapour interpolation */
+/*! \brief Field indices for solid-vapor interpolation */
 AMREX_ENUM(InterpFieldsSV, e_sat, e_sat_ratio_wi, sat_ratio, density, temperature, pressure, moist_density, NUM_FIELDS);
 
 /*! Compute mass change of particles due to evaporation and condensation
- *  (liquid <--> vapour) */
+ *  (liquid <--> vapor) */
 void SuperDropletPC::MassChange_LV (  int                                         a_lev,
                                       double                                      a_dt,
                                       const Species::Name&                        a_vap_name,
@@ -42,7 +42,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
 
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
-    // Find vapour species index
+    // Find vapor species index
     int idx_vap = -1;
     Real mat_density = -1;
     for (int i = 0; i < m_num_species; i++) {
@@ -124,7 +124,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
             if (ptrs.active_ptr[i] == 0) { return; }
 
             // skip particles with an ice core (pure ice or mixed); the melt step owns
-            // wet-ice/vapour exchange
+            // wet-ice/vapor exchange
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (a_is_water && (par_phase != SDPhase::water)) { return; }
 
@@ -275,7 +275,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
     const MaterialProperties water_mat(*(m_species_mat[m_idx_w]));
     const MaterialPropertiesCore& water_core = water_mat;
     const ParticleReal melt_L_f = static_cast<ParticleReal>(water_core.m_lat_fus);
-    const ParticleReal melt_D   = static_cast<ParticleReal>(diffelq); // vapour diffusivity (water)
+    const ParticleReal melt_D   = static_cast<ParticleReal>(diffelq); // vapor diffusivity (water)
     const ParticleReal e_sat_w_T0 = static_cast<ParticleReal>(erf_esatw(static_cast<Real>(tmelt))*Real(100));
     SDMassChangeUtils_SV::dMdt<ParticleReal> dmelt{ static_cast<ParticleReal>(water_core.m_lat_vap),
                                                     static_cast<ParticleReal>(therco),
@@ -398,7 +398,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
 }
 
 /*! Compute mass change of particles due to deposition and sublimation
- *  (solid <--> vapour) */
+ *  (solid <--> vapor) */
 void SuperDropletPC::MassChange_SV (  int                                      a_lev,
                                       double                                   a_dt,
                                       const MultiFab&                          a_density,
@@ -457,7 +457,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
 
             if (ERF::Interpolation::stencilOutOfBoundsZ(p, ctx.plo, ctx.dxi, zheight)) { return; }
 
-            // Interpolate fields for solid-vapour mass change
+            // Interpolate fields for solid-vapor mass change
             constexpr int nf = static_cast<int>(InterpFieldsSV::NUM_FIELDS);
             ParticleReal fv[nf];
             const Array4<const Real> fa[nf] = {
@@ -500,7 +500,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             // d = 2a characteristic length -> 0) and settle out unphysically; as a
             // water/aerosol particle its effective radius is set by the aerosol
             // mass, so it advects with the flow and can re-condense or re-freeze
-            // when it reaches favourable conditions. Mirrors the full-melt path.
+            // when it reaches favorable conditions. Mirrors the full-melt path.
             const auto ice_mass_min = amrex::ParticleReal(3.8403e-24); // ~1 nm ice sphere
             if (mass_new <= ice_mass_min) {
                 ptrs.sp_mass_ptrs[ctx.idx_ice][i] = zero;

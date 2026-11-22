@@ -160,7 +160,9 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     bool updated_prim = false;
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
-        if (phys_bc_type[ori] == ERF_BC::surface_layer && m_SurfaceLayer[ori]) {
+        const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+        if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
+            AMREX_ALWAYS_ASSERT(m_SurfaceLayer[ori]);
             if (!updated_prim) {
                 // This only needs to be done once
                 IntVect ng = Theta_prim[lev]->nGrowVect();
@@ -485,8 +487,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
             state_old[IntVars::zmom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::zmom].FillBoundary(geom[lev].periodicity());
-            FPr_w[lev].RegisterCoarseData({&state_old[IntVars::zmom], &state_new[IntVars::zmom]},
-                                          {time, time+dt_lev});
+            RegisterCoarseZMomentumCF(lev, state_old[IntVars::zmom], state_new[IntVars::zmom],
+                                      {time, time+dt_lev});
         }
 
             //

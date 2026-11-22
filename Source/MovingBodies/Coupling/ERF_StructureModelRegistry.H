@@ -20,7 +20,7 @@
  * model's directory (STRUCTURE_HOME in GNU make, ERF_STRUCTURE_MODEL_DIRS in
  * CMake) adds that .cpp to the build, so adding a model changes no file of ERF.
  *
- * The registration runs during static initialisation, so the .cpp that holds it
+ * The registration runs during static initialization, so the .cpp that holds it
  * must be linked as an object file (ERF's CMake build compiles model directories
  * into its OBJECT library, and GNU make links every object). This is the scheme of
  * the fire engines (ERF_FireEngineRegistry.H).

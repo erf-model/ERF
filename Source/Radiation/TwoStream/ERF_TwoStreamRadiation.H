@@ -216,7 +216,7 @@ public:
      * of the current q_s); with erf.radiation.seb_soil_type, the bare-soil resistance and
      * the relative humidity of its pore air at the skin temperature; and
      * with erf.radiation.seb_vegetation_type as well, the vegetated fraction and the canopy
-     * resistance without its vapour-deficit factor (from the net shortwave the balance
+     * resistance without its vapor-deficit factor (from the net shortwave the balance
      * holds divided by (1 - surface albedo) -- the sweep's with seb_use_radiation_fluxes,
      * seb_sw_flux_default otherwise -- and the skin temperature). Absent pieces are a
      * fraction of 0 and resistances of 1e6 s/m. nullptr
@@ -374,7 +374,7 @@ public:
      * Call after define_level(); a later define_level() of the level drops it.
      *
      * @param lev      level, which must have been defined
-     * @param blanking the level's cell-centred blanking (ERF::terrain_blanking), on the
+     * @param blanking the level's cell-centered blanking (ERF::terrain_blanking), on the
      *                 state's grids: 0 in the air, 1 inside a building
      * @param domain   the level's domain Box; its bottom cell is the ground's
      * @param take_ground_walls also take, at the update after the dycore, what the walls
@@ -527,7 +527,7 @@ private:
         // False until a column sweep has filled this level's entry. The post-dycore call
         // reports the cached values rather than sweeping again, and a level whose
         // pre-dycore sweep was skipped -- the interp-from-coarse-pending path, which
-        // returns before the sweep -- would otherwise report the zero-initialised struct
+        // returns before the sweep -- would otherwise report the zero-initialized struct
         // as though the fluxes really were zero.
         bool valid = false;
         amrex::Real SW_surface = 0.0;

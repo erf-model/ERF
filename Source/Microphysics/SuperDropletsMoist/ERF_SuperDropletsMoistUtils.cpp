@@ -286,7 +286,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars,
 
     // compute saturation ratio for water
     {
-        // Get vapour material properties object for water
+        // Get vapor material properties object for water
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(Species::Name::H2O);
 
         // Compute saturation ratio

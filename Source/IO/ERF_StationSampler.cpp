@@ -444,7 +444,7 @@ void
 StationSampler::writeHeader (const Station& station, std::ostream& os) const
 {
     // Coordinates are written with enough digits that a reader can tell two
-    // neighbouring stations apart
+    // neighboring stations apart
     os << std::setprecision(datprecision);
     os << "# ERF station time series\n";
     // The one line a restart compares.  Everything below it is for the reader.
@@ -723,7 +723,7 @@ ERF::init_stations ()
     // The set of 2D diagnostics this configuration can actually fill, selected
     // exactly as Write2DPlotFile selects them.
     const bool has_surface_layer =
-        phys_bc_type[Orientation(Direction::z, Orientation::low)] == ERF_BC::surface_layer;
+        (phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) || use_eb_surface_layer();
     const auto active_lsm_names = lsm.Get_DataNames();
     const auto available_2d = plotfile2d::available_diagnostic_names(solverChoice,
                                                                     has_surface_layer,
@@ -881,11 +881,11 @@ ERF::init_stations ()
 //
 // The terrain elevation at a station: bilinear in the elevations of the nodes
 // of the bottom of the mesh (or of the immersed terrain surface) around it.
-// The nodes gathered for a station are those of its cell-centred stencil,
+// The nodes gathered for a station are those of its cell-centered stencil,
 // i0..i1+1 by j0..j1+1, which always contain the cell of nodes around (x, y).
 //
 // This is the elevation of the ground at the station itself.  Interpolating
-// the cell averages of the elevation between cell centres instead flattens a
+// the cell averages of the elevation between cell centers instead flattens a
 // curved hill, and put a mast on the flank of a 100 m hill 3.4 m too low at
 // 50 m resolution.
 //
@@ -1119,7 +1119,7 @@ ERF::resolve_station_stencils ()
         }
     }
 
-    // ---- the cell centre heights of the candidate columns, on the IO rank ----
+    // ---- the cell center heights of the candidate columns, on the IO rank ----
     //
     // Which cells the vertical interpolation reads depends on the terrain under
     // the station, so choosing the level needs the heights themselves.  They are
@@ -1270,7 +1270,7 @@ ERF::resolve_station_stencils ()
                     first_cc[ip] = z_of_k(klo) - z_zero;
 
                     // Nothing in the model lives between the terrain and the first
-                    // cell centre, so a height there is the first cell centre's
+                    // cell center, so a height there is the first cell center's
                     // value.  That is a trap for exactly the heights an observation
                     // comparison asks for, so say so, once.
                     if (below_first_cell && !station_sampler->lowHeightWarned()) {
@@ -1516,7 +1516,7 @@ ERF::sample_stations (Real time)
                          +            wy  * ( (Real(1.0)-wx)*a(i0,j1,k,comp) + wx*a(i1,j1,k,comp) );
                 };
 
-                // Height of the cell centres in the station's column
+                // Height of the cell centers in the station's column
                 Array4<const Real> zc_arr;
                 if (z_phys_cc[lev]) { zc_arr = stzc[lev].const_array(ib); }
                 auto z_of_k = [&](int k)
@@ -1568,7 +1568,7 @@ ERF::sample_stations (Real time)
                     const Real zk1 = z_of_k(std::min(kk+1, loc.ktop));
                     Real wz = (zk1 > zk) ? (z_target - zk) / (zk1 - zk) : Real(0.0);
                     wz = std::min(std::max(wz, Real(0.0)), Real(1.0));   // clamp below the first
-                    const int k1 = std::min(kk+1, loc.ktop);             // cell centre and above the top
+                    const int k1 = std::min(kk+1, loc.ktop);             // cell center and above the top
 
                     auto at_height = [&](int comp)
                     {

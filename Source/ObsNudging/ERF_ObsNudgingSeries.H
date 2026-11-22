@@ -21,7 +21,7 @@
 //     time z u v w theta su sv sw stheta
 //
 // time and z are required; the wind is given either as u v (east and north, or
-// grid x and y, see wind_frame) or as speed direction (metres per second, and
+// grid x and y, see wind_frame) or as speed direction (meters per second, and
 // the meteorological direction the wind blows from, in degrees clockwise from
 // north).  w, theta and the standard deviations su sv sw stheta are optional,
 // and a component with no column is not nudged at this station.  Each row that
