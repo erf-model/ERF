@@ -7307,6 +7307,13 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_LShaped_VaryingMapFactor inputs_flat 30
       RUNTIME_OPTIONS "${_flat_l} erf.test_mapfactor_amp=0.2"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # A refined level one cell wide in the periodic y direction (ratio 1 in y).  The y-faces at
+  # j = 0 and j = 1 are periodic images of each other; the coarse/fine mask used to take j = 1
+  # for a coarse/fine face and fill it from the coarse level, and the y-fluxes no longer
+  # canceled (issue 5336).  One-way: measured 6.3e-12; 6.8e-4 before.
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_OneCellWide inputs_flat 30
+      RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 1 2' 'amr.n_cell=32 1 12' amr.blocking_factor=1 'geometry.prob_lo=-1280. -40. 0.' 'geometry.prob_hi=1280. 40. 791.6' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 0 2' 'erf.box1.in_box_hi_indices_crse=19 0 8' erf.coupling_type=OneWay erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   # The other anelastic integrator (the default is RK2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
       RUNTIME_OPTIONS "erf.timestepping_type=MidPoint"
