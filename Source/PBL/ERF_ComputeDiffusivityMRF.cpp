@@ -9,6 +9,7 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
 #include "ERF_PBLScaleAwareBlending.H"
+#include "ERF_LengthScaleCellSize.H"
 #include "ERF_PBLRibCrossing.H"
 
 using namespace amrex;
@@ -1058,8 +1059,9 @@ Real fire_kbfs_max      = Real(0);
         const amrex::Real scalar_Sc_t = turbChoice.pbl_mrf_Sc_t;
         const amrex::Real Pr_t_in     = turbChoice.Pr_t;
         //const bool        l_use_smag_ceil= turbChoice.pbl_blend_use_smag;
-        // dx: use horizontal spacing at this level (assume dx = dy for regular grids).
-        const amrex::Real l_dx = geom.CellSize(0);
+        // dx: use horizontal spacing at this level (assume dx = dy for regular grids); dy on a
+        // domain with one cell in x, where dx is arbitrary
+        const amrex::Real l_dx = LengthScaleCellSize(geom)[0];
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {

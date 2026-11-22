@@ -12,6 +12,7 @@
 
 #include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_LengthScaleCellSize.H"
 #include "ERF_AdvStruct.H"
 #include "ERF_DampingStruct.H"
 #include "ERF_DiffStruct.H"
@@ -3158,11 +3159,13 @@ struct SolverChoice {
     std::string mean_vars_reset_mode = "plotfile";
     amrex::Real mean_vars_reset_time = -one;
 
-    // Building forcing and its landmask use the same horizontal resolution cutoff.
+    // Building forcing and its landmask use the same horizontal resolution cutoff, with dx in
+    // place of a dy over one cell, and the reverse.
     [[nodiscard]] bool use_building_immersed_forcing (const amrex::Geometry& geom) const noexcept
     {
+        const auto len = LengthScaleCellSize(geom);
         return buildings_type == BuildingsType::ImmersedForcing &&
-               std::sqrt(geom.CellSize(0) * geom.CellSize(1)) <=
+               std::sqrt(len[0] * len[1]) <=
                    amrex::Real(50.0) * (one + amrex::Real(1.e-6));
     }
 

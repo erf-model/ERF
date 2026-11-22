@@ -22,6 +22,7 @@
 #include "ERF.H"
 #include "ERF_ImmersedWallCell.H"
 #include "ERF_ImmersedBuildingMasks.H"
+#include "ERF_LengthScaleCellSize.H"
 
 #ifdef ERF_USE_FFT
 #include "ERF_ImmersedPoisson.H"
@@ -65,7 +66,9 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     // The drag rate of a solid face in the source terms, without their windspeed cap
     // (CdM * windspeed = min(1, |u|) * drag_coefficient there)
     const auto dx = geom[lev].CellSizeArray();
-    const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(dx[0]*dx[1]*dx[2], one/three);
+    // with dx in place of a dy over one cell, and the reverse, as the source terms
+    const auto len = LengthScaleCellSize(geom[lev]);
+    const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(len[0]*len[1]*len[2], one/three);
     const Real small_volfrac = solverChoice.if_small_volfrac;
     const bool use_most      = solverChoice.if_use_most;
     // the fraction-stress law (erf.if_wall_form = fraction_stress) has its own wall cell
