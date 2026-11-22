@@ -1595,9 +1595,10 @@ ERF::InitData_post ()
     DiffChoice dc = solverChoice.diffChoice;
     if (dc.molec_diff_type == MolecDiffType::Constant ||
         dc.molec_diff_type == MolecDiffType::ConstantAlpha) {
-        Real delta = std::min({geom[finest_level].CellSize(0),
-                               geom[finest_level].CellSize(1),
-                               dz_min[finest_level]});
+        // A lateral direction with one cell on the level 0 domain carries no diffusion
+        Real delta = dz_min[finest_level];
+        if (geom[0].Domain().length(0) > 1) { delta = std::min(delta, geom[finest_level].CellSize(0)); }
+        if (geom[0].Domain().length(1) > 1) { delta = std::min(delta, geom[finest_level].CellSize(1)); }
         if (dc.dynamic_viscosity == 0) {
             Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
         } else {
@@ -4234,6 +4235,7 @@ ERF::ReadParameters ()
         pp.queryAdd("cf_width", cf_width);
         pp.queryAdd("cf_set_width", cf_set_width);
         pp.queryAdd("perturbational_interpolation", perturbational_interp);
+        pp.queryAdd("perturbational_average_down", perturbational_avgdown);
 
         // AmrMesh iterate on grids?
         bool iterate(true);

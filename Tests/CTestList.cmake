@@ -7065,6 +7065,25 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_TwoWay inputs_hill 30
       RUNTIME_OPTIONS "${_hill_amr} ${_hill_part}"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # Map factors that vary in space on a flat mesh with a refined level: through all of z and
+  # stopping inside the domain in z (refined 2 x 2 x 2), on ConstantDz and StretchedDz, one-way
+  # and two-way.  The coarse/fine faces take the coarse mass flux with the map factors in all
+  # three directions (cf_flat_mapfac), and the average-down divides by the sum of the fine
+  # volumes (fine_volume_average).  Measured 1.3e-11 at most; with the coarse/fine faces filled
+  # from the coarse momenta instead, 8e-5 to 6e-4.
+  set(_flat_amr "amr.max_level=1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12 erf.test_mapfactor_amp=0.2")
+  set(_flat_full "'amr.ref_ratio_vect=2 2 1' 'erf.box1.in_box_lo_indices_crse=8 12 0' 'erf.box1.in_box_hi_indices_crse=19 23 11'")
+  set(_flat_part "'amr.ref_ratio_vect=2 2 2' 'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8'")
+  set(_flat_sdz "erf.initial_dz=20.0 erf.grid_stretching_ratio=1.2")
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_TwoLevels_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_amr} ${_flat_full} erf.coupling_type=OneWay"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_amr} ${_flat_part}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_amr} ${_flat_part} ${_flat_sdz}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   # The other anelastic integrator (the default is RK2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
       RUNTIME_OPTIONS "erf.timestepping_type=MidPoint"
@@ -7119,6 +7138,19 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_TwoWay inputs_hill 30
       RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_full}"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # Map factors that vary in space, two-way, over terrain and on the flat meshes (see the anelastic
+  # cases above).  A pseudo-incompressible level evolves rho with the fluxes of rho S, so the
+  # scalar stays uniform whatever the divergence: the density is checked too (it drifted 1.8e-4
+  # on the flat meshes when the average-down divided by N times the coarse volume)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_TwoWay_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_full} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Flat_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_amr} ${_flat_part}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_amr} ${_flat_part} ${_flat_sdz}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Inertial_RK2 inputs_inertial 40
       RUNTIME_OPTIONS "${_pi} erf.timestepping_type=RK2 prob.T_0=300"
       CHECK check_inertial_drift.py PLOTFILES)

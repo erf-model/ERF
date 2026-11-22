@@ -489,9 +489,12 @@ public:
     void set_cf_zface_omega (int lev, amrex::MultiFab& omega, const amrex::MultiFab& omega_t,
                              const amrex::Vector<int>& slab_box);
     bool cf_interp_mass_flux (int lev) const;
+    bool cf_flat_mapfac (int lev) const;
     void RegisterCoarseMomentumCF (int levc, const amrex::MultiFab& xold, const amrex::MultiFab& xnew,
                                    const amrex::MultiFab& yold, const amrex::MultiFab& ynew,
                                    const amrex::Vector<double>& times);
+    void RegisterCoarseZMomentumCF (int levc, const amrex::MultiFab& wold, const amrex::MultiFab& wnew,
+                                    const amrex::Vector<double>& times);
     // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp)
     bool cf_anelastic_flux_match (int lev) const;
     void cf_anelastic_record (int levc, int nrk);
@@ -505,6 +508,7 @@ public:
     // ... and its vertical flux, as Omega
     amrex::Vector<amrex::MultiFab> m_cf_step_zflux;
     void FillSetHorizontalMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom);
+    void FillSetZMomentumCF (int lev, double time, amrex::MultiFab& zmom);
     // Give the face fills of level lev the log-law share of the wall coarse face's flux
     // (erf.cf_loglaw_fill) for the set fills that follow, or clear it (on = false)
     void set_cf_fill_options (int lev, bool on);
@@ -1262,6 +1266,12 @@ public:
     /*! \brief Set detJ_cc of level crse_lev under level crse_lev+1 so that each covered coarse
      *  cell's volume detJ/(m_x m_y) is the mean of the fine volumes over it. */
     void average_down_detJ (int crse_lev);
+    bool fine_volume_average (int crse_lev) const;
+
+    /*! \brief Average-down of the cell-centered state used by AverageDownTo when
+     *  erf.perturbational_average_down is set: averages the perturbation from the base state in
+     *  Rho_comp, RhoTheta_comp and RhoQ1_comp and adds back the coarse base state. */
+    void AverageDownConsPerturbational (int crse_lev, int scomp, int ncomp);
 
     // Write checkpoint file to disk
     void WriteCheckpointFile () const;
@@ -1882,6 +1892,12 @@ private:
     //    rho - rho0, rho theta - rho0 theta0 and rho qv - rho0 qv0 and adding back the fine base
     //    state.  On by default; false interpolates rho, rho theta and rho qv themselves.
     bool perturbational_interp{true};
+
+    // erf.perturbational_average_down: average down rho - rho0, rho theta - rho0 theta0 and (with
+    //    moisture) rho qv - rho0 qv0 and add back the coarse base state, so that a fine level in
+    //    its base state averages to the coarse base state whatever the two levels' heights.
+    //    Off by default.
+    bool perturbational_avgdown{false};
     amrex::Vector<ERFFillPatcher> FPr_c;
     amrex::Vector<ERFFillPatcher> FPr_u;
     amrex::Vector<ERFFillPatcher> FPr_v;

@@ -487,8 +487,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
             state_old[IntVars::zmom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::zmom].FillBoundary(geom[lev].periodicity());
-            FPr_w[lev].RegisterCoarseData({&state_old[IntVars::zmom], &state_new[IntVars::zmom]},
-                                          {time, time+dt_lev});
+            RegisterCoarseZMomentumCF(lev, state_old[IntVars::zmom], state_new[IntVars::zmom],
+                                      {time, time+dt_lev});
         }
 
             //
